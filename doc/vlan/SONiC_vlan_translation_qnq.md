@@ -225,8 +225,6 @@ _Note:_
 
 #### 1.3.1.3 MAC learning
 * MAC learning is done on S-VLAN. In case VxLAN, these MACs are advertised to remote VTEPs. Similarly, remote MAC learnt over VXLAN network are programmed on the S-VLAN Bridge domain.
-* In case of Q-in-Q, there should be no overlapping MAC addresses in all of the customer VLANs that are mapped to a S-VLAN.
-* For the point-to-point use cases, where the traffic ingresses from one port and egress on to a different within the same PE, mac learning can be disabled.
 
 ### 1.3.2 Container
 No new container will be introduced. swss, redisDB and mgmt-framework will be enhanced to support the feature.
@@ -240,21 +238,12 @@ The following are the new SAI Attribute to support VLAN Stacking and Translation
 | ------------- | ---------------------------------------------- | ------------------------------- |
 | VLAN Stacking | SAI_VLAN_STACK_ATTR_STAGE                      | At which packet flow direction the action should take effect. Ingress or Egress    |
 |               | SAI_VLAN_STACK_ATTR_ACTION                     | Include SWAP, PUSH and POP operation    |
-|               | SAI_VLAN_STACK_ATTR_VLAN_APPLIED_PRI           | Rule priority from low to high can assign this from 0 to 7. If a packet can match multiple vlan stacking rule, only the highest priority rule will take effect.   |
-|               | SAI_VLAN_STACK_ATTR_ORIGINAL_VLAN_ID      | Has "outer" and "inner" attribute. Used to match the processing packet dot1q header. The vlan stacking rule only take effect if the dot1q header VLAN_ID match this setting. At least one attribute should be set.   |
+|               | SAI_VLAN_STACK_ATTR_VLAN_APPLIED_PRI           | The "priority" of the new VLAN tag. Default value is 0xFF which will inherit the original vlan tag priority.   |
+|               | SAI_VLAN_STACK_ATTR_ORIGINAL_VLAN_ID_INNER     | Used to match the processing packet inner dot1q header.    |
+|               | SAI_VLAN_STACK_ATTR_ORIGINAL_VLAN_ID_OUTER     | Used to match the processing packet outer dot1q header. At least one of SAI_VLAN_STACK_ATTR_ORIGINAL_VLAN_ID_INNER and SAI_VLAN_STACK_ATTR_ORIGINAL_VLAN_ID_OUTER attribute should be set. The vlan stacking rule only take effect if packets' dot1q header VLAN_ID match this combination.   |
 |               | SAI_VLAN_STACK_ATTR_PORT                       | Target port ID at which the vlan stacking will take effect   |
-|               | SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID            | New vlan ID for the vlan stacking. Has "outer" and "inner" attribute. User can specify where the vlan stacking rule should take effect over the packet. If the ACTION is POP, this attribute will not take effect   |
-
-### New Data type
-
-The new data type will be used by vlan stacking rule to match the VID of the packet by the attribute, SAI_VLAN_STACK_ATTR_ORIGINAL_VLAN_ID.
-* If `outer` is set to 10 and `inner` is set 0, packet needs to be matched with outer VID 10.
-* If `outer` is set to 10 and `inner` is set 20, packet is double tagged and needs to be matched with outer VID 10, inner VID 20.
-
-The data type will also be used to provide the new dot1q header setting after the vlan stacking rule by the attribute, SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID.
-If the action is PUSH, the value of the "outer" will be used to create an outer dot1q header on the packet.
-If the action is SWAP, the original dot1q header will be replaced with "outer", "inner" or both. Depends on the attribute setting.
-
+|               | SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID_INNER      | New inner vlan ID for the vlan stacking. If the ACTION is POP, this attribute will not take effect.    |
+|               | SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID_OUTER      | New outer vlan ID for the vlan stacking. If the ACTION is POP, this attribute will not take effect. Else, one of SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID_INNER and SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID_OUTER attribute should be set    |
 
 ```
 /**
@@ -855,7 +844,7 @@ curl -X DELETE "https://100.94.114.20/restconf/data/openconfig-interfaces:interf
 TBD
 
 ## 3.7 Warm Boot Support
-Warm boot will be supported for Q-in-Q and Vlan translation configuration on Ethernet and PortChannel Interfaces.
+Warm boot will not be supported for Q-in-Q and Vlan translation configuration.
 
 ## 3.8 Upgrade and Downgrade Considerations
 `Upgrade` from previous SONiC releases (which donot support Q-in-Q and Translation mapping rules) to the release 4.1 will be supported. The feature will introduced via additional configuration on the interfaces which are already SVLAN Members and also as a fresh configuration on the interfaces which are going to be made as VLAN members.
