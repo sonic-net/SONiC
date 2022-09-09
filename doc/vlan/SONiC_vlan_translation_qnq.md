@@ -513,17 +513,17 @@ module: openconfig-interfaces
               +--rw oc-intf-ext:ingress-mapping
               |  +--rw oc-intf-ext:config
               |  |  +--rw oc-intf-ext:vlan-stack-action?   matched-vlan-stack-action
-              |  |  +--rw oc-intf-ext:vlan-priority        uint8
+              |  |  +--rw oc-intf-ext:mapped-vlan-priority uint8
               |  +--ro oc-intf-ext:state
               |     +--ro oc-intf-ext:vlan-stack-action?   matched-vlan-stack-action
-              |     +--rw oc-intf-ext:vlan-priority        uint8
+              |     +--rw oc-intf-ext:mapped-vlan-priority uint8
               +--rw oc-intf-ext:egress-mapping
                  +--rw oc-intf-ext:config
                  |  +--rw oc-intf-ext:vlan-stack-action?   matched-vlan-stack-action
-                 |  +--rw oc-intf-ext:vlan-priority        uint8                 
+                 |  +--rw oc-intf-ext:mapped-vlan-priority uint8                 
                  +--ro oc-intf-ext:state
                     +--ro oc-intf-ext:vlan-stack-action?   matched-vlan-stack-action
-                    +--rw oc-intf-ext:vlan-priority        uint8
+                    +--rw oc-intf-ext:mapped-vlan-priority uint8
 ```
 
 #### 3.6.1.2 SONiC Yang
