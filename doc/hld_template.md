@@ -66,6 +66,7 @@ Paste a preliminary manifest in a JSON format.
 
 This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. 
 This should also explain the CLICK and/or KLISH related configuration/show in detail.
+https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md needs be updated with the corresponding CLI change.
 
 #### Config DB Enhancements  
 

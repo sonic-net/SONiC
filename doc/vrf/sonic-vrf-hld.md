@@ -715,7 +715,7 @@ $ config vrf del <vrf_name>
 $ config interface vrf bind <interface_name> <vrf_name>
 
 //unbind an interface from a VRF
-$ config interface vrf unbind <interface_name> <vrf_name>
+$ config interface vrf unbind <interface_name>
 
 // create loopback device
 $ config loopback add Loopback<0-999>
@@ -824,7 +824,7 @@ This command will do the following:
 To unbind an interface from VRF:
 
 ```bash
-$ config interface unbind Ethernet0 Vrf-blue
+$ config interface unbind Ethernet0
 ```
 
 This command will do the following:
