@@ -297,9 +297,11 @@ Examples:-
 ```
 VLAN_STACKING|Ethernet1|Vlan100|INGRESS:
 "c_vlanids": "101..104, 150"
+"s_vlan_priority":"0"
 
 VLAN_STACKING|Ethernet1|Vlan100|EGRESS:
 "c_vlanids": "101..104, 150"
+"s_vlan_priority":"0"
 
 Range of C-VLANS 101,102,103,104 and 150 will be tunneled across.
 ```
@@ -312,6 +314,7 @@ Range of C-VLANS 101,102,103,104 and 150 will be tunneled across.
 VLAN_TRANSLATION|{{interface_name}}|{{s_vlan}|{stage}}
 "c_vlanid_inner":   {{c_vlanid_inner}}
 "c_vlanid_outer":   {{c_vlanid_outer}}
+"s_vlan_priority":  {{s_vlan_priority}}
 ```
 ```
 "interface_name"    Ethernet<id>|PortChannel<id>
@@ -319,8 +322,9 @@ VLAN_TRANSLATION|{{interface_name}}|{{s_vlan}|{stage}}
                     {swap c_vlanid_outer or c_vlanid_outer, c_vlanid_inner with s_vlan for ingress direction
                     swap s_vlan with c_vlanid_outer or c_vlanid_outer, c_vlanid_inner for egress direction}
 "stage"             Stage(INGRESS/EGRESS) at which the VLAN translation rule is applied
-"c_vlanid_inner":   type uint16 {range "1..4095"},Inner VLAN ID to be matched
-"c_vlanid_outer":   type uint16 {range "1..4095"},Outer VLAN ID to be matched
+"c_vlanid_inner"    type uint16 {range "1..4095"},Inner VLAN ID to be matched
+"c_vlanid_outer"    type uint16 {range "1..4095"},Outer VLAN ID to be matched
+"s_vlan_priority"   VLAN priority of Service VLAN
 ```
 
 i.e
@@ -331,20 +335,24 @@ For double tag translation :-
 VLAN_TRANSLATION|Ethernet1|Vlan10|INGRESS:
 "c_vlanid_inner": "50"
 "c_vlanid_outer": "20"
+"s_vlan_priority":"1"
 
 VLAN_TRANSLATION|Ethernet1|Vlan10|EGRESS:
 "c_vlanid_inner": "50"
 "c_vlanid_outer": "20"
+"s_vlan_priority":"1"
 
 For single tag translation only Outer VLAN ID is filled. :-
 
 VLAN_TRANSLATION|Ethernet1|Vlan10|INGRESS:
 "c_vlanid_inner": ""
 "c_vlanid_outer": "20"
+"s_vlan_priority":"0"
 
 VLAN_TRANSLATION|Ethernet1|Vlan10|EGRESS:
 "c_vlanid_inner": ""
 "c_vlanid_outer": "20"
+"s_vlan_priority":"0"
 ```
 
 
@@ -378,6 +386,7 @@ VLAN_STACKING_TABLE:{{interface-name}}:{{s_vlanid}}:{{stage}}
 VLAN_TRANSLATION_TABLE:{{interface_name}}:{{s_vlanid}}:{{stage}}
 "c_vlanid_inner":   {{c_vlanid_inner}}
 "c_vlanid_outer":   {{c_vlanid_outer}}
+"s_vlan_priority":  {{s_vlan_priority}}
 ```
 
 ```json
@@ -386,8 +395,9 @@ VLAN_TRANSLATION_TABLE:{{interface_name}}:{{s_vlanid}}:{{stage}}
                     {swap c_vlanid_outer or c_vlanid_outer, c_vlanid_inner with s_vlan for ingress direction
                     swap s_vlan with c_vlanid_outer or c_vlanid_outer, c_vlanid_inner for egress direction}
 "stage"             Stage(INGRESS/EGRESS) at which the VLAN translation rule is applied
-"c_vlanid_inner":   type uint16 {range "1..4095"},Inner VLAN ID to be matched
-"c_vlanid_outer":   type uint16 {range "1..4095"},Outer VLAN ID to be matched
+"c_vlanid_inner"    type uint16 {range "1..4095"},Inner VLAN ID to be matched
+"c_vlanid_outer"    type uint16 {range "1..4095"},Outer VLAN ID to be matched
+"s_vlan_priority"   VLAN priority of Service VLAN
 ```
 
 ### 3.2.3 STATE DB
