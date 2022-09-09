@@ -109,13 +109,15 @@ Network automation tools generate intended configs as config_db.json format to "
 - Config replacement can be requested via CLI, REST and gNMI/gNOI management interfaces. 
 - Fail-safe operation - if an error is encountered, an error is reported and it should NOT take any partial config. i.e. transaction aborted without changing CONFIG_DB.
 - Sorting, validation support for shallow and deep difference between new and current configuration.
-- Config replace operation should be performed with minimum disruption to the device, .e. no container restart or system reboots expected.
+- Config replace operation should be performed with minimum disruption to the device, i.e. no container restart or system reboots expected
+- Minimize the traffic impact only on the path of config change without affecting any unmodified config
 - Default configuration, e.g. copp_config.json, not to be saved to a serialized DB file should be preserved in the CONFIG_DB across config replacement operation.
 - Media format of intended config files can be a raw json, tar compresses, or special format defined in configure session proposal.
 
 **Configure session CLI**
 - A new CLI (replace) command to perform configuration replace from configure session mode.
 - A "timer" option added to commit command for user to apply the change to CONFIG_DB on trial basis, if a timer gets expired, rollback to the saved backup file.
+	+ While CONFIG_DB is in trial stage, config changes are not allowed but read operation still allowed.
 - A "confirm" option added to commit command for user to confirm new configuration changes, i.e. move trial to permanent stage.
 - When "Kill" is executed
 	+ timer will be canceled and running-configuration reverted back to previous configuration state.
