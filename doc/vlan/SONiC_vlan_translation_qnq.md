@@ -226,6 +226,17 @@ _Note:_
 #### 1.3.1.3 MAC learning
 * MAC learning is done on S-VLAN. In case VxLAN, these MACs are advertised to remote VTEPs. Similarly, remote MAC learnt over VXLAN network are programmed on the S-VLAN Bridge domain.
 
+#### 1.3.1.4 SVLAN Priority bit (PCP) Handling
+* Either in VLAN stacking or translation, user can provide the priority bits(in the range of 0-7) which can be carried on SVLAN in the provider network.
+* In the absence of user provided priority bits the following operations are performed
+
+| Mapping Type | Stage      | Operation | PCP Handling |
+| ------------ | ---------- | --------- | ------------ |
+| Stacking     | INGRESS    | PUSH      | PUSH SVLAN and copy PCP bits from CVLAN to SVLAN |
+| Stacking     | EGRESS     | POP       | POP SVLAN and don't copy PCP bits to CVLAN |
+| Translation  | INGRESS    | SWAP      | SWAP with SVLAN and copy PCP bits from CVLAN to SVLAN |
+| Translation  | EGRESS     | SWAP      | SWAP with CVLAN and copy PCP bits from SVLAN to CVLAN |
+
 ### 1.3.2 Container
 No new container will be introduced. swss, redisDB and mgmt-framework will be enhanced to support the feature.
 
@@ -245,21 +256,6 @@ The following are the new SAI Attribute to support VLAN Stacking and Translation
 |               | SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID_INNER      | New inner vlan ID for the vlan stacking. If the ACTION is POP, this attribute will not take effect.    |
 |               | SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID_OUTER      | New outer vlan ID for the vlan stacking. If the ACTION is POP, this attribute will not take effect. Else, one of SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID_INNER and SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID_OUTER attribute should be set    |
 
-```
-/**
- * @brief Attribute data for vlan stacking rule
- * 
- * If attribute value is 0, means the attribute is invalid.
- */
-typedef struct _sai_vlan_stacking_vid_t
-{
-    /** Vlan ID at the inner dot1q position */
-    uint16_t inner;
-
-    /** Vlan ID at the outer dot1q position */
-    uint16_t outer;
-} sai_vlan_stacking_vid_t;
-```
 # 2 Functionality
 
 CLI/gNMI/REST will be used to configure the system with Q-in-Q or VLAN translation.
@@ -411,11 +407,11 @@ Mapping samples from APP DB tables to SAI API:
 
 | **Table Name**    | **Opeartion** |  **Table Data**           |  **SAI Function**  | **SAI Attributes**  |
 |-------------------|---------------|---------------------------|--------------------|---------------------|
-| VLAN_STACKING     | Create        | intf_name: Ethernet4<br>s_vlanid: 100<br>c_vlanids: 10-15<br>direction: ingress | create_vlan_stack | ***For each VLAN ID within 10 to 15***:<br>stage: ingress<br>action: push<br>port: Ethernet4<br>original_vlan_id: \<vid\><br>applied_vlan_id: 100 |
-| VLAN_STACKING     | Create        | intf_name: Ethernet4<br>s_vlanid: 100<br>c_vlanids:<br>direction: egress | create_vlan_stack | stage: egress<br>action: pop<br>port: Ethernet4<br>original_vlan_id: 100 |
+| VLAN_STACKING     | Create        | intf_name: Ethernet4<br>s_vlanid: 100<br>c_vlanids: 10-15<br>direction: ingress | create_vlan_stack | ***For each VLAN ID within 10 to 15***:<br>stage: ingress<br>action: push<br>port: Ethernet4<br>original_vlan_id_outer: \<vid\><br>applied_vlan_id_outer: 100 |
+| VLAN_STACKING     | Create        | intf_name: Ethernet4<br>s_vlanid: 100<br>c_vlanids:<br>direction: egress | create_vlan_stack | stage: egress<br>action: pop<br>port: Ethernet4<br>original_vlan_id_outer: 100 |
 | VLAN_STACKING     | Delete        | intf: Ethernet4<br>s_vlanid: 100<br>direction: ingress/egress | remove_vlan_stack | |
-| VLAN_TRANSLATION  | Create        | intf_name: Ethernet8<br>s_vlanid: 200<br>c_vlanid_in: 10<br>c_vlanid_out: 20<br>direction: ingress | create_vlan_stack | <br>stage: ingress<br>action: swap<br>port: Ethernet4<br>original_vlan_id: (10,20)<br>applied_vlan_id: 200 |
-| VLAN_TRANSLATION  | Create        | intf_name: Ethernet8<br>s_vlanid: 200<br>c_vlanid_in: 10<br>c_vlanid_out: 20<br>direction: egress  | create_vlan_stack | <br>stage: egress<br>action: swap<br>port: Ethernet4<br>original_vlan_id: 200<br>applied_vlan_id: (10,20) |
+| VLAN_TRANSLATION  | Create        | intf_name: Ethernet8<br>s_vlanid: 200<br>c_vlanid_in: 10<br>c_vlanid_out: 20<br>direction: ingress | create_vlan_stack | <br>stage: ingress<br>action: swap<br>port: Ethernet4<br>original_vlan_id_inner: 10<br>original_vlan_id_outer: 20<br>applied_vlan_id_outer: 200 |
+| VLAN_TRANSLATION  | Create        | intf_name: Ethernet8<br>s_vlanid: 200<br>c_vlanid_in: 10<br>c_vlanid_out: 20<br>direction: egress  | create_vlan_stack | <br>stage: egress<br>action: swap<br>port: Ethernet4<br>original_vlan_id_outer: 200<br>applied_vlan_id_inner: 10<br>applied_vlan_id_outer: 20 |
 | VLAN_TRANSLATION  | Delete        | intf: Ethernet4<br>s_vlanid: 100<br>directon: ingress/egress | remove_vlan_stack | |
 
 For table delete case, PortsOrch needs to use cached mapping to get to be deleted instance OID.
@@ -517,13 +513,17 @@ module: openconfig-interfaces
               +--rw oc-intf-ext:ingress-mapping
               |  +--rw oc-intf-ext:config
               |  |  +--rw oc-intf-ext:vlan-stack-action?   matched-vlan-stack-action
+              |  |  +--rw oc-intf-ext:vlan-priority        uint8
               |  +--ro oc-intf-ext:state
               |     +--ro oc-intf-ext:vlan-stack-action?   matched-vlan-stack-action
+              |     +--rw oc-intf-ext:vlan-priority        uint8
               +--rw oc-intf-ext:egress-mapping
                  +--rw oc-intf-ext:config
                  |  +--rw oc-intf-ext:vlan-stack-action?   matched-vlan-stack-action
+                 |  +--rw oc-intf-ext:vlan-priority        uint8                 
                  +--ro oc-intf-ext:state
                     +--ro oc-intf-ext:vlan-stack-action?   matched-vlan-stack-action
+                    +--rw oc-intf-ext:vlan-priority        uint8
 ```
 
 #### 3.6.1.2 SONiC Yang
@@ -548,6 +548,7 @@ module: sonic-vlan-translation
            +--rw stage             scommon:stack_stage
            +--rw c_vlanid_inner?   uint16
            +--rw c_vlanid_outer?   uint16
+           +--rw s_vlan_priority?  uint8
 
 ```
 
@@ -556,14 +557,14 @@ module: sonic-vlan-translation
 ```
 Syntax:
 [no] switchport vlan-mapping  {{<cvlan-id> [inner <inner-cvlan-id>]}  | 
-                               {{<cvlan_list> | { add | remove} <cvlan-list>} dot1q-tunnel } <svlan-id>
+                               {{<cvlan_list> | { add | remove} <cvlan-list>} dot1q-tunnel } <svlan-id> [priority <priority-bits>]
 ```
 
 #### 3.6.2.1.1 VLAN Translation Commands
 
 #### Single Tag Translation
 ```
-[no] switchport vlan-mapping <cvlan-id> <svlan-id>
+[no] switchport vlan-mapping <cvlan-id> <svlan-id> [priority <priority-bits>]
 ```
 Example
 ```
@@ -585,13 +586,14 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 100
   inner      Inner customer VLAN
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 
+  priority   Set priority bits <0-7> for service provider VLAN
   <cr>  
 ```
 
 #### Double Tag Translation
 
 ```
-[no] switchport vlan-mapping <outer-cvlan-id> inner <inner-cvlan-id> <svlan-id>
+[no] switchport vlan-mapping <outer-cvlan-id> inner <inner-cvlan-id> <svlan-id> [priority <priority-bits>]
 ```
 
 Example
@@ -606,14 +608,20 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200
   <1..4094>  Configure service provider VLAN ID
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 
+  priority   Set priority bits <0-7> for service provider VLAN
   <cr>  
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 priority 
+  <0-7>   Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 priority 3
 
 ```
 
 #### 3.6.2.1.2 VLAN Stacking or Q-in-Q Commands
 
 ```
-[no] switchport vlan-mapping  {<cvlan_list> | { add | remove} <cvlan-list>} dot1q-tunnel <svlan-id>
+[no] switchport vlan-mapping  {<cvlan_list> | { add | remove} <cvlan-list>} dot1q-tunnel <svlan-id> [priority <priority-bits>]
                               
 ```
 
@@ -663,13 +671,8 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel
   <1..4094>  Configure service provider VLAN ID
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel 100 
+  priority   Set priority bits <0-7> for service provider VLAN
   <cr>  
-
-sonic(conf-if-Ethernet4)# switchport vlan-mapping 
-  <1..4094>   Configure customer VLAN ID
-  add         Configure VLAN stacking match customer VLANs on an interface
-  remove      Remove VLAN stacking match customer VLANs on an interface
-  VLAN-LIST   (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
 
 sonic(conf-if-Ethernet4)# no switchport 
   access        Remove access mode characteristics of the interface
@@ -710,11 +713,11 @@ Shows all the VLAN translation mappings configured in the system
 ```
 show interface vlan-mappings 
 -------------------------------------------------------------------
-Name           Outer           Inner                  Mapped Vlan  
+Name           Outer           Inner        Mapped Vlan   Priority
 -------------------------------------------------------------------
-Eth1/1         100             -                       1000        
-Eth1/1         200             20                      2000        
-Eth1/7         100             -                       1000        
+Eth1/1         100             -             1000          -
+Eth1/1         200             20            2000          3
+Eth1/7         100             -             1000          -
 ```
 
 ```
@@ -727,10 +730,10 @@ Shows all the VLAN translation mappings configured on a given interface
 ```
 show interface Eth1/1 vlan-mappipngs
 -------------------------------------------------------------------
-Name           Outer           Inner                  Mapped Vlan  
+Name           Outer           Inner        Mapped Vlan   Priority  
 -------------------------------------------------------------------
-Eth1/1         100             -                      1000         
-Eth1/1         200             20                     2000         
+Eth1/1         100             -             1000          -
+Eth1/1         200             20            2000          0
 ```
 
 
@@ -745,11 +748,11 @@ Shows all the interfaces with the VLAN stacking configuration
 ```
 show interface vlan-mappings dot1q-tunnel
 ----------------------------------------------------------
-Name           Vlan           dot1q-tunnel Vlan
+Name           Vlan           dot1q-tunnel Vlan   Priority
 ----------------------------------------------------------
-Eth1/2         10             100
-Eth1/2         11-20          200
-Eth1/4         30,32,35-40    300
+Eth1/2         10             100                  -
+Eth1/2         11-20          200                  4
+Eth1/4         30,32,35-40    300                  2
 ```
 
 ```
@@ -761,10 +764,10 @@ Shows Interface specific Stacking configuration
 ````
 show interface Eth1/2 vlan-mappings dot1q-tunnel
 ----------------------------------------------------------
-Name           Vlan           dot1q-tunnel Vlan
+Name           Vlan           dot1q-tunnel Vlan   Priority
 ----------------------------------------------------------
-Eth1/2         10             100
-Eth1/2         11-20          200
+Eth1/2         10             100                 -
+Eth1/2         11-20          200                 7
 `````
 
 #### 3.6.2.3 Exec Commands
@@ -773,20 +776,20 @@ Eth1/2         11-20          200
 ```
 show interface Eth1/1 vlan-mappipngs
 -------------------------------------------------------------------
-Name           Outer           Inner                  Mapped Vlan  
+Name           Outer           Inner        Mapped Vlan   Priority  
 -------------------------------------------------------------------
-Eth1/1         100             -                      1000         
-Eth1/1         200             20                     2000         
+Eth1/1         100             -             1000          -
+Eth1/1         200             20            2000          3
 ```
 
 ```
 show interface vlan-mappings dot1q-tunnel
 ----------------------------------------------------------
-Name           Vlan           dot1q-tunnel Vlan
+Name           Vlan           dot1q-tunnel Vlan   Priority
 ----------------------------------------------------------
-Eth1/2         10             100
-Eth1/2         11-20          200
-Eth1/4         30,32,35-40    300
+Eth1/2         10             100                  -
+Eth1/2         11-20          200                  3
+Eth1/4         30,32,35-40    300                  2
 ```
 
 ```
@@ -797,7 +800,7 @@ interface Eth1/2
    speed 10000
    no shutdown
    switchport vlan-mapping 10 dot1q-tunnel 100
-   switchport vlan-mapping 11-20 dot1q-tunnel 200
+   switchport vlan-mapping 11-20 dot1q-tunnel 200 priority 3
 ```   
 ```
 show running-configuration interface Eth1/1
@@ -806,7 +809,7 @@ interface Eth1/1
    mtu 9100
    speed 10000
    no shutdown
-   switchport vlan-mapping 100 1000
+   switchport vlan-mapping 100 1000 priority 4
    switchport vlan-mapping 200 inner 20 2000
 ```   
 
@@ -844,7 +847,7 @@ curl -X DELETE "https://100.94.114.20/restconf/data/openconfig-interfaces:interf
 TBD
 
 ## 3.7 Warm Boot Support
-Warm boot will not be supported for Q-in-Q and Vlan translation configuration.
+Warm boot is not supported for Q-in-Q and Vlan translation configuration.
 
 ## 3.8 Upgrade and Downgrade Considerations
 `Upgrade` from previous SONiC releases (which donot support Q-in-Q and Translation mapping rules) to the release 4.1 will be supported. The feature will introduced via additional configuration on the interfaces which are already SVLAN Members and also as a fresh configuration on the interfaces which are going to be made as VLAN members.
