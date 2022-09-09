@@ -728,6 +728,7 @@ Name           Outer           Inner        Mapped Vlan   Priority
 Eth1/1         100             -             1000          -
 Eth1/1         200             20            2000          3
 Eth1/7         100             -             1000          -
+PortChannel10  400             40            1000          -
 ```
 
 ```
@@ -763,6 +764,7 @@ Name           Vlan           dot1q-tunnel Vlan   Priority
 Eth1/2         10             100                  -
 Eth1/2         11-20          200                  4
 Eth1/4         30,32,35-40    300                  2
+PortChannel10  41             400                  -
 ```
 
 ```
@@ -822,6 +824,16 @@ interface Eth1/1
    switchport vlan-mapping 100 1000 priority 4
    switchport vlan-mapping 200 inner 20 2000
 ```   
+
+```
+show running-configuration interface PortChannel 10
+!
+interface PortChannel 10
+ switchport vlan-mapping 41 dot1q-tunnel 400 priority 0
+ switchport vlan-mapping 400 inner 40 1000
+ no shutdown
+```
+
 
 
 ### 3.6.3 REST API Support
