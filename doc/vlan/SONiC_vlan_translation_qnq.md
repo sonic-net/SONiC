@@ -598,6 +598,12 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 100
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 
   priority   Set priority bits <0-7> for service provider VLAN
   <cr>  
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 priority 3
+
 ```
 
 #### Double Tag Translation
@@ -608,8 +614,10 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200
 
 Example
 ```
-sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 
-  <cr>  
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 
+  <1..4094>     Configure service provider VLAN ID
+  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
+  inner         Inner customer VLAN
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 
   <1..4094>  Configure inner customer VLAN ID
@@ -622,7 +630,7 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300
   <cr>  
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 priority 
-  <0-7>   Configure priority bits for service provider VLAN
+  <0..7>  Configure priority bits for service provider VLAN
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 priority 3
 
@@ -651,7 +659,13 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel
   <1..4094>  Configure service provider VLAN ID
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel 100 
-  <cr>  
+  priority  Set priority bits <0-7> for service provider VLAN
+  <cr>
+  
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel 100 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel 100 priority 3
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping add 
   VLAN-LIST   (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
@@ -663,7 +677,13 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping add 30-40 dot1q-tunnel
   <1..4094>  Configure service provider VLAN ID
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping add 30-40 dot1q-tunnel 100 
-  <cr>  
+  priority  Set priority bits <0-7> for service provider VLAN
+  <cr>      
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping add 30-40 dot1q-tunnel 100 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping add 30-40 dot1q-tunnel 100 priority 4
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 
   <1..4094>   Configure customer VLAN ID
@@ -683,6 +703,11 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel
 sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel 100 
   priority   Set priority bits <0-7> for service provider VLAN
   <cr>  
+  
+sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel 100 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping remove  50 dot1q-tunnel 100 priority 3
 
 sonic(conf-if-Ethernet4)# no switchport 
   access        Remove access mode characteristics of the interface
