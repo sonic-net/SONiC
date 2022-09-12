@@ -22,6 +22,7 @@
   - [7.2. RouteOrch](#72-routeorch)
   - [7.3. FPMsyncd](#73-fpmsyncd)
   - [7.4. Response Channel Performance considerations](#74-response-channel-performance-considerations)
+    - [7.4.1. Table 1. Publishing 1k ROUTE_TABLE responses](#741-table-1-publishing-1k-route_table-responses)
 - [8. SAI API](#8-sai-api)
 - [9. Warmboot and Fastboot Design Impact](#9-warmboot-and-fastboot-design-impact)
   - [9.1. Warm Reboot](#91-warm-reboot)
@@ -74,13 +75,13 @@ The following conditions apply will apply when checking for route installation s
 
 [FRR documentation reference](https://github.com/FRRouting/frr/blob/master/doc/user/bgp.rst)
 
-Consider the following scenario:
+Considering the following scenario:
 
 <!-- omit in toc -->
 ##### Figure 1. Use case scenario
 
 <p align=center>
-<img src="img/pic.png" alt="Figure 1. Use case scenario">
+<img src="img/use-case.png" alt="Figure 1. Use case scenario">
 </p>
 
 The problem with BGP programming occurs after the T1 switch is rebooted:
@@ -105,7 +106,14 @@ To avoid that, the route programming has to be synchronous down to the ASIC to a
 
 ### 5. Architecture Design
 
-Described functionality does not require changes to the current SONiC architecture. This design follows existing SONiC architecture approaches and uses existing SONiC infrastrcuture.
+TBD
+
+<!-- omit in toc -->
+##### Figure 2. Use case scenario
+
+<p align=center>
+<img src="img/architecture-diagram.png" alt="Figure 2. Architecture diagram">
+</p>
 
 ### 6. Configuration and management
 
@@ -197,9 +205,13 @@ module sonic-app-state-logging {
                     default disabled;
                 }
             }
+            /* end of container ROUTE_TABLE */
         }
+        /* end of container APP_STATE_LOGGING */
     }
+    /* end of container of top level container */
 }
+/* end of module sonic-app-state-logging */
 ```
 
 Note that response channel for ROUTE_TABLE can be enabled regardless of ```synchronous_mode``` as we might still get a response from ```RouteOrch``` validation logic as well as ```SAIRedis``` validation.
@@ -244,9 +256,13 @@ module sonic-device_metadata {
                     }
                 }
             }
+            /* end of container localhost */
         }
+        /* end of container DEVICE_METADATA */
     }
+    /* end of top level container */
 }
+/* end of module sonic-device_metadata
 ```
 
 This knob can only be set to ```"enable"``` when syncrhonous SAI configuration mode is on. This constraint is guaranteed by the ```must``` expression for this leaf.
@@ -260,7 +276,7 @@ No python ```click```-based CLI command nor ```KLISH``` CLI is planned to be imp
 BGP configuration template ```bgpd.main.j2``` requires update to support the new field ```bgp-suppress-fib-pending``` and configure FRR accordingly. The startup flow of BGP container is described below:
 
 <!-- omit in toc -->
-##### Figure 2. BGP Configuration Flow Diagram
+##### Figure 3. BGP Configuration Flow Diagram
 
 ```mermaid
 %%{
@@ -349,7 +365,7 @@ A special handling exists in ```RouteOrch``` for a case when there can't be more
 
 
 <!-- omit in toc -->
-##### Figure 3. RouteOrch Route Set Flow
+##### Figure 4. RouteOrch Route Set Flow
 
 ```mermaid
 %%{
@@ -438,7 +454,7 @@ sequenceDiagram
 #### RouteOrch Route delete Flow
 
 <!-- omit in toc -->
-##### Figure 4. RouteOrch Route Delete Flow
+##### Figure 5. RouteOrch Route Delete Flow
 
 Similar processing happens on ```DEL``` operation for a prefix from ```ROUTE_TABLE```. The removed prefixes are filled in ```RouteBulker``` which are then flushed forming a bulk remove API call to SAIRedis. ```RouteOrch::removeRoutePost()``` then collects the object statuses and if the status is not SAI_STATUS_SUCCESS orchagent ```abort()```s, otherwise it should publish the result via ```ResponsePublisher::publish()``` leaving ```intent_attrs``` vector empty which will remove the corresponding state key from ```APPL_STATE_DB```.
 
@@ -511,20 +527,38 @@ sequenceDiagram
 #### 7.3. FPMsyncd
 
 <!-- omit in toc -->
-##### Figure 5. FPMsyncd response processing
+##### Figure 6. FPMsyncd response processing
 
-TODO
+```mermaid
+%%{
+  init: {
+    "theme": "forest",
+    "sequence": {
+      "rightAngles": true,
+      "showSequenceNumbers": true
+    }
+  }
+}%%
+sequenceDiagram
+  participant APPL_STATE_DB
+  participant fpmsyncd
+  participant zebra
+
+  APPL_STATE_DB ->> fpmsyncd: ROUTE_TABLE:<prefix> fvs
+```
 
 #### 7.4. Response Channel Performance considerations
 
-Route programming performance is one of crucial characteristics of a network switch. It is desired to program a lot of route entries as quick as possible. SONiC has optimized route programming pipeline levaraging Redis Pipeline in ```ProducerStateTable``` as well as SAIRedis bulk APIs. Redis pipelining is a technique for improving performance by issuing multiple commands at once without waiting for the response to each individual command. Such an optimization gives around ~5x times faster processing for ```Publisher/Subscriber``` pattern using a simple python script as a test.
+Route programming performance is one of crucial characteristics of a network switch. It is desired to program a lot of route entries as quick as possible. SONiC has optimized route programming pipeline levaraging Redis Pipeline in ```ProducerStateTable``` as well as SAIRedis bulk APIs. Redis pipelining is a technique for improving performance by issuing multiple commands at once without waiting for the response to each individual command. Such an optimization gives around ~4-5x times faster processing for ```Publisher/Subscriber``` pattern using a simple python script as a test.
 
 The following table shows the results for publishing 10k messages with and without Redis Pipeline proving the need for pipeline support for ```ResponseChannel```:
 
-| Scenario                         | Time (sec) |
-| -------------------------------- | ---------- |
-| Publish 10k messages             | 2.41       |
-| Publish 10k messages (Pipelined) | 0.43       |
+##### 7.4.1. Table 1. Publishing 1k ROUTE_TABLE responses
+
+| Scenario               | Time (sec) | Ratio |
+| ---------------------- | ---------- | ----- |
+| Without Redis Pipeline | 0.641      | 4.27  |
+| With Redis Pipeline    | 0.150      | 1     |
 
 Adding a feedback mechanism to the system introduces a delay as each of the component needs to wait for the reply from the lower layer counterpart in order to proceed. SONiC has already moved to synchronous SAI Redis pipeline a route programming performance degradation caused by it is leveled by the use of SAIRedis Bulk API.
 
@@ -555,6 +589,8 @@ A ```ResponsePublisher``` must have a constructor that accepts a ```RedisPipelin
 ResponsePublisher::ResponsePublisher(RedisPipeline *pipeline, bool buffered = false);
 ```
 
+The ```OrchDaemon``` has to flush the ```RedisPipeline``` in ```OrchDaemon::flush``` when pending tasks.
+
 ### 8. SAI API
 
 No new SAI API or changes to SAI design and behaviour needed for this functionality.
@@ -568,7 +604,7 @@ Warm reboot process remains unchanged. With BGP Graceful Restart, peers are keep
 
 #### 9.2. Fast Reboot
 
-TODO
+On fast reboot BGP session is closed by SONiC device without the notification. BGP session is preserved in graceful restart mode. BGP routes on the peer are still active, because nexthop interfaces are up. Once interfaces go down, received BGP routes on the peer are removed from the routing table. Nothing is sent to SONiC device since then. After interfaces go up and BGP sessions re-establish the BGP makes active the previous bgp routes. From now SONiC devices restores its work. BGP sessions set up and bgp graceful restart mode ends
 
 ### 10. Restrictions/Limitations
 
