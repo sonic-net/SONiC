@@ -557,5 +557,5 @@ files/build/versions/
 ## References
 
 - Ref:
-	- https://github.com/sonic-net/SONiC/blob/master/doc/sonic-build-system/DPKG%20caching%20framework%20.ppt
+	- https://github.com/sonic-net/SONiC/blob/master/doc/sonic-build-system/DPKG%20caching%20framework%20.pptx
 	- https://github.com/xumia/SONiC/blob/repd3/doc/sonic-build-system/SONiC-Reproduceable-Build.md

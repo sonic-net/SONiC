@@ -38,7 +38,7 @@ Verify basic sanity. This checks if the orchagent and syncd processes are runnin
  Triggered before and after each test case
 
 #### Test description
-Run sanity check - https://github.com/sonic-net/sonic-mgmt/blob/master/tests/common/sanity_check.py
+Run sanity check - https://github.com/Azure/sonic-mgmt/blob/master/tests/common/sanity_check.py
 
 ### Test case \#2
 

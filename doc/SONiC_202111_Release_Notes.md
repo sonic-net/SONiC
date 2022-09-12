@@ -58,7 +58,7 @@ Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/acl/ACL-
 #### App extension CLI generation tool 
 The SONiC CLI Auto-generation tool - is a utility for generating the command-line interface for third-party features, called application extensions, that provide their functionality as separate docker containers. The YANG model will be used to describe the CONFIG DB schema and CLI will be generated according to CONFIG DB schema. The YANG model will serve as an input parameter for the SONiC Auto-generation utility. The CLI should be a part of SONiC utilities and support - show, config operations.
      
-Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-application-extention/sonic-application-extention-hld.md) and below mentioned PR's for more details. 
+Refer [HLD document](https://github.com/Azure/SONiC/blob/master/doc/sonic-application-extention/sonic-application-extention-hld.md) and below mentioned PR's for more details. 
 <br> **Pull Requests** : [780](https://github.com/sonic-net/SONiC/pull/780), [1644](https://github.com/sonic-net/sonic-utilities/pull/1644) & [1650](https://github.com/sonic-net/sonic-utilities/pull/1650)
           
 #### Automatic techsupport and core dump creation 

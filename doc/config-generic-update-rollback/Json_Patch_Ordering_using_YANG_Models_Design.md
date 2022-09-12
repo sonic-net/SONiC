@@ -405,7 +405,7 @@ Some fields are not allowed to be modified and can only be created, such as `/PO
     SAI_PORT_ATTR_HW_LANE_LIST,
 ```
 
-The new extension `create-only` will be added to [YANG models SONiC extensions](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-extension.yang):
+The new extension `create-only` will be added to [YANG models SONiC extensions](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-extension.yang):
 ```
 extension create-only {
     description "During apply-patch operation the field can only be created (i.e. added) or re-created (i.e. removed then added) but cannot be modified (i.e. replaced).";
