@@ -1,6 +1,6 @@
 module sonic-passwh {
     yang-version 1.1;
-    namespace "http://github.com/Azure/sonic-passwh";
+    namespace "http://github.com/sonic-net/sonic-passwh";
     prefix password;
 
     description "PASSWORD HARDENING YANG Module for SONiC OS";

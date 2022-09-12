@@ -50,8 +50,8 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 
 #### 1. Telemetry for Multi-ASIC
 This feature is an enhancement on sonic_db_config package for multi-asic to read different namespace redis configuration. And enhanced V2R Lookup for multi-asic, enhanced gNMI Server to initiate redis connection, enhanced gNMI Server Get and enhanced the parsing of target in gNMI Request.<br>
-<br> Refer [HLD document](https://github.com/Azure/sonic-telemetry/pull/77) and below mentioned PR's for more details. 
-<br>**Pull Requests** : [77](https://github.com/Azure/sonic-telemetry/pull/77)
+<br> Refer [HLD document](https://github.com/sonic-net/sonic-telemetry/pull/77) and below mentioned PR's for more details. 
+<br>**Pull Requests** : [77](https://github.com/sonic-net/sonic-telemetry/pull/77)
 
 
 #### 2. Add FRR running configuration to tech support
@@ -69,7 +69,7 @@ Refer [HLD document](https://github.com/sonic-net/sonic-utilities/pull/1249) and
 
 #### 3. App extension with warmboot awareness
 SONiC Application Extension Infrastructure is a SONiC infrastructure and framework for managing SONiC Application Packages which in this scope are SONiC compatible Docker images distributed individually from one another and from the base SONiC image.
-<br>Refer [HLD document](https://github.com/Azure/SONiC/blob/master/doc/sonic-application-extention/sonic-application-extention-hld.md) and below mentioned PR's for more details. 
+<br>Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-application-extention/sonic-application-extention-hld.md) and below mentioned PR's for more details. 
 <br>**Pull Requests** : [682](https://github.com/sonic-net/SONiC/pull/682), [6398](https://github.com/sonic-net/sonic-buildimage/issues/6398)
 
 #### 4. Enable/Disable auto negotiation and speed setting with number of lanes
