@@ -26,6 +26,7 @@ RDMA (Remote Direct Memory Access) over Converged Ethernet (ROCEv2) support
 | 0.2 | 07/16/2021  |   Venkatesan Mahalingam     | Addressed review comments         |
 | 0.3 | 08/03/2021  |   Venkatesan Mahalingam     | Added sample configurations       |
 | 0.4 | 06/30/2022  |   Ashok Daparthi            | Added ROCE default configurations |
+| 0.5 | 09/12/2022  |   Ashok Daparthi            | Per NPU feature capability checks |
 
 # About this Manual
 
@@ -551,18 +552,18 @@ Below are buffer pool, profiles setting for TD3 and TH3 platforms
 {%- macro generate_buffer_pool_and_profiles() %}
     "BUFFER_POOL": {
         "ingress_lossless_pool": {
-            "size": "32712448",
+            "size": "32756480",
             "type": "ingress",
             "mode": "dynamic",  
-            "xoff": "12582912"
+            "xoff": "2621440"
         },
-        "egress_lossy_pool": { 
+        "egress_lossy_pool": {
             "size": "24709632",
             "type": "egress",
             "mode": "dynamic"
         },
-        "egress_lossless_pool": { 
-            "size": "32599040",
+        "egress_lossless_pool": {
+            "size": "32475136",
             "type": "egress",
             "mode": "static"
         }
@@ -572,16 +573,16 @@ Below are buffer pool, profiles setting for TD3 and TH3 platforms
         "ingress_lossy_profile": {
             "pool":"ingress_lossless_pool",
             "size":"0",
-            "static_th":"32712448"
+            "static_th":"32756480"
         },
         "egress_lossless_profile": {
             "pool":"egress_lossless_pool",
             "size":"0",
-            "static_th":"32599040"
+            "static_th":"32475136"
         },
         "egress_lossy_profile": {
             "pool":"egress_lossy_pool",
-            "size":"1792",
+            "size":"0",
             "dynamic_th":"3"
         }
     },
@@ -632,7 +633,7 @@ buffer_defaults.json.j2
         },
         "egress_lossy_profile": {
             "pool":"[BUFFER_POOL|egress_lossless_pool]",
-            "size":"1778",
+            "size":"0",
             "mode": "dynamic",
             "dynamic_th":"2"
         }
@@ -972,6 +973,41 @@ sonic(config)#interface breakout  port 1/1 mode 4x10G
 Warning: Switch in "lossless" mode, Ports created can be used only after reboot
 ```
 
+### 2.2.7 Platform capability support
+
+Support of RoCEv2/Lossless configurations are targeting only for TD3 and TH3 in 4.1 release.
+Feature support should be controlled by capability of NPU and also some of the configurations limits depends NPU, which needs to be derive dynamically from NPU/SAI. In 4.1, We are adding this based on new platform file.
+
+- Add platform_qos.json file each TD3/TH3 platform hwsku directory i.e  ```usr/share/sonic/hwsku/```
+- platform_qos.json file will have QOS capabilities as below.
+
+```
+QOS_CAPABILITIES {
+  “buffer_mode” : “lossless/lossy/both”,
+  “buffer_dynamic_tuning” : “true/false”,
+  “POOL_XOFF_MIN_LIMT: “1MB”,
+  “POOL_XOFF_MAX_LIMT: “16MB”,
+  “PG_MIN_LOW_LIMIT” : “0”,
+  “PG_MIN_HIGH_LIMIT” : “XXX”,
+  “PG_XOFF_LOW_LIMIT” : “0”,
+  “PG_XOFF_HIGH_LIMIT” : “XXX”,
+  “PG_XON_LOW_LIMIT” : “0”,
+  “PG_XON_HIGH_LIMIT” : “XXX”,
+  “Q_MIM_LOW_LIMIT” : “0”,
+  “Q_MAX_HIGH_LIMIT” : “XXX”,
+  “WRED_MAX_LIMIT” : “XXX”
+}
+
+```
+- swss container start will read platform_qos.json and update QOS_CAPABILITIES in STATE_DB.
+- QOS_CAPABILITIES in STATE_DB will be used by management interfaces like CLI/YANG to validate before enabling ROCE/Lossless per platform.
+- TD3/TH3 qos capabilities
+```
+QOS_CAPABILITIES { 
+  “buffer_mode” : “lossless”,
+  “buffer_dynamic_tuning” : “true”
+}
+```
 ## 2.3 Backend change to support new configurations
 
 Provide change in management framework and buffermgrd modules.
@@ -1224,6 +1260,16 @@ module: openconfig-qos
                  +--ro oc-qos-ext:queue?     string
                  +--ro oc-qos-ext:profile    -> ../../../../buffer-profiles/buffer-profile/name
 
+
+module: sonic-switch
+  +--rw sonic-switch
+     +--rw SWITCH
+        +--rw SWITCH_LIST* [switch]
+           +--rw switch               enumeration
+           +--rw fdb_aging_time?      uint32
+           +--rw rif_cntr_interval?   uint32
+           +--rw buffer_mode_lossless?  bool
+           +--rw roce_enable?   bool
 ```
 
 ### 3.6.2 CLI
