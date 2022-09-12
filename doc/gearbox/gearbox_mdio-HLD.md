@@ -6,15 +6,16 @@
   * [List of Tables](#list-of-tables)
   * [Revision](#revision)
   * [Scope](#scope)
-  * [Definition/Abbreviation](#definition/abbreviation)
-  * [Document/References](#document/references)
+  * [Definition/Abbreviation](#definitionabbreviation)
+  * [Document/References](#documentreferences)
   * [Overview](#overview)
   * [Requirements](#requirements)
   * [Architecture Design](#architecture-design)
   * [High-Level Design](#High-Level-Design)
   * [SAI API](#SAI-API)
   * [Configuration and management](#Configuration-and-management)
-  * [Restrictions/Limitations](#Restrictions/Limitations)
+  * [Restrictions/Limitations](#restrictionslimitations)
+  * [Testing Requirements/Design](#testing-requirementsdesign)
 
 ## List of Tables
 - [Table 1: Abbreviations](#table-1-abbreviations)
@@ -26,6 +27,7 @@
 | 0.1  | 07/31/2022 |   Jiahua Wang     | Initial version                                 |
 | 0.2  | 08/03/2022 |   Jiahua Wang     | Fix title and references                        |
 | 0.3  | 08/12/2022 |   Jiahua Wang     | Overloading VendoSai class constructor          |
+| 0.4  | 09/12/2022 |   Jiahua Wang     | Add testing requirements/design section         |
 
 ### About this Manual
 
@@ -99,11 +101,13 @@ The high level design of the gbsyncd mdio access function using the mdio bus fro
 	- There is a new MDIO IPC client library is added.
 	- External PHY firmware download time always has performance requirements/impact.
 	- For debugging, beside the syslog logging, the Unix socket IPC mechanism can be simulated by socat.
-	- The current change is only limited to the Broadcom switch NPU platform.
+	- The current change is only limited to the Broadcom switch NPU platform, but should work for other NPU platforms.
 	- SAI switch api has added the mido clause 22 access functions.
 	- The SaiInterface class has added the mdio clause 45 read/write and mdio clause 22 read/write virtual functions.
 	- The VendoSai class overrides the mdio clause 45 read/write and mdio clause 22 read/write virtual functions.
 	- New keys are added to the gearbox configuration file "gearbox\_config.json".
+	- During the warmboot, the creation of the Unix IPC socket and the IPC connection is the same as of coldboot.
+	- The platform module software should not reset the external PHY during warmboot.
 
 When the VendorSai class constructor with PHY id argument is used in syncd.cpp, we can assume a simple case where syncd context number is the same as the PHY id.
 
@@ -244,3 +248,43 @@ gearbox_config.json:
 When the external PHY is connected to the MDIO bus from the switch NPU, this design only applies to the device with Broadcom SAI/NPU. When external PHY is connected to the FPGA/CPLD based mdio controller, this design should work for all device.
 
 When external PHY is using broadcast firmware download method, there might be requirements of other software components and helper depends on the PAI library implementation. It is outside the scope of this HLD.
+
+### Testing Requirements/Design
+The added MDIO IPC server class and the changed VendorSai class are in the syncd process. Some unit test cases can be added to the existing syncd unit test. Some system test cases can only be done on systems with the external PHY and NPU mdio bus.
+
+#### Unit Test cases
+The MDIO IPC server class only invokes some class methods when there are unix socket connection and valid MDIO IPC client messages on the unix socket. New gtest cases will be added to the syncd unit test simulating the MDIO IPC client.
+
+The 4 new methods added to the VendorSai class and its parent class SaiInterface only works on the SAI with real hardware, i.e. a systems with the external PHY and NPU mdio bus.
+
+	virtual sai_status_t switchMdioRead(...);
+	virtual sai_status_t switchMdioWrite(...);
+	virtual sai_status_t switchMdioCl22Read(...);
+	virtual sai_status_t switchMdioCl22Write(...);
+
+Hence the MockableSaiInterface class and its parent class DummySaiInterface will override the above 4 methods.
+
+#### System Test cases
+On a system with the external PHY connected to NPU mdio bus, we can use 'socat' simulating the IPC client as an interactive command line shell to access the PHY mdio registers, e.g.
+
+	docker exec -it syncd socat - UNIX-CONNECT:/var/run/sswsyncd/mdio-ipc.srv
+
+Command in the shell to read MDIO clause 45 register at an address and an offset:
+
+	mdio <address> <reg offset>
+
+Command in the shell to write MDIO clause 45 register at an address and an offset with a value:
+
+	mdio <address> <reg offset> <value>
+
+Command in the shell to read MDIO clause 22 register at an address and an offset:
+
+	mdio-cl22 <address> <reg offset>
+
+Command in the shell to write MDIO clause 22 register at an address and an offset with a value:
+
+	mdio-cl22 <address> <reg offset> <value>
+
+Command to exit from the interactive command line shell:
+
+	Ctrl+D
