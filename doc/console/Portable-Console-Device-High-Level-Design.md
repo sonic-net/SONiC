@@ -51,8 +51,10 @@ key = CONSOLE_SWITCH:console_mgmt
 ; field = value
 autodetect  = "enable"/"disable" ; "enabled" means factory function will auto detect which vendor's device is plugged in
                                  ; "disabled" means factory function will read vendor_name from config_db
-vendor_name = 1*255 VCHAR        ; vendor name of portable console device
-model_name  = 1*255 VCHAR        ; model name of portable console device
+vendor_name = 1*255 VCHAR        ; Vendor name of portable console device.
+                                 ; If `autodetect` is set to "enabled", `vendor_name` must be empty.
+model_name  = 1*255 VCHAR        ; Model name of portable console device.
+                                 ; if `autodetect` is set to "enabled", `model_name` must be empty.
 ```
 
 ## Portable Console Device API Design
@@ -66,14 +68,44 @@ sonic_console/
 ├── __init__.py
 ├── console_base.py
 ├── factory.py
+├── line_info.py
 ├── microsoft
 │   ├── __init__.py
 │   └── console_simulator.py
-├── <vendor-name>
+└── <vendor-name>
     └── console_<model-name>.py
 ```
 
-The base class will be put in `console_base.py`. The factory function for creating concrete portable console device object will be put in `factory.py`. Classes implemented by vendors will be put in the corresponding `<vendor-name>` directory. The implementations of different models of the same vendor should be put in the corresponding `console_<model-name>.py` files. For instance, the simulator implemented by Microsoft will be put in `microsoft/console_simulator.py`.
+The base class `PortableConsoleDeviceBase` will be put in `console_base.py`. Class `ConsoleLineInfo`, which is used in the base class, will be put in `line_info.py`. The factory function for creating concrete portable console device object will be put in `factory.py`. Classes implemented by vendors should be put in the corresponding `<vendor-name>` directories. The implementations of different models of the same vendor should be put in the corresponding `console_<model-name>.py` files. For instance, the simulator implemented by Microsoft will be put in `microsoft/console_simulator.py`.
+
+### `ConsoleLineInfo` Class Design
+
+Class `ConsoleLineInfo` contains the information of a console link. It is used in our base class design, so we describe it first:
+
+```python
+# line_info.py
+
+class ConsoleLineInfo:
+
+    def __init__(self, device_index, virtual_device_path):
+        """
+        Constructor of ConsoleLineInfo class.
+
+        :param device_index: An integer, the index of the console device where the console line is
+                                         located (0-based).
+        :param virtual_device_path: A string, the virtual device path of the console line.
+        """
+        self._device_index = device_index
+        self._virtual_device_path = virtual_device_path
+
+    @property
+    def device_index(self):
+        return self._device_index
+
+    @property
+    def virtual_device_path(self):
+        return self._virtual_device_path
+```
 
 ### Base Class Design
 
@@ -151,22 +183,30 @@ class PortableConsoleDeviceBase:
         """
         raise NotImplementedError
 
+    def get_num_lines(self):
+        """
+        Retrieves the number of console lines on portable console devices.
+
+        :return: An integer, the number of console lines on portable console devices.
+        """
+        raise NotImplementedError
+
     def get_all_lines(self):
         """
         Retrieves the infomation of all console lines on portable console devices.
 
-        :return: A dict, the key is console line number (integer, 1-based),
-                         the value is a dict which contains line information.
+        :return: A dict, the key is console line number (integer, same as portable console device designed),
+                         the value is an object derived from `sonic_console.line_info.ConsoleLineInfo`.
                  eg.
                  {
-                     1: {
+                     1: ConsoleLineInfo(
                          "device_index": 0,
                          "virtual_device_path": "/dev/console-1"
-                     },
-                     2: {
+                     ),
+                     2: ConsoleLineInfo(
                          "device_index": 0,
                          "virtual_device_path": "/dev/console-2"
-                     },
+                     ),
                      ...
                  }
         """
@@ -174,16 +214,12 @@ class PortableConsoleDeviceBase:
 
     def get_line(self, line_number):
         """
-        Retrieves the information of a specific console line (1-based) on portable console devices.
+        Retrieves the information of a specific console line on portable console devices.
 
         :param index: An integer, console line number.
-        :return: A dict, contains the information of a specific line.
-                 eg.
-                 {
-                     "device_index": 0,
-                     "virtual_device_path": "/dev/console-1"
-                 }
+        :return: An object derived from `sonic_console.line_info.ConsoleLineInfo`.
         """
+        raise NotImplementedError
 
     def get_num_psus(self):
         """
@@ -224,12 +260,27 @@ For example, Microsoft will implement a portable console device simulator like:
 
 ```python
 # microsoft/console_simulator.py
+
+import copy
 from sonic_console.console_base import PortableConsoleDeviceBase
+from sonic_console.line_info import ConsoleLineInfo
 
 class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
 
     def __init__(self):
-        pass
+        self._serial_number = "Microsoft-Simulator-S/N"
+        self._lines = {
+            1: ConsoleLineInfo(
+                device_index=0,
+                virtual_device_path="/dev/console-1"
+            ),
+            2: ConsoleLineInfo(
+                device_index=0,
+                virtual_device_path="/dev/console-2"
+            ),
+            # ...
+        }
+        self._psus = []
 
     @classmethod
     def is_plugged_in(cls):
@@ -252,43 +303,30 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
         except Exception as e:
             return (None, e)
 
+    def get_num_devices(self):
+        return 1
+
     def get_serial_number(self):
-        return "Microsoft-Simulator-S/N"
+        return self._serial_number
+
+    def get_num_lines(self):
+        return len(self._lines)
 
     def get_all_lines(self):
-        return {
-            1: {
-                "device_index": 0,
-                "virtual_device_path": "/dev/console-1"
-            },
-            2: {
-                "device_index": 0,
-                "virtual_device_path": "/dev/console-2"
-            },
-            # ...
-        }
+        return copy.deepcopy(self._lines)
 
     def get_line(self, line_number):
-        if line_number == 1:
-            return {
-                "device_index": 0,
-                "virtual_device_path": "/dev/console-1"
-            }
-        if line_number == 2:
-            return {
-                "device_index": 0,
-                "virtual_device_path": "/dev/console-2"
-            }
-        # ...
-        return None
+        return copy.deepcopy(self._lines.get(line_number, None))
 
     def get_num_psus(self):
-        return 0
+        return len(self._psus)
 
     def get_all_psus(self):
-        return []
+        return copy.deepcopy(self._psus)
 
     def get_psu(self, index):
+        if 0 <= index and index < len(self._psus):
+            return copy.deepcopy(self._psus[index])
         return None
 ```
 
