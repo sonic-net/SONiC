@@ -44,6 +44,10 @@ The S3IP sysfs specification defines a unified interface to access peripheral ha
 4. The sysfs directory structure can be generated automatically through the framework.
 5. Support reuse of the old driver sysfs paths without redeveloping new drivers.
 
+**S3IP background Introduction**
+
+Simplified Switch System Integration Program, aka [S3IP](http://www.s3ip.org/), is the subproject of the Open Data Center Committee, aka [ODCC](http://www.opendatacenter.cn/introduction-en.html). S3IP is a joint initiative of six Internet companies in China, including Baidu, Alibaba, Tencent, Meituan, JD.com, and Kuaishou. Focusing on the network field, S3IP aims to solve the common problems in the integration process of the upper layer software and the lower layer equipment and establish a standardized ecology. The standardized design is more friendly to equipment manufacturers and enterprise users (such as the Internet), easier to integrate, more efficient to solve problems with the help of ecological forces, and faster to implement new technologies in the ecosystem.
+
 S3IP sysfs contains two sections:
 
 - sysfs specification: specifies the sysfs directory structure and file content
@@ -58,7 +62,7 @@ Figure2-1 where S3IP sysfs is used.
 
 The S3IP sysfs specification is represented as an organized sysfs directory structure on white-box devices. Device management software and debugging tools need to access hardware through this interface.
 
-Both vendors and users should comply with the S3IP sysfs specification. Device vendors focus on the specification implementation, while users verify the usability of the device against this specification.
+Both vendors and users should comply with the S3IP sysfs specification. Device vendors focus on the specification implementation, while users verify the usability of the device against this specification. Vendors should provide software access to every sensor capable of being read. For any available sensor, vendors shall provide S3IP sysfs access.
 
 Figure2-2 S3IP sysfs diretory demo
 
@@ -253,7 +257,7 @@ Sample configuration file to make /sys_switch witch S3ip sysfs Service
   ]
 }
 ```
-### 3.3 Porting guide
+#### 3.3 Porting guide
 1. git clone sonic-platform-common to get the S3IP framework
 2. Verify the availability of the S3IP framework on the host computer
  - Generate a host package, run the following command
@@ -276,6 +280,32 @@ Sample configuration file to make /sys_switch witch S3ip sysfs Service
 4. Self-test after integration
    - Ensure that the /sys_switch directory conforms to the S3IP sysfs specification 
    - Hardware property information can be read and written normally
+
+### 4 Compare with [PDDF](https://github.com/sonic-net/SONiC/blob/master/doc/platform/brcm_pdk_pddf.md)
+
+The S3IP sysfs specification is intended to provide a more general set of hardware access interfaces. Using sysfs is definitely the best option, as it fits into the Linux design philosophy of everything being a file, and there are more tools and languages to deal with it.
+
+For traditional driver engineers, The S3IP SYSFS interface is very friendly and easy to debug, they only need to care about the content and format of the sysfs node. So the learning cost is zero and it's easy to understand and implement. 
+
+For ODM vendors new to SONIC, opt for PDDF because you can do platform adaptation with a configuration file, which is cool and popular.
+
+S3IP SYSFS and PDDF both share similar goals of reducing vendor adaptation effort and increasing the reusability of device management software.
+
+However, there are many differences between the two frameworks, which are listed below. ODM vendors can choose the framework based on actual requirements.
+
+| Item  | S3IP sysfs|PDDF|
+|-|-|-|
+|Requirements| The requirements are put forward from the user's perspective, and the sysfs node is summarized from the actual operation experience. The goal is to unify the interface for device management | The requirements are proposed from the technical point of view.TBD
+|Ecological | Devices compliant with S3IP SYSFS specification have been widely used in data centers.<br> The [S3IP](http://www.s3ip.org/) project involved both vendors and users[S3IP] (including Tencent, Alibaba, Baidu, Kuaishou, Meituan, Jingdong and more than a dozen ODM vendors). Vendors and users complete a closed-loop of requirements. standards and debugging tools that have the ability to iterate continuously. | TBD
+|Development Mode | Regular development model,<br>Programming is required to implement the requirements. <br>ODM venders need to provide professional driver support for customers，Customers validating device with sysfs| Data driven development model.TBD
+|Flexible | 1.Bus independent, The hardware support:<br>Fan<br>PSU<br>System EEPROM<br>Transceivers<br>CPLD<br>FPGA<br>System LED<br>Temperature sensors<br>Current sensors<br>Voltage sensors<br>Slot<br>Watchdog<br><br>2.Support scenarios with many customization requirements, such as FPGA-Polling, BMC management hardware and firmware upgrades <br><br>3.Normalized SYSFS is easy for hardware fault identification and prediction <br><br>4.Easy to debug for ODM users, and they need not care about the bus topology |Support I2C bus, other bus support requires development work <br>Fan<br>PSU<br>System EEPROM<br>CPLD<br>Optic Transceivers<br>System LED  control via CPLD<br>System Status Registers in CPLD<br>Temp Sensors <br><br> TBD
+|code position |  https://github.com/sonic-net/sonic-buildimage/tree/master/platform/s3ip| https://github.com/sonic-net/sonic-buildimage/tree/master/platform/pddf
+
+PDDF is not incompatible with S3IP SYSFS, we will combine the two parts into two Phases:
+
+Phase 1: The S3IP SYSFS Framework is integrated into the SONiC community so that Chinese ODM vendors can more easily contribute their existing platforms to the community, and other vendors can also have the opportunity to adapt their platforms according to S3IP specifications and expand their business opportunities in China. This is good for SONiC community ecology;
+
+Phase 2: PDDF and the S3IP SYSFS Framework will be integrated and presented as a framework, which makes more sense. Consumers decide whether to comply with the S3IP SYSFS specification by customizing the options provided by the framework.
 
 ### SAI API 
 N/A

@@ -7,7 +7,7 @@
  * [4. Current sensor sysfs ](#4-current-sensor-sysfs)
  * [5. Syseeprom infomation sysfs ](#5-syseeprom-information-sysfs)
  * [6. Fan information sysfs](#6-fan-information-sysfs)
- * [7. Power information sysfs](#7-power-information-sysfs)
+ * [7. PSU information sysfs](#7-psu-information-sysfs)
  * [8. Transceiver information sysfs](#8-transceiver-information-sysfs)
  * [9. System LED sysfs](#9-system-led-sysfs)
  * [10. FPGA information sysfs](#10-fpga-information-sysfs)
@@ -105,7 +105,7 @@ Fan info Sysfs path must be /sys_switch/fan/
 |/sys_switch/fan/fan[n]/status |RO| enum|Fan states are defined as follows:<br>0: not present<br>1: present and normal<br>2: present and abnormal
 |/sys_switch/fan/fan[n]/led_status |R/W| enum| The fan status lights are defined as follows:<br>See the definition of enumeration value of LED status light for details
 
-### 7. Power information sysfs
+### 7. PSU information sysfs
 Power Information The Sysfs path must be /sys_switch/psu/
 
 *Table7-1 Power Information sysfs Property*
@@ -136,6 +136,7 @@ Power Information The Sysfs path must be /sys_switch/psu/
 
 ### 8. Transceiver information sysfs
 Transceiver module information Sysfs path must be /sys_switch/transceiver/
+
 *Table8-1 Transceiver module information sysfs Property*
 
 |Sysfs path|Permissions|Data type|Description|
@@ -171,11 +172,11 @@ FPGA Information The Sysfs path must be /sys_switch/fpga/
 
 |Sysfs path|Permissions|Data type|Description|
 |-|-|-|-|
-|/sys_switch/fpga/number |/RO |int| The total number of FPGAs in the device
-|/sys_switch/fpga/fpga[n]/alias |/RO |string| FPGA alias, bits used to identify the FPGA set
-|/sys_switch/fpga/fpga[n]/type |/RO |string| FPGA model
-|/sys_switch/fpga/fpga[n]/firmware_version |/RO |string| FPGA firmware version number
-|/sys_switch/fpga/fpga[n]/board_version |/RO |string| FPGA hardware version number
+|/sys_switch/fpga/number |RO |int| The total number of FPGAs in the device
+|/sys_switch/fpga/fpga[n]/alias |RO |string| FPGA alias, bits used to identify the FPGA set
+|/sys_switch/fpga/fpga[n]/type |RO |string| FPGA model
+|/sys_switch/fpga/fpga[n]/firmware_version |RO |string| FPGA firmware version number
+|/sys_switch/fpga/fpga[n]/board_version |RO |string| FPGA hardware version number
 |/sys_switch/fpga/fpga[n]/reg_test |R/W |int| Test register, test basic functions available
 
 ### 11. CPLD information sysfs
