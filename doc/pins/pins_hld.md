@@ -284,10 +284,10 @@ Here is the full list of supplementary HLD docs:
 [packet-hld]: in_progress.md
 
 <!-- Repository Links -->
-[buildimage-repo]: https://github.com/Azure/sonic-buildimage
+[buildimage-repo]: https://github.com/sonic-net/sonic-buildimage
 [p4c-repo]: https://github.com/p4lang/p4c
-[swss-repo]: https://github.com/Azure/sonic-swss
-[swss-common-repo]: https://github.com/Azure/sonic-swss-common
+[swss-repo]: https://github.com/sonic-net/sonic-swss
+[swss-common-repo]: https://github.com/sonic-net/sonic-swss-common
 
 <!-- Reference Links -->
 [p4rt-spec-ref]: https://p4lang.github.io/p4runtime/spec/main/P4Runtime-Spec.html
