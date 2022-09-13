@@ -174,7 +174,7 @@ class PortableConsoleDeviceBase:
 
         :return: A dict, the key is the index of the portable console device (integer, 0-based),
                          the value is serial number (string).
-                 eg.
+                 e.g.
                  {
                      0: "device-S/N-1",
                      1: "device-S/N-2",
@@ -197,7 +197,7 @@ class PortableConsoleDeviceBase:
 
         :return: A dict, the key is console line number (integer, same as portable console device designed),
                          the value is an object derived from `sonic_console.line_info.ConsoleLineInfo`.
-                 eg.
+                 e.g.
                  {
                      1: ConsoleLineInfo(
                          device_index=0,
@@ -225,8 +225,8 @@ class PortableConsoleDeviceBase:
         """
         Retrieves the number of power supply units available on the portable console device.
 
-        :return: An integer, the number of power supply units available on the portable console
-                 device.
+        :return: An integer, the number of power supply units available on all the portable console
+                 devices.
         """
         raise NotImplementedError
 
@@ -234,16 +234,24 @@ class PortableConsoleDeviceBase:
         """
         Retrieves all power supply units available on the portable console device.
 
-        :return: A list of objects derived from `sonic_psu.pus_base.PsuBase` representing all
-                 power supply units available on portable console device.
+        :return: A dict, the key is the index of the portable console device (integer, 0-based),
+                         the value is a list of objects derived from `sonic_psu.pus_base.PsuBase`
+                             representing power supply units available on a portable console device.
+                 e.g.
+                 {
+                     0: [PSU0, PSU1],
+                     1: [PSU0, PSU1],
+                     ...
+                 }
         """
         raise NotImplementedError
 
-    def get_psu(self, index):
+    def get_psu(self, device_index, psu_index):
         """
         Retrieves power supply unit represented by index (0-based).
-
-        :param index: An integer, the index (0-based) of the power supply unit to retrieve.
+        :param device_index: An integer, the index (0-based) of the portable console device.
+        :param psu_index: An integer, the index (0-based) of the power supply unit on the specific
+                                      portable console device to retrieve.
         :return: An objects derived from `sonic_psu.pus_base.PsuBase` representing the specified
                  power supply unit.
         """
@@ -262,6 +270,7 @@ For example, Microsoft will implement a portable console device simulator like:
 # microsoft/console_simulator.py
 
 import copy
+from functools import reduce
 from sonic_console.console_base import PortableConsoleDeviceBase
 from sonic_console.line_info import ConsoleLineInfo
 
@@ -283,7 +292,10 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
             ),
             # ...
         }
-        self._psus = []
+        self._psus = {
+            0: [],
+            1: [],
+        }
 
     @classmethod
     def is_plugged_in(cls):
@@ -322,7 +334,7 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
         return copy.deepcopy(self._lines.get(line_number, None))
 
     def get_num_psus(self):
-        return len(self._psus)
+        return reduce(lambda x, y: x + y, [len(v) for v in self._psus.values()])
 
     def get_all_psus(self):
         return copy.deepcopy(self._psus)
@@ -368,7 +380,8 @@ This command displays a summary of the portable console device.
   Vendor Name: Microsoft
   Model Name: Simulator
   Serial Number:
-      0: Microsoft-Simulator-S/N
+      Device 0: MSFT-SIM-1
+      Device 1: MSFT-SIM-2
   Auto Detect: Disable
   ```
 
@@ -420,10 +433,10 @@ This command displays the serial number of the portable console device.
 
   ```
   admin@sonic:~$ show console serial_number
-  Device Index  Serial
-  ------------  -----------
-             0  MSFT-SIM-01
-             1  MSFT-SIM-02
+  Console Device  Serial
+  --------------  -----------
+  Device 0        MSFT-SIM-01
+  Device 1        MSFT-SIM-02
   ```
 
 #### show console virtual_device_list
@@ -440,10 +453,10 @@ This command displays the virtual device list of the portable console device.
 
   ```
   admin@sonic:~$ show console virtual_device_list
-  Line  Device Index  Virtual Device Path
-  ----  ------------  -------------------
-     1             0       /dev/console-1
-     2             0       /dev/console-2
+  Line  Console Device  Virtual Device Path
+  ----  --------------  -------------------
+     1  Device 0        /dev/console-1
+     2  Device 1        /dev/console-2
   ```
 
 #### show console psustatus
@@ -460,9 +473,9 @@ This command displays the status of power supply units of the portable console d
 
   ```
   admin@sonic:~$ show console psustatus
-  PSU    Model          Serial        HW Rev      Voltage (V)    Current (A)    Power (W)  Status    LED
-  -----  -------------  ------------  --------  -------------  -------------  -----------  --------  -----
-  PSU 1  MTEF-PSF-AC-A  MT1621X15246  A3                11.97           4.56        54.56  OK        green
+  Console Device  PSU    Model          Serial        HW Rev      Voltage (V)    Current (A)    Power (W)  Status    LED
+  --------------  -----  -------------  ------------  --------  -------------  -------------  -----------  --------  -----
+  Device 0        PSU 0  MTEF-PSF-AC-A  MT1621X15246  A3                11.97           4.56        54.56  OK        green
   ```
 
 ### Console Config Commands
