@@ -4,7 +4,7 @@
 
 |  Rev  |   Date   |   Author   | Change Description |
 | :---: | :------: | :--------: | ------------------ |
-|  0.1  | 07/20/22 | Zhijian Li | Initial version    |
+|  0.1  | 09/13/22 | Zhijian Li | Initial version    |
 
 ## Overview
 
