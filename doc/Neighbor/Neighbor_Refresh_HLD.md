@@ -99,6 +99,16 @@ Req-3:
 
 MAC table entry in SONiC can be administratively cleared or could be removed due to control protocol handling (mclag mac delete on orphan ports during mclag peer reboot). Once the MAC is removed by external triggers then traffic could be dropped up untill the next neighbor refresh which could be in minutes. In order to avoid such traffic drop, if a MAC is removed, neighbor entry should be refreshed as early as possible to avoid blackholing of traffic .
 
+For the current SONiC release - 202211, Support for req-1 and only for ARP refresh over Physical Interface will be added.
+
+In the subsequent releases following will be added.
+
+1) Support for req-1 IPv6 / ND refresh only on L3 Physical Interface 
+2) Support for req-1 Other L3 Interface types (L3 PortChannel / Vlan / SubInterfaces )
+3) Support for req-2 ARP/ND refresh before FDB Aging in HW
+4) Support for req-3 ARP/ND refresh due to FDB delete/flush
+
+
 # 3 Design
 ## 3.1 Overview
 
