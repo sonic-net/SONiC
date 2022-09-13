@@ -345,6 +345,7 @@ This section will describe the details of the liblicensing deb packing procedure
     * It will be compiled separately and the deb package will be stored in the Dell Artifactory URL
   * When compiling eSONiC the stub implementation will be compiled and packaged with the image
   * During Broadcom Rebranding the stub liblicensing deb package should be replaced with the Dell implementation of the liblicensing deb package that is retrieved from the Dell Artifactory URL
+  * The Dell Liblicensing deb package will be installed in the host and the library directory will be mounted in the SWSS docker.
 
 ## 11 Design Alternatives
 
