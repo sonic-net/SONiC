@@ -6,7 +6,7 @@
   * [List of Tables](#list-of-tables)
   * [Revision](#revision)
   * [Scope](#scope)
-  * [Definition/Abbreviation](#definitionabbreviation)
+  * [Definitions/Abbreviations](#definitionsabbreviations)
   * [Document/References](#documentreferences)
   * [Overview](#overview)
   * [Requirements](#requirements)
@@ -28,6 +28,7 @@
 | 0.2  | 08/03/2022 |   Jiahua Wang     | Fix title and references                        |
 | 0.3  | 08/12/2022 |   Jiahua Wang     | Overloading VendoSai class constructor          |
 | 0.4  | 09/12/2022 |   Jiahua Wang     | Add testing requirements/design section         |
+| 0.5  | 09/13/2022 |   Jiahua Wang     | Define PHY MDIO access function names           |
 
 ### About this Manual
 
@@ -130,6 +131,11 @@ For the case that multiple PHY ids aggregate in a single syncd context, it is a 
 
 The VendorSai overloading constructor will use the functions gbsyncd\_get\_pai\_lib\_name(phy\_id),  gbsyncd\_get\_phy\_access\_lib\_name(phy\_id) and gbsyncd\_get\_mdio\_cl22\_only(phy\_id) to get the JSON key values for "lib\_name", "phy\_access\_lib\_name" and "mdio\_cl22\_only" in the configuration file "gearbox\_config.json".
 
+	#define MDIO_READ            "mdio_read"
+	#define MDIO_WRITE           "mdio_write"
+	#define MDIO_READ_CLAUSE22   "mdio_read_cl22"
+	#define MDIO_WRITE_CLAUSE22  "mdio_write_cl22"
+
 	VendorSai::VendorSai(int phy_id, int context)
 	{
 	    ...
@@ -144,19 +150,21 @@ The VendorSai overloading constructor will use the functions gbsyncd\_get\_pai\_
 	    ...
 	    if (m_mdio_cl22_only)
 	    {   
-	        *(void**)(&m_mdio_read) = dlsym(m_access_lib_handle, "mdio_read_cl22");
+	        *(void**)(&m_mdio_read) = dlsym(m_access_lib_handle, MDIO_READ_CLAUSE22);
 	    } else {
-	        *(void**)(&m_mdio_read) = dlsym(m_access_lib_handle, "mdio_read");
+	        *(void**)(&m_mdio_read) = dlsym(m_access_lib_handle, MDIO_READ);
 	    }
 	    ...
 	    if (m_mdio_cl22_only)
 	    {   
-	        *(void**)(&m_mdio_write) = dlsym(m_access_lib_handle, "mdio_write_cl22");
+	        *(void**)(&m_mdio_write) = dlsym(m_access_lib_handle, MDIO_WRITE_CLAUSE22);
 	    } else {
-	        *(void**)(&m_mdio_write) = dlsym(m_access_lib_handle, "mdio_write");
+	        *(void**)(&m_mdio_write) = dlsym(m_access_lib_handle, MDIO_WRITE);
 	    }   
 	    ...
 	}
+
+Because only the PHY access library name can be changed in the configuration file, we define the PHY access function names always being "mdio\_read", "mdio_write", "mdio\_read\_cl22" and "mdio\_write\_cl22" for MDIO read and write of clause 45 and clause 22, respectively. The access function prototypes are already defined in the PAI library.
 
 The VendorSai::create() function can set the correct the MDIO access functions for PAI in gbsyncd context.
 
