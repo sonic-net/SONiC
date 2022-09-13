@@ -102,8 +102,8 @@ At a high level the following should be supported:
 
 #### Phase I
 
-- MACsec can be enabled at a specified [port](https://github.com/Azure/SONiC/wiki/Configuration#port)
-- MACsec can co-work with the [port channel](https://github.com/Azure/SONiC/wiki/Configuration#port-channel)
+- MACsec can be enabled at a specified [port](https://github.com/sonic-net/SONiC/wiki/Configuration#port)
+- MACsec can co-work with the [port channel](https://github.com/sonic-net/SONiC/wiki/Configuration#port-channel)
 - Support Cipher: GCM-AES-128 and GCM-AES-256
 - Secure Association Key(SAK) can be replaced without service outage
 

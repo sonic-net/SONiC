@@ -22,7 +22,7 @@
 The purpose is to test functionality of Asymmetric PFC on the SONIC based DUT, closely resembling production environment.
 
 ### Scope
-The test is targeting a running SONIC system with fully functioning configuration. The purpose of the test is to perform functional testing of Asymmetric PFC on SONIC system. There will be reused existed PTF test suite for PFC Asymmetric which is located at https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/files/saitests/pfc_asym.py.
+The test is targeting a running SONIC system with fully functioning configuration. The purpose of the test is to perform functional testing of Asymmetric PFC on SONIC system. There will be reused existed PTF test suite for PFC Asymmetric which is located at https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/roles/test/files/saitests/pfc_asym.py.
 
 ### Testbed
 The test will run on the following testbeds:
@@ -39,20 +39,20 @@ There is already existed PFC asymmetric test cases which use PTF to send traffic
 
 Test suite location
 
-https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/files/saitests/pfc_asym.py
+https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/roles/test/files/saitests/pfc_asym.py
 
 It requires several updates:
 
 1. Packets sending speed can be increased by using multiprocessing instead of multithreading library.
 
-https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/files/saitests/pfc_asym.py#L83
+https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/roles/test/files/saitests/pfc_asym.py#L83
 
 
 Replace ```threading.Thread``` to use ```multiprocessing.Process``` instead.
 
 2. Looks like there is a redundancy in generating configuration file for ARP responder.
 
-https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/files/saitests/pfc_asym.py#L56
+https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/roles/test/files/saitests/pfc_asym.py#L56
 
 Fix the loop to store file only once
 
