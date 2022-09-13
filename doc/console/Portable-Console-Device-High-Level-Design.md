@@ -200,12 +200,12 @@ class PortableConsoleDeviceBase:
                  eg.
                  {
                      1: ConsoleLineInfo(
-                         "device_index": 0,
-                         "virtual_device_path": "/dev/console-1"
+                         device_index=0,
+                         virtual_device_path="/dev/console-1"
                      ),
                      2: ConsoleLineInfo(
-                         "device_index": 0,
-                         "virtual_device_path": "/dev/console-2"
+                         device_index=0,
+                         virtual_device_path="/dev/console-2"
                      ),
                      ...
                  }
@@ -268,7 +268,10 @@ from sonic_console.line_info import ConsoleLineInfo
 class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
 
     def __init__(self):
-        self._serial_number = "Microsoft-Simulator-S/N"
+        self._serial_number = {
+            0: "MSFT-SIM-01",
+            1: "MSFT-SIM-02",
+        }
         self._lines = {
             1: ConsoleLineInfo(
                 device_index=0,
@@ -307,7 +310,7 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
         return 1
 
     def get_serial_number(self):
-        return self._serial_number
+        return copy.deepcopy(self._serial_number)
 
     def get_num_lines(self):
         return len(self._lines)
@@ -364,7 +367,8 @@ This command displays a summary of the portable console device.
   admin@sonic:~$ show console summary
   Vendor Name: Microsoft
   Model Name: Simulator
-  Serial Number: Microsoft-Simulator-S/N
+  Serial Number:
+      0: Microsoft-Simulator-S/N
   Auto Detect: Disable
   ```
 
@@ -416,7 +420,10 @@ This command displays the serial number of the portable console device.
 
   ```
   admin@sonic:~$ show console serial_number
-  Microsoft-Simulator-S/N
+  Device Index  Serial
+  ------------  -----------
+             0  MSFT-SIM-01
+             1  MSFT-SIM-02
   ```
 
 #### show console virtual_device_list
@@ -433,10 +440,10 @@ This command displays the virtual device list of the portable console device.
 
   ```
   admin@sonic:~$ show console virtual_device_list
-  Line    Virtual Device Path
-  ----    -------------------
-     1         /dev/console-1
-     2         /dev/console-2
+  Line  Device Index  Virtual Device Path
+  ----  ------------  -------------------
+     1             0       /dev/console-1
+     2             0       /dev/console-2
   ```
 
 #### show console psustatus
