@@ -67,7 +67,7 @@ This document describes the high level design of the watermark feature.
 ## 1.1 System Chart
 Following diagram describes a top level overview of the architecture:
 
-![](https://github.com/Azure/SONiC/blob/master/images/watermark_HLD/SystemOverview.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/watermark_HLD/SystemOverview.png)
 
 ## 1.2 Modules description
 ### 1.2.1 gRPC
@@ -102,7 +102,7 @@ Regular user is able to query the persistent watermark. Regular user is able to 
 
 When one regular user and the streaming telemetry coexist, they do not interfere with each other. Their behaviors stay the same as described above. So the software should be able to handle the following situations and return the correct watermark values to each user:
 
-![](https://github.com/Azure/SONiC/blob/master/images/watermark_HLD/timeline.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/watermark_HLD/timeline.png)
 
 
 t0 - clear user watermark event
@@ -337,7 +337,7 @@ Examples of virtual paths:
 
 #### 4.1 Watermark general flow
 
-![](https://github.com/Azure/SONiC/blob/master/images/watermark_HLD/WM_general.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/watermark_HLD/WM_general.png)
 
 The core components are the flex counter, watermark orch, DB, CLI. 
 
@@ -353,13 +353,13 @@ The Cli reads the watermarks from the tables, formats and outputs it.
 
 #### 4.2 Resetting the telemetry period flow
 
-![](https://github.com/Azure/SONiC/blob/master/images/watermark_HLD/WM_period.PNG)
+![](https://github.com/sonic-net/SONiC/blob/master/images/watermark_HLD/WM_period.PNG)
 
 The watermark orch handles notifications on changes in WATERMARK_TABLE in config DB. The new interval will be assigned to the timer during the timer handling, so the orch will reset the interval only when the current timer expires.
 
 #### 4.3 Cli flow
 
-![](https://github.com/Azure/SONiC/blob/master/images/watermark_HLD/WM_cli.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/watermark_HLD/WM_cli.png)
 
 ### 5 Open questions
 

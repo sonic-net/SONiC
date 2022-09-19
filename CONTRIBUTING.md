@@ -34,7 +34,7 @@ For example:
 * Use issues to keep track of what is going on
 
 ##Expectations for pull requests
-Pull requests should be free of any known bugs and be accompanied by tests and appropriate documentation.  Test coverage may include unit tests, integration tests such as [PTF tests](https://github.com/Azure/SONiC/wiki/HOWTO-write-a-PTF-Test) defined in the [sonic-mgmt repo](https://github.com/Azure/sonic-mgmt/tree/master/ansible/roles/test/tasks).
+Pull requests should be free of any known bugs and be accompanied by tests and appropriate documentation.  Test coverage may include unit tests, integration tests such as [PTF tests](https://github.com/sonic-net/SONiC/wiki/HOWTO-write-a-PTF-Test) defined in the [sonic-mgmt repo](https://github.com/sonic-net/sonic-mgmt/tree/master/ansible/roles/test/tasks).
 
 ## Commiting new test
 When commiting a new feature with a new test, please complete a [test plan from the template](doc/SONiC%20Test%20Plan%20Template.md)
