@@ -614,6 +614,12 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 priority
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 priority 1 
   <cr>  
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 priority 3
+
 ```
 
 #### Double Tag Translation
@@ -627,6 +633,7 @@ switchport vlan-mapping <outer-cvlan-id> inner <inner-cvlan-id> <svlan-id> [prio
 
 **Example**
 ```
+
 sonic# configure terminal 
 sonic(config)# interface Ethernet 4
 sonic(conf-if-Ethernet4)# switchport 
@@ -697,7 +704,7 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel 100 priorit
   <0..7>  Configure priority bits for service provider VLAN
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel 100 priority 2 
-  <cr>  
+  <cr>
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 
   <1..4094>     Configure VLAN mapping customer VLAN ID or service provider VLAN ID (for priority update)
@@ -765,6 +772,11 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 priority
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 priority 2 
   <cr>  
+  
+sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel 100 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping remove  50 dot1q-tunnel 100 priority 3
 
 sonic(conf-if-Ethernet4)# no switchport 
   access        Remove access mode characteristics of the interface
