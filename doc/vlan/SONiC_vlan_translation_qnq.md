@@ -566,17 +566,24 @@ module: sonic-vlan-translation
 #### 3.6.2.1 Configuration Commands
 ```
 Syntax:
-[no] switchport vlan-mapping  {{<cvlan-id> [inner <inner-cvlan-id>]}  | 
-                               {{<cvlan_list> | { add | remove} <cvlan-list>} dot1q-tunnel } <svlan-id> [priority <priority-bits>]
+
+switchport vlan-mapping  {{<cvlan-id> [inner <inner-cvlan-id>]}  | 
+                          {{<cvlan_list> | { add | remove} <cvlan-list>} dot1q-tunnel } <svlan-id> [priority <priority-bits>]
+                          
+[no] switchport vlan-mapping {<svlan-id> | dot1q-tunnel <svlan-id>} [priority [<priority-bits>]]
 ```
 
 #### 3.6.2.1.1 VLAN Translation Commands
 
 #### Single Tag Translation
+
+**Syntax**
 ```
-[no] switchport vlan-mapping <cvlan-id> <svlan-id> [priority <priority-bits>]
+switchport vlan-mapping <cvlan-id> <svlan-id> [priority <priority-bits>]
+
+[no] switchport vlan-mapping <svlan-id> [priority <priority-bits>]
 ```
-Example
+**Example**
 ```
 sonic# configure terminal 
 sonic(config)# interface Ethernet 4
@@ -586,30 +593,59 @@ sonic(conf-if-Ethernet4)# switchport
   vlan-mapping  Configure VLAN translation parameters on an interface
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 
-  <1..4094>   Configure VLAN mapping customer VLAN ID
-  add         Configure VLAN stacking match customer VLANs on an interface
-  remove      Remove VLAN stacking match customer VLANs on an interface
-  VLAN-LIST   (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
+  <1..4094>     Configure VLAN mapping customer VLAN ID or service provider VLAN ID (for priority update)
+  add           Add VLAN mapping customer VLANs to match list
+  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
+  remove        Remove VLAN mapping customer VLANs from match list
+  VLAN-LIST     (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 
-  <1..4094>  Configure service provider VLAN ID
-  inner      Inner customer VLAN
+  <1..4094>     Configure service provider VLAN ID
+  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
+  inner         Inner customer VLAN
+  priority      Set priority bits <0-7> for service provider VLAN
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 
-  priority   Set priority bits <0-7> for service provider VLAN
+  priority  Set priority bits <0-7> for service provider VLAN
+  <cr>      
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 priority 1 
   <cr>  
 ```
 
 #### Double Tag Translation
 
+**Syntax**
 ```
-[no] switchport vlan-mapping <outer-cvlan-id> inner <inner-cvlan-id> <svlan-id> [priority <priority-bits>]
+switchport vlan-mapping <outer-cvlan-id> inner <inner-cvlan-id> <svlan-id> [priority <priority-bits>]
+
+[no] switchport vlan-mapping <svlan-id> [priority [<priority-bits>]]
 ```
 
-Example
+**Example**
 ```
-sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 200 
-  <cr>  
+sonic# configure terminal 
+sonic(config)# interface Ethernet 4
+sonic(conf-if-Ethernet4)# switchport 
+  access        Set access mode characteristics of the interface
+  trunk         Configure trunking parameters on an interface
+  vlan-mapping  Configure VLAN translation parameters on an interface
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 
+  <1..4094>     Configure VLAN mapping customer VLAN ID or service provider VLAN ID (for priority update)
+  add           Add VLAN mapping customer VLANs to match list
+  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
+  remove        Remove VLAN mapping customer VLANs from match list
+  VLAN-LIST     (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 
+  <1..4094>     Configure service provider VLAN ID
+  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
+  inner         Inner customer VLAN
+  priority      Set priority bits <0-7> for service provider VLAN
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 
   <1..4094>  Configure inner customer VLAN ID
@@ -618,31 +654,34 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200
   <1..4094>  Configure service provider VLAN ID
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 
-  priority   Set priority bits <0-7> for service provider VLAN
-  <cr>  
+  priority  Set priority bits <0-7> for service provider VLAN
+  <cr>      
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 priority 
-  <0-7>   Configure priority bits for service provider VLAN
+  <0..7>  Configure priority bits for service provider VLAN
 
-sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 priority 3
-
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 priority 2 
+  <cr>  
 ```
 
 #### 3.6.2.1.2 VLAN Stacking or Q-in-Q Commands
 
+**Syntax**
 ```
-[no] switchport vlan-mapping  {<cvlan_list> | { add | remove} <cvlan-list>} dot1q-tunnel <svlan-id> [priority <priority-bits>]
+switchport vlan-mapping  {<cvlan_list> | { add | remove} <cvlan-list>} dot1q-tunnel <svlan-id> [priority <priority-bits>]
+
+[no] switchport vlan-mapping dot1q-tunnel <svlan-id> [priority [<priority-bits>]]
                               
 ```
 
-Example
-
+**Example**
 ```
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 
-  <1..4094>   Configure customer VLAN ID
-  add         Configure VLAN stacking match customer VLANs on an interface
-  remove      Remove VLAN stacking match customer VLANs on an interface
-  VLAN-LIST   (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
+  <1..4094>     Configure VLAN mapping customer VLAN ID or service provider VLAN ID (for priority update)
+  add           Add VLAN mapping customer VLANs to match list
+  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
+  remove        Remove VLAN mapping customer VLANs from match list
+  VLAN-LIST     (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 
   dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
@@ -651,10 +690,24 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel
   <1..4094>  Configure service provider VLAN ID
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel 100 
+  priority  Set priority bits <0-7> for service provider VLAN
+  <cr>      
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel 100 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 20,30 dot1q-tunnel 100 priority 2 
   <cr>  
 
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 
+  <1..4094>     Configure VLAN mapping customer VLAN ID or service provider VLAN ID (for priority update)
+  add           Add VLAN mapping customer VLANs to match list
+  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
+  remove        Remove VLAN mapping customer VLANs from match list
+  VLAN-LIST     (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
+
 sonic(conf-if-Ethernet4)# switchport vlan-mapping add 
-  VLAN-LIST   (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
+  VLAN-LIST  (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping add 30-40 
   dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
@@ -663,16 +716,17 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping add 30-40 dot1q-tunnel
   <1..4094>  Configure service provider VLAN ID
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping add 30-40 dot1q-tunnel 100 
+  priority  Set priority bits <0-7> for service provider VLAN
+  <cr>      
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping add 30-40 dot1q-tunnel 100 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping add 30-40 dot1q-tunnel 100 priority 7 
   <cr>  
 
-sonic(conf-if-Ethernet4)# switchport vlan-mapping 
-  <1..4094>   Configure customer VLAN ID
-  add         Configure VLAN stacking match customer VLANs on an interface
-  remove      Remove VLAN stacking match customer VLANs on an interface
-  VLAN-LIST   (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
-
 sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 
-  VLAN-LIST   (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
+  VLAN-LIST  (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 
   dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
@@ -681,7 +735,35 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel
   <1..4094>  Configure service provider VLAN ID
 
 sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel 100 
-  priority   Set priority bits <0-7> for service provider VLAN
+  priority  Set priority bits <0-7> for service provider VLAN
+  <cr>      
+```
+#### 3.6.2.1.3 VLAN Priority configuration commands (modify/delete)
+
+**Syntax**
+```
+[no] switchport vlan-mapping {<svlan-id> | dot1q-tunnel <svlan-id>} [priority [<priority-bits>]]
+```
+
+**Example**
+```
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 
+  <1..4094>     Configure VLAN mapping customer VLAN ID or service provider VLAN ID (for priority update)
+  add           Add VLAN mapping customer VLANs to match list
+  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
+  remove        Remove VLAN mapping customer VLANs from match list
+  VLAN-LIST     (-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 
+  <1..4094>     Configure service provider VLAN ID
+  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
+  inner         Inner customer VLAN
+  priority      Set priority bits <0-7> for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 priority 
+  <0..7>  Configure priority bits for service provider VLAN
+
+sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 priority 2 
   <cr>  
 
 sonic(conf-if-Ethernet4)# no switchport 
@@ -694,14 +776,26 @@ sonic(conf-if-Ethernet4)# no switchport vlan-mapping
   <1..4094>     Configure service provider VLAN ID
   dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
 
+sonic(conf-if-Ethernet4)# no switchport vlan-mapping 100 
+  priority  Set priority bits <0-7> for service provider VLAN
+  <cr>      
+
+sonic(conf-if-Ethernet4)# no switchport vlan-mapping 100 priority 
+  <cr>  
+
+sonic(conf-if-Ethernet4)# no switchport vlan-mapping 100 priority
+ 
 sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 
   <1..4094>  Configure service provider VLAN ID
 
-sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 200 
-  <cr>  
+sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 100 
+  priority  Set priority bits <0-7> for service provider VLAN
+  <cr>      
+
+sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 100 priority 
 ```
 
-#### 3.6.2.1.3 Configuration restrictions
+#### 3.6.2.1.4 Configuration restrictions
 
 
 * An SVLAN cannot be part of more than one VLAN translation (single or double tagged) on a given Interface
