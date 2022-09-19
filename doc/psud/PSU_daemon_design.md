@@ -38,7 +38,7 @@ Now psud collects PSU data via platform API, and it also support platform plugin
 
 ## 3. DB schema for PSU
 
-PSU number is stored in chassis table. Please refer to this [document](https://github.com/Azure/SONiC/blob/master/doc/pmon/pmon-enhancement-design.md), section 1.5.2.
+PSU number is stored in chassis table. Please refer to this [document](https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon-enhancement-design.md), section 1.5.2.
 
 PSU information is stored in PSU table:
 
@@ -144,7 +144,7 @@ We define a few abnormal PSU events here. When any PSU event happens, syslog sho
 
 ### 5.2 Platform API change
 
-Some abstract member methods need to be added to [psu_base.py](https://github.com/Azure/sonic-platform-common/blob/master/sonic_platform_base/psu_base.py) and vendor should implement these methods.
+Some abstract member methods need to be added to [psu_base.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/psu_base.py) and vendor should implement these methods.
 
 ```python
 
