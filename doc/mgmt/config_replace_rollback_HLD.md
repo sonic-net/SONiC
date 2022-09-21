@@ -105,7 +105,7 @@ Network automation tools generate intended configs as config_db.json format to "
 ## 1.2 Requirements
 
 **Common**
-- Only allowed admin user.
+- Allow only for users with admin role.
 - Config replacement can be requested via CLI, REST and gNMI/gNOI management interfaces. 
 - Fail-safe operation - if an error is encountered, an error is reported and it should NOT take any partial config. i.e. transaction aborted without changing CONFIG_DB.
 - Sorting, validation support for shallow and deep difference between new and current configuration.
@@ -170,7 +170,7 @@ Following functionalities are provided to support Config Replace and Rollback.
 - action to archive CONFIG_DB to the backup configuration for rollback
 - modeless rpc "commit" to support timer
 - modeless rpc "commit" to to support confirm
-- add a rule to rbac to allow only admin user
+- add a rule to rbac to allow only for users with admin role
 - add support to retrieve configuration file from remote server and decompress the file if it is in compressed format
 - error reporting
 - debug utilities
@@ -250,7 +250,7 @@ module: openconfig-file-mgmt-private
 | ------------------------------------------------------- | ------------------------------------------------------------ |
 | **Syntax**                                              | copy source-url running-configuration [replace] |
 | **Parameters**                                          |
-| source-url                                              | config://filename<br>home://filename<br>ftp://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>http[s]://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>scp://[userid[:passwd]@]{hostname \| host-ip}/file-path|
+| source-url                                              | config://filename<br>home://filename<br>ftp://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>http[s]://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>scp://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>usb://filename|
 | running-configuration                                   | Current running configuration file |
 | replace                                                 | This keyword represents that the configurations in source-url will replace current running configuration  |
 | **Default**                                             | Merge |
@@ -265,7 +265,7 @@ module: openconfig-file-mgmt-private
 | ------------------------------------------------------- | ------------------------------------------------------------ |
 | **Syntax**                                              | replace source-url  |
 | **Parameters**                                          |
-| source-url                                              | config://filename<br>home://filename<br>ftp://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>http[s]://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>scp://[userid[:passwd]@]{hostname \| host-ip}/file-path|
+| source-url                                              | config://filename<br>home://filename<br>ftp://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>http[s]://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>scp://[userid[:passwd]@]{hostname \| host-ip}/file-path<br>usb://filename|
 | **Default**                                             |  |
 | **Command mode**                                        | Config-s |
 | **Roles**                                               | admin |
@@ -326,10 +326,6 @@ Extend config session commit rpc for:
 	
 
 # 5 Error Handling
-- Primary Encryption cannot be replaced using config replace key config-key password-encrypt and
-no key config-key password-encrypt commands trigger re-encryption of keys in backends and much more. 
-If Primary Encryption related commands are Created/Modified/Deleted through config replace,
-Error will be thrown
 	
 - User management commands cannot be replaced using config replace username and no username commands 
 directly configure local users on linux. If User management commands are Created/Modified/Deleted through config replace,
@@ -348,9 +344,6 @@ through config replace, Error will be thrown
 
 
 # 9 Security and Threat Model
-
-
-## 9.1 Certificates, secrets, keys, and passwords
 
 
 # 10 Limitations
