@@ -171,7 +171,7 @@ The are 2 kinds of keys, development key and production keys.
 The production keys will be stored according to the design of the signing server
 The development keys will be not stored in Git, instead will be a variable named SB_DEV_KEYS_PATH in compilation time, and the developer will set the location of his private keys.
 
-##### How to sing the components
+##### How to sign the components
 Signing Script: we need to sign shim, grub, vmlinuz, and KO, to do that it will be added a sign script in the SONiC repo in the /script folder named signing_secure_boot_sign_dev.
 
 This script will sign all the components described before. (Using sbsign tool for .efi files and sign-file for KO files.)
