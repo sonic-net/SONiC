@@ -21,6 +21,7 @@ The purpose of PSU daemon is to collect platform PSU data and trigger proper act
   - PSU entity information
   - PSU present status and power good status
   - PSU power, current, voltage and voltage threshold
+  - PSU max power, input current and input voltage
   - PSU temperature and temperature threshold
 - Monitor PSU event, set LED color and trigger syslog according to event type, including:
   - PSU present status and power good status
@@ -160,6 +161,12 @@ class PsuBase(device_base.DeviceBase):
         raise NotImplementedError
 
     def get_voltage_low_threshold(self):
+        raise NotImplementedError
+	
+    def get_input_voltage(self):
+        raise NotImplementedError
+	
+    def get_input_current(self):
         raise NotImplementedError
     ...
 
