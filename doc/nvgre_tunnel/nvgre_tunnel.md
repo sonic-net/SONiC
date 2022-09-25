@@ -56,7 +56,7 @@ At a high level the following should be supported:
 - User should be able to create VLAN to VSID mapper entries for the NVGRE tunnel
 - Both VLAN and Bridge to VSID mappers should be supported by the NVGRE tunnel
 - Only the decapsulation mappers supported
-- YANG model should be created in order to auto-generate CLI by using the [SONiC CLI Auto-generation tool](https://github.com/Azure/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md).
+- YANG model should be created in order to auto-generate CLI by using the [SONiC CLI Auto-generation tool](https://github.com/sonic-net/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md).
 - CLI for NVGRE tunnel
 
 Counters for NVGRE Tunnel are out of scope of this design document.
@@ -132,9 +132,9 @@ The following orchestration agents will be added or modified. The flow diagrams 
 ### High-Level Design 
 
 The following sub-modules will be modified:
-* [sonic-swss](https://github.com/Azure/sonic-swss) - will be extended with the new orchestration agent for NVGRE.
-* [sonic-swss-common](https://github.com/Azure/sonic-swss-common) - will be extended with the new tables for ConfigDB.
-* [sonic-utilities](https://github.com/Azure/sonic-utilities) - will be extened with the new CLI.
+* [sonic-swss](https://github.com/sonic-net/sonic-swss) - will be extended with the new orchestration agent for NVGRE.
+* [sonic-swss-common](https://github.com/sonic-net/sonic-swss-common) - will be extended with the new tables for ConfigDB.
+* [sonic-utilities](https://github.com/sonic-net/sonic-utilities) - will be extened with the new CLI.
 
 #### Sequence diagrams
 
@@ -417,7 +417,7 @@ The number of the tunnels are not limited by SONiC, but if ASIC vendor reach the
 
 ### Testing Requirements/Design  
 
-The tests will be implemented under the VS environment and will be placed - [sonic-swss/tests](https://github.com/Azure/sonic-swss/tree/master/tests) sub-module.
+The tests will be implemented under the VS environment and will be placed - [sonic-swss/tests](https://github.com/sonic-net/sonic-swss/tree/master/tests) sub-module.
 
 #### Unit Test cases
 
