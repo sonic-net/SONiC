@@ -203,19 +203,19 @@ jipan@sonic-build:~/igbpatch/vs/sonic-buildimage/src/sonic-swss/tests$
 ```
 
 # Separate syncd and swss services, and warm start configDB support
-https://github.com/Azure/sonic-buildimage/compare/master...jipanyang:warm-reboot
+https://github.com/sonic-net/sonic-buildimage/compare/master...jipanyang:warm-reboot
 
 # swss-flushdb script support
-https://github.com/Azure/sonic-utilities/compare/master...jipanyang:swss-warm-restart
+https://github.com/sonic-net/sonic-utilities/compare/master...jipanyang:swss-warm-restart
 
 # swss data restore
-https://github.com/Azure/sonic-swss/compare/master...jipanyang:idempotent
+https://github.com/sonic-net/sonic-swss/compare/master...jipanyang:idempotent
 
 # RedisClient  hmset and hgetallordered library support.
-https://github.com/Azure/sonic-swss-common/compare/master...jipanyang:idempotent
+https://github.com/sonic-net/sonic-swss-common/compare/master...jipanyang:idempotent
 
 # libsari redis API idempotency support
-https://github.com/Azure/sonic-sairedis/compare/master...jipanyang:idempotent
+https://github.com/sonic-net/sonic-sairedis/compare/master...jipanyang:idempotent
 
 
 
