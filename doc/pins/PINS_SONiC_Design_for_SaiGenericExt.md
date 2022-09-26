@@ -56,7 +56,7 @@ Table Definition – It contains match/action fields and enough other details fo
 ## Scope <a name="Scope"></a>
 This document augments the PINS architecture for SAI pipeline extensions. The scope of this document is to zoom in with more details and enhance P4RT-APP and P4RT-Orchagent components of the SONiC framework. The document details the design of these components to generically support extensions to program forwarding tables leveraging SAI APIs and SAI Generic Programmable Extension APIs.
 
-![](PINS_SONiC_Design_for_SaiGenericExt_Scope.png)
+![](images/PINS_SONiC_Design_for_SaiGenericExt_Scope.png)
 
 ## Requirements <a name="Requirements"></a>
 The SAI Extension P4 program is expected to be extended based on a well-documented SAI P4 program.
@@ -84,7 +84,7 @@ The PINS SAI Extension path will continue to use the same control plane componen
 - P4Orch to manage cross object dependencies from PINS SAI Extension objects onto another PINS SAI Extension object or PINS SAI object
 - P4Orch to translate counters/meters, as specified by P4, to counter/meter objects conforming to SAI API calls
 
-![](PINS_SONiC_Design_for_SaiGenericExt_Design.png)
+![](images/PINS_SONiC_Design_for_SaiGenericExt_Design.png)
 
 ### P4RT-APP <a name="P4RT-APP"></a>
 P4RT-APP runs in a separate container in SONiC and is a front-end component of SONiC interfacing with a P4RT client. It is responsible for reading table-entries received from the P4RT client and translating them to P4RT table schema in APPL_DB. P4RT-APP translates table-entries based on the P4Info pushed during forwarding pipeline initialization call by the P4RT client.
