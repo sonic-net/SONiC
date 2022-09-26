@@ -296,6 +296,9 @@ actions {
 
 
 ### Example <a name="Example"></a>
+
+![](images/PINS_SONiC_Design_for_SaiGenericExt_Example.png)
+
 #### P4 Definition
 [In protobuf format. The information is partial, not all elements are shown, enough for example illustration purposes.]
 
