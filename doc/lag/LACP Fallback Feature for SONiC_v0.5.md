@@ -17,7 +17,7 @@ problem because packets sourced from the MAC address of NIC-1 can be returned
 to the port on which NIC-2 is attached, which will cause NIC-2 to drop the
 packets (due to MAC mismatch).
 
-![lag.png](https://github.com/Azure/SONiC/blob/gh-pages/images/lacp_fallback_hld/lag.png)
+![lag.png](https://github.com/sonic-net/SONiC/blob/gh-pages/images/lacp_fallback_hld/lag.png)
 
 With the LACP fallback feature, the switch allows the server to bring up the
 LAG (before receiving any LACP PDUs from the server) and keeps a single port
@@ -70,7 +70,7 @@ Rxm\_expired states with two timeout: Short timeout (3s) and Long timeout
 (180s) depending on the value of the Actor's Operational Status LACP\_Timeout,
 as transmitted in LACPDUs.
 
-![Current_LACP_State_Machine.png](https://github.com/Azure/SONiC/blob/gh-pages/images/lacp_fallback_hld/Current_LACP_State_Machine.png)
+![Current_LACP_State_Machine.png](https://github.com/sonic-net/SONiC/blob/gh-pages/images/lacp_fallback_hld/Current_LACP_State_Machine.png)
 
 ## Receive Machine Events
 The following events can occur:
@@ -86,7 +86,7 @@ have become non-operational. The received LACPDU event only occurs if both
 physical transmission and reception are operational, so far as the actor is
 aware.
 
-![rxm.png](https://github.com/Azure/SONiC/blob/gh-pages/images/lacp_fallback_hld/rxm.png)
+![rxm.png](https://github.com/sonic-net/SONiC/blob/gh-pages/images/lacp_fallback_hld/rxm.png)
 
 # LACP Fallback Design
 
@@ -99,7 +99,7 @@ In order to support LACP fallback feature, we need to make the port selectable
 in defaulted state if fallback is enabled. Hence we'd like to introduce the
 fallback mode in defaulted state.
 
-![LACP_Defaulted.png](https://github.com/Azure/SONiC/blob/gh-pages/images/lacp_fallback_hld/LACP_Defaulted.png)
+![LACP_Defaulted.png](https://github.com/sonic-net/SONiC/blob/gh-pages/images/lacp_fallback_hld/LACP_Defaulted.png)
 
 - Fallback Mode:
 

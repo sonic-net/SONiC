@@ -43,15 +43,15 @@ Table of Contents
 # Introduction
 SONiC is an open source network operating system based on Linux that runs on switches from multiple vendors and ASICs. SONiC offers a full-suite of network functionality, like BGP and RDMA, that has been production-hardened in the data centers of some of the largest cloud-service providers. It offers teams the flexibility to create the network solutions they need while leveraging the collective strength of a large ecosystem and community.
 
-SONiC software shall be loaded in these [supported devices](https://github.com/Azure/SONiC/wiki/Supported-Devices-and-Platforms) and this User guide explains the basic steps for using the SONiC in those platforms.
+SONiC software shall be loaded in these [supported devices](https://github.com/sonic-net/SONiC/wiki/Supported-Devices-and-Platforms) and this User guide explains the basic steps for using the SONiC in those platforms.
 
-Connect the console port of the device and use the 9600 baud rate to access the device. Follow the [Quick Start Guide](https://github.com/Azure/SONiC/wiki/Quick-Start) to boot the device in ONIE mode and install the SONiC software using the steps specified in the document and reboot the device. In some devices that are pre-loaded with SONiC software, this step can be skipped. 
+Connect the console port of the device and use the 9600 baud rate to access the device. Follow the [Quick Start Guide](https://github.com/sonic-net/SONiC/wiki/Quick-Start) to boot the device in ONIE mode and install the SONiC software using the steps specified in the document and reboot the device. In some devices that are pre-loaded with SONiC software, this step can be skipped. 
 Users shall use the default username/password "admin/YourPaSsWoRd" to login to the device through the console port.
 
 After logging into the device, SONiC software can be configured in following three methods.
- 1) [Command Line Interface](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md)
- 2) [config_db.json](https://github.com/Azure/SONiC/wiki/Configuration) 
- 3) [minigraph.xml](https://github.com/Azure/SONiC/wiki/Configuration-with-Minigraph-(~Sep-2017))
+ 1) [Command Line Interface](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md)
+ 2) [config_db.json](https://github.com/sonic-net/SONiC/wiki/Configuration) 
+ 3) [minigraph.xml](https://github.com/sonic-net/SONiC/wiki/Configuration-with-Minigraph-(~Sep-2017))
  
 Users can use all of the above methods or choose either one method to configure and to view the status of the device.
 This user manual explains the common commands & related configuration/show examples on how to use the SONiC device. Refer the above documents for more detailed information.
@@ -78,9 +78,9 @@ This guide details the steps to install a SONiC image on your supported switch.
 
 ## 1.1 Download Image
 
-We have one SONiC Image per ASIC vendor. You can download SONiC Image [here](https://github.com/Azure/SONiC/wiki/Supported-Devices-and-Platforms)
+We have one SONiC Image per ASIC vendor. You can download SONiC Image [here](https://github.com/sonic-net/SONiC/wiki/Supported-Devices-and-Platforms)
 
-You can also build SONiC from source and the instructions can be found [here](https://github.com/Azure/sonic-buildimage).
+You can also build SONiC from source and the instructions can be found [here](https://github.com/sonic-net/sonic-buildimage).
 
 Once the image is available in your local machine, the image can be installed either by installing using a USB thumb drive or over the network as given in following sub-sections.
 In case if the device is already preloaded with SONiC image, the device can be booted without the installation process.
@@ -241,19 +241,19 @@ This TSG gives the instruction of how to reset a SONiC switch password.
 1. Edit Grub boot menu options
 1.1 First you need to get into grub menu options. This menu is displayed right at the beginning of the boot.  You should get something similar to this, but not the exactly the same. 
 Choose the choice Start with SONiC-:
-  ![image.png](https://github.com/Azure/SONiC/blob/master/images/PW-1.png)
+  ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-1.png)
 
 1.2 Now we attempt to edit grub's boot option. Press "e" to edit the first grub menu option and navigate to kernel line:
- ![image.png](https://github.com/Azure/SONiC/blob/master/images/PW-2.png)
+ ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-2.png)
 
 1.3 Remove quiet  and add  init=/bin/bash
- ![image.png](https://github.com/Azure/SONiC/blob/master/images/PW-3.png)
+ ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-3.png)
 
 1.4 Press Ctrl-x to boot
 
 2. Remount / and /proc
 2.1 After successfully boot you will be presented with bash command prompt:
- ![image.png](https://github.com/Azure/SONiC/blob/master/images/PW-4.png)
+ ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-4.png)
 
 ```
 mount -o remount,rw / 
@@ -264,7 +264,7 @@ mount -o remount,rw /proc
 3.1 To reset an actual password is now simple as typing :
 `passwd admin`
  
-  ![image.png](https://github.com/Azure/SONiC/blob/master/images/PW-5.png)
+  ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-5.png)
  
 ```
 sync
@@ -279,13 +279,13 @@ sudo reboot -f
 
 SONiC is managing configuration in a single source of truth - a redisDB instance that we refer as ConfigDB. Applications subscribe to ConfigDB and generate their running configuration correspondingly.
 
-Details about ConfigDB and schema design, please find it [here](https://github.com/Azure/SONiC/wiki/Configuration) 
+Details about ConfigDB and schema design, please find it [here](https://github.com/sonic-net/SONiC/wiki/Configuration) 
 
-Before Sep 2017, we were using an XML file named minigraph.xml to configure SONiC devices. For historical documentation, please refer to [Configuration with Minigraph](https://github.com/Azure/SONiC/wiki/Configuration-with-Minigraph-(~Sep-2017))
+Before Sep 2017, we were using an XML file named minigraph.xml to configure SONiC devices. For historical documentation, please refer to [Configuration with Minigraph](https://github.com/sonic-net/SONiC/wiki/Configuration-with-Minigraph-(~Sep-2017))
  
 SONiC includes commands that allow user to show platform, transceivers, L2, IP, BGP status, etc.
 
-- [Command Reference](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md)
+- [Command Reference](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md)
 
 Note that all the configuration commands need root privileges to execute them and the commands are case-sensitive.
 Show commands can be executed by all users without the root privileges.
@@ -305,7 +305,7 @@ SONiC does not provide a CLI to configure the static IP for the management inter
    ```   
 Note that SONiC does not support management VRF and hence it is not possible to differentiate data traffic and management traffic. Work is in progress to support the mgmtVRF in Aug2019 release. 
 
-   2) use config_db.json and configure the MGMT_INTERFACE key with the appropriate values. Refer [here](https://github.com/Azure/SONiC/wiki/Configuration#Management-Interface) 
+   2) use config_db.json and configure the MGMT_INTERFACE key with the appropriate values. Refer [here](https://github.com/sonic-net/SONiC/wiki/Configuration#Management-Interface) 
    
    
    Add the following example configuration in a file (ex: mgmt_ip.json) and load it as follows.
@@ -331,7 +331,7 @@ Note that SONiC does not support management VRF and hence it is not possible to 
    After removing the key, users can load the new configuration using "config load mgmt_ip.json" command and then do "systemctl restart interfaces-config" to make it effective. Users shall verify the configured management interface IP address value using "ifconfig" linux command.
       
    
-   3) use minigraph.xml and configure "ManagementIPInterfaces" tag inside "DpgDesc" tag as given at the [page](https://github.com/Azure/SONiC/wiki/Configuration-with-Minigraph-(~Sep-2017))
+   3) use minigraph.xml and configure "ManagementIPInterfaces" tag inside "DpgDesc" tag as given at the [page](https://github.com/sonic-net/SONiC/wiki/Configuration-with-Minigraph-(~Sep-2017))
    
 Once the IP address is configured, the same can be verified using "/sbin/ifconfig eth0" linux command.
 Users can SSH login to this management interface IP address from their management network.
@@ -403,32 +403,32 @@ Go Back To [Beginning of the document](#SONiC-COMMAND-LINE-INTERFACE-GUIDE) or [
 
 ## 3.2.2 Check features available in this version
 
-[SONiC roadmap planning](https://github.com/Azure/SONiC/wiki/Sonic-Roadmap-Planning) explains the various features that are added in every software release.
+[SONiC roadmap planning](https://github.com/sonic-net/SONiC/wiki/Sonic-Roadmap-Planning) explains the various features that are added in every software release.
 TBD: Is this enough? Need information from Xin.
 
 
 ## 3.2.3 Upgrade Or Downgrade Version 
 
-SONiC software can be installed in two methods, viz, using "ONIE Installer" or by using "sonic_installer tool".
+SONiC software can be installed in two methods, viz, using "ONIE Installer" or by using "sonic-installer tool".
 "ONIE Installer" shall be used as explained in the [QuickStartGuide](#Quick-Start-Guide)
-"sonic_installer" shall be used as given below.
+"sonic-installer" shall be used as given below.
 
 
 ### 3.2.3.1 SONiC Installer
 This is a command line tool available as part of the SONiC software; If the device is already running the SONiC software, this tool can be used to install an alternate image in the partition.
 This tool has facility to install an alternate image, list the available images and to set the next reboot image.
  
-**sonic_installer install**  
+**sonic-installer install**  
 
 This command is used to install a new image on the alternate image partition.  This command takes a path to an installable SONiC image or URL and installs the image.
 
   - Usage:    
-    sonic_installer install <path>  
+    sonic-installer install <path>  
 
 
 - Example:
   ```	 
-  admin@sonic:~$ sonic_installer install https://sonic-jenkins.westus.cloudapp.azure.com/job/xxxx/job/buildimage-xxxx-all/xxx/artifact/target/sonic-xxxx.bin
+  admin@sonic:~$ sonic-installer install https://sonic-jenkins.westus.cloudapp.azure.com/job/xxxx/job/buildimage-xxxx-all/xxx/artifact/target/sonic-xxxx.bin
   New image will be installed, continue? [y/N]: y
   Downloading image...
   ...100%, 480 MB, 3357 KB/s, 146 seconds passed
@@ -460,16 +460,16 @@ This command is used to install a new image on the alternate image partition.  T
   Done
   ```
 
-**sonic_installer list**  
+**sonic-installer list**  
 
 This command displays information about currently installed images. It displays a list of installed images, currently running image and image set to be loaded in next reboot.
 
   - Usage:  
-    sonic_installer list
+    sonic-installer list
 
 - Example:  
    ```
-  admin@sonic:~$ sonic_installer list 
+  admin@sonic:~$ sonic-installer list 
   Current: SONiC-OS-HEAD.XXXX
   Next: SONiC-OS-HEAD.XXXX
   Available: 
@@ -477,40 +477,40 @@ This command displays information about currently installed images. It displays 
   SONiC-OS-HEAD.YYYY
   ```
 
-**sonic_installer set_default**  
+**sonic-installer set_default**  
 
 This command is be used to change the image which can be loaded by default in all the subsequent reboots.
 
   - Usage:  
-    sonic_installer set_default <image_name>
+    sonic-installer set_default <image_name>
 
 - Example:
   ```   
-  admin@sonic:~$ sonic_installer set_default SONiC-OS-HEAD.XXXX
+  admin@sonic:~$ sonic-installer set_default SONiC-OS-HEAD.XXXX
   ```
 
-**sonic_installer set_next_boot**  
+**sonic-installer set_next_boot**  
 
 This command is used to change the image that can be loaded in the *next* reboot only. Note that it will fallback to current image in all other subsequent reboots after the next reboot.
 
   - Usage:  
-    sonic_installer set_next_boot <image_name>
+    sonic-installer set_next_boot <image_name>
 
 - Example:
   ```
-  admin@sonic:~$ sonic_installer set_next_boot SONiC-OS-HEAD.XXXX
+  admin@sonic:~$ sonic-installer set_next_boot SONiC-OS-HEAD.XXXX
   ```
 
-**sonic_installer remove**  
+**sonic-installer remove**  
 
 This command is used to remove the unused SONiC image from the disk. Note that it's *not* allowed to remove currently running image.
 
   - Usage:  
-    sonic_installer remove <image_name>
+    sonic-installer remove <image_name>
 
 - Example:
   ```
-  admin@sonic:~$ sonic_installer remove SONiC-OS-HEAD.YYYY
+  admin@sonic:~$ sonic-installer remove SONiC-OS-HEAD.YYYY
   Image will be removed, continue? [y/N]: y
   Updating GRUB...
   Done
@@ -579,11 +579,11 @@ Basic cable connectivity shall be verified by configuring the IP address for the
 
 | # | Module    |  CLI Link | ConfigDB Link |  Remarks |
 | --- | --- | --- | --- | --- |
-| 1 |  Interface |[Interface CLI](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#Interface-Configuration-And-Show-Commands) | [Interface ConfigDB](Configuration.md)| To view the details about the interface |
-| 2 |  BGP |[BGP CLI](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#BGP-Configuration-And-Show-Commands) | [BGP ConfigDB](Configuration.md)| To view the details about the BGP |
-| 3 |  ACL |[ACL CLI](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#ACL-Configuration-And-Show) | [ACL ConfigDB](Configuration.md)| To view the details about the ACL |
+| 1 |  Interface |[Interface CLI](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md#Interface-Configuration-And-Show-Commands) | [Interface ConfigDB](Configuration.md)| To view the details about the interface |
+| 2 |  BGP |[BGP CLI](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md#BGP-Configuration-And-Show-Commands) | [BGP ConfigDB](Configuration.md)| To view the details about the BGP |
+| 3 |  ACL |[ACL CLI](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md#ACL-Configuration-And-Show) | [ACL ConfigDB](Configuration.md)| To view the details about the ACL |
 | 4 |  COPP |COPP CLI Not Available | [COPP ConfigDB](Configuration.md)| To view the details about the COPP |
-| 5 |  Mirroring |[Mirroring CLI](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#mirroring-configuration-and-show) | [Mirroring ConfigDB](Configuration.md)| To view the details about the Mirroring |
+| 5 |  Mirroring |[Mirroring CLI](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md#mirroring-configuration-and-show) | [Mirroring ConfigDB](Configuration.md)| To view the details about the Mirroring |
 
 
 

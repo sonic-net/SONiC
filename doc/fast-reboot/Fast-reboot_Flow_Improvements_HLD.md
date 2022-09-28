@@ -42,9 +42,9 @@ This new flag can be used later on for any functionality, we want to start only 
 This is to prevent interference in the fast-reboot reconciliation process and impair the performance, for example enablement of flex counters.
 
 References:
-https://github.com/Azure/SONiC/blob/master/doc/fast-reboot/fastreboot.pdf
-https://github.com/Azure/sonic-swss/blob/master/neighsyncd/restore_neighbors.py
-https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/enable_counters.py
+https://github.com/sonic-net/SONiC/blob/master/doc/fast-reboot/fastreboot.pdf
+https://github.com/sonic-net/sonic-swss/blob/master/neighsyncd/restore_neighbors.py
+https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-orchagent/enable_counters.py
 
 # 2 Functional Requirements
 
@@ -226,4 +226,4 @@ reboot-finalizer.sh (warm-finalizer.sh) script must also be templatized and upda
 
 
 This chapter it taken from SONiC Application Extension Infrastructure HLD:
-https://github.com/Azure/SONiC/blob/master/doc/sonic-application-extension/sonic-application-extention-hld.md#warmboot-and-fastboot-design-impact
+https://github.com/sonic-net/SONiC/blob/master/doc/sonic-application-extension/sonic-application-extention-hld.md#warmboot-and-fastboot-design-impact
