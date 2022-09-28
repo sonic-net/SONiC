@@ -40,14 +40,13 @@ Pull requests should be free of any known bugs and be accompanied by tests and a
 When commiting a new feature with a new test, please complete a [test plan from the template](doc/SONiC%20Test%20Plan%20Template.md)
 
 
-##Responding to pull requests
+## Responding to pull requests
 Responsible individual: A contribution needs to be looked at by its 
 maintainers. In the absence of the maintainer, the project leader can respond.
 A pull request should be responded to in approximately 48 hours. This does 
 not mean the contribution will be resolved in 48 hours.  It could even mean 
 an email that states: “busy now, will get to it soon.” 
 
-##Contributors License Agreement
+## Contributors License Agreement
 All contributors must sign a contribution license agreement before 
-contributions can be accepted.  Send email to [sonic-cla](mailto:sonic-cla-agreements@microsoft.com)
-to request a copy of the contributors a license agreement to be signed.
+contributions can be accepted. It is automatically managed by the Linux Foundation EasyCLA
