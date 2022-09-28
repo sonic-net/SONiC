@@ -33,7 +33,7 @@ For example:
 * Use a pull request to do code review
 * Use issues to keep track of what is going on
 
-##Expectations for pull requests
+## Expectations for pull requests
 Pull requests should be free of any known bugs and be accompanied by tests and appropriate documentation.  Test coverage may include unit tests, integration tests such as [PTF tests](https://github.com/sonic-net/SONiC/wiki/HOWTO-write-a-PTF-Test) defined in the [sonic-mgmt repo](https://github.com/sonic-net/sonic-mgmt/tree/master/ansible/roles/test/tasks).
 
 ## Commiting new test
