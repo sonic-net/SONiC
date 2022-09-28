@@ -30,6 +30,7 @@
 | 0.4  | 09/12/2022 |   Jiahua Wang     | Add testing requirements/design section         |
 | 0.5  | 09/13/2022 |   Jiahua Wang     | Define PHY MDIO access function names           |
 | 0.6  | 09/27/2022 |   Jiahua Wang     | VendorPaiDll class inheriting VendorSai class   |
+| 0.7  | 09/28/2022 |   Jiahua Wang     | Change to VendorPai class, add paiInstance      |
 
 ### About this Manual
 
@@ -89,7 +90,7 @@ The informationn of PHY device using clause 22 mdio can also be added to the gea
 
 ![syncd gbsyncd MDIO IPC](images/MDIO-IPC.png)
 
-A new syncd class VendorPaiDll is used by gbsyncd instance to handle PAI. The VendorPaiDll class has inheritance from the VendorSai class. The syncd class VendorSai currently only links SAI/PAI library with the SAI/PAI library path determined at syncd build time. The new VendorPaiDll class can have the PAI library path as one of the arguments for its constructor. The MDIO access library path can be another arguments for the constructor of the VendorPaiDll class. Both the PAI library and the MDIO access library can be dynamically linked by syncd in gbsyncd docker at run time.
+A new syncd class VendorPai is used by gbsyncd instance to handle PAI. The VendorPai class has inheritance from the VendorSai class. The syncd class VendorSai currently only links SAI/PAI library with the SAI/PAI library path determined at syncd build time. The new VendorPai class can have the PAI library path as one of the arguments for its constructor. The MDIO access library path can be another arguments for the constructor of the VendorPai class. Both the PAI library and the MDIO access library can be dynamically linked by syncd in gbsyncd docker at run time.
 
 ### High-Level Design 
 
@@ -112,17 +113,17 @@ The high level design of the gbsyncd mdio access function using the mdio bus fro
 	- During the warmboot, the creation of the Unix IPC socket and connection is the same as of coldboot.
 	- The platform module software should not reset the external PHY during warmboot.
 
-The VendorPaiDll class will inherit most member functions from the VendorSai class. The VendorSai class needs some changes to accomdate the inheritance.
+The VendorPai class will inherit most member functions from the VendorSai class. The VendorSai class needs some changes to accomdate the inheritance.
 
-When a syncd instance runs inside the syncd docker or inside the gbsyncd docker, the syncd global context number is unique for each instance. We can assume the syncd global context number is 0 for the syncd docker instance and the syncd global context number is larger than 0 for any gbsyncd docker instance.
+When a syncd instance runs inside the gbsyncd docker, a new command line option --paiInstance or -i with an integer argument is required. A CommandLineOptions class variable m_paiInstance stores the argument value. The syncd instance in gbsyncd docker already uses another command line option -x to point the configuration file "gearbox\_config.json". The CommandLineOptions class variable m_contextConfig stores the configuration file name.
 
-The syncd global context number can used as an index into the array of the "phys" section in the configuration file "gearbox\_config.json". There is information for PHY id, PAI library name, MDIO library name and MDIO mode stored as values for the JSON key of "phy\_id", "lib\_name", "phy\_access\_lib\_name" and "mdio\_cl22\_only" from the configuration file "gearbox\_config.json".
+The variable m_paiInstance can used as an index into the array of the "phys" section in the configuration file "gearbox\_config.json". There are JSON key/value of "phy\_id", "lib\_name", "phy\_access\_lib\_name" and "mdio\_cl22\_only" in the "phys" section.
 
 	int syncd_main(int argc, char **argv)
 	{
 		...
-		if (commandLineOptions->m_globalContext != 0) {
-			auto vendorSai = std::make_shared<VendorPaiDll>(PhyId, PaiLibName, MdioLibName, Cl22Only);
+		if (commandLineOptions->m_paiInstance >= 0) {
+			auto vendorSai = std::make_shared<VendorPai>(commandLineOptions->m_paiInstance, commandLineOptions->m_contextConfig);
 			...
 		} else {
 			auto vendorSai = std::make_shared<VendorSai>();
@@ -169,45 +170,52 @@ In VendorSai class member functions where the SAI API function is called, the fu
 		...
 	}
 
-The VendorPaiDll class constructor needs initialize all the function pointers using dlopen()/dlsym(), e.g.
+The information for PHY id, PAI library name, MDIO library name and MDIO mode can parsed from the JSON key of "phy\_id", "lib\_name", "phy\_access\_lib\_name" and "mdio\_cl22\_only" from the "phy" section of the configuration file "gearbox\_config.json". The VendorPai class constructor can use the information to initialize all the function pointers using dlopen()/dlsym(), e.g.
 
 	#define MDIO_READ            "mdio_read"
 	#define MDIO_WRITE           "mdio_write"
 	#define MDIO_READ_CLAUSE22   "mdio_read_cl22"
 	#define MDIO_WRITE_CLAUSE22  "mdio_write_cl22"
 
-	VendorPaiDll::VendorPaiDll(int phy_id, string pai_lib_name, string mdio_lib_name, bool cl22_only)
+	VendorPai::VendorPai(int pai_instance, string gearbox_config)
 	{
-	    ...
-	    m_sai_dll_handle = dlopen (pai_lib_name.c_str(), RTLD_LAZY);
-	    *(void**)(&m_sai_api_initialize) = dlsym(m_sai_dll_handle, "sai_api_initialize");
-	    *(void**)(&m_sai_api_uninitialize) = dlsym(m_sai_dll_handle, "sai_api_uninitialize");
-	    *(void**)(&m_sai_api_query) = dlsym(m_sai_dll_handle, "sai_api_query");
-	    ...
-	    m_access_lib_handle = dlopen (mdio_lib_name.c_str(), RTLD_LAZY);
-	    m_mdio_cl22_only = cl22_only;
-	    ...
-	    if (m_mdio_cl22_only)
-	    {
-	        *(void**)(&m_mdio_read) = dlsym(m_access_lib_handle, MDIO_READ_CLAUSE22);
-	    } else {
-	        *(void**)(&m_mdio_read) = dlsym(m_access_lib_handle, MDIO_READ);
-	    }
-	    ...
-	    if (m_mdio_cl22_only)
-	    {
-	        *(void**)(&m_mdio_write) = dlsym(m_access_lib_handle, MDIO_WRITE_CLAUSE22);
-	    } else {
-	        *(void**)(&m_mdio_write) = dlsym(m_access_lib_handle, MDIO_WRITE);
-	    }   
-	    ...
+		int phy_id;
+		string pai_lib_name, string mdio_lib_name;
+		bool cl22_only;
+		...
+		phy_id = parse_gearbox_config(pai_instance, gearbox_config).phy_id;
+		pai_lib_name = parse_gearbox_config(pai_instance, gearbox_config).pai_lib_name;
+		mdio_lib_name = parse_gearbox_config(pai_instance, gearbox_config).mdio_lib_name;
+		cl22_only = parse_gearbox_config(pai_instance, gearbox_config).cl22_only;
+		m_sai_dll_handle = dlopen (pai_lib_name.c_str(), RTLD_LAZY);
+		*(void**)(&m_sai_api_initialize) = dlsym(m_sai_dll_handle, "sai_api_initialize");
+		*(void**)(&m_sai_api_uninitialize) = dlsym(m_sai_dll_handle, "sai_api_uninitialize");
+		*(void**)(&m_sai_api_query) = dlsym(m_sai_dll_handle, "sai_api_query");
+		...
+		m_access_lib_handle = dlopen (mdio_lib_name.c_str(), RTLD_LAZY);
+		m_mdio_cl22_only = cl22_only;
+		...
+		if (m_mdio_cl22_only)
+		{
+			*(void**)(&m_mdio_read) = dlsym(m_access_lib_handle, MDIO_READ_CLAUSE22);
+		} else {
+			*(void**)(&m_mdio_read) = dlsym(m_access_lib_handle, MDIO_READ);
+		}
+		...
+		if (m_mdio_cl22_only)
+		{
+			*(void**)(&m_mdio_write) = dlsym(m_access_lib_handle, MDIO_WRITE_CLAUSE22);
+		} else {
+			*(void**)(&m_mdio_write) = dlsym(m_access_lib_handle, MDIO_WRITE);
+		}
+		...
 	}
 
 Because only the PHY access library name can be changed in the configuration file, we define the PHY access function names always being "mdio\_read", "mdio_write", "mdio\_read\_cl22" and "mdio\_write\_cl22" for MDIO read and write of clause 45 and clause 22, respectively. The access function prototypes are already defined in the PAI library.
 
-The VendorPaiDll::create() function can set the correct MDIO access functions for PAI in gbsyncd.
+The VendorPai::create() function can set the correct MDIO access functions for PAI in gbsyncd.
 
-	sai_status_t VendorPaiDll::create(
+	sai_status_t VendorPai::create(
         _In_ sai_object_type_t objectType,
         _Out_ sai_object_id_t* objectId,
         _In_ sai_object_id_t switchId,
