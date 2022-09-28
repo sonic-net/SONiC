@@ -33,11 +33,11 @@ For example:
 * Use a pull request to do code review
 * Use issues to keep track of what is going on
 
-##Expectations for pull requests
+## Expectations for pull requests
 Pull requests should be free of any known bugs and be accompanied by tests and appropriate documentation.  Test coverage may include unit tests, integration tests such as [PTF tests](https://github.com/sonic-net/SONiC/wiki/HOWTO-write-a-PTF-Test) defined in the [sonic-mgmt repo](https://github.com/sonic-net/sonic-mgmt/tree/master/ansible/roles/test/tasks).
 
 ## Commiting new test
-When commiting a new feature with a new test, please complete a [test plan from the template](doc/SONiC%20Test%20Plan%20Template.md)
+When committing a new feature with a new test, please complete a [test plan from the template](doc/SONiC%20Test%20Plan%20Template.md)
 
 
 ## Responding to pull requests
@@ -48,5 +48,6 @@ not mean the contribution will be resolved in 48 hours.  It could even mean
 an email that states: “busy now, will get to it soon.” 
 
 ## Contributors License Agreement
-All contributors must sign a contribution license agreement before 
-contributions can be accepted. It is automatically managed by the Linux Foundation EasyCLA
+All contributors must sign an [Individual Contributor License Agreement (ICLA)](https://docs.linuxfoundation.org/lfx/easycla/v2-current/contributors/individual-contributor) before 
+contributions can be accepted. This process is managed by the [Linux Foundation - EasyCLA](https://easycla.lfx.linuxfoundation.org/) and automated
+via a GitHub bot. If the contributor has not yet signed a CLA, the bot will create a comment on the pull request containing a link to electronically sign the CLA.
