@@ -92,7 +92,9 @@ PortChannel config CLI is defined in sonic-utilities/config/main.py. In this fil
 However, these specs for validation are also defined in the sonic-portchannel YANG model:  
 ![](../../images/config_yang_validation/yang_portchannel.png)
 
-For PortChannel and many of the config fields listed above, the field validation is unnecessarily duplicated in sonic-utilities/config and in YANG models. The goal of this project is to utilize preexisting YANG models to validate config CLI field updates, without unnecessarily defining separate, redundant validation specs ad-hoc in sonic-utilities. 
+For PortChannel and many of the config fields listed above, the field validation is unnecessarily duplicated in sonic-utilities/config and in YANG models. The goal of this project is to utilize preexisting YANG models to validate config CLI field updates, without unnecessarily defining separate, redundant validation specs ad-hoc in sonic-utilities.
+
+Some necessary ad-hoc validations are not yet reflected in YANG models. For those missing validations that YANG infrastructure supports, GitHub issues are created to track the progress to filling in these YANG model gaps. In the uncommon scenario where YANG infrastructure is incapable of suporting a certain check, ad-hoc validation will be left in-place. 
 
 During the migration process, we will first leave the ad-hoc validation code in-place, and leave an option to configure type of validation used: ad-hoc or YANG validation. Once YANG validation has stabilized and YANG validation coverage has widened, we will remove the preexisting ad-hoc validation code for non performance-sensitive scenarios. 
 
@@ -142,6 +144,9 @@ For the buffermgrd C++ use case, there are 3 options for YANG validation impleme
 - Call into Python GCU code for YANG validation
 - Call into D-bus GCU APIs
 - C++ to invoke GCU command line
+
+D-bus GCU APIs are being supported and utilized by the gNMI project; as such, our preferred implementation is to leverage D-bus GCU APIs for this project as well. 
+
 ## Additional Features
 
 ### Validation Error Output - Exception Handling
@@ -150,6 +155,8 @@ Currently, error messages for invalid write requests to ConfigDB are defined on 
 To achieve this goal, we do the following:
 1.	Take note of the type of Exception raised for a particular error (e.g. GCU would raise a ValueError for an invalid ConfigDB field format)
 2.	From the calling function requesting a write to ConfigDB, catch the relevant exception type and output the original error message in exception handling
+
+There may be a scenario where multiple error messages are associated with the same type of exception. In this case, we may combine multiple error messages into one (e.g. `Please check syntax and ensure existence of Portchannelx`). Additionally, where supported, we will add the `yang-error-msg` field in the relevant YANG model(s) which can help distinguish the specific failing YANG constraint. 
 
 ### Enable/Disable YANG Validation
 In some cases, we may need to disable YANG validation prior to modifying ConfigDB. For example, a bug or an accident may cause YANG validation to improperly fail, thus blocking ConfigDB updates in a production environment. This may lead to a severe livesite. In order to mitigate such a livesite, we add a field to ConfigDB: `yangValidateEnabled`. 
