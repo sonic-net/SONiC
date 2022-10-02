@@ -418,7 +418,7 @@
     "ACL_TABLE": {}, 
     "MIRROR_SESSION": {
         "everflow0": {
-            "src_ip": "10.1.0.32", 
+            "src_ip": "1.1.1.1", 
             "dst_ip": "2.2.2.2"
         }
     }, 

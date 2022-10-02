@@ -230,7 +230,7 @@ Display output of the following commands:
 
 + df -h --total /*
 + ps aux --sort rss
-+ docker stats --all --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
++ docker stats --all --format {% raw %} "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" {% endraw %}
 
 ### Commands to fetch monitoring data
 
