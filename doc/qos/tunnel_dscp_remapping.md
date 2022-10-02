@@ -62,10 +62,10 @@ This design proposes a method to remapping DSCP and TC for tunnel traffic.
 
 ### 5.1 SWSS Schema
 #### 5.1.1 Define new table for mapping
-Update [qos_config.j2](https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/qos_config.j2) to generate 4 tables for remapping. Currently, the remapping is required in `dual-tor` scenario. So the tables are rendered into `config_db` only when `DEVICE_METADATA['localhost']['subtype'] = 'DualToR`. 
+Update [qos_config.j2](https://github.com/sonic-net/sonic-buildimage/blob/master/files/build_templates/qos_config.j2) to generate 4 tables for remapping. Currently, the remapping is required in `dual-tor` scenario. So the tables are rendered into `config_db` only when `DEVICE_METADATA['localhost']['subtype'] = 'DualToR`. 
 
 Please be noted that below config is to remap traffic in queue 3 to queue 2, and traffic in queue 4 to queue 6.
-Before remapping to queue 2 and 6, both queues are required to be cleared. Hence the current `DSCP_TO_TC_MAP|AZURE` in [qos_config.j2](https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/qos_config.j2) is required to be updated.
+Before remapping to queue 2 and 6, both queues are required to be cleared. Hence the current `DSCP_TO_TC_MAP|AZURE` in [qos_config.j2](https://github.com/sonic-net/sonic-buildimage/blob/master/files/build_templates/qos_config.j2) is required to be updated.
 * Table for decap
 
     DSCP_TO_TC_MAP for mapping DSCP to TC
@@ -254,7 +254,7 @@ In current version, PFC watchdog will read `pfc_enable` to determine PFCWD is en
 }
 ```
 
-To support new field `pfc_wd_sw_enable`, [sonic-port-qos-map.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-port-qos-map.yang) is required to be updated.
+To support new field `pfc_wd_sw_enable`, [sonic-port-qos-map.yang](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-port-qos-map.yang) is required to be updated.
 
  
 ### 5.2 SAI attribute

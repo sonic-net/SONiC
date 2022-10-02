@@ -131,7 +131,7 @@ Backward compatibility is supported in the following ways:
 
 In this section we will introduce the ways it is achieved.
 
-Currently, the SONiC system starts buffer manager from swss docker by the `supervisor` according to the following settings in [`/etc/supervisor/conf.d/supervisord.conf`](https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) in `swss` docker. For the traditional mode, the argument is `-l /usr/share/sonic/hwsku/pg_profile_lookup.ini` which means to load the pg lookup file.
+Currently, the SONiC system starts buffer manager from swss docker by the `supervisor` according to the following settings in [`/etc/supervisor/conf.d/supervisord.conf.j2`](https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf.j2) in `swss` docker. For the traditional mode, the argument is `-l /usr/share/sonic/hwsku/pg_profile_lookup.ini` which means to load the pg lookup file.
 
 ```shell
 [program:buffermgrd]
@@ -1431,7 +1431,7 @@ In APPL_DB there should be:
 
     Status: Open.
 
-    Decision: Should be. But there is issues in SONiC ["dynamic_th" parameter for lossless buffer profile can't be change on the fly.](https://github.com/Azure/sonic-buildimage/issues/3971)
+    Decision: Should be. But there is issues in SONiC ["dynamic_th" parameter for lossless buffer profile can't be change on the fly.](https://github.com/sonic-net/sonic-buildimage/issues/3971)
 6. There are default headrooms for lossy traffic which are determined by SDK and SONiC isn't aware. Do they affect shared buffer calculation?
 
     Status: Closed.
@@ -1442,7 +1442,7 @@ In APPL_DB there should be:
     Status: Closed.
 
     Decision: There should be a maxinum value of the accumulate PGs for port. This can be fetched from ASIC_DB.
-8. Originally buffer configuration had been stored in APPL_DB but were moved to CONFIG_DB later. Why? [doc](https://github.com/Azure/SONiC/wiki/Converting-old-or-creating-new-buffers-config) for reference.
+8. Originally buffer configuration had been stored in APPL_DB but were moved to CONFIG_DB later. Why? [doc](https://github.com/sonic-net/SONiC/wiki/Converting-old-or-creating-new-buffers-config) for reference.
 9. In theory, when system starts, as `BUFFER_PROFILE` and `BUFFER_PG` tables are stored in config database which survives system reboot, the `Buffer Orch` can receive items of the tables ahead of they being recalculated by `Buffer Manager` based on the current algorithm and `cable length` and `speed`. If the headroom size calculated differs before and after reboot, it can cause the items in the tables be deployed twice in which the first deployment will be overwritten quickly by the second one.
 10. For chassis systems the gearbox in variant line-cards can differ, which means a mapping from port/line-card to gearbox model is required to get the correct gearbox model for a port. This requires additional field defined in `PORT` table or some newly introduced table. As this part hasn't been defined in community, we will not discuss this case for now.
 
