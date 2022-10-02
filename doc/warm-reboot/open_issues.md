@@ -63,7 +63,7 @@ Mandatory parameters: docker name,   tag for new docker image,   docker image pa
 
 Ex.
 ```
-      sonic_installer upgrade_docker --cleanup_image swss swss_test_02 ./docker-orchagent-brcm_test_02.gz
+      sonic-installer upgrade_docker --cleanup_image swss swss_test_02 ./docker-orchagent-brcm_test_02.gz
 ```
 
 More options are to be provided like whether to enforce stringent state check and validation.

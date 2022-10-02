@@ -4,10 +4,13 @@
 
 ### Revision ###
 
+
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Chen Junchao  | Initial version                   |
- | 0.2 | August 4st, 2022 | Stephen Sun | Update according to the current implementation |
+ | 0.2 | August 4th, 2022 | Stephen Sun | Update according to the current implementation |
+ | 0.3 | August 8th, 2022 | Or Farfara | Add input current, voltage and max power |
+
 
 ## 1. Overview
 
@@ -18,6 +21,7 @@ The purpose of PSU daemon is to collect platform PSU data and trigger proper act
   - PSU entity information
   - PSU present status and power good status
   - PSU power, current, voltage and voltage threshold
+  - PSU max power, input current and input voltage
   - PSU temperature and temperature threshold
 - Monitor PSU event, set LED color and trigger syslog according to event type, including:
   - PSU present status and power good status
@@ -58,7 +62,10 @@ PSU information is stored in PSU table:
     voltage_max_threshold   = 1*3.3DIGIT                     ; the maximum voltage threshold of the PSU
     current                 = 1*3.3DIGIT                     ; the current of the PSU
     power                   = 1*3.3DIGIT                     ; the power of the PSU
-
+    input_voltage           = 1*3.3DIGIT                     ; input voltage of the psu
+    input_current           = 1*3.3DIGIT                     ; input current of the psu
+    max_power               = 1*4.3DIGIT                     ; power capacity of the psu
+    
 
 Now psud only collect and update "presence" and "status" field.
 
@@ -154,6 +161,12 @@ class PsuBase(device_base.DeviceBase):
         raise NotImplementedError
 
     def get_voltage_low_threshold(self):
+        raise NotImplementedError
+	
+    def get_input_voltage(self):
+        raise NotImplementedError
+	
+    def get_input_current(self):
         raise NotImplementedError
     ...
 
