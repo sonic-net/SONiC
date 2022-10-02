@@ -33,11 +33,11 @@ WARM_RESTART system enable false
 
 ## swss docker upgrade
 
-`sonic_installer upgrade_docker` command line may be used to upgrade swss docker to a new docker image without affect data plane traffic.
+`sonic-installer upgrade_docker` command line may be used to upgrade swss docker to a new docker image without affect data plane traffic.
 
 ```
-sonic_installer upgrade_docker --help
-Usage: sonic_installer upgrade_docker [OPTIONS] <container_name> <tag> URL
+sonic-installer upgrade_docker --help
+Usage: sonic-installer upgrade_docker [OPTIONS] <container_name> <tag> URL
 
   Upgrade docker image from local binary or URL
 
@@ -71,7 +71,7 @@ docker-dhcp-relay          latest                                cf68d734ec21   
 docker-dhcp-relay          warm-reboot.0-dirty-20180709.225823   cf68d734ec21        2 days ago          293.1 MB
 docker-router-advertiser   latest                                8e69dcfe794d        2 days ago          289.4 MB
 docker-router-advertiser   warm-reboot.0-dirty-20180709.225823   8e69dcfe794d        2 days ago          289.4 MB
-root@sonic:~# sonic_installer upgrade_docker swss test_v03  docker-orchagent-brcm_v03.gz --cleanup_image
+root@sonic:~# sonic-installer upgrade_docker swss test_v03  docker-orchagent-brcm_v03.gz --cleanup_image
 New docker image will be installed, continue? [y/N]: y
 Command: systemctl stop swss
 
@@ -123,7 +123,7 @@ docker-router-advertiser   warm-reboot.0-dirty-20180709.225823   8e69dcfe794d   
 
 
 
-`systemctl restart swss`  or ` sonic_installer upgrade_docker` won't affect data plane traffic and new provisioning works well.
+`systemctl restart swss`  or ` sonic-installer upgrade_docker` won't affect data plane traffic and new provisioning works well.
 
 ```
 127.0.0.1:6379> keys WAR*
