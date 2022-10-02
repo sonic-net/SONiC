@@ -1,0 +1,5 @@
+*~
+*.swp
+*.un~
+.DS_Store
+.vscode/

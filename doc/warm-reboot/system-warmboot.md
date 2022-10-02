@@ -1,3 +1,4 @@
+
 # System-wide Warmboot
 
 # going down path
@@ -13,10 +14,11 @@
   - set redis flag WARM_RESTART_TABLE:system
   - kill swss dockers
 - save the appdb and asic db into the files.
-  - save applDB db in ```/host/warmboot/appl_db.json``` 
-  - save configDB db in ```/host/warmboot/config_db.json``` 
-  - save stateDB db (only FDB and WARM_RESTART_TABLE) in ```/host/warmboot/state_db.json``` 
-  - save asicDB in ```/host/warmboot/asic_db.json```
+  - <del>save applDB db in ```/host/warmboot/appl_db.json```</del> 
+  - <del>save configDB db in ```/host/warmboot/config_db.json```</del> 
+  - <del>save stateDB db (only FDB and WARM_RESTART_TABLE) in ```/host/warmboot/state_db.json``` </del> 
+  - <del>save asicDB in ```/host/warmboot/asic_db.json```</del> 
+  - save the whole Redis databse into ```/host/warmboot/dump.rdb```
 - stop syncd docker
   - warm shutdown
   - save the SAI states in ```/host/warmboot/sai-warmboot.bin```
@@ -72,13 +74,13 @@ Assumptions:
 2. Focus on whole system reboot, in future will extend it to container level warm restart
 3. Focus on one image warm reboot, and version upgrading warm reboot. No version downgrading warm reboot.
 
-Structure of testbed: [design doc](https://github.com/Azure/sonic-mgmt/blob/master/ansible/doc/README.testbed.Overview.md#sonic-testbed-overview)
-![Physical topology](https://github.com/Azure/sonic-mgmt/raw/master/ansible/doc/img/testbed.png)
-![Testbed server](https://raw.githubusercontent.com/Azure/sonic-mgmt/master/ansible/doc/img/testbed-server.png)
+Structure of testbed: [design doc](https://github.com/sonic-net/sonic-mgmt/blob/master/docs/testbed/README.testbed.Overview.md#sonic-testbed-overview)
+![Physical topology](img/testbed.png)
+![Testbed server](img/testbed-server.png)
 
 Architect:
-  - Both warm-reboot and fast-reboot are written in ansible playbook [advanced-reboot.yml](https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/advanced-reboot.yml)
-  - The playbook will deploy a master python script [advanced-reboot.py](https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/files/ptftests/advanced-reboot.py) to PTF docker container and all the steps are running there
+  - Both warm-reboot and fast-reboot are written in ansible playbook [advanced-reboot.yml](https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/roles/test/tasks/advanced-reboot.yml)
+  - The playbook will deploy a master python script [advanced-reboot.py](https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/roles/test/files/ptftests/advanced-reboot.py) to PTF docker container and all the steps are running there
   - The master python script will
     - ssh into DUT to execute reboot command
     - ssh into Arist EOS VM to observe and operate port, port channel and BGP sessions
@@ -148,3 +150,74 @@ Steps:
    - Recover environment
      - [ ] DUT reload minigraph
      - [ ] Neigh copy startup-config to running-config
+
+# Manual test cases
+
+| DUT | Description |
+| ------------ | ------------- |
+| Platform | x86_64-arista_7060_cx32s |
+| HwSKU | Arista-7060CX-32S-D48C8 |
+| ASIC | broadcom |
+| Topology | T0 (4 LAG up, one port per LAG) |
+
+Steps:
+1. Enable link state propagation (Propagete Fanout switch port oper down to VEOS)
+```
+ansible-playbook -i linkstate/testbed_inv.py -e target_host=<VMS> --vault-password-file=password.txt linkstate/up.yml
+```
+
+2. Run warm-reboot playbook once so PTF server will have latest code and data files
+```
+ansible-playbook test_sonic.yml -i str --limit <DUT> --vault-password-file password.txt -e testbed_name=<VMS> -e testcase_name=warm-reboot
+```
+
+3. Before warm-reboot happen, create one of the below sad situation on DUT
+
+   - Shutdown a downlink port. Remove the port name from /tmp/vlan_interfaces.json (if the post reboot status should keep down, below are the same)
+   - Shutdown a up link port. Remove the LAG node from /tmp/portchannel_interfaces.json
+   - Shutdown a up link LAG. Remove the LAG node from /tmp/portchannel_interfaces.json
+
+   Before warm-reboot happen, create one of the below sad situation on EOS VM (T1). All the up/down are relative to DUT.
+   
+   - Shutdown a up link LAG. Remove the DUT LAG node from /tmp/portchannel_interfaces.json
+
+   Before warm-reboot happen, create one of the below sad situation on fanout switch. All the up/down are relative to DUT.
+   
+   - Shutdown a downlink port. Remove the port name from /tmp/vlan_interfaces.json
+   - Shutdown a up link port. Remove the DUT LAG node from /tmp/portchannel_interfaces.json
+
+6. Run the PTF command line on PTF server.
+   - You can find the command in playbook output in Step 2 with below section
+   ```
+   TASK [test : PTF Test - Advanced-reboot test]
+   ```
+   ```
+   ptf --test-dir ptftests advanced-reboot.ReloadTest  --qlen=1000   --platform-dir ptftests  --platform remote  -t "verbose=True;dut_username=\"admin\";dut_hostname=\"<DUTIP>\";reboot_limit_in_seconds=30;reboot_type=\"warm-reboot\";portchannel_ports_file=\"/tmp/portchannel_interfaces.json\";vlan_ports_file=\"/tmp/vlan_interfaces.json\";ports_file=\"/tmp/ports.json\";dut_mac='<MAC>';dut_vlan_ip='192.168.0.1';default_ip_range='192.168.0.0/16';vlan_ip_range=\"192.168.0.0/21\";lo_v6_prefix=\"fc00:1::/64\";arista_vms=\"['10.64.247.135','10.64.247.134','10.64.247.132']\""
+   ```
+   - You can also find the PTF server IP one section below
+   ```
+   TASK [test : command]
+   Thursday 30 May 2019  12:45:19 +0000 (0:00:00.172)       0:00:21.280 ********** 
+   changed: [<DUT> -> <PTF_IP>]   
+   ```
+
+
+7. Carefully observe command output and seek for message like "Dut reboots: reboot start", switch to DUT ssh connection immediately and try hit enter keys several times. The ssh connnection will be no response after about 5 seconds. That's the time of shutdown.
+
+8. During reboot happen, create one of the transition situations. You should do it quickly after above step.
+    - Shutdown a downlink port.
+    - Shutdown a up link port.
+    - Shutdown a up link LAG.
+    - Startup a downlink port. 
+    - Startup a up link port.
+    - Startup a up link LAG.
+
+9. Keep observe 'ptf' command until it finish with 'OK' result
+10. After warm-reboot, create one of the below sad situation on EOS VM (T1). All the up/down are relative to DUT.
+
+    - Shutdown a up link LAG. Remove the DUT LAG node from /tmp/portchannel_interfaces.json
+     
+    After warm-reboot, create one of the below sad situation on fanout switch. All the up/down are relative to DUT.
+    
+    - Shutdown a downlink port. Remove the port name from /tmp/vlan_interfaces.json
+    - Shutdown a up link port. Remove the DUT LAG node from /tmp/portchannel_interfaces.json

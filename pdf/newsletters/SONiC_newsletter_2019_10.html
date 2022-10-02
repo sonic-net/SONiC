@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3pro.css">
+<link href='https://fonts.googleapis.com/css?family=Roboto Slab' rel='stylesheet'>
+<link href='https://fonts.googleapis.com/css?family=Open Sans' rel='stylesheet'>
+<link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet'>
+<style>
+    .button {
+        background-color: white;
+        color: red;
+        border: 2px solid white;
+        border-radius: 7px;
+        font-size: 14px;
+    }
+    
+    .button:hover {
+        background-color: #0366d6;
+        /* Green */
+        color: white;
+        border-radius: 5px;
+        border: 2px solid #0366d6;
+    }
+    
+    .button:active {
+        background-color: #3e8e41;
+        box-shadow: 0 5px #666;
+        transform: translateY(4px);
+    }
+    
+    .buttonh {
+        background-color: transparent;
+        color: blue;
+        border: 0px solid #0366d6;
+        border-radius: 7px;
+        font-size: 16px;
+    }
+    
+    .buttonh:hover {
+        background-color: #0366d6;
+        color: #ffffff;
+    }
+    
+    .buttonh:active {
+        background-color: #3e8e41;
+        box-shadow: 0 5px #666;
+        transform: translateY(4px);
+    }
+    
+    .buttonb {
+        background-color: transparent;
+        color: blue;
+        border: 0px solid #0366d6;
+        border-radius: 7px;
+        font-size: 14px;
+    }
+    
+    .buttonb:hover {
+        background-color: #0366d6;
+        color: #ffffff;
+    }
+    
+    .buttonb:active {
+        background-color: #3e8e41;
+        box-shadow: 0 5px #666;
+        transform: translateY(4px);
+    }
+    
+    td {
+        border: 0.1em;
+        border-style: solid;
+        border-color: #0366d6;
+        ;
+    }
+</style>
+
+<body style="background-color: rgb(82, 86, 89); ">
+    <table style="width: 75%; background-color: #ffffff; font-family: 'Roboto'; font-size: 14px; padding-top: 1%; padding-bottom: 1%;padding-right: 5%; padding-left: 5%; " align="center">
+        <tbody>
+            <tr>
+                <td style=" border:0px;">
+                    <img src="https://kannankvs.github.io/kvskSONiC/images/sonic-logo.png" style="width: auto; height: 60%;" alt="logo" width="350" height="100">
+                </td>
+                <td style="border:0px; vertical-align: center; padding-left: 2%; text-align: left;  color: rgb(10,79,159); font-weight: bold; font-family:'Roboto Slab'; font-size:44px" colspan="2">
+                    October 2019 Newsletter
+                </td>
+            </tr>
+            <tr>
+                <td style="width: 30%; text-align: center; padding-left: 0.5em; background-color: #0366d6; height: 45px; align: center;">
+                    <span style=" color: #ffffff; letter-spacing: 0.15em;  font-weight: bold; font-size: 15px;"> 
+                        RECENT EVENTS
+                    </span>
+                </td>
+                <td style="width: 65%; background-color: #0366d6; padding-left: 0.5em; height: 45px;" colspan="2">
+                    <span style="color: #ffffff;letter-spacing: 0.15em;  font-weight: bold; font-size: 15px; "> 
+                        SONiC COMMUNITY NEWS
+                    </span>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: #ffffff; vertical-align: top; font-weight:bold; background-color: rgb(58,166,221); padding: 0.5em; letter-spacing: 0.15em" rowspan="3">
+                    <center>
+                        <p>
+                            <a style="color: #0000ff;" href="https://www.opencompute.org/events/past-summits">
+                                <button class="buttonh">
+                                    2019 OCP Regional Summit
+                                </button>
+                            </a>
+                        </p>
+                        <p>
+                            SONiC Together
+                        </p>
+                        <p>
+                            <a href="https://www.youtube.com/watch?v=YUr8EKFQZeY">
+                                <button class="button">
+                                    Video
+                                </button>
+                            </a>
+                        </p>
+                        <p style="padding-top: 1em;">
+                            SONiC - Reliability, Manageability and Extensibility
+                        </p>
+                        <p>
+                            <a href="https://146a55aca6f00848c565-a7635525d40ac1c70300198708936b4e.ssl.cf1.rackcdn.com/images/8d4432a8667ae61df4a99343ee81f0881fc44ead.pdf">
+                                <button class="button">
+                                    Slides
+                                </button></a>
+                            &nbsp;&nbsp;&nbsp;
+                            <a href="https://www.youtube.com/watch?v=TjD7PEB3jvg">
+                                <button class="button">
+                                    Video
+                                </button>
+                            </a>
+                        </p>
+                        <p style="padding-top: 1em;">
+                            SONiC Ansible Test Automation
+                        </p>
+                        <p>
+                            <a href="https://146a55aca6f00848c565-a7635525d40ac1c70300198708936b4e.ssl.cf1.rackcdn.com/images/50ef9313e4066a442c367631af24220e72c95606.pdf">
+                                <button class="button">
+                                    Slides
+                                </button></a>
+                            &nbsp;&nbsp;&nbsp;
+                            <a href="https://www.youtube.com/watch?v=Di6njI_gUKM">
+                                <button class="button">
+                                    Video
+                                </button>
+                            </a>
+                        </p>
+                        <p style="padding-top: 1em;">
+                            Enabling PIM card hot swapping in SONiC for Minipack
+                        </p>
+                        <p>
+                            <a href="https://146a55aca6f00848c565-a7635525d40ac1c70300198708936b4e.ssl.cf1.rackcdn.com/images/ea7532e4840895378f3403e8646ced9fd6d81919.pdf">
+                                <button class="button">
+                                    Slides
+                                </button></a>
+                            &nbsp;&nbsp;&nbsp;
+                            <a href="https://www.youtube.com/watch?v=655Mg1dHkwo">
+                                <button class="button">
+                                    Video
+                                </button>
+                            </a>
+                        </p>
+                        <br />
+                        <p style="text-align: center;">
+                            <a style="color: #0000ff;" href="https://www.nanog.org/meetings/nanog-77/">
+                                <button class="buttonh">
+                                    NANOG 77
+                                </button>
+                            </a>
+                        </p>
+                        <p style="text-align: center;">
+                            SONiC at Comcast Datacenters
+                        </p>
+                        <p>
+                            <a href="https://pc.nanog.org/static/published/meetings/NANOG77/2065/20191028_Celindro_Sonic_Open_Source_v1.pdf">
+                                <button class="button">
+                                    Slides
+                                </button></a>
+                            &nbsp;&nbsp;&nbsp;
+                            <a href="https://www.youtube.com/watch?v=irexCkw6ApM&amp;feature=youtu.be">
+                                <button class="button">
+                                    Videos
+                                </button>
+                            </a>
+                        </p>
+                    </center>
+                </td>
+                <td colspan="2">
+                    <p style="padding-left: 0.5em; line-height: 2.5">
+                        <strong> SONiC is expanding outside Cloud - Comcast is deploying SONiC in their datacenter and building an AI based network monitoring on top of SONiC with Augtera Networks !!!  </strong> &nbsp;
+                        <a href="https://pc.nanog.org/static/published/meetings/NANOG77/2065/20191028_Celindro_Sonic_Open_Source_v1.pdf">
+                            <button class="buttonb">
+                                Slides
+                            </button>
+                        </a>
+                        &nbsp;
+                        <a href="https://www.youtube.com/watch?v=irexCkw6ApM&amp;feature=youtu.be">
+                            <button class="buttonb">
+                                Videos
+                            </button>
+                        </a>
+                        <br> Mellanox Announces Support Solutions for SONiC Open Source Network Operating System. &nbsp;
+                        <a href="https://www.mellanox.com/page/press_release_item?id=2203">
+                            <button class="buttonb">
+                                Press Release
+                            </button>
+                        </a>
+                        <br> SONiC test sub-group has been formed with the mission of building a sophisticated test suite.
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td style="width: 60%; background-color: #0366d6; height: 45px;" colspan="2">
+                    <span style="padding-left: 0.5em;  font-weight: bold;letter-spacing: 0.15em; font-size: 15px; color: #ffffff;"> 
+                        SONiC RELEASE UPDATES
+                    </span>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <p style="padding-left: 0.5em; vertical-align: top; padding-top: 0em; padding-bottom: 0em; font-family: 'Open Sans'; line-height: 2">
+                        <strong> SONiC community is working hard on 201910 release, which will reach code complete in November.  </strong>
+                        <span style="line-height: 3"></span>
+                        <br /> The community has been focusing on multiple major changes in the recent months and happy to share the status.</span>
+                        <br /> <span style="padding-left: 3em;">1. HLD reviews for all the features planned for 201910 are completed.</span>
+                        <br /> <span style="padding-left: 3em;">2. Code Pull Request Progress - Approximately 50% merged, 20% under review and 30% in progress.</span>
+                        <br /> <span style="padding-left: 3em;">3. Code freeze is planned by end of November 2019.</span>
+                        <br /> <span style="padding-left: 3em;">4. Joint test is planned by multiple contributors in the month of November.</span>
+                        <br><span style="padding-left: 3em;">
+                        <br>
+                        SAI community has released SAI 1.5 in September 2019 that includes the new features like NAT, TAM2.0, sflow, SAI counters and debug counters. This SAI 1.5 is included in this SONiC 201910 release. &nbsp;&nbsp;
+                        <a href="https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.5_ReleaseNotes.md">
+                           <button class="buttonb">
+                           Release Notes
+                           </button>
+                        </a>
+                        <span style="line-height: 3em"></span>
+                        <br /> SAI community is happy to announce that community is working on gearbox and MACsec API standardization.
+                        <span style="line-height: 3em"></span>
+                        <br /> Next release : Planning started to build the backlog.
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td style=" background-color: #0366d6; height: 45px;  text-align: center;">
+                    <span style="color: #ffffff; padding-left: 0.5em; letter-spacing: 0.15em;  font-weight: bold; font-size: 15px;">
+                        UPCOMING EVENTS
+                    </span>
+                </td>
+                <td style="background-color: #0366d6; height: 45px;" colspan="2">
+                    <span style="color: #ffffff;letter-spacing: 0.15em; padding-left: 0.5em;   font-weight: bold; font-size: 15px;">
+                        SONiC DESIGN DISCUSSIONS
+                    </span>
+                </td>
+            </tr>
+            <tr>
+                <td rowspan="16" style=" background-color: #3aa6dd; padding: 0.5em; vertical-align: top; letter-spacing: 0.15em; font-weight: bold; color: #ffffff;">
+                    <center>
+                        <p style="text-align: center;   color: #ffffff;">
+                            <a style="color: #0000ff;" href="https://www.opencompute.org/summit/global-summit" target="_blank " rel="noopener ">
+                                <button class="buttonh">
+                                    2020 OCP Global Summit
+                                </button>
+                            </a>
+                        </p>
+                        <p>
+                            4-5 March, 2020
+                        </p>
+                        <p>
+                            San Jose Convention Center
+                        </p>
+                        <p>
+                            <br>
+                            <a style="color: #0000ff;" href="https://www.opencompute.org/summit/regional-summit/registration">
+                                <button class="buttonh">
+                                    2020 OCP Regional Summit
+                                </button>
+                            </a>
+                        </p>
+                        <p>
+                            30 Sep - 1 Oct, 2020
+                        </p>
+                        <p>
+                            Prague, Czech Republic
+                        </p>
+                        <br>
+                        <br>
+                    </center>
+                </td>
+                <td style="width: 20%;">
+                    <p style="text-align: center;">
+                        03 SEP
+                    </p>
+                </td>
+                <td style="width: 80%;">
+                    <p style="text-align: left; ">
+                        <a href="https://github.com/sonic-net/SONiC/pull/424" target="_blank " rel="noopener ">
+                            <button class="buttonh">
+                                [PR424]
+                            </button>
+                        </a>
+                        &nbsp;&nbsp; Changes in BGP error handling&nbsp;&nbsp;&nbsp;
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center; ">
+                        03 SEP
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left;">
+                        <a href="https://github.com/sonic-net/SONiC/pull/391" target="_blank " rel="noopener ">
+                            <button class="buttonh">
+                                [PR391]
+                            </button>
+                        </a>
+                        &nbsp;&nbsp;Error handling framework&nbsp;&nbsp;&nbsp;&nbsp;
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        10 SEP
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left; ">
+                        <a href="https://github.com/sonic-net/SONiC/blob/11959b204f2ca2d06dff1d7e3ba204900e7b5013/doc/drop_counters/drop_counters_HLD.md" target="_blank " rel="noopener ">
+                            <button class="buttonh">
+                                [MD]
+                            </button>
+                        </a>
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Configurable Drop Counters in SONiC&nbsp;&nbsp;
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        17 SEP
+                    </p>
+                </td>
+                <td>
+                    <a href="https://github.com/sonic-net/SONiC/pull/463" target="_blank " rel="noopener ">
+                        <button class="buttonh">
+                            [PR463]
+                        </button>
+                    </a>
+                    &nbsp;&nbsp;High Level Design for fwutil&nbsp;&nbsp;
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        24 SEP
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left;">
+                        <a href="https://github.com/sonic-net/SONiC/pull/450" target="_blank " rel="noopener ">
+                            <button class="buttonh">
+                                [PR450]
+                            </button>
+                        </a>
+                        &nbsp;&nbsp;Dynamic port breakout&nbsp;&nbsp;&nbsp;&nbsp;
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        15 OCT
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left;  ">
+                        <a href="https://github.com/sonic-net/SONiC/pull/468" target="_blank " rel="noopener ">
+                            <button class="buttonh">
+                                [PR468]
+                            </button>
+                        </a>
+                        &nbsp;&nbsp;Tech support data export & core file manager&nbsp;
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        22 OCT
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left;">
+                        <a href="https://github.com/sonic-net/SONiC/pull/475" target="_blank " rel="noopener ">
+                            <button class="buttonh">
+                                [PR475]
+                            </button>
+                        </a>
+                        &nbsp;&nbsp;VRRP HLD&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        29 OCT
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left;">
+                        <a href="https://github.com/sonic-net/SONiC/pull/500" target="_blank " rel="noopener ">
+                            <button class="buttonh">
+                                [PR500]
+                            </button>
+                        </a>
+                        &nbsp;&nbsp;RADIUS Management User Authentication HLD&nbsp;
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" style=" background-color: #0366d6; height: 45px;">
+                    <span style="color: #ffffff; padding-left: 0.5em;   font-weight: bold; letter-spacing: 0.15em; font-size: 15px;">
+                        NEW PLATFORMS
+                    </span>
+                </td>
+            </tr>
+            <tr>
+                <td style="width: 20%;">
+                    <p style="text-align: center;">
+                        Accton
+                    </p>
+                </td>
+                <td style="width: 80%;">
+                    <p style="text-align: left; padding-left: 0.5em;">
+                        AS5812-54T
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        Arista
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left; padding-left: 0.5em;">
+                        7280CR3-C40
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        Celestica
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left; padding-left: 0.5em;">
+                        DX010-C32, DX010-D48C8, midstone-200i
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        DellEMC
+                    </p>
+                </td>
+                </p>
+                <td>
+                    <p style="text-align: left; padding-left: 0.5em;">
+                        S5248f
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        Delta
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left;padding-left: 0.5em;">
+                        ET-C032if</p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        Inventec
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left; padding-left: 0.5em;">
+                        D7332
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <p style="text-align: center;">
+                        Mellanox
+                    </p>
+                </td>
+                <td>
+                    <p style="text-align: left; padding-left: 0.5em;">
+                        SN3800
+                    </p>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+
+</html>
