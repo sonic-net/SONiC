@@ -4,7 +4,7 @@
 ## Imaging and Building tools
 
 ### sonic-buildimage  
-- https://github.com/Azure/sonic-buildimage
+- https://github.com/sonic-net/sonic-buildimage
     - Main repo that contains SONiC code,links to all sub-repos, build related files, platform/device specific files, etc.,
 	This repo has the following directories.
 	- device - It contains files specific to each vendor device. In general, it contains the python scripts for accessing EEPROM, SFP, PSU, LED,etc., specific to the device hardware.
@@ -29,14 +29,14 @@
 ## SAI, Switch State Service
 
 ### sonic-swss  
-- https://github.com/Azure/sonic-swss
+- https://github.com/sonic-net/sonic-swss
 	- Switch State Service - Core component of SONiC which processes network switch data - The SWitch State Service (SWSS) is a collection of software that provides a database interface for communication with and state representation of network applications and network switch hardware.
 
-	- This repository contains the source code for the swss container, teamd container & bgp container shown in the [architecture diagram](https://github.com/Azure/SONiC/blob/master/images/sonic_user_guide_images/section4_images/section4_pic1_high_level.png "High Level Component Interactions")
+	- This repository contains the source code for the swss container, teamd container & bgp container shown in the [architecture diagram](https://github.com/sonic-net/SONiC/blob/master/images/sonic_user_guide_images/section4_images/section4_pic1_high_level.png "High Level Component Interactions")
 	- When swss container is started, start.sh starts the processes like rsyslogd, orchagent, restore_neighbors, portsyncd, neighsyncd, swssconfig, vrfmgrd, vlanmgrd, intfmgrd, portmgrd, buffermgrd, enable_counters, nbrmgrd, vxlanmgrd & arp_update.
 
   SWWS repository contains the source code for the following.
-  - cfgmgr - This directory contains the code to build the following processes that run inside swss container. More details about each deamon is available in the [architecture document](https://github.com/Azure/SONiC/wiki/Architecture).
+  - cfgmgr - This directory contains the code to build the following processes that run inside swss container. More details about each deamon is available in the [architecture document](https://github.com/sonic-net/SONiC/wiki/Architecture).
 	- nbrmgrd - manager for neighbor management - Listens to neighbor-related changes in NEIGH_TABLE in ConfigDB for static ARP/ND configuration and also to trigger proactive ARP (for potential VxLan Server IP address by not specifying MAC) and then uses netlink to program the neighbors in linux kernel. nbrmgrd does not write anything in APP_DB.
 	- portmgrd - manager for Port management - Listens to port-related changes in ConfigDB and sets the MTU and/or AdminState in kernel using "ip" commands and also pushes the same to APP_DB.
 	- buffermgrd - manager for buffer management - Reads buffer profile config file and programs it in ConfigDB and then listens (at runtime) for cable length change and speed change in ConfigDB, and sets the same into buffer profile table ConfigDB.
@@ -56,7 +56,7 @@
 
 	
 ### sonic-swss-common  	
-- https://github.com/Azure/sonic-swss-common  
+- https://github.com/sonic-net/sonic-swss-common  
 	- Switch State Service common library - Common library for Switch State Service
 
 ### Opencomputeproject/SAI  
@@ -64,7 +64,7 @@
 	- This repo refers/uses the SAI sub-repo from OCP github that includes the required SAI header files.
 
 ### sonic-sairedis  
-- https://github.com/Azure/sonic-sairedis
+- https://github.com/sonic-net/sonic-sairedis
 	- This repo contains the C++ library code for interfacing to SAI objects in Redis
 	- The SAI Redis provides a SAI redis service that built on top of redis database. 
 	- It contains two major components 
@@ -75,13 +75,13 @@
 	   
 
 ### sonic-dbsyncd  
-- https://github.com/Azure/sonic-dbsyncd
+- https://github.com/sonic-net/sonic-dbsyncd
 	- Python Redis common functions for LLDP
 	- This repo contains the code for SONiC Switch State Service sync daemon for LLDP data. Scripts upload lldp information to Redis DB
 
 
 ### sonic-py-swsssdk  
-- https://github.com/Azure/sonic-py-swsssdk 
+- https://github.com/sonic-net/sonic-py-swsssdk 
   - This repo contains python utility library for SWSS DB access. 
   - configdb.py - This provides utilities like ConfigDBConnector, db_connect, connect, subscribe, listen, set_entry, mod_entry, get_entry, get_keys, get_table, delete_table, mod_config, get_config, etc.,
   - dbconnector.py - It contains utilities like SonicV1Connector, SonicV2Connector, etc.,
@@ -92,18 +92,18 @@
 
 
 ### sonic-quagga  
-- https://github.com/Azure/sonic-quagga/tree/debian/0.99.24.1  
+- https://github.com/sonic-net/sonic-quagga/tree/debian/0.99.24.1  
   - This repo contains code for the Quagga routing software which is a free software that manages various IPv4 and IPv6 routing protocols. Currently Quagga supports BGP4, BGP4+, OSPFv2, OSPFv3, RIPv1, RIPv2, and RIPng as well as very early support for IS-IS.
 
 	
 ## Monitoring and management tools  
 
 ### sonic-mgmt  
-- https://github.com/Azure/sonic-mgmt
+- https://github.com/sonic-net/sonic-mgmt
 	- Management and automation code used for build, test and deployment automation
 
 ### sonic-utilities   
-- https://github.com/Azure/sonic-utilities  
+- https://github.com/sonic-net/sonic-utilities  
   - This repository contains the code for Command Line Interfaces for SONiC. 
   - Folders like "config", "show", "clear" contain the CLI commands 
   - Folders like "scripts", "sfputil", "psuutil" & "acl_loader" contain the scripts that are used by the CLI commands. These scripts are not supposed to be directly called by user. All these scripts are wrapped under the "config" and "show" commands.
@@ -115,7 +115,7 @@
 
 
 ### sonic-snmpagent  
-- https://github.com/Azure/sonic-snmpagent
+- https://github.com/sonic-net/sonic-snmpagent
   - This repo contains the net-snmpd AgentX SNMP subagent implementation for supporting the MIBs like MIB-II, Physical Table MIB, Interfaces MIB, Sensor Table MIB, ipCidrRouteDest table in IP Forwarding Table MIB, dot1qTpFdbPort in Q-BRIDGE-MIB & LLDP MIB.
   - The python scripts present in this repo are used as part of the "snmp" docker that runs in SONiC.
 
@@ -123,13 +123,13 @@
 ## Switch hardware drivers
 
 ### sonic-linux-kernel  
-- https://github.com/Azure/sonic-linux-kernel
+- https://github.com/sonic-net/sonic-linux-kernel
 - This repo contains the Kernel patches for various device drivers. 
 - This downloads the appropriate debian kernel code, applies the patches and builds the custom kernel for SONiC.
 
 
 ### sonic-platform-common  
-- https://github.com/Azure/sonic-platform-common
+- https://github.com/sonic-net/sonic-platform-common
   - This repo contains code which is to be shared among all platforms for interfacing with platform-specific peripheral hardware.
   - It contains the APIs for implementing platform-specific functionality in SONiC
   - It provides the base class for peripherals like EEPROM, LED, PSU, SFP, chassis, device, fan, module, platform, watchdog, etc., that are used for existing platform code as well as for the new platform API.
@@ -137,7 +137,7 @@
   - New platform2.0 APIs are defined in the base classes inside "sonic_platform_base" folder. 
 
 ### sonic-platform-daemons  
-- https://github.com/Azure/sonic-platform-daemons
+- https://github.com/sonic-net/sonic-platform-daemons
   - This repo contains the daemons for controlling platform-specific functionality in SONiC
   - This repo contains python scripts for platform daemons that listens for events from Optics, LED & PSU and writes them in the STATE_DB
   - xcvrd - This listens for SFP events and writes the status to STATE_DB.

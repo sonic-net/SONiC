@@ -64,7 +64,7 @@ This document describes the high level design of the Critical Resource Monitorin
 | SAI                      | Swich Abstraction Interface                |
 # 1 Subsystem Requirements Overview
 ## 1.1 Functional requirements
-Detailed description of the Critical Resource Monitoring feature requirements is here: [CRM Requirements](https://github.com/Azure/SONiC/blob/gh-pages/doc/CRM_requirements.md).
+Detailed description of the Critical Resource Monitoring feature requirements is here: [CRM Requirements](https://github.com/sonic-net/SONiC/blob/gh-pages/doc/crm/CRM_requirements.md).
 
 This section describes the SONiC requirements for Critical Resource Monitoring (CRM) feature. CRM should monitor utilization of  ASIC resources by polling SAI attributes.
 
@@ -104,7 +104,7 @@ Monitoring process should periodically poll SAI counters for all required resour
 
 ```"<Date/Time> WARNING <Process name>: THRESHOLD_EXCEEDED for <TH_TYPE> <%> Used count <value> free count <value>"```
 
-```"<Date/Time> NOTICE <Process name>: THRESHOLD_CLEAR for <TH_TYPE> <%> Used count <value> free count <value>"```
+```"<Date/Time> WARNING <Process name>: THRESHOLD_CLEAR for <TH_TYPE> <%> Used count <value> free count <value>"```
 
 ```<TH_TYPE> = <TH_PERCENTAGE, TH_USED, TH_FREE>```
 
@@ -304,9 +304,9 @@ Commands:
 ```
 # 3 Flows
 ## 3.1 CRM monitoring
-![](https://github.com/Azure/SONiC/blob/gh-pages/images/crm_hld/crm_monitoring_flow.png)
+![](https://github.com/sonic-net/SONiC/blob/gh-pages/images/crm_hld/crm_monitoring_flow.png)
 ## 3.2 CRM CLI config
-![](https://github.com/Azure/SONiC/blob/gh-pages/images/crm_hld/crm_cli_config_flow.png)
+![](https://github.com/sonic-net/SONiC/blob/gh-pages/images/crm_hld/crm_cli_config_flow.png)
 ## 3.3 CRM CLI show
-![](https://github.com/Azure/SONiC/blob/gh-pages/images/crm_hld/crm_cli_show_flow.png)
+![](https://github.com/sonic-net/SONiC/blob/gh-pages/images/crm_hld/crm_cli_show_flow.png)
 # 4 Open Questions
