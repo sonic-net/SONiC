@@ -38,7 +38,7 @@ Since this feature is not related to traffic and network topology, all current t
 
 ### Ansible and Pytest
 
-This test plan is based on platform test infrastructure as additional cases. The test will reuse current [platform test](https://github.com/Azure/SONiC-mgmt/tree/master/tests/platform) in SONiC-mgmt. New pytest test cases will be added to [test_platform_info.py](https://github.com/Azure/SONiC-mgmt/blob/master/tests/platform/test_platform_info.py). In addition, valid_policy.json,  invalid_format_policy.json and invalid_value_policy.json will be added as thermal policy configuration file for test purpose.
+This test plan is based on platform test infrastructure as additional cases. The test will reuse current [platform test](https://github.com/sonic-net/SONiC-mgmt/tree/master/tests/platform) in SONiC-mgmt. New pytest test cases will be added to [test_platform_info.py](https://github.com/sonic-net/SONiC-mgmt/blob/master/tests/platform/test_platform_info.py). In addition, valid_policy.json,  invalid_format_policy.json and invalid_value_policy.json will be added as thermal policy configuration file for test purpose.
 
 #### Valid policy file
 

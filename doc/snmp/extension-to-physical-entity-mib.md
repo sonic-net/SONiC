@@ -1,4 +1,4 @@
-# SONiC Entity MIB Extension #
+# SONiC Entity MIB and Entity Sensor MIB Extension #
 
 ### Revision ###
 
@@ -6,10 +6,13 @@
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Kebo Liu      | Initial version                   |
  | 0.2 |             |      Junchao Chen  | Fix community review comment      |
+ | 0.3 |             |      Kebo Liu      | Add Entity Sensor MIB Extension   |
 
 
 
-## 1. Overview 
+## 1. Entity MIB Extension 
+
+### 1.1 Overview 
 
 The Entity MIB contains several groups of MIB objects: entityPhysical group, entityLogical group and so on. Currently SONiC only implemented part of the entityPhysical group following RFC2737. Since entityPhysical group is mostly common used, this extension will focus on entityPhysical group and leave other groups for future implementation. The group entityPhysical contains a single table called "entPhysicalTable" to identify the physical components of the system. The MIB objects of "entityPhysical" group listed as below:
 
@@ -34,7 +37,7 @@ The Entity MIB contains several groups of MIB objects: entityPhysical group, ent
 
 Detailed information about the MIB objects inside entPhysicalTable can be found in section 3 of RFC2737
 
-## 2. Current Entity MIB implementation in SONiC
+### 1.2 Current Entity MIB implementation in SONiC
 Currently SONiC implemented part of the MIB objects in the table:
 
 	entPhysicalDescr          SnmpAdminString,
@@ -65,7 +68,7 @@ Now only physical entities as transceivers and its DOM sensors(Temp, voltage, rx
 	SNMPv2-SMI::mib-2.47.1.1.1.1.2.1042 = STRING: "DOM TX Bias Sensor for Ethernet0/4"
 	SNMPv2-SMI::mib-2.47.1.1.1.1.2.1043 = STRING: "DOM TX Power Sensor for Ethernet0/4"
 
-## 3. A new extension to Entity MIB implementation
+### 1.3 A new extension to Entity MIB implementation
 This extension aims to implement all the objects in the entityPhysical group.
 
 Also plan to add more physical entities such as thermal sensors, fan, and its tachometers; PSU, PSU fan, and some sensors contained in PSU.
@@ -93,7 +96,7 @@ Another thing need to highlight is that in the current implementation, "entPhysi
                             |--DOM TX Bias Sensor for Ethernet(x)/(y) (Bias sensor)
 
 
-## 4. The data source of the MIB entries
+### 1.4 The data source of the MIB entries
 
 Thermalctl daemon, xcvrd, psud, are collecting physical device info to state DB, now we have PSU_INFO tale, FAN_INFO table, and TEMPERATURE_INFO table which can provide information for MIB entries.
 
@@ -101,7 +104,7 @@ Thermal sensors MIB info will come from TEMPERATURE_INFO, FAN_INFO will feed to 
 
 The current already implemented cable and cable DOM sensors getting data from tables(TRANSCEIVER_INFO and TRANSCEIVER_DOM_SENSOR) which is maintained by xcvrd.
 
-### 4.1 entPhysicalParentRelPos implementation
+#### 1.4.1 entPhysicalParentRelPos implementation
 
 entPhysicalParentRelPos is an indication of the relative position of this 'child' component among all its 'sibling' components. Sibling components are defined as entPhysicalEntries which share the same instance values of each of the entPhysicalContainedIn and entPhysicalClass objects.
 
@@ -220,7 +223,7 @@ class SfpBase(device_base.DeviceBase):
 
 A new database table will be added to store the position information. The new table will be discussed in section 4.4.
 
-### 4.2 entPhysicalContainedIn implementation
+#### 1.4.2 entPhysicalContainedIn implementation
 
 According to RFC, entPhysicalContainedIn indicates the value of entPhysicalIndex for the physical entity which 'contains' this physical entity. A value of zero indicates this physical entity is not contained in any other physical entity. 
 
@@ -228,7 +231,7 @@ Now platform API uses a hierarchy structure to store platform devices. This hier
 
 Thermalctld, psud, xcvrd will collect the parent device name and save the information to the database(see section 4.4). Snmp agent will use the parent device name to retrieve the parent sub ID and fill it to entPhysicalContainedIn field.
 
-### 4.3 entPhysicalIsFRU implementation
+#### 1.4.3 entPhysicalIsFRU implementation
 
 The entPhysicalIsFRU object indicates whether or not this physical entity is considered a 'field replaceable unit' by the vendor. If this object contains the value 'true(1)' then this entPhysicalEntry identifies a field replaceable unit.  For all entPhysicalEntries which represent components that are permanently contained within a field replaceable unit, the value 'false(2)' should be returned for this object.
 
@@ -247,7 +250,7 @@ class DeviceBase(object):
 
 A new field is_replaceable will be added to FAN_INFO, PSU_INFO and TRANSCEIVER_INFO table (See detail in section 4.4). Thermalctld, psud, xcvrd will collect this information and save it to database.
 
-### 4.4 Database change
+#### 1.4.4 Database change
 
 New fields 'current', 'power', 'is_replaceable' will be added to PSU_INFO table:
 
@@ -305,7 +308,7 @@ As discussed in section 4.1 and 4.2, we need more information in database to imp
 
 The data of PHYSICAL_ENTITY_INFO will be collected by thermalctld, psud and xcvrd.
 
-### 4.4 entPhysicalIndex implementation
+#### 1.4.5 entPhysicalIndex implementation
 
 The existing rule for generating entPhysicalIndex is too simple. There is risk that two different entities might have the same entPhysicalIndex. Here we design a new rule for generating the entPhysicalIndex:
 
@@ -357,13 +360,13 @@ Port Sensor Type describes below:
 5 - Voltage
 ```
 
-## 5. Entity MIB extension test
+### 1.5 Entity MIB extension test
 
-### 5.1 Unit test
+#### 1.5.1 Unit test
 
-SNMP unit test for sensors (https://github.com/Azure/sonic-snmpagent/blob/master/tests/test_sensor.py) will be extended to cover all the new added MIB objects and physical components.
+SNMP unit test for sensors (https://github.com/sonic-net/sonic-snmpagent/blob/master/tests/test_sensor.py) will be extended to cover all the new added MIB objects and physical components.
 
-### 5.2 Community regression test
+#### 1.5.2 Community regression test
 
 New test cases will be added to cover the new MIB entries:
 
@@ -371,4 +374,69 @@ New test cases will be added to cover the new MIB entries:
 2. Get fan MIB info and cross-check with the FAN_INFO table.
 3. Get PSU related MIB info and cross-check with PSU_INFO and related tables
 4. Remove/Add DB entries from related tables to see whether MIB info can be correctly updated.
-5. Currently, each platform API is tested by sonic-mgmt, see [here](https://github.com/Azure/sonic-mgmt/tree/master/tests/platform_tests/api). We will add regression test case for each newly added platform API to verify them.
+5. Currently, each platform API is tested by sonic-mgmt, see [here](https://github.com/sonic-net/sonic-mgmt/tree/master/tests/platform_tests/api). We will add regression test case for each newly added platform API to verify them.
+
+
+## 2. Entity Sensor MIB Extension
+
+### 2.1 Entity Sensor MIB Extension Scope
+
+Currently SONiC already have a RFC3433 Entity sensor MIB implementation,  Transceiver embeded sensors like temperature, voltage, rx_power, tx_power and tx_bias are alreay included. After Entity MIB was extended as desribed in Section 1, Entity MIB will also be extened to cover more sensors. 
+Thermal sensors besides the Transceiver embedded thermal sensors which avalaible in the STATE_DB will all be added to the Entity Sensor MIB support.
+PSU temperature, voltage, power and current will added, FAN tachometer will be added as well.
+
+### 2.1 Entity Sensor MIB Data Source
+
+All new added MIB will be initialized and updated based on the data stored in the STATE_DB, to be more specific:
+Thermal sensors data source will be the "TEMPERATURE_INFO" table,  PSU MIB entries will be fetched from "PSU_INFO" table and "FAN_INFO" is the source of FAN tachometers.
+
+### 2.2 New added sensors detail description
+
+FAN speed sensor:
+
+    TYPE = EntitySensorDataType.UNKNOWN
+    SCALE = EntitySensorDataScale.UNITS
+    PRECISION = 0
+
+Thermal sensors:
+
+    TYPE = EntitySensorDataType.CELSIUS
+    SCALE = EntitySensorDataScale.UNITS
+    PRECISION = 3
+
+PSU Temp Sensor:
+    
+    TYPE = EntitySensorDataType.CELSIUS
+    SCALE = EntitySensorDataScale.UNITS
+    PRECISION = 3
+
+
+PSU Voltage Sensor:
+    
+    TYPE = EntitySensorDataType.VOLTS_DC
+    SCALE = EntitySensorDataScale.UNITS
+    PRECISION = 3
+
+
+PSU Current Sensor
+    
+    TYPE = EntitySensorDataType.AMPERES
+    SCALE = EntitySensorDataScale.UNITS
+    PRECISION = 3
+
+
+PSU Power Sensor:
+    
+    TYPE = EntitySensorDataType.WATTS
+    SCALE = EntitySensorDataScale.UNITS
+    PRECISION = 3
+
+### 2.3 Entity sensor MIB test extension
+
+#### 2.3.1 Unit test
+
+SNMP unit test for sensors (https://github.com/sonic-net/sonic-snmpagent/blob/master/tests/test_sensor.py) will be extended to cover all the new added sensors MIB objects.
+
+#### 2.3.2 Community regression test
+
+SNMP Entity community regression test (https://github.com/sonic-net/sonic-mgmt/blob/master/tests/snmp/test_snmp_phy_entity.py) will be extended to cover all the new added sensors.
