@@ -62,7 +62,7 @@ Secure installation and upgrade of OS are setting a requirement to ensure the im
 ###  1.5. <a name='Requirements'></a>Requirements
 
 We want to enable secure upgrade of SONIC. This will include secure upgrade of SONIC while installing SONIC via ONIE or SONIC. The feature requires a signing process which will include a private key and certificate. The verification process on the other end requires a public key certificate for validation. Both processes are required to be supported by various scenarios such as development and release.
-In order to do secure installation of SONIC from ONIE, it has to include the flowing secure upgrade verification commit TBD (on pull request - waiting for it to be created)
+In order to do secure installation of SONIC from ONIE, it has to include the following secure upgrade verification code (links): https://github.com/sonic-net/sonic-buildimage/pull/11862, https://github.com/sonic-net/sonic-utilities/pull/2337
 Device arch should support secure boot including UEFI tools.
 
 ###  1.6. <a name='ArchitectureDesign'></a>Architecture Design
@@ -99,7 +99,7 @@ We will allow the use of 2 script types in this flow -
 - SONIC install – changes will be mainly done in sonic-installer main.py where bootloader methods are being called and will only affect 'sonic-installer install' command (other sonic-installer commands will not be affected). The installation process is triggered by install.sh script, which is different for every platform.
 In our opinion, python modifications will be easier to add and maintain than install.sh changes, as changing install.sh (for each platform) will require much more sources to maintain and test (different HW to check on, test cases for each HW, etc.).
 - A signed image will go through a verification process before installation, as main.py will call a dedicated bash script to split the signature from the image and check it with a public key certificate.
-Verification script called verify_image_sign.sh will verify using OpenSSL cms. Verification is enabled only if efi tools are enabled, and "Secure Boot" flag is enabled in BOIS. Accordingly, the certificate will be fetched from BIOS using EFI tools.
+Verification script called verify_image_sign.sh will verify using OpenSSL cms. Verification is enabled only if efi tools are enabled, and "Secure Boot" flag is enabled in BIOS. Accordingly, the certificate will be fetched from BIOS using EFI tools.
 In order to see if secure boot flag is enabled, user can use the linux command 'bootctl status' and look for "Secure Boot: enabled/disabled" line, or use the command:
 
         bootctl status 2>/dev/null | grep "Secure Boot:"
@@ -128,6 +128,8 @@ NA
 ###  1.11. <a name='RestrictionsLimitations'></a> Restrictions/Limitations  
 ####  1.11.1. <a name='uefitoolsandsecurebootenabled'></a> uefi tools and secure boot enabled
 Device arch should support secure boot including UEFI tools.
+UEFI tools pkg named efitools, link: https://packages.debian.org/buster/amd64/efitools/filelist
+Secure Upgrade feature is using: efi-readvar, sig-list-to-certs tools.
 This feature is dependent on BIOS secure boot flag being enabled.
 ####  1.11.2. <a name='ONIEsecureupgradeverificationcode'></a> ONIE secure upgrade verification code
 Secure installation of SONIC from ONIE requires a specific verification code, which can be picked from the following ONIE pull request TBD (waiting for it to be created)
