@@ -187,40 +187,40 @@ No update is needed to support ACL.
                                                ; policy.
 
     ;field        = value
-    priority      = 1*3DIGIT                   ; rule priority. Valid values range
+    PRIORITY      = 1*3DIGIT                   ; rule priority. Valid values range
                                                ; could be platform dependent
 
-    packet_action = "forward"/"drop"/"mirror"  ; action when the fields are
+    PACKET_ACTION = "forward"/"drop"/"mirror"  ; action when the fields are
                                                ; matched (mirror action only
                                                ; available to mirror acl table
                                                ; type)
 
-    mirror_action = 1*255VCHAR                 ; refer to the mirror session
+    MIRROR_ACTION = 1*255VCHAR                 ; refer to the mirror session
                                                ; (only available to mirror acl
                                                ; table type)
 
-    ether_type    = h16                        ; Ethernet type field
+    ETHER_TYPE    = h16                        ; Ethernet type field
 
-    ip_type       = ip_types                   ; options of the l2_protocol_type
+    IP_TYPE       = ip_types                   ; options of the l2_protocol_type
                                                ; field. Only v4 is support for
                                                ; this stage.
 
-    ip_protocol   = h8                         ; options of the l3_protocol_type field
+    IP_PROTOCOL   = h8                         ; options of the l3_protocol_type field
 
-    src_ip        = ipv4_prefix                ; options of the source ipv4
+    SRC_IP        = ipv4_prefix                ; options of the source ipv4
                                                ; address (and mask) field
 
-    dst_ip        = ipv4_prefix                ; options of the destination ipv4
+    DST_IP        = ipv4_prefix                ; options of the destination ipv4
                                                ; address (and mask) field
 
-    l4_src_port   = port_num                   ; source L4 port or the
-    l4_dst_port   = port_num                   ; destination L4 port
+    L4_SRC_PORT   = port_num                   ; source L4 port or the
+    L4_DST_PORT   = port_num                   ; destination L4 port
 
-    l4_src_port_range = port_num_L-port_num_H  ; source ports range of L4 ports field
-    l4_dst_port_range = port_num_L-port_num_H  ; destination ports range of L4 ports field
+    L4_SRC_PORT_RANGE = port_num_L-port_num_H  ; source ports range of L4 ports field
+    l4_DST_PORT_RANGE = port_num_L-port_num_H  ; destination ports range of L4 ports field
 
-    tcp_flags     = h8/h8                      ; TCP flags field and mask
-    dscp          = h8                         ; DSCP field (only available for mirror
+    TCP_FLAGS     = h8/h8                      ; TCP flags field and mask
+    DSCP          = h8                         ; DSCP field (only available for mirror
                                                ; table type)
 
     ;value annotations
@@ -548,18 +548,18 @@ for egress ACL rule.
 Add possibility to receive updates about mirror sessions state change and perform mirroring rules state change accordingly.
 # 4 Flows
 ## 4.1 Creating of ACL Objects
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_create.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/acl_create.png)
 ## 4.2 Deleting of ACL Objects
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_delete.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/acl_delete.png)
 ## 4.3 Updating of ACL Objects
 Depending on the number of changed properties in the updated ACL object, update may include one or more extra delete/create calls to the SAI Redis.  
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_update.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/acl_update.png)
 ## 4.4 Creating of ACL Mirror rules
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_mirror_rule_flow.svg)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/acl_mirror_rule_flow.svg)
 ## 4.5 Deleting of ACL Mirror rules
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/mirror_delete.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/mirror_delete.png)
 ## 4.6 Mirror state change handling
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/mirror_state_change.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/mirror_state_change.png)
 # 5 swssconfig input file format and restrictions
 - Valid json file. The file should be in the format swssconfig can process. This assumes lists surrounded by square brackets, dictionaries with curly brackets (braces), tuples inside dictionary separated with semicolon and enumerated elements separated with the comma.
 - Logical consistency. The configuration provided should be complete. Rules should not refer non-existing tables, etc.

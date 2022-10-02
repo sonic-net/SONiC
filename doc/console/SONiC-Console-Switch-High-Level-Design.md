@@ -94,6 +94,7 @@
 | 0.1 | 08/28/2020  |  Jing Kan | Initial version                   |
 | 0.2 | 09/10/2020  |  Jing Kan | Addressed first version's comments                   |
 | 1.0 | 11/04/2020  |  Jing Kan | Add more commands description and fill more details                   |
+| 1.1 | 12/09/2020  |  Jing Kan | Update console feature table key schema                   |
 
 # About this Manual
 
@@ -290,7 +291,7 @@ Below is an example, we can look into the inner topology of a console device:
 
 The console device have 4 com ports at front panel with product port numbers from 1 to 4. After we connected the console device to SONiC switch, the SONiC OS will detect 4 tty device and put them under `/dev` directory.
 
-From SONiC aspect, it is hard for us to know how the tty device mapped to physical console port because its depends on the external hardware design and OS kernel behavior. Then we need to create alias for all tty devices by using some rule. Here[[1]](https://github.com/Azure/SONiC/blob/master/doc/udev-terminalserver/udev%20rules%20for%20Terminal%20Server.md) is an design for resolving USB terminal server's port mapping problem by leveraging udev rule, it use the usb hardware metadata which are immutable to determine the relationship between underlying tty devices and front panel ports.
+From SONiC aspect, it is hard for us to know how the tty device mapped to physical console port because its depends on the external hardware design and OS kernel behavior. Then we need to create alias for all tty devices by using some rule. Here[[1]](https://github.com/sonic-net/SONiC/blob/master/doc/udev-terminalserver/udev%20rules%20for%20Terminal%20Server.md) is an design for resolving USB terminal server's port mapping problem by leveraging udev rule, it use the usb hardware metadata which are immutable to determine the relationship between underlying tty devices and front panel ports.
 
 Regardless of the console device type, the rule is required. We define below function `device_name_mapping()` for determining the alias name for a console port:
 
@@ -337,11 +338,11 @@ The CONSOLE_SWITCH_TABLE holds the configuration database for the purpose of con
 
 ```
 ; Console switch feature table
-key = CONSOLE_SWITCH
+key = CONSOLE_SWITCH:console_mgmt
 
 ; field = value
-console_mgmt = "0"/"1"      ; "0" means disable console management feature
-                            ; "1" means enable console management feature
+enabled = "yes"/"no"      ; "yes" means disable console management feature
+                          ; "no" means enable console management feature
 ```
 
 #### CONSOLE_PORT_TABLE
@@ -651,7 +652,9 @@ Console port 1 connect to a remote device `switch1` with baud_rate 9600 and enab
 ```json
 {
     "CONSOLE_SWITCH": {
-        "console_mgmt" : "1"
+        "console_mgmt" : {
+            "enabled": "yes"
+        }
     },
     "CONSOLE_PORT": {
         "1": {
@@ -766,4 +769,4 @@ If use USB, then the maximum number of add-on console device is specific to the 
 
 # 9 Reference
 
-1. udev rules design for terminal server. Sandy Li. https://github.com/Azure/SONiC/blob/master/doc/udev-terminalserver/udev%20rules%20for%20Terminal%20Server.md
+1. udev rules design for terminal server. Sandy Li. https://github.com/sonic-net/SONiC/blob/master/doc/udev-terminalserver/udev%20rules%20for%20Terminal%20Server.md
