@@ -61,7 +61,7 @@ Within each DB,  the data usually is organized in hierarchy of Table, key, field
 ```
 Some data like COUNTERS table in COUNTERS_DB doesn't have key, but field and value are stored directly under COUNTERS table.
 
-Refer to [SONiC data schema](https://github.com/Azure/sonic-swss-common/blob/master/common/schema.h) for more info about DB and table.
+Refer to [SONiC data schema](https://github.com/sonic-net/sonic-swss-common/blob/master/common/schema.h) for more info about DB and table.
 
 For data not available in DBs, Target name "OTHERS" is designated for that category of data, paths like platform/cpu or proc/loadavg under "OTHERS" target may be used get/subscribe the data.
 
