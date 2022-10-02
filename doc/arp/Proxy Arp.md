@@ -14,7 +14,7 @@ When the interface is deleted, the corresponding configurations must be removed.
 
 # Design Proposal
 
-The design is intended to have a generic approach for proxy-arp feature. A user can set an attribute "proxy_arp" to the config_db entry for INTERFACE table entry. In addition, for "Vnet" interfaces, this is implicitely "enabled". The default value if not specified would be "disabled"
+The design is intended to have a generic approach for proxy-arp feature. A user can set an attribute "proxy_arp" to the config_db entry for INTERFACE table entry. The default value if not specified would be "disabled"
 
 The schema change for proxy-arp is as below:
 
@@ -57,19 +57,19 @@ The following flow diagram captures two example, one for user configuration and 
 
 ## Kernel config
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/proxy_arp_kernel.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/proxy_arp_kernel.png)
 
 ## SAI config
 
 For requirement #2, the proposal is to disable flooding for the specific Vlan so that ARP packets shall not get flooded in hardware.
 By default in Sonic, it is a copy action for ARP packets which means, packets gets flooded in hardware. In the event of enabling proxy-arp, flooding must be disabled. This enables the switch to respond to ARP requests within this subnet to be responded with its SVI mac. ```Intforch``` must invoke "Vlan flood" disable during the RIF creation based on "prxoy_arp" attribute.
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/proxy_arp_flood.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/proxy_arp_flood.png)
 
 # Additional Notes
-1. The flooding is disabled only for those interfaces belonging to a Vnet or user-configured proxy_arp setting. The implementation shall not modify the existing behavior and shall be backward compatible. 
+1. The flooding is disabled only for those interfaces that has proxy_arp setting. The implementation shall not modify the existing behavior and shall be backward compatible. 
 2. VS test can be added to existing ```test_vnet.py``` to verify the kernel/SAI configuration.
 3. Proxy ND is not planned as part of this feature but can be extended in future based on the same approach
 4. ```/proc/sys/net/ipv4/conf/Vlan2000/proxy_arp``` is not required to be set.
-5. Reference on Vnet/Vxlan design is [here](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
+5. For non-Vlan interfaces, proxy_arp shall be set in kernel but no configuration is applied to SAI
 6. Requires a sonic-mgmt test to verify the proxy-arp behaviour
