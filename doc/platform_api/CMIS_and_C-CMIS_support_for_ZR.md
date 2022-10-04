@@ -114,8 +114,6 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     ; Defines Transceiver DOM sensor information for a port
     key                          = TRANSCEIVER_DOM_SENSOR|ifname    ; information module DOM sensors on port
     ; field                      = value
-    rx_los                       = BOOLEAN                          ; RX LOS state
-    tx_fault                     = BOOLEAN                          ; TX fault state
     tx_disable                   = BOOLEAN                          ; TX disable state
     tx_disabled_channel          = INTEGER                          ; TX disable field
     temperature                  = FLOAT                            ; temperature value in Celsius
@@ -172,7 +170,7 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
 ##### 2.1.3 Transceiver DOM Threshold Table #####
 
     ; Defines Transceiver DOM threshold info for a port
-    key                          = TRANSCEIVER_STATUS|ifname        ; DOM threshold information for module on port
+    key                          = TRANSCEIVER_DOM_THRESHOLD|ifname ; DOM threshold information for module on port
     ; field                      = value
     temphighalarm                = FLOAT                            ; temperature high alarm threshold in Celsius
     temphighwarning              = FLOAT                            ; temperature high warning threshold in Celsius
@@ -496,8 +494,8 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
 ##### 2.1.6 Transceiver Loopback Table #####
 
     ; Defines Transceiver loopback information for a port
-    key                          = TRANSCEIVER_PM|ifname            ; information of loopback on port
-    ; field                      = value 
+    key                                         = TRANSCEIVER_LOOPBACK|ifname      ; information of loopback on port
+    ; field                                     = value 
     simultaneous_host_media_loopback_supported  = BOOLEAN                          ; simultaneous host and media loopback support
     per_lane_media_loopback_supported           = BOOLEAN                          ; per lane media loopback support
     per_lane_host_loopback_supported            = BOOLEAN                          ; per lane host loopback support
@@ -534,78 +532,94 @@ This command displays information for all the interfaces for the transceiver req
 
 - Usage:
   ```
-  show interfaces transceiver (info | eeprom [-d|--dom] | presence | status | pm | loopback) [<interface_name>]
-  ```
-- Example (Decode and display general information of the transceiver connected to Ethernet0):
-  ```
-  admin@sonic:~$ show interfaces transceiver info Ethernet0
-  Ethernet0:
-  Module Type :  QSFP-DD Double Density 8X Pluggable Transceiver (INF-8628)
-  Media Type : Single Model Fiber (SMF)
-  Host Electrical Interface : 400GAUI-8 C2M (Annex 120E), data rate 425.00, lane count 8, lane signal baudrate 26.5625, modulation PAM4, bit per symbol 2
-  Media Interface Code : TBD
-  Host Lane Count : 8
-  Media Lane Count : 1
-  Host Lane Assignment Options : 1
-  Media Lane Assignment Options : 1
-  Active App Selection Host Lane 1 : 1
-  Active App Selection Host Lane 2 : 1
-  Active App Selection Host Lane 3 : 1
-  Active App Selection Host Lane 4 : 1
-  Active App Selection Host Lane 5 : 1
-  Active App Selection Host Lane 6 : 1
-  Active App Selection Host Lane 7 : 1
-  Active App Selection Host Lane 8 : 1
-  Media Interface Technology : C-band tunable laser
-  Vendor Name : XXXXXXX
-  Vendor OUI : XX-XX-XX
-  Hardware Revision : XX.XX
-  Module PN : XXXXXXXXXXX
-  Module SN : XXXXXXXXXXX
-  Module Manufacture Date : XXXXXXXX (MMDDYY)
-  Connector Type : LC (Lucent Connector)
-  CMIS Revision : X.X
-  Active Firmware Version :  XXX.XXX
-  Inactive Firmware Version :  XXX.XXX
-  Supported Max TX Power : X.X dBm
-  Supported Min TX Power : X.X dBm
-  Supported Max Laser Frequency : XXX.XX THz
-  Supported Min Laser Frequency : XXX.XX THz
+  show interfaces transceiver (eeprom [-d|--dom] | presence | error-status | status | pm | loopback) [<interface_name>]
   ```
 
-- Example (Decode and display dom information of the transceiver connected to Ethernet0):
+- Example (Decode and display module and dom information of the transceiver connected to Ethernet0):
   ```
-  admin@sonic:~$ show interfaces transceiver eeprom --dom Ethernet0
-  Ethernet0:
-  Temperature : 45.00C
-  Vcc : 3.33Volts
-  TX1Bias : 70mA
-  Laser Temperature : 30C
-  Prefec Ber : 1.00E-3
-  Postfec Ber : 0.00E0
-  Cd Shortlink : 2000 ps/ns
-  Cd Longlink : 2000 ps/ns
-  Dgd : 1.0 ps
-  Sopmd : 1 ps^2
-  Pdl : 1.0 dB
-  Osnr : 28.00 dB
-  Esnr : 15.00 dB
-  Cfo : 500 MHz
-  Soproc : 1 krad/s
-  Laser Config Frequency: 193100000 MHz
-  Laser Current Frequency : 193100000 MHz
-  Tx Config Power : -10.00 dBm
-  Tx Current Power : -10.00 dBm
-  Rx Total Power : -8.00 dBm
-  Rx Signal Power : -8.00 dBm
+  admin@sonic:~$ show interfaces transceive eeprom --dom Ethernet0
+  Ethernet0: SFP EEPROM detected
+          Application Advertisement: {1: {'host_electrical_interface_id': '400GAUI-8 C2M (Annex 120E)', 'module_media_interface_id': '400ZR, DWDM, amplified', 'media_lane_count': 1, 'host_lane_count': 8, 'host_lane_assignment_options': 1}, 2: {'host_electrical_interface_id': '400GAUI-8 C2M (Annex 120E)', 'module_media_interface_id': '400ZR, Single Wavelength, Unamplified', 'media_lane_count': 1, 'host_lane_count': 8, 'host_lane_assignment_options': 1}, 3: {'host_electrical_interface_id': '100GAUI-2 C2M (Annex 135G)', 'module_media_interface_id': '400ZR, DWDM, amplified', 'media_lane_count': 1, 'host_lane_count': 2, 'host_lane_assignment_options': 85}}
+          Connector: LC
+          Encoding: N/A
+          Extended Identifier: Power Class 8 (20.0W Max)
+          Extended RateSelect Compliance: N/A
+          Identifier: QSFP-DD Double Density 8X Pluggable Transceiver
+          Length Cable Assembly(m): 0.0
+          Nominal Bit Rate(100Mbs): 0
+          Specification compliance: sm_media_interface
+          Vendor Date Code(YYYY-MM-DD Lot): 2020-01-01
+          Vendor Name: XXXX
+          Vendor OUI: xx-xx-xx
+          Vendor PN: XXX
+          Vendor Rev: XXX
+          Vendor SN: 0123456789
+          ChannelMonitorValues:
+                  RX1Power: -infdBm
+                  RX2Power: -infdBm
+                  RX3Power: -infdBm
+                  RX4Power: -infdBm
+                  RX5Power: -infdBm
+                  RX6Power: -infdBm
+                  RX7Power: -infdBm
+                  RX8Power: -infdBm
+                  TX1Bias: 0.0mA
+                  TX1Power: -10.0dBm
+                  TX2Bias: 0.0mA
+                  TX2Power: -infdBm
+                  TX3Bias: 0.0mA
+                  TX3Power: -infdBm
+                  TX4Bias: 0.0mA
+                  TX4Power: -infdBm
+                  TX5Bias: 0.0mA
+                  TX5Power: -infdBm
+                  TX6Bias: 0.0mA
+                  TX6Power: -infdBm
+                  TX7Bias: 0.0mA
+                  TX7Power: -infdBm
+                  TX8Bias: 0.0mA
+                  TX8Power: -infdBm
+          ChannelThresholdValues:
+                  RxPowerHighAlarm  : 2.0dBm
+                  RxPowerHighWarning: 0.0dBm
+                  RxPowerLowAlarm   : -20.01dBm
+                  RxPowerLowWarning : -20.0dBm
+                  TxBiasHighAlarm   : 0.0mA
+                  TxBiasHighWarning : 0.0mA
+                  TxBiasLowAlarm    : 0.0mA
+                  TxBiasLowWarning  : 0.0mA
+                  TxPowerHighAlarm  : 0.0dBm
+                  TxPowerHighWarning: -2.0dBm
+                  TxPowerLowAlarm   : -18.013dBm
+                  TxPowerLowWarning : -16.003dBm
+          ModuleMonitorValues:
+                  Temperature: 57.0C
+                  Vcc: 3.329Volts
+          ModuleThresholdValues:
+                  TempHighAlarm  : 80.0C
+                  TempHighWarning: 75.0C
+                  TempLowAlarm   : -5.0C
+                  TempLowWarning : 15.0C
+                  VccHighAlarm   : 3.465Volts
+                  VccHighWarning : 3.432Volts
+                  VccLowAlarm    : 3.135Volts
+                  VccLowWarning  : 3.168Volts
   ```
 
 - Example (Display presence of SFP transceiver connected to Ethernet0):
   ```
   admin@sonic:~$ show interfaces transceiver presence Ethernet0
-  Port         Low-power Mode
-  -----------  ----------------
-  Ethernet0  On
+  Port       Presence
+  ---------  ----------
+  Ethernet0  Present
+  ```
+
+- Example (Decode and display error-status of the transceiver connected to Ethernet0):
+  ```
+  admin@sonic:~$ show interfaces transceiver error-status Ethernet0
+  Port       Error Status
+  ---------  --------------
+  Ethernet0  OK
   ```
 
 - Example (Display status of transceiver connected to Ethernet0):
