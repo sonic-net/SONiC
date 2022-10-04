@@ -717,6 +717,17 @@ The stats are collected by telemetry service that serves the main receiver. Henc
     
 # CLI
 - Show commands is provided to vew STATS collected
+- gnmi cli commands
+		# heartbeat=-1  turns off heartbeat
+		gnmi_cli -client_types=gnmi -a 127.0.0.1:50051 -t EVENTS -logtostderr -insecure -v 7 -streaming_type ON_CHANGE -q all[heartbeat=-1] -qt s
+		
+		# heartbeat=n sets to every n seconds if n>0.
+		gnmi_cli -client_types=gnmi -a 127.0.0.1:50051 -t EVENTS -logtostderr -insecure -v 7 -streaming_type ON_CHANGE -q all[heartbeat=5] -qt s
+	
+		# Sets pq max size to be 1000; The q between Telemetry container and the exernal gNMI connection.
+		gnmi_cli -client_types=gnmi -a 127.0.0.1:50051 -t EVENTS -logtostderr -insecure -v 7 -streaming_type ON_CHANGE -q all[heartbeat=5][qsize=1000] -qt s
+		
+![image](https://user-images.githubusercontent.com/47282725/193930304-226509af-6c93-4dc8-9861-3909f999ec02.png)
 
 # YANG models for events
 Refer [PR #10801](https://github.com/Azure/sonic-buildimage/pull/10801) for set of YANG models defined for identified events.
