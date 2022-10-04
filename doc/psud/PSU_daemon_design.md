@@ -1,6 +1,6 @@
 # SONiC PSU Daemon Design #
 
-### Rev 0.2 ###
+### Rev 0.4 ###
 
 ### Revision ###
 
@@ -35,11 +35,11 @@ The purpose of PSU daemon is to collect platform PSU data and trigger proper act
 
 #### 1.1.1 Why we need it
 
-An Ethernet switch is typically equipped with more than one PSU for redundancy. It can be deployed in different scenarios with different types of xSFP modules, traffic type and traffic load. All these factors affect the power consumption of an Ethernet switch.
+An Ethernet switch is typically equipped with more than one PSU for redundancy. It can be deployed in different scenarios with different types of xSFP modules, traffic type and traffic load under different temperature. All these factors affect the power consumption of an Ethernet switch.
 
 On some platforms, the capacity of a single PSU is not large enough to afford all the components and xSFP modules running at the highest performance at the same time. In this case, we do not have redundancy any longer and users should be notified of that, which is achieved via periodically checking the current power of PSUs against their maximum allowed power, AKA, power thresholds.
 
-On some platforms, the maximum allowed power of the PSUs is not fxied but a dynamic value depending on other factors. For example, it can depend on the temperature of certain sensors on a switch to avoid overheat.
+On some platforms, the maximum allowed power of the PSUs is not fixed but a dynamic value depending on other factors like temperature of certain sensors on the switch.
 
 ## 2. PSU data collection
 

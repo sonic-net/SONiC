@@ -221,9 +221,9 @@ psud need to collect more PSU data to the DB to satisfy the requirement of this 
 	voltage                  = INT                            ; output voltage of the PSU
 	voltage_max_th           = INT                            ; max threshold of the output voltage
 	voltage_min_th           = INT                            ; min threshold of the output voltage
-    power_overload           = "true" / "false"               ; whether the PSU's power exceeds the threshold
-    power_warning_threshold  = 1*4.3DIGIT                     ; The power warning threshold
-    power_critical_threshold = 1*4.3DIGIT                     ; The power critical threshold
+	power_overload           = "true" / "false"               ; whether the PSU's power exceeds the threshold
+	power_warning_threshold  = 1*4.3DIGIT                     ; The power warning threshold
+	power_critical_threshold = 1*4.3DIGIT                     ; The power critical threshold
 
 ## 5. System health monitor CLI
 
@@ -278,7 +278,7 @@ When something is wrong
         orchagent is not running
 	Hardware           Fault
         PSU 1 temp 85C and threshold is 70C
-		PSU 1 power (66.32w) exceeds threshold (60.00w)
+        PSU 1 power (66.32w) exceeds threshold (60.00w)
         FAN 2 is broken
 
 for the "detail" sub command output, it will give out all the services and devices status which is under monitoring, and also the ignored service/device list will also be displayed.
