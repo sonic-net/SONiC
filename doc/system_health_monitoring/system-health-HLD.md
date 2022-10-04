@@ -278,7 +278,7 @@ When something is wrong
         orchagent is not running
 	Hardware           Fault
         PSU 1 temp 85C and threshold is 70C
-        PSU 1 power (66.32w) exceeds threshold (60.00w)
+        PSU 1 power (66.32w) exceeds thresholds (warning: 60.00w critical: 70.00w)
         FAN 2 is broken
 
 for the "detail" sub command output, it will give out all the services and devices status which is under monitoring, and also the ignored service/device list will also be displayed.
