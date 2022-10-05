@@ -1,6 +1,6 @@
 # SONiC Config Update Validation via YANG
 
-## Table of Content s
+## Table of Contents
 
 - [1 Revision](#revision)
 - [2 Project Overview](#project-overview)
