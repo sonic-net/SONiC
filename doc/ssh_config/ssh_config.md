@@ -93,8 +93,8 @@ Description of default values in init_cfg.json regarding SSH global config:
 login attempts: 6 
 login timeout: 120 //seconds
 ports: 22
-tcp-fowarding: Enabled
-X11-forwarding: Enabled
+tcp-fowarding: true
+X11-forwarding: true
 ```
 ###  1.9. <a name='SAI api'></a>SAI api
 NA
@@ -105,11 +105,11 @@ NA
 ```
 SSH_GLOBAL:{
 	policies:{
-		"login-attempts": {{num}}
-		"login-timeout": {{secs}}
-		"ports": {{num}}
-		"tcp-forwarding": {{True/False}}
-		"x11-forwarding": {{True/False}}
+		"login_attempts": {{num}}
+		"login_timeout": {{secs}}
+		"port": {{num}}
+		"tcp_forwarding": {{True/False}}
+		"x11_forwarding": {{True/False}}
 	}
 }
 ```
