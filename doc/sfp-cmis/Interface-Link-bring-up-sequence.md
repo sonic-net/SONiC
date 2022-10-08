@@ -194,10 +194,10 @@ Following items are not in the scope of this document. They would be taken up se
    - Cleanup scenario - Check if the host_tx_ready field in STATE-DB need to be updated to “False” for any use-case, either in going down or coming up path 
    - Discuss further on the possible use-cases
 3. CMIS API feature is not part of this design and the APIs will be used in this design. For CMIS HLD, Please refer to:
-   https://github.com/Azure/SONiC/blob/9d480087243fd1158e785e3c2f4d35b73c6d1317/doc/sfp-cmis/cmis-init.md
+   https://github.com/sonic-net/SONiC/blob/9d480087243fd1158e785e3c2f4d35b73c6d1317/doc/sfp-cmis/cmis-init.md
 4. Error handling of SAI attributes
    a) At present, If there is a set attribute failure, orch agent will exit. 
-      Refer the error handling API : https://github.com/Azure/sonic-swss/blob/master/orchagent/orch.cpp#L885
+      Refer the error handling API : https://github.com/sonic-net/sonic-swss/blob/master/orchagent/orch.cpp#L885
    b) Error handling for SET_ADMIN_STATUS attribute will be added in future.
    c) A propabale way to handle the failure is to set a error handling attribute to respective container syncd/GBsyncd with attribute that is failed. 
       The platform layer knows the error better and it will try to recover.
