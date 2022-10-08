@@ -106,33 +106,35 @@ Fan info Sysfs path must be /sys_switch/fan/
 |/sys_switch/fan/fan[n]/led_status |R/W| enum| The fan status lights are defined as follows:<br>See the definition of enumeration value of LED status light for details
 
 ### 7. PSU information sysfs
-Power Information The Sysfs path must be /sys_switch/psu/
+Power Supply Unit Information The Sysfs path must be /sys_switch/psu/
 
 *Table7-1 Power Information sysfs Property*
 
 |Sysfs path|Permissions|Data type|Description|
 |-|-|-|-|
-|/sys_switch/psu/number |RO| int| total number of power supplies for the device
-|/sys_switch/psu/psu[n]/model_name |RO|  string  | power supply name
-|/sys_switch/psu/psu[n]/hardware_version |RO|  string  | power supply hardware version number
-|/sys_switch/psu/psu[n]/serial_number |RO|  string  | power supply serial number
-|/sys_switch/psu/psu[n]/part_number |RO|  string  | power supply part number
-|/sys_switch/psu/psu[n]/type|RO| enum | Power Type: <br>0: DC<br> 1: AC 
-|/sys_switch/psu/psu[n]/in_curr |RO|  int | power input current, unit: mA
-|/sys_switch/psu/psu[n]/in_vol |RO|  int | power input voltage, unit: mV
-|/sys_switch/psu/psu[n]/in_power |RO|  int | power input power, unit: uW
-|/sys_switch/psu/psu[n]/out_max_power |RO|  int |The maximum output power of the power supply, unit: uW
-|/sys_switch/psu/psu[n]/out_curr |RO|  int | Power supply output current, unit: mA
-|/sys_switch/psu/psu[n]/out_vol |RO|  int | power supply output voltage, unit: mV
-|/sys_switch/psu/psu[n]/out_power |RO|  int | power supply output power, unit: uW
+|/sys_switch/psu/number |RO| int| total number of PSU for the device
+|/sys_switch/psu/psu[n]/model_name |RO|  string  | PSU name
+|/sys_switch/psu/psu[n]/hardware_version |RO|  string  | PSU hardware version number
+|/sys_switch/psu/psu[n]/serial_number |RO|  string  | PSU serial number
+|/sys_switch/psu/psu[n]/part_number |RO|  string  | PSU part number
+|/sys_switch/psu/psu[n]/type|RO| enum | PSU Type: <br>0: DC<br> 1: AC 
+|/sys_switch/psu/psu[n]/in_curr |RO|  int | PSU input current, unit: mA
+|/sys_switch/psu/psu[n]/in_vol |RO|  int | PSU input voltage, unit: mV
+|/sys_switch/psu/psu[n]/in_power |RO|  int | PSU input power, compute it from in_curr * in_vol, unit: uW
+|/sys_switch/psu/psu[n]/out_max_power |RO|  int |The maximum output power of the PSU, unit: uW
+|/sys_switch/psu/psu[n]/out_curr |RO|  int | PSU output current, unit: mA
+|/sys_switch/psu/psu[n]/out_vol |RO|  int | PSU output voltage, unit: mV
+|/sys_switch/psu/psu[n]/out_power |RO|  int | PSU output power, compute it from out_curr * out_vol, unit: uW
 |/sys_switch/psu/psu[n]/num_temp_sensors |RO|  int | number of temperature sensors
 |/sys_switch/psu/psu[n]/temp[n]  | R/W| | reference temperature sensor definition
+|/sys_switch/psu/psu[n]/num_power_sensors |RO|  int | number of power sensors, TBD
+|/sys_switch/psu/psu[n]/power_sensor[n]  | R/W| | reference power sensor definition, TBD
 |/sys_switch/psu/psu[n]/present|RO| enum | state:<br> 0: not present<br>1: Incumbent
 |/sys_switch/psu/psu[n]/out_status|RO| enum | Output status, via POWER_OK inside the power supply pin judgment<br>0: abnormal<br>1: normal
 |/sys_switch/psu/psu[n]/in_status|RO| enum | Input status, judged by AC_OK pin inside the power supply broken<br>0: abnormal<br>1: normal
-|/sys_switch/psu/psu[n]/fan_speed  |RO|  int | power supply fan speed, unit: RPM
-|/sys_switch/psu/psu[n]/fan_ratio | R/W|  Int| Power supply fan speed duty cycle
-|/sys_switch/psu/psu[n]/led_status|RO|  enum | The power status lights are defined as follows:<br>See the definition of enumeration value of LED status light for details
+|/sys_switch/psu/psu[n]/fan_speed  |RO|  int | PSU fan speed, unit: RPM
+|/sys_switch/psu/psu[n]/fan_ratio | R/W|  Int| PSU fan speed duty cycle
+|/sys_switch/psu/psu[n]/led_status|RO|  enum | The PSU status lights are defined as follows:<br>See the definition of enumeration value of LED status light for details
 
 ### 8. Transceiver information sysfs
 Transceiver module information Sysfs path must be /sys_switch/transceiver/
@@ -231,3 +233,7 @@ slot information Sysfs path must be /sys_switch/slot/
 |/sys_switch/slot/slot[n]/fpga[n] |R/W||Refer to FPGA Information Sysfs Definition
 |/sys_switch/slot/slot[n]/num_cplds |RO| int| Number of sub card CPLDs
 |/sys_switch/slot/slot[n]/cpld[n] |R/W| |refer to CPLD information Sysfs definition
+
+### 14. Power sensor sysfs
+Current Sensor information Sysfs path must be /sys_switch/power_sensor/
+Note:  TBD. This section will be defined in the next stage. Most on-board DC-DC converters (also called PWM or pulse-width modulator chips) provide voltage, current and calculated power. They often provide power In and Power out, allowing easy measurement of efficiency. It is more reliable to read this directly rather than compute it from current * voltage, which might obtain readings at different times and result in invalid computation.  It could also be more accurate because multiplying current * power in the controller results in compound loss of precision(rounded value * rounded value)
