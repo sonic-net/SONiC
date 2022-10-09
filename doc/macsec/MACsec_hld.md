@@ -814,9 +814,9 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 
 #### 3.5.1 PFC with MACsec
 
-*Due the the link delay should be considered as the PFC configuration, the extra delay of data frames **MUST NOT** be more than **1 microsecond**. (Will confirm with vendors).*
+*Due to the link delay should be considered as the PFC configuration, the extra delay of data frames **MUST NOT** be more than **1 microsecond**. (Will confirm with vendors).*
 
-- To leverage the capability of ACL to bypass or drop the PFC and frames like what EAPOL did and all ACL entries for PFC are kept into the same ACL table of EAPOL. ***The EAPOL design is [here](https://github.com/opencomputeproject/SAI/blob/master/doc/macsec-gearbox/SAI_MACsec_API_Proposal-v1.4.docx).***
+- To leverage the capability of ACL to bypass or drop the PFC frames like what EAPOL did and all ACL entries for PFC are kept into the same ACL table of EAPOL. ***The EAPOL design is [here](https://github.com/opencomputeproject/SAI/blob/master/doc/macsec-gearbox/SAI_MACsec_API_Proposal-v1.4.docx).***
 
 - The ACL table is processed at the beginning of the MACsec stage. So, the configuration of ACL entry to PFC mentioned in [3.5.1.1 ACL entry configuration](#3511-acl-entry-configuration) will be executed before the frame into the MACsec secy.
 
@@ -930,7 +930,7 @@ sai_acl_api->create_acl_counter(&counter_id, switch_id, (uint32_t)counter_attrs.
 
 ##### 3.5.1.4 PFC test
 
-Please see the [MACsec test plan](https://github.com/Pterosaur/sonic-mgmt/blob/macsec_platform/docs/testplan/MACsec-test-plan.md#pfc-in-macsec) in sonic-mgmt.
+Please see the [MACsec test plan](https://github.com/Pterosaur/sonic-mgmt/blob/macsec_platform/docs/testplan/MACsec-test-plan.md#verify-pfc-in-macsec) in sonic-mgmt.
 
 ## 4 Flow
 
