@@ -77,6 +77,7 @@
   - [4.8 Remove Ingress/Egress SC](#48-remove-ingressegress-sc)
   - [4.9 MACsec Deinit](#49-macsec-deinit)
   - [4.10 Deinit Port](#410-deinit-port)
+- [5 CLI](#5-cli)
 
 ## About this Manual
 
@@ -127,7 +128,6 @@ At a high level the following should be supported:
 
 #### Phase III
 
-**ETA: 202206**
 - Primary and Fallback secure Connectivity Association Key can be supported simultaneously.
 
 #### Phase IV
@@ -215,6 +215,7 @@ replay_window               = DIGITS                   ; Replay window size that
 send_sci                    = "true" / "false"         ; Whether send SCI. Default true
 rekey_period                = DIGITS                   ; The period of proactively refresh (Unit second).
                                                        ; Default 0 which means never proactive refresh SAK.
+; The profile cannot be deleted if it has been used by a port.
 ```
 
 #### 3.1.2 Port Table
@@ -974,3 +975,7 @@ Please see the [MACsec test plan](https://github.com/Pterosaur/sonic-mgmt/blob/m
 ### 4.10 Deinit Port
 
 ![deinit port](images/deinit_port.png)  
+
+## 5 CLI
+
+MACsec cli refer: https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md#macsec-commands
