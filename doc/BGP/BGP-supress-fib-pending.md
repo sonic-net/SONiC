@@ -589,7 +589,7 @@ A ```ResponsePublisher``` must have a constructor that accepts a ```RedisPipelin
 ResponsePublisher::ResponsePublisher(RedisPipeline *pipeline, bool buffered = false);
 ```
 
-The ```OrchDaemon``` has to flush the ```RedisPipeline``` in ```OrchDaemon::flush``` when pending tasks.
+The ```OrchDaemon``` has to flush the ```RedisPipeline``` in ```OrchDaemon::flush``` when there are no pending tasks to perform.
 
 ### 8. SAI API
 
@@ -604,7 +604,11 @@ Warm reboot process remains unchanged. With BGP Graceful Restart, peers are keep
 
 #### 9.2. Fast Reboot
 
-On fast reboot BGP session is closed by SONiC device without the notification. BGP session is preserved in graceful restart mode. BGP routes on the peer are still active, because nexthop interfaces are up. Once interfaces go down, received BGP routes on the peer are removed from the routing table. Nothing is sent to SONiC device since then. After interfaces go up and BGP sessions re-establish the BGP makes active the previous bgp routes. From now SONiC devices restores its work. BGP sessions set up and bgp graceful restart mode ends
+During fast reboot BGP session is closed by SONiC device without the notification. BGP session is preserved in graceful restart mode. BGP routes on the peer are still active, because nexthop interfaces are up. Once interfaces go down, received BGP routes on the peer are removed from the routing table. Nothing is sent to SONiC device since then. After interfaces go up and BGP sessions re-establish the peer's BGP re-learns advertised routes.
+
+Considering this, the introduction of a slight delay in advertisement could lead to some increase in fast reboot downtime.
+
+TBD
 
 ### 10. Restrictions/Limitations
 
