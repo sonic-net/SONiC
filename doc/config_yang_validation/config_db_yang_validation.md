@@ -131,6 +131,36 @@ Sample JSON patch:
 
 ![](../../images/config_yang_validation/jsonpatch.png)
 
+Notably, there is a performance penalty when moving from ad-hoc validation to GCU-based YANG validation. Because the bulk of this project focuses on non-performance-sensitive scenarios such as user-based CLI writes to ConfigDB, this sacrifice in performance is deemed worthwhile. Performance-sensitive scenarios will be handled on a case-by-base basis, in some cases leaving ad-hoc validation as necessary. 
+
+#### Performance Comparison 
+
+##### Ad-hoc Validation Performance
+```
+admin@vlab-01:~$ time sudo config portchannel add PortChannel04
+
+real    0m0.453s
+```
+
+##### YANG Validation via GCU Performance
+```
+admin@vlab-01:~$ time sudo config portchannel add PortChannel04
+Patch Applier: Patch application starting.
+Patch Applier: Patch: [{"op": "add", "path": "/PORTCHANNEL/PortChannel04", "value": {"admin_status": "up", "mtu": "9100", "lacp_key": "auto", "min_links": "1"}}]
+Patch Applier: Getting current config db.
+Patch Applier: Simulating the target full config after applying the patch.
+Patch Applier: Validating target config does not have empty tables, since they do not show up in ConfigDb.
+Patch Applier: Sorting patch updates.
+Patch Applier: The patch was sorted into 1 change:
+Patch Applier:   * [{"op": "add", "path": "/PORTCHANNEL/PortChannel04", "value": {"admin_status": "up", "mtu": "9100", "lacp_key": "auto", "min_links": "1"}}]
+Patch Applier: Applying 1 change in order:
+Patch Applier:   * [{"op": "add", "path": "/PORTCHANNEL/PortChannel04", "value": {"admin_status": "up", "mtu": "9100", "lacp_key": "auto", "min_links": "1"}}]
+Patch Applier: Verifying patch updates are reflected on ConfigDB.
+Patch Applier: Patch application completed.
+
+real    0m5.177s
+```
+
 ### Decorator Pseudo Code
 ```
 def validate_decorator(config_db_connector):
