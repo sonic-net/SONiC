@@ -221,12 +221,13 @@ class PortableConsoleDeviceBase:
         """
         raise NotImplementedError
 
-    def get_num_psus(self):
+    def get_num_psus(self, device_index):
         """
-        Retrieves the number of power supply units available on the portable console device.
+        Retrieves the number of power supply units available on a specific portable console device.
 
-        :return: An integer, the number of power supply units available on all the portable console
-                 devices.
+        :param device_index: An integer, the index (0-based) of the portable console device.
+        :return: An integer, the number of power supply units available on the specific portable console
+                 device.
         """
         raise NotImplementedError
 
@@ -249,6 +250,7 @@ class PortableConsoleDeviceBase:
     def get_psu(self, device_index, psu_index):
         """
         Retrieves power supply unit represented by index (0-based).
+
         :param device_index: An integer, the index (0-based) of the portable console device.
         :param psu_index: An integer, the index (0-based) of the power supply unit on the specific
                                       portable console device to retrieve.
@@ -333,15 +335,16 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
     def get_line(self, line_number):
         return copy.deepcopy(self._lines.get(line_number, None))
 
-    def get_num_psus(self):
-        return reduce(lambda x, y: x + y, [len(v) for v in self._psus.values()])
+    def get_num_psus(self, device_index):
+        return len(self._psus.get(device_index, []))
 
     def get_all_psus(self):
         return copy.deepcopy(self._psus)
 
-    def get_psu(self, index):
-        if 0 <= index and index < len(self._psus):
-            return copy.deepcopy(self._psus[index])
+    def get_psu(self, device_index, psu_index):
+        psus = self._psus.get(device_index, [])
+        if 0 <= psu_index and psu_index < len(psus):
+            return psus[psu_index]
         return None
 ```
 
