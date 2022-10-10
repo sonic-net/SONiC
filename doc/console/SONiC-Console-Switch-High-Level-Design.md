@@ -3,13 +3,13 @@
 
 # High Level Design Document
 
-#### Revision 0.2
+#### Revision 1.0
 
 # Table of Contents
 
 - [SONiC Console Switch](#sonic-console-switch)
 - [High Level Design Document](#high-level-design-document)
-      - [Revision 0.2](#revision-02)
+      - [Revision 1.0](#revision-10)
 - [Table of Contents](#table-of-contents)
 - [List of Tables](#list-of-tables)
 - [Revision](#revision)
@@ -34,9 +34,10 @@
     + [3.1.2 Connect to a remote device](#312-connect-to-a-remote-device)
     + [3.1.3 Reverse SSH](#313-reverse-ssh)
     + [3.1.4 Underlying TTY Device Management](#314-underlying-tty-device-management)
-    + [Table 2: Underlying device mapping definition sample](#table-2--underlying-device-mapping-definition-sample)
+      - [Table 2: Underlying device mapping definition sample](#table-2--underlying-device-mapping-definition-sample)
   * [3.2 DB Changes](#32-db-changes)
     + [3.2.1 CONFIG_DB](#321-config-db)
+      - [CONSOLE_SWITCH_TABLE](#console-switch-table)
       - [CONSOLE_PORT_TABLE](#console-port-table)
     + [3.2.2 APP_DB](#322-app-db)
     + [3.2.3 STATE_DB](#323-state-db)
@@ -46,16 +47,19 @@
   * [3.3 CLI](#33-cli)
     + [3.3.1 General Command](#331-general-command)
       - [3.3.1.1 Show line](#3311-show-line)
-      - [3.3.1.2 Config](#3312-config)
-        * [3.3.1.2.1 Add/Del Console Port](#33121-add-del-console-port)
-        * [3.3.1.2.2 Update Remote device name for a Console Port](#33122-update-remote-device-name-for-a-console-port)
-        * [3.3.1.2.3 Update Baud for a Console Port](#33123-update-baud-for-a-console-port)
-        * [3.3.1.2.4 Enable Flow control for a Console Port](#33124-enable-flow-control-for-a-console-port)
-        * [3.3.1.2.5 Add/Del management IP for a Console Port](#33125-add-del-management-ip-for-a-console-port)
+      - [3.3.1.2 Clear line](#3312-clear-line)
+      - [3.3.1.3 Config](#3313-config)
+        * [3.3.1.3.1 Add/Del Console Port](#33131-add-del-console-port)
+        * [3.3.1.3.2 Update Remote device name for a Console Port](#33132-update-remote-device-name-for-a-console-port)
+        * [3.3.1.3.3 Update Baud for a Console Port](#33133-update-baud-for-a-console-port)
+        * [3.3.1.3.4 Enable Flow control for a Console Port](#33134-enable-flow-control-for-a-console-port)
+        * [3.3.1.3.5 Add/Del management IP for a Console Port](#33135-add-del-management-ip-for-a-console-port)
+        * [3.3.1.3.6 Enable/Disable Console Switch feature](#33136-enable-disable-console-switch-feature)
     + [3.3.2 Consutil Command](#332-consutil-command)
       - [3.3.2.1 Show line](#3321-show-line)
       - [3.3.2.2 Clear line](#3322-clear-line)
       - [3.3.2.3 Connect line](#3323-connect-line)
+      - [3.3.2.4 Sync state](#3324-sync-state)
   * [3.4 Reverse SSH](#34-reverse-ssh)
     + [3.4.1 Basic Usage](#341-basic-usage)
     + [3.4.2 Port based Forwarding](#342-port-based-forwarding)
@@ -89,6 +93,8 @@
 |:---:|:-----------:|:----------------------------:|-----------------------------------|
 | 0.1 | 08/28/2020  |  Jing Kan | Initial version                   |
 | 0.2 | 09/10/2020  |  Jing Kan | Addressed first version's comments                   |
+| 1.0 | 11/04/2020  |  Jing Kan | Add more commands description and fill more details                   |
+| 1.1 | 12/09/2020  |  Jing Kan | Update console feature table key schema                   |
 
 # About this Manual
 
@@ -285,7 +291,7 @@ Below is an example, we can look into the inner topology of a console device:
 
 The console device have 4 com ports at front panel with product port numbers from 1 to 4. After we connected the console device to SONiC switch, the SONiC OS will detect 4 tty device and put them under `/dev` directory.
 
-From SONiC aspect, it is hard for us to know how the tty device mapped to physical console port because its depends on the external hardware design and OS kernel behavior. Then we need to create alias for all tty devices by using some rule. Here[[1]](https://github.com/Azure/SONiC/blob/master/doc/udev-terminalserver/udev%20rules%20for%20Terminal%20Server.md) is an design for resolving USB terminal server's port mapping problem by leveraging udev rule, it use the usb hardware metadata which are immutable to determine the relationship between underlying tty devices and front panel ports.
+From SONiC aspect, it is hard for us to know how the tty device mapped to physical console port because its depends on the external hardware design and OS kernel behavior. Then we need to create alias for all tty devices by using some rule. Here[[1]](https://github.com/sonic-net/SONiC/blob/master/doc/udev-terminalserver/udev%20rules%20for%20Terminal%20Server.md) is an design for resolving USB terminal server's port mapping problem by leveraging udev rule, it use the usb hardware metadata which are immutable to determine the relationship between underlying tty devices and front panel ports.
 
 Regardless of the console device type, the rule is required. We define below function `device_name_mapping()` for determining the alias name for a console port:
 
@@ -326,9 +332,22 @@ This section describes the changes made to different DBs for supporting Console 
 
 ### 3.2.1 CONFIG_DB
 
-The CONSOLE_PORT_TABLE holds the configuration database for the purpose of console port connection parameters. This table is filled by the management framework.
+#### CONSOLE_SWITCH_TABLE
+
+The CONSOLE_SWITCH_TABLE holds the configuration database for the purpose of console switch features. This table is filled by the management framework.
+
+```
+; Console switch feature table
+key = CONSOLE_SWITCH:console_mgmt
+
+; field = value
+enabled = "yes"/"no"      ; "yes" means disable console management feature
+                          ; "no" means enable console management feature
+```
 
 #### CONSOLE_PORT_TABLE
+
+The CONSOLE_PORT_TABLE holds the configuration database for the purpose of console port connection parameters. This table is filled by the management framework.
 
 ```
 ; Console port table
@@ -389,9 +408,19 @@ show line
 
 Refer to [3.3.2.1 Show line](#3321-show-line)
 
-#### 3.3.1.2 Config
+#### 3.3.1.2 Clear line
 
-##### 3.3.1.2.1 Add/Del Console Port
+Alias of `consutil clear`
+
+```
+sonic-clear line
+```
+
+Refer to [3.3.2.2 Clear line](#3322-clear-line)
+
+#### 3.3.1.3 Config
+
+##### 3.3.1.3.1 Add/Del Console Port
 
 This command use for create/delete a console port configuration object.
 
@@ -414,7 +443,7 @@ config console add 2 --baud 9600 --flowcontrol
 config console del 1
 ```
 
-##### 3.3.1.2.2 Update Remote device name for a Console Port
+##### 3.3.1.3.2 Update Remote device name for a Console Port
 
 ```bash
 config console remote_device <port_name> <value>
@@ -427,7 +456,7 @@ Sample Usage:
 config console remote_device 1 switch1
 ```
 
-##### 3.3.1.2.3 Update Baud for a Console Port
+##### 3.3.1.3.3 Update Baud for a Console Port
 
 ```bash
 config console baud <port_name> <value>
@@ -440,7 +469,7 @@ Sample Usage:
 config console baud 1 115200
 ```
 
-##### 3.3.1.2.4 Enable Flow control for a Console Port
+##### 3.3.1.3.4 Enable Flow control for a Console Port
 
 ```bash
 config console flow_control {enable|disable} <port_name>
@@ -453,7 +482,7 @@ Sample Usage:
 config console flow_control enable 1
 ```
 
-##### 3.3.1.2.5 Add/Del management IP for a Console Port
+##### 3.3.1.3.5 Add/Del management IP for a Console Port
 
 ```bash
 config console mgmt_ip {add|del} <port_name> [<value>]
@@ -469,6 +498,22 @@ config console mgmt_ip del 1
 
 # Add the line management IP binding on console port 1
 config console mgmt_ip add 1 2001:db8::1
+```
+
+##### 3.3.1.3.6 Enable/Disable Console Switch feature
+
+```bash
+config console {enable/disable}
+```
+
+Sample Usage:
+
+```bash
+# Enable console switch feature
+config console enable
+
+# Disable console switch feature
+config console disable
 ```
 
 ### 3.3.2 Consutil Command
@@ -488,6 +533,7 @@ Commands:
   clear    Clear preexisting connection to line
   connect  Connect to switch via console device - TARGET...
   show     Show all lines and their info
+  sync     Sync all lines state
 ```
 
 #### 3.3.2.1 Show line
@@ -511,7 +557,7 @@ A `*` mark will display in front of line number if it is busy now.
 
 #### 3.3.2.2 Clear line
 
-Clear preexisting connection to line.
+Clear preexisting connection to line. Admin privilege required.
 
 ```
 consutil clear [OPTIONS] <TARGET>
@@ -559,6 +605,22 @@ consutil connect --devicename deviceA
 consutil connect --mgmtip 2001:db8::1
 ```
 
+#### 3.3.2.4 Sync state
+
+Refresh all console ports' state.
+```
+consutil sync
+```
+
+The console port state may stale if user communicate with console tty device unexpected or the communication process exit unexpected. This command will check existing processes and update the console ports' state in `STATE_DB` correspondingly.
+
+Sample Usage:
+
+```bash
+# refresh all console ports state
+consutil sync
+```
+
 ## 3.4 Reverse SSH
 
 Reverse SSH enable user to connect different remote devices via same TCP port.
@@ -589,6 +651,11 @@ Console port 1 connect to a remote device `switch1` with baud_rate 9600 and enab
 
 ```json
 {
+    "CONSOLE_SWITCH": {
+        "console_mgmt" : {
+            "enabled": "yes"
+        }
+    },
     "CONSOLE_PORT": {
         "1": {
             "remote_device": "switch1",
@@ -702,4 +769,4 @@ If use USB, then the maximum number of add-on console device is specific to the 
 
 # 9 Reference
 
-1. udev rules design for terminal server. Sandy Li. https://github.com/Azure/SONiC/blob/master/doc/udev-terminalserver/udev%20rules%20for%20Terminal%20Server.md
+1. udev rules design for terminal server. Sandy Li. https://github.com/sonic-net/SONiC/blob/master/doc/udev-terminalserver/udev%20rules%20for%20Terminal%20Server.md
