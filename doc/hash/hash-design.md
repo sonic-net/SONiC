@@ -88,7 +88,8 @@ This document describes the high level design of GH feature in SONiC
 
 ## List of tables
 
-[Table 1: Event logging](#table-1-event-logging)
+[Table 1: Frontend event logging](#table-1-frontend-event-logging)  
+[Table 2: Backend event logging](#table-2-backend-event-logging)
 
 # 1 Introduction
 
@@ -100,7 +101,7 @@ The packet fields used by the hashing algorithm varies by the configuration on t
 
 For ECMP, the hashing algorithm determines how incoming traffic is forwarded to the next-hop device.  
 For LAG, the hashing algorithm determines how traffic is placed onto the LAG member links to manage  
-bandwidth by evenly load-balancing traffic across the the outgoing links.
+bandwidth by evenly load-balancing traffic across the outgoing links.
 
 GH is a feature which allows user to configure which hash fields suppose to be used by hashing algorithm.  
 GH provides global switch hash configuration for ECMP and LAG.
@@ -110,7 +111,7 @@ GH provides global switch hash configuration for ECMP and LAG.
 ### 1.2.1 Functionality
 
 **This feature will support the following functionality:**
-1. Ethernet packet hashing with inner/outer IP frames
+1. Ethernet packet hashing configuration with inner/outer IP frames
 2. Global switch hash configuration for ECMP and LAG
 3. Warm/Fast reboot
 
@@ -122,20 +123,54 @@ GH provides global switch hash configuration for ECMP and LAG.
 
 ### 1.2.3 Error handling
 
+#### 1.2.3.1 Frontend
+
 **This feature will provide error handling for the next situations:**
-1. Incompatible options/parameters
+1. Invalid parameter value
+
+#### 1.2.3.2 Backend
+
+**This feature will provide error handling for the next situations:**
+1. Missing parameters
+2. Invalid parameter value
+3. Parameter removal
+4. Configuration removal
 
 ### 1.2.4 Event logging
+
+#### 1.2.4.1 Frontend
 
 **This feature will provide event logging for the next situations:**
 1. Switch hash update
 
-###### Table 1: Event logging
+###### Table 1: Frontend event logging
 
 | Event                       | Severity |
 |:----------------------------|:---------|
 | Switch hash update: success | NOTICE   |
 | Switch hash update: error   | ERROR    |
+
+#### 1.2.4.2 Backend
+
+**This feature will provide event logging for the next situations:**
+1. Missing parameters
+2. Invalid parameter value
+3. Parameter value with duplicate items
+4. Parameter removal
+5. Configuration removal
+6. Switch hash update
+
+###### Table 2: Backend event logging
+
+| Event                                | Severity |
+|:-------------------------------------|:---------|
+| Missing parameters                   | ERROR    |
+| Invalid parameter value              | ERROR    |
+| Parameter value with duplicate items | WARNING  |
+| Parameter removal                    | ERROR    |
+| Configuration removal                | ERROR    |
+| Switch hash update: success          | NOTICE   |
+| Switch hash update: error            | ERROR    |
 
 # 2 Design
 
@@ -154,7 +189,8 @@ Hashing policy can be set independently for ECMP and LAG.
 
 | Field                                   | Comment                                 |
 |:----------------------------------------|:----------------------------------------|
-| SAI_NATIVE_HASH_FIELD_DST_MAC           | SWITCH_HASH\|GLOBAL\|ecmp_hash/lag_hash |
+| SAI_NATIVE_HASH_FIELD_IN_PORT           | SWITCH_HASH\|GLOBAL\|ecmp_hash/lag_hash |
+| SAI_NATIVE_HASH_FIELD_DST_MAC           |                                         |
 | SAI_NATIVE_HASH_FIELD_SRC_MAC           |                                         |
 | SAI_NATIVE_HASH_FIELD_ETHERTYPE         |                                         |
 | SAI_NATIVE_HASH_FIELD_VLAN_ID           |                                         |
@@ -178,8 +214,7 @@ Hashing policy can be set independently for ECMP and LAG.
 |:-------|:---------------------|:-------------------------------------|
 | SWITCH | get_switch_attribute | SAI_SWITCH_ATTR_ECMP_HASH            |
 |        |                      | SAI_SWITCH_ATTR_LAG_HASH             |
-| HASH   | get_hash_attribute   | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST |
-|        | set_hash_attribute   |                                      |
+| HASH   | set_hash_attribute   | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST |
 
 ## 2.3 Orchestration agent
 
@@ -209,8 +244,7 @@ This class is responsible for:
 
 Switch hash object is stored under `SWITCH_HASH|GLOBAL` key in Config DB. On `SWITCH_HASH` update,  
 method `PbhOrch::doCfgSwitchHashTableTask()` will be called to process the change.  
-Regular switch hash update will refresh the internal class structures and appropriate SAI objects.  
-When global configuration is removed - fallback to vendor defaults is done.
+Regular switch hash update will refresh the internal class structures and appropriate SAI objects.
 
 **Skeleton code:**
 ```cpp
@@ -224,29 +258,22 @@ private:
 
     // Switch hash
     bool setSwitchHashFieldListSai(sai_object_id_t oid, std::vector<sai_int32_t> &hfList) const;
-    bool setSwitchHashEcmpHashDefault() const;
-    bool setSwitchHashLagHashDefault() const;
     bool setSwitchHashEcmpHash(const SwitchHash &hash) const;
     bool setSwitchHashLagHash(const SwitchHash &hash) const;
     bool setSwitchHash(const SwitchHash &hash);
 
     bool getSwitchHashOidSai(sai_object_id_t &oid, bool isEcmpHashOid) const;
-    bool getSwitchHashFieldListSai(std::set<sai_native_hash_field_t> &hfSet, sai_object_id_t oid) const;
     void getSwitchHashEcmpOid();
     void getSwitchHashLagOid();
-    void getSwitchHashEcmpHashFields();
-    void getSwitchHashLagHashFields();
     void querySwitchHashDefaults();
 
     // Switch hash SAI defaults
     struct {
         struct {
             sai_object_id_t oid = SAI_NULL_OBJECT_ID;
-            std::set<sai_native_hash_field_t> hashFieldSet;
         } ecmpHash;
         struct {
             sai_object_id_t oid = SAI_NULL_OBJECT_ID;
-            std::set<sai_native_hash_field_t> hashFieldSet;
         } lagHash;
     } m_switchHashDefaults;
 
@@ -271,9 +298,11 @@ ecmp_hash = hash-field-list ; hash fields for hashing packets going through ECMP
 lag_hash  = hash-field-list ; hash fields for hashing packets going through LAG
 
 ; value annotations
-hash-field      = "DST_MAC"
+hash-field      = "IN_PORT"
+                / "DST_MAC"
                 / "SRC_MAC"
                 / "ETHERTYPE"
+                / "VLAN_ID"
                 / "IP_PROTOCOL"
                 / "DST_IP"
                 / "SRC_IP"
@@ -492,6 +521,7 @@ will be extended with a new common type.
     typedef hash-field {
         description "Represents native hash field";
         type enumeration {
+            enum IN_PORT;
             enum DST_MAC;
             enum SRC_MAC;
             enum ETHERTYPE;
