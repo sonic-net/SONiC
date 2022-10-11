@@ -83,6 +83,10 @@ We use asymmetric thresholds between raising and clearing the alarm for the purp
 - an alarm will be raised when a PSU's power is rising accross the critical threshold
 - an alarm will be cleared when a PSU's power is dropping across the warning threshold
 
+In case a unified power threshold is used, the alarm status can flap when the power fluctuates around the threshold. For example, in the following picture, the alarm is cleared every time the PSU power drops across the critical threshold and raised every time the PSU power rises across the critical threshold. By having two thresholds, the alarm won't be cleared and raised so frequently.
+
+![](PSU_daemon_design_pictures/PSU-power-thresholds.png)
+
 #### PSU power checking logic
 
 For each PSU supporting power checking:
