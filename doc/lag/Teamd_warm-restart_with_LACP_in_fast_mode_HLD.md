@@ -7,7 +7,9 @@
 ### Scope  
 
 Teamd warm-restart with LACP in slow mode is already supported as described in [SONiC_Warmboot](/doc/warm-reboot/system-warmboot.md). This design is an enhancement to support teamd warm-restart with LACP in fast mode.
-This design is not support teamd container unplanned restart.
+
+unplanned restart for Teamd docker is out of scope.
+
 ### Overview 
 
 We expect the restart of teamd docker should not cause link flapping or any traffic loss. All lags at data plane should remain the same. But it's hard to implement in some scenarios.
@@ -52,7 +54,7 @@ The process is divided into the following stages:
 
 ![teamd smooth update](/doc/lag/images/teamd_smooth_upgrade.svg)
 
-The Teamd container contains multiple processes, such as teamd, teammgrd, teamdctl, teamsyncd, etc. teamd process can send and receive LACPDUs with the peer through the port. teamd can update the kernel module (team.ko) status via Netlink. teamsyncd can receive Netlink events and convert them to ASIC as configuration through SWSS.
+The teamd container contains multiple processes, such as teamd, teammgrd, teamdctl, teamsyncd, etc. teamd process can send and receive LACPDUs with the peer through the port. teamd can update the kernel module (team.ko) status via Netlink. teamsyncd can receive Netlink events and convert them to ASIC as configuration through SWSS.
 
 ![ teamd structure](/doc/lag/images/structure_of_teamd_container.svg)
 
