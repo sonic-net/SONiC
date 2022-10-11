@@ -135,12 +135,7 @@ Notably, there is a performance penalty when moving from ad-hoc validation to GC
 
 #### Performance Comparison 
 
-##### Ad-hoc Validation Performance
-```
-admin@vlab-01:~$ time sudo config portchannel add PortChannel04
 
-real    0m0.453s
-```
 
 ##### YANG Validation via GCU Performance
 ```
@@ -161,6 +156,17 @@ Patch Applier: Patch application completed.
 real    0m5.177s
 ```
 
+To disable GCU-based YANG validation: use the following command:
+```
+admin@vlab-01:~$ sudo config yang_config_validation disable
+Wrote disable yang config validation into CONFIG_DB
+```
+##### Ad-hoc Validation Performance
+```
+admin@vlab-01:~$ time sudo config portchannel add PortChannel04
+
+real    0m0.453s
+```
 ### Decorator Pseudo Code
 ```
 def validate_decorator(config_db_connector):
