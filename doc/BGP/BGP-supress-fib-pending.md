@@ -101,15 +101,12 @@ To avoid that, the route programming has to be synchronous down to the ASIC to a
 - A configuration knob ```bgp-suppress-fib-pending``` in ```DEVICE_METADATA``` table in CONFIG DB to control the enablement of the feature is required. This configuration is applied at startup and can't be changed while the system is running, requiring a ```config reload```. This knob can only be enabled if the corresponding response channel is enabled in ```APP_STATE_LOGGING```
 - ```fpmsyncd``` must consume the responses from ```RouteOrch``` when the feature is enabled and communicate the status of a route back to ```zebra``` using ```FPM``` channel
 - ```FRR``` must support ```bgp suppress-fib-pending``` as well as response channel via ```FPM```. Available as part of ```FRR``` 8.4 or requires a patched 8.2 release
-- Link-local2ME, IP2Me routes responses aren't published
 - MPLS, VNET routes are out of scope of this document
 
 ### 5. Architecture Design
 
-TBD
-
 <!-- omit in toc -->
-##### Figure 2. Use case scenario
+##### Figure 2. Architecture
 
 <p align=center>
 <img src="img/architecture-diagram.png" alt="Figure 2. Architecture diagram">
@@ -354,12 +351,21 @@ Example usage in ```RouteOrch```:
 m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), ReturnCode(saiStatus), actualFvs, true);
 ```
 
+Example data:
+```
+127.0.0.1:6379[14]> hgetall ROUTE_TABLE:10.0.0.206/32
+1) "nexthop"
+2) "192.168.1.158,192.168.1.159"
+3) "ifname"
+4) "Ethernet0,Ethernet0"
+```
+
 <!-- omit in toc -->
 #### RouteOrch Route Set Flow
 
 ```RouteOrch``` handles both local routes, pointing to local router interface, as well as next hop routes. On ```SET``` operation received in ```RouteOrch``` the ```RouteBulker``` is filled with create/set SAI operations depending on whether the route entry for the corresponding prefix was already created. In normal circumstances when next hop group is successfully created or found to be already existing the route entry is created or set with the corresponding next hop group SAI OID. The ```RouteOrch``` then calls ```RouteBulker::flush()``` that will form a bulk API call to SAIRedis. In ```RouteOrch::addRoutePost()``` the resulting object statuses are then collected and if some CREATE/SET operation failed orchagent calls ```abort()```, otherwise, on success, ```RouteOrch::addRoutePost()``` should publish the route programming status. Since there is no graceful handling of failed SAI operation the ```ResponsePublisher::publish()``` will be only called for a successfully programmed routes. In case a pre-condition for route programming is unmet, i.e unresolved neighbors in next hop group, the route entry programming is retried later and in such case there is no publishing of the result of the operation to ```APPL_STATE_DB``` until a pre-condition check is passed.
 
-*A note on a temporary route*:
+*Temporary route*:
 
 A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well as the actual ```nexthop``` field to ```APPL_STATE_DB```. A *temporary* route is kept in the ```m_toSync``` queue to be later on reprogrammed when sufficient resources are available for full next hop group creation.
 
@@ -545,6 +551,9 @@ sequenceDiagram
   participant zebra
 
   APPL_STATE_DB ->> fpmsyncd: ROUTE_TABLE:<prefix> fvs
+  alt Operation is SET
+    fpmsyncd ->> zebra: FPM message with RTM_NEWLINK
+  end
 ```
 
 #### 7.4. Response Channel Performance considerations
