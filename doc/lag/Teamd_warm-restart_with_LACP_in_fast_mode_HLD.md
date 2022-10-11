@@ -6,16 +6,15 @@
 
 ### Scope  
 
-Teamd warm-restart with LACP in slow mode is already supported in the community version. This design is an enhancement to support teamd warm-restart with LACP in fast mode. 
-This design is unable to handle teamd unplanned restart, That is to say, If the teamd container is restarted by restarting the teamd service, The peer side is affected, resulting in link flapping and traffic loss.
-
+Teamd warm-restart with LACP in slow mode is already supported as described in [SONiC_Warmboot](/doc/warm-reboot/system-warmboot.md). This design is an enhancement to support teamd warm-restart with LACP in fast mode.
+This design is not support teamd container unplanned restart.
 ### Overview 
 
 We expect the restart of teamd docker should not cause link flapping or any traffic loss. All lags at data plane should remain the same. But it's hard to implement in some scenarios.
 
 During teamd warm-restart, the control plane remains up for a maximum of 90 seconds in LACP slow mode. However, in LACP fast mode, the control plane can only remain up for 3 seconds. This is because LACPDUs are sent every second. LACP protocol considers a LAG to be down if three LACPDUs are not received.
 
-Teamd containers are not restarted that fast, so teamd warm-restart in LACP fast mode always results in lag down and the kernel LAG state in mess. However, in a data center, it is necessary to set LACP to fast mode to ensure faster link convergence and less traffic loss.
+Teamd container is not restarted that fast, so teamd warm-restart in LACP fast mode always results in LAG down and the kernel LAG state in mess. However, in a data center, it is necessary to set LACP to fast mode to ensure faster link convergence and less traffic loss.
 
 Let's take a look at the scenario shown in the figure below, there are multiple LAGs between switch_a and switch 1-n and LACP in fast mode, We can only control switch_a, other devices belong to other organizations and are not under our control. we want to upgrade the teamd container of switch_a without causing link flapping on other devices. Therefore, supporting teamd warm-restart in LACP fast mode is very important. With this feature, we can support teamd bug hotfixes and smooth upgrades.
 
@@ -27,7 +26,7 @@ This design supports teamd warm-restart by switching between active and standby 
 
 Support warm-restart teamd in LACP fast/slow mode
 
-LACP protocol is not modified, Lacp interaction is not affected
+LACP protocol is not modified, LACP interaction is not affected
 
 ### Limitations
 
@@ -44,9 +43,12 @@ This feature does not change the existing SONiC architecture.
 During the teamd warm-restart process, a new Teamd container is created, and the old and new teamd containers need to be fully synchronized before the old teamd container is killed. After the sonic_installer upgrade_docker teamd action, only the new teamd container is left in the system. 
 
 The process is divided into the following stages:
-stage 1: Waiting for ready state. We need to wait for all LAG processes to be created in the new teamd container and wait for processes to synchronize with the kernel module. 
-stage 2: Role change state. The old LAG processes are terminated with SIGUSR1 and the new LAG processes are enabled with SIGUSR2.
-stage 3: Warm-restart finish state. The old teamd container will exit, and only the new teamd container is left.
+
+* stage 1: Waiting for ready state. We need to wait for all LAG processes to be created in the new teamd container and wait for processes to synchronize with the kernel module. 
+
+* stage 2: Role change state. The old LAG processes are terminated with SIGUSR1 and the new LAG processes are enabled with SIGUSR2.
+
+* stage 3: Warm-restart finish state. The old teamd container will exit, and only the new teamd container is left.
 
 ![teamd smooth update](/doc/lag/images/teamd_smooth_upgrade.svg)
 
@@ -55,14 +57,17 @@ The Teamd container contains multiple processes, such as teamd, teammgrd, teamdc
 ![ teamd structure](/doc/lag/images/structure_of_teamd_container.svg)
 
 During the teamd warm-restart process, the module interactions change as follows：
-stage 1: Waiting for ready state. The new teamd only receives data, and the interaction with the teamd container is one-way. The new teamd container does not modify the parameters of the kernel module and ASIC 
+
+* stage 1: Waiting for ready state. The new teamd only receives data, and the interaction with the teamd container is one-way. The new teamd container does not modify the parameters of the kernel module and ASIC 
 
 ![teamd smooth update module interaction](/doc/lag/images/teamd_smooth_upgrade_module_interaction.svg)
 
-stage 2: Role change state. Old teamd processes receive SIGUSR1 and send the last LACPDU to the partner, Interacting with the new teamd container will become two-way.  The new teamd container start sending LACPDUs, and start modifying the parameters of the kernel module and ASIC
+* stage 2: Role change state. Old teamd processes receive SIGUSR1 and send the last LACPDU to the partner, Interacting with the new teamd container will become two-way after receive SIGUSR2. The new teamd container start sending LACPDUs, and start modifying the parameters of the kernel module and ASIC
+
 ![teamd smooth update module interaction](/doc/lag/images/teamd_smooth_upgrade_module_interaction1.svg)
 
-stage 3: Warm-restart finish state. The old teamd container exits without setting parameters for the kernel or ASIC.
+* stage 3: Warm-restart finish state. The old teamd container exits without setting parameters for the kernel or ASIC.
+
 ![teamd smooth update module interaction](/doc/lag/images/teamd_smooth_upgrade_module_interaction2.svg)
 
 
