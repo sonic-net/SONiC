@@ -29,11 +29,11 @@ This document provides general information about ports creation or removal in SO
 This document describes the high level design of orchagent and the impact of creating/removing ports dynamically on other services. The design describes the current implementaion and suggestion to changes that needs to be implemented in order to fully support the dynamic create/remove of ports.
 
 ## Relevant PRs
-[PR #7999 Allow cfggen to work on system without ports](https://github.com/Azure/sonic-buildimage/pull/7999)<br />
-[PR #1860 Remove buffer drop counter when port is deleted](https://github.com/Azure/sonic-swss/pull/1860)<br />
-[PR #1808 [swss]: Allow portsyncd to run on system without ports](https://github.com/Azure/sonic-swss/pull/1808)<br />
-[PR #2019 [orchagent] add & remove port counters dynamically each time port was added or removed](https://github.com/Azure/sonic-swss/pull/2019)<br />
-[PR #2022 Dynamic port configuration - add port buffer cfg to the port ref counter](https://github.com/Azure/sonic-swss/pull/2022)<br />
+[PR #7999 Allow cfggen to work on system without ports](https://github.com/sonic-net/sonic-buildimage/pull/7999)<br />
+[PR #1860 Remove buffer drop counter when port is deleted](https://github.com/sonic-net/sonic-swss/pull/1860)<br />
+[PR #1808 [swss]: Allow portsyncd to run on system without ports](https://github.com/sonic-net/sonic-swss/pull/1808)<br />
+[PR #2019 [orchagent] add & remove port counters dynamically each time port was added or removed](https://github.com/sonic-net/sonic-swss/pull/2019)<br />
+[PR #2022 Dynamic port configuration - add port buffer cfg to the port ref counter](https://github.com/sonic-net/sonic-swss/pull/2022)<br />
 
 ## Design
 
@@ -68,9 +68,9 @@ The Dynamic port add/remove configuration will be supported for all types of ini
 **Note:** This is a new type of init that was never tested and will be supported.<br />
 The zero-port system is a special case of this feature. <br />
 Few PRs were already added in order to support zero ports init:<br />
-[PR #7999 Allow cfggen to work on system without ports](https://github.com/Azure/sonic-buildimage/pull/7999)<br />
-[PR #1860 Remove buffer drop counter when port is deleted](https://github.com/Azure/sonic-swss/pull/1860)<br />
-[PR #1808 [swss]: Allow portsyncd to run on system without ports](https://github.com/Azure/sonic-swss/pull/1808)<br />
+[PR #7999 Allow cfggen to work on system without ports](https://github.com/sonic-net/sonic-buildimage/pull/7999)<br />
+[PR #1860 Remove buffer drop counter when port is deleted](https://github.com/sonic-net/sonic-swss/pull/1860)<br />
+[PR #1808 [swss]: Allow portsyncd to run on system without ports](https://github.com/sonic-net/sonic-swss/pull/1808)<br />
 
 after init stage we can add/remove ports dynamically through redis call to add/remove entry to/from port table on config db ("PORT")
 
@@ -156,7 +156,7 @@ In the current implementation these counters were created for all ports only aft
 
 
 ** Counters PR: ** <br />
-[https://github.com/Azure/sonic-swss/pull/2019](https://github.com/Azure/sonic-swss/pull/2019)
+[https://github.com/sonic-net/sonic-swss/pull/2019](https://github.com/sonic-net/sonic-swss/pull/2019)
  
 
 
@@ -201,8 +201,8 @@ each time the snmpagent needs information from ports (oper_state, mtu, speed..) 
 Listen to events on cfg port table and update transeiver information <br />
 
 implemented on those PRs:
-https://github.com/Azure/sonic-buildimage/pull/8422 <br />
-https://github.com/Azure/sonic-platform-daemons/pull/212
+https://github.com/sonic-net/sonic-buildimage/pull/8422 <br />
+https://github.com/sonic-net/sonic-platform-daemons/pull/212
 
 
 ## Buffermgrd:
@@ -253,7 +253,7 @@ Need to add to orchagent the ability to add the buffer configuration of a port a
 If we will not use this mechanism we will get a lot of SAI error and with this ref counter method we will receive only one warning. Also we wanted the buffer configuration to be the same as ACL/VLAN/INTERFACE configuration, which uses the ref counter for the dependencies, and before removing a port we check this ref counter.
 
 ** Buffer changes PR: ** <br />
-[https://github.com/Azure/sonic-swss/pull/2022](https://github.com/Azure/sonic-swss/pull/2022)
+[https://github.com/sonic-net/sonic-swss/pull/2022](https://github.com/sonic-net/sonic-swss/pull/2022)
 
 
 

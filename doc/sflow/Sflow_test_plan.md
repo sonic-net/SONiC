@@ -14,7 +14,7 @@ The test is targeting a running SONIC system with fully functioning configuratio
 
 The test will run on the t0 testbed:
 
-![testbed-t0.png](https://github.com/Azure/sonic-mgmt/blob/master/ansible/doc/img/testbed-t0.png?raw=true)
+![testbed-t0.png](https://github.com/sonic-net/sonic-mgmt/blob/master/docs/testbed/img/testbed-t0.png?raw=true)
 
 - 1 port from each port channel is used for traffic. Sflow is enabled on these 4 ports 
 - 2 ports  from Vlan1000 are removed and used  to reach sflow collector in ptf docker .
