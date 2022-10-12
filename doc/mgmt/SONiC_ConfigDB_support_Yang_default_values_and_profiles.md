@@ -34,6 +34,8 @@
   - [7.2 Phase 2](#72-phase-2)
 - [8 References](#8-references)
   - [SONiC YANG MODEL GUIDELINES](#sonic-yang-model-guidelines)
+  - [System-wide Warmboot](#8-2-system-wide-warmboot)
+  - [Fast-reboot Flow Improvements HLD](#8-3-fast-reboot-flow-improvements-hld)
 
 # About this Manual
 
@@ -147,14 +149,14 @@ This document provides a detailed description on the new features for:
 
 - Backward compatibility with existing code and applications.
   
-  - For backward compatibility when initialize buffer config from minigraph, config will be write to both config tables and profile tables.
-  - After all code migrate to use profile DB, profile will only write to profile tables.
+  - For backward compatibility, when initialize buffer config from minigraph, the BUFFER_POOL and BUFFER_PROFILE tables will be write to both config DB and profile DB.
+  - After all code migrate to use profile DB, profile will only write to profile DB.
   - Profile support delete/revert operation:
     - In some user scenario, user need delete a profile, and also may add config back later.
     - For delete operation, data in profile table will not be delete, profile use PROFILE_DELETE table to handle delete/revert:
       - When delete a profile item, profile provider will add the item key to PROFILE_DELETE table.
       - When read profile, any key in PROFILE_DELETE will not exist in result.
-      - When user set deleted item back, the item key will be remove from PROFILE_DELETE table.
+      - When user set deleted item back, the item key will be remove from PROFILE_DELETE table. also the item will be write to config DB.
       - For example:
         - BUFFER_POOL table are profile:
           
@@ -173,7 +175,8 @@ This document provides a detailed description on the new features for:
           }
           }
           ```
-        - On mellanox devices, when set buffer mode to 'dynamic' mode, buffer manager will use swsscommon API to delete buffer pool to reclaim unused buffer resource.
+        - SONiC CLI allow user to remove buffer pool to migrate from double-ingress-pool mode to single-ingress-pool mode.
+        - 'config qos clear' will remove some buffer pool. 
         - When delete a profile item 'ingress_lossless_pool', the key of this item will be write to PROFILE_DELETE table. and swsscommon read API will not return this item anymore.
         - Revert operation: when user set buffer mode back, buffer manager will write the deleted item back, when this happen, the key of the item will be removed from PROFILE_DELETE table. and swsscommon read API will return this item.
 
@@ -191,7 +194,7 @@ This document provides a detailed description on the new features for:
 
 - Existing API keeps no change. 
 - Add decorator API to return default value and profile data.
-- Load yang model as lazy as possible.
+- Load yang model as lazy as possible, use cache to only load yang model once.
 
 ## 2.1 Considerations
 
@@ -296,29 +299,34 @@ This document provides a detailed description on the new features for:
 
 # 3 Reboot
 
-- 
 
 ## 3.1 Cold-reboot
 
-- Code-reboot will reload minigraph, profile DB will re-render in reload minigraph.
-- sonic-cfggen and sonic-utility will update to support generate profile DB during reload minigraph.
+- Code-reboot will reload config from init_cfg.json and config_db.json.
+- DB migrator will run after cold reboot, will handle profile schema and data upgrade in DB migrator.
 
 ## 3.2 Warm-reboot
 
-- Profile DB will follow SONiC warm-reboot process, warm-reboot will save whole Redis DB to /host/warmboot/dump.rdb, please refer to [SONiC YANG MODEL GUIDELINES](#7-1-sonic-yang-model-guidelines)
-- DB migrator will run after warm reboot, will handle OS upgrade in DB migrator.
+- Profile DB will follow SONiC warm-reboot process, warm-reboot will save whole Redis DB to /host/warmboot/dump.rdb, please refer to [System-wide Warmboot](#8-2-system-wide-warmboot)
+- DB migrator will run after warm reboot, will handle profile schema and data upgrade in DB migrator.
 
 ## 3.3 Fast-reboot
 
-- Fast-reboot will reload minigraph, profile DB will re-render in reload minigraph.
-- sonic-cfggen and sonic-utility will update to support generate profile DB during reload minigraph.
+- Profile DB will follow SONiC fast-reboot process, please refer to [Fast-reboot Flow Improvements HLD](#8-3-fast-reboot-flow-improvements-hld)
+- DB migrator will run after fast reboot, will handle profile schema and data upgrade in DB migrator.
 
 ## 3.4 Schema upgrade and DB migration
 
 - DB migrator will re-render profile DB to handle schema change.
   - Profile DB will generate by sonic-cfggen command.
 - DB migrator code will improve by deprate hardcoded config and complex upgrade logic.
-- Some profile configuration change are disruptive, for example buffer config change,those change need fast-reboot to make sure change refelected on ASIC.
+- Some profile configuration change are disruptive, for example buffer config change,those change need fast-reboot/warm-reboot to make sure change refelected on ASIC.
+- When upgrade from older version SONiC which not have profile DB:
+  - The config DB will keep no change, all data in config DB will be treat as user config.
+  - Profile DB will be created, and DB migrator will initialize Profile DB.
+  - From user aspect:
+   - All existing configs keeps no change.
+   - There will be new config items, if new version of SONiC contains new config item in profile.
 
 # 4 Error handling
 
@@ -389,4 +397,8 @@ https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.
 
 ## System-wide Warmboot
 
-https://github.com/sonic-net/SONiC/blob/9d800b1af99c7d2f22c234f1a17224a4de112c93/doc/warm-reboot/system-warmboot.md
+https://github.com/sonic-net/SONiC/blob/master/doc/warm-reboot/system-warmboot.md
+
+## Fast-reboot Flow Improvements HLD
+
+https://github.com/sonic-net/SONiC/blob/master/doc/fast-reboot/Fast-reboot_Flow_Improvements_HLD.md

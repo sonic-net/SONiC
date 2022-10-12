@@ -12,10 +12,10 @@ module sonic-profile-delete {
 	}
 
 	organization
-		"BRCM";
+		"SONiC";
 
 	contact
-		"BRCM";
+		"SONiC";
 
 	description
 		"SONIC PROFILE DELETE";
@@ -26,12 +26,9 @@ module sonic-profile-delete {
 	}
 
 	container sonic-profile-delete {
-			scommon:db-name "CONFIG_DB";
 
 		list PROFILE_DELETE {
 			key "itemkey";
-			scommon:key-delim "|";
-			scommon:key-pattern "PROFILE_DELETE_TABLE|{itemkey}";
 
 			leaf itemkey {
 				type string;
