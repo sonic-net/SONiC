@@ -466,7 +466,7 @@ With this change, rate-limit-interval of zero would not make any difference. The
 
 A relevant message will be logged to syslog when the invocation fails because of LOCKFAIL exit code. 
 
-### 7.8 Orchagent abort consideration
+### 7.9 Orchagent abort consideration
 
 When the orchagent deems a SAI CRUD call as a failure based on the return status, it aborts itself. 
 
