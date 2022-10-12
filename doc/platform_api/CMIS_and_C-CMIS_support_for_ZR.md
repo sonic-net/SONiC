@@ -771,32 +771,39 @@ Stores information for physical switch ports managed by the switch chip. Ports t
     loopback            = "media output" / "media input" / "host output" / "host input" / "none" ; loopback mode
     
     
-#### 2.4 Configure interfaces transceiver CLI
+#### 2.4 Configure interface transceiver CLI ####
 configure privisioning settings of the transceivers
 
 - Usage:
     ```
-    configure interfaces transceiver [<interface_name>] (lpmode  | frequency | tx_power | loopback) 
+    config interface transceiver (lpmode | frequency | tx_power | loopback) [<interface_name>]
     ```
 
 - Example (bring module up from low power mode, or bring down module to low power mode):
     ```
-    admin@sonic:~$ configure interfaces transceiver Ethernet0 lpmode disable
+    admin@sonic:~# config interface transceiver lpmode Ethernet0 -- enable
+    Enabling low-power mode for port Ethernet0 ... OK
+
+    admin@sonic:~# config interface transceiver lpmode Ethernet0 -- disable
+    Disabling low-power mode for port Ethernet0 ... OK
     ```
 
-- Example (configure the privisioning frequency):
+- Example (config the privisioning frequency):
     ```
-    admin@sonic:~$ configure interfaces transceiver Ethernet0 frequency 193100000
-    ```
-
-- Example (configure the privisioning TX power):
-    ```
-    admin@sonic:~$ configure interfaces transceiver Ethernet0 tx_power -10.00
+    admin@sonic:~# config interface transceiver frequency Ethernet0 -- 196025
+    Setting laser frequency to 196025 GHz on port Ethernet0
     ```
 
-- Example (configure the loopback mode):
+- Example (config the privisioning TX power):
     ```
-    admin@sonic:~$ configure interfaces transceiver Ethernet0 loopback none
+    admin@sonic:~# config interface transceiver tx_power Ethernet0 -- -10.0
+    Setting target Tx output power to -10.0 dBm on port Ethernet0
+    ```
+
+- Example (config the loopback mode):
+    ```
+    admin@sonic:~$ config interface transceiver loopback Ethernet0 -- none
+    Setting loopback mode to none
     ```
     
 #### 2.5 Module firmware CLI ####
