@@ -450,7 +450,7 @@ key                          = LOOPBACK_INTERFACE:loopback-name
 NAT_ZONE                     = 1*1DIGIT          ; a number in the range 0-3
 ```
 
-Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
+Please refer to the [schema](https://github.com/sonic-net/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
 ### 3.2.3 APP DB
 New tables are introduced to specify NAT translation entries.

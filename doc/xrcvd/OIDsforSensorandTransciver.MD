@@ -58,7 +58,7 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
 | 1.3.6.1.2.1.47.1.1.1.1.12.index | entPhysicalMfgName | Vendor Name in CLI or sfputil | FINISAR CORP |
 | 1.3.6.1.2.1.47.1.1.1.1.13.index | entPhysicalModelName | Vendor PN in CLI or sfputil| FCBN410QD3C02 |
 
-ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/src/swsssdk/port_util.py#L19
+ifindex is the ifindex in https://github.com/sonic-net/sonic-py-swsssdk/blob/master/src/swsssdk/port_util.py#L19
 
 | Interface | Proposed index to use |
 | --- | --- |
