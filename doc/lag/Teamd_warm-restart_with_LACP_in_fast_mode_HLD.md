@@ -2,8 +2,17 @@
 
 ## Table of Content 
 
-### Revision  
+ * [Scope](#scope)
+ * [Overview](#overview)
+ * [Limitations](#limitations)
+ * [High-Level Design](#high-level-design)
+ * [CLI/YANG model Enhancements](#cliyang-model-enhancements)
+ * [Testing Requirements/Design](#testing-requirementsdesign)
+### Revision 
 
+ | Rev |     Date    |       Author       | Change Description                |
+ |:---:|:-----------:|:------------------:|-----------------------------------|
+ | 0.1 | 10/12/2022  |     timstian       | Initial version                   |
 ### Scope  
 
 Teamd warm-restart with LACP in slow mode is already supported as described in [SONiC_Warmboot](/doc/warm-reboot/system-warmboot.md). This design is an enhancement to support teamd warm-restart with LACP in fast mode.
@@ -42,13 +51,13 @@ This feature does not change the existing SONiC architecture.
 
 ### High-Level Design 
 
-During the teamd warm-restart process, a new Teamd container is created, and the old and new teamd containers need to be fully synchronized before the old teamd container is killed. After the sonic_installer upgrade_docker teamd action, only the new teamd container is left in the system. 
+During the teamd warm-restart process, a new Teamd container is created, and the old and new teamd containers need to be fully synchronized before the old teamd container is killed. After the warm_restart upgrade_docker teamd action, only the new teamd container is left in the system. 
 
 The process is divided into the following stages:
 
 * stage 1: Waiting for ready state. We need to wait for all LAG processes to be created in the new teamd container and wait for processes to synchronize with the kernel module. 
 
-* stage 2: Role change state. The old LAG processes are terminated with SIGUSR1 and the new LAG processes are enabled with SIGUSR2.
+* stage 2: Role change state. The old LAG processes are terminated with SIGUSR1 and the new LAG processes are enabled with SIGRTMIN.
 
 * stage 3: Warm-restart finish state. The old teamd container will exit, and only the new teamd container is left.
 
@@ -64,7 +73,7 @@ During the teamd warm-restart process, the module interactions change as follows
 
 ![teamd smooth update module interaction](/doc/lag/images/teamd_smooth_upgrade_module_interaction.svg)
 
-* stage 2: Role change state. Old teamd processes receive SIGUSR1 and send the last LACPDU to the partner, Interacting with the new teamd container will become two-way after receive SIGUSR2. The new teamd container start sending LACPDUs, and start modifying the parameters of the kernel module and ASIC
+* stage 2: Role change state. Old teamd processes receive SIGUSR1 and send the last LACPDU to the partner, Interacting with the new teamd container will become two-way after receive SIGRTMIN. The new teamd container start sending LACPDUs, and start modifying the parameters of the kernel module and ASIC
 
 ![teamd smooth update module interaction](/doc/lag/images/teamd_smooth_upgrade_module_interaction1.svg)
 
@@ -79,11 +88,11 @@ The flow of the teamd warm-restart process is as follows:
 * a3. wait for the teamd processes to ok in the new teamd container. Run teamdctl to get the new teamd status.
 * b1. use SIGUSR1 to stop the old teamd processes. teamd and teamd_bak containers can share files so that the record files of LACPDU can be passed from the old container to the new one. (teamd flow: When SIGUSR1 is received, the old design is reused, the LACPDU record file is generated, and exit)
 * b2. wait for SIGUSR1 processing, which must less than 3 seconds. Otherwise, LAG considers down.
-* b3. use SIGUSR2 to apply data with the new teamd processes. (teamd flow: When SIGUSR2 is received, We will compare the data with the kernel and set the new data to the kernel and ASIC, start sending LACPDU, and update the kernel parameters in real-time when the LACP status changes)
+* b3. use SIGRTMIN to apply data with the new teamd processes. (teamd flow: When SIGRTMIN is received, We will compare the data with the kernel and set the new data to the kernel and ASIC, start sending LACPDU, and update the kernel parameters in real-time when the LACP status changes)
 * c1. delete teamd_bak container
 ![The flow of teamd smooth upgrade](/doc/lag/images/teamd_smooth_upgrade_flow.svg)
 
-The process of sonic_installer rollback_docker is the same as that for warm-restart above.
+The process of warm_restart rollback_docker is the same as that for warm-restart above.
 ### SAI API 
 
 NA
@@ -98,8 +107,44 @@ NA
 
 #### CLI/YANG model Enhancements 
 
-NA
+Several commands will be added.
 
+* warm_restart --help
+
+Usage: warm_restart [OPTIONS] COMMAND [ARGS]...
+  docker upgrae manager
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  rollback_docker      Rollback docker image to previous version
+  upgrade_docker       Upgrade docker image from local binary or URL
+
+* warm_restart upgrade_docker --help
+
+Usage: warm_restart upgrade_docker [OPTIONS] <container_name> URL
+
+  Upgrade docker image from local binary or URL
+
+Options:
+  -y, --yes
+  --cleanup_image  Clean up old docker image
+  --skip_check     Skip task check for docker upgrade
+  --view_check     Enforce asic view check for docker upgrade
+  --tag TEXT       Tag for the new docker image
+  --warm           Perform warm upgrade
+  --help           Show this message and exit.
+
+* warm_restart rollback_docker --help
+
+Usage: warm_restart rollback_docker [OPTIONS] <container_name>
+
+  Rollback docker image to previous version
+
+Options:
+  -y, --yes
+  --help     Show this message and exit.
 #### Config DB Enhancements  
 
 NA
@@ -112,8 +157,11 @@ NA
 
 ### Testing Requirements/Design  
 
-Same as regular LAG testbed. LAG Configures LACP in fast mode, run sonic_installer upgrade_docker --warm teamd docker-teamd.gz -y on DUT will not cause link flapping or any traffic loss.
+Same as regular LAG testbed. LAG Configures LACP in fast mode.
 
+* Running the warm_restart upgrade_docker or rollback command on the DUT is not expected to cause link flapping or traffic loss.
+
+* During warm_restart process, down the physical link，the LAG status is not expected to be mess.
 #### Unit Test cases  
 
 #### System Test cases
