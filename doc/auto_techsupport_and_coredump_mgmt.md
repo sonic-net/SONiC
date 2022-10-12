@@ -19,10 +19,11 @@
       * [7.6 MultiAsic consideration](#76-MultiAsic-consideration)
       * [7.7 Design choices for max-techsupport-limit & max-techsupport-limit arguments](#77-Design-choices-for-max-core-limit-&-max-techsupport-limit-arguments)
       * [7.8 Techsupport Locking](#78-Techsupport-Locking)
+      * [7.9 Orchagent abort consideration](#79-Orchagent-abort-consideration)
   * [8. Test Plan](#8-Test-Plan)
   * [9. SONiC-to-SONiC Upgrade Considerations](#9-SONiC-to-SONiC-Upgrade-Considerations)
-  * [10. App Extension Consideration](#9-App-Extension-Considerations)
-  * [11. Open questions](#10-Open-questions)
+  * [10. App Extension Consideration](#10-App-Extension-Considerations)
+  * [11. Open questions](#11-Open-questions)
 
 
 ### Revision  
@@ -32,6 +33,7 @@
 | 1.1 | 04/08/2022  | Vivek Reddy Karri        | Add the capability to Register/Deregister app extension to AUTO_TECHSUPPORT_FEATURE table |
 | 2.0 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
 | 3.0 |     02/2022 | Stepan Blyshchak         | Extending Support for memory usage threshold crossed                             |
+| 4.0 |     10/2022 | Vivek Reddy Karri        | Handle abort by orchagent to collect saisdkdump before syncd restart                            |
 
 ## About this Manual
 This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC. The auto invocation is triggered when any process inside the docker crashes and a core dump is generated.
@@ -458,11 +460,43 @@ Although if the admin feels otherwise, these values are configurable.
 
 ### 7.8 Techsupport Locking
 
-Recently, an enhancement was made to techsupport script to only run one instance at a time by using a locking mechanism. When other script instance of techsupport tries to run, it'll exit with a relevent code. This would apply nevertheless of how a techsupport was invoked i.e. manual or through auto-techsupport. 
+Recently, an enhancement was made to techsupport script to only run one instance at a time by using a locking mechanism. When other instance of techsupport tries to run, it'll exit with a relevent code. This would apply nevertheless of how a techsupport was invoked i.e. manual or through auto-techsupport. 
 
 With this change, rate-limit-interval of zero would not make any difference. The locking mechanism would implicitly impose a minimum rate-limit-interval of techsupport execution time.  And since, the techsupport execution time can't be found out and varies based on underlying machine and system state, the range of values configurable for the rate-limit-interval is left unchanged
 
 A relevant message will be logged to syslog when the invocation fails because of LOCKFAIL exit code. 
+
+### 7.8 Orchagent abort consideration
+
+When the orchagent deems a SAI CRUD call as a failure based on the return status, it aborts itself. 
+
+This'll result in 
+1. A core dump to be generated and it triggers auto-techsupport if enabled
+2. All the services are restarted including syncd 
+
+So, it is highly likely that by the time auto-techsupport collects saisdkdump, syncd might have been restarted or in the process of restarting. In either case, we'd be loosing the saisdkdump information before restart which will contain useful information for triaging. Thus, a special handling is needed for the core dumps generated from swss container.
+
+This requires enhancements not just in auto-techsupport but also in orchagent process and also in /usr/local/bin/syncd.sh script. 
+
+Firstly, orchagent can terminate because of various reasons, i.e. some failure in orchagent like SEGFAULT, config reload etc but we are only interested in the case of SAI programming failure. To differentiate among these cases, orchagent will try writing to STATE_DB named "PROC_STATUS". Note: Some interrupt signals like SIGKILL kills the process immediately and thus is not be possible to update the status in STATE_DB
+
+#### Schema: 
+```
+PROC_STATUS
+<proc_identifier>:<ABRT|TERM|INT|ACTIVE|etc..>
+
+Value indicates the type of exit signal used to terminate the process
+
+Eg:
+root@sonic:/home/admin# sonic-db-cli STATE_DB HGET PROC_STATUS orchagent
+ABRT
+```
+
+During sai programming failure, orchagent sets the status to ABRT. syncd.sh script checks if this flag is set to ABRT before stopping the syncd container and if yes proceeds with collecting saisdkdump and copies the dump to `/tmp/saidumpstate/` folder on the host machine and logs the time the dump was colleted to `/tmp/saidumpstate/last_write_epoch`. 
+
+coredump_gen_handler.py checks the STATE_DB for the ABRT and checks for a new saisdkdump under `/tmp/saidumpstate/` with a 20 sec timeout. generate_dump script will also be updated to collect dumps from `/tmp/saidumpstate/`
+
+
 
 ## 8. Test Plan
 
