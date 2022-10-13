@@ -96,17 +96,21 @@ To avoid that, the route programming has to be synchronous down to the ASIC to a
 
 ### 4. Requirements
 
-- ```RouteOrch``` must use the ```ResponsePublisher``` API to create a feedback channel and write each route entry programming status for the ```fpmsyncd``` to consume
-- The response channel can be turned off based on user configuration in a new ```APP_STATE_LOGGING``` table in CONFIG DB. This configuration is applied at startup and can't be changed while the system is running, requiring a ```config reload```
-- A configuration knob ```bgp-suppress-fib-pending``` in ```DEVICE_METADATA``` table in CONFIG DB to control the enablement of the feature is required. This configuration is applied at startup and can't be changed while the system is running, requiring a ```config reload```. This knob can only be enabled if the corresponding response channel is enabled in ```APP_STATE_LOGGING```
-- ```fpmsyncd``` must consume the responses from ```RouteOrch``` when the feature is enabled and communicate the status of a route back to ```zebra``` using ```FPM``` channel
-- ```FRR``` must support ```bgp suppress-fib-pending``` as well as response channel via ```FPM```. Available as part of ```FRR``` 8.4 or requires a patched 8.2 release
+High level requirements:
+
+- Provide an end to end ASIC hardware to BGP route programming feedback mechanism
+- BGP must not advertise routes which aren't yet offloaded
+- Connected and statically configured routes do not wait route offload status
 - MPLS, VNET routes are out of scope of this document
+- Both BGP suppression as well as feedback channel are optional and by disabled default
+- The above configuration can be applied only after reload
 
 ### 5. Architecture Design
 
 <!-- omit in toc -->
 ##### Figure 2. Architecture
+
+The below diagram shows the high level architecture including sending an RTM_NEWROUTE response message with RTM_F_OFFLOAD flag set to zebra through FPM:
 
 <p align=center>
 <img src="img/architecture-diagram.png" alt="Figure 2. Architecture diagram">
@@ -371,6 +375,8 @@ sequenceDiagram
     deactivate A
 ```
 
+Before the route is offloaded ```show ip route``` shows routes as queued:
+
 ```
 admin@sonic:~$ show ip route
 Codes: K - kernel route, C - connected, S - static, R - RIP,
@@ -385,6 +391,8 @@ B>q 0.0.0.0/0 [20/0] via 10.0.0.1, PortChannel102, weight 1, 00:04:46
   q                  via 10.0.0.9, PortChannel108, weight 1, 00:04:46
   q                  via 10.0.0.13, PortChannel1011, weight 1, 00:04:46
 ```
+
+Once zebra is notified about successfull route offload status the *offload* flag is set:
 
 ```
 admin@sonic:~$ vtysh -c "show ip route 100.1.0.25/32 json"
