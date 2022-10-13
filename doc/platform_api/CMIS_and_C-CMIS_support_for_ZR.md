@@ -73,8 +73,6 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     key                          = TRANSCEIVER_INFO|ifname          ; information for module on port
     ; field                      = value
     type                         = 1*255VCHAR                       ; module type full name(QSFP-DD, OSFP, etc)
-    type_abbrv_name              = 1*255VCHAR                       ; module type abbreviated name(QSFP-DD, OSFP, etc)
-    module_media_type            = 1*255VCHAR                       ; module media interface ID
     host_electrical_interface    = 1*255VCHAR                       ; host electrical interface ID
     media_interface_code         = 1*255VCHAR                       ; media interface code
     host_lane_count              = INTEGER                          ; host lane count
