@@ -838,27 +838,27 @@ Below is set of default configurations set in all existing ports:
     }
   },
 
-"SCHEDULER|scheduler@0": {
+"SCHEDULER|ROCE@0": {
     "value": {
       "type": "DWRR",
       "weight": "50"
     }
   },
-"SCHEDULER|scheduler@3": {
-    "value": {
-      "type": "DWRR",
-      "weight": "50"
-    }
-  },
-
-"SCHEDULER|scheduler@4": {
+"SCHEDULER|ROCE@3": {
     "value": {
       "type": "DWRR",
       "weight": "50"
     }
   },
 
-"SCHEDULER|scheduler@6": {
+"SCHEDULER|ROCE@4": {
+    "value": {
+      "type": "DWRR",
+      "weight": "50"
+    }
+  },
+
+"SCHEDULER|ROCE@6": {
     "value": {
       "type": "STRICT",
     }
@@ -866,26 +866,26 @@ Below is set of default configurations set in all existing ports:
 
  "QUEUE|Ethernet0|0": {
     "value": {
-      "scheduler": "[SCHEDULER|scheduler@0]"
+      "scheduler": "[SCHEDULER|ROCE@0]"
     }
   },
 
 "QUEUE|Ethernet0|3": {
     "value": {
-      "scheduler": "[SCHEDULER|scheduler@3]"
+      "scheduler": "[SCHEDULER|ROCE@3]"
       "wred_profile": "[WRED_PROFILE|ROCE]"
     }
   },
 
 "QUEUE|Ethernet0|4": {
     "value": {
-      "scheduler": "[SCHEDULER|scheduler@4]"
+      "scheduler": "[SCHEDULER|ROCE@4]"
     }
   },
 
 "QUEUE|Ethernet0|6": {
     "value": {
-      "scheduler": "[SCHEDULER|scheduler@6]"
+      "scheduler": "[SCHEDULER|ROCE@6]"
     }
   },
 
