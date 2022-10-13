@@ -270,7 +270,38 @@ No python ```click```-based CLI command nor ```KLISH``` CLI is planned to be imp
 
 #### 7.1. BGP Docker container startup
 
-BGP configuration template ```bgpd.main.j2``` requires update to support the new field ```bgp-suppress-fib-pending``` and configure FRR accordingly. The startup flow of BGP container is described below:
+BGP configuration template ```bgpd.main.j2``` requires update to support the new field ```bgp-suppress-fib-pending``` and configure FRR accordingly.
+
+This configuration is supported in both ```unified``` and ```separated``` FRR configuration modes. Configuration template snippet *bgpd.main.conf.j2*:
+
+```jinja2
+router bgp {{ DEVICE_METADATA['localhost']['bgp_asn'] }}
+{% if DEVICE_METADATA['localhost']['bgp-suppress-fib-pending'] == 'enabled' %}
+  bgp suppress-fib-pending
+{% endif %}
+```
+
+FPM response channel is only supported with new ```dplane_fpm_nl``` zebra plugin and SONiC needs start using the new and supported plugin. Additional configuration is required in *zebra.conf.j2*:
+
+```
+! Fallback to nexthops infromation as part of RTM_NEWROUTE
+no fpm use-next-hop-groups
+
+! Configure FPM server address
+fpm address 127.0.0.1
+```
+
+Zebra shall be started with an option ```--asic-offload notify_on_offload```. This option will make zebra wait for ```RTM_F_OFFLOAD``` before notifying about installation status to bgpd. The template *supervisor.conf.j2* file is updated:
+
+```jinja2
+[program:zebra]
+{% if DEVICE_METADATA['localhost']['bgp-suppress-fib-pending'] == 'enabled' %}
+{% set zebra_extra_arguments = "--asic-offload notify_on_offload" }
+{% endif %}
+command=/usr/lib/frr/zebra -A 127.0.0.1 -s 90000000 -M dplane_fpm_nl {{ zebra_extra_arguments }}
+```
+
+The startup flow of BGP container is shown below:
 
 <!-- omit in toc -->
 ##### Figure 3. BGP Configuration Flow Diagram
@@ -290,9 +321,25 @@ sequenceDiagram
     participant A as BGP /usr/bin/docker_init.sh
     participant S as sonic-cfggen
     participant T as bgpd.main.j2
+    participant TS as supervisor.conf.j2
+    participant TZ as zebra.conf.j2
     participant E as /etc/frr/bgpd.conf
+    participant ES as supervisord.conf
+    participant EZ as /etc/frr/zebra.conf
 
     activate A
+
+    A -->> TS: /usr/share/sonic/templates/supervisor/supervisor.conf.j2
+    activate TS
+
+    CONFIG_DB -->> TS: DEVICE_METADATA|localhost
+
+    alt "bgp-suppress-fib-pending" == "enabled"
+        TS --> ES: configure zebra startup parameters
+    end
+
+
+    deactivate TS
 
     A -->> S: /usr/share/sonic/templates/bgpd/gen_bgpd.conf.j2
 
@@ -311,6 +358,12 @@ sequenceDiagram
 
     deactivate T
 
+    A -->> TZ: /usr/share/sonic/templates/supervisor/supervisor.conf.j2
+
+    activate TZ
+
+    deactivate TZ
+
     deactivate S
 
     A -->> A: start supervisord
@@ -318,15 +371,61 @@ sequenceDiagram
     deactivate A
 ```
 
-This configuration is supported in both ```unified``` and ```separated``` FRR configuration modes. Configuration template snippet *bgpd.main.conf.j2*:
+```
+admin@sonic:~$ show ip route
+Codes: K - kernel route, C - connected, S - static, R - RIP,
+       O - OSPF, I - IS-IS, B - BGP, E - EIGRP, N - NHRP,
+       T - Table, v - VNC, V - VNC-Direct, A - Babel, F - PBR,
+       f - OpenFabric,
+       > - selected route, * - FIB route, q - queued, r - rejected, b - backup
+       t - trapped, o - offload failure
 
-```jinja2
-router bgp {{ DEVICE_METADATA['localhost']['bgp_asn'] }}
-{% if DEVICE_METADATA['localhost']['bgp-suppress-fib-pending'] == 'enabled' %}
-  bgp suppress-fib-pending
-{% endif %}
+B>q 0.0.0.0/0 [20/0] via 10.0.0.1, PortChannel102, weight 1, 00:04:46
+  q                  via 10.0.0.5, PortChannel105, weight 1, 00:04:46
+  q                  via 10.0.0.9, PortChannel108, weight 1, 00:04:46
+  q                  via 10.0.0.13, PortChannel1011, weight 1, 00:04:46
 ```
 
+```
+admin@sonic:~$ vtysh -c "show ip route 100.1.0.25/32 json"
+{
+    "100.1.0.25/32": [
+        {
+            "prefix": "100.1.0.25/32",
+            "prefixLen": 32,
+            "protocol": "bgp",
+            "vrfId": 0,
+            "vrfName": "default",
+            "selected": true,
+            "destSelected": true,
+            "distance": 20,
+            "metric": 0,
+            "installed": true,
+            "offloaded": true,
+            "table": 254,
+            "internalStatus": 80,
+            "internalFlags": 264,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 4890,
+            "installedNexthopGroupId": 4890,
+            "uptime": "00:22:20",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "ip": "10.0.0.49",
+                    "afi": "ipv4",
+                    "interfaceIndex": 788,
+                    "interfaceName": "PortChannel1013",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        }
+    ]
+}
+```
 
 #### 7.2. RouteOrch
 
@@ -532,6 +631,19 @@ sequenceDiagram
 
 #### 7.3. FPMsyncd
 
+
+The dplane_fpm_nl has the ability to read route netlink messages
+from the underlying fpm implementation that can tell zebra
+whether or not the route has been Offloaded/Failed or Trapped.
+The end developer must send the data up the same socket that has
+been created to listen for FPM messages from Zebra.  The data sent
+must have a Frame Header with Version set to 1, Message Type set to 1
+and an appropriate message Length.  The message data must contain
+a RTM_NEWROUTE netlink message that sends the prefix and nexthops
+associated with the route.  Finally rtm_flags must contain
+RTM_F_OFFLOAD, RTM_F_TRAP and or RTM_F_OFFLOAD_FAILED to signify
+what has happened to the route in the ASIC.
+
 <!-- omit in toc -->
 ##### Figure 6. FPMsyncd response processing
 
@@ -550,9 +662,14 @@ sequenceDiagram
   participant fpmsyncd
   participant zebra
 
-  APPL_STATE_DB ->> fpmsyncd: ROUTE_TABLE:<prefix> fvs
+  APPL_STATE_DB ->> fpmsyncd: ROUTE_TABLE:<prefix> <fvs>
   alt Operation is SET
-    fpmsyncd ->> zebra: FPM message with RTM_NEWLINK
+    fpmsyncd ->> fpmsyncd: Find cached route for <prefix>
+    fpmsyncd ->> fpmsyncd: Updated nexthop according to <fvs>
+    fpmsyncd ->> fpmsyncd: rtnl_route_set_flags(routeObject, RTM_F_OFFLOAD)
+    fpmsyncd ->> zebra: Send FPM message
+    zebra ->> fpmsyncd: <br>
+    fpmsyncd ->> fpmsyncd: Remove <prefix> from the cache
   end
 ```
 
@@ -629,16 +746,65 @@ Fast/warm reboot regression test suite needs to be ran and verified no degradati
 
 #### 11.1. Unit Test cases
 
-TODO
+- FPMSyncd: test case regular route
+  1. Mock FPM interface
+  2. Call RouteSync::onRouteMsg() with RTM_NEWROUTE message containing route 1.1.1.0/24 nexthop 2.2.2.2, 3.3.3.3
+  3. Call RouteSync::onRouteResponse() with APPL_STATE_DB format
+  4. Verify a correct FPM message is being sent to zebra through FPM interface mock
+  5. Verify RTM_F_OFFLOAD set in route message sent  to zebra
+- FPMSyncd: test only one nexthop is attached to the route
+  1. Mock FPM interface
+  2. Call RouteSync::onRouteMsg() with RTM_NEWROUTE message containing route 1.1.1.0/24 nexthop 2.2.2.2, 3.3.3.3
+  3. Call RouteSync::onRouteResponse() with APPL_STATE_DB containing only one nexthop 2.2.2.2 format
+  4. Verify a correct FPM message is being sent to zebra through FPM interface mock with one nexthop
+  5. Verify RTM_F_OFFLOAD set in route message sent  to zebra
+- FPMSyncd: test case VRF route
+  1. Mock FPM interface
+  2. Call RouteSync::onRouteMsg() with RTM_NEWROUTE message containing route 1.1.1.0/24 in VRF nexthop 2.2.2.2, 3.3.3.3
+  3. Call RouteSync::onRouteResponse() with APPL_STATE_DB format
+  4. Verify a correct FPM message is being sent to zebra through FPM interface mock
+  5. Verify RTM_F_OFFLOAD set in route message sent  to zebra
+- FPMSyncd: send RTM_DELROUTE
+  1. Mock FPM interface
+  2. Call RouteSync::onRouteMsg() with RTM_DELROUTE message containing route 1.1.1.0/24
+  3. Call RouteSync::onRouteResponse() with APPL_STATE_DB format with delete operation response
+  4. Verify no message is sent to zebra
+
+
+- RouteOrch: program ASIC route
+  1. Create FVS and call RouteOrch::doTask()
+  2. Verify route is created in SAI
+  3. Verify the content of APPL_STATE_DB
+
+
+- RouteOrch: program ASIC route with temporary nexthop
+  1. Mock SAI_SWITCH_ATTR_NUMBER_OF_ECMP_GROUPS to 0
+  2. Create FVS and call RouteOrch::doTask()
+  3. Verify route is created in SAI with 1 nexthop
+  4. Verify the content of APPL_STATE_DB contains only 1 nexthop
 
 #### 11.2. VS Test cases
 
-TODO
+Code coverage is satisfied by UT and the E2E flow is not possible to test with current VS infrastructure, so no VS tests are planned.
 
 #### 11.3. System Test cases
 
-TODO
+In order to test this feature end to end it is required to simulate a delay in ASIC route programming. The proposed test is based on T0 topology:
+
+1. Enable ```bgp-suppress-fib-pending```
+2. Stop syncd process to simulate a delay: ```kill --SIGSTOP $(pidof syncd)```
+3. Setup BGP speaker
+4. Announces routes to DUT through exabgp
+5. Verify BGP session is established
+6. Make sure announced BGP route is queued in ```show ip route``` output
+7. Verify the route is not announced to Arista T1 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
+8. Restore syncd process: ```kill --SIGCONT $(pidof syncd)```
+8. Make sure route is programmed in ASIC_DB
+9. Make sure announced BGP route is FIB synced in ```show ip route``` output
+7. Verify the route is announced to Arista T1 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
+
 
 ### 12. Open/Action items - if any
 
-TODO
+- Default state of the feature based off minigraph device type
+- Non dataplane BGP sessions and whether we have to enable feature per neighbor
