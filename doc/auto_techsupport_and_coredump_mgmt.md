@@ -466,7 +466,9 @@ With this change, rate-limit-interval of zero would not make any difference. The
 
 A relevant message will be logged to syslog when the invocation fails because of LOCKFAIL exit code. 
 
-### 7.9 Orchagent abort consideration
+### 7.9 Orchagent abort consideration 
+
+Note: This solution currently applies only for Mellanox platforms.
 
 When the orchagent deems a SAI CRUD call as a failure based on the return status, it aborts itself. 
 
@@ -478,7 +480,7 @@ So, it is highly likely that by the time auto-techsupport collects saisdkdump, s
 
 This requires enhancements not just in auto-techsupport but also in orchagent process and also in /usr/local/bin/syncd.sh script. 
 
-Firstly, orchagent can terminate because of various reasons, i.e. some failure in orchagent like SEGFAULT, config reload etc but we are only interested in the case of SAI programming failure. To differentiate among these cases, orchagent will write to STATE_DB named "PROC_EXIT_STATE". 
+Firstly, orchagent can terminate because of various reasons, i.e. some failure in orchagent like SEGFAULT, config reload etc but we are only interested in the case of SAI programming failure. During a SAI programming failure, orchagent will call abort i.e. kernel will send SIGABRT and thus the process terminates. To differentiate among these cases, orchagent will write to a table in STATE_DB named "PROC_EXIT_STATE". 
 
 #### Schema: 
 ```
@@ -492,10 +494,9 @@ root@sonic:/home/admin# sonic-db-cli STATE_DB HGET PROC_STATUS orchagent
 6 i.e. SIGABRT
 ```
 
-During sai programming failure, orchagent sets the status to SIGABRT. syncd.sh script checks if this flag is set to SIGABRT before stopping the syncd container and if yes proceeds with collecting saisdkdump to SAI_DUMP_STORE_PATH path defined for the SKU and copies the dump to `/tmp/saidumpstate/` folder on the host machine and logs the time the dump was colleted to `/tmp/saidumpstate/last_write_epoch`. 
+During sai programming failure, orchagent will set the status to SIGABRT. syncd.sh script checks if this flag is set to SIGABRT before stopping the syncd container and if yes proceeds with collecting saisdkdump to SAI_DUMP_STORE_PATH path.
 
-coredump_gen_handler.py checks the STATE_DB for the ABRT and checks for a new saisdkdump under `/tmp/saidumpstate/` with a 20 sec timeout. generate_dump script will also be updated to collect dumps from `/tmp/saidumpstate/`
-
+coredump_gen_handler.py checks the STATE_DB for the SIGABRT on orchagent and waits until syncd is stopped or if syncd is stopped within the last 120 sec. This is required because coredump_gen_hander.py might be invoked after syncd is stopped before invoking generate_dump. generate_dump script will also be updated to collect dumps from SAI_DUMP_STORE_PATH
 
 
 ## 8. Test Plan
