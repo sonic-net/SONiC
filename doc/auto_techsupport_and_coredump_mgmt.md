@@ -496,7 +496,7 @@ root@sonic:/home/admin# sonic-db-cli STATE_DB HGET PROC_STATUS orchagent
 
 During sai programming failure, orchagent will set the status to SIGABRT. syncd.sh script checks if this flag is set to SIGABRT before stopping the syncd container and if yes proceeds with collecting saisdkdump to SAI_DUMP_STORE_PATH path.
 
-coredump_gen_handler.py checks the STATE_DB for the SIGABRT on orchagent and waits until syncd is stopped or if syncd is stopped within the last 120 sec. This is required because coredump_gen_hander.py might be invoked after syncd is stopped before invoking generate_dump. generate_dump script will also be updated to collect dumps from SAI_DUMP_STORE_PATH
+coredump_gen_handler.py checks the STATE_DB for the SIGABRT on orchagent and waits until syncd is stopped with a timeout of 120 sec or if syncd is stopped within the last 120 sec. This is required because coredump_gen_hander.py might be invoked after syncd is stopped before invoking generate_dump. generate_dump script will also be updated to collect dumps from SAI_DUMP_STORE_PATH
 
 
 ## 8. Test Plan
