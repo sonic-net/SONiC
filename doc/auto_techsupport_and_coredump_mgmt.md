@@ -478,21 +478,21 @@ So, it is highly likely that by the time auto-techsupport collects saisdkdump, s
 
 This requires enhancements not just in auto-techsupport but also in orchagent process and also in /usr/local/bin/syncd.sh script. 
 
-Firstly, orchagent can terminate because of various reasons, i.e. some failure in orchagent like SEGFAULT, config reload etc but we are only interested in the case of SAI programming failure. To differentiate among these cases, orchagent will try writing to STATE_DB named "PROC_STATUS". Note: Some interrupt signals like SIGKILL kills the process immediately and thus is not be possible to update the status in STATE_DB
+Firstly, orchagent can terminate because of various reasons, i.e. some failure in orchagent like SEGFAULT, config reload etc but we are only interested in the case of SAI programming failure. To differentiate among these cases, orchagent will write to STATE_DB named "PROC_EXIT_STATE". 
 
 #### Schema: 
 ```
-PROC_STATUS
-<proc_identifier>:<ABRT|TERM|INT|ACTIVE|etc..>
+PROC_EXIT_STATE
+<proc_identifier>:<0-128>
 
 Value indicates the type of exit signal used to terminate the process
 
 Eg:
 root@sonic:/home/admin# sonic-db-cli STATE_DB HGET PROC_STATUS orchagent
-ABRT
+6 i.e. SIGABRT
 ```
 
-During sai programming failure, orchagent sets the status to ABRT. syncd.sh script checks if this flag is set to ABRT before stopping the syncd container and if yes proceeds with collecting saisdkdump and copies the dump to `/tmp/saidumpstate/` folder on the host machine and logs the time the dump was colleted to `/tmp/saidumpstate/last_write_epoch`. 
+During sai programming failure, orchagent sets the status to SIGABRT. syncd.sh script checks if this flag is set to SIGABRT before stopping the syncd container and if yes proceeds with collecting saisdkdump to SAI_DUMP_STORE_PATH path defined for the SKU and copies the dump to `/tmp/saidumpstate/` folder on the host machine and logs the time the dump was colleted to `/tmp/saidumpstate/last_write_epoch`. 
 
 coredump_gen_handler.py checks the STATE_DB for the ABRT and checks for a new saisdkdump under `/tmp/saidumpstate/` with a 20 sec timeout. generate_dump script will also be updated to collect dumps from `/tmp/saidumpstate/`
 
