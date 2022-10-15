@@ -1,4 +1,4 @@
-# PINS (P4 Integrated Network Stack) SONiC Control Plane for SAI Generic Extensions
+# PINS SONiC Control Plane for Generic SAI Extensions
 
 ## Table of Content
 - [Introduction](#Itroduction)
@@ -10,7 +10,7 @@
   - [P4Orch](#P4Orch)
     - [Table Definition database](#Table-Definition-database)
     - [Demultiplexing SAI Extension entries](#Demultiplexing-SAI-Extension-entries)
-    - [SAI Extension Manager](#SAI-Extension-Manager)
+    - [Extension Tables Manager](#Extension-Tables-Manager)
     - [Table processing precedence](#Table-processing-precedence)
     - [Cross Table dependencies](#Cross-Table-dependencies)
   - [Application Level Response](#Application-Level-Response)
@@ -23,25 +23,32 @@
 
 
 ## Revision
-| Rev  |   Date    |                        Author                        | Change Description    |
-| :--: | :-------: | :--------------------------------------------------: | :--------------------:|
-| 0.1  | 9/27/2022 | Intel - Shitanshu Shah, Reshma Sudarshan,            |  Initial Revision     |
-|      |           |         Brian O’Connor, Ravi Vantipalli, Sagar Balani|                       |
-|      |           | Google - Bhagat Janarthanan, Kishan, Runming Wu,     |                       |
-|      |           |          Robert Halstead, Kishore Gummadidala        |                       |
-| 0.2  | 9/29/2022 | Shitanshu Shah                                       |address review comments|
+| Rev  |   Date    |                        Author                        | Change Description                 |
+| :--: | :-------: | :--------------------------------------------------: | :--------------------------------: |
+| 0.1  | 9/27/2022 | Intel - Shitanshu Shah, Reshma Sudarshan,            |  Initial Revision                  |
+|      |           |         Brian O’Connor, Ravi Vantipalli, Sagar Balani|                                    |
+|      |           | Google - Bhagat Janarthanan, Kishan, Runming Wu,     |                                    |
+|      |           |          Robert Halstead, Kishore Gummadidala        |                                    |
+| 0.2  | 9/29/2022 | Shitanshu Shah                                       |address review comments             |
+| 0.3  |10/14/2022 | Shitanshu Shah                                       |terminology, Cross Table dep updates|
+
 
 ## Introduction <a name="Introduction"></a>
-P4 is a language for expressing how packets are processed by the data plane of a programmable network forwarding device. P4 programs specify how the various programmable blocks of a target architecture are programmed and connected. PINS (P4 Integrated Network Stack) is an architecture, described in the [PINS HLD](https://github.com/sonic-net/SONiC/blob/master/doc/pins/pins_hld.md), to implement a P4 program, in the SONiC framework, on top of the SAI pipeline. SAI pipeline is a well-documented forwarding behavior of a data-plane. In PINS architecture, a \set of standard SAI capabilities are modeled in P4 and configurable behaviors, like ACLs, are defined using P4.
+P4 is a language for expressing how packets are processed by the data plane of a programmable network forwarding device. P4 programs specify how the various programmable blocks of a target architecture are programmed and connected. PINS (P4 Integrated Network Stack) is an architecture, described in the [PINS HLD](https://github.com/sonic-net/SONiC/blob/master/doc/pins/pins_hld.md), to implement a P4 program, in the SONiC framework, on top of the SAI pipeline. SAI pipeline is a well-documented forwarding behavior of a data-plane. In PINS architecture, a set of standard SAI capabilities are modeled in P4 and configurable behaviors, like ACLs, are defined using P4.
 
-In this document, we describe how the modeling can be taken a step further, allowing P4 programs to model extensions to the SAI pipeline. Focus of this document is to design the SONiC control plane that implements the extensions specified in the user P4 and then translate them to the new SAI Generic Extensions API calls, as defined in [SAI Generic Programmable Extensions](https://github.com/opencomputeproject/SAI/pull/1551), for implementation in HW.
+In this document, we describe how the modeling can be taken a step further, allowing P4 programs to model extensions to the SAI pipeline. Focus of this document is to design the SONiC control plane that implements the extensions specified in the user P4 and then translate them to the [SAI Extensions API](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_Proposal_Generic_Extensions.md) calls for implementation in HW.
 
 Readers of this document are expected to have some familiarity with PINS Architecture and P4RT, P4Orch as designed today to support P4 over the SAI pipeline. Links to those documents are provided in the Reference section towards the end of this document.
 
 ## Definitions <a name="Definitions"></a>
-PINS SAI path - refers to control plane flow responsible for programming P4 tables that map to blocks well defined by SAI pipeline.
 
-PINS SAI Generic Extension path - refers to control plane flow responsible for programming P4 tables that extends the SAI pipeline. In this document, it is also referred to as the PINS SAI Extension path.
+SAI - Data-plane programming interface that defines forwarding behavior. Every functional block of SAI is explicitly defined with corresponding Objects and set of APIs to manipulate those objects
+
+SAI Extension - Extension to SAI forwarding behavior achieved using API calls defined in (https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_Proposal_Generic_Extensions.md)
+
+PINS SAI path - refers to control plane flow via P4RT responsible for programming objects well defined in SAI pipeline
+
+PINS SAI Extension path - refers to control plane flow via P4RT responsible for programming objects that extend the SAI pipeline
 
 P4Info - Metadata that specifies the P4 entities which can be accessed via P4Runtime. The information is generated by a compiler from a P4 source program and communicated via the P4RT Client to the P4RT Server before any programming of P4 tables.
 
@@ -49,13 +56,13 @@ P4RT Client - A Software component that controls P4 target utilizing P4Runtime (
 
 P4RT Server (P4RT-APP) - SONiC control plane component implements P4RT service acting as a server for P4RT messages from a P4RT Client.
 
-P4RT Orchagent (P4Orch) - SONiC control plane component that translates P4 entries that are received from P4RT-APP (via APPL_DB) to SAI entries (in ASIC_DB).
+P4RT Orchagent (P4Orch) - SONiC control plane component that translates P4RT table entries received from P4RT-APP (via APPL_DB) to SAI objects (in ASIC_DB).
 
 Table Definition – It contains match/action fields and enough other details for P4Orch to derive the necessary state which is then referred to during table entries programming.
 
 
 ## Scope <a name="Scope"></a>
-This document augments the PINS architecture for SAI pipeline extensions. The scope of this document is to zoom in with more details and enhance P4RT-APP and P4RT-Orchagent components of the SONiC framework. The document details the design of these components to generically support extensions to program forwarding tables leveraging SAI APIs and SAI Generic Programmable Extension APIs.
+This document augments the PINS architecture for SAI pipeline extensions. The scope of this document is to zoom in with more details and enhance P4RT-APP and P4RT-Orchagent components of the SONiC framework. The document details the design of these components to generically support extensions to program forwarding tables leveraging SAI APIs and SAI Extension APIs.
 
 ![](images/PINS_SONiC_Design_for_SaiGenericExt_Scope.png)
 
@@ -64,7 +71,7 @@ The SAI Extension P4 program is expected to be extended based on a well-document
 
 The PINS SAI Extension path is expected to co-exist with the PINS SAI path. Existing PINS support of SAI P4 program should functionally continue to work as is.
 
-In some cases, entries programmed via PINS SAI Extensions path may have dependencies on objects created via PINS SAI path or other objects from PINS SAI Extension path. The SONiC control plane is required to manage and maintain such cross-object dependencies. A P4 program is required to use a specific annotation, described in detail in the Appendix, as a directive to specify this cross-object dependency. [Note that this design document covers requirements of PINS SAI Extension table entries referencing to entries in other PINS tables. What is not in the scope is PINS SAI table entries referencing to entries in PINS SAI Extension table, nor PINS SAI Extension table entries referencing to non-PINS objects].
+In some cases, SAI Extension objects programmed via PINS SAI Extension path may have dependencies on other SAI objects. SAI Extension APIs require to pass OID of dependent object in such cases. The SONiC control plane is required to manage and maintain cache for the purpose of OID retrieval.
 
 As highlighted earlier, the following components of the SONiC control-plane are targeted in this design document,
 - P4RT-APP
@@ -77,12 +84,12 @@ As described in the [PINS P4Orch HLD](https://github.com/Azure/SONiC/pull/825/fi
 The PINS SAI Extension path will continue to use the same control plane components with some enhancements to them. A few enhancements to note,
 - Create a Table Definition database. P4Orch requires following state derived, from Table Definition database, before handling programming of any P4RT table entries. This data-base is to be created at initialization time.
   - Cross-table reference. When table-entry is received, this state helps in creating key and look-up in a dependent table to retrieve the OID of a dependent object if it exists.
-  - Table processing precedence for draining APPL_DB entries received. From the batch of table-entries received from across P4RT tables, in order processing of table entries is important to avoid dependency validation failures. Table processing precedence is to be derived from a cross-table reference state.
+  - Table processing precedence for draining APPL_DB entries received. From the batch of table-entries received from across P4RT tables, processing table entries in order of table precedence is important to avoid dependency validation failures. Table processing precedence is to be derived from a cross-table reference state.
   - Derive SAI attribute value type of each match/action fields
 - Demux P4RT table entries from the APPL_DB to PINS SAI path vs PINS SAI Extension path
-- A new manager (SAI Extension Manager) in P4Orch to handle PINS SAI Extension table entries
+- A new manager (Extension Tables Manager) in P4Orch to handle extension table entries received from APPL_DB
 - Dynamic initialization of table precedence for processing APPL_DB entries
-- P4Orch to manage cross object dependencies from PINS SAI Extension objects onto another PINS SAI Extension object or PINS SAI object
+- P4Orch to manage cross object dependencies from SAI Extension objects to SAI objects
 - P4Orch to translate counters/meters, as specified by P4, to counter/meter objects conforming to SAI API calls
 
 ![](images/PINS_SONiC_Design_for_SaiGenericExt_Design.png)
@@ -144,54 +151,57 @@ typedef std::map<std::string, TableInfo>   TableInfoMap;
 ```
 
 #### Demultiplexing PINS SAI Extension entries <a name="Demultiplexing-PINS-SAI-Extension-entries"></a>
-For PINS SAI tables, P4RT-APP publishes related entries in a table with prefix P4RT_TABLE:FIXED_<TableName> (with an exception for ACL table definition). With added support for PINS SAI Extension tables, related entries will be published in a table with prefix **P4RT_TABLE:EXT_<TableName>**.
+For PINS SAI path related tables, P4RT-APP publishes entries in a table in APPL_DB with prefix P4RT_TABLE:FIXED_<TableName> (with an exception for ACL table definition). With added support for tables related to PINS SAI Extension path, entries will be published in a table in APPL_DB with prefix **P4RT_TABLE:EXT_<TableName>**.
 
 Table prefix for PINS SAI Path tables is **P4RT_TABLE:FIXED_<TableName>**
 Table prefix for PINS SAI Extension tables would be **P4RT_TABLE:EXT_<TableName>**
 
-Current P4Orch implementation of PINS SAI path maintains mapping from FIXED P4RT table name to the manager responsible for processing respective table entries to relevant SAI Objects. With added support of the PINS SAI Extension tables, control flow for FIXED P4RT tables remains as before, where-as EXT P4RT table entries will be directed to the newly introduced SAI Extension manager.
+Current P4Orch implementation of PINS SAI path maintains mapping from FIXED P4RT table name to the manager responsible for processing respective table entries to relevant SAI Objects. With added support of the PINS SAI Extension tables, control flow for FIXED P4RT tables remains as before, where-as EXT P4RT table entries will be directed to the newly introduced Extension Tables Manager.
 
-#### SAI Extension Manager <a name="SAI-Extension-Manager"></a>
-To handle different P4RT tables, the P4Orch is composed of multiple managers. Each P4Orch manager is responsible for handling table entries of a specific table. Examples are router_interface_manager, neighbor_manager, nexthop_manager and so forth. To this set of managers, a new manager will be added to handle all the extension P4RT tables. This new manager will handle all the extension tables. This manager, SAI Extension manager, is responsible for draining and processing extension table entries and manipulating the respective SAI Objects. The SAI Extension manager would maintain each table’s related state in a segregated manner, and thus should be able to walk and lookup table entries for a specific given extension table.
+#### Extension Tables Manager <a name="Extension-Tables-Manager"></a>
+To handle different P4RT tables, the P4Orch is composed of multiple managers. Each P4Orch manager is responsible for handling table entries of a specific table. Examples are router_interface_manager, neighbor_manager, nexthop_manager and so forth. To this set of managers, a new manager will be added to handle all the extension P4RT tables. This new manager will handle all the extension tables. This manager is responsible for draining and processing extension table entries from APPL_DB and manipulating the respective SAI Extension Objects. The Extension Tables Manager would maintain each table’s related state in a segregated manner, and thus should be able to walk and lookup all the entries for a specific given extension table.
 
 On receiving P4RT table entries from APPL_DB, P4Orch reads each table entry and performs the following tasks,
-- Demux table entry to PINS SAI vs SAI Extension path table
-  Demuxed SAI Extension table entries are enqueued to SAI Extension manager
+- Demux table entry to PINS SAI vs SAI Extension path
+  Demuxed extension table entries are enqueued to the Extension Tables Manager
 
-- For table entries enqueued to SAI Extension manager
+- For table entries enqueued to Extension Tables Manager
   - Retrieve each match field and action params associated values
-  - For each retrieved field and parameter, check if any of them needs to be cross-referred to an entry in another table. Update reference count of dependent objects based on CRUD operation
-  - If field is a counter/meter directive, create respective SAI counter/meter object if one does not exist, or remove - SAI counter/meter object in case of delete event
+  - For each retrieved field and parameter, check if any of them needs to be cross-referred to an entry in another table for cross-dependent OID retrieval. Update reference count of dependent objects based on CRUD operation
+  - If field is a counter/meter directive, create respective SAI counter/meter object if one does not exist, or remove SAI counter/meter object in case of delete event
   - Prepare SAI Extension API parameters and call appropriate SAI Extension API
 
 
 #### Table processing precedence <a name="Table-processing-precedence"></a>
-SAI.P4 has well-defined ordering of functional blocks in the SAI pipeline. For the SAI pipeline relevant P4RT tables, P4Orch currently has a predefined order of processing APPL_DB entries belonging to those tables. This pre-defined table precedence helps avoid out-of-order processing of cross-dependent entries from a given batch. The same behavior of processing cross-dependent entries in a specific order of table precedence is necessary for entries across SAI Extension tables, and even across SAI path and SAI Extension path tables.
+SAI.P4 has well-defined ordering of functional blocks in the SAI pipeline. For the SAI pipeline relevant P4RT tables, P4Orch currently has a predefined order of processing APPL_DB entries belonging to those tables. This pre-defined table precedence helps avoid out-of-order processing of cross-dependent entries from a given batch. The same behavior of processing cross-dependent entries in a specific order of table precedence is necessary for entries across all extension tables, and even across tables related to PINS SAI path and PINS SAI Extension path.
 
 For in-order processing of table entries across cross-dependent tables, a specific processing order of tables can be decided at the initialization time when the Table Definition database is built. After preparing a cross-reference state across all actions from all tables, a dependency graph can be built that can decide the processing order of tables. Note that this dependency graph is built once at the initialization time. At the time of draining table entries that are received from APPL_DB, P4Orch drains entries from tables in their precedence determined by pre-built dependency graph.
 
-The SAI Extension manager in the P4Orch, which caters to serving extension tables, maintains table entries separately per table. Each of these tables are tagged with an algorithmically determined precedence value based on dependency graph. At the time of draining table entries, The SAI Extension manager may be called multiple times, each time with a different precedence value and so allowing the SAI Extension manager process table entries only from those tables matching the precedence value.
+The Extension Tables Manager in the P4Orch, which caters to serving extension tables, maintains drained table entries separately per table. Each of these tables are tagged with an algorithmically determined precedence value based on dependency graph. At the time of draining table entries from APPL_DB, The Extension Tables Manager may be called multiple times, each time with a different precedence value and so allowing the Extension Tables Manager process table entries only from those tables matching the precedence value.
 
 #### Cross Table dependencies <a name="Cross-Table-dependencies"></a>
-Once the Table Definition database is built, the state created for each table would have cross-reference table/match-fields mapped from eg. an action parameter if that action parameter is defined to have a cross table dependency. As stated earlier, this document focuses on dependencies from PINS SAI Extension table entries to another PINS SAI Extension table entry, and from PINS SAI Extension table entris to PINS SAI table entry. Thus, only those scenarios are considered in the design [This framework can be leveraged, with some enhancements, for other scenarios as well like for PINS object dependencies on non-PINS SAI objects, PINS SAI table entries referencing to entry from PINS SAI Extension table].
+Once the Table Definition database is built, the state created for each table would have cross-reference definitions. For any extension table entry received from APPL_DB, if any of the entry fields is defined to have a cross-reference, SAI Object OID of the dependent entry needs to be retrieved and passed as a field value in the SAI API call. It is considered validation failure if dependent SAI Object OID cannot be retrieved, in which case current extension table entry does not get programmed and retried again later for dependent OID retrieval.
 
-When SAI Extension table-entry is received, from APPL_DB, where if any of the entry fields is defined to have a cross-reference, OID of the dependent entry needs to be retrieved and that OID then is passed as a field value in the SAI API call. It is considered validation failure if OID of the dependent entry can not be retrieved in which case current SAI extension table-entry does not get programmed and to be retried again later for dependent OID retrieval. Two main distinctive operations are performed for cross-dependent object retrieval. First is to form a pair of object-type/key value of a dependent object and then perform a look-up in the p4oidmapper data-base, using object-type/key value pair, for OID retrieval.
+There are two main distinctive operations performed for cross-dependent object retrieval. First is to form a pair of object-type/key value of a dependent object and then perform a look-up in the relevant cache, using object-type/key value pair, for OID retrieval.
 
-P4Orch today already has p4oidmapper frame-work in place, where p4oidmapper maintains data-base of object-type/key value mapping to OID and reference counts to that OID. To perform first step of forming object-type/key value pair, a respective P4Orch manager would be consulted with relevant SAI Extension entry field parameters. A new function vector getSaiObject introduced in the ObjectManagerInterface class for this purpose. When an entry is received by the SAI Extension manager, where any field is dependent on a table that is implemented by one of the table managers in P4Orch, SAI Extension manager composes field parameters which is then passed to getSaiObject() call implemented by the respective manager to get respective object-type/key value pair. The next step of OID retrieval leveraging p4oidmapper then remains same as is implemented today.
+P4Orch today has p4oidmapper frame-work in place, where p4oidmapper maintains data-base of object-type/key value mapping to OID and reference counts to that OID. For use-cases, where P4RT extension table entries have dependencies only on SAI Objects created by other P4RT table entries, p4oidmapper is the cache that needs to be queried for retrieval of dependent OID. To perform first step of forming object-type/key value pair, a respective P4Orch manager would be queried with relevant extension entry's field parameters. A new function vector getSaiObject is introduced in the ObjectManagerInterface class for this purpose. For an entry received by the Extension Tables Manager, where any of its field is dependent on a table that is implemented by one of the table managers in P4Orch, Extension Tables Manager composes field parameters which is then passed to getSaiObject() call implemented by the respective manager to get respective object-type/key value pair. The next step of OID retrieval leveraging p4oidmapper then remains same as is implemented today.
 
 ```text
     gP4Orch->m_p4TableToManagerMap[table_name]->getSaiObject(field_params, &object_type, &object_key);
     m_p4OidMapper->getOID(object_type, object_key, &oid);
 ```
 
+For use-cases, where P4RT extension table entries may also have dependency on SAI Objects created by SONiC control path outside of PINS control path, two main differences to note. First, in the table definition, cross-reference definition needs to be to a sai_object/sai_fields tuple, instead of a table/field names tuple (Please look at refers_to() annotation for more details in the Appendix example). Second, for dependent object's OID retrieval, dependent object's cache owner needs to be queried. These cache owners span beyond p4oidmapper. Ideally there should be one object owner in the orchagent for a given object-type. However, today in orchagent, multiple orchs may maintain key<->OID mapping cache for the same object-type. Each orch in this case maintains cache only for the objects created by that orch. For such a object type, during cross-dependency resolution, each of the cache owners need to be queried to check existence of a specific object unless all distributed cache consolidated under a single owner. Implementation supporting this use-case to be considered in subsequent phase.
+
+
 ### Application Level Response <a name="Application-Level-Response"></a>
-The SAI Extension Manager will produce the status of each table entry programming in the same manner as is done today for other tables. There is no other change required in the rest of the system. Application level responses are expected to work in the same manner for extension tables as well.
+The Extension Tables Manager will produce the status of each table entry programming in the same manner as is done today for other tables. There is no other change required in the rest of the system. Application level responses are expected to work in the same manner for extension tables as well.
 
 
 ### Counters and Meters <a name="Counter-and-Meters"></a>
-There are no changes required in P4RT-APP to support counters and meters for SAI Extension tables. In P4Orch, for any table-entry received from APPL_DB, with a counter/meter directive, a respective meter/counter object gets created/removed according to CRUD operations. Those extension tables that receive table entries with a counter/meter directive, are tagged with counter/meter capability in the SAI Extension manager.
+There are no changes required in P4RT-APP to support counters and meters for extension tables. In P4Orch, for any table-entry received from APPL_DB, with a counter/meter directive, a respective meter/counter object gets created/removed according to CRUD operations. Those extension tables that receive table entries with a counter/meter directive, are tagged with counter/meter capability in the Extension Tables Manager.
 
-Statistics collection for counters, from P4Orch, is periodic. At every timer interval, The SAI Extension manager walks through those extension tables, that are tagged with counter/meter capability, and packs counter/meter stats to be produced in COUNTERS-DB, in the same way as it is done today for SAI pipeline tables in P4Orch.
+Statistics collection for counters, from P4Orch, is periodic. At every timer interval, The Extension Tables Manager walks through those extension tables, that are tagged with counter/meter capability, and packs counter/meter stats to be produced in COUNTERS-DB, in the same way as it is done today for SAI pipeline tables in P4Orch.
 
 
 ### CRM (Critical Resource Monitoring) <a name="CRM"></a>
@@ -213,7 +223,7 @@ A typical P4 program for SAI Extension is an increment of some form of a modeled
 
 ```text
 Example –
-In following example, @refers_to() annotation specified in action id 3456, and use of that action in table “table_extension2” suggests that an entry programmed in table “table_extension2” with action id of 3456, has dependency on existence of an entry in table “table_extension1” and look-up key to check existence of an entry is a composite key with <match_e11:<value of param id 1>, match_e22:<value of param id 2>>
+In following example, @refers_to() annotation specified in action id 3456, and use of that action in table “table_extension2” suggests that an entry programmed in table “table_extension2” with action id of 3456, has dependency on existence of a SAI object for entry in table “table_extension1” and look-up key to query dependent object's OID is a composite key with <match_e11:<value of param id 1>, match_e22:<value of param id 2>>
 tables {
     preamble {
         id: 2345
@@ -290,7 +300,13 @@ actions {
 }
 ```
 
-  Note that this directive can be leveraged to specify dependency from PINS SAI table to the PINS SAI Extension table as well from PINS objects to non-PINS SAI objects, but they are not in the scope of this design document. An addendum should be considered if and when there is a need to address such a requirement. This document focuses on design for dependency from PINS SAI Extension table to another PINS SAI Extension table, and from PINS SAI Extension table to PINS SAI table.
+The example shown above is for a cross-reference directive in the form of prescribing dependency with table/field names. If dependency from SAI Extension field param is to be specified in the form of SAI Object/field names, the syntax would look like as shown below. This type of dependency definition is to be supported in subsequent phase.
+params {
+  id : <>
+  name: "action"
+  annotations: "@refers_to(@sai_object(SAI_OBJECT_TYPE_X), @sai_field(SAI_ATTR_X))"
+}
+
 
 
 - @format(), to indicate special format of the data-type of a field
@@ -402,7 +418,6 @@ if (TableInfoMap.contains("vipv4_table")) {
   }
 }
 
-// adjust nexthop object refcount
 sai_metadata_json["set_nexthop_id"]["data_type"]  = SAI_ATTR_VALUE_TYPE_OBJECT_ID;
 sai_values_json["set_nexthop_id"][“value”] = nexthop_oid;
 sai_values_json["set_nexthop_id"][“metadata”] = sai_metadata_json["set_nexthop_id"].dump();
