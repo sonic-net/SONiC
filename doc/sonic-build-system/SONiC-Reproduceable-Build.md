@@ -1,8 +1,4 @@
-
-
 # SONiC Reproduceable Build
-
-
 
 # Table of Contents
 
@@ -268,13 +264,15 @@ The version file in files/build/versions/ for web packages.
 | versions-web | The versions for packages downloaded from web |
 
 Like pip or debian package version configuration, the version format for web package is as below:
-
+```
 <Package URL> **==** <hash value>;
+```
+The hash value is the package's md5 message digest.
 
 An example as below:
-
+```
 https://storage.googleapis.com/golang/go1.14.2.linux-amd64.tar.gz== ebef065e4d35572af5b03e2be957a9c6c5063b38
-
+```
 If any new remote web package is used, it should be added in the version configuration file, or the build will be failed, so as to the existing web packages.
 
 ## File Storage
@@ -282,9 +280,9 @@ If any new remote web package is used, it should be added in the version configu
 Before a web package is used in the SONiC repository, the package should be uploaded to a trusted file storage. The SONiC build only depends on the trusted file storage, not depend on the remote web site.
 
 The file name format in the file storage is as below:
-
-<package name>-<sha1sum>
-
+```
+<package name>-<md5sum>
+```
 For an example: go1.14.2.linux-amd64.tar.gz-ebef065e4d35572af5b03e2be957a9c6c5063b38
 
 For the same web package, it supports to have multiple versions of the file in the file storage, for example, go1.14.2.linux-amd64.tar.gz-b73d6366c0bce441d20138c150e2ddcdf406e654 (fake hash value), but for the same commit, the same version is used.
@@ -419,7 +417,7 @@ The [python-pypi-mirror](https://pypi.org/project/python-pypi-mirror/) is used t
 
 In the original design, the base images of the SONiC Dockerfile are based on image tag, for instance, in the Dockerfile sonic-slave-buster/Dockerfile, the base image is debian:buster, we can find &quot;From debian:buster&quot; in the file. When a new debian buster image is pushed in the docker registry, the debian:buster will refer to the new one, it is not reproduceable. To make it support reproduceable, we can change to refer to the digest hash value of the image. The docker base images that are based on the image tag will be changed to base on the image digest to support reproduceable build. The Dockerfile as below is based on the image tag:
 
-_From <image>:<tag>_
+_From \<image\>:\<tag\>_
 
 Example:
 
@@ -427,7 +425,7 @@ _From debian:buster_
 
 Change to:
 
-_From <image>:<digest>_
+_From \<image\>:\<digest\>_
 
 Example:
 
@@ -453,8 +451,6 @@ It will run &quot;git reset <commit id> --hard&quot; after the &quot;git clone&q
 
 We do not manage the git repositories, if a git commit used by SONiC is removed, then the build will be broken.
 
-
-
 # Q&A
 
 1. Is the reproduceable build feature will be enabled in all branches?
@@ -478,4 +474,5 @@ We do not manage the git repositories, if a git commit used by SONiC is removed,
    In the version configuration files, different version files are used in different distributions if the version files are relative the distribution. For example, the version file name versions-deb-buster is used for debian packages in buster distribution. But for python packages, we use version-py2 and version-py3 by default, it is not relative to distribution.
 
    When migrating from stretch to buster, we may need to add additional version configuration for debian packages, but not require to add version files for python packages. See Q&A #2 for adding additional version configuration and #4 for version conflict.
+
 
