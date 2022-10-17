@@ -1,4 +1,4 @@
-# California Law Design #
+# Default Credential Management for California Law SB-327 Conformance #
 
 ##  1. <a name='TableofContent'></a>Table of Content
 
@@ -53,7 +53,7 @@ This California Law hld doc described the requirements, architecture and configu
 	PW - password
 	PASSWH - Password Hardening
 	PAM - Pluggable Authentication Modules
-	CL - California Law
+	CL - Default Credential Management for California Law SB-327 Conformance
 
 ###  1.4. <a name='Overview'></a>Overview
 
@@ -66,7 +66,7 @@ force user to change default password on first login.
  - Force change of default password on first login
  - Support several default users
  - Force to change password after image update
- - Don't affect password hardening feature
+ - Don't affect [Password hardening feature](https://github.com/sonic-net/SONiC/blob/master/doc/passw_hardening/hld_password_hardening.md)
 
 ###  1.6. <a name='ArchitectureDesign'></a>Architecture Design
 
@@ -97,7 +97,7 @@ See linux [3rd Party Components](#rdPartyComponents) for more description.
 
 ####  1.7.1. <a name='Flowdescription'></a>Flow description
 Feature is expected to be disabled by default.
-Build flag CHANGE_DEFAULT_PASWD will be used to set feature state.
+Build flag CHANGE_DEFAULT_PASSWORD will be used to set feature state.
 
 Feature uses only Linux native system tools. As a result doesn't require interaction with cli or db.
 
@@ -119,12 +119,12 @@ PW age from feature PW hardening is not affected.
 ###  1.8. <a name='InitFlow'></a>Init Flow
 ####  1.8.1. <a name='Compilation'></a>Compilation
 This feature will be disabled by default.
-A build flag CHANGE_DEFAULT_PASWD will be used to enable or disable feature.
+A build flag CHANGE_DEFAULT_PASSWORD will be used to enable or disable feature.
 Build flag will be checked on runtime
 
 Build example
 
-    CHANGE_DEFAULT_PASWD=true make target/sonic.bin
+    CHANGE_DEFAULT_PASSWORD=true make target/sonic.bin
 
 
 ####  1.8.2. <a name='Dependencies'></a>Dependencies
@@ -149,7 +149,7 @@ The California law feature is not supported on remote AAA.
 LDAP/Radius/Tacacs is under customer responsibility.
 
 ###  1.13. <a name='UpgradeFlow'></a>Upgrade Flow
-After upgrade to new image with soni-istall 1st boot flow is triggered and users will be forced to change their passwords
+After install new image with sonic-istall 1st boot flow is triggered and users will be forced to change their passwords
 
 
 ###  1.14. <a name='TestPlan'></a>Test Plan
@@ -228,7 +228,7 @@ Example :
 
 
 ####  1.15.2. <a name='PAMUNIX'></a>Pam Unix
-pam_pwhistory:  standard Unix authentication PAM module
+pam_unix:  standard Unix authentication PAM module
 
 ##### DESCRIPTION
 
