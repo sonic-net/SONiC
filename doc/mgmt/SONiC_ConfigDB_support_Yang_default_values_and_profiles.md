@@ -133,19 +133,32 @@ This document provides a detailed description on the new features for:
 
 ## 1.2 swss-common return profile from profile DB
 
-- Buffer profile stored in profile tables.
+- Profile stored in PROFILE_DB.
+  - User config can overwrite profile config.
+    - For example:
+      - BUFFER_POOL profile stored in PROFILE_DB.
+      - User config in CONFIG_DB can overwrite "ingress_loess_pool".
+      - User can create new "egress_lossless_pool" in CONFIG_DB.
+      - Decorator will return merged config.
+    <img src="./images/profile-db-example-1.PNG"  />
 
 - Return profile is optional.
   
   - Application can decide read config with profile or not:
     - When application read profile:
-      - If user overwrite the profile, user config will be return.
+      - If user overwrite the profile, user config will be return:
+        <img src="./images/profile-db-example-3.PNG"  />
       - If user not overwrite the profile, profile will be return.
+        <img src="./images/profile-db-example-2.PNG"  />
       - If user 'delete' the profile, will return nothing.
+        <img src="./images/profile-db-example-4.PNG"  />
     - When application not read profile, API will only return user config.
       - If user overwrite the profile, user config will be return.
+        <img src="./images/profile-db-example-5.PNG"  />
       - If user not overwrite the profile, will return nothing.
+        <img src="./images/profile-db-example-6.PNG"  />
       - If user 'delete' the profile, then there also will no user config exist, will return nothing.
+        <img src="./images/profile-db-example-7.PNG"  />
 
 - Backward compatibility with existing code and applications.
   
@@ -162,17 +175,17 @@ This document provides a detailed description on the new features for:
           
           ```
           "BUFFER_POOL": {
-          "ingress_lossless_pool": {
-            "size": "26531072",
-            "type": "ingress",
-            "mode": "dynamic",
-            "xoff": "6291456"
-          },
-          "egress_lossless_pool": {
-            "size": "32822528",
-            "type": "egress",
-            "mode": "static"
-          }
+              "ingress_lossless_pool": {
+                "size": "26531072",
+                "type": "ingress",
+                "mode": "dynamic",
+                "xoff": "6291456"
+              },
+              "egress_lossless_pool": {
+                "size": "32822528",
+                "type": "egress",
+                "mode": "static"
+              }
           }
           ```
         - SONiC CLI allow user to remove buffer pool to migrate from double-ingress-pool mode to single-ingress-pool mode.
