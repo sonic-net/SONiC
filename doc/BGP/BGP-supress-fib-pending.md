@@ -11,19 +11,14 @@
 - [5. Architecture Design](#5-architecture-design)
 - [6. Configuration and management](#6-configuration-and-management)
   - [6.1. Config DB Enhancements](#61-config-db-enhancements)
-    - [6.1.1. APP_STATE_LOGGING](#611-app_state_logging)
-    - [6.1.2. DEVICE_METADATA](#612-device_metadata)
   - [6.2. Manifest (if the feature is an Application Extension)](#62-manifest-if-the-feature-is-an-application-extension)
   - [6.3. CLI/YANG model Enhancements](#63-cliyang-model-enhancements)
-    - [6.3.1. APP_STATE_LOGGING](#631-app_state_logging)
-    - [6.3.2.  DEVICE_METADATA](#632--device_metadata)
 - [7. High-Level Design](#7-high-level-design)
   - [7.1. FPM plugin migration](#71-fpm-plugin-migration)
   - [7.2. BGP Docker container startup](#72-bgp-docker-container-startup)
   - [7.3. RouteOrch](#73-routeorch)
   - [7.4. FPMsyncd](#74-fpmsyncd)
   - [7.5. Response Channel Performance considerations](#75-response-channel-performance-considerations)
-    - [7.5.1. Table 1. Publishing 1k ROUTE_TABLE responses](#751-table-1-publishing-1k-route_table-responses)
 - [8. SAI API](#8-sai-api)
 - [9. Warmboot and Fastboot Design Impact](#9-warmboot-and-fastboot-design-impact)
   - [9.1. Warm Reboot](#91-warm-reboot)
@@ -130,6 +125,7 @@ The below diagram shows the high level architecture including sending an RTM_NEW
 
 #### 6.1. Config DB Enhancements
 
+<!-- omit in toc -->
 ##### 6.1.1. APP_STATE_LOGGING
 
 Configuration schema in ABNF format:
@@ -152,6 +148,7 @@ Sample of CONFIG DB snippet given below:
 }
 ```
 
+<!-- omit in toc -->
 ##### 6.1.2. DEVICE_METADATA
 
 Configuration schema in ABNF format:
@@ -183,6 +180,7 @@ This feature is implemented as part of existing BGP and SWSS containers, no mani
 
 #### 6.3. CLI/YANG model Enhancements
 
+<!-- omit in toc -->
 ##### 6.3.1. APP_STATE_LOGGING
 
 A new table ```APP_STATE_LOGGING``` and a corresponding YANG model is added:
@@ -227,6 +225,7 @@ module sonic-app-state-logging {
 
 Note that response channel for ROUTE_TABLE can be enabled regardless of ```synchronous_mode``` as we might still get a response from ```RouteOrch``` validation logic as well as ```SAIRedis``` validation.
 
+<!-- omit in toc -->
 ##### 6.3.2.  DEVICE_METADATA
 
 A new leaf is added to ```sonic-device_metadata/sonic-device_metadata/DEVICE_METADATA/localhost``` called ```bgp-suppress-fib-pending``` which can be set to ```"enable"``` or ```"disable"```.
@@ -719,6 +718,7 @@ Route programming performance is one of crucial characteristics of a network swi
 
 The following table shows the results for publishing 10k messages with and without Redis Pipeline proving the need for pipeline support for ```ResponseChannel```:
 
+<!-- omit in toc -->
 ##### 7.5.1. Table 1. Publishing 1k ROUTE_TABLE responses
 
 | Scenario               | Time (sec) | Ratio |
