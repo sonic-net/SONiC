@@ -952,11 +952,18 @@ config qos reload --json-data --dry-run
 ```
 config qos reload --update --all-new-ports
 
-```
 - Clear only default ROCE qos maps, scheduler, wred etc.
 
 ```
 config qos classifier clear --defaults
+```
+
+- click based roce enable/disable Configuration enhancement CLI
+
+```
+config qos roce enable {--force-defaults}
+config qos roce disable
+
 ```
 
 ### 2.2.9 Dynamic port breakout
@@ -1302,7 +1309,7 @@ sonic(config)#
 Initialize the lossless buffer defaults based on platform specific values (ingress/ingress buffer pools size, buffer profile, priority-group, queue..etc)
 
 ```
-sonic(config)# qos buffer init lossless
+sonic(config)# buffer init lossless
 
 ```
 
@@ -1311,7 +1318,7 @@ sonic(config)# qos buffer init lossless
 Clear buffer initialization.
 
 ```
-sonic(config)# no qos buffer init
+sonic(config)# no buffer init
 
 ```
 
