@@ -41,7 +41,7 @@
 | 1.6 | 04/23/2022  |     Storm Liang  | Update 2.6 BGP secion & add Test plan for BGP |
 
 # About this Manual
-This document provides general information about the Vxlan Overlay ECMP feature implementation in SONiC with BFD support. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
+This document provides general information about the Vxlan Overlay ECMP feature implementation in SONiC with BFD support. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
 
 
 # Definitions/Abbreviation
@@ -61,7 +61,7 @@ This document provides general information about the Vxlan Overlay ECMP feature 
 Below diagram captures the use-case. In this, ToR is a Tier0 device and Leaf is a Tier1 device. Vxlan tunnel is established from Leaf (Tier1) to a VTEP endpoint. ToR (Tier0), Spine (Tier3) are transit devices. 
 
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_UseCase.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_UseCase.png)
 
 ### Packet flow
 
@@ -172,7 +172,7 @@ PROFILE                  = STRING                    ; profile name to be applie
 
 Overlay routes can be programmed via RestAPI or gNMI/gRPC interface which is not described in this document. A highlevel module interaction is shown below
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_ModuleInteraction.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_ModuleInteraction.png)
 
 ## 2.4 Orchestration Agent
 Following orchagents shall be modified. 
@@ -215,7 +215,7 @@ VNET_ROUTE_TUNNEL_TABLE can provide monitoring endpoint IPs which can be differe
 
 ### Bfd HW offload
 
-This design requires endpoint health monitoring by setting BFD sessions via HW offload. Details of BFD orchagent and HW offloading is captured in this [document](https://github.com/Azure/SONiC/blob/master/doc/bfd/BFD%20HW%20Offload%20HLD.md)
+This design requires endpoint health monitoring by setting BFD sessions via HW offload. Details of BFD orchagent and HW offloading is captured in this [document](https://github.com/sonic-net/SONiC/blob/master/doc/bfd/BFD%20HW%20Offload%20HLD.md)
 
 
 ## 2.5 Monitoring and Health

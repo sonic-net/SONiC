@@ -2,7 +2,7 @@
 
 
 ## Overview
-This document outlines the Sonic BSL test plan. In BSL mode, Sonic device is brought up as an L2 switch. This test plan validates the functionality by running the tests as described in below sections. More details on BSL can be found in this [document](https://github.com/Azure/SONiC/wiki/L2-Switch-mode#3-generate-a-configuration-for-l2-switch-mode). This must be followed to configure a Sonic device in L2 switch and verify the associated commands before running the below test cases. 
+This document outlines the Sonic BSL test plan. In BSL mode, Sonic device is brought up as an L2 switch. This test plan validates the functionality by running the tests as described in below sections. More details on BSL can be found in this [document](https://github.com/sonic-net/SONiC/wiki/L2-Switch-mode#3-generate-a-configuration-for-l2-switch-mode). This must be followed to configure a Sonic device in L2 switch and verify the associated commands before running the below test cases. 
 
 ### Scope
 ---------
@@ -18,7 +18,7 @@ L2 configuration on a T0 topology
 ### Configuration scripts
 -------------------------
 
-Configuration is created from https://github.com/Azure/SONiC/wiki/L2-Switch-mode#3-generate-a-configuration-for-l2-switch-mode. After applying configuration, this also has basic verifications of interfaces and oper status.
+Configuration is created from https://github.com/sonic-net/SONiC/wiki/L2-Switch-mode#3-generate-a-configuration-for-l2-switch-mode. After applying configuration, this also has basic verifications of interfaces and oper status.
 
 The following is an example script to create config file for Mellanox platform
 ```
@@ -38,7 +38,7 @@ Verify basic sanity. This checks if the orchagent and syncd processes are runnin
  Triggered before and after each test case
 
 #### Test description
-Run sanity check - https://github.com/Azure/sonic-mgmt/blob/master/tests/common/sanity_check.py
+Run sanity check - https://github.com/sonic-net/sonic-mgmt/blob/master/tests/common/sanity_check.py
 
 ### Test case \#2
 
@@ -46,7 +46,7 @@ Run sanity check - https://github.com/Azure/sonic-mgmt/blob/master/tests/common/
 Verify FDB learning happens on all ports.
 
 #### Test description
-Run fdb test - https://github.com/Azure/sonic-mgmt/blob/master/tests/fdb/test_fdb.py
+Run fdb test - https://github.com/sonic-net/sonic-mgmt/blob/master/tests/fdb/test_fdb.py
 
 ### Test case \#3
 
@@ -56,14 +56,14 @@ Verify Vlan configurations, ARP and PING. The current vlan test (vlantb) has two
 This test covers Vlan, ARP and PING tests.
 
 #### Test description
-Run fdb test - https://github.com/Azure/sonic-mgmt/blob/master/tests/vlan/test_vlan.py
+Run fdb test - https://github.com/sonic-net/sonic-mgmt/blob/master/tests/vlan/test_vlan.py
 
 
 
 ### Test case \#4
 
 #### Test objective
-Verify SNMP. This [document](https://github.com/Azure/SONiC/wiki/How-to-Check-SNMP-Configuration) can be referred for basic SNMP verification and configuring public community string
+Verify SNMP. This [document](https://github.com/sonic-net/SONiC/wiki/How-to-Check-SNMP-Configuration) can be referred for basic SNMP verification and configuring public community string
 
  The BSL test can cover to get 
   1. MAC table
@@ -73,9 +73,9 @@ Verify SNMP. This [document](https://github.com/Azure/SONiC/wiki/How-to-Check-SN
 
 #### Test description
 Run SNMP tests:
- - https://github.com/Azure/sonic-mgmt/tree/master/tests/snmp/test_snmp_interfaces.py
- - https://github.com/Azure/sonic-mgmt/tree/master/tests/snmp/test_snmp_cpu.py
- - https://github.com/Azure/sonic-mgmt/tree/master/tests/snmp/test_snmp_psu.py
+ - https://github.com/sonic-net/sonic-mgmt/tree/master/tests/snmp/test_snmp_interfaces.py
+ - https://github.com/sonic-net/sonic-mgmt/tree/master/tests/snmp/test_snmp_cpu.py
+ - https://github.com/sonic-net/sonic-mgmt/tree/master/tests/snmp/test_snmp_psu.py
 
 | **\#** | **Test Description** | **Expected Result** |
 |--------|----------------------|---------------------|

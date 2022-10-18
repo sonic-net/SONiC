@@ -319,7 +319,7 @@ The 3 dots (`...`) in `ValidateService(services, validationCommand, ...)` indica
 ### 3.1.5 ConfigDB
 SONiC is managing configuration in a single source of truth - a redisDB instance that we refer as ConfigDB. Applications subscribe to ConfigDB and generate their running configuration correspondingly.
 
-For further details on the ConfigDB, check [SONiC Configuration Database Manual](https://github.com/Azure/SONiC/wiki/Configuration).
+For further details on the ConfigDB, check [SONiC Configuration Database Manual](https://github.com/sonic-net/SONiC/wiki/Configuration).
 
 ## 3.2 User Interface
 N/A

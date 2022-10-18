@@ -104,7 +104,7 @@ BFD_SESSION:{{vrf}}:{{ifname}}:{{ipaddr}}
 
 An example state transition diagram is as below
 
-![](https://github.com/Azure/SONiC/blob/master/images/bfd/BFD_States.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/bfd/BFD_States.png)
 
 
 ## 2.4 Orchestration Agent
@@ -113,7 +113,7 @@ Following orchagents shall be introduced/modified.
 ### BfdOrch
 Sonic shall offload the BFD session handling to hardware that has BFD capabilities.  A new module, BfdOrch shall be introduced to handle BFD session to monitoring endpoints and check the health of remote endpoints. BfdOrch shall offload the session initiation/sustenance to hardware via SAI APIs and gets the notifications of session state from SAI. The session state shall be updated in STATE_DB and to any other observer orchestration agents.  
 
-![](https://github.com/Azure/SONiC/blob/master/images/bfd/BFD_FlowDiagram.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/bfd/BFD_FlowDiagram.png)
 
 
 #### SAI Attributes
@@ -135,7 +135,7 @@ In the multihop session, for bfd packet forwarding, this design expects that the
 
 The flow of BfdOrch is presented in the following figure. BfdOrch subscribes to the BFD_SESSION_TABLE of APPL_DB and send the corresponding request to program the BFD sessions to syncd accordingly. The BfdOrch also creates the STATE_DB entry of the BFD session which includes the BFD parameters and an initial state. Upon receiving bfd session state change notifications from syncd, BfdOrch update the STATE_DB field to update the BFD session state. 
 
-![](https://github.com/Azure/SONiC/blob/master/images/bfd/BFD_Notification.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/bfd/BFD_Notification.png)
 
 ## 2.5 Control plane BFD
 

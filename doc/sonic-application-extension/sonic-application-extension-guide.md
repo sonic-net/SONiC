@@ -30,7 +30,7 @@ It is recommended to get acquainted with [HLD](sonic-application-extention-hld.m
 
 It is possible to port existing SONiC docker image and make it an Application Extension.
 
-An example of porting DHCP relay - https://github.com/Azure/sonic-buildimage/commit/b3b6938fda9244607fb00bfd36a74bccab0c38a9.
+An example of porting DHCP relay - https://github.com/sonic-net/sonic-buildimage/commit/b3b6938fda9244607fb00bfd36a74bccab0c38a9.
 
 1. Add a new build time flag to SONiC build system to control whether to include new Docker Image *XXX*:
 
@@ -63,7 +63,7 @@ $(DOCKER_XXX)_CONTAINER_VOLUMES += /usr/share/sonic/scripts:/usr/share/sonic/scr
 $(DOCKER_XXX)_CONTAINER_TMPFS += /tmp/
 ````
 
-These variables are used to generate manifest for docker at build time (see generate_manifest function in https://github.com/Azure/sonic-buildimage/blob/master/rules/functions):
+These variables are used to generate manifest for docker at build time (see generate_manifest function in https://github.com/sonic-net/sonic-buildimage/blob/master/rules/functions):
 
 4. For extensions that provide CLI commands a CLI plugin is needed.
 
@@ -124,7 +124,7 @@ Modify files/build_templates/packages.json.j2 to include new package. Example fo
 ### Building SONiC image with 3rd party application
 
 To build SONiC image with 3rd party application pre-installed use SONIC_PACKAGES target group.
-See https://github.com/Azure/sonic-buildimage/blob/master/rules/sonic-packages.mk.
+See https://github.com/sonic-net/sonic-buildimage/blob/master/rules/sonic-packages.mk.
 
 Create a file under rules/ called rules/cpu-report.mk with the following content:
 ```makefile
