@@ -419,7 +419,7 @@ Example data:
 
 *Temporary route*:
 
-A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well because the switch is till able to forward traffic matching that prefix.
+A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well as the actual ```nexthop``` field to ```APPL_STATE_DB```. A *temporary* route is kept in the ```m_toSync``` queue to be later on reprogrammed when sufficient resources are available for full next hop group creation.
 
 <!-- omit in toc -->
 ##### Figure 3. RouteOrch Route Set Flow
@@ -449,34 +449,44 @@ sequenceDiagram
   RouteOrch ->> RouteOrch: doTask()
 
   loop For each entry in m_toSync
-    RouteOrch ->> RouteBulker: RouteBulker.create_entry() / RouteBulker.set_entry_attribute()
-    activate RouteBulker
-    RouteBulker -->> RouteOrch: <br>
-    deactivate RouteBulker
+    alt NHG exist or can be added
+      RouteOrch ->> RouteBulker: RouteBulker.create_entry() / RouteBulker.set_entry_attribute()
+      activate RouteBulker
+      RouteBulker -->> RouteOrch: <br>
+      deactivate RouteBulker
+    else NH can't be added
+      Note right of RouteOrch: 1 NH is selected and addRoute()<br>is called with temporary NH
+      RouteOrch ->> RouteBulker: RouteBulker.create_entry() / RouteBulker.set_entry_attribute()
+      activate RouteBulker
+      RouteBulker -->> RouteOrch: <br>
+      deactivate RouteBulker
+    end
   end
 
   Note left of RouteOrch: On any pre-condition failed<br>RouteOrch is retrying to program <br>the route on next iteration<br>In this case no response is written<br>
 
-  alt New route
-    RouteOrch ->> RouteBulker: RouteBulker.flush()
-    activate RouteBulker
-    RouteBulker ->> ASIC_DB: sai_route_api->create_route_entries()
-    activate ASIC_DB
-    ASIC_DB ->> SYNCD: sai_route_api->create_route_entries()
-    activate SYNCD
-    SYNCD -->> ASIC_DB: sai_status_t *object_statuses
-    deactivate SYNCD
-    ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
-    deactivate ASIC_DB
-  else Existing route
-    RouteBulker ->> ASIC_DB: sai_route_api->set_route_entries_attribute()
-    activate ASIC_DB
-    ASIC_DB ->> SYNCD: sai_route_api->set_route_entries_attribute()
-    activate SYNCD
-    SYNCD -->> ASIC_DB: sai_status_t *object_statuses
-    deactivate SYNCD
-    ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
-    deactivate ASIC_DB
+  loop For each route
+    alt New route
+      RouteOrch ->> RouteBulker: RouteBulker.flush()
+      activate RouteBulker
+      RouteBulker ->> ASIC_DB: sai_route_api->create_route_entries()
+      activate ASIC_DB
+      ASIC_DB ->> SYNCD: sai_route_api->create_route_entries()
+      activate SYNCD
+      SYNCD -->> ASIC_DB: sai_status_t *object_statuses
+      deactivate SYNCD
+      ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
+      deactivate ASIC_DB
+    else Existing route
+      RouteBulker ->> ASIC_DB: sai_route_api->set_route_entries_attribute()
+      activate ASIC_DB
+      ASIC_DB ->> SYNCD: sai_route_api->set_route_entries_attribute()
+      activate SYNCD
+      SYNCD -->> ASIC_DB: sai_status_t *object_statuses
+      deactivate SYNCD
+      ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
+      deactivate ASIC_DB
+    end
   end
 
   RouteBulker -->> RouteOrch: <br>
@@ -491,6 +501,7 @@ sequenceDiagram
       activate APPL_STATE_DB
       APPL_STATE_DB -->> ResponsePublisher: <br>
       deactivate APPL_STATE_DB
+      Note right of RouteOrch: Publish actual FVs <br>(in case of temporary route only 1 NH is added)
       ResponsePublisher -->> RouteOrch: <br>
       deactivate ResponsePublisher
   end
@@ -590,7 +601,7 @@ sequenceDiagram
 
 A new class *RouteFeedbackChannel* in fpmsyncd is introduced to manage orchagent responses and send the corresponding FPM message to zebra.
 
-Zebra requires to send RTM_NEWROUTE back with RTM_F_OFFLOAD flag set once route is programmed in HW.
+Zebra requires to send RTM_NEWROUTE back with RTM_F_OFFLOAD flag set once route is programmed in HW. FpmSyncd create an RTM_NEWROUTE message based off VRF, prefix and nexthops that where actually installed which are part of publish notification.
 
 <!-- omit in toc -->
 ##### Figure 5. FPMsyncd flow
@@ -696,7 +707,6 @@ No new SAI API or changes to SAI design and behaviour needed for this functional
 #### 9.1. Warm Reboot
 
 Warm reboot process remains unchanged. With BGP Graceful Restart, peers are keeping advertised routes in the FIB while the switch restarts.
-
 
 #### 9.2. Fast Reboot
 
