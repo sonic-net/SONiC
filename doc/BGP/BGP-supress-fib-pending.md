@@ -591,6 +591,8 @@ sequenceDiagram
 
 A new class *RouteFeedbackChannel* in fpmsyncd is introduced to manage orchagent responses and send the corresponding FPM message to zebra.
 
+Zebra requires to send RTM_NEWROUTE back with RTM_F_OFFLOAD flag set once route is programmed in HW. RTM_NEWROUTE message must contain same route attributes as the original message. Since we do not store anywhere protocol, scope, metric and other route kernel attributes, *RouteFeedbackChannel* will cache the original message in a *multimap* where they are associated with APPL_DB key.
+
 <!-- omit in toc -->
 ##### Figure 5. FPMsyncd flow
 
