@@ -102,7 +102,6 @@ High level requirements:
 
 - Provide an end to end ASIC hardware to BGP route programming feedback mechanism
 - BGP must not advertise routes which aren't yet offloaded if this feature is enabled
-- Connected and statically configured routes do not respect offload status
 - MPLS, VNET routes are out of scope of this document
 - Both BGP suppression as well as feedback channel are optional and by disabled default
 - The above configuration can be applied only at startup and cannot be changed while system is running
@@ -710,7 +709,6 @@ Considering this, the introduction of a slight delay in advertisement could lead
 
 ### 10. Restrictions/Limitations
 
-- Connected and statically configured routes do not respect offload status
 - MPLS, VNET routes are out of scope of this document
 
 ### 11. Testing Requirements/Design
