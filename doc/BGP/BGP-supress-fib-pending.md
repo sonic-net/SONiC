@@ -312,84 +312,14 @@ router bgp {{ DEVICE_METADATA['localhost']['bgp_asn'] }}
 {% endif %}
 ```
 
-Zebra shall be started with an option ```--asic-offload notify_on_offload```. This option will make zebra wait for ```RTM_F_OFFLOAD``` before notifying about installation status to bgpd. The template *supervisor.conf.j2* file is updated:
+Zebra shall be started with an option ```--asic-offload=notify_on_offload```. This option will make zebra wait for ```RTM_F_OFFLOAD``` before notifying about installation status to bgpd. The template *supervisor.conf.j2* file is updated:
 
 ```jinja2
 [program:zebra]
 {% if DEVICE_METADATA['localhost']['bgp-suppress-fib-pending'] == 'enabled' %}
-{% set zebra_extra_arguments = "--asic-offload notify_on_offload" }
+{% set zebra_extra_arguments = "--asic-offload=notify_on_offload" }
 {% endif %}
 command=/usr/lib/frr/zebra -A 127.0.0.1 -s 90000000 -M dplane_fpm_nl {{ zebra_extra_arguments }}
-```
-
-The startup flow of BGP container is shown below:
-
-<!-- omit in toc -->
-##### Figure 3. BGP Configuration Flow Diagram
-
-```mermaid
-%%{
-  init: {
-    "theme": "forest",
-    "sequence": {
-      "rightAngles": true,
-      "showSequenceNumbers": true
-    }
-  }
-}%%
-sequenceDiagram
-    participant CONFIG_DB
-    participant A as BGP /usr/bin/docker_init.sh
-    participant S as sonic-cfggen
-    participant T as bgpd.main.j2
-    participant TS as supervisor.conf.j2
-    participant TZ as zebra.conf.j2
-    participant E as /etc/frr/bgpd.conf
-    participant ES as supervisord.conf
-    participant EZ as /etc/frr/zebra.conf
-
-    activate A
-
-    A -->> TS: /usr/share/sonic/templates/supervisor/supervisor.conf.j2
-    activate TS
-
-    CONFIG_DB -->> TS: DEVICE_METADATA|localhost
-
-    alt "bgp-suppress-fib-pending" == "enabled"
-        TS --> ES: configure zebra startup parameters
-    end
-
-
-    deactivate TS
-
-    A -->> S: /usr/share/sonic/templates/bgpd/gen_bgpd.conf.j2
-
-    activate S
-
-    S -->> T: <br>
-
-    activate T
-
-    CONFIG_DB -->> T: DEVICE_METADATA|localhost
-
-    alt "bgp-suppress-fib-pending" == "enabled"
-        T --> E: configure "bgp suppress-fib-pending" for router
-    end
-
-
-    deactivate T
-
-    A -->> TZ: /usr/share/sonic/templates/supervisor/supervisor.conf.j2
-
-    activate TZ
-
-    deactivate TZ
-
-    deactivate S
-
-    A -->> A: start supervisord
-
-    deactivate A
 ```
 
 Before the route is offloaded ```show ip route``` shows routes as queued:
@@ -493,7 +423,7 @@ Example data:
 A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well because the switch is till able to forward traffic matching that prefix.
 
 <!-- omit in toc -->
-##### Figure 4. RouteOrch Route Set Flow
+##### Figure 3. RouteOrch Route Set Flow
 
 ```mermaid
 %%{
@@ -576,7 +506,7 @@ sequenceDiagram
 #### RouteOrch Route delete Flow
 
 <!-- omit in toc -->
-##### Figure 5. RouteOrch Route Delete Flow
+##### Figure 4. RouteOrch Route Delete Flow
 
 Similar processing happens on ```DEL``` operation for a prefix from ```ROUTE_TABLE```. The removed prefixes are filled in ```RouteBulker``` which are then flushed forming a bulk remove API call to SAIRedis. ```RouteOrch::removeRoutePost()``` then collects the object statuses and if the status is not SAI_STATUS_SUCCESS orchagent ```abort()```s, otherwise it should publish the result via ```ResponsePublisher::publish()``` leaving ```intent_attrs``` vector empty which will remove the corresponding state key from ```APPL_STATE_DB```.
 
@@ -662,7 +592,7 @@ sequenceDiagram
 A new class *RouteFeedbackChannel* in fpmsyncd is introduced to manage orchagent responses and send the corresponding FPM message to zebra.
 
 <!-- omit in toc -->
-##### Figure 6. FPMsyncd flow
+##### Figure 5. FPMsyncd flow
 
 ```mermaid
 %%{
@@ -734,6 +664,8 @@ On the other side, ```fpmsyncd``` does not wait for each individual route status
 
 The following schema represents communication methods between components:
 
+<!-- omit in toc -->
+##### Figure 6. zebra/orchagent feedback channel
 ```mermaid
 %%{
   init: {
@@ -821,7 +753,7 @@ Code coverage is satisfied by UT and the E2E flow is not possible to test with c
 
 #### 11.3. System Test cases
 
-In order to test this feature end to end it is required to simulate a delay in ASIC route programming. The proposed test is based on T0 topology:
+In order to test this feature end to end it is required to simulate a delay in ASIC route programming. The proposed test:
 
 1. Enable ```bgp-suppress-fib-pending```
 2. Stop syncd process to simulate a delay: ```kill --SIGSTOP $(pidof syncd)```
