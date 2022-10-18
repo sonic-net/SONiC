@@ -590,7 +590,7 @@ sequenceDiagram
 
 A new class *RouteFeedbackChannel* in fpmsyncd is introduced to manage orchagent responses and send the corresponding FPM message to zebra.
 
-Zebra requires to send RTM_NEWROUTE back with RTM_F_OFFLOAD flag set once route is programmed in HW. RTM_NEWROUTE message must contain same route attributes as the original message. Since we do not store anywhere protocol, scope, metric and other route kernel attributes, *RouteFeedbackChannel* will cache the original message in a *multimap* where they are associated with APPL_DB key.
+Zebra requires to send RTM_NEWROUTE back with RTM_F_OFFLOAD flag set once route is programmed in HW. In order to reconstruct the same message additional data from ```rtmsg``` struct has to be passed to APPL_DB (tos, scope, etc.).
 
 <!-- omit in toc -->
 ##### Figure 5. FPMsyncd flow
@@ -620,24 +620,21 @@ sequenceDiagram
   APPL_DB ->> RouteSync: <br>
   deactivate APPL_DB
 
-  RouteSync ->> RouteFeedbackChannel: onRouteMsg()
-  activate RouteFeedbackChannel
-  Note right of RouteFeedbackChannel: rtnl_route object is saved <br>into pending routes container<br> of RouteFeedbackChannel
-  RouteFeedbackChannel ->> RouteSync: <br>
-  deactivate RouteFeedbackChannel
-
   deactivate RouteSync
 
-  APPL_STATE_DB ->> RouteFeedbackChannel: ROUTE_TABLE publish event/onRouteResponse()
+  APPL_STATE_DB ->> RouteFeedbackChannel: ROUTE_TABLE publish event
+  activate RouteSync
+  RouteSync ->> RouteFeedbackChannel: onRouteResponse()
   activate RouteFeedbackChannel
   alt Successful SET operation
-    Note right of RouteFeedbackChannel: Pop rtnl_route object <br>and set RTM_F_OFFLOAD flag<br>Send updated rtnl_route object <br>through FPM
+    Note right of RouteFeedbackChannel: Construct RTM_NEWROUTE based of <br>response field value tuples<br>and set RTM_F_OFFLOAD flag<br>
     RouteFeedbackChannel ->> zebra: Send RTM_NEWROUTE
     activate zebra
     zebra ->> RouteFeedbackChannel: <br>
     deactivate zebra
   end
   deactivate RouteFeedbackChannel
+  deactivate RouteSync
 
 ```
 
