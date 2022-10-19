@@ -394,14 +394,16 @@ A snippet of ```ResponsePublisher```'s API that is going to be used is given bel
 void ResponsePublisher::publish(const std::string &table, const std::string &key,
                                 const std::vector<swss::FieldValueTuple> &intent_attrs,
                                 const ReturnCode &status,
+                                const std::vector<swss::FieldValueTuple> &state_attrs,
                                 bool replace = false) override;
 ```
 
 Example usage in ```RouteOrch```:
 
 ```c++
-m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), ReturnCode(saiStatus), true);
+m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), ReturnCode(saiStatus), actualFvs, true);
 ```
+
 
 Example data:
 ```
@@ -601,7 +603,7 @@ sequenceDiagram
 
 A new class *RouteFeedbackChannel* in fpmsyncd is introduced to manage orchagent responses and send the corresponding FPM message to zebra.
 
-Zebra requires to send RTM_NEWROUTE back with RTM_F_OFFLOAD flag set once route is programmed in HW. FpmSyncd create an RTM_NEWROUTE message based off VRF, prefix and nexthops that where actually installed which are part of publish notification.
+Zebra requires to send RTM_NEWROUTE back with RTM_F_OFFLOAD flag set once route is programmed in HW. FpmSyncd create an RTM_NEWROUTE message based off VRF, prefix and nexthops that where actually installed which are part of publish notification. The offload route status is relevant only for BGP received routes. In order to send back RTM_NEWROUTE only for BGP originated routes it is required to encode "proto" (rtmsg->rtm_protocol field) in APPL_DB which will be sent back as part of response, so that if the "proto" is received for non-BGP route the response to zebra isn't sent.
 
 <!-- omit in toc -->
 ##### Figure 5. FPMsyncd flow
@@ -647,6 +649,43 @@ sequenceDiagram
   deactivate RouteFeedbackChannel
   deactivate RouteSync
 
+```
+
+*FpmLink* class has to be extended with new API to send netlink message through FPM socket:
+
+```c++
+ssize_t FpmLink::send(nl_msg* msg)
+```
+
+Example pseudo-code snippet of RTM_NEWROUTE construction:
+
+```c++
+auto route = rtnl_route_alloc();
+
+rtnl_route_set_dst(routeObject, dstAddr);
+rtnl_route_set_protocol(routeObject, proto);
+rtnl_route_set_family(routeObject.get(), ipFamily);
+
+// in SONiC FPM uses vrf if_index instead of table
+rtnl_route_set_table(routeObject.get(), vrfIfIndex);
+
+// Mark route as OFFLOAD
+rtnl_route_set_flags(routeObject.get(), RTM_F_OFFLOAD);
+
+for (const auto& nexthop: nexthops)
+{
+    auto* nlNhop = rtnl_route_nh_alloc();
+    
+    rtnl_route_nh_set_ifindex(nlNhop, nhIfIndex);
+    rtnl_route_nh_set_gateway(nlNhop, nhAddr);
+
+    rtnl_route_add_nexthop(routeObject, nlNhop);
+}
+
+nl_msg* msg;
+rtnl_route_build_add_request(routeObject, NLM_F_CREATE, &msg);
+
+fpm.send(msg);
 ```
 
 fpmsyncd reads *bgp-suppress-fib-pending* flag from CONFIG_DB and completely disables *RouteFeedbackChannel* if the feature is disabled. *4*-*7* are not invoked and the flow remains the same as today.
