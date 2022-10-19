@@ -156,7 +156,7 @@ The netdev port attributes are specified as below in the [copp_cfg.j2](https://g
 ```
 
 
-[Copporch.cpp](https://github.com/Azure/sonic-swss/blob/fb06c32b2e25e6057514e9455e997ff7edcb7340/orchagent/copporch.cpp) will parse the above fields and add the netdev port attributes for the CPU port and invoke the SAI hostif create API to create the netdev port for the new submit_to_ingress interface.
+[Copporch.cpp](https://github.com/sonic-net/sonic-swss/blob/fb06c32b2e25e6057514e9455e997ff7edcb7340/orchagent/copporch.cpp) will parse the above fields and add the netdev port attributes for the CPU port and invoke the SAI hostif create API to create the netdev port for the new submit_to_ingress interface.
 
 P4Runtime will create a socket for the “submit_to_ingress” netdev port and write into this socket for packets marked to send to “submit_to_ingress”. Packets egressing out of the socket end up as incoming packets on the CPU port of the switch. The packets now follow the regular switch pipeline to get forwarded out.
 

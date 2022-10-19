@@ -39,7 +39,7 @@ This document covers:
 - Bring up of fabric ports in a VOQ chassis.
 - Monitoring the fabric ports in forwarding and fabric chips. 
 
-This document builds on top of the VOQ chassis architecture discussed [here](https://github.com/Azure/SONiC/blob/master/doc/voq/architecture.md) and the multi-ASIC architecture discussed [here](https://github.com/Azure/SONiC/blob/2f320430c8199132c686c06b5431ab93a86fb98f/doc/multi_asic/SONiC_multi_asic_hld.md). 
+This document builds on top of the VOQ chassis architecture discussed [here](https://github.com/sonic-net/SONiC/blob/master/doc/voq/architecture.md) and the multi-ASIC architecture discussed [here](https://github.com/sonic-net/SONiC/blob/2f320430c8199132c686c06b5431ab93a86fb98f/doc/multi_asic/SONiC_multi_asic_hld.md). 
 
 # Definitions/Abbreviations
 
