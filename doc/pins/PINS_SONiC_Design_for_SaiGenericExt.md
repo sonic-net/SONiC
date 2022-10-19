@@ -191,6 +191,12 @@ P4Orch today has p4oidmapper frame-work in place, where p4oidmapper maintains da
     m_p4OidMapper->getOID(object_type, object_key, &oid);
 ```
 
+
+Following diagram shows some of the orchs that maintain OID mappings and how OID value of dependent object is retrieved and passed as a field value in SAI API calls.
+
+![](images/PINS_SONiC_Design_for_SaiGenericExt_Cross_Table.png)
+
+
 For use-cases, where P4RT extension table entries may also have dependency on SAI Objects created by SONiC control path outside of PINS control path, two main differences to note. First, in the table definition, cross-reference definition needs to be to a sai_object/sai_fields tuple, instead of a table/field names tuple (Please look at refers_to() annotation for more details in the Appendix example). Second, for dependent object's OID retrieval, dependent object's cache owner needs to be queried. These cache owners span beyond p4oidmapper. Ideally there should be one object owner in the orchagent for a given object-type. However, today in orchagent, multiple orchs may maintain key<->OID mapping cache for the same object-type. Each orch in this case maintains cache only for the objects created by that orch. For such a object type, during cross-dependency resolution, each of the cache owners need to be queried to check existence of a specific object unless all distributed cache consolidated under a single owner. Implementation supporting this use-case to be considered in subsequent phase.
 
 
