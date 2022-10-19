@@ -294,9 +294,12 @@ fpm address 127.0.0.1
 
 Zebra shall be started with an ```-M dplane_fpm_nl``` to use the new plugin.
 
-New FPM plugin shall be patched the same way as old one to pass VRF if_index in ```rtmsg->rtm_table``` instead of table ID in FPM message. [SONiC FRR patch](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-frr/patch/0003-Use-vrf_id-for-vrf-not-tabled_id.patch).
+Some patches that change FPM behavior to the desired SONiC behavior need to be ported to the new plugin:
 
-Since now SONiC will start communicating RTM_NEWROUTE messages back to zebra, similar change has to be made to accept VRF if_index instead of table ID.
+- New FPM plugin shall be patched the same way as old one to pass VRF if_index in ```rtmsg->rtm_table``` instead of table ID in FPM message. [SONiC FRR patch](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-frr/patch/0003-Use-vrf_id-for-vrf-not-tabled_id.patch).Since now SONiC will start communicating RTM_NEWROUTE messages back to zebra, similar change has to be made to accept VRF if_index instead of table ID.
+- [[PATCH] ignore route from default table](https://github.com/yxieca/sonic-buildimage/blob/26c5bf81f0a8b2f5d6809048bb54a872403726c2/src/sonic-frr/patch/0009-ignore-route-from-default-table.patch)
+- [0007-Add-support-of-bgp-l3vni-evpn.patch](https://github.com/sonic-net/sonic-buildimage/blob/a477dbb1751b741ac2762b4328da08b37eb400db/src/sonic-frr/patch/0007-Add-support-of-bgp-l3vni-evpn.patch)
+
 
 #### 7.2. BGP Docker container startup
 
@@ -675,7 +678,7 @@ rtnl_route_set_flags(routeObject.get(), RTM_F_OFFLOAD);
 for (const auto& nexthop: nexthops)
 {
     auto* nlNhop = rtnl_route_nh_alloc();
-    
+
     rtnl_route_nh_set_ifindex(nlNhop, nhIfIndex);
     rtnl_route_nh_set_gateway(nlNhop, nhAddr);
 
