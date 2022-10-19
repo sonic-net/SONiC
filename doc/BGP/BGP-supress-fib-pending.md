@@ -743,16 +743,26 @@ Fast/warm reboot regression test suite needs to be ran and verified no degradati
   2. Call RouteSync::onRouteMsg() with RTM_DELROUTE message containing route 1.1.1.0/24
   3. Call RouteSync::onRouteResponse() with APPL_STATE_DB format with delete operation response
   4. Verify no message is sent to zebra
+- FPMSyncd: test only one nexthop is attached to the route
+  1. Mock FPM interface
+  2. Call RouteSync::onRouteMsg() with RTM_NEWROUTE message containing route 1.1.1.0/24 nexthop 2.2.2.2, 3.3.3.3
+  3. Call RouteSync::onRouteResponse() with APPL_STATE_DB containing only one nexthop 2.2.2.2 format
+  4. Verify a correct FPM message is being sent to zebra through FPM interface mock with one nexthop
+  5. Verify RTM_F_OFFLOAD set in route message sent  to zebra
 
 - RouteOrch: program ASIC route
   1. Create FVS and call RouteOrch::doTask()
   2. Verify route is created in SAI
   3. Verify the content of APPL_STATE_DB
-
 - RouteOrch: delete ASIC route
   1. Create delete entry and call RouteOrch::doTask()
   2. Verify route is delete in SAI
   3. Verify the content of APPL_STATE_DB
+- RouteOrch: program ASIC route with temporary nexthop
+  1. Mock SAI_SWITCH_ATTR_NUMBER_OF_ECMP_GROUPS to 0
+  2. Create FVS and call RouteOrch::doTask()
+  3. Verify route is created in SAI with 1 nexthop
+  4. Verify the content of APPL_STATE_DB contains only 1 nexthop
 
 #### 11.2. VS Test cases
 
