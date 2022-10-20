@@ -11,6 +11,7 @@ Table of Contents
     - [Target Deployment Use Cases](#Target-Deployment-Use-Cases)
     - [Functional Description](#Functional-Description)
       - [VRF route leak support](#VRF-route-leak-support)
+      - [VRF-Lite Support](#vrf-lite-support)
   - [Dependencies](#Dependencies)
   - [SONiC system diagram for VRF](#SONiC-system-diagram-for-VRF)
   - [The schema changes](#The-schema-changes)
@@ -70,6 +71,7 @@ Table of Contents
 | v1.0    | 05/26/2019 | Shine Chen, Jeffrey Zeng, Tyler Li, Ryan Guo | After review, move proposal-2 in v0.6 to Appendix
 | v1.1    | 06/04/2019 | Preetham Singh, Nikhil Kelapure, Utpal Kant Pintoo | Update on VRF Leak feature support |
 | v1.2    | 07/21/2019 | Preetham Singh, Shine Chen | Update on loopback device/frr template for vrf and static route support |
+| v1.3 | 10/21/2022 | Muhammad Haris Azaz Khan, Khubaib Ahmad Qureshy| Update on VRF-Lite feature support |
 
 ## Abbreviations
 
@@ -80,6 +82,7 @@ Table of Contents
 | Quagga   | Open IP routing protocol suite                                                                                                                  |
 | RIB      | Routing Information Base                                                                                                                        |
 | PBR      | Policy based routing         |
+| MPLS     | Multiprotocol Labelling Switching |
 
 ## VRF feature Requirement
 
@@ -155,6 +158,9 @@ Prefix lists within route maps are used to match route prefixes in source VRF an
 If route map action is permit, these routes will be installed into destination VRF.
 
 Leaked routes will be automatically deleted when corresponding routes are deleted in source VRF.
+
+#### VRF-Lite Support
+The VRF in the provider network make use of MPLS for forwarding the packets towards destination based on labels. MPLS is usually not configured in the customer network. VRF-Lite, a version of VRF without MPLS is used in the customer network. We have provided a set of cli commands for the VRF-Lite as well.
 
 ## Dependencies
 
@@ -706,7 +712,7 @@ VRF configuration can be done via SONiC Click CLIs framework In this release, ne
 
 ```bash
 //create a VRF:
-$ config vrf add <vrf_name>
+$ config vrf add <vrf_name> [-l]
 
 //remove a VRF
 $ config vrf del <vrf_name>
