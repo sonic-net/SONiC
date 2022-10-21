@@ -94,7 +94,7 @@ FRR supports this through a feature called *BGP suppress FIB pending*. [FRR docu
 
 BGP will queue routes which aren't installed in the FIB. To make zebra install routes in FIB an RTM_NEWROUTE message with *RTM_F_OFFLOAD* flag set must be sent by SONiC to zebra through FPM socket.
 
-**NOTE**: This feature is implemented as part of new *dplane_fpm_nl* zebra plugin. SONiC is still using old *fpm* plugin which isn't developed anymore and thus SONiC must migrate to the new implementation as part of this change.
+**NOTE**: This feature is implemented as part of new *dplane_fpm_nl* zebra plugin in FRR 8.4 and a backport patch must be created for current FRR 8.2 SONiC is using. SONiC is still using old *fpm* plugin which isn't developed anymore and thus SONiC must migrate to the new implementation as part of this change.
 
 ### 4. Requirements
 
@@ -102,9 +102,13 @@ High level requirements:
 
 - Provide an end to end ASIC hardware to BGP route programming feedback mechanism
 - BGP must not advertise routes which aren't yet offloaded if this feature is enabled
-- MPLS, VNET routes are out of scope of this document
 - Both BGP suppression as well as feedback channel are optional and by disabled default
 - The above configuration can be applied only at startup and cannot be changed while system is running
+
+Restrictions/Limitations:
+
+- MPLS, VNET routes are out of scope of this document
+- Directly connected and static routes are announced by BGP regardless of their offload status
 
 ### 5. Architecture Design
 
@@ -426,6 +430,10 @@ Example data:
 
 A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well as the actual ```nexthop``` field to ```APPL_STATE_DB```. A *temporary* route is kept in the ```m_toSync``` queue to be later on reprogrammed when sufficient resources are available for full next hop group creation.
 
+*Full mask prefix subnet routes*:
+
+When orchagent receives a /32 IPv4 or /128 IPv6 prefix which is an IP of a local interface the route programming is skipped as we already have this route programmed with IP2ME action as part of interface configuration. In this case a successful route programming response status must be sent to notify *fpmsyncd* that this prefix is offloaded.
+
 <!-- omit in toc -->
 ##### Figure 3. RouteOrch Route Set Flow
 
@@ -606,7 +614,21 @@ sequenceDiagram
 
 A new class *RouteFeedbackChannel* in fpmsyncd is introduced to manage orchagent responses and send the corresponding FPM message to zebra.
 
-Zebra requires to send RTM_NEWROUTE back with RTM_F_OFFLOAD flag set once route is programmed in HW. FpmSyncd create an RTM_NEWROUTE message based off VRF, prefix and nexthops that where actually installed which are part of publish notification. The offload route status is relevant only for BGP received routes. In order to send back RTM_NEWROUTE only for BGP originated routes it is required to encode "proto" (rtmsg->rtm_protocol field) in APPL_DB which will be sent back as part of response, so that if the "proto" is received for non-BGP route the response to zebra isn't sent.
+Zebra requires to send RTM_NEWROUTE back with RTM_F_OFFLOAD flag set once route is programmed in HW. FpmSyncd create an RTM_NEWROUTE message based off VRF, prefix and nexthops that where actually installed which are part of publish notification.
+
+The offload route status is relevant only for BGP received routes. In order to send back RTM_NEWROUTE it is required to encode "protocol" (rtmsg->rtm_protocol field) in APPL_DB which will be sent back as part of response:
+
+```
+127.0.0.1:6379> hgetall "ROUTE_TABLE:193.5.96.0/25"
+1) "nexthop"
+2) "10.0.0.1,10.0.0.5,10.0.0.9,10.0.0.13"
+3) "ifname"
+4) "PortChannel102,PortChannel105,PortChannel108,PortChannel1011"
+5) "protocol"
+6) "186"
+```
+
+The protocol number is then set in RTM_NEWROUTE when preparing message to be sent to zebra.
 
 <!-- omit in toc -->
 ##### Figure 5. FPMsyncd flow
@@ -666,7 +688,7 @@ Example pseudo-code snippet of RTM_NEWROUTE construction:
 auto route = rtnl_route_alloc();
 
 rtnl_route_set_dst(routeObject, dstAddr);
-rtnl_route_set_protocol(routeObject, proto);
+rtnl_route_set_protocol(routeObject, protocol);
 rtnl_route_set_family(routeObject.get(), ipFamily);
 
 // in SONiC FPM uses vrf if_index instead of table
@@ -697,7 +719,7 @@ fpmsyncd reads *bgp-suppress-fib-pending* flag from CONFIG_DB and completely dis
 
 Route programming performance is one of crucial characteristics of a network switch. It is desired to program a lot of route entries as quick as possible. SONiC has optimized route programming pipeline levaraging Redis Pipeline in ```ProducerStateTable``` as well as SAIRedis bulk APIs. Redis pipelining is a technique for improving performance by issuing multiple commands at once without waiting for the response to each individual command. Such an optimization gives around ~4-5x times faster processing for ```Publisher/Subscriber``` pattern using a simple python script as a test.
 
-The following table shows the results for publishing 10k messages with and without Redis Pipeline proving the need for pipeline support for ```ResponseChannel```:
+The following table shows the results for publishing 1k messages with and without Redis Pipeline proving the need for pipeline support for ```ResponseChannel```:
 
 <!-- omit in toc -->
 ##### 7.5.1. Table 1. Publishing 1k ROUTE_TABLE responses
@@ -735,7 +757,13 @@ flowchart LR
 A ```ResponsePublisher``` must have a constructor that accepts a ```RedisPipeline``` and a flag ```buffered``` to make it use the pipelining. The constructor is similar to one in use with ```ProducerStateTable```:
 
 ```c++
-ResponsePublisher::ResponsePublisher(RedisPipeline *pipeline, bool buffered = false);
+ResponsePublisher::ResponsePublisher(bool buffered = false);
+```
+
+And an API to set buffered mode:
+
+```c++
+void ResponsePublisher::setBuffered(bool buffered);
 ```
 
 The ```OrchDaemon``` has to flush the ```RedisPipeline``` in ```OrchDaemon::flush``` when there are no pending tasks to perform.
@@ -760,6 +788,7 @@ Considering this, the introduction of a slight delay in advertisement could lead
 ### 10. Restrictions/Limitations
 
 - MPLS, VNET routes are out of scope of this document
+- Directly connected and static routes are announced by BGP regardless of their offload status
 
 ### 11. Testing Requirements/Design
 
