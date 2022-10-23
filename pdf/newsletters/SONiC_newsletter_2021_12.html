@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3pro.css">
+<link href='https://fonts.googleapis.com/css?family=Roboto Slab' rel='stylesheet'>
+<link href='https://fonts.googleapis.com/css?family=Open Sans' rel='stylesheet'>
+<link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet'>
+<style>
+      .button {
+      background-color: white;
+      color: red;
+      border: 2px solid white;
+      border-radius: 7px;
+      font-size: calc(10px + 0.5vw)
+      }
+      .button:hover {
+      background-color: #0366d6;
+      /* Green */
+      color: white;
+      border-radius: 5px;
+      border: 2px solid #0366d6;
+      }
+      .button:active {
+      background-color: #3e8e41;
+      box-shadow: 0 5px #666;
+      transform: translateY(4px);
+      }
+      .buttonh {
+      background-color: transparent;
+      color: blue;
+      border: 0px solid #0366d6;
+      border-radius: 7px;
+      font-size: calc(10px + 0.5vw)
+      }
+      .buttonh:hover {
+      background-color: #0366d6;
+      color: #ffffff;
+      }
+      .buttonh:active {
+      background-color: #3e8e41;
+      box-shadow: 0 5px #666;
+      transform: translateY(4px);
+      }
+      td {
+      border: 0.1em;
+      border-style: solid;
+      border-color: #0366d6;
+      padding-left: 1em
+      ;
+      }
+}
+   </style>
+   <body style="background-color: rgb(82, 86, 89);" >
+      <table style="width: 80%; background-color: #ffffff; font-family: 'Roboto'; font-size: calc(10px + 0.5vw); padding-top: 1%; padding-bottom: 1%;padding-right: 3%; padding-left: 3%; border-color: #ff0000; border: 2px; " align="center">
+         <tbody>
+<tr>
+<td style="background-color: #0366d6; height: 0.5em;" colspan="3" >&nbsp;&nbsp;&nbsp; 
+</tr>
+<tr>
+               <td style="width:30%; " align="center"><img src="https://azure.github.io/SONiC/pdf/newsletters/newsletter_images/sonic-logo_40percentage.png" style=" width: auto;  height: auto; min-width: 60%;  max-width: 80%"></td>
+               <td style="  vertical-align: center; padding-left: 2%; text-align: center;  color: rgb(10,79,159);  font-weight: bold; font-family:'Roboto Slab';  font-size: 2.1em;   " colspan="2">
+                  SONiC Newsletter - December 2021
+               </td>
+            </tr>
+<tr>
+<td style="width: 30%; text-align: center; padding-left: 0.5em; background-color: #0366d6; height: 45px; align: center;">
+                  <span style=" color: #ffffff; letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw);">RECENT EVENTS</span></td>
+<td style="width: 70%; background-color: #0366d6; padding-left: 0.5em; height: 45px;" colspan="2">
+                  <span style="color: #ffffff;letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw); ">SONiC COMMUNITY NEWS</span>
+               </td>
+</tr>
+<tr>
+<td style="background-color: #87ceeb; vertical-align: top"; rowspan="3"; ><center>
+	
+<p style=" color: red; font-size: calc(11px + 0.4vw); padding-top: 0.5em;"> 
+<strong> OCP Global Summit - Nov 9,10 - 2021 </strong>
+</p>
+<p>
+	
+							<a href="https://2021ocpglobal.fnvirtual.app/about-event/">
+								<button class="button"; style=" font-size: calc(10px + 0.3vw);">
+                                    About the Event
+                                </button>
+                            </a>
+&nbsp;&nbsp							
+							<a style=" font-size: calc(10px + 0.3vw);" href="https://2021ocpglobal.fnvirtual.app/">
+								<button class="button"; style=" font-size: calc(10px + 0.3vw);">
+                                    Full Event Schedule
+                                </button>
+                            </a>
+							</p>
+							
+<p style=" color: black; font-size: calc(10px + 0.3vw); padding-top: 1.0em; ">
+                            <strong>SONiC 2021 Update and Beyond - Video</strong>
+							<a href="https://www.youtube.com/watch?v=t54Tqf13UFs"><img style="display:block;" width="80%" height="80%" src="https://raw.githubusercontent.com/kannankvs/kvskSONiC/master/pdf/newsletters/newsletter_images/2021_virtual_summit.jpg" />
+								<br>
+                            </a>
+                        </p>	
+<p style=" color: black; font-size: calc(10px + 0.3vw); ">
+                            <strong>Large Scale Deployments Made Easy - Video</strong>
+							<a href="https://www.youtube.com/watch?v=ES7sRlJhlHE"><img style="display:block;" width="80%" height="80%" src="https://raw.githubusercontent.com/kannankvs/kvskSONiC/master/pdf/newsletters/newsletter_images/SONiC%20Automation.jpg" />
+								<br>
+                            </a>
+                        </p>	
+<p style=" color: black; font-size: calc(10px + 0.3vw); ">
+                            <strong>Deploying SONiC in the Enterprise - Video</strong>
+							<a href="https://www.youtube.com/watch?v=3-1pbERn8o0"><img style="display:block;" width="80%" height="80%" src="https://raw.githubusercontent.com/kannankvs/kvskSONiC/master/pdf/newsletters/newsletter_images/Target.jpg" />
+								<br>
+                            </a>
+                        </p>						
+					
+</td>
+<td  colspan="2">
+<p style="padding-left: 0.5em; padding-bottom: 0.2em; vertical-align: top; line-height: 0.5m font-weight: bold; font-size: 15px;">It has been a wonderful year 2021 for the SONiC community with more and more features and contributions ! Appreciate all the community members for the excellent achievement for making two releases in the year amidst the abnormal routines. <br>
+<p style="padding-left: 0.5em; padding-bottom: 0.2em; vertical-align: top; line-height: 0.5m font-weight: bold; font-size: 15px;">50+ new features have been added with increase in number of Pull Requests from 650+ active contributors in the year 2021. 10+ new platforms have been added to the SONiC portfolio & 13 new partners have joined hands with the SONiC community. Number of test cases have doubled in sonic-mgmt repo with increased stability and predictablity in test outcomes.Community members have also participated in various webinars and demonstrated the SONiC capabilities to the world.  </p>
+<p style="padding-left: 0.5em; padding-bottom: 0.2em; vertical-align: top; line-height: 0.5m font-weight: bold; font-size: 15px;">3 new workgroups have been created for focused feature specific community discussions and contributions ! </p>
+<p style="padding-left: 0.5em; padding-bottom: 0.2em; vertical-align: top; line-height: 0.5m font-weight: bold; font-size: 15px;">Wishing all our community members a wonderful New year 2022 & looking forward for another successful year ahead !
+<p style="padding-left: 0.5em; vertical-align: top; "><strong>More Community News:</strong>
+<p style="padding-left: 0.5em; vertical-align: top; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://azure.microsoft.com/en-us/blog/sonic-opens-more-opportunities-for-network-innovation/">SONiC opens more opportunities for network innovation</a></span>
+<p style="padding-left: 0.5em; vertical-align: top; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://finance.yahoo.com/news/broadcom-strengthens-commitment-open-compute-172800360.html">Broadcom Strengthens its Commitment to Open Compute Project Showcasing Leading-Edge and Wide Range of Initiatives at this Year Global Summit</a></span>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 0.5m font-weight: bold; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://cloudswit.ch/blogs/asternos/">SONiC + Asterfusion An Article let you know about Our enterprise SONiC distribution AsterNOS</a></span>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 0.5m font-weight: bold; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://www.vanillaplus.com/2021/12/14/66072-open-networking-agility-and-control-for-a-new-era-of-connectivity/">Open networking agility and control for a new era of connectivity</a></span>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 0.5m font-weight: bold; "><strong>More Videos from OCP Summit:</strong>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 1.5m font-weight: bold; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://youtu.be/s9ZhkcujyWs">Migration to SONiC from 3-tiered legacy network</a></span>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 1.5m font-weight: bold; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://youtu.be/qbAxohubyBk">An Auto generated test framework for improving SAI interoperability</a></span>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 1.5m font-weight: bold; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://youtu.be/Yq5_g5H7vbg">FBOSS Experience of Migrating Massive Scale Networking Systems to SAI</a></span>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 0.5m font-weight: bold; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://youtu.be/Wji_PVEbRUA">SAI Challenger The SONiC-Based Framework for SAI Testing and Integration</a></span>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 1.5m font-weight: bold; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://youtu.be/F_Q8aw2fUSI">SAI pipeline enhancements with Pre-Ingress ACL and MyMAC Station Stages</a></span>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 1.5m font-weight: bold; font-size: 14.5px;"><span style="color: #0000ff;"><a href="https://youtu.be/aazPBL9JfnA">SAI For DPU</a></span>
+
+
+
+
+</td>
+</tr>
+<tr>
+<td style="background-color: #0366d6; padding-left: 0.5em; height: 45px;" colspan="2">
+<span style="color: #ffffff;letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw); "> SONiC RELEASE UPDATES </span></td>
+</tr>
+<p><br></p>
+</td>
+<td  colspan="2"><p style="padding-left: 0.5em; vertical-align: top; line-height: 81.5em">
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 1.5em font-weight: bold; font-size: 14.5px; "><strong>SONiC 202111 Release:</strong><br>Thanks to all the contributors in making one more successful release 202111. A branch has been created with the completed features given below.<br>ACL orch redesign, App extension CLI generation tool, Automatic tech support & core dump creation, Better route scalability with multiple next-hops, Class-Based Forwarding, CLI level authorization, DHCP support IPv6, Dynamic Policy Based Hashing, Dynamic port breakout, EXP to TC QoS maps, EVPN VXLAN for platforms using P2MP tunnel, Handle port config change on fly, Host interface trap counter, L2 functional & performance enhancements, Debian11, Debug dump utility, Overlay ECMP, PDK - Platform Development Environment, PINS (P4 Integrated Network Stack), Reclaim reserved buffer for unused ports, Routed sub-interface naming convention, SONiC for MPLS Dataplane, SRv6 support (Cntd), Support for passing IS-IS, LDP & MicroBFD packets to CPU, Upgrade SONiC init flow & VXLAN src port configuration. The list of features and the related pull requests are tracked in the <span style="color: #0000ff;"><a href="https://github.com/sonic-net/SONiC/wiki/Release-Progress-Tracking-202111">Release Tracking</a></span> page. 
+</p>
+<p style="padding-left: 0.5em; vertical-align: top; line-height: 1.5em font-weight: bold; font-size: 14.5px; "><strong>SONiC 202205 Release:</strong><br><span style="color: #0000ff;"><a href="https://github.com/sonic-net/SONiC/wiki/Sonic-Roadmap-Planning">Roadmap</a></span> page contains the list of features that are planned for the 202205 release. Welcoming more and more contributors for design meetings and for reviewing the design and code for yet another sucessful release !
+</p>
+</td>
+</p>
+  <p>&nbsp;&nbsp
+ </p>
+</tr>
+<tr>
+<td style="width: 32%; text-align: center; padding-left: 0.5em; background-color: #0366d6; height: 45px; align: center;">
+<span style="color: #ffffff;letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw); ">NEW PLATFORMS</span></td>
+<td style="background-color: #0366d6; vertical-align: c; padding-left: 0.5em; height: 45px;" colspan="2">
+ <span style="color: #ffffff;letter-spacing: 0.15em; font-weight: bold; font-size: calc(11px + 0.6vw); ">SONiC DESIGN DISCUSSIONS</span>
+</td>
+</tr>
+<p >
+<tr style="padding: 0.2em;">
+<td  style="background-color: #3aa6dd; text-align: left; vertical-align: top; color: black; line-height: 2em;" rowspan="20" >
+                  <strong>
+                     <ul style="list-style-type:square;">
+                        <li>Alpha networks	SNJ60D0-320F</li>
+						<li>Mellanox		SN2201</li>
+						<li>Accton			AS4630-54NPE</li>
+						<li>Cisco			- 8000</li>	
+						<li>Dell 			S5212F</li> 
+						<li>Dell 			S5224F</li> 
+						<li>Dell 			N3248PXE</li> 
+						<li>Dell 			N3248TE</li>						
+                     </ul>
+                  </strong>
+               </td>
+</p>
+<tr style="padding: 0.2em;">
+               <td >13 July</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/xeai8vThgRg/m/M8iuhAmPBAAJ">
+                     SONiC 202111 Roadmap Discussion </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >20 July</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://github.com/sonic-net/SONiC/pull/787">
+                     DHCPv6 Relay agent </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >27 July</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/oyZdbxPWfm4/m/35arscM1AgAJ">
+                     SONiC 202111 feature Discussion </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >03 Aug</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://github.com/sonic-net/SONiC/pull/796">
+                     Class Based Forwarding HLD </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >10 Aug</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://github.com/sonic-net/SONiC/blob/bf657839e521fb71e407df18e566a3e09c7e6958/doc/sfp-refactor/sfp-refactor.md">
+                     SONiC_SFP_refactoring HLD </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >17 Aug</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://github.com/pins/SONiC/blob/pins-hld/doc/pins/pins_hld.md">
+                     PINS HLD </a>
+                  </p>
+               </td>
+            </tr>	
+<tr style="padding: 0.2em;">
+               <td >24 Aug</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://github.com/sonic-net/SONiC/pull/837">
+                     SAG - Static Anycast Gateway </a>
+                  </p>
+               </td>
+            </tr>	
+<tr style="padding: 0.2em;">
+               <td >31 Aug</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://github.com/sonic-net/SONiC/pull/838">
+                     Show Running Command Enhancement </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >07 Sep</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/4iTkG4p9JLk/m/Gi6ElHlfBAAJ">
+                     Handle port config change on fly in xcvrd & Reclaim reserved buffer for unused ports </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >14 Sep</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://github.com/sonic-net/SONiC/pull/861">
+                     ECMP Overlay BFD support </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >21 Sep</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/DRQvfJumvBU/m/zZFrdrCwAgAJ">
+                     SONiC TACACS per command authorization and accounting & MPLS EXP to TC maps </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >28 Sep</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/xh-AVOv_43o/m/P1KTX3HzBwAJ">
+                     Host Interface counters & Guidelines for reference proprietary code </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >05 Oct</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/0o8gLL4FsFE/m/3_OxYGG8AwAJ">
+                     CMIS Diagnostics & System Ready Enhancements </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >12 Oct</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/iRPEOQUShBo/m/ayJWmkSmDwAJ">
+                     NVGRE & Dynamic Policy Based Hashing </a>
+                  </p>
+               </td>
+            </tr>	
+<tr style="padding: 0.2em;">
+               <td >19 Oct</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/0o8gLL4FsFE/m/y2rK_kTKBAAJ">
+                     202111 Release Tracking </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >26 Oct</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/P93_-iH5rYw/m/f9RJFtFABQAJ">
+                     202111 Release Tracking </a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >02 Nov</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/TiEJA0VZ7Gk/m/QfpGWiOIAQAJ">
+                     	The SONiC-Based Framework for SAI Testing and Integration </a>
+                  </p>
+               </td>
+            </tr>			
+<tr style="padding: 0.2em;">
+               <td >16 Nov</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/VRG84iUGdks/m/Dk21XXTeAQAJ">
+                     	202111 Release Tracking </a>
+                  </p>
+               </td>
+			   </tr>		   
+<tr style="padding: 0.2em;">			   
+               <td >29 Nov</td>
+               <td >
+                  <p style="text-align: left; line-height: 1em;">
+                     <a href="https://groups.google.com/g/sonicproject/c/RE8urq5qTps/m/FU7R1MIgBwAJ">
+                     	202111 Release Tracking </a>
+                  </p>
+               </td>
+            </tr>
+		
+<tr>
+<td style="background-color: #0366d6; height: 0.5em;" colspan="3" >&nbsp;&nbsp;&nbsp; 
+</tr>
+</tbody>
+</table>
+</body>
+
+</html>

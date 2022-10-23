@@ -14,33 +14,35 @@
 - [About this Manual](#about-this-manual)
 - [Scope](#scope)
 - [Definitions/Abbreviations](#definitionsabbreviations)
-	- [Table 1: Abbreviations](#table-1-abbreviations)
+    - [Table 1: Abbreviations](#table-1-abbreviations)
 - [Requirements Overview  <a name="requirements-overview"></a>](#requirements-overview-a-namerequirements-overviewa)
-	- [Functional Requirements  <a name="functional-requirements"></a>](#functional-requirements-a-namefunctional-requirementsa)
-	- [Scalability Requirements](#scalability-requirements)
-	- [Warmboot Requirements](#warmboot-requirements)
-	- [Configuration and Management Requirements](#configuration-and-management-requirements)
-		- [Configuration commands](#configuration-commands)
-		- [Information commands](#information-commands)
+    - [Functional Requirements  <a name="functional-requirements"></a>](#functional-requirements-a-namefunctional-requirementsa)
+    - [Scalability Requirements](#scalability-requirements)
+    - [Warmboot Requirements](#warmboot-requirements)
+    - [Configuration and Management Requirements](#configuration-and-management-requirements)
+        - [Configuration commands](#configuration-commands)
+	- [Information commands](#information-commands)
 - [kdump : end-to-end flow](#kdump-end-to-end-flow)
 - [Functional Description](#functional-description)
-	- [Design](#design)
-	- [Kernel core-dump service](#kernel-core-dump-service)
-	- [SONiC Code Changes](#sonic-code-changes)
-	- [Configuration commands:](#configuration-commands)
-		- [config kdump <enable|disable>](#config-kdump-enabledisable)
-		- [config kdump memory string](#config-kdump-memory-string)
-		- [config kdump num_dumps number](#config-kdump-numdumps-number)
-		- [show kdump [status]](#show-kdump-status)
-		- [show kdump files](#show-kdump-files)
-		- [show kdump log [X]](#show-kdump-log-x)
+    - [Design](#design)
+    - [Kernel core-dump service](#kernel-core-dump-service)
+    - [SONiC Code Changes](#sonic-code-changes)
+    - [Configuration commands:](#configuration-commands)
+        - [config kdump <enable|disable>](#config-kdump-enabledisable)
+        - [config kdump memory string](#config-kdump-memory-string)
+        - [config kdump num_dumps number](#config-kdump-numdumps-number)
+        - [show kdump [status]](#show-kdump-status)
+        - [show kdump files](#show-kdump-files)
+        - [show kdump log [X]](#show-kdump-log-x)
 - [How to use the kernel core dump files](#how-to-use-the-kernel-core-dump-files)
-	- [Introduction](#introduction)
-	- [Use the kernel core dump file on the switch](#use-the-kernel-core-dump-file-on-the-switch)
-	- [Use the kernel core dump file on a Linux host](#use-the-kernel-core-dump-file-on-a-linux-host)
-	- [Analyzing the core dump](#analyzing-the-core-dump)
+    - [Introduction](#introduction)
+    - [Use the kernel core dump file on the switch](#use-the-kernel-core-dump-file-on-the-switch)
+    - [Use the kernel core dump file on a Linux host](#use-the-kernel-core-dump-file-on-a-linux-host)
+    - [Analyzing the core dump](#analyzing-the-core-dump)
 - [KDUMP DB](#kdump-db)
-- [Unit Test](#unit-test)
+- [Test](#test)
+    - [Test on Different Platforms](#test-on-different-platforms)
+    - [Unit Test](#unit-test)
 
 <!-- /TOC -->
 
@@ -182,7 +184,7 @@ Changes to be done in *sonic-buildimage/build_debian.sh*
  - kdump is configured using the SONiC utility *config*.
  - kdump status and configuration can be shown using the SONiC utility *show*.
  - kdump is disabled by default.
- - if kdump is enabled and a new SONiC image is installed using the *sonic_installer* command, kdump will be enabled in the new installed image.
+ - if kdump is enabled and a new SONiC image is installed using the *sonic-installer* command, kdump will be enabled in the new installed image.
 
 ### Configuration commands:
 
@@ -421,6 +423,23 @@ Links:
      "num_dumps"  :{{number}}
 ```
 
-## Unit Test
+## Test
+
+### Test on Different Platforms
+
+We tested the Linux kernel dump mechanism on different platfroms in StarLab. 
+The following table shows detailed information related to the size of core
+dump file and kernel log file, the downtime of device. At here, the `downtime`
+represents the time interval from issuing the command `echo c > /proc/sysrq-trigger`
+triggering the kernel crash to the device is up and can be logged in again.
+
+|       Platforms     | Memory Size | Size of core file | Size of kernel log file | Downtime |
+| :------------------ | :---------: | :---------------: | :---------------------: | :------: |
+| Arista-7050-QX-32S  |     4 GB    |       119 MB      |          72 KB          |   150 s  |
+| Mellanox SN2700     |     8 GB    |       246 MB      |          116 KB         |   160 s  |
+| Force10-S6000       |     8 GB    |       77 MB       |          72 KB          |   150 s  |
+| Celestica-E1031     |     2 GB    |       53 MB       |          60 KB          |   270 s  |
+
+### Unit Test
 
 [Test of sonic-kdump](images/sonic-kdump_ut.pdf)

@@ -319,7 +319,7 @@ The 3 dots (`...`) in `ValidateService(services, validationCommand, ...)` indica
 ### 3.1.5 ConfigDB
 SONiC is managing configuration in a single source of truth - a redisDB instance that we refer as ConfigDB. Applications subscribe to ConfigDB and generate their running configuration correspondingly.
 
-For further details on the ConfigDB, check [SONiC Configuration Database Manual](https://github.com/Azure/SONiC/wiki/Configuration).
+For further details on the ConfigDB, check [SONiC Configuration Database Manual](https://github.com/sonic-net/SONiC/wiki/Configuration).
 
 ## 3.2 User Interface
 N/A
@@ -336,8 +336,7 @@ The format of the file would be:
 {
   "tables: {
     "<TABLE-NAME>": {
-      "services-to-restart": ["<SERVICE1>", "<SERVICE2>" ...],
-      "services-to-validate": ["<SERVICE1>", "<SERVICE2>" ...]
+        "services-to-validate": ["<SERVICE1>", "<SERVICE2>" ...]
     },
     .
     .
@@ -345,7 +344,6 @@ The format of the file would be:
   },
   "services": {
     "<SERVICE-NAME>": {
-      "restart-command": "<CLI-COMMAND>",
       "validate-commands": "<CLI-COMMAND1>, <CLI-COMMAND2>, ..."
     },
     .
@@ -398,3 +396,4 @@ N/A
 | 8         | Remove a key from an existing table. |
 | 9         | Replace a mandatory item e.g. type under ACL_TABLE. |
 | 10        | Remove an item that has a default value e.g. stage under ACL_TABLE. |
+| 11        | Change applier - with sample data & validators that touch all code paths |
