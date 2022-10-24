@@ -845,13 +845,13 @@ Code coverage is satisfied by UT and the E2E flow is not possible to test with c
 In order to test this feature end to end it is required to simulate a delay in ASIC route programming. The proposed test:
 
 1. Enable ```bgp-suppress-fib-pending```
-2. Stop syncd process to simulate a delay: ```kill --SIGSTOP $(pidof syncd)```
+2. Stop orchagent process to simulate a delay: ```kill --SIGSTOP $(pidof orchagent)```
 3. Setup BGP speaker
 4. Announces routes to DUT through exabgp
 5. Verify BGP session is established
 6. Make sure announced BGP route is queued in ```show ip route``` output
 7. Verify the route is not announced to Arista T1 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
-8. Restore syncd process: ```kill --SIGCONT $(pidof syncd)```
+8. Restore orchagent process: ```kill --SIGCONT $(pidof orchagent)```
 8. Make sure route is programmed in ASIC_DB
 9. Make sure announced BGP route is FIB synced in ```show ip route``` output
 7. Verify the route is announced to Arista T1 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
