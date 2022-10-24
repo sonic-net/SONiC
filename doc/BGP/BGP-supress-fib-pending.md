@@ -783,7 +783,7 @@ When fpmsyncd reaches *reconciled* state it must send RTM_NEWROUTE for all prefi
 
 During fast reboot BGP session is closed by SONiC device without the notification. BGP session is preserved in graceful restart mode. BGP routes on the peer are still active, because nexthop interfaces are up. Once interfaces go down, received BGP routes on the peer are removed from the routing table. Nothing is sent to SONiC device since then. After interfaces go up and BGP sessions re-establish the peer's BGP re-learns advertised routes.
 
-Considering this, the introduction of a slight delay in advertisement could lead to some increase in fast reboot downtime.
+Due to additional response publishing in orchagent there might be a slight delay in fast reboot reconfiguration.
 
 ### 10. Restrictions/Limitations
 
