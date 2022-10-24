@@ -625,7 +625,7 @@ The offload route status is relevant only for BGP received routes. In order to s
 3) "ifname"
 4) "PortChannel102,PortChannel105,PortChannel108,PortChannel1011"
 5) "protocol"
-6) "186"
+6) "bgp"
 ```
 
 The protocol number is then set in RTM_NEWROUTE when preparing message to be sent to zebra.
