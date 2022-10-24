@@ -860,4 +860,3 @@ In order to test this feature end to end it is required to simulate a delay in A
 ### 12. Open/Action items - if any
 
 - Default state of the feature based off minigraph device type
-- Non dataplane BGP sessions and whether we have to enable feature per neighbor
