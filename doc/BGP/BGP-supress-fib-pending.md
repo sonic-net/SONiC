@@ -304,6 +304,7 @@ Some patches that change FPM behavior to the desired SONiC behavior need to be p
 - [[PATCH] ignore route from default table](https://github.com/yxieca/sonic-buildimage/blob/26c5bf81f0a8b2f5d6809048bb54a872403726c2/src/sonic-frr/patch/0009-ignore-route-from-default-table.patch)
 - [0007-Add-support-of-bgp-l3vni-evpn.patch](https://github.com/sonic-net/sonic-buildimage/blob/a477dbb1751b741ac2762b4328da08b37eb400db/src/sonic-frr/patch/0007-Add-support-of-bgp-l3vni-evpn.patch)
 
+**Q**: Is there any plan for aligning SONiC to upstream vanilla version FPM implementation?
 
 #### 7.2. BGP Docker container startup
 
@@ -660,7 +661,7 @@ sequenceDiagram
 
   deactivate RouteSync
 
-  APPL_STATE_DB ->> RouteFeedbackChannel: ROUTE_TABLE publish event
+  APPL_STATE_DB ->> RouteSync: ROUTE_TABLE publish event
   activate RouteSync
   RouteSync ->> RouteFeedbackChannel: onRouteResponse()
   activate RouteFeedbackChannel
@@ -846,7 +847,6 @@ In order to test this feature end to end it is required to simulate a delay in A
 
 1. Enable ```bgp-suppress-fib-pending```
 2. Stop orchagent process to simulate a delay: ```kill --SIGSTOP $(pidof orchagent)```
-3. Setup BGP speaker
 4. Announces routes to DUT through exabgp
 5. Verify BGP session is established
 6. Make sure announced BGP route is queued in ```show ip route``` output
