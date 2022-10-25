@@ -777,8 +777,8 @@ No new SAI API or changes to SAI design and behaviour needed for this functional
 
 #### 9.1. Warm Reboot
 
-Warm reboot process remains unchanged. With BGP Graceful Restart, peers are keeping advertised routes in the FIB while the switch restarts.
-When fpmsyncd reaches *reconciled* state it must send RTM_NEWROUTE for all prefixes that were restored previously from APPL_DB since they are already in the ASIC.
+With BGP Graceful Restart, peers are keeping advertised routes in the FIB while the switch restarts.
+When fpmsyncd is about to set *reconciled* state it must send RTM_NEWROUTE for all prefixes that were restored previously from APPL_DB since they are already in the ASIC. Once all existing routes are pushed to zebra a comparison logic will finish the warm reboot process and fpmsyncd will continue in a normal operational mode.
 
 #### 9.2. Fast Reboot
 
