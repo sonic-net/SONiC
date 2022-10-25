@@ -952,6 +952,7 @@ config qos reload --json-data --dry-run
 ```
 config qos reload --update --all-new-ports
 
+```
 - Clear only default ROCE qos maps, scheduler, wred etc.
 
 ```
