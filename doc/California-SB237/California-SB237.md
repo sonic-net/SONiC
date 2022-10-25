@@ -1,4 +1,4 @@
-# Default Credential Management for California Law SB-327 Conformance #
+# Default Credential Management for California SB-327 Conformance #
 
 ##  1. <a name='TableofContent'></a>Table of Content
 
@@ -46,14 +46,15 @@
 
 ###  1.2. <a name='Scope'></a>Scope
 
-This California Law hld doc described the requirements, architecture and configuration details of California Law feature in switches SONIC OS based.
+The California Law hld doc described the requirements, architecture and configuration details of California Law feature in switches SONIC OS based.
+Feature is designed to add [California SB-327](https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=201720180SB327) conformance.
 
 ###  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
 
 	PW - password
 	PASSWH - Password Hardening
 	PAM - Pluggable Authentication Modules
-	CL - Default Credential Management for California Law SB-327 Conformance
+	California Law - Default Credential Management for California Law SB-327 Conformance
 
 ###  1.4. <a name='Overview'></a>Overview
 
@@ -67,11 +68,12 @@ force user to change default password on first login.
  - Support several default users
  - Force to change password after image update
  - Don't affect [Password hardening feature](https://github.com/sonic-net/SONiC/blob/master/doc/passw_hardening/hld_password_hardening.md)
+ - Expire password only for user that can do login. (login shell is /bin/bash or /bin/sh)
 
 ###  1.6. <a name='ArchitectureDesign'></a>Architecture Design
 
 Arc design diagram\
-![California_law_arc_sonic](California_law.jpg)
+![California_law_arc_sonic](California-SB237.jgp)
 
 (flow description in the chapter below)
 
@@ -93,7 +95,7 @@ See linux [3rd Party Components](#rdPartyComponents) for more description.
 
 ##### Flow diagram:
 
-![California law flow](California_law_diagram.jpg)
+![California law flow](California-SB237_diagram.jpg)
 
 ####  1.7.1. <a name='Flowdescription'></a>Flow description
 Feature is expected to be disabled by default.
@@ -149,7 +151,7 @@ The California law feature is not supported on remote AAA.
 LDAP/Radius/Tacacs is under customer responsibility.
 
 ###  1.13. <a name='UpgradeFlow'></a>Upgrade Flow
-After install new image with sonic-istall 1st boot flow is triggered and users will be forced to change their passwords
+After install new image with sonic-install 1st boot flow is triggered and users will be forced to change their passwords
 
 
 ###  1.14. <a name='TestPlan'></a>Test Plan
