@@ -53,7 +53,7 @@ There are 2 requirements on the transmit side,
 1. Controller needs to be able to send packets out on any of the configured ports, this is generally called the directed transmit.  
 
 
-2. The controller also needs a capability to leverage the ASIC’s forwarding pipeline instead of self determining which port the packet should be sent out. So, a new transmit mode called the ‘submit_to_ingress’ (aka ‘send_to_ingress’) is needed to transmit packets on the ingress pipeline to let the ASIC’s forwarding pipeline select the egress port.
+2. The controller also needs a capability to leverage the ASIC’s forwarding pipeline instead of self determining which port the packet should be sent out. So, a new transmit mode called the ‘send_to_ingress’ (aka ‘send_to_ingress’) is needed to transmit packets on the ingress pipeline to let the ASIC’s forwarding pipeline select the egress port.
 
 
 ## Architecture Design
@@ -140,30 +140,29 @@ The change required for P4Runtime integration is,
 
 There is no major change involved in the directed transmit, P4Runtime will create sockets of the netdev ports during init and do a simple write on the appropriate socket to send packets out on a specific port.
 
-For the “submit_to_ingress” path, the main change is the addition of a new netdev port that enables the injection of packets into the switch forwarding pipeline. 
+For the “send_to_ingress” path, the main change is the addition of a new netdev port that enables the injection of packets into the switch forwarding pipeline. 
 
-![drawing](images/submit_to_ing.png)
+![drawing](images/send_to_ing.png)
 
 
 
-The netdev port attributes are specified as below in the [copp_cfg.j2](https://github.com/Azure/sonic-buildimage-msft/blob/f6098c8c6d98ecc42e9a66711247aaf2c6fc4759/files/image_config/copp/copp_cfg.j2) file.
-
+The netdev port attributes are specified as below in the config_db.json file or CONFIG DB.
 
 ```
-"trap.group.send_to_ingress" : {
-                    "submit_to_ingress_name" : "send_to_ingress"
-},
+  "SEND_TO_INGRESS_PORT": {
+    "send_to_ingress": {}
+  }
 ```
 
 
-[Copporch.cpp](https://github.com/sonic-net/sonic-swss/blob/fb06c32b2e25e6057514e9455e997ff7edcb7340/orchagent/copporch.cpp) will parse the above fields and add the netdev port attributes for the CPU port and invoke the SAI hostif create API to create the netdev port for the new submit_to_ingress interface.
+PortsOrch.cpp will parse the above fields and add the netdev port attributes for the CPU port and invoke the SAI hostif create API to create the netdev port for the new send_to_ingress interface.
 
-P4Runtime will create a socket for the “submit_to_ingress” netdev port and write into this socket for packets marked to send to “submit_to_ingress”. Packets egressing out of the socket end up as incoming packets on the CPU port of the switch. The packets now follow the regular switch pipeline to get forwarded out.
+P4Runtime will create a socket for the “send_to_ingress” netdev port and write into this socket for packets marked to send to “send_to_ingress”. Packets egressing out of the socket end up as incoming packets on the CPU port of the switch. The packets now follow the regular switch pipeline to get forwarded out.
 
 
 ## Vendor work for Transmit path
 
-Vendor work is needed to enable the creation of the “submit_to_ingress” port and allow packets in the CPU port. The additional vendor work needed are,
+Vendor work is needed to enable the creation of the “send_to_ingress” port and allow packets in the CPU port. The additional vendor work needed are,
 
 
 
