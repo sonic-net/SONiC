@@ -81,7 +81,7 @@ In hybrid mode a port possesses the following properties
 
 ### Sample Topology
 
-![Topology](https://user-images.githubusercontent.com/92853499/197520671-85fcceac-7651-4802-9a12-ecaccf836c99.png)
+![Topology](media/Topology.png)
 
 __*Figure 1: Sample Topology*__
 
@@ -91,7 +91,7 @@ The figure shows that 3 different VLANs are configured with 6 other hosts. The s
 
 The overall SONiC architecture will remain the same and no new sub-modules will be introduced. Changes are made only in the CLI container and Config_DB.
 
-![Architecture](https://user-images.githubusercontent.com/92853499/197520700-73be25bc-d92b-4bf9-a3a1-d5c2a75acaba.png)
+![Architecture](media/Architecture.png)
 
 
 ## High-level Design
@@ -100,7 +100,7 @@ In this section we will explain sequence diagrams fpor the implemented features.
 
 ### Switch Port Mode
 
-![SwitchPortModes](https://user-images.githubusercontent.com/92853499/197520733-8fbb12ef-0a81-430c-8095-950b1d83e0e9.png)
+![SwitchPortModes](media/SwitchPortModes.png)
 
 __*Figure 2: Sequence Diagram Switch Port mode*__
 
@@ -119,7 +119,7 @@ __*Figure 2: Sequence Diagram Switch Port mode*__
 
 ### Add Multiple VLANs
  
-![MultipleVlans](https://user-images.githubusercontent.com/92853499/197520761-8655cf44-8da2-4fb3-95d0-e155647db9fd.png)
+![MultipleVlans](media/MultipleVlans.png)
 
 __*Figure 3: Sequence Diagram for adding Multiple VLANs*__
 
@@ -135,7 +135,7 @@ __*Figure 3: Sequence Diagram for adding Multiple VLANs*__
 
 ### Delete Multiple VLANs
 
-![DeleteVlan](https://user-images.githubusercontent.com/92853499/197520781-65dc3d03-9e0a-4ce8-9b5c-70fe0cef47a2.png)
+![DeleteVlan](media/DeleteVlan.png)
 
 
 __*Figure 4: Sequence Diagram for deleting Multiple VLANs*__
@@ -148,7 +148,7 @@ __*Figure 4: Sequence Diagram for deleting Multiple VLANs*__
 
 ### Add Multiple VLAN member on Trunk Port
 
-![AddMember_trunk](https://user-images.githubusercontent.com/92853499/197520799-c16b8afe-95c0-494a-9e66-91006792649f.png)
+![AddMember_trunk](media/AddMember_trunk.png)
 
 __*Figure 5: Sequence Diagram for Adding VLAN member on Trunk Port*__
 
@@ -166,7 +166,7 @@ __*Figure 5: Sequence Diagram for Adding VLAN member on Trunk Port*__
 
 ### Delete Multiple VLAN member on Trunk Port
 
-![Delete Vlan Member](https://user-images.githubusercontent.com/92853499/197520834-6dbbe79b-c607-4a84-90d5-37a57abb9a92.png)
+![Delete Vlan Member](media/DeleteVlanMember.png)
 
 __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 
