@@ -381,6 +381,6 @@ The following test cases are to be run manually (eventually as part of the pytes
 ==============
 
 a)  SONiC Configuration Management  
-b)  <https://github.com/Azure/SONiC/wiki/Architecture>  
+b)  <https://github.com/sonic-net/SONiC/wiki/Architecture>  
 c)  <https://github.com/opencomputeproject/SAI/pull/1089> 
  

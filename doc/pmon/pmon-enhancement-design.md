@@ -138,7 +138,7 @@ All the peripheral devices data will be stored in state DB.
 	
 #### 1.5.6 Transceiver Table
 
-We have a transceiver related information DB schema defined in the [Xcvrd daemon design doc](https://github.com/Azure/SONiC/blob/master/doc/xrcvd/transceiver-monitor-hld.md#11-state-db-schema).
+We have a transceiver related information DB schema defined in the [Xcvrd daemon design doc](https://github.com/sonic-net/SONiC/blob/master/doc/xrcvd/transceiver-monitor-hld.md#11-state-db-schema).
 
 To align with the output of the current show interface transceiver we need to extend Transceiver info Table with more information, as below:
 
@@ -267,7 +267,7 @@ Currently Transceiver related CLI is fetching information by directly access the
 
 ### 2.6 PSU SNMP Agent re-factoring
 
-After PSU status data post to state DB, SNMP agent will get PSU data from state DB instead of directly call platform psu plugin, related code in class [PowerStatusHandler](https://github.com/Azure/sonic-snmpagent/blob/master/src/sonic_ax_impl/mibs/vendor/cisco/ciscoEntityFruControlMIB.py#L13) will be changed accordingly. [PhysicalTableMIBUpdater](https://github.com/Azure/sonic-snmpagent/blob/master/src/sonic_ax_impl/mibs/ietf/rfc2737.py#L113) is a good example for updating MIB from state DB.
+After PSU status data post to state DB, SNMP agent will get PSU data from state DB instead of directly call platform psu plugin, related code in class [PowerStatusHandler](https://github.com/sonic-net/sonic-snmpagent/blob/master/src/sonic_ax_impl/mibs/vendor/cisco/ciscoEntityFruControlMIB.py#L13) will be changed accordingly. [PhysicalTableMIBUpdater](https://github.com/sonic-net/sonic-snmpagent/blob/master/src/sonic_ax_impl/mibs/ietf/rfc2737.py#L113) is a good example for updating MIB from state DB.
 
 ### 2.7 Utilities for real-time data
 
@@ -285,7 +285,7 @@ New base APIs were added for platform, chassis, watchdog, FAN and PSU. SFP and e
 
 Previously we have an issue with the old implementation, when adding a new platform API to the base class, have to implement it in all the platform plugins, or at least add a dummy stub to them, or it will fail on the platform that doesn't have it. This will be addressed in the new platform API design, not part of the work here.
 
-Design doc for new platform API [design doc](https://github.com/Azure/SONiC/pull/285) and [code implementation PR](https://github.com/Azure/sonic-platform-common/pull/13) are available now. 
+Design doc for new platform API [design doc](https://github.com/sonic-net/SONiC/pull/285) and [code implementation PR](https://github.com/sonic-net/sonic-platform-common/pull/13) are available now. 
 
 ## 4. Pmon daemons dynamically loading
 We have multi pmon daemons for different peripheral devices, like xcvrd for transceivers, ledd for front panel LEDs, etc. Later on we may add more for PSU, fan.

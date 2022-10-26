@@ -940,7 +940,7 @@ During the sonic image upgrade, all available platform component firmware can be
 ```bash
 PLATFORM_FW_UPDATE="/usr/bin/fwutil"
 
-CURRENT_FW=`sonic_installer list |grep "Current" |awk '{print $2}'`
+CURRENT_FW=`sonic-installer list |grep "Current" |awk '{print $2}'`
 
 if grep -q aboot /host/machine.conf; then
     TARGET_FW=`unzip -p /tmp/$FILENAME boot0 |grep -m 1 "image_name" |sed -n "s/.*image-\(.*\)\".*/\1/p"`
@@ -948,7 +948,7 @@ else
     TARGET_FW=`cat -v /tmp/$FILENAME |grep -m 1 "image_version" | sed -n "s/.*image_version=\"\(.*\)\".*/\1/p"`
 fi
 
-sonic_installer install -y /tmp/$FILENAME || FAILED=1
+sonic-installer install -y /tmp/$FILENAME || FAILED=1
 sync;sync;sync || exit 14
 
 

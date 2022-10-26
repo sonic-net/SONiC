@@ -222,7 +222,7 @@ key                                   = NEIGH_TABLE:name:ip_address   ; Vnet nei
 family                                = IPv4/IPv6                     ; Address family
 ```
 
-Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
+Please refer to the [schema](https://github.com/sonic-net/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
 ## 2.2 APP DB
 Two new tables would be introduced to specify routes and tunnel end points in VNet domain. 
@@ -300,7 +300,7 @@ PEER_LIST                             = \*vnet_name                   ; vnet nam
 Following orchagents shall be modified. Flow diagrams are captured in a later section. 
 
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_orch.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_orch.png)
 
  ### VxlanOrch
  This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VRF/VNI to respective tunnel. 
@@ -327,7 +327,7 @@ Following orchagents shall be modified. Flow diagrams are captured in a later se
  
  The overall data flow diagram is captured below for all TABLE updates. 
  
- ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_data_flow.png)
+ ![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_data_flow.png)
  
  
 ## 2.4 SAI
@@ -404,13 +404,13 @@ Commands:
 # 3 Flows
 
 ## 3.1 Vxlan VNet peering 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_1.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_1.png)
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_2.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_2.png)
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_route_delete.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_route_delete.png)
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_vnet_delete.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_vnet_delete.png)
 
 ## Layer 2 Vxlan 
 TBD 
