@@ -85,7 +85,7 @@ In hybrid mode a port possesses the following properties
 
 __*Figure 1: Sample Topology*__
 
-The figure shows that 3 different VLANs are configured with 6 other hosts. Ethernet switches when connected to end hosts. The switch ports connected to hosts would be configured as access ports. The ports that connect switches together would be configured as trunk ports.
+The figure shows that 3 different VLANs are configured with 6 other hosts. The switch ports connected to hosts would be configured as access ports. The ports that connect switches together would be configured as trunk ports.
 
 ## Architecture Design
 
@@ -181,11 +181,11 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 
 ## CLI Configuration Commands
 
-**1.** config switchport mode <port_type (access or trunk or routed)> <physical port>
+**1.** config switchport mode <access|trunk|routed> <physical_port>
  
-**2.** config vlan add/del -m <vlan_id>
+**2.** config vlan add/del -m <comma separated list, range> <vlan_ids>
 
-**3.** config vlan  member add/del -m <all,except, comma separated list, range> <vlan_ids> <physical port>
+**3.** config vlan  member add/del -m <all,except, comma separated list, range> <vlan_ids> <physical_port>
 
 ##  Examples/Usage of Commands
   
@@ -231,8 +231,9 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
  
 -Example : The command will create the VLAN "Vlan 100, Vlan 101, Vlan 102, Vlan 103" if these do not already exist.
 
+   ***This works with deleting multiple VLANs in the same way***
   ```
-The same works with deleting multiple VLANs in the same way.
+
 
 **4.**  Add all Vlan(s) as Vlan Member(s)  using a single command:
 
