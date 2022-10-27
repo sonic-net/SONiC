@@ -19,7 +19,7 @@
     - [Code change](#code-change)
       - [acl-loader](#acl-loader)
       - [time_based_acl_mgrd](#time_based_acl_mgrd)
-    - [Work flow](#work-flow)
+    - [Workflow](#workflow)
       - [Add and remove time-based ACL rule](#add-and-remove-time-based-acl-rule)
     - [Testing Requirements/Design](#testing-requirementsdesign)
       - [Unit Test cases](#unit-test-cases)
@@ -78,7 +78,7 @@ No SONiC architecture change is required to support time-based ACL.
 
 A new table `TIME_BASED_ACL_RULE` is introduced to `CONFIG DB` to record the ACL rules with start timestamp and end timestamp.
 
-The new table contains all fileds of a normal ACL rule, and 2 new fields are added: `start_time` and `end_time`. The new fields definition is listed below:
+The new table contains all fields of a normal ACL rule, and 2 new fields are added: `start_time` and `end_time`. The new fields definition is listed below:
 ```
 key: TIME_BASED_ACL_RULE:table_name:seq  ; key of the rule entry in the table, seq is the order of the rules   
 
@@ -168,7 +168,7 @@ A sample input json config for ACL rule with TTL value
 
 A helper script will be added to `swss` container. The checker is started after `orchagent` and check the end timestamp of time-based ACL rules in every 10 seconds by default. It will walk through all entries in `TIME_BASED_ACL_RULE` in `CONFIG DB`. New effective ACL rules are added to `APP_ACL_RULE` in `APP DB` and expired ACL rules are deleted both from `CONFIG DB` and `APP DB`.
 
-### Work flow
+### Workflow
 #### Add and remove time-based ACL rule
 <p align=center>
 <img src="img/time-based-acl-add-rule.png" alt="Figure 1. Create dynamic ACL rule workflow">
