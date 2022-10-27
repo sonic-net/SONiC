@@ -80,7 +80,7 @@ Design Principles
  - This specification defines the path name, permissions, data type, and data unit for each hardware
  - The sysfs path defined in this specification must exist, and the file content should be "NA" if no hardware is available.
 
-S3IP sysfs specifiction : [specifiction](/doc/s3ip_sysfs/s3ip_sysfs_specification.md)
+S3IP sysfs specification : [specification](/doc/s3ip_sysfs/s3ip_sysfs_specification.md)
 
 S3IP sysfs specification hierarchy overview
 - sys_switch
@@ -296,14 +296,14 @@ However, there are many differences between the two frameworks, which are listed
 | Item  | S3IP sysfs|PDDF|
 |-|-|-|
 |Requirements| The requirements are put forward from the user's perspective, and the sysfs node is summarized from the actual operation experience. The goal is to unify the interface for device management | The requirements are proposed from technical point of view aimed at platform driver and APIs development in SONiC. Only those SysFS which are required by SONiC platform APIs are exposed.
-|Ecosystem | Devices compliant with S3IP SYSFS specification have been widely used in data centers.<br> The [S3IP](http://www.s3ip.org/) project involved both vendors and users[S3IP] (including Tencent, Alibaba, Baidu, Kuaishou, Meituan, Jingdong and more than a dozen ODM vendors). Vendors and users complete a closed-loop of requirements. standards and debugging tools that have the ability to iterate continuously. | PDDF is a new framework and it is developed in the SONiC context. Some ODM platforms are already using PDDF. PDDF is an underlying framework which ODMs can use for faster development but it does not exposes any fixed SysFS nodes to the user.
+|Ecosystem | Devices compliant with S3IP SYSFS specification have been widely used in data centers.<br> The [S3IP](http://www.s3ip.org/) project involved both vendors and users[S3IP] (including Tencent, Alibaba, Baidu, Kuaishou, Meituan, Jingdong and more than a dozen ODM vendors). Vendors and users complete a closed-loop of requirements, standards and debugging tools that have the ability to iterate continuously. | PDDF is a new framework and it is developed in the SONiC context. Some ODM platforms are already using PDDF. PDDF is an underlying framework which ODMs can use for faster development but it does not exposes any fixed SysFS nodes to the user.
 |Development Mode | Regular development model,<br>Programming is required to implement the requirements. <br>ODM venders need to provide professional driver support for customers，Customers validating device with sysfs| ODM vendors can use common PDDF kernel drivers and user space common platform APIs. Only some platform specific device data needs to be provided by the ODMs in the form of JSON files. Validation is via usual SONiC CLIs.
 |Flexible | 1.Bus independent, The hardware support:<br>Fan<br>PSU<br>System EEPROM<br>Transceivers<br>CPLD<br>FPGA<br>System LED<br>Temperature sensors<br>Current sensors<br>Voltage sensors<br>Slot<br>Watchdog<br><br>2.Support scenarios with many customization requirements, such as FPGA-Polling, BMC management hardware and firmware upgrades <br><br>3.Normalized SYSFS is easy for hardware fault identification and prediction <br><br>4.Easy to debug for ODM users, and they need not care about the bus topology |PDDF can be used on the platforms which use I2C bus to communicate with the peripheral devices. Platforms which use BMC can also be brought up using PDDF. In future PDDF would be supported on platform using PCIE FPGA devices.
 |code position |  https://github.com/sonic-net/sonic-buildimage/tree/master/platform/s3ip-sysfs| https://github.com/sonic-net/sonic-buildimage/tree/master/platform/pddf
 
 PDDF is not incompatible with S3IP SYSFS, we will combine the two parts into two Phases:
 
-Phase 1: The S3IP SYSFS Framework is integrated into the SONiC community so that Chinese ODM vendors can more easily contribute their existing platforms to the community, and other vendors can also have the opportunity to adapt their platforms according to S3IP specifications and expand their business opportunities in China. This is good for SONiC community ecology;
+Phase 1: The S3IP SYSFS Framework is integrated into the SONiC community so that Chinese ODM vendors can more easily contribute their existing platforms to the community, and other vendors can also have the opportunity to adapt their platforms according to S3IP specifications and expand their business opportunities in China. This is good for SONiC community ecosystem;
 
 Phase 2: PDDF and the S3IP SYSFS Framework will be integrated and presented as a framework, which makes more sense. Consumers decide whether to comply with the S3IP SYSFS specification by customizing the options provided by the framework.
 
