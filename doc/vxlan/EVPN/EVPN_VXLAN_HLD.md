@@ -1501,6 +1501,6 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
 
 ## 9 References
 
-- [SONiC VXLAN HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
+- [SONiC VXLAN HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
 - [RFC 7432](https://tools.ietf.org/html/rfc7432)
 - [RFC 8365](https://tools.ietf.org/html/rfc8365)

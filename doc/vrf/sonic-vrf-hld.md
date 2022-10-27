@@ -223,7 +223,7 @@ Here are the new flags we propose to add in the SAI interface:
 ## SONiC system diagram for VRF
 
 The following is high level diagram of modules with VRF support.
-![](https://github.com/Azure/SONiC/blob/f2ebba476b4ef364b13b7980c2fe01e8929c71e6/images/vrf_hld/VRF_HIGH_LEVEL_DIAGRAM.png)
+![](https://github.com/sonic-net/SONiC/blob/f2ebba476b4ef364b13b7980c2fe01e8929c71e6/images/vrf_hld/VRF_HIGH_LEVEL_DIAGRAM.png)
 
 ## The schema changes
 
@@ -666,7 +666,7 @@ sai_remove_virtual_router_fn defined in saivirtualrouter.h to track (VR, VRF) cr
   - When app-intf-prefix-table change
     - add ip address event: wait until route interface is created ,then set ip address on existing router interface.
     - del ip address event: unset ip address on existing router interface.
-- Move add/del subnet-route code to routeorch. In existing implementation when route interface is down, subnet routes associated with the interface still exist. It could result in a stale state and correct route configured from fpmsyncd will be rejected by routeorch. It makes sense that fpmsyncd/routeorch handles all route configurations except ip2me route. Nephos has submit this PR to swss community(<https://github.com/Azure/sonic-swss/pull/878>). To support vrf these code will be refined to support vrf feature.
+- Move add/del subnet-route code to routeorch. In existing implementation when route interface is down, subnet routes associated with the interface still exist. It could result in a stale state and correct route configured from fpmsyncd will be rejected by routeorch. It makes sense that fpmsyncd/routeorch handles all route configurations except ip2me route. Nephos has submit this PR to swss community(<https://github.com/sonic-net/sonic-swss/pull/878>). To support vrf these code will be refined to support vrf feature.
 
   This change is necessary for vrf route-leak scenarios too. For example, interface Ethernet1 currently belongs to Vrf_blue , its ip address is 10.1.1.1/24. Another vrf domain Vrf_red imports all Vrf_blue route. Then there is a route like "Vrf_red:10.1.1.0/24 Ethernet1" in BGP route. When fpmsyncd pushes this route to routeorch, routeorch will drop it silently.
 
@@ -715,7 +715,7 @@ $ config vrf del <vrf_name>
 $ config interface vrf bind <interface_name> <vrf_name>
 
 //unbind an interface from a VRF
-$ config interface vrf unbind <interface_name> <vrf_name>
+$ config interface vrf unbind <interface_name>
 
 // create loopback device
 $ config loopback add Loopback<0-999>
@@ -824,7 +824,7 @@ This command will do the following:
 To unbind an interface from VRF:
 
 ```bash
-$ config interface unbind Ethernet0 Vrf-blue
+$ config interface unbind Ethernet0
 ```
 
 This command will do the following:

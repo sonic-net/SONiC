@@ -376,7 +376,7 @@ When configdb-json plugin is executed, the DHCP address assigned during ZTP disc
 
 #### firmware
 
-The *firmware* plugin is used for image management on a switch. It can be used to install, remove and boot selection of images. sonic_installer utility is used by this plugin to perform the supported functions.
+The *firmware* plugin is used for image management on a switch. It can be used to install, remove and boot selection of images. sonic-installer utility is used by this plugin to perform the supported functions.
 
 Example to install a new image and boot into it.
 
@@ -777,7 +777,7 @@ ZTP and updategraph can co-exist in the same SONiC image. However, for updategra
 
 When a new SONiC image is installed, contents of */etc/sonic* directory are migrated to the newly installed directory. ZTP JSON and ZTP configuration files are also available to the new image as they are stored in */host/ztp* directory. If the image upgrade happened as part of a ZTP session in progress, after booting the new image, ZTP resumes from the point where it left of prior to image switchover. ZTP service waits for configuration migration to complete before taking any action. If after configuration migration, if */etc/sonic/config_db.json* file is not found, ZTP service creates a ZTP configuration that enables all in-band interfaces and performs DHCP discovery on them to obtain connectivity and resume processing the ZTP JSON file. This establishes connectivity to external hosts for provisioning to be completed. 
 
-There can also be a scenario where on a switch a ZTP is in completed (SUCCESS/FAILED) state. A new SONiC image is installed using *sonic_installer* upgrade tool and the user reboots the switch to boot into new image. In this scenario, contents of */host/ztp* and thus ZTP JSON, ZTP configuration file are accessible to the newly installed image. Since ZTP is in completed state, it will not run again. Only if */etc/sonic/config_db.json* file does not exist, ZTP service creates a ZTP configuration and starts the ZTP procedure afresh. It is up to the user to install configuration migration hooks to migrate changes to new image. More information is available in the [SONiC Configuration Setup Service](https://github.com/rajendra-dendukuri/SONiC/blob/config_setup/doc/ztp/SONiC-config-setup.md) design document.
+There can also be a scenario where on a switch a ZTP is in completed (SUCCESS/FAILED) state. A new SONiC image is installed using *sonic-installer* upgrade tool and the user reboots the switch to boot into new image. In this scenario, contents of */host/ztp* and thus ZTP JSON, ZTP configuration file are accessible to the newly installed image. Since ZTP is in completed state, it will not run again. Only if */etc/sonic/config_db.json* file does not exist, ZTP service creates a ZTP configuration and starts the ZTP procedure afresh. It is up to the user to install configuration migration hooks to migrate changes to new image. More information is available in the [SONiC Configuration Setup Service](https://github.com/rajendra-dendukuri/SONiC/blob/config_setup/doc/ztp/SONiC-config-setup.md) design document.
 
 
 
@@ -1687,7 +1687,7 @@ python3-coverage html --omit="*_pytest*,*test_*,*pkg_resources*,*dist-packages/p
 **Expected Result:**
 
 - SONiC image is download and installed
-- Use 'sonic_installer list' command to view if the new image has been installed
+- Use 'sonic-installer list' command to view if the new image has been installed
 
 **Additional Tests:**
 
@@ -1702,10 +1702,10 @@ python3-coverage html --omit="*_pytest*,*test_*,*pkg_resources*,*dist-packages/p
   - Configuration section is marked as failed and ZTP is marked as failed
 - set_default: true
   - After downloading and installing the firmware image, the image is set as the image switch is going to boot on next reboot and every reboot after that unless modified
-  - Verify using 'sonic_installer list' command
+  - Verify using 'sonic-installer list' command
 - set_next_boot: true 
   - After downloading and installing the firmware image, the image is set as the image switch is going to boot on next reboot. This is only for next reboot.
-  - Verify using 'sonic_installer list' command
+  - Verify using 'sonic-installer list' command
 - pre-check script is used 
   - The pre-check script is downloaded and executed. If the program exit code is 0, download and install of firmware is performed. If the exit code is non-zero, download/install of firmware image is not performed
   - Configuration section result is marked as SUCCESS.
@@ -1726,7 +1726,7 @@ python3-coverage html --omit="*_pytest*,*test_*,*pkg_resources*,*dist-packages/p
 **Expected Result:**
 
 - SONiC image with specified version is removed
-- Use 'sonic_installer list' command to view if the new image version has been removed
+- Use 'sonic-installer list' command to view if the new image version has been removed
 
 **Additional Tests:**
 
@@ -2039,7 +2039,7 @@ python3-coverage html --omit="*_pytest*,*test_*,*pkg_resources*,*dist-packages/p
 
 **Expected Results:**
 
-- When sonic_installer installs the new firmware on the switch,  it creates a backup copy of existing configuration files on the switch intended to be migrated when it boots into new image on reboot
+- When sonic-installer installs the new firmware on the switch,  it creates a backup copy of existing configuration files on the switch intended to be migrated when it boots into new image on reboot
 - ZTP JSON file is also backed up along with these files
 - Switch boots into new image and ZTP resumes provisioning from the configuration task after firmware installation.
 - ZTP runs to completion
@@ -2061,12 +2061,12 @@ python3-coverage html --omit="*_pytest*,*test_*,*pkg_resources*,*dist-packages/p
 **Test Steps:**
 
 - Initiate a ZTP session and run to completion
-- Install a new firmware image using 'sonic_installer' command line utility and set the switch to boot into this newly installed image on reboot
+- Install a new firmware image using 'sonic-installer' command line utility and set the switch to boot into this newly installed image on reboot
 - Reboot the switch
 
 **Expected Results:**
 
-- When sonic_installer installs the new firmware on the switch,  it creates a backup copy of existing configuration files on the switch intended to be migrated when it boots into new image on reboot
+- When sonic-installer installs the new firmware on the switch,  it creates a backup copy of existing configuration files on the switch intended to be migrated when it boots into new image on reboot
 - ZTP JSON file is also backed up along with these files and migrated to new image.
 - Switch boots into new image and restarts ZTP using the ZTP JSON file that has been migrated.
 - It is expected that a valid /etc/sonic/config_db.json file is created prior to installing firmware image and this provides connectivity to external entities for provisioning to proceed

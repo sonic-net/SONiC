@@ -184,7 +184,7 @@ Changes to be done in *sonic-buildimage/build_debian.sh*
  - kdump is configured using the SONiC utility *config*.
  - kdump status and configuration can be shown using the SONiC utility *show*.
  - kdump is disabled by default.
- - if kdump is enabled and a new SONiC image is installed using the *sonic_installer* command, kdump will be enabled in the new installed image.
+ - if kdump is enabled and a new SONiC image is installed using the *sonic-installer* command, kdump will be enabled in the new installed image.
 
 ### Configuration commands:
 
