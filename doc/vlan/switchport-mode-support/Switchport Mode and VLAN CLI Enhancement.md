@@ -207,7 +207,7 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
  ```
  admin@sonic:~$ sudo config switchport mode routed Ethernet4
 
- Usage:  This command will add Ethernet4 as routed port
+ Usage:  This command will add Ethernet4 as routed port. This is for switching from access or trunk mode to routed mode.
 
  ```
   
@@ -218,7 +218,7 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 
   Usage:  This command will add multiple comma separated vlan in a list
  
--Example : The command will create the VLAN "Vlan 100, Vlan 200, Vlan 300" if these do not already exist.
+ Example : The command will create the VLAN "Vlan 100, Vlan 200, Vlan 300" if these do not already exist.
 
   ```
   
@@ -229,7 +229,7 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 
   Usage:  This command will add range of vlan in a list
  
--Example : The command will create the VLAN "Vlan 100, Vlan 101, Vlan 102, Vlan 103" if these do not already exist.
+  Example : The command will create the VLAN "Vlan 100, Vlan 101, Vlan 102, Vlan 103" if these do not already exist.
 
    ***This works with deleting multiple VLANs in the same way***
   ```
@@ -238,12 +238,11 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 **4.**  Add all Vlan(s) as Vlan Member(s)  using a single command:
 
 ```
-  admin@sonic:~$ sudo config vlan member add -m all Ethernet0
+  admin@sonic:~$ sudo config vlan member add all Ethernet0
 
   Usage:  This command will add all existing vlan(s) as vlan member(s) 
  
- Example : Suppose Vlan 100, Vlan 101, Vlan 102 are already existing Vlans.  
- This command will add Ethernet0 as a member of Vlan 100, Vlan 101, Vlan 102. 
+ Example : Suppose Vlan 100, Vlan 101, Vlan 102 are already existing Vlans. This command will add Ethernet0 as a member of Vlan 100, Vlan 101, Vlan 102. 
   
     ***This command only work for trunk ports***
 
@@ -251,13 +250,13 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 
 **5.** Add multiple Vlan Member(s) except one specific using a single range command:
 
-```
-  admin@sonic:~$ sudo config vlan member add -m 100-103 -e 101 Ethernet0
 
-  Usage:  This command will add  vlan member(s) except one specific in a list
- 
- Example : The command will add Ethernet0 as a member of Vlan 100, Vlan 102,
- Vlan 103.
+  ```
+  admin@sonic:~$ sudo config vlan member add -m -e 12-17 Ethernet0
+  
+  Usage:  This command will add all existing vlan(s) execpt as vlan member(s) 
+     
+Example: Suppose if Vlan10, Vlan11, Vlan12, Vlan13, Vlan14, Vlan15, Vlan16, Vlan17, Vlan18, Vlan19, Vlan20 are existing Vlans. This command will add Ethernet0 as member of Vlan10, Vlan11, Vlan18, Vlan19, Vlan20
 
 ***This command only work for trunk ports***
 
