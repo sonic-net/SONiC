@@ -1,5 +1,5 @@
 <!-- omit in toc -->
-# BGP Supress FIB Pending #
+# BGP Suppress Announcements of Routes Not Installed in HW #
 
 <!-- omit in toc -->
 ## Table of Content
@@ -19,6 +19,7 @@
   - [7.3. RouteOrch](#73-routeorch)
   - [7.4. FPMsyncd](#74-fpmsyncd)
   - [7.5. Response Channel Performance considerations](#75-response-channel-performance-considerations)
+  - [7.6. Consistency monitoring script and mitigation action](#76-consistency-monitoring-script-and-mitigation-action)
 - [8. SAI API](#8-sai-api)
 - [9. Warmboot and Fastboot Design Impact](#9-warmboot-and-fastboot-design-impact)
   - [9.1. Warm Reboot](#91-warm-reboot)
@@ -43,18 +44,18 @@ This document describes a feedback mechanism that allows BGP not to advertise ro
 
 ### 2. Definitions/Abbreviations
 
-| Definitions/Abbreviation | Description                  |
-| ------------------------ | ---------------------------- |
+| Definitions/Abbreviation | Description                             |
+| ------------------------ | --------------------------------------- |
 | ASIC                     | Application specific integrated circuit |
-| HW                       | Hardware |
-| SW                       | Software |
-| BGP                      | Border Gateway Protocol      |
-| FRR                      | Free Range Routing           |
-| SWSS                     | Switch state service         |
-| SYNCD                    | ASIC synchronization service |
-| FPM                      | Forwarding Plane Manager     |
-| SAI                      | Switch Abstraction Interface |
-| OID                      | Object Identifier            |
+| HW                       | Hardware                                |
+| SW                       | Software                                |
+| BGP                      | Border Gateway Protocol                 |
+| FRR                      | Free Range Routing                      |
+| SWSS                     | Switch state service                    |
+| SYNCD                    | ASIC synchronization service            |
+| FPM                      | Forwarding Plane Manager                |
+| SAI                      | Switch Abstraction Interface            |
+| OID                      | Object Identifier                       |
 
 ### 3. Overview
 
@@ -102,8 +103,9 @@ High level requirements:
 
 - Provide an end to end ASIC hardware to BGP route programming feedback mechanism
 - BGP must not advertise routes which aren't yet offloaded if this feature is enabled
-- Both BGP suppression as well as feedback channel are optional and by disabled default
-- The above configuration can be applied only at startup and cannot be changed while system is running
+- BGP route suppression is optional and disabled by default
+- Route suppression can be turned on or off at runtime
+- Offloaded routes consistency monitoring and automatic mitigation
 
 Restrictions/Limitations:
 
@@ -129,37 +131,14 @@ The below diagram shows the high level architecture including sending an RTM_NEW
 #### 6.1. Config DB Enhancements
 
 <!-- omit in toc -->
-##### 6.1.1. APP_STATE_LOGGING
-
-Configuration schema in ABNF format:
-
-```abnf
-; APP_STATE_LOGGING table
-key   = APP_STATE_LOGGING|ROUTE_TABLE ; Configuration for ROUTE_TABLE
-state = "enabled"/"disabled"          ; Enable/disable response logging for ROUTE_TABLE
-```
-
-Sample of CONFIG DB snippet given below:
-
-```json
-{
-    "APP_STATE_LOGGING": {
-        "ROUTE_TABLE": {
-            "state": "enabled"
-        }
-    }
-}
-```
-
-<!-- omit in toc -->
-##### 6.1.2. DEVICE_METADATA
+##### 6.1.1.DEVICE_METADATA
 
 Configuration schema in ABNF format:
 
 ```abnf
 ; DEVICE_METADATA table
 key                      = DEVICE_METADATA|localhost ; Device metadata configuration table
-bgp-suppress-fib-pending = "enabled"/"disabled"      ; Globally enable/disable BGP suppress-fib-pending feature,
+suppress-pending-fib     = "enabled"/"disabled"      ; Globally enable/disable routes announcement suppression feature,
                                                      ; by default this flag is disabled
 ```
 
@@ -169,13 +148,24 @@ Sample of CONFIG DB snippet given below:
 {
     "DEVICE_METADATA": {
         "localhost": {
-            "bgp-suppress-fib-pending": "enabled"
+            "suppress-pending-fib": "enabled"
         }
     }
 }
 ```
 
-This configuration is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behaviour as this flag is set to be disabled by default.
+This configuration is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behavior as this flag is set to be disabled by default.
+
+This setting can be turned on or off at runtime. When this feature is turned off *fpmsyncd* sends an offload status reply immediately when a route is received from zebra. *fpmsyncd* listens to the changes
+in *DEVICE_METADATA* and the new added field and when it gets enabled starts replying to zebra only after a reply from orchagent for all newly added prefixes. This design will make it possible to control
+this feature at runtime. When user turns the feature off, newly received routes from zebra will get immediate answer back.
+
+In case user detects an issue with a feature (i.e routes aren't marked as offloaded in zebra and thus BGP does not announce them), it can be turned off.
+
+<!-- omit in toc -->
+##### 6.1.2. Minigraph
+
+*suppress-pending-fib* is enabled when generating CONFIG_DB out of minigraph for device role *LeafRouter*.
 
 #### 6.2. Manifest (if the feature is an Application Extension)
 
@@ -184,54 +174,9 @@ This feature is implemented as part of existing BGP and SWSS containers, no mani
 #### 6.3. CLI/YANG model Enhancements
 
 <!-- omit in toc -->
-##### 6.3.1. APP_STATE_LOGGING
-
-A new table ```APP_STATE_LOGGING``` and a corresponding YANG model is added:
-
-```yang
-module sonic-app-state-logging {
-    yang-version 1.1;
-
-    namespace "http://github.com/Azure/sonic-app-state-logging";
-    prefix app-state-logging;
-
-    description "APP_STATE_LOGGING YANG module for SONiC OS";
-
-    revision 2022-09-15 {
-        description "Initial revision";
-    }
-
-    container sonic-app-state-logging {
-        container APP_STATE_LOGGING {
-            description "Controls the enablement of a response channel per APPL_DB table";
-
-            container ROUTE_TABLE {
-                description "Configure response channel for ASIC route configuration";
-
-                leaf state {
-                    description "Enablement state of response channel for the given table";
-                    type enumeration {
-                        enum enabled;
-                        enum disabled;
-                    }
-                    default disabled;
-                }
-            }
-            /* end of container ROUTE_TABLE */
-        }
-        /* end of container APP_STATE_LOGGING */
-    }
-    /* end of container of top level container */
-}
-/* end of module sonic-app-state-logging */
-```
-
-Note that response channel for ROUTE_TABLE can be enabled regardless of ```synchronous_mode``` as we might still get a response from ```RouteOrch``` validation logic as well as ```SAIRedis``` validation.
-
-<!-- omit in toc -->
 ##### 6.3.2.  DEVICE_METADATA
 
-A new leaf is added to ```sonic-device_metadata/sonic-device_metadata/DEVICE_METADATA/localhost``` called ```bgp-suppress-fib-pending``` which can be set to ```"enable"``` or ```"disable"```.
+A new leaf is added to ```sonic-device_metadata/sonic-device_metadata/DEVICE_METADATA/localhost``` called ```suppress-pending-fib``` which can be set to ```"enable"``` or ```"disable"```.
 
 Snippet of ```sonic-device_metatadata.yang```:
 
@@ -250,22 +195,17 @@ module sonic-device_metadata {
             description "DEVICE_METADATA part of config_db.json";
 
             container localhost{
-                leaf bgp-suppress-fib-pending {
-                    description "Enable BGP suppress FIB pending feature. BGP will wait for route
-                                 FIB intallation before announcing routes. This configuration requires
-                                 restarting BGP sessions.";
+                leaf suppress-pending-fib {
+                    description "Enable suppress pending FIB feature. BGP will wait for route
+                                 FIB installation before announcing routes.";
                     type enumeration {
                         enum enabled;
                         enum disabled;
                     }
                     default disabled;
 
-                    must "((current() = 'disabled') or (current() = 'enabled' and ../synchronous_mode = 'enable'
-                           and /app-state-logging:sonic-app-state-logging/app-state-logging:
-                               APP_STATE_LOGGING/app-state-logging:
-                               ROUTE_TABLE/app-state-logging:state = 'enabled'))" {
-                        error-message "ASIC synchronous mode and APP_STATE_LOGGIN for ROUTE_TABLE must
-                                       be enabled in order to enable BGP suppress FIB pending feature";
+                    must "((current() = 'disabled') or (current() = 'enabled' and ../synchronous_mode = 'enable'))" {
+                        error-message "ASIC synchronous mode must be enabled in order to enable routes suppression";
                     }
                 }
             }
@@ -280,7 +220,20 @@ module sonic-device_metadata {
 
 This knob can only be set to ```"enable"``` when syncrhonous SAI configuration mode is on. This constraint is guaranteed by the ```must``` expression for this leaf.
 
-No python ```click```-based CLI command nor ```KLISH``` CLI is planned to be implemented for this functionality.
+<!-- omit in toc -->
+#### 6.4. CLI
+
+A new CLI command is added to control this feature:
+
+Command to enable feature:
+```
+admin@sonic:~$ sudo config suppress-pending-fib enabled
+```
+
+Command to disable feature:
+```
+admin@sonic:~$ sudo config suppress-pending-fib disabled
+```
 
 ### 7. High-Level Design
 
@@ -304,29 +257,24 @@ Some patches that change FPM behavior to the desired SONiC behavior need to be p
 - [[PATCH] ignore route from default table](https://github.com/yxieca/sonic-buildimage/blob/26c5bf81f0a8b2f5d6809048bb54a872403726c2/src/sonic-frr/patch/0009-ignore-route-from-default-table.patch)
 - [0007-Add-support-of-bgp-l3vni-evpn.patch](https://github.com/sonic-net/sonic-buildimage/blob/a477dbb1751b741ac2762b4328da08b37eb400db/src/sonic-frr/patch/0007-Add-support-of-bgp-l3vni-evpn.patch)
 
-**Q**: Is there any plan for aligning SONiC to upstream vanilla version FPM implementation?
+An additional set of patches is required to be ported to FRR 8.2 to support this feature: [Add ability for dplane_fpm_nl to receive RTM_NEWROUTE netlink messages that signal route handling in the asic](https://github.com/stepanblyschak/frr/pull/1).
 
 #### 7.2. BGP Docker container startup
 
-BGP configuration template ```bgpd.main.j2``` requires update to support the new field ```bgp-suppress-fib-pending``` and configure FRR accordingly.
+BGP configuration template ```bgpd.main.j2``` requires update to configure FRR accordingly.
 
-This configuration is supported in both ```unified``` and ```separated``` FRR configuration modes. Configuration template snippet *bgpd.main.conf.j2*:
+Configuration template snippet *bgpd.main.conf.j2*:
 
 ```jinja2
 router bgp {{ DEVICE_METADATA['localhost']['bgp_asn'] }}
-{% if DEVICE_METADATA['localhost']['bgp-suppress-fib-pending'] == 'enabled' %}
   bgp suppress-fib-pending
-{% endif %}
 ```
 
 Zebra shall be started with an option ```--asic-offload=notify_on_offload```. This option will make zebra wait for ```RTM_F_OFFLOAD``` before notifying about installation status to bgpd. The template *supervisor.conf.j2* file is updated:
 
 ```jinja2
 [program:zebra]
-{% if DEVICE_METADATA['localhost']['bgp-suppress-fib-pending'] == 'enabled' %}
-{% set zebra_extra_arguments = "--asic-offload=notify_on_offload" }
-{% endif %}
-command=/usr/lib/frr/zebra -A 127.0.0.1 -s 90000000 -M dplane_fpm_nl {{ zebra_extra_arguments }}
+command=/usr/lib/frr/zebra -A 127.0.0.1 -s 90000000 -M dplane_fpm_nl --asic-offload=notify_on_offload
 ```
 
 Before the route is offloaded ```show ip route``` shows routes as queued:
@@ -394,33 +342,33 @@ admin@sonic:~$ vtysh -c "show ip route 100.1.0.25/32 json"
 <!-- omit in toc -->
 #### ResponsePublisher in RouteOrch
 
-```RouteOrch``` need to use existing ```ResponsePublisher``` API to be able to publish responses into ```APPL_STATE_DB```.
+*RouteOrch* need to use existing *ResponsePublisher* API to be able to publish responses into *APPL_STATE_DB*.
 
-A snippet of ```ResponsePublisher```'s API that is going to be used is given below. The ```state_attrs``` argument is used when a ```SET``` operation for a route entry in ```ROUTE_TABLE``` was performed successfully but the actual set of next hops differs from the intent. When the ```intent_attrs``` vector is empty it implies a ```DEL``` operations.
+A snippet of *ResponsePublisher* API that is going to be used is given below.
 
 ```c++
 void ResponsePublisher::publish(const std::string &table, const std::string &key,
                                 const std::vector<swss::FieldValueTuple> &intent_attrs,
                                 const ReturnCode &status,
-                                const std::vector<swss::FieldValueTuple> &state_attrs,
                                 bool replace = false) override;
 ```
 
-Example usage in ```RouteOrch```:
+*RouteOrch* will not publish all fields and values to *APPL_STATE_DB* to reduce memory usage and reduce load on redis database. Instead, the key is published as well as the *protocol* field as this one is required for fpmsyncd to construct RTM_NEWROUTE message.
+
+Example usage in *RouteOrch*:
 
 ```c++
-m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), ReturnCode(saiStatus), actualFvs, true);
+m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), ReturnCode(SAI_STATUS_SUCCESS), true);
 ```
-
 
 Example data:
 ```
 127.0.0.1:6379[14]> hgetall "ROUTE_TABLE:193.5.96.0/25"
-1) "nexthop"
-2) "10.0.0.1,10.0.0.5,10.0.0.9,10.0.0.13"
-3) "ifname"
-4) "PortChannel102,PortChannel105,PortChannel108,PortChannel1011"
+1) "protocol"
+2) "bgp"
 ```
+
+In order to delete an entry from *APPL_STATE_DB* it is required to pass an empty *intent_attrs* vector which will imply this is a *DEL* operation.
 
 <!-- omit in toc -->
 #### RouteOrch Route Set Flow
@@ -429,7 +377,7 @@ Example data:
 
 *Temporary route*:
 
-A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well as the actual ```nexthop``` field to ```APPL_STATE_DB```. A *temporary* route is kept in the ```m_toSync``` queue to be later on reprogrammed when sufficient resources are available for full next hop group creation.
+A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status regardless as this route is considered as successfully programmed. A *temporary* route is kept in the ```m_toSync``` queue to be later on reprogrammed when sufficient resources are available for full next hop group creation.
 
 *Full mask prefix subnet routes*:
 
@@ -463,44 +411,25 @@ sequenceDiagram
   RouteOrch ->> RouteOrch: doTask()
 
   loop For each entry in m_toSync
-    alt NHG exist or can be added
-      RouteOrch ->> RouteBulker: RouteBulker.create_entry() / RouteBulker.set_entry_attribute()
-      activate RouteBulker
-      RouteBulker -->> RouteOrch: <br>
-      deactivate RouteBulker
-    else NH can't be added
-      Note right of RouteOrch: 1 NH is selected and addRoute()<br>is called with temporary NH
-      RouteOrch ->> RouteBulker: RouteBulker.create_entry() / RouteBulker.set_entry_attribute()
-      activate RouteBulker
-      RouteBulker -->> RouteOrch: <br>
-      deactivate RouteBulker
-    end
+    RouteOrch ->> RouteBulker: RouteBulker.create_entry() / RouteBulker.set_entry_attribute()
+    activate RouteBulker
+    RouteBulker -->> RouteOrch: <br>
+    deactivate RouteBulker
   end
 
   Note left of RouteOrch: On any pre-condition failed<br>RouteOrch is retrying to program <br>the route on next iteration<br>In this case no response is written<br>
 
   loop For each route
-    alt New route
-      RouteOrch ->> RouteBulker: RouteBulker.flush()
-      activate RouteBulker
-      RouteBulker ->> ASIC_DB: sai_route_api->create_route_entries()
-      activate ASIC_DB
-      ASIC_DB ->> SYNCD: sai_route_api->create_route_entries()
-      activate SYNCD
-      SYNCD -->> ASIC_DB: sai_status_t *object_statuses
-      deactivate SYNCD
-      ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
-      deactivate ASIC_DB
-    else Existing route
-      RouteBulker ->> ASIC_DB: sai_route_api->set_route_entries_attribute()
-      activate ASIC_DB
-      ASIC_DB ->> SYNCD: sai_route_api->set_route_entries_attribute()
-      activate SYNCD
-      SYNCD -->> ASIC_DB: sai_status_t *object_statuses
-      deactivate SYNCD
-      ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
-      deactivate ASIC_DB
-    end
+    RouteOrch ->> RouteBulker: RouteBulker.flush()
+    activate RouteBulker
+    RouteBulker ->> ASIC_DB: sai_route_api->create_route_entries() / <br> sai_route_api->set_route_entry_attribute()
+    activate ASIC_DB
+    ASIC_DB ->> SYNCD: sai_route_api->create_route_entries()
+    activate SYNCD
+    SYNCD -->> ASIC_DB: sai_status_t *object_statuses
+    deactivate SYNCD
+    ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
+    deactivate ASIC_DB
   end
 
   RouteBulker -->> RouteOrch: <br>
@@ -509,15 +438,17 @@ sequenceDiagram
   Note left of RouteOrch: On any route programming error<br>RouteOrch crashes orchagent.<br> No response is written<br>
 
   loop For each entry status in RouteBulker
+    alt Is newly created route
       RouteOrch ->> ResponsePublisher: ResponseBulisher.publish()
       activate ResponsePublisher
-      ResponsePublisher ->> APPL_STATE_DB: <br>
+      ResponsePublisher ->> APPL_STATE_DB: Set to ROUTE_TABLE
       activate APPL_STATE_DB
       APPL_STATE_DB -->> ResponsePublisher: <br>
       deactivate APPL_STATE_DB
-      Note right of RouteOrch: Publish actual FVs <br>(in case of temporary route only 1 NH is added)
+      Note right of RouteOrch: Publish status to APPL_STATE_DB if it is a new route
       ResponsePublisher -->> RouteOrch: <br>
       deactivate ResponsePublisher
+    end
   end
 
   deactivate RouteOrch
@@ -586,7 +517,7 @@ sequenceDiagram
   loop For each status in RouteBulker
       RouteOrch ->> ResponsePublisher: ResponseBulisher.publish()
       activate ResponsePublisher
-      ResponsePublisher ->> APPL_STATE_DB: <br>
+      ResponsePublisher ->> APPL_STATE_DB: Delete from ROUTE_TABLE
       activate APPL_STATE_DB
       APPL_STATE_DB -->> ResponsePublisher: <br>
       deactivate APPL_STATE_DB
@@ -659,22 +590,29 @@ sequenceDiagram
   APPL_DB ->> RouteSync: <br>
   deactivate APPL_DB
 
+  alt Suppression is disabled
+    Note left of RouteSync: Reply back immidiatelly <br>when this feature is disabled
+    RouteSync ->> zebra: Send back RTM_NEWROUTE<br> with RTM_F_OFFLOAD set
+    zebra ->> RouteSync: <br>
+  end
+
   deactivate RouteSync
 
   APPL_STATE_DB ->> RouteSync: ROUTE_TABLE publish event
-  activate RouteSync
-  RouteSync ->> RouteFeedbackChannel: onRouteResponse()
-  activate RouteFeedbackChannel
-  alt Successful SET operation
-    Note right of RouteFeedbackChannel: Construct RTM_NEWROUTE based of <br>response field value tuples<br>and set RTM_F_OFFLOAD flag<br>
-    RouteFeedbackChannel ->> zebra: Send RTM_NEWROUTE
-    activate zebra
-    zebra ->> RouteFeedbackChannel: <br>
-    deactivate zebra
+  alt Suppression is enabled
+    activate RouteSync
+    RouteSync ->> RouteFeedbackChannel: onRouteResponse()
+    activate RouteFeedbackChannel
+    alt Successful SET operation
+        Note right of RouteFeedbackChannel: Construct RTM_NEWROUTE based of <br>response field values<br>and set RTM_F_OFFLOAD flag<br>
+        RouteFeedbackChannel ->> zebra: Send RTM_NEWROUTE
+        activate zebra
+        zebra ->> RouteFeedbackChannel: <br>
+        deactivate zebra
+    end
+    deactivate RouteFeedbackChannel
+    deactivate RouteSync
   end
-  deactivate RouteFeedbackChannel
-  deactivate RouteSync
-
 ```
 
 *FpmLink* class has to be extended with new API to send netlink message through FPM socket:
@@ -698,23 +636,11 @@ rtnl_route_set_table(routeObject.get(), vrfIfIndex);
 // Mark route as OFFLOAD
 rtnl_route_set_flags(routeObject.get(), RTM_F_OFFLOAD);
 
-for (const auto& nexthop: nexthops)
-{
-    auto* nlNhop = rtnl_route_nh_alloc();
-
-    rtnl_route_nh_set_ifindex(nlNhop, nhIfIndex);
-    rtnl_route_nh_set_gateway(nlNhop, nhAddr);
-
-    rtnl_route_add_nexthop(routeObject, nlNhop);
-}
-
 nl_msg* msg;
 rtnl_route_build_add_request(routeObject, NLM_F_CREATE, &msg);
 
 fpm.send(msg);
 ```
-
-fpmsyncd reads *bgp-suppress-fib-pending* flag from CONFIG_DB and completely disables *RouteFeedbackChannel* if the feature is disabled. *4*-*7* are not invoked and the flow remains the same as today.
 
 #### 7.5. Response Channel Performance considerations
 
@@ -769,9 +695,19 @@ void ResponsePublisher::setBuffered(bool buffered);
 
 The ```OrchDaemon``` has to flush the ```RedisPipeline``` in ```OrchDaemon::flush``` when there are no pending tasks to perform.
 
+#### 7.6. Consistency monitoring script and mitigation action
+
+Routing is a crucial part of a network switch. This feature adds additional flows in existing route processing pipeline and so along the way there might be unexpected failures leading to routes being not marked as offloaded in zebra - missed notification, race conditions leading to in-consistency, etc. It is required to monitor the consistency of routes state periodically and mitigate problems.
+
+At the moment *route_check.py* verifies routes between APPL_DB & ASIC_DB and makes sure they are in sync. If this script is failed for 3 periodic cycles of monit an error alert is written to the syslog. In addition to that it is required to extend this script to check for consistency APPL_DB, APPL_STATE_DB and zebra by calling ```show ip route json``` and verify every route installed in ASIC_DB is marked as offloaded. If this check fails a specific status code is returned to monit.
+
+Once monit detects this specific status code has been returned from this script for 3 cycles in a row a mitigation script - *mitigate_routes_offload.py* is invoked. This script publishes required notifications to trigger fpmsyncd flows to send RTM_NEWROUTE message to zebra and log alerts in the syslog.
+
+This way the problem is mitigated automatically and a network operator is notified via syslog alert about a problem.
+
 ### 8. SAI API
 
-No new SAI API or changes to SAI design and behaviour needed for this functionality.
+No new SAI API or changes to SAI design and behavior needed for this functionality.
 
 ### 9. Warmboot and Fastboot Design Impact
 
@@ -801,27 +737,18 @@ Fast/warm reboot regression test suite needs to be ran and verified no degradati
 
 - FPMSyncd: test case regular route
   1. Mock FPM interface
-  2. Call RouteSync::onRouteMsg() with RTM_NEWROUTE message containing route 1.1.1.0/24 nexthop 2.2.2.2, 3.3.3.3
-  3. Call RouteSync::onRouteResponse() with APPL_STATE_DB format
+  2. Call RouteSync::onRouteResponse() with route 1.1.1.0/24 nexthop 2.2.2.2, 3.3.3.3
   4. Verify a correct FPM message is being sent to zebra through FPM interface mock
   5. Verify RTM_F_OFFLOAD set in route message sent  to zebra
 - FPMSyncd: test case VRF route
   1. Mock FPM interface
-  2. Call RouteSync::onRouteMsg() with RTM_NEWROUTE message containing route 1.1.1.0/24 in VRF nexthop 2.2.2.2, 3.3.3.3
-  3. Call RouteSync::onRouteResponse() with APPL_STATE_DB format
-  4. Verify a correct FPM message is being sent to zebra through FPM interface mock
-  5. Verify RTM_F_OFFLOAD set in route message sent  to zebra
+  2. Call RouteSync::onRouteResponse() with route 1.1.1.0/24 in VRF nexthop 2.2.2.2, 3.3.3.3
+  3. Verify a correct FPM message is being sent to zebra through FPM interface mock
+  4. Verify RTM_F_OFFLOAD set in route message sent  to zebra
 - FPMSyncd: send RTM_DELROUTE
   1. Mock FPM interface
-  2. Call RouteSync::onRouteMsg() with RTM_DELROUTE message containing route 1.1.1.0/24
-  3. Call RouteSync::onRouteResponse() with APPL_STATE_DB format with delete operation response
+  2. Call RouteSync::onRouteResponse() with delete response message containing route 1.1.1.0/24
   4. Verify no message is sent to zebra
-- FPMSyncd: test only one nexthop is attached to the route
-  1. Mock FPM interface
-  2. Call RouteSync::onRouteMsg() with RTM_NEWROUTE message containing route 1.1.1.0/24 nexthop 2.2.2.2, 3.3.3.3
-  3. Call RouteSync::onRouteResponse() with APPL_STATE_DB containing only one nexthop 2.2.2.2 format
-  4. Verify a correct FPM message is being sent to zebra through FPM interface mock with one nexthop
-  5. Verify RTM_F_OFFLOAD set in route message sent  to zebra
 
 - RouteOrch: program ASIC route
   1. Create FVS and call RouteOrch::doTask()
@@ -831,11 +758,6 @@ Fast/warm reboot regression test suite needs to be ran and verified no degradati
   1. Create delete entry and call RouteOrch::doTask()
   2. Verify route is delete in SAI
   3. Verify the content of APPL_STATE_DB
-- RouteOrch: program ASIC route with temporary nexthop
-  1. Mock SAI_SWITCH_ATTR_NUMBER_OF_ECMP_GROUPS to 0
-  2. Create FVS and call RouteOrch::doTask()
-  3. Verify route is created in SAI with 1 nexthop
-  4. Verify the content of APPL_STATE_DB contains only 1 nexthop
 
 #### 11.2. VS Test cases
 
@@ -843,20 +765,35 @@ Code coverage is satisfied by UT and the E2E flow is not possible to test with c
 
 #### 11.3. System Test cases
 
+<!-- omit in toc -->
+##### Figure 7. T1 test topology
+
+<p align=center>
+<img src="img/test-topology.svg" alt="Figure 7. T1 test topology">
+</p>
+
 In order to test this feature end to end it is required to simulate a delay in ASIC route programming. The proposed test:
 
-1. Enable ```bgp-suppress-fib-pending```
-2. Stop orchagent process to simulate a delay: ```kill --SIGSTOP $(pidof orchagent)```
-4. Announces routes to DUT through exabgp
-5. Verify BGP session is established
-6. Make sure announced BGP route is queued in ```show ip route``` output
-7. Verify the route is not announced to Arista T1 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
-8. Restore orchagent process: ```kill --SIGCONT $(pidof orchagent)```
-8. Make sure route is programmed in ASIC_DB
-9. Make sure announced BGP route is FIB synced in ```show ip route``` output
-7. Verify the route is announced to Arista T1 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
-
+- **Functional Test**
+  1. Enable ```suppress-pending-fib```
+  2. Suspend orchagent process to simulate a delay with ```kill --SIGSTOP $(pidof orchagent)```
+  3. Announces prefix *1.1.1.0/24* (*1::/64*) to DUT through *exabgp* from T0 Arista VM
+  4. Make sure announced BGP route is queued in ```show ip route``` output
+  5. Verify the route is not announced to Arista T2 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
+  6. Send traffic matching the prefix and verify packets are not forwarded to T0 Arista VM
+  7. Restore orchagent process: ```kill --SIGCONT $(pidof orchagent)```
+  8. Make sure route is programmed in ASIC_DB
+  9. Make sure announced BGP route is FIB synced in ```show ip route``` output
+  10. Verify the route is announced to Arista T1 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
+  11. Send traffic matching the prefix and verify packets are forwarded to T0 Arista VM
+- **Performance Test**
+  1. TBD
+- **Stress Test**
+  1. Enable ```suppress-pending-fib```
+  2. In a loop for 100 times:
+     1. Announce 10 prefix to DUT through *exabgp* from T0 Arista VM
+     2. Withdraw 10 prefix to DUT through *exabgp* from T0 Arista VM
+  3. Once reached the required number of cycles the loop breaks after first step
+  4. Consistency check is applied, there are no withdrawn routes and announced routes were successfully installed and correctly marked as offloaded in zebra (In case a race condition happens or a notification is missed for some reason this test will try to catch it)
 
 ### 12. Open/Action items - if any
-
-- Default state of the feature based off minigraph device type
