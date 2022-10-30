@@ -172,27 +172,90 @@ DHCP|intf-i|dhcpv6_option|rfc6939_support: &quot;true&quot;
 
 sonic-dhcpv6-relay.yang
 <pre>
-module DHCP  
-    container DHCP {  	
-        list VLAN_LIST {
-    		key name;
-   		    leaf name {
-    			type string;
-  		    }
-   		    leaf dhcpv6_servers {
-     		    	type inet6:ip-address;
-  		    }
-		    leaf dhcpv6_option|rfc6939_support {
-			    type bool;
-		    }
+module sonic-dhcpv6-relay {
+
+	namespace "http://github.com/Azure/sonic-dhcpv6-relay";
+
+	prefix sdhcpv6relay;
+
+	yang-version 1.1;
+
+	import ietf-inet-types {
+		prefix inet;
+	}
+
+	organization "SONiC";
+
+	contact "SONiC";
+
+	description "DHCPv6 Relay yang Module for SONiC OS";
+
+	revision 2021-10-30 {
+		description "First Revision";
+	}
+
+	container sonic-dhcpv6-relay {
+
+		container DHCP_RELAY {
+
+			description "DHCP_RELAY part of config_db.json";
+
+			list DHCP_RELAY_LIST {
+
+				key "name";
+        
+				leaf name {
+					type string;
+				}
+
+        leaf-list dhcpv6_servers {
+                description "Configure the dhcpv6 servers";
+                type inet:ipv6-address;
         }
+
+        leaf dhcpv6_option|rfc6939_support {
+                description "Set rfc6939 for the relay";
+        		    type bool;
+		    }
+
+        leaf dhcpv6_option|interface_id {
+                description "Set interface-id for the relay";
+        		    type bool;
+		    }
     }
+  }
 }
 </pre>
 
 # Option 79 for client link-layer address
 
-Option 79 should be enabled by default and can be disabled through command line.
+Option 79 should be enabled by default and can be disabled through editing config_db.json and reapplying configuration or config database directly by the following commands:
+
+Usage:
+```
+config vlan dhcp_relay add <vlan_id> <dhcp_relay_destination_ip>
+redis-cli -n 4 hset DHCP_RELAY|<vlan> dhcpv6_option|rfc6939_support <true/false>
+```
+
+Example:
+```
+admin@sonic:~$ redis-cli -n 4 hset DHCP_RELAY|Vlan1000 dhcpv6_option|rfc6939_support false
+```
+
+# Option 18 for Interface-ID
+
+Option 18 is disabled by default and can be enabled through editing config_db.json and reapplying configuration or config database directly by the following commands:
+
+Usage:
+```
+config vlan dhcp_relay add <vlan_id> <dhcp_relay_destination_ip>
+redis-cli -n 4 hset DHCP_RELAY|<vlan> dhcpv6_option|interface_id <true/false>
+```
+
+Example:
+```
+admin@sonic:~$ redis-cli -n 4 hset DHCP_RELAY|Vlan1000 dhcpv6_option|interface_id true
+```
 
 # Option for Dual ToR
 
@@ -223,6 +286,8 @@ Configurable option to use loopback address for dual ToR
 # Performance
 
 SONiC DHCP relay agent is currently not relaying many DHCP requests. Frequency arrival rate of DHCP packets is not high so it is not going to affect performance.
+Typical number of vlans used with dhcp6relay is around 2 vlans. Performance degration and high CPU utilization is seen on devices with more than 25 vlans configured, especially devices with weaker CPU's.
+
 
 # Testing
 
