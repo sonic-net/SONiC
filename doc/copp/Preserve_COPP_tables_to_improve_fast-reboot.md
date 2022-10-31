@@ -6,9 +6,7 @@ The scope of this document is to provide the requirements and a high-level desig
 
 The following are the high level requirements for preserving CoPP tables contents during reboot.
 
-1. CoPP Tables shouldn't be cleared from APP DB by DB migrator under the following requriements:
-    1. Relevant only for NVIDIA/Mellanox platforms.
-    2. Next (after reboot) image supports for the following mergeConfig changes - for backwards compatibility.
+1. CoPP Tables shouldn't be cleared from APP DB by DB migrator.
 2. coppmgr mergeConfig logic should be enhanced to:
     1. Ignore setting existing entries.
     2. Overwrite entry when value differs, use value from default init file merged with user configuration.
@@ -24,13 +22,20 @@ In the current implementation DB migrator clears CoPP tables contents and it is 
 ## Proposed behaviour
 
 With the new proposal, the CoPP tables contents will be preserved during reboot, i.e. they won't be cleared by DB migrator. Then, initializing CoPP tables in startup phase for any key-value entry it will be checked if such entry exists, in case it does, the entry will be ignored. In case there is an entry with the same key but with different value preserved from prior reboot the existing entry will be deleted and a new entry will be added to the CoPP tables with the key and the new value.
-In addition, in case CoPP tables preserve an entry with a key that is not supported (i.e. such key is not present in the json default initialization file) due to some possible future modification it will be deleted from the CoPP tables during merge.
-For backwards compatibility, since the enhanced mergeConfig logic is not present in past SONiC images current behavior will take place and CoPP tables will be cleared during DB migration.
+In addition, for backwards compatibility, in case CoPP tables preserve an entry with a key that is not supported (i.e. such key is not present in the json default initialization file) it will be deleted from the CoPP tables during merge.
 The solution of deleting old entry and creating a new one instead is proposed since there is no SAI implementation to check for overwrites and this might lead to trying to re-create create-only entries which will cause orchagent crash.
 
 # Flow
 
-The following flow captures CoPP manager merge propused functionality.
+## DB migrator copp tables handling logic
+
+The following flow captures the DB migrator propused functionality.
+
+![](/images/copp/coppmgr_merge_logic.png)
+
+## coppmgr mergeConfig logic
+
+The following flow captures CoPP manager configuration merge propused functionality.
 
 ![](/images/copp/coppmgr_merge_logic.png)
 
@@ -39,4 +44,3 @@ The following flow captures CoPP manager merge propused functionality.
 2. Perform fast-reboot with value that is different from user's configuration (whether user's configuration is same as default value or not) for one of the CoPP tables contents, in the specific case - LACP. Examine that it is being deleted and a new entry is being added to the table instead of it during the coppmgr merge logic.
 3. Perform reboot to previous SONiC version that doesn't support one of CoPP entries that were found in the table prior to the reboot. Check that the entry is being preserved through DB migration and being cleared in the coppmgr merge logic.
 4. Remove one of CoPP table entries before rebooting and examine that it is missing on startup and being added as a new entry during coppmgr merge.
-5. Perform downgrade, i.e. reboot to previous SONiC image not containg the changes to mergeConfig logic and check that CoPP tables are cleared in DB migrator as in current behaviour.
