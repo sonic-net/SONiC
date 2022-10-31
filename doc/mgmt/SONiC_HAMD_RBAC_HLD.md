@@ -158,11 +158,11 @@ In addition to that, the following enhancements would be done.
 - There must be a provision to associate more than one role to a user.
 
 ## RBAC enhancements overview
-SONiC supports two default roles, Admin (sysAdmin) and operator (NetOperator). The purpose of roles is to share privilege, security, and access among a group of users.
+SONiC supports two default roles, admin (sysAdmin) and operator (NetOperator). The purpose of roles is to share privilege, security, and access among a group of users.
 
 Two more new roles need to be supported :
-- secAdmin (Security Admin)
-- netAdmin (Network Admin)
+- secadmin (Security Admin)
+- netadmin (Network Admin)
 
 The existing RBAC feature must be enhanced to support the new roles.
 
@@ -184,13 +184,11 @@ The existing RBAC feature must be enhanced to support the new roles.
     -	secadmin  
     -	netadmin
 6.	TACACS and RADIUS modules must be enhanced to support these new user roles – secadmin and netadmin.
-7.	TACACS and RADIUS server’s configuration file must support a new attribute for the defining the remote user's group name as an alternate to the existing privilege-level attribute.
-8.  TACACS and RADIUS modules of SONiC must be enhanced to parse the new attribute and take the appropriate action.
-9.	“username” command must be enhanced such a way that a user shall be allowed to map with more than one user role.
+7.	“username” command must be enhanced such a way that a user shall be allowed to map with more than one user role.
     -	For example: username < user_name> password < password> role secadmin,netadmin
     -	This is applicable only to local users
     -	For remote users (TACACS and RADIUS), this will be supported in the future releases.
-10. Software upgrade must work seamlessly.
+8.	Software upgrade must work seamlessly.
 
 ### 1.2.2 RBAC Requirements
 
@@ -216,22 +214,27 @@ HAM module contains the following :
 2. hamctl - A Linux kernel application that can be launched from a Linux shell. This can be used to check the functionality of the HAMd process.
 3. libnss_ham - A library that enables a container to avail the services offerec by the HAMd process.
 4. libnss_sac - A library that assigns a User ID and a Primary Group ID to remote users (RADIUS/TACACS+).
-Both the modules (RADIUS and TACACS) use their own mechanism to program the user account information in the Linux kernel.
+But, currently both the modules (RADIUS and TACACS) use their own mechanism to program the user account information in the Linux kernel.
 
 #### 1.3.1.2 RBAC Overview
 
-The RBAC feature provides a control for access and authorization. Users are granted permission based on defined Roles. SONiC supports two roles, Admin and Operator. Admin users are allowed to access all commands/features in the system whereas operator users can only execute show commands and a limited set of other read-write operations pertaining to the user account scope.
+- The RBAC feature provides a control for access and authorization.
+- Users are granted permission based on defined Roles.
+SONiC supports two roles : Admin and Operator.
+- Admin users are allowed to access all commands/features in the system whereas operator users can only execute show commands and a limited set of other read-write operations pertaining to the user account scope.
 
-Two new roles, secAdmin and netAdmin,  must be supported. The following table captures the complete set of authorization privileges associated with each role.
+- Two new roles : secadmin and netadmin must be supported. 
+- The following table captures the authorization privileges associated with each role.
 
 ### Table 2: RBAC roles and linux groups
 | **Roles**  			 | **Operations**                                                     		    | **Linux groups**  	 | **Default shell** | 
 |----------------------- |----------------------------------------------------------------------------- |----------------------- |------------------ |
-| admin (SysAdmin)	 | Users with admin privileges must be allowed to access all commands - configuration/show/debug/copy and etc. They must be granted read, write and execute permissions to all YANG xPATHs. Admin users must be allowed to access the Linux system shell. | admin, sudo, docker, adm, redis | Linux Bash shell |
+| admin (SysAdmin)	 | Users with admin privileges must be allowed to access all commands - configuration/show/debug/copy,etc. They must be granted read, write and execute permissions to all YANG xPATHs. Admin users must be allowed to access the Linux system shell. | admin, sudo, docker, adm, redis | Linux Bash shell |
 | operator (Network Operator) | Users must be allowed to execute only show commands. Read-only permissions to selected YANG xpaths. For certain objects, read-write access would be granted. For example, copying a file from the user home directory to a file server and vice-versa is permitted. Users must not be allowed to login into the Linux system shell. | operator, docker | sonic-cli |
-| secAdmin (security admin) | Users with secAdmin privileges must be allowed to access all security-related commands in the system.(configuration/show/debug/copy and etc.,) Read/Write/Execute permissions to the relevant YANG xpaths. For example, a secAdmin user must be allowed to access the commands related to aaa, authentication, radius server, ssh-server, TACACS server, etc. Also the user must be allowed to access system-level information like login statistics, log information, etc. Users must not be allowed to login into the Linux system shell. | secadmin, docker, redis | sonic-cli |
-| netAdmin (network admin) | Users with netAdmin privileges must be allowed to access the configuration commands/features that manage traffic flowing through the switch, such as routing protocols, route-map, bfd, qos, CoPP, PFC, Session monitoring, SFLOW,  SFLOW, ACLs, interfaces, etc. Users must not be allowed to login into the Linux system shell.| netadmin, docker, redis | sonic-cli |
+| secadmin (security admin) | Users with secadmin privileges must be allowed to access all security-related commands in the system. Read/Write/Execute permissions to the relevant YANG xpaths. Users must not be allowed to login into the Linux system shell. | secadmin, docker, redis | sonic-cli |
+| netadmin (network admin) | Users with netadmin privileges must be allowed to access the network-related configuration commands/features that manage traffic flowing through the switch. Users must not be allowed to login into the Linux system shell.| netadmin, docker, redis | sonic-cli |
 
+The Table-3 in the upcoming section captures the complete set of features/commands and their associated roles/privileges.
 
 ### 1.3.2 Container
 
@@ -250,14 +253,20 @@ No new or existing SAI services are required
 
 This feature is applicable to all north-bound interfaces like CLI/gNMI/RestAPI. So the RBAC feature must be implemented by a module that is common to all NBIs. Both sonic-mgmt-framework and telemetry containers use translib for writing/reading the configurations into/from the CONFIG DB. Hence, the RBAC feature would be implemented in the translib module.
 
-Both sonic-mgmt-framework (Rest) and sonic-telemetry(gNMI) use translib library. So the required RBAC functionality would be implemented in the translib module (sonic-mgmt-common).
 
-The following table captures the CLI commands/xPATHS and their access privileges to be granted to various roles.
-
-###Note:
+### Note:
 1. For admin users (both default and non-default), the role name "admin" need not be specified in the "access" tag.
-The "admin" role is added in the below table for all the commands just for a better understanding.
-2. If a command is applicable to all roles then the tag "access" must not be used.  The absence of the tag "access" means that the command is applicable to all.
+The "admin" role is added in the below table for all the commands just for understanding.
+
+Only the secadmin/netadmin/operator roles need to be mentioned in the access tag.
+
+Exception : The access="admin" tag needs to be added for commands, which can be accessed only by admin users.
+For example, commands like "kdump ..", "username ..", "core..", etc.
+
+2. If a command is applicable to all roles, then the tag "access" must not be used.
+The absence of the tag "access" means that the command is applicable to all roles.
+
+The following table captures the CLI commands/xPATHS and their access privileges to be granted for various roles.
 
 ### Table 3: CLI commands and their access roles
 
@@ -265,27 +274,34 @@ The "admin" role is added in the below table for all the commands just for a bet
 |----------------------- |------------------|------------------------------- |---------------- |--------- |
 | Audit-log | audit.xml | enable-view | show audit-log |	admin,  secadmin | 
 | | | | clear audit-log | admin,  secadmin |
-| Authentication/Authorization/Accounting | Authentication.xml | enable-view | show authentication [ rest / telemetry ] |	admin,  netadmin |
-| | | configure-view | authentication rest/telemetry | admin,  netadmin |
-| | authmgr.xml | 	enable-view | show authentication clients/interface/authentication-history | admin, netadmin |
-| | | 	enable-view | show mab ...	| admin, secadmin, netadmin |
-| | | | show dot1x detail ...	| admin, secadmin, netadmin |
-| | | | clear authentication ... |	admin, netadmin |
-| | | configure-view  |	authentication [monitor /  rest / telemetry]	 | admin, netadmin |
-| | | | mab request format ... |	admin, netadmin |
-| | | | dot1x system-auth-control |	admin, netadmin |
-| | | configure-if-view	 | authentication ... |	admin, netadmin |
-| | | | mab auth-type	 | admin, netadmin |
-| | | | dot1x pae	| admin, netadmin |
-| | aaa.xml	| enable-view |	show aaa	| admin, secadmin, netadmin |
+| Authentication/Authorization/Accounting | authentication.xml | enable-view | show authentication [ rest / telemetry ] |	admin,  secadmin |
+| | | configure-view | [no] ip rest/telemetry | admin,  secadmin |
+| | authmgr.xml | 	enable-view | show authentication clients/interface/authentication-history | admin, secadmin |
+| | | | show running-configuation pac	| admin, secadmin |
+| | | | show mab ...	| admin, secadmin |
+| | | | show dot1x detail ...	| admin, secadmin |
+| | | | clear authentication ... |	admin, secadmin |
+| | | configure-view  |	[no] authentication [monitor /  rest / telemetry]	 | admin, secadmin |
+| | | | [no] mab request format ... |	admin, secadmin |
+| | | | [no] dot1x system-auth-control |	admin, secadmin |
+| | | configure-if-view	 | authentication ... |	admin, secadmin |
+| | | | mab auth-type	 | admin, secadmin |
+| | | | dot1x pae	| admin, secadmin |
+| | aaa.xml	| enable-view |	show aaa	| admin, secadmin |
 | | | configure-view	| aaa [authentication / authorization / name-service] |	admin, secadmin |
-| | radius.xml |	enable-view	| show radius-server |	admin, secadmin, netadmin |
+| | radius.xml |	enable-view	| show radius-server |	admin, secadmin |
 | | | | clear radius-server	| admin, secadmin |
 | | | configure-view |	radius-server ...	| admin, secadmin |
-| | tacacs.xml	| enable-view | show tacacs-server	| admin, secadmin, netadmin | 
+| | das.xml | enable-view | show radius-server dynamic-author .. | admin, secadmin |
+| | | | clear radius-server dynamic-author .. | admin, secadmin |
+| | | | show running-configuration das | admin, secadmin |
+| | | configure-view | [no] authentication command .. | admin, secadmin | 
+| | | | [no] aaa server .. | admin, secadmin|
+| | | configure-das-view | all commands | admin, secadmin|
+| | tacacs.xml	| enable-view | show tacacs-server	| admin, secadmin | 
 | | | configure-view	| tacacs-server ... |	admin, secadmin | 
 | | ldap.xml	| configure-view	| ldap-server ...	| admin, secadmin | 
-| | show_ldap.xml	| enable-view	| show ldap-server	| admin, secadmin, netadmin | 
+| | show_ldap.xml	| enable-view	| show ldap-server	| admin, secadmin | 
 | key	| key.xml	| enable-view |	show config-key | 	admin, secadmin |
 | | | configure-view	| key ...	| admin, secadmin |
 | Infra CLIs |	infra_cli.xml	| enable-view | reboot/warm-reboot/fast-reboot | admin, secadmin, netadmin |
@@ -317,35 +333,35 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | show_version.xml |	enable-view	| show version	| admin, secdmin, netadmin, operator |
 | swss log	| swsslog.xml	| enable-view	| show swsslog-configuration |	admin |
 | | | configure-view	| swsslog loglevel ....	| admin |
-| configuration modes	| configure_mode.xml	| configure-view	| mac ..	| admin, netadmin |
-| | | | ip ... |	admin, sysadmin, netadmin |
-| | | | ipv6	| admin, sysadmin, netadmin |
-| Drop counters	| dropcounters.xml	| enable-view | show dropcounters [ options ] | admin, secadmin, netadmin, operator |
-| | | | show running-configuration dropcounters | admin, secadmin, netadmin |
+| configuration modes	| configure_mode.xml	| configure-view	| [no] mac 	| admin, netadmin |
+| | | | [no] ip  |	admin, netadmin |
+| | | | [no] ipv6	| admin, netadmin |
+| Drop counters	| dropcounters.xml	| enable-view | show dropcounters [ options ] | admin, netadmin, operator |
+| | | | show running-configuration dropcounters | admin, netadmin |
 | | | configure-view |  [ no ] dropcounters [ options] and all its subcommand | admin, netadmin |
 | qos | qos_scheduler.xml |	configure-view	| [no] qos scheduler-policy | admin, netadmin |
-| | | enable-view	| show qos scheduler-policy | admin, netadmin, secadmin, operator |
+| | | enable-view	| show qos scheduler-policy | admin, netadmin, operator |
 | | qos_interface.xml	| configure-if-view | queue < id> wred-policy ...	| admin, netadmin |
 | | | | scheduler-policy ...	| admin, netadmin |
 | | | | qos-map ...	| admin, netadmin |
 | | | | priority-flow-control ... |	admin, netadmin |
-| | | enable-view	| show qos interface | admin, netadmin, secadmin, operator |
-| | qos_buffer.xml	| enable-view	| show [buffer / buffer-pool] / show buffer profile / show buffer interface	| admin, netadmin, secadmin, operator |
+| | | enable-view	| show qos interface | admin, netadmin, operator |
+| | qos_buffer.xml	| enable-view	| show [buffer / buffer-pool] / show buffer profile / show buffer interface	| admin, netadmin, operator |
 | | | configure-view |	buffer .... |	admin, netadmin |
 | | | configure-if-view | buffer ...	| admin, netadmin |
-| | wred.xml	| enable-view |	show qos wred-policy	| admin, netadmin, secadmin, operator |
+| | wred.xml	| enable-view |	show qos wred-policy	| admin, netadmin, operator |
 | | | configure-view	| qos wred-policy	| admin, netadmin |
 | | | configure-wred-view	| show configuration	| admin, netadmin |
 | | | | all commands : green/red , ecn	| admin, netadmin |
-| | qos_pfc.xml	| enable-view	| show priority-flow-control ...	| admin, netadmin, secadmin, operator |
+| | qos_pfc.xml	| enable-view	| show priority-flow-control ...	| admin, netadmin, operator |
 | | | configure-view	| priority-flow-control ...	| admin, netadmin |
-| | qos_counter.xml	| enable-view	| show queue ...	| admin, netadmin, secadmin, operator |
-| | | | show priority-group ... | admin, netadmin, secadmin, operator |
+| | qos_counter.xml	| enable-view	| show queue ...	| admin, netadmin, operator |
+| | | | show priority-group ... | admin, netadmin, operator |
 | | qos_clear_counter.xml |	enable-view	| clear queue ... |	admin, netadmin |
-| | copp.xml	| enable-view |	show copp ...	| admin, netadmin, secadmin, operator |
+| | copp.xml	| enable-view |	show copp ...	| admin, netadmin, operator |
 | | | configure-view	| copp-action ...	| admin, netadmin |
 | | | copp-action-view	| all commands	| admin, netadmin |
-| flow based services |	flow_based_services.xml |	enable-view	| show policy-map ...	| admin, netadmin, operator |
+| flow based services |	flow_based_services.xml |	enable-view	| show policy-map  ...	| admin, netadmin, operator |
 | | | | show class-map ...	| admin, netadmin, operator |
 | | | | show service-policy ...	| admin, netadmin, operator |
 | | | | show running-configuration class-map	| admin, netadmin |
@@ -366,29 +382,34 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | | | show image ...	| admin, netadmin, secadmin, operator |
 | | tpcm.xml	| enable-view	| show tpcm	| admin |
 | | | | tpcm install |	admin |
-| Route-map |	route_map.xml	| enable-view	| show route-map	| admin, netadmin |
+| Route-map |	routemap.xml	| enable-view	| show route-map	| admin, netadmin |
 | | | enable-view |	show running-configuration route-map	| admin, netadmin |
 | | | configure-view	| route-map ...	| admin, netadmin |
-| | route_match.xml |	configure-route-map-view	| route-map ...	| NOT REQUIRED: Restriction would be applied at the parent node level. |
+| | route_match.xml |	configure-route-map-view	| route-map ...	| admin, netadmin |
 | ip prefix	| ip_prefix.xml	| enable-view	| show ip prefix-list	| admin, netadmin, operator |
 | | | | show ipv6 prefix-list	| admin, netadmin, operator |
 | | | | show running-configuration ip prefix-list	| admin, netadmin |
 | | | | show running-configuration ipv6 prefix-list	 | admin, netadmin |
 | | | configure-view	| ip prefix-list 	| admin, netadmin |
 | | | | ipv6 prefix-list	| admin, netadmin |
-| DHCP	| dhcp_snooping.xml	| enable-view	| show ip/ipv6 dhcp snooping	| admin, netadmin, secadmin, operator |
-| | | | clear ip/ipv6 dhcp snooping	| admin, netadmin |
-| | | configure-view	| ip/ipv6 dhcp snooping	| admin, netadmin |
+| DHCP	| dhcp_snooping.xml	| enable-view	| show ip/ipv6 dhcp snooping ..	| admin, netadmin, operator |
+| | | | clear ip/ipv6 dhcp snooping	.. | admin, netadmin |
+| | | configure-view	| [no] ip/ipv6 dhcp snooping ..	| admin, netadmin |
 | | | | ip/ipv6 source ...	| admin, netadmin |
-| | | configure-if-view	| ip/ipv6 dhcp snooping	| admin, netadmin |
-| | ipv6.xml	| show ipv6 dhcp-relay	| admin, netadmin, secadmin, operator |
+| | | configure-if-view / configure-lag-view / configure-if-range-view / configure-po-range-view | [no] ip/ipv6 dhcp snooping ..	| admin, netadmin |
+| | ipv6.xml	| enable-view | show ipv6 dhcp-relay	| admin, netadmin, operator |
 | | | |  clear ipv6 dhcp-relay	| admin, netadmin |
-| | ipv4.xml	| show ip dhcp-relay	| admin, netadmin, secadmin, operator |
+| | ipv4.xml	| enable-view | show ip dhcp-relay	| admin, netadmin, operator |
 | | | | clear ip dhcp-relay	| admin, netadmin |
-| | dhcp_relay_macro.xml |	configure-if-view	| ip/ipv6 dhcp-relay	| admin, netadmin |
+| | dhcp_relay_macro.xml |	configure-if-view	| [no] ip/ipv6 dhcp-relay ..	| admin, netadmin |
 | | mgmt_dhcp.xml	| enable-view |	renew dhcp-lease | interface Management ...	| admin, netadmin |
 | dns |	dns.xml	| enable-view	| show hosts	| admin, netadmin, secadmin, operator |
-| | | configure-view | 	ip name-server ...	| admin, netadmin |
+| | | configure-view | 	[no] ip name-server ...	| admin, netadmin |
+| BFD | bfd.xml | enable-view | show bfd .. | admin, netadmin, operator |
+| | | | show running-configuration bfd | admin, netadmin |
+| | | | clear bfd .. | admin, netadmin |
+| | | configure-view | bfd .. | admin, netadmin |
+| | | configure-bfd-view / configure-bfd-peer-view / configure-bfd-profile-view | all commands | admin, netadmin |
 | bgp	| bgp.xml | enable view	| show running-configuration bgp	| admin, netadmin |
 | | | | show bgp ipv4/ipv6 ...	| admin, netadmin, operator |
 | | | | clear bgp ...	| admin, netadmin |
@@ -412,9 +433,9 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | bgp_extcommunity_sets.xml	| configure-view | 	bgp [as-path / community / ext-community list] | 	admin, netadmin |
 | | | | router bgp ...|	admin, netadmin |
 | | warm_restart.xml |	configure-view	| warm-restart bgp ...	| admin, netadmin |
-| OSPF	| ospf.xml	| enable-view	| clear ip ospf	admin, netadmin |
-| | | | show ip ospf ...	| admin, netadmin,  operator |
-| | | | show running-configuration ospf  ...	| admin, netadmin, secadmin |
+| OSPF	| ospf.xml	| enable-view	| clear ip ospf	| admin, netadmin |
+| | | | show ip ospf ...	| admin, netadmin, operator |
+| | | | show running-configuration ospf  ...	| admin, netadmin |
 | | | configure-view	| router ospf | admin, netadmin |
 | | | configure-router-ospf-view	| all ospf commands	| admin, netadmin |
 | | | configure-if-view/configure-lag-view/configure-vlan-view/configure-lo-view/configure-subif-view | all ospf commands |  admin, netadmin |
@@ -428,9 +449,9 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | | configure-view	| ip anycast-mac-address < mac-address>	| admin, netadmin |
 | | | | ip anycast-address enable	| admin, netadmin |
 | | | | ipv6 anycast-address enable	| admin, netadmin |
-| ptp	| ptp.xml	| enable-view	| show ptp ...	| admin, netadmin |
+| ptp	| ptp.xml	| enable-view	| show ptp ...	| admin, netadmin, operator |
 | | | configure-view	| ptp ...	| admin, netadmin |
-| ntp	| ntp.xml	| enable-view	| show ntp ...	| admin, netadmin |
+| ntp	| ntp.xml	| enable-view	| show ntp ...	| admin, netadmin, operator |
 | | | configure-view	| ntp ...	| admin, netadmin |
 | snmp	| snmp.xml	| enable-view | 	clear snmp counters	| admin, secadmin |
 | | | | show snmp	| admin, secadmin |
@@ -441,7 +462,7 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | | | show running-configuration tam	| admin, netadmin |
 | | | configure-view/configure-tam-view/configure-tam-ifa-view |	all commands |	admin, netadmin |
 | | | configure-if-view	| flow-group ...	| admin, netadmin |
-| counters	| counters.xml	| configure-view	| counters rif	| admin, netadmin |
+| counters	| counters.xml	| configure-view	| [no] counters rif	| admin, netadmin |
 | traceroute |	traceroute.xml |	enable-view	| traceroute ...	| admin, secadmin, netadmin, operator |
 | | | | traceroute6 ... |	admin, secadmin, netadmin, operator |
 | ping	| ping.xml |	enable-view	| ping ...	| admin, secadmin, netadmin, operator |
@@ -454,16 +475,16 @@ The "admin" role is added in the below table for all the commands just for a bet
 | Unidirectional link failure and detection	| udld.xml	| enable-view	| show udld ...	| admin, netadmin |
 | | | configure-view |	udld  ...	| admin, netadmin |
 | | | configure-if-view	| udld ...	| admin, netadmin |
-| igmp	| igmp.xml	| enable-view |	show ip igmp ... |	admin, netadmin, secadmin, operator |
+| igmp	| igmp.xml	| enable-view |	show ip igmp ... |	admin, netadmin, operator |
 | | | | clear ip igmp ... |	admin, netadmin |
-| | igmp_snooping.xml	| enable-view	| show ip igmp snooping .... |	admin, netadmin, secadmin, operator |
+| | igmp_snooping.xml	| enable-view	| show ip igmp snooping .... |	admin, netadmin, operator |
 | | | configure-vlan-view	| ip igmp snooping ....	| admin, netamin |
-| pim	| pim.xml	| enable-view	| show ip pim .... |	admin, netadmin, secadmin, operator |
+| pim	| pim.xml	| enable-view	| show ip pim .... |	admin, netadmin, operator |
 | | | | clear ip pim 	| admin, netadmin |
 | | | configure-view	| ip pim ....	| admin, netadmin |
 | | pim_macro.xml	| configure-if-view/configure-subif-view/configure-lag-view/configure-vlan-view	| ip pim ...	| admin, netadmin |
-| Multicast routing	| mroute.xml	| | show ip mroute ..	| admin, netadmin, operator | 
-| | | | clear ip mroute..	| admin, netadmin |
+| Multicast routing	| mroute.xml	| enable-view | show ip mroute	| admin, netadmin, operator | 
+| | | | clear ip mroute	| admin, netadmin |
 | lldp |	lldp.xml |	enable-view	| show lldp ...	| admin, netadmin, operator |
 | | | configure-view	| lldp ...	| admin, netadmin |
 | | | configure-if-view	| lldp ...	| admin, netadmin |
@@ -482,20 +503,20 @@ The "admin" role is added in the below table for all the commands just for a bet
 | storm-control	| storm-control.xml	| enable-view |	show storm-control ... |	admin, netadmin, operator |
 | | | configure-if-view	| storm-control ... |	admin, netadmin |
 | | | configure-if-range-view	| storm-control ...	| admin, netadmin |
-| port-security	| pms.xml	| enable-view	| show port-security ...	| admin, netadmin |
+| port-security	| pms.xml	| enable-view	| show port-security ...	| admin, netadmin, operator |
 | | pms_macro.xml	| configure-if-view/configure-lag-view	| port-security ... 	| admin, netadmin |
 | VxLAN	| vxlan.xml	| enable-view	| show vxlan ... |	admin, netadmin |
 | | | | show running-configuration interface vxlan	| admin, netadmin |
 | | | | clear counters vxlan	| admin, netadmin |
 | | | configure-view |	interface vxlan	| admin, netadmin |
 | | | configure-vxlan-view	| all commands	| admin, netadmin |
-| evpn	| show_evpn.xml |	enable-view	| show evpn ... |	admin, netadmin |
-| IPv4 address and neighbor (ARP) |	ipv4-neighbors.xml	| enable-view	| show IP arp ...	| admin, secadmin, netadmin, operator|
+| evpn	| show_evpn.xml |	enable-view	| show evpn ... |	admin, netadmin, operator |
+| IPv4 address and neighbor (ARP) |	ipv4-neighbors.xml	| enable-view	| show IP arp ...	| admin, netadmin, operator|
 | | | | clear IP arp	| admin, netadmin |
 | | | configure-view	| IP arp timeout	| admin, netadmin |
 | | ipv4.xml	| enable-view	| show ip interface	| admin, netadmin, operator |
 | | | | show ip route	| admin, netadmin, operator |
-| | | | show ip dhcp-relay	| admin, secadmin, netadmin, operator |
+| | | | show ip dhcp-relay	| admin, netadmin, operator |
 | | | | clear ip dhcp-relay	| admin, netadmin |
 | | | configure-view	| ip nht	| admin, netadmin |
 | | | configure-if-view/configure-vlan-view/configure-lag-view/configure-subif-view	| ip address ...	| admin, netadmin |
@@ -504,7 +525,7 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | | configure-if-mgmt-view	| ip address ... |	admin, netadmin |
 | | | configure-lo-view	| ip address	| admin, netadmin |
 | | | configure-if-range-view/configure-po-range-view |	no ip ... |	admin, netadmin |
-| IPv6 address/Neighbors	| ipv6-neighbors.xml | enable-view	| show ipv6 neighbors	| admin, secadmin, netadmin, operator |
+| IPv6 address/Neighbors	| ipv6-neighbors.xml | enable-view	| show ipv6 neighbors	| admin, netadmin, operator |
 | | | | clear ipv6 neighbors	| admin, netadmin |
 | | | configure-view |	ipv6 nd	| admin, netadmin |
 | | ipv6.xml |	enable-view	| show ipv6 interface	| admin, netadmin, operator |
@@ -514,33 +535,33 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | | configure-if-mgmt-view/configure-lag-view/configure-vlan-view/configure-lo-view	| ipv6 address ... | admin, netadmin |
 | | | configure-if-range-view/configure-vlan-range-view/configure-po-range-view/configure-subif-view | no ipv6 .. | admin, netadmin |
 | ip unnumbered	| ip_unnumbered_macro.xml |	configure-view	| ip unnumbered ...	| admin, netadmin |
-| ip helper |	ip-helper.xml	| enable-view	| show ip forward-protocol |	admin, secadmin, netadmin, operator |
-| | | | show ip helper-address ...	| admin, secadmin, netadmin, operator |
+| ip helper |	ip-helper.xml	| enable-view	| show ip forward-protocol |	admin, netadmin, operator |
+| | | | show ip helper-address ...	| admin, netadmin, operator |
 | | | | clear ip helper-address ...	| admin, netadmin |
 | | | configure-view	| ip forward-protocol ...	| admin, netadmin |
 | | ip_helper_macro.xml |	configure-if-view	| ip helper-address ...	| admin, netadmin |
 | static route	| route_static.xml	| configure-view	| ip route ...	| admin, netadmin |
 | | | | ipv6 route ... |	admin, netadmin |
 | ip sla	| ipsla.xml	| configure-view	| ip sla .. |	admin, netadmin |
-| | | enable-view	| show ip sla	| admin, netadmin |
+| | | enable-view	| show ip sla	| admin, netadmin, operator |
 | | | | clear ip sla ...	| admin, netadmin |
 | vrf |	vrf.xml	| enable-view	| show ip vrf ...	| admin, netadmin, operator |
-| | | | show running-configuration vrf	| admin, secadmin, netadmin |
+| | | | show running-configuration vrf	| admin, netadmin |
 | | | configure-view	| ip vrf mgmt	| admin, netadmin |
 | | | | ip vrf vrf_name ...	| admin, netadmin |
 | | | | ipv6 vrf vrf_name ...	| admin, netadmin |
 | | vrf_macro.xml	| configure-if-view/configure-subif-view/configure-if-range-view/configure-lag-view/configure-po-range-view/configure-vlan-view/configure-vlan-range-view/configure-lo-view	| Ip vrf forwarding... |	admin, netadmin |
-| | ssh_vrf.xml	| enable-view	| show ssh-server vrf all	| admin, secadmin, netadmin, operator |
+| | ssh-vrf.xml	| enable-view	| show ssh-server vrf all	| admin, secadmin |
 | | | configure-view	| ssh-server vrf ...	| admin, secadmin |
 | nat	| nat.xml |	enable-view	| clear nat ...	| admin, netadmin |
 | | | | show running-configuration nat	| admin, netadmin |
 | | | configure-view |	nat ...	| admin, netadmin |
 | | | configure-nat-view |	all commands	| admin, netadmin |
 | | nat_zone.xml	| configure-if-view/configure-lo-view/configure-vlan-view/configure-lag-view	| nat-zone ....	| admin, netadmin |
-| sflow	| sflow.xml	| enable-view	| show sflow ...	| admin, secadmin, netadmin, operator |
+| sflow	| sflow.xml	| enable-view	| show sflow ...	| admin, netadmin, operator |
 | | | configure-view	| sflow ... |	admin, netadmin |
 | | interface.xml	| configure-if-view	| sflow ... |	admin, netadmin |
-| mirroring	| mirror.xml	| enable-view	| show mirror-session	| admin, secadmin, netadmin, operator |
+| mirroring	| mirror.xml	| enable-view	| show mirror-session	| admin, netadmin, operator |
 | | | | show running-configuration mirror-session |	admin, netadmin |
 | | | configure-view	| mirror-session ...	| admin, netadmin |
 | | | configure-mirror-view	| all commands	| admin, netadmin |
@@ -555,9 +576,9 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | | | show ip access-lists	| admin, netadmin, operator |
 | | | | show ipv6 access-lists	| admin, netadmin, operator |
 | | | | show object-groups	| admin, netadmin, operator |
-| | | | clear mac access-list	| admin, netadmin |
-| | | | clear ip access-list	| admin, netadmin |
-| | | | clear ipv6 access-list	| admin, netadmin |
+| | | | clear mac access-list ..	| admin, netadmin |
+| | | | clear ip access-list ..	| admin, netadmin |
+| | | | clear ipv6 access-list ..	| admin, netadmin |
 | | | | show running-configuration mac access-list	| admin, netadmin |
 | | | | show running-configuration ip access-list	| admin, netadmin |
 | | | | show running-configuration ipv6 access-list	| admin, netadmin |
@@ -569,7 +590,7 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | | | ipv6 access-group ...	| admin, netadmin |
 | | | configure-mac-acl-view/configure-ip-acl-view/configure-ipv6-acl-view	| all commands	| admin, netadmin |
 | | acl_binding.xml	| configure-if-view/configure-subif-view/configure-lag-view/configure-vlan-view	| all commands	| admin, netadmin |
-| | acl_macro.xml |	NA	| NA	| change are not required |
+| | acl_macro.xml |		| all commands	| admin, netadmin |
 | interface-specific |	interface.xml	| enable-view	| show running-configuration interface	| admin, netadmin |
 | | | | show running-configuration vlan	| admin, netadmin |
 | | | | show interface	| admin, netadmin, operator |
@@ -581,27 +602,27 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | | configure-view	| interface ....	| admin, netadmin |
 | | | configure-if-view/configure-lo-view/configure-vlan-view/configure-lag-view	| all commands	| admin, netadmin |
 | | interface_macro.xml	| | all commands ..	| admin, netadmin |
-| subinterface	| subinterface.xml	| enable-view |	show subinterfaces / show subinterfaces status / show running-configuration subinterface	| admin, netadmin, secadmin |
+| subinterface	| subinterface.xml	| enable-view |	show subinterfaces / show subinterfaces status| admin, netadmin, operator |
+| | | | show running-configuration subinterface	| admin, netadmin |
 | | | configure-subif-view	| encapsulation .. / all commands ..	| admin, netadmin |
-| Interface breakout	| dynamic_port_breakout.xml	| enable-view |	show interface breakout	| admin, netadmin |
+| Interface breakout	| dynamic_port_breakout.xml	| enable-view |	show interface breakout	| admin, netadmin, operator |
 | | | configure-view	| interface breakout ....	| admin, netadmin |
 | counters	| clear_counters.xml	| enable-view	| clear counters ....	| admin, netadmin |
 | portchannel |	portchannel.xml	| enable-view	| portchannel graceful-shutdown	| admin, netadmin |
 | vlan	| vlan.xml	| enable-view	| show system vlan	| admin, netadmin, operator |
 | | | configure-view	| system vlan |	admin, netadmin |
-| events	| event.xml	| enable-view	| show events ..	| admin, netadmin, operator |
+| events	| event.xml	| enable-view	| show event ..	| admin, netadmin, operator |
 | | | | show alarm ...	| admin, netadmin, operator |
 | | | | alarm acknowledge	| admin, netadmin |
 | event profile |	evprofile.xml	| enable-view |	show event profile	| admin, netadmin, operator |
 | | | | event profile ... |	admin, netadmin |
 | hardware	| hardware.xml	| configure-view	| hardware ...	| admin, netadmin |
 | | | enable-view	| show running-configuration hardware ...	| admin, netadmin |
-| | | | hardware tcam enforce ...	| admin, netadmin |
-| | | | show hardware tcam ... |	admin, netadmin |
+| | | | show hardware tcam ... |	admin, netadmin, operator |
 | line_vty	| line_vty.xml	| configure-view	| line vty 	| admin, netadmin |
-| | | enable-view	| show running-configuration line |	admin, netadmin, secadmin |
+| | | enable-view	| show running-configuration line |	admin, netadmin |
 | poe |	poe.xml	| configure-view	| poe ...	|admin, netadmin |
-| | | enable-view	| show poe ...	| admin, netadmin |
+| | | enable-view	| show poe ...	| admin, netadmin, operator |
 | | | | poe reset	| admin, netadmin |
 | | | | clear poe	| admin, netadmin |
 | | | configure-if-view	| poe ...	| admin, netadmin |
@@ -622,19 +643,19 @@ The "admin" role is added in the below table for all the commands just for a bet
 | | | configure-if-view	| threshold ...	| admin, netadmin |
 | | | configure-if-CPU-view |	threshold queue ...	| admin, netadmin |
 | switch configuration management |	config_mgmt.xml	| enable-view |	write memory	| admin, netadmin, secadmin |
-| | | | write erase ...	| admin, netadmin, secadmin |
-| clock	| clock.xml |	configure-view	| clock timezone ...	| admin, netadmin, secadmin |
-| | | | show clock	| admin, netadmin, secadmin, operator |
+| | | | [no] write erase ...	| admin, netadmin, secadmin |
+| clock	| clock.xml |	configure-view	| clock ...	| admin, secadmin |
+| | | | clock timezone ..	| admin, secadmin |
 |file management  (The required logic is implemented by the backend)	| file_mgmt.xml	| enable-view |	dir	| admin, netadmin, secadmin, operator |
 | | | | ls	| admin, netadmin, secadmin, operator |
 | | | | copy ...	| admin, netadmin, secadmin, operator |
 | | | | delete	| admin, netadmin, secadmin, operator |
 | error disable	| errdisable.xml	| enable-view	| show errdisable ...	| admin, netadmin, secadmin, operator |
-| | | configure-view |	errdisable recovery ...	| admin, netadmin, secadmin |
+| | | configure-view |	[no] errdisable recovery ...	| admin, netadmin, secadmin |
 | kernel core files	| kdump.xml	| configure-view	| kdump ...	| admin |
 | | | enable-view |	show kdump ...	| admin, netadmin, secadmin, operator |
 | core dump	| coredump.xml	| enable-view	| show core ...	| admin, netadmin, secadmin, operator |
-| | | configure-view |	core enable	| admin |
+| | | configure-view |	core ..	| admin |
 | tech support	| techsupport_export.xml	| enable-view	| show techsupport-export |	admin, netadmin, secadmin, operator |
 | | | configure-view |	techsupport-export  .... |	admin |
 | led	| locator_led.xml	| enable-view |	show locator-led |	admin, netadmin, operator |
@@ -642,7 +663,7 @@ The "admin" role is added in the below table for all the commands just for a bet
 | port locator	| port_locator.xml	| enable-view	| interface port-locator ... |	admin |
 | | | | show interface port-locator	| admin, netadmin, operator |
 | Port Media FEC	| port_media_fec.xml	| configure-view	| interface media-fec ... |	admin |
-| port groups	| port_group.xml |	enable-view	| show port-group	| admin, netadmin, secadmin, operator |
+| port groups	| port_group.xml |	enable-view	| show port-group	| admin, netadmin, operator |
 | | | configure-view |	port-group .... |	admin, netadmin |
 | cable diagnostics |	test.xml	| enable-view |	show cable-diagnostics	| admin, netadmin, secadmin, operator |
 | | | | test cable-diagnostics	| admin, netadmin |
@@ -650,9 +671,9 @@ The "admin" role is added in the below table for all the commands just for a bet
 | warm restart |	warm_restart.xml |	enable-view	| show warm-restart ...	| admin, netadmin, secadmin, operator |
 | | | configure-view	| warm-restart ...	| admin, netadmin |
 | alias |	alias.xml	| enable-view	| show interface-naming	| admin, netadmin, secadmin, operator |
-| | | configure-view	| interface-naming standard 	| admin, netadmin |
-| link state tracking	| link_track.xml	| enable-view |	showlink state track ...	| admin, netadmin, secadmin, operator |
-| | | | show running-configuration link state tracking |	admin, netadmin, secadmin |
+| | | configure-view	| [no]interface-naming standard 	| admin, netadmin |
+| link state tracking	| link_track.xml	| enable-view |	showlink state track ...	| admin, netadmin, operator |
+| | | | show running-configuration link state tracking |	admin, netadmin |
 | | | configure-view |	link state track ... |	admin, netadmin |
 | | | configure-link-state-track-view	| all commands	| admin, netadmin |
 | | link_tracking_macro.xml	| configure-if-view/configure-lag-view/configure-vlan-view/configure-subif-view | 	link state track ...	| admin, netadmin |
@@ -661,9 +682,12 @@ The "admin" role is added in the below table for all the commands just for a bet
 | histogram	| histogram.xml	| enable-view	| show histogram ...	| admin, netadmin, secadmin, operator |
 | ZTP	| ztp.xml	| enable-view	| show ztp-status |	admin, netadmin, secadmin, operator |
 | | | configure-view	| ztp enable	| admin, netadmin |
-| database 	| databse.xml	| enable-view	| show database map	| admin, netadmin, secadmin, operator |
-| System CRM	| system-crm.xml	| enable-view	| show crm 	| admin, netadmin, secadmin, operator |
+| database 	| databse.xml	| enable-view	| show database ..	| admin, netadmin, secadmin, operator |
+| System CRM	| system-crm.xml	| enable-view	| show crm 	| admin, netadmin, operator |
 | | | configure-view |	crm ...	| admin, netadmin |
+| USB | usb.xml | enable-view | show usb .. | admin |
+| | | configure-view | usb .. | admin |
+| | | | | | 
 
 ## 2.1 Radius functionality
 Radius supports the attribute: 'Management-Privilege-Level'.
@@ -737,7 +761,7 @@ The following diagram captures the current implementation of the command "userna
 - Klish uses the XML configuration files to get the required information for each command.
 	1. List of authorized roles
 	2. operation type
-- The following diagram explains how a CLI parser tree is constructed for a user based on his role.
+- The following diagram explains how a CLI parser tree is constructed for a user based on the role.
 
 ### Figure 2: RBAC CLI Design
 
@@ -747,20 +771,20 @@ The following diagram captures the current implementation of the command "userna
 
 ### 3.2.1 Pruning unauthorized commands
 
-- The COMMAND tag of KLISH supports a field called "access". This field would contain a list of Linux groups to grant access to.  Instead of Linux groups, the field would contain a list of "Roles (admin/operator/sysAdmin/netAdmin)" to grant access to.
+- The COMMAND tag of KLISH supports a field called "access". This field would contain a list of Linux groups for which the user needs to be granted access.  In this feature, instead of Linux groups, the "access" field would contain a list of "Roles (admin/operator/secadmin/netadmin)".
 
-       <COMMAND name="configure" access="admin:sysadmin" help="Enter configuration mode" />     
+       <COMMAND name="configure" access="netadmin:secadmin" help="Enter configuration mode" />     
   
 - Though the "access" field of the COMMAND tag is used to define the list of roles, the real function(call_back_function) that controls permissions would be set by the HOOK tag.
 
-			<HOOK name="access" builtin="call_back_function"></HOOK> 
+			<HOOK name="access" builtin="mgmt_clish_user_access"></HOOK> 
 
 - While parsing each command, the call_back_function takes the following arguments : 
 	1. A handle to the sonic-cli shell - This is used to identify the user (User ID) that launched the sonic-cli.
-		-The call_back_function uses the User ID to fetch the user's role from the host using libnss_ham lib.
+		-The call_back_function uses the User ID to fetch the user's role from the host using libnss_ham.
 	2. The list of roles having access permission to the command.
-		- If the user's role is present in the list then the user would be allowed to access the command. 
-		- If the user's role is not present then the command would be pruned from the CLI parser tree.
+		- If the user's role is present in the list, then the user would be allowed to access the command. 
+		- If the user's role is not present, then the command would be pruned from the CLI parser tree.
 
 
 ## 3.3 RBAC REST / gNMI design Overview
@@ -778,7 +802,7 @@ The whole design is captured in the following diagram,
 - Since CLI uses RestAPI, the RBAC logic depicted in the above diagram would be applicable to CLI as well.
 - REST/gNMI requests would carry the following info,
 	1. Username/User ID
-	2. XPATH,
+	2. XPATH
 	3. Operation type (Read/write/delete)
 
 - Translib maintains a data structure that contains the following information,
@@ -838,7 +862,8 @@ NA
 NA
 
 ### 3.6.3 STATE DB
-The user information (user name and password) will be stored in the STATE_DB. A new table called USER_TABLE will be created for this purpose.
+The user information (user name and password) will be stored in the STATE_DB. 
+A new table called USER_TABLE will be created for this purpose.
 
 ### 3.6.4 ASIC DB
 NA
@@ -878,7 +903,7 @@ A new container would be added in the the yang file : sonic-system-aaa.yang
             sonic-ext:db-name "STATE_DB";
             sonic-ext:key-delim "|";
             list USER_TABLE_LIST {
-                key "user tenant";
+                key "user";
 
                 leaf user {
                     type string {
@@ -886,11 +911,6 @@ A new container would be added in the the yang file : sonic-system-aaa.yang
                         length 1..31;
                     }
                     description "Assigned username for a user.";
-                }
-
-                leaf tenant {
-                    type string;
-                    description "The tenancy to which the user belongs.";
                 }
 
                 leaf-list role {
@@ -914,12 +934,15 @@ A new container would be added in the the yang file : sonic-system-aaa.yang
 The CLI command "username <> password <> role <>" has been enhanced :
 1. To create users with two more new roles - secadmin and netadmin (along with the existing admin and operator roles).
  - Example : 
+
 	username user1 password force10 role secadmin
+
 	username user2 password force10 role netadmin
 
 2. To map more than one role to a user .
  - More than one role(separated by comma) can be assigned to a user. 
  - Example :
+
 	username user3 password force10 role secadmin,netadmin
 
 #### 3.10.2.1 Configuration Commands
@@ -985,9 +1008,28 @@ All the commands in XML files under src/sonic-mgmt-framework/CLI/clitree/cli-xml
 The access field of each XML COMMAND tag must be updated with the appropriate RBAC information.
 For example,
 
-    <COMMAND name="configure terminal" access="admin:netadmin"
+    <COMMAND name="configure terminal" access="secadmin:netadmin"
         help="Configure from the terminal"
         view="configure-view">
+
+In the above example, the command "configure terminal" will be visible only to admin/secadmin/netadmin users.
+Only those users will be able to execute the command.
+
+### Adding access tag
+- For admin users, the role name "admin" need not be specified in the "access" tag.
+Only the secadmin/netadmin/operator roles need to be mentioned in the access tag.
+
+- Exception : The access="admin" tag needs to be added for commands, which can be accessed only by admin users.
+For example, commands like "kdump ..", "username ..", "core..", etc.
+
+- If a command is applicable to all roles, then the tag "access" must not be used.
+The absence of the tag "access" means that the command is applicable to all roles.
+
+### Adding roles to the access tag
+
+- access="netadmin" for all network-related 'config' commands and network-related 'show running-config' commands
+- access="netadmin:operator" for all network related 'show' commands
+- access="secadmin" for all security-related 'config' commands, 'show' commands and 'show running-config' commands
 
 ## 5.2 RBAC New feature Implementation
 A new extension statement “user-role-priv” is added to specify the RBAC information.
@@ -1020,7 +1062,7 @@ The gNMI server returns standard gRPC errors when authentication fails.
 # 7 Serviceability and Debug
 ## 7.1 Execution of unauthorized commands
 - For REST and gNMI, translib logs an error message in the rest_server log, when unauthorized commands are executed.
-	Aug 01 17:24:37.528338+00:00 2022      21 authorize.go:101] User selva not allowed for write in xpath /openconfig-warm-restart:warm-restart/config/enable
+	Aug 01 17:24:37.528338+00:00 2022      21 authorize.go:101] User usr1 not allowed for write in xpath /openconfig-warm-restart:warm-restart/config/enable
 	Aug 01 17:24:37.528357+00:00 2022      21 handler.go:96] [REST-1] Translib error tlerr.AuthorizationError - User is unauthorized for Update Operation
 
 - For CLI, the below error message will be returned when unauthorized commands are issued by the user.
@@ -1226,9 +1268,8 @@ The following major changes have been done in the HAMD module.
 In the radius repo, the following have been modified: 
 
 1. libnss-radius :
-	- In this section, the group name is read from the environment variable and the corresponding MPL is set, in order to enforce the group name sent from the Radius server.
 	- Added support for the two new roles : secadmin and netadmin
-	- Corrected the supplementary groups of the existing roles : admin and operator.
+	- The HAMD's group-mapping file will be read and used to populate the secondary groups of the tacacs+ users to be created.
 	- The remote users will be written into the STATE_DB from the Radius module itself.
 	- Code for writing into the STATE_DB has been added => db.cpp
 	- Changes in the Makefile and related files to compile C and C++ code together have been added.
@@ -1239,16 +1280,19 @@ In the radius repo, the following have been modified:
 ## 13.4 Tacacs code changes
 In the tacacs repo, the following have been modified:
 
-1. nss_tacplus.cpp :
+1. libnss-tacplus :
+	- The HAMD's group-mapping file will be read and used to populate the secondary groups of the tacacs+ users to be created.
 	- Added support for the two new roles : secadmin and netadmin
-	- Corrected the supplementary groups of the existing groups : admin and operator.
+	- Patch has been created with the above mentioned changes.
+
+2. pam_tacplus :
+	- In the PAM module, added support for the two new roles : secadmin and netadmin
 	- The remote users will be written into the STATE_DB from the Tacacs module itself.
 	- Code for writing into the STATE_DB has been added => db.cpp
 	- Changes in the Makefile and related files to compile C and C++ code together have been added.
 	- Code changes for restoring the DB entry (when the user logs in) after a save & reload is also added.
 	- swsscommon has been added as dependent module for the Tacacs code compilation (for writing remote users into STATE_DB).
 	- Rules file of the tacacs repo has been modified for the same purpose.
-	- Patch has been created with the above mentioned changes.
 
 ## 13.5 IS-CLI Compliance
 NA
