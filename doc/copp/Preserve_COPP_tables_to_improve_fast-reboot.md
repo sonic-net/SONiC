@@ -25,13 +25,13 @@ With the new proposal, the CoPP tables contents will be preserved during reboot,
 In addition, for backwards compatibility, in case CoPP tables preserve an entry with a key that is not supported (i.e. such key is not present in the json default initialization file) it will be deleted from the CoPP tables during merge.
 The solution of deleting old entry and creating a new one instead is proposed since there is no SAI implementation to check for overwrites and this might lead to trying to re-create create-only entries which will cause orchagent crash.
 
-# Flow
+# Flows
 
 ## DB migrator copp tables handling logic
 
 The following flow captures the DB migrator propused functionality.
 
-![](/images/copp/coppmgr_merge_logic.png)
+![](/images/copp/copp_dbmigrator_flow.png)
 
 ## coppmgr mergeConfig logic
 
