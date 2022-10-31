@@ -10,16 +10,16 @@ The following are the high level requirements for preserving CoPP tables content
 2. coppmgr mergeConfig logic should be enhanced to:
     1. Ignore setting existing entries.
     2. Overwrite entry when value differs, use value from default init file merged with user configuration.
-    3. Delete entries with keys that are not supported in the copp default inialization (backward compatibility).
+    3. Delete entries with keys that are not supported in the copp default initialization (backward compatibility).
     4. In case an entry exists in user's configuration file or in the default json initialization file while missing from the preserved CoPP table it will be add to the table as a new entry.
 
 # Design Proposal
 
-## Current behaviour
+## Current behavior
 
 In the current implementation DB migrator clears CoPP tables contents and it is being initialized with default values at startup. This process takes some time and leads to that LACP are being missed shortly after reboot since LACP trap is not set yet, thus delaying LAG creation and extending dataplane downtime during fast-reboot.
 
-## Proposed behaviour
+## Proposed behavior
 
 With the new proposal, the CoPP tables contents will be preserved during reboot, i.e. they won't be cleared by DB migrator. Then, initializing CoPP tables in startup phase for any key-value entry it will be checked if such entry exists, in case it does, the entry will be ignored. In case there is an entry with the same key but with different value preserved from prior reboot the existing entry will be deleted and a new entry will be added to the CoPP tables with the key and the new value.
 In addition, for backwards compatibility, in case CoPP tables preserve an entry with a key that is not supported (i.e. such key is not present in the json default initialization file) it will be deleted from the CoPP tables during merge.
@@ -29,13 +29,13 @@ The solution of deleting old entry and creating a new one instead is proposed si
 
 ## DB migrator copp tables handling logic
 
-The following flow captures the DB migrator propused functionality.
+The following flow captures the DB migrator proposed functionality.
 
 ![](/images/copp/copp_dbmigrator_flow.png)
 
 ## coppmgr mergeConfig logic
 
-The following flow captures CoPP manager configuration merge propused functionality.
+The following flow captures CoPP manager configuration merge proposed functionality.
 
 ![](/images/copp/coppmgr_merge_logic.png)
 
