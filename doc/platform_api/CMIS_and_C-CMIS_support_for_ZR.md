@@ -779,20 +779,21 @@ configure privisioning settings of the transceivers
 
 - Example (bring module up from low power mode, or bring down module to low power mode):
     ```
-    admin@sonic:~# config interface transceiver lpmode Ethernet0 -- enable
+    admin@sonic:~# config interface transceiver lpmode Ethernet0 enable
     Enabling low-power mode for port Ethernet0 ... OK
 
-    admin@sonic:~# config interface transceiver lpmode Ethernet0 -- disable
+    admin@sonic:~# config interface transceiver lpmode Ethernet0 disable
     Disabling low-power mode for port Ethernet0 ... OK
     ```
 
 - Example (config the privisioning frequency):
     ```
-    admin@sonic:~# config interface transceiver frequency Ethernet0 -- 196025
+    admin@sonic:~# config interface transceiver frequency Ethernet0 196025
     Setting laser frequency to 196025 GHz on port Ethernet0
     ```
 
 - Example (config the privisioning TX power):
+The "--" is needed here because the provisioned value is negative.
     ```
     admin@sonic:~# config interface transceiver tx_power Ethernet0 -- -10.0
     Setting target Tx output power to -10.0 dBm on port Ethernet0
@@ -800,7 +801,7 @@ configure privisioning settings of the transceivers
 
 - Example (config the loopback mode):
     ```
-    admin@sonic:~$ config interface transceiver loopback Ethernet0 -- none
+    admin@sonic:~$ config interface transceiver loopback Ethernet0 none
     Setting loopback mode to none
     ```
     
