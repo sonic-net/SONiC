@@ -511,6 +511,7 @@ Enhance the existing techsupport sonic-mgmt test with the following cases.
 |  3   | Check if the global rate-& & per-process rate-limit-interval is working as expected                                                     |
 |  4   | Check if the core-dump cleanup is working as expected                                                                                   |
 |  5   | Check if the core-dump generated when reaching memory threshold                                                                         |
+|  6   | Add a test to check the orch abort scenario                                                                                             |
 
 ## 9. SONiC-to-SONiC Upgrade Considerations
 
