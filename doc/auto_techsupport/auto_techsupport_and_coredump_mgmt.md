@@ -480,6 +480,8 @@ So, it is highly likely that by the time auto-techsupport collects saisdkdump, s
 
 This requires enhancements not just in auto-techsupport but also in orchagent process and also in /usr/local/bin/syncd.sh script. 
 
+![Orch Abort Flow](orch_abort_flow.PNG)
+
 Firstly, orchagent can terminate because of various reasons, i.e. some failure in orchagent like SEGFAULT, config reload etc but we are only interested in the case of SAI programming failure. During a SAI programming failure, orchagent will call abort i.e. kernel will send SIGABRT and thus the process terminates. To differentiate among these cases, orchagent will write to a table in STATE_DB named "ORCH_ABRT_STATUS".
 
 #### Schema: 
@@ -495,6 +497,7 @@ root@sonic:/home/admin# sonic-db-cli STATE_DB GET ORCH_ABRT_STATUS
 During sai programming failure, orchagent will set the status to ORCH_ABRT_STATUS flag in STATE_DB. syncd.sh script checks if the ORCH_ABRT_STATUS flag is set in STATE_DB before stopping the syncd container and if yes proceeds with collecting saisdkdump to SAI_DUMP_STORE_PATH path and also creates a file under /tmp named 'saidump_collection_notify_flag'. This is used to synchronize b/w auto-techsupport code and syncd.
 
 coredump_gen_handler.py checks the ORCH_ABRT_STATUS flag in STATE_DB and waits until /tmp/saidump_collection_notify_flag is created. Once the file is created it proceeds with the standard logic of invoking the techsupport is the configuration permits. generate_dump script will also be updated to collect dumps from SAI_DUMP_STORE_PATH and not invoke command from syncd container as it might be restarting or down. Before the coredump_gen_handler.py finishes the execution it deletes the saidump_collection_notify_flag file.
+
 
 
 ## 8. Test Plan
