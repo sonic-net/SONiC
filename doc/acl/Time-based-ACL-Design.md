@@ -33,7 +33,6 @@
   - [Testing Requirements/Design](#testing-requirementsdesign)
     - [Unit Test cases](#unit-test-cases)
     - [System Test cases](#system-test-cases)
-- [Open questions](#open-questions)
 
 
 ## Revision
