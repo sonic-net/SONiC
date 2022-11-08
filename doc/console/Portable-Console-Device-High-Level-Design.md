@@ -49,12 +49,12 @@ The `CONSOLE_SWITCH_TABLE` holds the configuration database for the purpose of c
 key = CONSOLE_SWITCH:console_mgmt
 
 ; field = value
-autodetect  = "enable"/"disable" ; "enabled" means factory function will auto detect which vendor's device is plugged in
-                                 ; "disabled" means factory function will read vendor_name and model_name from config_db
+autodetect  = "enable"/"disable" ; "enable" means factory function will auto detect which vendor's device is plugged in
+                                 ; "disable" means factory function will read vendor_name and model_name from config_db
 vendor_name = 1*255 VCHAR        ; Vendor name of portable console device.
-                                 ; If `autodetect` is set to "enabled", `vendor_name` must be empty.
+                                 ; If `autodetect` is set to "enable", `vendor_name` must be empty.
 model_name  = 1*255 VCHAR        ; Model name of portable console device.
-                                 ; if `autodetect` is set to "enabled", `model_name` must be empty.
+                                 ; if `autodetect` is set to "enable", `model_name` must be empty.
 ```
 
 ## Portable Console Device API Design
