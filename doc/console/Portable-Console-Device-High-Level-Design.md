@@ -132,7 +132,7 @@ class PortableConsoleDeviceBase:
     def get_vendor_name(cls):
         """
         Retrives the vendor name of the `PortableConsoleDeviceBase` concrete subclass.
-        This method is mandatory for factory method to create instance from manual configuration.
+        This method is mandatory for factory function to create instance from manual configuration.
 
         :return: A string, denoting vendor name of the `PortableConsoleDeviceBase` concrete subclass.
         """
@@ -142,7 +142,7 @@ class PortableConsoleDeviceBase:
     def get_model_name(cls):
         """
         Retrives the model name of the `PortableConsoleDeviceBase` concrete subclass.
-        This method is mandatory for factory method to create instance from manual configuration.
+        This method is mandatory for factory function to create instance from manual configuration.
 
         :return: A string, denoting model name of the `PortableConsoleDeviceBase` concrete subclass.
         """
