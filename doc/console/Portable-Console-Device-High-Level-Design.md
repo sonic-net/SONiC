@@ -4,7 +4,7 @@
 
 |  Rev  |   Date   |   Author   | Change Description |
 | :---: | :------: | :--------: | ------------------ |
-|  0.1  | 10/10/22 | Zhijian Li | Initial version    |
+|  0.1  | 11/08/22 | Zhijian Li | Initial version    |
 
 ## Overview
 
@@ -24,7 +24,7 @@ After the console device is plugged into the SONiC switch, we need to set up the
   2. Map console interface from `/dev/ttyUSB<id>` to `/dev/console-<line-number>`. (Usually done with the help of [udev](https://wiki.debian.org/udev))
   3. Any other necessary steps.
 
-Vendors should package all the files and setup procedures into a corresponding `<vendor_name>-<model_name>.deb` file. Since we prefer the setup process completed after building a SONiC image, files used to build `.deb` packages should be put in the [Azure/sonic-buildimage](https://github.com/Azure/sonic-buildimage) repository, then the `.deb` packages will be built and installed automatically. 
+Vendors should package all the files and setup procedures into a corresponding `<vendor_name>-<model_name>.deb` file. Since we prefer the setup process completed after building a SONiC image, files used to build `.deb` packages should be put in the [sonic-net/sonic-buildimage](https://github.com/sonic-net/sonic-buildimage) repository, then the `.deb` packages will be built and installed automatically. 
 
 <!-- Pictures exported from Visio are zoomed to 70% -->
 
@@ -50,7 +50,7 @@ key = CONSOLE_SWITCH:console_mgmt
 
 ; field = value
 autodetect  = "enable"/"disable" ; "enabled" means factory function will auto detect which vendor's device is plugged in
-                                 ; "disabled" means factory function will read vendor_name from config_db
+                                 ; "disabled" means factory function will read vendor_name and model_name from config_db
 vendor_name = 1*255 VCHAR        ; Vendor name of portable console device.
                                  ; If `autodetect` is set to "enabled", `vendor_name` must be empty.
 model_name  = 1*255 VCHAR        ; Model name of portable console device.
@@ -61,7 +61,7 @@ model_name  = 1*255 VCHAR        ; Model name of portable console device.
 
 ### API Code Directory Structure
 
-All the portable console device API code should be put in `/sonic_platform_common/sonic_console/`. The directory structure is defined as below:
+All the portable console device API code should be put in `/sonic_platform_common/sonic_console/` (Repository address: [sonic-net/sonic-platform-common](https://github.com/sonic-net/sonic-platform-common)). The directory structure is defined as below:
 
 ```
 sonic_console/
@@ -73,6 +73,7 @@ sonic_console/
 │   ├── __init__.py
 │   └── console_simulator.py
 └── <vendor-name>
+    ├── __init__.py
     └── console_<model-name>.py
 ```
 
@@ -321,7 +322,7 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
             return (None, e)
 
     def get_num_devices(self):
-        return 1
+        return len(self._serial_number)
 
     def get_serial_number(self):
         return copy.deepcopy(self._serial_number)
