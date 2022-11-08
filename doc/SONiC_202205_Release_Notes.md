@@ -93,6 +93,13 @@ Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis
 <br>  **Pull Requests** :  [876](https://github.com/sonic-net/SONiC/pull/876), [219](https://github.com/sonic-net/sonic-platform-common/pull/219) & [217](https://github.com/sonic-net/sonic-platform-daemons/pull/217)
 
 
+#### 400G ZR support 
+The scope of this feature is to develop APIs for both CMIS and C-CMIS to support 400G ZR modules on SONiC.
+
+Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/platform_api/CMIS_and_C-CMIS_support_for_ZR.md) and below mentioned PR's for more details.
+<br>  **Pull Requests** : [769](https://github.com/sonic-net/SONiC/pull/769), [1076](https://github.com/sonic-net/SONiC/pull/1076)
+
+
 #### Command for showing specific MAC from DB
 This feature adds more options to filter output in show mac and fdbshow command. Introduced options for filter by address and filter by type.Added one more option to display only count.And also introduced show command to display fdb aging time in the switch.
 
