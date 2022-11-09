@@ -3767,7 +3767,7 @@ A new plugin **sonic-telemetry/tools/pyang_plugins/protobuf.py** is written to a
 
 **Protobuf:** sonic-telemetry/build/package/<pkg>/proto
 
-**Package specific Server code:** sonic-telemetry/build/package/<pkg>/server
+**Package specific Server code:** sonic-telemetry/build/package/\<pkg\>/server
 
 **Common server code:** sonic-telemetry/build/gnoi_yang/server
 
