@@ -189,13 +189,13 @@ This script will sign all the components described before by using the following
 
 |  Component              |  Signing Tool               |  Key format                               | Description        |
 | :---------------------: | :-------------------------: | :---------------------------------------: | ------------------ |
-|  Platform Key (PK)      | openssl & sign-efi-sig-list |  RSA-4096 over SHA-256 digest (recomend)  | Public key in UEFI |
-|  Key Exchange Key (KEK) | openssl & sign-efi-sig-list |  RSA-4096 over SHA-256 digest (recomend)  | Public key in UEFI |
-|  DB key                 | openssl & sign-efi-sig-list |  RSA-4096 over SHA-256 digest (recomend)  | Public key in UEFI |
-|  shimx64.efi            | sbsign                      |  RSA-4096 over SHA-256 digest (recomend)  | Boot loader        |
-|  mmx64.efi              | sbsign                      |  RSA-4096 over SHA-256 digest (recomend)  | Mok Manager efi    |
+|  Platform Key (PK)      | openssl & sign-efi-sig-list |  RSA-4096 over SHA-256 digest (recommend)  | Public key in UEFI |
+|  Key Exchange Key (KEK) | openssl & sign-efi-sig-list |  RSA-4096 over SHA-256 digest (recommend)  | Public key in UEFI |
+|  DB key                 | openssl & sign-efi-sig-list |  RSA-4096 over SHA-256 digest (recommend)  | Public key in UEFI |
+|  shimx64.efi            | sbsign                      |  RSA-4096 over SHA-256 digest (recommend)  | Boot loader        |
+|  mmx64.efi              | sbsign                      |  RSA-4096 over SHA-256 digest (recommend)  | Mok Manager efi    |
 |  grubx64.efi            | sbsign                      |  RSA-4096 over SHA-256 digest (recommend)  | Boot loader        |
-|  vmlinuz                | sbsign                      |  RSA-4096 over SHA-256 digest (recomend)  | Linux Kernel       |
+|  vmlinuz                | sbsign                      |  RSA-4096 over SHA-256 digest (recommend)  | Linux Kernel       |
 |  kernel modules         | sign-file                   |  sha512                                   | Kernel Modules     |
 
 
