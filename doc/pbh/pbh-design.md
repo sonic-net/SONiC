@@ -1217,4 +1217,4 @@ PBH extended configuration test:
 ## 3.2 Data plane tests via PTF
 
 PBH will reuse and extend the existing test plan:  
-[Inner packet hashing test plan #759](https://github.com/Azure/SONiC/pull/759)
+[Inner packet hashing test plan #759](https://github.com/sonic-net/SONiC/pull/759)
