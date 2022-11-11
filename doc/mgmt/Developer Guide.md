@@ -3765,7 +3765,7 @@ A new plugin **sonic-telemetry/tools/pyang_plugins/protobuf.py** is written to a
 
 ##### 3.1.10.3 Path for generated files
 
-**Protobuf:** sonic-telemetry/build/package/<pkg>/proto
+**Protobuf:** sonic-telemetry/build/package/\<pkg\>/proto
 
 **Package specific Server code:** sonic-telemetry/build/package/\<pkg\>/server
 
