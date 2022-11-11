@@ -10,6 +10,7 @@
   - [Scope](#scope)
   - [Definitions/Abbreviations](#definitionsabbreviations)
   - [Overview](#overview)
+  - [Feature Prerequisites and supported platform](#feature-prerequisites-and-supported-platform)
   - [Requirements](#requirements)
   - [Architecture Design](#architecture-design)
   - [High-Level Design](#high-level-design)
@@ -57,6 +58,9 @@ The scope of this document covers the design of time-based data plane ACL, which
 The current design of data plane ACL supports only persistent rules, that is, once the rule is applied to SONiC, it will be there until manually removed or config reload.
 
 This doc proposes an enhancement to current ACL, which add a time range to ACL rule and the rule will only be activated during the specific time range.
+
+## Feature Prerequisites and supported platform
+Any platform which supports dataplane ACL.
 
 ## Requirements
 
@@ -121,7 +125,11 @@ A sample config for ACL rule in APP DB
 ### Code change
 #### acl-loader
 
-Update `acl-loader` script to parse new field `time_range` as shown in below example. The entry will be created in `TIME_BASED_ACL_RULE` in `CONFIG DB` if `time_range` is present for an ACL rule in `acl.json`. The entry's `start_time` and `end_time` is from the json file. Please find more details in workflow diagram.  
+Update `acl-loader` script to parse new field `time_range` as shown in below example. The entry will be created in `TIME_BASED_ACL_RULE` in `CONFIG DB` if `time_range` is present for an ACL rule in `acl.json`. The entry's `start_time` and `end_time` is from the json file. Please find more details in workflow diagram.
+
+Currently, the `start_time` and `end_time` in the `time_range` config only accept `Unix epoch` time format. It is the number of seconds that have elapsed siny January 1, 1970(midnight UTC/GMT). Higher level user-end CLI/API may accept other time format and convert to Unix epoch time format which is not covered by the document.
+
+It is end-user's responsibility to make sure the time is synchronized between the device and the `acl-loader` caller. If the time is not synchronized, the dataplan ACL behaivor is undefined.
 
 A sample input json config for ACL rule with TTL value
 ```json
@@ -165,7 +173,13 @@ A sample input json config for ACL rule with TTL value
 
 #### time_based_acl_mgrd
 
-A helper script will be added to `swss` container. The checker is started after `orchagent` and check the end timestamp of time-based ACL rules in every 10 seconds by default. It will walk through all entries in `TIME_BASED_ACL_RULE` in `CONFIG DB`. New effective ACL rules are added to `APP_ACL_RULE` in `APP DB` and expired ACL rules are deleted both from `CONFIG DB` and `APP DB`.
+A helper script will be added to `swss` container. The checker is started after `orchagent` and check the end timestamp of time-based ACL rules in every 10 seconds by default. It will walk through all entries in `TIME_BASED_ACL_RULE` in `CONFIG DB`. New effective ACL rules are added to `APP_ACL_RULE` in `APP DB` and expired ACL rules are deleted both `APP DB`.
+
+If the device time is changed after the time_based ACL is loaded. The helper script will re-evaluate all the time_based ACL rules based on the new time. New effective ACL rules from `CONFIG DB` will be added and expired ACL rules in `APP DB` will be removed.
+
+If the device reboots, the time normally will NOT lost. So the time_base ACL rules will continue working.
+
+As an optimization, a global flag can be set to indicate if expired ACL rules are delete from `CONFIG DB` automatically. However, this behaivor is under discussion. This is not covered by the document yet.
 
 ### Workflow
 #### Add and remove time-based ACL rule
