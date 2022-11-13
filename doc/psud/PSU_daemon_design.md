@@ -183,7 +183,7 @@ The field `Status` represents the status of the PSU, which can be the following:
 - `Not OK` which can be caused by:
   - power is not good, which means the PSU is present but no power (Eg. the power is down or power cable is unplugged)
 - `WARNING` which can be caused by:
-  - power exceeds the PSU's power threshold
+  - power exceeds the PSU's power critical threshold
 
 ### 4.2 psuutil
 
