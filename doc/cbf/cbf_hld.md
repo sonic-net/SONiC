@@ -87,7 +87,7 @@ This design directly changes CONFIG_DB, APPL_DB, orchagent and sairedis.
 
 ## 3.2 DB Changes
 ### 3.2.1 APPL DB
-Based on the next hop group split (https://github.com/Azure/SONiC/pull/712) on which this HLD is based on, a new CLASS_BASED_NEXT_HOP_GROUP table will be added to the APPL_DB with the following format:
+Based on the next hop group split (https://github.com/sonic-net/SONiC/pull/712) on which this HLD is based on, a new CLASS_BASED_NEXT_HOP_GROUP table will be added to the APPL_DB with the following format:
 
 A new table is added to store the NHG maps.
 ```
@@ -203,7 +203,7 @@ For a new entry in CLASS_BASED_NEXT_HOP_GROUP_TABLE, the orchestration agent wil
 
 If the dataplane doesn't have any more room for a new next hop group object, the task will remain in the process queue for the event of space being freed.
 
-There is a special scenario for creating the class based next hop groups, and that is when it references temporary next hop groups (as described in https://github.com/Azure/SONiC/pull/712), as these may be updated at some point which in turn will change their SAI ID. For this scenario, the class based next hop groups will keep a list of their temporary members and periodically check if it's SAI ID has been updated. If so, the SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID attribute of the class based next hop group member will be updated to the match the new value and if the next hop group was updated to a proper (;-temporary) next hop group object, it will be erased from the specified list. When all the temporary next hop groups have been updated to proper next hop groups, the class based one will stop checking periodically for the updates.
+There is a special scenario for creating the class based next hop groups, and that is when it references temporary next hop groups (as described in https://github.com/sonic-net/SONiC/pull/712), as these may be updated at some point which in turn will change their SAI ID. For this scenario, the class based next hop groups will keep a list of their temporary members and periodically check if it's SAI ID has been updated. If so, the SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID attribute of the class based next hop group member will be updated to the match the new value and if the next hop group was updated to a proper (;-temporary) next hop group object, it will be erased from the specified list. When all the temporary next hop groups have been updated to proper next hop groups, the class based one will stop checking periodically for the updates.
 
 For an updated entry in CLASS_BASED_NEXT_HOP_GROUP_TABLE, the orchestration agent will remove the group's previous members and add the updated ones. We do this due to the limitation of the SAI_NEXT_HOP_GROUP_MEMBER_ATTR_INDEX attribute which is CREATE_ONLY and so can't be updated. Instead of accounting for all the possibilities for the index of a member to be updated (by moving it to a different position in the list, removing a member that comes before it or adding a new one before it) which would be exhaustive to handle, we prefer this simpler and more robust solution. The selection map will also be updated in ASIC_DB if necessary.
 

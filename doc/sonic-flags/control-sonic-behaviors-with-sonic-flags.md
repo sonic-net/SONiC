@@ -83,7 +83,7 @@ Below is a sample of `SYSTEM_DEFAULTS` table
 #### 5.2.1 Set default value with `init_cfg.json`
 
 The default value of flags in `SYSTEM_DEFAULTS` table can be set in `init_cfg.json` and loaded into db at system startup. These flags are usually set at image being build, and are unlikely to change at runtime.
-If the values in `config_db.json` is changed by user, it will not be rewritten back by `init_cfg.json` as `config_db.json` is loaded after `init_cfg.json` in [docker_image_ctl.j2](https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/docker_image_ctl.j2)
+If the values in `config_db.json` is changed by user, it will not be rewritten back by `init_cfg.json` as `config_db.json` is loaded after `init_cfg.json` in [docker_image_ctl.j2](https://github.com/sonic-net/sonic-buildimage/blob/master/files/build_templates/docker_image_ctl.j2)
 
 ```
 if [ -r /etc/sonic/config_db$DEV.json ]; then
@@ -128,7 +128,7 @@ The `SYSTEM_DEFAULTS` table can be subscribed by components that are interested 
 2. Templates that depend on `DEVICE_METADATA|localhost` table are required to be updated.
 
 ### 6.2 Yang model update
-A new Yang model is to be added to restrict the valid flags in `SYSTEM_DEFAULTS` table. The existing entries for flags in current [sonic-device_metadata.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang) are to be removed.
+A new Yang model is to be added to restrict the valid flags in `SYSTEM_DEFAULTS` table. The existing entries for flags in current [sonic-device_metadata.yang](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang) are to be removed.
 
 ### 6.3 Code change
 1. Update `db_migrator.py` to migrate flags from `DEVICE_METADATA|localhost` table to `SYSTEM_DEFAULTS` table. Current flags include

@@ -15,7 +15,7 @@ The following are the high level requirements for CoPP/TRAP managment
 
 ## Current behaviour
 
-During SWSS start, the prebuilt [copp.json](https://github.com/Azure/sonic-swss/blob/201911/swssconfig/sample/00-copp.config.json) file is loaded as part of start script [swssconfig.sh](https://github.com/Azure/sonic-buildimage/blob/201911/dockers/docker-orchagent/swssconfig.sh) and written to APP DB. [CoppOrch](https://github.com/Azure/sonic-swss/blob/201911/orchagent/copporch.cpp) then translates it to Host trap/policer tables and programmed to SAI.
+During SWSS start, the prebuilt [copp.json](https://github.com/sonic-net/sonic-swss/blob/201911/swssconfig/sample/00-copp.config.json) file is loaded as part of start script [swssconfig.sh](https://github.com/sonic-net/sonic-buildimage/blob/201911/dockers/docker-orchagent/swssconfig.sh) and written to APP DB. [CoppOrch](https://github.com/sonic-net/sonic-swss/blob/201911/orchagent/copporch.cpp) then translates it to Host trap/policer tables and programmed to SAI.
 
 ## Proposed behaviour
 
@@ -63,7 +63,7 @@ state        = "ok"
 ```
 
 ### coppmgr
-Introduce a *new* CoPP manager, that subscribes for the Config DB CoPP Tables and Feature Tables. Based on the feature enablement, ```coppmgr``` handles the logic to resolve whether a CoPP table shall be written to APP DB for orchagent consumption. Inorder to reduce changes to copporch and for backward compatibility during warmboot, ```coppmgr``` shall use the existing APP_DB schema and implement internal logic to convert the proposed ConfigDB entries to APP DB entries. Similar to existing swss managers, an entry with state "ok" shall be added to STATE_DB. `coppmgrd` must be started by [supervisord.conf](https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) first, before any other process is started in swss. During init, ```coppmgr``` shall read the ```copp_cfg.json``` file and apply the default configuration. The default shall not be part of Config_DB entries. ```coppmgr``` shall also read from the config_db during init and apply the logic to merge if there are same entries within the ```copp_cfg.json``` file.
+Introduce a *new* CoPP manager, that subscribes for the Config DB CoPP Tables and Feature Tables. Based on the feature enablement, ```coppmgr``` handles the logic to resolve whether a CoPP table shall be written to APP DB for orchagent consumption. Inorder to reduce changes to copporch and for backward compatibility during warmboot, ```coppmgr``` shall use the existing APP_DB schema and implement internal logic to convert the proposed ConfigDB entries to APP DB entries. Similar to existing swss managers, an entry with state "ok" shall be added to STATE_DB. `coppmgrd` must be started by [supervisord.conf](https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) first, before any other process is started in swss. During init, ```coppmgr``` shall read the ```copp_cfg.json``` file and apply the default configuration. The default shall not be part of Config_DB entries. ```coppmgr``` shall also read from the config_db during init and apply the logic to merge if there are same entries within the ```copp_cfg.json``` file.
 
 Trap name added to copp_cfg.json file has to match a feature name exist in FEATURE table in Config DB.
 In order to handle traps which has no associated feature (such as arp, ip2me), a new field called "always_enabled" will be added to COPP_TRAP table in Config DB.
@@ -118,7 +118,7 @@ For this design, considering the limitations, proposal is to go ahead with secon
 It is desirable to have warmboot functionality from previous release versions of Sonic. Since the existing schema has COPP Group name/key with protocol names (e.g `"COPP_TABLE:trap.group.bgp.lacp"`, there is a limitation in adding any new protocol or trap to an existing CoPP group and seamlessly migrate. However, with this proposal, the following options are considered:
 
 1. The implementation is to do a migration of APP DB entries to new schema.
-2. Let ```db_migrator``` remove all previously saved APP_DB entries and let syncd reconcile and remove the TRAP entries during warmboot. Later, ```coppmgr``` can reapply the traps afresh. Also remove COPP_TABLES from being saved in [backup_database](https://github.com/Azure/sonic-utilities/blob/master/scripts/fast-reboot#L234). This may require additional tests to confirm system behaviour during warmboot.
+2. Let ```db_migrator``` remove all previously saved APP_DB entries and let syncd reconcile and remove the TRAP entries during warmboot. Later, ```coppmgr``` can reapply the traps afresh. Also remove COPP_TABLES from being saved in [backup_database](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot#L234). This may require additional tests to confirm system behaviour during warmboot.
 3. Remove '00-copp.config.json' from being included for checksum calculation in ```files/build_scripts/generate_asic_config_checksum.py```
 
 In addition, the implementation must ensure that backward compatibility is maintained. If the system is boot-up with an *old* config file, the default CoPP tables are to be loaded from ```copp_cfg.json``` and expected to work seamlessly.
@@ -146,13 +146,13 @@ The following flow diagram captures the control flow.
 
 The following flow captures scenarios for ```boot-up``` sequence and ```config reload```. Default CoPP Tables shall be present in ```copp_cfg.json``` and if the same entry is present in ```config_db.json```, it is expected to be overwritten by ```config_db``` entry. This model ensures user-configuration gets priority over default configuration.
 
-![](https://github.com/Azure/SONiC/blob/master/images/copp/CoppInit_1.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/copp/CoppInit_1.png)
 
 ## Copp Manager flow
 
 The following flow captures CoPP manager functionality.
 
-![](https://github.com/Azure/SONiC/blob/master/images/copp/CoppManager_1.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/copp/CoppManager_1.png)
 
 # Examples
 

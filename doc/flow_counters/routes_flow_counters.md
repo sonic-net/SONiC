@@ -46,7 +46,7 @@ This document focus on route counter.
 Flow counter shall utilize the following existing infrastructure:
 
 - Generic Counters API - defined in https://github.com/opencomputeproject/SAI/blob/master/doc/SAI-Proposal-Generic-Counters.md and already supported by the SAI layer. This feature shall support binding/unbinding of these Generic counters to/from relevant SONIC objects
-- Flex Counters framework - used for background polling and pushing the statistic information to COUNTER DB for later use (e.g. by CLI). A introduction to flex counter can be found at: https://github.com/Azure/SONiC/pull/858.
+- Flex Counters framework - used for background polling and pushing the statistic information to COUNTER DB for later use (e.g. by CLI). A introduction to flex counter can be found at: https://github.com/sonic-net/SONiC/pull/858.
 
 ![architecture](/doc/flow_counters/route_flow_counter_architecture.png).
 
@@ -409,7 +409,7 @@ As this is a debugging feature, basically, user should not enable this counter d
 
 However, if user did it by mistake:
 
-- For fastboot, there is already a mechanism that delays flex counter, nothing needs to be done here. See PR https://github.com/Azure/sonic-swss/pull/1877.
+- For fastboot, there is already a mechanism that delays flex counter, nothing needs to be done here. See PR https://github.com/sonic-net/sonic-swss/pull/1877.
 - For warmboot, routeorch does not handle any DB change except the "resync" during warmboot, it means that route flow counter will not be enabled until warmboot finish. So, no change is required in this feature.
 
 Based on the above, this feature shall not introduce any delay in fastboot or warmboot, and this shall be verified by test.

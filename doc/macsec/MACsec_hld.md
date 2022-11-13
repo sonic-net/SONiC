@@ -3,9 +3,10 @@
 
 ***Revision***
 
-|  Rev  | Date  | Author | Change Description |
-| :---: | :---: | :----: | ------------------ |
-|  0.1  |       | Ze Gan | Initial version    |
+|  Rev  | Date  | Author | Change Description      |
+| :---: | :---: | :----: | ----------------------- |
+|  0.1  |       | Ze Gan | Initial version         |
+|  0.2  |       | Ze Gan | MACsec with PFC and CLI |
 
 <!-- omit in toc -->
 ## Table of Contents
@@ -17,6 +18,7 @@
     - [Phase I](#phase-i)
     - [Phase II](#phase-ii)
     - [Phase III](#phase-iii)
+    - [Phase IV](#phase-iv)
 - [2 Architecture Design](#2-architecture-design)
 - [3 Modules Design](#3-modules-design)
   - [3.1 Config DB](#31-config-db)
@@ -58,6 +60,12 @@
       - [Egress Flow](#egress-flow)
       - [State Change Actions](#state-change-actions)
       - [MACsec Actions](#macsec-actions)
+  - [3.5 Function Modules](#35-function-modules)
+    - [3.5.1 PFC with MACsec](#351-pfc-with-macsec)
+      - [3.5.1.1 ACL entry configuration](#3511-acl-entry-configuration)
+      - [3.5.1.2 PFC mode](#3512-pfc-mode)
+      - [3.5.1.3 PFC counter](#3513-pfc-counter)
+      - [3.5.1.4 PFC test](#3514-pfc-test)
 - [4 Flow](#4-flow)
   - [4.1 Init Port](#41-init-port)
   - [4.2 MACsec Init](#42-macsec-init)
@@ -69,6 +77,7 @@
   - [4.8 Remove Ingress/Egress SC](#48-remove-ingressegress-sc)
   - [4.9 MACsec Deinit](#49-macsec-deinit)
   - [4.10 Deinit Port](#410-deinit-port)
+- [5 CLI](#5-cli)
 
 ## About this Manual
 
@@ -102,23 +111,28 @@ At a high level the following should be supported:
 
 #### Phase I
 
-- MACsec can be enabled at a specified [port](https://github.com/Azure/SONiC/wiki/Configuration#port)
-- MACsec can co-work with the [port channel](https://github.com/Azure/SONiC/wiki/Configuration#port-channel)
+- MACsec can be enabled at a specified [port](https://github.com/sonic-net/SONiC/wiki/Configuration#port)
+- MACsec can co-work with the [port channel](https://github.com/sonic-net/SONiC/wiki/Configuration#port-channel)
 - Support Cipher: GCM-AES-128 and GCM-AES-256
 - Secure Association Key(SAK) can be replaced without service outage
 
 #### Phase II
 
+**ETA: 202112**
 - MACsec can support Extension packet number(XPN), which means to support Cipher Suites: GCM-AES-XPN-128 and GCM-AES-XPN-256
 - SAK can be refreshed proactively.
-- Primary and Fallback secure Connectivity Association Key can be supported simultaneously.
 - Enable or disable the XPN feature by the wpa_cli
-- Parameters of wpa_supplicant, send_sci, replay_protect, replay_window_size and rekey_period, can be updated on the fly
+- CLI commands to configure MACsec
 - CLI command `show macsec` to monitor mka session and statistics of MACsec
+- MACsec with PFC. PFC frames can be controlled to encrypted or clear.
 
 #### Phase III
 
-- CLI commands to configure MACsec
+- Primary and Fallback secure Connectivity Association Key can be supported simultaneously.
+
+#### Phase IV
+
+- Parameters of wpa_supplicant, send_sci, replay_protect, replay_window_size and rekey_period, can be updated on the fly
 
 ## 2 Architecture Design
 
@@ -215,6 +229,13 @@ key                         = PORT:name               ; Interface name
 ; field                     = value
 macsec                      = profile                 ; MACsec profile name. if this filed is empty or isn't existed,
                                                       ; the MACsec function is disable.
+pfc_encryption_mode         = "bypass" / "encrypt" / "strict_encrypt"
+                                                       ; The behavior to PFC frames.
+                                                       ; "bypass": react clear and encrypted PFC frames, send clear PFC frames.
+                                                       ; "encrypt": react clear and encrypted PFC frames, send encrypted PFC frames.
+                                                       ; "strict_encrypt": only react encrypted PFC frames, send encrypted PFC frames.
+                                                       ; If the specified mode cannot be supported by the platform, record an error in the log file.
+                                                       ; Default "bypass".
 ```
 
 ### 3.2 App DB
@@ -701,7 +722,6 @@ MACsec SECY Table
     "InPktsUnknownSCI":{{InPktsUnknownSCI}} # the number of the received frame with unknown SCI
     "InPktsNoSCI":{{InPktsNoSCI}}           # the number of the received frame without SCI (those frames will be passed to uncontrolled port)
     "InPktsOverrun":{{InPktsOverrun}}       # the number of the received frame that was discarded because the validation capabilities of the Cipher Suite cannot support current rate
-
 ```
 
 ###### 3.4.4.2.2 Interval
@@ -790,6 +810,128 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 
 ***MACsec egress sc will be automatically created/delete when the MACsec port is created/deleted***
 
+### 3.5 Function Modules
+
+#### 3.5.1 PFC with MACsec
+
+*Due to the link delay should be considered as the PFC configuration, the extra delay of data frames **MUST NOT** be more than **1 microsecond**. (Will confirm with vendors).*
+
+- To leverage the capability of ACL to bypass or drop the PFC frames like what EAPOL did and all ACL entries for PFC are kept into the same ACL table of EAPOL. ***The EAPOL design is [here](https://github.com/opencomputeproject/SAI/blob/master/doc/macsec-gearbox/SAI_MACsec_API_Proposal-v1.4.docx).***
+
+- The ACL table is processed at the beginning of the MACsec stage. So, the configuration of ACL entry to PFC mentioned in [3.5.1.1 ACL entry configuration](#3511-acl-entry-configuration) will be executed before the frame into the MACsec secy.
+
+``` c++
+sai_attribute_t attr;
+std::vector<sai_attribute_t> attrs;
+// To egress MACsec port
+attr.id = SAI_ACL_TABLE_ATTR_ACL_STAGE;
+attr.value.s32 = SAI_ACL_STAGE_EGRESS_MACSEC;
+attrs.push_back(attr);
+// To ingress MACsec port
+// attr.id = SAI_ACL_TABLE_ATTR_ACL_STAGE;
+// attr.value.s32 = SAI_ACL_STAGE_INGRESS_MACSEC;
+// attrs.push_back(attr);
+attr.id = SAI_ACL_TABLE_ATTR_FIELD_ETHER_TYPE;
+attr.value.booldata = true;
+attrs.push_back(attr);
+...
+sai_acl_api->create_acl_table(table_id, switch_id, static_cast<std::uint32_t>(attrs.size()), attrs.data());
+```
+
+- In the Gearbox mode, the ACL table lives in the gearbox. Meanwhile, the gearbox will not react PFC and frames but forward the frame to the client side (To ingress, the client side is the system side. To egress, the client side is the line side).
+
+![gearbox_pfc](images/gearbox_pfc.png)  
+
+``` c++
+sai_attribute_t attr;
+// Enable Forward pause frame
+attr.id = SAI_PORT_ATTR_GLOBAL_FLOW_CONTROL_FORWARD;
+attr.value.booldata = true;
+sai_port_api->set_port_attribute(port_id, &attr); // port_id is the id of lineside port in gearbox
+// Enable Forward PFC frame
+attr.id = SAI_PORT_ATTR_PRIORITY_FLOW_CONTROL_FORWARD;
+attr.value.booldata = true;
+sai_port_api->set_port_attribute(port_id, &attr); // port_id is the id of lineside port in gearbox
+```
+
+##### 3.5.1.1 ACL entry configuration
+
+The following configuration to ACL entry can be used to identify PFC frame and do the expected action to the frame.
+
+- Identify the PFC frames
+
+``` c++
+PAUSE_ETHER_TYPE = 0x8808
+attr.id = SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE;
+attr.value.aclfield.data.u16 = PAUSE_ETHER_TYPE;
+attr.value.aclfield.mask.u16 = 0xFFFF;
+attr.value.aclfield.enable = true;
+```
+
+- Bypass frames
+
+``` c++
+attr.id = SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION;
+attr.value.aclaction.parameter.s32 = SAI_PACKET_ACTION_FORWARD;
+attr.value.aclaction.enable = true;
+```
+
+- Drop frames
+
+``` c++
+attr.id = SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION;
+attr.value.aclaction.parameter.s32 = SAI_PACKET_ACTION_DROP;
+attr.value.aclaction.enable = true;
+```
+
+- **React encrypted ingress PFC frame**: The default behavior of MACsec engine should decrypt encrypted frames and forward it to the upper layer. So, there is no extra configuration to encrypted ingress PFC frame.
+- **React clear ingress PFC frame**: We don't want to assume an implicit default behavior to clear PFC frames in different MACsec engines. So, the ACL entry should has explicit configuration of **identify PFC frames** and **bypass frames** if we want to accept clear ingress PFC frames.
+- **Deny clear ingress PFC**: Due to the same reason with **Send clear ingress PFC frame**, the ACl entry should has explicit configuration of **identify PFC frames** and **Drop frames** if we want to deny clear ingress PFC frames.
+- **Send encrypted egress PFC frame**: The default behavior of MACsec engine should encrypt all frames and forward it to the peer side. So, there is no extra configuration to egress PFC frame.
+- **Send clear egress PFC frame**: If the switch want to send clear egress PFC frames, the PFC frames should bypass the MACsec engine. The ACL entry should **identify PFC Frames** first and **bypass frames**.
+
+##### 3.5.1.2 PFC mode
+
+- **Bypass mode**: The switch should react clear and encrypted ingress PFC frames and should send clear egress PFC frames.
+
+![pfc_bypass_mode](images/pfc_bypass_mode.png)  
+
+- **Encrypt mode**: The switch should react clear and encrypted PFC frames, send encrypted PFC frames.
+
+![pfc_encrypt_mode](images/pfc_encrypt_mode.png)  
+
+- **Strict Encrypt mode**: The switch should only react encrypted PFC frames, send encrypted PFC frames.
+
+![pfc_strict_encrypt_mode](images/pfc_strict_mode.png)  
+
+***Why encrypt mode? If the peer switch can only send clear PFC but react both, Encrypt mode is safer than Bypass mode.***
+
+##### 3.5.1.3 PFC counter
+
+In the strict encrypt mode, to count the dropped ingress clear PFC frames per port and the counter will be added into the PFC ACL entry mentioned above.
+
+``` c++
+sai_attribute_t attr;
+vector<sai_attribute_t> counter_attrs;
+
+attr.id = SAI_ACL_COUNTER_ATTR_TABLE_ID;
+attr.value.oid = acl_table_oid;
+counter_attrs.push_back(attr);
+
+attr.id = SAI_ACL_COUNTER_ATTR_ENABLE_PACKET_COUNT;
+attr.value.booldata = true;
+counter_attrs.push_back(attr);
+
+// If in Gearbox mode, the switch_id is the gearbox id, otherwise it's the asic switch id
+sai_acl_api->create_acl_counter(&counter_id, switch_id, (uint32_t)counter_attrs.size(), counter_attrs.data());
+```
+
+***Per queue counter of PFC needs to be discussed with vendors further.***
+
+##### 3.5.1.4 PFC test
+
+Please see the [MACsec test plan](https://github.com/Pterosaur/sonic-mgmt/blob/macsec_platform/docs/testplan/MACsec-test-plan.md#verify-pfc-in-macsec) in sonic-mgmt.
+
 ## 4 Flow
 
 ### 4.1 Init Port
@@ -833,3 +975,7 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 ### 4.10 Deinit Port
 
 ![deinit port](images/deinit_port.png)  
+
+## 5 CLI
+
+MACsec cli refer: https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md#macsec-commands
