@@ -17,6 +17,7 @@
   - [Counters and Meters](#Counters-and-Meters)
   - [CRM (Critical Resource Monitoring)](#CRM)
   - [Warm restart](#Warm-restart)
+  - [Unit Test Automation](#Unit-Test-Automation)
 - [Appendix](#Appendix)
   - [P4 Program for SAI Extensions and useful annotations](#P4-Program-annotations)
   - [Example](#Example)
@@ -31,6 +32,7 @@
 |      |           |          Robert Halstead, Kishore Gummadidala        |                                    |
 | 0.2  | 9/29/2022 | Shitanshu Shah                                       |address review comments             |
 | 0.3  |10/14/2022 | Shitanshu Shah                                       |terminology, Cross Table dep updates|
+| 0.4  |11/14/2022 | Shitanshu Shah                                       |add section on unit-test automation |
 
 
 ## Introduction <a name="Introduction"></a>
@@ -216,6 +218,34 @@ Availability count of entries of a programmable object (in reference to the P4RT
 
 ### Warm restart <a name="Warm-restart"></a>
 To support warm restart, P4Orch is required to read the P4RT_TABLE_DEFINITION_SET table from APPL_DB first followed by all other P4RT_TABLEs in determined precedence order. Rest of the design remains the same as is supported today. With restart of P4RT-APP, it is expected that the P4RT client will read current table entries from the device and reconcile state to push necessary updates/deletes.
+
+
+## Unit Test Automation <a name="Unit-Test-Automation"></a>
+P4Orch pytest automation test-cases
+- Add P4RT_TABLE:TABLES_DEFINITION_TABLE in APP-DB for an extension table
+  - Reference extension table used is “vipv4_table” with match-key as ipv4 destination address and action as set-nexthop-id
+  - set-nexthop-id refers to a nexthop created by NEXTHOP P4RT_TABLE
+  - Validate that definitions table successfully got added in the APP-DB
+- Create nexthop entry “n1” in P4RT_TABLE: FIXED_NEXTHOP_TABLE, with all dependent table entries also created (like in router-interface table)
+  - Validate nexthop entry “n1” is created successfully for the fixed table in APP-DB, as well new oid for it created in ASIC-DB
+- Create an entry in “vipv4_table” with an action set to nexthop entry “n1”
+  - Validate table entry is successfully created in APP-DB for EXT table for vipv4_table
+  - Validate that entry’s cross-reference to nexthop object for “n1” is successfully resolved and SAI API call for GENERIC_PRGRAMMABLE is successful
+  - Validate a new oid got created in ASIC-DB for GENERIC_PROGRAMMABLE object
+  - Validate a respective entry got created in APP-STATE-DB for the same extension table with the same key
+- Create another nexthop entry “n2” in P4RT_TABLE: FIXED_NEXTHOP_TABLE, with all dependent table entries also created (like in router-interface table)
+  - Validate nexthop entry “n2” is created successfully for the fixed table in APP-DB, as well new oid for it created in ASIC-DB
+- Update earlier “vipv4_table” entry’s action set to this new nexthop entry “n2”
+  - Validate no failure in cross-reference resolution of vipv4_table entry to nexthop object “n2”
+  - If Generic SAI Extension API call was successful and ASIC-DB is updated successfully, in next step nexthop entry “n1” would be allowed to be deleted
+- Delete nexthop entry “n1” from P4RT_TABLE: FIXED_NEXTHOP_TABLE
+  - Validate entry is successfully deleted from APP-DB and ASIC-DB
+- Delete earlier “vipv4_table” entry from APP-DB
+  - Validate entry is successfully removed from APP-DB, ASIC-DB and APP-STATE-DB
+- Try to create “vipv4_table” entry action set to non-existent nexthop “n3”
+  - Validate entry creation fails due to failure in cross-reference resolution to non-existent nexthop object for “n3”
+  - As a result, there should not be any new oid created for GENERIC_PROGRAMMABLE object in ASIC-DB
+
 
 
 ## Appendix <a name="Appendix"></a>
