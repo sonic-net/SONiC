@@ -125,16 +125,16 @@ The configuration shall be:
 }
 ```
 
-### 1.5 system status LED color definition
+### 1.5 System status LED color definition
 
-default system status LED color definition is like
+System status LED is set based on the status of system. The system status is defined as following
 
- | Color            |     Status    |       Description       |
- |:----------------:|:-------------:|:-----------------------:|
- | Off              |  off          |   no power              |
- | Blinking amber   |  boot up      |   switch is booting up  |
- | Red              |  fault        |   in fault status       |
- | Green            |  Normal       |   in normal status      |
+ | Status           | Led Color            | Description                                                               |
+ |:----------------:|:--------------------:|:-------------------------------------------------------------------------:|
+ | booting          | ${led_color.booting} | System up time is less that 5 mins and not all services/devices are ready |
+ | normal           | ${led_color.normal}  | All services/devices are in good state                                    |
+ | fault            | ${led_color.fault}   | Not all services/devices are in good state                                |
+
 
 Considering that different vendors platform may have different LED color capability, so LED color for different status also configurable:
 
@@ -148,8 +148,15 @@ Considering that different vendors platform may have different LED color capabil
 }
 ```
 
-The field "booting" is deprecated because there is no booting stage anymore. For backward compatible, user can still configure this field but it won't take effect.
+If not configuration is provided, default configuration is used:
 
+```python
+DEFAULT_LED_CONFIG = {
+	'fault': 'red',
+	'normal': 'green',
+	'booting': 'red'
+}
+```
 
 ## 2. System health monitor service business logic
 
