@@ -5,7 +5,7 @@ name: Run the shell script to generate sonic image links in supported_devices_pl
 # Run the script once in a minute. Github may take 15 minutes to run this even though we request once in a minute, which is OK.
 on:
   schedule:
-    - cron:  '5 * * * *'
+    - cron:  '0 0 * * *'
 
 jobs:
   build:

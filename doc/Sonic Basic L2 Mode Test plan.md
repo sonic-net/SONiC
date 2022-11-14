@@ -1,12 +1,12 @@
-#SONiC BSL Test Plan
+#SONiC Basic L2 Mode Test Plan
 
 
 ## Overview
-This document outlines the Sonic BSL test plan. In BSL mode, Sonic device is brought up as an L2 switch. This test plan validates the functionality by running the tests as described in below sections. More details on BSL can be found in this [document](https://github.com/sonic-net/SONiC/wiki/L2-Switch-mode#3-generate-a-configuration-for-l2-switch-mode). This must be followed to configure a Sonic device in L2 switch and verify the associated commands before running the below test cases. 
+This document outlines the test plan for SONiC as a basic L2 switch. This test plan validates the functionality by running the tests as described in below sections. More details can be found in this [document](https://github.com/sonic-net/SONiC/wiki/L2-Switch-mode#3-generate-a-configuration-for-l2-switch-mode). This must be followed to configure a Sonic device in L2 switch and verify the associated commands before running the below test cases. 
 
 ### Scope
 ---------
-This is limited to Sonic device in BSL mode with the minimal functional verification. 
+This is limited to Sonic device in basic L2 mode with the minimal functional verification. 
 
 
 ## Test structure 
@@ -51,7 +51,7 @@ Run fdb test - https://github.com/sonic-net/sonic-mgmt/blob/master/tests/fdb/tes
 ### Test case \#3
 
 #### Test objective
-Verify Vlan configurations, ARP and PING. The current vlan test (vlantb) has two parts - vlan_configure and vlan_test. vlan_configure cannot be run on BSL without modification as it takes into account port-channels. Test must also configure an IP address on Vlan interface. 
+Verify Vlan configurations, ARP and PING. The current vlan test (vlantb) has two parts - vlan_configure and vlan_test. vlan_configure cannot be run on basic L2 mode without modification as it takes into account port-channels. Test must also configure an IP address on Vlan interface. 
 
 This test covers Vlan, ARP and PING tests.
 
@@ -65,7 +65,7 @@ Run fdb test - https://github.com/sonic-net/sonic-mgmt/blob/master/tests/vlan/te
 #### Test objective
 Verify SNMP. This [document](https://github.com/sonic-net/SONiC/wiki/How-to-Check-SNMP-Configuration) can be referred for basic SNMP verification and configuring public community string
 
- The BSL test can cover to get 
+ The Basic L2 mode test can cover to get 
   1. MAC table
   2. Interface table
   3. CPU
