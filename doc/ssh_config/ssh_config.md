@@ -41,7 +41,7 @@ This hld doc for ssh server global configurations describes the requirements, ar
 	
 ###  1.4. <a name='Overview'></a>Overview 
 
-We want to allow configuring ssh server global settings. This will feature will include 5 configurations, but can be extended easily to include additional configurations.
+We want to allow configuring ssh server global settings. This will feature will include 3 configurations in the first phase, but can be extended easily to include additional configurations.
 
 ###  1.5. <a name='Requirements'></a>Requirements
 
@@ -79,9 +79,8 @@ We want to enable configuring the following policies, with default values are ta
 |----------------|---------------------------------------------------------------------------|-------------------------|------------------|
 | login attempts |     Number of attempts to try to log in   before rejecting the session    |     3-100               |     6            |
 | login timeout  |     SSH session timeout                                                   |     1-600 (secs)        |     120          |
-| ports          |     Port number for SSH                                                   |     1-65535             |     22           |
-| tcp-forwarding |     enable the option of tcp forwarding for   the ssh server              |     enabled/disabled    |     enabled      |
-| x11-forwarding |     enable the option of x11 forwarding for   the ssh server              |     enabled/disabled    |     enabled      |
+| ports          |     Port numbers for SSH                                                  |     1-65535             |     22           |
+
 
 ###  1.8. <a name='Init flow'></a>Init flow 
 
@@ -93,8 +92,6 @@ Description of default values in init_cfg.json regarding SSH global config:
 login attempts: 6 
 login timeout: 120 //seconds
 ports: 22
-tcp-fowarding: true
-X11-forwarding: true
 ```
 ###  1.9. <a name='SAI api'></a>SAI api
 NA
@@ -107,9 +104,7 @@ SSH_GLOBAL:{
 	policies:{
 		"login_attempts": {{num}}
 		"login_timeout": {{secs}}
-		"port": {{num}}
-		"tcp_forwarding": {{True/False}}
-		"x11_forwarding": {{True/False}}
+		"ports": {{num}}
 	}
 }
 ```
@@ -121,8 +116,6 @@ key                                   = "POLICIES"             ;ssh global confi
 LOGIN_ATTEMPTS                        = 3*DIGIT                 ; number of login attepmts, should be 100 max
 LOGIN_TIMEOUT                         = 3*DIGIT                 ; login timeout in secs unit, max is 600 secs
 PORTS                                 = 5*DIGIT                 ; ssh port number - max is 65535
-TCP_FORWARDING                        = "True" / "False"
-X11_FORWARDING                        = "True" / "False"
 ```
 
 ####  1.10.3. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
@@ -158,22 +151,12 @@ module sonic-sshg {
 						range 1..600;
 					}
 				}
-				leaf ports {
+				leaf-list ports {
 					description "ssh port number";
 					default 22;
 					type uint32 {
 						range 1..65535;
 					}
-				}
-				leaf tcp_forwarding{
-					description "tcp-forwarding enabled";
-					default true;
-					type boolean;
-				}
-				leaf x11_forwarding{
-					description "x11-forwarding enabled";
-					default true;
-					type boolean;
 				}
 			}/*container policies */
 		} /* container SSH_GLOBAL  */
@@ -191,8 +174,6 @@ The ConfigDB will be extended with next objects:
 			"login_attempts": "6",
 			"login_timeout": "120",
 			"ports": "22",
-			"tcp_forwarding": "True",
-			"x11_forwarding": "True",
 		}
 	}
 }
