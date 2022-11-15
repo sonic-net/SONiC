@@ -174,6 +174,33 @@ Refer below mentioned PR's for more details.
 <br>  **Pull Requests** : [9585](https://github.com/sonic-net/sonic-buildimage/pull/9585)
 
 
+#### Migrated Docker images to Debian "Bullseye"
+The docker images to debian bullseye for this release are listed below.
+
+```
+        · docker-base-buster
+        · docker-config-engine-buster
+        · docker-swss-layer-buster
+        · docker-database
+        · docker-fpm-frr
+        · docker-lldp 
+        · docker-macsec 
+        · docker-mux 
+        · docker-orchagent 
+        · docker-platform-monitor 
+        · docker-router-advertiser 
+        · docker-snmp 
+        · docker-teamd 
+        · docker-sonic-telemetry 
+        · docker-pmon-<platform>
+        · docker-gbsyncd-credo
+        · docker-dhcp-relay 
+        · docker-restapi 
+        · docker-sonic-p4rt  
+        · docker-pde 
+
+```
+
 #### Move Nvidia syncd and pmon to Debian11- "Bullseye"
 This impliments the upgrade on nvidia platform for containers such as syncd / saiserver / syncd-rpc and pmon to bullseye 
 
