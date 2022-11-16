@@ -228,14 +228,52 @@ _Note:_
 
 #### 1.3.1.4 SVLAN Priority bit (PCP) Handling
 * Either in VLAN stacking or translation, user can provide the priority bits(in the range of 0-7) which can be carried on SVLAN in the provider network.
-* In the absence of user provided priority bits the following operations are performed
+* Following tables will capture the PCP handling in Native and VxLAN use cases, in the presence or absence of SVLAN Priority.
 
-| Mapping Type | Stage      | Operation | PCP Handling |
+**Native Use cases**
+
+In the absence of SVLAN priority configuration
+| Mapping Type | Stage	    | Operation	| PCP Handling |
 | ------------ | ---------- | --------- | ------------ |
-| Stacking     | INGRESS    | PUSH      | PUSH SVLAN and copy PCP bits from CVLAN to SVLAN |
-| Stacking     | EGRESS     | POP       | POP SVLAN and don't copy PCP bits to CVLAN |
-| Translation  | INGRESS    | SWAP      | SWAP with SVLAN and copy PCP bits from CVLAN to SVLAN |
-| Translation  | EGRESS     | SWAP      | SWAP with CVLAN and copy PCP bits from SVLAN to CVLAN |
+| Stacking	   | INGRESS	  | PUSH	    | PUSH SVLAN and copy PCP bits from CVLAN to SVLAN |
+| Stacking	   | EGRESS	    | POP	      | POP SVLAN and don't copy PCP bits to CVLAN and CVLAN will have original PCP bits |
+| Translation	 | INGRESS	  | SWAP	    | SWAP with SVLAN and copy PCP bits from CVLAN to SVLAN |
+| Translation	 | EGRESS	    | SWAP	    | SWAP with CVLAN and copy PCP bits from SVLAN to CVLAN |
+
+In the presence of SVLAN priority configuration
+| Mapping Type | Stage	    | Operation	| PCP Handling |
+| ------------ | ---------- | --------- | ------------ |
+| Stacking	   | INGRESS	  | PUSH	    | PUSH SVLAN and carry configured PCP bits on SVLAN |
+| Stacking	   | EGRESS	    | POP	      | POP SVLAN and don't copy PCP bits to CVLAN |
+| Translation	 | INGRESS	  | SWAP	    | SWAP with SVLAN and carry configured PCP bits on SVLAN |
+| Translation	 | EGRESS	    | SWAP	    | SWAP with CVLAN and copy PCP bits from SVLAN to CVLAN |
+
+**VXLAN Use cases**
+
+In the absence of SVLAN priority configuration
+| Mapping Type | Stage	    | Operation	| PCP Handling |
+| ------------ | ---------- | --------- | ------------ |
+| Stacking	   | INGRESS	  | PUSH	    | PUSH SVLAN and copy PCP bits from CVLAN to SVLAN. |
+|              |            |           | If SVLAN is mapped to a VNI, Priority is not propagated to VXLAN VNI (DSCP) |
+| Stacking	   | EGRESS	    | POP	      | VNI is mapped to SVLAN. SVLAN is popped and no copy to CTAG |
+|              |            |           | CTAG will have original priority bits |
+| Translation	 | INGRESS	  | SWAP	    | SWAP with SVLAN and copy PCP bits from CVLAN to SVLAN. |
+|              |            |           | If SVLAN is mapped to a VNI, Priority is not propagated to VXLAN VNI (DSCP) |
+| Translation	 | EGRESS	    | SWAP	    | VNI is mapped to SVLAN. SVLAN here will have default Priority(0), |
+|              |            |           | which will be copied to Customer Tag |
+
+In the presence of SVLAN priority configuration
+| Mapping Type | Stage	    | Operation	| PCP Handling |
+| ------------ | ---------- | --------- | ------------ |
+| Stacking	   | INGRESS	  | PUSH	    | PUSH SVLAN and carry configured PCP bits on SVLAN. 
+|              |            |           | If SVLAN is mapped to a VNI, SVLAN Priority is not propagated to VXLAN VNI (DSCP) |
+| Stacking	   | EGRESS	    | POP	      | VNI is mapped to SVLAN. SVLAN is popped and no copy to CTAG. |
+|              |            |           | CTAG will have original priority bits |
+| Translation	 | INGRESS	  | SWAP	    | SWAP with SVLAN and carry configured PCP bits on SVLAN |
+|              |            |           | If SVLAN is mapped to a VNI, SVLAN Priority is not propagated to VXLAN VNI (DSCP) |
+| Translation	 | EGRESS	    | SWAP	    | VNI is mapped to SVLAN. SVLAN here will have configured Priority, | 
+|              |            |           | which will be copied to Customer Tag |
+
 
 ### 1.3.2 Container
 No new container will be introduced. swss, redisDB and mgmt-framework will be enhanced to support the feature.
@@ -677,7 +715,7 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping 100 inner 200 300 priority 2
 ```
 switchport vlan-mapping  {<cvlan_list> | { add | remove} <cvlan-list>} dot1q-tunnel <svlan-id> [priority <priority-bits>]
 
-[no] switchport vlan-mapping dot1q-tunnel <svlan-id> [priority [<priority-bits>]]
+[no] switchport vlan-mapping <svlan-id> [priority [<priority-bits>]]
                               
 ```
 
@@ -978,9 +1016,9 @@ TBD
 Warm boot is not supported for Q-in-Q and Vlan translation configuration.
 
 ## 3.8 Upgrade and Downgrade Considerations
-`Upgrade` from previous SONiC releases (which donot support Q-in-Q and Translation mapping rules) to the release 4.1 will be supported. The feature will introduced via additional configuration on the interfaces which are already SVLAN Members and also as a fresh configuration on the interfaces which are going to be made as VLAN members.
+`Upgrade` from previous SONiC releases (which donot support Q-in-Q and Translation mapping rules) to the release 4.1 will have no impact with the introduction of this feature.
 
-`Downgrade` to a SONiC release that does not support configuration of Q-in-Q and Translation mapping rules on Physical or PortChannel interface, the downgrade process has to remove this configuration.
+`Downgrade` to a SONiC release that does not support configuration of Q-in-Q and Translation mapping rules on Physical or PortChannel interface - the downgrade process does not remove this configuration. It is the user's responsibility to remove the unsupported configuration.
 
 # 4 Flow Diagrams
 As depicted in Section [3.1 Overview](#31-overview)
@@ -989,7 +1027,8 @@ As depicted in Section [3.1 Overview](#31-overview)
 `KLISH` - Various error scenarios, not limited to the following handled.
 * On a given Ethernet or PortChannel Interface 
   * A SVLAN cannot be configured for both Q-in-Q and Vlan translation Schemes
-  * A CVLAN matched for VLAN translation cannot be used for Q-in-Q case and vice versa
+  * A CVLAN mapped for VLAN translation cannot be used for Q-in-Q case and vice versa
+  * A CVLAN mapped for either for VLAN translation or Q-in-Q on an Interface, cannot be a Trunk or Access vlan on the same Interface.
 
 `REST/gNMI` - Only the following Tag operations are allowed to be configured in a given direction. All the un-supported configurations will be flagged as errors in the response.
 
@@ -1000,11 +1039,8 @@ As depicted in Section [3.1 Overview](#31-overview)
 | Swap | Supported | Supported |
 
 
-
-
 # 6 Serviceability and Debug
 No new debug commands are introduced. Serviceability requirements like Logging will be supported.
-
 
 # 7 Scalability
 * Support 2k service chains (both VLAN stacking and translation schemes) per system
