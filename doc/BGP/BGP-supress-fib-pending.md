@@ -454,8 +454,6 @@ sequenceDiagram
   deactivate RouteOrch
 ```
 
-```RouteOrch``` reads *APP_STATE_LOGGING* table flag from CONFIG_DB and completely disables response publishing if the feature is disabled. *15*-*18* are not invoked and the flow remains the same as today.
-
 
 <!-- omit in toc -->
 #### RouteOrch Route delete Flow
