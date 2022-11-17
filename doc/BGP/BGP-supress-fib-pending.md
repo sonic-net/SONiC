@@ -699,9 +699,7 @@ The ```OrchDaemon``` has to flush the ```RedisPipeline``` in ```OrchDaemon::flus
 
 Routing is a crucial part of a network switch. This feature adds additional flows in existing route processing pipeline and so along the way there might be unexpected failures leading to routes being not marked as offloaded in zebra - missed notification, race conditions leading to in-consistency, etc. It is required to monitor the consistency of routes state periodically and mitigate problems.
 
-At the moment *route_check.py* verifies routes between APPL_DB & ASIC_DB and makes sure they are in sync. If this script is failed for 3 periodic cycles of monit an error alert is written to the syslog. In addition to that it is required to extend this script to check for consistency APPL_DB, APPL_STATE_DB and zebra by calling ```show ip route json``` and verify every route installed in ASIC_DB is marked as offloaded. If this check fails a specific status code is returned to monit.
-
-Once monit detects this specific status code has been returned from this script for 3 cycles in a row a mitigation script - *mitigate_routes_offload.py* is invoked. This script publishes required notifications to trigger fpmsyncd flows to send RTM_NEWROUTE message to zebra and log alerts in the syslog.
+At the moment *route_check.py* verifies routes between APPL_DB & ASIC_DB and makes sure they are in sync. In addition to that it is required to extend this script to check for consistency APPL_DB, APPL_STATE_DB and zebra by calling ```show ip route json``` and verify every route installed in ASIC_DB is marked as offloaded. The script will retry the check for 3 times every 15 sec and if zebra FIB is not in sync with ASIC_DB a mitigation action is performed. The mitigation action publishes required notifications to trigger fpmsyncd flows to send RTM_NEWROUTE message to zebra and log alerts in the syslog.
 
 This way the problem is mitigated automatically and a network operator is notified via syslog alert about a problem.
 
@@ -787,7 +785,11 @@ In order to test this feature end to end it is required to simulate a delay in A
   10. Verify the route is announced to Arista T1 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
   11. Send traffic matching the prefix and verify packets are forwarded to T0 Arista VM
 - **Performance Test**
-  1. TBD
+  1. Announce 1K routes from exabpg through T0 Arista VM
+  2. Send traffic towards these prefixes from PTF in another thread
+  3. Measure time from announce start till all packets get received
+  4. The test is parametrized for suppression state for comparison
+  5. The test passes if the time is under the predefined threshold
 - **Stress Test**
   1. Enable ```suppress-pending-fib```
   2. In a loop for 100 times:
