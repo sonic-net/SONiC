@@ -72,7 +72,7 @@ Basically, there are two scenarios in which a new PSU can be detected:
 - On PSU daemon starting, all PSUs installed on the switch are detected
 - On new PSU pulgged, the new PSU is detected
 
-When one or more new PSUs is detected and power is good, PSU daemon tries retrieving the warning and critical threshold for each PSU installed on the switch.
+When one or more new PSUs is detected and power is good, PSU daemon tries retrieving the warning-suppress and critical threshold for each PSU installed on the switch.
 
 The PSU power checking will not be checked for a PSU if `NotImplemented` exception is thrown or `None` is returned while either threshold is being retrieved
 
@@ -81,7 +81,7 @@ The PSU power checking will not be checked for a PSU if `NotImplemented` excepti
 We use asymmetric thresholds between raising and clearing the alarm for the purpose of creating a hysteresis and avoiding alarm flapping.
 
 - an alarm will be raised when a PSU's power is rising accross the critical threshold
-- an alarm will be cleared when a PSU's power is dropping across the warning threshold
+- an alarm will be cleared when a PSU's power is dropping across the warning-suppress threshold
 
 In case a unified power threshold is used, the alarm status can flap when the power fluctuates around the threshold. For example, in the following picture, the alarm is cleared every time the PSU power drops across the critical threshold and raised every time the PSU power rises across the critical threshold. By having two thresholds, the alarm won't be cleared and raised so frequently.
 
@@ -92,13 +92,13 @@ In case a unified power threshold is used, the alarm status can flap when the po
 For each PSU supporting power checking:
 
 1. Retrieve the current power
-2. If flag `PSU power exceeded threshold` is `true`, compare the current power against the warning threshold
-   - If `current power` < `warning threshold`
+2. If flag `PSU power exceeded threshold` is `true`, compare the current power against the warning-suppress threshold
+   - If `current power` < `warning-suppress threshold`
      - Set `PSU power exceeded threshold` to `false`
-     - Message in NOTICE level should be logged: `PSU <x>: current power <power> is below the warning threshold <threshold>` where
+     - Message in NOTICE level should be logged: `PSU <x>: current power <power> is below the warning-suppress threshold <threshold>` where
        - `<x>` is the number of the PSU
        - `<power>` is the current power of the PSU
-       - `<threshold>` is the warning threshold of the PSU
+       - `<threshold>` is the warning-suppress threshold of the PSU
    - Otherwise: no action
 3. Otherwise, compare the current power against the critical threshold
    - If `current power` >= `critical threshold`
@@ -106,7 +106,7 @@ For each PSU supporting power checking:
      - Message in WARNING level should be logged: `PSU <x>: current power <power> is exceeding the critical threshold <threshold>` where
        - `<x>` is the number of the PSU
        - `<power>` is the current power of the PSU
-       - `<threshold>` is the warning threshold of the PSU
+       - `<threshold>` is the warning-suppress threshold of the PSU
    - Otherwise: no action
 
 ## 3. DB schema for PSU
@@ -138,7 +138,7 @@ PSU information is stored in PSU table:
     input_current             = 1*3.3DIGIT                     ; input current of the psu
     max_power                 = 1*4.3DIGIT                     ; power capacity of the psu
     power_overload            = "true" / "false"               ; whether the PSU's power exceeds the threshold
-    power_warning_suppress_threshold   = 1*4.3DIGIT                     ; The power warning threshold
+    power_warning_suppress_threshold   = 1*4.3DIGIT            ; The power warning-suppress threshold
     power_critical_threshold  = 1*4.3DIGIT                     ; The power critical threshold
 
 Now psud only collect and update "presence" and "status" field.
@@ -187,11 +187,11 @@ The field `Status` represents the status of the PSU, which can be the following:
 
 ### 4.2 psuutil
 
-`psuutil` fetches the information via calling platform API directly. Both warning and critical thresholds will be exposed in the output of psuutil status.
+`psuutil` fetches the information via calling platform API directly. Both warning-suppress and critical thresholds will be exposed in the output of psuutil status.
 The "WARNING" state is not exposed because psuutil is a one-time command instead of a daemon, which means it does not store state information. It fetches information via calling platform API so it can not distinguish the following status:
 
-1. The power exceeded the critical threshold but is in the range between the warning and critical thresholds, which means the alarm should be raised
-2. The power didn't exceed the critical threshold and exceeds the warning threshold, which means the alarm should not be raised
+1. The power exceeded the critical threshold but is in the range between the warning-suppress and critical thresholds, which means the alarm should be raised
+2. The power didn't exceed the critical threshold and exceeds the warning-suppress threshold, which means the alarm should not be raised
 
 An example of output
 ```
@@ -276,7 +276,7 @@ class PsuBase(device_base.DeviceBase):
         The value can be volatile, so the caller should call the API each time it is used.
 
         Returns:
-            A float number, the warning threshold of the PSU in watts.
+            A float number, the warning-suppress threshold of the PSU in watts.
         """
         raise NotImplementedError
 
@@ -307,15 +307,15 @@ Supervisord takes charge of this daemon. This daemon will loop every 3 seconds a
    In `psu_status`, power exceeding check should be stored as `not supported` and no further function call.
 2. Both `get_psu_power_warning_suppress_threshold` and `get_psu_power_critical_threshold` are supported by platform API when a new PSU is identified
    In `psu_status`, power exceeding check should be stored as `supported`
-3. PSU's power was less than the warning threshold and is in the range (warning threshold, critical threshold): no action
-4. PSU's power was in range (warning threshold, critical threshold) and is greater than the critical threshold
+3. PSU's power was less than the warning-suppress threshold and is in the range (warning-suppress threshold, critical threshold): no action
+4. PSU's power was in range (warning-suppress threshold, critical threshold) and is greater than the critical threshold
    1. if warning was raised, no action expected
    2. if warning was not raised, a warning should be raised
-5. PSU's power was less than the warning threshold and is greater than the critical threshold: a warning should be raised
-6. PSU's power was greater than the critical threshold and is in range (warning threshold, critical threshold): no action
-7. PSU's power was in range (warning threshold, critical threshold) and is less than the warning threshold:
+5. PSU's power was less than the warning-suppress threshold and is greater than the critical threshold: a warning should be raised
+6. PSU's power was greater than the critical threshold and is in range (warning-suppress threshold, critical threshold): no action
+7. PSU's power was in range (warning-suppress threshold, critical threshold) and is less than the warning-suppress threshold:
    1. if warning was raised, the warning should be cleared
    2. if warning was not raised, no action
-8. PSU's power was greater than the critical threshold and is less than the warning threshold: the warning should be cleared
+8. PSU's power was greater than the critical threshold and is less than the warning-suppress threshold: the warning-suppress should be cleared
 9. A PSU becomes absent
 10. A PSU becomes `not power good`
