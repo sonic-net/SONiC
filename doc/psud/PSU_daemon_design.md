@@ -196,10 +196,10 @@ The "WARNING" state is not exposed because psuutil is a one-time command instead
 An example of output
 ```
 admin@sonic:~$ show platform psustatus
-PSU   Model         Serial       HW Rev   Voltage (V)   Current (A)   Power (W)   Power Warn Thres (W)   Power Crit Thres (W)    Status LED
------ ------------- ------------ -------- ------------- ------------- ----------- ---------------------- ---------------------- ------- -----
-PSU 1 MTEF-PSF-AC-A MT1843K17965 A4               12.02          3.62       43.56                  38.00                  58.00 OK      green
-PSU 2 MTEF-PSF-AC-A MT1843K17966 A4               12.04          4.25       51.12                  38.00                  58.00 OK      green
+PSU   Model         Serial       HW Rev   Voltage (V)   Current (A)   Power (W)   Power Warn-supp Thres (W)   Power Crit Thres (W)    Status LED
+----- ------------- ------------ -------- ------------- ------------- ----------- --------------------------- ---------------------- ------- -----
+PSU 1 MTEF-PSF-AC-A MT1843K17965 A4               12.02          3.62       43.56                       38.00                  58.00 OK      green
+PSU 2 MTEF-PSF-AC-A MT1843K17966 A4               12.04          4.25       51.12                       38.00                  58.00 OK      green
 
 ```
 
@@ -264,10 +264,10 @@ class PsuBase(device_base.DeviceBase):
 
     def get_voltage_low_threshold(self):
         raise NotImplementedError
-	
+
     def get_input_voltage(self):
         raise NotImplementedError
-	
+
     def get_input_current(self):
         raise NotImplementedError
 
