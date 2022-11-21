@@ -458,12 +458,12 @@ The full configuration request will be overwritten by subsequent full configurat
 
 SONiC telemetry is using empty target to support sonic management framework.
 
-We have 2 proposals to support new GNMI config interface:
-1. Add a new target "MIXED"
-<img src="images/two_target.svg" alt="overwritten-config" width="1000px"/>
-2. Reuse empty target
+We will below solution to support new GNMI config interface:
 <img src="images/single_target.svg" alt="overwritten-config" width="1000px"/>
-GNMI specification does not suggest to use target, so we prefer to use origin to support new GNMI config interface.
+
+Empty target is used to support sonic management framework and new GNMI config interface at the same time. Therefore, we use origin field to identify different request:
+"sonic_db" and "sonic_yang" are used for new GNMI config interface.
+All other value stand for sonic management framework.
 
 ### 1.2.2 Container
 
