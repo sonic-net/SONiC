@@ -456,25 +456,14 @@ The full configuration request will be overwritten by subsequent full configurat
 
 #### 1.2.1.12 Backward Compatibility
 
-SONiC telemetry is using prefix target to identify target database, and we will add a new target to support mixed schema.
+SONiC telemetry is using empty target to support sonic management framework.
 
-    enum Target {
-      option allow_alias = true;
-      APPL_DB         = 0;
-      ASIC_DB         = 1;
-      COUNTERS_DB     = 2;
-      LOGLEVEL_DB     = 3;
-      CONFIG_DB       = 4;
-      // PFC_WD_DB shares the the same db number with FLEX_COUNTER_DB
-      PFC_WD_DB       = 5;
-      FLEX_COUNTER_DB = 5;
-      STATE_DB        = 6;
-      // For none-DB data
-      OTHERS          = 100;
-      // For mixed schema
-      MIXED_SCHEMA    = 101;
-    }
-
+We have 2 proposals to support new GNMI config interface:
+1. Add a new target "MIXED"
+<img src="images/two_target.svg" alt="overwritten-config" width="1000px"/>
+2. Reuse empty target
+<img src="images/single_target.svg" alt="overwritten-config" width="1000px"/>
+GNMI specification does not suggest to use target, so we prefer to use origin to support new GNMI config interface.
 
 ### 1.2.2 Container
 
