@@ -783,8 +783,8 @@ In order to test this feature end to end it is required to simulate a delay in A
   10. Verify the route is announced to Arista T1 peer by executing ```show ip bgp neighbor A.B.C.D received-routes``` on the peer
   11. Send traffic matching the prefix and verify packets are forwarded to T0 Arista VM
 - **Performance Test**
-  1. Announce 1K routes from exabpg through T0 Arista VM
-  2. Send traffic towards these prefixes from PTF in another thread
+  1. Announce 10K routes to DUT
+  2. Send traffic towards these prefixes from AUX
   3. Measure time from announce start till all packets get received
   4. The test is parametrized for suppression state for comparison
   5. The test passes if the time is under the predefined threshold
