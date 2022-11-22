@@ -14,7 +14,7 @@ This document describes a subsystem for Platform Integration Test, aka. PIT. PIT
 
 In the blooming SONiC community, lots of users build their software on open hardware（especially white-box switches）. As the devices hardware are built by ODM vendor, not end users (users' SONiC development team), it's necessary to have a systematic method to verify whether the hardware, firmware (such as CPLD, FPGA, BMC, BIOS) and their drivers meet the users' requirement. At this point, PIT system (Platform Integration Test) is introduced for this purpose.
 
-PIT system could lighten up workload for both ODM and end-user because it not only automates hardware, firmware, driver verification efforts, but also it acheive this in a platform independent way, ias it provide a set of platform APIs to unify platform functions, so that hardware from different ODM have a unique view to the users. PIT is the first standard target to simplified SONiC porting on white-box switch in SONiC community. The simplified porting job may attract more and more user and ODM partners to join the SONiC community.
+PIT system could reduce workload for both ODM and end-user because it not only automates hardware, firmware, driver verification efforts, but also it acheive this in a platform independent way, as it provide a set of platform APIs to unify platform functions, so that hardware from different ODM have a unique view to the users. PIT is the first standard target to simplified SONiC porting on white-box switch in SONiC community. The simplified porting job may attract more and more user and ODM partners to join the SONiC community.
 
 # 2. Platform Integration Test subsystem overview
 
