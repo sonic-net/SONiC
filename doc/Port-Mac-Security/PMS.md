@@ -171,11 +171,11 @@ Following COUNTERS DB schemas are defined for supporting this feature.
 		/** Drop packets that violate the port security configuration and
   		 * count the number of violations.
 		 */
-		SAI_PORT_PORT_SECURITY_VILATION_ACTION_RESTRICT,
+		SAI_PORT_PORT_SECURITY_VIOLATION_ACTION_RESTRICT,
 		/** Drop packets that violate the port security configuration. */
-		SAI_PORT_PORT_SECURITY_VILATION_ACTION_PROTECT,
+		SAI_PORT_PORT_SECURITY_VIOLATION_ACTION_PROTECT,
 		/** Shutdown the port when port security configuration is violated. */
-		SAI_PORT_PORT_SECURITY_VILATION_ACTION_SHUTDOWN,
+		SAI_PORT_PORT_SECURITY_VIOLATION_ACTION_SHUTDOWN,
 	} sai_port_port_security_violation_action;
 
 ### 3.6.2 New attributes in sai_port_attr_t
