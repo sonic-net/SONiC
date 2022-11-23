@@ -122,7 +122,7 @@ Logic of each test case should be platform-independent. From figure 3-3, test lo
 
 ## 4.1 Extended platform plugins
 
-Platform plugins are intended to provide abstraction for device function, in order to test full functionality, we extend some APIs for testing purpose. Most of them are not intended to be used in a running deployment , they are defined to have fine grain test only. Extended/added plugins are as follow:
+Platform plugins are intended to provide abstraction for device function. In order to test full functionality, we extend some APIs for testing purpose. Most of them are not intended to be used in a running deployment , they are defined to have fine grain test only. Extended/added plugins are as follow:
 
 * device/$platform_name/plugins/sfputil.py
 * device/$platform_name/plugins/fanutil.py
@@ -133,6 +133,8 @@ Platform plugins are intended to provide abstraction for device function, in ord
 * device/$platform_name/plugins/bmcutil.py
 * device/$platform_name/plugins/mgmt.port.py
 * device/$platform_name/plugins/fruidutil.py
+
+We use Platform plugins in first stage to support our massive production deployment, these plugins have been used by a lot of users. As many users now use Platform API rather than Platform Plugins, we may support Platform API in next stage(hopefully next release).
 
 # 5. BMC component
 
