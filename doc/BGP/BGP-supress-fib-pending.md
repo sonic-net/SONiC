@@ -138,7 +138,7 @@ Configuration schema in ABNF format:
 ```abnf
 ; DEVICE_METADATA table
 key                      = DEVICE_METADATA|localhost ; Device metadata configuration table
-suppress-pending-fib     = "enabled"/"disabled"      ; Globally enable/disable routes announcement suppression feature,
+suppress-fib-pending     = "enabled"/"disabled"      ; Globally enable/disable routes announcement suppression feature,
                                                      ; by default this flag is disabled
 ```
 
@@ -148,7 +148,7 @@ Sample of CONFIG DB snippet given below:
 {
     "DEVICE_METADATA": {
         "localhost": {
-            "suppress-pending-fib": "enabled"
+            "suppress-fib-pending": "enabled"
         }
     }
 }
@@ -165,7 +165,7 @@ In case user detects an issue with a feature (i.e routes aren't marked as offloa
 <!-- omit in toc -->
 ##### 6.1.2. Minigraph
 
-*suppress-pending-fib* is enabled when generating CONFIG_DB out of minigraph for device role *LeafRouter*.
+*suppress-fib-pending* is enabled when generating CONFIG_DB out of minigraph for device role *LeafRouter*.
 
 #### 6.2. Manifest (if the feature is an Application Extension)
 
@@ -176,7 +176,7 @@ This feature is implemented as part of existing BGP and SWSS containers, no mani
 <!-- omit in toc -->
 ##### 6.3.2.  DEVICE_METADATA
 
-A new leaf is added to ```sonic-device_metadata/sonic-device_metadata/DEVICE_METADATA/localhost``` called ```suppress-pending-fib``` which can be set to ```"enable"``` or ```"disable"```.
+A new leaf is added to ```sonic-device_metadata/sonic-device_metadata/DEVICE_METADATA/localhost``` called ```suppress-fib-pending``` which can be set to ```"enable"``` or ```"disable"```.
 
 Snippet of ```sonic-device_metatadata.yang```:
 
@@ -195,7 +195,7 @@ module sonic-device_metadata {
             description "DEVICE_METADATA part of config_db.json";
 
             container localhost{
-                leaf suppress-pending-fib {
+                leaf suppress-fib-pending {
                     description "Enable suppress pending FIB feature. BGP will wait for route
                                  FIB installation before announcing routes.";
                     type enumeration {
@@ -227,12 +227,12 @@ A new CLI command is added to control this feature:
 
 Command to enable feature:
 ```
-admin@sonic:~$ sudo config suppress-pending-fib enabled
+admin@sonic:~$ sudo config suppress-fib-pending enabled
 ```
 
 Command to disable feature:
 ```
-admin@sonic:~$ sudo config suppress-pending-fib disabled
+admin@sonic:~$ sudo config suppress-fib-pending disabled
 ```
 
 ### 7. High-Level Design
@@ -771,7 +771,7 @@ Code coverage is satisfied by UT and the E2E flow is not possible to test with c
 In order to test this feature end to end it is required to simulate a delay in ASIC route programming. The proposed test:
 
 - **Functional Test**
-  1. Enable ```suppress-pending-fib```
+  1. Enable ```suppress-fib-pending```
   2. Suspend orchagent process to simulate a delay with ```kill --SIGSTOP $(pidof orchagent)```
   3. Announces prefix *1.1.1.0/24* (*1::/64*) to DUT through *exabgp* from T0 Arista VM
   4. Make sure announced BGP route is queued in ```show ip route``` output
@@ -789,7 +789,7 @@ In order to test this feature end to end it is required to simulate a delay in A
   4. The test is parametrized for suppression state for comparison
   5. The test passes if the time is under the predefined threshold
 - **Stress Test**
-  1. Enable ```suppress-pending-fib```
+  1. Enable ```suppress-fib-pending```
   2. In a loop for 100 times:
      1. Announce 10 prefix to DUT through *exabgp* from T0 Arista VM
      2. Withdraw 10 prefix to DUT through *exabgp* from T0 Arista VM
