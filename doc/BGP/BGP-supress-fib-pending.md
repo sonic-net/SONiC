@@ -29,6 +29,7 @@
   - [11.1. Unit Test cases](#111-unit-test-cases)
   - [11.2. VS Test cases](#112-vs-test-cases)
   - [11.3. System Test cases](#113-system-test-cases)
+  - [11.4. Performance measurements](#114-performance-measurements)
 - [12. Open/Action items - if any](#12-openaction-items---if-any)
 
 <!-- omit in toc -->
@@ -795,5 +796,9 @@ In order to test this feature end to end it is required to simulate a delay in A
      2. Withdraw 10 prefix to DUT through *exabgp* from T0 Arista VM
   3. Once reached the required number of cycles the loop breaks after first step
   4. Consistency check is applied, there are no withdrawn routes and announced routes were successfully installed and correctly marked as offloaded in zebra (In case a race condition happens or a notification is missed for some reason this test will try to catch it)
+
+#### 11.4. Performance measurements
+
+TBD
 
 ### 12. Open/Action items - if any
