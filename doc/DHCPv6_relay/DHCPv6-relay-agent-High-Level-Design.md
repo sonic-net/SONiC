@@ -25,6 +25,7 @@
   - [CoPP manager](#copp-manager)
   - [Source IP](#source-ip)
 * [Performance](#performance)
+* [Scalability](#scalability)
 * [Testing](#testing)
 
 # Scope
@@ -233,9 +234,12 @@ Option 79 should be enabled by default and can be disabled through editing confi
 
 Usage:
 ```
-config vlan dhcp_relay add <vlan_id> <dhcp_relay_destination_ip>
 redis-cli -n 4 hset DHCP_RELAY|<vlan> dhcpv6_option|rfc6939_support <true/false>
+config vlan dhcp_relay add <vlan_id> <dhcp_relay_destination_ip>
 ```
+Restart dhcp_relay after updating ipv6 helper information.
+
+**only DHCP_RELAY table needs to be updated for the latest versions.
 
 Example:
 ```
@@ -286,7 +290,16 @@ Configurable option to use loopback address for dual ToR
 # Performance
 
 SONiC DHCP relay agent is currently not relaying many DHCP requests. Frequency arrival rate of DHCP packets is not high so it is not going to affect performance.
+
+# Scalability
 Typical number of vlans used with dhcp6relay is around 2 vlans. Performance degration and high CPU utilization is seen on devices with more than 25 vlans configured, especially devices with weaker CPU's.
+Tests have shown functionality and performance degradation when there are more than 20 vlans configured on weaker CPU's.
+
+•	25 Vlans - Passed on SPC1.
+
+•	100 and 50 Vlans - Failed on SPC1.
+
+•	100 Vlans - Passed on SPC2 and SPC3 with high CPU utilization.
 
 
 # Testing
