@@ -164,13 +164,29 @@ In the Build process, we need to sign the components shown in the Design Diagram
 This chapter will be described which SONiC modification is required.
 
 Compilation Flag added:
-- SECURE_BOOT_BUILD – have 3 options
+- SECURE_UPGRADE_MODE – have 3 options
   - no_sign  (default)
+
+    Description:
+
+    This means that the component will be not signed, in other words, the flow will be like the feature not exists.
   - dev
-  - release
-- SECURE_BOOT_DEV_KEY_PATH – have the path where dev private efi key stored
-- SECURE_BOOT_DEV_CERT_PATH - have the path where dev certificate/public-key stored
-- SB_KERNEL_MOD_PUB_KEY – the path of the public key that will be embedded in vmlinuz for verifying KO.
+
+    Description:
+
+    This means that the build will sign the boot components with a development key using the keys stored in the path from the build flags below.
+  - prod
+
+    Description:
+  
+    This means that the build will sign the components with a production key.
+    
+    production public key: should be set the path where the key is stored in the flag: SECURE_UPGRADE_DEV_SIGNING_CERT
+
+    production private key: the key will be stored according to vendor flow and could be saved in an external sign server, and the connection and logic will be coded in file sonic-buildimage/scripts/signing_secure_boot_prod.sh that build_debian.sh will trigger when the mode is "prod".
+
+- SECURE_UPGRADE_DEV_SIGNING_KEY – have the path where dev private efi key stored
+- SECURE_UPGRADE_DEV_SIGNING_CERT - have the path where dev/prod certificate/public-key stored
 
 These 4 flags will be saved in this file: SONiC/rules/config
 
@@ -274,7 +290,7 @@ Most of the kernel modules are in sonic-linux-kernel repo, but there are more KO
 
 The secure_boot_sign.py script wrapper the sign-file tool as well and will sign all the KO.
 
-All the KO can be found in fsroot-mellanox/ directory and will be signed at the end of the build.
+All the KO can be found in fsroot-vendor_name/ directory and will be signed at the end of the build.
 
 ####  1.7.4. <a name='RuntimeSBVerificationFLOW:'></a>Runtime SB Verification FLOW:
 As appear in the verification chart, the first step is the storage of the pub keys in the BIOS/UEFI.
