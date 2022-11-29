@@ -36,6 +36,7 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 | isc-dhcp                  | 4.3.5-2 ([PR2946](https://github.com/sonic-net/sonic-buildimage/pull/2946) )   |
 | sonic-telemetry           | 0.1    |
 | redis-server/ redis-tools | 5.0.3-3~bpo9+2    |
+| Debian version			| Stretch (Debian version 9)	|
 
 
 # Security Updates
