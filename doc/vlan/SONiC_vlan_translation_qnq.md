@@ -865,6 +865,12 @@ Config save, reboot is required for this change to take effect
 (config-switch-resource)# no vlan-stacking
 Config save, reboot is required for this change to take effect
 
+# show switch-resource vlan-stacking
+Vlan stacking is enabled
+
+# show switch-resource vlan-stacking
+Vlan stacking is disabled
+
 ```
 #### 3.6.2.1.5 Configuration restrictions
 
