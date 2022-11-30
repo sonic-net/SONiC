@@ -106,58 +106,67 @@ New tables shall be added to CONFIG DB to store the rate limit configuration. in
         }
     },
     "SYSLOG_CONFIG_FEATURE": {
-{%- for feature, _, _, _ in features %}
+{\%- for feature, _, _, _ in features \%}
         "{{feature}}": {
             "rate_limit_interval" : "300",
             "rate_limit_burst": "20000"
-        }{%if not loop.last %},{% endif -%}
-{% endfor %}
+        }{\%if not loop.last \%},{\% endif -\%}
+{\% endfor \%}
     }
+
+NOTE: An extra backslash is added in front of % in the above code snippet. Remove the backslash while using the actual code in SONiC.	
+	
 ...
 ```
 
 #### rsyslog.conf.j2
 
 ```
-{% if SYSLOG_CONFIG is defined %}
-{% if 'GLOBAL' in SYSLOG_CONFIG %}
-{% if 'rate_limit_interval' in SYSLOG_CONFIG['GLOBAL']%}
-{% set rate_limit_interval = SYSLOG_CONFIG['GLOBAL']['rate_limit_interval'] %}
-{% endif %}
-{% if 'rate_limit_burst' in SYSLOG_CONFIG['GLOBAL']%}
-{% set rate_limit_burst = SYSLOG_CONFIG['GLOBAL']['rate_limit_burst'] %}
-{% endif %}
-{% endif %}
-{% endif %}
+{\% if SYSLOG_CONFIG is defined \%}
+{\% if 'GLOBAL' in SYSLOG_CONFIG \%}
+{\% if 'rate_limit_interval' in SYSLOG_CONFIG['GLOBAL']\%}
+{\% set rate_limit_interval = SYSLOG_CONFIG['GLOBAL']['rate_limit_interval'] \%}
+{\% endif \%}
+{\% if 'rate_limit_burst' in SYSLOG_CONFIG['GLOBAL']\%}
+{\% set rate_limit_burst = SYSLOG_CONFIG['GLOBAL']['rate_limit_burst'] \%}
+{\% endif \%}
+{\% endif \%}
+{\% endif \%}
 
-{% if rate_limit_interval is defined %}
+{\% if rate_limit_interval is defined \%}
 $SystemLogRateLimitInterval {{ rate_limit_interval }}
-{% endif %}
-{% if rate_limit_burst is defined %}
+{\% endif \%}
+{\% if rate_limit_burst is defined \%}
 $SystemLogRateLimitBurst {{ rate_limit_burst }}
-{% endif %}
+{\% endif \%}
+
+NOTE: An extra backslash is added in front of % in the above code snippet. Remove the backslash while using the actual code in SONiC.
+
 ```
 
 #### rsyslog-container.conf.j2
 
 ```
-{% if SYSLOG_CONFIG_FEATURE is defined %}
-{% if container_name in SYSLOG_CONFIG_FEATURE %}
-{% if 'rate_limit_interval' in SYSLOG_CONFIG_FEATURE[container_name]%}
-{% set rate_limit_interval = SYSLOG_CONFIG_FEATURE[container_name]['rate_limit_interval'] %}
-{% endif %}
-{% if 'rate_limit_burst' in SYSLOG_CONFIG_FEATURE[container_name]%}
-{% set rate_limit_burst = SYSLOG_CONFIG_FEATURE[container_name]['rate_limit_burst'] %}
-{% endif %}
-{% endif %}
-{% endif %}
+{\% if SYSLOG_CONFIG_FEATURE is defined \%}
+{\% if container_name in SYSLOG_CONFIG_FEATURE \%}
+{\% if 'rate_limit_interval' in SYSLOG_CONFIG_FEATURE[container_name]\%}
+{\% set rate_limit_interval = SYSLOG_CONFIG_FEATURE[container_name]['rate_limit_interval'] \%}
+{\% endif \%}
+{\% if 'rate_limit_burst' in SYSLOG_CONFIG_FEATURE[container_name]\%}
+{\% set rate_limit_burst = SYSLOG_CONFIG_FEATURE[container_name]['rate_limit_burst'] \%}
+{\% endif \%}
+{\% endif \%}
+{\% endif\%}
 
-{% if rate_limit_interval is defined %}
+{\% if rate_limit_interval is defined \%}
 $SystemLogRateLimitInterval {{ rate_limit_interval }}
-{% endif %}
-{% if rate_limit_burst is defined %}
+{\% endif \%}
+{\% if rate_limit_burst is defined \%}
 $SystemLogRateLimitBurst {{ rate_limit_burst }}
-{% endif %}
+{\% endif \%}
+
+NOTE: An extra backslash is added in front of % in the above code snippet. Remove the backslash while using the actual code in SONiC.
+
 ```
 
 #### docker_image_ctl.j2
