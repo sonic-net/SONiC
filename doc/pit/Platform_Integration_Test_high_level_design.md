@@ -114,8 +114,59 @@ Figure 3-4 shows the test case logic and interaction
 ![](images/PIT_test_case_logic.png)
 Figure 3-4
 
-Each test case has a configuration file, containing information such as test case name, description, type, and tag list.
-Each platform has a platform configuration file, containing platform specific (product specific) information such as CPU architecture, boot loader, CPU error monitor capability, peripheral related information (e.g. FAN number, PSU control options, etc.).
++Each test case has a configuration file, containing information such as test case name, description, type, and tag list. An example test case configuration file shown as follow:
++Path: $(PIT_ROOT_DIR)/cases/$(TEST_CASE_NAME)/config.json
++Content:
++{
++    "name": "fan-test",
++    "description": "Check fan status",
++    "type": "auto",
++    "tags": ["manufacture", "delivery"]
++}
++Tags shown above "manufacture" denotes this case should be included in Manufaturing-test, "delivery" denotes this case should be included in Accceptance-test. Also, we may expanded tags if it's neccessary. Tags are defined as strings.
++
++Each platform has a platform configuration file(divided into 2 files: platform_config.json, case_config.json), containing platform specific (product specific) information such as CPU architecture, boot loader, CPU error monitor capability, peripheral related information (e.g. FAN number, PSU control options, etc.). An example of configuration file is shown as follow:
+Path: $(PIT_SRC_DIR)/config/platform/$(PLATFORM_NAME)/platform_config.json, where $PLATFORM_NAME is 'x86_64-alibaba_as14-40d-cl-r0' in this case
+Content:
+{
+    "test_cases": [
+        "fan_tc",
+        "psu_tc"
+    ]
+}
+"test_cases" specifies a full set of test caess this platform could run, in this example fan_tc and psu_tc.
+
+Path: $(PIT_SRC_DIR)/config/platform/$(PLATFORM_NAME)/case_config.json, where $PLATFORM_NAME is 'x86_64-alibaba_as14-40d-cl-r0' in this case
+Content:
+{
+    "fan_info":{
+        "count":6,
+        "ratio_target": [10,80,20],
+        "speed_tolerance": 1000,
+        "speed_max": 20000,
+        "speed_min": 0,
+        "motor_count": 2
+    },
+    "psu_info":{
+        "count": 2,
+        "in_power_min": 0.0,
+        "in_power_max": 1222.0,
+        "in_vol_min": 90.0,
+        "in_vol_max": 264.0,
+        "in_curr_min": 0.0,
+        "in_curr_max": 7.0,
+        "out_power_min": 0,
+        "out_power_max": 1100,
+        "out_vol_min": 10.8,
+        "out_vol_max": 13.2,
+        "out_curr_min": 0.0,
+        "out_curr_max": 90.0
+    }
+}
+As shown above, "fan_info" is used by "fan_tc" test logic, defines platform-specific infomation, such as total fan number, speed max/min/tolerance, etc. Similarly, "psu_info" is used by "psu_tc" test logic, defines psu information for this platform(x86_64-alibaba_as14-40d-cl-r0).
+These 2 files are provided by each vendor.
+
+
 Logic of each test case should be platform-independent. From figure 3-3, test logic configures or fetch information using platform APIs. These platform APIs' implementation should be standardized if the drivers are standardized(optional). In case of some system with BMC integrated, platform APIs will access this information via a set of RESTful APIs to BMC. Test case will load per case configuration and get platform specific information during test. These ensure the test logic itself platform independent.
 
 # 4. Platform plugin APIs
