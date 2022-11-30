@@ -860,16 +860,36 @@ The following command under "switch-resource" command tree enables this feature.
 ```
 (config)# switch-resource 
 (config-switch-resource)# vlan-stacking enable 
-Config save, reboot is required for this change to take effect
+Config save and reboot is required for this change to take effect
 
 (config-switch-resource)# no vlan-stacking
-Config save, reboot is required for this change to take effect
+Config save and reboot is required for this change to take effect
 
 # show switch-resource vlan-stacking
 Vlan stacking is enabled
 
 # show switch-resource vlan-stacking
 Vlan stacking is disabled
+
+sonic(config)# switch-resource 
+sonic(config-switch-resource)# do show switch-resource vlan-stacking 
+Vlan stacking feature is disabled
+sonic(config-switch-resource)# vlan-stacking
+Config save and reboot is required for this change to take effect
+sonic(config-switch-resource)# do show switch-resource vlan-stacking 
+Vlan stacking feature is enabled
+Operational vlan stacking feature is disabled
+
+**After Reboot**
+
+sonic(config-switch-resource)# do show switch-resource vlan-stacking
+Vlan stacking feature is enabled
+sonic(config-switch-resource)# no vlan-stacking 
+Config save and reboot is required for this change to take effect
+sonic(config-switch-resource)# do show switch-resource vlan-stacking
+Vlan stacking feature is disabled
+Operational vlan stacking feature is enabled
+sonic(config-switch-resource)# 
 
 ```
 #### 3.6.2.1.5 Configuration restrictions
