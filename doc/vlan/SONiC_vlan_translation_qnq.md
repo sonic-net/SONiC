@@ -845,7 +845,54 @@ sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 100
 sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 100 priority 
 ```
 
-#### 3.6.2.1.4 Configuration restrictions
+#### 3.6.2.1.4 Enabling VLAN stacking & Translation feature on TD4 Platforms
+By default, VLAN stacking & Translation feature is not enabled on TD4 base Platforms.
+The following command under "switch-resource" command tree enables this feature.
+
+**Syntax**
+```
+    vlan-stacking enable
+    no vlan-stacking
+```
+* Enable/disable of vlan-stacking requires reboot of the switch.
+
+**Example**
+```
+(config)# switch-resource 
+(config-switch-resource)# vlan-stacking enable 
+Config save and reboot is required for this change to take effect
+
+(config-switch-resource)# no vlan-stacking
+Config save and reboot is required for this change to take effect
+
+# show switch-resource vlan-stacking
+Vlan stacking is enabled
+
+# show switch-resource vlan-stacking
+Vlan stacking is disabled
+
+sonic(config)# switch-resource 
+sonic(config-switch-resource)# do show switch-resource vlan-stacking 
+Vlan stacking feature is disabled
+sonic(config-switch-resource)# vlan-stacking
+Config save and reboot is required for this change to take effect
+sonic(config-switch-resource)# do show switch-resource vlan-stacking 
+Vlan stacking feature is enabled
+Operational vlan stacking feature is disabled
+
+**After Reboot**
+
+sonic(config-switch-resource)# do show switch-resource vlan-stacking
+Vlan stacking feature is enabled
+sonic(config-switch-resource)# no vlan-stacking 
+Config save and reboot is required for this change to take effect
+sonic(config-switch-resource)# do show switch-resource vlan-stacking
+Vlan stacking feature is disabled
+Operational vlan stacking feature is enabled
+sonic(config-switch-resource)# 
+
+```
+#### 3.6.2.1.5 Configuration restrictions
 
 
 * An SVLAN cannot be part of more than one VLAN translation (single or double tagged) on a given Interface
