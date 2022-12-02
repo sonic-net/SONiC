@@ -1,0 +1,73 @@
+@startuml
+' Online Server: https://www.plantuml.com/plantuml/uml/SyfFKj2rKt3CoKnELR1Io4ZDoSa70000
+' Basic examples: https://plantuml.com/sequence-diagram#5e05164bff244555
+' Declaring participant: https://plantuml.com/sequence-diagram#5d2ed256d73a7298
+' Message to Self: https://plantuml.com/sequence-diagram#f5050860884ddf31
+' Lifeline Activation and Destruction: https://plantuml.com/sequence-diagram#5cc0040514e70f7b
+' Incoming and outgoing messages: https://plantuml.com/sequence-diagram#05984b1743e67542
+' Comments: https://plantuml.com/commons#8413c683b4b27cc3
+
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/syncd.service.j2 syncd.service.j2]]" as syncd.service.j2
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/syncd.sh syncd.sh]]" as syncd.sh
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/syncd_common.sh syncd_common.sh]]" as syncd_common.sh
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/docker_image_ctl.j2 docker_image_ctl.j2]]" as docker_image_ctl.j2
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/src/sonic-ctrmgrd/ctrmgr/container container]]" as container
+
+[-> syncd.service.j2: sudo systemctl start syncd
+activate syncd.service.j2
+syncd.service.j2 -> syncd.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/syncd.service.j2#L27 /usr/local/bin/syncd.sh start]]
+activate syncd.sh
+syncd.sh -> syncd_common.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/syncd.sh#L153 start]]
+activate syncd_common.sh
+syncd_common.sh -> docker_image_ctl.j2: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/syncd_common.sh#L122 /usr/bin/syncd.sh start]]
+activate docker_image_ctl.j2
+docker_image_ctl.j2 -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/docker_image_ctl.j2#L351 /usr/local/bin/container start syncd]]
+activate container
+container -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/src/sonic-ctrmgrd/ctrmgr/container#L125 container.start()]]
+docker_image_ctl.j2 <- container
+deactivate container
+syncd_common.sh <- docker_image_ctl.j2
+deactivate docker_image_ctl.j2
+syncd.sh <- syncd_common.sh
+deactivate syncd_common.sh
+syncd.service.j2 <- syncd.sh
+deactivate syncd.sh
+syncd.service.j2 -> syncd.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/syncd.service.j2#L28 /usr/local/bin/syncd.sh wait]]
+activate syncd.sh
+syncd.sh -> syncd_common.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/syncd.sh#L153 wait]]
+activate syncd_common.sh
+syncd_common.sh -> docker_image_ctl.j2: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/syncd_common.sh#L144 /usr/bin/syncd.sh wait]]
+activate docker_image_ctl.j2
+docker_image_ctl.j2 -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/docker_image_ctl.j2#L577 /usr/local/bin/container wait syncd]]
+activate container
+container -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/src/sonic-ctrmgrd/ctrmgr/container#L125 container.wait()]]
+docker_image_ctl.j2 <- container
+deactivate container
+syncd_common.sh <- docker_image_ctl.j2
+deactivate docker_image_ctl.j2
+syncd.sh <- syncd_common.sh
+deactivate syncd_common.sh
+syncd.service.j2 <- syncd.sh
+deactivate syncd.sh
+deactivate syncd.service.j2
+[-> syncd.service.j2: sudo systemctl stop syncd
+activate syncd.service.j2
+syncd.service.j2 -> syncd.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/syncd.service.j2#L29 /usr/local/bin/syncd.sh stop]]
+activate syncd.sh
+syncd.sh -> syncd_common.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/syncd.sh#L153 stop]]
+activate syncd_common.sh
+syncd_common.sh -> docker_image_ctl.j2: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/syncd_common.sh#L166 /usr/bin/syncd.sh stop]]
+activate docker_image_ctl.j2
+docker_image_ctl.j2 -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/docker_image_ctl.j2#L593 /usr/local/bin/container stop syncd]]
+activate container
+container -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/src/sonic-ctrmgrd/ctrmgr/container#L125 container.stop()]]
+docker_image_ctl.j2 <- container
+deactivate container
+syncd_common.sh <- docker_image_ctl.j2
+deactivate docker_image_ctl.j2
+syncd.sh <- syncd_common.sh
+deactivate syncd_common.sh
+syncd.service.j2 <- syncd.sh
+deactivate syncd.sh
+deactivate syncd.service.j2
+@enduml
