@@ -65,7 +65,10 @@ Primary requirements for sequencing the config reload are
 Currently hostcfgd controls the services based on the feature table. The feature table has a specific field 'has_timer' for the non essential services which needs to be delayed during the reboot flow. The services associated with these features are skipped to activated and only their timers are activated which will later activate these features based on the delay. In the new design apart from activing the timers, hostcfgd will also cache these delayed services. The hostcfgd will also subscribe to PORT_TABLE in the APPL_DB. Once the switch is initialized and all the ports are created in ASIC and Kernel the PortSyncd will publish PortInitDone key in the APPL_DB. On receiving this key the hostcfgd will go through the delayed services list and enables them.
 By having the timers intact this approach will ensure there is a backup timer which will activate the services in case after a fixed internal in case of a failure in hostcfgd.
 Currently all the timers have 'OnBootSec' which is used as a delay from boot time. This needs to be modified to 'OnActiveSec' which is meant to delay from the time the timer was activated.
-The below diagram explains the sequence
+The below diagram explains the sequence when config reload is executed. 
+![](/images/config_reload/Enhance_config_reload.JPG)
+The below diagram explains the new sequence inside hostcfgd.
+![](/images/config_reload/Hostcfgd_flow_for_delayed_services.JPG)
 ### SAI API Requirements
 None
 
