@@ -4,9 +4,10 @@ Active-active dual ToR link manager is an evolution of active-standby dual ToR l
 
 ## Revision
 
-| Rev | Date     | Author          | Change Description |
-|:---:|:--------:|:---------------:|--------------------|
-| 0.1 | 05/23/22 | Jing Zhang      | Initial version    |
+|  Rev  |   Date   |    Author     | Change Description             |
+| :---: | :------: | :-----------: | ------------------------------ |
+|  0.1  | 05/23/22 |  Jing Zhang   | Initial version                |
+|  0.2  | 12/02/22 | Longxiang Lyu | Add Traffic Forwarding section |
 
 ## Scope 
 This document provides the high level design of SONiC dual toR solution, supporting active-active setup. 
@@ -41,8 +42,11 @@ This document provides the high level design of SONiC dual toR solution, support
   - [3.5 Transceiver Daemon](#35-transceiver-daemon)
     - [3.5.1 Cable Control through gRPC](#351-cable-control-through-grpc)
   - [3.6 State Transition Flow](#36-state-transition-flow)
-  - [3.7 Further Enhancement](#37-further-enhancement)
-  - [3.8 Command Line](#38-command-line)
+  - [3.7 Traffic Forwarding](#37-traffic-forwarding)
+    - [3.7.1 Special Cases of Traffic Forwarding](#371-special-cases-of-traffic-forwarding)
+      - [3.7.1.1 gRPC Traffic to the NiC IP](#3711-grpc-traffic-to-the-nic-ip)
+  - [3.8 Further Enhancement](#38-further-enhancement)
+  - [3.9 Command Line](#39-command-line)
 
 [4 Warm Reboot Support](#4-warm-reboot-support)
 
@@ -427,11 +431,35 @@ MuxOrch will listen to state changes from linkmgrd and does the following at a h
       1. Shutdown / restart notification from SoC to ToR.
 
 ### 3.6 State Transition Flow
-The following UML sequence illustrates the state transtion when linkmgrd state moves to active. The flow will be similar for moving to standby. 
+The following UML sequence illustrates the state transition when linkmgrd state moves to active. The flow will be similar for moving to standby.
 
 ![state transition flow](./image/state_transition_flow.png)
 
-### 3.7 Further Enhancement
+### 3.7 Traffic Forwarding
+The following shows the traffic forwarding behaviors:
+  * both ToRs are active.
+  * one ToR is active while the another ToR is standby.
+
+![Traffic Forwarding](./image/traffic_forwarding.png)
+
+#### 3.7.1 Special Cases of Traffic Forwarding
+
+##### 3.7.1.1 gRPC Traffic to the NiC IP
+There is a scenario that, if ToR A tries to toggle to standby when its peer ToR B is already in standby state, ToR A’s toggle to standby gRPC request will be forwarded to its peer ToR(ToR B) via the tunnel(this is because orchagent re-programs the route before sending standby gRPC request). While ToR B is still in standby, this request will be blackholed.
+
+To solve this issue, we want the control plane gRPC traffic from the transceiver daemon to be forwarded directly via the local devices. This is unlike dataplane traffic that its forwarding behavior honors the mux state and be forwarded to the peer active ToR via the tunnel when the port comes to standby.
+
+The following shows the traffic forwarding behavior when one ToR is active while the another ToR is standby. Now, gRPC traffic from the standby ToR(Upper ToR) is forwarded to the NiC directly. The downstream dataplane traffic to the Upper ToR are directed to the tunnel to the Lower ToR that is active as before.
+
+<img src="./image/traffic_forwarding_enhanced.png" width="600" />
+
+When orchagent is notified to change to standby, it will re-prgram both the ASIC and the kernel to let both control plane and data plane traffic be forwarded via the tunnel. To achieve the design proposed above, MuxOrch now will be changed to skip notifying the Tunnelmgrd if the neighbor address is the NiC IP address, so Tunnelmgrd will not re-program the kernel route in this case and the gRPC traffic to the NiC IP address from the transceiver daemon will be forwarded directly.
+
+The following UML diagram shows this change when Linkmgrd state moves to standby:
+
+![message change flow](./image/message_flow_standby.png)
+
+### 3.8 Further Enhancement
 **Advertise updated routes to T1**  
 Current failover strategy can smoothly handle the link failure cases, but if one of the ToRs crashes, and if T1 still sends traffic to the crashed ToR, we will see packet loss. 
 
@@ -440,7 +468,7 @@ A further improvement in rescuing scenario, is when detecting peer's unhealthy s
 **Server Servicing & ToR Upgrade**  
 For server graceful restart, We already have gRPC service defined in [3.5.1](#351-cable-control-through-grpc). An indicator of ongoing server servicing should be defined based on that notification, so ToR can avoid upgrades in the meantime. Vice versa, we can also define gRPC APIs to notify server when ToR upgrade is ongoing.
 
-### 3.8 Command Line  
+### 3.9 Command Line
 TBD 
 
 ## 4 Warm Reboot Support
