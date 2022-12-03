@@ -445,15 +445,15 @@ The following shows the traffic forwarding behaviors:
 #### 3.7.1 Special Cases of Traffic Forwarding
 
 ##### 3.7.1.1 gRPC Traffic to the NiC IP
-There is a scenario that, if ToR A tries to toggle to standby when its peer ToR B is already in standby state, ToR A’s toggle to standby gRPC request will be forwarded to its peer ToR(ToR B) via the tunnel(this is because orchagent re-programs the route before sending standby gRPC request). While ToR B is still in standby, this request will be blackholed.
+There is a scenario that, if the upper ToR enters standby when its peer(the lower ToR) is already in standby state, all downstream I/O from ToR A will be forwarded through the tunnel to the peer ToR(the lower ToR), so does the control plane gRPC traffic from the transceiver daemon. As the lower ToR is in standby, those tunneled I/O will be blackholed, the NiC will never know that the upper ToR has entered standby in this case.
 
-To solve this issue, we want the control plane gRPC traffic from the transceiver daemon to be forwarded directly via the local devices. This is unlike dataplane traffic that its forwarding behavior honors the mux state and be forwarded to the peer active ToR via the tunnel when the port comes to standby.
+To solve this issue, we want the control plane gRPC traffic from the transceiver daemon to be forwarded directly via the local devices. This is to differentiate the control plane traffic to the NiC IPs from dataplane traffic that its forwarding behavior honors the mux state and be forwarded to the peer active ToR via the tunnel when the port comes to standby.
 
-The following shows the traffic forwarding behavior when one ToR is active while the another ToR is standby. Now, gRPC traffic from the standby ToR(Upper ToR) is forwarded to the NiC directly. The downstream dataplane traffic to the Upper ToR are directed to the tunnel to the Lower ToR that is active as before.
+The following shows the traffic forwarding behavior when the lower ToR is active while the upper ToR is standby. Now, gRPC traffic from the standby ToR(Upper ToR) is forwarded to the NiC directly. The downstream dataplane traffic to the Upper ToR are directed to the tunnel to the active Lower ToR.
 
 <img src="./image/traffic_forwarding_enhanced.png" width="600" />
-
-When orchagent is notified to change to standby, it will re-prgram both the ASIC and the kernel to let both control plane and data plane traffic be forwarded via the tunnel. To achieve the design proposed above, MuxOrch now will be changed to skip notifying the Tunnelmgrd if the neighbor address is the NiC IP address, so Tunnelmgrd will not re-program the kernel route in this case and the gRPC traffic to the NiC IP address from the transceiver daemon will be forwarded directly.
+<br/><br/>
+When orchagent is notified to change to standby, it will re-program both the ASIC and the kernel to let both control plane and data plane traffic be forwarded via the tunnel. To achieve the design proposed above, MuxOrch now will be changed to skip notifying the Tunnelmgrd if the neighbor address is the NiC IP address, so Tunnelmgrd will not re-program the kernel route in this case and the gRPC traffic to the NiC IP address from the transceiver daemon will be forwarded directly.
 
 The following UML diagram shows this change when Linkmgrd state moves to standby:
 
