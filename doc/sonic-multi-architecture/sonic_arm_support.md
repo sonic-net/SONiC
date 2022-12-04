@@ -192,7 +192,7 @@ Bootloader configuration for boot image details are also updated in platform.con
 SONIC upgrade from SONIC uses python scripts to access bootloader configuration to update the boot image details, to support
 image upgrade, image deletion, and change boot order.
 For ARM Uboot firmware utilities is used to access boot configuration, as in grub for X86.
- - sonic_installer/main.py
+ - sonic-installer/main.py
 
 ### Kernel ARM support
 

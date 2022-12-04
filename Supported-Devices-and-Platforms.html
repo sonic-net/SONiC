@@ -421,6 +421,14 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
+<td>Alphanetworks</td>
+<td>BES2348T</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3.X2</td>
+<td>48x1G+4x25G</td>
+<td></td>
+</tr>
+<tr>
 <td>Arista</td>
 <td>7050QX-32</td>
 <td class="asic_vendor">Broadcom</td>
@@ -1169,10 +1177,12 @@ Note:
 			vdata = table[i].children[2].textContent;
 			if (vdata == "Nvidia")
 			    vdata = "Mellanox";
+				
+			if (vdata == "Intel")
+			    vdata = "Barefoot";	
 
 			if (vdata == "Marvell"){
-			    if(table[i].children[1].textContent.search("ARM") != -1)
-				vdata = "Marvell-armhf";
+			    vdata = "Marvell-armhf";
 			}
 
 			if(vendor_data[vdata] == "")

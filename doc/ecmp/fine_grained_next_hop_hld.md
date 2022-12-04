@@ -156,7 +156,7 @@ BANK                                  = DIGITS                                  
 LINK                                  = link_name                                              ; Link associated with next-hop-ip, if configured, enables next-hop withdrawal/addition per link's operational state changes
 ```
 
-Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
+Please refer to the [schema](https://github.com/sonic-net/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
 
 ## 2.2 State DB

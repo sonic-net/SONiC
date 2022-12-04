@@ -314,7 +314,7 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   ![grpc_failure](./image/gRPC_failure.png) 
 
 #### 3.3.5 Default route to T1  
-  If default route to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/Azure/sonic-linkmgrd/blob/master/doc/default_route.md).
+  If default route to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/sonic-net/sonic-linkmgrd/blob/master/doc/default_route.md).
 
   To summarize the state transition decision we talk about, and the corresponding gRPC action to take, we have this decision table below: 
 
