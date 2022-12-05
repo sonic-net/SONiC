@@ -36,7 +36,7 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 | isc-dhcp                  |  4.4.1-2   |
 | sonic-telemetry           | 0.1    |
 | redis-server/ redis-tools | 5.0.3-3~bpo9+2    |
-| Debian version			| Continuous to use Buster (Debian version 10)	|
+| Debian version			| Continues to use Buster (Debian version 10)	|
 
 Note : The kernel version is migrated to the version that is mentioned in the first row in the above 'Dependency Version' table.
 
