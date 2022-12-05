@@ -24,11 +24,17 @@
     - [2.4 DB schema](#24-db-schema)
         - [2.4.1 Config DB](#241-config-db)
             - [2.4.1.1 Switch hash](#2411-switch-hash)
-        - [2.4.2 Data sample](#242-data-sample)
-        - [2.4.3 Configuration sample](#243-configuration-sample)
-        - [2.4.4 Initial configuration](#244-initial-configuration)
+        - [2.4.2 State DB](#242-state-db)
+            - [2.4.2.1 Switch hash capabilities](#2421-switch-hash-capabilities)
+        - [2.4.3 Data sample](#243-data-sample)
+        - [2.4.4 Configuration sample](#244-configuration-sample)
+        - [2.4.5 Initial configuration](#245-initial-configuration)
     - [2.5 Flows](#25-flows)
-        - [2.5.1 GH update](#251-gh-update)
+        - [2.5.1 Config section](#251-config-section)
+            - [2.5.1.1 GH update](#2511-gh-update)
+        - [2.5.2 Show section](#252-show-section)
+            - [2.5.2.1 GH show](#2521-gh-show)
+            - [2.5.2.2 GH show capabilities](#2522-gh-show-capabilities)
     - [2.6 CLI](#26-cli)
         - [2.6.1 Command structure](#261-command-structure)
         - [2.6.2 Usage examples](#262-usage-examples)
@@ -44,7 +50,8 @@
 
 | Rev | Date       | Author         | Description                                     |
 |:---:|:----------:|:--------------:|:------------------------------------------------|
-| 0.1 | 12/09/2021 | Nazarii Hnydyn | Initial version                                 |
+| 0.1 | 12/09/2022 | Nazarii Hnydyn | Initial version                                 |
+| 0.2 | 05/12/2022 | Nazarii Hnydyn | Capabilities validation                         |
 
 ## About this manual
 
@@ -84,7 +91,9 @@ This document describes the high level design of GH feature in SONiC
 
 [Figure 1: GH design](#figure-1-gh-design)  
 [Figure 2: GH OA design](#figure-2-gh-oa-design)  
-[Figure 3: GH update flow](#figure-3-gh-update-flow)
+[Figure 3: GH update flow](#figure-3-gh-update-flow)  
+[Figure 4: GH show flow](#figure-4-gh-show-flow)  
+[Figure 5: GH show capabilities flow](#figure-5-gh-show-capabilities-flow)
 
 ## List of tables
 
@@ -183,6 +192,12 @@ GH provides global switch hash configuration for ECMP and LAG.
 GH will use SAI Hash API to configure user-defined list of hash fields to ASIC.  
 Hashing policy can be set independently for ECMP and LAG.
 
+**GH important notes:**
+1. According to the SAI Behavioral Model, the hash is calculated on ingress to pipeline
+2. SAI configuration of hash fields is applicable to an original packet before any DECAP/ENCAP,
+i.e. configuration is tunnel-agnostic
+3. If some configured field is not present in an incoming packet, then zero is assumed for hash calculation
+
 ## 2.2 SAI API
 
 **SAI native hash fields which shall be used for GH:**
@@ -210,11 +225,15 @@ Hashing policy can be set independently for ECMP and LAG.
 
 **SAI attributes which shall be used for GH:**
 
-| API    | Function             | Attribute                            |
-|:-------|:---------------------|:-------------------------------------|
-| SWITCH | get_switch_attribute | SAI_SWITCH_ATTR_ECMP_HASH            |
-|        |                      | SAI_SWITCH_ATTR_LAG_HASH             |
-| HASH   | set_hash_attribute   | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST |
+| API    | Function                                   | Attribute                            |
+|:-------|:-------------------------------------------|:-------------------------------------|
+| OBJECT | sai_query_attribute_capability             | SAI_SWITCH_ATTR_ECMP_HASH            |
+|        |                                            | SAI_SWITCH_ATTR_LAG_HASH             |
+|        |                                            | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST |
+|        | sai_query_attribute_enum_values_capability | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST |
+| SWITCH | get_switch_attribute                       | SAI_SWITCH_ATTR_ECMP_HASH            |
+|        |                                            | SAI_SWITCH_ATTR_LAG_HASH             |
+| HASH   | set_hash_attribute                         | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST |
 
 ## 2.3 Orchestration agent
 
@@ -243,8 +262,12 @@ This class is responsible for:
 4. Caching objects in order to handle updates
 
 Switch hash object is stored under `SWITCH_HASH|GLOBAL` key in Config DB. On `SWITCH_HASH` update,  
-method `PbhOrch::doCfgSwitchHashTableTask()` will be called to process the change.  
+method `SwitchOrch::doCfgSwitchHashTableTask()` will be called to process the change.  
 Regular switch hash update will refresh the internal class structures and appropriate SAI objects.
+
+Switch hash capabilities are stored under `SWITCH_CAPABILITY|switch` key in State DB.  
+The vendor specific data is being queried by switch OA on init and pushed to both internal cache and DB.  
+Any further switch hash update is being validated using vendor specific hash capabilities.
 
 **Skeleton code:**
 ```cpp
@@ -319,7 +342,43 @@ hash-field      = "IN_PORT"
 hash-field-list = hash-field [ 1*( "," hash-field ) ]
 ```
 
-### 2.4.2 Data sample
+### 2.4.2 State DB
+
+#### 2.4.2.1 Switch hash capabilities
+```abnf
+; defines schema for switch hash configuration capabilities
+key = SWITCH_CAPABILITY|switch ; must be unique
+
+; field                     = value
+ECMP_HASH_CAPABLE           = capability-knob ; specifies whether switch is ECMP hash capable
+LAG_HASH_CAPABLE            = capability-knob ; specifies whether switch is LAG hash capable
+HASH|NATIVE_HASH_FIELD_LIST = hash-field-list ; hash field capabilities for hashing packets going through switch
+
+; value annotations
+capability-knob = "true" / "false"
+hash-field      = ""
+                / "IN_PORT"
+                / "DST_MAC"
+                / "SRC_MAC"
+                / "ETHERTYPE"
+                / "VLAN_ID"
+                / "IP_PROTOCOL"
+                / "DST_IP"
+                / "SRC_IP"
+                / "L4_DST_PORT"
+                / "L4_SRC_PORT"
+                / "INNER_DST_MAC"
+                / "INNER_SRC_MAC"
+                / "INNER_ETHERTYPE"
+                / "INNER_IP_PROTOCOL"
+                / "INNER_DST_IP"
+                / "INNER_SRC_IP"
+                / "INNER_L4_DST_PORT"
+                / "INNER_L4_SRC_PORT"
+hash-field-list = hash-field [ 1*( "," hash-field ) ]
+```
+
+### 2.4.3 Data sample
 
 **Config DB:**
 ```bash
@@ -332,7 +391,20 @@ INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
 ```
 
-### 2.4.3 Configuration sample
+**State DB:**
+```bash
+redis-cli -n 6 HGETALL 'SWITCH_CAPABILITY|switch'
+ 1) "ECMP_HASH_CAPABLE"
+ 2) "true"
+ 3) "LAG_HASH_CAPABLE"
+ 4) "true"
+ 5) "HASH|NATIVE_HASH_FIELD_LIST"
+ 6) "IN_PORT,DST_MAC,SRC_MAC,ETHERTYPE,VLAN_ID,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
+INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP, \
+INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
+```
+
+### 2.4.4 Configuration sample
 
 **Outer/Inner frame hashing:**
 ```json
@@ -380,7 +452,7 @@ INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER
 }
 ```
 
-### 2.4.4 Initial configuration
+### 2.4.5 Initial configuration
 
 GH initial configuration will be updated at `sonic-buildimage/files/build_templates/init_cfg.json.j2`  
 in order to match vendor specific requirements.
@@ -421,11 +493,33 @@ in order to match vendor specific requirements.
 
 ## 2.5 Flows
 
-### 2.5.1 GH update
+### 2.5.1 Config section
+
+### 2.5.1.1 GH update
 
 ![GH update flow](images/gh_update_flow.svg "Figure 3: GH update flow")
 
 ###### Figure 3: GH update flow
+
+**Note:**  
+
+The list of available hash fields will be queried by `sai_query_attribute_enum_values_capability` in two steps.  
+The first attempt is used to accommodate the target list size after getting `SAI_STATUS_BUFFER_OVERFLOW` return code.  
+And the second one is for getting the actual data.
+
+### 2.5.2 Show section
+
+#### 2.5.2.1 GH show
+
+![GH show flow](images/gh_show_flow.svg "Figure 4: GH show flow")
+
+###### Figure 4: GH show flow
+
+#### 2.5.2.2 GH show capabilities
+
+![GH show capabilities flow](images/gh_show_cap_flow.svg "Figure 5: GH show capabilities flow")
+
+###### Figure 5: GH show capabilities flow
 
 ## 2.6 CLI
 
@@ -442,6 +536,7 @@ config
 show
 |--- switch-hash
      |--- global
+     |--- capabilities
 ```
 
 ### 2.6.2 Usage examples
@@ -496,6 +591,31 @@ ECMP HASH          LAG HASH
 DST_MAC            DST_MAC
 SRC_MAC            SRC_MAC
 ETHERTYPE          ETHERTYPE
+IP_PROTOCOL        IP_PROTOCOL
+DST_IP             DST_IP
+SRC_IP             SRC_IP
+L4_DST_PORT        L4_DST_PORT
+L4_SRC_PORT        L4_SRC_PORT
+INNER_DST_MAC      INNER_DST_MAC
+INNER_SRC_MAC      INNER_SRC_MAC
+INNER_ETHERTYPE    INNER_ETHERTYPE
+INNER_IP_PROTOCOL  INNER_IP_PROTOCOL
+INNER_DST_IP       INNER_DST_IP
+INNER_SRC_IP       INNER_SRC_IP
+INNER_L4_DST_PORT  INNER_L4_DST_PORT
+INNER_L4_SRC_PORT  INNER_L4_SRC_PORT
+```
+
+**The following command shows switch hash capabilities:**
+```bash
+root@sonic:/home/admin# show switch-hash capabilities
+ECMP HASH          LAG HASH
+-----------------  -----------------
+IN_PORT            IN_PORT
+DST_MAC            DST_MAC
+SRC_MAC            SRC_MAC
+ETHERTYPE          ETHERTYPE
+VLAN_ID            VLAN_ID
 IP_PROTOCOL        IP_PROTOCOL
 DST_IP             DST_IP
 SRC_IP             SRC_IP
