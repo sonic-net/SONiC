@@ -39,7 +39,7 @@ You can drag one feature to another slot to change the status.
 
 ![Option 1](images/user_guide_2.png)
 
-##### Option 2: Change the “Status” field on the feature page\
+##### Option 2: Change the “Status” field on the feature page
 
 ![Option 2](images/user_guide_3.png)
 
