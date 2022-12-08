@@ -19,6 +19,8 @@
   - [CONFIG DB schema](#config-db-schema)
   - [YANG Model schema](#yang-model-schema)
   - [Option 79 for client link-layer address](#option-79-for-client-link-layer-address)
+  - [Option 18 for Interface-ID](#option-18-for-interface-id)
+  - [Config Update](#config-update)
   - [Option for Dual ToR](#option-for-dual-tor)
   - [Feature table](#feature-table)
   - [RADV modification](#radv-modification)
@@ -167,6 +169,20 @@ RELAY-REPLY
 DHCP|intf-i|dhcpv6_servers: [&quot;dhcp-server-0&quot;, &quot;dhcp-server-1&quot;, ...., &quot;dhcp-server-n-1&quot;]
 
 DHCP|intf-i|dhcpv6_option|rfc6939_support: &quot;true&quot;
+
+DHCP|intf-i|dhcpv6_option|interface_id: &quot;true&quot;
+</pre>
+
+<pre>
+{
+        "DHCP_RELAY" :{
+                "Vlan100" : {
+                        "dhcpv6_servers" : ["fc02:2000::2"]
+			"dhcpv6_option|rfc6939_support" : "true"
+			"dhcpv6_option|interface_id" : "true"
+                }
+        }
+}
 </pre>
 
 # YANG Model schema
@@ -239,11 +255,19 @@ config vlan dhcp_relay add <vlan_id> <dhcp_relay_destination_ip>
 ```
 Restart dhcp_relay after updating ipv6 helper information.
 
-**only DHCP_RELAY table needs to be updated for the latest versions.
-
-Example:
+Or edit directly in config_db.json and apply config_reload:
 ```
-admin@sonic:~$ redis-cli -n 4 hset DHCP_RELAY|Vlan1000 dhcpv6_option|rfc6939_support false
+/etc/sonic/config_db.json:
+{
+        "DHCP_RELAY" :{
+                "Vlan100" : {
+                        "dhcpv6_servers" : ["fc02:2000::2"]
+			"dhcpv6_option|rfc6939_support" : "true"
+                }
+        }
+}
+
+sudo config reload
 ```
 
 # Option 18 for Interface-ID
@@ -255,11 +279,28 @@ Usage:
 config vlan dhcp_relay add <vlan_id> <dhcp_relay_destination_ip>
 redis-cli -n 4 hset DHCP_RELAY|<vlan> dhcpv6_option|interface_id <true/false>
 ```
+Or edit directly in config_db.json and apply config_reload:
+/etc/sonic/config_db.json:
+{
+        "DHCP_RELAY" :{
+                "Vlan100" : {
+                        "dhcpv6_servers" : ["fc02:2000::2"],
+			"dhcpv6_option|interface_id" : "true"
+                }
+        }
+}
+
+sudo config reload
 
 Example:
 ```
 admin@sonic:~$ redis-cli -n 4 hset DHCP_RELAY|Vlan1000 dhcpv6_option|interface_id true
 ```
+
+# Config Update
+
+We have shifted from VLAN table to DHCP_RELAY table to store ipv6 helper information.
+Only DHCP_RELAY table needs to be updated for the versions containing PR https://github.com/sonic-net/sonic-buildimage/pull/10654, or version 20201231.75 and 20181130.98 and above
 
 # Option for Dual ToR
 
