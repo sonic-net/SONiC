@@ -8,6 +8,7 @@ Active-active dual ToR link manager is an evolution of active-standby dual ToR l
 | :---: | :------: | :-----------: | ------------------------------ |
 |  0.1  | 05/23/22 |  Jing Zhang   | Initial version                |
 |  0.2  | 12/02/22 | Longxiang Lyu | Add Traffic Forwarding section |
+|  0.3  | 12/08/22 | Longxiang Lyu | Add BGP update delay section   |
 
 ## Scope 
 This document provides the high level design of SONiC dual toR solution, supporting active-active setup. 
@@ -46,6 +47,9 @@ This document provides the high level design of SONiC dual toR solution, support
     - [3.7.1 Special Cases of Traffic Forwarding](#371-special-cases-of-traffic-forwarding)
       - [3.7.1.1 gRPC Traffic to the NiC IP](#3711-grpc-traffic-to-the-nic-ip)
   - [3.8 Further Enhancement](#38-further-enhancement)
+    - [3.8.1 Advertise updated routes to T1](#381-advertise-updated-routes-to-t1)
+    - [3.8.2 Server Servicing & ToR Upgrade](#382-server-servicing--tor-upgrade)
+    - [3.8.3 BGP update delay](#383-bgp-update-delay)
   - [3.9 Command Line](#39-command-line)
 
 [4 Warm Reboot Support](#4-warm-reboot-support)
@@ -459,14 +463,20 @@ The following UML diagram shows this change when Linkmgrd state moves to standby
 
 ![message change flow](./image/message_flow_standby.png)
 
-### 3.8 Further Enhancement
-**Advertise updated routes to T1**  
+### 3.8 Enhancements
+
+#### 3.8.1 Advertise updated routes to T1
 Current failover strategy can smoothly handle the link failure cases, but if one of the ToRs crashes, and if T1 still sends traffic to the crashed ToR, we will see packet loss. 
 
 A further improvement in rescuing scenario, is when detecting peer's unhealthy status, local ToR advertises specific routes (i.e. longer prefix), so that traffic from T1 does't go to crashed ToR as all. 
 
-**Server Servicing & ToR Upgrade**  
+#### 3.8.2 Server Servicing & ToR Upgrade
 For server graceful restart, We already have gRPC service defined in [3.5.1](#351-cable-control-through-grpc). An indicator of ongoing server servicing should be defined based on that notification, so ToR can avoid upgrades in the meantime. Vice versa, we can also define gRPC APIs to notify server when ToR upgrade is ongoing.
+
+#### 3.8.3 BGP update delay
+When the BGP neighbors are started on an active-active T0 switch, the T0 will try to establish BGP sessions with its connected T1 switches. After the BGP sessions' establishment, the T0 will exchange routes with those T1s. T1 switches usually have more routes than the T0 so T1 switches take more time to process out routes before sending updates. The consequence is that, after BGP sessions’ establishment, T1 switches could receive BGP updates from the T0 before the T0 receives any BGP updates from the T1s. There will be a period that those T1s have routes learnt from the T0 but the T0 has no routes learnt from the T1(T0 has no default routes). In this period, Those T1s could send downstream traffic to this T0, as stated in [3.3.5](#335-default-route-to-t1), the T0 is still in standby state, it will try to forward the traffic via the tunnel. As the T0 has no default route in this period, those traffic will be blackholed.
+
+So for the active-active T0s, a BGP update delay of 10 seconds is introduced to the BGP configurations to postpone sending BGP update after BGP session establishment. In this case, the T0 could learn routes from the T1s before the T1s learn any routes from the T0. So when the T1 could send any downstream traffic to the T0, the T0 will have default routes ready.
 
 ### 3.9 Command Line
 TBD 
