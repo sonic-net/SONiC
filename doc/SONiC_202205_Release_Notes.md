@@ -36,6 +36,9 @@ Image  : https://sonic-build.azurewebsites.net/ui/sonic/pipelines  (Example - Im
 | isc-dhcp                  | 4.4.1-2   |
 | sonic-telemetry           | 0.1    |
 | redis-server/ redis-tools | 5.0.3-3~bpo9+2    |
+| Debian version			| Continues to use Bullseye (Debian version 11)	|
+
+Note : The kernel version is migrated to the version that is mentioned in the first row in the above 'Dependency Version' table.
 
 
 # Security Updates
