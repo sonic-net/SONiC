@@ -482,7 +482,7 @@ So for the active-active T0s, a BGP update delay of 10 seconds is introduced to 
 #### 3.8.4 Skip adding ingress drop ACL
 Previously, at a high level, when the mux port comes to standby, the MuxOrch add ingress ACL to drop packets on the mux port. And when the mux port comes to active, the MuxOrch remove the ingress ACL. As described in [3.6], the MuxOrch is acted an intermediate agent between LinkMgrd and the transceiver daemon. Before the NiC receives gRPC request to toggle standby, the ingress drop ACL has already been programmed by MuxOrch. In this period, the server NiC still regard this ToR as active and could send upstream traffic to this ToR, but the upstream traffic will be dropped by the installed ingress drop ACL rule.
 
-A change to skip the installation of ingress drop ACL rule when toggling standby is introduced to forward the upstream traffic with best effort. this is because that, though the mux port is already in standby state in this period, the removal of the ingress drop ACL could allow the upstream traffic to reach the ToR and to be possibly forwarded by the ToR.
+A change to skip the installation of ingress drop ACL rule when toggling standby is introduced to forward the upstream traffic with best effort. This is because that, though the mux port is already in standby state in this period, the removal of the ingress drop ACL could allow the upstream traffic to reach the ToR and to be possibly forwarded by the ToR.
 
 ### 3.9 Command Line
 TBD 
