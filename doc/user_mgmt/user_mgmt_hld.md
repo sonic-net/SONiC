@@ -145,8 +145,8 @@ USER_TABLE:{
 ```
 ROLE_TABLE:{
 	"<role-name>":{
-		"primary_group": {{string}}
-        "secondary_groups": {{string}}
+    "primary_group": {{string}}
+    "secondary_groups": {{string}}
 	}
 }
 ```
@@ -169,7 +169,7 @@ ROLE                                  = "admin" / "monitor"         ; Role/Capab
 ; Defines schema for role configuration attributes in ROLE_TABLE:
 key                                   = "<role name>"               ;Role configuration
 ; field                               = value
-PRIMARY_GROUP                         = STRING       				; Primary linux group
+PRIMARY_GROUP                         = STRING                      ; Primary linux group
 SECONDARY_GROUP                       = STRING                      ; List of secondary linux groups
 ```
 
