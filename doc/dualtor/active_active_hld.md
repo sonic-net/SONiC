@@ -9,6 +9,7 @@ Active-active dual ToR link manager is an evolution of active-standby dual ToR l
 |  0.1  | 05/23/22 |  Jing Zhang   | Initial version                |
 |  0.2  | 12/02/22 | Longxiang Lyu | Add Traffic Forwarding section |
 |  0.3  | 12/08/22 | Longxiang Lyu | Add BGP update delay section   |
+|  0.4  | 12/13/22 | Longxiang Lyu | Add skip ACL section           |
 
 ## Scope 
 This document provides the high level design of SONiC dual toR solution, supporting active-active setup. 
@@ -477,6 +478,11 @@ For server graceful restart, We already have gRPC service defined in [3.5.1](#35
 When the BGP neighbors are started on an active-active T0 switch, the T0 will try to establish BGP sessions with its connected T1 switches. After the BGP sessions' establishment, the T0 will exchange routes with those T1s. T1 switches usually have more routes than the T0 so T1 switches take more time to process out routes before sending updates. The consequence is that, after BGP sessions’ establishment, T1 switches could receive BGP updates from the T0 before the T0 receives any BGP updates from the T1s. There will be a period that those T1s have routes learnt from the T0 but the T0 has no routes learnt from the T1(T0 has no default routes). In this period, Those T1s could send downstream traffic to this T0, as stated in [3.3.5](#335-default-route-to-t1), the T0 is still in standby state, it will try to forward the traffic via the tunnel. As the T0 has no default route in this period, those traffic will be blackholed.
 
 So for the active-active T0s, a BGP update delay of 10 seconds is introduced to the BGP configurations to postpone sending BGP update after BGP session establishment. In this case, the T0 could learn routes from the T1s before the T1s learn any routes from the T0. So when the T1 could send any downstream traffic to the T0, the T0 will have default routes ready.
+
+#### 3.8.4 Skip adding ingress drop ACL
+Previously, at a high level, when the mux port comes to standby, the MuxOrch add ingress ACL to drop packets on the mux port. And when the mux port comes to active, the MuxOrch remove the ingress ACL. As described in [3.6], the MuxOrch is acted an intermediate agent between LinkMgrd and the transceiver daemon. Before the NiC receives gRPC request to toggle standby, the ingress drop ACL has already been programmed by MuxOrch. In this period, the server NiC still regard this ToR as active and could send upstream traffic to this ToR, but the upstream traffic will be dropped by the installed ingress drop ACL rule.
+
+A change to skip the installation of ingress drop ACL rule when toggling standby is introduced to forward the upstream traffic with best effort. this is because that, though the mux port is already in standby state in this period, the removal of the ingress drop ACL could allow the upstream traffic to reach the ToR and to be possibly forwarded by the ToR.
 
 ### 3.9 Command Line
 TBD 
