@@ -51,6 +51,7 @@ This document provides the high level design of SONiC dual toR solution, support
     - [3.8.1 Advertise updated routes to T1](#381-advertise-updated-routes-to-t1)
     - [3.8.2 Server Servicing & ToR Upgrade](#382-server-servicing--tor-upgrade)
     - [3.8.3 BGP update delay](#383-bgp-update-delay)
+    - [3.8.4 Skip adding ingress drop ACL](#384-skip-adding-ingress-drop-acl)
   - [3.9 Command Line](#39-command-line)
 
 [4 Warm Reboot Support](#4-warm-reboot-support)
