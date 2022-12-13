@@ -430,6 +430,8 @@ User can change the default users names or passwords by the following environmen
 
 ###  4.2 <a name='Featuredefault'></a>Feature defaults
 The default values from rules/config will be passed to init_cfg.json file during build.
+If [California-SB237 feature](https://github.com/sonic-net/SONiC/tree/master/doc/California-SB237) is enabled, "passwd_date_of_last_change" field
+will be added to init_cfg.json during build to expire password on init.
 
 ```
 "ROLE_TABLE": {
@@ -461,8 +463,6 @@ The default values from rules/config will be passed to init_cfg.json file during
 As described above, Usercfgd will start running after database is ready but before enabling of login.<br/>
 All defaults will be saved in init_cfg.json except the password.<br/>
 Usercfgd checks at init if password is missing in DB for each user and if so, it will get the current password of user from "/etc/shadow" and save it in DB both in "password" and "password_history" fields. So password will be added to DB at first-boot.<br/>
-If [California-SB237 feature](https://github.com/sonic-net/SONiC/tree/master/doc/California-SB237) is enabled, "passwd_date_of_last_change" field
-will be added to init_cfg.json during build to expire password on init.
 
 
 ### Impact on init time
