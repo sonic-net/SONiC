@@ -56,12 +56,13 @@ Role - capability of user
 ###  1.4. <a name='Overview'></a>Overview
 
 This document provides high level design for the username mgmt and configuration in Sonic.<br/>
-As of today, Sonic doesn’t have special configurations and management for local users.<br/>
-Users can be configured only by regular Linux commands.<br/>
+As of today, Sonic doesn’t have special configurations and management for local users. Users can be configured only by regular Linux commands.<br/>
 The goal is to standardize and define the User management configurations and functionality.<br/>
 It will define the default roles (capabilities), default users and describe the supported configurations
 for users.<br/>
-The compilition of the feature will be controlled by a build flag and will be disabled be default.
+
+Note:
+The compilition of the feature code will be controlled by a build flag and it will be disabled by default.
 
 ###  1.5. <a name='Requirements'></a>Requirements
 ####  1.5.1. <a name='Definedefaults'></a>Define defaults
@@ -99,12 +100,12 @@ Sonic has two main users:
 * Root: Superuser with highest access rights. Login is disabled for this user.
 
 We will define two roles for users:<br/>
-* **admin**: administrator with write and read permissions.<br/>
+* **admin**: a role for administrator users with write and read permissions.<br/>
 	Each admin user will be part of the following groups:<br/>
 	**primary group**: admin<br/>
 	**secondary groups**: sudo,docker,redis,adm
 
-* **monitor**: monitoring user with read permissions only. <br/>
+* **monitor**: a role for monitoring users with read permissions only. <br/>
 	Each monitor user will be part of the following groups:<br/>
 	**primary group**: adm<br/>
 	**secondary groups**: N/A
@@ -158,7 +159,7 @@ ROLE_TABLE:{
 
 ```
 ; Defines schema for User configuration attributes in USER_TABLE:
-key                                   = "<username?"                ;user configuration
+key                                   = "<username>"                ;user configuration
 ; field                               = value
 STATE                                 = "enabled" / "disabled"      ; user enable/disable
 FULL-NAME                             = STRING                      ; Full-name/Description of user
@@ -386,7 +387,7 @@ monitor        enabled      monitor       System Monitor
 
 ###  4.1 <a name='Compilation'></a>Compilation
 
-Feature won't be compiled by default. it can be conrtolled by a compilation flag:
+Feature won't be compiled by default. it can be controlled by a compilation flag:
 ```
 "ENABLE_USER_MGMT"                : "n"
 ```
