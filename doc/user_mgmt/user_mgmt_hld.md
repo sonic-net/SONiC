@@ -56,8 +56,12 @@ Role - capability of user
 ###  1.4. <a name='Overview'></a>Overview
 
 This document provides high level design for the username mgmt and configuration in Sonic.<br/>
+As of today, Sonic doesn’t have special configurations and management for local users.<br/>
+Users can be configured only by regular Linux commands.<br/>
+The goal is to standardize and define the User management configurations and functionality.<br/>
 It will define the default roles (capabilities), default users and describe the supported configurations
-for users.
+for users.<br/>
+The compilition of the feature will be controlled by a build flag and will be disabled be default.
 
 ###  1.5. <a name='Requirements'></a>Requirements
 ####  1.5.1. <a name='Definedefaults'></a>Define defaults
@@ -131,23 +135,23 @@ The new daemon should start running after "config-setup.service" (i.e. after dat
 
 ```
 USER_TABLE:{
-	"<username>":{
-		"state": {{enabled/disabled}}
-		"full-name": {{string}}
-		"hashed-password": {{string}}
-		"hashed-password_history": {{string}}
-		"role": {{admin/monitor}}
-		"passwd_date_of_last_change": {{uint32}}
-	}
+  "<username>":{
+    "state": {{enabled/disabled}}
+    "full-name": {{string}}
+    "hashed-password": {{string}}
+    "hashed-password_history": {{string}}
+    "role": {{admin/monitor}}
+    "passwd_date_of_last_change": {{uint32}}
+  }
 }
 ```
 
 ```
 ROLE_TABLE:{
-	"<role-name>":{
+  "<role-name>":{
     "primary_group": {{string}}
     "secondary_groups": {{string}}
-	}
+  }
 }
 ```
 ###  3.2 <a name='ConfigDBschemas'></a>ConfigDB schemas
@@ -200,12 +204,12 @@ module sonic-user-mgmt {
 
                 leaf name {
                   type string {
-					pattern '[a-zA-Z_]([a-zA-Z0-9_-]{0,31}|[a-zA-Z0-9_-]{0,30}$)';
-					length 1..32 {
-						error-message "Invalid length for the username.";
-						error-app-tag username-invalid-length;
-					}				  
-				  }
+                        pattern '[a-zA-Z_]([a-zA-Z0-9_-]{0,31}|[a-zA-Z0-9_-]{0,30}$)';
+                        length 1..32 {
+                              error-message "Invalid length for the username.";
+                              error-app-tag username-invalid-length;
+                        }				  
+				          }
                   description "User name.";
                 }                
 
@@ -276,11 +280,11 @@ module sonic-role-mgmt {
 
                 leaf name {
                   type string {
-					pattern '[a-zA-Z_]([a-zA-Z0-9_-]{0,31}|[a-zA-Z0-9_-]{0,30}$)';
-					length 1..32 {
-						error-message "Invalid length for the role-name.";
-						error-app-tag rolename-invalid-length;
-				    }
+                        pattern '[a-zA-Z_]([a-zA-Z0-9_-]{0,31}|[a-zA-Z0-9_-]{0,30}$)';
+                        length 1..32 {
+                              error-message "Invalid length for the role-name.";
+                              error-app-tag rolename-invalid-length;
+                        }
                   }
                   description "Role name.";
                 }       
@@ -313,16 +317,16 @@ module sonic-role-mgmt {
 
 ```
 ==============================================================================
-root@host:~$ config user add --help
-Usage: config user add [OPTIONS] <username>
+root@host:~$ config username add --help
+Usage: config user add [OPTIONS] <username> <password>
 
-  Add new user
+  Add new user with password
 
 Options:
   -?, -h, --help  Show this message and exit.
 
 ==============================================================================
-root@host:~$ config user del --help
+root@host:~$ config username del --help
 Usage: config user del [OPTIONS] <username>
 
   Delete a user
@@ -331,16 +335,16 @@ Options:
   -?, -h, --help  Show this message and exit.
 
 ==============================================================================
-root@host:~$ config user state --help
-Usage: config user state [OPTIONS] <username>
+root@host:~$ config username state --help
+Usage: config user state [OPTIONS] <username> <state>
 
-  Specify a user state
+  Specify a user state [enabled | disabled]
 
 Options:
   -?, -h, --help  Show this message and exit.
 ==============================================================================
-root@host:~$ config user full-name --help
-Usage: config user full-name [OPTIONS] <username>
+root@host:~$ config username full-name --help
+Usage: config user full-name [OPTIONS] <username> <full-name>
 
   Specify a user full-name (Gecos field)
 
@@ -348,23 +352,17 @@ Options:
   -?, -h, --help  Show this message and exit.
 
 ==============================================================================
-root@host:~$ config user full-name --help
-Usage: config user full-name [OPTIONS] <username>
-
-  Specify a user full-name (Gecos field)
-
-Options:
-  -?, -h, --help  Show this message and exit.
-
-==============================================================================
-root@host:~$ config user role --help
-Usage: config user role [OPTIONS] <username>
+root@host:~$ config username role --help
+Usage: config user role [OPTIONS] <username> <role>
 
   Specify a user role (capabilities)
 
+Options:
+  -?, -h, --help  Show this message and exit.
+
 ==============================================================================
-root@host:~$ config user password --help
-Usage: config user password [OPTIONS] <username>
+root@host:~$ config username password --help
+Usage: config user password [OPTIONS] <username> <password>
 
   Specify a user password
 
@@ -376,7 +374,7 @@ Options:
 
 ```
 ==============================================================================
-root@host:~$ show user
+root@host:~$ show username
 USERNAME        STATE       ROLE             FULL-NAME   
 ---------     ---------    --------     -----------------------
 admin          enabled      admin         System Administrator
@@ -388,7 +386,7 @@ monitor        enabled      monitor       System Monitor
 
 ###  4.1 <a name='Compilation'></a>Compilation
 
-Feature won't be compiled by default. it can be contolled by a compilation flag:
+Feature won't be compiled by default. it can be conrtolled by a compilation flag:
 ```
 "ENABLE_USER_MGMT"                : "n"
 ```
@@ -405,8 +403,8 @@ DEFAULT_PASSWORD = YourPaSsWoRd
 # DEFAULT_ADMIN_USERINFO - default user info of admin user
 DEFAULT_ADMIN_USERINFO = "System Administrator"
 
-# CONFIGURATOR_SECONDARY_GROUPS - default secondary groups list for configurator user
-CONFIGURATOR_SECONDARY_GROUPS = sudo,docker,redis,adm
+# ADMIN_SECONDARY_GROUPS - default secondary groups list for users with role: admin
+ADMIN_SECONDARY_GROUPS = sudo,docker,redis,adm
 
 # DEFAULT_MONITOR_USERNAME - default monitor username for installer build
 DEFAULT_MONITOR_USERNAME = monitor
@@ -417,8 +415,8 @@ DEFAULT_MONITOR_PASSWORD = MonitorPaSsWoRd
 # DEFAULT_MONITOR_USERINFO - default user info of monitor user
 DEFAULT_MONITOR_USERINFO = "System Monitor"
 
-# VIEWER_SECONDARY_GROUPS - default secondary groups list for viewer user
-VIEWER_SECONDARY_GROUPS =
+# MONITOR_SECONDARY_GROUPS - default secondary groups list for users with role: monitor
+MONITOR_SECONDARY_GROUPS =
 ```
 
 User can change the default users names or passwords by the following environment variables
@@ -433,28 +431,28 @@ User can change the default users names or passwords by the following environmen
 The default values from rules/config will be passed to init_cfg.json file during build.
 
 ```
-	"ROLE_TABLE": {
-   		"admin":{
-        	"primary_group": "admin",
-            "secondary_groups": "sudo,docker,redis,adm"
-        },
-        "monitor":{
-            "primary_group": "adm",
-            "secondary_groups": ""
-        }
+"ROLE_TABLE": {
+    "admin":{
+        "primary_group": "admin",
+        "secondary_groups": "sudo,docker,redis,adm"
     },
-    "USER_TABLE": {
-    	"admin":{
-    		"state": "enabled",
-    		"full-name": "System Administrator",
-    		"role": "admin"
+    "monitor":{
+        "primary_group": "adm",
+        "secondary_groups": ""
+    }
+},
+"USER_TABLE": {
+    "admin":{
+        "state": "enabled",
+        "full-name": "System Administrator",
+        "role": "admin"
     },
-    	"monitor":{
-    		"state": "enabled",
-    		"full-name": "System Monitor",
-    		"role": "monitor"
-   		 }
-    },
+    "monitor":{
+        "state": "enabled",
+        "full-name": "System Monitor",
+        "role": "monitor"
+    }
+},
 ```
 ##  5 <a name='Flows'></a>Flows
 
@@ -490,9 +488,8 @@ Usercfgd will add/delete the user by running the following commands:
 	It will delete the user directory under "/home/"
 
 ###### Notes:<br/>
-1. User must set a password to a user activate the user. ( see password and role flows) <br/>
+1. User must set a password when he adds a new user. ( see password flow) <br/>
 2. Default role “admin”
-
 
 
 ###  5.4 <a name='UserState'></a>User state
