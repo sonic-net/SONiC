@@ -1,6 +1,6 @@
-# SSH global config HLD
+# SSH server global config HLD
 ##  1. <a name='TableofContent'></a>Table of Content 
-- [SSH global config HLD](#ssh-global-config-hld)
+- [ssh server config HLD](#ssh-server-config-hld)
 	- [1. <a name='TableofContent'></a>Table of Content](#1-table-of-content)
 		- [1.1. <a name='Revision'></a>Revision](#11-revision)
 		- [1.2. <a name='Scope'></a>Scope](#12-scope)
@@ -12,12 +12,12 @@
 		- [1.7. <a name='High-LevelDesign'></a>High-Level Design](#17-high-level-design)
 				- [Flow diagram](#flow-diagram)
 			- [1.7.1 <a name='Flow description'></a>Flow description](#171-flow-description)
-			- [1.7.2 <a name='SSH global policies'></a>SSH global policies](#172-ssh-global-policies)
+			- [1.7.2 <a name='ssh server policies'></a>ssh server policies](#172-ssh-server-policies)
 		- [1.8. <a name='Init flow'></a>Init flow](#18-init-flow)
 			- [1.8.1. <a name='FeatureDefault'></a>Feature Default](#181-feature-default)
 		- [1.9. <a name='SAI api'></a>SAI api](#19-sai-api)
 		- [1.10. <a name='Configurationandmanagement'></a>Configuration and management](#110-configuration-and-management)
-			- [1.10.1. <a name='SSH_GLOBALconfigDBtable'></a>SSH_GLOBAL configDB table](#1101-ssh_global-configdb-table)
+			- [1.10.1. <a name='SSH_SERVERconfigDBtable'></a>SSH_SERVER configDB table](#1101-ssh_server-configdb-table)
 			- [1.10.2. ConfigDB schemas](#1102-configdb-schemas)
 			- [1.10.3. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements](#1103-cliyang-model-enhancements)
 			- [1.10.4. <a name='ConfigDBEnhancements'></a>Config DB Enhancements](#1104-config-db-enhancements)
@@ -32,7 +32,7 @@
 
 ###  1.2. <a name='Scope'></a>Scope  
 
-This hld doc for ssh server global configurations describes the requirements, architecture and general flow details of ssh global config in SONIC OS based switches.
+This hld doc for ssh server global configurations describes the requirements, architecture and general flow details of ssh server config in SONIC OS based switches.
 
 ###  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations 
 
@@ -57,7 +57,7 @@ We want to enhance configDB to include table for ssh server global configuration
 
 We want to enable global ssh server configuration in SONIC. In order to do so will touch few areas in the system:
 1. configDB - to include a dedicated table for configurations
-2. hostcfg demon - to update ssh config files once configDB relevant areas are modified (and for this feature, ssh global config table)
+2. hostcfg demon - to update ssh config files once configDB relevant areas are modified (and for this feature, ssh server config table)
 3. OS ssh config files - specific for this stage we are only /etc/ssh/sshd_config is going to be modifed by the hostcfg demon.
 4. OS ssh service - to be restarted after each configuration change.
 
@@ -67,17 +67,17 @@ The Daemon is running in the host (without container) that matches this feature,
 ##### Flow diagram
 ![ssh_flow_community](ssh_flow_community.png)
 #### 1.7.1 <a name='Flow description'></a>Flow description
-When the feature is enabled, by modifying the DB manually, user will set ssh server policies/configuration (see options below) by modifing CONF_DB in SSH_GLOBAL_TABLE.
+When the feature is enabled, by modifying the DB manually, user will set ssh server policies/configuration (see options below) by modifing CONF_DB in SSH_SERVER_TABLE.
 
-The hostcfgd daemon will be extended to listen to ssh policies/configurations from SSH_GLOBAL table, parse the inputs and set the new policies to ssh config files, and update ssh server afterwards.
+The hostcfgd daemon will be extended to listen to ssh policies/configurations from SSH_SERVER table, parse the inputs and set the new policies to ssh config files, and update ssh server afterwards.
 
 
-#### 1.7.2 <a name='SSH global policies'></a>SSH global policies
+#### 1.7.2 <a name='ssh server policies'></a>ssh server policies
 
 We want to enable configuring the following policies, with default values are taken from OS (Debian):
 | Policy         |      Action                                                               | Param values            | Default OS value |
 |----------------|---------------------------------------------------------------------------|-------------------------|------------------|
-| login attempts |     Number of attempts to try to log in   before rejecting the session    |     3-100               |     6            |
+| authentication retries |     Number of attempts to try to log in   before rejecting the session    |     3-100               |     6            |
 | login timeout  |     SSH session timeout                                                   |     1-600 (secs)        |     120          |
 | ports          |     Port numbers for SSH                                                  |     1-65535             |     22           |
 
@@ -87,9 +87,9 @@ We want to enable configuring the following policies, with default values are ta
 During init flow we will set default ssh policies, same as default values in DebianOS. Default values will be added to init_cfg.json.j2, and updated in sshd_config file accordingly.
 ####  1.8.1. <a name='FeatureDefault'></a>Feature Default
 
-Description of default values in init_cfg.json regarding SSH global config:
+Description of default values in init_cfg.json regarding ssh server config:
 ```
-login attempts: 6 
+authentication retries: 6 
 login timeout: 120 //seconds
 ports: 22
 ```
@@ -97,12 +97,12 @@ ports: 22
 NA
 ###  1.10. <a name='Configurationandmanagement'></a>Configuration and management 
 
-####  1.10.1. <a name='SSH_GLOBALconfigDBtable'></a>SSH_GLOBAL configDB table
+####  1.10.1. <a name='SSH_SERVERconfigDBtable'></a>SSH_SERVER configDB table
 
 ```
-SSH_GLOBAL:{
-	policies:{
-		"login_attempts": {{num}}
+SSH_SERVER:{
+	POLICIES:{
+		"authentication_retries": {{num}}
 		"login_timeout": {{secs}}
 		"ports": {{num}}
 	}
@@ -110,34 +110,34 @@ SSH_GLOBAL:{
 ```
 #### 1.10.2. ConfigDB schemas
 ```
-; Defines schema for SSH_GLOBAL configuration attributes in SSH_GLOBAL table:
-key                                   = "POLICIES"             ;ssh global configuration
+; Defines schema for SSH_SERVER configuration attributes in SSH_SERVER table:
+key                                   = "POLICIES"             ;ssh server configuration
 ; field                               = value
-LOGIN_ATTEMPTS                        = 3*DIGIT                 ; number of login attepmts, should be 100 max
+authentication_retries                = 3*DIGIT                 ; number of login attepmts, should be 100 max
 LOGIN_TIMEOUT                         = 3*DIGIT                 ; login timeout in secs unit, max is 600 secs
 PORTS                                 = 5*DIGIT                 ; ssh port number - max is 65535
 ```
 
 ####  1.10.3. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
 ```yang
-//filename:  sonic-ssh_global.yang
+//filename:  sonic-SSH_SERVER.yang
 module sonic-sshg {
     yang-version 1.1;
-    namespace "http://github.com/Azure/sonic-ssh_global";
+    namespace "http://github.com/Azure/sonic-SSH_SERVER";
 	prefix sshg;
 
-    description "SSH GLOBAL CONFIG YANG Module for SONiC OS";
+    description "ssh server CONFIG YANG Module for SONiC OS";
 
 	revision 2022-08-29 {
         description
             "First Revision";
     }
 
-    container sonic-ssh_global {
-		container SSH_GLOBAL {
-			description "SSH GLOBAL CONFIG part of config_db.json";
+    container sonic-SSH_SERVER {
+		container SSH_SERVER {
+			description "ssh server CONFIG part of config_db.json";
 			container POLICIES {
-				leaf login_attempts {
+				leaf authentication_retries {
 					description "number of login attepmts";
 					default 6;
 					type uint8 {
@@ -151,15 +151,18 @@ module sonic-sshg {
 						range 1..600;
 					}
 				}
-				leaf-list ports {
-					description "ssh port number";
-					default 22;
-					type uint32 {
-						range 1..65535;
-					}
+				leaf ports {
+					description "ssh port numbers";
+					default "22";
+                    type string {
+                        pattern '[0-9]+(,[0-9]+)*' {
+                            error-message "Invalid port numbers value";
+                            error-app-tag ssh-server-ports-invalid-value;
+                        }
+                    }
 				}
-			}/*container policies */
-		} /* container SSH_GLOBAL  */
+			}/*container POLICIES */
+		} /* container SSH_SERVER  */
     }/* container sonic-sshg */
 }/* end of module sonic-sshg */
 ```
@@ -169,9 +172,9 @@ The ConfigDB will be extended with next objects:
 
 ```json
 {
-	"SSH_GLOBAL": {
-		"policies":{
-			"login_attempts": "6",
+	"SSH_SERVER": {
+		"POLICIES":{
+			"authentication_retries": "6",
 			"login_timeout": "120",
 			"ports": "22",
 		}
@@ -199,7 +202,7 @@ Example sub-sections for unit test cases and system test cases are given below.
 - Configuration – good flow
   - Verify default values
   - Configure all types and check updated values
-  - Configure login_attempts to X and try to connect with wrong password X+1 times
+  - Configure authentication_retries to X and try to connect with wrong password X+1 times
   - Configure login_timeout to X, try to connect and wait for X+5 seconds (need to disconnect)
   - Configure ports to 222 and see if unable to connect to 22
   
