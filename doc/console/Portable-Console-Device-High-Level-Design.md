@@ -4,7 +4,7 @@
 
 |  Rev  |   Date   |   Author   | Change Description |
 | :---: | :------: | :--------: | ------------------ |
-|  0.1  | 11/08/22 | Zhijian Li | Initial version    |
+|  0.1  | 12/15/22 | Zhijian Li | Initial version    |
 
 ## Overview
 
@@ -205,7 +205,7 @@ class PortableConsoleDeviceBase:
 
         :return: A dict, the key is console line number (integer, 1-based),
                          the value is an object derived from `sonic_console.line_info.ConsoleLineInfo`.
-                 e.g. (Suppose 2 devices daisy-chained, each has 24 console ports, port name on front
+                 e.g. (Suppose 2 devices daisy-chained, each has 24 console ports, port names on front
                        panel start from 1)
                  {
                      1: ConsoleLineInfo(
@@ -238,7 +238,7 @@ class PortableConsoleDeviceBase:
         """
         Retrieves the information of a specific console line on portable console devices.
 
-        :param index: An integer, console line number.
+        :param index: An integer, console line number (1-based).
         :return: An object derived from `sonic_console.line_info.ConsoleLineInfo`.
         """
         raise NotImplementedError
@@ -271,7 +271,7 @@ class PortableConsoleDeviceBase:
 
     def get_psu(self, device_index, psu_index):
         """
-        Retrieves power supply unit represented by index (0-based).
+        Retrieves a specific power supply unit.
 
         :param device_index: An integer, the index (0-based) of the portable console device.
         :param psu_index: An integer, the index (0-based) of the power supply unit on the specific
@@ -315,6 +315,17 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
                 device_index=0,
                 port_name=2,
                 virtual_device_path="/dev/console-2"
+            ),
+            # ...
+            25: ConsoleLineInfo(
+                device_index=1,
+                port_name=1,
+                virtual_device_path="/dev/console-25"
+            ),
+            26: ConsoleLineInfo(
+                device_index=1,
+                port_name=2,
+                virtual_device_path="/dev/console-26"
             ),
             # ...
         }
@@ -431,7 +442,7 @@ This command displays the vendor name of the portable console device. If auto-de
 
 #### show console model_name
 
-This command displays the model name of the portable console device. If auto-detect is disabled, it will read the model name from CONFIG_DB. Otherwise, it will read the model name from `get_vendor_name()`.
+This command displays the model name of the portable console device. If auto-detect is disabled, it will read the model name from CONFIG_DB. Otherwise, it will read the model name from `get_model_name()`.
 
 * Usage:
 
@@ -478,8 +489,7 @@ This command displays the virtual device list of the portable console device.
 
 * Example:
 
-  (Suppose 2 devices daisy-chained, each has 24 console ports, port name on front
-                       panel start from 1)
+  (Suppose 2 devices daisy-chained, each has 24 console ports, port names on front panel start from 1)
   ```
   admin@sonic:~$ show console virtual_device_list
   Line  Console Device  Port Name  Virtual Device Path
@@ -487,9 +497,13 @@ This command displays the virtual device list of the portable console device.
      1  Device 0                1  /dev/console-1
      2  Device 0                2  /dev/console-2
    ...
+    23  Device 0               23  /dev/console-23
+    24  Device 0               24  /dev/console-24
     25  Device 1                1  /dev/console-25
     26  Device 1                2  /dev/console-26
    ...
+    47  Device 1               23  /dev/console/47
+    48  Device 1               24  /dev/console-48
   ```
 
 #### show console psustatus
