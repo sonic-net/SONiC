@@ -1,0 +1,19 @@
+#contributors {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    margin: 0 auto;
+    max-width: 840px;
+}
+
+#contributors li {
+    display: inline-block;
+    margin: 10px;
+    vertical-align: middle;
+}
+
+#contributors li img {
+    max-width: 120px;
+    max-height: 55px;
+    vertical-align: middle;
+}
