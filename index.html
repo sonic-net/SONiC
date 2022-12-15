@@ -19,6 +19,9 @@
     <link rel="stylesheet" href="assets/css/jquery.fancybox.css" type="text/css" media="screen" /> 
     <!-- Theme color -->
     <link id="switcher" href="assets/css/theme-color/default-theme.css" rel="stylesheet">          
+    <!-- Add Contributor Table Renderer --> 
+    <link rel="stylesheet" href="assets/css/contributors.css" type="text/css" />
+
 
     <!-- Main style sheet -->
     <link href="assets/css/style.css" rel="stylesheet">    
@@ -328,8 +331,8 @@
               <!-- <p style="color: black; font-size: 18px" >Rapid innovation in silicon, CPU, power, port density, optics and speed while preserving in one unified software solution across multiple platforms!</p> -->
             </div>
             <!-- End Title -->
-                         <center><img style="height: auto; text-align:center; width: 80%;" alt="img" src="assets/img/all_partners2_1920x1320.jpg"></center>
-
+            <ul id="contributors"></ul>
+            
       </div>
     </div>
 
@@ -395,7 +398,9 @@
   <script type="text/javascript" src="assets/js/jquery.mixitup.js"></script>
   <!-- Add fancyBox -->        
   <script type="text/javascript" src="assets/js/jquery.fancybox.pack.js"></script>
-  
+  <!-- Add Contributor Table Renderer --> 
+  <script src="assets/js/contributors.js"></script>
+
       <script type = "application/javascript">
          function loadJSON() {
             var data_file = "https://api.github.com/repos/kannankvs/sonic-buildimage";
