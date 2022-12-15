@@ -88,20 +88,27 @@ Class `ConsoleLineInfo` contains the information of a console link. It is used i
 
 class ConsoleLineInfo:
 
-    def __init__(self, device_index, virtual_device_path):
+    def __init__(self, device_index, port_name, virtual_device_path):
         """
         Constructor of ConsoleLineInfo class.
 
         :param device_index: An integer, the index of the console device where the console line is
                                          located (0-based).
+        :param port_name: An integer, the name of physical port, same as the front panel of portable
+                                      console device.
         :param virtual_device_path: A string, the virtual device path of the console line.
         """
         self._device_index = device_index
+        self._port_name = port_name
         self._virtual_device_path = virtual_device_path
 
     @property
     def device_index(self):
         return self._device_index
+
+    @property
+    def port_name(self):
+        return self._port_name
 
     @property
     def virtual_device_path(self):
@@ -196,17 +203,31 @@ class PortableConsoleDeviceBase:
         """
         Retrieves the infomation of all console lines on portable console devices.
 
-        :return: A dict, the key is console line number (integer, same as portable console device designed),
+        :return: A dict, the key is console line number (integer, 1-based),
                          the value is an object derived from `sonic_console.line_info.ConsoleLineInfo`.
-                 e.g.
+                 e.g. (Suppose 2 devices daisy-chained, each has 24 console ports, port name on front
+                       panel start from 1)
                  {
                      1: ConsoleLineInfo(
                          device_index=0,
+                         port_name=1,
                          virtual_device_path="/dev/console-1"
                      ),
                      2: ConsoleLineInfo(
                          device_index=0,
+                         port_name=2,
                          virtual_device_path="/dev/console-2"
+                     ),
+                     ...
+                     25: ConsoleLineInfo(
+                         device_index=1,
+                         port_name=1,
+                         virtual_device_path="/dev/console-25"
+                     ),
+                     26: ConsoleLineInfo(
+                         device_index=1,
+                         port_name=2,
+                         virtual_device_path="/dev/console-26"
                      ),
                      ...
                  }
@@ -287,10 +308,12 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
         self._lines = {
             1: ConsoleLineInfo(
                 device_index=0,
+                port_name=1,
                 virtual_device_path="/dev/console-1"
             ),
             2: ConsoleLineInfo(
                 device_index=0,
+                port_name=2,
                 virtual_device_path="/dev/console-2"
             ),
             # ...
@@ -324,7 +347,7 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
     def get_num_devices(self):
         return len(self._serial_number)
 
-    def get_serial_number(self):
+    def get_serial_numbers(self):
         return copy.deepcopy(self._serial_number)
 
     def get_num_lines(self):
@@ -455,12 +478,18 @@ This command displays the virtual device list of the portable console device.
 
 * Example:
 
+  (Suppose 2 devices daisy-chained, each has 24 console ports, port name on front
+                       panel start from 1)
   ```
   admin@sonic:~$ show console virtual_device_list
-  Line  Console Device  Virtual Device Path
-  ----  --------------  -------------------
-     1  Device 0        /dev/console-1
-     2  Device 1        /dev/console-2
+  Line  Console Device  Port Name  Virtual Device Path
+  ----  --------------  ---------  -------------------
+     1  Device 0                1  /dev/console-1
+     2  Device 0                2  /dev/console-2
+   ...
+    25  Device 1                1  /dev/console-25
+    26  Device 1                2  /dev/console-26
+   ...
   ```
 
 #### show console psustatus
@@ -480,6 +509,9 @@ This command displays the status of power supply units of the portable console d
   Console Device  PSU    Model          Serial        HW Rev      Voltage (V)    Current (A)    Power (W)  Status    LED
   --------------  -----  -------------  ------------  --------  -------------  -------------  -----------  --------  -----
   Device 0        PSU 0  MTEF-PSF-AC-A  MT1621X15246  A3                11.97           4.56        54.56  OK        green
+  Device 0        PSU 1  MTEF-PSF-AC-A  MT1621X15257  A3                11.97           4.56        54.56  OK        green
+  Device 1        PSU 0  MTEF-PSF-AC-A  MT1621X15265  A3                11.97           4.56        54.56  OK        green
+  Device 1        PSU 1  MTEF-PSF-AC-A  MT1621X15297  A3                11.97           4.56        54.56  OK        green
   ```
 
 ### Console Config Commands
