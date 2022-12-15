@@ -53,7 +53,7 @@ This high-level design document describes the implementation of switchport modes
 
 ## Overview
 
-This HLD will provide implementation details of switch port modes access and trunk. In this HLD vlan configuration commands are also improved for efficient configuration and management of VLANs.
+This HLD will provide implementation details of switch port modes access and trunk on a Port or on a PortChannel. In this HLD vlan configuration commands are also improved for efficient configuration and management of VLANs.
 
 ## Introduction
 
@@ -96,11 +96,12 @@ The overall SONiC architecture will remain the same and no new sub-modules will 
 
 ## High-level Design
 
-In this section we will explain sequence diagrams fpor the implemented features.
+In this section we will explain sequence diagrams for the implemented features.
 
 ### Switch Port Mode
 
-![SwitchPortModes](media/SwitchPortModes.png)
+![SwitchPortMode-PortPortChannel](https://user-images.githubusercontent.com/61490193/207826139-3ff0c41a-69af-4018-bf19-c083e1307bf7.png)
+
 
 __*Figure 2: Sequence Diagram Switch Port mode*__
 
@@ -113,9 +114,16 @@ __*Figure 2: Sequence Diagram Switch Port mode*__
 
 **4.** Check if type==trunk && existing_mode==trunk then update port mode.
 
+**5.** if mode==access or trunk && want to assign IP it will show error to switch mode to routed first for IP assignment.
+
+
 **5.** Check if type== routed then show an error message to remove tagged && untagged vlan members first from port and then set_mode entry as “routed” .
 
 **6.** Update PORT table.
+
+
+__*NOTE: This works same for Adding Switchport Mode on a PortChannel*__
+
 
 ### Add Multiple VLANs
  
@@ -133,6 +141,9 @@ __*Figure 3: Sequence Diagram for adding Multiple VLANs*__
 
 **5.** Finally, CLI will add the VLAN from the list in the VLAN table.
 
+__*NOTE: This works same for Adding Multiple VLANs on a PortChannel*__
+
+
 ### Delete Multiple VLANs
 
 ![DeleteVlan](media/DeleteVlan.png)
@@ -145,6 +156,10 @@ __*Figure 4: Sequence Diagram for deleting Multiple VLANs*__
 **2.** Check if the VLAN is in the range .
 
 **3.** Read the existing vlan table and delete vlans(s).
+
+
+__*NOTE: This works same for Deleting Multiple VLANs from a PortChannel*__
+
 
 ### Add Multiple VLAN member on Trunk Port
 
@@ -164,6 +179,9 @@ __*Figure 5: Sequence Diagram for Adding VLAN member on Trunk Port*__
 **5.**  Add the vlan member(s) in the vlan member table. 
 
 
+__*NOTE: This works same for Adding Multiple VLANs members on a PortChannel*__
+
+
 ### Delete Multiple VLAN member on Trunk Port
 
 ![Delete Vlan Member](media/DeleteVlanMember.png)
@@ -177,15 +195,17 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 **3.** Read the existing vlan table and delete vlans(s).
 
 
+__*NOTE: This works same for Delete Multiple VLANs members from a PortChannel*__
+
 ## CLI Configuration Commands & Usage 
 
 ## CLI Configuration Commands
 
-**1.** config switchport mode <access|trunk|routed> <physical_port>
+**1.** config switchport mode <access|trunk|routed> <member_portname>/<member_portchannel>
  
 **2.** config vlan add/del -m <comma separated list, range> <vlan_ids>
 
-**3.** config vlan  member add/del -m <all,except, comma separated list, range> <vlan_ids> <physical_port>
+**3.** config vlan  member add/del -m <all,except, comma separated list, range> <vlan_ids> <member_portname>/<member_portchannel>
 
 ##  Examples/Usage of Commands
   
@@ -204,10 +224,31 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
  
   Usage:  This command will add Ethernet4 as trunk port
  ```
+
+ ```
+  admin@sonic:~$ sudo config switchport mode access PortChannel1001
+ 
+  Usage:  This command will add PortChannel1001 as access 
+  
+ ```
+
+ ```
+  admin@sonic:~$ sudo config switchport mode trunk PortChannel1002
+ 
+  Usage:  This command will add PortChannel1002 as trunk 
+  
+ ```
  ```
  admin@sonic:~$ sudo config switchport mode routed Ethernet4
 
- Usage:  This command will add Ethernet4 as routed port. This is for switching from access or trunk mode to routed mode.
+ Usage:  This command will add Ethernet4 as routed port. This is for switching from access or trunk mode to routed mode. 
+
+ ```
+
+ ```
+ admin@sonic:~$ sudo config switchport mode routed PortChannel1001
+
+ Usage:  This command will add PortChannel1001 as routed port. This is for switching from access or trunk mode to routed mode. 
 
  ```
   
@@ -235,7 +276,7 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
   ```
 
 
-**4.**  Add all Vlan(s) as Vlan Member(s)  using a single command:
+**4.**  Add all Vlan(s) as Vlan Member(s) using a single command:
 
 ```
   admin@sonic:~$ sudo config vlan member add all Ethernet0
@@ -243,6 +284,17 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
   Usage:  This command will add all existing vlan(s) as vlan member(s) 
  
  Example : Suppose Vlan 100, Vlan 101, Vlan 102 are already existing Vlans. This command will add Ethernet0 as a member of Vlan 100, Vlan 101, Vlan 102. 
+  
+    ***This command only work for trunk ports***
+
+  ```
+
+  ```
+  admin@sonic:~$ sudo config vlan member add all PortChannel1001
+
+  Usage:  This command will add all existing vlan(s) as vlan member(s) on PortChannel1001
+ 
+ Example : Suppose Vlan 100, Vlan 101, Vlan 102 are already existing Vlans. This command will add PortChannel1001 as a member of Vlan 100, Vlan 101, Vlan 102. 
   
     ***This command only work for trunk ports***
 
@@ -257,6 +309,17 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
   Usage:  This command will add all existing vlan(s) execpt as vlan member(s) 
      
 Example: Suppose if Vlan10, Vlan11, Vlan12, Vlan13, Vlan14, Vlan15, Vlan16, Vlan17, Vlan18, Vlan19, Vlan20 are existing Vlans. This command will add Ethernet0 as member of Vlan10, Vlan11, Vlan18, Vlan19, Vlan20
+
+***This command only work for trunk ports***
+
+  ```
+  
+  ```
+  admin@sonic:~$ sudo config vlan member add -m -e 12-17 PortChannel1002
+  
+  Usage:  This command will add all existing vlan(s) execpt as vlan member(s) 
+     
+Example: Suppose if Vlan10, Vlan11, Vlan12, Vlan13, Vlan14, Vlan15, Vlan16, Vlan17, Vlan18, Vlan19, Vlan20 are existing Vlans. This command will add PortChannel1002 as member of Vlan10, Vlan11, Vlan18, Vlan19, Vlan20
 
 ***This command only work for trunk ports***
 
@@ -281,20 +344,21 @@ This HLD did not consider hybrid switch port mode. We will be adding a separate 
 Unit testing will be done at two levels CLI level and Functional Level
 
 CLI Level Tests
-* Verify CLI to set the mode of an interface to access or trunk
+* Verify CLI to set the mode of an interface or a PortChannel to access or trunk
 * Verify CLI to add a comma separated list of vlan(s)
-* Verify CLI to add all vlan(s) except given vlan to member port
+* Verify CLI to add all vlan(s) except given vlan to member port or portchannel
 * Verify CLI to delete list of vlan(s)
 * Verify CLI to delete all vlans except given comma separated list of vlan(s)
 
 Functional Level Tests
 * Verify that port modes are set .
 * Verify that multiple vlan(s) or range of vlan(s) can be added.
-* Verify that multiple vlan member(s) can be added on a trunk port.
+* Verify that multiple vlan member(s) can be added on a trunk port or on trunk portchannel.
 * Verify intra-vlan communication between hosts on a single switch
 * Verify intra-vlan communication between hosts on two different switches
 * Repeat above step for different vlans
 
 ### Future Work
  The scope of this HLD is limited to Switchport  Mode “Access” and “Trunk”. In future, support for “Hybrid” will also be provided.
+
 
