@@ -81,7 +81,8 @@ In hybrid mode a port possesses the following properties
 
 ### Sample Topology
 
-![Topology](media/Topology.png)
+![Topology](https://user-images.githubusercontent.com/61490193/208155234-3a04ca08-5ca3-42b3-b679-c1efcacddff2.png)
+
 
 __*Figure 1: Sample Topology*__
 
@@ -91,7 +92,9 @@ The figure shows that 3 different VLANs are configured with 6 other hosts. The s
 
 The overall SONiC architecture will remain the same and no new sub-modules will be introduced. Changes are made only in the CLI container and Config_DB.
 
-![Architecture](media/Architecture.png)
+![Architecture](https://user-images.githubusercontent.com/61490193/208155328-5d26e5f3-7483-4b85-8942-56ccb790db1b.png)
+
+
 
 
 ## High-level Design
@@ -127,7 +130,8 @@ __*NOTE: This works same for Adding Switchport Mode on a PortChannel*__
 
 ### Add Multiple VLANs
  
-![MultipleVlans](media/MultipleVlans.png)
+![MultipleVlans](https://user-images.githubusercontent.com/61490193/208155973-801f99e5-bc79-4e4d-9db4-be13decf6637.png)
+
 
 __*Figure 3: Sequence Diagram for adding Multiple VLANs*__
 
@@ -146,8 +150,7 @@ __*NOTE: This works same for Adding Multiple VLANs on a PortChannel*__
 
 ### Delete Multiple VLANs
 
-![DeleteVlan](media/DeleteVlan.png)
-
+![DeleteVlan](https://user-images.githubusercontent.com/61490193/208156042-88b5ba0a-4ad4-4cc9-b919-6cf0c1dec281.png)
 
 __*Figure 4: Sequence Diagram for deleting Multiple VLANs*__
 
@@ -163,7 +166,8 @@ __*NOTE: This works same for Deleting Multiple VLANs from a PortChannel*__
 
 ### Add Multiple VLAN member on Trunk Port
 
-![AddMember_trunk](media/AddMember_trunk.png)
+![AddMember_trunk](https://user-images.githubusercontent.com/61490193/208156160-cefe6ca7-4092-436e-a209-6da8fc238756.png)
+
 
 __*Figure 5: Sequence Diagram for Adding VLAN member on Trunk Port*__
 
@@ -184,7 +188,8 @@ __*NOTE: This works same for Adding Multiple VLANs members on a PortChannel*__
 
 ### Delete Multiple VLAN member on Trunk Port
 
-![Delete Vlan Member](media/DeleteVlanMember.png)
+![DeleteVlanMember](https://user-images.githubusercontent.com/61490193/208156383-f1ba0a89-f7c4-444c-850b-aa96eb95dc08.png)
+
 
 __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 
