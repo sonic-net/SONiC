@@ -787,6 +787,7 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel 100
 
 **Syntax**
 ```
+switchport vlan-mapping {<svlan-id> | dot1q-tunnel <svlan-id>} [priority [<priority-bits>]]
 [no] switchport vlan-mapping <svlan-id> [priority [<priority-bits>]]
 ```
 
