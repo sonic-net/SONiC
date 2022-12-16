@@ -57,14 +57,18 @@ In this new design, the non critical services will be started only after the por
 Primary requirements for sequencing the config reload are
 - Immediately restart the critical services during config reload.
 - The non critical services are not started. They should be started only after all the ports are initialized.
-- Provide a fallback option to restart the services after a fixed internal. This should be the same as in existing reboot flow.
-- The existing reboot flows - warm, fast and cold shouldn't be impacted by this enhancement.
+- Services can be configured to be started immediately or delayed. This can be using a field in FEATURE table.
+- The existing timers should be removed by this event driven approach.
+- This flow is applicable in case of all reboots (warm/fast/cold) as well as config reload.
 
 
 ### High-Level Design
-Currently hostcfgd controls the services based on the feature table. The feature table has a specific field 'has_timer' for the non essential services which needs to be delayed during the reboot flow. The services associated with these features are skipped to activated and only their timers are activated which will later activate these features based on the delay. In the new design apart from activing the timers, hostcfgd will also cache these delayed services. The hostcfgd will also subscribe to PORT_TABLE in the APPL_DB. Once the switch is initialized and all the ports are created in ASIC and Kernel the PortSyncd will publish PortInitDone key in the APPL_DB. On receiving this key the hostcfgd will go through the delayed services list and enables them.
-By having the timers intact this approach will ensure there is a backup timer which will activate the services in case after a fixed internal in case of a failure in hostcfgd.
-Currently all the timers have 'OnBootSec' which is used as a delay from boot time. This needs to be modified to 'OnActiveSec' which is meant to delay from the time the timer was activated.
+Currently hostcfgd controls the services based on the feature table. The feature table has a specific field 'has_timer' for the non essential services which needs to be delayed during the reboot flow. This field will be now replaced by "delay". These services should also not be of sonic.target so they will controlled by hostcfgd.
+During the hostcfgd initialization it will cache these delayed services based on the configuration in the feature table. The hostcfgd will also subscribe to PORT_TABLE in the APPL_DB. Once the switch is initialized and all the ports are created in ASIC and Kernel the PortSyncd will publish PortInitDone key in the APPL_DB. On receiving this key the hostcfgd will go through the delayed services list and enables them.
+In the deinit flow, when hostcfgd receives SIGTERM, it will go through the list of delayed services and stop them. This is required since the delayed services are not associated with sonic.target and in config reload these services should be restarted.
+
+In case of Warmboot and fastboot, Hostcfgd itself is currently delayed today by a timer. This timer will also be removed and replaced by hostcfgd waiting for warmboot/fastboot completion using waitAdvancedBootDone.
+
 The below diagram explains the sequence when config reload is executed. 
 ![](/images/config_reload/Enhance_config_reload.JPG)
 The below diagram explains the new sequence inside hostcfgd.
@@ -83,7 +87,17 @@ No new commands are introduced as part of this design.
 No new commands are introduced as part of this design
 ### YANG model changes
 
-No CONFIG_DB fields are modified as part of this design.
+Yang model needs to be updated for FEATURE_TABLE. The 'has_timer' field will be removed and replaced with 'delay'
+
+```
+                leaf delay {
+                    description "This configuration identicates if the feature needs to be delayed until
+                                 system initialization";
+                    type stypes:boolean_type;
+                    default "false";
+                }
+
+```
 
 ### Warmboot and Fastboot Considerations
 
