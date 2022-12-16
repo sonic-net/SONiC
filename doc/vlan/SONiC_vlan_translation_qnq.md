@@ -787,7 +787,7 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel 100
 
 **Syntax**
 ```
-[no] switchport vlan-mapping {<svlan-id> | dot1q-tunnel <svlan-id>} [priority [<priority-bits>]]
+[no] switchport vlan-mapping <svlan-id> [priority [<priority-bits>]]
 ```
 
 **Example**
@@ -877,18 +877,19 @@ Vlan stacking feature is disabled
 sonic(config-switch-resource)# vlan-stacking
 Config save and reboot is required for this change to take effect
 sonic(config-switch-resource)# do show switch-resource vlan-stacking 
-Vlan stacking feature is enabled
-Operational vlan stacking feature is disabled
+Configured  : enabled
+Operational : disabled
 
 **After Reboot**
 
 sonic(config-switch-resource)# do show switch-resource vlan-stacking
-Vlan stacking feature is enabled
+Configured  : enabled
+Operational : enabled
 sonic(config-switch-resource)# no vlan-stacking 
 Config save and reboot is required for this change to take effect
 sonic(config-switch-resource)# do show switch-resource vlan-stacking
-Vlan stacking feature is disabled
-Operational vlan stacking feature is enabled
+Configured  : disabled
+Operational : enabled
 sonic(config-switch-resource)# 
 
 ```
