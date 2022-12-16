@@ -56,18 +56,19 @@ In this new design, the non critical services will be started only after the por
 
 Primary requirements for sequencing the config reload are
 - Immediately restart the critical services during config reload.
-- The non critical services are not started. They should be started only after all the ports are initialized.
+- The non critical should be started only after all the ports are initialized.
 - Services can be configured to be started immediately or delayed. This can be using a field in FEATURE table.
 - The existing timers should be removed by this event driven approach.
 - This flow is applicable in case of all reboots (warm/fast/cold) as well as config reload.
 
 
 ### High-Level Design
-Currently hostcfgd controls the services based on the feature table. The feature table has a specific field 'has_timer' for the non essential services which needs to be delayed during the reboot flow. This field will be now replaced by "delay". These services should also not be of sonic.target so they will controlled by hostcfgd.
+Currently hostcfgd controls the services based on the feature table. The feature table has a specific field 'has_timer' for the non essential services which needs to be delayed during the reboot flow. This field will be now replaced by new field called "delay". These services should also not be of sonic.target so they will controlled by hostcfgd.
 During the hostcfgd initialization it will cache these delayed services based on the configuration in the feature table. The hostcfgd will also subscribe to PORT_TABLE in the APPL_DB. Once the switch is initialized and all the ports are created in ASIC and Kernel the PortSyncd will publish PortInitDone key in the APPL_DB. On receiving this key the hostcfgd will go through the delayed services list and enables them.
 In the deinit flow, when hostcfgd receives SIGTERM, it will go through the list of delayed services and stop them. This is required since the delayed services are not associated with sonic.target and in config reload these services should be restarted.
 
-In case of Warmboot and fastboot, Hostcfgd itself is currently delayed today by a timer. This timer will also be removed and replaced by hostcfgd waiting for warmboot/fastboot completion using waitAdvancedBootDone.
+
+The only caveat in this flow if someone issues a service hostcfgd restart, it will also restart the delayed services since they are now controlled by hostcfgd.
 
 The below diagram explains the sequence when config reload is executed. 
 ![](/images/config_reload/Enhance_config_reload.JPG)
@@ -101,7 +102,7 @@ Yang model needs to be updated for FEATURE_TABLE. The 'has_timer' field will be 
 
 ### Warmboot and Fastboot Considerations
 
-Unlike the existing flow where services are delayed for a fixed time during fastboot, in the new flow it will be event driven and the delayed services would start once the ports are initialized. However this shouldn't impact the existing fastboot flow. The new design will be tested against the fastboot benchmark tests to ensure no new degradation is introduced because of this event driven approach
+In case of Warmboot and fastboot, Hostcfgd itself is currently delayed today by a timer. This timer will also be removed and replaced by hostcfgd waiting for warmboot/fastboot completion using waitAdvancedBootDone.
 
 ### Testing Design
 
