@@ -824,7 +824,6 @@ sonic(conf-if-Ethernet4)# no switchport
 
 sonic(conf-if-Ethernet4)# no switchport vlan-mapping 
   <1..4094>     Configure service provider VLAN ID
-  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
 
 sonic(conf-if-Ethernet4)# no switchport vlan-mapping 100 
   priority  Set priority bits <0-7> for service provider VLAN
@@ -835,14 +834,6 @@ sonic(conf-if-Ethernet4)# no switchport vlan-mapping 100 priority
 
 sonic(conf-if-Ethernet4)# no switchport vlan-mapping 100 priority
  
-sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 
-  <1..4094>  Configure service provider VLAN ID
-
-sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 100 
-  priority  Set priority bits <0-7> for service provider VLAN
-  <cr>      
-
-sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 100 priority 
 ```
 
 #### 3.6.2.1.4 Enabling VLAN stacking & Translation feature on TD4 Platforms
