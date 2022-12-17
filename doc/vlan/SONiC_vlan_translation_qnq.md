@@ -787,7 +787,9 @@ sonic(conf-if-Ethernet4)# switchport vlan-mapping remove 50 dot1q-tunnel 100
 
 **Syntax**
 ```
-[no] switchport vlan-mapping {<svlan-id> | dot1q-tunnel <svlan-id>} [priority [<priority-bits>]]
+switchport vlan-mapping {<svlan-id> | dot1q-tunnel <svlan-id>} [priority [<priority-bits>]]
+no switchport vlan-mapping <svlan-id> priority
+
 ```
 
 **Example**
@@ -824,7 +826,6 @@ sonic(conf-if-Ethernet4)# no switchport
 
 sonic(conf-if-Ethernet4)# no switchport vlan-mapping 
   <1..4094>     Configure service provider VLAN ID
-  dot1q-tunnel  Configure 801.1Q tunneling (Q-in-Q)
 
 sonic(conf-if-Ethernet4)# no switchport vlan-mapping 100 
   priority  Set priority bits <0-7> for service provider VLAN
@@ -835,14 +836,6 @@ sonic(conf-if-Ethernet4)# no switchport vlan-mapping 100 priority
 
 sonic(conf-if-Ethernet4)# no switchport vlan-mapping 100 priority
  
-sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 
-  <1..4094>  Configure service provider VLAN ID
-
-sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 100 
-  priority  Set priority bits <0-7> for service provider VLAN
-  <cr>      
-
-sonic(conf-if-Ethernet4)# no switchport vlan-mapping dot1q-tunnel 100 priority 
 ```
 
 #### 3.6.2.1.4 Enabling VLAN stacking & Translation feature on TD4 Platforms
@@ -877,18 +870,19 @@ Vlan stacking feature is disabled
 sonic(config-switch-resource)# vlan-stacking
 Config save and reboot is required for this change to take effect
 sonic(config-switch-resource)# do show switch-resource vlan-stacking 
-Vlan stacking feature is enabled
-Operational vlan stacking feature is disabled
+Configured  : enabled
+Operational : disabled
 
 **After Reboot**
 
 sonic(config-switch-resource)# do show switch-resource vlan-stacking
-Vlan stacking feature is enabled
+Configured  : enabled
+Operational : enabled
 sonic(config-switch-resource)# no vlan-stacking 
 Config save and reboot is required for this change to take effect
 sonic(config-switch-resource)# do show switch-resource vlan-stacking
-Vlan stacking feature is disabled
-Operational vlan stacking feature is enabled
+Configured  : disabled
+Operational : enabled
 sonic(config-switch-resource)# 
 
 ```
