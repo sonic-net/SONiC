@@ -63,12 +63,9 @@ Primary requirements for sequencing the config reload are
 
 
 ### High-Level Design
-Currently hostcfgd controls the services based on the feature table. The feature table has a specific field 'has_timer' for the non essential services which needs to be delayed during the reboot flow. This field will be now replaced by new field called "delay". These services should also not be of sonic.target so they will controlled by hostcfgd.
+Currently hostcfgd controls the services based on the feature table. The feature table has a specific field 'has_timer' for the non essential services which needs to be delayed during the reboot flow. This field will be now replaced by new field called "delay". These services will controlled by hostcfgd.
 During the hostcfgd initialization it will cache these delayed services based on the configuration in the feature table. The hostcfgd will also subscribe to PORT_TABLE in the APPL_DB. Once the switch is initialized and all the ports are created in ASIC and Kernel the PortSyncd will publish PortInitDone key in the APPL_DB. On receiving this key the hostcfgd will go through the delayed services list and enables them.
-In the deinit flow, when hostcfgd receives SIGTERM, it will go through the list of delayed services and stop them. This is required since the delayed services are not associated with sonic.target and in config reload these services should be restarted.
 
-
-The only caveat in this flow if someone issues a service hostcfgd restart, it will also restart the delayed services since they are now controlled by hostcfgd.
 
 The below diagram explains the sequence when config reload is executed. 
 ![](/images/config_reload/Enhance_config_reload.JPG)
@@ -99,6 +96,9 @@ Yang model needs to be updated for FEATURE_TABLE. The 'has_timer' field will be 
                 }
 
 ```
+#### DB Migrator
+
+The 'has_timer' field in FEATURE table will be changed to 'delay'. Hence db_migrator is required to modify the configurations to reflect this change.
 
 ### Warmboot and Fastboot Considerations
 
