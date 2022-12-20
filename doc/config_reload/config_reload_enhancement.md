@@ -12,6 +12,7 @@
 - [Configuration and management ](#configuration-and-management)
     - [Config command](#config-command)
     - [Show command](#show-command)
+    - [DB Migrator](#db-migrator)
 - [YANG Model changes](#yang-model-changes)
 - [Warmboot and Fastboot Considerations](#warmboot-and-fastboot-considerations)
 - [Testing Design](#testing-design)
@@ -83,6 +84,11 @@ No new commands are introduced as part of this design.
 #### Show command
 
 No new commands are introduced as part of this design
+
+#### DB Migrator
+
+The 'has_timer' field in FEATURE table will be changed to 'delay'. Hence db_migrator is required to modify the configurations to reflect this change.
+
 ### YANG model changes
 
 Yang model needs to be updated for FEATURE_TABLE. The 'has_timer' field will be removed and replaced with 'delay'
@@ -96,9 +102,6 @@ Yang model needs to be updated for FEATURE_TABLE. The 'has_timer' field will be 
                 }
 
 ```
-#### DB Migrator
-
-The 'has_timer' field in FEATURE table will be changed to 'delay'. Hence db_migrator is required to modify the configurations to reflect this change.
 
 ### Warmboot and Fastboot Considerations
 
