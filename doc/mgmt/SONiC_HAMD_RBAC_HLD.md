@@ -128,6 +128,7 @@ HAMD and RBAC Enhancements
 | 0.1 | 07/13/2022  |  Senthil Nathan               | Initial version                   |
 |     |             |  Soundharya Ramanathan        |                                   |
 |     |             |  Selvakumar Balu              |                                   |
+| 0.2 | 12/14/2022  |  Soundharya Ramanathan        | Based on discussion with all stakeholders, show commands have been made accessible to all user roles |
 
 # About this Manual
 This document provides comprehensive functional and design information about the HAMD and RBAC enhancement feature implementation in SONiC.
@@ -251,7 +252,9 @@ No new or existing SAI services are required
 
 # 2 Functionality
 
-This feature is applicable to all north-bound interfaces like CLI/gNMI/RestAPI. So the RBAC feature must be implemented by a module that is common to all NBIs. Both sonic-mgmt-framework and telemetry containers use translib for writing/reading the configurations into/from the CONFIG DB. Hence, the RBAC feature would be implemented in the translib module.
+This feature is applicable to all north-bound interfaces like CLI/gNMI/RestAPI. 
+- For CLI, the RBAC is implemented in the CLISH.
+- For REST/gNMI : The RBAC feature must be implemented by a module that is common to REST and gNMI NBIs. Both sonic-mgmt-framework and telemetry containers use translib for writing/reading the configurations into/from the CONFIG DB. Hence, the RBAC feature would be implemented in the translib module.
 
 
 ### Note:
@@ -272,194 +275,194 @@ The following table captures the CLI commands/xPATHS and their access privileges
 
 | **Feature name**  	 | **Filename**     | **View/configuration-mode**  	 | **Command**     | **Role** |
 |----------------------- |------------------|------------------------------- |---------------- |--------- |
-| Audit-log | audit.xml | enable-view | show audit-log |	admin,  secadmin | 
+| Audit-log | audit.xml | enable-view | show audit-log |	admin,  secadmin, netadmin, operator | 
 | | | | clear audit-log | admin,  secadmin |
-| Authentication/Authorization/Accounting | authentication.xml | enable-view | show authentication [ rest / telemetry ] |	admin,  secadmin |
+| Authentication/Authorization/Accounting | authentication.xml | enable-view | show authentication [ rest / telemetry ] |	admin,  secadmin, netadmin, operator |
 | | | configure-view | [no] ip rest/telemetry | admin,  secadmin |
-| | authmgr.xml | 	enable-view | show authentication clients/interface/authentication-history | admin, secadmin |
-| | | | show running-configuation pac	| admin, secadmin |
-| | | | show mab ...	| admin, secadmin |
-| | | | show dot1x detail ...	| admin, secadmin |
+| | authmgr.xml | 	enable-view | show authentication clients/interface/authentication-history | admin, secadmin , netadmin, operator |
+| | | | show running-configuation pac	| admin, secadmin, netadmin, operator |
+| | | | show mab ...	| admin, secadmin, netadmin, operator |
+| | | | show dot1x detail ...	| admin, secadmin, netadmin, operator |
 | | | | clear authentication ... |	admin, secadmin |
 | | | configure-view  |	[no] authentication [monitor /  rest / telemetry]	 | admin, secadmin |
 | | | | [no] mab request format ... |	admin, secadmin |
 | | | | [no] dot1x system-auth-control |	admin, secadmin |
-| | | configure-if-view	 | authentication ... |	admin, secadmin |
+| | authmgr_macro.xml | configure-if-view / configure-if-range-view | authentication ... |	admin, secadmin |
 | | | | mab auth-type	 | admin, secadmin |
 | | | | dot1x pae	| admin, secadmin |
-| | aaa.xml	| enable-view |	show aaa	| admin, secadmin |
+| | aaa.xml	| enable-view |	show aaa	| admin, secadmin, netadmin, operator |
 | | | configure-view	| aaa [authentication / authorization / name-service] |	admin, secadmin |
-| | radius.xml |	enable-view	| show radius-server |	admin, secadmin |
+| | radius.xml |	enable-view	| show radius-server |	admin, secadmin, netadmin, operator |
 | | | | clear radius-server	| admin, secadmin |
 | | | configure-view |	radius-server ...	| admin, secadmin |
-| | das.xml | enable-view | show radius-server dynamic-author .. | admin, secadmin |
+| | das.xml | enable-view | show radius-server dynamic-author .. | admin, secadmin, netadmin, operator |
 | | | | clear radius-server dynamic-author .. | admin, secadmin |
-| | | | show running-configuration das | admin, secadmin |
+| | | | show running-configuration das | admin, secadmin, netadmin, operator |
 | | | configure-view | [no] authentication command .. | admin, secadmin | 
 | | | | [no] aaa server .. | admin, secadmin|
 | | | configure-das-view | all commands | admin, secadmin|
-| | tacacs.xml	| enable-view | show tacacs-server	| admin, secadmin | 
+| | tacacs.xml	| enable-view | show tacacs-server	| admin, secadmin, netadmin, operator | 
 | | | configure-view	| tacacs-server ... |	admin, secadmin | 
 | | ldap.xml	| configure-view	| ldap-server ...	| admin, secadmin | 
-| | show_ldap.xml	| enable-view	| show ldap-server	| admin, secadmin | 
-| key	| key.xml	| enable-view |	show config-key | 	admin, secadmin |
+| | show_ldap.xml	| enable-view	| show ldap-server	| admin, secadmin, netadmin, operator | 
+| key	| key.xml	| enable-view |	show config-key | 	admin, secadmin, netadmin, operator |
 | | | configure-view	| key ...	| admin, secadmin |
 | Infra CLIs |	infra_cli.xml	| enable-view | reboot/warm-reboot/fast-reboot | admin, secadmin, netadmin |
 | | | | logger | admin, secadmin |
 | | | | show clock | admin, secadmin, netadmin, operator |
 | | | | show uptime | admin, secadmin, netadmin, operator |
-| | | | show reboot-cause | admin, secadmin, netadmin |
+| | | | show reboot-cause | admin, secadmin, netadmin, operator |
 | | | | show users | admin, secadmin, netadmin, operator |
 | | enable_mode.xml |	enable-view	| no	| admin, secadmin, netadmin |
 | | | | exit	| admin, secadmin, netadmin, operator |
 | | | | configure/configure terminal	| admin, secadmin, netadmin |
 | | | | debug/debug shell	| admin |
 | | | | show 	| admin, secadmin, netadmin, operator |
-| | | | show running-configuration	| admin, secadmin, netadmin |
+| | | | show running-configuration	| admin, secadmin, netadmin, operator |
 | | | | clear |	admin, secadmin, netadmin |
 | | | | renew dhcp-lease	| admin, secadmin |
 | | | | terminal/terminal length |	admin, secadmin, netadmin, operator |
 | | debugsh.xml	| debugsh-view | NA	| Changes not required. (admin - debug shell) |
 | | platform.xml	| enable-view	| show platform ...	| admin, secadmin, netadmin, operator |
 | | logging.xml	| enable-view	| clear logging	| admin, secadmin |
-| | | | show logging ...	| admin, secadmin, netadmin |
+| | | | show logging ...	| admin, secadmin, netadmin, operator |
 | | | configure-view	| logging server ...	| admin, secadmin |
 | | | | no logging server ... |	admin, secadmin |
-| | in_memory_logging.xml	| enable-view	| show in-memory-logging	| admin, secadmin, netadmin |
-| system-level commands	| system.xml |	enable-view	| show system ... |	admin, sysadmin, netadmin, operator |
+| | in_memory_logging.xml	| enable-view	| show in-memory-logging	| admin, secadmin, netadmin, operator |
+| system-level commands	| system.xml |	enable-view	| show system ... |	admin, secadmin, netadmin, operator |
 | | | | show users ....	| admin, secadmin, netadmin, operator |
 | | | configure-view |	username ...	| admin |
 | | hostname.xml	| |  [no] hostname 	| admin, secadmin |
 | | show_version.xml |	enable-view	| show version	| admin, secdmin, netadmin, operator |
-| swss log	| swsslog.xml	| enable-view	| show swsslog-configuration |	admin |
+| swss log	| swsslog.xml	| enable-view	| show swsslog-configuration |	admin, secdmin, netadmin, operator |
 | | | configure-view	| swsslog loglevel ....	| admin |
 | configuration modes	| configure_mode.xml	| configure-view	| [no] mac 	| admin, netadmin |
 | | | | [no] ip  |	admin, netadmin |
 | | | | [no] ipv6	| admin, netadmin |
-| Drop counters	| dropcounters.xml	| enable-view | show dropcounters [ options ] | admin, netadmin, operator |
-| | | | show running-configuration dropcounters | admin, netadmin |
+| Drop counters	| dropcounters.xml	| enable-view | show dropcounters [ options ] | admin, secadmin, netadmin, operator |
+| | | | show running-configuration dropcounters | admin, secadmin, netadmin, operator |
 | | | configure-view |  [ no ] dropcounters [ options] and all its subcommand | admin, netadmin |
 | qos | qos_scheduler.xml |	configure-view	| [no] qos scheduler-policy | admin, netadmin |
-| | | enable-view	| show qos scheduler-policy | admin, netadmin, operator |
+| | | enable-view	| show qos scheduler-policy | admin, secadmin, netadmin, operator |
 | | qos_interface.xml	| configure-if-view | queue < id> wred-policy ...	| admin, netadmin |
 | | | | scheduler-policy ...	| admin, netadmin |
 | | | | qos-map ...	| admin, netadmin |
 | | | | priority-flow-control ... |	admin, netadmin |
-| | | enable-view	| show qos interface | admin, netadmin, operator |
-| | qos_buffer.xml	| enable-view	| show [buffer / buffer-pool] / show buffer profile / show buffer interface	| admin, netadmin, operator |
+| | | enable-view	| show qos interface | admin, secadmin, netadmin, operator |
+| | qos_buffer.xml	| enable-view	| show [buffer / buffer-pool] / show buffer profile / show buffer interface	| admin, secadmin, netadmin, operator |
 | | | configure-view |	buffer .... |	admin, netadmin |
 | | | configure-if-view | buffer ...	| admin, netadmin |
-| | wred.xml	| enable-view |	show qos wred-policy	| admin, netadmin, operator |
+| | wred.xml / wred_macro.xml | enable-view |	show qos wred-policy	| admin, secadmin, netadmin, operator |
 | | | configure-view	| qos wred-policy	| admin, netadmin |
 | | | configure-wred-view	| show configuration	| admin, netadmin |
 | | | | all commands : green/red , ecn	| admin, netadmin |
-| | qos_pfc.xml	| enable-view	| show priority-flow-control ...	| admin, netadmin, operator |
+| | qos_pfc.xml	| enable-view	| show priority-flow-control ...	| admin, secadmin, netadmin, operator |
 | | | configure-view	| priority-flow-control ...	| admin, netadmin |
-| | qos_counter.xml	| enable-view	| show queue ...	| admin, netadmin, operator |
-| | | | show priority-group ... | admin, netadmin, operator |
+| | qos_counter.xml / qos_macro.xml | enable-view	| show queue ...	| admin, secadmin, netadmin, operator |
+| | | | show priority-group ... | admin, secadmin, netadmin, operator |
 | | qos_clear_counter.xml |	enable-view	| clear queue ... |	admin, netadmin |
-| | copp.xml	| enable-view |	show copp ...	| admin, netadmin, operator |
+| | copp.xml	| enable-view |	show copp ...	| admin, secadmin, netadmin, operator |
 | | | configure-view	| copp-action ...	| admin, netadmin |
 | | | copp-action-view	| all commands	| admin, netadmin |
-| flow based services |	flow_based_services.xml |	enable-view	| show policy-map  ...	| admin, netadmin, operator |
-| | | | show class-map ...	| admin, netadmin, operator |
-| | | | show service-policy ...	| admin, netadmin, operator |
-| | | | show running-configuration class-map	| admin, netadmin |
-| | | | show running-configuration policy-map	| admin, netadmin |
+| flow based services |	flow_based_services.xml |	enable-view	| show policy-map  ...	| admin, secadmin, netadmin, operator |
+| | | | show class-map ...	| admin, secadmin, netadmin, operator |
+| | | | show service-policy ...	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration class-map	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration policy-map	| admin, secadmin, netadmin, operator |
 | | | | clear counters service-policy ...	| admin, netadmin |
-| | | | show pbf ...	| admin, netadmin |
+| | | | show pbf ...	| admin, secadmin, netadmin, operator |
 | | | configure-view |	policy-map ... 	| admin, netadmin |
 | | | | class-map ...	| admin, netadmin |
 | | | | pbf ...	| admin, netadmin |
 | | | configure-policy-view/configure-acl-classifier-view/configure-fields-classifier-view/configure-copp-classifier-view/configure-qos-flow-view/configure-monitoring-flow-view/configure-forwarding-flow-view/configure-copp-flow-view/configure-acl-copp-flow-view | 	all commands	| admin, netadmin |
 | | | configure-pbf-ip-nh-grp-view/configure-pbf-ipv6-nh-grp-view/configure-pbf-ip-repl-grp-view/configure-pbf-ipv6-repl-grp-view	 | all commands	| admin, netadmin |
 | | flow_based_services_macro.xml	| configure-if-view/configure-subif-view/configure-lag-view/configure-vlan-view/configure-vty-view/configure-subif-view/configu-if-CPU-view	| service-policy ...	| admin, netadmin |
-| fnetwork policy |	network_policy.xml	| configure-view |	network-policy .... |	admin, netadmin |
+| fnetwork policy |	network_policy.xml / network_policy_macro.xml | configure-view |	network-policy .... |	admin, netadmin |
 | | | configure-network-policy-view	| all commands	| admin, netadmin |
 | | watermark.xml	| enable-view	| show watermark ... | admin, netadmin, secadmin, operator |
 | | | configure-view	| watermark ... | admin, netadmin |
 | Image related commands/tpcm | image.xml	| enable-view	| image install/remove/set-default |	admin |
 | | | | show image ...	| admin, netadmin, secadmin, operator |
-| | tpcm.xml	| enable-view	| show tpcm	| admin |
+| | tpcm.xml	| enable-view	| show tpcm	| admin, netadmin, secadmin, operator |
 | | | | tpcm install |	admin |
-| Route-map |	routemap.xml	| enable-view	| show route-map	| admin, netadmin |
-| | | enable-view |	show running-configuration route-map	| admin, netadmin |
+| Route-map |	route_map.xml / route_map_macro.xml | enable-view	| show route-map	| admin, netadmin, secadmin, operator |
+| | | enable-view |	show running-configuration route-map	| admin, netadmin, secadmin, operator |
 | | | configure-view	| route-map ...	| admin, netadmin |
 | | route_match.xml |	configure-route-map-view	| route-map ...	| admin, netadmin |
-| ip prefix	| ip_prefix.xml	| enable-view	| show ip prefix-list	| admin, netadmin, operator |
-| | | | show ipv6 prefix-list	| admin, netadmin, operator |
-| | | | show running-configuration ip prefix-list	| admin, netadmin |
-| | | | show running-configuration ipv6 prefix-list	 | admin, netadmin |
+| ip prefix	| ip_prefix.xml	| enable-view	| show ip prefix-list	| admin, netadmin, secadmin, operator |
+| | | | show ipv6 prefix-list	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration ip prefix-list	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration ipv6 prefix-list	 | admin, secadmin, netadmin, operator |
 | | | configure-view	| ip prefix-list 	| admin, netadmin |
 | | | | ipv6 prefix-list	| admin, netadmin |
-| DHCP	| dhcp_snooping.xml	| enable-view	| show ip/ipv6 dhcp snooping ..	| admin, netadmin, operator |
+| DHCP	| dhcp_snooping.xml	| enable-view	| show ip/ipv6 dhcp snooping ..	| admin, secadmin, netadmin, operator |
 | | | | clear ip/ipv6 dhcp snooping	.. | admin, netadmin |
 | | | configure-view	| [no] ip/ipv6 dhcp snooping ..	| admin, netadmin |
 | | | | ip/ipv6 source ...	| admin, netadmin |
 | | | configure-if-view / configure-lag-view / configure-if-range-view / configure-po-range-view | [no] ip/ipv6 dhcp snooping ..	| admin, netadmin |
-| | ipv6.xml	| enable-view | show ipv6 dhcp-relay	| admin, netadmin, operator |
+| | ipv6.xml	| enable-view | show ipv6 dhcp-relay	| admin, secadmin, netadmin, operator |
 | | | |  clear ipv6 dhcp-relay	| admin, netadmin |
-| | ipv4.xml	| enable-view | show ip dhcp-relay	| admin, netadmin, operator |
+| | ipv4.xml	| enable-view | show ip dhcp-relay	| admin, secadmin, netadmin, operator |
 | | | | clear ip dhcp-relay	| admin, netadmin |
 | | dhcp_relay_macro.xml |	configure-if-view	| [no] ip/ipv6 dhcp-relay ..	| admin, netadmin |
 | | mgmt_dhcp.xml	| enable-view |	renew dhcp-lease | interface Management ...	| admin, netadmin |
 | dns |	dns.xml	| enable-view	| show hosts	| admin, netadmin, secadmin, operator |
 | | | configure-view | 	[no] ip name-server ...	| admin, netadmin |
-| BFD | bfd.xml | enable-view | show bfd .. | admin, netadmin, operator |
-| | | | show running-configuration bfd | admin, netadmin |
+| BFD | bfd.xml | enable-view | show bfd .. | admin, secadmin, netadmin, operator |
+| | | | show running-configuration bfd | admin, secadmin, netadmin, operator |
 | | | | clear bfd .. | admin, netadmin |
 | | | configure-view | bfd .. | admin, netadmin |
 | | | configure-bfd-view / configure-bfd-peer-view / configure-bfd-profile-view | all commands | admin, netadmin |
-| bgp	| bgp.xml | enable view	| show running-configuration bgp	| admin, netadmin |
-| | | | show bgp ipv4/ipv6 ...	| admin, netadmin, operator |
+| bgp	| bgp.xml / bgp_macro.xml | enable view	| show running-configuration bgp	| admin, secadmin, netadmin, operator |
+| | | | show bgp ipv4/ipv6 ...	| admin, secadmin, netadmin, operator |
 | | | | clear bgp ...	| admin, netadmin |
 | | | configure-view	| router bgp ... |	admin, netadmin |
 | | | configure-router-bgp-view/configure-router-bgp-nbr-view/configure-router-bgp-template-view 	| all commands	| admin, netadmin |
 | | bgp_af_ipv4.xml	| configure-router-bgp-ipv4-view/configure-router-bgp-nbr-ipv4-view/configure-router-bgp-template-ipv4-view	 | all commands	| admin, netadmin |
 | | bgp_af_ipv6.xml	| configure-router-bgp-ipv6-view/configure-router-bgp-nbr-ipv6-view/configure-router-bgp-template-ipv6-view	 | all commands	| admin, netadmin |
 | | bgp_af_l2vpn.xml	 | configure-router-bgp-l2vpn-view/configure-router-bgp-nbr-l2vpn-view/configure-router-bgp-template-l2vpn-view	| all commands	 | admin, netadmin |
-| | | enable-view	| show bgp l2vpn	| admin, netadmin, operator |
+| | | enable-view	| show bgp l2vpn	| admin, secadmin, netadmin, operator |
 | | | | clear bgp l2vpn	| admin, netadmin | 
 | | bgp_af_l2vpn_vni.xml | 	configure-router-bgp-l2vpn-vni-view	| all commands | 	admin, netadmin |
-| | | enable-view	| show bgp l2vpn vni | 	admin, netadmin, operator |
-| | ipv6.xml	| enable-view	| show ipv6 route bgp	 | admin, netadmin, operator |
-| | ipv4.xml	| enable-view	| show ip route bgp	| admin, netadmin, operator |
+| | | enable-view	| show bgp l2vpn vni | 	admin, secadmin, netadmin, operator |
+| | ipv6.xml	| enable-view	| show ipv6 route bgp	 | admin, secadmin, netadmin, operator |
+| | ipv4.xml	| enable-view	| show ip route bgp	| admin, secadmin, netadmin, operator |
 | | ospf.xml	| configure-router-ospf-view	| redistribute bgp ...	| admin, netadmin |
 | | bgp_extcommunity_sets.xml	| configure-view | 	bgp ext-community-list	| admin, netadmin |
-| | | enable-view	| show bgp ext-community-list	| admin, netadmin,  operator |
+| | | enable-view	| show bgp ext-community-list	| admin, secadmin, netadmin, operator |
 | | bgp_community_sets.xml	| configure-view	| bgp [as-path / community ]	| admin, netadmin |
-| | | enable-view	| show bgp [community-list / as-path]	| admin, netadmin, operator |
-| | | | show running-configuration bpg [as-path / community / ext-community list]	| admin, netadmin, secadmin |
+| | | enable-view	| show bgp [community-list / as-path]	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration bpg [as-path / community / ext-community list]	| admin, netadmin, secadmin, operator |
 | | bgp_extcommunity_sets.xml	| configure-view | 	bgp [as-path / community / ext-community list] | 	admin, netadmin |
 | | | | router bgp ...|	admin, netadmin |
 | | warm_restart.xml |	configure-view	| warm-restart bgp ...	| admin, netadmin |
 | OSPF	| ospf.xml	| enable-view	| clear ip ospf	| admin, netadmin |
-| | | | show ip ospf ...	| admin, netadmin, operator |
-| | | | show running-configuration ospf  ...	| admin, netadmin |
+| | | | show ip ospf ...	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration ospf  ...	| admin, secadmin, netadmin, operator |
 | | | configure-view	| router ospf | admin, netadmin |
 | | | configure-router-ospf-view	| all ospf commands	| admin, netadmin |
 | | | configure-if-view/configure-lag-view/configure-vlan-view/configure-lo-view/configure-subif-view | all ospf commands |  admin, netadmin |
 | | ospf_macro.xml	| ip ospf ...	| admin, netadmin |
-| ECMP	| loadshare.xml	| enable-view	| show ip load-share	| admin, netadmin,  operator |
+| ECMP	| loadshare.xml	| enable-view	| show ip load-share	| admin, secadmin, netadmin,  operator |
 | | | configure-view	| ip load-share	| admin, netadmin |
-| Anycast gateway	| sag.xml	| enable-view	| show ip static-anycast-gateway	| admin, netadmin,  operator |
-| | | | show ipv6 static-anycast-gateway	| admin, netadmin,  operator |
+| Anycast gateway	| sag.xml	| enable-view	| show ip static-anycast-gateway	| admin, secadmin, netadmin,  operator |
+| | | | show ipv6 static-anycast-gateway	| admin, secadmin, netadmin,  operator |
 | | | configure-vlan-view/configure-subif-view |	ip anycast-address < address>	| admin, netadmin |
 | | | | ipv6 anycast-address < address>	| admin, netadmin |
 | | | configure-view	| ip anycast-mac-address < mac-address>	| admin, netadmin |
 | | | | ip anycast-address enable	| admin, netadmin |
 | | | | ipv6 anycast-address enable	| admin, netadmin |
-| ptp	| ptp.xml	| enable-view	| show ptp ...	| admin, netadmin, operator |
+| ptp	| ptp.xml / ptp_macro.xml | enable-view	| show ptp ...	| admin, secadmin, netadmin, operator |
 | | | configure-view	| ptp ...	| admin, netadmin |
-| ntp	| ntp.xml	| enable-view	| show ntp ...	| admin, netadmin, operator |
-| | | configure-view	| ntp ...	| admin, netadmin |
-| snmp	| snmp.xml	| enable-view | 	clear snmp counters	| admin, secadmin |
-| | | | show snmp	| admin, secadmin |
-| | | | show snmp-server ...	| admin, secadmin |
+| ntp	| ntp.xml	| enable-view	| show ntp ...	| admin, secadmin, netadmin, operator |
+| | | configure-view	| ntp ...	| admin, secadmin |
+| snmp	| snmp.xml / snmp_macro.xml	| enable-view | 	clear snmp counters	| admin, secadmin |
+| | | | show snmp	| admin, secadmin, netadmin, operator |
+| | | | show snmp-server ...	| admin, secadmin, netadmin, operator |
 | | | configure-view	| snmp-server ...	| admin, secadmin |
-| telemetry and monitoring	| telemetry.xml	| enable-view	| show tam ...	| admin, netadmin |
+| telemetry and monitoring	| telemetry.xml	| enable-view	| show tam ...	| admin, secadmin, netadmin, operator |
 | | | | clear counters tam |	admin, netadmin |
-| | | | show running-configuration tam	| admin, netadmin |
+| | | | show running-configuration tam	| admin, secadmin, netadmin, operator |
 | | | configure-view/configure-tam-view/configure-tam-ifa-view |	all commands |	admin, netadmin |
 | | | configure-if-view	| flow-group ...	| admin, netadmin |
 | counters	| counters.xml	| configure-view	| [no] counters rif	| admin, netadmin |
@@ -470,53 +473,53 @@ The following table captures the CLI commands/xPATHS and their access privileges
 | mclag	| mclag.xml	| configure-view	| mclag domain ...	| admin, netadmin |
 | | | | mclag gateway-mac	| admin, netadmin |
 | | | configure-mclag-view | 	all commands	| admin, netadmin |
-| | | enable-view	| show mclag ...	| admin, netadmin, operator |
-| | | | show running-configuration mc-lag	| admin, netadmin |
-| Unidirectional link failure and detection	| udld.xml	| enable-view	| show udld ...	| admin, netadmin |
+| | | enable-view	| show mclag ...	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration mc-lag	| admin, secadmin, netadmin, operator |
+| Unidirectional link failure and detection	| udld.xml	| enable-view	| show udld ...	| admin, secadmin, netadmin, operator |
 | | | configure-view |	udld  ...	| admin, netadmin |
 | | | configure-if-view	| udld ...	| admin, netadmin |
-| igmp	| igmp.xml	| enable-view |	show ip igmp ... |	admin, netadmin, operator |
+| igmp	| igmp.xml	| enable-view |	show ip igmp ... |	admin, secadmin, netadmin, operator |
 | | | | clear ip igmp ... |	admin, netadmin |
-| | igmp_snooping.xml	| enable-view	| show ip igmp snooping .... |	admin, netadmin, operator |
+| | igmp_snooping.xml	| enable-view	| show ip igmp snooping .... |	admin, secadmin, netadmin, operator |
 | | | configure-vlan-view	| ip igmp snooping ....	| admin, netamin |
-| pim	| pim.xml	| enable-view	| show ip pim .... |	admin, netadmin, operator |
+| pim	| pim.xml	| enable-view	| show ip pim .... |	admin, secadmin, netadmin, operator |
 | | | | clear ip pim 	| admin, netadmin |
 | | | configure-view	| ip pim ....	| admin, netadmin |
 | | pim_macro.xml	| configure-if-view/configure-subif-view/configure-lag-view/configure-vlan-view	| ip pim ...	| admin, netadmin |
-| Multicast routing	| mroute.xml	| enable-view | show ip mroute	| admin, netadmin, operator | 
+| Multicast routing	| mroute.xml	| enable-view | show ip mroute	| admin, secadmin, netadmin, operator | 
 | | | | clear ip mroute	| admin, netadmin |
-| lldp |	lldp.xml |	enable-view	| show lldp ...	| admin, netadmin, operator |
+| lldp |	lldp.xml |	enable-view	| show lldp ...	| admin, secadmin, netadmin, operator |
 | | | configure-view	| lldp ...	| admin, netadmin |
 | | | configure-if-view	| lldp ...	| admin, netadmin |
 | | | | network-policy ...	| admin, netadmin |
-| stp	| stp.xml	| enable-view	| show spanning-tree  ...	| admin, netadmin, operator |
+| stp	| stp.xml	| enable-view	| show spanning-tree  ...	| admin, secadmin, netadmin, operator |
 | | | | clear spanning-tree |	admin, netadmin |
-| | | | show running-configuration spanning-tree	| admin, netadmin |
+| | | | show running-configuration spanning-tree	| admin, secadmin, netadmin, operator |
 | | | configure-view |	spanning-tree ...	| admin, netadmin |
 | | | configure-if-view/configure-if-lag-view	| spanning-tree	| admin, netadmin |
 | | | configure-mst-view	| all configurations |	admin, netadmin |
 | | stp_macro.xml |	| spanning-tree	| admin, netadmin |
-| vrrp |	vrrp.xml	| enable-view	| show vrrp ...	| admin, netadmin, operator|
-| | | | show vrrp6 ...	| admin, netadmin, operator |
+| vrrp |	vrrp.xml / vrrp_macro.xml | enable-view	| show vrrp ...	| admin, secadmin, netadmin, operator|
+| | | | show vrrp6 ...	| admin, secadmin, netadmin, operator |
 | | | configure-if-view/configure-lag-view/configure-vlan-view/configure-subif-view |	vrrp ...	| admin, netadmin |
 | | | configure-vrrp-ipv4-view/configure-vrrp-ipv6-view	| all commands	| admin, netadmin |
-| storm-control	| storm-control.xml	| enable-view |	show storm-control ... |	admin, netadmin, operator |
+| storm-control	| storm-control.xml	| enable-view |	show storm-control ... |	admin, secadmin, netadmin, operator |
 | | | configure-if-view	| storm-control ... |	admin, netadmin |
 | | | configure-if-range-view	| storm-control ...	| admin, netadmin |
-| port-security	| pms.xml	| enable-view	| show port-security ...	| admin, netadmin, operator |
+| port-security	| pms.xml	| enable-view	| show port-security ...	| admin, secadmin, netadmin, operator |
 | | pms_macro.xml	| configure-if-view/configure-lag-view	| port-security ... 	| admin, netadmin |
-| VxLAN	| vxlan.xml	| enable-view	| show vxlan ... |	admin, netadmin |
-| | | | show running-configuration interface vxlan	| admin, netadmin |
+| VxLAN	| vxlan.xml	| enable-view	| show vxlan ... |	admin, secadmin, netadmin, operator |
+| | | | show running-configuration interface vxlan	| admin, secadmin, netadmin, operator |
 | | | | clear counters vxlan	| admin, netadmin |
 | | | configure-view |	interface vxlan	| admin, netadmin |
 | | | configure-vxlan-view	| all commands	| admin, netadmin |
-| evpn	| show_evpn.xml |	enable-view	| show evpn ... |	admin, netadmin, operator |
-| IPv4 address and neighbor (ARP) |	ipv4-neighbors.xml	| enable-view	| show IP arp ...	| admin, netadmin, operator|
+| evpn	| show_evpn.xml |	enable-view	| show evpn ... |	admin, secadmin, netadmin, operator |
+| IPv4 address and neighbor (ARP) |	ipv4-neighbors.xml	| enable-view	| show IP arp ...	| admin, secadmin, netadmin, operator|
 | | | | clear IP arp	| admin, netadmin |
 | | | configure-view	| IP arp timeout	| admin, netadmin |
-| | ipv4.xml	| enable-view	| show ip interface	| admin, netadmin, operator |
-| | | | show ip route	| admin, netadmin, operator |
-| | | | show ip dhcp-relay	| admin, netadmin, operator |
+| | ipv4.xml	| enable-view	| show ip interface	| admin, secadmin, netadmin, operator |
+| | | | show ip route	| admin, secadmin, netadmin, operator |
+| | | | show ip dhcp-relay	| admin, secadmin, netadmin, operator |
 | | | | clear ip dhcp-relay	| admin, netadmin |
 | | | configure-view	| ip nht	| admin, netadmin |
 | | | configure-if-view/configure-vlan-view/configure-lag-view/configure-subif-view	| ip address ...	| admin, netadmin |
@@ -525,63 +528,63 @@ The following table captures the CLI commands/xPATHS and their access privileges
 | | | configure-if-mgmt-view	| ip address ... |	admin, netadmin |
 | | | configure-lo-view	| ip address	| admin, netadmin |
 | | | configure-if-range-view/configure-po-range-view |	no ip ... |	admin, netadmin |
-| IPv6 address/Neighbors	| ipv6-neighbors.xml | enable-view	| show ipv6 neighbors	| admin, netadmin, operator |
+| IPv6 address/Neighbors	| ipv6-neighbors.xml / frr_nd_macro.xml | enable-view	| show ipv6 neighbors	| admin, secadmin, netadmin, operator |
 | | | | clear ipv6 neighbors	| admin, netadmin |
 | | | configure-view |	ipv6 nd	| admin, netadmin |
-| | ipv6.xml |	enable-view	| show ipv6 interface	| admin, netadmin, operator |
-| | | | show ipv6 route	| admin, netadmin, operator |
+| | ipv6.xml |	enable-view	| show ipv6 interface	| admin, secadmin, netadmin, operator |
+| | | | show ipv6 route	| admin, secadmin, netadmin, operator |
 | | | configure-view	| ipv6 nht	| admin, netadmin |
 | | | configure-if-view	| ipv6 address .. |	admin, netadmin |
 | | | configure-if-mgmt-view/configure-lag-view/configure-vlan-view/configure-lo-view	| ipv6 address ... | admin, netadmin |
 | | | configure-if-range-view/configure-vlan-range-view/configure-po-range-view/configure-subif-view | no ipv6 .. | admin, netadmin |
 | ip unnumbered	| ip_unnumbered_macro.xml |	configure-view	| ip unnumbered ...	| admin, netadmin |
-| ip helper |	ip-helper.xml	| enable-view	| show ip forward-protocol |	admin, netadmin, operator |
-| | | | show ip helper-address ...	| admin, netadmin, operator |
+| ip helper |	ip-helper.xml	| enable-view	| show ip forward-protocol |	admin, secadmin, netadmin, operator |
+| | | | show ip helper-address ...	| admin, secadmin, netadmin, operator |
 | | | | clear ip helper-address ...	| admin, netadmin |
 | | | configure-view	| ip forward-protocol ...	| admin, netadmin |
 | | ip_helper_macro.xml |	configure-if-view	| ip helper-address ...	| admin, netadmin |
-| static route	| route_static.xml	| configure-view	| ip route ...	| admin, netadmin |
+| static route	| route_static.xml / route_macro.xml | configure-view	| ip route ...	| admin, netadmin |
 | | | | ipv6 route ... |	admin, netadmin |
 | ip sla	| ipsla.xml	| configure-view	| ip sla .. |	admin, netadmin |
-| | | enable-view	| show ip sla	| admin, netadmin, operator |
+| | | enable-view	| show ip sla	| admin, secadmin, netadmin, operator |
 | | | | clear ip sla ...	| admin, netadmin |
-| vrf |	vrf.xml	| enable-view	| show ip vrf ...	| admin, netadmin, operator |
-| | | | show running-configuration vrf	| admin, netadmin |
+| vrf |	vrf.xml	| enable-view	| show ip vrf ...	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration vrf	| admin, secadmin, netadmin, operator |
 | | | configure-view	| ip vrf mgmt	| admin, netadmin |
 | | | | ip vrf vrf_name ...	| admin, netadmin |
 | | | | ipv6 vrf vrf_name ...	| admin, netadmin |
 | | vrf_macro.xml	| configure-if-view/configure-subif-view/configure-if-range-view/configure-lag-view/configure-po-range-view/configure-vlan-view/configure-vlan-range-view/configure-lo-view	| Ip vrf forwarding... |	admin, netadmin |
-| | ssh-vrf.xml	| enable-view	| show ssh-server vrf all	| admin, secadmin |
+| | ssh-vrf.xml	| enable-view	| show ssh-server vrf all	| admin, secadmin, netadmin, operator |
 | | | configure-view	| ssh-server vrf ...	| admin, secadmin |
 | nat	| nat.xml |	enable-view	| clear nat ...	| admin, netadmin |
-| | | | show running-configuration nat	| admin, netadmin |
+| | | | show running-configuration nat	| admin, secadmin, netadmin, operator |
 | | | configure-view |	nat ...	| admin, netadmin |
 | | | configure-nat-view |	all commands	| admin, netadmin |
 | | nat_zone.xml	| configure-if-view/configure-lo-view/configure-vlan-view/configure-lag-view	| nat-zone ....	| admin, netadmin |
-| sflow	| sflow.xml	| enable-view	| show sflow ...	| admin, netadmin, operator |
+| sflow	| sflow.xml	| enable-view	| show sflow ...	| admin, secadmin, netadmin, operator |
 | | | configure-view	| sflow ... |	admin, netadmin |
 | | interface.xml	| configure-if-view	| sflow ... |	admin, netadmin |
-| mirroring	| mirror.xml	| enable-view	| show mirror-session	| admin, netadmin, operator |
-| | | | show running-configuration mirror-session |	admin, netadmin |
+| mirroring	| mirror.xml	| enable-view	| show mirror-session	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration mirror-session |	admin, secadmin, netadmin, operator |
 | | | configure-view	| mirror-session ...	| admin, netadmin |
 | | | configure-mirror-view	| all commands	| admin, netadmin |
-| MAC management |	mac.xml	| enable-view	| show mac .. |	admin, netadmin, operator |
+| MAC management |	mac.xml	| enable-view	| show mac .. |	admin, secadmin, netadmin, operator |
 | | | | clear mac ...	| admin, netadmin |
 | | | configure-view	| mac address-table ...	| admin, netadmin |
-| ACL	| acl.xml	| enable-view	| show access-group	| admin, netadmin, operator |
-| | | | show mac access-group	| admin, netadmin, operator |
-| | | | show ip access-group	| admin, netadmin, operator |
-| | | | show ipv6 access-group	| admin, netadmin, operator | 
-| | | | show mac access-lists	| admin, netadmin, operator |
-| | | | show ip access-lists	| admin, netadmin, operator |
-| | | | show ipv6 access-lists	| admin, netadmin, operator |
-| | | | show object-groups	| admin, netadmin, operator |
+| ACL	| acl.xml	| enable-view	| show access-group	| admin, secadmin, netadmin, operator |
+| | | | show mac access-group	| admin, secadmin, netadmin, operator |
+| | | | show ip access-group	| admin, secadmin, netadmin, operator |
+| | | | show ipv6 access-group	| admin, secadmin, netadmin, operator | 
+| | | | show mac access-lists	| admin, secadmin, netadmin, operator |
+| | | | show ip access-lists	| admin, secadmin, netadmin, operator |
+| | | | show ipv6 access-lists	| admin, secadmin, netadmin, operator |
+| | | | show object-groups	| admin, secadmin, netadmin, operator |
 | | | | clear mac access-list ..	| admin, netadmin |
 | | | | clear ip access-list ..	| admin, netadmin |
 | | | | clear ipv6 access-list ..	| admin, netadmin |
-| | | | show running-configuration mac access-list	| admin, netadmin |
-| | | | show running-configuration ip access-list	| admin, netadmin |
-| | | | show running-configuration ipv6 access-list	| admin, netadmin |
+| | | | show running-configuration mac access-list	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration ip access-list	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration ipv6 access-list	| admin, secadmin, netadmin, operator |
 | | | configure-view	| mac access-list	| admin, netadmin |
 | | | | ip access-list	| admin, netadmin |
 | | | | ipv6 access-list |	admin, netadmin |
@@ -591,51 +594,51 @@ The following table captures the CLI commands/xPATHS and their access privileges
 | | | configure-mac-acl-view/configure-ip-acl-view/configure-ipv6-acl-view	| all commands	| admin, netadmin |
 | | acl_binding.xml	| configure-if-view/configure-subif-view/configure-lag-view/configure-vlan-view	| all commands	| admin, netadmin |
 | | acl_macro.xml |		| all commands	| admin, netadmin |
-| interface-specific |	interface.xml	| enable-view	| show running-configuration interface	| admin, netadmin |
-| | | | show running-configuration vlan	| admin, netadmin |
-| | | | show interface	| admin, netadmin, operator |
-| | | | show interface drop-counters	| admin, netadmin, operator |
-| | | | show interface transceiver	| admin, netadmin, operator |
-| | | | show vlan |	admin, netadmin, operator |
-| | | | show neighbor-suppress-status	| admin, netadmin, operator |
-| | | | show PortChannel	| admin, netadmin, operator |
+| interface-specific |	interface.xml	| enable-view	| show running-configuration interface	| admin, secadmin, netadmin, operator|
+| | | | show running-configuration vlan	| admin, secadmin, netadmin, operator |
+| | | | show interface	| admin, secadmin, netadmin, operator |
+| | | | show interface drop-counters	| admin, secadmin, netadmin, operator |
+| | | | show interface transceiver	| admin, secadmin, netadmin, operator |
+| | | | show vlan |	admin, secadmin, netadmin, operator |
+| | | | show neighbor-suppress-status	| admin, secadmin, netadmin, operator |
+| | | | show PortChannel	| admin, secadmin, netadmin, operator |
 | | | configure-view	| interface ....	| admin, netadmin |
 | | | configure-if-view/configure-lo-view/configure-vlan-view/configure-lag-view	| all commands	| admin, netadmin |
 | | interface_macro.xml	| | all commands ..	| admin, netadmin |
-| subinterface	| subinterface.xml	| enable-view |	show subinterfaces / show subinterfaces status| admin, netadmin, operator |
-| | | | show running-configuration subinterface	| admin, netadmin |
+| subinterface	| subinterface.xml	| enable-view |	show subinterfaces / show subinterfaces status| admin, secadmin, netadmin, operator |
+| | | | show running-configuration subinterface	| admin, secadmin, netadmin, operator |
 | | | configure-subif-view	| encapsulation .. / all commands ..	| admin, netadmin |
-| Interface breakout	| dynamic_port_breakout.xml	| enable-view |	show interface breakout	| admin, netadmin, operator |
+| Interface breakout	| dynamic_port_breakout.xml	| enable-view |	show interface breakout	| admin, secadmin, netadmin, operator |
 | | | configure-view	| interface breakout ....	| admin, netadmin |
 | counters	| clear_counters.xml	| enable-view	| clear counters ....	| admin, netadmin |
-| portchannel |	portchannel.xml	| enable-view	| portchannel graceful-shutdown	| admin, netadmin |
-| vlan	| vlan.xml	| enable-view	| show system vlan	| admin, netadmin, operator |
+| portchannel |	portchannel.xml	| enable-view	| portchannel graceful-shutdown	| admin, secadmin, netadmin, operator |
+| vlan	| vlan.xml	| enable-view	| show system vlan	| admin, secadmin, netadmin, operator |
 | | | configure-view	| system vlan |	admin, netadmin |
-| events	| event.xml	| enable-view	| show event ..	| admin, netadmin, operator |
-| | | | show alarm ...	| admin, netadmin, operator |
+| events	| event.xml	| enable-view	| show event ..	| admin, secadmin, netadmin, operator |
+| | | | show alarm ...	| admin, secadmin, netadmin, operator |
 | | | | alarm acknowledge	| admin, netadmin |
-| event profile |	evprofile.xml	| enable-view |	show event profile	| admin, netadmin, operator |
+| event profile |	evprofile.xml	| enable-view |	show event profile	| admin, secadmin, netadmin, operator |
 | | | | event profile ... |	admin, netadmin |
-| hardware	| hardware.xml	| configure-view	| hardware ...	| admin, netadmin |
-| | | enable-view	| show running-configuration hardware ...	| admin, netadmin |
-| | | | show hardware tcam ... |	admin, netadmin, operator |
+| hardware	| hardware.xml / hardware_macro.xml	| configure-view	| hardware ...	| admin, netadmin |
+| | | enable-view	| show running-configuration hardware ...	| admin, secadmin, netadmin, operator |
+| | | | show hardware tcam ... |	admin, secadmin, netadmin, operator |
 | line_vty	| line_vty.xml	| configure-view	| line vty 	| admin, netadmin |
-| | | enable-view	| show running-configuration line |	admin, netadmin |
+| | | enable-view	| show running-configuration line |	admin, secadmin, netadmin, operator |
 | poe |	poe.xml	| configure-view	| poe ...	|admin, netadmin |
-| | | enable-view	| show poe ...	| admin, netadmin, operator |
+| | | enable-view	| show poe ...	| admin, secadmin, netadmin, operator |
 | | | | poe reset	| admin, netadmin |
 | | | | clear poe	| admin, netadmin |
 | | | configure-if-view	| poe ...	| admin, netadmin |
 | | | configure-if-range-view	| poe ...	| admin, netadmin |
 | default_port	| default_port.xml | configure-view	| default interface ....	| admin, netadmin |
-| Switch profiles	| config_profiles.xml	| enable-view	| show switch-profiles	| admin, netadmin, operator |
+| Switch profiles	| config_profiles.xml	| enable-view	| show switch-profiles	| admin, secadmin, netadmin, operator |
 | | | configure-view	| factory default profile ...	| admin, netadmin | 
-| switch resource	| switch_resource.xml	| enable-view	| show switch-resource ...	| admin, netadmin, operator |
+| switch resource	| switch_resource.xml	| enable-view	| show switch-resource ...	| admin, secadmin, netadmin, operator |
 | | | configure-view	| switch-resource	| admin, netadmin |
 | | | configure-switch-resource-view	| all commands	| admin, netadmin |
-| Switch resource threshold violations	| threshold.xml	| enable-view	| show threshold ..	| admin, netadmin, operator |
-| | | | show buffer_pool |	admin, netadmin, operator |
-| | | | show device  ... |	admin, netadmin, operator |
+| Switch resource threshold violations	| threshold.xml	| enable-view	| show threshold ..	| admin, secadmin, netadmin, operator |
+| | | | show buffer_pool |	admin, secadmin, netadmin, operator |
+| | | | show device  ... |	admin, secadmin, netadmin, operator |
 | | | | clear threshold	| admin, netadmin |
 | | | | clear buffer_pool |	admin, netadmin |
 | | | configure-view	| threshold buffer-pool	 | admin, netadmin |
@@ -658,12 +661,12 @@ The following table captures the CLI commands/xPATHS and their access privileges
 | | | configure-view |	core ..	| admin |
 | tech support	| techsupport_export.xml	| enable-view	| show techsupport-export |	admin, netadmin, secadmin, operator |
 | | | configure-view |	techsupport-export  .... |	admin |
-| led	| locator_led.xml	| enable-view |	show locator-led |	admin, netadmin, operator |
+| led	| locator_led.xml	| enable-view |	show locator-led |	admin, secadmin, netadmin, operator |
 | | | | locator-led chassis ...	| admin |
 | port locator	| port_locator.xml	| enable-view	| interface port-locator ... |	admin |
-| | | | show interface port-locator	| admin, netadmin, operator |
+| | | | show interface port-locator	| admin, secadmin, netadmin, operator |
 | Port Media FEC	| port_media_fec.xml	| configure-view	| interface media-fec ... |	admin |
-| port groups	| port_group.xml |	enable-view	| show port-group	| admin, netadmin, operator |
+| port groups	| port_group.xml |	enable-view	| show port-group	| admin, secadmin, netadmin, operator |
 | | | configure-view |	port-group .... |	admin, netadmin |
 | cable diagnostics |	test.xml	| enable-view |	show cable-diagnostics	| admin, netadmin, secadmin, operator |
 | | | | test cable-diagnostics	| admin, netadmin |
@@ -672,8 +675,8 @@ The following table captures the CLI commands/xPATHS and their access privileges
 | | | configure-view	| warm-restart ...	| admin, netadmin |
 | alias |	alias.xml	| enable-view	| show interface-naming	| admin, netadmin, secadmin, operator |
 | | | configure-view	| [no]interface-naming standard 	| admin, netadmin |
-| link state tracking	| link_track.xml	| enable-view |	showlink state track ...	| admin, netadmin, operator |
-| | | | show running-configuration link state tracking |	admin, netadmin |
+| link state tracking	| link_track.xml	| enable-view |	showlink state track ...	| admin, secadmin, netadmin, operator |
+| | | | show running-configuration link state tracking |	admin, secadmin, netadmin, operator |
 | | | configure-view |	link state track ... |	admin, netadmin |
 | | | configure-link-state-track-view	| all commands	| admin, netadmin |
 | | link_tracking_macro.xml	| configure-if-view/configure-lag-view/configure-vlan-view/configure-subif-view | 	link state track ...	| admin, netadmin |
@@ -683,9 +686,9 @@ The following table captures the CLI commands/xPATHS and their access privileges
 | ZTP	| ztp.xml	| enable-view	| show ztp-status |	admin, netadmin, secadmin, operator |
 | | | configure-view	| ztp enable	| admin, netadmin |
 | database 	| databse.xml	| enable-view	| show database ..	| admin, netadmin, secadmin, operator |
-| System CRM	| system-crm.xml	| enable-view	| show crm 	| admin, netadmin, operator |
+| System CRM	| system-crm.xml	| enable-view	| show crm 	| admin, netadmin, secadmin, operator |
 | | | configure-view |	crm ...	| admin, netadmin |
-| USB | usb.xml | enable-view | show usb .. | admin |
+| USB | usb.xml | enable-view | show usb .. | admin, netadmin, secadmin, operator |
 | | | configure-view | usb .. | admin |
 | | | | | | 
 
@@ -799,7 +802,6 @@ The whole design is captured in the following diagram,
 
   __RBAC REST/GNMI Design__
 
-- Since CLI uses RestAPI, the RBAC logic depicted in the above diagram would be applicable to CLI as well.
 - REST/gNMI requests would carry the following info,
 	1. Username/User ID
 	2. XPATH
@@ -891,7 +893,7 @@ N/A
 ## 3.10 User Interface
 
 1.	All XML files under src/sonic-mgmt-framework/CLI/clitree/cli-xml must be updated with the "access" attribute which needs to be added in the command tag .
-2. 	For each xpath that corresponds to a CLI, an annotation yang must be created or updated with the sonic-extension:user-role-priv as mentioned in the above section.
+2. 	For each xpath that corresponds to a REST/gNMI request, an annotation yang must be created or updated with the sonic-extension:user-role-priv as mentioned in the above section.
 
 Note : Both the above changes are applicable to new CLIs to be developed as part of 4.1 release and future releases.
 
@@ -1027,9 +1029,9 @@ The absence of the tag "access" means that the command is applicable to all role
 
 ### Adding roles to the access tag
 
-- access="netadmin" for all network-related 'config' commands and network-related 'show running-config' commands
-- access="netadmin:operator" for all network related 'show' commands
-- access="secadmin" for all security-related 'config' commands, 'show' commands and 'show running-config' commands
+- No access tag will be added for all 'show' and 'show running-configuration' commands.
+- access="netadmin" for all network-related 'config' commands.
+- access="secadmin" for all security-related 'config' commands.
 
 ## 5.2 RBAC New feature Implementation
 A new extension statement “user-role-priv” is added to specify the RBAC information.
@@ -1227,7 +1229,7 @@ sonic-ext:user-role-priv "Operation1: role1, role2,  !role3; Operation2: role1, 
 }
 }
 
-- The Operation1 and Operation2 are the operations like read or write.
+- The Operation1 and Operation2 are the operations like rpc, read or write.
 - Role1, Role2 and Role3 are the rolenames like netadmin, secadmin and operator.
 - The ! denotes that the role is denied for the xpath. If ! is not mentioned, then the role is permited for the xpath.  
 - Permit and Deny are the accessTypes. 
