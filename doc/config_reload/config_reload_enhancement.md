@@ -64,8 +64,8 @@ Primary requirements for sequencing the config reload are
 
 
 ### High-Level Design
-Currently hostcfgd controls the services based on the feature table. The feature table has a specific field 'has_timer' for the non essential services which needs to be delayed during the reboot flow. This field will be now replaced by new field called "delay". These services will controlled by hostcfgd.
-During the hostcfgd initialization it will cache these delayed services based on the configuration in the feature table. The hostcfgd will also subscribe to PORT_TABLE in the APPL_DB. Once the switch is initialized and all the ports are created in ASIC and Kernel the PortSyncd will publish PortInitDone key in the APPL_DB. On receiving this key the hostcfgd will go through the delayed services list and enables them.
+Currently hostcfgd controls the services based on the feature table. The feature table has a specific field 'has_timer' for the non essential services which needs to be delayed during the reboot flow. This field will be now replaced by new field called "delayed". These services will controlled by hostcfgd.
+During the hostcfgd initialization it will cache these delayed services based on the configuration in the feature table. The hostcfgd will also subscribe to PORT_TABLE in the APPL_DB. Once the switch is initialized and all the ports are created in ASIC and Kernel the PortSyncd will publish PortInitDone key in the APPL_DB. On receiving this key the hostcfgd will go through the delayed services list and enables them. There will also be a timeout defined for the services to start if PortInitDone is not defined within the specific timeout. This is to ensure the management related services start even if there is some failure for the switch to initialize.
 
 
 The below diagram explains the sequence when config reload is executed. 
@@ -87,14 +87,14 @@ No new commands are introduced as part of this design
 
 #### DB Migrator
 
-The 'has_timer' field in FEATURE table will be changed to 'delay'. Hence db_migrator is required to modify the configurations to reflect this change.
+The 'has_timer' field in FEATURE table will be changed to 'delayed'. Hence db_migrator is required to modify the configurations to reflect this change.
 
 ### YANG model changes
 
-Yang model needs to be updated for FEATURE_TABLE. The 'has_timer' field will be removed and replaced with 'delay'
+Yang model needs to be updated for FEATURE_TABLE. The 'has_timer' field will be removed and replaced with 'delayed'
 
 ```
-                leaf delay {
+                leaf delayed {
                     description "This configuration identicates if the feature needs to be delayed until
                                  system initialization";
                     type stypes:boolean_type;
@@ -106,6 +106,7 @@ Yang model needs to be updated for FEATURE_TABLE. The 'has_timer' field will be 
 ### Warmboot and Fastboot Considerations
 
 In case of Warmboot and fastboot, Hostcfgd itself is currently delayed today by a timer. This timer will also be removed and replaced by hostcfgd waiting for warmboot/fastboot completion using waitAdvancedBootDone.
+Additionally there will be checks added to Warmboot command to ensure all services including delayed services are started before proceeding.
 
 ### Testing Design
 
