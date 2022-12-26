@@ -174,7 +174,9 @@ echo "| 102   | Quanta        | T4048-IX8      		| Broadcom    | Trident 3      
 echo "| 103   | Quanta        | T4048-IX8C     		| Broadcom    | Trident 3         | 48x25G + 8x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 104   | Quanta        | T7032-IX1B     		| Broadcom    | Tomahawk          | 32x100G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 105   | Quanta        | T9032-IX9      		| Broadcom    | Tomahawk 3        | 32x400G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
-echo "| 106   | Wnc           | OSW1800        		| Intel    | Tofino            | 48x25G + 6x100G         | [SONiC-ONIE-Barefoot]($(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-barefoot.bin/')) |" >> supported_devices_platforms.md
+echo "| 106   | Wistron 	| sw-to3200k  		| Marvell    | Teralynx 7        | 32x400G              |[SONiC-ONIE-Innovium]($(echo "${ARTF_INNO}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-innovium-dbg.bin/')) |" >> supported_devices_platforms.md
+echo "| 107   | Wistron 	| 6512-32r  		| Marvell    | Teralynx 7        | 32x400G              |[SONiC-ONIE-Innovium]($(echo "${ARTF_INNO}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-innovium-dbg.bin/')) |" >> supported_devices_platforms.md
+echo "| 108   | Wnc           | OSW1800        		| Intel    | Tofino            | 48x25G + 6x100G         | [SONiC-ONIE-Barefoot]($(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-barefoot.bin/')) |" >> supported_devices_platforms.md
 
 
 	
