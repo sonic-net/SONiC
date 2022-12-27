@@ -51,20 +51,39 @@ deactivate dockerwaitany
 swss.service.j2 <- swss.sh
 deactivate swss.sh
 deactivate swss.service.j2
-[-> swss.service.j2: sudo systemctl stop swss
+[-> swss.service.j2: sudo warm-reboot
 activate swss.service.j2
-swss.service.j2 -> swss.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/swss.service.j2#L26 /usr/local/bin/swss.sh stop]]
+swss.service.j2 -> swss.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/swss.service.j2#L24 /usr/local/bin/swss.sh start]]
 activate swss.sh
-swss.sh -> docker_image_ctl.j2: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/swss.sh#L275 /usr/bin/swss.sh stop]]
+swss.sh -> docker_image_ctl.j2: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/swss.sh#L186 /usr/bin/swss.sh start]]
 activate docker_image_ctl.j2
-docker_image_ctl.j2 -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/docker_image_ctl.j2#L593 /usr/local/bin/container stop swss]]
+docker_image_ctl.j2 -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/docker_image_ctl.j2#L351 /usr/local/bin/container start swss]]
 activate container
-container -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/src/sonic-ctrmgrd/ctrmgr/container#L125 container.stop()]]
+container -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/src/sonic-ctrmgrd/ctrmgr/container#L125 container.start()]]
 docker_image_ctl.j2 <- container
 deactivate container
 swss.sh <- docker_image_ctl.j2
 deactivate docker_image_ctl.j2
-swss.sh -> swss.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/swss.sh#L136-L152 /bin/systemctl stop syncd\n/bin/systemctl stop radv\n/bin/systemctl stop bgp\n/bin/systemctl stop dhcp_relay]]
+swss.service.j2 <- swss.sh
+deactivate swss.sh
+swss.service.j2 -> swss.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/swss.service.j2#L25 /usr/local/bin/swss.sh wait]]
+activate swss.sh
+swss.sh -> swss.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/swss.sh#L209-L243 Allow some time for peer container to start]]
+swss.sh -> dockerwaitany: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/swss.sh#L258 /usr/bin/docker-wait-any -s swss -d syncd dhcp_relay]]
+activate dockerwaitany
+dockerwaitany -> dockerwaitany: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/image_config/misc/docker-wait-any#L100 t.start()]]
+activate dockerwaitany
+dockerwaitany -> dockerwaitany: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/image_config/misc/docker-wait-any#L52 docker_client.wait('swss')]]
+dockerwaitany -> dockerwaitany: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/image_config/misc/docker-wait-any#L63 g_thread_exit_event.set()]]
+deactivate dockerwaitany
+dockerwaitany -> dockerwaitany: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/image_config/misc/docker-wait-any#L100 t.start()]]
+activate dockerwaitany
+dockerwaitany -> dockerwaitany: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/image_config/misc/docker-wait-any#L52 docker_client.wait('syncd')]]
+dockerwaitany -> dockerwaitany: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/image_config/misc/docker-wait-any#L63 g_thread_exit_event.set()]]
+deactivate dockerwaitany
+dockerwaitany -> dockerwaitany: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/image_config/misc/docker-wait-any#L104 g_thread_exit_event.wait()]]
+swss.sh <- dockerwaitany
+deactivate dockerwaitany
 swss.service.j2 <- swss.sh
 deactivate swss.sh
 deactivate swss.service.j2
