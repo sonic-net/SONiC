@@ -65,17 +65,18 @@ No new commands are introduced as part of this design.
 No new commands are introduced as part of this design
 
 #### DB Migrator
-
+N/A
 
 ### YANG model changes
-
+N/A
 
 ### Warmboot and Fastboot Considerations
-
+N/A
 
 ### Testing Design
 
 #### Unit tests
 #### System tests
-
+1) Simulate SAI failure and verify if SAI failure dump is created.
+2) Verify if the dump in techsupport contains the SAI failure dump is collected.
 
