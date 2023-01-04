@@ -51,6 +51,12 @@ Once the dump is invoked, the generic syncd dump script will perform rotation on
 
 Later when techsupport is invoked manually or invoked through auto techsupport, these dumps will be collected.
 
+The below diagram explains the sequence when a SAI failure happens
+![](/images/SAI_failure_handling/SAI_failure_dump_sequence.JPG)
+
+The flow inside syncd is shown below
+![](/images/SAI_failure_handling/SAI_failure_dump_flow.JPG)
+
 ### SAI API Requirements
 None
 
