@@ -1,25 +1,30 @@
 # Scope
 
-This document describes the design of using BFD to detect static route nexthop and install/update/remove static route to the system based on BFD session state.<br  /> 
-One important assumption is that the BFD session (for a static route nexthop) in this application(static route BFD) is not shared with other application, creating or deleting the static route BFD session has no impact on other application.<br /> 
+This document describes the design of using BFD to detect static route nexthop and based on BFD session state, installing, updating, and removing static route to the system.<br  /> 
+
+One important assumption is that the BFD session (for a static route nexthop) in this BFD Static Route application is not shared with any other applications (i.e., creating or deleting static route BFD session has no impact on other applications).<br /> 
+
 <span style="color:blue"> *Notes:*<br>
 *This document describes how to create local BFD session for a static route based on static route configuration. Creating BFD session in its peer system is out of the scope of this document.*<br />  
 </span>
 
 
 # Static Route BFD Design
-## functional requirements
+## Functional Requirements
 
-1, creating BFD session for each static route nexthop based on static route configuration <br>
-2, deleting BFD session if the nexthop is not needed (triggered by removing static route from configration)<br>
-3,installing/updating/removing static route (update nexthop, remove static route if no nexthop) based on BFD session state change.<br>
-4,when the application (static route BFD)restarts, recover static routes and BFD session states from redis database (config_db, appl_db and state_db) without impact on existing installed static routes and BFD sessions. <br  />  
+1. Create BFD session for each static route nexthop based on static route configuration <br>
+2. Delete BFD session if the nexthop is not needed (triggered by removing static route from configration)<br>
+3. Install, update, removing static route (i.e., update nexthop, remove static route if no nexthop) based on BFD session state change.<br>
+4. When the application (static route BFD) restarts, recover static routes and BFD session states from redis database (config_db, appl_db and state_db) without impactinh any existing installed static routes and BFD sessions. <br  />  
 
 ## System Overview with Static Route BFD
 A new component, BfdRouteMgr is introduced to support static route BFD. <br>
+
 In the following diagram, BfdRouteMgr monitors config_db STATIC_ROUTE_TABLE. If there is a static route configured with bfd, BfdRouteMgr creates BFD session by updating appl_db BFD_SESSION_TABLE. BfdRouteMgr also monitors state db for BFD session state change. Based on BFD session state, BfdRouteMgr updates appl_db STATIC_ROUTE_TABLE to add/delete static route or update its nexthop list.<br>
-To work with existing bgpcfgd StaticRouteMgr, an optional field "bfd" is introduced in STATIC_ROUTE_TABLE. When the "bfd" field present and is "true" in config db, StaticRouteMgr ignores this static route and BfdRouteMgr handles it, BfdRouteMgr write this static route to appl_db based on BFD session state for this static route nexthop. <br>
-To avoid StaticRouteTimer deleting BfdRouteMgr created static route entry in appl_db,  a new field "refreshable" is introduced in appl_db STATIC_ROUTE_TABLE schema. BfdRouteMgr sets "refreshable"="false" when it writes a static route to appl_db STATIC_ROUTE_TABLE. When StaticRouteTimer see "refreshable"="false", it ignores this static route entry. <br>
+
+To work with existing bgpcfgd StaticRouteMgr, an optional field "bfd" is introduced in STATIC_ROUTE_TABLE. When the "bfd" field present and is "true" in config db, StaticRouteMgr ignores this static route and BfdRouteMgr handles it. BfdRouteMgr writes this static route to appl_db based on BFD session state for this static route nexthop. <br>
+
+To avoid StaticRouteTimer deleting BfdRouteMgr created static route entry in appl_db, a new field "refreshable" is introduced in appl_db STATIC_ROUTE_TABLE schema. BfdRouteMgr sets "refreshable"="false" when it writes a static route to appl_db STATIC_ROUTE_TABLE. When StaticRouteTimer see "refreshable"="false", it ignores this static route entry. <br>
 
 
 <img src="static_rt_bfd_overview.png" width="500">
@@ -31,13 +36,13 @@ Two optional fields are introduced to STATIC_ROUTE_TABLE: <br>
 2. "refreshable"
 
 StaticRouteMgr(config_db) and BfdRouteMgr check "bfd" field in config_db STATIC_ROUTE_TABLE.<br>
-BfdRouteMgr set "refreshable"="false" in appl_db STATIC_ROUTE_TABLE and StaticRouteTimer checks "refreshable" field to skip the static route entry timeout checking.<br>
+BfdRouteMgr sets "refreshable"="false" in appl_db STATIC_ROUTE_TABLE. StaticRouteTimer checks "refreshable" field to skip the static route entry timeout checking.<br>
 [*Link to STATIC_ROUTE_TABLE schema:* 
  [STATIC_ROUTE table in CONFIG_DB](https://github.com/Azure/SONiC/blob/master/doc/static-route/SONiC_static_route_hdl.md#3211-static_route).]
 
 
 ## Internal tables in BfdRouteMgr
-4 tables (dictionary/map) are needed to use BFD session to monitor nexthop and update static route.<br>
+Four tables (dictionary/map) are needed to use BFD session to monitor nexthop and update static route.<br>
 
 1. TABLE_CONFIG: config_db STATIC_ROUTE_TABLE cache (for the route with "bfd"="true" only)
 2. TABLE_NEXTHOP: different prefixes may have same nexthop,  this table is used to track which prefix is using the nexthop
