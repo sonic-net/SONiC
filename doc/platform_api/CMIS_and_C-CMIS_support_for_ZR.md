@@ -779,20 +779,21 @@ configure privisioning settings of the transceivers
 
 - Example (bring module up from low power mode, or bring down module to low power mode):
     ```
-    admin@sonic:~# config interface transceiver lpmode Ethernet0 -- enable
+    admin@sonic:~# config interface transceiver lpmode Ethernet0 enable
     Enabling low-power mode for port Ethernet0 ... OK
 
-    admin@sonic:~# config interface transceiver lpmode Ethernet0 -- disable
+    admin@sonic:~# config interface transceiver lpmode Ethernet0 disable
     Disabling low-power mode for port Ethernet0 ... OK
     ```
 
 - Example (config the privisioning frequency):
     ```
-    admin@sonic:~# config interface transceiver frequency Ethernet0 -- 196025
+    admin@sonic:~# config interface transceiver frequency Ethernet0 196025
     Setting laser frequency to 196025 GHz on port Ethernet0
     ```
 
 - Example (config the privisioning TX power):
+The "--" is needed here because the provisioned value is negative.
     ```
     admin@sonic:~# config interface transceiver tx_power Ethernet0 -- -10.0
     Setting target Tx output power to -10.0 dBm on port Ethernet0
@@ -800,7 +801,7 @@ configure privisioning settings of the transceivers
 
 - Example (config the loopback mode):
     ```
-    admin@sonic:~$ config interface transceiver loopback Ethernet0 -- none
+    admin@sonic:~$ config interface transceiver loopback Ethernet0 none
     Setting loopback mode to none
     ```
     
@@ -1049,6 +1050,29 @@ def get_TX_configured_power(port):
 ```
 
 #### 3.2 Get VDM related information
+
+The table below specifies the threshold for important optics and DSP performance metrics:
+
+
+|PM|	Min|	Max|
+|--|--|--|
+|PreFEC BER|0|	1.25E-2|
+|PostFEC BER|	|0|
+|Tx Power (dBm)|		| | 
+|Rx Power (dBm)|		| | 
+|OSNR (dB/0.1nm)|26| |
+|SNR (dB)|13.6| |
+|CD (ps/nm)|	0|	2400|
+|Frequency Offset (GHz)|-3.6|3.6|
+|peak DGD (ps)|	0|	28|
+|peak PDL (dB)|	0| 3.5|
+|SOP (krad/s)|	0|	50|
+|Case Temperature ($^{o}$C)	|	|75 |
+|Laser Temperature ($^{o}$C)|	|75 |
+| EVM| | |
+
+
+
 - get_VDM
 
 ```get_VDM_page``` function uses ```VDM_TYPE``` dictionary above. It parses all the VDM items defined in the dictionary within a certain VDM page and returns both VDM monitor values and four threshold values related to this VDM item. ```get_VDM``` function combines VDM items from all VDM pages.
