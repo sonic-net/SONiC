@@ -40,7 +40,7 @@ This document describes the motivation for port buffer drop counters and the cha
 # 1 Overview
 
 The main goal of this feature is to poll port level buffer drop counters in a safe way. 
-According to https://github.com/Azure/sonic-swss/pull/1308,
+According to https://github.com/sonic-net/sonic-swss/pull/1308,
 
 > These counters are causing widespread issues in the master branch, so we're backing them out for now to be revisited in a later PR. They will likely need to be polled separately from the other counters, and on a longer interval, to avoid performance issues and conflicts.
 

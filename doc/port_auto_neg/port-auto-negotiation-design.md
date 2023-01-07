@@ -41,6 +41,7 @@
  | 0.1 |             |      Junchao Chen   | Initial version                            |
  | 0.2 |             |      Junchao Chen   | Fix review comment                         |
  | 0.3 |             | Dante (Kuo-Jung) Su | Add support for SFPs and operational states|
+ | 0.4 |             |      Junchao Chen   | Port incremental configuration             |
 
 ### Scope
 This document is the design document for port auto negotiation feature on SONiC. This includes the requirements, CLI change, DB schema change, DB migrator change, yang model change and swss change.
@@ -516,26 +517,39 @@ The new SONiC speed setting flow can be described in following pseudo code:
 port = getPort(alias)
 if autoneg changed:
     setPortAutoNeg(port, autoneg)
+    if autoneg == on:
+        // Due to incremental port configuration support, we might only get an "autoneg" field change from APP_DB.
+        // In this case, we will need to apply previous saved adv_speeds and adv_interface_types to SAI. If there
+        // is no previous configuration, will use default empty adv_speeds and adv_interface_types which indicates
+        // all supported speeds and all supported interface types.
+        setPortAdvSpeed(port, port.adv_speeds)
+        setPortAdvInterfaceType(port, port.adv_interface_types)
+    elif autoneg == off:
+        // Due to incremental port configuration support, we might only get an "autoneg" field change from APP_DB.
+        // In this case, we will need to apply previous saved speed and interface_type to SAI. Speed is a mandatory configuration.
+        // If there is no previous configuration for interface_type, it shall use SAI_PORT_INTERFACE_TYPE_NONE by default.
+        setPortSpeed(port, port.speed)
+        setInterfaceType(port, port.interface_type)
 
-if autoneg == true:
-    speed_list = vector()
-    if adv_speeds changed or autoneg changed:
-        // if adv_speeds == "all", leave speed_list empty which means all supported speeds
-        if adv_speeds != "all":
-            speed_list = adv_speeds
-    setPortAdvSpeed(port, speed_list)
+if adv_speeds changed:
+    if autoneg == on:
+        setPortAdvSpeed(port, adv_speeds) // empty adv_speeds means all supported speeds
+    port.adv_speeds = adv_speeds
 
-    interface_type_list = vector()
-    if adv_interface_types changed or autoneg changed:
-        // if adv_interface_types == "all", leave interface_type_list empty which means all supported types
-        if adv_interface_types != "all"
-            interface_type_list = adv_interface_types
-    setPortAdvInterfaceType(port, interface_type_list)
-else if autoneg == false:
-    if speed changed or autoneg changed:
-        setPortSpeed(port, speed)
-    if interface_type changed or autoneg changed:
+if adv_interface_types changed:
+    if autoneg == on:
+        setPortAdvInterfaceType(port, adv_interface_types)
+    port.adv_interface_types = adv_interface_types
+
+if speed changed:
+    if autoneg != on:
+        setPortSpeed(port, speed) // for autoneg is off/not_set, apply the speed to SAI, this is for backward compatible
+    port.speed = speed
+
+if interface_type changed:
+    if autoneg == off:
         setInterfaceType(port, interface_type)
+    port.interface_type = interface_type
 ```
 
 ##### Getting Remote Advertisement
@@ -558,9 +572,18 @@ swss will do validation for auto negotiation related fields, although it still C
 
 #### portsyncd and portmgrd Consideration
 
-No changes for portsyncd and portmgrd.
+Due to historical reason, portsyncd and portmgrd both handle **PORT** table changes in **CONFIG_DB** and write **APPL_DB** according to configuration change. portmgrd handles fields including "mtu", "admin_status" and "learn_mode"; portsyncd handles all fields. There are a few issues here:
 
-Due to historical reason, portsyncd and portmgrd both handle **PORT** table changes in **CONFIG_DB** and write **APPL_DB** according to configuration change. portmgrd handles fields including "mtu", "admin_status" and "learn_mode"; portsyncd handles the rest fields.
+1. portsyncd is designed to listen to kernel port status change and fire the change event to high level, it should not handle **CONFIG_DB** change. portmgrd is the right place to handle port configuration change according to SONiC architecture.
+2. Configuration change for "mtu", "admin_status" and "learn_mode" will be handled twice which is not necessary
+3. portsyncd put all configuration to **APPL_DB** even if user only changes part of them. E.g. user changes "speed" of the port, portsyncd will put configuration like "mtu", "admin_status", "autoneg" to **APPL_DB**. This is not necessary too.
+
+To address these issues, a few changes shall be made:
+
+1. portsyncd no longer listen to **CONFIG_DB** changes
+2. portmgrd shall be extended to handle all port configuration changes
+3. portmgrd shall implement incremental configuration update. It means that portmgrd shall not put configuration to **APPL_DB** if the field is not changed compare to previous value.
+4. portsorch shall be changed to handle incremental port configuration changes
 
 #### Port Breakout Consideration
 
@@ -655,10 +678,10 @@ Dynamic port breakout feature also introduces a hwsku.json file to describe the 
 
 #### PMON xcvrd Consideration
 
-While it is possible to use CLI/CONFIG_DB for setting the port auto negotiation attributes, this feature is also available via [media_settings.json](https://github.com/Azure/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md)
+While it is possible to use CLI/CONFIG_DB for setting the port auto negotiation attributes, this feature is also available via [media_settings.json](https://github.com/sonic-net/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md)
 
 - **Interface Type**  
-  Unfortunately, it's not straightforward for users to identify which interface type is most appropriate to the attached transceivers, and the link will not get up unless the connected devices are both advertising the same interface type. This requires domain knowledge, correct EERPOM information and the individual hardware datasheet review process. Hence it's recommended to use [media_settings.json](https://github.com/Azure/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md) to automate the while process. A interface type update request from [media_settings.json](https://github.com/Azure/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md) is triggered by the transceiver detection of pmon#xcvrd, which leverages **APPL_DB** instead of **CONFIG_DB**, hence the requests will not be blocked by **portsyncd**. If the interface type update request arrives when autoneg is enabled, it should alter the advertisement and restart the autoneg. That said, if the user has interface type configured in both CONFIG_DB and media_settings.json, it wouldn't be possible to predict which would take precedence as there is no logic giving one priority over other. Hence please be sure to use either CLI/CONFIG_DB or media_settings.json at a time, never have both of them activated.
+  Unfortunately, it's not straightforward for users to identify which interface type is most appropriate to the attached transceivers, and the link will not get up unless the connected devices are both advertising the same interface type. This requires domain knowledge, correct EERPOM information and the individual hardware datasheet review process. Hence it's recommended to use [media_settings.json](https://github.com/sonic-net/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md) to automate the while process. A interface type update request from [media_settings.json](https://github.com/sonic-net/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md) is triggered by the transceiver detection of pmon#xcvrd, which leverages **APPL_DB** instead of **CONFIG_DB**, hence the requests will not be blocked by **portsyncd**. If the interface type update request arrives when autoneg is enabled, it should alter the advertisement and restart the autoneg. That said, if the user has interface type configured in both CONFIG_DB and media_settings.json, it wouldn't be possible to predict which would take precedence as there is no logic giving one priority over other. Hence please be sure to use either CLI/CONFIG_DB or media_settings.json at a time, never have both of them activated.
 
 - **Pre-Emphasis**  
   Typically, prior to some process, such as transmission over cable, or recording to phonograph record or tape, the input frequency range most susceptible to noise is boosted. This is referred to as "pre-emphasis" - before the process the signal will undergo. While this is rarely necessay to the native RJ45 ports, it's important to SFP/QSFP/QSFPDD ports. For optical arrangements (e.g. SR/LR/DR transceivers), the loss is miniscule. The loss budget allocated for the host PCB board is small, which implies the pre-emphasis calibrated is supposed to work regardless of the fiber cable attached. On the other hand, on passive media, there is a significant amount of frequency dependent loss and the channel loss can range up to the CR/KR loss spec. It is therefore important and useful to activate Link-Training to "train" the TX FIR in both directions to help equalize that loss. IEEE 802.3 Clause 72, Clause 73 and Clause 93 define the auto-negotiation and link-training support for CR/KR transceivers, while the support of opticals (e.g. SR/LR/DR) are never in the scope. On the other hand, when autoneg is enabled, the link-training will also be activated, and the link-training handshake will only get started after negotiation if autoneg is enabled. Furtherly, link-training is to dynamically tune hardware signals at runtime, as a result, the static pre-emphasis parameters in media_setting.json is not necessary and will not be taken into autoneg process.
@@ -682,7 +705,7 @@ For sonic-utilities, we will leverage the existing unit test framework to test. 
 3. Test command `config interface type <interface_name> <interface_type>`. Verify the command return error if given invalid interface name or interface type.
 4. Test command `config interface advertised-types <interface_name> <interface_type_list>`. Verify the command return error if given invalid interface name or interface type list.
 
-For sonic-swss, there is an existing test case [test_port_an](https://github.com/Azure/sonic-swss/blob/master/tests/test_port_an.py). The existing test case covers autoneg and speed attributes on both direct and warm-reboot scenario. So new unit test cases need cover the newly supported attributes:
+For sonic-swss, there is an existing test case [test_port_an](https://github.com/sonic-net/sonic-swss/blob/master/tests/test_port_an.py). The existing test case covers autoneg and speed attributes on both direct and warm-reboot scenario. So new unit test cases need cover the newly supported attributes:
 
 1. Test attribute adv_speeds on both direct and warm-reboot scenario. Verify SAI_PORT_ATTR_ADVERTISED_SPEED is in ASIC_DB and has correct value.
 2. Test attribute interface_type on both direct and warm-reboot scenario. Verify SAI_PORT_ATTR_INTERFACE_TYPE is in ASIC_DB and has correct value.

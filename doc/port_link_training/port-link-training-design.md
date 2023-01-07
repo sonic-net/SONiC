@@ -52,7 +52,7 @@ The link-training hardware controls in this document is SAI specific, while the 
 
 Link training is a process by which the transmitter and receiver on a high-speed serial link communicate with each other in order to tune their equalization settings. In theory, link training enables automatic tuning of the FIR filter for each channel in an ASIC to achieve the desired bit error rate (BER)
 
-In current SONiC implementation, user can leverage the platform-specific [media_settings.json](https://github.com/Azure/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md) to statically update the TX FIR per attached transceiver to improve BER. However, the ODM vendors rarely provide the pre-calibrated pre-emphasis for the CR/KR transceivers, which could result in the link reliability issues.
+In current SONiC implementation, user can leverage the platform-specific [media_settings.json](https://github.com/sonic-net/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md) to statically update the TX FIR per attached transceiver to improve BER. However, the ODM vendors rarely provide the pre-calibrated pre-emphasis for the CR/KR transceivers, which could result in the link reliability issues.
 
 The IEEE 802.3 standard defines a set of link training protocols for various mediums, and the feature in this document is to focus on IEEE clause 72 and 93 to dynamically improve the link quality over the SFP coppers and backplanes.
 
@@ -316,11 +316,11 @@ N/A
 
 #### Unit Test cases
 
-For **sonic-swss**, we will leverage the existing [test_port.py](https://github.com/Azure/sonic-swss/blob/master/tests/test_port.py) for this. A few new test cases will be added:
+For **sonic-swss**, we will leverage the existing [test_port.py](https://github.com/sonic-net/sonic-swss/blob/master/tests/test_port.py) for this. A few new test cases will be added:
 
 1. Test attribute **link_training** on both direct and warm-reboot scenario. Verify SAI_PORT_ATTR_LINK_TRAINING_ENABLE is in ASIC_DB and has correct value.
 
-For **sonic-utilities**, we will leverage the existing [unit test framework](https://github.com/Azure/sonic-utilities/tree/master/tests) for this. A few new test cases will be added:
+For **sonic-utilities**, we will leverage the existing [unit test framework](https://github.com/sonic-net/sonic-utilities/tree/master/tests) for this. A few new test cases will be added:
 
 1. Test command `config interface link-training <interface_name> <mode>`. Verify the command return error if given invalid interface_name or mode.
 
