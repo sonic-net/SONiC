@@ -46,8 +46,7 @@ Primary requirements for taking dump during SAI failure are
 
 
 ### High-Level Design
-A new custom attribute SAI_REDIS_SWITCH_ATTR_FAILURE_DUMP is defined. When there is a SAI failure, before calling the abort, orchagent sets the SAI_REDIS_SWITCH_ATTR_FAILURE_DUMP attribute. On receiving this attribute syncd calls the generic dump script which is present in /usr/bin/syncd_dump.sh. This script will check for the presence of platform specific dump script which should be located at /usr/bin/platform_syncd_dump.sh. If this script is present, it would be invoked to take the necessary dump. Vendors if they intend to take dumps during SAI failure can define the script in their syncd docker. The dumps collected from this script should be stored in /var/log/sai_failure_dump/ which will be exposed to the host.
-Once the dump is invoked, the generic syncd dump script will perform rotation on /var/log/sai_failure_dump/ to restrict the number of dumps to 10.
+A new custom attribute SAI_REDIS_SWITCH_ATTR_FAILURE_DUMP is defined. When there is a SAI failure, before calling the abort, orchagent sets the SAI_REDIS_SWITCH_ATTR_FAILURE_DUMP attribute. On receiving this attribute syncd calls the generic dump script which is present in /usr/bin/syncd_dump.sh. This script will check for the presence of platform specific dump script which should be located at /usr/bin/platform_syncd_dump.sh. If this script is present, it would be invoked to take the necessary dump. Vendors if they intend to take dumps during SAI failure can define the script in their syncd docker. The dumps collected from this script should be stored in /var/log/sai_failure_dump/ which will be exposed to the host. Only one file should be stored per dump in order to facilitate the rotation logic. Once the dump is finished, the generic syncd dump script will perform rotation on /var/log/sai_failure_dump/ to restrict the number of dumps to 10.
 
 Later when techsupport is invoked manually or invoked through auto techsupport, these dumps will be collected.
 
@@ -82,6 +81,8 @@ N/A
 ### Testing Design
 
 #### Unit tests
+1) Gtest for syncd infrastructure to test the SAI_REDIS_SWITCH_ATTR_FAILURE_DUMP.
+
 #### System tests
 1) Simulate SAI failure and verify if SAI failure dump is created.
 2) Verify if the dump in techsupport contains the SAI failure dump is collected.
