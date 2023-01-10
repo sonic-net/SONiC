@@ -15,7 +15,7 @@ One important assumption is that the BFD session (for a static route nexthop) in
 1. Create BFD session for each static route nexthop based on static route configuration <br>
 2. Delete BFD session if the nexthop is not needed (triggered by removing static route from configration)<br>
 3. Install, update, removing static route (i.e., update nexthop, remove static route if no nexthop) based on BFD session state change.<br>
-4. When the application (static route BFD) restarts, recover static routes and BFD session states from redis database (config_db, appl_db and state_db) without impactinh any existing installed static routes and BFD sessions. <br  />  
+4. When the application (static route BFD) restarts, recover static routes and BFD session states from redis database (config_db, appl_db and state_db) without impacting any existing installed static routes and BFD sessions. <br  />  
 
 ## System Overview with Static Route BFD
 A new component, BfdRouteMgr is introduced to support static route BFD. <br>
