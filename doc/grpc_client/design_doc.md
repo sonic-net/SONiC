@@ -34,6 +34,11 @@ and do this within SONiC PMON docker
 - the client communication to the SoC should go over proposed Loopback IP.
 - gRPC client communication with Nic-simulator should be accomodated as part of this design doc.
 
+##### Hardware Overview
+
+![Hardware Overview](images/gRPC_overall.png)  
+
+
 ## gRPC client communicate to SoC over Loopback IP
 
 #### Background
