@@ -32,8 +32,8 @@ To avoid StaticRouteTimer deleting BfdRouteMgr created static route entry in app
 ## DB changes
  
 Two optional fields are introduced to STATIC_ROUTE_TABLE: <br>
-1. "bfd"
-2. "refreshable"
+1. "bfd" -- Default value is false when this field is not configured
+2. "refreshable" -- Default value is true when this field is not configured
 
 StaticRouteMgr(config_db) and BfdRouteMgr check "bfd" field in config_db STATIC_ROUTE_TABLE.<br>
 BfdRouteMgr sets "refreshable"="false" in appl_db STATIC_ROUTE_TABLE. 
@@ -190,3 +190,95 @@ A few examples for the cases that adding/deleting static route, and also differe
 <img src="static_rt_bfd_example5.png" width="400">
 <br>
 <br>
+
+# Tests
+Description:<br>
+* 1\. Plan to use a single testbed to test the BfdRouteMgr.
+    * 1.1 using 'show bfd peer' cnd to check BFD session
+    * 1.2 test script update state_db BFD_SESSION_TABLE directly without peer BFD session from remote system, then check the static route in local system. 
+* 2\. Because that there are design changes in StaticRouteMgr and StaticRouteTimer, need to run regression test (without "bfd" field configured, and "bfd"="false" configured)decribled in the following documents. 
+    * 2.1 https://github.com/sonic-net/SONiC/blob/master/doc/static-route/SONiC_static_route_hdl.md#4-unit-test-and-automation
+    * 2.2 https://github.com/sonic-net/SONiC/blob/master/doc/static-route/SONiC_static_route_expiration_hdl.md#tests
+* 3\. for the BfdRouteMgr, use 2 routes for the following tests
+    * 3.1 static route A: has 3 nexthops -- nh_1, nh_2 and nh_3 (the address depends on test setup) in its configuration
+    * 3.2 static route B: has 1 nexthop -- nh_2 (same in static route A, to test nexthop overlap among static routes, for BFD session creation and BFD state update)
+<br>
+<br>
+
+## non-retart testing (testcase without application restart/crash)
+<br>
+### 1, Test static route config with "bfd"="true" 
+
+| Step              | Goal                              | Expected Outcome    |
+|---------------------------|---------------------------------------|------|
+| config static route A with "bfd"="true" | Verify bfd session creation.  | 1, bfd sessions are created <br> 2,this static route is not installed to the system because current BFD session state should be DOWN.  |
+| change one BFD session state to UP state for nh_1 in state_db | verify bfd state change handling | static route A (with 1 nexthop nh_1) should be installed to the system |
+| Wait for expiration period| Verify StaticRouteTimer skip BfdRouteMgr created route | static route A is NOT deleted from the system |
+| change one BFD session state to UP state for nh_2 in state_db | verify bfd state change handling | static route A (with nexthop nh_1 and nh_2) should be installed to the system |
+| change one BFD session state to UP state for nh_3 in state_db | verify bfd state change handling | static route A (with nexthop nh_1,nh_2 and nh_3) should be installed to the system |
+| Wait for expiration period| Verify StaticRouteTimer skip BfdRouteMgr created route | static route A is NOT deleted from the system |
+<br>
+
+### 2, Test static route config update with "bfd"="true" 
+
+| Step              | Goal                              | Expected Outcome    |
+|---------------------------|---------------------------------------|------|
+| from test #1, reconfig static route A with 2 nexthops nh_1 and nh_2 and "bfd"="true" | Verify static route reconfig with bfd | 1, bfd sessions for nh_3 is removed <br> 2,static route A is updated to the system with 2 nexthop nh_1 and nh_2  |
+<br>
+
+### 3, Test static route ("bfd"="true") removed from config 
+
+| Step              | Goal                              | Expected Outcome    |
+|---------------------------|---------------------------------------|------|
+| from test #2, remove static route A from config | Verify static route with bfd uninstallation | 1, bfd sessions for nh_1 and nh_2 are removed <br> 2,static route A is uninstalled from the system  |
+<br>
+
+### 4, Test 2 static routes ("bfd"="true") share same nexthop 
+
+| Step              | Goal                              | Expected Outcome    |
+|---------------------------|---------------------------------------|------|
+| config static route A with 3 nexthops and "bfd"="true", <br>change BFD sessions state to UP for all the nexthops | install static route A | static route A is installed to the system  |
+|config static route B with nh_2 and "bfd"="true"|verify shared nexthop|static route B is installed to the system, <br>because the BFD session for nh_2 was changed to UP in the above step |
+<br>
+
+### 5, Test BFD session DOWN causing static route updated/removed 
+
+| Step              | Goal                              | Expected Outcome    |
+|---------------------------|---------------------------------------|------|
+|from above test #4, 2 static routes (sharing nh_2) were installed|pre-install route A and route B||
+| change BFD session state for nh_2 to DOWN in state_db | verify BFD session state handling | 1, nh_2 is removed from satic route A in the system.<br>2, static route B is uninstalled from the system because it has no nexthop in its nexthop list  |
+<br>
+
+### 6, Test BFD session UP causing static route updated/reinstalled 
+
+| Step              | Goal                              | Expected Outcome    |
+|---------------------------|---------------------------------------|------|
+|from above test #5, bfd session for nh_2 is DOWN ||
+| change BFD session state for nh_2 to UP in state_db | verify BFD session state handling | 1, nh_2 is added back to satic route A in the system.<br>2, static route B is reinstalled to the system because nh_2 is active now  |
+|remove static route A and B|clear static route for next tests|1, route A and B are removed.<br>2, BFD sessions for the nexthops are removed|
+<br>
+
+## BfdRouteMgr retart/crash testing (crash/restart BfdRouteMgr process)
+<br>
+Verify BfdRouteMgr restore information from redis DB and rebuild its internal data struct and continue to handle config or state change.
+
+### 7, Restart BfdRouteMgr between static route config and BFD state update 
+
+| Step              | Goal                              | Expected Outcome    |
+|---------------------------|---------------------------------------|------|
+|configure static route A with "bfd"="true"  |verify bfd session creation| 3 bfd sessions for nh_1/nh_2/nh_3 are created|
+|kill and restart BfdRouteMgr process|verify BfdRouteMgr restart||
+|update BFD session state to UP for nh_1/nh_2/nh_3|veify bfd state handling after restart|static route A (with nh_1/nh_2/nh_3) is installed to the system|
+<br>
+
+### 8, Restart BfdRouteMgr between static route adding/deleting 
+
+| Step              | Goal                              | Expected Outcome    |
+|---------------------------|---------------------------------------|------|
+|install static route A (result from the above step #7)  |install route A| route A with nh_1/nh_2/nh_3 are installed|
+|kill and restart BfdRouteMgr process|verify BfdRouteMgr restart||
+|update BFD session state to UP for nh_1/nh_2/nh_3|veify bfd state handling after restart|static route A (with nh_1/nh_2/nh_3) is installed to the system|
+|config static route B with "bfd"="true"|verify internal table recovery after restart|route B is installed because BFD session for nh_2 is up before BfdRouteMgr is UP|
+|kill and restart BfdRouteMgr process|verify BfdRouteMgr restart||
+|remove static route A from config|verify internal table recovery after restart|1,route A should be uninstalled from the system<br>2,BFD sessions for nh_1 and nh_3 are removed<br>3, BFD session for nh_2 keep unchanged because route B still need it|
+||||
