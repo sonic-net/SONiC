@@ -766,7 +766,7 @@ New automation required
 
 # Automation Design
 
-This section outlines the design of scripts automating the SONiC platform test cases. The new pytest-ansible framework will be used. Sample code can be found [here](https://github.com/Azure/sonic-mgmt/tree/master/tests).
+This section outlines the design of scripts automating the SONiC platform test cases. The new pytest-ansible framework will be used. Sample code can be found [here](https://github.com/sonic-net/sonic-mgmt/tree/master/tests).
 
 ## Folder Structure and Script Files
 The pytest framwork supports flexible test discovery. The plan is to put all platform related scripts under `tests/platform`. Command like `pytest tests/platform` would be able to discover all `test_*.py` and `*_test.py` under `tests/platform`. No entry script is required.
