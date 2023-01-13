@@ -71,7 +71,7 @@ When a new static route is added to config_db STATIC_ROUTE_TABLE, the following 
             1. if the is no prefix in that nexthop entry, delete the corresponding BFD sessions (from redis appl_db and state_db) and delete that nexhop entry 
 
 ## Deleting static route flow
-* 1\. BfdRouteMgr is notified and gets the prefix. Skip this route if there is no "bfd" field or "bfd"="false".
+* 1\. BfdRouteMgr is notified and gets the prefix.
 * 2\. BfdRouteMgr check TABLE_CONFIG to see if the route is already in this table
     * If the route is NOT in the table, done (should not happen)
     * If the route is in the table, For each nexthop in the static route entry:
