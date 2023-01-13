@@ -205,9 +205,9 @@ Description:<br>
 <br>
 <br>
 
-## non-retart testing (testcase without application restart/crash)
+## Non-restart Testing (testcase without application restart/crash)
 <br>
-### 1, Test static route config with "bfd"="true" 
+### 1. Test static route config with "bfd"="true" 
 
 | Step              | Goal                              | Expected Outcome    |
 |---------------------------|---------------------------------------|------|
@@ -219,21 +219,21 @@ Description:<br>
 | Wait for expiration period| Verify StaticRouteTimer skip BfdRouteMgr created route | static route A is NOT deleted from the system |
 <br>
 
-### 2, Test static route config update with "bfd"="true" 
+### 2. Test static route config update with "bfd"="true" 
 
 | Step              | Goal                              | Expected Outcome    |
 |---------------------------|---------------------------------------|------|
 | from test #1, reconfig static route A with 2 nexthops nh_1 and nh_2 and "bfd"="true" | Verify static route reconfig with bfd | 1, bfd sessions for nh_3 is removed <br> 2,static route A is updated to the system with 2 nexthop nh_1 and nh_2  |
 <br>
 
-### 3, Test static route ("bfd"="true") removed from config 
+### 3. Test static route ("bfd"="true") removed from config 
 
 | Step              | Goal                              | Expected Outcome    |
 |---------------------------|---------------------------------------|------|
 | from test #2, remove static route A from config | Verify static route with bfd uninstallation | 1, bfd sessions for nh_1 and nh_2 are removed <br> 2,static route A is uninstalled from the system  |
 <br>
 
-### 4, Test 2 static routes ("bfd"="true") share same nexthop 
+### 4. Test 2 static routes ("bfd"="true") share same nexthop 
 
 | Step              | Goal                              | Expected Outcome    |
 |---------------------------|---------------------------------------|------|
@@ -241,7 +241,7 @@ Description:<br>
 |config static route B with nh_2 and "bfd"="true"|verify shared nexthop|static route B is installed to the system, <br>because the BFD session for nh_2 was changed to UP in the above step |
 <br>
 
-### 5, Test BFD session DOWN causing static route updated/removed 
+### 5. Test BFD session DOWN causing static route updated/removed 
 
 | Step              | Goal                              | Expected Outcome    |
 |---------------------------|---------------------------------------|------|
@@ -249,7 +249,7 @@ Description:<br>
 | change BFD session state for nh_2 to DOWN in state_db | verify BFD session state handling | 1, nh_2 is removed from satic route A in the system.<br>2, static route B is uninstalled from the system because it has no nexthop in its nexthop list  |
 <br>
 
-### 6, Test BFD session UP causing static route updated/reinstalled 
+### 6. Test BFD session UP causing static route updated/reinstalled 
 
 | Step              | Goal                              | Expected Outcome    |
 |---------------------------|---------------------------------------|------|
@@ -262,7 +262,7 @@ Description:<br>
 <br>
 Verify BfdRouteMgr restore information from redis DB and rebuild its internal data struct and continue to handle config or state change.
 
-### 7, Restart BfdRouteMgr between static route config and BFD state update 
+### 7. Restart BfdRouteMgr between static route config and BFD state update 
 
 | Step              | Goal                              | Expected Outcome    |
 |---------------------------|---------------------------------------|------|
@@ -271,7 +271,7 @@ Verify BfdRouteMgr restore information from redis DB and rebuild its internal da
 |update BFD session state to UP for nh_1/nh_2/nh_3|veify bfd state handling after restart|static route A (with nh_1/nh_2/nh_3) is installed to the system|
 <br>
 
-### 8, Restart BfdRouteMgr between static route adding/deleting 
+### 8. Restart BfdRouteMgr between static route adding/deleting 
 
 | Step              | Goal                              | Expected Outcome    |
 |---------------------------|---------------------------------------|------|
