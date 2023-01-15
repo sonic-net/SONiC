@@ -1,31 +1,62 @@
-# HLD Name #
+# Clock Managment Design #
 
 ## Table of Content 
 
-### Revision  
 
-### Scope  
+* 1. [Table of Content](#TableofContent)
+	* 1.1. [Revision](#Revision)
+	* 1.2. [Scope](#Scope)
+	* 1.3. [Definitions/Abbreviations](#DefinitionsAbbreviations)
+	* 1.4. [Overview](#Overview)
+	* 1.5. [Requirements](#Requirements)
+		* 1.5.1. [Functional requirements](#FunctionalRequirements)
+		* 1.5.2. [Configuration and Management Requirements](#ConfigurationManagementRequirements) 
+* 2. [Design](#Design)
+	* 2.1. [High-Level Design](#High-LevelDesign)
+* 3. [Functionality](#Functionality)
+		* 3.1. [Reset-Factory](#Reset-Factory)
+		* 3.2. [Config-setup Factory](#Config-setup-Factory) 
+* 4. [CLI](#CLI)
+* 5. [Restrictions/Limitations](#RestrictionsLimitations)
+* 6. [Test Plan](#TestPlan)
+		* 6.1. [Unit Test cases](#UnitTestcases)
 
-This section describes the scope of this high-level design document in SONiC.
 
-### Definitions/Abbreviations 
+### 1.1 Revision  
 
-This section covers the abbreviation if any, used in this high-level design document and its definitions.
+|  Rev  |  Date   |      Author      | Change Description |
+| :---: | :-----: | :--------------: | ------------------ |
+|  0.1  | 01/2023 | Meir Renford	 | Phase 1 Design     |
 
-### Overview 
+### 1.2 Scope  
 
-The purpose of this section is to give an overview of high-level design document and its architecture implementation in SONiC. 
+This document will address the high level design for NVOS clock commands:
+1.	Set/show date-time command
+2.	Set/show timezone command
 
-### Requirements
 
-This section list out all the requirements for the HLD coverage and exemptions (not supported) if any for this design.
+### 1.3 Definitions/Abbreviations 
+
+N/A
+
+### 1.4 Overview 
+
+The clock commands allow to set and review the current time parameters of the system - including: time, date and timezone. 
+
+### 1.5 Requirements
+####  1.5.1. <a name='FunctionalRequirements'></a>Functional requirements
+
+1. Any time configuration that will change in the system will change the system time. 
+
+####  1.5.2. <a name='ConfigurationManagementRequirements'></a>Configuration and Management Requirements
+The requirements from the module are: 
+1.	Set and show the system time and date.
+2.	Set and show the system timezone.
+
 
 ### Architecture Design 
 
-This section covers the changes that are required in the SONiC architecture. In general, it is expected that the current architecture is not changed.
-This section should explain how the new feature/enhancement (module/sub-module) fits in the existing architecture. 
-
-If this feature is a SONiC Application Extension mention which changes (if any) needed in the Application Extension infrastructure to support new feature.
+N/A
 
 ### High-Level Design 
 
