@@ -155,16 +155,16 @@ root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
 
 ###  4.1 <a name='UnitTestcases'></a>Unit Test cases
 
-1. Good flows:
-	a. set timezone
-	b. set date
-	c. set time
-	d. set date & time
-	e. check reboot / upgrade
+1. Good flows:<br>
+	a. set timezone<br>
+	b. set date<br>
+	c. set time<br>
+	d. set date & time<br>
+	e. check reboot / upgrade<br>
 
-2. Bad flows:
-	a. set invalid timezone
-	b. set empty string
-	c. set invalid date format
-	d. set invalid time format
-	e. set invalide date/time format
+2. Bad flows:<br>
+	a. set invalid timezone<br>
+	b. set empty string<br>
+	c. set invalid date format<br>
+	d. set invalid time format<br>
+	e. set invalide date/time format<br>
