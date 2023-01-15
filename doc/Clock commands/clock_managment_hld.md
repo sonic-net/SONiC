@@ -28,7 +28,7 @@
 | :---: | :-----: | :--------------: | ------------------ |
 |  0.1  | 01/2023 | Meir Renford	 | Phase 1 Design     |
 
-### 1.2 Scope  
+###  1.2. <a name='Scope'></a>Scope
 
 This document will address the high level design for NVOS clock commands:
 1.	Set/show date-time command
