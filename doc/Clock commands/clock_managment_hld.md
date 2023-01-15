@@ -13,13 +13,13 @@
 		* 1.5.2. [Configuration and Management Requirements](#ConfigurationManagementRequirements) 
 * 2. [Design](#Design)
 	* 2.1. [High-Level Design](#High-LevelDesign)
-* 3. [Functionality](#Functionality)
-		* 3.1. [Reset-Factory](#Reset-Factory)
-		* 3.2. [Config-setup Factory](#Config-setup-Factory) 
-* 4. [CLI](#CLI)
-* 5. [Restrictions/Limitations](#RestrictionsLimitations)
-* 6. [Test Plan](#TestPlan)
-		* 6.1. [Unit Test cases](#UnitTestcases)
+* 3. [Configuration and management](#Configurationandmanagement)
+	* 3.1. [ConfigDB Tables](#ConfigDBTables)
+	* 3.2. [CLI/YANG model](#CLIYANGmodel)
+		* 3.2.1. [Yang model](#Yangmodel)
+		* 3.2.2. [CLI](#Climodel)
+* 4. [Test Plan](#TestPlan)
+		* 4.1. [Unit Test cases](#UnitTestcases)
 
 
 ### 1.1 <a name='Revision'></a>Revision
@@ -54,70 +54,117 @@ The requirements from the module are:
 2.	Set and show the system timezone.
 
 
-### Architecture Design 
+##  2 <a name='Design'></a>Design
 
-N/A
+###  2.1 <a name='High-LevelDesign'></a>High-Level Design
 
-### High-Level Design 
+The design of this feature is based on Linux command of <b>timedatectl</b>.<BR>
+(man page for timedatectl: https://man7.org/linux/man-pages/man1/timedatectl.1.html)
 
-This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
-		
-	- Is it a built-in SONiC feature or a SONiC Application Extension?
-	- What are the modules and sub-modules that are modified for this design?
-	- What are the repositories that would be changed?
-	- Module/sub-module interfaces and dependencies. 
-	- SWSS and Syncd changes in detail
-	- DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB)
-	- Sequence diagram if required.
-	- Linux dependencies and interface
-	- Warm reboot requirements/dependencies
-	- Fastboot requirements/dependencies
-	- Scalability and performance requirements/impact
-	- Memory requirements
-	- Docker dependency
-	- Build dependency if any
-	- Management interfaces - SNMP, CLI, RestAPI, etc.,
-	- Serviceability and Debug (logging, counters, trace etc) related design
-	- Is this change specific to any platform? Are there dependencies for platforms to implement anything to make this feature work? If yes, explain in detail and inform community in advance.
-	- SAI API requirements, CLI requirements, ConfigDB requirements. Design is covered in following sections.
+All set operations are based on this command, executing directly in linux upon user CLI execution.
+The time/date/timezone are configured directly to Linux, and is persistent upon any reboot.
 
-### SAI API 
+System state of time/date/timezone will appear in 1 line as an output of existing "show clock" command.
 
-This section covers the changes made or new API added in SAI API for implementing this feature. If there is no change in SAI API for HLD feature, it should be explicitly mentioned in this section.
-This section should list the SAI APIs/objects used by the design so that silicon vendors can implement the required support in their SAI. Note that the SAI requirements should be discussed with SAI community during the design phase and ensure the required SAI support is implemented along with the feature/enhancement.
+Set operations will be divided into 2 different commands:
 
-### Configuration and management 
-This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
+1. config clock set-timezone <timezone> (to set timezone command)
+	* will get single input as a string, and validate it is valid as part of ("timedatectl list-timezones" command).
+	* Value will be stored in db for future upgrade operations.
+	  Value is persistent upcon reboot.
+	* Linux timedatectl with set-timezone flag will be called.
+	  e.g. timedatectl set-timezone "Asia/Kolkata"
 
-#### Manifest (if the feature is an Application Extension)
 
-Paste a preliminary manifest in a JSON format.
+2. config clock set-date "<YYYY-MM-DD HH:MM:SS>" (to set time and date)
+	* Command will recieve single string with date-time format "<YYYY-MM-DD HH:MM:SS>"
+	* It will be possible to call command with the following options:
+		1.	Only with a date <YYYY-MM-DD>
+		2. 	Only with time <HH:MM:SS>
+		3.  both date and time "<YYYY-MM-DD HH:MM:SS>"
+	* Command does not need to be stored in DB.
+	* Linux timedatectl with set-time flag will be called.
+	  e.g. timedatectl set-time "2012-10-30 18:17:16"
 
-#### CLI/YANG model Enhancements 
 
-This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. 
-This should also explain the CLICK and/or KLISH related configuration/show in detail.
-https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md needs be updated with the corresponding CLI change.
+Both set commands will be written directly to Linux (via imedatectl command), and will be activated immediately.
 
-#### Config DB Enhancements  
 
-This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change. 
-		
-### Warmboot and Fastboot Design Impact  
-Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
 
-### Restrictions/Limitations  
+##  3 <a name='Configurationandmanagement'></a>Configuration and management
 
-### Testing Requirements/Design  
-Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
-Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
-Example sub-sections for unit test cases and system test cases are given below. 
+###  3.1 <a name='ConfigDBTables'></a>ConfigDB Tables
 
-#### Unit Test cases  
+Only timezone configuration will be saved.
+Additional field will be added to DEVICE_METADATA table
 
-#### System Test cases
+```
+DEVICE_METADATA :{
+    "timezone": {{string}}
+}
+```
 
-### Open/Action items - if any 
+default value: "Etc/UTC"
 
-	
-NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
+
+###  3.2 <a name='CLIYANGmodel'></a>CLI/YANG model
+
+####  3.2.1. <a name='Yangmodel'></a>Yang model
+
+
+Adding to existing Yang model of device_metadata (https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang)
+
+```
+    container sonic-device_metadata {
+
+        container DEVICE_METADATA {
+
+            description "DEVICE_METADATA part of config_db.json";
+
+            container localhost{
+			...
+				leaf timezone {
+					type string;
+				}
+```
+
+####  3.2.2. <a name='Climodel'></a>CLI
+
+##### Show CLI
+
+```
+root@host:~$ show clock 
+Sun 15 Jan 2023 06:12:08 PM IST
+
+```
+
+##### Config CLI
+
+```
+root@host:~$ config clock set-timezone "<timezone>"
+
+```
+
+```
+root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
+
+```
+
+
+##  4 <a name='TestPlan'></a>Test Plan
+
+###  4.1 <a name='UnitTestcases'></a>Unit Test cases
+
+1. Good flows:
+	a. set timezone
+	b. set date
+	c. set time
+	d. set date & time
+	e. check reboot / upgrade
+
+2. Bad flows:
+	a. set invalid timezone
+	b. set empty string
+	c. set invalid date format
+	d. set invalid time format
+	e. set invalide date/time format
