@@ -71,7 +71,7 @@
 | Rev | Date       | Author         | Description           |
 |:---:|:----------:|:--------------:|:----------------------|
 | 0.1 | 18/04/2022 | Nazarii Hnydyn | Initial version       |
-| 0.2 | 08/01/2022 | Ido Avraham    | extend capabilities   |
+| 0.2 | 08/01/2023 | Ido Avraham    | extend capabilities   |
 
 ## 1.4. About this manual
 
@@ -591,6 +591,11 @@ redis-cli -n 4 HGETALL 'SYSLOG_SERVER|5.5.5.5'
             "vrf": "default",
             "protocol": "tcp",
         },
+    },
+    "SYSLOG_CONFIG": {
+        "format": "welf",
+        "trap": "info",
+        "welf_firewall_name": "my_hostname"
     }
 }
 ```
