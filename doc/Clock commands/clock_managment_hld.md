@@ -70,10 +70,12 @@ Set operations will be divided into 2 different commands:
 
 1. config clock set-timezone <timezone> (to set timezone command)
 	* will get single input as a string, and validate it is valid as part of ("timedatectl list-timezones" command).
+	Validation will be done either by YANG model, or (if not possible) by issueing relevant error to log.
 	* Value will be stored in db for future upgrade operations.
 	  Value is persistent upcon reboot.
 	* Linux timedatectl with set-timezone flag will be called.
 	  e.g. timedatectl set-timezone "Asia/Kolkata"
+	* <b>In case NTP is enabled -> timezone configuration is allowed and overrides the current time.</b>
 
 
 2. config clock set-date "<YYYY-MM-DD HH:MM:SS>" (to set time and date)
@@ -85,6 +87,7 @@ Set operations will be divided into 2 different commands:
 	* Command does not need to be stored in DB.
 	* Linux timedatectl with set-time flag will be called.
 	  e.g. timedatectl set-time "2012-10-30 18:17:16"
+	* <b>In case NTP is enabled -> time/date set is NOT allowed and being blocked</b>
 
 
 Both set commands will be written directly to Linux (via imedatectl command), and will be activated immediately.
@@ -161,6 +164,7 @@ root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
 	c. set time<br>
 	d. set date & time<br>
 	e. check reboot / upgrade<br>
+	
 
 2. Bad flows:<br>
 	a. set invalid timezone<br>
@@ -168,3 +172,9 @@ root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
 	c. set invalid date format<br>
 	d. set invalid time format<br>
 	e. set invalide date/time format<br>
+
+3. NTP interop
+	a. Change time/date, followed by changing NTP - and see time changed.<br>
+	b. try to change time/date in case NTP is enabled -> and expect getting a failure.
+	c. Change timezone in case NTP is enabled, and expect to succeed and change relevant time.
+
