@@ -72,7 +72,7 @@ Set operations will be divided into 2 different commands:
 	* will get single input as a string, and validate it is valid as part of ("timedatectl list-timezones" command).
 	Validation will be done either by YANG model, or (if not possible) by issueing relevant error to log.
 	* Value will be stored in db for future upgrade operations.
-	  Value is persistent upcon reboot.
+	  Value is persistent upon reboot.
 	* Linux timedatectl with set-timezone flag will be called.
 	  e.g. timedatectl set-timezone "Asia/Kolkata"
 	* <b>In case NTP is enabled -> timezone configuration is allowed and overrides the current time.</b>
@@ -173,8 +173,8 @@ root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
 	d. set invalid time format<br>
 	e. set invalide date/time format<br>
 
-3. NTP interop
+3. NTP interop<br>
 	a. Change time/date, followed by changing NTP - and see time changed.<br>
-	b. try to change time/date in case NTP is enabled -> and expect getting a failure.
-	c. Change timezone in case NTP is enabled, and expect to succeed and change relevant time.
+	b. try to change time/date in case NTP is enabled -> and expect getting a failure.<br>
+	c. Change timezone in case NTP is enabled, and expect to succeed and change relevant time.<br>
 
