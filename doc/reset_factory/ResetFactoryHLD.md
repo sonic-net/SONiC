@@ -150,7 +150,7 @@ The list of tables we will be stored in config-setup.conf:<br/>
 KEEP_BASIC_TABLES=MGMT_PORT,MGMT_INTERFACE,PASSW_HARDENING
 ```
 
-We will extend this list with th following tables after the merge of features:
+We will extend this list with the following tables after the merge of features:
 ```
 SSH_SERVER,USER_TABLE ,ROLE_TABLE
 ```
