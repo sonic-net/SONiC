@@ -17,8 +17,9 @@
 		* 3.1. [Reset-Factory](#Reset-Factory)
 		* 3.2. [Config-setup Factory](#Config-setup-Factory) 
 * 4. [CLI](#CLI)
-* 5. [Test Plan](#TestPlan)
-		* 5.1. [Cases](#Cases)
+* 5. [Error flow](#ErrorFlow)
+* 6. [Test Plan](#TestPlan)
+		* 6.1. [Cases](#Cases)
 
 
 
@@ -125,7 +126,7 @@ It will generate the default config_db.json file by running command:<br/>
 config-setup factory only-config<br/>
 It won't clear system logs and files.
 
-###  3.2 <a name='Config-SetupFactory'></a>Config-setup Factory
+###  3.2 <a name='Config-Setup-Factory'></a>Config-setup Factory
 
 config-setup script provides the functionality of creating factory default configuration on demand.<br/>
 Currently it generates new config_db.json file using:<br/>
@@ -145,10 +146,14 @@ The file will be imported in the script and it will store variables and configur
 
 It will generate the default config_db.json merged with basic configurations from the current “config_db.json”<br/>
 The list of tables we will be stored in config-setup.conf:<br/>
-KEEP_BASIC_TABLES=MGMT_PORT,MGMT_INTERFACE,PASSW_HARDENING<br/>
+```
+KEEP_BASIC_TABLES=MGMT_PORT,MGMT_INTERFACE,PASSW_HARDENING
+```
 
 We will extend this list with th following tables after the merge of features:
-SSH_SERVER, USER_TABLE , ROLE_TABLE<br/>
+```
+SSH_SERVER,USER_TABLE ,ROLE_TABLE
+```
 
 
 ## 4 <a name='CLI'></a>CLI
@@ -182,9 +187,14 @@ root@host:~$ sudo config-setup factory --help
 ==============================================================================
 ```
 
+###  5 <a name='ErrorFlow'></a>Error flow
+  The script will keep a temporary copy of "config_db.json".<br/>
+  In the event that the script has been interrupted or terminated:<br/>
+    - it will restore "config_db.json".<br/>
+    - it will reboot the system if "sonic.target" already stopped.
 
-###  5 <a name='TestPlan'></a>Test Plan
-####  5.1 <a name='Cases'></a>Cases
+###  6 <a name='TestPlan'></a>Test Plan
+####  6.1 <a name='Cases'></a>Cases
 ###### Good flow
   - Run reset-factory without parameters
   - Run reset-factory with keep-all-config/only-config/keep-basic
