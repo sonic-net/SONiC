@@ -17,9 +17,8 @@
 		* 3.1. [Reset-Factory](#Reset-Factory)
 		* 3.2. [Config-setup Factory](#Config-setup-Factory) 
 * 4. [CLI](#CLI)
-* 5. [Restrictions/Limitations](#RestrictionsLimitations)
-* 6. [Test Plan](#TestPlan)
-		* 6.1. [Unit Test cases](#UnitTestcases)
+* 5. [Test Plan](#TestPlan)
+		* 5.1. [Cases](#Cases)
 
 
 
@@ -45,7 +44,7 @@ A factory reset is a process that restores the switch to its original manufactur
 ####  1.5.1. <a name='FunctionalRequirements'></a>Functional requirements
 1. It should support resetting configuration to factory default settings.
 
-2. It should clear logs and tech-support files, users history files and home directories.
+2. It should clear logs, tech-support and reboot-cause files, users history files and home directories.
 
 3. It should reboot the system to load and apply the new configuration.
 
@@ -60,7 +59,7 @@ We will create a command line tool /usr/bin/reset-factory which should provide f
 
 1. default: reset configurations to factory default, clear all system logs and files.
 
-2. keep-basic: preserves basic configurations only after boot. Logs and files will be deleted.
+2. keep-basic: preserves basic configurations only after boot. Logs and files will be deleted users history files and home directories.
 
 3. keep-all-config: preserves all configurations after boot. Logs and files will be deleted.
 
@@ -75,7 +74,7 @@ We will create a command line tool /usr/bin/reset-factory which should provide f
 (flow description in the chapter below)
 
 "reset-factory" script will create new config_db.json if needed using "config-setup factory" command.<br/>
-In addition, it will clear system logs and files.<br/>
+In addition, it will clear logs, tech-support and reboot-cause files, users history files and home directories.<br/>
 
 Steps:
 
@@ -95,12 +94,13 @@ config-setup factory <None/keep-basic/only-config>
 4. If not "only-config":
 * Delete tech-support files under "/var/dump/"
 * Delete all files under "/var/log"
+* Delete all files and symlinks under "/host/reboot-cause/"
 
 5. Print to /var/log/systemlog:
 New log file that won't be cleared in reset-factory.
 It will allow user to track operations such as "reset-factory".
 
-5. Reboot
+6. Reboot
 
 
 ## 3 <a name='Functionality'></a>Functionality
@@ -113,7 +113,7 @@ It will clear system logs and files.
 
 ##### Keep-basic
 
-It will keep only basic configurations from the current “config_db.json”.<br/>
+It will generate the default config_db.json and merge it with basic configurations from the current “config_db.json”.<br/>
 Command: config-setup factory keep-basic<br/>
 It will clear system logs and files.<br/>
 
@@ -135,19 +135,21 @@ sonic-cfggen -H -k ${HW_KEY} --preset ${DEFAULT_PRESET}
 
 Also, it allows the user to extend/replace the functionality by adding hooks to the config-setup directory.
 
-We will extend config-setup factory to support two new parameters (Keep-basic and Only-config).
-We will pass the parameter to the hook script so user can extend/replace those flows also. 
+We will extend config-setup factory to support new factory type parameter (keep-basic).
+This parameter will be passed to the hook scripts so user can extend/replace those flows also.
+
+We will add a new conf file for config-setup: /etc/config-setup/config-setup.conf.
+The file will be imported in the script and it will store variables and configurations of the script.
 
 ##### Keep-basic
 
-It will filter current “config_db.json” according to a predefined template file:<br/>
-/usr/share/sonic/templates/keep-basic.json.j2<br/>
-It will keep the following tables:<br/>
-DEVICE_METADATA, SSH_SERVER, PASSH, USER_MGMT, ROLE_MGMT, MGMT_PORT, MGMT_INTERFACE<br/>
+It will generate the default config_db.json merged with basic configurations from the current “config_db.json”<br/>
+The list of tables we will be stored in config-setup.conf:<br/>
+KEEP_BASIC_TABLES=MGMT_PORT,MGMT_INTERFACE,PASSW_HARDENING<br/>
 
+We will extend this list with th following tables after the merge of features:
+SSH_SERVER, USER_TABLE , ROLE_TABLE<br/>
 
-##### Only-config
-it will use the same default flow.
 
 ## 4 <a name='CLI'></a>CLI
 
@@ -171,27 +173,23 @@ root@host:~$ sudo reset-factory --help
 ```
 ==============================================================================
 root@host:~$ sudo config-setup factory --help
- Usage:  config-setup factory < only-config | keep-basic >
+ Usage:  config-setup factory < keep-basic >
 
-        Create factory default configuration and save it to
-        to /etc/sonic/config_db.json.
+         Create factory default configuration and save it to
+         to ${CONFIG_DB_JSON}.
 
-        only-config      - Reset configurations to factory default.
-        keep-basic       - Preserves basic configurations.
+         keep-basic  - Preserves basic configurations only.
 ==============================================================================
 ```
 
-###  5 <a name='RestrictionsLimitations'></a>Restrictions/Limitations
-TBD
 
-
-###  6 <a name='TestPlan'></a>Test Plan
-####  6.1 <a name='UnitTestcases'></a>Unit Test cases
+###  5 <a name='TestPlan'></a>Test Plan
+####  5.1 <a name='Cases'></a>Cases
 ###### Good flow
   - Run reset-factory without parameters
   - Run reset-factory with keep-all-config/only-config/keep-basic
   - Run config-setup factory without parameters
-  - Run config-setup factory with only-config/keep-basic
+  - Run config-setup factory with keep-basic
 
 ###### Negative flow
   - reset-factory failure
