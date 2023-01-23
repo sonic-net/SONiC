@@ -1109,7 +1109,7 @@ FPGAPCIe JSON object follows PDDF I2C topology JSON object design concept. FPGAP
 
 ```
 
-![I2C Memory Mapping Diagram](../../images/pcie_i2c_memory_mapping.png "FPGAPCIe I2C Memory Mapping")
+![I2C Memory Mapping Diagram](../../images/platform/pcie_i2c_memory_mapping.png "FPGAPCIe I2C Memory Mapping")
 
 
 Description of the fields inside *dev_attr*
