@@ -152,7 +152,7 @@ KEEP_BASIC_TABLES=MGMT_PORT,MGMT_INTERFACE,PASSW_HARDENING
 
 We will extend this list with the following tables after the merge of features:
 ```
-SSH_SERVER,USER_TABLE ,ROLE_TABLE
+SSH_SERVER,USER_TABLE,ROLE_TABLE
 ```
 
 
