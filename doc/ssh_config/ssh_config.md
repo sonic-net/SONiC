@@ -120,7 +120,7 @@ PORTS                                 = 5*DIGIT                 ; ssh port numbe
 
 ####  1.10.3. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
 ```yang
-//filename:  sonic-SSH_SERVER.yang
+//filename:  sonic-ssh_server.yang
 module sonic-sshg {
     yang-version 1.1;
     namespace "http://github.com/Azure/sonic-SSH_SERVER";
@@ -176,7 +176,7 @@ The ConfigDB will be extended with next objects:
 		"POLICIES":{
 			"authentication_retries": "6",
 			"login_timeout": "120",
-			"ports": "22",
+			"ports": "[22]",
 		}
 	}
 }
