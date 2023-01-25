@@ -50,8 +50,6 @@ A new enum value for SAI_REDIS_SWITCH_ATTR_NOTIFY_SYNCD is defined (SAI_REDIS_NO
 
 Later when techsupport is invoked manually or invoked through auto techsupport, these dumps will be collected and once collected, they will be cleared from /var/log/sai_failure_dump/
 
-The above path will also be part of logrotate script logic inorder to have a check on the dumps not over running the disk space.
-
 The below diagram explains the sequence when a SAI failure happens
 ![](/images/SAI_failure_handling/SAI_failure_dump_sequence.JPG)
 
