@@ -28,6 +28,22 @@ To avoid StaticRouteTimer deleting BfdRouteMgr created static route entry in app
 
 
 <img src="static_rt_bfd_overview.png" width="500">
+<br />
+
+## BFD session local IP address
+BfdRouteMgr create BFD session for each nexthop inside a BFD enabled static route. The BFD peer IP is the nexthop, the BFD local address (source IP address of the BFD packet) is the lookup result using the following method:<br />
+
+1. find the interface name for the nexthop
+2. lookup the config_db, find the IP address of that interface
+3. choose the IP address which has same type of nexthop (IPv4 or IPv6)
+4. If no IP address found, use local loopback IP address, and log a warning message for that. <br /><br />
+
+In the example (assume the "bfd" field is "true"), for the nexthop "20.0.10.3", the corresponding  interface name is PortChannel10.
+From the interface configuration, we can found two IP addresses, an IPv4 address 20.0.10.1 and an IPv6 address 2603:10E2:400:10::1. we choose 20.0.10.1 because the nexthop IP address is IPv4 address. <br /><br />
+
+<img src="static_rt_bfd_cfg.png" width="800">
+<img src="static_rt_bfd_interface.png" width="500">
+<br />
 
 ## DB changes
  
