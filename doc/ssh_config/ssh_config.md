@@ -1,33 +1,33 @@
 # SSH server global config HLD
 ##  1. <a name='TableofContent'></a>Table of Content 
-- [ssh server config HLD](#ssh-server-config-hld)
-	- [1. <a name='TableofContent'></a>Table of Content](#1-table-of-content)
-		- [1.1. <a name='Revision'></a>Revision](#11-revision)
-		- [1.2. <a name='Scope'></a>Scope](#12-scope)
-		- [1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations](#13-definitionsabbreviations)
-		- [1.4. <a name='Overview'></a>Overview](#14-overview)
-		- [1.5. <a name='Requirements'></a>Requirements](#15-requirements)
-		- [1.6. <a name='ArchitectureDesign'></a>Architecture Design](#16-architecture-design)
-			- [1.6.1. <a name='ConfigModules'></a>Configuration modules](#161-configuration-modules)
-		- [1.7. <a name='High-LevelDesign'></a>High-Level Design](#17-high-level-design)
+- [SSH server global config HLD](#ssh-server-global-config-hld)
+	- [1. Table of Content](#1-table-of-content)
+		- [1.1. Revision](#11-revision)
+		- [1.2. Scope](#12-scope)
+		- [1.3. Definitions/Abbreviations](#13-definitionsabbreviations)
+		- [1.4. Overview](#14-overview)
+		- [1.5. Requirements](#15-requirements)
+		- [1.6. Architecture Design](#16-architecture-design)
+			- [1.6.1. Configuration modules](#161-configuration-modules)
+		- [1.7. High-Level Design](#17-high-level-design)
 				- [Flow diagram](#flow-diagram)
-			- [1.7.1 <a name='Flow description'></a>Flow description](#171-flow-description)
-			- [1.7.2 <a name='ssh server policies'></a>ssh server policies](#172-ssh-server-policies)
-		- [1.8. <a name='Init flow'></a>Init flow](#18-init-flow)
-			- [1.8.1. <a name='FeatureDefault'></a>Feature Default](#181-feature-default)
-		- [1.9. <a name='SAI api'></a>SAI api](#19-sai-api)
-		- [1.10. <a name='Configurationandmanagement'></a>Configuration and management](#110-configuration-and-management)
-			- [1.10.1. <a name='SSH_SERVERconfigDBtable'></a>SSH_SERVER configDB table](#1101-ssh_server-configdb-table)
+			- [1.7.1 Flow description](#171-flow-description)
+			- [1.7.2 ssh server policies](#172-ssh-server-policies)
+		- [1.8. Init flow](#18-init-flow)
+			- [1.8.1. Feature Default](#181-feature-default)
+		- [1.9. SAI api](#19-sai-api)
+		- [1.10. Configuration and management](#110-configuration-and-management)
+			- [1.10.1. SSH\_SERVER configDB table](#1101-ssh_server-configdb-table)
 			- [1.10.2. ConfigDB schemas](#1102-configdb-schemas)
-			- [1.10.3. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements](#1103-cliyang-model-enhancements)
-			- [1.10.4. <a name='ConfigDBEnhancements'></a>Config DB Enhancements](#1104-config-db-enhancements)
-			- [1.10.5. <a name='ManifestifthefeatureisanApplicationExtension'></a>Manifest (if the feature is an Application Extension)](#1105-manifest-if-the-feature-is-an-application-extension)
-		- [1.11. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact](#111-warmboot-and-fastboot-design-impact)
-		- [1.12. <a name='RestrictionsLimitations'></a>Restrictions/Limitations](#112-restrictionslimitations)
-		- [1.13. <a name='TestingRequirementsDesign'></a>Testing Requirements/Design](#113-testing-requirementsdesign)
-			- [1.13.1. <a name='UnitTestcases'></a>Unit Test cases](#1131-unit-test-cases)
-			- [1.13.2. <a name='SystemTestcases'></a>System Test cases](#1132-system-test-cases)
-		- [1.14. <a name='OpenActionitems-ifany'></a>Open/Action items - if any](#114-openaction-items---if-any)
+			- [1.10.3. CLI/YANG model Enhancements](#1103-cliyang-model-enhancements)
+			- [1.10.4. Config DB Enhancements](#1104-config-db-enhancements)
+			- [1.10.5. Manifest (if the feature is an Application Extension)](#1105-manifest-if-the-feature-is-an-application-extension)
+		- [1.11. Warmboot and Fastboot Design Impact](#111-warmboot-and-fastboot-design-impact)
+		- [1.12. Restrictions/Limitations](#112-restrictionslimitations)
+		- [1.13. Testing Requirements/Design](#113-testing-requirementsdesign)
+			- [1.13.1. Unit Test cases](#1131-unit-test-cases)
+			- [1.13.2. System Test cases](#1132-system-test-cases)
+		- [1.14. Open/Action items - if any](#114-openaction-items---if-any)
 ###  1.1. <a name='Revision'></a>Revision  
 
 ###  1.2. <a name='Scope'></a>Scope  
@@ -121,21 +121,21 @@ PORTS                                 = 5*DIGIT                 ; ssh port numbe
 ####  1.10.3. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
 ```yang
 //filename:  sonic-ssh_server.yang
-module sonic-sshg {
+module sonic-ssh-server {
     yang-version 1.1;
-    namespace "http://github.com/Azure/sonic-SSH_SERVER";
-	prefix sshg;
+    namespace "http://github.com/Azure/sonic-ssh_server";
+	prefix ssh-server;
 
     description "ssh server CONFIG YANG Module for SONiC OS";
 
-	revision 2022-08-29 {
+	revision 2023-01-26 {
         description
             "First Revision";
     }
 
-    container sonic-SSH_SERVER {
+    container sonic-ssh_server {
 		container SSH_SERVER {
-			description "ssh server CONFIG part of config_db.json";
+			description "SSH SERVER CONFIG part of config_db.json";
 			container POLICIES {
 				leaf authentication_retries {
 					description "number of login attepmts";
@@ -155,7 +155,7 @@ module sonic-sshg {
 					description "ssh port numbers";
 					default "22";
                     type string {
-                        pattern '[0-9]+(,[0-9]+)*' {
+                        pattern '[1-9]\d{0,4}(,[1-9]\d{0,4})*' {
                             error-message "Invalid port numbers value";
                             error-app-tag ssh-server-ports-invalid-value;
                         }
@@ -163,8 +163,8 @@ module sonic-sshg {
 				}
 			}/*container POLICIES */
 		} /* container SSH_SERVER  */
-    }/* container sonic-sshg */
-}/* end of module sonic-sshg */
+    }/* container sonic-ssh-server */
+}/* end of module sonic-ssh-server */
 ```
 ####  1.10.4. <a name='ConfigDBEnhancements'></a>Config DB Enhancements
 
@@ -176,7 +176,7 @@ The ConfigDB will be extended with next objects:
 		"POLICIES":{
 			"authentication_retries": "6",
 			"login_timeout": "120",
-			"ports": "[22]",
+			"ports": "22",
 		}
 	}
 }
