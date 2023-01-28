@@ -16,6 +16,7 @@
         - [SONiC ISIS Global](#sonic-isis-global)
         - [SONiC ISIS Level](#sonic-isis-level)
         - [SONiC ISIS Interface](#sonic-isis-interface)
+        - [SONiC ISIS Authentication Groupings](#sonic-isis-authentication-groupings)
         - [SONiC ISIS Defined Types](#sonic-isis-defined-types)
     - [Testing Requirements/Design](#testing-requirementsdesign)
     - [Open/Action items - if any](#openaction-items---if-any)
@@ -161,7 +162,9 @@ Interface specific ISIS config options.
   "csnp-interval"                    :{{{UINT16}}} (OPTIONAL)
   "psnp-interval"                    :{{{UINT16}}} (OPTIONAL)
   "hello-interval"                   :{{{UINT32}}} (OPTIONAL)
-  "hello-multiplier"                 :{{UINT16}} (OPTIONAL)         
+  "hello-multiplier"                 :{{UINT16}} (OPTIONAL)
+  "authentication-key"               :{{string}}
+  "authentication-type"              :{{"TEXT"/"MD5HMAC"}} (OPTIONAL)
 
 ISIS_INTERFACE|{{instance|ifname}}
 ; Defines schema for ISIS interface configuration attributes
@@ -181,6 +184,9 @@ csnp-interval                      = boolean               ; Complete Sequence N
 psnp-interval                      = boolean               ; Partial Sequence Number PDU (PSNP) generation interval. Range 1..120. Default 2 in seconds
 hello-interval                     = UINT32                ; Hello interval between consecutive hello messages. Range 1..600. Default 3 in seconds
 hello-multiplier                   = UINT16                ; Multiplier for the hello holding time. Range 2..100. Default 10
+authentication-key                 = string                ; Authentication password
+authentication-type                = "TEXT"/"MD5HMAC"      ; Authentication keychain type
+
 
 Tree view
      +--rw ISIS_INTERFACE
@@ -191,7 +197,7 @@ Tree view
      |     +--rw ipv6-routing?                    string
      |     +--rw passive?                         boolean
      |     +--rw hello-padding?                   boolean
-     |     +--rw network-type?                    isis:network-type
+     |     +--rw network-type?                    network-type
      |     +--rw enable-bfd?                      boolean
      |     +--rw bfd-profile?                     string
      |     +--rw metric?                          uint32
@@ -199,6 +205,8 @@ Tree view
      |     +--rw psnp-interval?                   uint16
      |     +--rw hello-interval?                  uint32
      |     +--rw hello-multiplier?                uint16
+     |     +--rw authentication-key?              string
+     |     +--rw authentication-type?             "TEXT"/"MD5HMAC"
 ```
 
 #### YANG Model Enhancements
@@ -540,10 +548,52 @@ ISIS Interface Yang container is sonic-isis.yang.
                     description
                         "Multiplier for the hello holding time.";
                 }
+                
+                uses isis-authentication; 
 
             }  // list ISIS_INTERFACE
 
         } // container ISIS_INTERFACE
+```
+
+#### SONiC ISIS Authentication Groupings
+Authentication leafs used to define isis authentication options. 
+ 
+ 
+``` 
+    grouping isis-authentication { 
+ 
+        leaf authentication-key { 
+            type string { 
+                length "1..254"; 
+            }
+            must "(not((not(../authentication-key)) and ../authentication-type))" {
+                error-message "ISIS authentication-key must only be specified if authentication-type is specified";
+            }
+            description 
+                "Authentication password."; 
+        } 
+ 
+        leaf authentication-type { 
+            type enumeration { 
+                enum "TEXT" { 
+                    value 1; 
+                description 
+                    "Clear-text password type."; 
+                } 
+                enum "MD5HMAC" { 
+                    value 2; 
+                description 
+                    "MD5 password type."; 
+                } 
+            }
+            must "(not((not(../authentication-type)) and ../authentication-key))" {
+                error-message "ISIS authentication-type must only be specified if authentication-key is specified";
+            }
+            description 
+                "This grouping defines keychain configuration type."; 
+        } 
+    }
 ```
 
 ##### SONiC ISIS Defined Types
@@ -606,24 +656,7 @@ Types defined in sonic-isis.yang.
         }
     }
 
-    typedef ip-routing-type {
-        type enumeration {
-            enum "routing-ipv4" {
-                value 0;
-                description
-                    "Enable routing for IS-IS IPv4 traffic.";
-            }
-            enum "routing-ipv6" {
-                value 1;
-                description
-                    "Enable routing for IS-IS IPV6 traffic.";
-            }
-            enum "routing-ipv4-ipv6" {
-                value 2;
-                description
-                    "Enable routing for IS-IS IPv4 and IPV6 traffic.";
-            }
-        }
+
 ```
 
 ### Testing Requirements/Design
