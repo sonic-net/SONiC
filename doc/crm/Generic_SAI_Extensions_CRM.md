@@ -19,7 +19,7 @@ High Level Design for critical resource monitoring (crm) in SONiC for Generic SA
 The scope of the design is to publish CRM counts, for Generic SAI Extension tables, into the COUNTERS-DB. Support for existing generic crm configurations that is applicable to all resources, like polling interval, is in the scope of this document. No additional configuration specific to extension tables resource is in the scope.
 
 ## Requirements <a name="Requirements"></a>
-- Support reporting of free counts
+- Support reporting of used counts
 - Support reporting of available counts
 - Support default watermark checks
 
