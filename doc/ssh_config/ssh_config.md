@@ -176,7 +176,7 @@ The ConfigDB will be extended with next objects:
 		"POLICIES":{
 			"authentication_retries": "6",
 			"login_timeout": "120",
-			"ports": "22",
+			"ports": "[22]",
 		}
 	}
 }
