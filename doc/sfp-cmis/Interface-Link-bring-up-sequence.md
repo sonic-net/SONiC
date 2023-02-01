@@ -33,7 +33,8 @@ Deterministic Approach for Interface Link bring-up sequence
 | 0.6 | 02/02/2022  | Shyam Kumar                        | Added feature-enablement workflow 
 | 0.7 | 02/02/2022  | Jaganathan Anbalagan               | Added Breakout Handling 
 | 0.8 | 02/16/2022  | Shyam Kumar                        | Updated feature-enablement workflow
-| 0.9 | 04/05/2022  | Shyam Kumar                        | Addressed review comments           |
+| 0.9 | 04/05/2022  | Shyam Kumar                        | Addressed review comments           
+| 1.0 | 01/31/2023  | Shyam Kumar                        | Added flow seq for SFF optics  |
 
 
 # About this Manual
@@ -183,6 +184,19 @@ Note: This feature flag (skip_xcvrd_cmis_mgr) was added as a flexibility in case
 if transceiver is not present:
  - All the workflows mentioned above will reamin same ( or get exercised) till host_tx_ready field update
  - xcvrd will not perform any action on receiving host_tx_ready field update 
+
+# SFF compliant transceiver initialization
+1. Add new flag 'skip_non_cmis_mgr' and platform/hwsku to set this appropriately indicating whether it's supporting determinstic link bring-up sequence (per this document) or not. Default to be set to true for SFF (i.e. non-CMIS) compliant transeivers
+2. xcvrd to do the following as part of its main thread (for initialization/boot-up/restart scenarios)
+   - Spawn a new worker thread SFFManagerTask() to handle SFF (aka non-CMIS) transceivers (optical modules)
+     - Determine if the detected transceiver is SFF-compliant, is non-CU and 'skip_non_cmis_mgr' is set as 'false', explicitly pull host_tx_ready flag/field state from STATE redisDB
+       - If host_tx_Ready is false, invoke xcvrAPisetLaserDisable()
+       - if host_tx_Ready is true, invoke xcvrAPisetLaserEnable()
+3. xcvrd to do the following as part of its SfpStateUpdateTask() thread (which handles transceiver Insertion event)
+   - In this case, host_tx_ready would have (already) been set during board boot up, and the optics is inserted at a later point (when system is already up and running). Do not disable laser if the host_tx_ready is set when discovering/identifying the optics
+   - Port_add event in xcvrd to check for "if transceiver is SFF (non-CMIS), is non-CU, and is skip_non_cmis_mgr is set to 'false'"
+   - Port_add event in xcvrd to check for host_tx_ready status and disable if the status is false, else if the host_tx_ready status is true, then no action
+
 
 
 # Out of Scope 
