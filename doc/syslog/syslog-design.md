@@ -32,7 +32,7 @@
       - [2.3.4.2. VRF/Source: `unset/set`](#2342-vrfsource-unsetset)
       - [2.3.4.3. VRF/Source: `set/unset`](#2343-vrfsource-setunset)
       - [2.3.4.4. VRF/Source: `set/set`](#2344-vrfsource-setset)
-      - [2.3.4.5. Filter/Trap: `set/set`](#2345-filtertrap-setset)
+      - [2.3.4.5. Filter/Severity: `set/set`](#2345-filterseverity-setset)
       - [2.3.4.6. Protocol: `set`](#2346-protocol-set)
   - [2.4. DB schema](#24-db-schema)
     - [2.4.1. Config DB](#241-config-db)
@@ -63,7 +63,7 @@
 | Rev | Date       | Author         | Description           |
 |:---:|:----------:|:--------------:|:----------------------|
 | 0.1 | 18/04/2022 | Nazarii Hnydyn | Initial version       |
-| 0.2 | 08/01/2023 | Ido Avraham    | Added syslog configuration capabilities. </br> Configure remote syslog servers: protocol, filter, trap severity level. </br> Update global syslog configuration: trap severity kevel, message format |
+| 0.2 | 08/01/2023 | Ido Avraham    | Added syslog configuration capabilities. </br> Configure remote syslog servers: protocol, filter, log severity level. </br> Update global syslog configuration: log severity level, message format |
 
 ## About this manual
 
@@ -179,7 +179,7 @@ SSIP will reuse syslog `omfwd` functionality which offers the next features:
 | Parameter          | Default  | Description                                                                   |
 |:-------------------|:---------|:------------------------------------------------------------------------------|
 | format             | standard | template format                                                               |
-| trap               | notice   | messages with severity equal or grater then this severity will be forwarded   |
+| severity           | notice   | messages with severity equal or grater then this severity will be forwarded   |
 | welf_firewall_name | hostname | firewall name to be used in template, default is system current hostname      |
 
 **MAN page:** [template](
@@ -242,14 +242,14 @@ The `rsyslog-config` service performs the next actions:
 | SONiC                 | Rsyslogd | Config DB Schema                           |
 |:----------------------|:---------|:-------------------------------------------|
 | format                | template | SYSLOG_CONFIG\|GLOBAL\|format              |
-| trap                  | priority | SYSLOG_CONFIG\|GLOBAL\|trap                |
-| welf_firewall_name    | trap     | SYSLOG_CONFIG\|GLOBAL\|welf_firewall_name  |
+| severity              | priority | SYSLOG_CONFIG\|GLOBAL\|severity            |
+| welf_firewall_name    | severity | SYSLOG_CONFIG\|GLOBAL\|welf_firewall_name  |
 
-* trap: this field is a global trap severity. 
+* severity: this field is a global log severity. 
   this will be the default value for all the servers in the system
-  unless overridden by setting the `server.trap` field.
+  unless overridden by setting the `server.severity` field.
   for example you can look at `2.4.3 configuration sample`
-  server "4.4.4.4" does not set `trap` field so it will use this global trap value.
+  server "4.4.4.4" does not set `severity` field so it will use this global severity value.
   server "4.4.4.5" does set it so it will use his local value and not this global value.
   
 
@@ -274,7 +274,7 @@ template(name="WelfFormat" type="string" string="%TIMESTAMP% %HOSTNAME% id=firew
 | protocol      | protocol | SYSLOG_SERVER\|key\|protocol       |
 | filter_type   | ereregex | SYSLOG_SERVER\|key\|filter_type    |
 | filter_regex  | ereregex | SYSLOG_SERVER\|key\|filter_regex   |
-| trap          | priority | SYSLOG_SERVER\|key\|trap           |
+| severity      | priority | SYSLOG_SERVER\|key\|severity       |
 
 ### 2.3.4. SSIP configuration
 
@@ -284,7 +284,7 @@ Each parameter combination requires a dedicated handling approach.
 **Note:**
 1. The destination might be not reachable over the specified `vrf`/`source`: no way to check - user's responsibility
 2. Additional validation is required when MGMT/DATA VRF is removed while reference still exists in syslog configuration
-3. trap will be default rule severity
+3. `severity` field will be default log severity for rules that do not define it.
 
 #### 2.3.4.1. VRF/Source: `unset/unset`
 
@@ -367,7 +367,7 @@ DATA VRF:
 *.notice action(type="omfwd" target="2.2.2.2" protocol="udp" address="1.1.1.1" device="Vrf-Data")
 ```
 
-#### 2.3.4.5. Filter/Trap: `set/set`
+#### 2.3.4.5. Filter/Severity: `set/set`
 
 Log regex filter
 
@@ -385,7 +385,7 @@ Filter:
 Protocol:
 messages are forwarded via configured protocol
 
-Trap:
+Severity:
 sends logs with severity equal or higher then configured
 
 **Example:**
@@ -418,7 +418,7 @@ messages are forwarded via configured protocol
 ; field = value
 format              = template-format ; template to send logs
 welf_firewall_name  = template
-trap                = log-level
+severity            = log-level
 
 ; value annotations
 template        = rsyslog template  ; string regex 
@@ -439,7 +439,7 @@ port        = 1*5DIGIT   ; server UDP port (0..65535)
 vrf         = vrf-device ; VRF device
 protocol    = protocol   ; protocol
 filter_type = filter-re  ; filter regular expression
-trap        = log-level  ; log level severity
+severity    = log-level  ; log level severity
 
 ; value annotations
 h16         = 1*4HEXDIG
@@ -532,7 +532,7 @@ redis-cli -n 4 HGETALL 'SYSLOG_SERVER|4.4.4.5'
 10) "exlude"
 11) "filter_regex"
 12) "exclude_str*"
-13) "trap"
+13) "severity"
 14) "info"
 
 redis-cli -n 4 HGETALL 'SYSLOG_SERVER|5.5.5.5'
@@ -583,7 +583,7 @@ redis-cli -n 4 HGETALL 'SYSLOG_SERVER|5.5.5.5'
             "protocol": "udp",
             "filter_type": "exclude",
             "filter_regex": "exclude_str*",
-            "trap": "info"
+            "severity": "info"
         },
          "5.5.5.5": {
             "source": "5.5.5.5",
@@ -594,7 +594,7 @@ redis-cli -n 4 HGETALL 'SYSLOG_SERVER|5.5.5.5'
     },
     "SYSLOG_CONFIG": {
         "format": "welf",
-        "trap": "info",
+        "severity": "info",
         "welf_firewall_name": "my_hostname"
     }
 }
@@ -642,7 +642,7 @@ _config syslog add_
 4. `--protocol` - server protocol
 5. `--filter_type` - filter type <include|exclude>
 6. `--filter_regex` - filter regex value
-7. `-t|--trap` - set trap log severity
+7. `--severity` - set log severity
 
 ### 2.6.2. Usage examples
 
@@ -662,8 +662,8 @@ config syslog del '2.2.2.2'
 **The following command shows syslog server configuration:**
 ```bash
 root@sonic:/home/admin# show syslog
-SERVER IP    SOURCE IP    PORT    VRF        PROTOCOL  FILTER_TYPE   FILTER REGEX  TRAP
------------  -----------  ------  --------   --------  -----------   ------------  ----
+SERVER IP    SOURCE IP    PORT    VRF        PROTOCOL  FILTER_TYPE   FILTER REGEX  SEVERITY
+-----------  -----------  ------  --------   --------  -----------   ------------  --------
 2.2.2.2      1.1.1.1      514     default     udp                                  notice
 3.3.3.3      1.1.1.1      514     mgmt        udp                                  notice
 2222::2222   1111::1111   514     Vrf-Data    udp                                  notice
@@ -803,7 +803,7 @@ module sonic-syslog {
                     type rsyslog-protocol;
                 }
 
-                leaf trap {
+                leaf severity {
                     description "Limit the severity to send logs to remote server";
                     type rsyslog-severity;
                     default "notice"
@@ -832,7 +832,7 @@ module sonic-syslog {
                     must "(../format != 'standard')";
                 }
 
-                leaf trap {
+                leaf severity {
                     type rsyslog-severity;
                 }
 
