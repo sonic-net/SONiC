@@ -1322,6 +1322,8 @@ dumps can be used as debug aids.
 
 ## 7 Warm Reboot Support
 
+Note: FRR currently does not support BGP Graceful restart for EVPN address-family. Hence EVPN warm-reboot will not be hitless in Sonic until this support is available in FRR
+
 Warm reboot will support below requirements
 
 1. System Warm reboot for EVPN 
