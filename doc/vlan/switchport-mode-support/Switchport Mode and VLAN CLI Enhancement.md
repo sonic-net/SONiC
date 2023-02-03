@@ -25,8 +25,9 @@
   - Delete Multiple Vlan(s) 
   - Add Multiple Vlan(s) on Trunk Ports  
   - Delete Multiple Vlan(s) on Trunk Ports   
-- CLI Configuration Commands & Usage  
-  - CLI Configuration Commands  
+- CLI & YANG Model Configuration Commands & Usage  
+  - CLI Configuration Commands 
+  - YANG Model Configurations 
   - Example/Usage of Commands 
 - SAI API 
 - Warm Boot and Fastboot Design Impact  
@@ -202,11 +203,11 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 
 __*NOTE: This works same for Delete Multiple VLANs members from a PortChannel*__
 
-## CLI Configuration Commands & Usage 
+## CLI & YANG Model Configuration Commands & Usage 
 
 ## CLI Configuration Commands
 
-**1.** config switchport mode <access|trunk|routed> <member_portname>/<member_portchannel>
+**1.** config switchport mode <routed|access|trunk> <member_portname>/<member_portchannel>
  
 **2.** config vlan add/del -m <comma separated list, range> <vlan_ids>
 
@@ -330,6 +331,31 @@ Example: Suppose if Vlan10, Vlan11, Vlan12, Vlan13, Vlan14, Vlan15, Vlan16, Vlan
 
   ```
 
+## YANG Model Configuration 
+
+For Mode attribute, a new leaf is added to PORT_TABLE & PORTCHANNEL_TABLE.
+
+### YANG New type for PORT_TABLE & PORTCHANNEL_TABLE
+
+    typedef switchport_mode {
+        type string {
+            pattern "routed|access|trunk";
+        }
+        description
+            "SwitchPort Modes for Port & PortChannel";
+    }
+
+### YANG Leaf for PORT_TABLE & PORTCHANNEL_TABLE
+
+    leaf switch_mode {
+				 description "SwitchPort Modes values will be from "routed|access|trunk. Default val is routed. "; 
+					type string {
+						pattern "routed|access|trunk";	
+					}
+					default "routed";
+				}
+
+
 ### Warm Boot and Fastboot Design Impact
 
 The existing warm boot/fast boot feature is not affected due to this design.
@@ -365,5 +391,3 @@ Functional Level Tests
 
 ### Future Work
  The scope of this HLD is limited to Switchport  Mode “Access” and “Trunk”. In future, support for “Hybrid” will also be provided.
-
-
