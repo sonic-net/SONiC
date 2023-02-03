@@ -13,6 +13,7 @@
 		* 1.5.2. [Configuration and Management Requirements](#ConfigurationManagementRequirements) 
 * 2. [Design](#Design)
 	* 2.1. [High-Level Design](#High-LevelDesign)
+  * 2.2. [Users Defaults](#UsersDefaults)
 * 3. [Functionality](#Functionality)
 		* 3.1. [Reset-Factory](#Reset-Factory)
 		* 3.2. [Config-setup Factory](#Config-setup-Factory) 
@@ -45,13 +46,19 @@ A factory reset is a process that restores the switch to its original manufactur
 ####  1.5.1. <a name='FunctionalRequirements'></a>Functional requirements
 1. It should support resetting configuration to factory default settings.
 
-2. It should clear logs, tech-support and reboot-cause files, users history files and home directories.
+2. It should clear logs, tech-support, reboot-cause files, warmboot files, 
+users history files and home directories.
 
-3. It should reboot the system to load and apply the new configuration.
+3. It should delete all non-default users and restore default passwords of default users.
 
-4. It should stop sonic.target to ensure that files are not deleted while other daemons are utilizing them.
+4. It should restore "/etc/sonic" directory to factory folder (Clear the directory in overlayfs upperdir).
+except SONiC immutable variables file "sonic-environment"
 
-5. it should allow users/application to create their own factory default configurations or
+5. It should reboot the system to load and apply the new configuration.
+
+6. It should stop sonic.target to ensure that files are not deleted while other daemons are utilizing them.
+
+7. it should allow users/application to create their own factory default configurations or
 extend the reset factory functionality.
 
 
@@ -60,7 +67,7 @@ We will create a command line tool /usr/bin/reset-factory which should provide f
 
 1. default: reset configurations to factory default, clear all system logs and files.
 
-2. keep-basic: preserves basic configurations only after boot. Logs and files will be deleted users history files and home directories.
+2. keep-basic: preserves basic configurations only after boot. Logs and files will be deleted except users history files and home directories.
 
 3. keep-all-config: preserves all configurations after boot. Logs and files will be deleted.
 
@@ -80,8 +87,8 @@ In addition, it will clear logs, tech-support and reboot-cause files, users hist
 Steps:
 
 1. Stops sonic.target: 
-
-systemctl stop sonic.target
+* monit unmonitor container_checker
+* systemctl stop sonic.target
 
 2. If not "keep-all-config":
 
@@ -89,10 +96,14 @@ config-setup factory <None/keep-basic/only-config>
 
 3. If not ("only-config" or “keep-basic”):
 
-* Delete bash , vim and python history files under "/home".
+* Delete all non-default users and restore default passwords of default users.
+* Delete bash, vim and python history files under "/home".
 * Delete any non-dotfiles in the home directories.
 
 4. If not "only-config":
+* Remove all docker containers
+* Restore "/etc/sonic" directory to factory folder (Clear the directory in overlayfs upperdir)
+* Delete all files under "/host/warmboot"
 * Delete tech-support files under "/var/dump/"
 * Delete all files under "/var/log"
 * Delete all files and symlinks under "/host/reboot-cause/"
@@ -103,6 +114,20 @@ It will allow user to track operations such as "reset-factory".
 
 6. Reboot
 
+###  2.2 <a name='UsersDefaults'></a>Users Defaults
+
+During build, we will create a new file "/etc/sonic/default_users.json" that will store
+default user accounts names and default hashed passwords.
+The file will have same permissions as /etc/shadow "-rw-------" (600).
+```
+{
+    "admin": {
+        "password": "$y$j9T$qGjjyhXSHtuHwowV3DE44.$wrDK6/vecdYIE8ujXyVPkGHvlDHP.ySCsBTLvOdg.31"
+    }
+}
+```
+We will remove all non-default user accounts (e.g. 1000 < UID <= 6000),
+and we will set the default password for default users.
 
 ## 3 <a name='Functionality'></a>Functionality
 ###  3.1 <a name='Reset-Factory'></a>Reset-Factory
@@ -168,6 +193,7 @@ root@host:~$ sudo reset-factory --help
         to /etc/sonic/config_db.json.
         Clears logs, system files and reboot the system.
 
+        Default          - Reset configurations to factory default. Logs and files will be deleted.
         keep-all-config  - Preserves all configurations after boot. Logs and files will be deleted.
         only-config      - Reset configurations to factory default. Logs and files will be preserved.
         keep-basic       - Preserves basic configurations only after boot. Logs and files will be deleted.
