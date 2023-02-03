@@ -31,7 +31,7 @@ FRR changes would be commited to FRR community.  SONiC 202305 release
 
 Current SRv6 SAI doesn't have VPN support. SRv6 VPN SAI would be contributed by Cisco team. The SAI object model for SRv6 VPN is shown in the following diagram. The detail information about SRv6 VPN SAI APIs could be found in SAI's HLD document. ([https://github.com/rameshms-work/SAI/blob/rameshms/srv6\_vpn\_enhancements/doc/SAI-IPv6-Segment-Routing-VPN.md](https://github.com/rameshms-work/SAI/blob/rameshms/srv6_vpn_enhancements/doc/SAI-IPv6-Segment-Routing-VPN.md))
 
-![image](2SAI.png)
+![image](images/2SAI.png)
 
 ## SWSS and SONiC related changes
 
@@ -41,7 +41,7 @@ The main SRv6 SWSS design is documented via [SRv6 HLD](https://github.c
 
 The overall work flow diagram is shown in the diagram below.
 
-![image](3SWSS_workflow.png)
+![image](images/3SWSS_workflow.png)
 
 ## APP\_DB
 
@@ -104,7 +104,7 @@ Schema:
     source  = address,                 ; List of src addrs for encap for END.B6.ENCAP
     
 
-![image](4MYSID.png)
+![image](images/4MYSID.png)
 
 ## Segment enhancement
 
@@ -116,7 +116,7 @@ SRv6 VPN routes handling is added on the top of existing SRv6 routes
 
 The encap mapper is used to store all the VPN\_SIDs, which SRv6 VPN routes would use via this BGP NH. The key for this tunnel map is Prefix AGG\_ID. SRv6Orch allocates a Prefix AGG\_ID for a given BGP NH, and store Prefix AGG\_ID with VPN\_SID binding in encap mapper table. SRv6 tunnel would be used in SRv6 NH. SRv6 NH also points to created SID list if a set of selected IGP paths are specified via SRv6 policy. The detail SAI forwarding chain information for SRv6 VPN could be found in the above SAI section. 
 
-## ![image](5VPNRoute.png)VPN Routes Scale Enhancements
+## ![image](images/5VPNRoute.png)VPN Routes Scale Enhancements
 
 SONiC's current design focuses on data center switch's use cases. The number of routes are limited on these types of devices. Some inefficient memory usage exists in current code base. SRv6 VPN would bring in VPN routes to the million level. These inefficient memory usage would not only bring up device's memory usage, but also slow down the BGP loading time for bringing up million routes. Therefore, we need to reevaluate the memory usage for route objects and reduce the overall (SONiC/FRR/SAI) memory footprint per route to below 2KB as a starting point. 
 
@@ -130,7 +130,7 @@ The SRv6-policy information is only stored in the orchagent and won't�
 
 The SRv6-policy content could be changed at any time. The changes could include segment adding/removing or weight updating. When a SRv6-policy content is updated, a backwalk is triggered to walk through all corresponding nexthop groups. Corresponding hardware information would be updated during the backwalk based on updated policy information. 
 
-![image](6Policy.png)
+![image](images/6Policy.png)
 
 # BFD Orch related Changes
 
@@ -274,7 +274,7 @@ For a simple workaround, Zebra would add, update and delete SRV6\_MY\_
 
 For notifying bfdd in FRR, we introduce a new bfdsyncd process in our code base which would set up a TCP socket connection between FRR's bfdd process and SWSS's bfd syncd process. This new process monitors state db for hardware offloaded bfd sessions' state change events and relay these state change events to FRR's bfdd. 
 
-![image](7bfd.png)
+![image](images/7bfd.png)
 
 ## PRs  for workarounds
 
