@@ -14,7 +14,7 @@ The SONiC SRv6 VPN deployable solution  requires changes from the fol
 
 ## FRR
 
-Besides recent FRR changes for SRv6 VPN contriibued by Cisco team, Alibaba team needs to bring in the following FRR changes for a deployable solution. 
+Besides recent FRR changes for SRv6 VPN contributed by Cisco team, Alibaba team needs to bring in the following FRR changes for a deployable solution. 
 
 1.  VRF routes leaking and performance tuning
     
