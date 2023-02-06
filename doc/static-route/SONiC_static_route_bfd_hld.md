@@ -24,7 +24,7 @@ In the following diagram, StaticRouteBfd monitors config_db STATIC_ROUTE_TABLE. 
 
 To work with existing bgpcfgd StaticRouteMgr, an optional field "bfd" is introduced in STATIC_ROUTE_TABLE. When the "bfd" field present and is "true" in config db, StaticRouteMgr ignores this static route and StaticRouteBfd handles it. StaticRouteBfd writes this static route to appl_db based on BFD session state for this static route nexthop. <br>
 
-To avoid StaticRouteTimer deleting StaticRouteBfd created static route entry in appl_db, a new field "refreshable" is introduced in appl_db STATIC_ROUTE_TABLE schema. StaticRouteBfd sets "refreshable"="false" when it writes a static route to appl_db STATIC_ROUTE_TABLE. When StaticRouteTimer see "refreshable"="false", it ignores this static route entry. <br>
+To avoid StaticRouteTimer deleting StaticRouteBfd created static route entry in appl_db, a new field "expiry" is introduced in appl_db STATIC_ROUTE_TABLE schema. StaticRouteBfd sets "expiry"="false" when it writes a static route to appl_db STATIC_ROUTE_TABLE. When StaticRouteTimer see "expiry"="false", it ignores this static route entry. <br>
 
 
 <img src="static_rt_bfd_overview.png" width="500">
@@ -49,11 +49,11 @@ From the interface configuration, we can found two IP addresses, an IPv4 address
  
 Two optional fields are introduced to STATIC_ROUTE_TABLE: <br>
 1. "bfd" -- Default value is false when this field is not configured
-2. "refreshable" -- Default value is true when this field is not configured
+2. "expiry" -- Default value is true when this field is not configured
 
 StaticRouteMgr(config_db) and StaticRouteBfd check "bfd" field in config_db STATIC_ROUTE_TABLE.<br>
-StaticRouteBfd sets "refreshable"="false" in appl_db STATIC_ROUTE_TABLE. 
-StaticRouteTimer checks "refreshable" field to skip the static route entry timeout checking.<br>
+StaticRouteBfd sets "expiry"="false" in appl_db STATIC_ROUTE_TABLE. 
+StaticRouteTimer checks "expiry" field to skip the static route entry timeout checking.<br>
 
 [*Reference: STATIC_ROUTE_TABLE schema:* 
  [STATIC_ROUTE table in CONFIG_DB](https://github.com/Azure/SONiC/blob/master/doc/static-route/SONiC_static_route_hdl.md#3211-static_route).]
@@ -65,7 +65,7 @@ Four tables (i.e., dictionary, map, etc) are needed to use BFD session to monito
 1. TABLE_CONFIG: config_db STATIC_ROUTE_TABLE cache (for the route with "bfd"="true" only)
 2. TABLE_NEXTHOP: different prefixes may have same nexthop. This table is used to track which prefix is using the nexthop.
 3. TABLE_BFD: bfd session created by StaticRouteBfd. The contents are part of appl_db BFD_SESSION_TABLE (for the session its peer IP is in nexthop table). *Assumption: BFD session is not shared with other applications*
-4. TABLE_SR: the static routes written to appl_db STATIC_ROUTE_TABLE by BfdRouteManager (with "refreshable"="false"). It's nexthop list might be different from the configuration depends on BFD session state.<br>
+4. TABLE_SR: the static routes written to appl_db STATIC_ROUTE_TABLE by BfdRouteManager (with "expiry"="false"). It's nexthop list might be different from the configuration depends on BFD session state.<br>
 
 <img src="static_rt_bfd_table.png" width="400">
 <br  />  
@@ -104,12 +104,12 @@ StaticRouteBfd will be notified if there is any update in state_db BFD_SESSION_T
 * 3\. For each prefix in the nexthop entry, lookup TABLE_SR table to get the static route entry.
     * If the BFD session state is UP and this nexthop is in the static route entry's nexthop list, no action needed, break;
     * If the BFD session state is UP and this nexthop is NOT in the static route entry's nexthop list:
-        * Add this nexthop to the static route entry's nexthop list, set "refreshable": "false", write this static route to redis appl_db STATIC_ROUTE_TABLE.
+        * Add this nexthop to the static route entry's nexthop list, set "expiry": "false", write this static route to redis appl_db STATIC_ROUTE_TABLE.
     * If the BFD session state is DOWN and this nexthop is NOT in the static route entry's nexthop list, no action needed
     * If the BFD session state is DOWN and this nexthop is in the static route entry's nexthop list,
         * Delete this nexthop from the static route entry's nexthop list 
             * if the static route entry's nexthop list is empty, delete this static route from redis appl_db, break;
-            * if the static route entry's nexthop list is NOT empty, write it to redis appl_db STATIC_ROUTE_TABLE with "refreshable"="false".
+            * if the static route entry's nexthop list is NOT empty, write it to redis appl_db STATIC_ROUTE_TABLE with "expiry"="false".
 <br>
 <br>
 
@@ -140,11 +140,11 @@ Loop each entry in TABLE_CONFIG, build TABLE_NEXTHOP
 * 2\. read redis state_db BFD_SESSION_TABLE, for each BFD session in TABLE_BFD and the BFD session state is UP, get nexthop
     * Get prefix list from TABLE_NEXTHOP, and loop this list. For each prefix lookup TABLE_SR to get prefix entry
         * Add the above nexthop to this prefix's nexthop list
-* 3\. read redis appl_db STATIC_ROUTE_TABLE, collect all the entries with "refreshable"="false" (StaticRouteBfd created static route entry)
+* 3\. read redis appl_db STATIC_ROUTE_TABLE, collect all the entries with "expiry"="false" (StaticRouteBfd created static route entry)
 * 4\. loop TABLE_SR table, for each static route, compare with the route in above step #3, 
     * Skip this entry if the static route matches (same nexthop list)
     * Delete the redis appl_db static route if the nexthop list is empty in TABLE_SR
-    * Update static route in redis appl_db, "refreshable"="false".
+    * Update static route in redis appl_db, "expiry"="false".
 <br>
 
 ### Start event processing
@@ -189,9 +189,9 @@ A few examples for the cases that adding/deleting static route, and also differe
 ### Receive a bfd_c state UP event
 
 1. StaticRouteBfd lookup TABLE_BFD to confirm this event is for me and get nh_c
-2. use nh_c lookup TABLE_NEXTHOP to get its prefix list: prefix1 and prefix3
-3. check nh_c is not in TABLR_SR prefix1 nexthop list, add it to this nexthop list, and update this static route to redis appl_db STATIC_ROUTE_TABLE with "refreshable"="true" to install the static route to sonic
-4. check nh_c is not in TABLR_SR prefix3 nexthop list, add it to this nexthop list, and update this static route to redis appl_db STATIC_ROUTE_TABLE with "refreshable"="true" to install the static route to sonic<br>
+2. Use nh_c lookup TABLE_NEXTHOP to get its prefix list: prefix1 and prefix3
+3. If nh_c is not in TABLR_SR prefix1 nexthop list, add it to this nexthop list, and update this static route to redis appl_db STATIC_ROUTE_TABLE with "expiry"="false" to install the static route to sonic
+4. If nh_c is not in TABLR_SR prefix3 nexthop list, add it to this nexthop list, and update this static route to redis appl_db STATIC_ROUTE_TABLE with "expiry"="false" to install the static route to sonic<br>
 <img src="static_rt_bfd_example4.png" width="400">
 <br>
 <br>
