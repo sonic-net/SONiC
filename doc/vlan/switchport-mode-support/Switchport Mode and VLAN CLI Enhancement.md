@@ -333,28 +333,25 @@ Example: Suppose if Vlan10, Vlan11, Vlan12, Vlan13, Vlan14, Vlan15, Vlan16, Vlan
 
 ## YANG Model Configuration 
 
-For Mode attribute, a new leaf is added to PORT_TABLE & PORTCHANNEL_TABLE.
+For Mode attribute, a new type is defined in YANG Model for adding support of "mode" in PORT_TABLE & PORTCHANNEL_TABLE.
 
 ### YANG New type for PORT_TABLE & PORTCHANNEL_TABLE
 
     typedef switchport_mode {
         type string {
             pattern "routed|access|trunk";
-        }
+                    }
         description
             "SwitchPort Modes for Port & PortChannel";
-    }
+                         }
 
 ### YANG Leaf for PORT_TABLE & PORTCHANNEL_TABLE
 
-    leaf switch_mode {
-				 description "SwitchPort Modes values will be from "routed|access|trunk. Default val is routed. "; 
-					type string {
-						pattern "routed|access|trunk";	
-					}
-					default "routed";
+         leaf mode {
+		description "SwitchPort Modes possible vlaues are routed|access|trunk. Default val is routed. "; 
+		type stypes:switchport_mode; 
+		default "routed";
 				}
-
 
 ### Warm Boot and Fastboot Design Impact
 
