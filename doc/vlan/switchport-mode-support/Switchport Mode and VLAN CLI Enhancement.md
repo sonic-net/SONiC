@@ -348,7 +348,7 @@ For Mode attribute, a new type is defined in YANG Model for adding support of "m
 ### YANG Leaf for PORT_TABLE & PORTCHANNEL_TABLE
 
          leaf mode {
-		description "SwitchPort Modes possible vlaues are routed|access|trunk. Default val is routed. "; 
+		description "SwitchPort Modes possible values are routed|access|trunk. Default val is routed. "; 
 		type stypes:switchport_mode; 
 		default "routed";
 				}
