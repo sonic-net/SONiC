@@ -215,7 +215,7 @@ Tree view
 Global ISIS Yang container is sonic-isis.yang.
 
 ```
-      container ISIS_GLOBAL {
+        container ISIS_GLOBAL {
 
             list ISIS_GLOBAL_LIST {
 
@@ -259,20 +259,21 @@ Global ISIS Yang container is sonic-isis.yang.
                     type boolean;
                     default "true";
                     description
-                        "If true, attached bits are sent in LSP if L1/L2 router for inter-area traffic.";
+                        "For an L1 or L2 router, attached bits are sent in an LSP when set to true.";
                 }
 
                 leaf attach-receive-ignore {
                     type boolean;
                     default "false";
                     description
-                        "If false, attached bits received in LSP, cause default route add, if L1 router for inter-area traffic.";
+                        "For an L1 router, attached bits received in an LSP createa default route when set to false";
                 }
 
                 leaf set-overload-bit {
                     type boolean;
+                    default "false";
                     description
-                        "Administratively enable the overload bit on this level.";
+                        "Administratively enable the overload bit.";
                 }
 
                 leaf lsp-mtu-size {
@@ -281,7 +282,7 @@ Global ISIS Yang container is sonic-isis.yang.
                     }
                     default "1497";
                     description
-                        "MTU of an LSP.";
+                        "LSP MTU.";
                 }
 
                 leaf spf-init-delay { 
@@ -293,7 +294,7 @@ Global ISIS Yang container is sonic-isis.yang.
                         error-message "SPF init delay must only be specified if all other spf parameters are specified";
                     }
                     description
-                        "Delay used while in QUIET state";
+                        "Delay used during QUIET state";
                 }
 
                 leaf spf-short-delay {
@@ -305,7 +306,7 @@ Global ISIS Yang container is sonic-isis.yang.
                         error-message "SPF short delay must only be specified if all other spf parameters are specified";
                     }
                     description
-                        "Delay used while in SHORT_WAIT state";
+                        "Delay used during SHORT_WAIT state";
                 }
 
                 leaf spf-long-delay {
@@ -317,7 +318,7 @@ Global ISIS Yang container is sonic-isis.yang.
                         error-message "SPF long delay must only be specified if all other spf parameters are specified";
                     }
                     description
-                        "Delay used while in LONG_WAIT state";
+                        "Delay used during LONG_WAIT state";
                 }
 
                 leaf spf-hold-down {
@@ -329,7 +330,7 @@ Global ISIS Yang container is sonic-isis.yang.
                         error-message "SPF hold down must only be specified if all other spf parameters are specified";
                     }
                     description
-                        "Time with no received IGP events before considering IGP stable";
+                        "Period of time without IGP events before considering IGP stable";
                 }
 
                 leaf spf-time-to-learn {
@@ -341,15 +342,15 @@ Global ISIS Yang container is sonic-isis.yang.
                         error-message "SPF time-to-learn must only be specified if all other spf parameters are specified";
                     }
                     description
-                        "Maximum duration needed to learn all the events related to a
-                        single failure";
+                        "Maximum time needed to learn all of the events related to a
+                        failure";
                 }
 
                 leaf log-adjacency-changes {
                     type boolean;
                     default "false";
                     description
-                        "Log changes to the IS-IS adjacencies in this instance.";
+                        "Log changes to this instance's IS-IS adjacencies.";
                 }
 
             } // list ISIS_GLOBAL_LIST
@@ -361,7 +362,7 @@ Global ISIS Yang container is sonic-isis.yang.
 ISIS Level Yang container is sonic-isis.yang.
 
 ```
-      container ISIS_LEVEL {
+        container ISIS_LEVEL {
 
             list ISIS_LEVEL_LIST {
 
@@ -388,7 +389,7 @@ ISIS Level Yang container is sonic-isis.yang.
                     units "seconds";
                     default "900";
                     description
-                        "LSP refresh interval for level-1.";
+                        "LSP refresh interval.";
                 }
 
                 leaf lsp-maximum-lifetime {
@@ -399,7 +400,7 @@ ISIS Level Yang container is sonic-isis.yang.
                     must ". >= ../lsp-refresh-interval + 300";
                     default "1200";
                     description
-                        "Maximum LSP lifetime for level-1.";
+                        "Maximum LSP lifetime.";
                 }
 
                 leaf lsp-generation-interval {
@@ -410,7 +411,7 @@ ISIS Level Yang container is sonic-isis.yang.
                     must ". < ../lsp-refresh-interval";
                     default "30";
                     description
-                        "Minimum time allowed before level-1 LSP retransmissions.";
+                        "Minimum time before an LSP retransmissions.";
                 }
 
                 leaf spf-minimum-interval {
@@ -420,7 +421,7 @@ ISIS Level Yang container is sonic-isis.yang.
                     units "seconds";
                     default "1";
                     description
-                        "Minimum time between consecutive level-1 SPFs.";
+                        "Minimum time between consecutive SPFs.";
                 }
 
             } // list ISIS_LEVEL_LIST
@@ -432,7 +433,7 @@ ISIS Level Yang container is sonic-isis.yang.
 ISIS Interface Yang container is sonic-isis.yang.
 
 ```
-      container ISIS_INTERFACE {
+        container ISIS_INTERFACE {
 
             list ISIS_INTERFACE_LIST {
 
@@ -457,17 +458,17 @@ ISIS Interface Yang container is sonic-isis.yang.
                 leaf ipv4-routing-instance {
                     type string;
                     description
-                        "Routing IS-IS IPv4 traffic over this circuit for the given instance.";
+                        "Routing IS-IS IPv4 traffic over this interface for the given instance.";
                 }
                 leaf ipv6-routing-instance {
                     type string;
                     description
-                        "Routing IS-IS IPv6 traffic over this circuit for the given instance.";
+                        "Routing IS-IS IPv6 traffic over this interface for the given instance.";
                 }
 
                 leaf passive {
                     type boolean;
-                    default false;
+                    default "false";
                     description
                         "When set to true, the referenced interface is a passive interface
                         such that it is not eligible to establish adjacencies with other
@@ -476,29 +477,29 @@ ISIS Interface Yang container is sonic-isis.yang.
 
                 leaf hello-padding {
                     type boolean; 
-                    default false;
+                    default "true";
                     description
-                        "Add padding to IS-IS hello PDUs.";
+                        "When true, padding is added to IS-IS hello PDUs.";
                 }
 
                 leaf network-type {
                     type network-type;
                     default "BROADCAST_NETWORK";
                     description
-                        "ISIS circuit type (p2p, broadcast, loopback, unknown).";
+                        "ISIS interface type (p2p, broadcast, loopback, unknown).";
                 }
 
                 leaf enable-bfd {
                     type boolean;
                     default "false";
                     description
-                        "Monitor IS-IS peers on this circuit.";
+                        "Monitor IS-IS peers on this interface.";
                 }
 
                 leaf bfd-profile {
                     type string;
                     description
-                        "Let BFD use a pre-configured profile.";
+                        "Set BFD to use a pre-configured profile.";
                 }
 
                 leaf metric {
@@ -507,7 +508,7 @@ ISIS Interface Yang container is sonic-isis.yang.
                     }
                     default "0";
                     description
-                        "The metric value of this interface for this level.";
+                        "The metric value of this interface.";
                 }
 
                 leaf csnp-interval {
@@ -548,7 +549,7 @@ ISIS Interface Yang container is sonic-isis.yang.
                     description
                         "Multiplier for the hello holding time.";
                 }
-                
+
                 uses isis-authentication; 
 
             }  // list ISIS_INTERFACE
@@ -579,12 +580,12 @@ Authentication leafs used to define isis authentication options.
                 enum "TEXT" { 
                     value 1; 
                 description 
-                    "Clear-text password type."; 
+                    "Clear text authentication type."; 
                 } 
                 enum "MD5HMAC" { 
                     value 2; 
                 description 
-                    "MD5 password type."; 
+                    "MD5 authentication type."; 
                 } 
             }
             must "(not((not(../authentication-type)) and ../authentication-key))" {
@@ -592,8 +593,8 @@ Authentication leafs used to define isis authentication options.
             }
             description 
                 "This grouping defines keychain configuration type."; 
-        } 
-    }
+            } 
+    } 
 ```
 
 ##### SONiC ISIS Defined Types
@@ -601,34 +602,44 @@ Types defined in sonic-isis.yang.
 
 ```
     typedef net-address {
-      type string {
-        pattern "[a-fA-F0-9]{2}(\\.[a-fA-F0-9]{4}){3,9}\\.[a-fA-F0-9]{2}";
+        type string {
+            pattern "[a-fA-F0-9]{2}(\\.[a-fA-F0-9]{4}){3,9}\\.[a-fA-F0-9]{2}";
       }
-      description
-        "This type defines an OSI NET address using a pattern,
-        An example net-address is 49.0123.6452.1972.00";
+        description
+            "This type defines an OSI NET address,
+            Example: 49.0123.4567.8910.00";
     }
 
-    typedef level {
+    typedef level-number {
         type enumeration {
             enum "level-1" {
                 value 1;
                 description
-                    "This enum indicates L1-only capability.";
+                    "L1-only capability.";
             }
             enum "level-2" {
                 value 2;
                 description
-                    "This enum indicates L2-only capability.";
-            }
-            enum "level-1-2" {
-                value 3;
-                description
-                    "This enum indicates capability for both levels.";
+                    "L2-only capability.";
             }
         }
         description
-            "This type defines IS-IS level of an object.";
+            "This type defines IS-IS level options for level specific configurations.";
+    }
+
+    typedef level-capability {
+        type union {
+            type level-number;
+            type enumeration {
+                enum "level-1-2" {
+                    value 3;
+                    description
+                        "L1 and L2 capability.";
+                }
+            }
+        }
+        description
+            "This type defines all IS-IS level options capable of being configured.";
     }
 
     typedef network-type {
@@ -636,27 +647,25 @@ Types defined in sonic-isis.yang.
             enum "UNKNOWN_NETWORK" {
                 value 0;
                 description
-                    "Unknown network type. Only valid as a state.";
+                    "Unknown network type.";
             }
             enum "BROADCAST_NETWORK" {
                 value 1;
                 description
-                    "Broadcast circuit network-type.";
+                    "Broadcast interface network type.";
             }
             enum "POINT_TO_POINT_NETWORK" {
                 value 2;
                 description
-                    "Point-to-point circuit network-type.";
+                    "Point-to-point interface network type.";
             }
             enum "LOOPBACK" {
                 value 3;
                 description
-                    "Loopback circuit network-type. Only valid as a state.";
+                    "Loopback interface network type.";
             }
         }
     }
-
-
 ```
 
 ### Testing Requirements/Design
