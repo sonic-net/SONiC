@@ -93,9 +93,7 @@ The figure shows that 3 different VLANs are configured with 6 other hosts. The s
 
 The overall SONiC architecture will remain the same and no new sub-modules will be introduced. Changes are made only in the CLI container and Config_DB.
 
-![Architecture](https://user-images.githubusercontent.com/61490193/208155328-5d26e5f3-7483-4b85-8942-56ccb790db1b.png)
-
-
+![Architecture](https://user-images.githubusercontent.com/61490193/217232727-811b98a8-ce9c-4227-a94a-1c83a4825a62.png)
 
 
 ## High-level Design
