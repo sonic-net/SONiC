@@ -63,13 +63,13 @@
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 05/27/2019  |  Systems Infra Team     | Initial version                   |
-| 0.2 | 06/06/2019  |  Systems Infra Team     | Incorporated feedback             |
-| 0.3 | 10/21/2019  |  Systems Infra Team     | GPIO JSON object support          |
-| 0.4 | 10/22/2019  |  Systems Infra Team     | Platform 2.0 API support          |
-| 0.5 | 10/31/2019  |  Systems Infra Team     | BMC Support                       |
-| 0.6 | 10/01/2020  |  Systems Infra Team     | FPGAI2C component support         |
-| 0.7 | 01/05/2023  |  Systems Infra Team     | FPGAPCIe component support        |
+| 0.1 | 05/27/2019  |  Fuzail Khan, Precy Lee     | Initial version                   |
+| 0.2 | 06/06/2019  |  Fuzail Khan, Precy Lee     | Incorporated feedback             |
+| 0.3 | 10/21/2019  |  Fuzail Khan, Precy Lee     | GPIO JSON object support          |
+| 0.4 | 10/22/2019  |  Fuzail Khan, Precy Lee     | Platform 2.0 API support          |
+| 0.5 | 10/31/2019  |  Fuzail Khan, Precy Lee     | BMC Support                       |
+| 0.6 | 10/01/2020  |  Fuzail Khan, Precy Lee     | FPGAI2C component support         |
+| 0.7 | 01/05/2023  |  Fuzail Khan, Precy Lee     | FPGAPCIe component support        |
 
 # About this Manual
 Platform Driver Development Framework (PDDF) is part of SONiC Platform Development Kit (PDK), which enables rapid development of platform drivers and APIs for SONiC platforms. PDK consists of
