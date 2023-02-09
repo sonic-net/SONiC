@@ -16,6 +16,7 @@ Table of Contents
 | Rev | Date     | Author          | Change Description |
 |:---:|:--------:|:---------------:|--------------------|
 | 0.1 | 04/1/22 | Vaibhav Dahiya  | Initial version    |
+| 0.2 | 02/1/22 | Vaibhav Dahiya  | Make chnages to be shared to Core Team    |
 
 ## Scope
 gRPC client design doc which would communicate with the SoC/ Nic-simulator tests in SONiC MGMT.
@@ -29,10 +30,33 @@ and do this within SONiC PMON docker
 
 ## Requirements
 
-- to provide an interface for gRPC daemon to exchange RPC's with the gRPC server running on the SoC over a secure channel using a loopback IP.
+- provide a service/daemon in SONiC to run in DualToR mode, which can interact with Platform API as well interact with state machine(aka Linkmgr) to provide capability to it to get/set Link State/Forwarding State etc. from SoC(gRPC server listening to the client)
+- the service gRPC daemon should be able exchange RPC's with the gRPC server running on the SoC over a secure channel
+- provide a schema for this daemon to publish to State DB on Host which would monitor the aspects of gRPC state for all SoC's running as server.
+- provide an interface/method for gRPC daemon to exchange RPC's with the gRPC server running on the SoC using a loopback IP as source IP.
+- provide an interface for SoC to notify this gRPC client about going to maintainence/shutdown via an asynchronous method.
 - The RPC's exchanged with SoC would help linkmgr state machine make decisions as to transition the DualToR into active/standby state depending on the state of the SoC 
 - the client communication to the SoC should go over proposed Loopback IP.
-- gRPC client communication with Nic-simulator should be accomodated as part of this design doc.
+- gRPC client communication with Nic-simulator(which will be run in SONiC-Mgmt Testbeds) should also be provided to exchange RPC's.
+
+
+## Deployment
+
+## why gRPC for communication between ToR AND the SoC
+
+Notes provide a helpful link for learning gRPC and main page
+
+- Lightweight messages. Depending on the type of call, gRPC-specific messages can be up to 30-50 percent smaller in size than JSON messages.
+- High performance. By different evaluations, gRPC is 5, 7, and even 8 times faster than REST+JSON communication.
+- Built-in code generation. gRPC has automated code generation in different programming languages including Java, C++, Python, Go, Dart, Objective-C, Ruby, and more.
+- More connection options. While REST focuses on request-response architecture, gRPC provides support for data streaming with event-driven architectures: server-side streaming, client-side streaming, and bidirectional streaming.
+- Healthy developer EcoSystem and gRPC is open source, hence it helps in getting acquainted with Libraries/API and Troubleshooting bugs/issues becomes easier
+
+
+##### Interface to State Machine for Get/Set Admin state of the FPGA Ports 
+
+
+
 
 ##### Hardware Overview
 
