@@ -1632,3 +1632,104 @@ def write_cdb(port,cmd):
     write_reg(port, LPLPAGE, INIT_OFFSET+CMDLEN, len(cmd)-CMDLEN, cmd[CMDLEN:])
     write_reg(port, LPLPAGE, INIT_OFFSET, CMDLEN, cmd[:CMDLEN])
 ```
+
+### 7.Performance Monitoring in 400-G ZR module
+#### 7.1 Overview
+Performance monitoring in 400G ZR/CCMIS optical modules is essential for detecting link degradation and correction. It can be used to compare optical link performance against desired parameters and benchmarks, providing valuable insight into the overall health of the interface link. Below sub-sections will walk through the CLI syntax, output format and high level design.
+
+#### 7.2 PM parameters
+Please refer to the [2.1.5 Transceiver PM Table](https://github.com/sonic-net/SONiC/edit/master/doc/platform_api/CMIS_and_C-CMIS_support_for_ZR.md#215-transceiver-pm-table) for the parameters that will be monitored with this CLI.
+
+ 
+#### 7.3 CLI Sub-options and Syntax 
+```
+#show int transceiver <enter>​
+commands:​
+pm show interface transceiver performance monitoring​
+​
+#Show int trans pm <enter>​
+commands:​
+Current show current pm data​
+history show historical pm data​
+
+​
+#show int trans pm current <predefined window period>​
+commands:​
+60sec show cumulative pm statistics for 60sec time window. ​
+15min show cumulative pm statistics for 15min time window.​
+24Hr  show cumulative pm statistics for 24Hr time window.​
+<end> Without time window, the CLI will display the current snapshot of pm parameter.​
+
+#show int trans pm history​
+commands:​
+60sec show cumulative pm statistics for 36sec time window. ​
+15min show cumulative pm statistics for 15min time window.​
+24Hr  show cumulative pm statistics for 24Hr time window.​
+​
+#show int trans pm history 30sec window <predefined window period number> -n asic0 Ethernet0​
+​
+Optional subset display:​
+#Show int trans pm current 60sec –n asic0 Ethernet0​
+commands:​
+fec shows pm fec data​
+```
+#### 7.4 CLI Sample Output format
+```
+root@sonic:/home/cisco# show interface transceiver pm history 60sec window 1 -n asic0 Ethernet2                                                                          
+Tue Jan 31 09:25:16 UTC 2023
+PM window: 60 sec
+PM window start time: Tue Jan 31 09:24:03 UTC 2023
+Ethernet2:
+    Parameter        Unit    Min       Avg       Max       Threshold    Threshold    Threshold     Threshold    Threshold    Threshold
+                                                           High         High         Crossing      Low          Low          Crossing
+                                                           Alarm        Warning      Alert-High    Alarm        Warning      Alert-Low
+    ---------------  ------  --------  --------  --------  -----------  -----------  ------------  -----------  -----------  -----------
+    Tx Power         dBm     -8.22     -8.23     -8.24     -5.0         -6.0         False         -16.99       -16.003      False
+    Rx Total Power   dBm     -10.61    -10.62    -10.62    2.0          0.0          False         -21.0        -18.0        False
+    Rx Signal Power  dBm     -40.0     0.0       40.0      13.0         10.0         True          -18.0        -15.0        True
+    CD-short link    ps/nm   0.0       0.0       0.0       1000.0       500.0        False         -1000.0      -500.0       False
+    PDL              dB      0.5       0.6       0.6       4.0          4.0          False         0.0          0.0          False
+    OSNR             dB      36.5      36.5      36.5      99.0         99.0         False         0.0          0.0          False
+    eSNR             dB      30.5      30.5      30.5      99.0         99.0         False         0.0          0.0          False
+    CFO              MHz     54.0      70.0      121.0     3800.0       3800.0       False         -3800.0      -3800.0      False
+    DGD              ps      5.37      5.56      5.81      7.0          7.0          False         0.0          0.0          False
+    SOPMD            ps^2    0.0       0.0       0.0       655.35       655.35       False         0.0          0.0          False
+    SOP ROC          krad/s  1.0       1.0       2.0       N/A          N/A          N/A           N/A          N/A          N/A
+    Pre-FEC BER      N/A     4.58E-04  4.66E-04  5.76E-04  1.25E-02     1.10E-02     0.0           0.0          0.0          0.0
+    Post-FEC BER     N/A     0.0       0.0       0.0       1000.0       1.0          False         0.0          0.0          False
+    EVM              %       100.0     100.0     100.0     N/A          N/A          N/A           N/A          N/A          N/A
+```
+#### 7.5 High Level Design
+
+##### 7.5.1 Configurations
+1. performance monitor enable - Global CLI to enable PM on all ports. 
+Before this configuration get implemented, PM will be enabled by default on all ports
+
+##### 7.5.2 Tables:
+1. The PM window table consists of the following:
+   - Window number
+   - Start timestamp of PM window
+   - Parameters from PM table
+
+2. Total 28 PM window slots per interface. 
+   - 15 slots of 60sec window (15mins of history).
+   - 12 slots of 15min window (3Hr of history) and 
+   - 1 slot of 24hr window.
+   
+
+ <img src="https://user-images.githubusercontent.com/97986478/217677958-fd532125-9483-4204-9a57-5317ec36b228.png" width="50%" height="50%">
+
+##### 7.5.3 Platform specific flags/inputs:
+"xcvrd_pm_poll_interval" - Platform to define the PM polling periodicity as 30sec or 60sec of the PM thread which will be fed as input argument. When the arg is not defined, default periodicity is 60sec. 
+
+The PM parameter polling period option is given as there will be platform which requires more time for IO read <Platform limitation>.
+ 
+ **HLD pointers:**
+  1. PM statistics will be sampled for pre-defined time window of 60sec, 15min and 24Hr. The pre-defined time window period is arrived based on the PM application usage in real time.
+  2. New thread (PM thread) will be created to periodically fetch and update the PM window table.
+
+  
+  <img src="https://user-images.githubusercontent.com/97986478/217953255-233f11d4-4b36-42bc-a30f-0ef3988c797a.png" width="50%" height="50%">
+  
+  3. PM history CLI command data will be fetched from PM window slot table from State-DB.
+  4. PM current CLI command PM data will be fetched from Module.
