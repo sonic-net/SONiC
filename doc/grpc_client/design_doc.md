@@ -54,7 +54,7 @@ Notes provide a helpful link for learning gRPC and main page
 
 More Resources for learning gRPC and advantages Credits
 
-!(https://github.com/grpc/grpc)
+[grpc github repo](https://github.com/grpc/grpc)
 
 
 
