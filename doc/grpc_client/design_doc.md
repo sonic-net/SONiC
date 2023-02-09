@@ -52,6 +52,12 @@ Notes provide a helpful link for learning gRPC and main page
 - More connection options. While REST focuses on request-response architecture, gRPC provides support for data streaming with event-driven architectures: server-side streaming, client-side streaming, and bidirectional streaming.
 - Healthy developer EcoSystem and gRPC is open source, hence it helps in getting acquainted with Libraries/API and Troubleshooting bugs/issues becomes easier
 
+More Resources for learning gRPC and advantages Credits
+
+!(https://github.com/grpc/grpc)
+
+
+
 
 ##### Interface to State Machine for Get/Set Admin state of the FPGA Ports 
 
