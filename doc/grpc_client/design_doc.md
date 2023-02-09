@@ -58,12 +58,56 @@ More Resources for learning gRPC and advantages Credits
 
 
 
-
 ##### Interface to State Machine for Get/Set Admin state of the FPGA Ports 
 
+the proto3 syntax proto file used for generating gRPC code in Python3 is as follows gRPC tools can be used to 
 
+    ```python
+	service DualToRActive {
+	  rpc QueryAdminForwardingPortState(AdminRequest) returns (AdminReply) {}// queries the Admin Forwarding State of the FPGA
+	  rpc SetAdminForwardingPortState(AdminRequest) returns (AdminReply) {}// sets the Admin Forwarding State of the FPGA
+	  rpc QueryOperationPortState(OperationRequest) returns (OperationReply) {} // queries the Operation State of the FPGA
+	  rpc QueryLinkState(LinkStateRequest) returns (LinkStateReply) {} // queries the Link State of the FPGA
+	  rpc QueryServerVersion(ServerVersionRequest) returns (ServerVersionReply) {} // queries the version of the Server running
+	}
 
+	message AdminRequest {
+	  repeated int32 portid = 1;
+	  repeated bool state = 2;
+	}
 
+	message AdminReply {
+	  repeated int32 portid = 1;
+	  repeated bool state = 2;
+	}
+
+	message OperationRequest {
+	  repeated int32 portid = 1;
+	}
+
+	message OperationReply {
+	  repeated int32 portid = 1;
+	  repeated bool state = 2;
+	}
+
+	message LinkStateRequest {
+	  repeated int32 portid = 1;
+	}
+
+	message LinkStateReply {
+	  repeated int32 portid = 1;
+	  repeated bool state = 2;
+	}
+
+	message ServerVersionRequest {
+	  string version = 1;
+	}
+
+	message ServerVersionReply {
+	  string version = 1;
+}
+
+    ```
 ##### Hardware Overview
 
 ![Hardware Overview](images/gRPC_overall.png)  
