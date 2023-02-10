@@ -83,6 +83,17 @@ DATAACL  L3      Ethernet0    DATAACL        ingress    Active
                  Ethernet8
                  Ethernet12
 ```
+```
+show acl rule
+Table    Rule          Priority    Action    Match                Status
+-------  ------------  ----------  --------  -------------------  --------
+DATAACL  RULE_1        9999        DROP      DST_IP: 9.5.9.3/32   Active
+                                             ETHER_TYPE: 2048
+DATAACL  RULE_2        9998        FORWARD   DST_IP: 10.2.1.2/32  Active
+                                             ETHER_TYPE: 2048
+                                             IP_PROTOCOL: 6
+                                             L4_DST_PORT: 22
+```
 #### Existing test script
 The existing test script for ACL in sonic-mgmt is parsing syslog to find a keyword to tell whether the ACL table or ACL rule is created successfully. This logic can be replaced by the new show command. 
 
