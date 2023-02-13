@@ -196,6 +196,9 @@ root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
 	d. set date & time<br>
 	e. check reboot / upgrade<br>
 	f. check docker restart<br>
+	g. config load / reload <> <br>
+	h. reboot without config save<br>
+	i. upgrade with manually timedatectl before upgrade<br>
 	
 
 2. Bad flows:<br>
