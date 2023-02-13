@@ -25,8 +25,8 @@
 ### 1.1 <a name='Revision'></a>Revision
 
 |  Rev  |  Date   |      Author      | Change Description |
-| :---: | :-----: | :--------------: | ------------------ |
-|  0.1  | 01/2023 | Meir Renford	 | High level Design  |
+| :---: | :-----: | :--------------: | :----------------: |
+|  0.1  | 01/2023 |   Meir Renford   | High level Design  |
 
 ###  1.2. <a name='Scope'></a>Scope
 
