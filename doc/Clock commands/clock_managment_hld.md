@@ -26,11 +26,11 @@
 
 |  Rev  |  Date   |      Author      | Change Description |
 | :---: | :-----: | :--------------: | ------------------ |
-|  0.1  | 01/2023 | Meir Renford	 | Phase 1 Design     |
+|  0.1  | 01/2023 | Meir Renford	 | High level Design  |
 
 ###  1.2. <a name='Scope'></a>Scope
 
-This document will address the high level design for NVOS clock commands:
+This document will address the high level design for clock commands:
 1.	Set/show date-time command
 2.	Set/show timezone command
 
@@ -66,34 +66,51 @@ The time/date/timezone are configured directly to Linux, and is persistent upon 
 
 System state of time/date/timezone will appear in 1 line as an output of existing "show clock" command.
 
-Set operations will be divided into 2 different commands:
+hostcfgd will be the daemon in charge of this configuration management.
 
-1. config clock set-timezone <timezone> (to set timezone command)
-	* will get single input as a string, and validate it is valid as part of ("timedatectl list-timezones" command).
-	Validation will be done either by YANG model, or (if not possible) by issueing relevant error to log.
-	* Value will be stored in db for future upgrade operations.
-	  Value is persistent upon reboot.
-	* Linux timedatectl with set-timezone flag will be called.
-	  e.g. timedatectl set-timezone "Asia/Kolkata"
-	* <b>In case NTP is enabled -> timezone configuration is allowed and overrides the current time.</b>
+<u>CLI Commands desin:</u><br>
 
+	Set operations will be divided into 2 different commands:
 
-2. config clock set-date "<YYYY-MM-DD HH:MM:SS>" (to set time and date)
-	* Command will recieve single string with date-time format "<YYYY-MM-DD HH:MM:SS>"
-	* It will be possible to call command with the following options:
-		1.	Only with a date <YYYY-MM-DD>
-		2. 	Only with time <HH:MM:SS>
-		3.  both date and time "<YYYY-MM-DD HH:MM:SS>"
-	* Command does not need to be stored in DB.
-	* Linux timedatectl with set-time flag will be called.
-	  e.g. timedatectl set-time "2012-10-30 18:17:16"
-	* <b>In case NTP is enabled -> time/date set is NOT allowed and being blocked</b>
+	1. config clock set-timezone <timezone> (to set timezone command)
+		* will get single input as a string, and validate it is valid as part of ("timedatectl list-timezones" command).
+		Validation will be done either by YANG model, or (if not possible) by issueing relevant error to log.
+		* Value will be stored in db for future upgrade operations.
+		Value is persistent upon reboot.
+		* Linux timedatectl with set-timezone flag will be called.
+		e.g. timedatectl set-timezone "Asia/Kolkata"
+		* <b>In case NTP is enabled -> timezone configuration is allowed and overrides the current time.</b>
+		* Date & timezone setting will be reflected of all the services/dockers in the system.
 
 
-* Both set commands will be written directly to Linux (via imedatectl command), and will be activated immediately.
+	2. config clock set-date "<YYYY-MM-DD HH:MM:SS>" (to set time and date)
+		* Command will recieve single string with date-time format "<YYYY-MM-DD HH:MM:SS>"
+		* It will be possible to call command with the following options:
+			1.	Only with a date <YYYY-MM-DD>
+			2. 	Only with time <HH:MM:SS>
+			3.  both date and time "<YYYY-MM-DD HH:MM:SS>"
+		* Command does not need to be stored in DB.
+		* Linux timedatectl with set-time flag will be called.
+		e.g. timedatectl set-time "2012-10-30 18:17:16"
+		* <b>In case NTP is enabled -> time/date set is NOT allowed and being blocked</b>
 
-* In case of any set command (time/date/timezone) a relevant message will be print to syslog.
+	Additional show command will be added to display all valid timezones:
 
+	3. show clock-timezones
+
+		* Will display list of all valid timezones to be configured.
+		* based on "timedatectl list-timezones" linux command.
+
+
+<u>General notes:</u><br>
+
+	* Both set commands will be written directly to Linux (via imedatectl command), and will be activated immediately.
+
+	* In case of any set command (time/date/timezone) a relevant message will be print to syslog.
+
+	* In case of any set command (time/date/timezone) - rsyslog service should be restarted to reflect the time change.
+
+	* Upgrades - timezone configuration is part of DEVICE_METADATA, hence - configuration upgrade will be taken care of as any other sonic configuration.
 
 
 ##  3 <a name='Configurationandmanagement'></a>Configuration and management
@@ -130,6 +147,7 @@ Adding to existing Yang model of device_metadata (https://github.com/sonic-net/s
 			...
 				leaf timezone {
 					type string;
+					description "System time-zone setting";
 				}
 ```
 
@@ -140,6 +158,17 @@ Adding to existing Yang model of device_metadata (https://github.com/sonic-net/s
 ```
 root@host:~$ show clock 
 Sun 15 Jan 2023 06:12:08 PM IST
+
+```
+
+```
+root@host:~$ show clock-timezones
+Africa/Abidjan
+Africa/Accra
+Africa/Addis_Ababa
+Africa/Algiers
+Africa/Asmara
+...
 
 ```
 
@@ -166,6 +195,7 @@ root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
 	c. set time<br>
 	d. set date & time<br>
 	e. check reboot / upgrade<br>
+	f. check docker restart<br>
 	
 
 2. Bad flows:<br>
@@ -180,3 +210,7 @@ root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
 	b. try to change time/date in case NTP is enabled -> and expect getting a failure.<br>
 	c. Change timezone in case NTP is enabled, and expect to succeed and change relevant time.<br>
 
+4. Rsyslog:<br>
+	a. In case of any set command (time/date/timezone) - verify rsyslog service should be restarted to reflect the time change.
+
+* Functional tests covering flows above will be part of sonic-mgmt tests suite.
