@@ -46,7 +46,7 @@ The clock commands allow to set and review the current time parameters of the sy
 ### 1.5 Requirements
 ####  1.5.1. <a name='FunctionalRequirements'></a>Functional requirements
 
-1. Any time configuration that will change in the system will change the system time. 
+1. Any time/date configuration will change accordingly the system time. 
 
 ####  1.5.2. <a name='ConfigurationManagementRequirements'></a>Configuration and Management Requirements
 The requirements from the module are: 
@@ -90,7 +90,9 @@ Set operations will be divided into 2 different commands:
 	* <b>In case NTP is enabled -> time/date set is NOT allowed and being blocked</b>
 
 
-Both set commands will be written directly to Linux (via imedatectl command), and will be activated immediately.
+* Both set commands will be written directly to Linux (via imedatectl command), and will be activated immediately.
+
+* In case of any set command (time/date/timezone) a relevant message will be print to syslog.
 
 
 
