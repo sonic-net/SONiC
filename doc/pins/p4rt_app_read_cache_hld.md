@@ -33,7 +33,7 @@ The P4RuntimeImpl will maintain a table entry cache with values already stored i
 
 *   absl::flat\_hash\_map\<TableEntryKey, p4::v1::TableEntry> table\_entry\_cache\_
 
-The cache will be updated for each P4RT App write request.
+The cache will be updated for each P4RT App write request based on the P4Orch agents response.
 
 ![Read Cache Sequence Diagram](images/p4rt_app_read_cache_sequence_diagram.svg)
 
@@ -44,9 +44,18 @@ INSERT              | SUCCESS    | Create a new PI entry
 MODIFY              | SUCCESS    | Update an existing PI entry
 DELETE              | SUCCESS    | Remove an existing PI entry
 
-While warmboot is not currently supported in the P4RT App. When it is, we should be able to read any data back from Redis (i.e. same as we do today) and use those values to pre-populate the cache before warmboot completes.
+The P4Orch should not unilaterally update P4 entries which means we should not need to regularly monitor the AppDb for changes.
+However, because there are 2 sources of truth we will also implement verification logic that ensures the cache and AppDb entries are in sync.
+Operators can choose how often they wish to run these checks.
+Specifically it will:
 
-To ensure the contents of the cache are in sync with Redis we will include verification logic that reads entries from Redis, translates them to PI and compares them to the cache. Operators can choose how often to run these checks.
+* Read all P4RT\_TABLE entries from Redis.
+* Translate each entry back into its PI encoding.
+* Compare the Redis entries with the cache.
+* Report back any differences between existing entries, and any missing entries in either the cache or Redis.
+
+While warmboot is not currently supported in the P4RT App.
+When it is, we should be able to read any data back from Redis (i.e. same as we do today, and will also do for the verification logic) and use those values to pre-populate the cache before warmboot completes.
 
 ## Experiments
 
