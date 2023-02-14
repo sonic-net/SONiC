@@ -27,6 +27,8 @@ Besides recent FRR changes for SRv6 VPN contributed by Cisco team, Al
 
 FRR changes would be commited to FRR community.  SONiC 202305 release would pull in the corresponding  version of FRR release.
 
+The minimal FRR version for SRv6 VPN is 8.4, which you could get SRv6 VPN PoC functionalities. FRR version 8.5 or 9.0 would provide Alibaba deployment feature parity.
+
 ## SAI
 
 Current SRv6 SAI doesn't have VPN support. SRv6 VPN SAI would be contributed by Cisco team. The SAI object model for SRv6 VPN is shown in the following diagram. The detail information about SRv6 VPN SAI APIs could be found in SAI's HLD document. ([https://github.com/rameshms-work/SAI/blob/rameshms/srv6\_vpn\_enhancements/doc/SAI-IPv6-Segment-Routing-VPN.md](https://github.com/rameshms-work/SAI/blob/rameshms/srv6_vpn_enhancements/doc/SAI-IPv6-Segment-Routing-VPN.md))
