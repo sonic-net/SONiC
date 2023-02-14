@@ -95,7 +95,8 @@ In conclusion, the majority of time was spent getting the raw data from Redis. H
 
 ### Experiment 3: Caching write requests.
 
-In this experiment we programmed 22,152 flows:
+In this experiment we programmed 22,152 flows and measured the read response time as well as the memory utilization of the cache.
+The flow breakdown is as follows:
 
 *   64 VRFs
 *   64 RIFs
@@ -105,5 +106,13 @@ In this experiment we programmed 22,152 flows:
 *   10,000 IPv6
 *   1000 WCMP groups with 2 members each.
 
-The current P4RT app read path took ~1.6s to respond while the cache implementation took 40ms.
+Reading from the cache took 40ms. Compared to the current design which takes ~1.6s.
+The memory utilization for the PI breakdown is as follows:
 
+*   VRFs use \~1.8KB total space (\~29B per entry)
+*   RIFs use \~4KB total space (\~61B per entry)
+*   Neighbors use \~40KB total space (\~79B per entry)
+*   Nexthops use \~47KB total space (\~91B per entry)
+*   IPv4 use \~685KB total space (\~68B per entry)
+*   IPv6 use \~805KB total space (\~80B per entry)
+*   WCMP use \~100KB total space (\~100B per entry)
