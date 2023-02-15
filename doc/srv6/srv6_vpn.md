@@ -159,14 +159,18 @@ There are three changes maded in BFD\_PEER schema.
 The SBFD\_PEER schema is shown as the following
 
     community:
-    SBFD_SESSION:{{local_discriminator}}:{{ipv6addr)}}
-         "type": {{string}} (sbfd initiator/sbfd reflector/sbfd echo)
-         "multiplier": {{integer}} 
-         "tx_interval": {{interval}} 
-         "rx_interval": {{interval}}
-         "remote_discriminator": {{integer}}
-         "vrf":{{string}}
-         "local_addr": {{ipv6addr}}
+    SBFD_SESSION:{{vrf}}:{{local_discriminator}}:{{ipaddr)}}
+        "type": {{string}} (sbfd initiator/sbfd reflector/sbfd echo)
+        "multiplier": {{integer}} 
+        "tx_interval": {{interval}} 
+        "rx_interval": {{interval}}
+        "remote_discriminator": {{integer}}
+        "local_addr": {{ipaddr}}
+        "udp_sport": {{integer}} 
+        "udp_dport": {{integer}} 
+        "ttl" : {{integer}} 
+        "endpoint": {{ipaddr}}
+        "seglist_name": {{string}}
 
 ## BFD state change events handling
 
