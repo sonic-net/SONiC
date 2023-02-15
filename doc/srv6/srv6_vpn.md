@@ -156,20 +156,17 @@ There are three changes maded in BFD\_PEER schema.
 *   Two extra fields "endpoint" and "seglist-name" are added
     
 
-The BFD\_PEER schema is shown as the following
+The SBFD\_PEER schema is shown as the following
 
     community:
-    BFD_SESSION:{{vrf}}:{{ifname}}:{{ipaddr}}:{{local-discriminator}}
-        "tx_interval": {{interval}} (OPTIONAL) 
-        "rx_interval": {{interval}} (OPTIONAL)  
-        "multiplier": {{detection multiplier}} (OPTIONAL) 
-        "shutdown": {{false}} 
-        "multihop": {{false}} 
-        "local_addr": {{ipv4/v6}}
-        "remote-discriminator": {{integer}}
-        "type": {{string}} (active/passive/sbfd initiator/sbfd reflector/sbfd echo) 
-        "endpoint": {{ipv6}}
-        "seglist-name": {{string}}
+    SBFD_SESSION:{{local_discriminator}}:{{ipv6addr)}}
+         "type": {{string}} (sbfd initiator/sbfd reflector/sbfd echo)
+         "multiplier": {{integer}} 
+         "tx_interval": {{interval}} 
+         "rx_interval": {{interval}}
+         "remote_discriminator": {{integer}}
+         "vrf":{{string}}
+         "local_addr": {{ipv6addr}}
 
 ## BFD state change events handling
 
