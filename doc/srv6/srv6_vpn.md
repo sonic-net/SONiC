@@ -78,10 +78,10 @@ Schema:
     vni_label = VRF.vni            ; zero or more separated by ',' (empty value for non-vxlan next-hops). May carry MPLS label in future.
     router_mac = mac_address       ; zero or more remote router MAC address separated by ',' (empty value for non-vxlan next-hops)
     blackhole = BIT                ; Set to 1 if this route is a blackhole (or null0)
-    segment = SRV6_SID_LIST.key    ; New optional field. List of segment names, separated by ',' 
-    seg_src = address              ; New optional field. Source addrs for sid encap
-    vpn_sid = vpn_sid              ; New optional field to add vpn_sid to learnt BGP routes
-    policy = policy                ; New optional field to add policy name to learnt BGP routes
+    segment = SRV6_SID_LIST.key    ; Optional field. List of segment names, separated by ',' 
+    seg_src = address              ; Optional field. Source addrs for sid encap
+    vpn_sid = vpn_sid              ; Optional field to add vpn_sid to learnt BGP routes
+    policy = policy                ; Optional field to add policy name to learnt BGP routes
 
 ## MY\_SID
 
