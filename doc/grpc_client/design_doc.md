@@ -30,14 +30,13 @@ and do this within SONiC PMON docker
 
 ## Requirements
 
-- provide a service/daemon in SONiC to run in DualToR mode, which can interact with Platform API as well interact with state machine(aka Linkmgr) to provide capability to it to get/set Link State/Forwarding State etc. from SoC(gRPC server listening to the client)
+- provide a service/daemon in SONiC to run in DualToR mode, which can interact with Platform API as well interact with state machine(aka Linkmgr) , and orchagent to provide capability for it to get/set Link State/Forwarding State etc. from SoC(gRPC server listening to the client)
 - the service gRPC daemon should be able exchange RPC's with the gRPC server running on the SoC over a secure channel
 - provide a schema for this daemon to publish to State DB on Host which would monitor the aspects of gRPC state for all SoC's running as server.
 - provide an interface/method for gRPC daemon to exchange RPC's with the gRPC server running on the SoC using a loopback IP as source IP.
 - provide an interface for SoC to notify this gRPC client about going to maintainence/shutdown via an asynchronous method.
-- The RPC's exchanged with SoC would help linkmgr state machine make decisions as to transition the DualToR into active/standby state depending on the state of the SoC 
-- the client communication to the SoC should go over proposed Loopback IP.
 - gRPC client communication with Nic-simulator(which will be run in SONiC-Mgmt Testbeds) should also be provided to exchange RPC's.
+- provide a way to monitor gRPC client's and channel health for corrective/monitoring action to be implemented within SONiC ecosystem 
 
 
 ## Deployment
@@ -108,6 +107,35 @@ the proto3 syntax proto file used for generating gRPC code in Python3 is as foll
 }
 
     ```
+
+- The QueryAdminForwardingPortState RPC is used to query the Admin Forwarding State of the FPGA. It takes an AdminRequest message as input and returns an AdminReply message as output.
+
+- The SetAdminForwardingPortState RPC is used to set the Admin Forwarding State of the FPGA. It takes an AdminRequest message as input and returns an AdminReply message as output.
+
+- The QueryOperationPortState RPC is used to query the Operation State of the FPGA. It takes an OperationRequest message as input and returns an OperationReply message as output.
+
+- The QueryLinkState RPC is used to query the Link State of the FPGA. It takes a LinkStateRequest message as input and returns a LinkStateReply message as output.
+
+- The QueryServerVersion RPC is used to query the version of the server running. It takes a ServerVersionRequest message as input and returns a ServerVersionReply message as output.
+
+- The AdminRequest message contains two repeated fields, portid and state, where portid is a list of integers representing the ID of the port, and state is a list of booleans representing the state of the port.
+
+- The AdminReply message has the same fields as AdminRequest.
+
+- The OperationRequest message contains a single repeated field portid which is a list of integers representing the ID of the port.
+
+- The OperationReply message has two repeated fields, portid and state, where portid is a list of integers representing the ID of the port, and state is a list of booleans representing the state of the port.
+
+- The LinkStateRequest message has the same field as OperationRequest.
+
+- The LinkStateReply message has the same fields as OperationReply.
+
+- The ServerVersionRequest message contains a single string field version representing the version of the server.
+
+- The ServerVersionReply message has the same field as ServerVersionRequest.
+
+
+
 ##### Hardware Overview
 
 ![Hardware Overview](images/gRPC_overall.png)  
