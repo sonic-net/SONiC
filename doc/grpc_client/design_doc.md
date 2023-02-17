@@ -56,6 +56,9 @@ More Resources for learning gRPC and advantages Credits
 [grpc github repo](https://github.com/grpc/grpc)
 
 
+##### Hardware Overview
+
+![Hardware Overview](images/gRPC_overall.png)  
 
 ##### Interface to State Machine for Get/Set Admin state of the FPGA Ports 
 
@@ -104,7 +107,7 @@ the proto3 syntax proto file used for generating gRPC code in Python3 is as foll
 
 	message ServerVersionReply {
 	  string version = 1;
-}
+        }
 
     ```
 
@@ -135,10 +138,6 @@ the proto3 syntax proto file used for generating gRPC code in Python3 is as foll
 - The ServerVersionReply message has the same field as ServerVersionRequest.
 
 
-
-##### Hardware Overview
-
-![Hardware Overview](images/gRPC_overall.png)  
 
 
 ## gRPC client communicate to SoC over Loopback IP
