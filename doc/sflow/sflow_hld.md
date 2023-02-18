@@ -13,7 +13,7 @@ Rev | Rev	Date	| Author	| Change Description
 |v1.0 |09/13/2019  |Sudharsan | Updating sequence diagram for various CLIs
 |v1.1 |10/23/2019  |Padmanabhan Narayanan | Update SAI section to use SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME instead of ID. Note on genetlink creation. Change admin_state values to up/down instead of enable/disable to be consistent with management framework's sonic-common.yang.
 |v1.2 |03/07/2021  | Garrick He | Add VRF support and fix interface admin-status output.
-
+|v1.3 |01/24/2023  | Rajkumar Pennadam Ramamoorthy | Add Egress Sflow support.
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
 
@@ -68,9 +68,8 @@ sFlow will be implemented in multiple phases:
 2. sFlow extended router support.
 
 ### Not planned to be supported:
-1. Egress sampling support.
-2. sFlow backoff mechanism (Drop the packets beyond configured CPU Queue rate limit).
-3. sFlow over vlan interfaces.
+1. sFlow backoff mechanism (Drop the packets beyond configured CPU Queue rate limit).
+2. sFlow over vlan interfaces.
 
 ## 6. Module Design
 
@@ -108,7 +107,7 @@ The following figure shows the configuration and control flows for sFlow:
 4. When hsflowd starts, the sonic module (mod_sonic) registered callback for packetBus/HSPEVENT_CONFIG_CHANGED opens a netlink socket for packet reception and registers an sflow sample handler over the netlink socket (HsflowdRx()).
 5. Sampling rate changes are updated in the SFLOW table. The sflowmgrd updates sampling rate changes into SFLOW_TABLE in the App DB. The sfloworch subagent in the orchagent container processes the change to propagate as corresponding SAI SAMPLEPACKET APIs.
 
-Below figures explain the flow for different commands from CLI to SAI
+Below figures explain the flow for different commands from CLI to SAI. In all flow diagrams, "Key" represents {port,direction} where direction="rx" or "tx".
 
 ![alt text](../../images/sflow/sflow_enable.png "SONiC sFlow Enable command")
 
@@ -175,15 +174,15 @@ The sFlow counter polling interval is set to 20 seconds. The pollBus/HSPEVENT_UP
   Globally, sFlow is disabled by default. When sFlow is enabled globally, the sflow deamon is started and sampling will start on all interfaces which have sFlow enabled at the interface level (see “config sflow interface…”).
 When sflow is disabled globally, sampling is stopped on all relevant interfaces and sflow daemon is stopped.
 
-* **sflow interface <enable|disable>** *<{interface-name}|**all**>*
+* **sflow interface <enable|disable>** *<{interface-name}|**all**> [**direction** {rx|tx|both}]*
 
-  Enable/disable sflow at an interface level. By default, sflow is enabled on all interfaces at the interface level.  Use this command to explicitly disable sFlow for a specific interface. An interface is sampled if sflow is enabled globally as well as at the interface level.
+  Enable/disable sflow at an interface level. By default, sflow is enabled on all interfaces at the interface level.  Use this command to explicitly disable sFlow for a specific interface. An interface is sampled if sflow is enabled globally as well as at the interface level. Also set the direction with one of rx (ingress), tx (egress), both. This is optional parameter if not set default is rx (for backward compatibility). If option "both", SFLOW SESSION table with keys "rx" and "tx" are modified.
 
   The “all” keyword is used as a convenience to enable/disable sflow at the interface level for all the interfaces.
   
   Note: The local configuration applied to an interface has higher precedence over the global configuration provided through the "all" keyword.
 
-* **sflow interface sample-rate** *{interface-name} {value}*
+* **sflow interface sample-rate** *{interface-name} {value} [**direction** {rx|tx|both}]*
 
   Configure the sample-rate for a specific interface.
 
@@ -200,6 +199,9 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
 
   * value is the average number of packets skipped before the sample is taken. As per SAI samplepacket definition : "The sampling rate specifies random sampling probability as the ratio of packets observed to samples generated. For example a sampling rate of 256 specifies that, on average, 1 sample will be generated for every 256 packets observed."
   * Valid range 256:8388608.
+
+  Note that sample-rate can be different for same interface on rx and tx direction. This is acheived by setting the direction option. Default is set to rx for backward compatibility. This is optional parameter if not set default is rx (for backward compatibility). If option "both", SFLOW SESSION table with keys "rx" and "tx" are modified.
+
 
 * **sflow polling-interval** *{value}*
 
@@ -269,13 +271,17 @@ The configDB objects for the above CLI is given below:
     }
 
     "SFLOW_SESSION": {
-        "Ethernet0": {
+        "Ethernet0|rx": {
            "admin_state": "down"
-           "sample_rate": "40000"
+           "sample_rate": "40000"           
         },
-        "Ethernet16": {
+        "Ethernet0|tx": {
+           "admin_state": "down"
+           "sample_rate": "40000"           
+        },
+        "Ethernet16|rx": {
            "admin_state": "up"
-           "sample_rate": "32768"
+           "sample_rate": "32768"           
         }
     }
 
@@ -284,13 +290,24 @@ The configDB objects for the above CLI is given below:
 If user issues a "config sflow interface disable all", the SFLOW_SESSION will have the following:
 ```
     "SFLOW_SESSION": {
-        "all":{
+        "all|rx":{
             "admin_state":"down"
         },
         ...
      }
 ```
-
+If user issues a "config sflow interface disable all direction both", the SFLOW_SESSION will have the following:
+```
+    "SFLOW_SESSION": {
+        "all|rx":{
+            "admin_state":"down"
+        },
+        "all|tx":{
+            "admin_state":"down"
+        },
+        ...
+     }
+```
 &#35; show sflow
 
 Displays the current configuration, global defaults as well as user configured values including collectors.
@@ -305,12 +322,53 @@ Agent ID: loopback0 (10.0.0.10)
 
 ```
 
-&#35; show sflow interface
+&#35; show sflow interface [**direction** {tx|rx}]
 
-Displays the current running configuration of sflow interfaces.
+Displays the current running configuration of sflow interfaces. "direction" is optional parameter.
+
+show sflow interface
+```
+                          Rx                              Tx
+              ----------------------------   ----------------------------
+Interface     Admin Status   Sampling rate   Admin Status   Sampling rate 
+---------     ------------   -------------   ------------   -------------
+Ethernet0     down           40000           up             40000
+Ethernet1     up             40000           up             40000     
+Ethernet2     up             40000           up             40000
+Ethernet3     up             40000           up             40000
+Ethernet4     up             40000           up             40000
+Ethernet5     up             40000           down           40000   
+Ethernet6     up             40000           up             45000
+Ethernet7     up             40000           up             40000
+Ethernet8     up             40000           up             40000
+Ethernet9     up             40000           up             40000
+Ethernet10    up             40000           up             40000
+Ethernet11    up             40000           up             40000 
+Ethernet12    up             40000           up             40000
+Ethernet13    up             40000           up             40000 
+Ethernet14    up             40000           up             40000
+Ethernet15    up             40000           up             40000
+Ethernet16    up             32768           up             25000
+Ethernet17    up             40000           up             40000  
+Ethernet18    up             40000           up             40000
+Ethernet19    up             40000           up             40000
+Ethernet20    up             40000           up             40000
+Ethernet21    up             40000           up             40000
+Ethernet22    up             40000           up             40000
+Ethernet23    up             40000           up             40000
+Ethernet24    up             40000           up             40000
+Ethernet25    up             40000           up             40000
+Ethernet26    up             40000           up             40000
+Ethernet27    up             40000           up             40000
+Ethernet28    up             40000           up             40000
+Ethernet29    up             40000           up             40000
+Ethernet30    up             40000           up             40000
+Ethernet31    down           40000           down             40000
 
 ```
-Interface     Admin Status   Sampling rate
+show interface status direction rx
+```
+Interface     Admin Status   Sampling rate 
 ---------     ------------   -------------
 Ethernet0     down           40000
 Ethernet1     up             40000
@@ -380,9 +438,11 @@ AGENT_ID            = ifname        ; Interface name
 
 A new SFLOW_SESSION table would be added.
 ```
-key SFLOW_SESSION:interface_name
+key SFLOW_SESSION:interface_name|direction
 ADMIN_STATE     = "up" / "down"
-SAMPLE_RATE     = 1*7DIGIT      ; average number of packets skipped before the sample is taken
+SAMPLE_RATE     = 1*7DIGIT      ; average number of packets 
+skipped before the sample is taken
+direction can have value of  rx | tx
 ```
 
 #### AppDB & Schema
@@ -391,9 +451,10 @@ A new SFLOW_SESSION_TABLE is added to the AppDB:
 
 ```
 ; Defines schema for SFLOW_SESSION_TABLE which holds global configurations
-key 			= SFLOW_SESSION_TABLE:interface_name
+key 			= SFLOW_SESSION_TABLE:interface_name:direction
 ADMIN_STATE	    = "up" / "down"
 SAMPLE_RATE     = 1*7DIGIT      ; average number of packets skipped before the sample is taken
+direction can have value of "rx"|"tx"
 ```
 
 A new SFLOW_SAMPLE_RATE_TABLE table which maps interface speed to the sample rate for that speed is added to the AppDB
@@ -403,6 +464,29 @@ key                 = SFLOW_SAMPLE_RATE_TABLE:speed
 SAMPLE_RATE         = 1*7DIGIT      ; average number of packets skipped before the sample is taken
 ```
 Where speed         = 1*6DIGIT      ; port line speed in Mbps
+
+#### **DB Migration**
+Since there is a change in schema for SFLOW_SESSION in config DB and SFLOW_SESSION_TABLE in APP DB, we will add support to migrate the entries to new schema in db_migrator.py. Default behavior would be replace the existing entries with key mapped to rx.
+
+Existing ConfigDB schema
+```
+"SFLOW_SESSION": {
+        "Ethernet0": {
+           "admin_state": "down"
+           "sample_rate": "40000"           
+        },
+}
+```
+After migration
+```
+"SFLOW_SESSION": {
+        "Ethernet0|rx": {
+           "admin_state": "down"
+           "sample_rate": "40000"           
+        }
+}  
+```  
+Similar changes will be handled for APP DB migration    
 
 ### 6.7 **sflow container**
 
@@ -450,7 +534,7 @@ Refer to host-sflow/src/Linux/hsflowd.h for a list of events.
 
 An sFlowOrch is introduced in the Orchagent to handle configuration requests. The sFlowOrch essentially facilitates the creation/deletion of samplepacket sessions as well as get/set of session specific attributes. sFlowOrch sets the genetlink host interface that is to be used by the SAI driver to deliver the samples.
 
-Also, it monitors the SFLOW_SESSIONS_TABLE and PORT state to determine sampling rate / speed changes to derive and set the sampling rate for all the interfaces. It uses the SAI samplepacket APIs to set each ports's sampling rate.
+Also, it monitors the SFLOW_SESSIONS_TABLE and PORT state to determine sampling rate / speed changes to derive and set the sampling rate for all the interfaces. Ingress/Egress Sampling is enabled on the interfaces based on direction setting. It uses the SAI samplepacket APIs to set each ports's sampling rate.
 
 ### Rate limiting
 
@@ -591,6 +675,21 @@ sai_create_hostif_table_entry_fn(&host_table_entry, 4, sai_host_table_attr);
 
 It is assumed that the trap group and the trap itself have been defined using sai_create_hostif_trap_group_fn() and sai_create_hostif_trap_fn().
 
+#### Mapping of Sflow to interface
+```
+
+// Ingress Sflow mapped to direction "rx".
+attr.id = SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE;
+attr.value.oid = sample_id;
+set_port_attribute(port_id, &attr);
+
+// Egress Sflow mapped to direction "tx".
+attr.id = SAI_PORT_ATTR_EGRESS_SAMPLEPACKET_ENABLE;
+attr.value.oid = sample_id;
+set_port_attribute(port_id, &attr);
+
+```
+
 ## 7 **Warmboot support**
 
 sFlow packet/counter sampling should not be affected after a warm reboot. In case of a planned warm reboot, packet sampling will be stopped.
@@ -617,10 +716,10 @@ Unit test case one-liners are given below:
 |  3   | Verify that sFlowOrch creates "psample" multicast group "packets" if there is not psample driver inserted.                              |
 |  4   | Verify that sFlowOrch maps SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the "psample" family and multicast group "packets".                |
 |  5   | Verify that it is possible to enable and disable sflow using the SFLOW table's admin_state field in CONFIG_DB                           |
-|  6   | Verify that interfaces can be enabled/disabled using additions/deletions in SFLOW_SESSION table in CONFIG_DB                            |
+|  6   | Verify that interfaces can be enabled/disabled using additions/deletions in SFLOW_SESSION table for direction tx, rx and both in CONFIG_DB                           |
 |  7   | Verify that it is possible to change the counter polling interval using the SFLOW table in CONFIG_DB                                    |
 |  8   | Verify that it is possible to change the agent-id using the SFLOW table in CONFIG_DB
-|  9   | Verify that it is possible to change the sampling rate per interface using SFLOW_SESSION interface sample_rate field in CONFIG_DB       |
+|  9   | Verify that it is possible to change the sampling rate per interface using SFLOW_SESSION interface sample_rate field for direction tx, rx and both in CONFIG_DB       |
 | 10   | Verify that changes to SFLOW_SESSION CONFIG_DB entry is pushed to the corresponding table in APP_DB and to ASIC_DB by sFlowOrch         |
 | 11   | Verify that collector and per-interface changes get reflected using the "show sflow" and "show sflow interface" commands                |
 | 12   | Verify that packet samples are coming into hsflowd agent as per the global and per-interface configuration                              |
@@ -630,7 +729,7 @@ Unit test case one-liners are given below:
 | 16   | Verify that sample collection works on all ports or on a subset of ports (using lowest possible sampling rate).                         |
 | 17   | Verify that counter samples are updated every 20 seconds                                                                                |
 | 18   | Verify that packet & counter samples stop for a disabled interface.                                                                     |
-| 19   | Verify that sampling changes based on interface speed and per-interface sampling rate change.                                           |
+| 19   | Verify that sampling changes based on interface speed and per-interface and direction sampling rate change.                                           |
 | 20   | Verify that if sFlow is not enabled in the build, the sflow docker is not started                                                       |
 | 21   | Verify that sFlow docker can be stopped and restarted and check that packet and counter sampling restarts.                              |
 | 22   | Verify that with config saved in the config_db.json, restarting the unit should result in sFlow coming up with saved configuration.     |
@@ -639,6 +738,8 @@ Unit test case one-liners are given below:
 | 25   | Verify that the swss restart works without issues when sflow is enabled and continues to sample as configured. |
 | 26   | Verify that collector functions properly on 'default' VRF and can send counter and flow samples |
 | 27   | Verify that collector functions properly on 'mgmt' VRF and can send counter and flow samples |
+|28    | Verify CONFIG DB migration changes for SFLOW SESSION table for old to new schema
+|28    | Verify APP DB migration changes for SFLOW SESSION table for old to new schema
 
 ## 12 **Action items**
 * Determine if it is possible to change configuration without restarting hsflowd
