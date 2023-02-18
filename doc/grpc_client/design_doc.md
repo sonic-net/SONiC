@@ -268,4 +268,87 @@ with grpc.insecure_channel("%s:%s" % (server, port)) as insecure_channel:
 - the gRPC server listening to the requests would decode the meta_data and serve the requests for gRPC client by associating the SoC_IP with the port
 
 
+#### Deployment of gRPC in SONiC build system.
+The current logic for deploying gRPC in PMON is that we utilize sonic-ycabled's wheel utility to generate the gRPC libray utlities which are imported by the daemon.
+The main advantage of doing this is
+- with each gRPC version improvement SONiC Dev does not have to maintain the generated code, if that chnages over each version
+- No need to test the generated code as part of Unit Test infrastructure 
+
+Below are few snippets of setup.py function and the description of each 
+
+     ```
+	from setuptools import setup, find_packages
+	from distutils.command.build_ext import build_ext as _build_ext
+	import distutils.command
+
+	class GrpcTool(distutils.cmd.Command):
+	    def initialize_options(self):
+		pass
+
+	    def finalize_options(self):
+		pass
+
+	    def run(self):
+		import grpc_tools.protoc
+
+		grpc_tools.protoc.main([
+		    'grpc_tools.protoc',
+		    '-Iproto',
+		    '--python_out=.',
+		    '--grpc_python_out=.',
+		    'proto/proto_out/linkmgr_grpc_driver.proto'
+		])
+
+	class BuildExtCommand (_build_ext, object):
+	    def run(self):
+		self.run_command('GrpcTool')
+		super(BuildExtCommand, self).run()
+
+	setup(
+	    packages=find_packages(),
+	    entry_points={
+		'console_scripts': [
+		    'ycabled = ycable.ycable:main',
+		]
+	    },
+	    cmdclass={'build_ext': BuildExtCommand,
+		      'GrpcTool': GrpcTool}
+	)
+
+    ```
+
+- The setup() function is the main entry point for defining the package's metadata and configuration. Here's what each argument in the setup() function does:
+
+- entry_points: A dictionary that maps entry point names to the Python code that should be executed when the entry point is invoked.
+cmdclass: A dictionary that maps custom command classes to their respective names.
+
+- The cmdclass argument is used to define two custom commands: GrpcTool and BuildExtCommand. Let's look at each of these commands in more detail:
+
+- GrpcTool
+The GrpcTool class is a custom command that is added to the package's build process. When the package is built using setup.py, this command will be run to generate Python code from the specified proto file using the grpc_tools.protoc module. Here's what each method in the GrpcTool class does:
+
+- initialize_options(self): This method is called before the command is run. In this case, it does nothing.
+- finalize_options(self): This method is called after the command is run. In this case, it does nothing.
+- run(self): This method is called when the command is run. It imports the grpc_tools.protoc module and uses it to generate Python code from the specified proto file. The generated code is written to the current directory.
+- The arguments passed to grpc_tools.protoc.main() are as follows:
+
+    ```
+	'grpc_tools.protoc': This is the name of the grpc_tools.protoc module.
+	'-Iproto': This option tells the grpc_tools.protoc module where to find the proto file.
+	'--python_out=.': This option tells the grpc_tools.protoc module to generate Python code and write it to the current directory.
+	'--grpc_python_out=.': This option tells the grpc_tools.protoc module to generate gRPC Python code and write it to the current directory.
+
+	'proto/proto_out/linkmgr_grpc_driver.proto': This is the path to the proto file that should be used to generate the Python code.
+
+    ```
+- BuildExtCommand
+The BuildExtCommand class is a subclass of the built-in _build_ext command class. It is used to extend the default behavior of the _build_ext command by adding a dependency on the GrpcTool command. Here's what each method in the BuildExtCommand class does:
+
+- run(self): This method is called when the command is run. It calls the GrpcTool command before running the default _build_ext command using the super() function.
+By adding the GrpcTool command as a dependency of the BuildExtCommand, the GrpcTool command will be automatically run whenever the BuildExtCommand is run. This ensures that the necessary Python code is generated before the package is built and installed.
+
+In summary, the setup() script defines a Python package called "sonic-ycabled" that includes a console script called ycabled. The package also includes two custom commands: GrpcTool and BuildExtCommand. The GrpcTool command generates Python code from a proto file using the grpc_tools.protoc module, and the BuildExtCommand command extends the default _build_ext command to include a dependency on the GrpcTool command. This ensures that the necessary Python code is generated before the package is built and installed.
+
+
+
 
