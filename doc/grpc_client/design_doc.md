@@ -58,7 +58,11 @@ More Resources for learning gRPC and advantages Credits
 
 ##### Hardware Overview
 
-![Hardware Overview](images/gRPC_overall.png)  
+![Hardware Overview](images/gRPC_overall.png) 
+
+HOST and FPGA functionality is explained in this diagram
+ 
+![Hardware Overview](images/gRPC_host.png)  
 
 ##### Interface to State Machine for Get/Set Admin state of the FPGA Ports 
 
