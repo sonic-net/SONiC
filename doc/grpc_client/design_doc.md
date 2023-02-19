@@ -5,7 +5,8 @@ Table of Contents
 =================
 * [Scope](#scope)
 * [Requirements](#Requirements)
-* [gRPC client communicate to SoC over Loopback IP](#)
+* [why gRPC](#why gRPC)
+* [gRPC client communicate to SoC over Loopback IP](#Deployment)
 * [gRPC commuication over secure channel](#)
 * [gRPC client initialization](#)
 * [gRPC commuication to NIC simulator](#)
@@ -39,7 +40,7 @@ and do this within SONiC PMON docker
 - provide a way to monitor gRPC client's and channel health for corrective/monitoring action to be implemented within SONiC ecosystem 
 
 
-## Deployment
+##why gRPC
 
 ## why gRPC for communication between ToR AND the SoC
 
@@ -56,7 +57,7 @@ More Resources for learning gRPC and advantages Credits
 [grpc github repo](https://github.com/grpc/grpc)
 
 
-##### Hardware Overview
+## Hardware Overview
 
 ![Hardware Overview](images/gRPC_overall.png) 
 
@@ -267,6 +268,8 @@ with grpc.insecure_channel("%s:%s" % (server, port)) as insecure_channel:
 
 - the gRPC server listening to the requests would decode the meta_data and serve the requests for gRPC client by associating the SoC_IP with the port
 
+
+## Deployment
 
 #### Deployment of gRPC in SONiC build system.
 The current logic for deploying gRPC in PMON is that we utilize sonic-ycabled's wheel utility to generate the gRPC libray utlities which are imported by the daemon.
