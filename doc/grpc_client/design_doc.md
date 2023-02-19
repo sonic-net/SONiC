@@ -40,7 +40,7 @@ and do this within SONiC PMON docker
 - provide a way to monitor gRPC client's and channel health for corrective/monitoring action to be implemented within SONiC ecosystem 
 
 
-##why gRPC
+## why gRPC
 
 ## why gRPC for communication between ToR AND the SoC
 
