@@ -1,4 +1,4 @@
-[200~## gRPC client for active-actve DualToR scenario design
+## gRPC client for active-actve DualToR scenario design
 
 
 Table of Contents
@@ -14,6 +14,8 @@ Table of Contents
   * [Proto Definition for forwarding State](#proto-definition-interface-to-state-machine-for-getset-admin-state-of-the-fpga-ports)
   * [Proto Definition for service notification](#proto-definition-interface-to-soc-to-notify-ycabled-about-service-notification)
   * [Schema Definition for DB's ](#ycabled-functional-schema-for-data-exchanged-between-orchagent-and-linkmgr)
+* [gRPC channel customisation and Telemetry Schema](#grpc-channel-customisation-and-telemetry-schema)
+  * [Keepalive for channle](#keepalive-for-grpc-channelstub)
 * [gRPC client communicate to SoC over Loopback IP](#grpc-client-communicate-to-soc-over-loopback-ip)
 * [gRPC commuication over secure channel](#grpc-commuication-over-secure-channel)
 * [gRPC client initialization](#deployment)
@@ -198,7 +200,6 @@ the proto3 syntax's proto file used for generating gRPC code in Python3 is as fo
 
 ```
 
-
 - The service GracefulRestart block defines the service and includes a single RPC method called NotifyGracefulRestartStart. The NotifyGracefulRestartStart method takes a GracefulAdminRequest message as input and returns a stream of GracefulAdminResponse messages.
 
 - he message GracefulAdminRequest block defines the message format for the input parameter of the NotifyGracefulRestartStart method. It includes a single field called tor of type ToRSide.
@@ -246,7 +247,7 @@ the proto3 syntax's proto file used for generating gRPC code in Python3 is as fo
 
    ```
 
-### Ycabled Illustartion for Data Exchnage
+### Ycabled Illustartion for Data Exchange between different Daemons
 
 - Since Platform API already exists for all vendors and it is an essential requirement for gRPC agent to establish communication to check certain aspects(QSFP presence for example),
 Ycabled is written in Python3
@@ -254,6 +255,48 @@ Ycabled is written in Python3
 The following Picture explains how data is exchanged between orchagent/ycabled/linkmgr
 
 ![Ycabled Overview](images/ycabled.png)
+
+## gRPC channel customisation and Telemetry Schema
+
+### KeepAlive for gRPC channel and Stub
+- Because of native gRPC channel State Machine has a delay issue for making the channel READY from IDLE state in case a gRPC RPC is not exchanged for a while, we employ a keepalive mechanism for DualToR messages exchanged.
+- This helps achieve to immediately send an RPC, in case its requested fro linkmgr/orchagent and not have a delay in forming the session
+- Enables HTTP2 pings to be sent to SoC and hence in normal working conditions Channel State of gRPC is always kept at READY
+- more details for keepalive can be found here
+![grpc keep live](https://github.com/grpc/grpc/blob/master/doc/keepalive.md)
+- This allows gRPC channel to goto TRANSIENT_FAILURE state once pings are disrupted within any <4secs>.
+- gRPC channel attributes are hence added like this
+```python
+   GRPC_CLIENT_OPTIONS = [
+    ('grpc.keepalive_timeout_ms', 8000),
+    ('grpc.keepalive_time_ms', 4000),
+    ('grpc.keepalive_permit_without_calls', True),
+    ('grpc.http2.max_pings_without_data', 0)
+]
+```
+
+### Telemetry publishing schema for monitoring YCabled
+
+```
+    State DB
+    MUX_CABLE_INFO| PORTNAME;
+    - mux_direction |active/standby/unknown
+    - Peer_mux_direction| active/standby/unknown	//which side the Grpc FPGA TX  (active/standby) is pointing to, meaning the downward traffic will be allowed to pass. active means mux pointing to self and vice-versa
+    - grpc server version| 1.xxx/NA	//Describes the version which the server is running onto	
+    - self_operation_state|	Up/down/NA	  //Describes whether the operation of the port is administratively up/down	yes
+    - peer_operation_state|	Up/down/NA	  //Describes whether the operation of the peer port is administratively up/down	
+    - self_link_state|	Up/down/NA	      //Describes whether or not the link is physically up from FPGA side using gRPC	
+    - peer_Link_state|	Up/down/NA	//Describes whether or not the link is physically up from FPGA side using gRPC	
+    - grpc_connection_status| 	READY/TRANSIENT_FAILURE/IDLE/SHUTDOWN/CONNECTING/NA	//(TCP session details or channel details)	
+    - mux_direction_probe_count|	Type:int	//A counter about how many times mux direction is probed using gRPC	
+    - peer_mux_direction_probe_count|	Type:int	//A counter about how many times peer mux direction is probed using gRPC	
+    - link_state_probe_count|	Type:int	//A counter about how many times link state is counted using gRPC	
+    - peer_link_state_probe_count|	Type:int	//A counter about how many times peer link state is counted using gRPC	
+    - operation_state_probe_count|	Type:int	//A counter about how many times operation link state is counted using gRPC	
+    - peer_operation_state_probe_count|	Type:int	//A counter about how many times peer operation link state is counted using gRPC
+    - soc_service| inprogress/noop/NA	//Describes the version which the server is running onto
+			
+```
 
 ## Other Considerations
 
@@ -283,7 +326,7 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
 
 - use the IPTABLES rule method as with this approach, there are no more workarounds necessary after adding the rule. Caclmgrd will check the CONFIG DB DEVICE_METADATA and upon learning this is ToR with subtype DualToR, will add the IPTABLES rule, after checking the MUX_CABLE table inside CONFIG_DB.
     ```
-        DEVICE_METADATA | localhost
+        DEVICE_METADATA | localhost;
         type: ToRRouter
             subtype: DualToR
     ```
@@ -306,7 +349,7 @@ num   pkts bytes target     prot opt in     out     source               destina
 
 #### Rationale
 
-  - This approach conveniently adds the rule for all the SoC IP's needed to be communicatting with DualToR over gPRC, and therefore SoC server and gRPC client would be able to communicate over agreed IP.
+  - This approach conveniently adds the rule for all the SoC IP's needed to be communicating with DualToR over gPRC, and therefore SoC server and gRPC client would be able to communicate over agreed IP.
 
 ## gRPC commuication over secure channel
 
