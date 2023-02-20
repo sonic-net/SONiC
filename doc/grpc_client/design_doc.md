@@ -156,18 +156,18 @@ Ycabled is written in Python3
 	APP_DB
 	MUX_CABLE_TABLE| PORTNAME; written by linkmgrd react on orchagent
 	-	state: active | standby
-	HW_ MUX_CABLE_TABLE | PORTNAME; written by orchagent react on xcvrd (its replacement)  
+	HW_ MUX_CABLE_TABLE | PORTNAME; written by orchagent react on ycabled (its replacement)  
 	-	state: active | standby
 	FORWARDING_STATE_COMMAND | PORTNAME:
-	-	command: probe | set_active_self | set_standby_self | set_standby_peer 	 ;written by linkmgrd react on xcvrd	 
+	-	command: probe | set_active_self | set_standby_self | set_standby_peer 	 ;written by linkmgrd react on ycabled	 
 	FORWARDING_STATE_RESPONSE | PORTNAME
-	-	response: active | standby | unknown | error ;written by xcvrd react by linkmgrd 
-	-	response_peer: active | standby | unknown | error ;written by xcvrd react by linkmgrd
+	-	response: active | standby | unknown | error ;written by ycabled react by linkmgrd 
+	-	response_peer: active | standby | unknown | error ;written by ycabled react by linkmgrd
 	PORT_TABLE|PORTNAME
 	-	oper_status: up|down; written  by swss  react by linkmgrd 
 	PORT_TABLE_PEER|PORT
-	-	oper_status: up|down; written by xcvrd react by linkmgrd 
-	HW_FORWARDING_STATE_PEER|PORTNAME; written by linkmgrd react by xcvrd
+	-	oper_status: up|down; written by ycabled react by linkmgrd 
+	HW_FORWARDING_STATE_PEER|PORTNAME; written by linkmgrd react by ycabled
 	-	state: active|standby|unknown 
 	MUX_SERVICE_NOTIFICATION|PORT
         - notify_type:control/data
@@ -179,13 +179,15 @@ Ycabled is written in Python3
 	MUX_CABLE_TABLE| PORTNAME 	
 	-	State: active|standby|unknown; written by orchagent react on linkmgrd
 	HW_MUX_CABLE_TABLE| PORTNAME
-	-	State: acative|standby|unknown; written by xcvrd react on orchagent
+	-	State: acative|standby|unknown; written by ycabled react on orchagent
 	HW_MUX_CABLE_TABLE_PEER| PORTNAME
-	-	state: active |standby|unknown; written by xcvrd react on linkmgrd
+	-	state: active |standby|unknown; written by ycabled react on linkmgrd
 
 
    ```
+The following Picture explains how data is exchanged between orchagent/ycabled/linkmgr
 
+![Ycabled Overview](images/ycabled.png) 
 
 ## Other Considerations
 
