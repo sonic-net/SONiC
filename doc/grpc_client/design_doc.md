@@ -31,7 +31,7 @@ and do this within SONiC PMON docker
 
 ## Requirements
 
-- provide a service/daemon in SONiC to run in DualToR mode, which can interact with Platform API as well interact with state machine(aka Linkmgr) , and orchagent to provide capability for it to get/set Link State/Forwarding State etc. from SoC(gRPC server listening to the client)
+- provide a service/daemon in SONiC to run in DualToR mode, which can interact with Platform API as well interact with state machine(aka Linkmgr) and orchagent to provide capability for it to get/set Link State/Forwarding State etc. from SoC(gRPC server listening to the client)
 - the service gRPC daemon should be able exchange RPC's with the gRPC server running on the SoC over a secure channel
 - provide a schema for this daemon to publish to State DB on Host which would monitor the aspects of gRPC state for all SoC's running as server.
 - provide an interface/method for gRPC daemon to exchange RPC's with the gRPC server running on the SoC using a loopback IP as source IP.
@@ -40,7 +40,6 @@ and do this within SONiC PMON docker
 - provide a way to monitor gRPC client's and channel health for corrective/monitoring action to be implemented within SONiC ecosystem 
 
 
-## why gRPC
 
 ## why gRPC for communication between ToR AND the SoC
 
@@ -57,17 +56,21 @@ More Resources for learning gRPC and advantages Credits
 [grpc github repo](https://github.com/grpc/grpc)
 
 
-## Hardware Overview
+## Hardware Overview and overall Archtecture
 
 ![Hardware Overview](images/gRPC_overall.png) 
 
 HOST and FPGA functionality is explained in this diagram
  
-![Hardware Overview](images/gRPC_host.png)  
+![Hardware Overview](images/gRPC_host.png) 
+
+DualToR redundancy achievment using Active-Active solution
+ 
+![Hardware Overview](images/failover.png) 
 
 ##### Interface to State Machine for Get/Set Admin state of the FPGA Ports 
 
-the proto3 syntax proto file used for generating gRPC code in Python3 is as follows gRPC tools can be used to 
+the proto3 syntax's proto file used for generating gRPC code in Python3 is as follows. gRPC tools can be used to generate the corresponding library code in any language, ycabled employes Python3 to achieve this
 
     ```python
 	service DualToRActive {
@@ -143,7 +146,48 @@ the proto3 syntax proto file used for generating gRPC code in Python3 is as foll
 - The ServerVersionReply message has the same field as ServerVersionRequest.
 
 
+## Ycabled Functional overview for DualToR
 
+- Since Platform API already exists for all vendors and it is an essential requirement for gRPC agent to establish communication to check certain aspects(QSFP presence for example),
+Ycabled is written in Python3
+- Ycabled would exchange data/state with orchagent and linkmgr with the following schema:
+
+   ```
+	APP_DB
+	MUX_CABLE_TABLE| PORTNAME; written by linkmgrd react on orchagent
+	-	state: active | standby
+	HW_ MUX_CABLE_TABLE | PORTNAME; written by orchagent react on xcvrd (its replacement)  
+	-	state: active | standby
+	FORWARDING_STATE_COMMAND | PORTNAME:
+	-	command: probe | set_active_self | set_standby_self | set_standby_peer 	 ;written by linkmgrd react on xcvrd	 
+	FORWARDING_STATE_RESPONSE | PORTNAME
+	-	response: active | standby | unknown | error ;written by xcvrd react by linkmgrd 
+	-	response_peer: active | standby | unknown | error ;written by xcvrd react by linkmgrd
+	PORT_TABLE|PORTNAME
+	-	oper_status: up|down; written  by swss  react by linkmgrd 
+	PORT_TABLE_PEER|PORT
+	-	oper_status: up|down; written by xcvrd react by linkmgrd 
+	HW_FORWARDING_STATE_PEER|PORTNAME; written by linkmgrd react by xcvrd
+	-	state: active|standby|unknown 
+	MUX_SERVICE_NOTIFICATION|PORT
+        - notify_type:control/data
+        - msg_type:begin/end
+        - guid:<guid>
+        - service_time:<time> //seconds
+
+        STATE_DB
+	MUX_CABLE_TABLE| PORTNAME 	
+	-	State: active|standby|unknown; written by orchagent react on linkmgrd
+	HW_MUX_CABLE_TABLE| PORTNAME
+	-	State: acative|standby|unknown; written by xcvrd react on orchagent
+	HW_MUX_CABLE_TABLE_PEER| PORTNAME
+	-	state: active |standby|unknown; written by xcvrd react on linkmgrd
+
+
+   ```
+
+
+## Other Considerations
 
 ## gRPC client communicate to SoC over Loopback IP
 
@@ -163,7 +207,7 @@ the proto3 syntax proto file used for generating gRPC code in Python3 is as foll
   - For the kernel route approach we would have to accomodate these issues listed above 
 - using an IPTABLES rule. We could add a POSTROUTING rule to the SNAT table with destination as SoC IP and source as Loopback IP. For Example
     ```
-        sudo iptables -t nat -A POSTROUTING --destination <SoC IP> -j SNAT --to-source <LoopBack IP>
+	sudo iptables -t nat -A POSTROUTING --destination <SoC IP> -j SNAT --to-source <LoopBack IP>
     ```
     - There could be single SNAT entry for the entire subnet which is covers all the SoC IP's connected to the ToR
 
@@ -171,13 +215,13 @@ the proto3 syntax proto file used for generating gRPC code in Python3 is as foll
 
 - use the IPTABLES rule method as with this approach, there are no more workarounds necessary after adding the rule. Caclmgrd will check the CONFIG DB DEVICE_METADATA and upon learning this is ToR with subtype DualToR, will add the IPTABLES rule, after checking the MUX_CABLE table inside CONFIG_DB.
     ```
-        DEVICE_METADATA | localhost
-        type: ToRRouter
+	DEVICE_METADATA | localhost
+	type: ToRRouter
 	    subtype: DualToR 
     ```
     ```
-        MUX_CABLE|PORTNAME
-        SoC_IPv4: <SoC IP>
+	MUX_CABLE|PORTNAME
+	SoC_IPv4: <SoC IP>
     ```
 - The update_control_plane_nat_acls subroutine in caclmgrd will check for the above configuration and upon getting the config, it will add the POSTROUTING SNAT rule
 - Currently the NAT rules which exist are only for multiasic platforms and are only for trapping the SNMP packets coming in the front panel interface in the linux network namespace and sent to the docker0 subnet 240.12.1.x. These NAT rules which are present are for SNMP packets, which are destined for UDP + dest port 161
@@ -215,13 +259,13 @@ num   pkts bytes target     prot opt in     out     source               destina
     key = open('/etc/sonic/credentials/grpc_client.key', 'rb').read()
     cert_chain = open('/etc/sonic/credentials/grpc_client.crt', 'rb').read()
     credential = grpc.ssl_channel_credentials(
-            private_key=key,
-            certificate_chain=cert_chain)
+	    private_key=key,
+	    certificate_chain=cert_chain)
 
     with grpc.secure_channel("{}:50075".format(host), credential) as channel:
-        
-        stub = linkmgr_grpc_driver_pb2_grpc.DualToRActiveStub(channel)
-        # perform RPC's
+	
+	stub = linkmgr_grpc_driver_pb2_grpc.DualToRActiveStub(channel)
+	# perform RPC's
     ```
 #### gRPC client authentication with Nic-Simulator
 gRPC also would need to be authenticated with the server which would be run for SONiC-MGMT tests. For this the proposal is to add self generated certs in a a task during add-topo for DualToR tetbeds and copied to the DUT when NiC-Simulator would be injected. This would be similar to the way mux-simulator is injected today. This way when the gRPC client
@@ -235,16 +279,16 @@ is initiating the channels, it would be able to form a secure channel
 - the proposal is to have a cable_type field in MUX_CABLE table inside CONFIG_DB. During PMON initilazation once the configuration has been rendered, and CONFIG_DB is populated and if it is active-active it will initailze the grpc client daemon logic for that PORT. For the lifetime of gRPC daemon, it will monitor this PORT as gRPC port only and not muxcable port
 -
     ```
-        MUX_CABLE|PORTNAME
-        SoC_IPv4: <SoC IP>
-        cable_type: active_active
+	MUX_CABLE|PORTNAME
+	SoC_IPv4: <SoC IP>
+	cable_type: active_active
     ```
     This part is only for discussion- Should we seperate out the logic for gRPC or should we keep both ycabled and gRPC in the same daemon. We could have an extra field for DualToRType type. 
     ```
-        DEVICE_METADATA | localhost
-        type: ToRRouter
-        subtype: DualToR 
-        DualToRType: active-active/Both
+	DEVICE_METADATA | localhost
+	type: ToRRouter
+	subtype: DualToR 
+	DualToRType: active-active/Both
     ```
 #### Rationale
 - This logic eases the utilization of gRPC client only confined to DualToR configurations meant for active-active scenario.
@@ -261,9 +305,9 @@ is initiating the channels, it would be able to form a secure channel
 For example
 ```
 with grpc.insecure_channel("%s:%s" % (server, port)) as insecure_channel:
-        metadata_interceptor = MetadataInterceptor(("grpc_server", "SoC_IP"))
-        with grpc.intercept_channel(insecure_channel, metadata_interceptor) as channel:
-            stub = nic_simulator_grpc_service_pb2_grpc.DualTorServiceStub(channel)
+	metadata_interceptor = MetadataInterceptor(("grpc_server", "SoC_IP"))
+	with grpc.intercept_channel(insecure_channel, metadata_interceptor) as channel:
+	    stub = nic_simulator_grpc_service_pb2_grpc.DualTorServiceStub(channel)
 ```
 
 - the gRPC server listening to the requests would decode the meta_data and serve the requests for gRPC client by associating the SoC_IP with the port
@@ -350,7 +394,7 @@ The BuildExtCommand class is a subclass of the built-in _build_ext command class
 - run(self): This method is called when the command is run. It calls the GrpcTool command before running the default _build_ext command using the super() function.
 By adding the GrpcTool command as a dependency of the BuildExtCommand, the GrpcTool command will be automatically run whenever the BuildExtCommand is run. This ensures that the necessary Python code is generated before the package is built and installed.
 
-In summary, the setup() script defines a Python package called "sonic-ycabled" that includes a console script called ycabled. The package also includes two custom commands: GrpcTool and BuildExtCommand. The GrpcTool command generates Python code from a proto file using the grpc_tools.protoc module, and the BuildExtCommand command extends the default _build_ext command to include a dependency on the GrpcTool command. This ensures that the necessary Python code is generated before the package is built and installed.
+	In summary, the setup() script defines a Python package called "sonic-ycabled" that includes a console script called ycabled. The package also includes two custom commands: GrpcTool and BuildExtCommand. The GrpcTool command generates Python code from a proto file using the grpc_tools.protoc module, and the BuildExtCommand command extends the default _build_ext command to include a dependency on the GrpcTool command. This ensures that the necessary Python code is generated before the package is built and installed.
 
 
 
