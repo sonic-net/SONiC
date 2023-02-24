@@ -81,7 +81,7 @@ Schema:
     segment = SRV6_SID_LIST.key    ; Optional field. List of segment names, separated by ',' 
     seg_src = address              ; Optional field. Source addrs for sid encap
     vpn_sid = vpn_sid              ; Optional field to add vpn_sid to learnt BGP routes
-    policy = policy                ; Optional field to add policy name to learnt BGP routes
+    policy = policy                ; Optional field to add a list of policy names, separated by ','
 
 ## MY\_SID
 
