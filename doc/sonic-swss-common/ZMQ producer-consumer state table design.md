@@ -15,13 +15,25 @@
 # 1 Functional Requirement
 ## 1.1 Supported operations
  - Should support following operations.
-   - Set
-   - Delete
-   - Batch set
-   - Batch delete
+   - Set:
+        void set(const std::string &key,
+                     const std::vector<FieldValueTuple> &values,
+                     const std::string &op = SET_COMMAND,
+                     const std::string &prefix = EMPTY_PREFIX)
+   - Delete:
+        void del(const std::string &key,
+                     const std::string &op = DEL_COMMAND,
+                     const std::string &prefix = EMPTY_PREFIX)
+   - Batch Set:
+        void set(const std::vector<KeyOpFieldsValuesTuple>& values)
+   - Batch Delete:
+        void del(const std::vector<std::string>& keys)
 ## 1.2 ZMQ producer state table support async operation
  - Producer table will return immediately after send operation to ZMQ.
- - Producer table will retry when send not success.
+ - Producer table will retry when send not success:
+    - When ZMQ socket connection broken, send API will failed and need re-connect and send again.
+    - When ZMQ send queue is full, send API will failed and need retry later.
+    - When a signal come, ZMQ send API will failed, need retry again.
  - Producer table will throw exception after retry failed.
 ## 1.3 ZMQ consumer state table support async operation
  - Consumer will start a receive thread and receive message from ZMQ.
@@ -31,13 +43,14 @@
       - Update redis database queue
     - Send notification to select to handle received operation.
     - Send notification to DB update thread for write received operation to database.
+      This is a configurable feature, could turn on/off this feature in use cases requiring less memory consumption or higher performance.
     - After send notification, continue receive next message from ZMQ.
 
 # 2 Design
  - Diagram:
 <img src="./zmq-diagram.png" style="zoom:100%;" />
  - Sequence:
-<img src="./sequence.png" style="zoom:100%;" />
+<img src="./zmq-sequence.png" style="zoom:100%;" />
  - Call ZmqProducerStateTable API.
  - ZmqProducerStateTable will serialize operation and send to ZMQ.
    - Return when send success.
