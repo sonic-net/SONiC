@@ -18,7 +18,7 @@ The goal of this update is to move away from the snmp.yml file and move towards 
 # Config DB
 ## SNMP SCHEMA
 Some new "SNMP" tables should be added to ConfigDB in order to store SNMP related configuration.
-https://github.com/Azure/SONiC/blob/master/doc/snmp/snmp-schema-addition.md
+https://github.com/sonic-net/SONiC/blob/master/doc/snmp/snmp-schema-addition.md
 
 The new SNMP tables are:
 SNMP

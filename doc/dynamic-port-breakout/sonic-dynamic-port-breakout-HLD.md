@@ -1061,7 +1061,7 @@ There are some special cases where queue, scheduler group and priority group obj
 If they are not at default state, that means user has configured them, sai-redis will fail the delete port action. This means, user should remove the configured objects before deleting the port. I,E, User should bring queues/ingress priority groups/scheduler groups that belong to the port to default state (will remove all assigned objects like buffer profile etc).
 
 PR in Sairedis and Syncd is available already:
-https://github.com/Azure/sonic-sairedis/pull/500
+https://github.com/sonic-net/sonic-sairedis/pull/500
 
 
 ### Syncd changes
@@ -1075,12 +1075,12 @@ However, due to the consumer tables for different objects with batch size, this 
 
 We will ignore some dependencies check to avoid the crash in syncd, and also add retry logic in syncd to avoid above timing issue.
 PRs:
-https://github.com/Azure/sonic-sairedis/pull/464
-https://github.com/Azure/sonic-sairedis/pull/483
+https://github.com/sonic-net/sonic-sairedis/pull/464
+https://github.com/sonic-net/sonic-sairedis/pull/483
 
 Another issue with syncd today is to support dynamic port breakout feature with warm-reboot. We need dynamically update the port map in syncd for comparison logic to support warm-reboot.
 PR is available as below:
-https://github.com/Azure/sonic-sairedis/pull/515
+https://github.com/sonic-net/sonic-sairedis/pull/515
 
 ## libSAI requirements
 We need the HW to initialize with the profile that is breakout capable.

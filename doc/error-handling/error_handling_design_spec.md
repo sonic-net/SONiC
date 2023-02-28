@@ -262,7 +262,7 @@ family             = "IPv4" / "IPv6"  ; address family
 rc                 = SWSS code        ; status code for each neighbour
 ```
 
-Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations.
+Please refer to the [schema](https://github.com/sonic-net/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations.
 
 
 ## 3.5 CLI

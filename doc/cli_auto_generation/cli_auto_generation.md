@@ -52,7 +52,7 @@ The SONiC CLI Auto-generation tool - is a utility for generating the command-lin
 
 To make SONiC NOS more flexible for developers [SONiC Application Extension infrastructure](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md) was introduced. 
 
-If someone wants to extend the SONiC NOS functionality - the SAE infrastructure should be used. Some of the third-party features that will be integrated into the SONiC - may require the command-line interface. To avoid spending time on the investigation of how to develop and add a new CLI to [sonic-utilities](https://github.com/Azure/sonic-utilities/tree/master) - the CLI Auto-generation utility was introduced. The command line interface that would be generated will be intuitive for people familiar with the SONiC NOS and CONFIG DB schema.
+If someone wants to extend the SONiC NOS functionality - the SAE infrastructure should be used. Some of the third-party features that will be integrated into the SONiC - may require the command-line interface. To avoid spending time on the investigation of how to develop and add a new CLI to [sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master) - the CLI Auto-generation utility was introduced. The command line interface that would be generated will be intuitive for people familiar with the SONiC NOS and CONFIG DB schema.
 
 ## Requirements
 
@@ -70,7 +70,7 @@ A current SONiC NOS architecture does not require changes, because the SONiC CLI
 
 There are three main entities:
 
-`YANG model` - YANG model file which contains a description of CONFIG DB schema. Should be written strictly according to [SONiC Yang Model Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) 
+`YANG model` - YANG model file which contains a description of CONFIG DB schema. Should be written strictly according to [SONiC Yang Model Guidelines](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) 
 
 `SONiC CLI Auto-generation tool` - a utility that reads the YANG model and produces the Auto-generated CLI plugin.
 
@@ -227,7 +227,7 @@ admin@sonic:~$ config feature-a sub-command-1 add <KEY> ...
 
 __2. For every `container`, that goes after `top-level container`, (top-level container goes after `module`) will be generated dedicated sub-command for `show` and `config` command groups AND in case if `container` is without `list`, for every `leaf` will be generated dedicated sub-command:__
 
-For instance let's take a PART of existing [sonic-device_metadata.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang)
+For instance let's take a PART of existing [sonic-device_metadata.yang](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang)
 
 ###### sonic-device_metadata YANG model
 ```yang
@@ -296,7 +296,7 @@ ACS-MSN2100  UP                  r-sonic-switch  x86_64-mlnx_msn2100-r0
 ```
 __3. For every `list` element will be generated `add/del/update` commands:__
 
-For instance let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
+For instance let's take a PART of existing [sonic-vlan.yang](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
 
 ###### sonic-vlan YANG model
 ```yang
@@ -383,7 +383,7 @@ Vlan11  11      128  up
 
 __In case if the YANG models have more than 1 `list` entity inside `container`:__
 
-For instance let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
+For instance let's take a PART of existing [sonic-vlan.yang](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
 
 ###### YANG model with 2 lists
 ```yang
@@ -422,7 +422,7 @@ admin@sonic:~$ config vlan-interface add <KEY> ...
 
 __4. For every `leaf-list` element will be generated dedicated `add/del/update` commands, also the user can use a comma-separated list when creating a new list element to fill `leaf-list`. Also will be added dedicated command `clear` to delete all the elements from `leaf-list`:__
 
-For instance let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
+For instance let's take a PART of existing [sonic-vlan.yang](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
 
 ###### sonic-vlan YANG model
 ```yang
@@ -625,7 +625,7 @@ No impact for warmboot/fastboot flows.
 
 ## Restrictions Limitations 
 
-1. The YANG models for Application extension MUST have unique names for constructs - __module__, __container__, that are located on the same nested level in comparison to [existing YANG models](https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models/yang-models). This needed to avoid an intersection with the existing CLI on the switch. The below [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang) has a __module__ name - "sonic-vlan", so the developer can NOT use this "sonic-vlan" name for another module in another YANG mode.
+1. The YANG models for Application extension MUST have unique names for constructs - __module__, __container__, that are located on the same nested level in comparison to [existing YANG models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models/yang-models). This needed to avoid an intersection with the existing CLI on the switch. The below [sonic-vlan.yang](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang) has a __module__ name - "sonic-vlan", so the developer can NOT use this "sonic-vlan" name for another module in another YANG mode.
 
 ```yang
 module sonic-vlan {

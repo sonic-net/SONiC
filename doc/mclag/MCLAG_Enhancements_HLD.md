@@ -105,7 +105,7 @@ Rev 0.1
 | 0.2  | 10/22/2019 | Tapash Das                               | L3 Protocol support enhancement |
 
 # About this Manual
-This document provides general information about SONiC MCLAG feature enhancements. The original MCLAG  feature is described at https://github.com/Azure/SONiC/blob/f478fe7cbc03c144f3b147e9638f460f764ce4b7/doc/Sonic-mclag-hld.md 
+This document provides general information about SONiC MCLAG feature enhancements. The original MCLAG  feature is described at https://github.com/sonic-net/SONiC/blob/f478fe7cbc03c144f3b147e9638f460f764ce4b7/doc/Sonic-mclag-hld.md 
 
 
 # Definition/Abbreviation

@@ -53,7 +53,7 @@ As an example, setting/getting DSCP attribute for a DTel event object is done us
 
 ## Testbed
 DTel tests will run on __ptf32__ topology described in:
-[SONiC test topologies](https://github.com/Azure/sonic-mgmt/blob/master/ansible/doc/README.testbed.Topology.md)
+[SONiC test topologies](https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/doc/README.testbed.Topology.md)
 
 <img src="dtel-test-topology.jpg" width="400" height="400">
 

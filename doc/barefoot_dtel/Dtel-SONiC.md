@@ -372,7 +372,7 @@ Following is the minimum configuration for each DTel feature to detect intended 
 1. Reporting enabled on at least one queue with some threshold (latency or depth) set or tail drop enabled.
 
 ## Application to configure DTel via SONiC
-Since currently there is no SONiC CLI, users can configure DTel by interacting with ConfigDB. This can be done either directly, through the Redis CLI, or through the use of configuration tools, such as the [Python SwSS SDK](https://github.com/Azure/sonic-py-swsssdk).
+Since currently there is no SONiC CLI, users can configure DTel by interacting with ConfigDB. This can be done either directly, through the Redis CLI, or through the use of configuration tools, such as the [Python SwSS SDK](https://github.com/sonic-net/sonic-py-swsssdk).
 
 ## euclid
 

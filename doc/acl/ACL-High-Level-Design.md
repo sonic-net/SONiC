@@ -548,18 +548,18 @@ for egress ACL rule.
 Add possibility to receive updates about mirror sessions state change and perform mirroring rules state change accordingly.
 # 4 Flows
 ## 4.1 Creating of ACL Objects
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_create.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/acl_create.png)
 ## 4.2 Deleting of ACL Objects
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_delete.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/acl_delete.png)
 ## 4.3 Updating of ACL Objects
 Depending on the number of changed properties in the updated ACL object, update may include one or more extra delete/create calls to the SAI Redis.  
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_update.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/acl_update.png)
 ## 4.4 Creating of ACL Mirror rules
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_mirror_rule_flow.svg)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/acl_mirror_rule_flow.svg)
 ## 4.5 Deleting of ACL Mirror rules
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/mirror_delete.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/mirror_delete.png)
 ## 4.6 Mirror state change handling
-![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/mirror_state_change.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/mirror_state_change.png)
 # 5 swssconfig input file format and restrictions
 - Valid json file. The file should be in the format swssconfig can process. This assumes lists surrounded by square brackets, dictionaries with curly brackets (braces), tuples inside dictionary separated with semicolon and enumerated elements separated with the comma.
 - Logical consistency. The configuration provided should be complete. Rules should not refer non-existing tables, etc.

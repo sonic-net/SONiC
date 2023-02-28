@@ -136,7 +136,7 @@ Location: `sonic-buildimage/device/{{vendor}}/platform/plugins/ssdutil.py`
 ## Utilities and packages
 #### smartctl
 Part of smartmontools package (1.9M)  
-PR: [https://github.com/Azure/sonic-buildimage/pull/2703](https://github.com/Azure/sonic-buildimage/pull/2703)
+PR: [https://github.com/sonic-net/sonic-buildimage/pull/2703](https://github.com/sonic-net/sonic-buildimage/pull/2703)
 
 #### iSmart
 Utility for InnoDisk Corp. SSDs (<120K)

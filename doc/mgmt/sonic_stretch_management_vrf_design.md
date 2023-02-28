@@ -172,7 +172,7 @@ iface eth0 inet static
    If a default route was already present in management VRF, it is added to the "default" routing table which is part of default VRF. This is done when the eth0 interface comes up. 
    When networking service is restarted, it will first bring down all existing interfaces. As part of "lo" down, previously created interface "lo-m" that was used as part of management VRF will be deleted.
 
-These management VRF changes are implemented in the pull request [PR2585](https://github.com/Azure/sonic-buildimage/pull/2585) 
+These management VRF changes are implemented in the pull request [PR2585](https://github.com/sonic-net/sonic-buildimage/pull/2585) 
 
 #### Config Commands
 
@@ -236,7 +236,7 @@ Management NetWork Default Gateway = 10.16.210.254
 root@sonic:/etc/init.d#
 ```
 
-These CLI commands are implemented as part of the pull request [PR463](https://github.com/Azure/sonic-utilities/pull/463)
+These CLI commands are implemented as part of the pull request [PR463](https://github.com/sonic-net/sonic-utilities/pull/463)
 
 ### IP Application Design
 This section explains the behavior of each application on the default VRF and management VRF. Application functionality differs based on whether the application is used to connect to the application daemons running in the device or the application is triggered from the device.
@@ -291,7 +291,7 @@ cgexec -g l3mdev:mgmt ssh 10.1.2.3
 ##### TACACS
 TACACS is a library function that is used by applications like SSHD to authenticate the users. When users connect to the device using SSH and if the "aaa" authentication is configured to use the tacacs+, it is expected that device shall connect to the tacacs+ server via management port and authenticate the user. TACACS implementation contains two sub-modules, viz, NSS and PAM. These module codes is enhanced to support an additional parameter "--use-mgmt-vrf" while configuring the tacacs+ server IP address. When user specifies the --use-mgmt-vrf as part of "config tacacs add --use-mgmt-vrf <tacacs_server_ip>" command, this is passed as an additional parameter to the config_db's TACPLUS_SERVER tag. This additional parameter is read using the files/image_config/hostcfgd/common-auth-sonic.j2 & files/image_config/hostcfgd/tacplus_nss.conf.j2 and the information is added to the tacplus configuration files /etc/tacplus_nss.conf and /etc/pam.d/common-auth-sonic. When SSHD uses the tacacs+ authentication using the API "pam_authenticate", enhanced tacacs+ code shall read the additional configuration related to vrfname "mgmt" associated with the tacac+ server and then it uses SO_BINDTODEVICE to attach the socket to the "mgmt" interface. Once if the socket is attached to "mgmt" interface, all tacacs+ traffic shall be routed via the management interface.
 
-Code changes required in PAM & NSS are completed. [PR2217](https://github.com/Azure/sonic-buildimage/pull/2217) & [PR346](https://github.com/Azure/sonic-utilities/pull/346) address the same.
+Code changes required in PAM & NSS are completed. [PR2217](https://github.com/sonic-net/sonic-buildimage/pull/2217) & [PR346](https://github.com/sonic-net/sonic-utilities/pull/346) address the same.
 As explained in the PR, tacacs PAM & NSS module had been enhanced to parse and process the "vrfname" and to setsockopt using SO_BINDTODEVICE for "mgmt" interface.
 Added an optional parameter "-m" (or --use-mgmt-vrf) for the "tacacs" command. The optional parameter "-m" used while configuring tacacs server results in configuring the DB with vrfname as "mgmt". Files "files/image_config/hostcfgd/common-auth-sonic.j2" and "files/image_config/hostcfgd/tacplus_nss_conf.j2" are modified to read this optional parameter and update the PAM & NSS configuration files "/etc/pam.d/common-auth" and "/etc/tacplus_nss.conf" respectively with the vrfname.
 After enhancing the code for NSS in the file nss_tacplus.c for parsing the vrfname and passing it to the connect library function "tac_connect_single", git patch "0003-management-vrf-support.patch" was generated and checked in.
@@ -324,7 +324,7 @@ TACPLUS_SERVER address 10.11.55.41
 2. cURL from device: Works for default VRF as usual. For cURL via management interface, use "cgexec -g l3mdev:mgmt" as prefix.
 
 #### SNMP
-1. snmp to the device: SNMP being an UDP application, Linux netsmp 5.7.3 patch for VRF support is patched with SONiC sources. [PR2608](https://github.com/Azure/sonic-buildimage/pull/2608) and [PR472](https://github.com/Azure/sonic-utilities/pull/472) contains the changes done for SNMP.
+1. snmp to the device: SNMP being an UDP application, Linux netsmp 5.7.3 patch for VRF support is patched with SONiC sources. [PR2608](https://github.com/sonic-net/sonic-buildimage/pull/2608) and [PR472](https://github.com/sonic-net/sonic-utilities/pull/472) contains the changes done for SNMP.
 2. snmp traps from device: netsnmp 5.7.3 Linux patch has VRF support for traps. Conifuguration file needs to specify VRF name. Above mentioned PRs handle the required changes.
 
 #### NTP  
@@ -342,9 +342,9 @@ Since this file "/etc/init.d/ntp" is part of the default NTP package from debian
 In addtion to this change, NTP has got linux commands like "ntpq" which communicates with "ntpd" using the loopback IP address 127.0.0.1.
 Hence, a dummy interface "lo-m" is created and enslaved into "mgmt" and configured with the IP address 127.0.0.1
 
-These NTP changes are done as part of the pull request [PR3204](https://github.com/Azure/sonic-buildimage/pull/3204) 
+These NTP changes are done as part of the pull request [PR3204](https://github.com/sonic-net/sonic-buildimage/pull/3204) 
 
-Similarly, the "show ntp" command is also enhanced to use "cgexec -g l3mdev:mgmt" as explained in the [PR627](https://github.com/Azure/sonic-utilities/pull/627)
+Similarly, the "show ntp" command is also enhanced to use "cgexec -g l3mdev:mgmt" as explained in the [PR627](https://github.com/sonic-net/sonic-utilities/pull/627)
  
 #### DHCP Client 
 DHCP client gets the IP address for the management ports from the DHCP server, since it is enabled on a per interface the IP address is received automatically. 
@@ -352,7 +352,7 @@ DHCP Client had already been enhanced to execute a "vrf" script as part of exit-
 This script does "no-op" when management VRF is not enabled (i.e. when eth0 is not in management vrf).
 With the script, eth0 is placed in a vrf and on startup it will get an IP address via dhcp. 
 IP address changes or gateway changes are correctly reflected.
-[PR2348](https://github.com/Azure/sonic-buildimage/pull/2348) handles these changes.
+[PR2348](https://github.com/sonic-net/sonic-buildimage/pull/2348) handles these changes.
 
 #### DHCP Relay 
 DHCP relay is expected to work via the default VRF. 

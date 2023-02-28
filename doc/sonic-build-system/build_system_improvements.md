@@ -155,7 +155,7 @@ If your package can be built in parallel, please either use compat 10 or pass --
 
 ## Seperate sairedis RPC from non-RPC build
 
-Some work is done on that but no PR (https://github.com/Azure/sonic-sairedis/issues/333)
+Some work is done on that but no PR (https://github.com/sonic-net/sonic-sairedis/issues/333)
 
 sairedis is a dependency for a lot of targets (usually I see sairedis compilation takes a lot of time blocking other targets to start)
 

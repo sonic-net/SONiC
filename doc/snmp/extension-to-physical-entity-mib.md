@@ -364,7 +364,7 @@ Port Sensor Type describes below:
 
 #### 1.5.1 Unit test
 
-SNMP unit test for sensors (https://github.com/Azure/sonic-snmpagent/blob/master/tests/test_sensor.py) will be extended to cover all the new added MIB objects and physical components.
+SNMP unit test for sensors (https://github.com/sonic-net/sonic-snmpagent/blob/master/tests/test_sensor.py) will be extended to cover all the new added MIB objects and physical components.
 
 #### 1.5.2 Community regression test
 
@@ -374,7 +374,7 @@ New test cases will be added to cover the new MIB entries:
 2. Get fan MIB info and cross-check with the FAN_INFO table.
 3. Get PSU related MIB info and cross-check with PSU_INFO and related tables
 4. Remove/Add DB entries from related tables to see whether MIB info can be correctly updated.
-5. Currently, each platform API is tested by sonic-mgmt, see [here](https://github.com/Azure/sonic-mgmt/tree/master/tests/platform_tests/api). We will add regression test case for each newly added platform API to verify them.
+5. Currently, each platform API is tested by sonic-mgmt, see [here](https://github.com/sonic-net/sonic-mgmt/tree/master/tests/platform_tests/api). We will add regression test case for each newly added platform API to verify them.
 
 
 ## 2. Entity Sensor MIB Extension
@@ -435,8 +435,8 @@ PSU Power Sensor:
 
 #### 2.3.1 Unit test
 
-SNMP unit test for sensors (https://github.com/Azure/sonic-snmpagent/blob/master/tests/test_sensor.py) will be extended to cover all the new added sensors MIB objects.
+SNMP unit test for sensors (https://github.com/sonic-net/sonic-snmpagent/blob/master/tests/test_sensor.py) will be extended to cover all the new added sensors MIB objects.
 
 #### 2.3.2 Community regression test
 
-SNMP Entity community regression test (https://github.com/Azure/sonic-mgmt/blob/master/tests/snmp/test_snmp_phy_entity.py) will be extended to cover all the new added sensors.
+SNMP Entity community regression test (https://github.com/sonic-net/sonic-mgmt/blob/master/tests/snmp/test_snmp_phy_entity.py) will be extended to cover all the new added sensors.

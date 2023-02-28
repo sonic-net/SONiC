@@ -52,7 +52,7 @@
 
 ## Overview
 
-This document is an updated version of the existing everflow test plan: https://github.com/Azure/SONiC/wiki/Everflow-test-plan
+This document is an updated version of the existing everflow test plan: https://github.com/sonic-net/SONiC/wiki/Everflow-test-plan
 
 The purpose is to test functionality of Everflow on the SONIC switch DUT with and without LAGs configured, closely resembling production environment.
 The test assumes all necessary configuration, including Everflow session and ACL rules, LAG configuration and BGP routes, are already pre-configured on the SONIC switch before test runs.
@@ -277,10 +277,10 @@ Existing test cases:
 #### What new enhancements need to be covered?
 
 ##### Egress ACL table
-In Jan 2019, egress ACL table support is added (https://github.com/Azure/SONiC/pull/322, https://github.com/Azure/sonic-swss/pull/741) to SONiC. Then ACL table can have an extra field `stage` indicting on which stage will the ACL rules be checked against packets. If the `stage` is ignored or is set to 'ingress', the behavior is same as before, ingress packets will be checked against ACL rules. If the `stage` field is set to 'egress', then on ports bound to ACL table, egress packets will be checked against the ACL rules and will be handled according to the action configured for the ACL rules. The action could be `PACKET_ACTION` or `MIRROR_ACTION`.
+In Jan 2019, egress ACL table support is added (https://github.com/sonic-net/SONiC/pull/322, https://github.com/sonic-net/sonic-swss/pull/741) to SONiC. Then ACL table can have an extra field `stage` indicting on which stage will the ACL rules be checked against packets. If the `stage` is ignored or is set to 'ingress', the behavior is same as before, ingress packets will be checked against ACL rules. If the `stage` field is set to 'egress', then on ports bound to ACL table, egress packets will be checked against the ACL rules and will be handled according to the action configured for the ACL rules. The action could be `PACKET_ACTION` or `MIRROR_ACTION`.
 
 ##### Egress mirroring
-Besides the egress ACL table support, a recent enhancement (Design: https://github.com/Azure/SONiC/pull/411 Implementations: https://github.com/Azure/sonic-swss/pull/963 https://github.com/Azure/sonic-utilities/pull/575) added egress mirroring support. This enhancement added two ACL rule action types based on the existing mirroring action `MIRROR_ACTION`:
+Besides the egress ACL table support, a recent enhancement (Design: https://github.com/sonic-net/SONiC/pull/411 Implementations: https://github.com/sonic-net/sonic-swss/pull/963 https://github.com/sonic-net/sonic-utilities/pull/575) added egress mirroring support. This enhancement added two ACL rule action types based on the existing mirroring action `MIRROR_ACTION`:
 * MIRROR_INGRESS_ACTION
 * MIRROR_EGRESS_ACTION
 

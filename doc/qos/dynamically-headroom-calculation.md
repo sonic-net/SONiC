@@ -131,7 +131,7 @@ Backward compatibility is supported in the following ways:
 
 In this section we will introduce the ways it is achieved.
 
-Currently, the SONiC system starts buffer manager from swss docker by the `supervisor` according to the following settings in [`/etc/supervisor/conf.d/supervisord.conf`](https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) in `swss` docker. For the traditional mode, the argument is `-l /usr/share/sonic/hwsku/pg_profile_lookup.ini` which means to load the pg lookup file.
+Currently, the SONiC system starts buffer manager from swss docker by the `supervisor` according to the following settings in [`/etc/supervisor/conf.d/supervisord.conf.j2`](https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf.j2) in `swss` docker. For the traditional mode, the argument is `-l /usr/share/sonic/hwsku/pg_profile_lookup.ini` which means to load the pg lookup file.
 
 ```shell
 [program:buffermgrd]
@@ -746,7 +746,20 @@ Let's imagine what will happen after a XOFF frame has been sent for a priority. 
 1. MAC/PHY delay, which is the bytes held in the SWITCH CHIP's egress pipeline and PHY when XOFF has been generated.
 2. Gearbox delay, which is the latency caused by the Gearbox, if there is one.
 3. KB on cable, which is the bytes held in the cable, which is equals the time required for packet to travel from one end of the cable to the other multiplies the port's speed. Obviously, the time is equal to cable length divided by speed of the light in the media.
-4. Peer response time, which is the bytes that are held in the peer switch's pipeline and will be send out when the XOFF packet is received.
+4. Peer response time. When a switch receives a pause frame, it will not stop the packet transmission immediately, because it needs to drain the frames which already been submitted to the MAC layer. So extra buffer shall be considered to handle the peer delay response. IEEE 802.3 31B.3.7 defines how many pause_quanta shall wait upon an XOFF. A pause_quanta is equal to the time required to transmit 512 bits of a frame at the data rate of the MAC.  At different operating speeds, the number of pause_quanta shall be taken are also different. Following table shows the number of pause_quanta that shall be taken for each speed.
+
+
+      | Operating speed | Number of pause_quanta |
+      |:--------:|:-----------------------------:|
+      | 100 Mb/s |  1 |
+      | 1 Gb/s | 2 |
+      | 10 Gb/s | 67 |
+      | 25 Gb/s | 80 |
+      | 40 Gb/s | 118 |
+      | 50 Gb/s | 147 |
+      | 100 Gb/s | 394 |
+      | 200 Gb/s | 453 |
+      | 400 Gb/s | 905 |
 
 Let's consider the flow of XOFF packet generating and handling:
 
@@ -773,6 +786,9 @@ Therefore, headroom is calculated as the following:
 - `cell occupancy` = (100 - `small packet percentage` + `small packet percentage` * `worst case factor`) / 100
 - `kb on cable` = `cable length` / `speed of light in media` * `port speed`
 - `kb on gearbox` = `port speed` * `gearbox delay` / 8 / 1024
+- `peer response` = 
+  - if can get a valid pause quanta, `peer response` = (`number of pause_quanta` * 512) / 8
+  - otherwise, use the default value, `peer response`: ASIC_TABLE|\<asic name\>|peer_response_time
 - `propagation delay` = `port mtu` + 2 * (`kb on cable` + `kb on gearbox`) + `mac/phy delay` + `peer response`
 - `Xon` = `pipeline latency`
 - `Xoff` = `lossless mtu` + `propagation delay` * `cell occupancy`
@@ -1415,7 +1431,7 @@ In APPL_DB there should be:
 
     Status: Open.
 
-    Decision: Should be. But there is issues in SONiC ["dynamic_th" parameter for lossless buffer profile can't be change on the fly.](https://github.com/Azure/sonic-buildimage/issues/3971)
+    Decision: Should be. But there is issues in SONiC ["dynamic_th" parameter for lossless buffer profile can't be change on the fly.](https://github.com/sonic-net/sonic-buildimage/issues/3971)
 6. There are default headrooms for lossy traffic which are determined by SDK and SONiC isn't aware. Do they affect shared buffer calculation?
 
     Status: Closed.
@@ -1426,7 +1442,7 @@ In APPL_DB there should be:
     Status: Closed.
 
     Decision: There should be a maxinum value of the accumulate PGs for port. This can be fetched from ASIC_DB.
-8. Originally buffer configuration had been stored in APPL_DB but were moved to CONFIG_DB later. Why? [doc](https://github.com/Azure/SONiC/wiki/Converting-old-or-creating-new-buffers-config) for reference.
+8. Originally buffer configuration had been stored in APPL_DB but were moved to CONFIG_DB later. Why? [doc](https://github.com/sonic-net/SONiC/wiki/Converting-old-or-creating-new-buffers-config) for reference.
 9. In theory, when system starts, as `BUFFER_PROFILE` and `BUFFER_PG` tables are stored in config database which survives system reboot, the `Buffer Orch` can receive items of the tables ahead of they being recalculated by `Buffer Manager` based on the current algorithm and `cable length` and `speed`. If the headroom size calculated differs before and after reboot, it can cause the items in the tables be deployed twice in which the first deployment will be overwritten quickly by the second one.
 10. For chassis systems the gearbox in variant line-cards can differ, which means a mapping from port/line-card to gearbox model is required to get the correct gearbox model for a port. This requires additional field defined in `PORT` table or some newly introduced table. As this part hasn't been defined in community, we will not discuss this case for now.
 

@@ -43,7 +43,7 @@ A configurable ASIC sensors poller is introduced that periodically retrieves the
     * There should be a way to enable/disable the poller
     * The polling interval should be configurable (from 5 to 300 secs)
 2. The retrieved values should be written to the STATE DB (of each ASIC's DB instance in a multi ASIC platform).
-3. The ASIC internal sensor values retrieved should be useable by the Thermal Control infrastructure (https://github.com/Azure/SONiC/blob/master/thermal-control-design.md).
+3. The ASIC internal sensor values retrieved should be useable by the Thermal Control infrastructure (https://github.com/sonic-net/SONiC/blob/master/thermal-control-design.md).
 
 ### 5.2 CLI requirements
 
@@ -103,7 +103,7 @@ In the timer callback, the following actions are performed:
 
 ### 6.3 Platform changes to support ASIC Thermals
 
-Platform owners typically provide the implementation for Thermals (https://github.com/Azure/sonic-platform-common/blob/master/sonic_platform_base/thermal_base.py). While there is no change in existing Platform API definitions, apart from external/CPU sensors, platform vendors should also include ASIC internal sensors in the _thermal_list[] of the Chassis / Module implementations.
+Platform owners typically provide the implementation for Thermals (https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/thermal_base.py). While there is no change in existing Platform API definitions, apart from external/CPU sensors, platform vendors should also include ASIC internal sensors in the _thermal_list[] of the Chassis / Module implementations.
 
 Assuming a Multi ASIC Chassis with 3 ASICs, the thermal names could be:
 ASIC0 Internal 0, ... ASIC0 Internal N0, ASIC1 Internal 0, ... ASIC1 Internal N1, ASIC2 Internal 0, ... ASIC2 Internal N2

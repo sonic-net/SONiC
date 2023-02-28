@@ -89,7 +89,7 @@ nexthop of 10.0.1.2 would be recursively resolvable on ASIC2 over the
 10.0.1.2/32 route created from the global neighbor table. (For more discussion
 on the creation of these host routes and how the recursively-resolved
 nexthops contribute to forwarding, see the
-[VOQ HLD](https://github.com/Azure/SONiC/blob/master/doc/voq/voq_hld.md#251-inband-recycle-port-option).)
+[VOQ HLD](https://github.com/sonic-net/SONiC/blob/master/doc/voq/voq_hld.md#251-inband-recycle-port-option).)
 
 The BGP sessions between ASIC Instances use IPv4.  To get IPv6 routes
 distributed to all ASIC Instances, each iBGP peer will also be activated in
