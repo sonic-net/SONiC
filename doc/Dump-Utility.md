@@ -18,10 +18,13 @@
       * [2.3 Helper Methods Available](#23-helper-methods-available)
       * [2.4 Match Infrastructure](#24-Match-Infrastructure)
       * [2.5 MatchRequest Examples](#25-matchrequest-examples)
-  * [3. Unit Tests](#3-unit-tests)
-  * [4. TechSupport](#4-techsupport)
+  * [3. Modules](#3-modules)
+      * [3.1 ACL Table](#31-acl-table)
+      * [3.2 ACL Rule](#32-acl-rule)
+  * [4. Unit Tests](#4-unit-tests)
+  * [5. TechSupport](#5-techsupport)
 
-### Revision  
+### Revision
 
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
@@ -571,7 +574,7 @@ To add a new module, these guidelines have to be followed.
    }
 }
 Note: DB_NAME could be either of ["CONFIG_DB", "APPL_DB", "ASIC_DB", "STATE_DB", ....] or "CONFIG_FILE".
-COPP is a example which will have a entry "CONFIG_FILE". This entry is required for COPP because, the default COPP entries are read from copp_cfg.json by coppmgr and are not present in the CONFIG_DB.  
+COPP is a example which will have a entry "CONFIG_FILE". This entry is required for COPP because, the default COPP entries are read from copp_cfg.json by coppmgr and are not present in the CONFIG_DB.
 Any extra entries which are added by the user are present in the CONFIG_DB. Hence it is required to have an extra "CONFIG_FILE" option.
 ```
 
@@ -639,7 +642,7 @@ class Port(Executor):
 ```
 1) display_template(dbs=['CONFIG_DB', 'APPL_DB', 'ASIC_DB', 'STATE_DB']): Returns a dictionary of format JSON Template 1
 2) MatchEngine / MatchRequest: Provided to abstract the heavy lifting in fetching the required data from redis-db/config-files. More info in the next section.
-3) verbose_print(str_): prints to the stdout based on verbosity provided by the user. 
+3) verbose_print(str_): prints to the stdout based on verbosity provided by the user.
 4) handle_error(err_str, excep=False): Prints the error output to stdout, if any experienced by the module, Set excep = True, to raise an exception
 5) handle_multiple_keys_matched_error(err_str, key_to_go_with="", excep=False): When a filtering criteria specified by the module matches multiple keys, wherein it is expected to match ony one, this method can be used.
 ```
@@ -657,7 +660,7 @@ To Abstract this functionality out, a MatchEngine class is created. A MatchReque
 {
   "Table": "<STR>",             # Mandatory, A Valid Table Name
   "key_pattern": "<STR>",       # Optional, Defaults to "*". Eg: "*" will match all the keys.
-				# table<table_sep>key_pattern is directly applied for filtering entries  
+				# table<table_sep>key_pattern is directly applied for filtering entries
   "field": "<STR>",             # Optional, Defaults to None
   "value": "<STR>",             # Optional, Value to match, Defaults to None
   "return_fields": [
@@ -668,8 +671,8 @@ To Abstract this functionality out, a MatchEngine class is created. A MatchReque
                                 # Only one of the db/file fields should have a non-empty string.
   "just_keys": "true|false"     # Mandatory, if true, Only Returns the keys matched. Does not return field-value pairs. Defaults to True
   "ns" : DEFAULT_NAMESPACE      # namespace argument, if nothing is provided, default namespace is used
-  "match_entire_list" : False   # Some of the fields in redis can consist of multiple values eg: trap_ids = "bgp,bgpv6,ospf". 
-  			          When this arg is set to true, entire list is matched incluing the ",". 
+  "match_entire_list" : False   # Some of the fields in redis can consist of multiple values eg: trap_ids = "bgp,bgpv6,ospf".
+  			          When this arg is set to true, entire list is matched incluing the ",".
 				  When False, the values are split based on "," and individual items are matched with
 }
 ```
@@ -684,7 +687,7 @@ To Abstract this functionality out, a MatchEngine class is created. A MatchReque
 ###### JSON Template 3: Return Dictionary by the MatchEngine:
 
 ```
-{  
+{
   "error": "<STR>",             # Error String, if any. Empty Otherwise
   "keys": [],                   # Match found for the request
   "return_values": {}           # Return Values for the corresponding return_fields passed
@@ -705,13 +708,13 @@ Possible Error strings returned by the MatchEngine.
  9) "Field is provided, but no value is provided to compare with"
  10) "When Just_keys is set to False, return_fields should be empty"
  11) "Return Fields should be of list type"
- 
+
  Other Errors:
  12) "No Entries found for Table|key_pattern provided.
  13) "Connection Error"
  14) "No Keys found after applying the filtering criteria"
 
- Note: Run the "dump state <feature/module> arg" command with -v option to print these errors any other exceptions thrown to the stdout. 
+ Note: Run the "dump state <feature/module> arg" command with -v option to print these errors any other exceptions thrown to the stdout.
 ```
 
 
@@ -728,10 +731,10 @@ req.just_keys = True
 req.return_fields = []
 
 Return Dict:
-{               
-  "error": "",             
-  "keys": ["ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x1500000000052f"],                  
-  "return_values": {}       
+{
+  "error": "",
+  "keys": ["ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x1500000000052f"],
+  "return_values": {}
 }
 
 2) Fetch the entry for ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x150000000002cf from ASIC_DB (Keys + Field-Value Pairs)
@@ -744,13 +747,13 @@ req.just_keys = False
 req.return_fields = []
 
 Return Dict:
-{              
-  "error": "",             
+{
+  "error": "",
   "keys": [{"ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x1500000000052f": {
                     "NULL": "NULL",
                     "SAI_QUEUE_ATTR_TYPE": "SAI_QUEUE_TYPE_UNICAST",
-                    "SAI_QUEUE_ATTR_INDEX": "4"}],                  
-  "return_values": {}       
+                    "SAI_QUEUE_ATTR_INDEX": "4"}],
+  "return_values": {}
 }
 
 
@@ -765,10 +768,10 @@ req.db = "ASIC_DB"
 req.return_fields = ["SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP"]
 
 Return Dict:
-{                
-  "error": "",             
-  "keys": ["ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP:oid:0x22000000000592"],                  
-  "return_values": {"ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP:oid:0x22000000000592" : {"SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP" : "oid:0x11000000000591"}}       
+{
+  "error": "",
+  "keys": ["ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP:oid:0x22000000000592"],
+  "return_values": {"ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP:oid:0x22000000000592" : {"SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP" : "oid:0x11000000000591"}}
 }
 
 4) Fetch the entry for COPP_TRAP table which has trap_id sample_packet from the copp_cfg.json file
@@ -782,14 +785,213 @@ req.file = "/etc/sonic/copp_cfg.json"
 req.return_fields = ["trap_group"]
 
 Return Dict:
-{                
-  "error": "",             
-  "keys": ["COPP_TRAP|sflow"],                  
-  "return_values": {"COPP_TRAP|sflow" : {"trap_group" : "queue2_group1"}}       
+{
+  "error": "",
+  "keys": ["COPP_TRAP|sflow"],
+  "return_values": {"COPP_TRAP|sflow" : {"trap_group" : "queue2_group1"}}
 }
 ```
 
-## 3 **Unit Tests**:
+## 3 **Modules**:
+
+### 3.1 ACL Table
+
+ACL Tables configuration resides in CONFIG DB in table *ACL_TABLE*. Tables in *ACL_TABLE* may reference another table *ACL_TABLE_TYPE* that holds the table type configuration or may use one of default table types (L3, L3V6, MIRROR, etc.). This information is dumped from CONFIG DB. Orchagent processes *ACL_TABLE* and *ACL_TABLE_TYPE* configuration and manages the following ASIC resources:
+ - *SAI_OBJECT_TYPE_ACL_TABLE*
+ - *SAI_OBJECT_TYPE_ACL_TABLE_GROUP*
+ - *SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER*.
+ 
+ There is no direct mapping of CONFIG DB ACL tables to ASIC DB objects. However, for dump utility purposes, we can correlate *ACL_TABLE* and *SAI_OBJECT_TYPE_ACL_TABLE* if there is at least one ACL rule in the table. We may use the *ACL_COUNTER_RULE_MAP* in COUNTERS DB in order to find the *SAI_OBJECT_TYPE_ACL_COUNTER* and extract the table OID from it. It is done using the following schema:
+
+```mermaid
+flowchart LR
+    ACL_TABLE --> B{Has at least 1 rule}
+    B --> |Yes| ACL_COUNTER_RULE_MAP
+    B --> |No| C[No entries in ASIC DB dump]
+    ACL_COUNTER_RULE_MAP --> COUNTER_OID
+    COUNTER_OID --> TABLE_OID
+    TABLE_OID --> TABLE_GROUP_MEMBER
+    TABLE_GROUP_MEMBER --> TABLE_GROUP
+```
+
+```
+admin@sonic:~$ dump state acl_table DATA_L3 -t
++------------------+-----------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| acl_table_name   | DB_NAME   | DUMP                                                                                                                                                                                                      |
++==================+===========+===========================================================================================================================================================================================================+
+| DATA_L3          | CONFIG_DB | +-------------------+-----------------------------+                                                                                                                                                       |
+|                  |           | | Keys              | field-value pairs           |                                                                                                                                                       |
+|                  |           | +===================+=============================+                                                                                                                                                       |
+|                  |           | | ACL_TABLE|DATA_L3 | +-------------+-----------+ |                                                                                                                                                       |
+|                  |           | |                   | | field       | value     | |                                                                                                                                                       |
+|                  |           | |                   | |-------------+-----------| |                                                                                                                                                       |
+|                  |           | |                   | | policy_desc | DATA_L3   | |                                                                                                                                                       |
+|                  |           | |                   | | ports       | Ethernet0 | |                                                                                                                                                       |
+|                  |           | |                   | |             | Ethernet4 | |                                                                                                                                                       |
+|                  |           | |                   | | stage       | ingress   | |                                                                                                                                                       |
+|                  |           | |                   | | type        | L3        | |                                                                                                                                                       |
+|                  |           | |                   | +-------------+-----------+ |                                                                                                                                                       |
+|                  |           | +-------------------+-----------------------------+                                                                                                                                                       |
++------------------+-----------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| DATA_L3          | ASIC_DB   | +-----------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------+ |
+|                  |           | | Keys                                                                  | field-value pairs                                                                                                             | |
+|                  |           | +=======================================================================+===============================================================================================================================+ |
+|                  |           | | ASIC_STATE:SAI_OBJECT_TYPE_ACL_TABLE:oid:0x7000000000600              | +---------------------------------------------+-----------------------------------------------------------------------------+ | |
+|                  |           | |                                                                       | | field                                       | value                                                                       | | |
+|                  |           | |                                                                       | |---------------------------------------------+-----------------------------------------------------------------------------| | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_ACL_BIND_POINT_TYPE_LIST | 2:SAI_ACL_BIND_POINT_TYPE_PORT,SAI_ACL_BIND_POINT_TYPE_LAG                  | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_ACL_STAGE                | SAI_ACL_STAGE_INGRESS                                                       | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_ACL_IP_TYPE        | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_ACL_RANGE_TYPE     | 2:SAI_ACL_RANGE_TYPE_L4_SRC_PORT_RANGE,SAI_ACL_RANGE_TYPE_L4_DST_PORT_RANGE | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_DST_IP             | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_ETHER_TYPE         | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_ICMP_CODE          | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_ICMP_TYPE          | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_IP_PROTOCOL        | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_L4_DST_PORT        | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_L4_SRC_PORT        | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_OUTER_VLAN_ID      | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_SRC_IP             | true                                                                        | | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_ATTR_FIELD_TCP_FLAGS          | true                                                                        | | |
+|                  |           | |                                                                       | +---------------------------------------------+-----------------------------------------------------------------------------+ | |
+|                  |           | +-----------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------+ |
+|                  |           | | ASIC_STATE:SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER:oid:0xc000000000602 | +----------------------------------------------------+---------------------+                                                  | |
+|                  |           | |                                                                       | | field                                              | value               |                                                  | |
+|                  |           | |                                                                       | |----------------------------------------------------+---------------------|                                                  | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_MEMBER_ATTR_ACL_TABLE_GROUP_ID | oid:0xb0000000005f7 |                                                  | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_MEMBER_ATTR_ACL_TABLE_ID       | oid:0x7000000000600 |                                                  | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_MEMBER_ATTR_PRIORITY           | 100                 |                                                  | |
+|                  |           | |                                                                       | +----------------------------------------------------+---------------------+                                                  | |
+|                  |           | +-----------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------+ |
+|                  |           | | ASIC_STATE:SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER:oid:0xc000000000601 | +----------------------------------------------------+---------------------+                                                  | |
+|                  |           | |                                                                       | | field                                              | value               |                                                  | |
+|                  |           | |                                                                       | |----------------------------------------------------+---------------------|                                                  | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_MEMBER_ATTR_ACL_TABLE_GROUP_ID | oid:0xb0000000005f5 |                                                  | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_MEMBER_ATTR_ACL_TABLE_ID       | oid:0x7000000000600 |                                                  | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_MEMBER_ATTR_PRIORITY           | 100                 |                                                  | |
+|                  |           | |                                                                       | +----------------------------------------------------+---------------------+                                                  | |
+|                  |           | +-----------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------+ |
+|                  |           | | ASIC_STATE:SAI_OBJECT_TYPE_ACL_TABLE_GROUP:oid:0xb0000000005f7        | +---------------------------------------------------+-----------------------------------+                                     | |
+|                  |           | |                                                                       | | field                                             | value                             |                                     | |
+|                  |           | |                                                                       | |---------------------------------------------------+-----------------------------------|                                     | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_ATTR_ACL_BIND_POINT_TYPE_LIST | 1:SAI_ACL_BIND_POINT_TYPE_PORT    |                                     | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_ATTR_ACL_STAGE                | SAI_ACL_STAGE_INGRESS             |                                     | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_ATTR_TYPE                     | SAI_ACL_TABLE_GROUP_TYPE_PARALLEL |                                     | |
+|                  |           | |                                                                       | +---------------------------------------------------+-----------------------------------+                                     | |
+|                  |           | +-----------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------+ |
+|                  |           | | ASIC_STATE:SAI_OBJECT_TYPE_ACL_TABLE_GROUP:oid:0xb0000000005f5        | +---------------------------------------------------+-----------------------------------+                                     | |
+|                  |           | |                                                                       | | field                                             | value                             |                                     | |
+|                  |           | |                                                                       | |---------------------------------------------------+-----------------------------------|                                     | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_ATTR_ACL_BIND_POINT_TYPE_LIST | 1:SAI_ACL_BIND_POINT_TYPE_PORT    |                                     | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_ATTR_ACL_STAGE                | SAI_ACL_STAGE_INGRESS             |                                     | |
+|                  |           | |                                                                       | | SAI_ACL_TABLE_GROUP_ATTR_TYPE                     | SAI_ACL_TABLE_GROUP_TYPE_PARALLEL |                                     | |
+|                  |           | |                                                                       | +---------------------------------------------------+-----------------------------------+                                     | |
+|                  |           | +-----------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------+ |
+|                  |           | +---------------------+---------------------+                                                                                                                                                             |
+|                  |           | | vid                 | rid                 |                                                                                                                                                             |
+|                  |           | +=====================+=====================+                                                                                                                                                             |
+|                  |           | | oid:0x7000000000600 | oid:0x100000007     |                                                                                                                                                             |
+|                  |           | +---------------------+---------------------+                                                                                                                                                             |
+|                  |           | | oid:0xc000000000602 | oid:0x100010000000c |                                                                                                                                                             |
+|                  |           | +---------------------+---------------------+                                                                                                                                                             |
+|                  |           | | oid:0xc000000000601 | oid:0x10000000c     |                                                                                                                                                             |
+|                  |           | +---------------------+---------------------+                                                                                                                                                             |
+|                  |           | | oid:0xb0000000005f7 | oid:0x10000000b     |                                                                                                                                                             |
+|                  |           | +---------------------+---------------------+                                                                                                                                                             |
+|                  |           | | oid:0xb0000000005f5 | oid:0xb             |                                                                                                                                                             |
+|                  |           | +---------------------+---------------------+                                                                                                                                                             |
++------------------+-----------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+```
+
+### 3.2 ACL Rule
+
+ACL Rules configuration resides in CONFIG DB in table *ACL_RULE*. This information is dumped from CONFIG DB. Orchagent processes *ACL_RULE* configuration and manages the following ASIC resources:
+ - *SAI_OBJECT_TYPE_ACL_ENTRY*
+ - *SAI_OBJECT_TYPE_ACL_COUNTER*
+ - *SAI_OBJECT_TYPE_ACL_RANGE*
+
+The mapping from CONFIG DB to ASIC DB data is done using the following schema:
+
+```mermaid
+flowchart LR
+    ACL_RULE --> ACL_COUNTER_RULE_MAP
+    ACL_COUNTER_RULE_MAP --> COUNTER_OID
+    COUNTER_OID --> RULE_OID
+    RULE_OID --> RANGE_OID
+```
+
+*NOTE*: Mirror rules might be not present in ASIC DB depending on the mirror session state.
+
+Example:
+```
+admin@sonic:~$ dump state acl_rule 'DATA_L3|R1' -t
++-----------------+-----------+----------------------------------------------------------------------------------------------------------------------------------------------------------+
+| acl_rule_name   | DB_NAME   | DUMP                                                                                                                                                     |
++=================+===========+==========================================================================================================================================================+
+| DATA_L3|R1      | CONFIG_DB | +---------------------+---------------------------------+                                                                                                |
+|                 |           | | Keys                | field-value pairs               |                                                                                                |
+|                 |           | +=====================+=================================+                                                                                                |
+|                 |           | | ACL_RULE|DATA_L3|R1 | +-------------------+---------+ |                                                                                                |
+|                 |           | |                     | | field             | value   | |                                                                                                |
+|                 |           | |                     | |-------------------+---------| |                                                                                                |
+|                 |           | |                     | | L4_DST_PORT_RANGE | 90-95   | |                                                                                                |
+|                 |           | |                     | | L4_SRC_PORT_RANGE | 80-100  | |                                                                                                |
+|                 |           | |                     | | PACKET_ACTION     | FORWARD | |                                                                                                |
+|                 |           | |                     | | PRIORITY          | 9995    | |                                                                                                |
+|                 |           | |                     | +-------------------+---------+ |                                                                                                |
+|                 |           | +---------------------+---------------------------------+                                                                                                |
++-----------------+-----------+----------------------------------------------------------------------------------------------------------------------------------------------------------+
+| DATA_L3|R1      | ASIC_DB   | +------------------------------------------------------------+-----------------------------------------------------------------------------------------+ |
+|                 |           | | Keys                                                       | field-value pairs                                                                       | |
+|                 |           | +============================================================+=========================================================================================+ |
+|                 |           | | ASIC_STATE:SAI_OBJECT_TYPE_ACL_COUNTER:oid:0x9000000000606 | +------------------------------------------+---------------------+                      | |
+|                 |           | |                                                            | | field                                    | value               |                      | |
+|                 |           | |                                                            | |------------------------------------------+---------------------|                      | |
+|                 |           | |                                                            | | SAI_ACL_COUNTER_ATTR_ENABLE_BYTE_COUNT   | true                |                      | |
+|                 |           | |                                                            | | SAI_ACL_COUNTER_ATTR_ENABLE_PACKET_COUNT | true                |                      | |
+|                 |           | |                                                            | | SAI_ACL_COUNTER_ATTR_TABLE_ID            | oid:0x7000000000600 |                      | |
+|                 |           | |                                                            | +------------------------------------------+---------------------+                      | |
+|                 |           | +------------------------------------------------------------+-----------------------------------------------------------------------------------------+ |
+|                 |           | | ASIC_STATE:SAI_OBJECT_TYPE_ACL_ENTRY:oid:0x8000000000609   | +-----------------------------------------+-------------------------------------------+ | |
+|                 |           | |                                                            | | field                                   | value                                     | | |
+|                 |           | |                                                            | |-----------------------------------------+-------------------------------------------| | |
+|                 |           | |                                                            | | SAI_ACL_ENTRY_ATTR_ACTION_COUNTER       | oid:0x9000000000606                       | | |
+|                 |           | |                                                            | | SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION | SAI_PACKET_ACTION_FORWARD                 | | |
+|                 |           | |                                                            | | SAI_ACL_ENTRY_ATTR_ADMIN_STATE          | true                                      | | |
+|                 |           | |                                                            | | SAI_ACL_ENTRY_ATTR_FIELD_ACL_RANGE_TYPE | 2:oid:0xa000000000607,oid:0xa000000000608 | | |
+|                 |           | |                                                            | | SAI_ACL_ENTRY_ATTR_PRIORITY             | 9995                                      | | |
+|                 |           | |                                                            | | SAI_ACL_ENTRY_ATTR_TABLE_ID             | oid:0x7000000000600                       | | |
+|                 |           | |                                                            | +-----------------------------------------+-------------------------------------------+ | |
+|                 |           | +------------------------------------------------------------+-----------------------------------------------------------------------------------------+ |
+|                 |           | | ASIC_STATE:SAI_OBJECT_TYPE_ACL_RANGE:oid:0xa000000000607   | +--------------------------+--------------------------------------+                     | |
+|                 |           | |                                                            | | field                    | value                                |                     | |
+|                 |           | |                                                            | |--------------------------+--------------------------------------|                     | |
+|                 |           | |                                                            | | SAI_ACL_RANGE_ATTR_LIMIT | 80,100                               |                     | |
+|                 |           | |                                                            | | SAI_ACL_RANGE_ATTR_TYPE  | SAI_ACL_RANGE_TYPE_L4_SRC_PORT_RANGE |                     | |
+|                 |           | |                                                            | +--------------------------+--------------------------------------+                     | |
+|                 |           | +------------------------------------------------------------+-----------------------------------------------------------------------------------------+ |
+|                 |           | | ASIC_STATE:SAI_OBJECT_TYPE_ACL_RANGE:oid:0xa000000000608   | +--------------------------+--------------------------------------+                     | |
+|                 |           | |                                                            | | field                    | value                                |                     | |
+|                 |           | |                                                            | |--------------------------+--------------------------------------|                     | |
+|                 |           | |                                                            | | SAI_ACL_RANGE_ATTR_LIMIT | 90,95                                |                     | |
+|                 |           | |                                                            | | SAI_ACL_RANGE_ATTR_TYPE  | SAI_ACL_RANGE_TYPE_L4_DST_PORT_RANGE |                     | |
+|                 |           | |                                                            | +--------------------------+--------------------------------------+                     | |
+|                 |           | +------------------------------------------------------------+-----------------------------------------------------------------------------------------+ |
+|                 |           | +---------------------+--------------------+                                                                                                             |
+|                 |           | | vid                 | rid                |                                                                                                             |
+|                 |           | +=====================+====================+                                                                                                             |
+|                 |           | | oid:0x9000000000606 | oid:0x600000070009 |                                                                                                             |
+|                 |           | +---------------------+--------------------+                                                                                                             |
+|                 |           | | oid:0x8000000000609 | oid:0x100010008    |                                                                                                             |
+|                 |           | +---------------------+--------------------+                                                                                                             |
+|                 |           | | oid:0xa000000000607 | oid:0xa            |                                                                                                             |
+|                 |           | +---------------------+--------------------+                                                                                                             |
+|                 |           | | oid:0xa000000000608 | oid:0x20000000a    |                                                                                                             |
+|                 |           | +---------------------+--------------------+                                                                                                             |
++-----------------+-----------+----------------------------------------------------------------------------------------------------------------------------------------------------------+
+```
+
+## 4 **Unit Tests**:
 
 | S.No | Test case synopsis                                                                                                                      |
 |------|-----------------------------------------------------------------------------------------------------------------------------------------|
@@ -798,10 +1000,10 @@ Return Dict:
 |  3   | Verify all the options in the CLI is working as expected                                                                                |
 |  4   | Verify the namespace arg is working as expected                                                                                         |
 |  5   | Verify dump cli options are working as expected                                                                                         |
-|  6  | Unit tests should be added for every new module added                                                                                    |
+|  6   | Unit tests should be added for every new module added                                                                                    |
 
 
-## 4 **TechSupport**
+## 5 **TechSupport**
 Output for every <feature/module> which extends from Executor class will be added to the techsupport dump.
 Every Json file will have the corresponding output: `dump state <corresponding_feature> all -k`. Output will be printed in JSON format for TechSupport Dumps.
 Only the related keys information will be present in the unified_dump_folder as entire DB dumps are already present in the dump/folder.
@@ -815,9 +1017,9 @@ $BASE
              ├── port
              ├── <random_feature>
              ├── .......
-             ├── <One file for every feature should be present here>        
+             ├── <One file for every feature should be present here>
    ├──── etc/
-   ├──── log/  
+   ├──── log/
    ├──── ......
    ├──── ......
 ```
