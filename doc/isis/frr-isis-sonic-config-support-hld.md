@@ -33,7 +33,7 @@
 ### Revision  
 |  Rev  |  Date           |  Author  | Change Description |
 | :---  | :-------------- | :------  | :----------------  |
-|  0.1  | January-11-2022 | C Choate | Initial version    |
+|  0.1  | March-2-2023    | C Choate | Initial version    |
 
 ### Scope  
 
@@ -69,17 +69,21 @@ This is an addition to previous feature work to support FRR-BGP. Details on the 
   6. Provide support for config and management of FRR-ISIS features used in SONIC with new ISIS YANG models.
 
 #### Exemptions
-SONiC CLI support for ISIS show commands are not yet included.
+Adding support for multi-linecard chassis is out of scope for this document. 
 
 ### Architecture Design 
 
-There are no changes to the existing SONiC architecture. This new feature enhances existing code to include configuration support for the isisd daemon within the FRR container. 
+There are no changes to the existing SONiC architecture. This new feature enhances existing code to include configuration support for the isisd daemon within the FRR container. Testing showed that with the isisd deamon enabled, IS-IS routes are being learned directly from the FRR container without needing any changes to the existing orchagent or swss. It was observed that fpmsyncd works to push all of the IS-IS learned routes from the FRR container to SONiC DB’s. 
 
 ### High-Level Design 
 
 #### Design Overview
 
 This feature will extend functionality implemented in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md) to support additional SONiC FRR-ISIS features. 
+
+![FRR-BGP-REST-GET-SEQUENCE1](https://user-images.githubusercontent.com/114622132/222537856-eefb1a13-bcc0-495b-938a-7ea3abee0c18.png)
+
+Diagram 1. Diagram showing the existing framework that is being extended to include support for now ISIS config schemas. This diagram is taken from and further explained in it's original feature introduction in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md) to support additional SONiC FRR-ISIS features. 
 
 The Management framework will convert the YANG-based config data into requests that will write the configs into Redis DB. Redis DB events will trigger frrcfgd when the field frr_mgmt_framework_config set to "true" in the DEVICE_METADATA table, and then frrcfgd will configure FRR-ISIS using FRR CLI commands.
 
@@ -95,6 +99,10 @@ This enhancement will support FRR-ISIS features used in SONiC and all changes wi
   - /files/image_config/copp
 - Added support for ISIS tables in frrcfgd and extended frrcfgd unit tests for FRR-ISIS configs
   - /src/sonic-frr-mgmt-framework
+- Support ISIS show commands and show command unittests
+  - sonic-utilities/show
+  - sonic-utilities/tests
+
 
 #### Container
 
@@ -116,7 +124,78 @@ N/A
 
 #### CLI/YANG Model Enhancements
 
-There are no CLI changes made in this feature thus far.
+New SONiC ISIS show commands
+
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
+|Show state information for all ISIS neighbors or a specified neighbor |show isis neighbors [system_id] {--verbose} |
+
+```
+sonic:~$ show isis neighbors
+Area 1:
+ System Id           Interface   L  State        Holdtime SNPA
+sonic1         PortChannel01202  Up            25       2020.2020.2020
+sonic2         PortChannel01212  Up            25       2020.2020.2020
+```
+
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
+|Show the ISIS database globally or for a specific LSP |show isis database [lsp_id] {--verbose} |
+
+```
+sonic:~$ show isis database
+Area 1:
+IS-IS Level-2 link-state database:
+LSP ID                  PduLen  SeqNumber   Chksum  Holdtime  ATT/P/OL
+sonic1.00-00             1284   0x0000020e  0x3d7e   48072    0/0/0
+sonic1.00-01             197   0x00000136  0x4474   64797    0/0/0
+sonic2.00-00             1192   0x000001ae  0xd970   47837    0/0/0
+sonic2.00-01             367   0x00000136  0xe315   31986    0/0/0
+sonic3.00-00             1319   0x000001a9  0x3349   47881    0/0/0
+sonic3.00-00             1115   0x000002e7  0x1b38   54629    0/0/0
+    6 LSPs 
+```
+
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
+|Show information about an ISIS node |show isis hostname |
+
+```
+sonic:~$ show isis hostname
+vrf     : default
+Level  System ID      Dynamic Hostname
+2      1000.2000.4000 sonic2    
+     * 1000.2000.3000 sonic
+```
+
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
+|Show state and configuration of ISIS for all interfaces or a specified interface |show isis interface [interface] {--verbose} |
+
+```
+sonic:~$ show isis interface
+Area 1:
+  Interface   CircId   State    Type     Level
+  PortChannel01200x0      Up       p2p      L2 
+```
+
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
+|Show topology IS-IS paths globally or for level-1 or level-2 specifically |show isis topology {level-1\|level-2} |
+
+```
+sonic:~$ show isis topology
+Area 1:
+IS-IS paths to level-2 routers that speak IP
+Vertex               Type         Metric Next-Hop             Interface Parent
+sonic1                                                          
+172.20.53.0/31       IP internal  0                           sonic1(4)
+172.20.52.0/31       IP internal  0                           sonic1(4)
+sonic2               TE-IS        10     sonic2               PortChannel0121 sonic1(4)
+10.3.159.80/32       IP TE        10     sonic2               PortChannel0121 sonic2(4)
+10.3.159.81/32       IP TE        10     sonic2               PortChannel0121 sonic2(4)
+......
+```
 
 #### Config DB Enhancements  
 
@@ -135,7 +214,9 @@ Added new configuration tables specific to FRR_ISIS features:
 
 Detailed Yang model changes can be found at
 
-- isis-yang-hld
+
+- [ISIS Yang Model for SONiC High Level Design Document](https://github.com/sonic-net/SONiC/blob/073e72079bbeee3f454e65b817816c9c1bb955a0/doc/isis/frr-isis-sonic-yang-model-hld.md)
+
 
 #### FRR Template Changes
 
@@ -166,6 +247,8 @@ Extensive system test cases to cover FRR-ISIS config features
   and template based configuration methods
 - Verify configs can be deleted by config table name and individual fields
 - Verify configs persist in the FRR container post container reboot
+
+New tests will also be published into sonic-mgmt for ISIS
 
 ### Open/Action items
 
