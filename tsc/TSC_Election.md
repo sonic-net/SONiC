@@ -37,7 +37,7 @@ $$
 
 [5]: SONiC community view quality as the foundation to deliver a stable and reliable product. Therefore, we consciously attribute more weight to quality contribution.
 
-[6]: SONiC Production Deployment Small/Medium/Large based on production network instances deployed within the organization (Small: 100 - 500, Medium: 501 - 50,000, Large: >50,001). Production Deployment score is counted per election cycle, eg, an organization with 1000 SONiC production nodes will add 100 points to its SII
+[6]: SONiC Production Deployment Small/Medium/Large based on production network instances deployed within the organization (Small: 100 - 500, Medium: 501 - 50,000, Large: >50,001). 
 
 There will be more forms of involvement and attributes to be accounted for as the SONiC project evolves, future changes to SII structure will require TSC approval.
 
