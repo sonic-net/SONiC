@@ -24,7 +24,7 @@
 ### Revision
 |  Rev  |  Date        |  Author  | Change Description |
 | :---  | :---------   | :------  | :----------------  |
-|  0.1  | Jan-11-2022  | C Choate | Initial version    |
+|  0.1  | March-02-2023  | C Choate | Initial version    |
 
 ### Scope
 
@@ -151,8 +151,8 @@ Interface specific ISIS config options.
 "ISIS_INTERFACE"
   "instance"                         :{{string}} 
   "ifname"                           :{{string}} 
-  "ipv4-routing"                     :{{{boolean}}} (OPTIONAL)
-  "ipv6-routing"                     :{{{boolean}}} (OPTIONAL)
+  "ipv4-routing"                     :{{{string}}} (OPTIONAL)
+  "ipv6-routing"                     :{{{string}}} (OPTIONAL)
   "passive"                          :{{boolean}} (OPTIONAL)
   "hello-padding"                    :{{{boolean}}} (OPTIONAL)
   "network-type"                     :{{"UNKNOWN_NETWORK"/"BROADCAST_NETWORK"/"POINT_TO_POINT_NETWOR"/"LOOPBACK"}} (OPTIONAL)
@@ -171,8 +171,8 @@ ISIS_INTERFACE|{{instance|ifname}}
 key                                = ISIS_INTERFACE:instance ; Instance name/area tag
 key                                = ISIS_INTERFACE:ifname ; Interface name
 ; field                            = value
-ipv4-routing                       = boolean               ; Enable routing IPv4 traffic over this circuit
-ipv6-routing                       = bolean                ; Enable routing IPv6 traffic over this circuit
+ipv4-routing                       = string               ; Enable routing IPv4 traffic over this circuit for the given instance
+ipv6-routing                       = string                ; Enable routing IPv6 traffic over this circuit for the given instance
 passive                            = bolean                ; Advertise the interface in the ISIS topology, but don't allow it to form adjacencies. Default "false"
 hello-padding                      = boolean               ; Add padding to IS-IS hello PDUs
 network-type                       = "UNKNOWN_NETWORK"/"BROADCAST_NETWORK"/"POINT_TO_POINT_NETWOR"/"LOOPBACK"
