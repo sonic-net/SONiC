@@ -170,10 +170,16 @@ Level  System ID      Dynamic Hostname
 
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Show state and configuration of ISIS for all interfaces or a specified interface |show isis interface [interface] {--verbose} |
+|Show state and configuration of ISIS for all interfaces or a specified interface |show isis interface [interface] {--verbose} {--display}|
 
 ```
 sonic:~$ show isis interface
+Area 1:
+  Interface   CircId   State    Type     Level
+  PortChannel01200x0      Up       p2p      L2 
+  
+sonic:~$ show isis interface --display 
+[INTERFACE] options: ['Loopback0', 'Ethernet0', 'Ethernet4', 'Ethernet8', 'Ethernet12', 'Ethernet16', 'Ethernet20', 'Ethernet24', 'Ethernet28', 'Ethernet32', 'Ethernet36', 'Ethernet40', 'Ethernet44', 'Ethernet48', 'Ethernet52', 'Ethernet56', 'Ethernet60', 'Ethernet64', 'Ethernet68', 'Ethernet72', 'Ethernet76', 'Ethernet80', 'Ethernet84', 'Ethernet88', 'Ethernet92', 'Ethernet96', 'Ethernet100', 'Ethernet104', 'Ethernet108', 'Ethernet112', 'Ethernet116', 'Ethernet120', 'Ethernet124', 'PortChannel0002', 'PortChannel0003', 'PortChannel0120']
 Area 1:
   Interface   CircId   State    Type     Level
   PortChannel01200x0      Up       p2p      L2 
