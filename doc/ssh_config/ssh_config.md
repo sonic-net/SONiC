@@ -67,7 +67,7 @@ The Daemon is running in the host (without container) that matches this feature,
 ##### Flow diagram
 ![ssh_flow_community](ssh_flow_community.png)
 #### 1.7.1 <a name='Flow description'></a>Flow description
-When the feature is enabled, by modifying the DB manually, user will set ssh server policies/configuration (see options below) by modifing CONF_DB in SSH_SERVER_TABLE.
+When the feature is enabled, by modifying the DB manually, user will set ssh server policies/configuration (see options below) by modifing CONFIG_DB in SSH_SERVER_TABLE.
 
 The hostcfgd daemon will be extended to listen to ssh policies/configurations from SSH_SERVER table, parse the inputs and set the new policies to ssh config files, and update ssh server afterwards.
 
