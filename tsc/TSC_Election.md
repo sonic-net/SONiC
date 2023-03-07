@@ -25,7 +25,8 @@ $$
 | TEST PR review count (S/M/L)     | Quality | 2/4/10 |
 | Summit Presentation Count       | Innovation | 50  |
 | Hackathon Participation Team Count | Innovation | 10 |
-| SONiC Production Deployment (S/M/L) [6] | Proliferation | 10/100/500|
+| SONiC Production Deployment (S/M/L) [6] | Proliferation | 10/100/500 |
+| SONiC End Consumer Proliferation (S/M/L) | Proliferation [7] | 5/50/100 |
 
 [1]: HLD are new or substantial changes reviewed in the SONiC community review meeting, minor amendment are counted towards merged PR
 
@@ -37,7 +38,9 @@ $$
 
 [5]: SONiC community view quality as the foundation to deliver a stable and reliable product. Therefore, we consciously attribute more weight to quality contribution.
 
-[6]: SONiC Production Deployment Small/Medium/Large based on production network instances deployed within the organization (Small: 100 - 500, Medium: 501 - 50,000, Large: >50,001). 
+[6]: SONiC Production Deployment Small/Medium/Large based on production network instances deployed within the organization (Small: 100 - 500, Medium: 501 - 50,000, Large: >50,001).
+
+[7]: SONiC end consumer proliferation Small/Medium/Large based on open source or commercial distribution of SONiC. This is for contribution in enabling consumers/broader market across trainings, deployment support, engineering assistance, and anything related to helping them move in production with SONiC. Weightage is assigned based on production network deployment size (Small: 100 - 500, Medium: 501 - 50,000, Large: >50,001). Production Deployment score is counted per election cycle, eg, an organization which supported 1000 SONiC production node rollout will add 50 points to its SII, an organization which supported 11,000 SONiC production node rollout will add 100 points to its SII
 
 There will be more forms of involvement and attributes to be accounted for as the SONiC project evolves, future changes to SII structure will require TSC approval.
 
