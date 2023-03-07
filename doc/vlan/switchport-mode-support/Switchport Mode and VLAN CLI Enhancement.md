@@ -483,7 +483,7 @@ Switch from trunk to access, user need to remove the tagged members firstotherwi
   Example : The command will create the VLAN "Vlan10 Vlan11, Vlan12, Vlan13, Vlan14, Vlan15, Vlan16, Vlan17, Vlan18, Vlan19, Vlan20" if these do not already exist.
 
   ```
-  ![Vlan-Range-Multiple](https://user-images.githubusercontent.com/61490193/223191570-9725df87-ba4b-402a-ba32-9331f5e31b12.png)
+![1](https://user-images.githubusercontent.com/61490193/223469654-38c17b89-cc07-4b5d-92b2-4e1dd19370de.png)
 
   
  The “-m” flag works the same way for deleting multiple VLANs as it does for adding vlans.
@@ -563,32 +563,36 @@ This HLD did not consider hybrid switch port mode. We will be adding a separate 
 Unit testing will be done at two levels CLI level and Functional Level
 
 CLI Level Tests
-* Verify CLI to set the mode of an interface or a PortChannel to access or trunk
+
 * Verify CLI to add a multiple comma separated list of vlan(s)
-* Verify CLI to add a multiple range of vlan(s)
-* Verify CLI to add all vlan(s) except given vlan to member port or PortChannel
-* Verify CLI to add multiple vlan(s) with wrong range to check error for wrong range
-* Verify CLI to add multiple range of vlan(s) members
-* Verify CLI to add multiple comma separated vlan(s) members
-* Verify CLI to delete list of vlan(s)
-* Verify CLI to delete range of vlan(s)
+* Verify CLI to add multiple range of vlan(s)
+* Verify CLI to add multiple range of vlan(s) & comma separted vlan(s)
+* Verify CLI to add multiple range of vlan(s) with default vlan and show error
+* Verify CLI to add multiple range of vlan(s) with invlaid digit and show error
+* Verify CLI to add multiple vlan(s) with default vlan and show error
+* Verify CLI to add a vlan that already exist and show error
 * Verify CLI to delete vlan(s) that doesn't exist and show error 
-* Verify CLI to delete multiple range of vlan(s) members 
-* Verify CLI to delete all vlans except given comma separated list of vlan(s)
-* Verify CLI to delete all vlan(s) members
+* Verify CLI to add multiple range of vlan member(s) 
+* Verify CLI to delete multiple range of vlan member(s)
+* Verify CLI to add vlan(s) with except vlan check
+* Verify CLI to delete vlan(s) with except vlan check
+* Verify CLI to add vlan member(s) with except vlan member(s) check
+* Verify CLI to delete vlan member(s) with except vlan member(s) check
+* Verify CLI to add all vlan member(s)
+* Verify CLI to delete all vlan member(s)
+* Verify CLI to remove vlan assigned to port to switch to routed mode.
+* Verify CLI to show error to remove IP assigned on a port to switch from routed to access
+* Verify CLI to show error to remove IP assigned on a port to switch from routed to trunk
 * Verify CLI to add untagged member on access port 
 * Verify CLI to show error on adding tagged members on access port
 * Verify CLI to show error on adding  multiple untagged members on access port
 * Verify CLI to add tagged members on trunk port
-* Verify CLI to show error on IP assignment on trunk port
-* Veriy CLI to show error on IP assignment on access port
 * Verify CLI to  show error on switching from access to routed  port when it has untagged member
 * Verify CLI to show error on switching from trunk to routed port when it has tagged members
 * Verify CLI to switch from access to trunk port and untagged member retained
 * Verify CLI to switch from trunk to access port if no members are  configured to that port
-* Verify CLI to show error when switching from trunk to access when the port has tagged members.
+* Verify CLI to show error when switching from trunk to access when the port has tagged members
 * Verify CLI to switch from trunk to routed when port has no tagged members
-* Verify CLI to switch from access to routed when port has no untagged member
 
 
 #### Functional Tests cases
