@@ -12,14 +12,14 @@ Table of Contents
   * [DualToR architecture](#dualtor-redundancy-achievment-using-active-active-solution)
 * [Proto and Schema Definition](#proto-and-schema-definition)
   * [Proto Definition for forwarding State](#proto-definition-interface-to-state-machine-for-getset-admin-state-of-the-fpga-ports)
-  * [Proto Definition for service notification](#proto-definition-interface-to-soc-to-notify-ycabled-about-service-notification)
   * [Schema Definition for DB's ](#ycabled-functional-schema-for-data-exchanged-between-orchagent-and-linkmgr)
 * [gRPC channel customisation and Telemetry Schema](#grpc-channel-customisation-and-telemetry-schema)
-  * [Keepalive for channle](#keepalive-for-grpc-channelstub)
+  * [Keepalive mechanism for channels](#keepalive-for-grpc-channelstub)
 * [gRPC client communicate to SoC over Loopback IP](#grpc-client-communicate-to-soc-over-loopback-ip)
 * [gRPC commuication over secure channel](#grpc-commuication-over-secure-channel)
-* [gRPC client initialization](#deployment)
+* [gRPC client initialization/deployment](#deployment)
 * [gRPC commuication to NIC simulator](#grpc-communication-with-nic-simulator)
+* [Proto and Schema Definition for Aync notificaion](#proto-definition-interface-to-soc-to-notify-ycabled-about-service-notification)
 
 
 ## Revision
@@ -30,7 +30,7 @@ Table of Contents
 | 0.2 | 02/1/22 | Vaibhav Dahiya  | Make chnages to be shared to Core Team    |
 
 ## Scope
-gRPC client design doc which would communicate with the SoC/ Nic-simulator tests in SONiC MGMT.
+gRPC client design doc which would communicate with the SoC in DualToR Active-active setup/ and Nic-simulator for testing infrastructure in SONiC MGMT.
 ### Overview
 
 This document summarizes the approach taken to accommodate gRPC client
@@ -164,51 +164,6 @@ the proto3 syntax's proto file used for generating gRPC code in Python3 is as fo
 
 - The ServerVersionReply message has the same field as ServerVersionRequest.
 
-### Proto Definition Interface to SoC to notify ycabled about service notification
-
-```python
-    service GracefulRestart {
-     rpc NotifyGracefulRestartStart(GracefulAdminRequest) returns (stream GracefulAdminResponse) {}
-    }
-
-    enum ToRSide {
-        LOWER_TOR = 0;
-        UPPER_TOR =1;
-    }
-
-    message GracefulAdminRequest { 
-        ToRSide tor = 1;
-    }
-
-    enum GracefulRestartMsgType {
-        SERVICE_BEGIN = 0; 
-        SERVICE_END = 1;// send this always from SoC Side even if not paired with Begin
-    }
-
-    enum GracefulRestartNotifyType { 
-        CONTROL_PLANE = 0;// need proper definitions
-        DATA_PLANE = 1; 
-        BOTH = 2;
-    }
-
-    message GracefulAdminResponse { 
-        GracefulRestartMsgType msgtype = 1; 
-        GracefulRestartNotifyType notifytype = 2; 
-        string guid = 3; 
-        int32 period = 4; // in seconds
-    }
-
-```
-
-- The service GracefulRestart block defines the service and includes a single RPC method called NotifyGracefulRestartStart. The NotifyGracefulRestartStart method takes a GracefulAdminRequest message as input and returns a stream of GracefulAdminResponse messages.
-
-- he message GracefulAdminRequest block defines the message format for the input parameter of the NotifyGracefulRestartStart method. It includes a single field called tor of type ToRSide.
-
-- The enum ToRSide block defines an enumeration of two possible values: LOWER_TOR and UPPER_TOR.
-
-- The message GracefulAdminResponse block defines the message format for the response of the NotifyGracefulRestartStart method. It includes four fields: msgtype, notifytype, guid, and period. msgtype and notifytype are both of type enumeration (defined by enum GracefulRestartMsgType and enum GracefulRestartNotifyType, respectively). guid is a string field, and period is an integer field representing the duration in seconds.
-
-- Overall, this proto file defines a message format for the gRPC service is used for graceful restart functionality in DualToR scenario
 
 ## Ycabled Functional Schema for Data Exchanged between orchagent and linkmgr
 
@@ -283,10 +238,10 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
     - mux_direction |active/standby/unknown
     - Peer_mux_direction| active/standby/unknown	//which side the Grpc FPGA TX  (active/standby) is pointing to, meaning the downward traffic will be allowed to pass. active means mux pointing to self and vice-versa
     - grpc server version| 1.xxx/NA	//Describes the version which the server is running onto	
-    - self_operation_state|	Up/down/NA	  //Describes whether the operation of the port is administratively up/down	yes
-    - peer_operation_state|	Up/down/NA	  //Describes whether the operation of the peer port is administratively up/down	
-    - self_link_state|	Up/down/NA	      //Describes whether or not the link is physically up from FPGA side using gRPC	
-    - peer_Link_state|	Up/down/NA	//Describes whether or not the link is physically up from FPGA side using gRPC	
+    - self_operation_state|	Up/Down/NA	  //Describes whether the operation of the port is administratively up/down	yes
+    - peer_operation_state|	Up/Down/NA	  //Describes whether the operation of the peer port is administratively up/down	
+    - self_link_state|	Up/Down/NA	      //Describes whether or not the link is physically up from FPGA side using gRPC	
+    - peer_Link_state|	Up/Down/NA	//Describes whether or not the link is physically up from FPGA side using gRPC	
     - grpc_connection_status| 	READY/TRANSIENT_FAILURE/IDLE/SHUTDOWN/CONNECTING/NA	//(TCP session details or channel details)	
     - mux_direction_probe_count|	Type:int	//A counter about how many times mux direction is probed using gRPC	
     - peer_mux_direction_probe_count|	Type:int	//A counter about how many times peer mux direction is probed using gRPC	
@@ -294,7 +249,7 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
     - peer_link_state_probe_count|	Type:int	//A counter about how many times peer link state is counted using gRPC	
     - operation_state_probe_count|	Type:int	//A counter about how many times operation link state is counted using gRPC	
     - peer_operation_state_probe_count|	Type:int	//A counter about how many times peer operation link state is counted using gRPC
-    - soc_service| inprogress/noop/NA	//Describes the version which the server is running onto
+    - soc_service| inprogress/noop/NA	//Mentions if at all there is a service happening on the SoC, If ths channel link status goes to READY, then this is not going to be utilized
 			
 ```
 
@@ -304,7 +259,7 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
 
 #### Background
 
-- We need a way to communicate to SoC using a Loopback IPv4 which would not be adversitised to public from SONiC DualToR. This Loopback IP requirement arises because SoC has firewall rules which would not allow normal traffic to pass through. In Normal scenario the interface inside the subnet, which would be a vlan IP, would be the source IP of the packet going to the SoC for gRPC.As such we would need to use a well defined IP(Loopback IP) which would be allowed in SoC firewall rules, hence the requirement to communicate over a pre-defined IPv4 address.
+- We need a way to communicate to SoC using a Loopback IPv4 which would not be adversitised to public from SONiC DualToR. This Loopback IP requirement arises because SoC has firewall rules which would not allow normal traffic to pass through. In Normal scenario the interface inside the subnet, which would be a vlan IP, would be the source IP of the packet going to the SoC for gRPC. As such we would need to use a well defined IP(Loopback IP) which would be allowed in SoC firewall rules, hence the requirement to communicate over a pre-defined IPv4 address.
 
 #### Possible Solutions for Loopback IP
 - The Best approach would be BIND the socket which is used by the gRPC channel to Loopback interface using a gRPC API. There is a socket_mutator API which is available in C++, which allows us to accomplish this, and was also tested inside the lab. However the gRPC client is proposed to be written in Python, because platform API is installed inside PMON(Python) as well as in DualToR Active/Standby scenrio ycabled is also written in Python. The gRPC client logic is proposed to be run inside PMON container. Since the gRPC library does not expose this API in Python, nor does it expose the socket, this is not an easy workaround. The github issue is filed for this issue inside gRPC Github repo.
@@ -314,11 +269,11 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
        sudo ip route add <SoC IP> via <vlan IP> src <Loopback IP>
     ```
   - The issue with adding a Kernel Route is that route_checker will fail after adding this route, since vlan IP is the HOST's own vlan IP within SONiC as such no real neighbor is present, hence the route_checker will not be able to validate this entry
-  - SWSS orchagent will also complain about not able to install the entry in ASIC, since the entry will be present in APP DB but not present inside ASIC. This would deem more workarounds necessary to be able to accomodate this route using this approach.
+  - SWSS orchagent will also complain about not able to install the entry in ASIC, since the entry will be present in APP DB but not present inside ASIC itself. This would deem more workarounds necessary to be able to accomodate this route using this approach.
   - For the kernel route approach we would have to accomodate these issues listed above
 - using an IPTABLES rule. We could add a POSTROUTING rule to the SNAT table with destination as SoC IP and source as Loopback IP. For Example
     ```
-        sudo iptables -t nat -A POSTROUTING --destination <SoC IP> -j SNAT --to-source <LoopBack IP>
+        sudo iptables -t nat -A POSTROUTING --destination <SoC IP> --source <Vlan IP> -j SNAT --to-source <LoopBack IP>
     ```
     - There could be single SNAT entry for the entire subnet which is covers all the SoC IP's connected to the ToR
 
@@ -429,10 +384,10 @@ with grpc.insecure_channel("%s:%s" % (server, port)) as insecure_channel:
 #### Deployment of gRPC in SONiC build system.
 The current logic for deploying gRPC in PMON is that we utilize sonic-ycabled's wheel utility to generate the gRPC libray utlities which are imported by the daemon.
 The main advantage of doing this is
-- with each gRPC version improvement SONiC Dev does not have to maintain the generated code, if that chnages over each version
+- with each gRPC version improvement SONiC Dev does not have to maintain the generated code, if that changes over each version
 - No need to test the generated code as part of Unit Test infrastructure
 
-Below are few snippets of setup.py function and the description of each
+- Below are few snippets of setup.py function and the description of each
 
      ```
         from setuptools import setup, find_packages
@@ -472,7 +427,6 @@ Below are few snippets of setup.py function and the description of each
             cmdclass={'build_ext': BuildExtCommand,
                       'GrpcTool': GrpcTool}
         )
-
     ```
 
 - The setup() function is the main entry point for defining the package's metadata and configuration. Here's what each argument in the setup() function does:
@@ -505,6 +459,51 @@ The BuildExtCommand class is a subclass of the built-in _build_ext command class
 - run(self): This method is called when the command is run. It calls the GrpcTool command before running the default _build_ext command using the super() function.
 By adding the GrpcTool command as a dependency of the BuildExtCommand, the GrpcTool command will be automatically run whenever the BuildExtCommand is run. This ensures that the necessary Python code is generated before the package is built and installed.
 
-        In summary, the setup() script defines a Python package called "sonic-ycabled" that includes a console script called ycabled. The package also includes two custom commands: GrpcTool and BuildExtCommand. The GrpcTool command generates Python code from a proto file using the grpc_tools.protoc module, and the BuildExtCommand command extends the default _build_ext command to include a dependency on the GrpcTool command. This ensures that the necessary Python code is generated before the package is built and installed.
+- In summary, the setup() script defines a Python package called "sonic-ycabled" that includes a console script called ycabled. The package also includes two custom commands: GrpcTool and BuildExtCommand. The GrpcTool command generates Python code from a proto file using the grpc_tools.protoc module, and the BuildExtCommand command extends the default _build_ext command to include a dependency on the GrpcTool command. This ensures that the necessary Python code is generated before the package is built and installed.
 
+### Proto Definition Interface to SoC to notify ycabled about service notification
+
+```python
+    service GracefulRestart {
+     rpc NotifyGracefulRestartStart(GracefulAdminRequest) returns (stream GracefulAdminResponse) {}
+    }
+
+    enum ToRSide {
+        LOWER_TOR = 0;
+        UPPER_TOR =1;
+    }
+
+    message GracefulAdminRequest { 
+        ToRSide tor = 1;
+    }
+
+    enum GracefulRestartMsgType {
+        SERVICE_BEGIN = 0; 
+        SERVICE_END = 1;// send this always from SoC Side even if not paired with Begin
+    }
+
+    enum GracefulRestartNotifyType { 
+        CONTROL_PLANE = 0;// need proper definitions
+        DATA_PLANE = 1; 
+        BOTH = 2;
+    }
+
+    message GracefulAdminResponse { 
+        GracefulRestartMsgType msgtype = 1; 
+        GracefulRestartNotifyType notifytype = 2; 
+        string guid = 3; 
+        int32 period = 4; // in seconds
+    }
+
+```
+
+- The service GracefulRestart block defines the service and includes a single RPC method called NotifyGracefulRestartStart. The NotifyGracefulRestartStart method takes a GracefulAdminRequest message as input and returns a stream of GracefulAdminResponse messages.
+
+- he message GracefulAdminRequest block defines the message format for the input parameter of the NotifyGracefulRestartStart method. It includes a single field called tor of type ToRSide.
+
+- The enum ToRSide block defines an enumeration of two possible values: LOWER_TOR and UPPER_TOR.
+
+- The message GracefulAdminResponse block defines the message format for the response of the NotifyGracefulRestartStart method. It includes four fields: msgtype, notifytype, guid, and period. msgtype and notifytype are both of type enumeration (defined by enum GracefulRestartMsgType and enum GracefulRestartNotifyType, respectively). guid is a string field, and period is an integer field representing the duration in seconds.
+
+- Overall, this proto file defines a message format for the gRPC service is used for graceful restart functionality in DualToR scenario
 
