@@ -10,7 +10,7 @@ $$
 SONiC Influential Index (SII) = (Contribution \times Weight) + (Innovation \times Weight) + (SONiC Proliferation \times Weight )
 $$
 
-| Contribution (from past 5 years) | Category | Weight Multiplier |
+| Contribution (Yearly) | Category | Weight Multiplier |
 |--------------------------------  |----------| -------- |
 | Merged HLD [1] Count              | Development | 50 |
 | Merged PR [2] Count (S/M/L)       | Development | 10/20/50 |
@@ -43,6 +43,16 @@ $$
 [7]: SONiC end consumer proliferation Small/Medium/Large based on open source or commercial distribution of SONiC. This is for contribution in enabling consumers/broader market across trainings, deployment support, engineering assistance, and anything related to helping them move in production with SONiC. Weightage is assigned based on production network deployment size (Small: 100 - 500, Medium: 501 - 50,000, Large: >50,001). Production Deployment score is counted per election cycle, eg, an organization which supported 1000 SONiC production node rollout will add 50 points to its SII, an organization which supported 11,000 SONiC production node rollout will add 100 points to its SII
 
 There will be more forms of involvement and attributes to be accounted for as the SONiC project evolves, future changes to SII structure will require TSC approval.
+
+The above SII can be computed for each community member at individual level or organizational level on a yearly basis.  To balance the need of motivating more recent contribution and the need of maintain relative stability of the TSC, we will use the following weight for the last 5 years to calculate the overall SII for each community member.
+
+| Last n Year | Weight |
+|-----------|--------|
+| 1 | 0.30 |
+| 2 | 0.25 |
+| 3 | 0.20 |
+| 4 | 0.15 |
+| 5 | 0.10 |
 
 ## Voter Participation
 
