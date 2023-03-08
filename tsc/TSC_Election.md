@@ -17,7 +17,7 @@ $$
 | PR Review Count (S/M/L)       | Development | 1/2/5    |
 | PR cherry-picking [3] Count       | Development |  5 |
 | Documentations (Release Notes/Meeting Minutes) | Development |  50/1  |
-| New ASIC [4] Introduction Count | Development |  50 |
+| New ASIC [4] Introduction Count | Development |  100 |
 | Issues Opened Count               |  Quality [5] | 5 |
 | Issues Triaged/Fixed Count        | Quality | 10 |
 | Merged SONiC MGMT TEST Plan HLD [1] Count | Quality | 100 |
@@ -25,7 +25,7 @@ $$
 | TEST PR review count (S/M/L)     | Quality | 2/4/10 |
 | Summit Presentation Count       | Innovation | 50  |
 | Hackathon Participation Team Count | Innovation | 10 |
-| SONiC Production Deployment (S/M/L) [6] | Proliferation | 10/100/500 |
+| SONiC Production Deployment (S/M/L) [6] | Proliferation | 100/500/1000 |
 | SONiC End Consumer Proliferation (S/M/L) | Proliferation [7] | 5/50/100 |
 
 [1]: HLD are new or substantial changes reviewed in the SONiC community review meeting, minor amendment are counted towards merged PR
