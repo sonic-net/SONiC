@@ -236,6 +236,8 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
 
 ### Telemetry publishing schema for monitoring YCabled
 
+- for monitoring most of these fields are updated or sent RPC and updated after every ~60 seconds by the service, except the grpc_connection_status and soc_service fields, both of which are preemptively monitored by using keepalive mechanism and an asynchrounous notification from the SoC.
+
 ```
     State DB
     MUX_CABLE_INFO| PORTNAME;
