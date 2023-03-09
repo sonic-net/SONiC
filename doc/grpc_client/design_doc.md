@@ -19,6 +19,8 @@ Table of Contents
 * [gRPC commuication over secure channel](#grpc-commuication-over-secure-channel)
 * [gRPC client initialization/deployment](#deployment)
 * [gRPC commuication to NIC simulator](#grpc-communication-with-nic-simulator)
+   * [Interceptor Solution for NIC simulator ](#proposed-solution-using-grpc-interceptor-inside-the-client)
+   * [Mulptiple servers for NIC simulator ](#proposed-solution-using-multiple-grpc-servers-inside-nic-simulator)
 * [Proto and Schema Definition for Aync notificaion](#proto-definition-interface-to-soc-to-notify-ycabled-about-service-notification)
 
 
@@ -28,6 +30,7 @@ Table of Contents
 |:---:|:--------:|:---------------:|--------------------|
 | 0.1 | 04/1/22 | Vaibhav Dahiya  | Initial version    |
 | 0.2 | 02/1/22 | Vaibhav Dahiya  | Make chnages to be shared to Core Team    |
+
 
 ## Scope
 gRPC client design doc which would communicate with the SoC in DualToR Active-active setup/ and Nic-simulator for testing infrastructure in SONiC MGMT.
@@ -219,8 +222,9 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
 - Enables HTTP2 pings to be sent to SoC and hence in normal working conditions Channel State of gRPC is always kept at READY
 - more details for keepalive can be found here
 ![grpc keep live](https://github.com/grpc/grpc/blob/master/doc/keepalive.md)
-- This allows gRPC channel to goto TRANSIENT_FAILURE state once pings are disrupted within any <4secs>.
+- This allows gRPC channel to goto TRANSIENT_FAILURE state once pings are disrupted within any <tsecs>.
 - gRPC channel attributes are hence added like this
+- Currently ping frequency is 4 secs, but can be reduced/increased depending on requirement
 ```python
    GRPC_CLIENT_OPTIONS = [
     ('grpc.keepalive_timeout_ms', 8000),
@@ -283,7 +287,7 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
     ```
         DEVICE_METADATA | localhost;
         type: ToRRouter
-            subtype: DualToR
+        subtype: DualToR
     ```
     ```
         MUX_CABLE|PORTNAME
@@ -317,10 +321,22 @@ num   pkts bytes target     prot opt in     out     source               destina
 - gRPC client would basically use TLS for establishing a secure channel. We will get certs pulled by acms container and turned into a certificate and a key file, and we would use these to create a secure channel.
 
     ```
-    'grpc_client_crt': '/etc/sonic/credentials/grpc_client.crt',
-    'grpc_clinet_key': '/etc/sonic/credentials/grpc_client.key',
-    ```
+    
+    CONFIG DB
+    GRPC_CLIENT| certs
+    - ca_crt| /etc/sonic/credentials/<root>.pem
+    - client_crt | /etc/sonic/credentials/<>.crt
+    - client_key | /etc/sonic/credentials/<>.key
+    - grpc_ssl_credential | <credential>
 
+    GRPC_CLIENT| config
+    - auth_level| client/server/mutual
+    - log_level| debug/info
+    - type | secure/ insecure
+
+    ```
+     
+    Sample usage
     ```
     key = open('/etc/sonic/credentials/grpc_client.key', 'rb').read()
     cert_chain = open('/etc/sonic/credentials/grpc_client.crt', 'rb').read()
@@ -334,8 +350,8 @@ num   pkts bytes target     prot opt in     out     source               destina
         # perform RPC's
     ```
 #### gRPC client authentication with Nic-Simulator
-gRPC also would need to be authenticated with the server which would be run for SONiC-MGMT tests. For this the proposal is to add self generated certs in a a task during add-topo for DualToR tetbeds and copied to the DUT when NiC-Simulator would be injected. This would be similar to the way mux-simulator is injected today. This way when the gRPC client
-is initiating the channels, it would be able to form a secure channel
+gRPC also would need to be authenticated with the server which would be run for SONiC-MGMT tests. For this the proposal is to add self generated certs in a a task during add-topo for DualToR tetbeds and copied to the DUT when NiC-Simulator would be injected or change the auth_level to insecure. This would be similar to the way mux-simulator is injected today. This way when the gRPC client
+is initiating the channels, it would be able to form a secure/insecure channel. Currently a fixture is added to change auth_level to insecure for grpc client for sonic-mgmt.
 
 ## gRPC client initialization
 
@@ -377,6 +393,28 @@ with grpc.insecure_channel("%s:%s" % (server, port)) as insecure_channel:
 ```
 
 - the gRPC server listening to the requests would decode the meta_data and serve the requests for gRPC client by associating the SoC_IP with the port
+
+#### Proposed Solution using multiple gRPC servers inside Nic-simulator 
+
+- Have gRPC server listener for each port, this way the solution can mimic how the client will be actually run inside the production.
+- for each of the SOC_IP which is to be connected for gRPC, there would be a corresponding server instance running in Nic-simulator
+- Sample usage
+
+For example 
+```
+server = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=THREAD_CONCURRENCY_PER_SERVER),
+            options=GRPC_SERVER_OPTIONS
+        )
+nic_simulator_grpc_service_pb2_grpc.add_DualToRActiveServicer_to_server(
+            self,
+            server
+        )
+server.add_insecure_port("%s:%s" % (nic_addr, binding_port))
+        server.start()
+        server.wait_for_termination()
+```
+
 
 
 ## Deployment
