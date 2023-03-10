@@ -1655,16 +1655,16 @@ history show historical pm data​
 ​
 #show int trans pm current <predefined window period>​
 commands:​
-60sec show cumulative pm statistics for 60sec time window. ​
-15min show cumulative pm statistics for 15min time window.​
-24Hr  show cumulative pm statistics for 24Hr time window.​
+60sec show cumulative pm statistics for 60sec time window for the current window. ​
+15min show cumulative pm statistics for 15min time window for the current window.​
+24Hr  show cumulative pm statistics for 24Hr time window for the current window.​
 <end> Without time window, the CLI will display the current snapshot of pm parameter.​
 
 #show int trans pm history​
 commands:​
-60sec show cumulative pm statistics for 36sec time window. ​
-15min show cumulative pm statistics for 15min time window.​
-24Hr  show cumulative pm statistics for 24Hr time window.​
+60sec show cumulative pm statistics for 60sec time window for the given window number.​
+15min show cumulative pm statistics for 15min time window for the given window number.​
+24Hr  show cumulative pm statistics for 24Hr time window for the given window number.​
 ​
 #show int trans pm history 30sec window <predefined window period number> -n asic0 Ethernet0​
 ​
