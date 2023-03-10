@@ -114,7 +114,7 @@ Here are some common use cases for switch port mode access:
 
 **2.** Restricting VLANs: Users can use switch port mode access to restrict the VLANs that a device can access. This can help control access to network resources and improve network security.
 
-**3.** Improving network performance: By using switch port mode access, users can reduce the amount of unnecessary broadcast traffic on the network. When a switch port is in access mode, it only sends traffic to the device connected to that port, rather than broadcasting traffic to all devices on the network.
+**3.** Improving network performance: By using switch port mode access, users can reduce the amount of unnecessary broadcast traffic on the network. When a switch port is in access mode, it forwards traffic for the configured VLAN only, thus reducing/restricting the broadcast domain.
 
 **4.** Implementing Quality of Service (QoS): QoS allows users to prioritize traffic on the network based on the type of traffic and the needs of users. By configuring switch ports to operate in access mode in conjunction with QoS parameters available in SONiC, users can ensure that traffic from specific devices is prioritized over other traffic on the network.
 
