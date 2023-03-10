@@ -5,6 +5,58 @@ to support gNMI subscriptions and wildcard paths for YANG defined paths.
 
 ## Table of Contents
 
+- [1 Feature Overview](#1-feature-overview)
+  - [1.1 Introduction](#11-introduction)
+  - [1.2 Requirements](#12-requirements)
+    - [1.2.1 ON_CHANGE subscription for eligible paths](#121-on_change-subscription-for-eligible-paths)
+    - [1.2.2 SAMPLE subscription for all paths](#122-sample-subscription-for-all-paths)
+    - [1.2.3 TARGET_DEFINED subscription for all paths](#123-target_defined-subscription-for-all-paths)
+    - [1.2.4 POLL and ONCE subscriptions](#124-poll-and-once-subscriptions)
+    - [1.2.5 Support Wildcard Keys](#125-support-wildcard-keys)
+    - [1.2.6 Scalar encoding for telemetry updates](#126-scalar-encoding-for-telemetry-updates)
+    - [1.2.7 Co-exist with existing gNMI server functionality](#127-co-exist-with-existing-gnmi-server-functionality)
+  - [1.3 Translib Overview](#13-translib-overview)
+  - [1.4 References](#14-references)
+- [2 High Level Design](#2-high-level-design)
+  - [2.1 Role of Framework and App Components](#21-role-of-framework-and-app-components)
+  - [2.2 Identifying YANG Based Subscriptions](#22-identifying-yang-based-subscriptions)
+  - [2.3 Manage Subscription RPC Lifecycle](#23-manage-subscription-rpc-lifecycle)
+  - [2.4 Streaming Data from Translib](#24-streaming-data-from-translib)
+  - [2.5 Collecting Subscription Preferences for YANG Paths](#25-collecting-subscription-preferences-for-yang-paths)
+  - [2.6 Collecting YANG Path to DB Mappings](#26-collecting-yang-path-to-db-mappings)
+  - [2.7 Subscribe Session](#27-subscribe-session)
+  - [2.8 Handling ON_CHANGE](#28-handling-on_change)
+    - [2.8.1 Basic Approach](#281-basic-approach)
+    - [2.8.2 Translib Subscribe() API](#282-translib-subscribe-api)
+    - [2.8.3 DB key to YANG Path mapping](#283-db-key-to-yang-path-mapping)
+    - [2.8.4 OnChange Cache](#284-onchange-cache)
+    - [2.8.5 Sending Notifications](#285-sending-notifications)
+    - [2.8.6 Notification Timestamp](#286-notification-timestamp)
+  - [2.9 Handling SAMPLE](#29-handling-sample)
+    - [2.9.1 Basic Approach](#291-basic-approach)
+    - [2.9.2 Translib Stream() API](#292-translib-stream-api)
+    - [2.9.3 YGOT Cache](#293-ygot-cache)
+    - [2.9.4 Notification Timestamp](#294-notification-timestamp)
+  - [2.10 Handling TARGET_DEFINED](#210-handling-target_defined)
+  - [2.11 Handling ONCE](#211-handling-once)
+  - [2.12 Handling POLL](#212-handling-poll)
+  - [2.13 Scalar Encoding](#213-scalar-encoding)
+  - [2.14 Handling YANG Paths without Module Prefix](#214-handling-yang-paths-without-module-prefix)
+  - [2.15 Wildcard Keys for Non-DB paths](#215-wildcard-keys-for-non-db-paths)
+- [3 Design Details](#3-design-details)
+  - [3.1 Translib APIs](#31-translib-apis)
+  - [3.2 App Interface](#32-app-interface)
+  - [3.3 Transformer](#33-transformer)
+  - [3.4 gNMI Server](#34-gnmi-server)
+- [4 User Interface](#4-user-interface)
+  - [4.1 CLIs](#41-clis)
+  - [4.2 gNOI APIs](#42-gnoi-apis)
+    - [4.2.1 GetSubscribePreferences](#421-getsubscribepreferences)
+- [5 Serviceability and Debug](#5-serviceability-and-debug)
+- [6 Scale Considerations](#6-scale-considerations)
+- [7 Limitations](#7-limitations)
+- [8 Unit Tests](#8-unit-tests)
+
 ## Revision History
 
 | Rev |     Date    |       Author       | Change Description                                     |
@@ -275,7 +327,7 @@ Following sequence diagram indicates overall flow of ON_CHANGE processing.
 
 ![ON_CHANGE High Level Design](images/Subscribe_ONCHANGE.png)
 
-#### 2.8.2 Translib `Subscrine()` API
+#### 2.8.2 Translib `Subscribe()` API
 
 The `Subscribe()` API manages redis subscriptions and notifications for given YANG paths.
 It expects following information from gNMI server:
@@ -480,6 +532,15 @@ Default value will be RFC7951 for backward compatibility.
 `Subscribe()` and `Stream()` will pass the *output format* as YGOT.
 
 ### 2.14 Handling YANG Paths without Module Prefix
+
+Translib and app modules always expect fully qualified YANG paths to be provided.
+But gNMI specification allows clients to omit module prefixes in YANG paths.
+gNMI server will be enhanced to transform such unqualified YANG paths into fully qualified YANG paths
+before passing them to `IsSubscribeSupported()` or `Subscribe()` or `Stream()` APIs.
+We can use schema information from YGOT to add the missing prefixes.
+Subscribe RPC will be rejected if path transformation fails for any reason.
+
+Similar path transformation can be done for Get and Set RPCs also.
 
 ### 2.15 Wildcard Keys for Non-DB paths
 
