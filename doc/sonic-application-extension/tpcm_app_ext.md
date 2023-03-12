@@ -1,6 +1,6 @@
 # Third Party Container Management Enhancements to SONiC Application Extensions framework
 
-#### Rev 0.1
+#### Rev 0.2
 
 ## Table of Content 
   * [List of Tables](#list-of-tables)
@@ -25,9 +25,11 @@
 | Rev  |    Date    |       Author      | Change Description                              |
 |:----:|:----------:|:-----------------:|:-----------------------------------------------:|
 | 0.1  | 10/14/2022 |Kalimuthu Velappan, Senthil Guruswamy, Babu Rajaram | Initial version                                 |                     
+| 0.2  | 03/10/2023 |Senthil Guruswamy | Update                                 |                     
 
 
-### About this Manual
+
+
 
 This document provides High Level Design information on extending SONiC Application Extension Infrastructure to seamlessly support a Third Party Application. 
 
@@ -77,14 +79,12 @@ These open TPCs help extend SONiC capabilities, and thus the following requireme
 
 - Dynamically install TPC from docker registry, scp, sftp, http, https, local file system or a docker image from the local file system
 - Upgrade TPCs from docker registry, scp, sftp, http, https, local file system or a docker image from the local file system
-- Provide separate disk space for TPCs, and apply disk limits. 
 - Provide runtime install capability to pass various docker startup arguments and parameters
 - Dynamically specify the SONiC Service startup dependencies for the TPC
-- Specify system resource limits for TPCs to restrict CPU, Memory, and Disk usage
+- Specify system resource limits for TPCs to restrict CPU, Memory usage
 - Framework to upgrade TPCs including the data migration, within a SONiC image
 - Framework to migrate TPCs and their data to a new SONiC image as part of SONiC Image upgrade
-- Configuration of TPCs to be part of either default VRF or Management VRF
-- Provide update utility to update various TPC configurations like their startup parameters, dependencies, VRF, etc.,
+- Provide update utility to update various TPC configurations like their startup parameters, dependencies etc.,
 
 
 
@@ -99,12 +99,11 @@ SONiC Application Extension Infrastructure provides the framework to integrate S
 
 - Install these TPC into SONIC 
 - Integrate the startup/stop systemd scripts for these containers
-- Configure the ability for these TPCs to be run in management VRF or default VRF
-- Configure various limits like CPU/Memory/Disk so they dont interfere with the core SONIC components
+- Configure various limits like CPU/Memory so they dont interfere with the core SONIC components
 
 #### TPC Images and Storage
 
-- All the TPCs and it's Image layers are stored as part of SONiC Docker image file system. The Docker image FS storage mostly located on the /var/lib/docker/overlay2 folder which is specific to each SONiC image in the system. However, a new TPC folder is created in the SONiC partition /host/tpcmdisk for storing all the TPC container management files. Thus, TPC storage is shared across all the SONiC images in the system. The TPC storage mainly contains the following contents.
+- All the TPCs and its image layers are stored as part of SONiC Docker image file system. The Docker image FS storage mostly located on the /var/lib/docker/overlay2 folder which is specific to each SONiC image in the system. Thus, TPC storage is shared across all the SONiC images in the system. The TPC storage mainly contains the following contents.
 
 1. TPC systemd service files.
 2. Private data volume for each TPC.
@@ -150,24 +149,12 @@ CONTAINER ID          IMAGE                                                     
 60a8ef7264efb43        quay.io/prometheus/node-exporter:latest                **"/bin/node_exporter --path.rootfs=/host" **  39 seconds ago
 
 
-#### TPCs in Management VRF
-
-When Management VRF is configured on a SONiC device, typically the SONiC dockers don't have access to the Management VRF namespace. However for TPCs, it is important to support them to be run in Management VRF context to enable them to communicate externally. Thus there is a need for the infrastructure to support running dockers in default VRF or Management VRF. The scope is limited to only Management VRFs. 
-
-The docker infrastructure in SONiC will be enhanced to run an additional dockerd and containerd services in the Management cgroup associated with the Management VRF. The communication happens via the unix socket domain created for Management VRF. All the TPCs which are configured to run in the Management VRF will be associated with the corresponding cgroup and the corresponding containerd service. 
-
-Few applicable use cases when configuring and un-configuring Management VRF on SONiC device:
-- TPCs can be created specifying the VRF option - mgmt or default. Default is default VRF
-- If Management VRF is configured on the SONiC host, TPCs created with Management VRF option would run in Management VRF. The ones created with default VRF will continue to run in default VRF
-- If Management VRF is un-configured on the SONiC host, TPCs created with Management VRF option would automatically restart and switch to default VRF. The ones created with default VRF will continue to run in default VRF
-
 
 #### Resource Limits  for TPC
 
 It is important to specify various resource limits on TPCs to ensure the overall health of the SONiC system is not compromised. Following system resource limits shall be applicable to TPCs:
 - CPU 
 - System Memory
-- Disk Limits
 
 These limits can be configured during the TPC installation. 
 
@@ -176,18 +163,14 @@ These limits can be configured during the TPC installation.
 
 ##### Memory Limits
 - As a policy, TPC overall memory limit is restricted to 20% of system memory  ( say, 3087MB from 15G system ram)
-- By default, if individual TPC memory limit is not specified with the newly introduced args input(--memory) to "tpcm install", 20% of TPC overall memory limit is assigned ( say, 617MB from 3087MB in a 15G system ram)
+- By default, if individual TPC memory limit is not specified with the args input(--memory), 20% of TPC overall memory limit is assigned ( say, 617MB from 3087MB in a 15G system ram)
 - Idea is that summation of the memory limits configured for all TPCs must not go beyond the overall TPC memory limit set.
-- The value for --memory is designed to be parsed using docker.utils.parse_bytes which defines the postfix to the unit specified should be one of the `b` `k` `m` `g` characters (or) KB/MB/GB  or  K/M/G  or the unit without any postfix be consider a simple byte value.
-
-##### Disk Limits
-- Default overall TPC disk limit is set to 20% of disk space.( say, 20% of 32G disk = ~6.2G)
-- Individual TPC disk limits are not supported.
+- The value for --memory will be designed to be parsed using docker.utils.parse_bytes which defines the postfix to the unit specified should be one of the `b` `k` `m` `g` characters (or) KB/MB/GB  or  K/M/G  or the unit without any postfix be consider a simple byte value.
 
 
 #### TPC Update
 
-As we saw above, the startup arguments, management VRF configuration, resource limits can be configured for the TPCs. All of these can be updated later via an update utility. The corresponding docker containers would be restarted after the TPCs are updated. 
+As we saw above, the startup arguments, resource limits can be configured for the TPCs. All of these can be updated later via an update utility. The corresponding docker containers would be restarted after the TPCs are updated. 
 
 
 #### TPC Upgrade
@@ -226,13 +209,34 @@ During the TPC upgrade if any these operation fails, it will rollback to old con
 
 Since these TPCs are not packaged into the SONiC image, these TPCs would not exist when we upgrade to the new SONIC image. Thus there is a need to automatically migrate the existing TPCs over to the new SONiC image so they continue to work seamlessly.
 
-
-Since there is a dedicated tpcm disk available for TPCs, this is just mounted into the new SONiC image enabling all the TPCs in the new image. 
-
 #### Manifest.json enhancements
 
-Many of the enhancements identified here including startup arguments, VRF, memory limits can also be specified in a manifest.json file for the given TPC. Manifest.json capabilities will be enhanced to support all of these parameters. This manifest.json can be specified as a URL while creating the TPCs.
+Many of the enhancements identified here including startup arguments, memory limits can also be specified in a manifest.json file for the given TPC. Manifest.json capabilities will be enhanced to support all of these parameters. This manifest.json can be specified as a URL while creating the TPCs.
 
+```
+    "container": {
+        "memory": 512M,
+        "cpu-period"=100000,
+        "cpu-quota"=20000,
+        "privileged": true,
+        "volumes": [
+            "/etc/sonic:/etc/sonic:ro",
+            "/usr/share/sonic/scripts:/usr/share/sonic/scripts:ro"
+        ],
+        "mounts": [],
+        "environment": {},
+        "tmpfs": [
+            "/tmp/",
+            "/var/tmp/"
+        ]
+    },
+    "service": {
+        "name": "xx",
+        "check_up_status": false,
+        "start-after-system-ready": true,
+        ...
+    }
+```
 
 ### SAI API 
 
@@ -307,7 +311,7 @@ admin@sonic:~$ sudo sonic-package-manager uninstall --name=my_node_exporter
 
 #### TPC Startup Arguments
 
-The sonic-package-manager install command shall have an option to specify various arguments to the constainer, including container arguments, entrypoint in the container, arguments to the container entrypoint command. 
+The sonic-package-manager install command shall have an option to specify various arguments to the container, including container arguments, entrypoint in the container, arguments to the container entrypoint command. 
 
 
 <!-- omit in toc -->
@@ -357,13 +361,10 @@ root@sonic:/home/admin# docker inspect my_node_exporter | grep Memory
             "MemorySwappiness": null,
 ```
 
-##### Disk Resource limit
-
-Update CLI can be used to modify the Disk limits. By default, it is governed by the overall system policy of 20% disk space for TPCs.
 
 #### TPC Update CLI
 
-The sonic-package-manager CLI shall be enhanced to support update of various parameters like args, cargs, memory limit, VRF for a given TPC.
+The sonic-package-manager CLI shall be enhanced to support update of various parameters like args, cargs, memory limit for a given TPC.
 
 
 <!-- omit in toc -->
@@ -374,10 +375,6 @@ Update the memory limit
 admin@sonic:~$ sudo sonic-package-manager update --name=my_node_exporter --args="--memory=200m" 
 ```
 
-Update the overall TPC Disk limit
-```
-admin@sonic:~$ sudo sonic-package-manager update --tpc-disk-limit=10G 
-```
 
 #### TPC Upgrade CLI
 
@@ -409,39 +406,34 @@ admin@sonic:~$ sudo sonic-package-manager upgrade --name=my_node_exporter node-e
 
 ### Restrictions/Limitations  
 
-Minimum System requirements to support TPCs are 8G memory, 32G Disk.
+Minimum System requirements to support TPCs are 8G memory.
 
 ### Testing Requirements/Design
 
-TODO
-
 #### Unit Test cases
 
-Verify the TPC install from http/https server
-Verify the TPC install from a remote server using SCP protocol
-Verify the TPC install from a remote server using SFTP protocol.
-Verify the TPC install from a local media path
-Verify the TPC install from an external Docker registry.
-Verify the TPC install with different parameter combinations.
-Verify the TPC uninstall of running containers.
-Verify the TPC upgrade with an already installed image.
-Verify the TPC uninstall and its associated service file removal.
-Verify the TPC service auto startup after reboot.
-Verify the SONiC image upgrade with TPC container migration.
-Verify the Hardware resource Disk/CPU/Memory limitations.
-Verify the TPC list of all TPC dockers.
-Verify the TPC service start/stop/restart.
-Verify the CPU resource usage of TPC.
-Verify the Memory resource usage of TPC
-Verify the Disk resource usage of TPC.
-Verify the Container argument option of TPC.
-Verify the TPC update of memory, disk
+1. Verify the TPC install from http/https server
+2. Verify the TPC install from a remote server using SCP protocol
+3. Verify the TPC install from a remote server using SFTP protocol.
+4. Verify the TPC install from a local media path
+5. Verify the TPC install from an external Docker registry.
+6. Verify the TPC install with different parameter combinations.
+7. Verify the TPC uninstall of running containers.
+8. Verify the TPC upgrade with an already installed image.
+9. Verify the TPC uninstall and its associated service file removal.
+10. Verify the TPC service auto startup after reboot.
+11. Verify the SONiC image upgrade with TPC container migration.
+12. Verify the Hardware resource CPU/Memory limitations.
+13. Verify the TPC list of all TPC dockers.
+14. Verify the TPC service start/stop/restart.
+15. Verify the CPU resource usage of TPC.
+16. Verify the Memory resource usage of TPC
+17. Verify the Container argument option of TPC.
 
 #### System Test cases
 
-Verify Sonic containers does not starve in terms of CPU, memory on TPC existence.
-Verify Sonic has more preference in terms of disk space utilization.
-Verify Sonic system ready does not delay with TPC bootup.
-Verify Sonic image upgrade with TPCs.
+1. Verify Sonic containers does not starve in terms of CPU, memory on TPC existence.
+2. Verify Sonic system ready does not delay with TPC bootup.
+3. Verify Sonic image upgrade with TPCs.
 
 
