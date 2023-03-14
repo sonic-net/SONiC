@@ -45,12 +45,19 @@ to support gNMI subscriptions and wildcard paths for YANG defined paths.
   - [2.15 Wildcard Keys for Non-DB paths](#215-wildcard-keys-for-non-db-paths)
 - [3 Design Details](#3-design-details)
   - [3.1 Translib APIs](#31-translib-apis)
+    - [3.1.1 SubscribeSession](#311-subscribesession)
+    - [3.1.2 IsSubscribeSupported](#312-issubscribesupported)
+    - [3.1.3 Subscribe](#313-subscribe)
+    - [3.1.4 Stream](#314-stream)
   - [3.2 App Interface](#32-app-interface)
+    - [3.2.1 translateSubscribe](#321-translatesubscribe)
+    - [3.2.2 processSubscribe](#322-processsubscribe)
+    - [3.2.3 ProcessOnChange](#323-processonchange)
   - [3.3 Transformer](#33-transformer)
   - [3.4 gNMI Server](#34-gnmi-server)
 - [4 User Interface](#4-user-interface)
   - [4.1 CLIs](#41-clis)
-  - [4.2 gNOI APIs](#42-gnoi-apis)
+  - [4.2 gRPC APIs](#42-grpc-apis)
     - [4.2.1 GetSubscribePreferences](#421-getsubscribepreferences)
 - [5 Serviceability and Debug](#5-serviceability-and-debug)
 - [6 Scale Considerations](#6-scale-considerations)
@@ -375,6 +382,25 @@ Cache is also updated with the new value in this process.
 Notification will be ignored if none of the subscribed fields are changed.
 This helps to suppress noises close to the source.
 
+In some cases, a DB entry may get changed multiple times in quick succession.
+It could even be created/deleted in quick succession, repeatedly.
+Since redis keyspace notifications are asynchronous, there may be a delay between db update and translib processing it.
+That db entry might have been modified multiple times by the time translib reads the entry from the db (because redis does not indicate changed values in keyspace notification).
+Those individual changes will also be notified to translib later, which will be redundant (since translib already sent out notification based on latest value).
+OnChange cache will be also be used to suppress such redundant updates.
+Following table lists how translib re-interprets the redis keyspace notification based on current db value and cache value:
+
+| Redis event | Entry exists in Cache | Entry exists in DB | Cache Action  | Effective event | Comments |
+|-------------|-----------------------|--------------------|---------------|-----------------|----------|
+| hset/hdel   | No  | No  | None              | Ignore          | Entry was created and deleted in quick succession. We cannot process them since we lost the values already. |
+|             | No  | Yes | Add to cache      | Key create      |   |
+|             | Yes | No  | None              | Ignore          | Update follwed by delete in quick succession. We have already lost the updated value. Hence nothing to be done here. There will be a *del* event next which will send delete notification. |
+|             | Yes | Yes | Update cache      | Entry update    |   |
+| del         | No  | No  | None              | Ignore          | Entry was added and deleted in quick succession. We skip delete since we would have already skipped the create. |
+|             | No  | Yes | None              | Ignore          | Should not happen. |
+|             | Yes | No  | Remove from cache | Key delete      |   |
+|             | Yes | Yes | Remove from cache | Key delete      | Entry was deleted and created back in quick succession. We send delete notification now. There will be a *hset* event next, which processes create event |
+
 Each subscribe session will have its own cache.
 It will be destroyed when the session is closed (i.e, when Subscribe RPC ends).
 
@@ -385,7 +411,7 @@ Notification is ignored if there are no changes relevant to current subscribe pa
 Redis key create/delete and create/update/delete of any of the fields peresent in the DB mapping are considered processed further.
 A `SubscribeResponse` object will be constructed as listed below:
 
-| Redis event type    | SubscribeResponse contents                                         |
+| DB change type      | SubscribeResponse contents                                         |
 |---------------------|--------------------------------------------------------------------|
 | Key delete          | DeletedPath = subscribed path                                      |
 | Key create          | UpdateValue = `processGet()` output of subscribed YANG path        |
@@ -559,7 +585,294 @@ Future releases can enhance this based on how non-DB data access evolves in tran
 
 ### 3.1 Translib APIs
 
+#### 3.1.1 SubscribeSession
+
+```go
+// NewSubscribeSession creates a new SubscribeSession object.
+// Caller MUST close the session before exiting the rpc.
+func NewSubscribeSession() *SubscribeSession
+
+// Close the subscribe session and release all caches held.
+func (ss *SubscribeSession) Close()
+
+// SubscribeSession is used to share session data between subscription
+// related APIs - IsSubscribeSupported, Subscribe and Stream.
+type SubscribeSession struct {
+    ID string
+    // cache
+}
+```
+
+#### 3.1.2 IsSubscribeSupported
+
+```go
+// IsSubscribeSupported - check if subscribe is supported on the given paths
+func IsSubscribeSupported(req IsSubscribeRequest) ([]*IsSubscribeResponse, error)
+
+type IsSubscribeRequest struct {
+    Paths         []IsSubscribePath
+    Session       *SubscribeSession
+    // client info for authetication & accounting
+}
+
+type IsSubscribePath struct {
+    ID   uint32           // Path ID for correlating with IsSubscribeResponse
+    Path string           // Subscribe path
+    Mode NotificationType // Requested subscribe mode
+}
+
+type IsSubscribeResponse struct {
+    ID                  uint32 // Path ID
+    Path                string
+    IsSubPath           bool // Subpath of the requested path
+    IsOnChangeSupported bool
+    IsWildcardSupported bool // true if wildcard keys are supported in the path
+    MinInterval         int
+    Err                 error
+    PreferredType       NotificationType
+}
+
+type NotificationType int
+
+const (
+    TargetDefined NotificationType = iota
+    Sample
+    OnChange
+)
+```
+
+#### 3.1.3 Subscribe
+
+```go
+// Subscribe - Subscribes to the paths requested and sends notifications when the data changes in DB
+func Subscribe(r SubscribeRequest) error
+
+// SubscribeRequest holds the request data for Subscribe and Stream APIs.
+type SubscribeRequest struct {
+    Paths         []string              // Subscribe paths
+    Q             *queue.PriorityQueue  // Queue or streaming SubscribeResponse 
+    Stop          chan struct{}         // To signal rpc cancellation to Translib
+    Session       *SubscribeSession
+    // Client info for authentication & accounting
+}
+
+type SubscribeResponse struct {
+    Timestamp    int64          // Event timestamp
+    Path         string         // Path prefix - container or list node
+    Update       ygot.GoStruct  // GoStruct for the Path, containing updated values 
+    Delete       []string       // Deleted paths - relative to Path
+    SyncComplete bool           // Current values have been streamed
+    IsTerminated bool           // Translib hit an error and stopped
+}
+```
+
+#### 3.1.4 Stream
+
+```go
+// Stream function streams the value for requested paths through a queue.
+// Unlike Get, this function can return smaller chunks of response separately.
+// Individual chunks are packed in a SubscribeResponse object and pushed to the req.Q.
+// Pushes a SubscribeResponse with SyncComplete=true after data are pushed.
+// Function will block until all values are returned. This can be used for
+// handling "Sample" subscriptions (NotificationType.Sample).
+// Client should be authorized to perform "subscribe" operation.
+func Stream(req SubscribeRequest) error
+```
+
 ### 3.2 App Interface
+
+#### 3.2.1 translateSubscribe
+
+All app modules must provide YANG path to DB mapping by implementing the `translateSubscribe()` function.
+Subscription cannot be supported for a path if no mapping is provided or an error is returned.
+One path can be mapped to multiple tables (e.g, /interfaces can map to PORT, PORTCHANNEL, LOOPBACK etc).
+If any child paths map to a different table, such child mappings also must be provided in ON_CHANGE mode.
+A mapping should be returned with nil table & key values if the map maps to a non-DB resource.
+Following code snippet shows the function signature and its input and output structs.
+
+```go
+type appInterface interface {
+    //....
+    translateSubscribe(req *translateSubRequest) (*translateSubResponse, error)
+}
+
+// translateSubRequest is the input for translateSubscribe callback
+type translateSubRequest struct {
+    ctxID   interface{}      // request id for logging
+    path    string           // subscribe path
+    mode    NotificationType // requested notification type
+    recurse bool             // whether mappings for child paths are required
+    dbs     [db.MaxDB]*db.DB // DB access objects for querying, if needed
+}
+
+// translateSubResponse is the output returned by app modules
+// from translateSubscribe callback.
+type translateSubResponse struct {
+    // ntfAppInfoTrgt includes the notificationAppInfo mappings for top level tables
+    // corresponding to the subscribe path. At least one mapping should be present.
+    ntfAppInfoTrgt []*notificationAppInfo
+    // ntfAppInfoTrgtChlds includes notificationAppInfo mappings for the child paths
+    // if they map to a different table.
+    ntfAppInfoTrgtChlds []*notificationAppInfo
+}
+
+// notificationAppInfo contains DB mapping details for for a given path.
+// One notificationAppInfo object can include details for one db table.
+// One subscribe path can map to multiple notificationAppInfo.
+type notificationAppInfo struct {
+    // path to which the key maps to. Can include wildcard keys.
+    // Should match request path -- should not point to any node outside
+    // the yang segment of request path.
+    path *gnmi.Path
+    // database index for the DB key represented by this notificationAppInfo.
+    // Should be db.MaxDB for non-DB data provider cases.
+    dbno db.DBNum
+    // table name. Should be nil for non-DB case.
+    table *db.TableSpec
+    // key components without table name prefix. Can include wildcards.
+    // Should be nil for non-DB case.
+    key *db.Key
+    // keyGroupComps holds component indices that uniquely identify the path.
+    // Required only when the db entry represents leaf-list instances.
+    keyGroupComps []int
+    // dbFieldYangPathMap is the mapping of db entry field to the yang
+    // field (leaf/leaf-list) for the input path.
+    dbFldYgPathInfoList []*dbFldYgPathInfo
+    // handlerFunc is the custom on_change event handler callback.
+    // Apps can implement their own diff & translate logic in this callback.
+    handlerFunc apis.ProcessOnChange
+    // deleteAction indicates how entry delete be handled for this path.
+    // Required only when db entry represents partial data for the path,
+    // or to workaround out of order deletes due to backend limitations.
+    deleteAction apis.DeleteActionType
+    // fldScanPattern indicates the scan type is based on field names and
+    // also the pattern to match the field names in the given table
+    fieldScanPattern string
+    // isOnChangeSupported indicates if on-change notification is
+    // supported for the input path. Table and key mappings should
+    // be filled even if on-change is not supported.
+    isOnChangeSupported bool
+    // mInterval indicates the minimum sample interval supported for
+    // the input path. 0 (default value) indicate system default interval.
+    mInterval int
+    // pType indicates the preferred notification type for the input
+    // path. Used when gNMI client subscribes with "TARGET_DEFINED" mode.
+    pType NotificationType
+    // opaque data can be used to store context information to assist
+    // future key-to-path translations. This is an optional data item.
+    // Apps can store any context information based on their logic.
+    // Translib passes this back to the processSubscribe function when
+    // it detects changes to the DB entry for current key or key pattern.
+    opaque interface{}
+}
+```
+
+#### 3.2.2 processSubscribe
+
+New `processSubscribe()` function will be introduced in appInterface to translate DB key/entry to a yang path.
+Every app must implement this function.
+Translib uses it for resolving wild card keys in paths using the DB key.
+App must return an error if it does not support subscription for the specified paths
+or the input DB entry info is not valid.
+Following code snippet shows the function signature and its input and output structs.
+
+```go
+type appInterface interface {
+    //...
+    processSubscribe(req *processSubRequest) (processSubResponse, error)
+}
+
+// processSubRequest is the input for app module's processSubscribe function.
+// It includes a path template (with wildcards) and one db entry info that needs to
+// be mapped to the path.
+type processSubRequest struct {
+    ctxID interface{}     // context id for logging
+    path  *gnmi.Path      // path template to be filled -- contains wildcards
+    dbno  db.DBNum        // db entry info to be used for filling path template
+    table *db.TableSpec
+    key   *db.Key
+    entry *db.Value       // updated or deleted db entry. DO NOT MODIFY
+    dbs [db.MaxDB]*db.DB  // DB access objects for querying additional data, if needed
+    opaque interface{}    // if app had set an opaque data in translateSubscribe
+}
+
+// processSubResponse is the output data structure of processSubscribe
+// function. Includes the path with wildcards resolved. Translib validates
+// if this path matches the template in processSubRequest.
+type processSubResponse struct {
+    path *gnmi.Path // path with wildcards resolved
+}
+```
+
+#### 3.2.3 ProcessOnChange
+
+If notification generation logic described at section [2.8.5](#285-sending-notifications)
+is not suffice for any table, app module can plugin their own a custom notification generator callback function.
+It should be set in the `handlerFunc` field of the `notificationAppInfo` instance returned by `translateSubscribe()`.
+Translib will manage the OnChange cache for the table entries and monitor for changes to the db entry.
+But when any change is detected, tranlib will invoke the app module's callback, passing the old and new versions of that entry.
+App should compare the entries and resolve notification data (deleted paths and updated values).
+Following code snippet indicates the callback function signature and input and output structs.
+
+```go
+// ProcessOnChange is a callback function to generate notification messages
+// from a DB entry change data. Apps can implement their own diff & notify logic
+// and register it as the handler for changes to specific tables.
+// This callback receives a NotificationContext object containing change details
+// of one DB entry and a NotificationSender interface to push translated messages.
+type ProcessOnChange func(*NotificationContext, NotificationSender)
+
+// NotificationContext contains the subscribed path and details of a DB entry
+// change that may result in a notification message.
+type NotificationContext struct {
+    Path      *gnmi.Path    // subscribe path, can include wildcards
+    Db        *db.DB        // db in which the entry was modified
+    Table     *db.TableSpec // table for the modified entry
+    Key       *db.Key       // key for modified entry
+    EntryDiff               // diff info for modified entry
+    AllDb     [db.MaxDB]*db.DB
+    Opaque    interface{} // app specific opaque data
+}
+
+// EntryDiff holds diff of two versions of a single db entry.
+// It contains both old & new db.Value objects and list changed field names.
+// Dummy "NULL" fields are ignored; array field names will have "@" suffix.
+type EntryDiff struct {
+    OldValue      db.Value // value before change; empty during entry create
+    NewValue      db.Value // changed db value; empty during entry delete
+    EntryCreated  bool     // true if entry being created
+    EntryDeleted  bool     // true if entry being deleted
+    CreatedFields []string // fields added during entry update
+    UpdatedFields []string // fields modified during entry update
+    DeletedFields []string // fields deleted during entry update
+}
+
+// NotificationSender provides methods to send notification message to
+// the clients. Translib subscribe infra implements this interface.
+type NotificationSender interface {
+    Send(*Notification) // Send a notification message to clients
+}
+
+// Notification is a message containing deleted and updated values
+// for a yang path.
+type Notification struct {
+    // Path is an absolute gnmi path of the changed yang container
+    // or list instance. MUST NOT be a leaf path.
+    Path string
+    // Delete is the list of deleted subpaths (relative to Path).
+    // Should contain one empty string if the Path itself was deleted.
+    // Can be a nil or empty list if there are no delete paths.
+    Delete []string
+    // Update holds all the updated values (new+modified) within the Path.
+    // MUST be the YGOT struct corresponding to the Path.
+    // Can be nil if there are no updated values; or specified as UpdatePaths.
+    Update ygot.ValidatedGoStruct
+    // UpdatePaths holds the list of updated subpaths (relative to Path).
+    // Nil/empty if there are no updates or specified as Update ygot value.
+    // Update and UpdatePaths MUST NOT overlap to prevent duplicate notifications.
+    UpdatePaths []string
+}
+```
 
 ### 3.3 Transformer
 
@@ -571,9 +884,44 @@ Future releases can enhance this based on how non-DB data access evolves in tran
 
 No CLIs will be added or modified.
 
-### 4.2 gNOI APIs
+### 4.2 gRPC APIs
 
 #### 4.2.1 GetSubscribePreferences
+
+A new gRPC *GetSubscribePreferences* will be introduced to return subscribe capabilities
+and preferences for one or more paths.
+This will be defined in a new service `Debug`, in a new protobuf file `sonic_debug.proto`.
+More RPCs to get/set server debug information can be added here in future.
+Following is the draft proto file.
+
+```protobuf
+service Debug {
+  // Get subscription capability info for specific paths and their subpaths.
+  rpc GetSubscribePreferences(SubscribePreferencesReq) returns (stream SubscribePreference);
+}
+
+enum Bool {
+  NOTSET = 0;
+  TRUE   = 1;
+  FALSE  = 2;
+}
+
+// Request message for GetSubscribePreferences RPC
+message SubscribePreferencesReq {
+  repeated string path = 1;     // Yang paths as gNMI path strings
+  bool include_subpaths = 2;    // Get preferences for all subpaths also
+  Bool on_change_supported = 3; // Filter by on_change supported/unsupported
+}
+
+// SubscribePreference holds subscription preference information for a path.
+message SubscribePreference {
+  string path = 1;                // A yang path, in gNMI path string syntax
+  bool on_change_supported = 2;   // Whether on_change supported
+  bool on_change_preferred = 3;   // Whether target_defined maps to on_change
+  bool wildcard_supported = 4;    // Whether wildcard keys supported
+  uint64 min_sample_interval = 5; // Minimum sample interval, in nanoseconds
+}
+```
 
 ## 5 Serviceability and Debug
 
@@ -677,7 +1025,7 @@ ONCE subscription test cases:
 - ONCE subscription for a non-DB path, without wildcard keys
 - ONCE subscription with unknown path
 
-GetSubscribePreferences gNOI API:
+GetSubscribePreferences gRPC:
 
 - Get preferences for a container path that supports ON_CHANGE and all its subpaths also support ON_CHANGE
 - Get preferences for a container path that supports ON_CHANGE but some of its child paths do not
