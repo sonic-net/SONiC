@@ -32,7 +32,7 @@
     - [3.6.1 Config Change Flow](#361-config-change-flow)
     - [3.6.2 FDB Table Change Flow](#362-fdb-table-change-flow)
     - [3.6.3 Lease Update Flow](#363-lease-update-flow)
-    - [3.6.3 Count Table Update Flow](#363-count-table-update-flow)
+    - [3.6.4 Count Table Update Flow](#364-count-table-update-flow)
   - [3.7 CLI](#37-cli)
     - [3.7.1 Config CLI](#371-config-cli)
     - [3.7.2 Show CLI](#372-show-cli)
@@ -163,7 +163,7 @@ module sonic-dhcp-server-ipv4 {
     }
     /* end of container DHCP_SERVER_IPV4_PORT */
   }
-  container DHCP_SERVER_IPV4_OPTION {
+  container DHCP_SERVER_IPV4_CUSTOMIZE_OPTION {
     description "DHCP_SERVER_IPV4_OPTION part of config_db.json";
     list OPTION_LIST {
       key "name";
@@ -217,12 +217,12 @@ module sonic-dhcp-server-ipv4 {
       "ip": "192.168.0.5"
     }
   },
-  "DHCP_SERVER_IPV4_OPTION": {
-    "Vlan1000|1": {
+  "DHCP_SERVER_IPV4_CUSTOMIZE_OPTION": {
+    "Vlan1000|15": {
       "value": "192.168.0.1"
     },
-    "Vlan1000|56": {
-      "value": "5"
+    "Vlan1000|38": {
+      "value": "34"
     }
   }
 }
@@ -277,6 +277,10 @@ module sonic-dhcp-server-ipv4-counter {
           description "Unix time of lease start";
           type uint64
         },
+        leaf lease_end {
+          description "Unix time of lease end";
+          type uint64
+        }
         leaf ip {
           description "DHCP ip address assigned to this client";
           type inet:ipv4-address
@@ -318,14 +322,17 @@ module sonic-dhcp-server-ipv4-counter {
   "DHCP_SERVER_IPV4_LEASE": {
     "Vlan1000|10:70:fd:b6:13:00": {
       "lease_start": "1677640581",
+      "lease_end": "1677641481",
       "ip": "192.168.0.1"
     },
     "Vlan1000|10:70:fd:b6:13:01": {
       "lease_start": "1677640581",
+      "lease_end": "1677641481",
       "ip": "192.168.0.2"
     },
     "Ethernet1|10:70:fd:b6:13:02": {
       "lease_start": "1677640582",
+      "lease_end": "1677641481",
       "ip": "192.168.0.3"
     }
   }
@@ -346,7 +353,7 @@ The following figure describes how dhcpmgrd refreshes `dnsmasq.hosts`
 
 **2) Refresh counter table**
 
-Once dnsmasq receives or sends a DHCP packet, it would record it in logs. DhcpMgrd is to monitor changes of dnsmasq logs, and according to this log to update counter table DHCP_SERVER_IPV4_COUNTER in STATE_DB.
+Once dnsmasq received or sent a DHCP packet, it would record it in logs. DhcpMgrd is to monitor changes of dnsmasq logs, and according to this log to update counter table DHCP_SERVER_IPV4_COUNTER in STATE_DB.
 
 ## 3.4 Lease Update Script
 Dnsmasq supports to specify a customize script to execute whenever a new DHCP lease is created, or an old one destroyed. We can update lease table in STATE_DB by this script.
@@ -354,9 +361,17 @@ Dnsmasq supports to specify a customize script to execute whenever a new DHCP le
 
 ## 3.5 Customize DHCP Packet Options
 
-We can sustomize DHCP Packet Options per DHCP interface by dnsmasq. 
+We can customize DHCP Packet Options per DHCP interface by dnsmasq. 
 
-We can set tag for each DHCP interface, all DHCP clients connected to this interface share one tag, and DHCP server would add DHCP options by config to each DHCP packet sent to client.
+We can set tag for each DHCP interface, all DHCP clients connected to this interface share one tag, and DHCP server would add DHCP options by config to each DHCP packet sent to client. Have to be aware of is that below options are not supported to customize, because they are specified by other config or they are critical options.
+| Option code             | Name                        |
+|--------------------------|----------------------------------|
+| 1                      | Subnet Mask      |
+| 3                      | Router           |
+| 28                      | Broadcast Address           |
+| 51                      | Lease Time      |
+| 53                      | Message Type           |
+| 54                      | DHCP Server ID      |
 
 ## 3.6 Flow Diagrams
 ### 3.6.1 Config Change Flow
@@ -368,19 +383,33 @@ This sequence figure describe the work flow for state_db changed by new mac lear
 <div align="center"> <img src=images/fdb_change_flow.png width=600 /> </div>
 
 ### 3.6.3 Lease Update Flow
-This sequence figure describe the update work flow for updating lease table in STATE_DB when a new DHCP lease is created. Old lease modifying or deleting is same as new creating. 
+These sequence figure describe the update work flow for updating lease table in STATE_DB when a new DHCP lease is created. Old lease modifying or deleting is same as new creating. 
 
-<div align="center"> <img src=images/lease_update_flow.png width=560 /> </div>
+Below sequence figure describes the work flow how dnsmasq updates lease table while new lease is created.
 
-### 3.6.3 Count Table Update Flow
+<div align="center"> <img src=images/lease_update_flow_new.png width=560 /> </div>
+
+Below sequence figure describes the work flow how dnsmasq updates lease table while exist lease is released.
+
+<div align="center"> <img src=images/lease_update_flow_release.png width=640 /> </div>
+
+### 3.6.4 Count Table Update Flow
 This sequence figure describe the update work flow for updating packet counter table in STATE_DB.
-<div align="center"> <img src=images/packet_counter_flow.png width=580 /> </div>
+
+Below sequence figure describes the work flow about server logging process while sending or receiving DHCP packets.
+<div align="center"> <img src=images/packet_log_flow.png width=630 /> </div>
+
+Below sequence figure describes the work flow how to update DHCP_SERVER_IPV4_COUNTER table after log file changed.
+<div align="center"> <img src=images/log_counter_flow.png width=680 /> </div>
+
 
 ## 3.7 CLI
 ### 3.7.1 Config CLI
 **config dhcp_server add**
 
-This command is used to add dhcp_server for vlan
+This command is used to add dhcp_server for DHCP interface.
+
+**Notice**: Adding dhcp_server would enable dhcp_server feature automatically, it require that dhcp_relay feature is disabled.
 - Usage
   ```
   config dhcp_server ipv4 add [--mode <mode>] [--infer_gw_nm] [--lease_time <lease_time>] [--gateway <gateway>] [--netmask <netmask>] <dhcp_interface>
@@ -388,7 +417,7 @@ This command is used to add dhcp_server for vlan
   Options:
      mode: Specify mode of assign IP, currently only support 'PORT'. [required]
      lease_time: Time that the client can lease IP once. [not required, default value is 900(s)]
-     infer_gw_nm: Indicate whether to use gateway and netmask of server interface. [not required if gateway and netmask is given and vlan]
+     infer_gw_nm: Indicate whether to use gateway and netmask of server interface. [not required if gateway and netmask is given]
      gateway: Gateway of DHCP server. [ignored if infer_gw_nm is given]
      netmask: Netmask of DHCP server. [ignored if infer_gw_nm is given]
   ```
@@ -414,7 +443,7 @@ This command is used to update dhcp_server config.
 
 **config dhcp_server port**
 
-This command is used to config dhcp ip per interface
+This command is used to config dhcp ip per interface.
 - Usage
   ```
   config dhcp_server ipv4 <mode> [<vlan_interface>] <interface> <ip>
@@ -428,35 +457,36 @@ This command is used to config dhcp ip per interface
 
 **config dhcp_server option add**
 
-This command is used to add dhcp option per dhcp interface
+This command is used to add dhcp option per dhcp interface.
+Type field can be set to (ip-address | uint | string | boolean).
 - Usage
   ```
-  config dhcp_server ipv4 option add <dhcp_interface> <option> <value>
+  config dhcp_server ipv4 option add <dhcp_interface> <option> <type> <value>
   ```
 
 - Example
   ```
-  config dhcp_server ipv4 option add Vlan1000 3 192.168.0.1
+  config dhcp_server ipv4 option add Vlan1000 42 ip-address 192.168.0.1
   ```
 
 **config dhcp_server option del**
 
-This command is used to delete dhcp option
+This command is used to delete dhcp option.
 - Usage
   ```
-  config dhcp_server ipv4 option del <dhcp_interface> (all | <option> <value>)
+  config dhcp_server ipv4 option del <dhcp_interface> (all | <option>)
   ```
 
 - Exampe
   ```
   config dhcp_server ipv4 option del Vlan1000 all
 
-  config dhcp_server ipv4 option del Vlan1000 3 192.168.0.1
+  config dhcp_server ipv4 option del Vlan1000 42
   ```
 
 **config dhcp_server del**
 
-This command is used to delete all dhcp_server config for vlan
+This command is used to delete all dhcp_server config for DHCP interface.
 - Usage
   ```
   config dhcp_server ipv4 del <dhcp_interface>
@@ -470,7 +500,7 @@ This command is used to delete all dhcp_server config for vlan
 ### 3.7.2 Show CLI
 **show dhcp_server info**
 
-This command is used to show dhcp_server config
+This command is used to show dhcp_server config.
 - Usage
   ```
   show dhcp_server ipv4 info [<dhcp_interface>]
@@ -501,7 +531,7 @@ This command is used to show dhcp_server config
 
 **show dhcp_server option**
 
-This command is used to show dhcp_server customized option
+This command is used to show dhcp_server customized option.
 
 - Usage
   ```
@@ -514,24 +544,24 @@ This command is used to show dhcp_server customized option
   +-------------+-------+------------+
   |Interface    |Option |Value       |
   |-------------+-------+------------+
-  |Vlan1000     |3      |192.168.0.1 |
-  |             |4      |15          |
+  |Vlan1000     |19     |1           |
+  |             |42     |192.168.0.1 |
   +-------------+-------+------------+
 
   show dhcp_server ipv4 option
   +-------------+-------+------------+
   |Interface    |Option |Value       |
   |-------------+-------+------------+
-  |Vlan1000     |3      |192.168.0.1 |
-  |             |4      |15          |
+  |Vlan1000     |19     |1           |
+  |             |42     |192.168.0.1 |
   +-------------+-------+------------+
-  |PortChannel1 |3      |192.168.0.1 |
+  |PortChannel1 |42     |192.168.8.1 |
   +-------------+-------+------------+
   ```
 
 **show dhcp_server counter**
 
-This command is used to show dhcp_server counter
+This command is used to show dhcp_server counter.
 - Usage
   ```
   show dhcp_server ipv4 counter [<interface>]
@@ -547,6 +577,7 @@ This command is used to show dhcp_server counter
   |           |OFFER       |15    |
   |           |REQUEST     |15    |
   |           |ACK         |15    |
+  |           |RELEASE     |15    |
   +-----------+------------+------+
 
   show dhcp_server ipv4 counter
@@ -557,17 +588,19 @@ This command is used to show dhcp_server counter
   |           |OFFER       |15    |
   |           |REQUEST     |15    |
   |           |ACK         |15    |
+  |           |RELEASE     |15    |
   +-----------+------------+------+
   |Ethernet12 |DISCOVER    |15    |
   |           |OFFER       |15    |
   |           |REQUEST     |15    |
   |           |ACK         |15    |
+  |           |RELEASE     |15    |
   +-----------+------------+------+
   ```
 
 **show dhcp_server lease**
 
-This command is used to show dhcp_server lease
+This command is used to show dhcp_server lease.
 - Usage
   ```
   show dhcp_server ipv4 lease [<dhcp_interface>]
@@ -579,22 +612,23 @@ This command is used to show dhcp_server lease
   +-----------+------------------+------------+--------------------+--------------------+
   |Interface  |MAC Address       |IP          |Lease Start         |Lease End           |
   |-----------+------------------+------------+--------------------+--------------------+
-  |Vlan1000   |2c:2c:2c:2c:2c:2c |192.168.0.1 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
-  |           |2b:2b:2b:2b:2b:2b |192.168.0.1 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
+  |Vlan1000   |2c:2c:2c:2c:2c:2c |192.168.0.2 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
+  |           |2b:2b:2b:2b:2b:2b |192.168.0.3 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
   +-----------+------------------+------------+--------------------+--------------------+
 
   show dhcp_server ipv4 lease
   +-----------+------------------+------------+--------------------+--------------------+
   |Interface  |MAC Address       |IP          |Lease Start         |Lease End           |
-  |-----------+------------------+------------+--------------------+--------------------+
-  |Vlan1000   |2c:2c:2c:2c:2c:2c |192.168.0.1 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
-  |           |2b:2b:2b:2b:2b:2b |192.168.0.1 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
   +-----------+------------------+------------+--------------------+--------------------+
-  |Vlan1001   |2e:2e:2e:2e:2e:2e |192.168.0.1 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
-  |-----------+------------------+------------+--------------------+--------------------+
+  |Vlan1000   |2c:2c:2c:2c:2c:2c |192.168.0.2 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
+  |           |2b:2b:2b:2b:2b:2b |192.168.0.3 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
+  +-----------+------------------+------------+--------------------+--------------------+
+  |Vlan1001   |2e:2e:2e:2e:2e:2e |192.168.8.2 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
+  +-----------+------------------+------------+--------------------+--------------------+
+
 ### 3.5.3 Clear CLI
 **sonic-clear dhcp_server ipv4 counter**
-This command is used to clear dhcp_server counter
+This command is used to clear dhcp_server counter.
 - Usage
   ```
   sonic-clear dhcp_server ipv4 counter [<dhcp_interface>]
