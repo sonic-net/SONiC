@@ -48,6 +48,7 @@
     - [Syncd changes](#syncd-changes)
   - [libSAI requirements](#libsai-requirements)
 - [Warm reboot support](#warm-reboot-support)
+- [Port breakout workFlow modifications](#port-breakout-workFlow-modifications)
 - [Unit test -TBD](#unit-test--tbd)
 - [System test -TBD](#system-test--tbd)
 - [Scalability - TBD](#scalability---tbd)
@@ -62,6 +63,7 @@
 | 0.4 | 12/20/2019  | Zhenggen Xu           | platform.json changes, dependency check changes etc       |
 | 0.5 | 3/5/2019    | Zhenggen Xu           | Clarification of port naming and breakout modes       |
 | 0.6 | 2/3/2021    | Zhenggen Xu           | Support more flexible port aliases       |
+| 0.7 | 3/14/2023   | Shyam Kumar           | Port Breakout workflow correction |
 
 # Scope
 This document is the design document for dynamic port-breakout feature on SONiC. This includes the requirements, the scope of the design, HW capability considerations, software architecture and scope of changes for different modules.
@@ -1189,6 +1191,56 @@ All thee attribute that coud be changed in orchagent should be able to be brough
 
 # Warm reboot support
 Syncd changes are required as mentioned above. The PR need to be merged and tested.
+
+# Port breakout workFlow modifications
+As part of enabling CMIS FSM with port breakout, found out that port breakout feature is not working and certain issues were found.
+
+Few key things to take into account prior to getting into workFlow
+A NxS breakout cable inserted implies following
+- A physical port is broken down into N sub-ports (logical ports)
+  - sub-ports are numbered as 8/N i.e.
+  - For 4x100G breakout optical module inserted in physcial Ethernet1 port, implies: Ethernet8, Ethernet10, Ethernet12, Ethernet14
+  - Note: This is done is this manner to keep such assignments uniform across various breakout modes viz.1x, 2x, 4x, 8x
+- Speed of each sub-port is S Gpbs
+- Unique channel# is assigned to each of the N sub-port starting with channel# 1 (and sequentially incrementing with each sub-port)
+
+Came up with the following workFlow to make 'port breakout with CMIS' work end-to-end:
+- Configure a unique channel # for each broken-down (logical) port in platform's port_config.ini
+   - channel # to start with 1 (and increment sequentailly for each logical port) under the same physcial port
+   - channel # sequence may repeat for logical ports under another physcial port 
+   - channel # as 0 (on a port) implies physical port itself (i.e. no port breakout on it)
+- These channel #s are then parsed and updated in PORT_TABLE of CONFIG redisDB
+  - There would be a unique PORT_TABLE for each logical port
+- xcvrd (as subscriber to PORT_TABLE of CONFIG DB), would read these channel #s and perform 'Host side' Lanes assignment as per the following logic
+  - A physical port is broken down into N sub-ports (logical ports)
+  - 8/N ‘Host side’ Lanes are assigned to each Channel # (or sub-port)
+  - Consider '4x100G breakout' optical module use-cases
+    It would be 2 lanes per channel (aka sub-port). Refer to 8/N mentioned-above.
+    Total 4 channels and Lane Count is 2
+    - Channel 1: Lanes 1,2
+    - Channel 2: Lanes 3,4
+    - Channel 3: Lanes 5,6
+    - Channel 4: Lanes 7,8
+  - Consider '2x100G breakout' optical module use-cases
+    It would be 4 lanes per channel (aka sub-port). Refer to 8/N mentioned-above.
+    Total 2 channels and Lane Count is 4
+    - Channel 1: Lanes 1,2,3,4
+    - Channel 2: Lanes 5,6,7,8
+- Next, xcvrd would determine Active Lanes (per channel) from the App Advertisement Table of CMIS Spec.
+  - In general, it checks Table 6.1 which implemented via appl_dict in codebase (cmis.py via get_application_advertisement()) and formualtes appl_dict
+    - xcvrd would read 'speed' too from the PORT_TABLE of CONFIG DB
+    - Then use the 'speed', 'channel #' and lanes information (of a logical/sub-port) and perform look-up in appl_dict
+      Once the match for these two fields is found under a key, it would use the parameters of that Key to infer HostLaneBitMask
+  - Otherwisem, in case of ZR optical modules, CMIS Sepc 5.2 Setion H.1.1 section/table is referred 
+    Following mechanism is run for each sub-port (aka channel) so that each sub-port (logical/broken-down port) can be acted upon individually from CMIS  FSM standpoint and in turn bring each link opertioanlly up (or down)
+    - Use 'speeed' and compare it to HostInterfaceIDAppX
+    - Use '# of lanes' (per channel) as determined above and compare it to HostLaneCountAppX
+    - On finding the right block in the table, use its bitmap e.g. 0101 0101b
+    - This is set as outcome of get_cmis_host_lane_mask() subroutine
+    
+ Note: At present, this utilizes the static method to configure port breakouts (i.e. port_config.ini or mini-graph).
+ This would be enhanced in future to set the breakout mode/data in dynamic fashion i.e.via sonic's config interface breakout CLI.
+ However, once the breakout mode/data is made into CONFIG DB (be it static or dynamic mode), xcvrd workflow (as mentioned above) would remain same.
 
 # Unit test -TBD
 At high level, We will leverage the vs test environment to test:
