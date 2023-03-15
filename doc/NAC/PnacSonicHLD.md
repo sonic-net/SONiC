@@ -171,6 +171,7 @@ After evaluating each of the options and their Pro/Cons, Option-3 is the priorit
 ## 3.2 PNAC software architecture
 Following figure explains how various components are based on microservices architecture. SONiC natively uses docker containers to partition various SW components based on grouping of functionalities. 
 ![PNAC Use Case](images/PNAC_SW_Architecture.png)
+
 A new Docker container is introduced that implements control plane of 802.1x standard with Authenticator functionality only. Within the "hostapd" container a new layer “hostapd_wrapper” is added. "hostapd_wrapper" enables communication between "hostapd" and other SONiC components.
 ### 3.2.1 Hostapd initialisation steps 
 As part of hostapd initialization two steps are performed as explained below:
