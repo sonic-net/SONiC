@@ -53,13 +53,18 @@ to support gNMI subscriptions and wildcard paths for YANG defined paths.
     - [3.2.1 translateSubscribe](#321-translatesubscribe)
     - [3.2.2 processSubscribe](#322-processsubscribe)
     - [3.2.3 ProcessOnChange](#323-processonchange)
-  - [3.3 Transformer](#33-transformer)
-  - [3.4 gNMI Server](#34-gnmi-server)
+  - [3.3 CommonApp module](#33-commonapp-module)
+    - [3.3.1 CommonApp's TranslateSubscribe](#331-commonapps-translatesubscribe)
+    - [3.3.2 CommonApp's ProcessSubscribe](#332-commonapps-processsubscribe)
+  - [3.4 Transformer](#34-transformer)
+    - [3.4.1 Subtree Subscribe transformer](#341-subtree-subscribe-transformer)
+    - [3.4.2 Path transformer](#342-path-transformer)
+    - [3.4.3 Key transformer](#343-key-transformer)
+    - [3.4.4 Table transformer](#344-table-transformer)
+  - [3.5 Path validator](#35-path-validator)
 - [4 User Interface](#4-user-interface)
-  - [4.1 CLIs](#41-clis)
-  - [4.2 gRPC APIs](#42-grpc-apis)
-    - [4.2.1 GetSubscribePreferences](#421-getsubscribepreferences)
 - [5 Serviceability and Debug](#5-serviceability-and-debug)
+  - [5.1 Finding Subscription Preferences for a YANG Path](#51-finding-subscription-preferences-for-a-yang-path)
 - [6 Scale Considerations](#6-scale-considerations)
 - [7 Limitations](#7-limitations)
 - [8 Unit Tests](#8-unit-tests)
@@ -69,7 +74,7 @@ to support gNMI subscriptions and wildcard paths for YANG defined paths.
 | Rev | Date        |       Author       | Change Description                                                            |
 |-----|-------------|--------------------|-------------------------------------------------------------------------------|
 | 0.1 | 03/02/2023  | Sachin Holla       | Initial draft                                                                 |
-| 0.2 | 03/14/2023  | Balachandar Mani   | Added the CommonApp's interface, Transformer, <br/>and Path validator details |
+| 0.2 | 03/14/2023  | Balachandar Mani   | Added the CommonApp's interface, Transformer and Path validator details |
 
 ## Definition and Abbreviation
 
@@ -354,6 +359,7 @@ To send the current data, translib will collect all existing redis keys using SC
 These keys will be translated to YANG paths as described in section [2.8.3](#283-db-key-to-yang-path-mapping).
 App Module's `processGet()` will be invoked for each such YANG paths and each YANg data will be pushed to the response queue one-by-one.
 This approach tends to result in Translib sending stream of smaller chunks of data.
+A `SubscribeResponse` with SyncComplete=true is pushed to the queue after data chunks are pushed.
 
 Once the initial data responses are complete, the `Subscribe()` function ends.
 But the notification handler will continue to run until gNMI servers sends a cancel signal (through the cannel it passed to the `Subscribe()` function) or a redis PubSub read fails.
@@ -588,6 +594,11 @@ Future releases can enhance this based on how non-DB data access evolves in tran
 
 #### 3.1.1 SubscribeSession
 
+`SubscribeSession` object is used to share the YANG path to DB mappings across translib APIs.
+gNMI server should create a new `SubscribeSession` instance for each subscribe RPC by calling `NewSubscribeSession()` and keep passing it to the other APIs it calls.
+Translib APIs will read/write the context info from that object.
+gNMI server must close the session before ending the subscribe RPC.
+
 ```go
 // NewSubscribeSession creates a new SubscribeSession object.
 // Caller MUST close the session before exiting the rpc.
@@ -606,8 +617,13 @@ type SubscribeSession struct {
 
 #### 3.1.2 IsSubscribeSupported
 
+`IsSubscribeSupported()` API checks whether subscription can be supported for set of {path, subscription mode} values.
+If yes, it also returns the subscription preferences for those paths as `IsSubscribeResponse` objects.
+Each `IsSubscribeResponse` holds the preferences for one path.
+For TARGET_DEFINED mode, it can return multiple `IsSubscribeResponse` for a path if it supports ON_CHANGE but some of its child paths do not.
+API signature:
+
 ```go
-// IsSubscribeSupported - check if subscribe is supported on the given paths
 func IsSubscribeSupported(req IsSubscribeRequest) ([]*IsSubscribeResponse, error)
 
 type IsSubscribeRequest struct {
@@ -644,8 +660,10 @@ const (
 
 #### 3.1.3 Subscribe
 
+`Subscribe()` API is used to handle ON_CHANGE subscription as explained in section [2.8.2](#282-translib-subscribe-api).
+API signature:
+
 ```go
-// Subscribe - Subscribes to the paths requested and sends notifications when the data changes in DB
 func Subscribe(r SubscribeRequest) error
 
 // SubscribeRequest holds the request data for Subscribe and Stream APIs.
@@ -669,14 +687,13 @@ type SubscribeResponse struct {
 
 #### 3.1.4 Stream
 
+`Stream()` API is used to retrieve data for SAMPLE, POLL and ONCE subscriptions.
+Unlike `Get()`, this function can return smaller chunks of data.
+Each chunk (YGOT object) is packed in a `SubscribeResponse` object and pushed to the response queue passed by the caller.
+Pushes a `SubscribeResponse` with SyncComplete=true after data are pushed.
+API signature:
+
 ```go
-// Stream function streams the value for requested paths through a queue.
-// Unlike Get, this function can return smaller chunks of response separately.
-// Individual chunks are packed in a SubscribeResponse object and pushed to the req.Q.
-// Pushes a SubscribeResponse with SyncComplete=true after data are pushed.
-// Function will block until all values are returned. This can be used for
-// handling "Sample" subscriptions (NotificationType.Sample).
-// Client should be authorized to perform "subscribe" operation.
 func Stream(req SubscribeRequest) error
 ```
 
@@ -875,7 +892,7 @@ type Notification struct {
 }
 ```
 
-#### 3.3 CommonApp module
+### 3.3 CommonApp module
 
 The CommonApp is a default app that handles the GET/SET/Subscribe requests for the YANG modules unless an app module is registered to Translib.
 Please refer to [Management Framework HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Management%20Framework.md) for more details.
@@ -904,7 +921,6 @@ handle the given path and all of its child node paths underneath and return the 
 key components, and fields for the target node of the path and all of its child node path accordingly.
 
 ```go
-
 // SubTreeXfmrSubscribe type is defined to use for handling subscribe(translateSubscribe & processSubscribe)
 // subtree transformer function definition.
 type SubTreeXfmrSubscribe func(inParams XfmrSubscInParams) (XfmrSubscOutParams, error)
@@ -930,7 +946,6 @@ type notificationOpts struct {
   mInterval int              // sample subscription interval time
   pType     NotificationType // to specify the notification preference types such as TARGET_DEFINED(default value), SAMPLE, ON_CHANGE.
 }
-
 ```
 
 #### 3.4.2 Path transformer
@@ -943,7 +958,6 @@ This transformer function will convert the given DB table key into YANG keys of 
 these converted YANG keys in the given URI path by replacing the wildcard (*).
 
 ```go
-
 // PathXfmrDbToYangFunc converts the given DB table key into the YANG key for all the list node in the given path.
 type PathXfmrDbToYangFunc func(params XfmrDbToYgPathParams) error
 
@@ -979,7 +993,6 @@ It can also add the missing valid module prefixes, and wild card keys to the pat
 This validator will be used in the gNMI server to validate the path request.
 
 ```go
-
 // NewPathValidator creates the pathValidator struct which will be used to validate the gNMI path.
 // PathValidatorOpt options can be AppendModulePrefix, and AddWildcardKeys.
 func NewPathValidator(opts ...PathValidatorOpt) *pathValidator
@@ -1000,20 +1013,19 @@ type pathValidator struct {
 }
 ```
 
-### 3.6 gNMI Server
-
 ## 4 User Interface
 
-### 4.1 CLIs
+No CLIs and YANGs will be added or modified.
 
-No CLIs will be added or modified.
+## 5 Serviceability and Debug
 
-### 4.2 gRPC APIs
+### 5.1 Finding Subscription Preferences for a YANG Path
 
-#### 4.2.1 GetSubscribePreferences
-
-A new gRPC *GetSubscribePreferences* will be introduced to return subscribe capabilities
-and preferences for one or more paths.
+Subscription preferences for every YANG path is determined by individual application.
+It will be either hardcoded in the app module or transformer code or indicated in the transformer annotation files.
+gNMI clients will not be aware of these details.
+A new gRPC *GetSubscribePreferences* will be introduced for gNMI clients to discover subscribe capabilities
+and preferences for a YANG path.
 This will be defined in a new service `Debug`, in a new protobuf file `sonic_debug.proto`.
 More RPCs to get/set server debug information can be added here in future.
 Following is the draft proto file.
@@ -1046,8 +1058,6 @@ message SubscribePreference {
   uint64 min_sample_interval = 5; // Minimum sample interval, in nanoseconds
 }
 ```
-
-## 5 Serviceability and Debug
 
 ## 6 Scale Considerations
 
