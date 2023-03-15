@@ -102,7 +102,7 @@ The feature enables a switch to authenticate other devices that require access t
 - Rate limit EAPOL packets to overcome/stop DDOS attack.
 ## 2.1 Target Deployment Use Cases
 First use case is Port based Network Access Control as described below.
-![PNAC Use Case](images/PNAC Use Case.png)
+![PNAC Use Case](images/PNAC_Use_Case.png)
 Above diagram authenticator block/unblocks all traffic in ingress direction based on authentication status of the port. Traffic is allowed only for Authenticated users.
 
  ## 2.2 Functionalities supported in upcoming release
@@ -170,7 +170,7 @@ After evaluating each of the options and their Pro/Cons, Option-3 is the priorit
 
 ## 3.2 PNAC software architecture
 Following figure explains how various components are based on microservices architecture. SONiC natively uses docker containers to partition various SW components based on grouping of functionalities. 
-![PNAC Use Case](images/PNAC SW Architecture.png)
+![PNAC Use Case](images/PNAC_SW_Architecture.png)
 A new Docker container is introduced that implements control plane of 802.1x standard with Authenticator functionality only. Within the "hostapd" container a new layer “hostapd_wrapper” is added. "hostapd_wrapper" enables communication between "hostapd" and other SONiC components.
 ### 3.2.1 Hostapd initialisation steps 
 As part of hostapd initialization two steps are performed as explained below:
@@ -286,7 +286,7 @@ Update column “***Authorization State***” in port_table which is part of con
 Hostapd_wrapper monitors operational status of the interface. When it transitions from “***down***” to “***up***” no specific actions shall be performed.
 ### 3.2.7 Sequence of Events flowchart
 Following Flow chart describes actions in respective sequence after events like port UP/DOWN takes place.
-![PNAC Use Case](images/PNAC SOE.png)
+![PNAC Use Case](images/PNAC_SOE.png)
 
 ## 3.3 DB Changes
 As part of PNAC feature introduction following are changes in respective DB.
