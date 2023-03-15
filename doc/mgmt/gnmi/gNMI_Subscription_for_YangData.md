@@ -66,9 +66,10 @@ to support gNMI subscriptions and wildcard paths for YANG defined paths.
 
 ## Revision History
 
-| Rev |     Date    |       Author       | Change Description                                     |
-|-----|-------------|--------------------|--------------------------------------------------------|
-| 0.1 | 03/02/2023  | Sachin Holla       | Initial draft                                          |
+| Rev | Date        |       Author       | Change Description                                                            |
+|-----|-------------|--------------------|-------------------------------------------------------------------------------|
+| 0.1 | 03/02/2023  | Sachin Holla       | Initial draft                                                                 |
+| 0.2 | 03/14/2023  | Balachandar Mani   | Added the CommonApp's interface, Transformer, <br/>and Path validator details |
 
 ## Definition and Abbreviation
 
@@ -874,9 +875,132 @@ type Notification struct {
 }
 ```
 
-### 3.3 Transformer
+#### 3.3 CommonApp module
 
-### 3.4 gNMI Server
+The CommonApp is a default app that handles the GET/SET/Subscribe requests for the YANG modules unless an app module is registered to Translib.
+Please refer to [Management Framework HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Management%20Framework.md) for more details.
+
+#### 3.3.1 CommonApp's TranslateSubscribe
+
+The `TranslateSubscribe` interface will be implemented in the CommonApp to generically handle any given request path
+to find the DB information and preferences mapped for this path.
+This function will traverse the given request path to find and call the annotated key, table, and subscribe transformer
+accordingly to translate the YANG key into DB table key, and discover the DB number, table name, key components, and fields for its
+target node and all of its child nodes.
+
+#### 3.3.2 CommonApp's ProcessSubscribe
+
+The `ProcessSubscribe` interface will be implemented in the CommonApp to generically handle any given path
+to resolve YANG keys for a given DB entry.
+To resolve YANG keys, this function will traverse the given path to find and call its corresponding key, table, and path transformers.
+If there is no mapped transformer for the given path, then the given DB table key will be used as it is to resolve the YANG keys.
+
+### 3.4 Transformer
+
+#### 3.4.1 Subtree Subscribe transformer
+
+For the subtree annotated YANG path, `SubTreeXfmrSubscribe' transformer callback function should
+handle the given path and all of its child node paths underneath and return the mapped DB number, table name,
+key components, and fields for the target node of the path and all of its child node path accordingly.
+
+```go
+
+// SubTreeXfmrSubscribe type is defined to use for handling subscribe(translateSubscribe & processSubscribe)
+// subtree transformer function definition.
+type SubTreeXfmrSubscribe func(inParams XfmrSubscInParams) (XfmrSubscOutParams, error)
+
+// XfmrSubscInParams to represent the subscribe request info for the subtree path
+type XfmrSubscInParams struct {
+  uri       string              // path of the subtree
+  dbs       [db.MaxDB]*db.DB    // DB structure pointers
+  subscProc SubscProcType       // type of the subscription request
+}
+
+// XfmrSubscOutParams to represent the mapped DB info., and notification preferences
+type XfmrSubscOutParams struct {
+  dbDataMap    RedisDbSubscribeMap  // DB data map
+  secDbDataMap RedisDbYgNodeMap     // to map the DB table for leaf or leaf-list node, if this table is different from its parent node's (container/list) table
+  onChange     OnchangeMode         // to enable or disable the ON_CHANGE mode
+  nOpts        *notificationOpts    // to mention the sample interval, and its type
+  isVirtualTbl bool                 // to specify if the DB tale is present or not
+}
+
+// notificationOpts to define sample interval time and notification preference type
+type notificationOpts struct {
+  mInterval int              // sample subscription interval time
+  pType     NotificationType // to specify the notification preference types such as TARGET_DEFINED(default value), SAMPLE, ON_CHANGE.
+}
+
+```
+
+#### 3.4.2 Path transformer
+
+A new transformer annotation `sonic-ext:path-transformer <transformer-name>` will be defined to specify the path transformer name
+to handle special cases --- subtree transformer or when there is no one-to-one mapping of YANG key to DB key.
+
+A transformer callback function with name as specified in annotation must be defined in the transformer package inside the translib.
+This transformer function will convert the given DB table key into YANG keys of all the list nodes present in the given YANG path and fill
+these converted YANG keys in the given URI path by replacing the wildcard (*).
+
+```go
+
+// PathXfmrDbToYangFunc converts the given DB table key into the YANG key for all the list node in the given path.
+type PathXfmrDbToYangFunc func(params XfmrDbToYgPathParams) error
+
+// XfmrDbToYgPathParams represents the input parameter of the path transformer callback function
+type XfmrDbToYgPathParams struct {
+    yangPath      *gnmi.Path        // current path which needs to be resolved
+    subscribePath *gnmi.Path        // user input subscribe path
+    ygSchemaPath  string            // current yg schema path
+    tblName       string            // table name
+    tblKeyComp    []string          // table key comp
+    tblEntry      *db.Value         // updated or deleted db entry value
+    dbNum         db.DBNum          // DB number
+    dbs           [db.MaxDB]*db.DB  // DB structure pointers
+    db            *db.DB            // DB pointer
+    ygPathKeys    map[string]string // to keep translated yang keys as values for each yang key leaf node
+}
+```
+
+#### 3.4.3 Key transformer
+
+YangToDb key transformer function should handle the wildcard (*) as a valid key present in the given YANG URI path,
+and return the translated mapped DB table key with wildcard.
+
+#### 3.4.4 Table transformer
+
+Table transformer function should handle wildcard (*) in the YANG URI path to accept the wildcard as a valid key and return the
+mapped table names based on the given path.
+
+### 3.5 Path validator
+
+To validate the syntax of the path element and its module prefix present in the given gNMI path against the YANG model.
+It can also add the missing valid module prefixes, and wild card keys to the path based on the input options.
+This validator will be used in the gNMI server to validate the path request.
+
+```go
+
+// NewPathValidator creates the pathValidator struct which will be used to validate the gNMI path.
+// PathValidatorOpt options can be AppendModulePrefix, and AddWildcardKeys.
+func NewPathValidator(opts ...PathValidatorOpt) *pathValidator
+
+// To Validate the given gNMI path and also adds the missing module prefix, wild card keys in the given gnmi path
+// based on the given PathValidatorOpt while creating the path validator.
+func (*pathValidator) Validate(gPath *gnmi.Path) error
+
+type pathValidator struct {
+	gPath        *gnmi.Path             // gNMI path
+	rootObj      *ocbinds.Device        // ygot root object of the YANG model
+	sField       *reflect.StructField   // ygot struct field
+	sValIntf     interface{}            // ygot struct field's value
+	parentIntf   interface{}            // parent ygot struct
+	opts         []PathValidatorOpt     // path validator options
+	parentSchema *yang.Entry            // YANG schema of the parent node
+	err          error                  // error information
+}
+```
+
+### 3.6 gNMI Server
 
 ## 4 User Interface
 
