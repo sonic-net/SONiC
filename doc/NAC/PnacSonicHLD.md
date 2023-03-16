@@ -92,7 +92,7 @@ First use case is Port based Network Access Control as described below.
 ![PNAC Use Case](images/PNAC_Use_Case.png)
 Above diagram authenticator block/unblocks all traffic in ingress direction based on authentication status of the port. Traffic is allowed only for Authenticated users.
 # 3 Design
-## 3.1 Option to Block or allows port traffic based on Authentication status of the port
+## 3.1 Options to Block or allows port traffic based on Authentication status of the port
 As part of the design there are various design options were considered to effectively allow/disallow user traffic based on authentication status of the port connected to the end user device. Following paragraph list all these option with pros and cons and provide which option is best suited for the design.
 ### 3.1.1 Allowing or Blocking user traffic by using RSTP/STP states 
 In this design option, if the NAC-enabled bridge-port is not authenticated then Port state is configured in “Blocked State” by invoking SAI API. After bridge-port get authenticated then the port state is changed to “Forwarding State”.
