@@ -42,7 +42,7 @@
 |:---:|:-----------:|:-------------------|:-----------------------------------|
 | 0.1 |  10/03/2023 | Kishor Kulkarni, <br> Keerthi Kumar Thovi| Initial version                     |
 
-# About this Manual
+# About this Document
 This document describes the design details of the Port Based Network Access Control (PNAC) feature.
 PNAC enables switches to control port access only for Authenticated users while denying access for unauthenticated users. The core to this feature is IEEE protocol 802.1x protocol. Port-based network access control allows a network administrator to restrict the use of LAN service access port only for authenticated and authorised users those are trying to get access into the network. 
 ***Note***: The standard supports port-based authentication and MAC based authentication. This version of the software supports port based authentication and will be extended for MAC based authentication in future.
