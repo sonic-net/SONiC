@@ -3,7 +3,7 @@
 **Platform Driver Development Framework (PDDF)**
 
 ## High Level Design Document
-**Rev 0.1**
+**Rev 0.7**
 
 ## Table of Contents
  * [List of Tables](#list-of-tables)
@@ -34,9 +34,11 @@
 		 * [LED Component](#led-component)
 		 * [Sensors](#sensors)
 		 * [System EEPROM Component](#system-eeprom-component)
+		 * [FPGAI2C Component](#fpgai2c-component)
 		 * [System Status Registers](#system-status-registers)
 		 * [Optics Component](#optics-component)
 		 * [lm-sensors](#lm-sensors-tools)
+	     * [FPGAPCIe Component](#pddf-fpgapcie-component)
 	 * [PDDF BMC Component Design](#pddf-bmc-component-design)
 		 * [PSU JSON](#psu-json)
 		 * [FAN JSON](#fan-json)
@@ -61,21 +63,23 @@
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 05/27/2019  |  Systems Infra Team     | Initial version                   |
-| 0.2 | 06/06/2019  |  Systems Infra Team     | Incorporated feedback             |
-| 0.3 | 10/21/2019  |  Systems Infra Team     | GPIO JSON object support          |
-| 0.4 | 10/22/2019  |  Systems Infra Team     | Platform 2.0 API support          |
-| 0.5 | 10/31/2019  |  Systems Infra Team     | BMC Support                       |
+| 0.1 | 05/27/2019  |  Fuzail Khan, Precy Lee     | Initial version                   |
+| 0.2 | 06/06/2019  |  Fuzail Khan, Precy Lee     | Incorporated feedback             |
+| 0.3 | 10/21/2019  |  Fuzail Khan, Precy Lee     | GPIO JSON object support          |
+| 0.4 | 10/22/2019  |  Fuzail Khan, Precy Lee     | Platform 2.0 API support          |
+| 0.5 | 10/31/2019  |  Fuzail Khan, Precy Lee     | BMC Support                       |
+| 0.6 | 10/01/2020  |  Fuzail Khan, Precy Lee     | FPGAI2C component support         |
+| 0.7 | 01/05/2023  |  Fuzail Khan, Precy Lee     | FPGAPCIe component support        |
 
 # About this Manual
-Platform Driver Development Framework (PDDF) is part of SONiC Platform Development Kit (PDK), which enables rapid development of platform drivers and APIs for SONiC platforms. PDK consists of 
+Platform Driver Development Framework (PDDF) is part of SONiC Platform Development Kit (PDK), which enables rapid development of platform drivers and APIs for SONiC platforms. PDK consists of
  - PDDF (Platform Driver Development Framework): For optimized data-driven platform driver and SONiC platform APIs development
  - PDE (Platform Development Environment): For optimized build and test of platform and SAI code
 
-PDE details are covered in another document. This document describes Platform Driver Development Framework (PDDF) which can be used as an alternative to the existing manually-written SONiC platform driver framework. It enables platform vendors to rapidly develop the device specific custom drivers and SONiC user space python device object-classes, using a data-driven architecture, to manage platform devices like Fan, PSUs, LEDs, Optics, System EEPROM, etc., and validate a platform on SONiC. 
+PDE details are covered in another document. This document describes Platform Driver Development Framework (PDDF) which can be used as an alternative to the existing manually-written SONiC platform driver framework. It enables platform vendors to rapidly develop the device specific custom drivers and SONiC user space python device object-classes, using a data-driven architecture, to manage platform devices like Fan, PSUs, LEDs, Optics, System EEPROM, etc., and validate a platform on SONiC.
 
 # Scope
-This document describes the high level design details of PDDF and its components. The PDDF consists of generic device drivers and user space platform APIs which use the per platform specific data in the JSON descriptor files. This document describes the interaction between all the components and the tools used to support these drivers and platform APIs.  
+This document describes the high level design details of PDDF and its components. The PDDF consists of generic device drivers and user space platform APIs which use the per platform specific data in the JSON descriptor files. This document describes the interaction between all the components and the tools used to support these drivers and platform APIs.
 
 
 # Definition/Abbreviation
@@ -110,6 +114,7 @@ Define Platform driver development framework to enable platform vendors to devel
 	 - Optic Transceivers (SFP, QSFP)
 	 - CPLD
 	 - CPLDMUX (a multiplexer where channel selection is controlled by external CPLD)
+	 - FPGA
 	 - System Status Registers
 	 - System LED
  - Generic drivers would expose device attributes via SysFS interface
@@ -128,8 +133,8 @@ Define Platform driver development framework to enable platform vendors to devel
    - Per platform data to enable get / set of various attributes in each device
  - PDDF generic drivers shall not require a reboot after installation
  - PDDF generic drivers shall support initialization and de-initialization
- - Platform drivers developed using the PDDF framework shall support the current SONiC platform CLIs  
- - PDDF developer guide	shall be provided 
+ - Platform drivers developed using the PDDF framework shall support the current SONiC platform CLIs
+ - PDDF developer guide	shall be provided
 
  ### 1.2 Configuration and Management Requirements
  - There are no configuration commands
@@ -142,7 +147,7 @@ Define Platform driver development framework to enable platform vendors to devel
 	 - Optic Transceivers (sonic_platform_base/sfp_base.py)
 	 - EEPROM (sonic_platform_base/sonic_eeprom)
      - Thermals (sonic_platform_base/thermal_base.py)
-	 
+	
  - Current SONiC platform CLIs shall be supported
 
 ### 1.3 Scalability Requirements
@@ -180,20 +185,21 @@ This makes the development and testing much simpler. Any change in the platform 
 
 ![PDDF Architecture](../../images/platform/pddf_hld1_2.0.png)
 
- SONiC PDDF (Platform driver development framework) supports the following HW devices on a given platform: 
- 
+ SONiC PDDF (Platform driver development framework) supports the following HW devices on a given platform:
+
  - Fan
  - PSU
  - System EEPROM
  - CPLD
+ - FPGA
  - Optic Transceivers
- - System LED control via CPLD 
+ - System LED control via CPLD or FPGA
  - System Status Registers in CPLD
- - Temp Sensors 
- 
+ - Temp Sensors
+
  High level architecture of the PDDF consists of the following:
 
- - PDDF JSON Descriptor files  
+ - PDDF JSON Descriptor files
  - Generic PDDF Python object classes for various devices implementing the Platform APIs
  - PDDF Tools
  - Generic PDDF HW device drivers in kernel space
@@ -210,7 +216,7 @@ I2C based HW components:
    - Inter connection of I2C devices
  - I2C Device Access attributes
 	 - Each device exposes a set of data attributes to read/write
-		 - Eg., PSU(psu_present), SFP/QSFP(sfp_present, lpmode) - CPLD registers/offsets/ masks, etc.,
+		 - e.g. PSU(psu_present), SFP/QSFP(sfp_present, lpmode) via CPLD/FPGA registers/offsets/masks, etc.
 	 - For each device, platform specific attributes to help access the data attributes
 
 BMC based HW components:
@@ -226,7 +232,7 @@ BMC based HW components:
 #### 3.1.2 Generic PDDF HW Device Drivers
 
 
-For I2C based HW components, PDDF provides generic drivers for the following I2C based devices: FAN/PSU/EEPROM/Optics Transceivers/ System LED/ CPLDs/ CPLDMUX. These drivers in kernel space, rely on the per-platform data in JSON descriptor files to expose data via SysFS interface. They provide a generic interface to get/set of these attributes. There are two types of data, a driver works on:
+For I2C based HW components, PDDF provides generic drivers for the following I2C based devices: FAN/PSU/EEPROM/Optics Transceivers/ System LED/ CPLDs/ CPLDMUX FPGA. These drivers in kernel space, rely on the per-platform data in JSON descriptor files to expose data via SysFS interface. They provide a generic interface to get/set of these attributes. There are two types of data, a driver works on:
 
  - Device data – Attributes exposed by the device itself
  - Platform access data – Information on how/ where to access the device attributes
@@ -237,7 +243,7 @@ These generic PDDF drivers provide capabilities to:
  - Mix and match generic and standard drivers
  - Support any existing driver for a given component
 
-For BMC based HW components such as FAN/PSU/TEMP sensors, PDDF does not need to provide generic drivers to manage these components. The management is done by BMCs which are located on IPMI-compliant hardware. IPMI is an open-standard hardware management interface to monitor and manage HW components. IPMItool utility is provided for users to monitor and manage BMC based components.          
+For BMC based HW components such as FAN/PSU/TEMP sensors, PDDF does not need to provide generic drivers to manage these components. The management is done by BMCs which are located on IPMI-compliant hardware. IPMI is an open-standard hardware management interface to monitor and manage HW components. IPMItool utility is provided for users to monitor and manage BMC based components.
 
 
 #### 3.1.3 PDDF Platform APIs
@@ -262,18 +268,15 @@ PDDF source code is mainly organized into platform dependent data files(JSON des
 
  - /service/sonic-buildimage/platform/pddf/platform-api-pddf-base
 	  - sonic_platform_pddf_base (PDDF generic platform APIs based on 2.0 platform base classes)
-	  - sonic_platform_ref (ref code for pddf derived platform APIs)
+	  - sonic_platform_ref (reference code for pddf derived platform APIs)
 
- - /service/sonic-buildimage/device/common/pddf
-	  - plugins (1.0 platform plugins)
-	  
  - JSON descriptor files should be placed in the "pddf" directory under the respective "/sonic-buildimage/device/\<ODM\>/\<platform\>" directory path. For example:
 	 - sonic-buildimage/device/accton/x86_64-accton_as7712_32x-r0/pddf/\<descriptor.json\>
 
 From SONiC build, all the PDDF utils and kernel modules shall be built and packaged into a common pddf Debian package *sonic-platform-pddf*. Every platform builds and packages per platform specific drivers, utilities, scripts, etc.,into a platform Debian package. As for the 2.0 platform APIs, PDDF base classes are packaged into a python wheel package *sonic_platform_pddf_common* which is installed in host and PMON docker. Every platform will generate a sonic-platform python wheel package which would consist of PDDF derived classes.
 
 #### 3.1.5 Deployment details
-For the Runtime environment, PDDF shall provide a init script pddf_util.py. Any per platform init script would be called from this script. This will load the PDDF modules and APIs and will use the per platform JSON descriptor files for initializing the platform service. 
+For the Runtime environment, PDDF shall provide a init script pddf_util.py. Any per platform init script would be called from this script. This will load the PDDF modules and APIs and will use the per platform JSON descriptor files for initializing the platform service.
 
 ### 3.2 Generic Driver Design
 Vendors write platform specific component drivers and deploy them as kernel loadable modules. In PDDF, drivers are generic, with platform specific data populated in JSON descriptor files. The JSON descriptor files are provided by the PDDF developer. Usually two different kernel modules are associated with each component. One is *Device Driver Module* and other is *Device Module*.
@@ -325,7 +328,7 @@ There are multiple JSON files which must be provided by a PDDF developer.  The l
 Generic platform APIs are extended from respective base classes but do not have any platform specific data. All the platform specific data mentioned below, is retrieved from JSON files.
   * Platform inventory
   * SysFS paths of various device attributes
-  * Platform dependent interpretations of some of the attribute values 
+  * Platform dependent interpretations of some of the attribute values
 
 Important thing to note in this type of design is that the PDDF has standardized the attribute names, and it provides the ability to map it to driver supported attribute names. Since PDDF provides the drivers for most of the devices, it maintains a list of device attributes. If there is a need to use a non-PDDF custom/standard driver, user must provide the list of attributes supported (which might be used by the generic API classes) by that driver. If such driver uses different name for an attribute, then it is incumbent that the user also define the driver attribute name.
 Example below shows the usage of a driver 'ym2651' for a PSU1-PMBUS device. Generic PSU and FAN API class uses an attribute name *psu_fan_dir*. However, if the same information is denoted in the driver by *psu_fan_direction*, then user indicates this by the field *drv_attr_name*.
@@ -350,10 +353,7 @@ Example below shows the usage of a driver 'ym2651' for a PSU1-PMBUS device. Gene
 			{ "attr_name": "psu_p_out" },
 			{ "attr_name": "psu_temp1_input" },
 			{ "attr_name": "psu_fan1_speed_rpm" },
-			{
-				"attr_name":"psu_fan_dir",
-				"drv_attr_name": "psu_fan_direction"
-			},
+			{ "attr_name":"psu_fan_dir", "drv_attr_name": "psu_fan_direction"},
 			{ "attr_name": "psu_mfr_id" }
 		]
 	}
@@ -367,19 +367,20 @@ List of supported attribute names are mentioned under each device's generic plat
 #### 3.4.1 List of Supported HW Components
 PDDF supports I2C based HW design consisting of the following components:
 
- - Fan Controller (CPLD or dedicated Controller EM2305) 
- - PSUs (YM2651, Ym2851, etc.,) 
- - Temp Sensors (LM75, LM90, TMP411, etc.,) 
- - Optics (SFP/QSFPs, EEPROM, etc.,) 
- - System EEPROM (at24, etc.,) 
+ - Fan Controller (CPLD or dedicated Controller EM2305)
+ - PSUs (YM2651, Ym2851, etc.,)
+ - Temp Sensors (LM75, LM90, TMP411, etc.,)
+ - Optics (SFP/QSFPs, EEPROM, etc.,)
+ - System EEPROM (at24, etc.,)
  - CPLDs
+ - FPGAs
  - CPLDMUX (a multiplexer where channel selection is controlled by external CPLD)
- - MUX  (PCA954x,..) 
- - GPIO  (PCA955x,..) 
+ - MUX  (PCA954x,..)
+ - GPIO  (PCA955x,..)
  - System LEDs managed by CPLD etc.,
 
 #### 3.4.2 I2C Topology Descriptor
-Generally a platform consist of fans, PSUs, temperature sensors, CPLDs, optics (SFP, QSFPs etc), eeproms and multiplexing devices. I2C topology refers to the parent-child and other connectivity details of the I2C devices for a platform. The path to reach any device can be discerned using the I2C topology.
+Generally a platform consist of fans, PSUs, temperature sensors, CPLDs, FPGAs, optics (SFP, QSFPs etc), eeproms and multiplexing devices. I2C topology refers to the parent-child and other connectivity details of the I2C devices for a platform. The path to reach any device can be discerned using the I2C topology.
 
 Example,
 
@@ -388,7 +389,7 @@ Example,
 
 I2C topology data consist of information such as *parent_bus*, *dev_addr* (for I2C devices), *dev_id* (for platform devices) and *dev_type*. Users would describe the I2C topology data using a JSON Topology descriptor file.
 *dev_info* object is used to represent the logical device.
-*i2c* and *topo_info* are used for creating the I2C client.
+*i2c* and *topo_info* are used for creating the I2C client or a platform device.
 
 ```
 "FAN-CTRL":
@@ -444,7 +445,7 @@ If there is a MUX in path, its connected devices are mentioned under an array *c
 		    "dev_type":"pca9548"
 		},
 		"dev_attr": {"virt_bus":"0x20"},
-		"channel": [ 
+		"channel": [
 		    { "chn":"0", "dev":"FAN-CTRL" },
 		    { "chn":"2", "dev":"CPLD1" }
 		]
@@ -476,11 +477,11 @@ If object is a CPLDMUX i.e. a multiplexer where channel selection is controlled 
 
 > **cpld_offset**: Register offset in the cpld which controls the channel.
 
-> **cpld_sel**: Value to be written in the **cpld_offset** to select a particular channel. 
+> **cpld_sel**: Value to be written in the **cpld_offset** to select a particular channel.
 
 > **cpld_desel**: Value to be written in the **cpld_offset** to deselect a particular channel.
 
-Example of a CPLDMUX JSON object 
+Example of a CPLDMUX JSON object
 ```
 "CPLDMUX1":
 {
@@ -519,7 +520,7 @@ If an object is a GPIO (IO expander), then
     }
 }
 ```
-Some platforms require initialization settings to be performed with respect to the GPIOs. The **ports** list in the JSON object takes care of these initialization after the I2C device creation takes place. Following are the names of 
+Some platforms require initialization settings to be performed with respect to the GPIOs. The **ports** list in the JSON object takes care of these initialization after the I2C device creation takes place. Following are the names of
 GPIO's SysFs attributes created by the standard linux driver.
 
 > **port_num**: GPIO Port/Pin number.
@@ -550,7 +551,7 @@ If the object is PSU, then
 	},
     "dev_attr": { "psu_idx":"1"},
     "i2c": {
-	    "interface": [  
+	    "interface": [
 			{ "itf":"pmbus", "dev":"PSU1-PMBUS" },
 			{ "itf":"eeprom", "dev":"PSU1-EEPROM" }
 		]
@@ -575,8 +576,8 @@ Usually every PSU device has two interfaces and hence two I2C clients.
 It is possible that all the required PSU info can be read using SMBUS interface itself. In such cases, only one SMBUS device needs to be created, and all the SysFS attributes shall be  created under this device.
 
 PDDF PSU driver is used for both the interfaces and SysFS attributes are divided among the two. PSU driver module has the following functionalities,
-  * Create the SysFS data attributes 
-  * Get/Set  attribute's value from/to HW 
+  * Create the SysFS data attributes
+  * Get/Set  attribute's value from/to HW
 
 Currently supported PSU SysFS Attributes are:
 ```
@@ -654,7 +655,7 @@ PDDF fan module is used to
 There could be one or multiple client for fan controller. If any other controller is used, such as EMC2305 or EMC2302 etc, then there might be multiple fan controller clients .
 
 PDDF fan driver is used for all the fan clients and SysFS attributes are divided. Fan driver module has the following functionalities,
-  * Create the SysFS attributes 
+  * Create the SysFS attributes
   * Get/Set SysFS attribute's value from/to Fan controller devices
 
 Supported Fan SysFS attributes are:
@@ -728,9 +729,9 @@ Description of the objects inside *attr_list* which are very specific to Fan com
 
 
 #### 3.4.5 LED Component
-Network switches have a variety of LED lights, system LEDs, Fan Tray LEDs, and port LEDs, used to act as indicators of switch status and network port status.  The system LEDs are used to indicate the status of power and the system. The fan tray LEDs indicate each fan status. The port LEDs are used to indicate the state of the links such as link up, Tx/RX activity and speed. The Port LEDs are in general managed by the LED controller provided by switch vendors. The scope of this LED section  is for system LEDs and fan tray LED.
+Network switches have a variety of LED lights, system LEDs, Fan Tray LEDs, and port LEDs, used to act as indicators of switch status and network port status.  The system LEDs are used to indicate the status of power and the system. The fan tray LEDs indicate each fan-tray status. The port LEDs are used to indicate the state of the links such as link up, Tx/RX activity and speed. The Port LEDs are in general managed by the LED controller provided by switch vendors. The scope of this LED section is for system LEDs and fan-tray LED.
 
-##### 3.4.5.1 LED Driver Design    
+##### 3.4.5.1 LED Driver Design
 LEDs are controlled via CPLDs. LEDs status can be read and set via I2C interfaces. A platform-independent driver is designed to access CPLDs via I2c interfaces. CPLD/register address data is stored in platform-specific JSON file. User python platform APIs trigger drivers to read/write LED statuses via SysFS. This generic LED driver is implemented to control System LED and Fan Tray LED.
 
 ##### 3.4.5.2 JSON Design
@@ -745,18 +746,18 @@ LEDs are controlled via CPLDs. LEDs status can be read and set via I2C interface
 | LOC_LED                  | Flashing by remote management command.  Assists the technician in finding the right device for service in the rack |
 | FAN_LED                  | Fan Status LED for all fans |
 | DIAG_LED                 | System self-diagnostic test status LED |
-| FANTRAY\<x\>_LED         | Status LED for individual fan. X is an integer starting with 1 Example: FANTRAY1_LED, FANTRAY2_LED | 
+| FANTRAY\<x\>_LED         | Status LED for individual fan. X is an integer starting with 1 Example: FANTRAY1_LED, FANTRAY2_LED |
 
 Samples:
 
-    "PLATFORM" :  { "num_psu_led":"1",  "num_fantray_led" : "4"}  
-    "PSU1_LED" :  { "dev_info": { "device_type":"LED", "device_name":"PSU_LED"},    
-                       "dev_attr": { "index":"0"},   
-                       "i2c": {   
-                                [  
-                                  {"attr_name":"on",  "bits" : "6:5", "color" : "Green", "value" : "0x1", "swpld_addr" : "0x60", "swpld_addr_offset" : "0x66"},  
-                                  {"attr_name":"faulty",  "bits" : "6:5", "color" : "Amber", "value" : "0x2", "swpld_addr" : "0x60", "swpld_addr_offset" : "0x66"},  
-                                  {"attr_name":"off",  "bits" : "6:5", "color" : "Off", "value" : "0x3", "swpld_addr" : "0x60", "swpld_addr_offset" : "0x66"}  
+    "PLATFORM" :  { "num_psu_led":"1",  "num_fantray_led" : "4"}
+    "PSU1_LED" :  { "dev_info": { "device_type":"LED", "device_name":"PSU_LED"},
+                       "dev_attr": { "index":"0"},
+                       "i2c": {
+                                [
+                                  {"attr_name":"on",  "bits" : "6:5", "color" : "Green", "value" : "0x1", "swpld_addr" : "0x60", "swpld_addr_offset" : "0x66"},
+                                  {"attr_name":"faulty",  "bits" : "6:5", "color" : "Amber", "value" : "0x2", "swpld_addr" : "0x60", "swpld_addr_offset" : "0x66"},
+                                  {"attr_name":"off",  "bits" : "6:5", "color" : "Off", "value" : "0x3", "swpld_addr" : "0x60", "swpld_addr_offset" : "0x66"}
                                 ]
                               }
                     }
@@ -764,8 +765,8 @@ Samples:
 
 #### 3.4.6 Sensors
 
-##### 3.4.6.1 Driver Design  
-The Linux driver supports LM75/LM90 compatible temperature sensors.  It is used to support communication through the I2C bus and interfaces with the hardware monitoring sub-system. A SysFS interface is added to let the user provides the temperature sensors information to the kernel to instantiate I2C devices.   
+##### 3.4.6.1 Driver Design
+The Linux driver supports LM75/LM90 compatible temperature sensors.  It is used to support communication through the I2C bus and interfaces with the hardware monitoring sub-system. A SysFS interface is added to let the user provides the temperature sensors information to the kernel to instantiate I2C devices.
 
 ##### 3.4.6.2 JSON Design
 Platform specific temperature sensor configuration file is designed to instantiate I2c devices and provides access information for platform APIs. These data are grouped into three sections: PLATFORM, I2C Topology and TEMP Data. PLATFORM section provides the number of temperature sensors. I2C Topology section and TEMP Data are used for instantiating I2C devices and accessing temperature sensors vis SysFS attributes.
@@ -774,24 +775,23 @@ They consist of key/value sections. Each section has a unique name. The table de
 | **Key**                 | **Description**                         |
 |--------------------------|-------------------------------------|
 | PLATFORM                      | Numbers of temperature sensors        |
-| TEMP\<x\>                     | Temperature sensor. x is an integer starting with 1         |  
+| TEMP\<x\>                     | Temperature sensor. x is an integer starting with 1         |
 | MUX\<x\>                      | This section is part of I2C topology configuration         |
 
-    Samples:
+Samples:
 
-    "PLATFORM" :  { "num_temp_sensors":"3"}  
+    "PLATFORM" :  { "num_temp_sensors":"3"}
     "TEMP1" :  { "dev_info": {"device_type":"TEMP_SENSOR", "device_name":"TEMP1"},
                  "dev_attr": {"display_name": "TEMP_CPU"},
-                 "i2c": { 
-                             "topo_info": { "parent_bus":"0x21", "dev_addr":"0x48", "dev_type":"lm75"},
-                             "attr_list":
-                       		 [
-                                		{ "attr_name": "temp1_high_threshold", "drv_attr_name":"temp1_max"},
-                                		{ "attr_name": "temp1_input"}
-                             ]
-                        }
-                }
-##### 3.4.6.3 Thermal Object Class Design  
+                 "i2c": {
+                     "topo_info": { "parent_bus":"0x21", "dev_addr":"0x48", "dev_type":"lm75"},
+                     "attr_list": [
+                         { "attr_name": "temp1_high_threshold", "drv_attr_name":"temp1_max"},
+                         { "attr_name": "temp1_input"}
+                     ]
+                 }
+               }
+##### 3.4.6.3 Thermal Object Class Design
 A generic user space python API class **Thermal** is designed to access temperature sensors via SysFS interface. It gets SysFS path information from platform-specific JSON File, pal-device.json. It also uses the ThermalBase class. It provides various APIs to retrieve the number of temp sensors, temperature sensor readings and get high&low threshold temperatures etc.
 ```
 Class Thermal(ThermalBase):
@@ -851,12 +851,30 @@ For SYS EEPROM, the client creation information is present in I2C Topology JSON 
 },
 ```
 
-#### 3.4.8 System Status Registers
+#### 3.4.8 FPGAI2C Component
+FPGAs on the board can be used in two different ways. Their driver implementations, **access-data** attributes and usage differ in each case. This section deals with FPGA component which is similar to a CPLD in terms of its function. It is connected to an I2C bus with a specific I2C device address. Data is read or written from different offsets on the FPGA using simple smbus_read/smbus_write APIs. Such FPGA is termed as FPGAI2C in PDDF.
+PDDF has a FPGAI2C module and a FPGAI2C driver module. FPGAI2C module takes care of access-data attributes to transfer the platform and device specific information to kernel space using SysFS interface. FPGAI2C driver module generates the SysFS interface for the device-data attributes. It also provides the read/write functionality for the FPGA.
 
-##### 3.4.8.1 Driver Design
+##### 3.4.8.1 FPGAI2C JSON Design
+FPGAI2C JSON object is simple where I2C topolcy is defined under **i2c** keyword. There are no device-data SysFS attributes as the information being read from FPGA is not fixed. Here is a typical FPGAI2C JSON object.
+```
+"FPGAI2C1":
+{
+    "dev_info": { "device_type":"FPGA_I2C", "device_name":"FPGAI2C1", "device_parent":"SMBUS0"},
+    "i2c":
+    {
+        "topo_info": { "parent_bus":"0x0", "dev_addr":"0x5E", "dev_type":"i2c_fpga"},
+        "dev_attr": { }
+    }
+},
+```
+
+#### 3.4.9 System Status Registers
+
+##### 3.4.9.1 Driver Design
 System Status information is present in CPLD registers. These information can be retrieved from CPLD using I2C interface to the CPLDs. Access-data to retrieve *system status* information is provided by the user in a JSON file. A generic driver is written in PDDF to store all the access-data in kernel space, and use it to read information from CPLDs. The system status data attributes are created under `/sys/kernel/pal/devices/sysstatus/data/`.
 
-##### 3.4.8.2 JSON Design
+##### 3.4.9.2 JSON Design
 An example of object from system status JSON file is shown below,
 ```
 "SYSSTATUS": {
@@ -876,12 +894,12 @@ An example of object from system status JSON file is shown below,
   ]
 },
 ```
-This SYSTATUS JSON object can be used to get miscellaneous info from various CPLDs/devices based on the platform. Currently there is no generic class/plugin defined for system status registers. 
+This SYSTATUS JSON object can be used to get miscellaneous info from various CPLDs/devices based on the platform. Currently there is no generic class/plugin defined for system status registers.
 
-#### 3.4.9 Optics Component
-##### 3.4.9.1	Driver design
+#### 3.4.10 Optics Component
+##### 3.4.10.1	Driver design
 
-Transceiver devices (SFP, QSFP etc.) expose mainly two kinds of access/control methods.  
+Transceiver devices (SFP, QSFP etc.) expose mainly two kinds of access/control methods.
   * EEPROM read/write access on linear address space of 256\*128 byte paged memory.
   * Device control attributes exposed as control pins via external CPLD/FPGA device.
 
@@ -893,7 +911,7 @@ Each of of these SysFS attributes are distributed across multiple devices based 
 
 The commonly used Optic SysFS attribute list include:
 ```
-EEPROM bin        
+EEPROM bin
 Module presence
 Low power mode
 Module reset
@@ -924,7 +942,7 @@ Driver module has the following functionalities,
   * Create the SysFS attributes and link it to Optic_Pal client's kernel object
   * Retrieve the SysFS attribute's value from HW and update the *driver_data*
 
-##### 3.4.9.2 JSON Design
+##### 3.4.10.2 JSON Design
 
 Optic JSON is structured to include the access-data for all the supported SysFS attributes.
 *attr_list* is an array object which stores the array of access-datas for multiple attributes. Some of these values can be left empty if they are not applicable.
@@ -985,34 +1003,34 @@ Optic JSON is structured to include the access-data for all the supported SysFS 
 
 ```
 
-#### 3.4.10 lm-sensors Tools
+#### 3.4.11 lm-sensors Tools
 lm-sensors package (Linux monitoring sensors) provides tools and drivers for monitoring temperatures, voltages, and fan speeds via command line. It can monitoring hardware such the LM75 and LM78. These tools are described below. These tools would continue to work with PDDF framework too.
 
-##### 3.4.10.1 sensors.conf  
-/etc/sensors.conf is a user customized configuration file for libsensors. It describes how libsensors, and so all programs using it, should translate the raw readings from the kernel modules to real-world values. A user can configure each chip, feature and sub-feature that makes sense for his/her system.     
+##### 3.4.11.1 sensors.conf
+/etc/sensors.conf is a user customized configuration file for libsensors. It describes how libsensors, and so all programs using it, should translate the raw readings from the kernel modules to real-world values. A user can configure each chip, feature and sub-feature that makes sense for his/her system.
 
     Example:
     sensors.conf:
          bus "i2c-3" "i2c-1-mux (chan_id 1)"
-         chip "lm75-i2c-3-49"  
+         chip "lm75-i2c-3-49"
          label temp1 "Temp Sensor"
          set temp1_max 60
          set temp1_max_hyst 56
 
-     admin@sonic:~$ sensors  
+     admin@sonic:~$ sensors
          lm75-i2c-3-49
          Adapter: i2c-1-mux (chan_id 1)
          Temp Sensor:        +27.0 C  (high = +60.0 C, hyst = +56.0 C)
 
 This would continue to be supported using PDDF driver framework as well.
 
-##### 3.4.10.2 fancontrol:
+##### 3.4.11.2 fancontrol:
 
-fancontrol is a shell script for use with lm_sensors. It reads its configuration from a file, /etc/fancontrol, then calculates fan speeds from temperatures and sets the corresponding PWM outputs to the computed values.  
+fancontrol is a shell script for use with lm_sensors. It reads its configuration from a file, /etc/fancontrol, then calculates fan speeds from temperatures and sets the corresponding PWM outputs to the computed values.
 
     # fancontrol /etc/fancontrol
 
-    Example of configuration file   
+    Example of configuration file
     INTERVAL=10
     FCTEMPS=/sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/sys_temp
     FCFANS=/sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan1_input     /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan2_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan3_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan4_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan5_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan6_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan11_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan12_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan13_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan14_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan15_input /sys/bus/i2c/devices/2-0066/pwm1=/sys/bus/i2c/devices/2-0066/fan16_input
@@ -1025,18 +1043,106 @@ fancontrol is a shell script for use with lm_sensors. It reads its configuration
 
 The SysFS paths should be given as per the PDDF I2C topology description and the attributes.
 
-### 3.5 PDDF BMC Component Design
 
-This section covers the JSON design for BMC based hardware components. PDDF utilizes ipmitool to monitor components.   
+#### 3.4.12 PFGAPCIe Component
+
+![FPGAPCIe Diagram](../../images/platform/fpgapcie_i2c_diagram.png "FPGAPCIe I2C topology diagram")
+
+FPGA can be programmed as a I2C master controller. Some platforms use a FPGAPCIe card to control I2C devices and  the communication with the CPU is by PCIe interface. PDDF supports a FPGAPCIe card by providing the following modules:
+
+* FPGAPCIe Data Module:
+    - Mange access data defined in JSON via SysFS interface
+    - Populate data and trigger FPGAPCIe instantiation
+* FPGAPCIe Driver Module:
+    - PCIe device instantiation
+    - Logical I2C bus instantiation
+* I2C Algorithm Module:
+    - Device specific I2C communication protocol
+    - Register algorithm to I2C adaptor.
+
+PDDF PFGAPCIe common driver supports only the FPGAPCIe model where FPGA is acting as I2C master controller. Any other kind of use case of a PCIe
+connected FPGA, vendors need to provide the FPGA driver.
+
+##### 3.4.12.1 FPGAPCIe JSON Design
+
+FPGAPCIe JSON object follows PDDF I2C topology JSON object design concept. FPGAPCIE object is under i2c keyword becuase it is programmed as I2c buses to control I2C client devices.
+
+
+```
+    "SYSTEM":
+    {
+        "dev_info": {"device_type":"CPU", "device_name":"ROOT_COMPLEX", "device_parent":null},
+        "i2c":
+        {
+            "CONTROLLERS":
+            [
+                { "dev_name":"i2c-0", "dev":"SMBUS0" },
+                { "dev_name":"pcie-0", "dev":"PCIE0" }
+            ]
+        }
+    },
+
+    "PCIE0"
+    {
+        "dev_info": {"device_type": "PCIE", "device_name": "PCIE0", "device_parent": "SYSTEM"},
+        "i2c":
+        {
+            "DEVICES":
+            [
+               {"dev": "FPGAPCIE0"}
+            ]
+        }
+    },
+
+   "FPGAPCIE0":
+   {
+       "dev_info": {"device_type": "FPGAPCIE", "device_name": "FPGAPCIE0", "device_parent": "PCIE0"},
+       "i2c":
+       {
+          "dev_attr": { "vendor_id":"0x10EE", "device_id": "0x7021", "virt_bus": "0x64", "data_base_offset":"0x0", "data_size":"0x60", "i2c_ch_base_offset":"0x600", "i2c_ch_size":"0x10",  "virt_i2c_ch":"8"},
+          "channel":
+          [
+              { "chn":"3", "dev":"MUX1" }
+          ]
+       }
+   },
+
+```
+
+![I2C Memory Mapping Diagram](../../images/platform/pcie_i2c_memory_mapping.png "FPGAPCIe I2C Memory Mapping")
+
+
+Description of the fields inside *dev_attr*
+
+> **vendor_id**: The 16-bit register specifies the PCI vendor.
+
+> **device_id**: The 16-bit register selected by the PCI vendor.
+
+> **virt_bus**: This is an information used internally to denote the base address for the channels of the mux. So if the virt_bus is 0x64 for a pca9548 then channel-buses are addressed as (0x64+0), (0x64+1), (0x64+2) .... , (0x64+7).
+
+> **data_base_offset**: PCIe user-defined memory mapping offset address from PCIE BAR 0
+
+> **data_size**: User-defined memory allocation size
+
+> **i2c_ch_base_offset**: I2C channel 1 offset address from PCIE BAR 0
+
+> **i2c_ch_size**: Memory offset for each I2C channel.
+
+> **virt_i2c_ch**: The total numbers of logical I2C channels
+
+
+### 3.6 PDDF BMC Component Design
+
+This section covers the JSON design for BMC based hardware components. PDDF utilizes ipmitool to monitor components.
 PDDF supports BMC based HW design consisting of the following components:
 
  - PSUs
- - Fan Controller 
+ - Fan Controller
  - Temp Sensors
 
 ```
 BMC Component JSON Template:
-<Device Name> : {
+\<Device Name\> : {
 	"bmc" : {
               "dev_attr" : { "display_name" : "<desired display name>"},
               "ipmitool" : {
@@ -1057,7 +1163,7 @@ BMC Component JSON Template:
 ```
 
 > **display_name**:
-If this field exists, the device name is displayed using this field. Otherwise, the device_name content is shown.   
+If this field exists, the device name is displayed using this field. Otherwise, the device_name content is shown.
 
 > **ipmitool, ipmiapi**:
 ipmitool and ipmiapi are two methods of getting ipmi data. ipmitool uses ipmitool command to get data from BMC while ipmiapi will use kernel ipmi interfaces to retrieve the data. ipmiapi will be implemented in the future.
@@ -1065,34 +1171,34 @@ ipmitool and ipmiapi are two methods of getting ipmi data. ipmitool uses ipmitoo
 > **attr_name**:
 The PDDF BMC JSON design has the pre-defined list of the attribute names which is platform independent. IPMI is an standardized interface specification, but the naming convention of ipmitool output is vendor specific. The pre-defined attribue name list provides the ability to use generic PDDF generic platform APIs to retrieve information for all platforms.
 
-> **bmc_cmd**: 
-There are two types of cmds: raw ipmi request and non raw ipmi request. The list of available ipmitool commands can be found by 
+> **bmc_cmd**:
+There are two types of cmds: raw ipmi request and non raw ipmi request. The list of available ipmitool commands can be found by
     #ipmitool help
 
-> **raw**: 
+> **raw**:
 This indicates if bmc_cmd is a RAW IPMI request or not. 1: raw ipmi request and 0: non-raw ipmi request.
 
-> **field_name**: 
-This is the first field of an ipmitool command output. Each vendor has different naming conventions. Please check vendor specific documents. 
+> **field_name**:
+This is the first field of an ipmitool command output. Each vendor has different naming conventions. Please check vendor specific documents.
 
 > **delimiter**:
 For a non-raw ipmi request, delimiter is used for deciding the **field_pos**.
 
 > **field_pos**:
-For a non-raw ipmi request, this field is used to select a specific field position.  
+For a non-raw ipmi request, this field is used to select a specific field position.
 
 > **mult**:
 For a non-raw ipmi request, this field is used to specify multiplication factor for the attribute value. It is an optional field only to be defined for numeric attribute values.
 
 
-> **type**: 
-This field indicates the output presentation. It is a pre-defined list, "ascii", "raw", and "mask". 
+> **type**:
+This field indicates the output presentation. It is a pre-defined list, "ascii", "raw", and "mask".
   >- "ascii": the output is converted from hex string to ascii.
   >- "raw": the output is not required further conversion.
-  >- "mask": the output needs to be masked with the value of "mask" field. 
+  >- "mask": the output needs to be masked with the value of "mask" field.
 
-> **mask**: 
-This is a hex number to mask the output 
+> **mask**:
+This is a hex number to mask the output
 
 
 
@@ -1114,25 +1220,25 @@ This is a hex number to mask the output
     # ipmitool sdr | grep PSU1_POWER_IN
     PSU1_POWER_IN    | 135 Watts         | ok
 
-    The output of PSU1_POWER_IN is "ok" because the field_index is 3. 
+    The output of PSU1_POWER_IN is "ok" because the field_index is 3.
 
     raw ipmi request:
     { "attr_name":"psu_model_name", "bmc_cmd":"ipmitool raw 0x36 0xBB 0x4C 0x1C 0x00 0x9a 0x01", "raw":"1"}
     # ipmitool raw 0x36 0xBB 0x4C 0x1C 0x00 0x9a 0x01
-      37 30 30 2d 30 31 33 36 38 34 2d 30 31 30 30 
-      The field of type is "ascii", so the output is converted from hex to string. The ascii format is 700-013684-0100. 
-    
+      37 30 30 2d 30 31 33 36 38 34 2d 30 31 30 30
+      The field of type is "ascii", so the output is converted from hex to string. The ascii format is 700-013684-0100.
+
     { "attr_name":"psu_present", "bmc_cmd":"ipmitool raw 0x36 0xB9 0x4C 0x1C 0x00 0x02", "raw":"1", "type": "mask", "mask": "0x01"},
     # ipmitool raw 0x36 0xB9 0x4C 0x1C 0x00 0x02
        c2
-       The field of type is "mask". For example, bit value of 1:absent and bit value of 0:present. PSU1 is present.    
+       The field of type is "mask". For example, bit value of 1:absent and bit value of 0:present. PSU1 is present.
 
     { "attr_name":"fan1_direction", "bmc_cmd":"ipmitool raw 0x0a 0x11 0x00 0x19 0x00 0x01",  "raw": "1", "type":"raw"},
     # ipmitool raw 0x0a 0x11 0x00 0x19 0x00 0x01
       The field of type is "raw". The output does not need further conversion.
 
 
-#### 3.5.1 PSU JSON 
+#### 3.6.1 PSU JSON
 
 > **Device Name**: PSU\<index\>
   index: denote the PSU number starting with 1
@@ -1151,7 +1257,7 @@ This is a hex number to mask the output
 
     "PSU1":
     {
-    
+
        "bmc": {
                  "ipmitool" : {
                     "attr_list":
@@ -1169,21 +1275,21 @@ This is a hex number to mask the output
 	     }
     }
 
-#### 3.5.2 FAN JSON 
+#### 3.6.2 FAN JSON
 
 > **Device Name**: FAN-CTRL
 
 > **Predefined attribute names**:
 index: Fan index starting with 1
- >- fan\<index\>_present: present status of FAN  
- >- fan\<index\>_input: rpm speed of front FAN 
- >- fan\<index\>_pwm: puls-width modulation of FAN 
- >- fan\<index\>_direction: direction of FAN 
+ >- fan\<index\>_present: present status of FAN
+ >- fan\<index\>_input: rpm speed of front FAN
+ >- fan\<index\>_pwm: puls-width modulation of FAN
+ >- fan\<index\>_direction: direction of FAN
 
 
     "FAN-CTRL":
     {
-    
+
        "bmc": {
                  "ipmitool" : {
                       "attr_list":
@@ -1199,7 +1305,7 @@ index: Fan index starting with 1
 
 > NOTE: Rear fans and front fans are considered separate fans. In above output, <xxx>1_1: front fan of fan1 and <xxx>1_2: rear fan of fan1
 
-#### 3.5.3 TEMP Sensors JSON 
+#### 3.6.3 TEMP Sensors JSON
 
 > **Device Name**: TEMP\<index\>
   index: denote the TEMP number starting with 1
@@ -1209,11 +1315,11 @@ index: Fan index starting with 1
  >- temp1_high_crit_threshold: Upper critical threshold temperature setting
  >- temp1_low_threshold: Lower non-critical threshold temperature setting
  >- temp1_low_crit_threshold: Lower critical threshold temperature setting
- >- temp1_input: current temperature reading from theraml 
+ >- temp1_input: current temperature reading from theraml
 
 "TEMP1":
 {
-    
+
        "dev_attr" : {"display_name":"Temp_Ambient_1"},
        "bmc": {
                   "ipmitool" : {
@@ -1221,13 +1327,13 @@ index: Fan index starting with 1
                      [
                          { "attr_name":"temp1_high_threshold", "bmc_cmd":"ipmitool sensor", "raw":"0", "field_name":"Temp_Ambient_1", "field_pos":"10"},
                          { "attr_name":"temp1_input", "bmc_cmd":"ipmitool sensor", "raw":"0", "field_name" : "Temp_Ambient_1", "field_pos":"2"}
-           
+
                      ]
                   }
               }
 }
 
-#### 3.5.4 IPMITOOL OUTPUTS
+#### 3.6.4 IPMITOOL OUTPUTS
 
 This section shows  examples of ipmitool outputs.
 
@@ -1251,16 +1357,16 @@ This section shows  examples of ipmitool outputs.
 
     # ipmitool sensor | grep Fan_SYS_2_2
       Fan_SYS_2_2      | na         | RPM        | na    | na        | 480.000   | 960.000   | 30560.000 | 30720.000 | na
-   
+
     # ipmitool sensor | grep Temp_Ambient_1
       Temp_Ambient_1   | 37.000     | degrees C  | ok    | na        | na        | na        | 55.000    | 62.000    | 65.000
-  
 
 
-### 3.6 PDDF Platform APIs Design
+
+### 3.7 PDDF Platform APIs Design
 As mentioned in the section 3.3, platform devices/components are provided with a python platform API class which interacts with the SysFs interface to get the HW information. Below are the component specific examples for such class.
 
-#### 3.6.1 PSU Class
+#### 3.7.1 PSU Class
 PsuBase is the base PSU class, which declares various APIs to get/set information from the PSU devices. PDDF PSU generic platform API class **PddfPsu** shall extend from PsuBase and implement the platform specific APIs, using the platform specific information in the JSON descriptor files
 
 Example,
@@ -1276,7 +1382,7 @@ def get_voltage(self):
     # Implementation to get PSU output voltage using the JSON descriptor files
 ```
 
-#### 3.6.2 FAN Class
+#### 3.7.2 FAN Class
 FanBase is the base FAN class, which declares various APIs to get/set information from the Fan devices. PDDF Fan generic platform API class **PddfFan** shall extend from FanBase and implement the platform specific APIs, using the platform specific information in the JSON descriptor files. FanBase is part of the new platform API framework in SONiC.
 
 Example,
@@ -1303,8 +1409,8 @@ Example,
 ```
 
 
-#### 3.6.3 LED Class
-There is no generic LED API class defined in PDDF. LED APIs related to a component has been made part of thats component's platform API class. System LED APIs are made part of PddfChassis class.  
+#### 3.7.3 LED Class
+There is no generic LED API class defined in PDDF. LED APIs related to a component has been made part of thats component's platform API class. System LED APIs are made part of PddfChassis class.
 ```
 class PddfChassis(ChassisBase):
     def set_system_led(self, device_name, color):
@@ -1352,7 +1458,7 @@ class PddfPsu(PsuBase):
 
 
 PDDF FAN class provides get/set method to access Fantray LED
-```    
+```
 class PddfFan(FanBase):
     def set_status_led(self, color):
         """
@@ -1376,7 +1482,7 @@ class PddfFan(FanBase):
 ```
 
 
-#### 3.6.4 System EEPROM Class
+#### 3.7.4 System EEPROM Class
 A generic user space platform API class **PddfEeprom** is written for EEPROM. Internally it leverages eeprom_base and eeprom_tlvinfo base classes. The SysFS path for driver supported attribute is retrieved from the user provided JSON file. An example of the API definition form eeprom_base is shown below,
 ```
 def check_status(self):
@@ -1398,7 +1504,7 @@ def set_cache_name(self, name):
 ```
 Generic API class may provide further initialization steps and definitions for new APIs.
 
-#### 3.5.5 Optics Class
+#### 3.7.5 Optics Class
 SfpBase is the base Optic class, which declares various APIs to get/set information from the optic transceivers. PDDF generic platform API class **PddfSfp** shall extend from SfpBase and implement the platform specific APIs, using the platform specific information in the JSON descriptor files.
 
 Example,
@@ -1439,7 +1545,7 @@ Not applicable
 
 ## 5 CLI
 
-SONiC provides various platform related CLIs to manage various platform devices. Some of the existing CLIs are: 
+SONiC provides various platform related CLIs to manage various platform devices. Some of the existing CLIs are:
 
  - psuutil
  - sfputil
@@ -1604,18 +1710,18 @@ Commands:
 PDDF ledutil version 2.0
 
 # pddf_ledutil setstatusled \<device_name\> \<color\>
-   device_name: configured in the JSON configuration file such as LOC_LED and DIAG_LED 
-   color: STATUS_LED_COLOR_GREEN, STATUS_LED_COLOR_RED, STATUS_LED_COLOR_OFF
-        STATUS_LED_COLOR_GREEN maps to LED at normal state
-        STATUS_LED_COLOR_RED maps to LED at faulty state
-        STATUS_LED_COLOR_OFF maps to LED at off state
+   device_name: configured in the JSON configuration file such as LOC_LED and DIAG_LED
+   color: green, red, off
+        green maps to LED at normal state
+        red maps to LED at faulty state
+        off maps to LED at off state
 
-# pddf_ledutil setstatusled LOC_LED STATUS_LED_COLOR_GREEN
+# pddf_ledutil setstatusled LOC_LED green
 True
 
 # pddf_ledutil getstatusled LOC_LED
-Blue
-```    
+green
+```
 ### 5.4 PDDF_Thermalutil
 ```
 # pddf_thermalutil
@@ -1641,7 +1747,7 @@ Temp_2         lm75-i2c-17-49  temp1	 +25.5 C (high = +80.0 C)
 Temp_3         lm75-i2c-17-4a  temp1	 +26.0 C (high = +80.0 C)
 Temp_CPU       lm75-i2c-17-4b  temp1	 +24.0 C (high = +80.0 C)
 
-# 
+#
 #example of bmc based thermals
 # pddf_thermalutil gettemp
 Temp Sensor     Value
@@ -1656,9 +1762,9 @@ Temp_Ambient_6  temp1	 +29.0 C (high = +66.0 C, crit = +63.0 C)
 Temp_CPU        temp1	 +34.0 C (crit = +98.0 C)
 
 
-# pddf_thermalutil numthermals 
+# pddf_thermalutil numthermals
 4
-```    
+```
 ### 5.5 SHOW PLATFORM PSUSUMMARY
 ```
 root@sonic:/home/admin# show platform psusum --help
@@ -1739,8 +1845,6 @@ Fantray6_1  OK                 8600  Intake
 Fantray6_2  OK                 7300  Intake
 root@sonic:/home/admin#
 ```
-
-> NOTE: This utility is not yet migrated to platform 2.0 APIs. There should only be one coloumn mentioning speed of a fan as the rear fans are considered as separate fans in platform 2.0 APIs. 
 
 ## 6 Serviceability and DEBUG
 
