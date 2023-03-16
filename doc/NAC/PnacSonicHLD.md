@@ -21,7 +21,7 @@
      * [3.1.3 Option-3 Allowing or Blocking user traffic by configuring learn mode](#313-Option-3-Allowing-or-Blocking-user-traffic-by-configuring-learn-mode) 
    * [3.2 PNAC software architecture](#32-PNAC-software-architecture)
       * [3.2.1 Hostapd initialisation steps](#321-Hostapd-initialisation-steps)
-      * [3.2.2 Actions performed by hostapd_wrapper](#322-Actions-performed-by-hostapd-wrapper)
+      * [3.2.2 Actions performed by hostapd wrapper](#322-Actions-performed-by-hostapd-wrapper)
       * [3.2.3 Actions Triggered Based on CLI configuration changes](#323-Actions-Triggered-Based-on-CLI-configuration-changes)
       * [3.2.4 Actions performed after receiving state change notification from hostapd](#324-Actions-perfromed-after-receiving-state-change-notification-from-hostapd)
       * [3.2.5 Actions performed when interface operational status changes to DOWN](#325-Actions-performed-when-interface-oprational-status-changes-to-DOWN)
@@ -156,7 +156,7 @@ A new Docker container is introduced that implements control plane of 802.1x sta
 ### 3.2.1 Hostapd initialisation steps 
 As part of hostapd initialization two steps are performed as explained below:
 Add all physical interfaces on a given HW board to “hostapd port list”. Using hostapd API interface disable “Authentication” for all interfaces. 
-### 3.2.2 Actions performed by hostapd_wrapper
+### 3.2.2 Actions performed by hostapd wrapper
 hostapd_wrapper performs following tasks,
 1. It continually monitors changes in config_db -> port_ table. If there is change in “***Nac AdminState***” to “UP” it enables the NAC state of the interface maintained by hostapd. Similarly, if there is change in “***Nac AdminState***” to “DOWN” it disables the NAC state of the interface maintained by hostapd
 2. It monitors event from hostapd related to interface Authorisation. Based on event type action is triggered as explained in the section [3.2.4](#324-Actions-perfromed-after-receiving-state-change-notification-from-hostapd).  
