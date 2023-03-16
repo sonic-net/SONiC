@@ -135,7 +135,7 @@ spf-minimum-interval               = UINT16               ; Minimum time between
 
 Tree view
      +--rw ISIS_LEVEL
-     |  +--rw ISIS_LEVEL_LIST* [instance level]
+     |  +--rw ISIS_LEVEL_LIST* [instance level-number]
      |     +--rw instance                         string
      |     +--rw level-number                     level-number
      |     +--rw lsp-refresh-interval?            uint16
