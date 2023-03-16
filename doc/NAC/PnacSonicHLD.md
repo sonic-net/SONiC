@@ -127,7 +127,7 @@ Allowing and blocking traffic is achieved by L2-ACL filter using existing SAI AP
 ***Cons:***
 Total number of L2-ACL filters resources are limited for most of forwarding ASIC.
 Hence consuming 4 filters per interface will consume large number entries L2-ACL filter table, if NAC is enabled for interfaces. This will reduce useful number entries in L2-ACL filter table.
-### 3.1.3 Option-3: Allowing or Blocking user traffic by configuring “learn_mode”
+### 3.1.3 Option-3: Allowing or Blocking user traffic by configuring learn_mode
 In this design option, based on port Authorisation method, “learn_mode” for a port is set one of the following modes,
 
 “SAI_BRIDGE_PORT_FDB_LEARNING_MODE_DROP”
