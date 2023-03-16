@@ -23,7 +23,7 @@
       * [3.2.1 Hostapd initialisation steps](#321-Hostapd-initialisation-steps)
       * [3.2.2 Actions performed by hostapd wrapper](#322-Actions-performed-by-hostapd-wrapper)
       * [3.2.3 Actions Triggered Based on CLI configuration changes](#323-Actions-Triggered-Based-on-CLI-configuration-changes)
-      * [3.2.4 Actions performed after receiving state change notification from hostapd](#324-Actions-perfromed-after-receiving-state-change-notification-from-hostapd)
+      * [3.2.4 Actions performed after receiving state change notification from hostapd](#324-Actions-performed-after-receiving-state-change-notification-from-hostapd)
       * [3.2.5 Actions performed when interface operational status changes to DOWN](#325-Actions-performed-when-interface-oprational-status-changes-to-DOWN)
       * [3.2.6 Actions performed when interface operational state changes to ***UP***](#326-Actions-performed-when-interface-oprational-state-changes-to-UP)
       * [3.2.7 Sequence of Events flowchart](#327-Sequence-of-Events-flowchart)
