@@ -27,7 +27,7 @@
       * [3.2.5 Actions performed when interface operational status changes to DOWN](#325-Actions-performed-when-interface-operational-status-changes-to-DOWN)
       * [3.2.6 Actions performed when interface operational state changes to UP](#326-Actions-performed-when-interface-operational-state-changes-to-UP)
       * [3.2.7 Sequence of Events flowchart](#327-Sequence-of-Events-flowchart)
-   * [3.3 DB Changes](33-DB-Changes)
+   * [3.3 DB Changes](#33-DB-Changes)
      * [3.3.1 ConfigDB Schema Changes](#331-ConfigDB-Schema-Changes)
      * [3.3.2 App DB Changes](#332-App-DB-Changes)
   * [3.4 CLI Commands](#34-CLI-Commands)
