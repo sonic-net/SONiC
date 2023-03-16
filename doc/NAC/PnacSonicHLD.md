@@ -15,7 +15,7 @@
 * [2 Functionality](#2-Functionality)
    * [2.1 Target Deployment Use Cases](#21-Target-Deployment-Use-Cases)
 * [3 Design](#3-Design)
-   * [3.1 Options to Block or allows port traffic based on Authentication status of the port](#31-Options-to-Block-or-allows-port-traffic-based-on-Authentication-status-of-the-port)
+   * [3.1 Options to Block or allows](#31-Options-to-Block-or-allows)
       * [3.1.1 Options-1 Allowing or Blocking user traffic by using RSTP STP states](#311-Options-1-Allowing-or-Blocking-user-traffic-by-using-RSTP-STP-states)
       * [3.1.2 Option-2 Allowing or Blocking user traffic by configuring L2-ACL filters](#312-Option-2-Allowing-or-Blocking-user-traffic-by-configuring-L2-ACL-filters)
       * [3.1.3 Option-3 Allowing or Blocking user traffic by configuring ***learn_mode***](#313-Option-3-Allowing-or-Blocking-user-traffic-by-configuring-***learn-mode***)
