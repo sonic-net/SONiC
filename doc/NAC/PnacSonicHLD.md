@@ -70,24 +70,15 @@ User can configure NAC per port only if NAC is globally enabled.
 2. The software allows a user to enable the PNAC functionality on any specific physical port in the system.
 3. The software allows a user to disable the PNAC functionality on any specific physical port in the system.
 4. The Software should perform periodic authentication of the supplicant.
-5. The software supports usage of EAP-TLS for secure exchange of credentials across the networks
-6. The software supports usage of PEAP-MSCHAPv2 for secure exchange of credentials across the networks
-7. The software supports usage of EAP-TTLS / PAP for secure exchange of credentials across the networks
-8. The software includes a CLI for a user to configure and monitor the feature.
-9. The software includes a MIB and interface to a SNMP agent for a user to configure and monitor the feature.
-
+5. The software includes a CLI for a user to configure and monitor the feature.
 ## 1.2 Memory, CPU Consumptions Requirements
 1. The software memory usage must be proportional to the number of physical ports.
-2. The software limits the RAM overhead due to using a separate container to < 32 KBytes
-3. The software limits the CPU overhead due to using a separate container to < 0.1 %
-
+2. The software limits for the RAM overhead and CPU overhead due to usage of a separate container shall be within allowed limits of SONiC container.
 
 ## 1.3 Configuration and Management Requirements
 Configuration of the PNAC feature can be done via:
 - JSON config input
 - CLI
-- SNMP
-- Restconf
 # 2 Functionality
 The feature enables a switch to authenticate other devices that require access to the network through the switch. Such end devices could be cameras, IP-phones, servers, user workstations, WiFi access points, etc. The administrator is expected to have the following choices / controls.
 - Enable / disable authentication globally
@@ -181,80 +172,79 @@ hostapd_wrapper performs following tasks,
 1. It continually monitors changes in config_db -> port_ table. If there is change in “***Nac AdminState***” to “UP” it enables the NAC state of the interface maintained by hostapd. Similarly, if there is change in “***Nac AdminState***” to “DOWN” it disables the NAC state of the interface maintained by hostapd
 2. It monitors event from hostapd related to interface Authorisation. Based on event type action is triggered as explained in the section [3.2.4](#324-Actions-perfromed-after-receiving-state-change-notification-from-hostapd).  
 ### 3.2.3 Actions Triggered Based on CLI configuration changes
-Enabling NAC functionality at the global scope will trigger an action to Enable NAC flag in the COPP configuration. 
 This design makes use of COPP module to trap EAPOL packets to the host interface. COPP module provides two critical function as described below,
 To trap EAPOL packets to the host interface.
 To rate limit incoming EAPOL packets to avoid DOS attack  or protect a host CPU from high incoming control packets.
 Below is the snippet of COPP configuration,
 ```
 "COPP_GROUP": {
-           "default":{            
-                    "queue": "0",                    
-                    "meter_type":"packets",                    
-                    "mode":"sr_tcm",                    
-                    "cir":"600",                    
-                    "cbs":"600",                    
-                    "red_action":"drop"                    
-            },            
-           "queue4_group1": {            
-                    "trap_action":"trap",                    
-                    "trap_priority":"4",                    
-                    "queue": "4"                    
-            },            
-          "queue4_group2": {            
-                    "trap_action":"copy",                    
-                    "trap_priority":"4",                    
-                    "queue": "4",                    
-                    "meter_type":"packets",                    
-                    "mode":"sr_tcm",                    
-                    "cir":"600",                    
-                    "cbs":"600",                    
-                    "red_action":"drop"                    
-            },            
-            "queue4_group3": {            
-                    "trap_action":"trap",                    
-                    "trap_priority":"4",                    
-                    "queue": "4"                    
-            },            
-            "queue1_group1": {            
-                    "trap_action":"trap",                    
-                    "trap_priority":"1",                    
-                    "queue": "1",                    
-                    "meter_type":"packets",                    
-                    "mode":"sr_tcm",                    
-                    "cir":"6000",                    
-                    "cbs":"6000",                    
-                    "red_action":"drop"                    
-            },
-            "queue1_group2": {            
-                    "trap_action":"trap",                    
-                    "trap_priority":"1",                    
-                    "queue": "1",                    
-                    "meter_type":"packets",                    
-                    "mode":"sr_tcm",                    
-                    "cir":"600",                    
-                    "cbs":"600",                    
-                    "red_action":"drop"                    
-            },
-            "queue2_group1": {            
-                    "cbs": "1000",                    
-                    "cir": "1000",                    
-                    "genetlink_mcgrp_name": "packets",                    
-                    "genetlink_name": "psample",                    
-                    "meter_type": "packets",                    
-                    "mode": "sr_tcm",                    
-                    "queue": "2",                    
-                    "red_action": "drop",                    
-                    "trap_action": "trap",                    
-                    "trap_priority": "1"                     
-             }             
-    },    
-    "COPP_TRAP": {    
-            "nac": {            
-                    "trap_ids": "eapol",                    
-                    "trap_group": "queue4_group3"                    
-            }            
-    }    
+           "default":{            
+                    "queue": "0",                    
+                    "meter_type":"packets",                    
+                    "mode":"sr_tcm",                    
+                    "cir":"600",                    
+                    "cbs":"600",                    
+                    "red_action":"drop"                    
+            },            
+           "queue4_group1": {            
+                    "trap_action":"trap",                    
+                    "trap_priority":"4",                    
+                    "queue": "4"                    
+            },            
+          "queue4_group2": {            
+                    "trap_action":"copy",                    
+                    "trap_priority":"4",                    
+                    "queue": "4",                    
+                    "meter_type":"packets",                    
+                    "mode":"sr_tcm",                    
+                    "cir":"600",                    
+                    "cbs":"600",                    
+                    "red_action":"drop"                    
+            },            
+            "queue4_group3": {            
+                    "trap_action":"trap",                    
+                    "trap_priority":"4",                    
+                    "queue": "4"                    
+            },            
+            "queue1_group1": {            
+                    "trap_action":"trap",                    
+                    "trap_priority":"1",                    
+                    "queue": "1",                    
+                    "meter_type":"packets",                    
+                    "mode":"sr_tcm",                    
+                    "cir":"6000",                    
+                    "cbs":"6000",                    
+                    "red_action":"drop"                    
+            },
+            "queue1_group2": {            
+                    "trap_action":"trap",                    
+                    "trap_priority":"1",                    
+                    "queue": "1",                    
+                    "meter_type":"packets",                    
+                    "mode":"sr_tcm",                    
+                    "cir":"600",                    
+                    "cbs":"600",                    
+                    "red_action":"drop"                    
+            },
+            "queue2_group1": {            
+                    "cbs": "1000",                    
+                    "cir": "1000",                    
+                    "genetlink_mcgrp_name": "packets",                    
+                    "genetlink_name": "psample",                    
+                    "meter_type": "packets",                    
+                    "mode": "sr_tcm",                    
+                    "queue": "2",                    
+                    "red_action": "drop",                    
+                    "trap_action": "trap",                    
+                    "trap_priority": "1"                     
+             }             
+    },    
+    "COPP_TRAP": {    
+            "nac": {            
+                    "trap_ids": "eapol",                    
+                    "trap_group": "queue4_group3"                    
+            }            
+    }    
 }
 ```
 After configurating “***NAC Adminstate***” to “***up***” for a given interface, update in config_db triggers 1following actions
@@ -269,12 +259,11 @@ Update learn_mode for the specific interface in config_db to “***SAI_BRIDGE_PO
 Hostapd_wrapper gets notification from hostapd whenever interface authorisation state changes from “Authorised” to “Unauthorised” and from “Unauthorised” to “Authorised”
 
 After receiving interface state change notification from Unauthorised to Authorised hostapd_wrapper performs following two operations,
-- Update column “***Authorization State***” in port_table which is part of config_DB to authorised
+- Update column “***nac_status***” in NAC_SESSION table which is part of config_DB to "***authorised***"
 - Update learn_mode for the specific interface in config_db to “***SAI_BRIDGE_PORT_FDB_LEARNING_MODE_HW***”  
 This action will trigger Orchagent invoking SAI to update the learn_mode.
-
 After receiving interface state change notification from Authorised to Unauthorised hostapd_wrapper performs following two operations,
-- Update “***Authorization State***” in port_table which is part of config_DB to "***Unauthorised***".
+- Update “***nac_status***” in NAC_SESSION table which is part of config_DB to "***unauthorised***".
 - Update learn_mode for the specific interface in config_db to “***SAI_BRIDGE_PORT_FDB_LEARNING_MODE_DROP***”
 This action will trigger Orchagent invoking SAI to update the learn_mode.
 Invoke ***SAI_API*** to Flush DB for the database
@@ -282,7 +271,8 @@ Invoke ***SAI_API*** to Flush DB for the database
 Hostapd_wrapper monitors operational status of the interface. When it transitions from “***up***” to “***down***” following actions are triggered by hostapd_wrapper.
 Update learn_mode for the specific interface in config_db to “***SAI_BRIDGE_PORT_FDB_LEARNING_MODE_DROP***”
 Flush FDB for the bridge
-Update column “***Authorization State***” in port_table which is part of config_DB to Unauthorised
+Update column “***nac_status***” in NAC_SESSION table which is part of config_DB to "***unauthorised***"
+Shudown the interface and bringup the interface.
 ### 3.2.6 Actions performed when interface operational state changes to ***UP***
 Hostapd_wrapper monitors operational status of the interface. When it transitions from “***down***” to “***up***” no specific actions shall be performed.
 ### 3.2.7 Sequence of Events flowchart
@@ -328,17 +318,9 @@ Feature configuration:
             "nac_status": "unauthorized"
 ```
 ### 3.3.2 App DB changes
-1. ***Authorization State*** field is added to the port_table.
-2. ***Nac_AdminState*** filed is added to the port_table.
+1. ***nac_status*** field is added to the NAC_SESSION table.
+2. ***admin_state*** filed is added to the NAC_SESSION table.
 3. At Global level a flag is maintained to enable or disable PNAC feature
-
-4. NAC Profile is stored in RedisDB. The profile consists of following parameters,
-       - Quiet Period
-       - supp_timeout
-       - reauthPeriod
-       - retryMax
-       - retryCount
-
 ## 3.4 CLI Commands
 #
 | S.No. |  CLI Command                                     | Description                                                                  |
@@ -367,7 +349,7 @@ Warm reboot is not impacting functionality of the feature.
 |  3     | 1. Login to SONiC NOS Command terminal 2. Enable NAC feature globally using command ***$config nac interface enable*** | NAC feature is enabled to interface. NAC feature should be enabled in SONiC. Other NAC config settings should be allowed/permitted |
 | 4 | 1. Login to SONiC NOS Command terminal 2. Disable NAC feature globally using command ***$config nac interface disable*** | NAC feature is disabled to interface. NAC feature should be enabled in SONiC. Other NAC config settings should be allowed/permitted |
 | 5 | 1. Login to SONiC NOS Command terminal 2. NAC feature allows user to change nac type command ***$config nac type <port/mac>*** | NAC feature is enabled in SONiC. Then it allows user to change port type. |
-| 6 | 1. Login to SONiC NOS Command terminal 2. NAC CLI for a user to configure and monitor the feature. 'show nac interface <interface name \| all> 3. NAC CLI for a user to configure and monitor the feature. ***show nac profile <profile name \| all>*** | NAC feature helps user to show nac interface name and all. NAC feature helps user to show nac profile name and all. |
+| 6 | 1. Login to SONiC NOS Command terminal 2. NAC CLI for a user to configure and monitor the feature. 'show nac interface <interface name \| all>. |
 | 7 | 1. Login to SONiC NOS Command terminal. 2. NAC feature has the existing cli to save the config to save configuration, identical to the manner in which other features in SONiC implement the same through the command. ***$config save <export-file-name.json>*** | NAC feature is used to save the configuration, using the CLI. |
 | 8 | 1. Login to SONiC NOS Command terminal. 2. NAC feature has the existing cli to save the config to save configuration, identical to the manner in which other features in SONiC implement the same through the command. ***$config reload <export-file-name.json>*** | NAC feature is used to save the configuration, using the CLI. |
 | 9 | 1. Login to SONiC NOS Command terminal . 2.To show the NAC feature globally using command ***$show nac*** 3. To show the NAC feature globally using command ***$show nac interface*** | NAC feature is configured and it shows the nac information. |
@@ -385,8 +367,7 @@ Warm reboot is not impacting functionality of the feature.
 | 21 | 1. Enable NAC feature globally from CLI. 2. Enable NAC on all ports. 3. Initiate PING from PC1 to PC2(or vice versa) in the test topology (say via Etherne16). 4. Switch NAC type from port to mac. 5. Monitor the PING traffic | PING should fail initially, Once NAC type is switched to MAC, then PING should be successful. |
 | 22 | 1. Enable NAC feature globally from CLI. 2. Initiate Supplicant with VALID credentials and allow successful PNAC authentication. 3. Initiate PING from PC1 to PC2(or vice versa) in the test topology. 4. While PING traffic ongoing, modify the supplicant credentials. 5. Re-initiate Supplicant transaction with INVALID credentials. 6. Monitor the PING traffic. | PING should be successful when PNAC is authorized and should fail, when PANC authorization fails. |
 | 23 | Pre-Condition: NAC feature is disabled globally. 1. Initiate PING from PC1 to PC2(or vice versa) - PING should work normally. 2. Enable NAC feature globally. 3. Enable NAC feature on a particular interface(Ethernet16). | Previous PING traffic should be stopped |
-| 24 | Pre-Condition: Let the supplicant be authorized on a particular port of 7716 board(say Ethernet16). 1. Shutdown Ethernet48 on the 7712 board, so that Ethernet16 should be Operationally DOWN and Admin State is UP. 2. Start the Ethernet48 on the 7712 board | Whenever the port is Operationally DOWN, the corresponding NAC authorization state should be unauthorized. |
-| 25 | 1. Create a NAC profile. 2. Supply required arguments at CLI. 3. Assign this profile to a particular NAC-enabled port. | The profile should be applied to that particular port |
+| 24 | Pre-Condition: Let the supplicant be authorized on a particular port of DUT (say Ethernet16). 1. Shutdown Ethernet48 on the Tester, so that Ethernet16 should be Operationally DOWN and Admin State is UP. 2. Start the Ethernet48 on the Tester board | Whenever the port is Operationally DOWN, the corresponding NAC authorization state should be unauthorized. |
 # 8 To be done in future release
 |   Id  |                        Requirement Description                                                                        |
 |------|----------------------------------------------------------------------------------------------------|
@@ -398,4 +379,10 @@ Warm reboot is not impacting functionality of the feature.
 | 6 | The software allows a user to specify a list of blacklisted MAC addresses to deny access |
 | 7 | The software allows a user to specify a list of whitelist MAC addresses which will be allowed to access the network without being specifically authenticated.|
 | 8 | The software supports usage of EAP-TLS for secure exchange of credentials across the networks |
-| 9 | The software includes a CLI for a user to configure and monitor the feature. |
+| 9 | The software includes a CLI for a user to monitor the feature. |
+|10 | The software supports SNMP supports for configuration managment. |
+| 11 | The software supports Restconf for configuration managment |
+|12 |  The software supports usage of EAP-TLS for secure exchange of credentials across the networks.|
+|13 | The software supports usage of PEAP-MSCHAPv2 for secure exchange of credentials across the networks.|
+|14 | The software supports usage of EAP-TTLS / PAP for secure exchange of credentials across the networks.|
+| 15 | 1. Create a NAC profile. 2. Supply required arguments at CLI. 3. Assign this profile to a particular NAC-enabled port. The profile should be applied to that particular port |
