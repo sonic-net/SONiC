@@ -82,14 +82,8 @@ Configuration of the PNAC feature can be done via:
 The feature enables a switch to authenticate other devices that require access to the network through the switch. Such end devices could be cameras, IP-phones, servers, user workstations, WiFi access points, etc. The administrator is expected to have the following choices / controls.
 - Enable / disable authentication globally
 - Enable / disable authentication on each port
-*** Note *** Following requirements are considered for upcoming releases.
-- Choose authentication to be port based or MAC address based
-- Allow MAC bypass (segregate unauthenticated devices to a separate VLAN) when MAC based authentication is used. Not in the current scope
-- Set up a white list of allowed devices or black list of blocked devices using MAC addresses
-- Setup authentication from each switch with a database of authentication credentials on the switch
-- Setup authentication centrally in the network using RADIUS protocol
-- Setup authentication centrally in the network using Tacacs+ protocol
-- Rate limit EAPOL packets to overcome/stop DDOS attack.
+- Perform local authentication with secret in plain text 
+- Rate limit EAPOL packets to overcome/stop DDOS attack
 ## 2.1 Target Deployment Use Cases
 First use case is Port based Network Access Control as described below.
 ![PNAC Use Case](images/PNAC_Use_Case.png)
