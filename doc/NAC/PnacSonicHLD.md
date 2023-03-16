@@ -262,7 +262,7 @@ Update learn_mode for the specific interface in config_db to “***SAI_BRIDGE_PO
 Flush FDB for the bridge
 Update column “***nac_status***” in NAC_SESSION table which is part of config_DB to "***unauthorised***"
 Shudown the interface and bringup the interface.
-### 3.2.6 Actions performed when interface operational state changes to ***UP***
+### 3.2.6 Actions performed when interface operational state changes to UP
 Hostapd_wrapper monitors operational status of the interface. When it transitions from “***down***” to “***up***” no specific actions shall be performed.
 ### 3.2.7 Sequence of Events flowchart
 Following Flow chart describes actions in respective sequence after events like port UP/DOWN takes place.
