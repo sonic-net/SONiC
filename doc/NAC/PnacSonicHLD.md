@@ -16,8 +16,7 @@
    * [2.1 Target Deployment Use Cases](#21-Target-Deployment-Use-Cases)
 * [3 Design](#3-Design)
    * [3.1 Options to Block or allows](#31-Options-to-Block-or-allows)
-      
-    * [3.2 PNAC software architecture](#32-PNAC-software-architecture)
+   * [3.2 PNAC software architecture](#32-PNAC-software-architecture)
       * [3.2.1 Hostapd initialisation steps](#321-Hostapd-initialisation-steps)
       * [3.2.2 Actions performed by hostapd_wrapper](#322-Actions-performed-by-hostapd-wrapper)
       * [3.2.3 Actions Triggered Based on CLI configuration changes](#323-Actions-Triggered-Based-on-CLI-configuration-changes)
