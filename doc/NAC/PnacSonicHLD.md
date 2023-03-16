@@ -14,8 +14,7 @@
    * [1.3 Configuration and Management Requirement](#13-Configuration-and-Management-Requirements)
 * [2 Functionality](#2-Functionality)
    * [2.1 Target Deployment Use Cases](#21-Target-Deployment-Use-Cases)
-   * [2.2 Functional Description](#22-Functional-Description)
- * [3 Design](#3-Design)
+* [3 Design](#3-Design)
     * [3.1 Options to Block or allows port traffic based on Authentication status of the port](#31-Options-to-Block-or-allows-port-traffic-based-on-Authentication-status-of-the-port)
       * [3.1.1 Options-1 Allowing or Blocking user traffic by using RSTP STP states](#311-Options-1-Allowing-or-Blocking-user-traffic-by-using-RSTP-STP-states)
       * [3.1.2 Option-2 Allowing or Blocking user traffic by configuring L2-ACL filters](#312-Option-2-Allowing-or-Blocking-user-traffic-by-configuring-L2-ACL-filters)
@@ -95,17 +94,7 @@ The feature enables a switch to authenticate other devices that require access t
 First use case is Port based Network Access Control as described below.
 ![PNAC Use Case](images/PNAC_Use_Case.png)
 Above diagram authenticator block/unblocks all traffic in ingress direction based on authentication status of the port. Traffic is allowed only for Authenticated users.
-
- ## 2.2 Functionalities supported in upcoming release
-**Note** Following requirements shall are considered for upcoming releases.
-- Choose authentication to be port based or MAC address based
-- Allow MAC bypass (segregate unauthenticated devices to a separate VLAN) when MAC based authentication is used. Not in the current scope
-- Set up a white list of allowed devices or black list of blocked devices using MAC addresses
-- Setup authentication from each switch with a database of authentication credentials on the switch
-- Setup authentication centrally in the network using RADIUS protocol
-- Setup authentication centrally in the network using Tacacs+ protocol
-
- # 3 Design
+# 3 Design
 ## 3.1 Options to Block/allows port traffic based on Authentication status of the port
 As part of the design there are various design options were considered to effectively allow/disallow user traffic based on authentication status of the port connected to the end user device. Following paragraph list all these option with pros and cons and provide which option is best suited for the design.
 ### 3.1.1 Allowing or Blocking user traffic by using RSTP/STP states 
