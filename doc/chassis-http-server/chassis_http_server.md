@@ -50,7 +50,7 @@
 
 ### High-Level Design 
 
- This service runs in database-chassis docker based on the configuration provided in "device/<platform>/chassisdb.conf"
+ This service runs in database-chassis docker based on the configuration provided in "device/\<platform\>/chassisdb.conf"
 
  The existing python http-server module is used to provide the service. As this module is already packaged with python, no new module packaging is required.
  
@@ -74,7 +74,7 @@
  A new script file, dockers/docker-database/http-server, will be added as part of this http-server process which will be used to parse the configuration parameters provided by chassisdb.conf mentioned above.
  If start_http_server is set to '1', this process will spawn python http-server. If this parameter is not provided or not set to '1', the http-server will not run.
 
- The platform is required to provide the http home directory, where shared files will be stored for http server. The default path is /var/www/. The directory path should be accessible within the database-chassis server. This could be achieved by adding the access as below in docker-databse.mk in platform PATH, <sonic ws root>/platform/<platform dir>/docker-databse.mk
+ The platform is required to provide the http home directory, where shared files will be stored for http server. The default path is /var/www/. The directory path should be accessible within the database-chassis server. This could be achieved by adding the access as below in docker-databse.mk in platform PATH, \<sonic ws root\>/platform/\<platform dir\>/docker-databse.mk
 
  ```
   $(DOCKER_DATABASE)_RUN_OPT += -v /var/www/:/var/www:ro
