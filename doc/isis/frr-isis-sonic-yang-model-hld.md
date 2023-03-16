@@ -266,7 +266,7 @@ Global ISIS Yang container is sonic-isis.yang.
                     type boolean;
                     default "false";
                     description
-                        "For an L1 router, attached bits received in an LSP createa default route when set to false";
+                        "For an L1 router, attached bits received in an LSP create a default route when set to false";
                 }
 
                 leaf set-overload-bit {
@@ -381,7 +381,7 @@ ISIS Level Yang container is sonic-isis.yang.
                 leaf level-number {
                     type level-number;
                     description
-                        "ISIS level-number.";
+                        "ISIS level number.";
                 }
 
                 leaf lsp-refresh-interval {
