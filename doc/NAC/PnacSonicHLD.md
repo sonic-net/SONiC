@@ -18,7 +18,7 @@
   * [3.1 Options to Block or allows port traffic based on Authentication status of the port](#31-Options-to-Block-or-allows-port-traffic-based-on-Authentication-status-of-the-port)
      * [3.1.1 Options-1 Allowing or Blocking user traffic by using RSTP STP states](#311-Options-1-Allowing-or-Blocking-user-traffic-by-using-RSTP-STP-states)
      * [3.1.2 Option-2 Allowing or Blocking user traffic by configuring L2-ACL filters](#312-Option-2-Allowing-or-Blocking-user-traffic-by-configuring-L2-ACL-filters)
-     * [3.1.3 Option-3 Allowing or Blocking user traffic by configuring learn_mode](#313-Option-3-Allowing-or-Blocking-user-traffic-by-configuring-learn-mode) 
+     * [3.1.3 Option-3 Allowing or Blocking user traffic by configuring learn mode](#313-Option-3-Allowing-or-Blocking-user-traffic-by-configuring-learn-mode) 
    * [3.2 PNAC software architecture](#32-PNAC-software-architecture)
       * [3.2.1 Hostapd initialisation steps](#321-Hostapd-initialisation-steps)
       * [3.2.2 Actions performed by hostapd_wrapper](#322-Actions-performed-by-hostapd-wrapper)
