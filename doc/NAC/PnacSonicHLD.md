@@ -10,7 +10,7 @@
 * [Definitions/Abbreviations](#DefinitionsAbbreviations)
 * [1 Requirements Overview](#1-Requirements-Overview)
    * [1.1 Functional Requirements](#11-Functional-Requirements)
-   * [1.2 Performance Requirements](#12-Performance-Requirements)
+   * [1.2 Memory CPU Consumptions Requirements](#12-Memory-CPU-Consumptions-Requirements)
    * [1.3 Configuration and Management Requirement](#13-Configuration-and-Management-Requirements)
 * [2 Functionality](#2-Functionality)
    * [2.1 Target Deployment Use Cases](#21-Target-Deployment-Use-Cases)
