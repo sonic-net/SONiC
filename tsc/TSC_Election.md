@@ -28,7 +28,9 @@ $$
 | SONiC Production Deployment (S/M/L) [6] | Proliferation | 100/500/1000 |
 | SONiC End Consumer Proliferation (S/M/L) | Proliferation [7] | 5/50/100 |
 
-[1]: HLD are new or substantial changes reviewed in the SONiC community review meeting, minor amendment are counted towards merged PR
+HLDs and PRs SII calculation includes both LFX SONiC and OCP SAI Projects
+
+[1]: HLD are new or substantial changes reviewed in the community review meeting, minor amendment are counted towards merged PR
 
 [2]: PR sizing Small/Medium/Large based on LoCs, each carries a different multiplier (Small: 1-50 LoCs, Medium: 51-300 LoCs, Large: >301 LoCs)
 
