@@ -1895,16 +1895,17 @@ PDDF implements common kernel drivers for various components. These common drive
  - Platform Info Attributes: This includes the fixed information pertaining to the platform in entirity or any component. There is no need of reading this information from the component in run time. Further, these values will not change in the course of System running the SONiC image. Below are few examples of static info attributes.
      - /sys_switch/temp_sensor/number, /sys_switch/vol_sensor/number, /sys_switch/curr_sensor/number etc.
      - /sys_switch/cpld/cpld[n]/alias, /sys_switch/temp_sensor/temp[n]/alias, /sys_switch/temp_sensor/temp[n]/type etc.
+
    S3IP file system can be created and the information can be directly written from the PDDF JSON files to them. Since this is static information, there is no need of repeatedly updating it.
 
  - Component Attributes: These are the attributes are to be read from various HW components. These could be dynamically changing information like PSU voltage and temperature, or fixed like PSU serial number or FAN model etc.
-     - Some such S3IP sysfs would match the sysfs exposed by the PDDF frameowrk and hence a proper mapping with softlink creation would suffice
+     - Some such S3IP sysfs would match the sysfs exposed by the PDDF frameowrk and hence a proper mapping with softlink creation would suffice.
      - Some S3IP sysfs would not match directly with PDDF exposed sysfs. For such attributes, either PDDF common dirvers can be enhanced to provide the exact match or some other method can be used.
 
 
 #### 7.2.2 S3IP SysFS Creation and Mapping
 
-![S3IP Support in PDDF](../../images/platform/s3ip_pddf.jpeg "S3IP Support in PDDF")
+![S3IP Support in PDDF](../../images/platform/s3ip_pddf.jpg "S3IP Support in PDDF")
 
 
 If the S3IP sysfs is required on a PDDF platform, it can be represented using the field "enable_s3ip" in the PDDF JSON file. The support for S3IP is controlled by a service "pddf-s3ip-init.service". This service is run at the end of PDDF platform initialization service. It is an standalone service which needs to have an 'after' dependency on PDDF platform init service.
@@ -1916,7 +1917,7 @@ If the S3IP sysfs is required on a PDDF platform, it can be represented using th
         "num_fans_pertray":2,
         "num_ports":64,
         "num_temps": 8,
-        **"enable_s3ip": "yes"**,
+        "enable_s3ip": "yes",
         "pddf_dev_types":
         {
             "description":"AS7816-64X - Below is the list of supported PDDF device types (chip names) for various components. If any component uses some other driver, we will create the client using 'echo <de
@@ -1939,7 +1940,11 @@ If the S3IP sysfs is required on a PDDF platform, it can be represented using th
 ...
 ```
 
-This S3IP service would create the sysfs as per the standards. It will also take care of linking the appropriate PDDF sysfs with the corrosponding S3IP sysfs. In case the platform does not support some attributes present in the S3IP spec, 'NA' will be written to the attribute file so that the application does not fail. Once this is done, users can run their S3IP compliant applicaitons and test scripts on the platform.
+This S3IP service would create the sysfs as per the standards. It will also take care of linking the appropriate PDDF sysfs with the corrosponding S3IP sysfs.
+
+In case the platform does not support some attributes present in the S3IP spec, 'NA' will be written to the attribute file so that the application does not fail.
+
+Once this is done, users can run their S3IP compliant applicaitons and test scripts on the platform.
 
 
 ## 8 Warm Boot Support
