@@ -1893,13 +1893,17 @@ The S3IP specifications and framework are defined [here](https://github.com/soni
 PDDF implements common kernel drivers for various components. These common drivers exposes a fixed set of sysfs attributes as per the HW support and current SONiC API requirements. Complying to S3IP spec requires the mapping of S3IP component attributes to PDDF exposed sysfs attributes and might even require adding new attributes to PDDF common driver code. Hence, S3IP spec sysfs attributes are divided into the following categories.
 
  - Platform Info Attributes: This includes the fixed information pertaining to the platform in entirity or any component. There is no need of reading this information from the component in run time. Further, these values will not change in the course of System running the SONiC image. Below are few examples of static info attributes.
+
      - /sys_switch/temp_sensor/number, /sys_switch/vol_sensor/number, /sys_switch/curr_sensor/number etc.
+
      - /sys_switch/cpld/cpld[n]/alias, /sys_switch/temp_sensor/temp[n]/alias, /sys_switch/temp_sensor/temp[n]/type etc.
 
    S3IP file system can be created and the information can be directly written from the PDDF JSON files to them. Since this is static information, there is no need of repeatedly updating it.
 
  - Component Attributes: These are the attributes are to be read from various HW components. These could be dynamically changing information like PSU voltage and temperature, or fixed like PSU serial number or FAN model etc.
+
      - Some such S3IP sysfs would match the sysfs exposed by the PDDF frameowrk and hence a proper mapping with softlink creation would suffice.
+
      - Some S3IP sysfs would not match directly with PDDF exposed sysfs. For such attributes, either PDDF common dirvers can be enhanced to provide the exact match or some other method can be used.
 
 
