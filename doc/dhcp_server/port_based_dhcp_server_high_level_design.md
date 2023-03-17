@@ -174,6 +174,10 @@ module sonic-dhcp-server-ipv4 {
         description "Option value";
         type string;
       }
+      leaf type {
+        description "Type of option value";
+        type string;
+      }
     }
   }
   /* end of container sonic-dhcp-server-ipv4 */
@@ -218,11 +222,13 @@ module sonic-dhcp-server-ipv4 {
     }
   },
   "DHCP_SERVER_IPV4_CUSTOMIZE_OPTION": {
-    "Vlan1000|15": {
-      "value": "192.168.0.1"
+    "Vlan1000|6": {
+      "value": "192.168.0.1",
+      "type": "ipv4-address"
     },
     "Vlan1000|38": {
-      "value": "34"
+      "value": "34",
+      "type": "uint32"
     }
   }
 }
@@ -373,6 +379,8 @@ We can set tag for each DHCP interface, all DHCP clients connected to this inter
 | 53                      | Message Type           |
 | 54                      | DHCP Server ID      |
 
+Supported type of option value are: ipv4-address, text, uint8, uint16, uint32, uint64, int8, int16, int32, int64, boolean.
+
 ## 3.6 Flow Diagrams
 ### 3.6.1 Config Change Flow
 This sequence figure describe the work flow for config_db changed CLI.
@@ -458,7 +466,7 @@ This command is used to config dhcp ip per interface.
 **config dhcp_server option add**
 
 This command is used to add dhcp option per dhcp interface.
-Type field can be set to (ip-address | uint | string | boolean).
+Type field can refer to [#3.5 Customize DHCP Packet Options](#35-customize-dhcp-packet-options).
 - Usage
   ```
   config dhcp_server ipv4 option add <dhcp_interface> <option> <type> <value>
@@ -541,22 +549,22 @@ This command is used to show dhcp_server customized option.
 - Example
   ```
   show dhcp_server ipv4 option Vlan1000
-  +-------------+-------+------------+
-  |Interface    |Option |Value       |
-  |-------------+-------+------------+
-  |Vlan1000     |19     |1           |
-  |             |42     |192.168.0.1 |
-  +-------------+-------+------------+
+  +-------------+-------+------------+-------------+
+  |Interface    |Option |Value       |Type         |
+  |-------------+-------+------------+-------------+
+  |Vlan1000     |19     |1           |boolean      |
+  |             |42     |192.168.0.1 |ipv4-address |
+  +-------------+-------+------------+-------------+
 
   show dhcp_server ipv4 option
-  +-------------+-------+------------+
-  |Interface    |Option |Value       |
-  |-------------+-------+------------+
-  |Vlan1000     |19     |1           |
-  |             |42     |192.168.0.1 |
-  +-------------+-------+------------+
-  |PortChannel1 |42     |192.168.8.1 |
-  +-------------+-------+------------+
+  +-------------+-------+------------+-------------+
+  |Interface    |Option |Value       |Type         |
+  |-------------+-------+------------+-------------+
+  |Vlan1000     |19     |1           |boolean      |
+  |             |42     |192.168.0.1 |ipv4-address |
+  +-------------+-------+------------+-------------+
+  |PortChannel1 |42     |192.168.8.1 |ipv4-address |
+  +-------------+-------+------------+-------------+
   ```
 
 **show dhcp_server counter**
