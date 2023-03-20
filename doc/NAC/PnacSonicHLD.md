@@ -34,8 +34,9 @@
 * [4 Serviceability and Debug](#4-Serviceability-and-Debug)
 * [5 Warm Reboot](#5-Warm-Reboot)
 * [6 Scalability](#6-Scalability)
-* [7 Unit Test](#7-Unit-test)
-* [8 To be done in future release](#8-To-be-done-in-future-release)
+* [7 Yang Model](#7-Yang-Model)
+* [8 Unit Test](#8-Unit-test)
+* [9 To be done in future release](#9-To-be-done-in-future-release)
 # Revision
 | Rev |     Date    |       Author       | Change Description                  |
 |:---:|:-----------:|:-------------------|:-----------------------------------|
@@ -324,7 +325,9 @@ Warm reboot is not impacting functionality of the feature.
 | 1 |  The software supports systems with upto 384 ports (chassis or stacked system with 8 units of 48 port modules) |
 | 2 | The software supports authentication of upto 384 ports.
 
-# 7 Unit Test
+# 7 Yang Model
+Refer Yang model in **"/Yang/nac-yang.txt"**
+# 8 Unit Test
 | S.No. |  Test Case Description                       | Expected Output                                                        |
 |--------|----------------------------------------------|---------------------------------------------------------------|
 | 1        | 1. Login to SONiC NOS Command terminal 2. Enable NAC feature globally using command ***$config nac enable*** | NAC feature should be enabled in SONiC. Other NAC config settings should be allowed/permitted |
@@ -351,7 +354,7 @@ Warm reboot is not impacting functionality of the feature.
 | 22 | 1. Enable NAC feature globally from CLI. 2. Initiate Supplicant with VALID credentials and allow successful PNAC authentication. 3. Initiate PING from PC1 to PC2(or vice versa) in the test topology. 4. While PING traffic ongoing, modify the supplicant credentials. 5. Re-initiate Supplicant transaction with INVALID credentials. 6. Monitor the PING traffic. | PING should be successful when PNAC is authorized and should fail, when PANC authorization fails. |
 | 23 | Pre-Condition: NAC feature is disabled globally. 1. Initiate PING from PC1 to PC2(or vice versa) - PING should work normally. 2. Enable NAC feature globally. 3. Enable NAC feature on a particular interface(Ethernet16). | Previous PING traffic should be stopped |
 | 24 | Pre-Condition: Let the supplicant be authorized on a particular port of DUT (say Ethernet16). 1. Shutdown Ethernet48 on the Tester, so that Ethernet16 should be Operationally DOWN and Admin State is UP. 2. Start the Ethernet48 on the Tester board | Whenever the port is Operationally DOWN, the corresponding NAC authorization state should be unauthorized. |
-# 8 To be done in future release
+# 9 To be done in future release
 |   Id  |                        Requirement Description                                                                        |
 |------|----------------------------------------------------------------------------------------------------|
 | 1  | The software allows a user to choose, at runtime, between port based authentication and MAC based authentication. |
