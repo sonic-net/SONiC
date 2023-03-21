@@ -1,7 +1,7 @@
-# Combine L3 ACL and L3V6 ACL Tables on supported platforms
+# Support a new ACL Table Type that combines L3 ACL and L3V6 ACL Tables
 
 ## Introduction to L3 and L3V6 ACL Table Types
-SONiC supports different in-built ACL Table types. These ACL table types have pre-defined set of ACL match-fields, ACL actions and bind points. L3 and L3V6 are such in-built ACL Table types. These ACL tables support packet actions like drop, redirect etc. 
+SONiC supports different in-built ACL Table types. These ACL table types have a pre-defined set of ACL match-fields, ACL actions and bind points. _L3_ and _L3V6_ are such in-built ACL Table types. These ACL tables support packet actions like drop, redirect etc. 
 
 L3 ACL Table type supports matching IPv4 fields like Source IPv4 address, Destination IPv4 address etc.
  Similarly, L3V6 ACL Table type supports matching IPv6 fields like Source IPv6 address, Destination IPv6 address etc.
@@ -15,7 +15,7 @@ The proposal is to give the operator an ability to configure  L3 and L3V6 ACLs i
 
 
 ## Table of Contents 
-- [Combine L3 ACL and L3V6 ACL Tables on supported platforms](#combine-l3-acl-and-l3v6-acl-tables-on-supported-platforms)
+- [Support a new ACL Table Type that combines L3 ACL and L3V6 ACL Tables](#support-a-new-acl-table-type-that-combines-l3-acl-and-l3v6-acl-tables)
   - [Introduction to L3 and L3V6 ACL Table Types](#introduction-to-l3-and-l3v6-acl-table-types)
   - [Problem overview](#problem-overview)
   - [Table of Contents](#table-of-contents)
@@ -29,16 +29,21 @@ The proposal is to give the operator an ability to configure  L3 and L3V6 ACLs i
       - [Option-A: Follow the _existing_ optimization for Mirror ACL table](#option-a-follow-the-existing-optimization-for-mirror-acl-table)
         - [Pros](#pros)
         - [Cons](#cons)
-      - [Option-B: Include IPv4 match fields in table type L3V6](#option-b-include-ipv4-match-fields-in-table-type-l3v6)
+      - [Option-B: Include IPv4 match fields in _existing_ table type L3V6](#option-b-include-ipv4-match-fields-in-existing-table-type-l3v6)
         - [Pros](#pros-1)
         - [Cons](#cons-1)
-      - [Option-C: Create a new ACL Table Type L3V4V6](#option-c-create-a-new-acl-table-type-l3v4v6)
-        - [Pros and Cons](#pros-and-cons)
+      - [Option-C: Create a _new_ ACL Table Type *L3V4V6*](#option-c-create-a-new-acl-table-type-l3v4v6)
+        - [Phase 1:](#phase-1)
+        - [Phase 2:](#phase-2)
+        - [Pros](#pros-2)
       - [Implementation](#implementation)
         - [Orchagent](#orchagent)
         - [STATE\_DB](#state_db)
     - [SAI API](#sai-api)
     - [Configuration and management](#configuration-and-management)
+      - [YANG model changes](#yang-model-changes)
+    - [CLI](#cli)
+        - [ACL table create CLI](#acl-table-create-cli)
     - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
     - [Restrictions/Limitations](#restrictionslimitations)
     - [Testing Requirements/Design](#testing-requirementsdesign)
@@ -50,11 +55,12 @@ The proposal is to give the operator an ability to configure  L3 and L3V6 ACLs i
 | Rev | Date     | Author          | Change Description |
 |:---:|:--------:|:---------------:|--------------------|
 | 0.1 | 18/Feb/23 | Ravindranath (**Marvell**)   | Initial Version.  |
+| 0.2 | 21/Mar/23 | Ravindranath (**Marvell**)   | Updates based on the community discussion on 21/Feb/23 and other offline comments  |
 
 ### Scope  
 
 
-This document provides the high level design in SONiC to combine L3 and L3V6 ACL tables in SAI on supported hardware.
+This document discusses the various options to combine L3 and L3V6 ACL tables in SAI on supported hardware. It then provides the high level design in SONiC to support a new ACL table type called **L3V4V6**.
 
 ### Terminology
 
@@ -71,9 +77,9 @@ This document provides the high level design in SONiC to combine L3 and L3V6 ACL
 
 ### Overview 
 
-This document describes the orchagent support by which user created L3 ACL table and L3V6 ACL tables are combined into a single SAI/ASIC ACL table on platforms optimized for this feature.
+This document describes the orchagent support by which user can create a  new ACL table of type L3V4V6 on platforms that support this feature.
 
-In several ASICs,  IPv4 and IPv6 ACL rules can be supported in the same ACL table. Further, in many hardware, when the hardware tables (TCAMs) are configured to match IPv6 addresses, the hardware can use the same resources to match the corresponding IPv4 packet fields without incurring additional hardware resources. For example, IPv6 Destination address (128b) and IPv4 Destination address (32b) keys can be fit using only 128 bits instead of 128 + 32bits.
+In several ASICs,  IPv4 and IPv6 ACL rules can be supported in the same ACL table. Further, in many hardware, when the hardware tables (TCAMs) are configured to match IPv6 addresses, the hardware can use the same resources to match the corresponding IPv4 packet fields without incurring additional hardware resources (like TCAM width). For example, IPv6 Destination address (128b) and IPv4 Destination address (32b) keys can be fit using only 128 bits instead of 128 + 32bits.
 
 
 <p align=center>
@@ -91,19 +97,19 @@ Refer https://github.com/opencomputeproject/SAI/pull/1408#issue-1126526787
 1. Support v6 and v4 ACL rules with a single underlying SAI ACL table.
    * This will be enabled only on platforms needing this optimization.
 2. Allow the operator the flexibility to choose when to use this optimization
-3. Reduce the amount of changes that the operator must do to their existing ACL configuration to use this optimization.
+
 
 
 ### Architecture Design 
 
- ACL Orchagent is enhanced to achieve these requirements. This design is largely similar to the existing optimization done in SONiC for Mirror ACL tables. There are no architecture changes to current SONiC.
+ ACL Orchagent is enhanced to achieve these requirements. There are no architecture changes.
 
 ### High-Level Design 
 
 The following design options were considered for implementing this solution:
 -  **Option-A**: Follow the existing SONiC behavior to combine Mirror ACL table and MirrorV6 ACL table.
 -  **Option-B**: Extend the existing L3V6 ACL table type to include v4 fields.
--  **Option-C**: Create a new ACL table type that combines v4 and v6 say L3V4V6.
+-  **Option-C**: Create a new ACL table type called L3V4V6 that combines v4 and v6.
 
 
 #### Option-A: Follow the _existing_ optimization for Mirror ACL table
@@ -131,7 +137,7 @@ However, this mechanism has several disadvantages
 - Similarly, when the user deletes one of the ACL tables, orchagent deletes the combined ACL table from the hardware even though the user expects the other ACL table to still be present and bound to the attached ports.
   
 
-#### Option-B: Include IPv4 match fields in table type L3V6
+#### Option-B: Include IPv4 match fields in _existing_ table type L3V6
 
 As explained before, in several ASIC platforms, including v4 matchfields along with v6 matchfields does not cost extra hardware resources. Hence, on these platforms, v4 matchfields will be included in table type L3V6. In the below table, the second column shows the matchfields in current L3V6 ACL table. The third column shows the matchfields that will be added to L3V6 on platforms that needs this optimization.
 
@@ -186,7 +192,7 @@ As explained before, in several ASIC platforms, including v4 matchfields along w
 ##### Cons
 - If the operator decides to use the optimization, the operator needs to modify the ACL configuration, i.e., operator must modify the V4 ACL rules that need to be placed in L3V6 ACL table- the rule's ACL Table is renamed to the L3V6 ACL table.
 
-#### Option-C: Create a new ACL Table Type L3V4V6
+#### Option-C: Create a _new_ ACL Table Type *L3V4V6*
 
 Create a new built-in table type called L3V4V6 with the following match types:
 
@@ -223,57 +229,94 @@ Create a new built-in table type called L3V4V6 with the following match types:
      */
 
 
-##### Pros and Cons
-All the pros and cons of option-B (extending L3V6 ACL table) applies here as well.
-Additionally, option-C has the below cons:
-- Need platform checks to determine which platforms can support combined v4 and v6 ACL table.
-- Even on platforms that support combined v4 and v6 ACL tables, we need additional checks to identify which platforms are optimized to have v4 and v6 in the same ACL table.
+
+##### Phase 1:
+On platforms supporting v4 and v6 in a single SAI ACL table, this _new L3V4V6_ ACL table is supported.
+
+##### Phase 2:
+On platforms NOT supporting v4 and v6 in a single SAI ACL table, this new L3V4V6 ACL table will be supported by orchagent's special handling. Orchagent would internally create and manage two SAI ACL tables as shown in the right picture below. The operator is agnostic about the underlying ASIC behavior and only sees a consolidated SONiC ACL table.
+
+
+<p align=center>
+<img src="img/acl-v4v6.png" alt="Hardware optimization for matching v4 in V6 ACL Table optimization">
+</p>
+
+Note: 
+* Due to the lack of SAI APIs to detect this capability, platform checks in orchagent code are used to detect the support.
+* Currently, phase-1 is supported. On non-supporting ASICs, when operator creates an ACL table of type L3V4V6, orchagent throws an error in syslog.
+* Phase-2 will be implemented in the future release.
+  
+##### Pros
+- Readability: L3V4V6 ACL table type conveys to the operator that the ACL table type supports v4 and v6 match qualifiers.
+- Allows the operator the flexibility to use only L3 ACL tables when the deployment does not need v6 rules.
+- Using the same config across ASIC families: Once the future plan of orchagent creating separate v4 and v6 SAI ACL tables on unsupported platform is done, the operator can have the same ACL configuration across ASIC platforms.
+  
 
 #### Implementation
 
-Based on the above design considerations, option-B is implemented.
-Additionally, a new field is added to the ACL capability in STATE_DB to help applications identify the platforms where v4 fields can be matched in L3V6 ACL tables without additional hardware costs.
+Based on the above design considerations and feedback from the community, **option-C is implemented**.
+New fields are added to the ACL capability in STATE_DB to help applications identify the platforms where the new L3V4V6 ACL table is supported; this is done for both ingress and egress individually.
+
+
+**Matches supported in L3V4V6 table**
+
+- VLAN_ID
+- *IP_TYPE**
+- *ETHER_TYPE**
+- SRC_IPV6
+- DST_IPV6
+- SRC_IP
+- DST_IP
+- ICMPV6_TYPE
+- ICMPV6_CODE
+- ICMP_TYPE
+- ICMP_CODE
+- IP_PROTOCOL
+- NEXT_HEADER
+- L4_SRC_PORT
+- L4_DST_PORT
+- TCP_FLAGS
+
+***Note**: Every ACL Rule, should include at least one of [*IP_TYPE*, *ETHER_TYPE*] in the matching criteria when matching of L3 header fields. This allows orchestrator to decide in which underlying SAI ACL table to place the rule in. If these fields are not provided in the ACL rule, the rule is placed in the SAI IPv4 ACL table and the behavior is dependent on the platform.
+
+**Actions allowed in the table of the type L3V4V6**
+
+The default actions supported in the new table type are the same as L3 and L3V6, viz.,
+
+- PACKET_ACTION 
+- REDIRECT_ACTION 
+
+Note: The above actions would be added to the ACL table based on the ACL capability. For example, on platforms where REDIRECT_ACTION is not supported in the egress direction, the only action supported will be PACKET_ACTION. This is similar to what is being done today for L3 and L3V6 ACL tables.
+
+**Bindpoints supported in the table of the type L3V4V6**
+The same as L3 and L3V6 ACL table, viz.,
+- Port
+- LAG
 
 ##### Orchagent
 
-Today, during the initialization of AclOrch, the default built-in ACL table types are created. In this proposal, using platform specific checks, AclOrch identifies platforms where v4 fields can be matched in L3V6 ACL tables without additional hardware costs. On these identified platforms v4 matchfields are supported in L3V6 table.
+ The new ACL table type called L3V4V6 is created during Orchagent initialization.
 
-  ``` aclorch::init() -> initDefaultTableTypes() -> addAclTableType(TABLE_TYPE_L3V6) {```
+  ``` aclorch::init() -> initDefaultTableTypes() -> addAclTableType(TABLE_TYPE_L3V4V6) ```
   
-  ```
-   
-            :
-            :
-            if ( /* platform optimizes v4 in L3V6Table */) {
-              .withMatch(make_shared<AclTableMatch>(SAI_ACL_TABLE_ATTR_FIELD_ETHER_TYPE))
-              .withMatch(make_shared<AclTableMatch>(SAI_ACL_TABLE_ATTR_FIELD_SRC_IP))
-              .withMatch(make_shared<AclTableMatch>(SAI_ACL_TABLE_ATTR_FIELD_DST_IP))
-              .withMatch(make_shared<AclTableMatch>(SAI_ACL_TABLE_ATTR_FIELD_ICMP_TYPE))
-              .withMatch(make_shared<AclTableMatch>(SAI_ACL_TABLE_ATTR_FIELD_ICMP_CODE))
-            }
-            :
-            :
-    }
-  
-   ```
-
+Using platform specific checks, AclOrch identifies platforms where  L3V4V6 ACL tables can be supported. Creation of an ACL table of type L3V4V6 on an unsupported platform results in orchagent logging an error in the syslog. A SAI ACL table create call is done only on supported platforms; this avoids crashes on unsupported platforms. In the future, orchagent would internally create separate v4 and v6 ACL tables on these unsupported platforms.
 
 ##### STATE_DB
+A new field called `supported_L3V4V6` is added to the ACL capability in STATE_DB. This field is set to true by orchagent during 'AclOrch init' on platforms where v4 fields and v6 fields can be matched in the same hardware ACL table. This provides an interface to the operator to identify the platforms where the new L3V4V6 ACL table is supported. In the future, this field will be used by Orchagent to implement a single user configured L3V4V6 ACL table as two underlying SAI ACL tables on platforms where v4 fields and v6 fields cannot be matched in the same hardware ACL table.
 
-A new field called `optimized_V4_in_L3V6` is added to the ACL capability in STATE_DB. This field is set to true by orchagent during AclOrch init on platforms where v4 fields can be matched in L3V6 ACL tables without additional hardware costs. This provides an interface to the operator to identify the platforms where the operator can choose to add IPv4 ACL rules in L3V6 ACL tables. In the future, this field can be used to validate configuration workflows to prevent a user from adding L3 ACL rules to L3V6 ACL table on unsupported platforms.
 
 ```
 127.0.0.1:6379[6]> hgetall "ACL_STAGE_CAPABILITY_TABLE|INGRESS"
   :
   :
-5) "optimized_V4_in_L3V6"
-6) "true"
+1) "supported_L3V4V6"
+2) "true"
 
 
 127.0.0.1:6379[6]> hgetall "ACL_STAGE_CAPABILITY_TABLE|EGRESS"
   :
   :
-5) "optimized_V4_in_L3V6"
+5) "supported_L3V4V6"
 6) "true"
 ```
 
@@ -282,27 +325,104 @@ A new field called `optimized_V4_in_L3V6` is added to the ACL capability in STAT
 There are no new SAI APIs required for this feature.
 
 ### Configuration and management 
-No new CLI or datamodel changes are introduced.  
-		
+
+#### YANG model changes
+
+```
+--- a/models/yang/sonic/sonic-acl.yang
++++ b/models/yang/sonic/sonic-acl.yang
+
+    container sonic-acl {
+
+        container ACL_TABLE {
+                :
+                :
+                leaf type {
+                    type enumeration {
+                        enum MIRROR;
+                        enum MIRRORV6;
+                        enum L3;
+                        enum L3V6;
++                       enum L3V4V6;
+                    }
+                }
+
+                :
+                :
+            }
+        }
+  }
+
+
+```
+
+
+
+**Example:**
+```
+{
+    "ACL_TABLE": {
+        "DATAACL": {
+            "STAGE": "INGRESS",
+            "TYPE" : "L3V4V6",
+            "PORTS": [
+                "Ethernet0",
+                "Ethernet1"
+            ]
+        }
+    },
+    "ACL_RULE": {
+      "DATAACL|RULE1": {
+	    "ETHER_TYPE": "0x0800",
+	    "PRIORITY": "5",
+            "DST_IP": "20.2.2.2/32",
+	    "PACKET_ACTION": "DROP"
+        }
+      "DATAACL|RULE2": {
+	    "IP_TYPE": "IPV6ANY",
+	    "PRIORITY": "6",
+            "DST_IPV6": "2001::2/64",
+	    "PACKET_ACTION": "DROP"
+        }
+    }
+}
+```
+### CLI
+
+##### ACL table create CLI 
+The existing CLI is extended to support the new table type.
+```
+config acl add table -s <stage> -p <ports> <table_name> <table_type>
+```
+_table_type_ needs to be passed as _"L3V4V6"_ to create a table of the new L3V4V6 type.
+```
+Example : config acl add table -s ingress -p Ethernet0 DATAACL L3V4V6
+```
+
+
 ### Warmboot and Fastboot Design Impact  
 There is no impact on warmboot or fastboot.
 
 ### Restrictions/Limitations  
-None.
+* SONiC does not specify the ACL table priority  when an ACL table is being created in SAI. (Refer SAI_ACL_TABLE_GROUP_MEMBER_ATTR_PRIORITY). So, when more than one ACL table is bound to a port, and if these ACL tables result in conflicting actions, the winner is not predictable. This will be addressed in phase-2 by enhancing config DB to let the operator configure the ACL table priority.
+* "IP_TYPE" or "ETHER_TYPE" must be specified for ACL rules added in L3V4V6 ACL table. This will be used in phase-2 to decide on which underlying SAI ACL table a given ACL rule should be placed in.
 
 ### Testing Requirements/Design  
 
 #### Unit Test cases  
 - Verify ACL Capability in STATE_DB on supported platforms.
-    - The new field `optimized_V4_in_L3V6` must be true.
+    - The new field `supported_L3V4V6` must be true.
 - Verify ACL Capability in STATE_DB on non-supported platforms.
-    - The new field `optimized_V4_in_L3V6` must be false.
-- Create IPv4 ACL rules (match SRC-IP, DST-IP, ICMP Type, ICMP Code, EtherType) on L3V6 ACL table.
+    - The new field `supported_L3V4V6` must be false.
+- Create IPv4 ACL rules (match SRC-IP, DST-IP, ICMP Type, ICMP Code, EtherType) on L3V4V6 ACL table.
   - This MUST pass in supported platforms
   - This should fail with meaningful error messages in non-supported platforms.
-- On supported platforms, test full ACL workflow: create V4 and V6 ACL Rules on L3V6 ACL Table type, set packet action, get the ACL rules and counters, delete ACL rules and then delete the ACL table.
+- Create IPv6 ACL rules (match SRC-IPv6, DST-IPv6, ICMPv6 Type, ICMPv6 Code, EtherType) on L3V4V6 ACL table.
+  - This MUST pass in supported platforms
+  - This should fail with meaningful error messages in non-supported platforms.
+- On supported platforms, test full ACL workflow: create V4 and V6 ACL Rules on L3V4V6 ACL Table type, set packet action, get the ACL rules and counters, delete ACL rules and then delete the ACL table.
   
 #### System Test cases
-* Modify existing sonic-mgmt(PTF) __test_acl.py__ to test v4 ACL rules using L3V6 ACL table  *on supported platforms*
+* Modify existing sonic-mgmt(PTF) __test_acl.py__ to test the L3V4V6 ACL table on ingress and egress  *on supported platforms*
   * Traffic Testing must pass for v4 and v6
   
