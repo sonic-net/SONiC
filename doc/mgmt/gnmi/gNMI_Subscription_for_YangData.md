@@ -116,7 +116,7 @@ but some of its descendent paths do not.
 
 #### 1.2.4 POLL and ONCE subscriptions
 
-Infrastructure should support SAMPLE subscription for all YANG paths.
+Infrastructure should support POLL and ONCE subscriptions for all YANG paths.
 
 #### 1.2.5 Support Wildcard Keys
 
@@ -464,12 +464,13 @@ If the subscribe path is not mapped to any DB table (non-DB data) and does not h
 
 To detect deleted resources, gNMI server will maintain previous iteration's snapshot in a {path, YGOT object} cache.
 Current iteration's data is compared against this cache to identify deleted objects or attributes.
-YGOT API `ygot.Diff()` can be used to compare two YGOT objects.
 Cache will be updated wih the current values at the end of each iteration.
+YGOT `ygot.Diff()` like logic can be used to compare two YGOT objects.
+We observed performance issues with `ygot.Diff()` API, hence it will not be used directly.
 
 gNMI client can set `suppress_redundant` flag in the request to avoid receiving duplicate updates at every sample interval.
 Server should not send an update for a leaf unless its value is modified since last update.
-YGOT snapshot cache will also be used to resolve updated attributes.
+YGOT snapshot cache will also be used to resolve attributes updated/deleted since last notification.
 
 YGOT based diff can be heavier and slower compared to DB entry based cache, like the one used for ON_CHANGE.
 However such cache cannot be used for non-DB data.
