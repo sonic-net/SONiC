@@ -942,6 +942,13 @@ type XfmrSubscOutParams struct {
   isVirtualTbl bool                 // to specify if the DB tale is present or not
 }
 
+// to map the DB number, table, key, field names to the leaf/leaf-list nodes of the yang path
+type RedisDbSubscribeMap = map[db.DBNum]map[string]map[string]map[string]string
+
+// to map the DB number, table, key, field names / processOnchange callback function to the particular leaf/leaf-list node of the yang path
+// if the rest of the leaf/leaf-list nodes of the same container/list is mapped to different DB table
+type RedisDbYgNodeMap = map[db.DBNum]map[string]map[string]interface{}
+
 // notificationOpts to define sample interval time and notification preference type
 type notificationOpts struct {
   mInterval int              // sample subscription interval time
