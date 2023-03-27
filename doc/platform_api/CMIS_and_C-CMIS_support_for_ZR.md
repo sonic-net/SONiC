@@ -747,6 +747,53 @@ This command displays information for all the interfaces for the transceiver req
   Host Input Loopback : False
   ```
 
+- **show interfaces transceiver dom**
+
+    Expected output for "show interfaces transceiver dom \<port\>" CLI.
+
+    Please note that in the below o/p, the line starting with "Section" will not be printed with CLI o/p. It is currently present just for information purpose only.
+
+    **Laser config frequency, Laser current frequency and Tx config power** will show value as N/A for non C_CMIS transveivers and threshold values
+    ```
+                                  Live          High Alarm  High Warn   Low Warn    Low Alarm
+    Sensor Type                   Measurement   Threshold   Threshold   Threshold   Threshold
+    -------                       ------------  ----------  ----------  ----------  ----------
+    Section 1 - Common fields for all types (CCMIS, CMIS, SFF8636 (QSFP28), SFF8436 (QSFP+), SFF8472 (QSFP+))
+    Laser config frequency [GHz]
+    Laser current frequency [GHz]
+    Tx config power [dBm]
+    Case Temperature [C]
+    Voltage [V]
+    Tx Bias Channel [mA]          [Val1, .. Valn]
+    Tx Bias Power [dBm]           [Val1, .. Valn]
+    Rx Power [dBm]                [Val1, .. Valn]
+
+    Section 2 - Fields specific for CMIS + CCMIS
+    Lase Temperatue [C]
+    Post-FEC BER
+    Pre-FEC BER
+
+    Section 3 - Fields specific for CCMIS
+    Bias X/I [%]
+    Bias X_Phase [%]
+    Bias X/Q [%]
+    Bias Y/I [%]
+    Bias Y_Phase [%]
+    Bias Y/Q [%]
+    SOP ROC [krad/s]
+    CD – Long Link [Ps/nm]
+    CD – Short Link [Ps/nm]
+    CFO [MHz]
+    DGD [Ps]
+    eSNR [dB]
+    OSNR [dB]
+    PDL [dB]
+    Rx signal power[dBm]
+    Rx total power[dBm]
+    SOPMD [Ps^2]
+    Tx Power [dBm]
+    ```
+
 #### 2.3 Config_DB Schema ####
 ##### 2.3.1 Transceiver Config Table #####
 Stores information for physical switch ports managed by the switch chip. Ports to the CPU (ie: management port) and logical ports (loopback) are not declared in the PORT_TABLE. See INTF_TABLE.
