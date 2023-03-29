@@ -1,4 +1,4 @@
-!/usr/bin/env bash
+#!/usr/bin/env bash
 git checkout -b sonic_image_md_update
 git config --global user.email "sonicbld@microsoft.com"
 git config --global user.name "mssonicbld"
