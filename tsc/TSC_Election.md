@@ -78,7 +78,10 @@ Each voting organization or individual will cast their vote to select 9 TSC memb
    * Name
    * Organization
    * Email
+   * SII (with information on how this is calculated)
    * A brief statement of why the nominee wants to serve on the TSC
+
+   A nominee will need to meet a minimum SII score of 100 to be eligible.
 
 2. Voters inform the community of their intention to vote by sending a vote letter to the TSC chair and community manager. The vote letter should include the following information:
    * Name
@@ -86,6 +89,10 @@ Each voting organization or individual will cast their vote to select 9 TSC memb
    * Email
    * SII (with information on how this is calculated)
    * A list of 9 nominees to vote for
+
+   If any individual in an organization decide to cast vote as an individual, then the organization has to exclude the SII contribution from this individual from the overall SII of the organization.
+
+The actual voting process will be conducted by Linux Foundation using OpaVote system (or another system approved by the TSC).  The election process will be conducted in a transparent manner and the results will be published on the SONiC community website.
 
 The top 9 candidates with the highest total SII will be elected as TSC members.
 
