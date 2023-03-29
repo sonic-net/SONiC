@@ -1,4 +1,4 @@
-!/usr/bin/env bash
+#!/usr/bin/env bash
 git checkout -b sonic_image_md_update
 git config --global user.email "sonicbld@microsoft.com"
 git config --global user.name "mssonicbld"
@@ -176,10 +176,10 @@ echo "| 104   | Quanta        | T4048-IX8      	| Broadcom    | Trident 3       
 echo "| 105   | Quanta        | T4048-IX8C     	| Broadcom    | Trident 3         | 48x25G + 8x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 106   | Quanta        | T7032-IX1B     	| Broadcom    | Tomahawk          | 32x100G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 107   | Quanta        | T9032-IX9      	| Broadcom    | Tomahawk 3        | 32x400G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
-echo "| 108   | Ragile        | b6510-48v8c    	| Broadcom    | Trident 3         | 48x25G+8x100G           | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
-echo "| 109   | Ragile        | b6910-64c    	| Broadcom    | Tomahawk 3        | 64x100G           | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
-echo "| 110   | Ragile        | b6510-32c    	| Broadcom    | Trident 3         | 32x100G           | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
-echo "| 111   | Ragile        | b6920-4s    	| Broadcom    | Tomahawk 3        | 128x100G           | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
+echo "| 108   | Ragile        | RA-B6510-48V8C    	| Broadcom    | Trident 3         | 48x25G+8x100G           | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
+echo "| 109   | Ragile        | RA-B6910-64C    	| Broadcom    | Tomahawk 2        | 64x100G           | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
+echo "| 110   | Ragile        | RA-B6510-32C    	| Broadcom    | Trident 3         | 32x100G           | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
+echo "| 111   | Ragile        | RA-B6920-4S    	| Broadcom    | Tomahawk 3        | 128x100G           | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 112   | Tencent       | TCS8400-24CC8CD | Broadcom    | Trident 4         | 24x200G + 8x400G        | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 113   | Tencent       | TCS9400-128CC   | Broadcom    | Tomahawk 4        | 128x200G                | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 114   | Wistron 	  | sw-to3200k  	| Marvell     | Teralynx 7        | 32x400G              |[SONiC-ONIE-Innovium]($(echo "${ARTF_INNO}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-innovium-dbg.bin/')) |" >> supported_devices_platforms.md
