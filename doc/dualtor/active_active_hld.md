@@ -53,6 +53,8 @@ This document provides the high level design of SONiC dual toR solution, support
     - [3.8.3 BGP update delay](#383-bgp-update-delay)
     - [3.8.4 Skip adding ingress drop ACL](#384-skip-adding-ingress-drop-acl)
   - [3.9 Command Line](#39-command-line)
+    - [3.9.1 Show mux status](#391-show-mux-status)
+    - [3.9.2 Show mux config](#392-show-mux-config)
 
 [4 Warm Reboot Support](#4-warm-reboot-support)
 
@@ -486,7 +488,65 @@ Previously, at a high level, when the mux port comes to standby, the MuxOrch add
 A change to skip the installation of ingress drop ACL rule when toggling standby is introduced to forward the upstream traffic with best effort. This is because that, though the mux port is already in standby state in this period, the removal of the ingress drop ACL could allow the upstream traffic to reach the ToR and to be possibly forwarded by the ToR.
 
 ### 3.9 Command Line
-TBD 
+This part only covers the command lines and options for active-active dualtor.
+
+#### 3.9.1 Show mux status
+`show mux status` returns the mux status for mux ports:
+  * `PORT`: mux port name
+  * `STATUS`: current mux status, could be either `active` or `standby`
+  * `SERVER_STATUS`: the mux status read from mux server as the result of last toggle
+    * `active`: mux server returned `active` as the result of last toggle to `active`
+    * `standby`: mux server returned `standby` as the result of last toggle to `standby`
+    * `unknown`: last toggle failed to switch the mux server status, or failed to read the status from the mux server
+    * `error`: last toggle failed to switch the orchagent status
+  * `HEALTH`: mux port health
+    *  `healthy`: it means that the ToR could receive link probe replies from the mux server, the following conditions must be satisfied for a mux port to be `healthy`:
+       * port status is `up`
+       * could receive replies for self link probes
+       * current mux status(`STATUS`) should match server status(`SERVER_STATUS`) or server status is `unknown`
+       * default route to T1s is present
+    *  `unheathy`: any of the above `healthy` conditions is broken
+  * `HWSTATUS`: check if current mux status matches server status
+    * `consistent`: `STATUS` matches `SERVER_STATUS`
+    * `inconsistent`: `STATUS` doesn't matches `SERVER_STATUS`
+    * `absent`: `SERVER_STATUS` is not present
+  * `LAST_SWITCHOVER_TIME`: last switchover timestamp
+
+```
+$ show mux status
+PORT        STATUS    SERVER_STATUS    HEALTH    HWSTATUS    LAST_SWITCHOVER_TIME
+----------  --------  ---------------  --------  ----------  ---------------------------
+Ethernet4   active    active           healthy   consistent  2023-Mar-27 07:57:43.314674
+Ethernet8   active    active           healthy   consistent  2023-Mar-27 07:59:33.227819
+```
+
+#### 3.9.2 Show mux config
+`show mux config` returns the mux configurations:
+  * `SWITCH_NAME`: peer switch hostname
+  * `PEER_TOR`: peer switch loopback address
+  * `PORT`: mux port name
+  * `state`: mux mode configuration
+    * `auto`: enable failover logics for both self and peer
+    * `manual`: disable failover logics for both self and peer
+    * `active`: if current mux status is not `active`, toggle the mux to `active` once, then work in `manual` mode
+    * `standby`: if current mux status is not `standby`, toggle the mux `standby` once, then work in `manual` mode
+    * `detach`: enable failover logics only for self
+  * `ipv4`: mux server ipv4 address
+  * `ipv6`: mux server ipv6 address
+  * `cable_type`: mux cable type, `active-active` for active-active dualtor
+  * `soc_ipv4`: soc ipv4 address
+
+```
+$ show mux config
+SWITCH_NAME        PEER_TOR
+-----------------  ----------
+lab-switch-2  10.1.0.33
+port        state    ipv4             ipv6               cable_type     soc_ipv4
+----------  -------  ---------------  -----------------  -------------  ---------------
+Ethernet4   auto     192.168.0.2/32   fc02:1000::2/128   active-active  192.168.0.3/32
+Ethernet8   auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32
+```
+
 
 ## 4 Warm Reboot Support
 TBD
