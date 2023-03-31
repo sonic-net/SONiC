@@ -74,11 +74,17 @@
  A new script file, dockers/docker-database/http-server, will be added as part of this http-server process which will be used to parse the configuration parameters provided by chassisdb.conf mentioned above.
  If start_http_server is set to '1', this process will spawn python http-server. If this parameter is not provided or not set to '1', the http-server will not run.
 
- The platform is required to provide the http home directory, where shared files will be stored for http server. The default path is /var/www/. The directory path should be accessible within the database-chassis server. This could be achieved by adding the access as below in docker-databse.mk in platform PATH, \<sonic ws root\>/platform/\<platform dir\>/docker-databse.mk
+ The default http home dir will be /var/www. To make directory path accessible wihtin database-chassis docker, following code will be added to docker-database.mk:
+  ```
+  $(DOCKER_DATABASE)_RUN_OPT += -v /var/www/:/var/www/:ro
+ ```
+ 
+ The platform may provide a different http home directory, where shared files will be stored for http server. The directory path should be accessible within the database-chassis server. This could be achieved by adding the access as below example in platform's docker-database.mk, \<sonic ws root\>/platform/\<platform dir\>/docker-database.mk
 
  ```
-  $(DOCKER_DATABASE)_RUN_OPT += -v /var/www/:/var/www:ro
+  $(DOCKER_DATABASE)_RUN_OPT += -v /var/www/tftp/:/var/www/tftp/:ro
  ```
+The path defined in the docker-database should be used to define http_server_dir in chassisdb.conf.
 
  Line Card modules may use the redis_chassis.server:8000 (host:port) to connect to the http-server to request the files hosted by the server.
 
