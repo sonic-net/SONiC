@@ -1205,7 +1205,7 @@ A NxS breakout cable inserted implies following
   - For 4x100G breakout optical module inserted in physcial Ethernet1 port, implies: Ethernet8, Ethernet10, Ethernet12, Ethernet14
   - Note: This is done is this manner to keep such assignments uniform across various breakout modes viz.1x, 2x, 4x, 8x
 - Speed of each sub-port is S Gpbs
-- Unique channel# is assigned to each of the N sub-port starting with channel# 1 (and sequentially incrementing with each sub-port)
+- Unique subport# is assigned to each of the N sub-port starting with subport# 1 (and sequentially incrementing with each sub-port)
 
 **Following is the new design (workflow) for 'port breakout' to work end-to-end with 'CMIS enabled' (in SONiC):**
 
@@ -1214,46 +1214,46 @@ A NxS breakout cable inserted implies following
 ['port breakout feature workflow with CMIS'.pdf](https://github.com/shyam77git/SONiC/files/11022820/port.breakout.feature.workflow.with.CMIS.pdf)
 
 
-- Configure a unique channel # for each broken-down (logical) port in platform's port_config.ini
-   - channel # to start with 1 (and increment sequentailly for each logical port) under the same physcial port
-   - channel # sequence may repeat for logical ports under another physcial port 
-   - channel # as 0 (on a port) implies physical port itself (i.e. no port breakout on it)
-- These channel #s are then parsed and updated in PORT_TABLE of CONFIG redisDB
+- Configure a unique subport# for each broken-down (logical) port in platform's port_config.ini
+   - subport# to start with 1 (and increment sequentailly for each logical port) under the same physcial port
+   - subport# sequence may repeat for logical ports under another physcial port 
+   - subport# as 0 (on a port) implies physical port itself (i.e. no port breakout on it)
+- These subport#s are then parsed and updated in PORT_TABLE of CONFIG redisDB
   - There would be a unique PORT_TABLE for each logical port
-- xcvrd (as subscriber to PORT_TABLE of CONFIG DB), would read these channel #s and perform 'Host side' Lanes assignment as per the following logic
+- xcvrd (as subscriber to PORT_TABLE of CONFIG DB), would read these subport#s and perform 'Host side' Lanes assignment as per the following logic
   - A physical port is broken down into N sub-ports (logical ports)
-  - 8/N ‘Host side’ Lanes are assigned to each Channel # (or sub-port)
+  - 8/N ‘Host side’ Lanes are assigned to each subport# (or sub-port)
   - Consider '4x100G breakout' optical module use-cases
-    It would be 2 lanes per channel (aka sub-port). Refer to 8/N mentioned-above.
-    Total 4 channels and Lane Count is 2
-    - Channel 1: Lanes 1,2
-    - Channel 2: Lanes 3,4
-    - Channel 3: Lanes 5,6
-    - Channel 4: Lanes 7,8
-    
-    ![Screenshot 2023-03-17 at 1 44 09 PM](https://user-images.githubusercontent.com/69485234/226039386-273e6161-9889-4e2d-a2b5-79a62370b231.png)
+    It would be 2 lanes per subport (aka sub-port). Refer to 8/N mentioned-above.
+    Total 4 subports and Lane Count is 2
+    - subport 1: Lanes 1,2
+    - subport 2: Lanes 3,4
+    - subport 3: Lanes 5,6
+    - subport 4: Lanes 7,8
+
+     ![Screenshot 2023-03-31 at 6 38 02 PM](https://user-images.githubusercontent.com/69485234/229259596-4fc3f024-f98e-4458-afe0-4a5b9af29b30.png)
 
   - Consider '2x100G breakout' optical module use-cases
-    It would be 4 lanes per channel (aka sub-port). Refer to 8/N mentioned-above.
-    Total 2 channels and Lane Count is 4
-    - Channel 1: Lanes 1,2,3,4
-    - Channel 2: Lanes 5,6,7,8
+    It would be 4 lanes per subport. Refer to 8/N mentioned-above.
+    Total 2 subports and Lane Count is 4
+    - subport 1: Lanes 1,2,3,4
+    - subport 2: Lanes 5,6,7,8
     
 - Next, xcvrd to initiate CMIS FSM (state machine) initilization for each logical port. 
   Prior to this, xcvrd to perform following steps:
-  - xcvrd to determine Active Lanes (per channel) from the App Advertisement Table of CMIS Spec.
-    - xcvrd to read 'speed', 'channel' and lanes information (of a logical/sub-port) from the PORT_TABLE of CONFIG DB to perform look-up in appl_dict
+  - xcvrd to determine Active Lanes (per subport) from the App Advertisement Table of CMIS Spec.
+    - xcvrd to read 'speed', 'subport' and lanes information (of a logical/sub-port) from the PORT_TABLE of CONFIG DB to perform look-up in appl_dict
     - xcvrd to check Table 6.1 (of CMIS v5.2) to find the desired application (for the inserted optical module) via get_cmis_application_desired() subroutine
         - get_application_advertisement() in xcvrd codebase (cmis.py), which eventually formualtes appl_dict
         - Use the following criteria to determine the right 'key' in appl_dict dictionary for App\<X\>
           - Use 'speed' and compare it to transeiver's EEPROM HostInterfaceID for App\<X\> (First Byte of Table 6.1)
-          - Use '# of lanes' (i.e. host_lane_count per channel) as determined above and compare it to HostLaneCount for App\<X\> (Third Byte of Table 6.1)
+          - Use '# of lanes' (i.e. host_lane_count per subport) as determined above and compare it to HostLaneCount for App\<X\> (Third Byte of Table 6.1)
         - The matched 'key' is the desired application
     - Determine HostLaneMask per logical port (via get_cmis_host_lanes_mask())
         - Use the matched 'key' to infer HostLaneAssignmentOptions
-        - In turn, use HostLaneAssignmentOptions along with 'channel' and 'host_lane_count' to determine HostLaneMask
-    - HostLaneMask is the Active Lanes for the specified channel
-  - xcvrd to use the the Active Lanes (per channel) to kick start CMIS FSM for that logical port
+        - In turn, use HostLaneAssignmentOptions along with 'subport' and 'host_lane_count' to determine HostLaneMask
+    - HostLaneMask is the Active Lanes for the specified subport
+  - xcvrd to use the the Active Lanes (per subport) to kick start CMIS FSM for that logical port
   - xcvrd to follow the existing CMIS FSM workflow all the way to CMIS_STATE_READY and ensure that each logical port link reaches 'opertionally up' state   
     
  **Note**: At present, this utilizes the static method to configure port breakouts (i.e. port_config.ini or mini-graph).<br/><br/>
