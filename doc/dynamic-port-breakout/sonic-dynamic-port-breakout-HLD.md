@@ -1209,9 +1209,9 @@ A NxS breakout cable inserted implies following
 
 **Following is the new design (workflow) for 'port breakout' to work end-to-end with 'CMIS enabled' (in SONiC):**
 
-!['port breakout feature workflow with CMIS'(1)](https://user-images.githubusercontent.com/69485234/226458948-f059bda7-589f-48ab-9e89-3f5b353d93fc.png)
+!['port breakout feature workflow with CMIS'(3)](https://user-images.githubusercontent.com/69485234/229310167-85b1222a-2172-4ae6-b90a-d4648581c2d1.png)
 
-['port breakout feature workflow with CMIS'.pdf](https://github.com/shyam77git/SONiC/files/11022820/port.breakout.feature.workflow.with.CMIS.pdf)
+['port breakout feature workflow with CMIS'.pdf](https://github.com/shyam77git/SONiC/files/11130409/port.breakout.feature.workflow.with.CMIS.pdf)
 
 
 - Configure a unique subport# for each broken-down (logical) port in platform's port_config.ini
@@ -1257,7 +1257,7 @@ A NxS breakout cable inserted implies following
   - xcvrd to follow the existing CMIS FSM workflow all the way to CMIS_STATE_READY and ensure that each logical port link reaches 'opertionally up' state   
     
  **Note**: At present, this utilizes the static method to configure port breakouts (i.e. port_config.ini or mini-graph).<br/><br/>
- **Enhancement**: In near future, this would be enhanced to configure and handle the breakout (on an interface) in a dynamic fashion i.e.via  sonic's #config interface breakout CLI.<br/><br/>However, once the breakout mode/data is made into CONFIG DB (be it via static or dynamic mode), xcvrd workflow (as mentioned above) would remain same.
+ **Enhancement**: In near future, this would be enhanced to configure and funnel the required port breakout attributes (on an interface) in a dynamic fashion as well i.e. via  sonic's #config interface breakout CLI. However, once the breakout mode/data is made into CONFIG DB (be it via static or dynamic mode), above-mentioned xcvrd workflow with CMIS FSM would continue to be exercised.
 
 # Unit test -TBD
 At high level, We will leverage the vs test environment to test:
