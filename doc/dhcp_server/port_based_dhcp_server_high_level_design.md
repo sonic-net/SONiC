@@ -226,9 +226,9 @@ module sonic-dhcp-server-ipv4 {
       "value": "192.168.0.1",
       "type": "ipv4-address"
     },
-    "Vlan1000|38": {
-      "value": "34",
-      "type": "uint32"
+    "Vlan1000|42": {
+      "value": "192.168.8.1",
+      "type": "ipv4-address"
     }
   }
 }
@@ -379,7 +379,7 @@ We can set tag for each DHCP interface, all DHCP clients connected to this inter
 | 53                      | Message Type           |
 | 54                      | DHCP Server ID      |
 
-Supported type of option value are: ipv4-address, text, uint8, uint16, uint32, uint64, int8, int16, int32, int64, boolean.
+Currently only support text and ipv4-address type.
 
 ## 3.6 Flow Diagrams
 ### 3.6.1 Config Change Flow
@@ -474,7 +474,7 @@ Type field can refer to [#3.5 Customize DHCP Packet Options](#35-customize-dhcp-
 
 - Example
   ```
-  config dhcp_server ipv4 option add Vlan1000 42 ip-address 192.168.0.1
+  config dhcp_server ipv4 option add Vlan1000 42 ipv4-address 192.168.0.1
   ```
 
 **config dhcp_server option del**
@@ -552,16 +552,14 @@ This command is used to show dhcp_server customized option.
   +-------------+-------+------------+-------------+
   |Interface    |Option |Value       |Type         |
   |-------------+-------+------------+-------------+
-  |Vlan1000     |19     |1           |boolean      |
-  |             |42     |192.168.0.1 |ipv4-address |
+  |Vlan1000     |42     |192.168.0.1 |ipv4-address |
   +-------------+-------+------------+-------------+
 
   show dhcp_server ipv4 option
   +-------------+-------+------------+-------------+
   |Interface    |Option |Value       |Type         |
   |-------------+-------+------------+-------------+
-  |Vlan1000     |19     |1           |boolean      |
-  |             |42     |192.168.0.1 |ipv4-address |
+  |Vlan1000     |42     |192.168.0.1 |ipv4-address |
   +-------------+-------+------------+-------------+
   |PortChannel1 |42     |192.168.8.1 |ipv4-address |
   +-------------+-------+------------+-------------+
