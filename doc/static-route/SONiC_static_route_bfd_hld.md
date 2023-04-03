@@ -65,7 +65,7 @@ Four tables (i.e., dictionary, map, etc) are needed to use BFD session to monito
 1. TABLE_CONFIG: config_db STATIC_ROUTE_TABLE cache (for the route with "bfd"="true" only)
 2. TABLE_NEXTHOP: different prefixes may have same nexthop. This table is used to track which prefix is using the nexthop.
 3. TABLE_BFD: bfd session created by StaticRouteBfd. The contents are part of appl_db BFD_SESSION_TABLE (for the session its peer IP is in nexthop table). *Assumption: BFD session is not shared with other applications*
-4. TABLE_SR: the static routes written to appl_db STATIC_ROUTE_TABLE by BfdRouteManager (with "expiry"="false"). It's nexthop list might be different from the configuration depends on BFD session state.<br>
+4. TABLE_SRT: the static routes written to appl_db STATIC_ROUTE_TABLE by BfdRouteManager (with "expiry"="false"). It's nexthop list might be different from the configuration depends on BFD session state.<br>
 
 <img src="static_rt_bfd_table.png" width="400">
 <br  />  
@@ -77,12 +77,12 @@ When a new static route is added to config_db STATIC_ROUTE_TABLE, the following 
 * 2\. StaticRouteBfd check TABLE_CONFIG to see if the route is already in this table
    * If the route is NOT in the TABLE_CONFIG:
        * A new route will be added to TABLE_CONFIG.
-       * A new route will be added to TABLE_SR, but make it's nexthop list empty (BFD state update will modify the nexthop list).
+       * A new route will be added to TABLE_SRT, but make it's nexthop list empty (BFD state update will modify the nexthop list).
        * For each next hop, need to check TABLE_NEXTHOP,
             1. if the entry already exist, add prefix to the existing nexthop entry, break.
             2. create a new entry with prefix if there is no such entry yet, update TABLE_BFD and write it to redis appl_db BFD_SESSION_TABLE to create BFD session
    * If the route is in the TABLE_CONFIG already, update the corresponding fields. For nexthop list, compare it to identify which nexthop is new added and which is deleted.
-       * For the new added nexthop, add to TABLE_SR.
+       * For the new added nexthop, add to TABLE_SRT.
        * For the deleted nexthop, look up the TABLE_NEXTHOP to get nexthop entry. Remove the prefix from the nexthop entry.
             1. if the is no prefix in that nexthop entry, delete the corresponding BFD sessions (from redis appl_db and state_db) and delete that nexhop entry 
 
@@ -101,7 +101,7 @@ StaticRouteBfd will be notified if there is any update in state_db BFD_SESSION_T
 
 * 1\. Look up TABLE_BFD, ignore the event if session is not found in local table. Otherwise get the nexthop 
 * 2\. Look up TABLE_NEXTHOP using nexthop from step #1, get nexthop entry
-* 3\. For each prefix in the nexthop entry, lookup TABLE_SR table to get the static route entry.
+* 3\. For each prefix in the nexthop entry, lookup TABLE_SRT table to get the static route entry.
     * If the BFD session state is UP and this nexthop is in the static route entry's nexthop list, no action needed, break;
     * If the BFD session state is UP and this nexthop is NOT in the static route entry's nexthop list:
         * Add this nexthop to the static route entry's nexthop list, set "expiry": "false", write this static route to redis appl_db STATIC_ROUTE_TABLE.
@@ -135,15 +135,15 @@ Loop each entry in TABLE_CONFIG, build TABLE_NEXTHOP
 * 2\. loop TABLE_NEXTHOP, create BFD session for the nexthop which has no corresponding entry in TABLE_BFD
 <br>
 
-### Build TABLE_SR and sync-up with redis appl_db STATIC_ROUTE_TABLE
-* 1\. loop TABLE_CONFIG to build TABLE_SR with empty nexthop list
+### Build TABLE_SRT and sync-up with redis appl_db STATIC_ROUTE_TABLE
+* 1\. loop TABLE_CONFIG to build TABLE_SRT with empty nexthop list
 * 2\. read redis state_db BFD_SESSION_TABLE, for each BFD session in TABLE_BFD and the BFD session state is UP, get nexthop
-    * Get prefix list from TABLE_NEXTHOP, and loop this list. For each prefix lookup TABLE_SR to get prefix entry
+    * Get prefix list from TABLE_NEXTHOP, and loop this list. For each prefix lookup TABLE_SRT to get prefix entry
         * Add the above nexthop to this prefix's nexthop list
 * 3\. read redis appl_db STATIC_ROUTE_TABLE, collect all the entries with "expiry"="false" (StaticRouteBfd created static route entry)
-* 4\. loop TABLE_SR table, for each static route, compare with the route in above step #3, 
+* 4\. loop TABLE_SRT table, for each static route, compare with the route in above step #3, 
     * Skip this entry if the static route matches (same nexthop list)
-    * Delete the redis appl_db static route if the nexthop list is empty in TABLE_SR
+    * Delete the redis appl_db static route if the nexthop list is empty in TABLE_SRT
     * Update static route in redis appl_db, "expiry"="false".
 <br>
 
@@ -158,7 +158,7 @@ A few examples for the cases that adding/deleting static route, and also differe
 ### Add static route for prefix1 with 3 nexthop (nh_a, nh_b and nh_c)
 
 1. when static route prefix1  ("bfd"="true") is added to config_db STATIC_ROUTE_TABLE, StaticRouteBfd creates an entry in TABLE_CONFIG, include all the information for this static route
-2. StaticRouteBfd also creates an entry in TABLE_SR, includes all the information in this static route but nexthop list is empty.
+2. StaticRouteBfd also creates an entry in TABLE_SRT, includes all the information in this static route but nexthop list is empty.
 3. For each nexthop in the nexthop list, nh_a, nh_b and nh_c, StaticRouteBfd creates an entry in TABLE_NEXTHOP, prefix1 is added to their prefix list.
 4. for each nexthop, a BFD entry is added to TABLE_BFD
 5. for each BFD entry, BFD session will be created by writing to appl_db BFD_SESSION_TABLE
@@ -170,7 +170,7 @@ A few examples for the cases that adding/deleting static route, and also differe
 ### Add static route for prefix2 with 2 nexthop (nh_a and nh_b)
 
 1. when static route prefix2  ("bfd"="true") is added to config_db STATIC_ROUTE_TABLE, StaticRouteBfd creates an entry in TABLE_CONFIG, include all the information for this static route
-2. StaticRouteBfd also creates an entry in TABLE_SR, includes all the information in this static route but nexthop list is empty.
+2. StaticRouteBfd also creates an entry in TABLE_SRT, includes all the information in this static route but nexthop list is empty.
 3. For each nexthop in the nexthop list, nh_a and nh_b, because they are alerady in the TABLE_NEXTHOP, StaticRouteBfd add prefix2 to nh_a and nh_b's prefix list, don't need to create BFD sessions because they were created when add prefix1
 
 <img src="static_rt_bfd_example2.png" width="400">
@@ -180,7 +180,7 @@ A few examples for the cases that adding/deleting static route, and also differe
 ### Add static route for prefix3 with nexthop nh_c (similar with prefix2)
 
 1. when static route prefix3  ("bfd"="true") is added to config_db STATIC_ROUTE_TABLE, StaticRouteBfd creates an entry in TABLE_CONFIG, include all the information for this static route
-2. StaticRouteBfd also creates an entry in TABLE_SR, includes all the information in this static route but nexthop list is empty.
+2. StaticRouteBfd also creates an entry in TABLE_SRT, includes all the information in this static route but nexthop list is empty.
 3. For nh_c, because they are alerady in the TABLE_NEXTHOP, StaticRouteBfd add prefix3 to nh_c's prefix list, don't need to create BFD sessions because they were created when add prefix1
 <img src="static_rt_bfd_example3.png" width="400">
 <br>
