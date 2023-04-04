@@ -121,7 +121,7 @@ echo "| 49   | Dell |	S5224F 	| Broadcom 	| Trident 3.X5  |	24x25G+4x100G |	[SON
 echo "| 50   | Dell          | S5232F-ON     		| Broadcom    | Trident 3         | 32x100G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 51   | Dell          | S5248F-ON     		| Broadcom    | Trident 3-2T      | 48x25G,4x100G,2x200G   | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 52   | Dell		   | s5296F				| Broadcom	  | Trident 3		  | 96x25G				   | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
-echo "| 53   | Dell          | S6000-ON       		| Broadcom    | Trident 2         | 32x40G                  | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
+echo "| 53   | Dell          | S6000-ON*       		| Broadcom    | Trident 2         | 32x40G                  | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 54   | Dell          | S6100-ON       		| Broadcom    | Tomahawk          | 64x40G                  | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 55   | Dell          | Z9100-ON      		| Broadcom    | Tomahawk          | 32x100G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 56   | Dell          | Z9264F-ON          		| Broadcom    | Tomahawk 2        | 64x100G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
@@ -186,7 +186,7 @@ echo "| 114   | Wistron 	  | sw-to3200k  	| Marvell     | Teralynx 7        | 32
 echo "| 115   | Wistron 	  | 6512-32r  		| Marvell     | Teralynx 7        | 32x400G              |[SONiC-ONIE-Innovium]($(echo "${ARTF_INNO}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-innovium-dbg.bin/')) |" >> supported_devices_platforms.md
 echo "| 116   | Wnc           | OSW1800        	| Intel       | Tofino            | 48x25G + 6x100G         | [SONiC-ONIE-Barefoot]($(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-barefoot.bin/')) |" >> supported_devices_platforms.md
 
-
+Note : Dell S6000-ON* supports the build till 202012 release image. No other image after 202012 release works on S6000.
 	
 done
 
