@@ -172,7 +172,7 @@ Example configuration:
     "Ethernet0.100|192.0.0.1/21": {},
     "Ethernet0.100|fc0a::/112": {}
     "Eth64.10": {
-        “vlan” : 100,
+        "vlan" : 100,
         "admin_status" : "up"
     },
     "Eth64.10|192.168.0.1/21": {},
@@ -750,16 +750,16 @@ Wenda would like to thank his colleagues with Microsoft SONiC team, Shuotian, Pr
 
 [2] Remove the need to create an object id for vlan in creating a sub port router interface https://github.com/opencomputeproject/SAI/pull/998
 
-[3] Sub port interface schema https://github.com/Azure/sonic-swss-common/pull/284
+[3] Sub port interface schema https://github.com/sonic-net/sonic-swss-common/pull/284
 
-[4] Sub port interface implementation https://github.com/Azure/sonic-swss/pull/969
+[4] Sub port interface implementation https://github.com/sonic-net/sonic-swss/pull/969
 
-[5] Use dot1p in packet 802.1q tag to map a packet to traffic class (TC) inside a switch pipeline https://github.com/Azure/sonic-swss/pull/871; https://github.com/Azure/sonic-buildimage/pull/3412; https://github.com/Azure/sonic-buildimage/pull/3422
+[5] Use dot1p in packet 802.1q tag to map a packet to traffic class (TC) inside a switch pipeline https://github.com/sonic-net/sonic-swss/pull/871; https://github.com/sonic-net/sonic-buildimage/pull/3412; https://github.com/sonic-net/sonic-buildimage/pull/3422
 
-[6] Generate a CONFIG_DB with sub port interface config from minigraph https://github.com/Azure/sonic-buildimage/pull/3413
+[6] Generate a CONFIG_DB with sub port interface config from minigraph https://github.com/sonic-net/sonic-buildimage/pull/3413
 
-[7] CLI to support sub port interface admin status change https://github.com/Azure/sonic-utilities/pull/638
+[7] CLI to support sub port interface admin status change https://github.com/sonic-net/sonic-utilities/pull/638
 
-[8] CLI to show subinterfaces status https://github.com/Azure/sonic-utilities/pull/642
+[8] CLI to show subinterfaces status https://github.com/sonic-net/sonic-utilities/pull/642
 
-[8] CLI to add/del ip address on a sub port interface https://github.com/Azure/sonic-utilities/pull/651
+[8] CLI to add/del ip address on a sub port interface https://github.com/sonic-net/sonic-utilities/pull/651
