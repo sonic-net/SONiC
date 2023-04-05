@@ -13,7 +13,7 @@
 | References 		    |     Date/Version    |   		    Link     	 	|
 |:-------------------------:|:-------------------:|:-----------------------------------:|
 | RFC 7950                  | August 2016         | https://tools.ietf.org/html/rfc7950 |
-| Management Framework      | 0.9                 | https://github.com/Azure/SONiC/pull/436 |
+| Management Framework      | 0.9                 | https://github.com/sonic-net/SONiC/pull/436 |
 
 ## Terminology and Acronyms
 | Acronyms 		    |    Description/Expansion      |
@@ -24,9 +24,9 @@
 
 
 ## Overview
- This document lists the guidelines, which will be used to write YANG Modules for SONiC. These YANG Modules (called SONiC YANG models) will be primarily based on or represent the ABNF.json of SONiC, and the syntax of YANG models must follow RFC 7950 ([https://tools.ietf.org/html/rfc7950](https://tools.ietf.org/html/rfc7950)).  Details of config in format of ABNF.json can be found at https://github.com/Azure/SONiC/wiki/Configuration.
+ This document lists the guidelines, which will be used to write YANG Modules for SONiC. These YANG Modules (called SONiC YANG models) will be primarily based on or represent the ABNF.json of SONiC, and the syntax of YANG models must follow RFC 7950 ([https://tools.ietf.org/html/rfc7950](https://tools.ietf.org/html/rfc7950)).  Details of config in format of ABNF.json can be found at https://github.com/sonic-net/SONiC/wiki/Configuration.
 
-These YANG models will be used to verify the configuration for SONiC switches, so a library which supports validation of configuration on SONiC Switch must use these YANG Models. List of such Libraries are: 1.) Configuration Validation Library. (CVL).  YANG models, which are written using these guidelines can also be used as User End YANG Models, i.e North Bound configuration tools or CLI can provide config data in sync with these YANG models. For example [SONiC Management Framework](https://github.com/Azure/SONiC/pull/436) uses SONiC YANG models as Northbound Management YANG and for configuration validation purpose also.
+These YANG models will be used to verify the configuration for SONiC switches, so a library which supports validation of configuration on SONiC Switch must use these YANG Models. List of such Libraries are: 1.) Configuration Validation Library. (CVL).  YANG models, which are written using these guidelines can also be used as User End YANG Models, i.e North Bound configuration tools or CLI can provide config data in sync with these YANG models. For example [SONiC Management Framework](https://github.com/sonic-net/SONiC/pull/436) uses SONiC YANG models as Northbound Management YANG and for configuration validation purpose also.
 
 ## Guidelines
 
