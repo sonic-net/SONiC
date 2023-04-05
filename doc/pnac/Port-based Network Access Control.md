@@ -195,7 +195,7 @@ No changes to SAI spec for supporting PNAC.
 
 The following figure illustrates how clients like PCs and printers are authenticated and authorized for accessing the network.   
 
-![pnac-deployment](images/PNAC_Deployment.jpg)
+![pnac-deployment](images/PNAC_Deployment.JPG)
 
 
 **Figure 1 : PNAC target deployment use cases**   
@@ -269,7 +269,7 @@ PNAC is composed of multiple sub-modules.
 
 ### 3.1.1 Configuration flow
 
-![pnac-config-flow](images/PNAC_Config_Flow.jpg)
+![pnac-config-flow](images/PNAC_Config_Flow.JPG)
 
 **Figure 2: PNAC service daemon and configuration flow**
 
@@ -283,7 +283,7 @@ PNAC is composed of multiple sub-modules.
 
 ### 3.1.2 EAPoL receive flow
 
-![pnac-eapol-rx-flow](images/PNAC_EAPoL_Rx_Flow.jpg)
+![pnac-eapol-rx-flow](images/PNAC_EAPoL_Rx_Flow.JPG)
 
 
 **Figure 3: EAPOL receive flow**
@@ -301,7 +301,7 @@ PNAC is composed of multiple sub-modules.
 
 ### 3.1.3 MAB packet receive flow
 
-![pnac-mab-rx-flow](images/PNAC_MAB_Rx_Flow.jpg)
+![pnac-mab-rx-flow](images/PNAC_MAB_Rx_Flow.JPG)
 
 
 **Figure 4: MAB PDU receive flow**
