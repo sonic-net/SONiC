@@ -769,7 +769,7 @@ This command displays information for all the interfaces for the transceiver req
     Rx Power [dBm]                [Val1, .. Valn]
 
     Section 2 - Fields specific for CMIS + CCMIS
-    Lase Temperatue [C]
+    Laser Temperatue [C]
     Post-FEC BER
     Pre-FEC BER
 
