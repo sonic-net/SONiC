@@ -764,7 +764,7 @@ This command displays information for all the interfaces for the transceiver req
     Tx config power [dBm]
     Case Temperature [C]
     Voltage [V]
-    Tx Bias Channel [mA]          [Val1, .. Valn]
+    Tx Bias [mA]                  [Val1, .. Valn]
     Tx Power [dBm]                [Val1, .. Valn]
     Rx Power [dBm]                [Val1, .. Valn]
 
