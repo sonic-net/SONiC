@@ -765,7 +765,7 @@ This command displays information for all the interfaces for the transceiver req
     Case Temperature [C]
     Voltage [V]
     Tx Bias Channel [mA]          [Val1, .. Valn]
-    Tx Bias Power [dBm]           [Val1, .. Valn]
+    Tx Power [dBm]                [Val1, .. Valn]
     Rx Power [dBm]                [Val1, .. Valn]
 
     Section 2 - Fields specific for CMIS + CCMIS
@@ -791,7 +791,6 @@ This command displays information for all the interfaces for the transceiver req
     Rx signal power[dBm]
     Rx total power[dBm]
     SOPMD [Ps^2]
-    Tx Power [dBm]
     ```
 
 #### 2.3 Config_DB Schema ####
