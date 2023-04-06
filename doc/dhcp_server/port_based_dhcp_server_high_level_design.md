@@ -390,20 +390,20 @@ This sequence figure describe the work flow for state_db changed by new mac lear
 ### 3.6.3 Lease Update Flow
 Below sequence figure describes the work flow how dnsmasq updates lease table while new lease is created.
 
-<div align="center"> <img src=images/lease_update_flow_new.png width=560 /> </div>
+<div align="center"> <img src=images/lease_update_flow_new.png width=400 /> </div>
 
 Below sequence figure describes the work flow how dnsmasq updates lease table while exist lease is released.
 
-<div align="center"> <img src=images/lease_update_flow_release.png width=640 /> </div>
+<div align="center"> <img src=images/lease_update_flow_release.png width=400 /> </div>
 
 ### 3.6.4 Count Table Update Flow
 This sequence figure describe the update work flow for updating packet counter table in STATE_DB.
 
 Below sequence figure describes the work flow about server logging process while sending or receiving DHCP packets.
-<div align="center"> <img src=images/packet_log_flow.png width=630 /> </div>
+<div align="center"> <img src=images/packet_log_flow.png width=430 /> </div>
 
 Below sequence figure describes the work flow how to update DHCP_SERVER_IPV4_COUNTER table after log file changed.
-<div align="center"> <img src=images/log_counter_flow.png width=680 /> </div>
+<div align="center"> <img src=images/log_counter_flow.png width=450 /> </div>
 
 
 ## 3.7 CLI
