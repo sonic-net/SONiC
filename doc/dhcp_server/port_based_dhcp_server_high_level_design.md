@@ -24,8 +24,7 @@
     - [3.2.2 State DB](#322-state-db)
       - [3.2.2.1 Yang Model](#3221-yang-model)
       - [3.2.2.2 DB Objects](#3222-db-objects)
-  - [3.3 Switch State Service Design](#33-switch-state-service-design)
-    - [3.3.1 DhcpMgr Daemon](#331-dhcpmgr-daemon)
+  - [3.3 DhcpMgr Daemon](#33-dhcpmgr-daemon)
   - [3.4 Lease Update Script](#34-lease-update-script)
   - [3.5 Customize DHCP Packet Options](#35-customize-dhcp-packet-options)
   - [3.6 Flow Diagrams](#36-flow-diagrams)
@@ -111,7 +110,7 @@ The design overview at a high level is as below. The details are explained in th
 
 ## 3.2 DB Changes
 ### 3.2.1 Config DB
-Following table changes would be added in Config DB, including **DHCP_SERVER_IPV4** table and **DHCP_SERVER_IPV4_PORT** table.
+Following table changes would be added in Config DB, including **DHCP_SERVER_IPV4** table, **DHCP_SERVER_IPV4_PORT** table and **DHCP_SERVER_IPV4_CUSTOMIZE_OPTION** table.
 
 These new tables are introduced to specify configuration of DHCP Server.
 
@@ -345,8 +344,7 @@ module sonic-dhcp-server-ipv4-counter {
 }
 ```
 
-## 3.3 Switch State Service Design
-### 3.3.1 DhcpMgr Daemon 
+## 3.3 DhcpMgr Daemon
 DhcpMgrd is daemon process to perform DHCP server related work. 
 
 **1) Monitor DB table changes**
@@ -367,19 +365,18 @@ Dnsmasq supports to specify a customize script to execute whenever a new DHCP le
 
 ## 3.5 Customize DHCP Packet Options
 
-We can customize DHCP Packet Options per DHCP interface by dnsmasq. 
+We can customize DHCP Packet options per DHCP interface by dnsmasq. 
 
 We can set tag for each DHCP interface, all DHCP clients connected to this interface share one tag, and DHCP server would add DHCP options by config to each DHCP packet sent to client. Have to be aware of is that below options are not supported to customize, because they are specified by other config or they are critical options.
 | Option code             | Name                        |
 |--------------------------|----------------------------------|
 | 1                      | Subnet Mask      |
 | 3                      | Router           |
-| 28                      | Broadcast Address           |
 | 51                      | Lease Time      |
 | 53                      | Message Type           |
 | 54                      | DHCP Server ID      |
 
-Currently only support text and ipv4-address type.
+Currently only support text.
 
 ## 3.6 Flow Diagrams
 ### 3.6.1 Config Change Flow
@@ -391,8 +388,6 @@ This sequence figure describe the work flow for state_db changed by new mac lear
 <div align="center"> <img src=images/fdb_change_flow.png width=600 /> </div>
 
 ### 3.6.3 Lease Update Flow
-These sequence figure describe the update work flow for updating lease table in STATE_DB when a new DHCP lease is created. Old lease modifying or deleting is same as new creating. 
-
 Below sequence figure describes the work flow how dnsmasq updates lease table while new lease is created.
 
 <div align="center"> <img src=images/lease_update_flow_new.png width=560 /> </div>
