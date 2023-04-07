@@ -35,7 +35,7 @@
   - [3.7 CLI](#37-cli)
     - [3.7.1 Config CLI](#371-config-cli)
     - [3.7.2 Show CLI](#372-show-cli)
-- [4 Unit test](#4-unit-test)
+- [4 Unit Test](#4-unit-test)
 
 # Revision
 
@@ -221,13 +221,13 @@ module sonic-dhcp-server-ipv4 {
     }
   },
   "DHCP_SERVER_IPV4_CUSTOMIZE_OPTION": {
-    "Vlan1000|6": {
-      "value": "192.168.0.1",
-      "type": "ipv4-address"
+    "Vlan1000|12": {
+      "value": "host_1",
+      "type": "text"
     },
     "Vlan1000|42": {
-      "value": "192.168.8.1",
-      "type": "ipv4-address"
+      "value": "host_2",
+      "type": "text"
     }
   }
 }
@@ -400,7 +400,7 @@ Below sequence figure describes the work flow how dnsmasq updates lease table wh
 This sequence figure describe the update work flow for updating packet counter table in STATE_DB.
 
 Below sequence figure describes the work flow about server logging process while sending or receiving DHCP packets.
-<div align="center"> <img src=images/packet_log_flow.png width=430 /> </div>
+<div align="center"> <img src=images/packet_log_flow.png width=400 /> </div>
 
 Below sequence figure describes the work flow how to update DHCP_SERVER_IPV4_COUNTER table after log file changed.
 <div align="center"> <img src=images/log_counter_flow.png width=450 /> </div>
@@ -469,7 +469,7 @@ Type field can refer to [#3.5 Customize DHCP Packet Options](#35-customize-dhcp-
 
 - Example
   ```
-  config dhcp_server ipv4 option add Vlan1000 42 ipv4-address 192.168.0.1
+  config dhcp_server ipv4 option add Vlan1000 12 text host_1
   ```
 
 **config dhcp_server option del**
@@ -547,16 +547,16 @@ This command is used to show dhcp_server customized option.
   +-------------+-------+------------+-------------+
   |Interface    |Option |Value       |Type         |
   |-------------+-------+------------+-------------+
-  |Vlan1000     |42     |192.168.0.1 |ipv4-address |
+  |Vlan1000     |12     |host_1      |text         |
   +-------------+-------+------------+-------------+
 
   show dhcp_server ipv4 option
   +-------------+-------+------------+-------------+
   |Interface    |Option |Value       |Type         |
   |-------------+-------+------------+-------------+
-  |Vlan1000     |42     |192.168.0.1 |ipv4-address |
+  |Vlan1000     |12     |host_1      |text         |
   +-------------+-------+------------+-------------+
-  |PortChannel1 |42     |192.168.8.1 |ipv4-address |
+  |PortChannel1 |12     |host_2      |text         |
   +-------------+-------+------------+-------------+
   ```
 
@@ -627,7 +627,7 @@ This command is used to show dhcp_server lease.
   |Vlan1001   |2e:2e:2e:2e:2e:2e |192.168.8.2 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
   +-----------+------------------+------------+--------------------+--------------------+
 
-### 3.5.3 Clear CLI
+### 3.7.3 Clear CLI
 **sonic-clear dhcp_server ipv4 counter**
 This command is used to clear dhcp_server counter.
 - Usage
@@ -640,7 +640,7 @@ This command is used to clear dhcp_server counter.
   sonic-clear dhcp_server ipv4 counter Vlan1000
   ```
 
-# 4 Unit test
+# 4 Unit Test
 The Unit test case are as below:
 | No |                Test case summary                          |
 |:----------------------|:-----------------------------------------------------------|
