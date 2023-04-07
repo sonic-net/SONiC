@@ -35,6 +35,7 @@
   - [3.7 CLI](#37-cli)
     - [3.7.1 Config CLI](#371-config-cli)
     - [3.7.2 Show CLI](#372-show-cli)
+    - [3.7.3 Clear CLI](#373-clear-cli)
 - [4 Unit Test](#4-unit-test)
 
 # Revision
