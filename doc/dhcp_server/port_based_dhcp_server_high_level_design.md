@@ -225,10 +225,6 @@ module sonic-dhcp-server-ipv4 {
     "Vlan1000|12": {
       "value": "host_1",
       "type": "text"
-    },
-    "Vlan1000|42": {
-      "value": "host_2",
-      "type": "text"
     }
   }
 }
@@ -377,7 +373,7 @@ We can set tag for each DHCP interface, all DHCP clients connected to this inter
 | 53                      | Message Type           |
 | 54                      | DHCP Server ID      |
 
-Currently only support text.
+Currently only support text, ipv4-address.
 
 ## 3.6 Flow Diagrams
 ### 3.6.1 Config Change Flow
