@@ -158,7 +158,7 @@ Sun 15 Jan 2023 06:12:08 PM IST
 ```
 
 ```
-root@host:~$ show clock-timezones
+root@host:~$ show clock timezones
 Africa/Abidjan
 Africa/Accra
 Africa/Addis_Ababa
@@ -171,12 +171,12 @@ Africa/Asmara
 ##### Config CLI
 
 ```
-root@host:~$ config clock set-timezone "<timezone>"
+root@host:~$ config clock timezone "<timezone>"
 
 ```
 
 ```
-root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
+root@host:~$ config clock date <YYYY-MM-DD> <HH:MM:SS>
 
 ```
 
