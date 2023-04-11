@@ -209,8 +209,8 @@ The value should contain a JSON serialized as a string.
 | /processes | list   | no        | A list defining processes running inside the container.                                          |
 | /cli       | object | no        | CLI plugin information. *NOTE*: Later will deprecated and replaced with a YANG module file path. |
 | /cli/mandatory         | boolean| no        | Wether CLI is a mandatory functionality for the package. Default: False. |
-| /cli/show-cli-plugin   | list of string | no        | List of paths to plugins for sonic-utilities show CLI command.        |
-| /cli/config-cli-plugin | list of string | no        | List of paths to plugins for sonic-utilities config CLI command.      |
-| /cli/clear-cli-plugin  | list of string | no        | List of paths to plugins for sonic-utilities sonic-clear CLI command. |
+| /cli/show-cli-plugin   | list of strings | no        | List of paths to plugins for sonic-utilities show CLI command.        |
+| /cli/config-cli-plugin | list of strings | no        | List of paths to plugins for sonic-utilities config CLI command.      |
+| /cli/clear-cli-plugin  | list of strings | no        | List of paths to plugins for sonic-utilities sonic-clear CLI command. |
 
 
