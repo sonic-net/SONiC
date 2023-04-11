@@ -1200,11 +1200,11 @@ As part of enabling CMIS FSM with port breakout, found out that port breakout fe
 **Few key things to take into account prior to getting into workFlow**
 
 A NxS breakout cable inserted implies following
-- A physical port is broken down into N sub-ports (logical ports)
-  - sub-ports are numbered as 8/N i.e.
-  - For 4x100G breakout optical module inserted in physcial Ethernet1 port, implies: Ethernet8, Ethernet10, Ethernet12, Ethernet14
-  - Note: This is done is this manner to keep such assignments uniform across various breakout modes viz.1x, 2x, 4x, 8x
-- Speed of each sub-port is S Gpbs
+- A physical port is broken down into N subports (logical ports)
+  - subports are numbered as 8/N i.e.
+  - For 4x100G breakout optical module inserted in physcial Ethernet port 1 (etp1), implies: Ethernet8, Ethernet10, Ethernet12, Ethernet14
+  - Note: This is done in this manner to keep such assignments uniform across various breakout modes viz.1x, 2x, 4x, 8x
+- Speed of each subport is S Gpbs
 - Unique subport# is assigned to each of the N sub-port starting with subport# 1 (and sequentially incrementing with each sub-port)
 
 **Following is the new design (workflow) for 'port breakout' to work end-to-end with 'CMIS enabled' (in SONiC):**
@@ -1221,10 +1221,10 @@ A NxS breakout cable inserted implies following
 - These subport#s are then parsed and updated in PORT_TABLE of CONFIG redisDB
   - There would be a unique PORT_TABLE for each logical port
 - xcvrd (as subscriber to PORT_TABLE of CONFIG DB), would read these subport#s and perform 'Host side' Lanes assignment as per the following logic
-  - A physical port is broken down into N sub-ports (logical ports)
-  - 8/N ‘Host side’ Lanes are assigned to each subport# (or sub-port)
-  - Consider '4x100G breakout' optical module use-cases
-    It would be 2 lanes per subport (aka sub-port). Refer to 8/N mentioned-above.
+  - A physical port is broken down into N subports (logical ports)
+  - 8/N ‘Host side’ Lanes are assigned to each subport#
+  - Consider '4x100G breakout' optical module use-case
+    It would be 2 lanes per subport. Refer to 8/N mentioned-above.
     Total 4 subports and Lane Count is 2
     - subport 1: Lanes 1,2
     - subport 2: Lanes 3,4
@@ -1233,7 +1233,7 @@ A NxS breakout cable inserted implies following
 
      ![Screenshot 2023-03-31 at 6 38 02 PM](https://user-images.githubusercontent.com/69485234/229259596-4fc3f024-f98e-4458-afe0-4a5b9af29b30.png)
 
-  - Consider '2x100G breakout' optical module use-cases
+  - Consider '2x100G breakout' optical module use-case
     It would be 4 lanes per subport. Refer to 8/N mentioned-above.
     Total 2 subports and Lane Count is 4
     - subport 1: Lanes 1,2,3,4
