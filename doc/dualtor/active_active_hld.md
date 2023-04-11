@@ -10,6 +10,7 @@ Active-active dual ToR link manager is an evolution of active-standby dual ToR l
 |  0.2  | 12/02/22 | Longxiang Lyu | Add Traffic Forwarding section |
 |  0.3  | 12/08/22 | Longxiang Lyu | Add BGP update delay section   |
 |  0.4  | 12/13/22 | Longxiang Lyu | Add skip ACL section           |
+|  0.5  | 04/10/23 | Longxiang Lyu | Add command line section       |
 
 ## Scope 
 This document provides the high level design of SONiC dual toR solution, supporting active-active setup. 
@@ -55,6 +56,7 @@ This document provides the high level design of SONiC dual toR solution, support
   - [3.9 Command Line](#39-command-line)
     - [3.9.1 Show mux status](#391-show-mux-status)
     - [3.9.2 Show mux config](#392-show-mux-config)
+    - [3.9.3 Config mux mode](#393-config-mux-mode)
 
 [4 Warm Reboot Support](#4-warm-reboot-support)
 
@@ -547,6 +549,18 @@ Ethernet4   auto     192.168.0.2/32   fc02:1000::2/128   active-active  192.168.
 Ethernet8   auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32
 ```
 
+#### 3.9.3 Config mux mode
+`config mux mode` configures the operational mux mode for specified port.
+```
+# config mux mode <operation_status> <port_name>
+
+argument "<operation_status>" is  choose from:
+        active,
+        auto,
+        manual,
+        standby,
+        detach.
+```
 
 ## 4 Warm Reboot Support
 TBD
