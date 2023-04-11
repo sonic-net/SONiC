@@ -303,9 +303,9 @@ The sFlow counter polling interval is set to 20 seconds. The pollBus/HSPEVENT_UP
   Globally, sFlow is disabled by default. When sFlow is enabled globally, the sflow deamon is started and sampling will start on all interfaces which have sFlow enabled at the interface level (see “config sflow interface…”).
 When sflow is disabled globally, sampling is stopped on all relevant interfaces and sflow daemon is stopped.
 
-* **sflow direction <rx|tx|both>**
+* **sflow sample-direction <rx|tx|both>**
 
-  This command takes global sflow sample direction. If not configured, default is "rx" for backward compatibility. Based on the direction, the sFlow is enabled at the interface level at rx or tx or both. When sflow is disabled globally, sampling is disabled only on the direction which is set in this command.
+  This command takes global sflow sample direction. If not configured, default is "rx" for backward compatibility. Based on the direction, the sFlow is enabled at all the interface level at rx or tx or both. 
 
 * **sflow interface <enable|disable>** *<{interface-name}|**all**>*
 
@@ -313,11 +313,11 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
 
   The “all” keyword is used as a convenience to enable/disable sflow at the interface level for all the interfaces.
   
-  Note: The local configuration applied to an interface has higher precedence over the global configuration provided through the "all" keyword. 
+  Note: The local configuration applied to an interface has higher precedence over the global configuration provided through the "all" keyword. If sample-direction is not set at interface level, it will configure direction "rx" irrespective of global configuraion. User needs to override the same with "config sflow interface sample-direction" command.
   
   This command enables sampling only in rx direction for backward compatibility.
 
-* **sflow interface direction <rx|tx|both>** *<{interface-name}|**all**>*
+* **sflow interface sample-direction <rx|tx|both>** *<{interface-name}|**all**>*
 
   Set sample direction to determine ingress sampling or egress sampling or both. If not configured, default is "rx". 
 
@@ -342,6 +342,8 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
   * Valid range 256:8388608.
 
   Note that on an interface, the sample-rate must be same in both tx and rx direction. 
+
+  If sample-direction is not set at interface level, it will configure direction "rx" irrespective of global configuraion. User needs to override the same with "config sflow interface sample-direction" command.
 
 
 * **sflow polling-interval** *{value}*
@@ -817,14 +819,14 @@ index 62984f064..601d112fd 100644
 
 +    typedef sample_direction {
 +        type enumeration {
-+            enum RX {
-+                description "RX direction";
++            enum rx {
++                description "rx direction";
 +            }
-+            enum TX {
-+                description "TX direction";
++            enum tx {
++                description "tx direction";
 +            }
-+            enum BOTH {
-+                description "Both TX and RX direction";
++            enum both {
++                description "Both tx and rx direction";
 +            }
 +        }
 +    }
@@ -837,9 +839,9 @@ index 62984f064..601d112fd 100644
                      description "Sets the packet sampling rate.  The rate is expressed as an integer N, where the intended sampling rate is 1/N packets.";
                  }
 +
-+                leaf direction {
++                leaf sample_direction {
 +                    type sample_direction;
-+                    default "RX";
++                    default "rx";
 +                    description "sflow sample direction"
 +                }
 +
@@ -851,9 +853,9 @@ index 62984f064..601d112fd 100644
                      description "Interface name";
                  }
 +
-+                leaf direction {
++                leaf sample_direction {
 +                    type sample_direction;
-+                    default "RX";
++                    default "rx";
 +                    description "sflow sample direction"
 +                }
 +
