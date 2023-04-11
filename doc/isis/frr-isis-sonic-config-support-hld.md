@@ -33,7 +33,7 @@
 ### Revision  
 |  Rev  |  Date           |  Author  | Change Description |
 | :---  | :-------------- | :------  | :----------------  |
-|  0.1  | March-2-2023    | C Choate | Initial version    |
+|  0.1  | April-11-2023    | C Choate | Initial version    |
 
 ### Scope  
 
@@ -73,7 +73,7 @@ Adding support for multi-linecard chassis is out of scope for this document.
 
 ### Architecture Design 
 
-There are no changes to the existing SONiC architecture. This new feature enhances existing code to include configuration support for the isisd daemon within the FRR container. Testing showed that with the isisd deamon enabled, IS-IS routes are being learned directly from the FRR container without needing any changes to the existing orchagent or swss. It was observed that fpmsyncd works to push all of the IS-IS learned routes from the FRR container to SONiC DB’s. 
+There are no changes to the existing SONiC architecture. This new feature enhances existing code to include configuration support for the isisd daemon within the FRR container. Testing showed that with the isisd deamon enabled, ISIS routes are being learned directly from the FRR container without needing any changes to the existing orchagent or swss. It was observed that fpmsyncd works to push all of the ISIS learned routes from the FRR container to SONiC DB’s. 
 
 ### High-Level Design 
 
@@ -81,7 +81,7 @@ There are no changes to the existing SONiC architecture. This new feature enhanc
 
 This feature will extend functionality implemented in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md) to support additional SONiC FRR-ISIS features. 
 
-![FRR-BGP-REST-GET-SEQUENCE1](https://user-images.githubusercontent.com/114622132/222537856-eefb1a13-bcc0-495b-938a-7ea3abee0c18.png)
+![FRR-BGP-Unified-mgmt-frmwrk](https://user-images.githubusercontent.com/114622132/222537856-eefb1a13-bcc0-495b-938a-7ea3abee0c18.png)
 
 Diagram 1. Diagram showing the existing framework that is being extended to include support for now ISIS config schemas. This diagram is taken from and further explained in it's original feature introduction in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md) to support additional SONiC FRR-ISIS features. 
 
@@ -187,7 +187,7 @@ Area 1:
 
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Show topology IS-IS paths globally or for level-1 or level-2 specifically |show isis topology {level-1\|level-2} |
+|Show topology IS-IS paths globally or for level-1 or level-2 specifically |show isis topology {--level-1} {--level-2} |
 
 ```
 sonic:~$ show isis topology
@@ -201,6 +201,122 @@ sonic2               TE-IS        10     sonic2               PortChannel0121 so
 10.3.159.80/32       IP TE        10     sonic2               PortChannel0121 sonic2(4)
 10.3.159.81/32       IP TE        10     sonic2               PortChannel0121 sonic2(4)
 ......
+```
+
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
+|Show summary of ISIS information |show isis summary |
+
+```
+sonic:~$ show isis summary
+vrf             : default
+Process Id      : 4663
+System Id       : 0000.0000.0000
+Up time         : 00:04:31 ago
+Number of areas : 1
+Area 1:
+  Net: 10.0000.0000.0000.0000.0000.0000.0000.0000.0000.00
+  TX counters per PDU type:
+     L2 IIH: 144
+     L2 LSP: 4
+    L2 CSNP: 29
+   LSP RXMT: 0
+  RX counters per PDU type:
+     L2 IIH: 143
+     L2 LSP: 4
+  Drop counters per PDU type:
+     L2 IIH: 1
+  Advertise high metrics: Disabled
+  Level-1:
+    LSP0 regenerated: 3
+         LSPs purged: 0
+    SPF:
+      minimum interval  : 1
+    IPv4 route computation:
+      last run elapsed  : 00:04:25 ago
+      last run duration : 111 usec
+      run count         : 3
+    IPv6 route computation:
+      last run elapsed  : 00:04:25 ago
+      last run duration : 23 usec
+      run count         : 3
+  Level-2:
+    LSP0 regenerated: 4
+         LSPs purged: 0
+    SPF:
+      minimum interval  : 1
+    IPv4 route computation:
+      last run elapsed  : 00:04:21 ago
+      last run duration : 45 usec
+      run count         : 9
+    IPv6 route computation:
+      last run elapsed  : 00:04:21 ago
+      last run duration : 14 usec
+      run count         : 9
+......
+```
+
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
+|Show ISIS running configuration |show run isis  {--verbose} {--config_db} {--namespace}|
+
+```
+sonic:~$ show run isis
+"""Building configuration...
+Current configuration:
+!
+frr version 8.2.2
+frr defaults traditional
+hostname vlab-01
+log syslog informational
+log facility local4
+no service integrated-vtysh-config
+!
+password zebra
+enable password zebra
+!
+interface PortChannel101
+ ip router isis 1
+ ipv6 router isis 1
+ isis network point-to-point
+exit
+!
+router isis 1
+ is-type level-2-only
+ net 49.0001.1720.1700.0002.00
+ lsp-mtu 1383
+ lsp-timers level-1 gen-interval 30 refresh-interval 900 max-lifetime 1200
+ lsp-timers level-2 gen-interval 30 refresh-interval 305 max-lifetime 900
+ log-adjacency-changes
+exit
+!
+end
+  
+sonic:~$ show run isis  --config_db 
+{ 
+  "ISIS_GLOBAL": { 
+    "1": { 
+      "net": "49.0001.1720.1700.0002.00", 
+      "lsp_mtu_size": "1383",   
+      "spf_time_to_learn": "25"  
+    } 
+  }, 
+	"ISIS_LEVEL": { 	
+    "1|level-2": { 
+      "lsp_refresh_interval": "305", 
+      "lsp_maximum_lifetime": "900"
+    } 
+  }, 
+	"ISIS_INTERFACE": { 
+    "1|PortChannel0101": { 
+      "instance":"1", 
+      "ifname": "PortChannel0120", 
+      "network_type": "point-to-point", 
+      "ipv4_routing_instance": "1", 
+      "ipv6_routing_instance": "1", 
+    } 
+  } 
+} 
 ```
 
 #### Config DB Enhancements  
@@ -242,10 +358,12 @@ When deleting or adding configs that have dependencies built within the yang mod
 
 Extended unit test cases to cover FRR-ISIS config features
  - Test frrcfgd changes
-   - /src/sonic-frr-mgmt-framework/tests/test_config.py
+   - sonic-buildimage/src/sonic-frr-mgmt-framework/tests/test_config.py
 - Test new ISIS YANG model Validation
-   - /src/sonic-yang-models/tests/test_sonic_yang_models.py
-   - /src/sonic-yang-models/tests/yang_model_tests/test_yang_model.py
+   - sonic-buildimage/src/sonic-yang-models/tests/test_sonic_yang_models.py
+   - sonic-buildimage/src/sonic-yang-models/tests/yang_model_tests/test_yang_model.py
+- Test show commands for isis
+   - sonic-utilities/tests/isis_frr_test.py
 
 #### System Test cases
 Extensive system test cases to cover FRR-ISIS config features
@@ -257,7 +375,5 @@ Extensive system test cases to cover FRR-ISIS config features
 New tests will also be published into sonic-mgmt for ISIS
 
 ### Open/Action items
-
-Is there a way to better align the custom yang models designed for SONiC FRR-ISIS with Open Config ISIS models. Not all FRR-ISIS features are compatible with Open Configs' models ?
 
 Could the FRR container be renamed from 'bgp' to 'frr' ?
