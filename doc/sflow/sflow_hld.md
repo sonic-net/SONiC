@@ -427,12 +427,16 @@ The configDB objects for the above CLI is given below:
 Displays the current configuration, global defaults as well as user configured values including collectors.
 
 ```
-sFlow services are enabled
-Counter polling interval: 20
-2 collectors configured:
-Collector IP addr: 10.100.12.13, UDP port: 6343
-Collector IP addr: 10.144.1.2, UDP port: 6344
-Agent ID: loopback0 (10.0.0.10)
+sFlow Global Information:
+  sFlow Admin State:          up
+  sFlow Sample Direction:     both
+  sFlow Polling Interval:     0
+  sFlow AgentID:              default
+
+  2 Collectors configured:
+    Name: prod                IP addr: fe80::6e82:6aff:fe1e:cd8e UDP port: 6343   VRF: mgmt
+    Name: ser5                IP addr: 172.21.35.15    UDP port: 6343   VRF: default
+
 
 ```
 
@@ -530,14 +534,14 @@ Existing ConfigDB schema
 ```
 "SFLOW": {
         "global": {
-           "admin_state": "up"
-           "polling_interval": "20"
-           "agent_id": "loopback0",
+           "admin_state": "up",
+           "polling_interval": "20",
+           "agent_id": "loopback0"
          }
     }
 "SFLOW_SESSION": {
         "Ethernet0": {
-           "admin_state": "down"
+           "admin_state": "down",
            "sample_rate": "40000"           
         },
 }
@@ -546,16 +550,16 @@ After migration
 ```
 "SFLOW": {
         "global": {
-           "admin_state": "up"
-           "polling_interval": "20"
-           "agent_id": "loopback0"
+           "admin_state": "up",
+           "polling_interval": "20",
+           "agent_id": "loopback0",
            "sample_direction": "rx"
          }
     }
 "SFLOW_SESSION": {
         "Ethernet0": {
-           "admin_state": "down"
-           "sample_rate": "40000"           
+           "admin_state": "down",
+           "sample_rate": "40000",           
            "sample_direction": "rx"           
         }
 }  
@@ -565,28 +569,26 @@ After migration
 First-time when user migrates from non-supported to supported version. 
 Before upgrade:
 ```
-"SFLOW_SESSION_TABLE:Ethernet0": {
-    "expireat": 1677580384.4605272,
-    "ttl": -0.001,
-    "type": "hash",
-    "value": {
-      "admin_state": "up",
-      "sample_rate": "100000"
-    }
+  "SFLOW_TABLE:global": {
+      "admin_state": "up"
   },
+ "SFLOW_SESSION_TABLE:Ethernet6": {
+      "admin_state": "up",
+      "sample_rate": "1000"
+  }
+
 ```
 Post upgrade: 
 ```
-"SFLOW_SESSION_TABLE:Ethernet0": {
-    "expireat": 1677580384.4605272,
-    "ttl": -0.001,
-    "type": "hash",
-    "value": {
+"SFLOW_TABLE:global": {
       "admin_state": "up",
-      "sample_rate": "100000"
       "sample_direction": "rx"
-    }
   },
+ "SFLOW_SESSION_TABLE:Ethernet6": {
+      "admin_state": "up",      
+      "sample_rate": "1000",
+      "sample_direction": "rx"
+  }
 
 ```
 
