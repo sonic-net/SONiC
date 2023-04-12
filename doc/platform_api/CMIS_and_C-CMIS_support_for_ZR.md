@@ -1638,7 +1638,7 @@ def write_cdb(port,cmd):
 Performance monitoring in 400G ZR/CCMIS optical modules is essential for detecting link degradation and correction. It can be used to compare optical link performance against desired parameters and benchmarks, providing valuable insight into the overall health of the interface link. Below sub-sections will walk through the CLI syntax, output format and high level design.
 
 #### 7.2 PM parameters
-Please refer to the [2.1.5 Transceiver PM Table](https://github.com/sonic-net/SONiC/edit/master/doc/platform_api/CMIS_and_C-CMIS_support_for_ZR.md#215-transceiver-pm-table) for the parameters that will be monitored with this CLI.
+Please refer to the [2.1.5 Transceiver PM Table]https://github.com/sonic-net/SONiC/blob/c91b25ed8c79cb6e415e6c999affc309e35200f2/doc/platform_api/CMIS_and_C-CMIS_support_for_ZR.md#215-transceiver-pm-table) for the parameters that will be monitored with this CLI.
 
  
 #### 7.3 CLI Sub-options and Syntax 
