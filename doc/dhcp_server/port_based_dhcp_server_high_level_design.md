@@ -619,6 +619,7 @@ This command is used to show dhcp_server lease.
 
 ### 3.7.3 Clear CLI
 **sonic-clear dhcp_server ipv4 counter**
+
 This command is used to clear dhcp_server counter.
 - Usage
   ```
