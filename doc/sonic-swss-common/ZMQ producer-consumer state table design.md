@@ -13,7 +13,25 @@
   * [ZMQ](#zmq)
 
 # 1 Functional Requirement
-## 1.1 Supported operations
+## 1.1 ZMQ client supported operations
+ - ZmqClient will send message to ZMQ.
+ - ZmqClient can reuse by multiple ZmqProducerStateTable instance.
+ - ZmqClient sendMsg() method is thread safe async method, will return immediately, ZMQ lib support async operation.
+ - ZmqClient will retry when send not success:
+    - When ZMQ socket connection broken, send API will failed and need re-connect and send again.
+    - When ZMQ send queue is full, send API will failed and need retry later.
+    - When a signal come, ZMQ send API will failed, need retry again.
+ - ZmqClient will throw exception after retry failed.
+ - ZmqClient will throw exception when ZMQ connection break.
+## 1.2 ZMQ server supported operations
+ - ZmqServer will start a receive thread and receive message from ZMQ.
+ - ZmqServer can reuse by multiple ZmqConsumerStateTable instance.
+ - When ZmqServer receive message from ZMQ, ZmqServer will:
+    - De-serialize received message.
+    - Find ZmqMessageHandler by message content.
+    - Dispatch message to ZmqMessageHandler.
+## 1.3 ZMQ producer state table supported operations
+ - Producer table will use ZmqClient to send message.
  - Should support following operations.
    - Set:
         void set(const std::string &key,
@@ -28,19 +46,9 @@
         void set(const std::vector<KeyOpFieldsValuesTuple>& values)
    - Batch Delete:
         void del(const std::vector<std::string>& keys)
-## 1.2 ZMQ producer state table support async operation
- - Producer table will return immediately after send operation to ZMQ.
- - Producer table will retry when send not success:
-    - When ZMQ socket connection broken, send API will failed and need re-connect and send again.
-    - When ZMQ send queue is full, send API will failed and need retry later.
-    - When a signal come, ZMQ send API will failed, need retry again.
- - Producer table will throw exception after retry failed.
-## 1.3 ZMQ consumer state table support async operation
- - Consumer will start a receive thread and receive message from ZMQ.
- - When consumer table receive message from ZMQ, consumer table will:
-    - De-serialize received message and append operation to following queue:
-      - Received operation queue
-      - Update redis database queue
+## 1.3 ZMQ consumer state table supported operations
+ - Consumer implement ZmqMessageHandler interface.
+ - When consumer table receive message from ZmqServer, consumer table will:
     - Send notification to select to handle received operation.
     - Send notification to DB update thread for write received operation to database.
       This is a configurable feature, could turn on/off this feature in use cases requiring less memory consumption or higher performance.
@@ -52,21 +60,22 @@
  - Sequence:
 <img src="./zmq-sequence.png" style="zoom:100%;" />
  - Call ZmqProducerStateTable API.
- - ZmqProducerStateTable will serialize operation and send to ZMQ.
+ - ZmqProducerStateTable will send message with ZmqClient.
+ - ZmqClient will serialize operation and send to ZMQ.
    - Return when send success.
    - Retry when send failed.
    - Throw exception when retry failed.
- - ZmqConsumerStateTable Side:
+ - ZmqServer Side:
    - m_mqPollThread:
    - Receive message from ZMQ.
-   - De-serialize received message then:
-     - Enqueue to m_receiveQueue
-     - Enqueue to m_DbUpdateDataQueue
+   - De-serialize received message then dispatch message to ZmqConsumerStateTable.
+   - Continue receive next message.
+ - ZmqConsumerStateTable Side:
+   - Receive message from ZmqServer then:
      - Notify select event
      - Notify m_dbUpdateThread
-   - Continue receive next message.
    - m_dbUpdateThread:
-   - Update data from m_DbUpdateDataQueue to Redis database.
+     - Update data from m_DbUpdateDataQueue to Redis database.
  - Select will pop operations from m_receivedQueue with ZmqConsumerStateTable::pops().
 
 # 3 References
