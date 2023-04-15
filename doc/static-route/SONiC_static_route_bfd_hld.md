@@ -207,6 +207,30 @@ A few examples for the cases that adding/deleting static route, and also differe
 <br>
 <br>
 
+## Dynamc static route "bfd" config chagne support
+When a static route "bfd" field changes (from "true" to "false", or from "false" to "true"), the owner(StaticRouteMgr or StaticRouteBfd) of this static routes also changes. StaticRouteMgr and StaticRouteBfd need to work together to handle this runtime ownershop change.<br>
+When StaticRouteMgr gets a static route update (redis SET event) event, it checks the static route "bfd" field and its local cache. If the "bfd" field is "true" and the prefix is in its local cache(it handles this route before the update), the StaticRouteMgr delete it from its local cache and does not do any furhter processing for this route.
+For the static route without "bfd" field (or "bfd" field is "false"), the current StaticRouteMgr bahavior is, it compare the nexthop list between the updated static route and the nexthop list in its local cache, to decice if need to delete or add the nexthops, the StaticRouteBfd uses this behavior to handle "bfd" field dynamic change.   
+
+### bfd field changes from "false" to "true"
+1. when the "bfd" was "false", the route was installed by StaticRouteMgr(config_db), and StaticRouteMgr(config_db) maintains its local cache.
+2. When StaticRouteMgr detects "bfd" changing from "false" to "true", the StaticRouteMgr deletes the static route from its local cache, but it does NOT uninstall the route from FRR. The reason is that, the route will be installed by StaticRouteBfd (along with StaticRouteMgr(appl_db)), let StaticRouteBfd handle the sequence to avoid the race condition and uninstall/install the route in a correct sequence.
+3. When StaticRouteBfd detects "bfd" changing from "false" to "true" (using its local cache), it writes a static route entry to APPL_DB STATIC_ROUTE_TABLE with "bfd" field "false" to let StaticRouteMgr(appl_db) install the route with full nexhop list. 
+4. StaticRouteBfd then delete the static route entry from APPL_DB to let StaticRouteMgr(appl_db) uninstall the static route (which is installed in the above step #3). 
+The reason why we need step #3 and #4 is that: <br>
+*   * we need to uninstall the route (and all its nexthops) before BFD session created and state becomes UP. BFD state is event driven and we don't know when it becomes UP.<br>
+*   * without step #3, StaticRouteMgr(appl_db) does not know what nexthop to uninstall. And, 
+if the entry does not exist in APPL_DB, delete a non-exist key cannot trigger redis DEL event.
+5. After deletes the previous install static route. StaticRouteBfd can start to process this "bfd" enabled static route as usual. 
+
+### bfd field changes from "true" to "false"
+1. when StaticRouteMgr(config_db) get an updated static route with "bfd" field "false", it install the route as usual. Because it will install the route will all the nexthops in the route, it does not need to uninstall the StaticRouteBfd installed route (the nexthop list is a subset of configured nexthop list).
+2. The StaticRouteBfd need to follow this sequence to delete the entry from APPL_DB STATIC_ROUTE_TABLE, but NOT trigger StaticRouteMgr(appl_db) to uninstall the route:
+*    * 2.1. StaticRouteBfd writes a static route entry to APPL_DB STATIC_ROUTE_TABLE with "bfd" field **"true"** to let StaticRouteMgr(appl_db) clear the route in its cahce. 
+*    * 2.2. StaticRouteBfd then delete the static route entry from APPL_DB. Because  StaticRouteMgr(appl_db) already cleared this route in the above step, so the StaticRouteMgr(appl_db) will do nothing when it see the APPL_DB STATIC_ROUTE_TABLE delete event.
+<br>
+<br>
+
 # Tests
 Description:<br>
 * 1\. Plan to use a single testbed to test the StaticRouteBfd.
