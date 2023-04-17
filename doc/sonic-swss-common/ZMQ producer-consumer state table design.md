@@ -15,7 +15,7 @@
 # 1 Functional Requirement
 ## 1.1 ZMQ client supported operations
  - ZmqClient will send message to ZMQ.
- - ZmqClient can reuse by multiple ZmqProducerStateTable instance.
+ - ZmqClient can be reused by multiple ZmqProducerStateTable instance.
  - ZmqClient sendMsg() method is thread safe async method, will return immediately, ZMQ lib support async operation.
  - ZmqClient will retry when send not success:
     - When ZMQ socket connection broken, send API will failed and need re-connect and send again.
@@ -25,7 +25,7 @@
  - ZmqClient will throw exception when ZMQ connection break.
 ## 1.2 ZMQ server supported operations
  - ZmqServer will start a receive thread and receive message from ZMQ.
- - ZmqServer can reuse by multiple ZmqConsumerStateTable instance.
+ - ZmqServer can be reused by multiple ZmqConsumerStateTable instance.
  - When ZmqServer receive message from ZMQ, ZmqServer will:
     - De-serialize received message.
     - Find ZmqMessageHandler by message content.
@@ -55,13 +55,17 @@
     - After send notification, continue receive next message from ZMQ.
 
 # 2 Design
+
  - Diagram:
 <img src="./zmq-diagram.png" style="zoom:100%;" />
+
  - Sequence:
 <img src="./zmq-sequence.png" style="zoom:100%;" />
+
  - Call ZmqProducerStateTable API.
  - ZmqProducerStateTable will send message with ZmqClient.
  - ZmqClient will serialize operation and send to ZMQ.
+   - ZmqClient will add database name and table name to message for ZmqServer side message dispatch.
    - Return when send success.
    - Retry when send failed.
    - Throw exception when retry failed.
@@ -69,6 +73,8 @@
    - m_mqPollThread:
    - Receive message from ZMQ.
    - De-serialize received message then dispatch message to ZmqConsumerStateTable.
+     - ZmqServer manage a database name & table name to ZmqConsumerStateTable mapping. ZmqConsumerStateTable will register itself to this mapping.
+     - ZmqServer will find ZmqConsumerStateTable by database name and table name.
    - Continue receive next message.
  - ZmqConsumerStateTable Side:
    - Receive message from ZmqServer then:
