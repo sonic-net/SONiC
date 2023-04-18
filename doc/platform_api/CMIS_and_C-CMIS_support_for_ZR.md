@@ -1635,7 +1635,7 @@ def write_cdb(port,cmd):
 
 ### 7.Performance Monitoring in 400-G ZR module
 #### 7.1 Overview
-Performance monitoring in 400G ZR/CCMIS optical modules is essential for detecting link degradation and correction. It can be used to compare optical link performance against desired parameters and benchmarks, providing valuable insight into the overall health of the interface link. Below sub-sections will walk through the CLI syntax, output format and high level design.
+Performance monitoring in 400G ZR/CCMIS optical modules is essential for detecting link degradation and correction. It can be used to compare optical link performance against desired parameters and benchmarks, providing valuable insight into the overall health of the interface link. Below sub-sections will walk through the CLI syntax, output format and high level design. Currently the performance monitoring will be done only for 400G-ZR modules.
 
 #### 7.2 PM parameters
 Please refer to the [2.1.5 Transceiver PM Table]https://github.com/sonic-net/SONiC/blob/c91b25ed8c79cb6e415e6c999affc309e35200f2/doc/platform_api/CMIS_and_C-CMIS_support_for_ZR.md#215-transceiver-pm-table) for the parameters that will be monitored with this CLI.
@@ -1733,3 +1733,6 @@ The PM parameter polling period option is given as there will be platform which 
   
   3. PM history CLI command data will be fetched from PM window slot table from State-DB.
   4. PM current CLI command PM data will be fetched from Module.
+  5. PM statistics slot for the port is cleared when an optics is inserted/deleted to/from the port.
+  6. When xcvrd process is restarted, PM statistics colection will be resumed once the ZR module SW DP state become CMIS_READY.
+  
