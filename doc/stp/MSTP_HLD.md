@@ -158,7 +158,7 @@ root 	      = "primary" / "secondary" / "default"       ; (DEF: "default")
 
 ### MSTP_VLAN_TABLE
 ```
-;Stores the STP instance operational details
+;Stores MSTP VLAN to instance mapping
 key               = MSTP_VLAN|"Vlan"vlanid              ; vlan id with MSTP_VLAN as a prefix
 instance_id	  = 1*2DIGIT	                        ; instance id vlan is mapped to (0-63, DEF:0)
 ```
@@ -176,7 +176,7 @@ path_cost  = 1*9DIGIT                                         ; port path cost (
 ```
 ;Stores the MSTP regional operational details
 key                     = MSTP:REGION	      ; MSTP REGION key
-regionname 	        = 1*32CHAR            ; region name (DEF: mac-address of switch)
+region_name 	       = 1*32CHAR            ; region name (DEF: mac-address of switch)
 revision	        = 1*5DIGIT            ; region revision (0 to 65535, DEF: 0)
 bridge_id	        = 16HEX	              ; bridge id
 cist_root_bridge_id	= 16HEX	              ; CIST root’s bridge id
@@ -240,7 +240,256 @@ The table holds the VLAN to instance mapping.
 The table informs when the FDB flushing is required. This is done in case of topology change where the mac entries in FDB become inconsistent and there is a need to flush these entries.
 
 # YANG Model
-Yang will be extended to support MSTP.
+
+YANG Model will be extended as follows for MSTP:
+```
+module sonic-stp {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/sonic-stp";
+    prefix "stp";
+
+    import sonic-port {
+        prefix port;
+        revision-date 2019-07-01;
+    }
+
+    import sonic-portchannel {
+        prefix lag;
+        revision-date 2021-06-13;
+    }
+
+    import sonic-vlan {
+        prefix vlan;
+        revision-date 2021-04-22;
+    }
+
+    import sonic-device_metadata { 
+        prefix device_metadata;
+        revision-date 2021-02-27;
+    }
+
+    description "STP yang Module for SONiC OS";
+
+    revision 2023-04-18 {
+        description "First Revision";
+    }
+
+    container sonic-stp {
+
+        container STP_GLOBAL {
+            description "Global STP table";
+
+            leaf mode {
+                type enumeration {
+                    enum "pvst";
+                    enum "mstp";
+                }
+                description "STP mode";
+            }
+
+            leaf forward_delay {
+                type uint8 {
+                    range "4..30" {
+                        error-message "forward_delay value out of range";
+                    }
+                }
+                default 15;
+                description "Forward delay in sec";
+            }
+
+            leaf hello_time {
+                type uint8 {
+                    range "1..10" {
+                        error-message "hello_time value out of range";
+                    }
+                }
+                default 2;
+                description "Hello time in sec";
+            }
+
+            leaf max_age {
+                type uint8 {
+                    range "6..40" {
+                        error-message "max_age value out of range";
+                    }
+                }
+                default 20;
+                description "Max age";
+            }
+
+            leaf rootguard_timeout {
+                type uint16 {
+                    range "5..600" {
+                        error-message "rootguard_timeout value out of range";
+                    }
+                }
+                default 30;
+                description "Root guard timeout in sec";
+            }
+
+            leaf priority {
+                must ". mod 4096 = 0" {
+                    error-message "bridge priority must be a multiple of 4096";
+                }      
+
+                type uint16 {
+                    range "0..61440" {
+                        error-message "priority value out of range";
+                    }
+                }
+                default 32768;
+                description "Bridge priority";
+            }
+
+            leaf max_hops {
+                type uint8 {
+                    range "1..255" {
+                        error-message "max-hops value out of range";
+                    }
+                }
+                default 20;
+                description "Max hops";
+            }
+        }
+
+        container MSTP_REGION {
+            description "MSTP Regional operational details";
+
+            leaf region_name {
+                type string {
+                    length "1..32";
+                }
+                default "device_metadata:sonic-device_metadata/device_metadata:DEVICE_METADATA/device_metadata:localhost/device_metadata:mac";
+                description "Region name";
+            }
+
+            leaf revision {
+                type uint16 {
+                    range "0..65535" {
+                        error-message "revision value out of range";
+                    }
+                }
+                default 0;
+                description "Region revision";
+            }
+        }
+
+        container MSTP_INSTANCE {
+            description "MSTP instance operational details";
+
+            list MSTP_INSTANCE_LIST {
+                key "name";
+
+                leaf name {
+                    type string {
+                        pattern 'Instance([0-9]|[1-5][0-9]|[6][0-3])';
+                    }
+                }
+
+                leaf priority {
+                    must ". mod 4096 = 0" {
+                        error-message "bridge priority must be a multiple of 4096";
+                    }
+
+                    type uint16 {
+                        range "0..61440" {
+                            error-message "priority value out of range";
+                        }
+                    }
+                    default 32768;
+                    description "Bridge priority";
+                }
+
+                leaf root {
+                    type enumeration {
+                        enum "primary";
+                        enum "secondary";
+                        enum "default";
+                    }
+                    default "default";
+                    description "Root priority";
+                }
+            }
+        }
+
+        container MSTP_VLAN {
+            description "MSTP VLAN to instance mapping";
+
+            list MSTP_VLAN_LIST {
+                key "vlan";
+
+                leaf vlan {
+                    must "(current() = /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name)" {
+                        error-message "Must condition not satisfied, Try adding Vlan<vlanid>: {}, Example: 'Vlan2': {}";
+                    }
+
+                    type leafref {
+                        path "/vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name";
+                    }
+                }
+
+                leaf instance_id {
+                    must "(concat('Instance', current()) = ../../../MSTP_INSTANCE/MSTP_INSTANCE_LIST[name=concat('Instance', current())]/name)" {
+                        error-message "Must condition not satisfied, Try adding Instance<instanceid>: {}, Example: 'Instance2': {}";
+                    }
+
+                    type uint8 {
+                        range "0..63";
+                    }
+                    default 0;
+                }
+            }
+        }
+
+        container MSTP_INSTANCE_PORT {
+            description "STP port details per Instance";
+
+            list MSTP_INSTANCE_PORT_LIST {
+                key "instance port";
+
+                leaf instance {
+                    must "(current() = ../../../MSTP_INSTANCE/MSTP_INSTANCE_LIST[name=current()]/name)" {
+                        error-message "Must condition not satisfied, Try adding Instance<instanceid>: {}, Example: 'Instance2': {}";
+                    }
+
+                    type leafref {
+                        path "/stp:sonic-stp/stp:MSTP_INSTANCE/stp:MSTP_INSTANCE_LIST/stp:name";
+                    }
+                }
+
+                leaf port {
+                    type union {
+                        type leafref {
+                            path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
+                        }
+                        type leafref {
+                            path "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name";
+                        }
+                    }
+                }
+
+                leaf priority {
+                    type uint8 {
+                        range "0..240" {
+                            error-message "priority value out of range";
+                        }
+                    }
+                    default 128;
+                    description "Port priority";
+                }
+
+                leaf path_cost {
+                    type uint32;
+                    description "Port path cost";
+                }
+            }
+        }
+    }
+}
+```
+
 # SAI
 Following table shows the SAI Attributes that will be used:
 
