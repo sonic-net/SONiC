@@ -1734,5 +1734,5 @@ The PM parameter polling period option is given as there will be platform which 
   3. PM history CLI command data will be fetched from PM window slot table from State-DB.
   4. PM current CLI command PM data will be fetched from Module.
   5. PM statistics slot for the port is cleared when an optics is inserted/deleted to/from the port.
-  6. When xcvrd process is restarted, PM statistics colection will be resumed once the ZR module SW DP state become CMIS_READY.
+  6. When xcvrd process is restarted, PM statistics collection will be resumed once the ZR module SW DP state become CMIS_READY for the port.
   
