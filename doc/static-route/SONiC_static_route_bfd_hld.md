@@ -58,6 +58,27 @@ StaticRouteTimer checks "expiry" field to skip the static route entry timeout ch
 [*Reference: STATIC_ROUTE_TABLE schema:* 
  [STATIC_ROUTE table in CONFIG_DB](https://github.com/Azure/SONiC/blob/master/doc/static-route/SONiC_static_route_hdl.md#3211-static_route).]
 
+```JSON
+;Defines IP static route  table
+;
+;Status: stable
+
+key                 = STATIC_ROUTE|vrf-name|prefix ;
+vrf-name            = 1\*15VCHAR ; VRF name
+prefix              = IPv4Prefix / IPv6prefix
+nexthop             = string; List of gateway addresses;
+ifname              = string; List of interfaces
+distance            = string; {0..255};List of distances.
+                      Its a Metric used to specify preference of next-hop
+                      if this distance is not set, default value 0 will be set when this field is not configured for nexthop(s)
+nexthop-vrf         = string; list of next-hop VRFs. It should be set only if ifname or nexthop IP  is not
+                      in the current VRF . The value is set to VRF name
+                      to which the interface or nexthop IP  belongs for route leaks.
+blackhole           = string; List of boolean; true if the next-hop route is blackholed.
+                      Default value false will be set when this field is not configured for nexthop(s)
+bfd                 = string; "true" or "false". "true" if use bfd to monitor nexthop
+expiry              = string; "true" or "false". "false" if need to skip timeout checking
+```
 
 ## Internal tables in StaticRouteBfd
 Four tables (i.e., dictionary, map, etc) are needed to use BFD session to monitor nexthop and update static route.<br>
