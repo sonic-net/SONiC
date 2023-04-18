@@ -243,12 +243,20 @@ The reason why we need step #3 and #4 is that: <br>
 *   * without step #3, StaticRouteMgr(appl_db) does not know what nexthop to uninstall. And, 
 if the entry does not exist in APPL_DB, delete a non-exist key cannot trigger redis DEL event.
 5. After deletes the previous install static route. StaticRouteBfd can start to process this "bfd" enabled static route as usual. 
+<br>
+
+<img src="static_rt_bfd_change_1.png" width="600">
+<br>
 
 ### bfd field changes from "true" to "false"
 1. when StaticRouteMgr(config_db) get an updated static route with "bfd" field "false", it install the route as usual. Because it will install the route will all the nexthops in the route, it does not need to uninstall the StaticRouteBfd installed route (the nexthop list is a subset of configured nexthop list).
 2. The StaticRouteBfd need to follow this sequence to delete the entry from APPL_DB STATIC_ROUTE_TABLE, but NOT trigger StaticRouteMgr(appl_db) to uninstall the route:
 *    * 2.1. StaticRouteBfd writes a static route entry to APPL_DB STATIC_ROUTE_TABLE with "bfd" field **"true"** to let StaticRouteMgr(appl_db) clear the route in its cahce. 
 *    * 2.2. StaticRouteBfd then delete the static route entry from APPL_DB. Because  StaticRouteMgr(appl_db) already cleared this route in the above step, so the StaticRouteMgr(appl_db) will do nothing when it see the APPL_DB STATIC_ROUTE_TABLE delete event.
+<br>
+
+<br>
+<img src="static_rt_bfd_change_2.png" width="600">
 <br>
 <br>
 
