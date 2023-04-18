@@ -1727,7 +1727,7 @@ The PM parameter polling period option is given as there will be platform which 
  **HLD pointers:**
   1. PM statistics will be sampled for pre-defined time window of 60sec, 15min and 24Hr. The pre-defined time window period is arrived based on the PM application usage in real time.
   2. New thread (PM thread) will be created to periodically fetch and update the PM window table.
-
+  
   
   <img src="https://user-images.githubusercontent.com/97986478/217953255-233f11d4-4b36-42bc-a30f-0ef3988c797a.png" width="50%" height="50%">
   
