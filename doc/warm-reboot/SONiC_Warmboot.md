@@ -255,6 +255,9 @@ After state restore, each application should be able to remove any stale object/
 
 ###	Port
 ###	Lag/teamd
+
+Because of the duration of control-plane downtime during warm restart, LAGs must be using the slow rate mode. This is where LACP PDUs are sent once every 30 seconds, rather than once every second. LAGs using the fast rate mode is not supported for warm restart, and will very likely go down during warm restart.
+
 ### Interface
 ### Fdb
 ### Arp
