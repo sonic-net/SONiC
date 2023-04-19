@@ -56,7 +56,8 @@ This document provides the high level design of SONiC dual toR solution, support
   - [3.9 Command Line](#39-command-line)
     - [3.9.1 Show mux status](#391-show-mux-status)
     - [3.9.2 Show mux config](#392-show-mux-config)
-    - [3.9.3 Config mux mode](#393-config-mux-mode)
+    - [3.9.3 Show mux tunnel-route] (#394-show-mux-tunnel-route)
+    - [3.9.4 Config mux mode](#394-config-mux-mode)
 
 [4 Warm Reboot Support](#4-warm-reboot-support)
 
@@ -549,7 +550,32 @@ Ethernet4   auto     192.168.0.2/32   fc02:1000::2/128   active-active  192.168.
 Ethernet8   auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32
 ```
 
-#### 3.9.3 Config mux mode
+#### 3.9.3 Show mux tunnel-route
+`show mux tunnel-route` returns tunnel routes that have been created for mux ports. 
+
+For each mux port, there can be 3 entries: `server_ipv4`, `server_ipv6`, `soc_ipv4`. For each entry, if tunnel route is created in `kernel` or `asic`, you will see `added` in command output, if not, you will see `-`. If no tunnel route is created for any of the 3 entries, mux port won't show in the command output. 
+
+* Usage:  
+```
+show mux tunnel-route [OPTIONS] <port_name>
+
+show muxcable tunnel-route <port_name>
+```
+* Options:
+```
+--json          display the output in json format
+```
+* Example
+```
+$ show mux tunnel-route Ethernet44
+PORT        DEST_TYPE    DEST_ADDRESS       kernel    asic
+----------  -----------  -----------------  --------  ------
+Ethernet44  server_ipv4  192.168.0.22/32    added     added
+Ethernet44  server_ipv6  fc02:1000::16/128  added     added
+Ethernet44  soc_ipv4     192.168.0.23/32    -         added
+```
+
+#### 3.9.4 Config mux mode
 `config mux mode` configures the operational mux mode for specified port.
 ```
 # config mux mode <operation_status> <port_name>
