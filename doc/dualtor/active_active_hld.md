@@ -56,7 +56,7 @@ This document provides the high level design of SONiC dual toR solution, support
   - [3.9 Command Line](#39-command-line)
     - [3.9.1 Show mux status](#391-show-mux-status)
     - [3.9.2 Show mux config](#392-show-mux-config)
-    - [3.9.3 Show mux tunnel-route] (#393-show-mux-tunnel-route)
+    - [3.9.3 Show mux tunnel-route](#393-show-mux-tunnel-route)
     - [3.9.4 Config mux mode](#394-config-mux-mode)
 
 [4 Warm Reboot Support](#4-warm-reboot-support)
