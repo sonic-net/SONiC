@@ -384,7 +384,11 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
 
 &#35; sflow enable
 
+&#35; sflow sample-direction both
+
 &#35; sflow interface disable Ethernet0
+
+&#35; sflow interface sample-direction Ethernet0 tx
 
 &#35; sflow interface sample-rate Ethernet16 32768
 
@@ -567,6 +571,7 @@ After migration
 **APP DB Migration**
 
 First-time when user migrates from non-supported to supported version. 
+
 Before upgrade:
 ```
   "SFLOW_TABLE:global": {
@@ -678,7 +683,9 @@ SAMPLED PACKETS METADATA FIELDS
               The rate the packet was sampled with
 ```
 
-The SAI driver may provide the interface OIDs corresponding to the IIFINDEX AND OIFINDEX. The hsflowd mod_sonic HsflowdRx() may have to map these correspondingly to the netdev ifindex. Note that the default PSAMPLE_ATTR_SAMPLE_GROUP that hsflowd expects is 1.
+The SAI driver may provide the interface OIDs corresponding to the IIFINDEX AND OIFINDEX. The hsflowd mod_sonic HsflowdRx() may have to map these correspondingly to the netdev ifindex. Note that the default PSAMPLE_ATTR_SAMPLE_GROUP that hsflowd expects is 1 for ingress and 2 for egress.
+
+Depending on platform capabilities, SAI driver may report additional attributes defined in https://github.com/torvalds/linux/blob/master/include/uapi/linux/psample.h. For example, PSAMPLE_ATTR_OUT_TC (egress queue), PSAMPLE_ATTR_OUT_TC_OCC (egress queue depth), and PSAMPLE_ATTR_LATENCY (transit delay) populate the sFlow Transit Delay Structures (https://sflow.org/sflow_transit.txt).
 
 Rather than define a new framework for describing the metadata for sFlow use, SAI would re-use the framework that the psample driver (https://github.com/torvalds/linux/blob/master/net/psample/psample.c) currently uses. The psample kernel driver is based on the Generic Netlink subsystem that is described in https://wiki.linuxfoundation.org/networking/generic_netlink_howto. SAI ASIC drivers supporting sFlow may choose to use the psample.ko driver as-is or may choose to implement the generic netlink interface (that complies with the above listed metadata) using a private generic netlink family.
 
