@@ -72,7 +72,7 @@ hostcfgd will be the daemon in charge of this configuration management.
 
 	Set operations will be divided into 2 different commands:
 
-	1. config clock set-timezone <timezone> (to set timezone command)
+	1. config clock timezone <timezone> (to set timezone command)
 		* will get single input as a string, and validate it is valid as part of ("timedatectl list-timezones" command).
 		Validation will be done either by YANG model, or (if not possible) by issueing relevant error to log.
 		* Value will be stored in db for future upgrade operations.
@@ -83,12 +83,8 @@ hostcfgd will be the daemon in charge of this configuration management.
 		* Date & timezone setting will be reflected of all the services/dockers in the system.
 
 
-	2. config clock set-date "<YYYY-MM-DD HH:MM:SS>" (to set time and date)
-		* Command will recieve single string with date-time format "<YYYY-MM-DD HH:MM:SS>"
-		* It will be possible to call command with the following options:
-			1.	Only with a date <YYYY-MM-DD>
-			2. 	Only with time <HH:MM:SS>
-			3.  both date and time "<YYYY-MM-DD HH:MM:SS>"
+	2. config clock date <YYYY-MM-DD> <HH:MM:SS> (to set time and date)
+		* Command will recieve single string with date-time format <YYYY-MM-DD> <HH:MM:SS>
 		* Command does not need to be stored in DB.
 		* Linux timedatectl with set-time flag will be called.
 		e.g. timedatectl set-time "2012-10-30 18:17:16"
@@ -96,7 +92,7 @@ hostcfgd will be the daemon in charge of this configuration management.
 
 	Additional show command will be added to display all valid timezones:
 
-	3. show clock-timezones
+	3. show clock timezones
 
 		* Will display list of all valid timezones to be configured.
 		* based on "timedatectl list-timezones" linux command.
@@ -162,7 +158,7 @@ Sun 15 Jan 2023 06:12:08 PM IST
 ```
 
 ```
-root@host:~$ show clock-timezones
+root@host:~$ show clock timezones
 Africa/Abidjan
 Africa/Accra
 Africa/Addis_Ababa
@@ -175,12 +171,12 @@ Africa/Asmara
 ##### Config CLI
 
 ```
-root@host:~$ config clock set-timezone "<timezone>"
+root@host:~$ config clock timezone "<timezone>"
 
 ```
 
 ```
-root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
+root@host:~$ config clock date <YYYY-MM-DD> <HH:MM:SS>
 
 ```
 
