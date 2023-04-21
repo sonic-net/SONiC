@@ -190,23 +190,37 @@ root@host:~$ config clock set-date "<YYYY-MM-DD HH:MM:SS>"
 ###  4.1 <a name='UnitTestcases'></a>Unit Test cases
 
 1. Good flows:<br>
-	a. set timezone<br>
-	b. set date<br>
-	c. set time<br>
-	d. set date & time<br>
-	e. check reboot / upgrade<br>
-	f. check docker restart<br>
-	g. config load / reload <> <br>
-	h. reboot without config save<br>
-	i. upgrade with manually timedatectl before upgrade<br>
+	a. set timezone - <br>
+	output of the set command is empty, and expect to see the new timezone in show command output, and the time is correlated with this timezone.<br><br>
+
+	b. set date & time - <br>
+	- output of the set command is empty, and expect to see the new date & time in show command output.<br><br>
+
+	c. check reboot - <br>
+	rebooting without config save restores configuration (timezone) to the saved one.<br><br>
+
+	d. check docker restart - <br>
+	expect to see the time remains as system time.<br><br>
+
+	e. config load / reload <> - <br>
+	expect to see timezone changes upon new configuration.<br><br>
+
+	f. reboot without config save - <br>
+	expect rebooting without config save restores configuration (timezone) to the saved one.<br><br>
+
+	g. upgrade with manually timedatectl before upgrade - <br>
+	Expect to have configuration timezone (if configuration exist) apply and change the timedatectl.<br><br>
 	
 
 2. Bad flows:<br>
-	a. set invalid timezone<br>
-	b. set empty string<br>
-	c. set invalid date format<br>
-	d. set invalid time format<br>
-	e. set invalide date/time format<br>
+	a. set invalid timezone - <br>
+	expect for error message for invalid timezone, and timezone shouldn’t change (remains the same in show command output).<br><br>
+
+	b. set empty string - <br>
+	expect for error message for empty / incomplete command. Nothing should be changed after it.<br><br>
+
+	c. set invalide date/time format - <br>
+	expect for error message for the invalid parameter.<br><br>
 
 3. NTP interop<br>
 	a. Change time/date, followed by changing NTP - and see time changed.<br>
