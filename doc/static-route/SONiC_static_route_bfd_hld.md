@@ -5,7 +5,9 @@ This document describes the design of using BFD to detect static route nexthop a
 One important assumption is that the BFD session (for a static route nexthop) in this BFD Static Route application is not shared with any other applications (i.e., creating or deleting static route BFD session has no impact on other applications).<br /> 
 
 <span style="color:blue"> <br>
-*Note: This document describes how to create local BFD session for a static route based on static route configuration. Creating BFD session in its peer system is out of the scope of this document.*<br />  
+Note: 
+1. This document describes how to create local BFD session for a static route based on static route configuration. Creating BFD session in its peer system is out of the scope of this document.
+2. When there are more than one IPv4 IP addresses(or more than one IPv6 IP addresses) assigned to an interface and that interface in static route configure, this confused BFD configuration to choose its local address for BFD session (and also confuses the peer system to choose its peer IP address). To make BFD session UP, the BFD need to work in pair and their local_addr/peer_addr need to match. So the design does not support interface with multiple IPv4 addresses (or multiple IPv6 addresses). The interface can have one IPv4 address plus one IPv6 IP address.<br />  
 </span>
 
 
