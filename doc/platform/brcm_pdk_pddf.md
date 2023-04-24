@@ -1906,13 +1906,18 @@ PDDF implements common kernel drivers for various components. These common drive
 
      - Some S3IP sysfs would not match directly with PDDF exposed sysfs. For such attributes, either PDDF common dirvers can be enhanced to provide the exact match or some other method can be used.
 
+     - There are some S3IP attributes which can't and won't be mapped to common PDDF driver attributes because PDDF common code doesn't support these devices e.g. volt_sensors, curr_sensors etc. There are no PDDF common drivers for such devices. However, ODMs might extend the PDDF framework by providing the custom drivers. In such cases, ODMs need to take care of mapping the S3IP attributes to the attributes exposed by the custom drivers.
+
+     - We faced a practical issue for some S3IP attributes e.g. Fan status. S3IP description says
+     >> |/sys_switch/fan/fan[n]/status |RO| enum| Fan states are defined as follows:<br>0: not present<br>1: present and normal<br>2: present and abnormal
+       This is a combination of 'presence' and 'running_status' informations of a fan unit. In SONiC we can handle this in the platform APIs but S3IP compels to performs this processing inside the kernel modules. Hence if ODM extends the PDDF driver and provide the kernel implementation of such sysfs, we can create the mapping. Otherwise we will map it to 'NA'.
 
 #### 7.2.2 S3IP SysFS Creation and Mapping
 
 ![S3IP Support in PDDF](../../images/platform/s3ip_pddf.jpg "S3IP Support in PDDF")
 
 
-If the S3IP sysfs is required on a PDDF platform, it can be represented using the field "enable_s3ip" in the PDDF JSON file. The support for S3IP is controlled by a service "pddf-s3ip-init.service". This service is run at the end of PDDF platform initialization service. It is an standalone service which needs to have an 'after' dependency on PDDF platform init service.
+If the S3IP sysfs is required on a PDDF platform, it can be represented using the field "enable_s3ip" in the PDDF JSON file. If this field is not mentioned or has a value "no", then the S3IP sysfs creation is disabled for that platform. The support for S3IP is controlled by a service "pddf-s3ip-init.service". This service is run at the end of PDDF platform initialization service. It is an standalone service which needs to have an 'after' dependency on PDDF platform init service.
 ```
     "PLATFORM":
     {
@@ -1944,7 +1949,7 @@ If the S3IP sysfs is required on a PDDF platform, it can be represented using th
 ...
 ```
 
-This S3IP service would create the sysfs as per the standards. It will also take care of linking the appropriate PDDF sysfs with the corrosponding S3IP sysfs.
+This pddf-s3ip service would create the sysfs as per the standards. It will also take care of linking the appropriate PDDF sysfs with the corrosponding S3IP sysfs.
 
 In case the platform does not support some attributes present in the S3IP spec, 'NA' will be written to the attribute file so that the application does not fail.
 
