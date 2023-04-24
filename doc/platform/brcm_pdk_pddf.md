@@ -1909,11 +1909,11 @@ PDDF implements common kernel drivers for various components. These common drive
      - There are some S3IP attributes which can't and won't be mapped to common PDDF driver attributes because PDDF common code doesn't support these devices e.g. volt_sensors, curr_sensors etc. There are no PDDF common drivers for such devices. However, ODMs might extend the PDDF framework by providing the custom drivers. In such cases, ODMs need to take care of mapping the S3IP attributes to the attributes exposed by the custom drivers.
 
      - We faced a practical issue for some S3IP attributes e.g. Fan status. S3IP description says
-     ```
+
      |Sysfs path|Permissions|Data type|Description|
      |-|-|-|-|
      |/sys_switch/fan/fan[n]/status |RO| enum| Fan states are defined as follows:<br>0: not present<br>1: present and normal<br>2: present and abnormal
-     ```
+
 
        This is a combination of 'presence' and 'running_status' informations of a fan unit. In SONiC we can handle this in the platform APIs but S3IP compels to performs this processing inside the kernel modules. Hence if ODM extends the PDDF driver and provide the kernel implementation of such sysfs, we can create the mapping. Otherwise we will map it to 'NA'.
 
