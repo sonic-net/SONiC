@@ -974,7 +974,7 @@ This command displays the number of authenticated clients.
 
 
 
-**show authentication clients <all | <interface>>**
+**show authentication clients <all | interface <interface\> \>**
 
 This command displays the details authenticated clients.
 
