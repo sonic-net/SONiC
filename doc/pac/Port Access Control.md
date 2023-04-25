@@ -929,16 +929,16 @@ The following commands are used to configure PAC.
 
 | CLI Command                              | Description                              |
 | :--------------------------------------- | :--------------------------------------- |
-| config authentication port-control interface <auto \| force-authorized \| force-unauthorized \>  <interface> | This command configures the authentication mode to use on the specified interface. Default is force-authorized. |
-| config dot1x pae interface  <authenticator \| none> <interface> | This command sets the PAC role on the port. Default is none. Role authenticator enables PAC on the port. |
-| config authentication host-mode interface <multi-auth \|  multi-host \| single-host \> <interface> | This command configures the host mode on the specified interface. Default is multi-host. |
-| config dot1x system-auth-control <enable\|disable> | This command configures 802.1x globally. Default is disabled. |
-| config authentication max-users interface <max-users> <interface> | This command configures max users on the specified interface. The count is applicable only in the multiple authentication host mode. Default is 16. |
-| config mab interface <enable\|disable> <interface> \[ auth-type <pap \| eap-md5> \| chap \] | This command configures MAB on the specified interface with the specified MAB authentication type. MAB is disabled by default. Default auth-type is eap-md5. |
-| config authentication periodic interface <enable\|disable> <interface> | This command enables periodic reauthentication of the supplicants on the specified interface. Default is disabled. |
-| config authentication timer reauthenticate interface <seconds \| server> <interface> | This command configures the reauthentication period of supplicants on the specified interface. The 'server' option is used to fetch this period from the RADIUS server. The 'seconds' option is used to configure the period locally. Default is 'server'. |
-| config authentication order interface <802.1x \[ mab \] \| mab \[ 802.1x \]> <interface> | This command is used to set the order of authentication methods used on a port. Default order is 802.1x,mab. |
-| config authentication priority interface <802.1x \[ mab \] \| mab \[ 802.1x \]> <interface> | This command is used to set the priority of authentication methods used on a port. Default priority is 802.1x,mab. |
+| config authentication port-control interface <auto \| force-authorized \| force-unauthorized \>  <interface\> | This command configures the authentication mode to use on the specified interface. Default is force-authorized. |
+| config dot1x pae interface  <authenticator \| none\> <interface\> | This command sets the PAC role on the port. Default is none. Role authenticator enables PAC on the port. |
+| config authentication host-mode interface <multi-auth \|  multi-host \| single-host \> <interface\> | This command configures the host mode on the specified interface. Default is multi-host. |
+| config dot1x system-auth-control <enable\|disable\> | This command configures 802.1x globally. Default is disabled. |
+| config authentication max-users interface <max-users\> <interface\> | This command configures max users on the specified interface. The count is applicable only in the multiple authentication host mode. Default is 16. |
+| config mab interface <enable\|disable\> <interface\> \[ auth-type <pap \| eap-md5 \| chap \>\] | This command configures MAB on the specified interface with the specified MAB authentication type. MAB is disabled by default. Default auth-type is eap-md5. |
+| config authentication periodic interface <enable\|disable> <interface\> | This command enables periodic reauthentication of the supplicants on the specified interface. Default is disabled. |
+| config authentication timer reauthenticate interface <seconds \| server\> <interface\> | This command configures the reauthentication period of supplicants on the specified interface. The 'server' option is used to fetch this period from the RADIUS server. The 'seconds' option is used to configure the period locally. Default is 'server'. |
+| config authentication order interface <dot1x \[ mab \] \| mab \[ dot1x \]> <interface\> | This command is used to set the order of authentication methods used on a port. Default order is 802.1x,mab. |
+| config authentication priority interface <dot1x \[ mab \] \| mab \[ dot1x \]> <interface\> | This command is used to set the priority of authentication methods used on a port. Default priority is 802.1x,mab. |
 
 
 
