@@ -944,7 +944,7 @@ The following commands are used to configure PAC.
 
 ### 3.7.3 Show Commands
 
-**show authentication interface** **<all| <interface>>**
+**show authentication interface** **<all| interface\>**
 
 This command displays the authentication manager information for the interface
 
@@ -994,7 +994,7 @@ This command displays the details authenticated clients.
 
 
 
-**show mab \<\<cr\> \| \<interface\>>**
+**show mab <cr | interface\>**
 
 This command is used to show a summary of the global mab configuration and summary information of the mab configuration for all ports. This command also provides the detailed mab configuration for a specified port
 
@@ -1017,7 +1017,7 @@ This command is used to show a summary of the global 802.1x configuration.
 
 
 
-show dot1x detail \<all \| <interface>>
+show dot1x detail <all | interface\>
 
 This command is used to show details of 802.1x configuration on an interface.
 
@@ -1030,7 +1030,7 @@ This command is used to show details of 802.1x configuration on an interface.
 
 ### 3.7.4 Clear Commands
 
-**sonic-clear authentication sessions <<interface <all\<interface>>> | mac>**
+**sonic-clear authentication sessions <interface <all | interface | mac \>\>**
 
 This command clears information for all Auth Manager sessions. All the authenticated clients are re-initialized and forced to authenticate again.
 
