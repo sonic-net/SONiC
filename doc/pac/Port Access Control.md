@@ -84,7 +84,7 @@ This document describes the design details of the Port Access Control (PAC) feat
 | 802.1x        | IEEE 802.1x standard                     |
 | EAPoL         | Extensible Authentication Protocol over LAN |
 | MAB           | Mac-based Authentication Bypass          |
-| PAC          | Port Access Control        |
+| PAC           | Port Access Control                      |
 | PAE           | Port Access Entity                       |
 | RADIUS        | Remote Authentication Dial In User service |
 | Supplicant    | A client that attempts to access services offered by the Authenticator |
@@ -336,11 +336,11 @@ PAC supports only 1 RADIUS server. The highest priority server will be picked up
 "PAC_PORT_CONFIG": {
   "Ethernet1": {
     "method_list": [
-      "802.1x",
+      "dot1x",
       "mab"
     ],
     "priority_list": [
-      "802.1x",
+      "dot1x",
       "mab"
     ],
     "port_pae_role": "authenticator",
@@ -357,9 +357,9 @@ key                       =      PAC_PORT_CONFIG:port     ;Physical port
      
 ;field                    =      value
      
-method_list               =      "802.1x"/"mab"                  ;List of methods to be used for authentication
+method_list               =      "dot1x"/"mab"                  ;List of methods to be used for authentication
      
-priority_list             =      "802.1x"/"mab"                  ;Relative priority of methods to be used for authentication
+priority_list             =      "dot1x"/"mab"                  ;Relative priority of methods to be used for authentication
      
 port_pae_role             =      "none"/"authenticator"         ;"none": PAC is disabled on the port
                                                                 "authenticator": PAC is enabled on the port
@@ -381,23 +381,19 @@ reauth_enable             =     "true"/"false"                  ;Indicates wheth
 max_users_per_port        =     1*2DIGIT                        ;Maximum number of clients that can be authenticated on the port. This is applicable
                                                                  only for "multi-auth" host mode. Range is 1 - 16 clients.
 
-port_pae_role             =     "none"/"authenticator"          ;Port pae role
-                                                                 none": PAC is disabled on the port.
-                                                                 authenticator": PAC is enabled on the port
-
 ```
 
 **HOSTAPD_GLOBAL_CONFIG**   
 ```
 "HOSTAPD_GLOBAL_CONFIG": {
   "global": {
-    "802.1x_system_auth_control": "enable"
+    "dot1x_system_auth_control": "enable"
   }
 }
 
 
 ;field = value 
-802.1x_system_auth_control "true"/"false" ; Indicates whether 802.1x is enabled in the system.
+dot1x_system_auth_control "true"/"false" ; Indicates whether 802.1x is enabled in the system.
 ```
 
 **MAB_PORT_CONFIG**   
@@ -466,11 +462,11 @@ None
 "PAC_PORT_OPER": {
   "Ethernet1": {
     "enabled_method_list": [
-      "802.1x",
+      "dot1x",
       "mab"
     ],
     "enabled_priority_list": [
-      "802.1x",
+      "dot1x",
       "mab"
     ]
   }
@@ -481,8 +477,8 @@ key                     =    PAC_PORT_OPER:port               ;Physical port
 
 ;field                  =    value
 
-enabled_method_list       =     "802.1x"/"mab"                       ;List of methods to be used for authentication
-enabled_priority_list     =     "802.1x"/"mab"                       ;Relative priority of methods to be used for authentication
+enabled_method_list       =     "dot1x"/"mab"                       ;List of methods to be used for authentication
+enabled_priority_list     =     "dot1x"/"mab"                       ;Relative priority of methods to be used for authentication
 
 ```
 
@@ -494,7 +490,7 @@ enabled_priority_list     =     "802.1x"/"mab"                       ;Relative p
   "Ethernet1": [
     {
       "00:00:00:11:02:33": {
-        "authenticated_method": "802.1X",
+        "authenticated_method": "dot1x",
         "session_timeout": 60,
         "user_name": "sonic_user",
         "termination_action": 0,
@@ -504,7 +500,7 @@ enabled_priority_list     =     "802.1x"/"mab"                       ;Relative p
     },
     {
       "00:00:00:21:00:30": {
-        "authenticated_method": "802.1X",
+        "authenticated_method": "dot1x",
         "session_timeout": 60,
         "user_name": "sonic_user1",
         "termination_action": 0,
@@ -518,7 +514,7 @@ enabled_priority_list     =     "802.1x"/"mab"                       ;Relative p
 
 key = PAC_AUTHENTICATED_CLIENTS_OPER: mac ; Client MAC address
 ;field               = value ;
-authenticated_method = "802.1x"/'mab" ; Method used to authenticate the client
+authenticated_method = "dot1x"/'mab" ; Method used to authenticate the client
 session_timeout      = 1*10DIGIT ; Client session timeout
 user_name            = 1*255VCHARS ; Client user name
 termination_action   = 1DIGIT ; Client action on session timeout:
@@ -934,10 +930,10 @@ The following commands are used to configure PAC.
 | CLI Command                              | Description                              |
 | :--------------------------------------- | :--------------------------------------- |
 | config authentication port-control interface <auto \| force-authorized \| force-unauthorized \>  <interface> | This command configures the authentication mode to use on the specified interface. Default is force-authorized. |
-| config 802.1x pae interface  <authenticator \| none> <interface> | This command sets the PAC role on the port. Default is none. |
+| config dot1x pae interface  <authenticator \| none> <interface> | This command sets the PAC role on the port. Default is none. Role authenticator enables PAC on the port. |
 | config authentication host-mode interface <multi-auth \|  multi-host \| single-host \> <interface> | This command configures the host mode on the specified interface. Default is multi-host. |
-| config 802.1x system-auth-control <enable\|disable> | This command configures 802.1x globally. Default is disabled. |
-| config authentication max-users interface <max-users> <interface> | This command configures max users on the specified interface. The count is applicable only in the multiple authentication host mode. Default is 48. |
+| config dot1x system-auth-control <enable\|disable> | This command configures 802.1x globally. Default is disabled. |
+| config authentication max-users interface <max-users> <interface> | This command configures max users on the specified interface. The count is applicable only in the multiple authentication host mode. Default is 16. |
 | config mab interface <enable\|disable> <interface> \[ auth-type <pap \| eap-md5> \| chap \] | This command configures MAB on the specified interface with the specified MAB authentication type. MAB is disabled by default. Default auth-type is eap-md5. |
 | config authentication periodic interface <enable\|disable> <interface> | This command enables periodic reauthentication of the supplicants on the specified interface. Default is disabled. |
 | config authentication timer reauthenticate interface <seconds \| server> <interface> | This command configures the reauthentication period of supplicants on the specified interface. The 'server' option is used to fetch this period from the RADIUS server. The 'seconds' option is used to configure the period locally. Default is 'server'. |
@@ -990,7 +986,7 @@ This command displays the details authenticated clients.
 | User Name                                | The user name associated with the client. |
 | VLAN                                     | The VLAN associated with the client.     |
 | Host Mode                                | The authentication host mode configured on the interface. The possible values are multi-auth, multi-host and single-host. |
-| Method                                   | The method used to authenticate the client on the interface. The possible values are 802.1x or MAB. |
+| Method                                   | The method used to authenticate the client on the interface. The possible values are dot1x or MAB. |
 | Session Time                             | The amount of time the client session has been active. |
 | Session Timeout                          | This value indicates the time for which the given session is valid. The time period in seconds is returned by the RADIUS server on authentication of the port. |
 | Time left for Session Termination Action | This value indicates the time left for the session termination action to occur. This field is valid only when the “authentication periodic” is configured. |
@@ -1010,7 +1006,7 @@ This command is used to show a summary of the global mab configuration and summa
 
 
 
-**show 802.1x**
+**show dot1x**
 
 This command is used to show a summary of the global 802.1x configuration.
 
@@ -1021,7 +1017,7 @@ This command is used to show a summary of the global 802.1x configuration.
 
 
 
-show 802.1x detail \<all \| <interface>>
+show dot1x detail \<all \| <interface>>
 
 This command is used to show details of 802.1x configuration on an interface.
 
@@ -1137,7 +1133,7 @@ config authentication dot1x pae interface authenticator Ethernet10
 config authentication host-mode interface multi-auth Ethernet10
 config authentication interface max-users 10 Ethernet10
 config mab interface enable pap
-config 802.1x system-auth-control enable
+config dot1x system-auth-control enable
 config authentication periodic interface Ethernet10
 config authentication timer reauthenticate interface 600 Ethernet10
 ```
