@@ -56,7 +56,7 @@ By default any service is not in expected status will be considered as fault con
 -  Any fan is missing/broken
 -  Fan speed is lower than minimal value
 -  Fan direction is not expected
-    - All fan direction must be the same
+    - For a running switch, all fan direction must be the same
     - Fan direction with 'N/A' or none will be ignored
 -  PSU power voltage is out of range
 -  PSU temperature is higher than threshold
