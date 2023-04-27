@@ -305,7 +305,7 @@ Fault condition and CLI output string table
  | critical service failure|[service name] is [service status]|
  | Any fan is missing/broken   |[FAN name] is missing/broken|
  | Fan speed is below minimal range|[FAN name] speed is lower than expected|
- | Fan direction is wrong|[FAN name] direction is wrong, expected:[value], got:[value]|
+ | Fan direction is wrong|[FAN name] direction [value] is not aligned with [FAN name] direction [value]|
  | PSU power voltage is out of range|[PSU name] voltage is out of range|
  | PSU power exceeds threshold|[PSU name] power exceeds threshold|
  | PSU temp is too hot|[PSU name] is overheated|
