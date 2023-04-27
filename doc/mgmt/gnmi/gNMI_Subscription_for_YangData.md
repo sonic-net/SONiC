@@ -75,6 +75,7 @@ to support gNMI subscriptions and wildcard paths for YANG defined paths.
 |-----|-------------|--------------------|-------------------------------------------------------------------------------|
 | 0.1 | 03/02/2023  | Sachin Holla       | Initial draft                                                                 |
 | 0.2 | 03/14/2023  | Balachandar Mani   | Added the CommonApp's interface, Transformer and Path validator details |
+| 0.3 | 04/27/2023  | Sachin Holla       | Origin based path identification and a few minor changes |
 
 ## Definition and Abbreviation
 
@@ -90,8 +91,8 @@ to support gNMI subscriptions and wildcard paths for YANG defined paths.
 ### 1.1 Introduction
 
 SONiC Telemetry service suports gNMI Get, Set and Subscribe RPCs for DB paths and sonic-yang based paths.
-It also suppots Get and Set for OpenConfig and IETF yang based paths that are part of **sonic-mgmt-common** repository.
-This design document describes proposed enhancements to support gNMI Subscribe RPC for such YANG paths.
+It also suppots Get and Set for OpenConfig YANG paths that are part of **sonic-mgmt-common** repository.
+This design document describes proposed enhancements to support gNMI Subscribe RPC for these OpenConfig yang paths.
 
 ### 1.2 Requirements
 
@@ -110,7 +111,7 @@ An `INVALID_ARGUMENT` status should be returned if the minimum `sample_interval`
 #### 1.2.3 TARGET_DEFINED subscription for all paths
 
 Infrastructure should support TARGET_DEFINED subscription for all YANG paths.
-Subscribe request should be treated as ON_CHANGE or SAMPLE based on the app's preferences for the target path.
+Subscribe request should be treated as ON_CHANGE or SAMPLE based on the preferences (whether ON_CHANGE supported or not) set for the target path.
 It should split into multiple requests if the target path supports ON_CHANGE
 but some of its descendent paths do not.
 
@@ -126,7 +127,7 @@ Path can contain any number of wildcard key values.
 Apps should be allowed to indicate wildcard unsupported paths.
 An `INVALID_ARGUMENT` status should be returned if wildcard key cannot be supported for the target path.
 
-Wildcard in path element (like `/interfaces/*/config` or `/interfaces/.../config`) is a stretch goal.
+Wildcard in path element (like `/interfaces/*/config` or `/interfaces/.../config`) will not be supported.
 
 #### 1.2.6 Scalar encoding for telemetry updates
 
@@ -141,7 +142,7 @@ Proposed enhancements should not affect any of the existing functionalities of t
 ### 1.3 Translib Overview
 
 Translib is a golang library for reading and writing YANG model based data to redis DB or non-DB data source.
-Applications would plugin the YANG models and their translation code into the translib.
+OpenConfig YANG models and correspinding translation code will be plugged into translib.
 These application components are called *app modules*.
 Northbound API servers, like REST/gNMI servers, can call translib functions likes `Get()`, `Create()`, `Delete()` to process the request they received.
 Translib then invokes corresponding app modules to translate the YANG and and perform actual read/write operations.
@@ -215,18 +216,33 @@ https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto
 
 ### 2.2 Identifying YANG Based Subscriptions
 
-Today the gNMI server supports subscription based on SONiC specific "DB paths" and "virtual paths"
+Today the gNMI server supports subscription based on SONiC specific "event path", "DB paths" and "virtual paths"
 as described in the [GRPC Telemetry HLD](../../system-telemetry/grpc_telemetry.md).
-It uses the request `target` value to identify type of the subscribe paths.
+It uses the request `target` attribute to identify type of the subscribe paths.
 A subscribe request will be rejected if `target` was not specified.
 
 This is not in sync with the [gNMI specification](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#2221-path-target).
 `target` is optional and is supposed to be an opaque data for the server.
-However, the current behavior will not be removed completely for the sake of backward compatibility.
-The request `target` will be made optional.
-Request will be processed as described in [GRPC Telemetry HLD](../../system-telemetry/grpc_telemetry.md)
-if the `target` is specified and matches one of the reserved keywords listed in that HLD.
-If `target` is not specified or not one of the reserved ones, the subscribe path will be treated as tarnslib YANG path.
+Hence, unlike existing steaming modules, no new reserved `target` value will be added for YANG paths.
+Instead, request `origin` based identification will be used, in accordance with the [gNMI Mixed Schema Specification](https://github.com/openconfig/reference/blob/master/rpc/gnmi/mixed-schema.md).
+Subscribe paths will be treated as translib YANG paths when the `origin` attribute is set as `openconfig`.
+For the sake of backward compatibility, the existing `target` based identification will be retained when the `origin` is not specified.
+Following table summarizes the behavior:
+
+| Origin          | Path identification |
+|-----------------|---------------------|
+| *not specified* | DB path, virtual path or event path based on `target` value (existing logic)  |
+| openconfig      | OpenConfig yang paths handled by translib |
+| *other values*  | Error               |
+
+When origin is `openconfig`, no special processing is sone based on the `target` value.
+`target` will be an optional attribute.
+If specified, the server will fill the same value as the `target` for every notification message sent for that path.
+
+Note: gNMI specification recommends using `openconfig` as the default origin when it is not specified by the client.
+However, we cannot implement it right now to maintain backward compatibility with the existing clients.
+Other streaming modules should consider migrating to `origin` based path identification to achieve gNMI specification compliance.
+Existing reserved `target` values can be re-used as `origin` values.
 
 ### 2.3 Manage Subscription RPC Lifecycle
 
