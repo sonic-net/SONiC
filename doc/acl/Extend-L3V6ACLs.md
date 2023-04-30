@@ -277,7 +277,10 @@ New fields are added to the ACL capability in STATE_DB to help applications iden
 - L4_DST_PORT
 - TCP_FLAGS
 
-***Note**: Every ACL Rule, should include at least one of [*IP_TYPE*, *ETHER_TYPE*] in the matching criteria when matching of L3 header fields. This allows orchestrator to decide in which underlying SAI ACL table to place the rule in. If these fields are not provided in the ACL rule, the rule is placed in the SAI IPv4 ACL table and the behavior is dependent on the platform.
+***Note**: It is recommended that every ACL Rule should include at least one of [*IP_TYPE*, *ETHER_TYPE*] in the matching criteria when matching of L3 header fields. When we handle unsupported platforms by adding two ACL tables in SAI, this allows orchestrator to decide in which underlying SAI ACL table to place the rule in. In phase-1, if these fields are not provided in the ACL rule, the underlying SAI platform must do one of the following: 
+1) install a single rule if the hardware supports it, or
+2) make multiple rules (one rule per IP type), or
+3) throw error as unsupported.
 
 **Actions allowed in the table of the type L3V4V6**
 
