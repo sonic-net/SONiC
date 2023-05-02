@@ -32,6 +32,7 @@
 | 2.1 | Nov-17 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Minor update on container starts |
 | 3 | Jun-3 2022 | Cheryl Sanchez, Jie Feng (Arista Networks) | Update on fabric link monitoring |
 | 3.1 | Mar-30 2023 | Jie Feng (Arista Networks) | Update Overview, SAI API and Configuration and management section |
+| 3.2 | May-01 2023 | Jie Feng (Arista Networks) | Update Counter tables information |
 
 # Scope
 
@@ -89,7 +90,7 @@ DEVICE_METADATA|localhost: {
 
 Each fabric ASIC must be assigned a unique switch_id. The SAI VOQ specification recommends that this number be assigned to be different than the switch_id assigned to the forwarding ASICs in the chassis.
 
-Fabric port status will be polled periodically and stored in table STATE_DB|FABRIC_PORT_TABLE. Typically, fabric port status about a fabric port includes:
+Fabric port is numbered as the chip fabric port number, the its status will be polled periodically and stored in table STATE_DB|FABRIC_PORT_TABLE. Typically, fabric port status about a fabric port includes:
 
 - Status: Up or down
 - If port is down, we may have some more information indicating reason e.g. CRC or misaligned
@@ -99,10 +100,6 @@ Fabric port status will be polled periodically and stored in table STATE_DB|FABR
 STATE_DB:FABRIC_PORT_TABLE:{{fabric_port_name}}
     "lane": {{number}}
     "status": “up|down”
-    "crc": “yes”                           # if status: down
-    "misaligned": “yes”                    # if status: down
-    "remote_switch_id": {{number}}         # if status: up
-    "remote_lane": {{number}}              # if status: up
 ```
 
 Fabric port statistics include the following port counters:
@@ -118,7 +115,10 @@ Fabric port statistics include the following port counters:
     SAI_PORT_STAT_IF_OUT_FABRIC_DATA_UNITS
 ```
 
-FabricPortsOrch defines the port counters in FLEX_COUNTER_DB and syncd's existing FlexCounters thread periodically collects and saves these counters in COUNTER_DB. “show” cli commands read COUNTER_DB and display statistics information.
+FabricPortsOrch defines the port counters in FLEX_COUNTER_DB and syncd's existing FlexCounters thread periodically collects and saves these counters in COUNTER_DB. The counter oid is get from sai_serialize_object_id of the port. A “show” cli commands read COUNTER_DB and display statistics information. The example output of the cli is in section 2.7.
+
+***Example***
+"FLEX_COUNTER_TABLE:FABRIC_PORT_STAT_COUNTER:oid:0x10000000000df"
 
 Fabric port also has a couple of queue counters. Similar to the port counters, the queue counters are also polled with FLEX_COUNTER_DB.
 ```
@@ -126,6 +126,9 @@ Fabric port also has a couple of queue counters. Similar to the port counters, t
     SAI_QUEUE_STAT_CURR_OCCUPANCY_BYTES,
     SAI_QUEUE_STAT_CURR_OCCUPANCY_LEVEL
 ```
+
+***Example***
+"FLEX_COUNTER_TABLE:FABRIC_QUEUE_STAT_COUNTER:oid:0x15000000000219"
 
 Note that Linecard Sonic instances will also have STATE_DB|FABRIC_PORT_TABLE as well as port/queue counters because there are fabric ports in forwarding ASICs as well.
 
@@ -168,9 +171,32 @@ When a forwarding ASIC is initialized, the fabric ports are initialized by defau
      0       2       up          1         206           2          403      0                 10           2015665810             0
 ```
 
+```
+> show fabric counters queue
+  ASIC    PORT    STATE    QUEUE_ID    CURRENT_BYTE    CURRENT_LEVEL    WATERMARK_LEVEL
+------  ------  -------  ----------  --------------  ---------------  -----------------
+     0       0       up           0               0                0                 24
+     0       1     down           0               0                0                 24
+     0       2     down           0               0                0                 24
+     0       3       up           0               0                0                 24
+```
+
 ### 2.7.1 Fabric Status
 
-In a later phase, a `show fabric reachability` command will be added to show the remote switch ID and link ID for each fabric link of an ASIC. The command will be added for both forwarding ASICs on Linecards and fabric ASICs on Fabric cards. This will be obtained from the SAI_PORT_ATTR_FABRIC_REACHABILITY port attribute of the fabric port. Note that for fabric links that do not have a link partner because of the configuration of the chassis, this will show the status as `down`. The status will also be `down` for fabric links that are down due to some other physical error. To identify links that are down due to error vs links that are not expected to be up because of the chassis connectivity, we need to build up a list of expected fabric connectivity for each ASIC. This can be computed ahead of time based on the vendor configuration and populated in the minigraph. This will be implemented in a later phase.
+In a later phase, a `show fabric reachability` command will be added to show the remote switch ID and link ID for each fabric link of an ASIC. The command will be added for both forwarding ASICs on Linecards and fabric ASICs on Fabric cards. This will be obtained from the SAI_PORT_ATTR_FABRIC_REACHABILITY port attribute of the fabric port. Note that for fabric links that do not have a link partner because of the configuration of the chassis, this will not shown in the command.
+
+```
+> show fabric reachability
+
+asic0
+  Local Link    Remote Module    Remote Link    Status
+------------  ---------------  -------------  --------
+          49                4             86        up
+          50                2             87        up
+          52                4             85        up
+          54                2             93        up
+....
+```
 
 ## 2.8 Fabric Link Monitor
 
