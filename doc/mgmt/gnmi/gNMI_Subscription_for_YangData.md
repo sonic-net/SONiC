@@ -216,7 +216,7 @@ https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto
 
 ### 2.2 Identifying YANG Based Subscriptions
 
-Today the gNMI server supports subscription based on SONiC specific "event path", "DB paths" and "virtual paths"
+Today the gNMI server supports subscription based on multiple SONiC specific schemas -- like "event path", "DB paths" and "non-DB paths"
 as described in the [GRPC Telemetry HLD](../../system-telemetry/grpc_telemetry.md).
 It uses the request `target` attribute to identify type of the subscribe paths.
 A subscribe request will be rejected if `target` was not specified.
@@ -229,11 +229,15 @@ Subscribe paths will be treated as translib YANG paths when the `origin` attribu
 For the sake of backward compatibility, the existing `target` based identification will be retained when the `origin` is not specified.
 Following table summarizes the behavior:
 
-| Origin          | Path identification |
-|-----------------|---------------------|
-| *not specified* | DB path, virtual path or event path based on `target` value (existing logic)  |
-| openconfig      | OpenConfig yang paths handled by translib |
-| *other values*  | Error               |
+| `origin` value  | `target` value  | Path type                                 |
+|-----------------|-----------------|-------------------------------------------|
+| openconfig      | *{opaque}*      | OpenConfig yang paths handled by translib |
+| *{empty}*       | CONFIG_DB<br>STATE_DB etc...  | DB path (existing logic)    |
+| *{empty}*       | EVENTS          | Event path (existing logic)               |
+| *{empty}*       | OTHERS          | Non-DB path (existing logic)              |
+| *{empty}*       | *{empty}*       | Error (existing logic)                    |
+| *{empty}*       | *{unknown}*     | Error                                     |
+| *{unknown}*     | *{opaque}*      | Error                                     |
 
 When origin is `openconfig`, no special processing is sone based on the `target` value.
 `target` will be an optional attribute.
