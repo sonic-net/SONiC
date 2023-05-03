@@ -37,10 +37,11 @@
 
 | Rev  |    Date    |                Author                 | Change Description |
 | :--: | :--------: | :-----------------------------------: | ------------------ |
-| 0.1  | 08/12/2022 |  Justin Lu                            | Initial version    |
+| 0.1  | 08/12/2022 |  Justin Lu                            | 1. Initial version    |
 | 0.2  | 09/03/2022 |  Justin Lu                            | 1. Add watchdog design <br> 2. Modify architecture picture |
-| 0.3  | 09/22/2022 |  Antonio Ho                           | Add enable/disable design |
-| 0.4  | 01/16/2023 |  Antonio Ho                           | Add performance improvements |
+| 0.3  | 09/22/2022 |  Antonio Ho                           | 1. Add enable/disable design |
+| 0.4  | 01/16/2023 |  Antonio Ho                           | 1. Add performance improvements |
+| 0.5  | 05/03/2023 |  Antonio Ho                           | 1. Modify performance improvements <br> 2. Add TODO list |
 
 # 1. High Level Design Document
 
@@ -164,63 +165,15 @@ Here lists the related source tree of CLI_wrapper
 
 # 2. Performance improvements
 
-* The following test results are made in gns3 environment:
+* The following test results are made in arm platform(dual-core A53 processor):
 
-  * Case 1: Executing the Python code which import a large module 100 times.
-
-     - The following is a example of executing "show ntp" command without cli_wrapper.
-
-        ```
-              #
-              # 'ntp' command ("show ntp")
-              #
-              @cli.command()
-              @click.pass_context
-              @click.option('--verbose', is_flag=True, help="Enable verbose output")
-              def ntp(ctx, verbose):
-                  """Show NTP information"""
-           -->    from pkg_resources import parse_version
-                  ntpstat_cmd = "ntpstat"
-                  ntpcmd = "ntpq -p -n"
-              ...
-        ```
-
-     - The following results are compared with and without cli_wrapper.
-
-        ![Encode format](images/test_result_gns3_1.jpg)
-
-  * Case 2: Executing the Python code which doesn't import a large module 100 times.
-
-     - The following is a example of executing "show ntp" command without cli_wrapper.
-
-        ```
-              #
-              # 'ntp' command ("show ntp")
-              #
-              @cli.command()
-              @click.pass_context
-              @click.option('--verbose', is_flag=True, help="Enable verbose output")
-              def ntp(ctx, verbose):
-                  """Show NTP information"""
-           -->    # from pkg_resources import parse_version
-                  ntpstat_cmd = "ntpstat"
-                  ntpcmd = "ntpq -p -n"
-              ...
-        ```
-
-     - The following results are compared with and without cli_wrapper.
-
-        ![Encode format](images/test_result_gns3_2.jpg)
-
-* The following test results are made in arm platform:
-
-  * Case 3: Executing the Python code which import a large module 20 times.
+  * Executing "show vlan brief" command 20 times
 
      - The following results are compared with and without cli_wrapper.
 
         ![Encode format](images/test_result_arm_1.jpg)
 
-  * Case 4: Executing the Python code which doesn't import a large module 20 times.
+  * The following is an analysis of the execution time of the "show vlan brief" command
 
      - The following results are compared with and without cli_wrapper.
 
@@ -228,15 +181,31 @@ Here lists the related source tree of CLI_wrapper
 
 * Conclusion
 
-  * Cli_wrapper can improve the command execution time when Python code import large modules.
+  * Cli_wrapper can improve command execution time when Python code imports more global packages.
 
-  * In the worst case, cli_wrapper can still have the same performance as without the wrapper.
-
-  * But, in the case of less powerful CPU, cli_wrapper can reduce more execution time.
+  * For less powerful CPUs, cli_wrapper can significantly reduce execution time.
 
 # 3. Open questions
 
-N/A
+  * TODO:
+
+    * Dynamically generating wrapped files
+
+        - Why I did
+
+          - Section 1.3.5 mentions that during the compilation stage, cli_wrapper builder generates wrapped files, backs up the original files, and then packages all files into Debian.
+
+          - However, this static method of generating wrapped files has the following drawbacks:
+
+              * It is inconvenient for developers as they need to consider whether the cli_wrapper function is enabled and which files have been modified.
+
+              * Moreover, while the cli_wrapper service is starting or stopping, there is a possibility of overwriting the contents that developers have modified.
+
+        - How I did
+
+          - When the cli_wrapper service is starting, the cli_wrapper builder will generate wrapped files.
+
+          - Conversely, when the cli_wrapper service is stopping, all wrapped files will be deleted and then the main.py file will be restored.
 
 # 4. Reference
 
