@@ -460,24 +460,22 @@ Users has to take care that a vlan should not already exist in the given range i
 ```
 admin@sonic:~$ sudo config vlan add -m 2-11 
 ```
-
-<img src="https://user-images.githubusercontent.com/61490193/236477303-ddf164e9-9540-4d32-958e-3df173c627bb.png" width="65%" height="30%">
-
+<img src="https://user-images.githubusercontent.com/61490193/236564441-df20e795-0f35-443f-9c3f-6ebb71554071.png" width="65%" height="30%">
 
 * Example 02: Suppose Vlan 18 already exists then multiple range vlan command will truncate in the middle. So, Vlan16 and Vlan17 will be added and then the command will truncate with an error.
 
 ```
 admin@sonic:~$ sudo config vlan add -m 16,17,18,19
 ```
-<img src="https://user-images.githubusercontent.com/61490193/236170770-a1365f72-601f-4992-87b8-0e2fb43c1e90.png" width="65%" height="30%">
 
+<img src="https://user-images.githubusercontent.com/61490193/236563679-40bd03ef-91b6-4db2-aeb4-7767abd47c5d.png" width="65%" height="30%">
 
 *  Example 03:  Suppose Vlan 25 already exists then multiple range vlan command will truncate at the end.  So, Vlan20 to Vlan24 will be added and then the command will truncate with an error.
 
 ```
 admin@sonic:~$ sudo config vlan add -m 20-25
 ```
-<img src="https://user-images.githubusercontent.com/61490193/236170780-9d18dca0-df6f-4ad5-8d8e-e304019e3c8a.png" width="65%" height="30%">
+<img src="https://user-images.githubusercontent.com/61490193/236563569-ace341d3-48e8-49f0-ad8e-0b94f4a280b0.png" width="65%" height="30%">
 
 
 We have given examples only for addition of vlans, commands for deletion of vlans will show similar behavior.  
