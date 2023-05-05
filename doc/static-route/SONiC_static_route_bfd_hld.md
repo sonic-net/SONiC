@@ -257,12 +257,8 @@ For the static route without "bfd" field (or "bfd" field is "false"), the curren
 
 ### bfd field changes from "true" to "false"
 1. when StaticRouteMgr(config_db) get an updated static route with "bfd" field "false", it install the route as usual. Because it will install the route will all the nexthops in the route, it does not need to uninstall the StaticRouteBfd installed route (the nexthop list is a subset of configured nexthop list).
-2. The StaticRouteBfd need to follow this sequence to delete the entry from APPL_DB STATIC_ROUTE_TABLE, but NOT trigger StaticRouteMgr(appl_db) to uninstall the route:
-*    * 2.1. StaticRouteBfd writes a static route entry to APPL_DB STATIC_ROUTE_TABLE with "bfd" field **"true"** to let StaticRouteMgr(appl_db) clear the route in its cahce. 
-*    * 2.2. StaticRouteBfd then delete the static route entry from APPL_DB. Because  StaticRouteMgr(appl_db) already cleared this route in the above step, so the StaticRouteMgr(appl_db) will do nothing when it see the APPL_DB STATIC_ROUTE_TABLE delete event.
-<br>
-<br>
-<img src="static_rt_bfd_change_2.png" width="600">
+2. StaticRouteBfd delete the static route entry from APPL_DB.
+3. StaticRouteMgr(appl_db) checks the deleted static route key, if the key is also in CONFIG_DB STATIC_ROUTE_TABLE, StaticRouteMgr(appl_db) just clear its local cache, but does not uninstall the route from FRR.
 <br>
 <br>
 
@@ -366,7 +362,7 @@ Verify StaticRouteBfd handling for static route "bfd" flag dynamic changing
 |---------------------------|---------------------------------------|------|
 |configure static route A with "bfd"="true"  |verify bfd session creation| 3 bfd sessions for nh_1/nh_2/nh_3 are created|
 |update BFD session state to UP for nh_1/nh_2/nh_3|veify bfd state handling |static route A (with nh_1/nh_2/nh_3) is installed to the system|
-|change "bfd" flag to "false"|verify flag change handling|1, BFD session should be deleted<br>2, StaticRouteBfd update static route with "bfd"="true" to appl_db to clear StaticRouteMgr cache<br>3, StaticRouteBfd deletes the static route from appl_db |
+|change "bfd" flag to "false"|verify flag change handling|1, BFD session should be deleted<br>2, StaticRouteBfd deletes the static route from appl_db |
 <br>
 
 ### 10. Change a static route "bfd" field from false to true
