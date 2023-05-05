@@ -12,7 +12,9 @@
 |0.2| Architectural Changes & CLI Commands addition| [Muhammad Hamza Iqbal](https://github.com/ham-xa)| [Rida Hanif](https://github.com/ridahanif96) , [Umar Asad](https://github.com/MuhammadUmarAsad), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)| 30 Sep 2022|
 |0.3| Revision in Title,Switchport modes and CLI enhancements| [Muhammad Hamza Iqbal](https://github.com/ham-xa)| [Rida Hanif](https://github.com/ridahanif96) , [Umar Asad](https://github.com/MuhammadUmarAsad), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)| 24 Oct 2022|
 |0.4| Addition of Use Cases, Db Migrator and Config-Db Enchanements| [Muhammad Hamza Iqbal](https://github.com/ham-xa)| [Rida Hanif](https://github.com/ridahanif96) , [Umar Asad](https://github.com/MuhammadUmarAsad), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)| 06 Mar 2023|
+|0.5| Detailed Examples Section | [Muhammad Hamza Iqbal](https://github.com/ham-xa)| [Rida Hanif](https://github.com/ridahanif96) , [Umar Asad](https://github.com/MuhammadUmarAsad), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)| 05 May 2023|
 
+  
   
 ## Table of Contents
 
@@ -33,25 +35,24 @@
   - Sequence Diagram for Deleting Multiple Vlan(s) 
   - Sequence Diagram for Adding Multiple Vlan(s) on Trunk Ports  
   - Sequence Diagram for Deleting Multiple Vlan(s) on Trunk Ports   
-- CLI & YANG Model Configuration 
-  - CLI Configuration Commands 
-  - YANG Model Configurations 
-     - Yang New Type for Port and PortChannel
-     - Yang Leaf for Port and PortChannel
+- CLI Configuration 
+  - VLAN CLI Enchanement Commands
+  - Switchport Modes Command
+- YANG Model Configuration 
+  - Yang New Type for Port and PortChannel
+  - Yang Leaf for Port and PortChannel
 - Config DB Enhancement
 - Db Migrator Enhancement 
 - Example/Usage of Commands
+  - Examples of VLAN CLI Enchanement Command
+    -  Add Multiple Vlans in Range or Comma Separated List
+    -  Add Multiple VLAN Members on Port/PortChannel 
+    -  Multiple Vlan command Truncate Examples
    - Examples of Switchport mode Command
-      - Switching Ports & PortChannels mode from Routed to Access/Trunk 
-      - Displaying Switchport modes on Port & Port Channel
-      - Switching Ports & PortChannels mode from Access to Routed/Trunk
-      - Switching Ports & PortChannels mode from Trunk to Routed/Access
-   - Examples of VLAN CLI Enchanement Command
-      -  Add multiple Vlan(s) using a single command
-      -  Add range of Vlan(s) using a single command
-      -  Add all Vlan(s) as Vlan Member(s) using a single command
-      - Add all Vlan(s) as Vlan Member(s) excluding a range of vlans using a single command
-      - Multiple Vlan command Truncate Examples
+      - Configuring Port & PortChannel from Routed to Access 
+      - Configuring Port & PortChannel from Routed to Trunk
+        - Physical Port Configuration
+        - PortChannel Configuration
 - SAI API 
 - Warm Boot and Fastboot Design Impact  
 - Restrictions/Limitations 
@@ -232,22 +233,37 @@ __*Figure 6: Sequence Diagram for deleting VLAN member on Trunk Port*__
 
 __*NOTE: This works same for Delete Multiple VLANs members from a PortChannel*__
 
-## CLI & YANG Model Configuration Commands & Usage 
+## CLI Configuration Commands 
 
-### CLI Configuration Commands
-
-**1.** config switchport mode <routed|access|trunk> <member_portname>/<member_portchannel>
- 
-**2.** config vlan add/del -m <comma separated list, range> <vlan_ids>
-
-**3.** config vlan  member add/del -m <all,except, comma separated list, range> <vlan_ids> <member_portname>/<member_portchannel>
+### VLAN CLI  Enhancement Commands
 
 
-### YANG Model Configuration 
+**1.** config vlan add/del -m <vlan_ids>
+
+**2.** config vlan  member add/del  -m  <vlan_id> <member_portname>/<member_portchannel>
+
+**3.** config vlan  member add/del  -e  <vlan_id> <member_portname>/<member_portchannel>
+
+**4.** config vlan  member add/del  -e  -m  <vlan_id> <member_portname>/<member_portchannel>
+
+**5.** config vlan member add/del all <member_portname>/<member_portchannel>
+
+
+### Switchport Mode Commands:
+
+**1.** config switchport mode < access | trunk | routed> <member_portname>/<member_portchannel>
+
+**2.** show interfaces switchport config
+
+**3.** show interfaces switchport status
+
+
+
+## YANG Model Configuration 
 
 For Mode attribute, a new type is defined in YANG Model for adding support of "mode" in PORT_TABLE & PORTCHANNEL_TABLE.
 
-#### YANG New type for PORT_TABLE & PORTCHANNEL_TABLE
+### YANG New type for PORT_TABLE & PORTCHANNEL_TABLE
 
     typedef switchport_mode {
         type string {
@@ -257,7 +273,7 @@ For Mode attribute, a new type is defined in YANG Model for adding support of "m
             "SwitchPort Modes for Port & PortChannel";
                          }
 
-#### YANG Leaf for PORT_TABLE & PORTCHANNEL_TABLE
+### YANG Leaf for PORT_TABLE & PORTCHANNEL_TABLE
 
          leaf mode {
 		description "SwitchPort Modes possible values are routed|access|trunk. Default val is routed. "; 
@@ -306,7 +322,7 @@ Exisitng Before Migration PORT TABLE Schema in Config_DB
             "alias": "fortyGigE0/0",
             "index": "0",
             "lanes": "25,26,27,28",
-              "mtu": "9100",
+            "mtu": "9100",
             "speed": "40000"
         }
     }
@@ -337,7 +353,7 @@ Exisitng Before Migration PORTCHANNEL TABLE Schema in Config_DB
             "fast_rate": "false",
             "lacp_key": "auto",
             "min_links": "1",
-              "mtu": "9100"
+            "mtu": "9100"
         }
      }
 
@@ -357,192 +373,347 @@ If a VLAN is configured in old configurations its mode will be set as “trunk�
         }
       }
 
+
+
 ##  Examples/Usage of Commands
 
 This section provides examples/usage of new commands that have been added for switchport modes and VLAN CLI enhancements. These commands work similarly for both Physical Ports and Port Channels. 
 
 
-###  Examples/Usage of SwitchPort mode Command
+###  Examples/Usage of VLAN CLI Enhancement Commands
 
-####  Switching Port & PortChannel mode from routed to access/trunk 
+
+* Add Multiple Vlans in Range or Comma Separated List
+
+```
+admin@sonic:~$ sudo config vlan add -m 2-7 
+ 
+Usage:  The command will add/del multiple Vlan using a single command by providing a range. 
+
+Example: Suppose User wants to create multiple range of Vlans. The command will create the VLANs "Vlan2, Vlan3, Vlan4, Vlan5, Vlan6, Vlan7" if these do not already exist.
+
+```
+
+```
+admin@sonic:~$ sudo config vlan add -m 8,9,10,11,12
+ 
+Usage:  The command will add/del multiple Vlan using a single command by providing a comma separated list. 
+
+Example: Suppose User wants to create multiple comma sepaated Vlans. The command will create the VLANs "Vlan8, Vlan9, Vlan10, Vlan11, Vlan12" if these do not already exist.
+
+```
+
+** Above two examples can be verified using "show vlan brief" command as shown below **
+
+<img src="https://user-images.githubusercontent.com/61490193/236170623-234e6458-2516-4425-b8c9-2ce7af53ec78.png"  width="65%" height="30%">
+
+* Add Multiple VLAN Members on Port/PortChannel 
+
+```
+admin@sonic:~$ sudo config vlan add -m 3-5 Ethernet0
+
+Usage:  The command will add/del multiple Vlan Member(s) using a single command by providing a range.
+
+Example : Suppose Vlan2 to Vlan12 are exisitng Vlan. The command will add Ethernet0 which is configured as trunk as member of VLANs "Vlan3, Vlan4, Vlan5"
+```
+<img src="https://user-images.githubusercontent.com/61490193/236294589-11909ecd-4b35-4deb-95c2-1632b38d6819.png" width="65%" height="40%">
+
+```
+admin@sonic:~$ sudo config vlan member add -e -m 2,3,5 Ethernet4
+
+Usage:  The command will add/del all exisitng Vlan excluding some specific Vlan(s) as member to a Port/PortChannel 
+
+Example: Suppose Vlan2 to Vlan12 are existing Vlans. Users wanted to add all existing VLANs excluding Vlan2, Vlan3, Vlan5. This command will add Ethernet4 which is configured as trunk port as member of Vlan4, Vlan6 , Vlan7 ,Vlan8 ,Vlan9 ,Vlan10 ,Vlan11 ,Vlan12 
+```
+
+<img src="https://user-images.githubusercontent.com/61490193/236534613-007ca01c-a0ce-428b-ba2a-f1c16b9c9a21.png" width="65%" height="30%">
+
+
+```
+admin@sonic:~$ sudo config vlan add -e 10 Ethernet8
+ 
+Usage:  The command will add/del all exisitng Vlan excluding some specific Vlan(s) as member to a Port/PortChannel 
+
+Example: Suppose Vlan2 to Vlan12 are existing Vlans. Users wanted to add all existing VLANs excluding Vlan10. This command will add Ethernet8 which is configured as trunk port as member of Vlan2, Vlan3 , Vlan4 , Vlan5, Vlan6, Vlan7 ,Vlan8 ,Vlan11, Vlan12
+```
+
+<img src="https://user-images.githubusercontent.com/61490193/236533226-6f815971-6ccf-49eb-8e00-46aa721dc02b.png" width="65%" height="30%">
+
+```
+admin@sonic:~$ sudo config vlan member add all Ethernet12
+
+Usage:  The command will add/del all exisitng Vlan as Member to a Port/PortChannel
+
+Example: Suppose Vlan2 to Vlan12 are existing Vlans. Users wanted to add all existing VLANs to a Trunk Port. This command will add Ethernet12 which is configured as a trunk port as member of Vlan2 to Vlan12
+```
+
+<img src="https://user-images.githubusercontent.com/61490193/236533155-05efdba3-4df4-416d-ab98-b51ac5fc0cc2.png" width="65%" height="30%">
+
+*  Add/Del Multiple VLAN & Vlan Members Command Truncate Examples
+
+Multiple Vlan commands for adding Vlans (comma separated or in range) will truncate as soon as it finds any Vlan already exists. This is the existing behavior of SONiC, where command is aborted if any Vlan already exists in case of Vlan addition. Deletion of Vlans works the same way and the command will truncate as soon as it finds a Vlan doesn’t exist. 
+
+Users has to take care that a vlan should not already exist in the given range if he/she is trying to add multiple vlans.  Similarly, a user has to take care that all the vlans should exist in the given range if he/she is trying to delete multiple vlans. Following examples will make a more clear understanding of this fact.
+
+* Example 01: Suppose Vlan 2 already exists then multiple range vlan command will truncate at the start, so no vlan will be added as a result.
+
+```
+admin@sonic:~$ sudo config vlan add -m 2-11 
+```
+
+<img src="https://user-images.githubusercontent.com/61490193/236477303-ddf164e9-9540-4d32-958e-3df173c627bb.png" width="65%" height="30%">
+
+
+* Example 02: Suppose Vlan 18 already exists then multiple range vlan command will truncate in the middle. So, Vlan16 and Vlan17 will be added and then the command will truncate with an error.
+
+```
+admin@sonic:~$ sudo config vlan add -m 16,17,18,19
+```
+<img src="https://user-images.githubusercontent.com/61490193/236170770-a1365f72-601f-4992-87b8-0e2fb43c1e90.png" width="65%" height="30%">
+
+
+*  Example 03:  Suppose Vlan 25 already exists then multiple range vlan command will truncate at the end.  So, Vlan20 to Vlan24 will be added and then the command will truncate with an error.
+
+```
+admin@sonic:~$ sudo config vlan add -m 20-25
+```
+<img src="https://user-images.githubusercontent.com/61490193/236170780-9d18dca0-df6f-4ad5-8d8e-e304019e3c8a.png" width="65%" height="30%">
+
+
+We have given examples only for addition of vlans, commands for deletion of vlans will show similar behavior.  
+
+
+###  Examples/Usage of Switchport Modes Command
 
 Following example shows usage of switchport modes “access” and “trunk” and switching of port mode from routed to access/trunk. Before switching mode from routed to access/trunk, the user must remove IP first. After the mode has been switched to access/trunk there will be no untagged/tagged vlan member(s) assigned (Community calls this situation a blackhole). 
 
+#### Configuring Port & PortChannel from Routed to Access 
+
+In these examples, Ethernet0 will be configured as “Access” from “Routed” 
+
+By default, all ports have IP assigned. For Switchport configuration we have to remove IP assignment otherwise CLI will show following Error:
+
+**For Ethernet0**
+
+<img src="https://user-images.githubusercontent.com/61490193/236294097-1c79ee78-0b83-4daf-ae48-39de60804683.png" width="65%" height="30%">
+
+
+Following Steps will be taken to configure “Access”  mode  on Ethernet0 from “Routed”.
+
+**1.** Remove IP address on  Ethernet0
+
 ```
-  admin@sonic:~$ sudo config switchport mode access Ethernet0
- 
-  Usage:  This command will change Ethernet0 mode from routed to access
-
- ```
- ![Access-mode](https://user-images.githubusercontent.com/61490193/223187133-584d28cd-e662-40a5-9621-a4a86e473544.png)
- 
+admin@sonic:~$ sudo config interface ip remove Ethernet0 10.0.0.0/31
 ```
-  admin@sonic:~$ sudo config switchport mode trunk Ethernet4
- 
-  Usage:  This command will change Ethernet4 mode from routed to trunk
 
- ```
-   
-   ![trunk](https://user-images.githubusercontent.com/61490193/223190390-dcc75cde-6dae-40eb-8c42-1981ed0b3575.png)
+**2.** Configure Ethernet0 as Access
 
- ```
-  admin@sonic:~$ sudo config switchport mode access PortChannel0001
- 
-  Usage:  This command will change PortChannel0001 mode from routed to access 
-  
- ```
- ![PortChannel-access](https://user-images.githubusercontent.com/61490193/223190449-b0b7eab3-ba0b-4c82-baa3-988ae22a787d.png)
+```
+admin@sonic:~$ sudo config switchport mode access Ethernet0        
+```
+**3.** View current configuration by using “show interfaces switchport status” command
+
+```
+admin@sonic:~$ show int switchport status
+```
+<img src="https://user-images.githubusercontent.com/61490193/236170364-27cc8f1e-a6f3-401a-90e5-8ed035b0e65e.png" width="65%" height="30%">
 
 
 
- ```
-  admin@sonic:~$ sudo config switchport mode trunk PortChannel0002
- 
-  Usage:  This command will change PortChannel0002 mode from routed to trunk
-  
- ```
- ![PortChannel-trunk](https://user-images.githubusercontent.com/61490193/223190536-16ad5af8-ebf8-481a-932a-8879cecba133.png)
+**4.** Untagged Vlan Member Assignment on Access Port
+
+```
+admin@sonic:~$ sudo config vlan member add 2 -u Ethernet0
+```
+
+<img src="https://user-images.githubusercontent.com/61490193/236294143-3df37252-dcf4-46d2-bb0d-b8ad104dbb66.png" width="65%" height="30%"> 
+
+**5.** Multiple Untagged Vlan Member Assignment on Access Port
+
+Ethernet0 is in Access mode, it can have only 1 untagged member. Configuring More than 1 untagged member on Access Port will show following error:
+
+<img src="https://user-images.githubusercontent.com/61490193/236170322-030f56ac-b829-4273-95c1-193ddd33807a.png" width="65%" height="30%"> 
 
 
-After configuring port and port channel to “access” and “trunk”. We have added untagged and tagged members on the ports and portchannel using the same commands as has been used before. 
+
+**6.** Tagged Vlan Member Assignment on Access Port
+
+Ethernet0 is in Access mode, it cannot have tagged members. Configuring tagged member on Access Port will show following error:
+
+<img src="https://user-images.githubusercontent.com/61490193/236170445-2d086077-1c78-45c6-9e23-f03b1b280a14.png" width="65%" height="30%"> 
+
+**7.** IP Assignment on Access Port
+
+Ethernet0 is in Access mode, IP assignment on the access port is not allowed. Configuring IP Assignment on Access Port will show following error:
+
+<img src="https://user-images.githubusercontent.com/61490193/236170194-2423f230-483a-42b7-936c-5939bf0e84ae.png" width="65%" height="30%"> 
+
+**8.** Change Mode from Access to Routed
+
+Ethernet0 is in Access mode, switching an access port to routed is not possible until it has an untagged member. Switching access to routed will show following error:
+
+<img src="https://user-images.githubusercontent.com/61490193/236168568-40e2c53b-d674-49b5-8885-faefac2283e5.png" width="65%" height="30%"> 
 
 
-![Vlan-Brief](https://user-images.githubusercontent.com/61490193/223190727-b478448a-806f-4020-bd8f-71dc3eddedd7.png)
+**9.**  Change Mode from Access to Trunk
 
+Ethernet0 is in Access mode, switching an access to trunk mode is possible and its untagged member will be retained.  After Switching from Access to Trunk, all functionalities of a trunk mode will be available.
 
-####  Displaying switchport modes on Port & Port Channel
-
-Show interface status output is modified, the column header named “Vlan” is renamed as “Mode” to depict “access” and “trunk” modes.
-
-Existing Output:
-
-![Show-Int-Stat-old](https://user-images.githubusercontent.com/61490193/223190797-d47cf8fb-e6c6-406a-bb73-b0af8721e3b4.png)
-
-
-Modified Output:
-
-
-![New-Int-Stat](https://user-images.githubusercontent.com/61490193/223196559-e4666118-d022-4a23-85f0-f0ee96d61654.png)
-
-
-#### Switching Ports & PortChannels mode from Access to Routed/Trunk
+<img src="https://user-images.githubusercontent.com/61490193/236169645-6911ab37-8384-4c4e-b9d1-5e6af634497d.png" width="65%" height="30%">
 
 We are giving examples for physical ports, these commands work in the same way for PortChannels as they do for physical ports.
 
-#### Switch from access to routed
-In Switching from access to routed, user need to remove the untagged member first otherwise, the command will give an error:
+#### Configuring Port & PortChannel from Routed to Trunk 
 
-![Switch-Access-Route](https://user-images.githubusercontent.com/61490193/223190966-7498a860-98d0-456f-8acb-241612a51790.png)
+* Physical Port Configuration
 
+In these examples, Ethernet4 will be configured as “Trunk” from “Routed” for Port.
 
-#### Switch from access to trunk
-Switching from access to trunk will work without any error and untagged member added in the access mode is retained:
+By default, all ports are in routed mode and have IP assigned. For Switchport configuration we have to remove IP assignment otherwise CLI will show following Error:
 
-![Switch-Access-Trunk](https://user-images.githubusercontent.com/61490193/223190991-aeef8fd6-e71a-4bbf-9862-42ea4613002a.png)
+**For Ethernet4**
 
-To verify the port mode user can make of “show interfaces status” command
-
-
-#### Switching Ports & PortChannels mode from Trunk to Routed/Access
-
-#### Switch from trunk to routed
-Switch from trunk to routed user need to remove the untagged/tagged member(s) first otherwise, the command will give an error:
-
-![Switch-Trunk-Routed](https://user-images.githubusercontent.com/61490193/223191099-c037754d-c221-43b6-874e-6dbcd4eae639.png)
+<img src="https://user-images.githubusercontent.com/61490193/236170350-be5d23a1-ba77-4a1e-8cfb-5b9b795c48a9.png" width="65%" height="30%">
 
 
-#### Switch from trunk to access
-Switch from trunk to access, user need to remove the tagged members firstotherwise, the command will give an error:
+Following Steps will be taken to configure “Trunk” from “Routed” for Port and PortChannel respectively.
 
-![Switch-Trunk-Access](https://user-images.githubusercontent.com/61490193/223191151-cea02ab6-7755-4c7c-994c-72bbbaeccc56.png)
-
-
-
-###  Examples/Usage of VLAN CLI Enchancemnts Command
-
- #### Add multiple Vlan(s) using a single command:
+**1.** IP Removal on  Ethernet4
 
 ```
-  admin@sonic:~$ sudo config vlan add -m 100,200,300
+admin@sonic:~$ sudo config interface ip remove Ethernet4 10.0.0.2/31
+```
 
-  Usage:  This command will add multiple comma separated vlan in a list
- 
- Example : The command will create the VLAN "Vlan 100, Vlan 200, Vlan 300" if these do not already exist.
-
-  ```
-  ![Vlan-Comma Separted](https://user-images.githubusercontent.com/61490193/223199523-c6e7ddb4-023a-4c9d-8a49-ec7d637bcd31.png)
-
-
- ####  Add range of Vlan(s) using a single command:
+**2.** Configure Ethernet4 as Trunk
 
 ```
-  admin@sonic:~$ sudo config vlan add -m 10-20
-
-  Usage:  This command will add range of vlan in a list
- 
-  Example : The command will create the VLAN "Vlan10 Vlan11, Vlan12, Vlan13, Vlan14, Vlan15, Vlan16, Vlan17, Vlan18, Vlan19, Vlan20" if these do not already exist.
-
-  ```
-![1](https://user-images.githubusercontent.com/61490193/223469654-38c17b89-cc07-4b5d-92b2-4e1dd19370de.png)
-
-  
- The “-m” flag works the same way for deleting multiple VLANs as it does for adding vlans.
-
-
- ####  Add all Vlan(s) as Vlan Member(s) using a single command:
+admin@sonic:~$ sudo config switchport mode Trunk Ethernet4       
+```
+<img src="https://user-images.githubusercontent.com/61490193/236542261-682ebb20-07bd-4a34-ab9b-dc92bfc95bf0.png" width="65%" height="30%">
+**3.** Untagged Vlan Member Assignment on Trunk Port
 
 ```
-  admin@sonic:~$ sudo config vlan member add all Ethernet20
+admin@sonic:~$ sudo config vlan member add 3 -u Ethernet4          
+```
 
-  Usage:  This command will add all existing vlan(s) as vlan member(s) 
+<img src="https://user-images.githubusercontent.com/61490193/236294289-44cbceff-a3be-4460-a5c0-a8f219720466.png" width="65%" height="30%">
+
+**4.** Multiple Untagged Vlan Member Assignment on Trunk Port
+Ethernet4 is in Trunk mode, it can have only 1 untagged member. Configuring More than 1 untagged member on trunk Port will show following error:
+
+
+<img src="https://user-images.githubusercontent.com/61490193/236170542-587403ed-3cf0-465a-9e58-fff7c8130508.png" width="65%" height="30%">
+
+
+**5.** Tagged Vlan Member Assignment on Trunk Port
+
+Ethernet4 is in trunk mode, it can have multiple tagged members. Configuring tagged member on trunk Port will show following
+
+
+<img src="https://user-images.githubusercontent.com/61490193/236294274-61705636-4f9f-4756-9062-58d55334b836.png" width="65%" height="30%">
+
+**6.** IP Assignment on Trunk Port
+
+
+Ethernet4 is in Trunk mode, IP assignment on the Trunk port is not allowed. Configuring IP Assignment on Trunk Port will show following error:
+
+<img src="https://user-images.githubusercontent.com/61490193/236170307-9c58b1c3-4ad8-4061-9908-4163a833a315.png" width="65%" height="40%">
  
- Example : Suppose Vlan2, Vlan3, Vlan4, Vlan5, Vlan6, Vlan7, Vlan8, Vlan9 are existing Vlans. This command will add Ethernet20 as a tagged member of Vlan2, Vlan3, Vlan4, Vlan5, Vlan6, Vlan7, Vlan8, Vlan9
+**7.** Change Mode from Trunk to Routed 
+
+Ethernet4 is in Trunk mode, Changing Trunk port to routed is not possible until it has an untagged and tagged members. Changing Trunk to routed will show following error:
+
+
+<img src="https://user-images.githubusercontent.com/61490193/236533178-bba78b3f-f429-4042-8de9-0decbe938f36.png" width="65%" height="40%">
  
-   ***This command only work for trunk ports***
 
-  ```
-  
-![Vlan-MultipleAdd](https://user-images.githubusercontent.com/61490193/223199652-01b5ed35-15c0-480c-ad78-c78566db62df.png)
+**8.** Change Mode from Trunk to Access
 
+Ethernet4 is in Trunk mode, Changing Trunk port to access is possible and  its  untagged members wll retain. Changing Trunk to access will show following:
 
- ####  Add all Vlan(s) as Vlan Member(s) excluding a range of vlans using a single command:
-
-  ```
-
-  admin@sonic:~$ sudo config vlan member add -m -e 12-17 PortChannel0003
-
-  Usage:  This command will add all existing vlan(s) execpt some specific as vlan member(s) 
- 
- Example : Suppose if Vlan10, Vlan11, Vlan12, Vlan13, Vlan14, Vlan15, Vlan16, Vlan17, Vlan18, Vlan19, Vlan20 are existing Vlans. This command will add PortChannel0003 as member of Vlan10, Vlan11, Vlan18, Vlan19, Vlan20
-
-    ***This command only work for trunk ports***
-
-  ```
-  
-  ![Portchannel-except](https://user-images.githubusercontent.com/61490193/223192175-396b487b-fe75-43f6-8598-d9e74773dd58.png)
+<img src="https://user-images.githubusercontent.com/61490193/236170489-5534af51-ce5d-4a39-b2cc-59b3c1660a23.png" width="65%" height="40%">
 
 
-#### Multiple VLans command truncate:
+* PortChannel Configurations
 
-Multiple Vlan commands for adding Vlans (comma separated or in range) will truncate as soon as it finds any Vlan already exists even at the start or in the middle.  Deletion of Vlans works the same way and the command will truncate as soon as it finds a Vlan doesn’t exist. So, a user has to take care that a vlan should not already exist in the given range if he/she is trying to add multiple vlans.  Similarly, a user has to take care that all the vlans should exist in the given range if he/she is trying to delete multiple vlans. Following examples will make a more clear understanding of this fact.
+In these examples, PortChannel will be configured as “Trunk” from “Routed”.
+
+Following Steps will be taken to configure “Trunk”  mode  on Ethernet0 from “Routed”.
+
+**1.**  PortChannel Creation 
+
+To configure a PortChannel as Trunk, we first need to create a new PortChannel "PortChannel1010" 
+
+```
+admin@sonic:~$ sudo config portchannel add PortChannel1010       
+```
+
+**1.** PortChannel Member Addition 
+
+We will add Ethernet8 & Ethernet12 as members of PortChannel1010.
+
+```
+admin@sonic:~$ sudo config portchannel member add       
+```
+
+**2.** PortChannel Member IP removal and PortChannel Trunk Configuration
+
+Ethernet8, Ethernet12 will be added as Portchannel member but first we have to remove IP assigned to Ethernet8 & Ethernet12. After IP address can be removed , we will add portchannel members Ethernet8 & Ethernet12.
+
+<img src="https://user-images.githubusercontent.com/61490193/236294465-ec73c97c-8531-4a59-943c-8aed4e773d45.png" width="65%" height="30%"> 
 
 
-Example: Suppose Vlan 2 already exists then multiple range vlan command will truncate at the start and no vlan will be added as a result.
-
-![Vlan-Add-Error](https://user-images.githubusercontent.com/61490193/223192280-86424b5a-9cb5-4bea-94ea-c951522fb3a6.png)
+**3.** Untagged Vlan Member Assignment on Trunk PortChannel
 
 
-Example: Suppose Vlan 28 already exists then multiple range vlan command will truncate in the middle. Such that Vlan26 and Vla27 will be added and then the command will truncate with an error.
+```
+admin@sonic:~$ sudo config vlan member add 3 -u PortChannel1010            
 
-![Vlan-Add-Middle](https://user-images.githubusercontent.com/61490193/223192341-7085c38d-421e-440c-8152-474b30a88d82.png)
+Ethernet8 & Ethernet12 has be configured as Portchannel1010 member, they are excluded from interface list.
+
+Those Interfaces which are members of PortChannel will be reomved from interface list
+```
+
+<img src="https://user-images.githubusercontent.com/61490193/236294399-38b70aa3-b90d-4e57-8d13-0860375e738b.png" width="65%" height="20%"> 
+
+**5.** Multiple Untagged Member Assignment on Trunk PortChannel
+
+PortChannel1010 is in Trunk mode, it can have only 1 untagged member. Configuring More than 1 untagged member on Trunk Portchannel will show following error:
+
+<img src="https://user-images.githubusercontent.com/61490193/236238520-6fb49e9b-9607-4e5e-b3a2-09b762580e7d.png" width="65%" height="20%"> 
+
+**6.** Tagged Vlan Member Assignment on Trunk PortChannel
+
+PortChannel1010 is in Trunk mode, it can have tagged members. Configuring tagged member on Trunk Port will show following:
+
+```
+admin@sonic:~$ sudo config vlan member add -m 4,5,6 PortChannel1010           
+```
 
 
-Example: Suppose Vlan 25 already exists then multiple range vlan command will truncate at the end.  Such that Vlan20 to Vlan24 will be added and then the command will truncate with an error.
+<img src="https://user-images.githubusercontent.com/61490193/236294479-887748f2-7772-403a-b241-375c767fb172.png" width="65%" height="20%"> 
+
+**7.** IP Assignment on Trunk PortChannel
+
+PortChannel1010 is in Trunk mode, IP assignment on the trunk portchannel is not allowed. Configuring IP Assignment on Trunk PortChannel will show following error:
+
+<img src="https://user-images.githubusercontent.com/61490193/236238492-f5cf68a4-78e9-4981-8377-c825dc49f3b1.png" width="65%" height="20%">
 
 
-![Vlan-Add-Last](https://user-images.githubusercontent.com/61490193/223192431-d1a603a9-dcaf-42fb-bfad-23dde5e22437.png)
+**8.** Change Trunk PortChannel to Routed
 
-We have given examples only for addition of vlans, commands for deletion of vlans will show similar behavior. 
+PortChannel1010 is in Trunk mode, switching an trunk portchannel to routed is not allowed until it has an untagged member. Switching Trunk PortChannel to routed will show following error:
+
+```
+admin@sonic:~$ sudo config switchport mode routed PortChannel1010
+            
+```
+<img src="https://user-images.githubusercontent.com/61490193/236238571-ec324daf-53bb-4b6f-9a9e-ea17595d81e6.png" width="65%" height="20%">
+
+**9.** Change Trunk PortChannel to Access
+PortChannel1010 is in Trunk mode, switching trunk portchannel to access is not possible and its has tagged members.Switching Trunk PortChannel to access will show following error:
+
+<img src="https://user-images.githubusercontent.com/61490193/236238520-6fb49e9b-9607-4e5e-b3a2-09b762580e7d.png" width="65%" height="40%">
 
 ### Warm Boot and Fastboot Design Impact
 
