@@ -373,3 +373,67 @@ Verify StaticRouteBfd handling for static route "bfd" flag dynamic changing
 |update BFD session state to UP for nh_1/nh_2/nh_3|veify bfd state handling |static route A (with nh_1/nh_2/nh_3, which BFD session is UP) is installed to the system|
 <br>
 
+# Traffic convergence acceleration
+The StaticRouteBfd add/remove nexthop to/from prefix via FRR. This may takes time to recursively update all the FRR route. Using the approch similar to [ECMP acceleration](https://github.com/sonic-net/SONiC/blob/master/doc/ecmp/sonic-ecmp-acceleration.docx) can speed up the traffic convergence.<br>
+To support this acceleration, need to make some design changes in swss/Orchagent.
+Here is the code to show logic/steps:
+1. NeighOrch register itself as BfdOrch's observer 
+```
+extern BfdOrch *gBfdOrch;
+NeighOrch::NeighOrch(DBConnector *appDb, string tableName, IntfsOrch *intfsOrch, FdbOrch *fdbOrch, PortsOrch *portsOrch, DBConnector *chassisAppDb) :
+    ...
+{
+    ...
+    gBfdOrch->attach(this);
+}
+```
+2. Add BFD state handling in NeighOrch. 
+```
+void NeighOrch::update(SubjectType type, void *cntx)
+{
+    ...
+    switch(type) {
+    case SUBJECT_TYPE_BFD_SESSION_STATE_CHANGE:
+    {
+        BfdUpdate *update = static_cast<BfdUpdate *>(cntx);
+        updateNextHop (*update);
+    ...
+}
+
+bool NeighOrch:: updateNextHop (const BfdUpdate& update)
+{
+    SWSS_LOG_ENTER();
+    bool rc = true;
+ 
+    auto key = update.peer;
+    sai_bfd_session_state_t state = update.state;
+    ...
+    //find peer address from key
+    size_t found_vrf = key.find(state_db_key_delimiter);
+    size_t found_ifname = key.find(state_db_key_delimiter, found_vrf + 1);
+    string vrf_name = key.substr(0, found_vrf);
+    string alias = key.substr(found_vrf + 1, found_ifname - found_vrf - 1);
+    IpAddress peer_address(key.substr(found_ifname + 1));
+ 
+    //FIXME check if peer_address is vnet prefix, ignore it if yes?
+ 
+    //loop m_syncdNextHops to see if it matches the above peer IP address
+    for (auto nhop = m_syncdNextHops.begin(); nhop != m_syncdNextHops.end(); ++nhop)
+    {
+        if ( nhop is not the BFD peer address )
+        {
+            continue;
+        }
+ 
+        if (BFD state is UP)
+        {
+            rc = clearNextHopFlag(nhop->first, NHFLAGS_IFDOWN);
+        }
+        else
+        {
+            rc = setNextHopFlag(nhop->first, NHFLAGS_IFDOWN);
+        }
+
+```
+3. the above clearNextHopFlag and setNextHopFlag are already implemented in current NeighOrch design.
+
