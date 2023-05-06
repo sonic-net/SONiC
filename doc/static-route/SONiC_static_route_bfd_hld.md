@@ -415,9 +415,7 @@ bool NeighOrch:: updateNextHop (const BfdUpdate& update)
     string alias = key.substr(found_vrf + 1, found_ifname - found_vrf - 1);
     IpAddress peer_address(key.substr(found_ifname + 1));
  
-    //FIXME check if peer_address is vnet prefix, ignore it if yes?
- 
-    //loop m_syncdNextHops to see if it matches the above peer IP address
+    //loop m_syncdNextHops to see if it matches the above BFD peer IP address
     for (auto nhop = m_syncdNextHops.begin(); nhop != m_syncdNextHops.end(); ++nhop)
     {
         if ( nhop is not the BFD peer address )
@@ -436,4 +434,36 @@ bool NeighOrch:: updateNextHop (const BfdUpdate& update)
 
 ```
 3. the above clearNextHopFlag and setNextHopFlag are already implemented in current NeighOrch design.
+```
+bool NeighOrch::clearNextHopFlag(const NextHopKey &nexthop, const uint32_t nh_flag)
+{
+    SWSS_LOG_ENTER();
 
+    auto nhop = m_syncdNextHops.find(nexthop);
+    bool rc = false;
+...
+    nhop->second.nh_flags &= ~nh_flag;
+    uint32_t count;
+    switch (nh_flag)
+    {
+        case NHFLAGS_IFDOWN:
+            rc = gRouteOrch->validnexthopinNextHopGroup(nexthop, count);
+            rc &= gNhgOrch->validateNextHop(nexthop);
+            break;
+
+bool NeighOrch::setNextHopFlag(const NextHopKey &nexthop, const uint32_t nh_flag)
+{
+    SWSS_LOG_ENTER();
+
+    auto nhop = m_syncdNextHops.find(nexthop);
+    bool rc = false;
+...
+    nhop->second.nh_flags |= nh_flag;
+    uint32_t count;
+    switch (nh_flag)
+    {
+        case NHFLAGS_IFDOWN:
+            rc = gRouteOrch->invalidnexthopinNextHopGroup(nexthop, count);
+            rc &= gNhgOrch->invalidateNextHop(nexthop);
+            break;            
+```
