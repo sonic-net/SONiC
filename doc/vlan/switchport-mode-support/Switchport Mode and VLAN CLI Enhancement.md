@@ -258,7 +258,6 @@ __*NOTE: This works same for Delete Multiple VLANs members from a PortChannel*__
 **3.** show interfaces switchport status
 
 
-
 ## YANG Model Configuration 
 
 For Mode attribute, a new type is defined in YANG Model for adding support of "mode" in PORT_TABLE & PORTCHANNEL_TABLE.
@@ -374,7 +373,6 @@ If a VLAN is configured in old configurations its mode will be set as “trunk�
       }
 
 
-
 ##  Examples/Usage of Commands
 
 This section provides examples/usage of new commands that have been added for switchport modes and VLAN CLI enhancements. These commands work similarly for both Physical Ports and Port Channels. 
@@ -487,7 +485,7 @@ Following example shows usage of switchport modes “access” and “trunk” a
 
 #### Configuring Port & PortChannel from Routed to Access 
 
-In these examples, Ethernet0 will be configured as “Access” from “Routed” 
+In these examples, Ethernet0 will be configured as “Access” from “Routed”. We will be using some of exisitng Vlans (Vlan2 to Vlan12 created in the above section) for vlan member configuration on Port. 
 
 By default, all ports have IP assigned. For Switchport configuration we have to remove IP assignment otherwise CLI will show following Error:
 
@@ -498,7 +496,7 @@ By default, all ports have IP assigned. For Switchport configuration we have to 
 
 Following Steps will be taken to configure “Access”  mode  on Ethernet0 from “Routed”.
 
-**1.** Remove IP address on  Ethernet0
+**1.** Remove IP assigned on Ethernet0
 
 ```
 admin@sonic:~$ sudo config interface ip remove Ethernet0 10.0.0.0/31
@@ -517,7 +515,6 @@ admin@sonic:~$ show int switchport status
 <img src="https://user-images.githubusercontent.com/61490193/236170364-27cc8f1e-a6f3-401a-90e5-8ed035b0e65e.png" width="65%" height="30%">
 
 
-
 **4.** Untagged Vlan Member Assignment on Access Port
 
 ```
@@ -531,8 +528,6 @@ admin@sonic:~$ sudo config vlan member add 2 -u Ethernet0
 Ethernet0 is in Access mode, it can have only 1 untagged member. Configuring More than 1 untagged member on Access Port will show following error:
 
 <img src="https://user-images.githubusercontent.com/61490193/236170322-030f56ac-b829-4273-95c1-193ddd33807a.png" width="65%" height="30%"> 
-
-
 
 **6.** Tagged Vlan Member Assignment on Access Port
 
@@ -548,24 +543,24 @@ Ethernet0 is in Access mode, IP assignment on the access port is not allowed. Co
 
 **8.** Change Mode from Access to Routed
 
-Ethernet0 is in Access mode, switching an access port to routed is not possible until it has an untagged member. Switching access to routed will show following error:
+Ethernet0 is in Access mode, switching an access port to routed is not possible until it has an untagged member. Changing  mode from access to routed will show following error:
 
 <img src="https://user-images.githubusercontent.com/61490193/236168568-40e2c53b-d674-49b5-8885-faefac2283e5.png" width="65%" height="30%"> 
 
 
 **9.**  Change Mode from Access to Trunk
 
-Ethernet0 is in Access mode, switching an access to trunk mode is possible and its untagged member will be retained.  After Switching from Access to Trunk, all functionalities of a trunk mode will be available.
+Ethernet0 is in Access mode, switching an access to trunk mode is possible and its untagged member will be retained.  After changing mode from access to trunk, all functionalities of a trunk mode can be used/configred on Port
 
 <img src="https://user-images.githubusercontent.com/61490193/236169645-6911ab37-8384-4c4e-b9d1-5e6af634497d.png" width="65%" height="30%">
 
-We are giving examples for physical ports, these commands work in the same way for PortChannels as they do for physical ports.
+We have given examples/usage for switchport mode configuration from routed to access on physical port. This works in the same way for PortChannels as they do for physical ports.
 
 #### Configuring Port & PortChannel from Routed to Trunk 
 
 * Physical Port Configuration
 
-In these examples, Ethernet4 will be configured as “Trunk” from “Routed” for Port.
+In these examples, Ethernet4 will be configured as “Trunk” from “Routed” on Port.
 
 By default, all ports are in routed mode and have IP assigned. For Switchport configuration we have to remove IP assignment otherwise CLI will show following Error:
 
@@ -574,7 +569,7 @@ By default, all ports are in routed mode and have IP assigned. For Switchport co
 <img src="https://user-images.githubusercontent.com/61490193/236170350-be5d23a1-ba77-4a1e-8cfb-5b9b795c48a9.png" width="65%" height="30%">
 
 
-Following Steps will be taken to configure “Trunk” from “Routed” for Port and PortChannel respectively.
+Following Steps will be taken to configure “Trunk” from “Routed” on a Port
 
 **1.** IP Removal on  Ethernet4
 
@@ -624,7 +619,6 @@ Ethernet4 is in Trunk mode, Changing Trunk port to routed is not possible until 
 
 <img src="https://user-images.githubusercontent.com/61490193/236533178-bba78b3f-f429-4042-8de9-0decbe938f36.png" width="65%" height="40%">
  
-
 **8.** Change Mode from Trunk to Access
 
 Ethernet4 is in Trunk mode, Changing Trunk port to access is possible and  its  untagged members wll retain. Changing Trunk to access will show following:
@@ -634,9 +628,9 @@ Ethernet4 is in Trunk mode, Changing Trunk port to access is possible and  its  
 
 * PortChannel Configurations
 
-In these examples, PortChannel will be configured as “Trunk” from “Routed”.
+In these examples, PortChannel will be configured as “Trunk” from “Routed”. We will be using some of exisitng Vlans (Vlan2 to Vlan12 created in the above section) for vlan member configuration on Portchannel.
 
-Following Steps will be taken to configure “Trunk”  mode  on Ethernet0 from “Routed”.
+Following Steps will be taken to configure “Trunk” from "Routed" on PortChannel
 
 **1.**  PortChannel Creation 
 
@@ -646,41 +640,32 @@ To configure a PortChannel as Trunk, we first need to create a new PortChannel "
 admin@sonic:~$ sudo config portchannel add PortChannel1010       
 ```
 
-**1.** PortChannel Member Addition 
+**2.** PortChannel Member Addition and PortChannel Trunk Configuration
 
-We will add Ethernet8 & Ethernet12 as members of PortChannel1010.
-
-```
-admin@sonic:~$ sudo config portchannel member add       
-```
-
-**2.** PortChannel Member IP removal and PortChannel Trunk Configuration
-
-Ethernet8, Ethernet12 will be added as Portchannel member but first we have to remove IP assigned to Ethernet8 & Ethernet12. After IP address can be removed , we will add portchannel members Ethernet8 & Ethernet12.
+Ethernet8, Ethernet12 will be added as Portchannel member but first we have to remove IP assigned to Ethernet8 & Ethernet12. After IP address can be removed , we will add Ethernet8 & Ethernet12 as portchannel member on PortChannel1010
 
 <img src="https://user-images.githubusercontent.com/61490193/236294465-ec73c97c-8531-4a59-943c-8aed4e773d45.png" width="65%" height="30%"> 
 
 
 **3.** Untagged Vlan Member Assignment on Trunk PortChannel
 
-
 ```
 admin@sonic:~$ sudo config vlan member add 3 -u PortChannel1010            
 
 Ethernet8 & Ethernet12 has be configured as Portchannel1010 member, they are excluded from interface list.
 
-Those Interfaces which are members of PortChannel will be reomved from interface list
+Those Interfaces which are members of PortChannel will be reomved from interface list in show interfaces switchport
 ```
 
 <img src="https://user-images.githubusercontent.com/61490193/236294399-38b70aa3-b90d-4e57-8d13-0860375e738b.png" width="65%" height="20%"> 
 
-**5.** Multiple Untagged Member Assignment on Trunk PortChannel
+**4.** Multiple Untagged Member Assignment on Trunk PortChannel
 
 PortChannel1010 is in Trunk mode, it can have only 1 untagged member. Configuring More than 1 untagged member on Trunk Portchannel will show following error:
 
 <img src="https://user-images.githubusercontent.com/61490193/236238520-6fb49e9b-9607-4e5e-b3a2-09b762580e7d.png" width="65%" height="20%"> 
 
-**6.** Tagged Vlan Member Assignment on Trunk PortChannel
+**5.** Tagged Vlan Member Assignment on Trunk PortChannel
 
 PortChannel1010 is in Trunk mode, it can have tagged members. Configuring tagged member on Trunk Port will show following:
 
@@ -688,27 +673,25 @@ PortChannel1010 is in Trunk mode, it can have tagged members. Configuring tagged
 admin@sonic:~$ sudo config vlan member add -m 4,5,6 PortChannel1010           
 ```
 
-
 <img src="https://user-images.githubusercontent.com/61490193/236294479-887748f2-7772-403a-b241-375c767fb172.png" width="65%" height="20%"> 
 
-**7.** IP Assignment on Trunk PortChannel
+**6.** IP Assignment on Trunk PortChannel
 
 PortChannel1010 is in Trunk mode, IP assignment on the trunk portchannel is not allowed. Configuring IP Assignment on Trunk PortChannel will show following error:
 
 <img src="https://user-images.githubusercontent.com/61490193/236238492-f5cf68a4-78e9-4981-8377-c825dc49f3b1.png" width="65%" height="20%">
 
 
-**8.** Change Trunk PortChannel to Routed
+**7.** Change Trunk PortChannel to Routed
 
 PortChannel1010 is in Trunk mode, switching an trunk portchannel to routed is not allowed until it has an untagged member. Switching Trunk PortChannel to routed will show following error:
 
 ```
-admin@sonic:~$ sudo config switchport mode routed PortChannel1010
-            
+admin@sonic:~$ sudo config switchport mode routed PortChannel1010          
 ```
 <img src="https://user-images.githubusercontent.com/61490193/236238571-ec324daf-53bb-4b6f-9a9e-ea17595d81e6.png" width="65%" height="20%">
 
-**9.** Change Trunk PortChannel to Access
+**8.** Change Trunk PortChannel to Access
 PortChannel1010 is in Trunk mode, switching trunk portchannel to access is not possible and its has tagged members.Switching Trunk PortChannel to access will show following error:
 
 <img src="https://user-images.githubusercontent.com/61490193/236238520-6fb49e9b-9607-4e5e-b3a2-09b762580e7d.png" width="65%" height="40%">
