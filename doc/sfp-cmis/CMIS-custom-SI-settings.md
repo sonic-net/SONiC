@@ -118,10 +118,10 @@ There will be unique speed and vendor/vendor_PN entries in each identified port 
 Default values can be platform defaults for multiple vendors in each section.
 
 ## List of standard TX/RX SI parameters
-SI_PARAM_TX_INPUT_EQ 
-SI_PARAM_RX_OUTPUT_PRE 
-SI_PARAM_RX_OUTPUT_POST 
-SI_PARAM_RX_OUTPUT_AMP
+-  SI_PARAM_TX_INPUT_EQ 
+-  SI_PARAM_RX_OUTPUT_PRE 
+-  SI_PARAM_RX_OUTPUT_POST 
+-  SI_PARAM_RX_OUTPUT_AMP
 
 ## Sample Optics SI setting file:
 ```
