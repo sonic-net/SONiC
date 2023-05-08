@@ -58,6 +58,7 @@
 	  * [Implementation Details](#implementation-details)
 		 * [PDDF and S3IP SysFS](#pddf-and-s3ip-sysfs)
 		 * [S3IP SysFS Creation and Mapping](#s3ip-sysfs-creation-and-mapping)
+		 * [Adding S3IP Support for a Platform](#adding-s3ip-support-for-a-platform)
  * [Warm Boot Support](#warm-boot-support)
  * [Unit Test](#unit-test)
 
@@ -1958,6 +1959,43 @@ This pddf-s3ip service would create the sysfs as per the standards. It will also
 In case the platform does not support some attributes present in the S3IP spec, 'NA' will be written to the attribute file so that the application does not fail.
 
 Once this is done, users can run their S3IP compliant applicaitons and test scripts on the platform.
+
+#### 7.2.3 Adding S3IP Support for a Platform
+
+For adding support for S3IP on a platform which is already using PDDF for bringup, here are the steps.
+
+- Add "enable_s3ip": "yes" into the pddf-device.json file for that platform
+```
+         "num_fans_pertray":1,
+         "num_ports":54,
+         "num_temps": 3,
++        "enable_s3ip": "yes",
+         "pddf_dev_types":
+         {
+```
+
+- Create a softlink for the 'pddf-s3ip-init.service' inside service folder for that platform.
+
+```
+diff --git a/platform/broadcom/sonic-platform-modules-<odm>/<platform>/service/pddf-s3ip-init.service b/platform/broadcom/sonic-platform-modules-<odm>/<platform>/service/pddf-s3ip-init.service
+new file mode 120000
+index 000000000..f1f7fe768
+--- /dev/null
++++ b/platform/broadcom/sonic-platform-modules-<odm>/<platform>/service/pddf-s3ip-init.service
+@@ -0,0 +1 @@
++../../../../pddf/i2c/service/pddf-s3ip-init.service
+\ No newline at end of file
+
+
+# ls -l platform/broadcom/sonic-platform-modules-<odm>/<platform>/service/pddf*
+total 3
+lrwxrwxrwx 1 fk410167 nwsoftusers  55 May  8 02:02 pddf-platform-init.service -> ../../../../pddf/i2c/service/pddf-platform-init.service
+lrwxrwxrwx 1 fk410167 nwsoftusers  55 May  8 02:02 pddf-s3ip-init.service -> ../../../../pddf/i2c/service/pddf-s3ip-init.service
+#
+
+```
+
+Build the platform and sonic-device-data debian packages and load the build on the respective platform.
 
 
 ## 8 Warm Boot Support
