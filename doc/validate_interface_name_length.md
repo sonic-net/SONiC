@@ -8,8 +8,6 @@
 
 # Table of Contents
 
-​	-[List of Figures](#list-of-figures)
-
 ​	-[Revision](#revision)
 
 ​	-[Motivation](#motivation)
@@ -18,19 +16,14 @@
 
 ​	-[Design](#design)
 
-​	-[CLI](#cli)
-
-​	-[Flow](#flow)
-
 ​	-[Tests](#tests)
 
-# List of Figures
-* [flow diagram](#9-Flow)
+
 
 # Revision
 | Rev  |   Date   |    Author    | Change Description |
 | :--: | :------: | :----------: | ------------------ |
-| 0.1  | 02/22/22 | Eden Grisaro | Initial version    |
+| 0.1  | 10/05/23 | Eden Grisaro | Initial version    |
 
 
 
@@ -47,78 +40,54 @@ This document provides an overview of the implementation of adding a validation 
 
 # Design
 
+## Add validation to the CLI command
 There are few interfaces that we will add the validation:
 
-## Vxlan 
-1. In sonic-utilities/config/vxlan.py, in the "add_vxlan" subcommand we will add validtion of the `vxlan_name`.
+interface | file path | function name | need to add validation? |
+--- | --- | --- | --- |--- |--- |--- |--- |--- |--- |--- |---
+Vxlan | sonic-utilities/config/vxlan.py | add_vxlan | yes | 
+Vlan | sonic-utilities/config/vlan.py | add_vlan | no |
+Vrf | sonic-utilities/config/main.py | add_vrf | no | 
+Loopback | sonic-utilities/config/main.py | is_loopback_name_valid | no |
+Subinterface | sonic-utilities/config/main.py | add_subinterface | yes | 
+Portchannel | sonic-utilities/config/main.py | is_portchannel_name_valid | no |
 
-## Vrf
-1. In the sonic-yang-models/yang-models/sonic-vrf.yang we need to add validition of the length of the name leaf.
+## Add validation to the Yang model
 
-##Loopback
-1. In the sonic-yang-models/yang-models/sonic-loopback-interface.yang we need to add validition of the length of the name leaf.
+interface | file path | need to add validation? |
+--- | --- | --- | --- |--- |--- |--- |--- |--- |--- |--- |---
+Vxlan | sonic-yang-models/yang-models/sonic-vxlan.yang | yes | 
+Vlan | sonic-yang-models/yang-models/sonic-vlan.yang | no |
+Vrf | sonic-yang-models/yang-models/sonic-vrf.yang | no | 
+Loopback | sonic-yang-models/yang-models/sonic-loopback-interface.yang | no |
+Subinterface | sonic-yang-models/yang-models/sonic-vlan-sub-interface.yang | yes | 
+Portchannel | sonic-yang-models/yang-models/sonic-portchannel.yang | no |
 
 
-
-There are some interfaces that we allready has validation:
-
-## Vxlan 
-1. In the sonic-yang-models/yang-models/sonic-vxlan.yang we allready has validition of the length of the name leaf.
-
-## Vlan 
-1. In sonic-utilities/config/vlan.py, in the "add_vlan" subcommand we allready has validition of the length of the vlan name.
-2. In the sonic-yang-models/yang-models/sonic-vlan.yang we allready has validition of the length of the name leaf.
-
-## Portchannel
-1. In sonic-utilities/config/main.py, in the "is_portchannel_name_valid" subcommand we allready has validition of the length of the portchannel name.
-2. In the sonic-yang-models/yang-models/sonic-portchannel.yang we allready has validition of the length of the name leaf.
-
-## Vrf
-1. In the sonic-utilities/config/main.py, in the "add_vrf" subcommand we allready has validition of the length of the `vrf_name`.
-
-##Loopback
-1. In sonic-utilities/config/main.py, in the "is_loopback_name_valid" subcommand we allready has validition of the length of the loopback name.
-
-Added the marked lines:
-
-![](show_version.png)
-![](get_uptime.png)
-
-# CLI
-
-This command displays the "show version" output and in addition, the current date in a new row. 
-
-Usage:
-```
-show version
-```
-Example:
-```
-admin@sonic:~$ show version
-SONiC Software Version: SONiC.HEAD.32-21ea29a
-Distribution: Debian 9.8
-Kernel: 4.9.0-8-amd64
-Build commit: 21ea29a
-Build date: Fri Mar 22 01:55:48 UTC 2019
-Built by: johnar@jenkins-worker-4
-Platform: x86_64-mlnx_msn2700-r0
-HwSKU: Mellanox-SN2700
-ASIC: mellanox
-ASIC Count: 1
-Serial Number: MT1822K07815
-Model Number: MSN2700-CS2FO
-Hardware Rev: A1
-Uptime: up 3 min,  1 user,  load average: 1.26, 1.45, 0.66
-Date: Tue 22 Feb 2022 14:40:15
-...
-```
-
-# Flow
-
-![](flow.drawio.png)
-
+## Subinterface
+1. In the sonic-yang-models/yang-models/sonic-vlan-sub-interface.yang we allready has validition of the length of the name leaf.
 
 
 # Tests
+## sonic-utilities:
 
-The verification tests and unit tests are not influenced by the add date feature.
+interface | file path | test name | need to add test? |
+--- | --- | --- | --- |--- |--- |--- |--- |--- |--- |--- |---
+Vxlan | sonic-utilities/tests/vxlan_test.py | test_config_vxlan_add |yes | 
+Vlan | sonic-utilities/tests/vlan_test.py | test_config_vlan_add_member_with_invalid_vlanid | yes |
+Vrf | sonic-utilities/tests/vrf_test.py | test_invalid_vrf_name | yes | 
+Loopback | sonic-utilities/tests/config_test.py | test_add_loopback_with_invalid_name_adhoc_validation | yes |
+Subinterface | sonic-utilities/tests/subintf_test.py | test_invalid_subintf_creation | no | 
+Portchannel | sonic-utilities/tests/portchannel_test.py | test_add_portchannel_with_invalid_name_adhoc_validation | yes |
+
+## Yang:
+yang tests via YANG or in the utilities
+
+interface | file path | need to add validation? |
+--- | --- | --- | --- |--- |--- |--- |--- |--- |--- |--- |---
+Vxlan | sonic-yang-models/tests/yang_models_tests/tests/vxlan.json <br /> sonic-yang-models/tests/yang_models_tests/config_tests/vxlan.json | yes | 
+Vlan | sonic-yang-models/tests/yang_models_tests/tests/vlan.json <br /> sonic-yang-models/tests/yang_models_tests/config_tests/vlan.json | yes |
+Vrf | sonic-yang-models/tests/yang_models_tests/tests/vrf.json <br /> sonic-yang-models/tests/yang_models_tests/config_tests/vrf.json | yes | 
+Loopback | sonic-yang-models/tests/yang_models_tests/tests/loopback.json <br /> sonic-yang-models/tests/yang_models_tests/config_tests/loopback.json | yes |
+Subinterface | sonic-yang-models/tests/yang_models_tests/tests/vlan_sub_interface.json <br /> sonic-yang-models/tests/yang_models_tests/config_tests/vlan_sub_interface.json | no | 
+Portchannel | sonic-yang-models/tests/yang_models_tests/tests/portchannel.json <br /> sonic-yang-models/tests/yang_models_tests/config_tests/portchannel.json | no |
