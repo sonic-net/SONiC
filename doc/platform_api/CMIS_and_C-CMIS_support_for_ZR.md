@@ -1635,11 +1635,60 @@ def write_cdb(port,cmd):
 
 ### 7.Performance Monitoring in 400-G ZR module
 #### 7.1 Overview
-Performance monitoring in 400G ZR/CCMIS optical modules is essential for detecting link degradation and correction. It can be used to compare optical link performance against desired parameters and benchmarks, providing valuable insight into the overall health of the interface link. Below sub-sections will walk through the CLI syntax, output format and high level design. Currently the performance monitoring will be done only for 400G-ZR modules.
+Performance monitoring in 400G ZR/CCMIS optical modules is essential for detecting link degradation and correction. It involves measuring and analyzing various parameters of the optical signal, such as its power, wavelength, polarization, and phase. By monitoring these parameters, operators can detect and diagnose problems in the system, such as signal distortion, loss, or noise, and take corrective actions to maintain the performance of the system.
+It can be used to compare optical link performance against desired parameters and benchmarks, providing valuable insight into the overall health of the interface link. Below sub-sections will walk through the CLI syntax, output format and high level design. Currently the performance monitoring will be executed only for 400G-ZR modules.
 
-#### 7.2 PM parameters
+ **Solution:**
+Over the defined PM interval time, the statistics are collected for the paramters defined in 7.2 from the transciever, sampled and updated to fixed time window slots of TRANSCEIVER_PM_WINDOW_STATS table for each port in a linecard/box.
+The statistics then can be displayed for a specific time window using a CLI. All this functionality will be done by xcvrd process in pmon container. 
+
+#### 7.2 Transceiver PM Window statistics parameters
 Please refer to the [2.1.5 Transceiver PM Table]https://github.com/sonic-net/SONiC/blob/c91b25ed8c79cb6e415e6c999affc309e35200f2/doc/platform_api/CMIS_and_C-CMIS_support_for_ZR.md#215-transceiver-pm-table) for the parameters that will be monitored with this CLI.
 
+        ; Defines Transceiver PM Window statistics table information for a port
+        key                          = TRANSCEIVER_PM_WINDOW_STATS|ifname            ; information of PM on port
+        ; field                      = value 
+        pm_win_num                   = INTEGER                          ; PM window number
+        pm_stat_start_time           = 1*255VCHAR                       ; PM statistics start time for the window.
+        pm_win_period                = 1*255VCHAR                       ; PM window time period
+        prefec_ber_avg               = FLOAT                            ; prefec ber avg
+        prefec_ber_min               = FLOAT                            ; prefec ber min
+        prefec_ber_max               = FLOAT                            ; prefec ber max
+        cd_avg                       = FLOAT                            ; chromatic dispersion avg
+        cd_min                       = FLOAT                            ; chromatic dispersion min
+        cd_max                       = FLOAT                            ; chromatic dispersion max
+        dgd_avg                      = FLOAT                            ; differential group delay avg
+        dgd_min                      = FLOAT                            ; differential group delay min
+        dgd_max                      = FLOAT                            ; differential group delay max
+        sopmd_avg                    = FLOAT                            ; second order polarization mode dispersion avg
+        sopmd_min                    = FLOAT                            ; second order polarization mode dispersion min
+        sopmd_max                    = FLOAT                            ; second order polarization mode dispersion max
+        pdl_avg                      = FLOAT                            ; polarization dependent loss avg
+        pdl_min                      = FLOAT                            ; polarization dependent loss min
+        pdl_max                      = FLOAT                            ; polarization dependent loss max
+        osnr_avg                     = FLOAT                            ; optical signal to noise ratio avg
+        osnr_min                     = FLOAT                            ; optical signal to noise ratio min
+        osnr_max                     = FLOAT                            ; optical signal to noise ratio max
+        esnr_avg                     = FLOAT                            ; electrical signal to noise ratio avg
+        esnr_min                     = FLOAT                            ; electrical signal to noise ratio min
+        esnr_max                     = FLOAT                            ; electrical signal to noise ratio max
+        cfo_avg                      = FLOAT                            ; carrier frequency offset avg
+        cfo_min                      = FLOAT                            ; carrier frequency offset min
+        cfo_max                      = FLOAT                            ; carrier frequency offset max
+        soproc_avg                   = FLOAT                            ; state of polarization rate of change avg
+        soproc_min                   = FLOAT                            ; state of polarization rate of change min
+        soproc_max                   = FLOAT                            ; state of polarization rate of change max
+        tx_power_avg                 = FLOAT                            ; tx output power avg
+        tx_power_min                 = FLOAT                            ; tx output power min
+        tx_power_max                 = FLOAT                            ; tx output power max
+        rx_tot_power_avg             = FLOAT                            ; rx total power avg
+        rx_tot_power_min             = FLOAT                            ; rx total power min
+        rx_tot_power_max             = FLOAT                            ; rx total power max
+        rx_sig_power_avg             = FLOAT                            ; rx signal power avg
+        rx_sig_power_min             = FLOAT                            ; rx signal power min
+        rx_sig_power_max             = FLOAT                            ; rx signal power max 
+
+  
  
 #### 7.3 CLI Sub-options and Syntax 
 ```
@@ -1666,13 +1715,14 @@ commands:​
 15min show cumulative pm statistics for 15min time window for the given window number.​
 24Hr  show cumulative pm statistics for 24Hr time window for the given window number.​
 ​
-#show int trans pm history 30sec window <predefined window period number> -n asic0 Ethernet0​
+#show int trans pm history 30sec window <predefined window number> -n asic0 Ethernet0​
 ​
 Optional subset display:​
 #Show int trans pm current 60sec –n asic0 Ethernet0​
 commands:​
 fec shows pm fec data​
 ```
+
 #### 7.4 CLI Sample Output format
 ```
 root@sonic:/home/cisco# show interface transceiver pm history 60sec window 1 -n asic0 Ethernet2                                                                          
@@ -1705,34 +1755,78 @@ Ethernet2:
 1. performance monitor enable - Global CLI to enable PM on all ports. 
 Before this configuration get implemented, PM will be enabled by default on all ports
 
-##### 7.5.2 Tables:
-1. The PM window table consists of the following:
-   - Window number
-   - Start timestamp of PM window
-   - Parameters from PM table
+##### 7.5.2 PM Interval and predefined time window:
 
-2. Total 28 PM window slots per interface. 
-   - 15 slots of 60sec window (15mins of history).
-   - 12 slots of 15min window (3Hr of history) and 
-   - 1 slot of 24hr window.
-   
+- ##### PM interval time/statistic collection interval:
+Duration between two ‘VDM freeze’ requests issued by host, which the host collects the cumulative statistics for all PM parameter after the 2nd freeze request. It is a host-controlled monitoring interval. During this time, the module that supports statistics takes short term measurements which are also called samples over a module vendor specific fine measurement time interval (eg : 1ms) and then updates internal statistics variables(min, max, avg), thus providing cumulative statistics until the host issues the 2nd freeze request. 
 
- <img src="https://user-images.githubusercontent.com/97986478/217677958-fd532125-9483-4204-9a57-5317ec36b228.png" width="50%" height="50%">
+This feature allows a platform(Pizza-box or distributed system-linecard with CPU ) to choose from following interval period for PM interval. 
+    - 30sec
+    - 60sec and 
+    - 120sec
+It is recommended to choose 30sec, platforms that have high CPU load can choose 120sec as PM interval. By default 60sec is the PM interval if no input provided by platform, please refer '7.5.4' for platform input.
 
-##### 7.5.3 Platform specific flags/inputs:
+- ##### Pre-defined PM time window:
+The cumulative PM statistics over an interval of time is called a PM time window. The PM statistics will be reset after updating a time window and the statistics will be computed from samples collected from the start time of next ‘PM time window’. The cumulative statistics of a specific time window allow the user to estimate the quality of the link over a specific time slot. 
+The period of a time window and number of windows are not specified in any standard. In this feature three-time window intervals are defined with a granularity of 60seconds, 15mins and 24hour. The 60sec time window is based on the PM interval time and the 15mins and 24hour are defined for the ease of debuggability in realtime. For example, to understand/debug the link stability while bringing up an 400G-ZR interface connection on a topology, a 60sec statistics/current sample will be useful and four 15mins window statistics monitoring will be useful to understand the link stability from initial connection.  
+For the long term link health monitoring, device telemetry data can be analyzed to estimate the link health but it is out of scope of this HLD/feature.
+
+The number of time window for each granularity is as follow.
+-15 ‘time windows’ of 60sec  (at any given time user can view 15mins of statistics with 1 min granularity)
+-12 ‘time windows’ of 15min  (at any given time user can view 3Hr of history with 15min granularity) and
+-2 ‘time windows’ of 24hr  (at any given time user can view 24Hr of statistics).
+
+So total 29 PM time window slots will be maintained per port/interface when inserted with 400G-ZR module. 
+
+- ##### Caveat:
+Platform which choose 120sec as PM interval time, the 60sec granularity of 15 ‘time window’ is not valid/not computed as the chosen PM interval time is greater than 60sec. The CLI o/p is valid only for the 15min/24Hr predefined time window.
+
+#### 7.5.3 Examples: 
+- ##### CLI usage and expected output; example: (Platform with PM interval time : 30sec)
+    - ##### 15min time window:
+```
+    Show int trans pm current 15min –n asic0 Ethernet0
+
+    Assume the last 15min time window started at Time T0-> 9.45.00 by the PM thread running in xcvrd.
+    At T1 time->9:50:42, above pm current CLI with predefined time window interval of 15min is executed
+    The expected display is the cumulative statistics from time 9.45:00 to 9.50:30. (This is the current 15mins statistics in flight)
+    Show int trans pm history 15min window 2 –n asic0 Ethernet0
+
+    Assume the last 15min time window started at Time T0-> 9.44.00 by the PM thread running in xcvrd.
+    At T1 time->9:50:42, above pm history CLI with ‘predefined window’ of 15min and ‘window number’ 2 is executed
+    The expected display is the 2nd last 15mins cumulative statistics from time 9.43:30 to 9.43:45.
+ 
+    60sec time window:
+
+    Show int trans pm history 60sec window 15 –n asic0 Ethernet0
+    Assume the last PM statistics interval started at Time T0-> 9.44.00 by the PM thread running in xcvrd.
+    T2 time->9:45:44, above pm history CLI with ‘predefined window’ of 60sec and ‘window number’ 15 is executed. 
+    the CLI o/p displays the cumulative data from time 9.00:00 to 9.01:00.
+    Show int trans pm current 60sec –n asic0 Ethernet0
+    Assume the last PM statistics interval started at Time T0-> 9.44.00 by the PM thread running in xcvrd.
+    At T1 time->9:44:42, above pm current CLI with ‘predefined window’ of 60sec is executed
+    The expected display is the cumulative data from time 9.44:00 to 9.44:30 "this is the current 60sec window data which is in flight"
+```
+For Platform with PM interval time of 60sec: the above CLI will display the statistics from 9:43:00 to 9:44:00, which will be same as history with window 1 as there is no PM statistics collected within the 60sec.
+
+- ##### Sampling for fixed time window; example:
+    In this example, PM started for the port at Apr 27 9.44.00 UTC 2023. At this time all the time window slots are empty and will be updated every PM interval time (default 60sec).
+The 60sec time window are filled as it is read from module if the PM interval is 60sec, the 60sec sample collected from module is then sampled for 15mins and 24Hr window every 60seconds.
+
+			
+<img src ="https://user-images.githubusercontent.com/97986478/236910604-bbb52e77-5c62-4a7e-b64d-ff883d9b57d3.png" width=30% height=20%>
+
+##### 7.5.4 Platform specific flags/inputs:
 "xcvrd_pm_poll_interval" - Platform to define the PM polling periodicity as 30sec or 60sec of the PM thread which will be fed as input argument. When the arg is not defined, default periodicity is 60sec. 
 
-The PM parameter polling period option is given as there will be platform which requires more time for IO read <Platform limitation>.
- 
- **HLD pointers:**
-  1. PM statistics will be sampled for pre-defined time window of 60sec, 15min and 24Hr. The pre-defined time window period is arrived based on the PM application usage in real time.
-  2. New thread (PM thread) will be created to periodically fetch and update the PM window table.
+
+#### 7.5.5 High level Work flow:
+  1. A new thread will be created 'PM thread' in xcvrd process to collect PM statistics every PM interval period from the 400G-ZR transciever and update both TRANSCEIVER_PM and TRANSCEIVER_PM_WINDOW_STATS.
+  2. PM CLI command data will be fetched from PM window slot table from State-DB.
+  3. PM statistics slot for the port is cleared when an optics is inserted/deleted to/from the port.
+  4. When xcvrd process is restarted, PM statistics collection will be resumed.
+     
   
+  <img src="https://user-images.githubusercontent.com/97986478/217953255-233f11d4-4b36-42bc-a30f-0ef3988c797a.png" width="40%" height="40%">
   
-  <img src="https://user-images.githubusercontent.com/97986478/217953255-233f11d4-4b36-42bc-a30f-0ef3988c797a.png" width="50%" height="50%">
-  
-  3. PM history CLI command data will be fetched from PM window slot table from State-DB.
-  4. PM current CLI command PM data will be fetched from Module.
-  5. PM statistics slot for the port is cleared when an optics is inserted/deleted to/from the port.
-  6. When xcvrd process is restarted, PM statistics collection will be resumed once the ZR module SW DP state become CMIS_READY for the port.
   
