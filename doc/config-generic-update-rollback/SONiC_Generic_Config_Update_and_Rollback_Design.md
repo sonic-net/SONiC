@@ -137,7 +137,7 @@ Updating SONiC partial configurations **systematically** has been a challenge fo
 - Executing `sudo sonic-cfggen -j /tmp/dhcp.json --write-to-db`
 - Restart `dhcp_relay` service
 
-We have explored [SONiC CLI commands](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md) to make configuration changes. These CLI commands result in updates to the ConfigDB which are corresponding to the CLI command executed. For example, the config `vlan add 10` will create a new row in the VLAN table of the ConfigDB. But relying on the CLI commands to do partial update is also not feasible as there is no standard way of showing the config after the update. Setting up a different update mechanism for each part of the config is very time consuming and inefficient.
+We have explored [SONiC CLI commands](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md) to make configuration changes. These CLI commands result in updates to the ConfigDB which are corresponding to the CLI command executed. For example, the config `vlan add 10` will create a new row in the VLAN table of the ConfigDB. But relying on the CLI commands to do partial update is also not feasible as there is no standard way of showing the config after the update. Setting up a different update mechanism for each part of the config is very time consuming and inefficient.
 
 The other challenge to updating a switch is recoverability via rollback. Rollback needs to be with minimum-disruption e.g. if reverting ACL updates DHCP should not be affected. Currently SONiC has a couple of operations that can be candidates for rollback `config load` and `config reload`.
 
@@ -309,7 +309,7 @@ The `apply-patch` method should help with automating partial config updates, as 
 
 The `checkpoint` and `rollback` commands should help improve recoverability, can also be used by external systems to help revert failures during `apply-patch` operation.
 
-Human operators can also leverage the `checkpoint` and `rollback` functionalities while doing updates through the CLI using [SONiC CLI commands](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md).
+Human operators can also leverage the `checkpoint` and `rollback` functionalities while doing updates through the CLI using [SONiC CLI commands](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md).
 
 ## 2.2 Functional Description
 
@@ -317,7 +317,7 @@ Human operators can also leverage the `checkpoint` and `rollback` functionalitie
 The SONiC `apply-patch` command can broadly classified into the following steps
 
 #### Stage-1 JSON Patch Verification
-Using [YANG SONiC models](https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models), but the format of the JSON patch is not what YANG SONiC models is built to verify. We will verify using the following steps:
+Using [YANG SONiC models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models), but the format of the JSON patch is not what YANG SONiC models is built to verify. We will verify using the following steps:
 1. Get current running config from ConfigDB as JSON
 2. Simulate the patch application on the current config JSON object
 3. Verify the the simulated output using YANG SONiC models
@@ -540,14 +540,14 @@ All the configuration update operations executed and the output displayed by the
 The user of the system, can simply be a human operator or a service that can talk to SONiC CLI. The user can only apply-patch if they have an admin permission. Users without admin permissions can only execute dry-run of the operations where they will be able to see the exact changes going to affect the device, without executing these changes.
 
 #### 3.1.1.2 SONiC CLI
-These are the CLI of SONiC switch to which makes it easy for the users to interact with the system. The CLI commands we are interested in are `config ...` and `show ...`, check [SONiC Command Line Interface Guide](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md) to learn more about SONiC CLI.
+These are the CLI of SONiC switch to which makes it easy for the users to interact with the system. The CLI commands we are interested in are `config ...` and `show ...`, check [SONiC Command Line Interface Guide](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md) to learn more about SONiC CLI.
 
 For further details on the CLI setup, Check [3.2.2 CLI](#322-cli)
 
 #### 3.1.1.3 YANG models
 YANG is a data modeling language used to model configuration data, state data, Remote Procedure Calls, and notifications for network management protocols. For further details check [The YANG 1.1 Data Modeling Language](https://tools.ietf.org/html/rfc7950)
 
-SONiC is currently getting on-boarded to YANG data models to help verify and generate the configurations. We will leverage these YANG models to help verify the result of simulating the JsonPatch on ConfigDb, to make sure final outcome adheres to all the constrains defined in the YANG models. For further details check [YANG SONiC models](https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models).
+SONiC is currently getting on-boarded to YANG data models to help verify and generate the configurations. We will leverage these YANG models to help verify the result of simulating the JsonPatch on ConfigDb, to make sure final outcome adheres to all the constrains defined in the YANG models. For further details check [YANG SONiC models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models).
 
 #### 3.1.1.4 Patch Orderer
 This component is going to solve the problems discussed in [Stage-2 JSON Patch Ordering](#stage-2-json-patch-ordering). This component is going to help provide an order of execution to the JsonPatch, in such a way when the config is updated in this order, there will be no errors generated on the device. The exact implementation details of this component will not be included in this design document, but we are going to explain in details the contract for any implementation.
@@ -675,7 +675,7 @@ Since the order of executing the operation does not matter, the implementor of t
 #### 3.1.1.6 ConfigDB
 SONiC is managing configuration in a single source of truth - a redisDB instance that we refer as ConfigDB. Applications subscribe to ConfigDB and generate their running configuration correspondingly.
 
-For further details on the ConfigDB, check [SONiC Configuration Database Manual](https://github.com/Azure/SONiC/wiki/Configuration).
+For further details on the ConfigDB, check [SONiC Configuration Database Manual](https://github.com/sonic-net/SONiC/wiki/Configuration).
 
 ### 3.1.2 Checkpoint
 <img src="files/checkpoint-design.png" alt="checkpoint-design" width="1200"/>
@@ -905,22 +905,22 @@ N/A
 | 11        | Remove 2 items that depends on each other in the same table e.g. /INTERFACE/INTERFACE_LIST and /INTERFACE/INTERFACE_PREFIX_LIST. |
 | 12        | Add 2 items that depends on each other in the same table e.g. /INTERFACE/INTERFACE_LIST and /INTERFACE/INTERFACE_PREFIX_LIST. |
 | 13        | Replace a mandatory item e.g. type under ACL_TABLE. |
-| 14        | Dynamic port breakout as described [here](https://github.com/Azure/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
+| 14        | Dynamic port breakout as described [here](https://github.com/sonic-net/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
 | 15        | Remove an item that has a default value. |
-| 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
-| 17        | Updating Syslog configs. |
-| 18        | Updating AAA configs. |
-| 19        | Updating DHCP configs. |
+| 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
+| 17        | [Updating Syslog configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_syslog.py) |
+| 18        | [Updating AAA configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_aaa.py) |
+| 19        | [Updating DHCP configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_dhcp_relay.py) |
 | 20        | Updating IPv6 configs. |
 | 21        | Updating monitor configs (EverflowAlaysOn). |
 | 22        | Updating BGP speaker configs. |
-| 23        | Updating BGP listener configs. |
-| 24        | Updating Bounce Back Routing configs. |
-| 25        | Updating control-plane ACLs (NTP, SNMP, SSH) configs. |
+| 23        | [Updating BGP listener configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgpl.py) |
+| 24        | ~~Updating Bounce Back Routing configs.~~ |
+| 25        | [Updating control-plane ACLs (NTP, SNMP, SSH) configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_cacl.py) |
 | 26        | Updating Ethernet interfaces configs. |
-| 27        | Updating VLAN interfaces configs. |
-| 28        | Updating port-channel interfaces configs. |
-| 29        | Updating loopback interfaces configs. |
+| 27        | [Updating VLAN interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_vlan_interface.py) |
+| 28        | [Updating port-channel interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_portchannel_interface.py) |
+| 29        | [Updating loopback interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_lo_interface.py) |
 | 30        | Updating BGP prefix hijack configs. |
 | 31        | Updating QoS headroom pool and buffer pool size. |
 | 32        | Add/Remove Rack. |

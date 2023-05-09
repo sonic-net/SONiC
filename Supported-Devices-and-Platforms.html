@@ -248,7 +248,7 @@ function Port_Config() {
 <th>ASIC Vendor</th>
 <th>Switch ASIC</th>
 <th>Port Configuration</th>
-<th>Latest successful build</th>
+<th>Successful build</th>
 </tr>
 </thead>
 <tbody id="data_table">
@@ -405,6 +405,22 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
+<td>Accton</td>
+<td>Wedge 100BF-32</td>
+<td class="asic_vendor">Intel</td>
+<td>Tofino</td>
+<td>32x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>Wedge 100BF-65X</td>
+<td class="asic_vendor">Intel</td>
+<td>Tofino</td>
+<td>32x100G</td>
+<td></td>
+</tr>
+<tr>
 <td>Alphanetworks</td>
 <td>SNH60A0-320Fv2</td>
 <td class="asic_vendor">Broadcom</td>
@@ -418,6 +434,14 @@ function Port_Config() {
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
 <td>64x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Alphanetworks</td>
+<td>BES2348T</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3.X2</td>
+<td>48x1G+4x25G</td>
 <td></td>
 </tr>
 <tr>
@@ -471,7 +495,7 @@ function Port_Config() {
 <tr>
 <td>Arista</td>
 <td>7170-32CD</td>
-<td class="asic_vendor">Barefoot</td>
+<td class="asic_vendor">Intel</td>
 <td>Tofino</td>
 <td>32x100G + 2x10G</td>
 <td></td>
@@ -479,7 +503,7 @@ function Port_Config() {
 <tr>
 <td>Arista</td>
 <td>7170-64C</td>
-<td class="asic_vendor">Barefoot</td>
+<td class="asic_vendor">Intel</td>
 <td>Tofino</td>
 <td>64x100G</td>
 <td></td>
@@ -509,30 +533,6 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
-<td>Barefoot</td>
-<td>SONiC-P4</td>
-<td class="asic_vendor">Barefoot</td>
-<td>P4 Emulated</td>
-<td>Configurable</td>
-<td></td>
-</tr>
-<tr>
-<td>Barefoot</td>
-<td>Wedge 100BF-32</td>
-<td class="asic_vendor">Barefoot</td>
-<td>Tofino</td>
-<td>32x100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Barefoot</td>
-<td>Wedge 100BF-65X</td>
-<td class="asic_vendor">Barefoot</td>
-<td>Tofino</td>
-<td>32x100G</td>
-<td></td>
-</tr>
-<tr>
 <td>Celestica</td>
 <td>DX010</td>
 <td class="asic_vendor">Broadcom</td>
@@ -551,7 +551,7 @@ function Port_Config() {
 <tr>
 <td>Celestica</td>
 <td>midstone-200i</td>
-<td class="asic_vendor">Innovium</td>
+<td class="asic_vendor">Marvell</td>
 <td>Teralynx 7</td>
 <td>128x100G</td>
 <td></td>
@@ -668,7 +668,7 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Dell</td>
-<td>S6000-ON</td>
+<td>S6000-ON*</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
@@ -749,7 +749,7 @@ function Port_Config() {
 <tr>
 <td>Delta</td>
 <td>et-c032if</td>
-<td class="asic_vendor">Innovium</td>
+<td class="asic_vendor">Marvell</td>
 <td>Teralynx 7</td>
 <td>32x400G</td>
 <td></td>
@@ -837,7 +837,7 @@ function Port_Config() {
 <tr>
 <td>Ingrasys</td>
 <td>S9180-32X</td>
-<td class="asic_vendor">Barefoot</td>
+<td class="asic_vendor">Intel</td>
 <td>Tofino</td>
 <td>32x100G</td>
 <td></td>
@@ -861,7 +861,7 @@ function Port_Config() {
 <tr>
 <td>Ingrasys</td>
 <td>S9280-64X</td>
-<td class="asic_vendor">Barefoot</td>
+<td class="asic_vendor">Intel</td>
 <td>Tofino</td>
 <td>64x100G</td>
 <td></td>
@@ -955,6 +955,22 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
+<td>Mitac</td>
+<td>LY1200-B32H0-C3</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Netberg </td>
+<td>Aurora 610</td>
+<td class="asic_vendor">Intel</td>
+<td>Tofino BFN-T10-032D-020</td>
+<td>48x 25G + 8x 100G</td>
+<td></td>
+</tr>
+<tr>
 <td>Nvidia</td>
 <td>SN2010</td>
 <td class="asic_vendor">Nvidia</td>
@@ -968,6 +984,14 @@ function Port_Config() {
 <td class="asic_vendor">Nvidia</td>
 <td>Spectrum</td>
 <td>16x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Nvidia</td>
+<td>SN2201</td>
+<td class="asic_vendor">Nvidia</td>
+<td>Spectrum</td>
+<td>48x1G + 4x100G</td>
 <td></td>
 </tr>
 <tr>
@@ -1035,14 +1059,6 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
-<td>Mitac</td>
-<td>LY1200-B32H0-C3</td>
-<td class="asic_vendor">Broadcom</td>
-<td>Tomahawk</td>
-<td>32x100G</td>
-<td></td>
-</tr>
-<tr>
 <td>Pegatron</td>
 <td>Porsche</td>
 <td class="asic_vendor">Nephos</td>
@@ -1091,9 +1107,73 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
+<td>Ragile</td>
+<td>RA-B6510-48V8C</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3</td>
+<td>48x25G+8x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ragile</td>
+<td>RA-B6910-64C</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ragile</td>
+<td>RA-B6510-32C</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3</td>
+<td>32x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ragile</td>
+<td>RA-B6920-4S</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 3</td>
+<td>128x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Tencent</td>
+<td>TCS8400-24CC8CD</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 4</td>
+<td>24x200G + 8*400G</td>
+<td></td>
+</tr>
+<tr>
+<td>Tencent</td>
+<td>TCS9400-128CC</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 4</td>
+<td>128x200G</td>
+<td></td>
+</tr>
+<tr>
+<td>Wistron</td>
+<td>sw-to3200k</td>
+<td class="asic_vendor">Marvell</td>
+<td>Teralynx 7</td>
+<td>32x400G</td>
+<td></td>
+</tr>
+<tr>
+<td>Wistron</td>
+<td>6512-32r</td>
+<td class="asic_vendor">Marvell</td>
+<td>Teralynx 7</td>
+<td>32x400G</td>
+<td></td>
+</tr>
+<tr>
 <td>Wnc</td>
 <td>OSW1800</td>
-<td class="asic_vendor">Barefoot</td>
+<td class="asic_vendor">Intel</td>
 <td>Tofino</td>
 <td>48x25G + 6x100G</td>
 <td></td>
@@ -1109,6 +1189,7 @@ Note:
 <li>ONIE images are normally pre-installed. For DELL switches, you can find their ONIE images and instructions on Dell's website,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=H8TWD&amp;fileId=3477666073&amp;osCode=NAA&amp;productCode=force10-s6000-on&amp;languageCode=en&amp;categoryId=SM" rel="nofollow">S6000-ON</a>,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=XP77D&amp;fileId=3538637982&amp;osCode=NAA&amp;productCode=networking-s6100-on&amp;languageCode=en&amp;categoryId=OS" rel="nofollow">S6100-ON</a>,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=4T5CJ&amp;fileId=3500562904&amp;osCode=NAA&amp;productCode=networking-z9100&amp;languageCode=en&amp;categoryId=OS" rel="nofollow">Z9100-ON</a>.</li>
 <li>Please contact Marvell for details of the SKU information.</li>
 <li>Please contact vendors for support and SKU information.</li>
+<li>Dell S6000-ON* supports the build till 202012 release image. No other image after 202012 release works on S6000.</li>
 <ol>
 <li>Inventec&nbsp;<a href="mailto:swsp@inventec.com">swsp@inventec.com</a></li>
 <li>Edgecore&nbsp;<a href="mailto:sales@edge-core.com">sales@edge-core.com</a></li>
@@ -1177,10 +1258,12 @@ Note:
 			vdata = table[i].children[2].textContent;
 			if (vdata == "Nvidia")
 			    vdata = "Mellanox";
+				
+			if (vdata == "Intel")
+			    vdata = "Barefoot";	
 
 			if (vdata == "Marvell"){
-			    if(table[i].children[1].textContent.search("ARM") != -1)
-				vdata = "Marvell-armhf";
+			    vdata = "Marvell-armhf";
 			}
 
 			if(vendor_data[vdata] == "")

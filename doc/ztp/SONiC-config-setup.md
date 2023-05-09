@@ -188,7 +188,7 @@ If  a startup-config was not created as part of  factory default, config-setup s
 
 ### 2.2.2 Config Migration
 
-The user can use the *sonic_installer* utility to install a new version of SONiC firmware. As part of this procedure, sonic_installer takes a backup of all files in directory */etc/sonic* and copies them as */host/old_config*. Later when switch boots into the newly installed image, a file */tmp/pending_config_migration* is created by rc.local service and config-setup service makes note of it. The backed up files in /host/old_config are then restored to /etc/sonic directory and the restored startup-config file is loaded to Config DB.
+The user can use the *sonic-installer* utility to install a new version of SONiC firmware. As part of this procedure, sonic-installer takes a backup of all files in directory */etc/sonic* and copies them as */host/old_config*. Later when switch boots into the newly installed image, a file */tmp/pending_config_migration* is created by rc.local service and config-setup service makes note of it. The backed up files in /host/old_config are then restored to /etc/sonic directory and the restored startup-config file is loaded to Config DB.
 
 
 
@@ -276,7 +276,7 @@ This command is executed as part of system bootup by the config-setup service. U
 
 1. Install SONiC firmware image on an empty disk using ONIE or similar bare metal provisioning tool. Verify that a factory default configuration is created.
 2. Delete startup-config and reboot the switch. Verify that a factory default configuration is created.
-3. Install a new SONiC firmware image using "sonic_installer install" command and reboot the switch to boot into newly installed image. Verify that the startup-config file used in the old SONiC firmware is restored to be used by the new image.
+3. Install a new SONiC firmware image using "sonic-installer install" command and reboot the switch to boot into newly installed image. Verify that the startup-config file used in the old SONiC firmware is restored to be used by the new image.
 4. When ZTP is enabled, verify that the ZTP configuration is loaded when SONiC switch boots without startup-config. Factory default config does not get created in this case.
 5. Verify that updategraph service takes over config creation role if it is enabled and SONiC switch boots without startup-config.
 6. Verify that the user specified config-setup-factory hooks are executed when switch boots without a startup-config.

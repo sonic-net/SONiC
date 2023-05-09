@@ -54,8 +54,9 @@
   - [5.4 APP DB Examples](#54-app-db-examples)
 - [6 Serviceability and Debug](#6-serviceability-and-debug)
 - [7 Warm reboot Support](#7-warm-reboot-support)
-- [8 Unit Test Cases ](#8-unit-test-cases)
-- [9 References ](#9-references)
+- [8 Limitations](#8-limitations)
+- [9 Unit Test Cases ](#9-unit-test-cases)
+- [10 References ](#10-references)
 
 # List of Tables
 
@@ -74,6 +75,8 @@
 | 0.8 | | Hasan Naqvi | Linux kernel section and fdbsyncd testcases added |
 | 0.9 | | Nikhil Kelhapure | Warm Reboot Section added |
 | 1.0 | | Sudharsan D.G | Using P2MP Tunnel for Layer2 functionality |
+| 1.1 | | Adam Yeung | Update Fastboot limitation |
+
 
 # Definition/Abbreviation
 
@@ -1322,6 +1325,8 @@ dumps can be used as debug aids.
 
 ## 7 Warm Reboot Support
 
+Note: FRR currently does not support BGP Graceful restart for EVPN address-family. Hence EVPN warm-reboot will not be hitless in Sonic until this support is available in FRR
+
 Warm reboot will support below requirements
 
 1. System Warm reboot for EVPN 
@@ -1420,9 +1425,13 @@ router bgp <AS-NUM>
 
 To support warm boot, all the sai_objects must be uniquely identifiable based on the corresponding attribute list. New attributes will be added to sai objects if the existing attributes cannot uniquely identify corresponding sai object. SAI_TUNNEL_ATTR_DST_IP is added to sai_tunnel_attr_t to identify multiple evpn discovered tunnels.
 
-## 8 Unit Test Cases
+## 8 Limitations
 
-### 8.1 VxlanMgr and Orchagent 
+Currently EVPN fastboot is not supported. BGP Graceful Restart will not work with ASIC and link reset during fastboot. Control plane and data plane have to be reestablished from scratch after fastboot. EVPN traffic cannot reconverge in less than 30 sec without major redesign.  
+  
+## 9 Unit Test Cases
+
+### 9.1 VxlanMgr and Orchagent 
 
 1. Add VXLAN_TUNNEL table in CFG_DB. Verify that the VXLAN_TUNNEL_TABLE in App DB is added.
 2. Add VXLAN_TUNNEL_MAP  table in CFG_DB. Verify the following tables.
@@ -1461,7 +1470,7 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
   - Verify that the created VLAN_MEMBER, TUNNEL, BRIDGEPORT ports are deleted for platforms that use P2P Tunnels.
   - Verify that L2MC_GROUP_MEMBERS are removed, L2MC_GROUP is deleted and vlan's flood group are set to null object as well as vlan's flood type is updated to SAI_VLAN_FLOOD_CONTROL_TYPE_ALL in case of platforms that use P2MP tunnel.
 
-### 8.2 FdbOrch
+### 9.2 FdbOrch
 
 1. Create a VXLAN_REMOTE_VNI entry to a remote destination IP.
 2. Add VXLAN_REMOTE_MAC entry to the above remote IP and VLAN.
@@ -1488,7 +1497,7 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
    
      
 
-### 8.3 Fdbsyncd
+### 9.3 Fdbsyncd
 
 1. Add local MAC entry in STATE_FDB_TABLE and verify MAC is installed in Kernel. Delete Local MAC entry and verify MAC is uninstalled from Kernel.
 2. Add local MAC entry in STATE_FDB_TABLE without config Vxlan NVO and verify MAC is not installed in Kernel.
@@ -1499,8 +1508,8 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
 7. Move remote MAC to local by programming the same entry in STATE_FDB_TABLE and verify Kernel is updated.
 8. Move local MAC entry to remote by replacing fdb entry in Kernel and verify VXLAN_FDB_TABLE is updated.
 
-## 9 References
+## 10 References
 
-- [SONiC VXLAN HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
+- [SONiC VXLAN HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
 - [RFC 7432](https://tools.ietf.org/html/rfc7432)
 - [RFC 8365](https://tools.ietf.org/html/rfc8365)

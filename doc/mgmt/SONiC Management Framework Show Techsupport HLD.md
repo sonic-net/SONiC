@@ -79,7 +79,7 @@ Provide Management Framework functionality to process the "show techsupport" com
 
 NOTE: The underlying feature for which this Management Framework feature provides "front end" client interfaces is unchanged by the addition of these interfaces. (The "since <date>" option available through these interfaces, however, is restricted to the IETF/YANG date/time format.) Please refer to the following document for a description of the "show techsupport" base feature:
 
-https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#troubleshooting-commands
+https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md#troubleshooting-commands
 
 DEPENDENCY ON SONIC-HOSTSERVICES:
 
