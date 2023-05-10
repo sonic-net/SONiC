@@ -1633,7 +1633,7 @@ def write_cdb(port,cmd):
     write_reg(port, LPLPAGE, INIT_OFFSET, CMDLEN, cmd[:CMDLEN])
 ```
 
-### 7.Performance Monitoring in 400-G ZR module
+### 7.Performance Monitoring - 400-G ZR module
 #### 7.1 Overview
 Performance monitoring in 400G ZR/CCMIS optical modules is essential for detecting link degradation and correction. It involves measuring and analyzing various parameters of the optical signal, such as its power, wavelength, polarization, and phase. By monitoring these parameters, operators can detect and diagnose problems in the system, such as signal distortion, loss, or noise, and take corrective actions to maintain the performance of the system.
 It can be used to compare optical link performance against desired parameters and benchmarks, providing valuable insight into the overall health of the interface link. Below sub-sections will walk through the CLI syntax, output format and high level design. Currently the performance monitoring will be executed only for 400G-ZR modules.
@@ -1781,7 +1781,7 @@ So total 29 PM time window slots will be maintained per port/interface when inse
 - ##### Caveat:
 Platform which choose 120sec as PM interval time, the 60sec granularity of 15 ‘time window’ is not valid/not computed as the chosen PM interval time is greater than 60sec. The CLI o/p is valid only for the 15min/24Hr predefined time window.
 
-#### 7.5.3 Examples: 
+##### 7.5.3 Examples: 
 - ##### CLI usage and expected output; example: (Platform with PM interval time : 30sec)
     - ##### 15min time window:
 ```
@@ -1810,23 +1810,30 @@ Platform which choose 120sec as PM interval time, the 60sec granularity of 15 �
 For Platform with PM interval time of 60sec: the above CLI will display the statistics from 9:43:00 to 9:44:00, which will be same as history with window 1 as there is no PM statistics collected within the 60sec.
 
 - ##### Sampling for fixed time window; example:
-    In this example, PM started for the port at Apr 27 9.44.00 UTC 2023. At this time all the time window slots are empty and will be updated every PM interval time (default 60sec).
+    In this example only Rx total power statistics parameter is displayed for simplicity, The assumption is PM started for the port at Apr 27 9.44.00 UTC 2023. At this time all the time window slots are empty and will be updated every PM interval time (default 60sec).
 The 60sec time window are filled as it is read from module if the PM interval is 60sec, the 60sec sample collected from module is then sampled for 15mins and 24Hr window every 60seconds.
 
 			
-<img src ="https://user-images.githubusercontent.com/97986478/236910604-bbb52e77-5c62-4a7e-b64d-ff883d9b57d3.png" width=30% height=20%>
+<img src ="https://user-images.githubusercontent.com/97986478/236910604-bbb52e77-5c62-4a7e-b64d-ff883d9b57d3.png" width=60% height=50%>
 
 ##### 7.5.4 Platform specific flags/inputs:
 "xcvrd_pm_poll_interval" - Platform to define the PM polling periodicity as 30sec or 60sec of the PM thread which will be fed as input argument. When the arg is not defined, default periodicity is 60sec. 
 
 
-#### 7.5.5 High level Work flow:
-  1. A new thread will be created 'PM thread' in xcvrd process to collect PM statistics every PM interval period from the 400G-ZR transciever and update both TRANSCEIVER_PM and TRANSCEIVER_PM_WINDOW_STATS.
-  2. PM CLI command data will be fetched from PM window slot table from State-DB.
-  3. PM statistics slot for the port is cleared when an optics is inserted/deleted to/from the port.
-  4. When xcvrd process is restarted, PM statistics collection will be resumed.
-     
-  
-  <img src="https://user-images.githubusercontent.com/97986478/217953255-233f11d4-4b36-42bc-a30f-0ef3988c797a.png" width="40%" height="40%">
-  
-  
+##### 7.5.5 High level Work flow:
+  1. A new thread will be created 'PM thread' in xcvrd process to collect PM statistics between every PM interval period from the 400G-ZR transciever and update both TRANSCEIVER_PM and TRANSCEIVER_PM_WINDOW_STATS, follwing is the work flow.
+  2. PM thread to check "config pm enable" configuration presence to collect PM statistics.
+  3. CMIS xcvrAPI to freeze the statistics in transceiver, record the timestamp and copy both recorded timestamp and PM statitics from transciver. 
+  4. Above Freezing request will reset and start new statistics set, CMIS xcvrAPI to unfreeze the statistics register in transceiver. 
+  5. Update the copied PM statistics and timestamp to TRANSCEIVER_PM table.
+  6. Fetch the data from TRANSCEIVER_PM table and update the respective time window slots <60sec/15min/24Hrs> in TRANSCEIVER_PM_WINDOW_STATS table
+  7. Sample the data between TRANSCEIVER_PM_WINDOW_STATS and TRANSCEIVER_PM table and update the respective time window slot <60sec/15min/24Hrs> of TRANSCEIVER_PM_WINDOW_STATS table.
+  8. PM thread will iterate all the ports and will sleep for PM interval and repeat the steps from pointer 2 to 8.
+  9.  PM CLI mentoned in 7.3 will always fetch data from TRANSCEIVER_PM_WINDOW_STATS and provide the display.
+  10. All the PM time window slots for the port is cleared when an optics is inserted/deleted to/from the port.
+  11. When xcvrd process is restarted, PM statistics collection will be resumed.
+ 
+ #### 7.6 Out of Scope
+ 1. Peformance monitoring is not enabled/performed for modules other than 400G-ZR.
+ 2. Thershold crossing setting/monitoring for PM params are not covered as part of this implementation.
+ 
