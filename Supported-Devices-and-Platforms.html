@@ -668,7 +668,7 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Dell</td>
-<td>S6000-ON</td>
+<td>S6000-ON*</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
@@ -988,6 +988,14 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Nvidia</td>
+<td>SN2201</td>
+<td class="asic_vendor">Nvidia</td>
+<td>Spectrum</td>
+<td>48x1G + 4x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Nvidia</td>
 <td>SN2410</td>
 <td class="asic_vendor">Nvidia</td>
 <td>Spectrum</td>
@@ -1099,19 +1107,35 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
-<td>Wistron</td>
-<td>sw-to3200k</td>
-<td class="asic_vendor">Marvell</td>
-<td>Teralynx 7</td>
-<td>32x400G</td>
+<td>Ragile</td>
+<td>RA-B6510-48V8C</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3</td>
+<td>48x25G+8x100G</td>
 <td></td>
 </tr>
 <tr>
-<td>Wistron</td>
-<td>6512-32r</td>
-<td class="asic_vendor">Marvell</td>
-<td>Teralynx 7</td>
-<td>32x400G</td>
+<td>Ragile</td>
+<td>RA-B6910-64C</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ragile</td>
+<td>RA-B6510-32C</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3</td>
+<td>32x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ragile</td>
+<td>RA-B6920-4S</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 3</td>
+<td>128x100G</td>
 <td></td>
 </tr>
 <tr>
@@ -1128,6 +1152,22 @@ function Port_Config() {
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 4</td>
 <td>128x200G</td>
+<td></td>
+</tr>
+<tr>
+<td>Wistron</td>
+<td>sw-to3200k</td>
+<td class="asic_vendor">Marvell</td>
+<td>Teralynx 7</td>
+<td>32x400G</td>
+<td></td>
+</tr>
+<tr>
+<td>Wistron</td>
+<td>6512-32r</td>
+<td class="asic_vendor">Marvell</td>
+<td>Teralynx 7</td>
+<td>32x400G</td>
 <td></td>
 </tr>
 <tr>
@@ -1149,6 +1189,7 @@ Note:
 <li>ONIE images are normally pre-installed. For DELL switches, you can find their ONIE images and instructions on Dell's website,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=H8TWD&amp;fileId=3477666073&amp;osCode=NAA&amp;productCode=force10-s6000-on&amp;languageCode=en&amp;categoryId=SM" rel="nofollow">S6000-ON</a>,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=XP77D&amp;fileId=3538637982&amp;osCode=NAA&amp;productCode=networking-s6100-on&amp;languageCode=en&amp;categoryId=OS" rel="nofollow">S6100-ON</a>,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=4T5CJ&amp;fileId=3500562904&amp;osCode=NAA&amp;productCode=networking-z9100&amp;languageCode=en&amp;categoryId=OS" rel="nofollow">Z9100-ON</a>.</li>
 <li>Please contact Marvell for details of the SKU information.</li>
 <li>Please contact vendors for support and SKU information.</li>
+<li>Dell S6000-ON* supports the build till 202012 release image. No other image after 202012 release works on S6000.</li>
 <ol>
 <li>Inventec&nbsp;<a href="mailto:swsp@inventec.com">swsp@inventec.com</a></li>
 <li>Edgecore&nbsp;<a href="mailto:sales@edge-core.com">sales@edge-core.com</a></li>
