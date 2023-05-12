@@ -10,11 +10,11 @@
     - [High-Level Design](#high-level-design)
       - [CONFIG DB](#config-db)
         - [Global Config](#global-config)
-        - [Level Config](#level-config)
+        - [Levels Config](#levels-config)
         - [Interface Config](#interface-config)
       - [YANG Model Enhancements](#yang-model-enhancements)
         - [SONiC ISIS Global](#sonic-isis-global)
-        - [SONiC ISIS Level](#sonic-isis-level)
+        - [SONiC ISIS Levels](#sonic-isis-levels)
         - [SONiC ISIS Interface](#sonic-isis-interface)
         - [SONiC ISIS Authentication Groupings](#sonic-isis-authentication-groupings)
         - [SONiC ISIS Defined Types](#sonic-isis-defined-types)
@@ -24,7 +24,7 @@
 ### Revision
 |  Rev  |  Date        |  Author  | Change Description |
 | :---  | :---------   | :------  | :----------------  |
-|  0.1  | April-11-2023  | C Choate | Initial version    |
+|  0.1  | May-11-2023  | C Choate | Initial version    |
 
 ### Scope
 
@@ -41,7 +41,7 @@ This document provides general information about the initial design for the ISIS
 | MTU          | Maximum Transmission Unit                  |
 | PSNP         | Partial Sequence Number PDU                |
 | SPF          | Sender Policy Framework                    |
-| SR           | Segment Routing                            |
+| VRF          | Virtual Routing and Forwarding             |
 
 ### Overview
 This document provides general information about the initial design for the ISIS YANG model in the SONiC infrastructure.
@@ -55,9 +55,10 @@ Global ISIS config options.
 
 ```
 "ISIS_GLOBAL"
+  "vrf_name"                    :{{1\*15VCHAR}}
   "instance"                    :{{string}} 
-  "net"                         :{{stypes:net-address}} (OPTIONAL)
-  "level_capability"            :{{"level-1"/"level-2"/"level-1-2"}} (OPTIONAL)
+  "net"                         :{{net}} (OPTIONAL)
+  "level_capability"            :{{"LEVEL_1"/"LEVEL_2"/"LEVEL_1_2"}} (OPTIONAL)
   "dynamic_hostname"            :{{boolean}} (OPTIONAL)
   "attach_send"                 :{{boolean}} (OPTIONAL)
   "attach_receive_ignore"       :{{boolean}} (OPTIONAL)
@@ -72,12 +73,13 @@ Global ISIS config options.
 
 * If an SPF value is specified, all other global SPF values must also be specified
 
-ISIS_GLOBAL|{{instance}}
+ISIS_GLOBAL|{{vrf_name|instance}}
 ; Defines schema for global ISIS configuration attributes
+key                         = ISIS_GLOBAL:vrf_name ; VRF name should be "default" or prefixed with "Vrf" for user VRFs
 key                         = ISIS_GLOBAL:instance ; Instance name/area tag
 ; field                     = value
-net                         = stypes:net-address   ; OSI NET address. Format: xx.xxxx.xxxx.xxxx.xx
-level_capability            = "level-1"/"level-2"/"level-1-2" ; ISIS level capability
+net                         = net                  ; OSI NET address. Format: xx.xxxx.xxxx.xxxx.xx
+level_capability            = "LEVEL_1"/"LEVEL_2"/"LEVEL_1_2" ; ISIS level capability
 dynamic_hostname            = boolean              ; Dynamic-hostname support. Default "true"
 attach_send                 = boolean              ; Send attached bits in LSP for inter-area traffic. Default "true"
 attach_receive_ignore       = boolean              ; Attached bits recieved in LSP cause default route add. Default "false"
@@ -92,15 +94,16 @@ log_adjacency_changes       = boolean              ; Log changes to this instanc
 
 Tree view
      +--rw ISIS_GLOBAL
-     |  +--rw ISIS_GLOBAL_LIST* [instance]
+     |  +--rw ISIS_GLOBAL_LIST* [vrf_name instance]
+     |     +--rw vrf_name                       1\*15VCHAR
      |     +--rw instance                       string
-     |     +--rw net?                           stypes:net-address
-     |     +--rw level_capability?              stypes:level-capability
+     |     +--rw net?                           net
+     |     +--rw level_capability?              level-capability
      |     +--rw dynamic_hostname?              boolean
      |     +--rw attach_send?                   boolean
      |     +--rw attach_receive_ignore?         boolean
      |     +--rw set_overload_bit?              boolean
-     |     +--rw lsp_mtu_size?                  UINT16
+     |     +--rw lsp_mtu_size?                  uint16
      |     +--rw spf_init_delay                 uint16
      |     +--rw spf_short_delay                uint16
      |     +--rw spf_long_delay                 uint16
@@ -109,22 +112,24 @@ Tree view
      |     +--rw log_adjacency_changes?         boolean
 ```
 
-##### Level Config
+##### Levels Config
 Level specific ISIS config options.
 
 ```
-"ISIS_LEVEL"
+"ISIS_LEVELS"
+  "vrf_name"                         :{{1\*15VCHAR}}
   "instance"                         :{{string}} 
-  "level_number"                     :{{"level-1"/"level-2"}} 
+  "level_number"                     :{{uint8}} 
   "lsp_refresh_interval"             :{{UINT16}} (OPTIONAL)
   "lsp_maximum_lifetime"             :{{UINT16}} (OPTIONAL)
   "lsp_generation_interval"          :{{UINT16}} (OPTIONAL)
   "spf_minimum_interval"             :{{UINT16}} (OPTIONAL)
 
-ISIS_LEVEL|{{instance|level_number}}
+ISIS_LEVELS|{{vrf_name|instance|level_number}}
 ; Defines schema for ISIS level configuration attributes
+key                                = ISIS_GLOBAL:vrf_name ; VRF name should be "default" or prefixed with "Vrf" for user VRFs
 key                                = ISIS_LEVEL:instance ; Instance name/area tag
-key                                = ISIS_LEVEL:level_number     ; Level number. ("level-1"/"level-2")
+key                                = ISIS_LEVEL:level_number     ; Level number. (1..2)
 ; field                            = value
 lsp_refresh_interval               = UINT16               ; LSP refresh interval. Default 900 in seconds
 lsp_maximum_lifetime               = UINT16               ; Maximum LSP lifetime. Range 350..65535. Default 1200 in seconds. Must be at least 300 seconds more than lsp_refresh_interval 
@@ -132,10 +137,11 @@ lsp_generation_interval            = UINT16               ; Minimum time allowed
 spf_minimum_interval               = UINT16               ; Minimum time between consecutive SPFs. Range 1..120. Default 1 in seconds
 
 Tree view
-     +--rw ISIS_LEVEL
-     |  +--rw ISIS_LEVEL_LIST* [instance level_number]
+     +--rw ISIS_LEVELS
+     |  +--rw ISIS_LEVELS_LIST* [vrf_name instance level_number]
+     |     +--rw vrf_name                       1\*15VCHAR
      |     +--rw instance                         string
-     |     +--rw level_number                     stypes:level-number
+     |     +--rw level_number                     uint8
      |     +--rw lsp_refresh_interval?            uint16
      |     +--rw lsp_maximum_lifetime?            uint16
      |     +--rw lsp_generation_interval?         uint16
@@ -153,7 +159,7 @@ Interface specific ISIS config options.
   "ipv6_routing_instance"            :{{{string}}} (OPTIONAL)
   "passive"                          :{{boolean}} (OPTIONAL)
   "hello_padding"                    :{{{boolean}}} (OPTIONAL)
-  "network_type"                     :{{"point-to-point"}} (OPTIONAL)
+  "network_type"                     :{{"POINT_TO_POINT"/"BROADCAST"}} (OPTIONAL)
   "enable_bfd"                       :{{{boolean}}} (OPTIONAL)
   "bfd_profile"                      :{{string}} (OPTIONAL)    
   "metric"                           :{{UINT32}} (OPTIONAL)
@@ -162,7 +168,7 @@ Interface specific ISIS config options.
   "hello_interval"                   :{{{UINT32}}} (OPTIONAL)
   "hello_multiplier"                 :{{UINT16}} (OPTIONAL)
   "authentication_key"               :{{string}}
-  "authentication_type"              :{{"clear"/"md5"}} (OPTIONAL)
+  "authentication_type"              :{{"TEXT"/"MD5"}} (OPTIONAL)
 
 ISIS_INTERFACE|{{instance|ifname}}
 ; Defines schema for ISIS interface configuration attributes
@@ -173,7 +179,7 @@ ipv4_routing                       = string                ; Enable routing IPv4
 ipv6_routing                       = string                ; Enable routing IPv6 traffic over this interface for the given instance
 passive                            = bolean                ; Advertise the interface in the ISIS topology, but don't allow it to form adjacencies. Default "false"
 hello_padding                      = boolean               ; Add padding to ISIS hello PDUs
-network_type                       = "point-to-point"      ; ISIS interface type
+network_type                       = "POINT_TO_POINT"/"BROADCAST"      ; ISIS interface type
 enable_bfd                         = boolean               ; Monitor ISIS peers on this interface
 bfd_profile                        = string                ; Let BFD use a pre-configured profile
 metric                             = UINT32                ; Metric value. Range 0..16777215. Default 0
@@ -182,7 +188,7 @@ psnp_interval                      = boolean               ; Partial Sequence Nu
 hello_interval                     = UINT32                ; Hello interval between consecutive hello messages. Range 1..600. Default 3 in seconds
 hello_multiplier                   = UINT16                ; Multiplier for the hello holding time. Range 2..100. Default 10
 authentication_key                 = string                ; Authentication password
-authentication_type                = "clear"/"md5"         ; Authentication keychain type
+authentication_type                = "TEXT"/"MD5"         ; Authentication keychain type
 
 
 Tree view
@@ -194,7 +200,7 @@ Tree view
      |     +--rw ipv6_routing_instance?           string
      |     +--rw passive?                         boolean
      |     +--rw hello_padding?                   boolean
-     |     +--rw network_type?                    stypes:network-type
+     |     +--rw network_type?                    circuit-type
      |     +--rw enable_bfd?                      boolean
      |     +--rw bfd_profile?                     string
      |     +--rw metric?                          uint32
@@ -203,7 +209,7 @@ Tree view
      |     +--rw hello_interval?                  uint32
      |     +--rw hello_multiplier?                uint16
      |     +--rw authentication_key?              string
-     |     +--rw authentication_type?             stypes:authentication-type
+     |     +--rw authentication_type?             AUTH_MODE
 ```
 
 #### YANG Model Enhancements
@@ -218,25 +224,43 @@ Global ISIS Yang container is sonic-isis.yang.
 
                 max-elements "1";
 
-                key "instance";
+                key "vrf_name instance";
+
+                leaf vrf_name {
+                    type union {
+                        type string {
+                            pattern "default";
+                        }
+                        type leafref {
+                            path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
+                        }
+                    }
+                    must "not(../../../ISIS_LEVELS/ISIS_LEVELS_LIST) or (../../../ISIS_LEVELS/ISIS_LEVELS_LIST[vrf_name=current()/../vrf_name])" {
+                        error-message "The value of ISIS_GLOBAL 'vrf_name' must be the same as 'vrf_name' in ISIS_LEVELS.";
+                    }
+                    description "VRF name";
+                }
 
                 leaf instance {
                     type string;
                     description
                         "The identifier for this instance of IS-IS. Area-tag";
+                    must "not(../../../ISIS_LEVELS/ISIS_LEVELS_LIST) or (../../../ISIS_LEVELS/ISIS_LEVELS_LIST[instance=current()/../instance])" {
+                        error-message "The value of ISIS_GLOBAL 'instance' must be the same as 'instance' in ISIS_LEVELS.";
+                    }
                 }
 
                 leaf net { 
-                    type stypes:net-address; 
+                    type net; 
                     description
                         "IS-IS OSI network entity title (NET) address.";
                 }
 
                 leaf level_capability {
-                    type stypes:level-capability;
-                    default "level-1-2";
+                    type level-type;
+                    default "LEVEL_1_2";
                     description
-                        "IS-IS level capability (level-1, level-2, level-1-2).";
+                        "IS-IS level capability (LEVEL_1, LEVEL_2, LEVEL_1_2).";
                   }
 
                 leaf dynamic_hostname {
@@ -282,11 +306,9 @@ Global ISIS Yang container is sonic-isis.yang.
                     }
                     units "msec";
                     must "../spf_short_delay and ../spf_long_delay and ../spf_hold_down and ../spf_time_to_learn or not(../spf_init_delay)" {
-                        error-message
-                            "SPF init delay must only be specified if all other SPF parameters are specified";
+                        error-message "SPF init delay must only be specified if all other SPF parameters are specified";
                     }
-                    description
-                        "Delay used during QUIET state";
+                    description "Delay used during QUIET state";
                 }
 
                 leaf spf_short_delay {
@@ -295,11 +317,9 @@ Global ISIS Yang container is sonic-isis.yang.
                     }
                     units "msec";
                     must "../spf_init_delay and ../spf_long_delay and ../spf_hold_down and ../spf_time_to_learn or not(../spf_short_delay)" {
-                        error-message
-                            "SPF short delay must only be specified if all other SPF parameters are specified";
+                        error-message "SPF short delay must only be specified if all other SPF parameters are specified";
                     }
-                    description
-                        "Delay used during SHORT_WAIT state";
+                    description "Delay used during SHORT_WAIT state";
                 }
 
                 leaf spf_long_delay {
@@ -308,11 +328,9 @@ Global ISIS Yang container is sonic-isis.yang.
                     }
                     units "msec";
                     must "../spf_init_delay and ../spf_short_delay and ../spf_hold_down and ../spf_time_to_learn or not(../spf_long_delay)" {
-                        error-message
-                            "SPF long delay must only be specified if all other SPF parameters are specified";
+                        error-message "SPF long delay must only be specified if all other SPF parameters are specified";
                     }
-                    description
-                        "Delay used during LONG_WAIT state";
+                    description "Delay used during LONG_WAIT state";
                 }
 
                 leaf spf_hold_down {
@@ -321,11 +339,9 @@ Global ISIS Yang container is sonic-isis.yang.
                     }
                     units "msec";
                     must "../spf_init_delay and ../spf_short_delay and ../spf_long_delay and ../spf_time_to_learn or not(../spf_hold_down)" {
-                        error-message
-                            "SPF hold down must only be specified if all other SPF parameters are specified";
+                        error-message "SPF hold down must only be specified if all other SPF parameters are specified";
                     }
-                    description
-                        "Period of time without IGP events before considering IGP stable";
+                    description "Period of time without IGP events before considering IGP stable";
                 }
 
                 leaf spf_time_to_learn {
@@ -334,11 +350,9 @@ Global ISIS Yang container is sonic-isis.yang.
                     }
                     units "msec";
                     must "../spf_init_delay and ../spf_short_delay and ../spf_long_delay and ../spf_hold_down or not(../spf_time_to_learn)" {
-                        error-message
-                            "SPF time_to_learn must only be specified if all other SPF parameters are specified";
+                        error-message "SPF time_to_learn must only be specified if all other SPF parameters are specified";
                     }
-                    description
-                        "Maximum time needed to learn all of the events related to a failure";
+                    description "Maximum time needed to learn all of the events related to a failure";
                 }
 
                 leaf log_adjacency_changes {
@@ -353,30 +367,50 @@ Global ISIS Yang container is sonic-isis.yang.
         } // container ISIS_GLOBAL
 ```
 
-##### SONiC ISIS Level
-ISIS Level Yang container is sonic-isis.yang.
+##### SONiC ISIS Levels
+ISIS Levels Yang container is sonic-isis.yang.
 
 ```
-        container ISIS_LEVEL {
+\        container ISIS_LEVELS {
 
-            list ISIS_LEVEL_LIST {
+            list ISIS_LEVELS_LIST {
 
                 description
                     "Configuration parameters related to a particular level within the
                     IS-IS protocol instance";
 
-                key "instance level_number";
+                key "vrf_name instance level_number";
+
+                leaf vrf_name {
+                    type union {
+                        type string {
+                            pattern "default";
+                        }
+                        type leafref {
+                            path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
+                        }
+                    }
+                    must "not(../../../ISIS_GLOBAL/ISIS_GLOBAL_LIST) or (../../../ISIS_GLOBAL/ISIS_GLOBAL_LIST[vrf_name=current()/../vrf_name])" {
+                        error-message "The value of ISIS_LEVELS 'vrf_name' must be the same as 'vrf_name' in ISIS_GLOBAL.";
+                    }
+                    description "VRF name";
+                }
 
                 leaf instance {
                     type string;
+                    must "not(../../../ISIS_GLOBAL/ISIS_GLOBAL_LIST) or (../../../ISIS_GLOBAL/ISIS_GLOBAL_LIST[instance=current()/../instance])" {
+                        error-message "The value of ISIS_LEVELS 'instance' must be the same as 'instance' in ISIS_GLOBAL.";
+                    }
                     description
                         "The identifier for this instance of IS-IS. Area-tag";
                 }
 
                 leaf level_number {
-                    type stypes:level-number;
+                    type uint8 {
+                        range "1..2";
+                    }
                     description
-                        "IS-IS level number.";
+                        "IS-IS level number (1..2).";
                 }
 
                 leaf lsp_refresh_interval {
@@ -393,8 +427,7 @@ ISIS Level Yang container is sonic-isis.yang.
                     }
                     units "seconds";
                     must "(. >= ../lsp_refresh_interval + 300)" {
-                        error-message
-                            "lsp_maximum_lifetime must be at least 300 seconds greater than lsp_refresh_interval";
+                        error-message "lsp_maximum_lifetime must be at least 300 seconds greater than lsp_refresh_interval";
                     }
                     default "1200";
                     description
@@ -407,8 +440,7 @@ ISIS Level Yang container is sonic-isis.yang.
                     }
                     units "seconds";
                     must "(. < ../lsp_refresh_interval)" {
-                        error-message
-                            "lsp_generation_interval must be greater than lsp_refresh_interval";
+                        error-message "lsp_generation_interval must be greater than lsp_refresh_interval";
                     }
                     default "30";
                     description
@@ -425,9 +457,9 @@ ISIS Level Yang container is sonic-isis.yang.
                         "Minimum time between consecutive SPFs.";
                 }
 
-            } // list ISIS_LEVEL_LIST
+            } // list ISIS_LEVELS_LIST
 
-        } // container ISIS_LEVEL
+        } // container ISIS_LEVELS
 ```
 
 ##### SONiC ISIS Interface
@@ -445,24 +477,45 @@ ISIS Interface Yang container is sonic-isis.yang.
                 key "instance ifname";
 
                 leaf instance {
-                    type string;
+                    type union {
+                        type leafref {
+                            path "../../../ISIS_GLOBAL/ISIS_GLOBAL_LIST/instance";
+                        }
+                        type leafref {
+                            path "../../../ISIS_LEVELS/ISIS_LEVELS_LIST/instance";
+                        }
+                    }
                     description
                         "The identifier for this instance of IS-IS. Area-tag";
                 }
 
                 leaf ifname {
-                    type string;
+                    type union {
+                        type leafref {
+                            path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
+                        }
+                        type leafref {
+                            path "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name";
+                        }
+                        type leafref {
+                            path "/lo:sonic-loopback-interface/lo:LOOPBACK_INTERFACE/lo:LOOPBACK_INTERFACE_LIST/lo:name";
+                        }
+                    }
                     description
                         "Interface for which IS-IS configuration is to be applied.";
                 }
 
                 leaf ipv4_routing_instance {
-                    type string;
+                    type leafref {
+                        path "../../../ISIS_GLOBAL/ISIS_GLOBAL_LIST/instance";
+                    }
                     description
                         "Routing IS-IS IPv4 traffic over this interface for the given instance.";
                 }
                 leaf ipv6_routing_instance {
-                    type string;
+                    type leafref {
+                        path "../../../ISIS_GLOBAL/ISIS_GLOBAL_LIST/instance";
+                    }
                     description
                         "Routing IS-IS IPv6 traffic over this interface for the given instance.";
                 }
@@ -484,9 +537,9 @@ ISIS Interface Yang container is sonic-isis.yang.
                 }
 
                 leaf network_type {
-                    type stypes:network-type;
+                    type circuit-type;
                     description
-                        "IS-IS interface type (point-to-point).";
+                        "IS-IS interface type (POINT_TO_POINT, BROADCAST).";
                 }
 
                 leaf enable_bfd {
@@ -568,75 +621,83 @@ Authentication leafs used to define isis authentication options.
                 length "1..254";
             }
             must "(../authentication_type or not(../authentication_key))" {
-                error-message
-                    "If authentication_key is specified, then authentication_type must also be specified.";
+                error-message "If authentication_key is specified, then authentication_type must also be specified.";
             }
-            description
-                "Authentication password.";
+            description "Authentication password.";
         }
 
         leaf authentication_type {
-            type stypes:authentication-type;
-            must "(../authentication_key or not(../authentication_type))" {
-                error-message
-                    "If authentication_type is specified, then authentication_key must also be specified.";
+            type identityref {
+                base AUTH_MODE;
             }
-            description
-                "This grouping defines keychain configuration type.";
+            must "(../authentication_key or not(../authentication_type))" {
+                error-message "If authentication_type is specified, then authentication_key must also be specified.";
+            }
+            description "This grouping defines keychain configuration type (TEXT, MD5).";
         }
     }
 ```
 
 ##### SONiC ISIS Defined Types
-Types defined in sonic-types.yang.j2.
+ISIS types defined are from openconfig-isis-types.
 
 ```
-    typedef net-address {
-        type string {
-            pattern "[a-fA-F0-9]{2}(\\.[a-fA-F0-9]{4}){3,9}\\.[a-fA-F0-9]{2}";
-        }
+    identity AUTH_MODE {
         description
-            "An IS-IS OSI NET address.
-             An example NET address looks something like 49.0001.0143.0438.00.";
+            "Base identify to define the authentication mode";
     }
 
-    typedef level-number {
+    identity TEXT {
+        base AUTH_MODE;
+            description
+                "Simple Text Authentication";
+        reference "RFC1195";
+  }
+
+    identity MD5 {
+        base AUTH_MODE;
+            description
+                "HMAC-MD5 Authentication";
+        reference "RFC5304";
+    }
+
+    typedef circuit-type {
         type enumeration {
-            enum "level-1";
-            enum "level-2";
-        }
-        description
-            "This type defines IS-IS level options for level specific configurations.";
-    }
-
-    typedef level-capability {
-        type union {
-            type level-number;
-            type enumeration {
-                enum "level-1-2";
+            enum POINT_TO_POINT {
+                description "This enum describes a point-to-point interface";
+            }
+            enum BROADCAST {
+                description "This enum describes a broadcast interface";
             }
         }
         description
-            "This type defines all IS-IS level options capable of being configured.";
+            "This type defines ISIS interface types ";
+    } 
+
+    typedef net {
+        type string {
+            pattern '[a-fA-F0-9]{2}(\.[a-fA-F0-9]{4}){3,9}\.[a-fA-F0-9]{2}';
+            }
+        description
+            "This type defines OSI NET address. A NET should should be in
+            the form xx.yyyy.yyyy.yyyy.00 with up to 9 sets of yyyy.";
     }
 
-    typedef network-type {
+    typedef level-type {
         type enumeration {
-            enum "point-to-point";
+            enum LEVEL_1 {
+                description "This enum describes ISIS level 1";
+            }
+            enum LEVEL_2 {
+                description "This enum describes ISIS level 2";
+            }
+            enum LEVEL_1_2 {
+                description "This enum describes ISIS level 1-2";
+            }
         }
         description
-            "Configure a circuit to operate as point-to-point
-             else the circuit defaults to broadcast.";
+            "This type defines ISIS level types";
     }
-
-    typedef authentication-type {
-        type enumeration { 
-            enum "clear";
-            enum "md5";
-        }
-        description 
-            "IS-IS authentication key encrypt type";
-    } 
 ```
 
 ### Testing Requirements/Design

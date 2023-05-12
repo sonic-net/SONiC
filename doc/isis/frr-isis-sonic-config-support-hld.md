@@ -11,6 +11,7 @@
 	- [Requirements](#requirements)
 	  - [Functional and Configuration Requirements](#functional-and-configuration-requirements)
 	  - [Exemptions](#exemptions)
+    - [COPP_TRAP](#copp_trap)
     - [Architecture Design](#architecture-design)
     - [High-Level Design](#high-level-design)
       - [Design Overview](#design-overview)
@@ -33,7 +34,7 @@
 ### Revision  
 |  Rev  |  Date           |  Author  | Change Description |
 | :---  | :-------------- | :------  | :----------------  |
-|  0.1  | April-11-2023    | C Choate | Initial version    |
+|  0.1  | May-11-2023     | C Choate | Initial version    |
 
 ### Scope  
 
@@ -71,6 +72,18 @@ This is an addition to previous feature work to support FRR-BGP. Details on the 
 #### Exemptions
 Adding support for multi-linecard chassis is out of scope for this document. 
 
+##### COPP_TRAP
+There is existing support in SONiC to add additional trap_ids to the COPP_TRAP table outlined in [Sonic Control Plane Policing configuration and management](https://github.com/sonic-net/SONiC/blob/master/doc/copp/CoPP%20Config%20and%20Management.md). To support isis within the COPP_TRAP table, it needs to be added under the 'bgp' container within the 'trap_ids' leaf like below. 
+'''
+"COPP_TRAP": {
+  "bgp": {
+    "trap_ids": "bgp,bgpv6,isis",
+    "trap_group": "queue4_group1",
+    "always_enabled": "true"          
+  }
+}
+'''
+
 ### Architecture Design 
 
 There are no changes to the existing SONiC architecture. This new feature enhances existing code to include configuration support for the isisd daemon within the FRR container. Testing showed that with the isisd deamon enabled, ISIS routes are being learned directly from the FRR container without needing any changes to the existing orchagent or swss. It was observed that fpmsyncd works to push all of the ISIS learned routes from the FRR container to SONiC DB’s. 
@@ -93,10 +106,8 @@ This enhancement will support FRR-ISIS features used in SONiC and all changes wi
 
 - SONiC FRR-ISIS YANG models and YANG validation tests
   - /src/sonic-yang-models
-- FRR-ISIS config template files and isisd enabled by default in the FRR container
+- Enable isisd daemon when frr_mgmt_framework_config is set to "true"
   - /dockers/docker-fpm-frr
-- Enable ISIS trap messages
-  - /files/image_config/copp
 - Added support for ISIS tables in frrcfgd and extended frrcfgd unit tests for FRR-ISIS configs
   - /src/sonic-frr-mgmt-framework
 - Support ISIS show commands and show command unittests
@@ -109,7 +120,7 @@ This enhancement will support FRR-ISIS features used in SONiC and all changes wi
 There will be changes in following containers,
 - Extend frrcfgd support for FRR-ISIS
   - sonic-mgmt-framework
-- Enable the isisd daemon by default
+- Enable the isisd daemon only when frr_mgmt_framework_config is set to "true"
   - bgp
 
 ### SAI API 
@@ -327,7 +338,7 @@ Added new configuration tables specific to FRR_ISIS features:
 
 - ISIS_GLOBAL
   - ISIS router globally applicable configurations
-- ISIS_LEVEL
+- ISIS_LEVELS
   - ISIS router level specific configurations
 - ISIS_INTERFACE
   - ISIS router interface specific configurations
@@ -342,7 +353,7 @@ Detailed Yang model changes can be found at
 
 #### FRR Template Changes
 
-A new FRR-ISIS template, "isisd.conf.j2" has been made to support the non-integrated config management feature and will be saved in "/etc/frr/isisd.conf" on an FRR container startup. The FRR template, "frr.conf.j2" has been updated to include FRR-ISIS template file "isisd.conf.j2" to support the unified config managemnt feature.
+A new FRR-ISIS template, "isisd.conf.j2" has been made to support the non-integrated config management feature and will be saved in "/etc/frr/isisd.conf" on an FRR container startup when frr_mgmt_framework_config is set to "true". The FRR template, "frr.conf.j2" has been updated to include FRR-ISIS template file "isisd.conf.j2" to support the unified config managemnt feature.
 
 ### Warmboot and Fastboot Design Impact  
 
@@ -376,4 +387,4 @@ New tests will also be published into sonic-mgmt for ISIS
 
 ### Open/Action items
 
-Could the FRR container be renamed from 'bgp' to 'frr' ?
+Could the FRR container be renamed from 'bgp' to something like 'frr' ?
