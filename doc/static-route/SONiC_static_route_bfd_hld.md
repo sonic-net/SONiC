@@ -38,7 +38,7 @@ StaticRouteBfd create BFD session for each nexthop inside a BFD enabled static r
 1. find the interface name for the nexthop
 2. lookup the config_db, find the IP address of that interface
 3. choose the IP address which has same type of nexthop (IPv4 or IPv6)
-4. If no IP address found, use local loopback IP address, and log a warning message for that. <br /><br />
+4. If no IP address found, will put the bfd session creation into a pending list. After the interface IP address is assigned in the config_db, the bfd session will be created and will be removed from the pending list. <br /><br />
 
 In the example (assume the "bfd" field is "true"), for the nexthop "20.0.10.3", the corresponding  interface name is PortChannel10.
 From the interface configuration, we can found two IP addresses, an IPv4 address 20.0.10.1 and an IPv6 address 2603:10E2:400:10::1. we choose 20.0.10.1 because the nexthop IP address is IPv4 address. <br /><br />
