@@ -56,7 +56,7 @@ This is a high-level design document describing the way to apply custom SI setti
 
 # Problem Definition
 
-Certain high-speed QSFP_DD and QSFP modules require Signal Integrity (SI) settings to match platform media settings in order to achieve link stability, right tunning and optimal performance.
+Certain high-speed QSFP_DD, OSFP and QSFP modules require Signal Integrity (SI) settings to match platform media settings in order to achieve link stability, right tunning and optimal performance.
 
 ## Clause from CMIS5.0 spec for Signal Integrity
 Excerpt from CMIS5.0 spec providing definition of Signal Integrity:
@@ -77,7 +77,7 @@ SI parameters can be vendor and module specific. The vendor can populate desired
 ![image](https://user-images.githubusercontent.com/115578705/236575703-aea7f377-ba5e-4e96-b18e-920f93e19774.png)
 
 # Plan
-The SI media setting file platform_vendor_name.json needs to be defined by each platform_vendor that will need SI settings. All SKUs of the platform will share the same optics_si_setting.json file. If no file is found, then this mechanism will be ignored.
+The SI media setting file optics_si_setting.json needs to be defined by each platform_vendor that will need SI settings. All SKUs of the platform will share the same optics_si_setting.json file. If no file is found, then this mechanism will be ignored.
 
 This file will have TX, RX setting blocks, and each block will have two subblocks: the first is global level setting and the next is port level setting. These subblocks will eventually contain per-lane SI parameter setting values based on the type of vendor and speed that are expected to be programmed.
 
@@ -208,7 +208,7 @@ Default values can be platform defaults for multiple vendors in each section.
 # Proposed Work-Flow
 Please refer below points in line with flow diagram.
 
-1. When CMIS-supported module insertion happens in XCVRD, the module will progress to the AP_CONFIG state in the CMIS state machine. After which, when the module is in DataPathDeactivated or Disabled state, check if the OPTICS_SI_PARAM.json file is parsed successfully and if lane speed needs special Signal Integrity (SI) settings.
+1. When CMIS-supported module insertion happens in XCVRD, the module will progress to the AP_CONFIG state (after DP_DEINIT state) in the CMIS state machine. During which, when the module is in DataPathDeactivated or Disabled state, check if the optics_si_setting.json file is parsed successfully and if lane speed needs special Signal Integrity (SI) settings.
 
 2. If both of the above conditions are met, then proceed to generate the key (module key) and retrieve the SI attribute list.  
   2.1. The JSON file has two directions (TX_SETTING and RX_SETTING) blocks. Each of these blocks contains sub-blocks of module vendors and other details that will help identify the best match to generate the SI attribute list, if applicable.  
@@ -220,7 +220,7 @@ Please refer below points in line with flow diagram.
   2.7. If no match happens in the GLOBAL_MEDIA_SETTINGS block, the search now begins in the PORT_MEDIA_SETTINGS block for the detected port. If no match happens in the PORT_MEDIA_SETTINGS block, the final search for the default block is done.  
   2.8. If no match happens to the default block, then an empty attribute list (2.10) is returned.
 
-3. Get the attribute list and validate if the list is not empty, then proceed to process the SI setting param list. If the list is empty, continue with the DP_INIT state in the CMIS state machine.
+3. Get the attribute list and validate if the list is not empty, then proceed to process the SI setting param list. If the list is empty, continue with the AP_CONF (applying app code, EC = 0) and DP_INIT state in the CMIS state machine.
 
 4. Apply the application code to the configuration with Explicit Control (EC) = 0, and commit to the activate state.  
 Reference Register: Upper Page 10h bytes 145 –152 (desired ApSel Code)
@@ -231,6 +231,7 @@ Reference Register: Upper Page 11h bytes 214 to 234
 6. Update the new values from the attribute list (3) to the cached SI list (5).
   
 7. Write new EQ settings to Staged Control Set 0. EQ settings include: new SI attribute list from (6), disabling adaptive TX input EQ settings if applicable. Apply application code to config with EC = 1 and commit to the active set.  
+Reference Register: Upper Page 10h bytes 143 (Applying APSel Config using ApplyDPInit, Copying from Staged Control Set to Active Control Set).
 Reference Register: Upper Page 10h bytes 145 –152 (desired ApSel Code).   
 Reference Register: Upper page 10h byte 153-173 (desired Host defined SI settings for EC=1 mode)
 
