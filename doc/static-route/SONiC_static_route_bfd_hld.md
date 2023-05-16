@@ -15,7 +15,7 @@ Note:
 ## Functional Requirements
 
 1. Create BFD session for each static route nexthop based on static route configuration <br>
-2. Delete BFD session if the nexthop is not needed (triggered by removing static route from configration)<br>
+2. Delete BFD session if the nexthop is not needed (triggered by removing static route from configuration)<br>
 3. Install, update, removing static route (i.e., update nexthop, remove static route if no nexthop) based on BFD session state change.<br>
 4. When the application (static route BFD) restarts, recover static routes and BFD session states from redis database (config_db, appl_db and state_db) without impacting any existing installed static routes and BFD sessions. <br  />  
 
@@ -204,7 +204,7 @@ A few examples for the cases that adding/deleting static route, and also differe
 
 1. when static route prefix3  ("bfd"="true") is added to config_db STATIC_ROUTE_TABLE, StaticRouteBfd creates an entry in TABLE_CONFIG, include all the information for this static route
 2. StaticRouteBfd also creates an entry in TABLE_SRT, includes all the information in this static route but nexthop list is empty.
-3. For nh_c, because they are alerady in the TABLE_NEXTHOP, StaticRouteBfd add prefix3 to nh_c's prefix list, don't need to create BFD sessions because they were created when add prefix1
+3. For nh_c, because they are already in the TABLE_NEXTHOP, StaticRouteBfd add prefix3 to nh_c's prefix list, don't need to create BFD sessions because they were created when add prefix1
 <img src="static_rt_bfd_example3.png" width="400">
 <br>
 <br>
@@ -230,10 +230,10 @@ A few examples for the cases that adding/deleting static route, and also differe
 <br>
 <br>
 
-## Dynamc static route "bfd" config chagne support
-When a static route "bfd" field changes (from "true" to "false", or from "false" to "true"), the owner(StaticRouteMgr or StaticRouteBfd) of this static routes also changes. StaticRouteMgr and StaticRouteBfd need to work together to handle this runtime ownershop change.<br>
-When StaticRouteMgr gets a static route update (redis SET event) event, it checks the static route "bfd" field and its local cache. If the "bfd" field is "true" and the prefix is in its local cache(it handles this route before the update), the StaticRouteMgr delete it from its local cache and does not do any furhter processing for this route.
-For the static route without "bfd" field (or "bfd" field is "false"), the current StaticRouteMgr bahavior is, it compare the nexthop list between the updated static route and the nexthop list in its local cache, to decice if need to delete or add the nexthops, the StaticRouteBfd uses this behavior to handle "bfd" field dynamic change.   
+## Dynamic static route "bfd" config change support
+When a static route "bfd" field changes (from "true" to "false", or from "false" to "true"), the owner(StaticRouteMgr or StaticRouteBfd) of this static routes also changes. StaticRouteMgr and StaticRouteBfd need to work together to handle this runtime ownership change.<br>
+When StaticRouteMgr gets a static route update (redis SET event) event, it checks the static route "bfd" field and its local cache. If the "bfd" field is "true" and the prefix is in its local cache(it handles this route before the update), the StaticRouteMgr delete it from its local cache and does not do any further processing for this route.
+For the static route without "bfd" field (or "bfd" field is "false"), the current StaticRouteMgr behavior is, it compare the nexthop list between the updated static route and the nexthop list in its local cache, to decide if need to delete or add the nexthops, the StaticRouteBfd uses this behavior to handle "bfd" field dynamic change.   
 
 ### bfd field changes from "false" to "true"
 1. when the "bfd" was "false", the route was installed by StaticRouteMgr(config_db), and StaticRouteMgr(config_db) maintains its local cache.
@@ -267,7 +267,7 @@ Description:<br>
 * 1\. Plan to use a single testbed to test the StaticRouteBfd.
     * 1.1 using 'show bfd peer' cnd to check BFD session
     * 1.2 test script update state_db BFD_SESSION_TABLE directly without peer BFD session from remote system, then check the static route in local system. 
-* 2\. Because that there are design changes in StaticRouteMgr and StaticRouteTimer, need to run regression test (without "bfd" field configured, and "bfd"="false" configured)decribled in the following documents. 
+* 2\. Because that there are design changes in StaticRouteMgr and StaticRouteTimer, need to run regression test (without "bfd" field configured, and "bfd"="false" configured)described in the following documents. 
     * 2.1 https://github.com/sonic-net/SONiC/blob/master/doc/static-route/SONiC_static_route_hdl.md#4-unit-test-and-automation
     * 2.2 https://github.com/sonic-net/SONiC/blob/master/doc/static-route/SONiC_static_route_expiration_hdl.md#tests
 * 3\. for the StaticRouteBfd, use 2 routes for the following tests
@@ -338,7 +338,7 @@ Verify StaticRouteBfd restore information from redis DB and rebuild its internal
 |---------------------------|---------------------------------------|------|
 |configure static route A with "bfd"="true"  |verify bfd session creation| 3 bfd sessions for nh_1/nh_2/nh_3 are created|
 |kill and restart StaticRouteBfd process|verify StaticRouteBfd restart||
-|update BFD session state to UP for nh_1/nh_2/nh_3|veify bfd state handling after restart|static route A (with nh_1/nh_2/nh_3) is installed to the system|
+|update BFD session state to UP for nh_1/nh_2/nh_3|verify bfd state handling after restart|static route A (with nh_1/nh_2/nh_3) is installed to the system|
 <br>
 
 ### 8. Restart StaticRouteBfd between static route adding/deleting 
@@ -347,7 +347,7 @@ Verify StaticRouteBfd restore information from redis DB and rebuild its internal
 |---------------------------|---------------------------------------|------|
 |install static route A (result from the above step #7)  |install route A| route A with nh_1/nh_2/nh_3 are installed|
 |kill and restart StaticRouteBfd process|verify StaticRouteBfd restart||
-|update BFD session state to UP for nh_1/nh_2/nh_3|veify bfd state handling after restart|static route A (with nh_1/nh_2/nh_3) is installed to the system|
+|update BFD session state to UP for nh_1/nh_2/nh_3|verify bfd state handling after restart|static route A (with nh_1/nh_2/nh_3) is installed to the system|
 |config static route B with "bfd"="true"|verify internal table recovery after restart|route B is installed because BFD session for nh_2 is up before StaticRouteBfd is UP|
 |kill and restart StaticRouteBfd process|verify StaticRouteBfd restart||
 |remove static route A from config|verify internal table recovery after restart|1,route A should be uninstalled from the system<br>2,BFD sessions for nh_1 and nh_3 are removed<br>3, BFD session for nh_2 keep unchanged because route B still need it|
@@ -361,7 +361,7 @@ Verify StaticRouteBfd handling for static route "bfd" flag dynamic changing
 | Step              | Goal                              | Expected Outcome    |
 |---------------------------|---------------------------------------|------|
 |configure static route A with "bfd"="true"  |verify bfd session creation| 3 bfd sessions for nh_1/nh_2/nh_3 are created|
-|update BFD session state to UP for nh_1/nh_2/nh_3|veify bfd state handling |static route A (with nh_1/nh_2/nh_3) is installed to the system|
+|update BFD session state to UP for nh_1/nh_2/nh_3|verify bfd state handling |static route A (with nh_1/nh_2/nh_3) is installed to the system|
 |change "bfd" flag to "false"|verify flag change handling|1, BFD session should be deleted<br>2, StaticRouteBfd deletes the static route from appl_db |
 <br>
 
@@ -370,11 +370,11 @@ Verify StaticRouteBfd handling for static route "bfd" flag dynamic changing
 |---------------------------|---------------------------------------|------|
 |start from the above test#9   |set a "bfd"="false" state inside StaticRouteBfd||
 |reconfigure static route A with "bfd"="true"  |verify bfd session creation after config change| 1, 3 bfd sessions for nh_1/nh_2/nh_3 are created<br>2, before any BFD session becomes UP, StaticRouteBfd install the configured static route with its full nexthop list, this update appl_db and StaticRouteMgr(appl_db) local cache|
-|update BFD session state to UP for nh_1/nh_2/nh_3|veify bfd state handling |static route A (with nh_1/nh_2/nh_3, which BFD session is UP) is installed to the system|
+|update BFD session state to UP for nh_1/nh_2/nh_3|verify bfd state handling |static route A (with nh_1/nh_2/nh_3, which BFD session is UP) is installed to the system|
 <br>
 
 # Traffic convergence acceleration
-The StaticRouteBfd add/remove nexthop to/from prefix via FRR. This may takes time to recursively update all the FRR route. Using the approch similar to [ECMP acceleration](https://github.com/sonic-net/SONiC/blob/master/doc/ecmp/sonic-ecmp-acceleration.docx) can speed up the traffic convergence.<br>
+The StaticRouteBfd add/remove nexthop to/from prefix via FRR. This may takes time to recursively update all the FRR route. Using the approach similar to [ECMP acceleration](https://github.com/sonic-net/SONiC/blob/master/doc/ecmp/sonic-ecmp-acceleration.docx) can speed up the traffic convergence.<br>
 To support this acceleration, need to make some design changes in swss/Orchagent.
 Here is the code to show logic/steps:
 1. NeighOrch register itself as BfdOrch's observer 
