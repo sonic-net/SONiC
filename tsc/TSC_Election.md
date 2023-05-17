@@ -13,7 +13,7 @@ $$
 | Contribution (Yearly) | Category | Weight Multiplier |
 |--------------------------------  |----------| -------- |
 | Merged HLD [1] Count              | Development | 50 |
-| Merged PR [2] Count (S/M/L)       | Development | 10/20/50 |
+| Merged PR [2] Count (S/M/L)       | Development | 10/20/ (50 + 1 per 100 LoC above 300)|
 | PR Review Count (S/M/L)       | Development | 1/2/5    |
 | PR cherry-picking [3] Count       | Development |  5 |
 | Documentations (Release Notes/Meeting Minutes) | Development |  50/1  |
@@ -32,7 +32,7 @@ HLDs and PRs SII calculation includes both LFX SONiC and OCP SAI Projects
 
 [1]: HLD are new or substantial changes reviewed in the community review meeting, minor amendment are counted towards merged PR
 
-[2]: PR sizing Small/Medium/Large based on LoCs, each carries a different multiplier (Small: 1-50 LoCs, Medium: 51-300 LoCs, Large: >301 LoCs)
+[2]: PR sizing Small/Medium/Large based on LoCs, each carries a different multiplier (Small: 1-50 LoCs, Medium: 51-300 LoCs, Large: >301 LoCs). A PR larger than 300 LoC will receive additional points based on size (one additional point for every 100 lines-of-code above 300). As an example, a PR of size 530 lines will receive 52 points (50 points for the first 300, 1 point for 301-400, 1 point for 401-500).
 
 [3]: PR cherry-picking is release maintenance branch to ensure high quality of a release community branch.
 

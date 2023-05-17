@@ -112,8 +112,6 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     ; Defines Transceiver DOM sensor information for a port
     key                          = TRANSCEIVER_DOM_SENSOR|ifname    ; information module DOM sensors on port
     ; field                      = value
-    tx_disable                   = BOOLEAN                          ; TX disable state
-    tx_disabled_channel          = INTEGER                          ; TX disable field
     temperature                  = FLOAT                            ; temperature value in Celsius
     voltage                      = FLOAT                            ; voltage value in V
     tx1power                     = FLOAT                            ; tx 1 power in dBm
@@ -301,6 +299,8 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     rxoutput_status_hostlane6    = BOOLEAN                          ; rx output status on host lane 6
     rxoutput_status_hostlane7    = BOOLEAN                          ; rx output status on host lane 7
     rxoutput_status_hostlane8    = BOOLEAN                          ; rx output status on host lane 8
+    tx_disable                   = BOOLEAN                          ; TX disable state
+    tx_disabled_channel          = INTEGER                          ; TX disable field
     txfault                      = BOOLEAN                          ; tx fault flag on media lane
     txlos_hostlane1              = BOOLEAN                          ; tx loss of signal flag on host lane 1
     txlos_hostlane2              = BOOLEAN                          ; tx loss of signal flag on host lane 2
