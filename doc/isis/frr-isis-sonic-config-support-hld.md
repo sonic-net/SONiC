@@ -11,11 +11,11 @@
 	- [Requirements](#requirements)
 	  - [Functional and Configuration Requirements](#functional-and-configuration-requirements)
 	  - [Exemptions](#exemptions)
-    - [COPP_TRAP](#copp_trap)
     - [Architecture Design](#architecture-design)
     - [High-Level Design](#high-level-design)
       - [Design Overview](#design-overview)
       - [Change Overview](#change-overview)
+        - [COPP_TRAP](#copp_trap)
       - [Container](#container)
     - [SAI API](#sai-api)
     - [Configuration and management](#configuration-and-management)
@@ -72,18 +72,6 @@ This is an addition to previous feature work to support FRR-BGP. Details on the 
 #### Exemptions
 Adding support for multi-linecard chassis is out of scope for this document. 
 
-##### COPP_TRAP
-There is existing support in SONiC to add additional trap_ids to the COPP_TRAP table outlined in [Sonic Control Plane Policing configuration and management](https://github.com/sonic-net/SONiC/blob/master/doc/copp/CoPP%20Config%20and%20Management.md). To support isis within the COPP_TRAP table, it needs to be added under the 'bgp' container within the 'trap_ids' leaf like below. 
-'''
-"COPP_TRAP": {
-  "bgp": {
-    "trap_ids": "bgp,bgpv6,isis",
-    "trap_group": "queue4_group1",
-    "always_enabled": "true"          
-  }
-}
-'''
-
 ### Architecture Design 
 
 There are no changes to the existing SONiC architecture. This new feature enhances existing code to include configuration support for the isisd daemon within the FRR container. Testing showed that with the isisd deamon enabled, ISIS routes are being learned directly from the FRR container without needing any changes to the existing orchagent or swss. It was observed that fpmsyncd works to push all of the ISIS learned routes from the FRR container to SONiC DB’s. 
@@ -106,14 +94,25 @@ This enhancement will support FRR-ISIS features used in SONiC and all changes wi
 
 - SONiC FRR-ISIS YANG models and YANG validation tests
   - /src/sonic-yang-models
-- Enable isisd daemon when frr_mgmt_framework_config is set to "true"
+- Enable isisd daemon and add 'isis' to the COPP_TRAP table when frr_mgmt_framework_config is set to "true"
   - /dockers/docker-fpm-frr
-- Added support for ISIS tables in frrcfgd and extended frrcfgd unit tests for FRR-ISIS configs
+- Added support for ISIS tables in frrcfgd and extended frrcfgd unit tests for FRR-ISIS configs. Added template files to allow configuration of ISIS tables and add 'isis' to the COPP_TRAP table on FRR container startup
   - /src/sonic-frr-mgmt-framework
 - Support ISIS show commands and show command unittests
   - sonic-utilities/show
   - sonic-utilities/tests
 
+##### COPP_TRAP
+There is existing support in SONiC to add additional trap_ids to the COPP_TRAP table outlined in [Sonic Control Plane Policing configuration and management](https://github.com/sonic-net/SONiC/blob/master/doc/copp/CoPP%20Config%20and%20Management.md). To support isis within the COPP_TRAP table, 'isis' needs to be added under the 'bgp' container within the 'trap_ids' leaf like below. On startup of the FRR container (bgp), if frr_mgmt_framework_config is set to "true", isis will automatically be added to the COPP_TRAP table using the template file isis_copp_trap_config.j2. On startup of the FRR container, if frr_mgmt_framework_config is set to "false", 'isis' will automatically be removed from the COPP_TRAP table.
+'''
+"COPP_TRAP": {
+  "bgp": {
+    "trap_ids": "bgp,bgpv6,isis",
+    "trap_group": "queue4_group1",
+    "always_enabled": "true"          
+  }
+}
+'''
 
 #### Container
 
