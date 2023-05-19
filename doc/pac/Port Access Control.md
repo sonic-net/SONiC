@@ -57,9 +57,8 @@
     - [3.7.3 Show Commands](#373-show-commands)
     - [3.7.4 Clear Commands](#373-clear-commands)
 - **[4 Scalability](#4-scalability)**
-- **[5 Unit Test](#5-unit-test)**
-- **[6 Appendix: Sample configuration](#6-appendix-sample-configuration)**
-- **[7 Future Enhancements](#7-future-enhancements)**
+- **[5 Appendix: Sample configuration](#5-appendix-sample-configuration)**
+- **[6 Future Enhancements](#6-future-enhancements)**
 
 # List of Tables
 [Table 1 Abbreviations](#table-1-abbreviations)
@@ -83,7 +82,7 @@ This document describes the design details of the Port Access Control (PAC) feat
 | CoPP          | Control Plane Policing                   |
 | 802.1x        | IEEE 802.1x standard                     |
 | EAPoL         | Extensible Authentication Protocol over LAN |
-| MAB           | Mac-based Authentication Bypass          |
+| MAB           | MAC Authentication Bypass                |
 | PAC           | Port Access Control                      |
 | PAE           | Port Access Entity                       |
 | RADIUS        | Remote Authentication Dial In User service |
@@ -102,11 +101,11 @@ An entity (Port Access Entity) can adopt one of two distinct roles within an acc
 
 Additionally, there exists a third role:   
 
-1. Authentication Server: Performs the authentication function necessary to check the credentials of the Supplicant on behalf of the Authenticator.  
+3. Authentication Server: Performs the authentication function necessary to check the credentials of the Supplicant on behalf of the Authenticator.  
 
 Port access control is achieved by enforcing authentication of Supplicants that are attached to an Authenticator's controlled Ports. The result of the authentication process determines whether the Supplicant is authorized to access services on that controlled port.   
 
-All three roles are required in order to complete an authentication exchange. PAC supports the Authenticator role only, in which the PAE is responsible for communicating with the Supplicant. The Authenticator PAE is responsible for submitting the information received from the Supplicant to the Authentication Server in order for the credentials to be checked. The Authenticator PAE controls the authorized/unauthorized state of the clients on the controlled port depending on the outcome of the authentication process.
+All three roles are required in order to complete an authentication exchange. A Switch needs to support the Authenticator role, as is supported by PAC. The Authenticator PAE is responsible for communicating with the Supplicant, submitting the information received from the Supplicant to the Authentication Server in order for the credentials to be checked. The Authenticator PAE controls the authorized/unauthorized state of the clients on the controlled port depending on the outcome of the authentication process.
 
 
 
@@ -117,8 +116,6 @@ All three roles are required in order to complete an authentication exchange. PA
 ***PAC***   
 The following are the requirements for Port Access Control feature:
 1. PAC should be supported on physical interfaces only.
-   - The interfaces should not be part of a port-channel / LAG.
-   - PAC should not supported on Out-of-band ports.
 
 2. PAC should enforce access control for clients on switch ports using the following authentication mechanisms:
    - 802.1x
@@ -128,8 +125,8 @@ The following are the requirements for Port Access Control feature:
 
 4. The following Host modes should be supported
 
-   - Single-Host mode: one client can be authenticated on a port and is granted access to the port at a given time.
    - Multiple Hosts mode: only one client can be authenticated on a port and after that access is granted to all clients connected to the port
+   - Single-Host mode: one client can be authenticated on a port and is granted access to the port at a given time.
    - Multiple Authentication mode: multiple clients can be authenticated on a port and these clients are then granted access. All clients are authorized on the same VLAN.
 
 5. The following PAC port modes should be supported: 
@@ -151,12 +148,13 @@ PAC should support MAB for authentication, primarily to support clients that do 
 
 ***RADIUS***   
 1. PAC should support RADIUS client functionality to be able to authenticate clients using RADIUS.
-2. PAC should support multiple EAP authentication methods like EAP-MD5, EAP-PEAP, EAP-TLS, etc.
-3. The following Authorization attributes from RADIUS should be supported:
+2. PAC 802.1x should support multiple EAP authentication methods like EAP-MD5, EAP-PEAP, EAP-TLS, etc.
+3. PAC MAB should support the EAP authentication methods EAP-MD5, EAP-PAP and EAP-CHAP.
+4. The following Authorization attributes from RADIUS should be supported:
    - VLAN
    - Session-Timeout
    - Session-Termination-Action
-4. RADIUS authentication should be tested/qualified with the following RADIUS Servers:   
+5. RADIUS authentication should be tested/qualified with the following RADIUS Servers:   
   - FreeRADIUS
   - ClearPass
   - Cisco ISE.
@@ -202,7 +200,7 @@ The following figure illustrates how clients like PCs and printers are authentic
 
 ## 2.2 Functional Description
 
-PAC uses authentication methods like 802.1x and MAB for client authentication. These methods in turn use RADIUS for client credential verification and receive the authorization attributes like VLANs, for the authenticated clients. 
+PAC uses authentication methods 802.1x and MAB for client authentication. These methods in turn use RADIUS for client credential verification and receive the authorization attributes like VLANs, for the authenticated clients. 
 
 ### 2.2.1 802.1x
 
@@ -215,13 +213,15 @@ PAC makes use of MAC Authentication Bypass (MAB) feature to authenticate devices
 ### 2.2.3 RADIUS 
 ***Authentication***
 
-PAC (Authenticator) uses external RADIUS servers for client authentication. It determines the authorization status of the clients based on RADIUS Access-Accept or Access-Reject frames as per the RADIUS RFC 2865. 
+PAC (Authenticator) uses an external RADIUS server for client authentication. It determines the authorization status of the clients based on RADIUS Access-Accept or Access-Reject frames as per the RADIUS RFC 2865. 
 
-PAC as a PAE Authenticator is essentially a passthrough for client Authentication. Hence different EAP authentication methods like EAP-MD5, EAP-PEAP, EAP-TLS, etc. are supported. These are essentially the Supplicant and RADIUS server functionalities.
+PAC as a PAE Authenticator for 802.1x is essentially a passthrough for client Authentication exchange messages. Hence different EAP authentication methods like EAP-MD5, EAP-PEAP, EAP-TLS, etc. are supported. These are essentially the 802.1x Supplicant and RADIUS server functionalities.
+
+PAC as a PAE Authenticator for MAB mimics the Supplicant role for MAB clients. Authentication methods EAP-MD5, EAP-PAP and EAP-CHAP are supported.
 
 ***Authorization***
 
-Once a client is authenticated, authorization parameters from RADIUS can be sent for the client. The Authenticator switch process these RADIUS attributes to apply to the client session. Following attributes are supported.
+Once a client is authenticated, authorization parameters from RADIUS can be sent for the client. The Authenticator switch processes these RADIUS attributes to apply to the client session. Following attributes are supported.
 
 - *VLAN Id*: This is the VLAN ID sent by a RADIUS server for the authenticated client. This VLAN should be a pre-created VLAN on the switch. 
 - *Session Timeout*: This is the timeout attribute of the authenticated client session.
@@ -233,17 +233,21 @@ Once a client is authenticated, authorization parameters from RADIUS can be sent
 
 PAC works with port learning modes and FDB entries to block or allow traffic for authenticated clients as needed. 
 
-- **Single Host and Multiple Authentication Modes**: The learning mode of the port is always set to CPU_TRAP. Once a client starts the authentication process, the client is no longer unknown to PAC. PAC installs a static FDB entry to mark the client known so that the incoming traffic does not flood the CPU. The entry is installed with discard bits set to prevent client traffic from being forwarded. In effect, the packets are not flooded to the CPU nor forwarded to other ports during the authentication process. When the client is authenticated, the discard bits of the installed FDB entry are reset to allow client traffic. 
-- **Multiple Host mode**: With no client authenticated on the port, the learning mode is set to DROP or CPU_TRAP (if MAB is enabled on the port). Once a client is authenticated on a port, the learning mode is set to HW. All clients connected to the port are allowed access and FDB entries are populated dynamically.
+- **Multiple Host mode**: A single client can be authenticated on the port. With no client authenticated on the port, the learning mode is set to DROP or CPU_TRAP (if MAB is enabled on the port). Once a client is authenticated on a port, the learning mode is set to HW. All clients connected to the port are allowed access and FDB entries are populated dynamically.
+
+- **Single Host and Multiple Authentication Modes**: All clients on the port need to authenticate. The learning mode of the port is always set to CPU_TRAP. Once a client starts the authentication process, the client is no longer unknown to PAC. PAC installs a static FDB entry to mark the client known so that the incoming traffic does not flood the CPU. The entry is installed with discard bits set to prevent client traffic from being forwarded. In effect, the packets are not flooded to the CPU nor forwarded to other ports during the authentication process. When the client is authenticated, the discard bits of the installed FDB entry are reset to allow client traffic. 
+
+  ​
 
 ### 2.2.5 VLAN
 1. PAC associates authenticated clients to a VLAN on the port.
 2. If RADIUS assigns a VLAN to a client, the port's configured untagged VLAN membership is reverted and the RADIUS assigned VLAN is used to authorize the client. The RADIUS assigned VLAN is operationally configured as the untagged VLAN of the port.  All incoming untagged client traffic is assigned to this VLAN. Any incoming client's tagged traffic will be allowed or dropped based on if it matches the port's configured untagged VLAN or not.
 3. If RADIUS does not assign a VLAN to a client, the port's configured untagged VLAN is used to authorize the client. The port's untagged VLAN configuration is retained and all incoming untagged client traffic is assigned to this VLAN. Any incoming client's tagged traffic will be allowed or dropped based on if it matches the port's configured untagged VLAN or not.
-4. The RADIUS assigned VLAN configured is reverted to the port's configured untagged VLAN once the last authenticated client on the port logs off.
-5. When PAC is disabled on the port, the operationally added untagged VLAN, if present, is removed from the port and the user configured untagged VLAN is assigned back to the port.
-6. If clients are authorized on the port's configured untagged VLAN and the VLAN configuration is modified, all the authenticated clients on the port are removed.
-7. If clients are authorized on RADIUS assigned VLAN, any updates on the port's untagged VLAN configuration does not affect the clients. The configuration is updated in the CONFIG_DB but not propagated to the port.
+4. All clients on a port are always associated with a single VLAN.
+5. The RADIUS assigned VLAN configured is reverted to the port's configured untagged VLAN once the last authenticated client on the port logs off.
+6. When PAC is disabled on the port, the operationally added untagged VLAN, if present, is removed from the port and the user configured untagged VLAN is assigned back to the port.
+7. If clients are authorized on the port's configured untagged VLAN and the VLAN configuration is modified, all the authenticated clients on the port are removed.
+8. If clients are authorized on RADIUS assigned VLAN, any updates on the port's configured untagged VLAN does not affect the clients. The configuration is updated in the CONFIG_DB but not propagated to the port.
 
 
 ### 2.2.6 Warmboot
@@ -273,11 +277,11 @@ PAC is composed of multiple sub-modules.
 
 **Figure 2: PAC service daemon and configuration flow**
 
-1. Mgmt interfaces like CLI and REST write the user provided configuration to CONFIG_DB.
+1. Mgmt interfaces like CLI write the user provided configuration to CONFIG_DB.
 2. The pacd, mabd and hostapdmgrd gets notified about their respective configurations.
 3. hostapd being a standard Linux application gets its configuration from a hostapd.conf file. hostapdmgrd  generates the hostapd.conf file based on the relevant CONFIG_DB tables. hostapdmgrd informs hostapd about the list of ports it needs to run on. This port list is dynamic as it depends of port link/admin state, port configuration etc. hostapdmgrd  keeps hostapd updated about these changes. 
-4. These modules communicate amongst themselves via Unix domain socket messages.
-5. hostapd listens to EAPOL PDUs on the provided interface list. When it receives a PDU, it consults pacd and proceeds to authenticate the client. pacd also listens to "unknown src MAC" and triggers MAB, if configured on the port, to authenticate the client.
+4. These modules communicate amongst themselves via socket messages.
+5. hostapd listens to EAPoL PDUs on the provided interface list. When it receives a PDU, it consults pacd and proceeds to authenticate the client. pacd also listens to "unknown src MAC" and triggers MAB, if configured on the port, to authenticate the client.
 
 
 
@@ -286,17 +290,17 @@ PAC is composed of multiple sub-modules.
 ![pac-eapol-rx-flow](images/PAC_EAPoL_Rx_Flow.JPG)
 
 
-**Figure 3: EAPOL receive flow**
+**Figure 3: EAPoL receive flow**
 
-1. EAPOL packet is received by hardware on a front panel interface and trapped to the CPU by COPP rules for EAP. The packet gets through the KNET driver and Linux Network Stack and eventually gets delivered to hostapd socket listening on EtherType 0x888E on the kernel interface associated with the given front panel interface.
+1. EAPoL packet is received by hardware on a front panel interface and trapped to the CPU by COPP rules for EAP. The packet gets delivered to the hostapd socket listening on EtherType 0x888E.
 2. In a multi-step process, hostapd runs the 802.1x state machine to Authenticate the client via RADIUS.
-3. On successful authentication of a client, hostapd sends a "Client Authenticated" Unix domain socket message to pacd with all the authorization parameters like VLAN, Session-Timeout, etc.
+3. On successful authentication of a client, hostapd sends a "Client Authenticated" message to pacd with all the authorization parameters like VLAN, Session-Timeout, etc.
 4. pacd proceeds to authorize the client. RADIUS authorization parameters like client VLAN membership, is communicated to relevant modules (VLAN, FDB) by writing on their tables on STATE_DB.  Authenticated clients are updated in PAC_AUTHENTICATED_CLIENT_OPER table in STATE_DB.
 5. VLAN, FDB further process these STATE_DB updates from PAC and write into their STATE_DB and APPL_DB tables.
 6. Orchagent in SWSS docker gets notified about changes in APPL_DB and responds by translating the APPL_DB changes to respective sairedis calls.
 7. Sairedis APIs write into ASIC_DB.
 8. Syncd gets notified of changes to ASIC_DB and in turn calls respective SAI calls. The SAI calls translate to respective SDK calls to program hardware.
-9. EAP Success message (EAPOL PDU) is sent to the client.
+9. EAP Success message (EAPoL PDU) is sent to the client.
 
 
 ### 3.1.3 MAB packet receive flow
@@ -306,23 +310,21 @@ PAC is composed of multiple sub-modules.
 
 **Figure 4: MAB PDU receive flow**
 
-1. Unknown source MAC packets are received by hardware on a front panel interface and trapped to CPU. The packets gets through the KNET driver and Linux Network Stack and eventually gets delivered to pacd socket listening on the kernel interface associated with the given front panel interface.
-2. pacd sends a "Client Authenticate" Unix domain socket message along with the received packet MAC to mabd.
+1. Unknown source MAC packets are received by hardware on a front panel interface and trapped to CPU. The packets gets delivered to a pacd socket.
+2. pacd sends a "Client Authenticate" message along with the received packet MAC to mabd.
 3. mabd interacts with RADIUS server to authenticate the given client based on the MAC.
-4. On successful authentication of a client, mabd sends an "Client Authenticated" Unix domain socket message to pacd with all the authorization parameters like VLAN, Session-Timeout, etc.
+4. On successful authentication of a client, mabd sends an "Client Authenticated" message to pacd with all the authorization parameters like VLAN, Session-Timeout, etc.
 5. pacd proceeds to authorize the client. RADIUS authorization parameters like client VLAN membership, is communicated to relevant modules (VLAN, FDB) by writing on their tables on STATE_DB.  Authenticated clients are updated in PAC_AUTHENTICATED_CLIENT_OPER table in STATE_DB.
 6. VLAN, FDB further process these STATE_DB updates from PAC and write into their STATE_DB and APPL_DB tables.
 7. Orchagent in SWSS docker gets notified about changes in APPL_DB and responds by translating the APPL_DB changes to respective sairedis calls.
 8. Sairedis APIs write into ASIC_DB.
 9. Syncd gets notified of changes to ASIC_DB and in turn calls respective SAI calls. The SAI calls translate to respective SDK calls to program hardware.
-10. EAP success message (EAPOL PDU) is sent to the client.
+10. EAP success message (EAPoL PDU) is sent to the client.
 
 
 ### 3.1.4 RADIUS
 
-PAC uses the RADIUS client from hostapd. This RADIUS client is also used as a library by mabd. 
-
-Existing RADIUS configuration provided in SONiC is used to configure the RADIUS client in PAC. The supported configuration parameters are Server identification (DNS Name, IPv4/IPv6 address), Server key, Server priority and Management VRF. 
+PAC uses the RADIUS client from hostapd. 
 
 PAC supports only 1 RADIUS server. The highest priority server will be picked up for authentication. 
 
@@ -565,7 +567,7 @@ VLAN Manager processes updates from "pacd" through STATE DB updates and propagat
 ### 3.3.2 Orchestration Agent
 
 OA processes updates from APP DB for setting the Port learning mode, VLAN membership and PVID and passes down the same to SAI Redis library for updating the ASIC DB.
-For VLAN membership, port PVID will not be set until PVID update is received separately for the port. 
+
 
 
 ## 3.4 PAC Modules
@@ -597,7 +599,9 @@ PAC supported authentication methods for MAB are as given below:
 - PAP
 
 ### 3.4.3 hostapd
-Hostapd is an open source implementation of 802.1x standard and the Linux application is supplied with wpa_suplicant package. The wired driver module of hostapd is adapted to communicate with pacd via socket interface instead of directly controlling the interfaces. hostapd gets its configuration from the hostapd.conf file generated by hostapdmgrd.
+Hostapd is an open source implementation of 802.1x standard and the Linux application is supplied with wpa_suplicant package. The wired driver module of hostapd is adapted to communicate with pacd via socket interface
+
+. hostapd gets its configuration from the hostapd.conf file generated by hostapdmgrd.
 
 ### 3.4.4 hostapdmgrd
 hostapdmgr reads hostapd specific configuration from SONiC DBs and populates the hostapd.conf. It further notifies the hostapd to re-read the configuration file.
@@ -647,281 +651,7 @@ PAC uses **SAI_FDB_ENTRY_ATTR_PACKET_ACTION** with **SAI_PACKET_ACTION_DROP** to
 ## 3.7 Manageability
 
 ### 3.7.1 Yang Model
-```
-sonic-pac.yang:
-
-module sonic-pac {
-    namespace "http://github.com/sonic-net/sonic-pac";
-    prefix spac;
-    yang-version 1.1;
-
-    import sonic-port {
-        prefix prt;
-    }
-
-    description
-        "SONiC PAC";
-
-    revision 2023-03-28 {
-        description "Initial revision.";
-    }
-
-
-    container sonic-pac {
-        description "PAC top level container.";
-
-        container PAC_PORT_CONFIG {
-             description
-                   "Container for port config table.";
-
-             list PAC_PORT_CONFIG_TABLE_LIST {
-                key "port";
-
-                leaf port {
-                   type leafref {
-                        path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:name";
-                   }
-                   description
-                        "Name of the interface on which port control mode gets applied.";
-                 }
-
-                leaf port_control_mode {
-                   type enumeration {
-                        enum auto {
-                           description
-                                "Enable auto port control mode on a port.";
-                        }
-                        enum force-authorized {
-                           description
-                                "Enable force authorized port control mode on a port.";
-                        }
-                        enum force-unauthorized {
-                           description
-                                "Enable force unauthorized port control mode on a port.";
-                        }
-                   }
-                   description
-                        "Enable 802.1X port control on an interface.";
-                }
-
-                leaf host_control_mode {
-                   type enumeration {
-                        enum single-host {
-                           description
-                                "One data client or one voice client can be authenticated on the port.";
-                        }
-                        enum multi-auth {
-                           description
-                                "Multiple data client and one voice client can be authenticated on the port.";
-                        }
-                        enum multi-host {
-                           description
-                                "One data client can be authenticated on the port. Rest of the 
-                                clients tailgate once the first client is authenticated.";
-                        }
-                   }
-                   description
-                         "Allow for single or multiple hosts to communicate through
-                         an 802.1X controlled port.";
-                }
-
-                leaf reauth_enable {
-                   type boolean;
-                   description
-                        "Indicates whether Reauthentication is enabled on
-                        the port.";
-                }
-
-                leaf reauth_period {
-                   type uint32 {
-                        range 1..65535 {
-                            error-message "reauth period value must be in range of 1-65535.";
-                            error-app-tag reauth-period-invalid;
-                        }
-                   }
-                   units seconds;
-                   description
-                        "The initial value of the timer that defines the period
-                        after which the Authenticator will reauthenticate the Supplicant.";
-                }
-
-                leaf max_users_per_port {
-                   type uint8 {
-                        range 1..16 {
-                            error-message "max users per port value must be in range of 1-48.";
-                            error-app-tag max-users-per-port-invalid;
-                        }
-                   }
-                   description
-                        "Maximum number of clients that can be authenticated
-                        on the port. This is applicable only for multi-auth host mode.";
-                }
-
-                leaf-list method_list {
-                   type enumeration {
-                        enum dot1x {
-                           description
-                                "Configure authmgr authentication order as dot1x";
-                        }
-                        enum mab {
-                           description
-                                "Configure authmgr authentication order as mab";
-                        }
-                   }
-                   description
-                        "Enables configuration of authmgr authentication order.";
-                }
-
-                leaf-list priority_list {
-                   type enumeration {
-                        enum dot1x {
-                           description
-                                "Configure authmgr authentication priority as dot1x";
-                        }
-                        enum mab {
-                           description
-                                "Configure authmgr authentication priority as mab";
-                        }
-                   }
-                   description
-                        "Enables configuration of authmgr authentication priority.";
-                }
-
-                leaf port_pae_role
-                {
-                   type enumeration {
-                        enum authenticator {
-                           description
-                                "Allows config of dot1x port's pae role as authenticator.";
-                        }
-                        enum none {
-                           description
-                                "Allows config of dot1x port's pae role as none.";
-                        }
-                   }
-                   description
-                        "Enables configuration of dot1x port's pae role.
-                        Note: Enabling PAC on the port will revert all switchport configurations on the port,
-                        if port control mode is auto/force-unauthorized and port pae role is authenticator.";
-                }
-             }
-        }
-    }
-}
-
-
-Sonic-hostapd.yang:
-
-module sonic-hostapd {
-    namespace "http://github.com/sonic-net/sonic-hostapd";
-    prefix shostapd;
-    yang-version 1.1;
-
-    description
-        "SONiC HOSTAPD";
-
-    revision 2023-03-28 {
-        description "Initial revision.";
-    }
-
-
-    container sonic-hostapd {
-        description "HOSTAPD top level container.";
-
-        container HOSTAPD_GLOBAL_CONFIG {
-             description
-                   "Container for hostapd global config.";
-
-             list HOSTAPD_GLOBAL_CONFIG_LIST {
-                key "global";
-
-               leaf global {
-                    type enumeration {
-                       enum GLOBAL;
-                    }
-                    description
-                       "Configure dot1x/hostapd global configuration.";
-               }
-
-               leaf dot1x_system_auth_control {
-                  type boolean;
-                  description
-                     "Indicates whether dot1x/hostapd is enabled/disabled on the switch.";
-               }
-             }
-        }
-    }
-}
-
-module sonic-mab {
-    namespace "http://github.com/Azure/sonic-mab";
-    prefix mab;
-    yang-version 1.1;
- 
-    import sonic-port {
-        prefix prt;
-    }
- 
-    organization
-        "SONiC";
- 
-    contact
-        "SONiC";
- 
-    description
-        "This module allows configuration of MAC Authentication Bypass (MAB) on an interface.";
- 
-    revision 2023-03-28 {
-        description
-            "Initial revision.";
- 
-    }
- 
-    typedef mab_auth_type_enumeration {
-        type enumeration {
-            enum pap;
-            enum chap;
-            enum eap-md5;
-        }
-    }
- 
-    container sonic-mab {
-        container MAB_PORT_CONFIG {
- 
-             description
-                "Configuration of MAC Authentication Bypass (MAB) on an interface.";
- 
-             list MAB_PORT_CONFIG_LIST {
-                key "port";
- 
-                leaf port {
-                   type leafref {
-                        path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:name";
-                   }
-                   description
-                        "Name of the interface on which MAB config gets applied.";
-                 }
- 
-                leaf mab {
-                    type boolean;
-                    description
-                        "MAB status Enabled / Disabled.";
-                }
- 
-                leaf mab_auth_type {
-                    type mab_auth_type_enumeration;
-                    default eap-md5;
-                }
-             }
-          }
-     }
-}
-```
-
-
-​	
-
-
+Yang Models are available for managing PAC, hostapd and MAB modules.
 
 ### 3.7.2 Configuration Commands
 
@@ -1047,85 +777,7 @@ The following scale is supported:
 
 
 
-# 5 Unit Test
-
-1. Port-pae-role:-none:   
-
-    - Verify that the port allows all traffic that it is expected to allow as per its non PAC configuration.  
-2. Port-pae-role:-Authenticator / Port-control-mode:-Force Authorized:    
-
-    - Verify that the port allows all traffic that it is expected to allow as per its non PAC configuration.   
-3. Port-pae-role:-Authenticator / Port-control-mode:-Force Unauthorized:   
-
-    - Verify that the port does not allow any traffic.   
-4. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / No client is authorized on port:  
-
-    - Verify that the port does not allow any traffic.   
-5. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-MultiHost / Radius assigns a VLAN to client:   
-
-    - Verify that client is able to authenticate and send traffic and the traffic is classified on the RADIUS assigned VLAN as it egresses out of the DUT on the uplink.   
-    - Verify that any other device connected to the port is able to send traffic and it is classified on the RADIUS assigned VLAN as it egresses out of the DUT on the uplink.   
-    - Verify that client is able to receive traffic on the port.   
-    - Verify that any other device connected to the port is able to receive traffic on the port.   
-6. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-MultiAuth / Radius assigns a VLAN to client:   
-
-    - Verify that multiple clients are able to authenticate individually and send traffic and their traffic is classified on their RADIUS assigned VLANs as it egresses out of the DUT.   
-    - Verify that clients are able to receive traffic on the port.   
-7. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-SingleAuth / Radius assigns a VLAN to client:     
-
-    - Verify that only one client is able to authenticate and send traffic and the traffic is classified on the RADIUS assigned VLAN as it egresses out of the DUT.   
-    - Verify that the client is able to receive traffic on the port.   
-8. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any:   
-
-    - Verify that if an authentication fails, the client is not authorized on the port and is not able to send or receive any traffic.   
-9. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / Radius does not assign a VLAN to client:   
-
-    - Verify that client is able to authenticate and send traffic and the traffic is classified on the port's configured Untagged VLAN as it egresses out of the DUT on the uplink.   
-10. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / Reauthentication configured on the port:   
-
-  - Verify that client is able to authenticate and is reauthenticated as per the configuration.   
-  - Verify that client is able to send traffic after reauthentication and the traffic is classified on the assigned VLAN as it egresses out of the DUT on the uplink.   
-11. All client authentication tests above need to be done with both 802.1x and MAB   
-12. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / Authentication order: 802.1x-MAB
-
-    - Verify that 802.1x is attempted before MAB. If 802.1x fails or times out, MAB is attempted.
-13. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / Authentication order: MAB-802.1x
-
-    - Verify that MAB is attempted before 802.1x. If MAB fails or times out, 802.1x is attempted.
-14. Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / Authentication priority: 802.1x-MAB
-
-    - Verify that if the client is authenticated by MAB and a EAPoL-Start is seen from the client, the client will be authenticated using 802.1x. The existing MAB session will be switched to 802.1x only if the authentication succeeds. 
-
-
-15. ​Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / MAB Auth type: EAP-MD5
-
-    - Verify that MAB authentication succeeds.
-
-16. ​Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / MAB Auth type: PAP
-
-    - Verify that MAB authentication succeeds.
-
-17. ​Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / MAB Auth type: CHAP
-
-    - Verify that MAB authentication succeeds.
-
-18. ​Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-MultiAuth / Configure port max-users
-
-    - Verify that the number of authenticated clients that are allowed adhere to the max-users configuration on the port.
-
-19. ​Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / Port Shut and No Shut
-
-    - Authenticate a client and shut the port down. Verify that all clients are removed.
-
-20. ​Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / Config reload
-
-    - Verify that after a config reload, PAC comes back up with all the saved configuration.
-
-21. ​Port-pae-role:-Authenticator / Port-control-mode:-Auto / Port-host-mode:-Any / Config save reload
-
-    - Verify that after a config save and reload, PAC comes back up with all the saved configuration.
-
-# 6 Appendix: Sample configuration
+# 5 Appendix: Sample configuration
 
 ```
 config authentication port contol interface auto Ethernet10
@@ -1140,7 +792,7 @@ config authentication timer reauthenticate interface 600 Ethernet10
 
 
 
-# 7 Future Enhancements
+# 6 Future Enhancements
 
 1. Add configurability support for 802.1x and MAB timers.
 2. Add support for fallback VLANs like Guest, Unauth etc. VLAN. These are used to authorize clients if they fail authentication under various circumstances.
