@@ -629,7 +629,10 @@ No specific changes are needed in syncd for PAC.
 
 ## 3.6 SAI
 
+Existing SAI attributes are used for this implementation and there is no new SAI attribute requirement.
+
 ### 3.6.1 Host interface traps
+
 Leveraged **SAI_HOSTIF_TRAP_TYPE_EAPOL** to trap EAP packets (Ethertype - 0x888E) to the CPU.   
 
 
@@ -651,7 +654,7 @@ PAC uses **SAI_FDB_ENTRY_ATTR_PACKET_ACTION** with **SAI_PACKET_ACTION_DROP** to
 ## 3.7 Manageability
 
 ### 3.7.1 Yang Model
-Yang Models are available for managing PAC, hostapd and MAB modules.
+Yang Models are available for managing PAC, hostapd and MAB modules. SONiC YANG is added as part of this contribution.
 
 ### 3.7.2 Configuration Commands
 
