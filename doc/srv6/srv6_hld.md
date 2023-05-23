@@ -17,6 +17,7 @@
 - [3.3 Orchestration Agent Changes](#33-orchestration-agent-changes)
 - [3.4 SAI](#34-sai)
 - [3.5 YANG Model](#35-yang-model )
+- [3.6 The current method to configure SRv6 features using SONIC-CLI](#36-The-current-method-to-configure-SRv6-features-using-SONIC-CLI)
 - [4 Unit Test](#4-unit-test)
 - [5 References ](#5-references) 
 
@@ -576,6 +577,134 @@ module: sonic-srv6
            +--rw policy?      -> /sonic-srv6/SRV6_POLICY/SRV6_POLICY_LIST/name
            +--rw source?      inet:ipv6-address
 ```
+## 3.6 Use SONIC-CLI to configure SRv6 VPN
+
+**1.Configure SRv6 VPN on the local PE.**
+
+We present the following example topology to demonstrate the configuration of SRv6 VPN on a PE router and how VPN routes are configured and distributed from the local PE to remote PEs.
+
+![topo](images/Srv6Topo.png)
+
+The configuration required to activate the SRv6-VPN feature includes the following steps:
+1. Configure the local locator and locator-SID
+
+The objective of this configuration is to create and implement the local DT46 locator-SID on the PE router. The provided sample configuration is as follows.
+
+```
+segment-routing
+ srv6
+  locators
+   locator a prefix fd00:301:2021::/80 block-len 32 node-len 16 func-bits 32 argu-bits 48
+   opcode ::FFF1:0EEE:0:0:0 end-dt46 vrf PUBLIC-TC0
+  exit
+ !
+ exit
+!
+```
+The provided configuration "locator a prefix fd00:301:2021::/48 block-len 32 node-len 16 func-bits 32 argu-bits 48" establishes a locator named "a"  with the prefix fd00:301:2021::/48 associated with it. The configuration also specifies the block length as 32, node length as 16, function length as 32, and argument length as 48 for this particular locator.
+
+The command "opcode ::FFF1:0EEE:0:0:0 end-dt46 vrf PUBLIC-TC0" defines the address and determines the interpretation of the function and argument fields within the last 80 bits of the locator. In this case, FFF1:0EEE represents the function of end-dt46, and the following 0 represents the argument. 
+
+After applying the above configurations, the control plane codes generate a locator-SID of fd00:301:2021:fff1:eee:: for the localor a.  The function of this locator-SID is to perform the ent-dt46 action on all traffic that matches this address, which means the data plane would remove the outer IPv6 header and performing the L3 lookup in the PUBLIC-TC0 VRF using the inner header's destination address.
+
+2. Enable the local locator (a.k.a application locator) in BGP VRF
+The purpose for this configuration is to let BGP use the configured Locator-SID as the VPN-SID attribute, when publishing VPN routes to remote PEs. By specifying the application locator in BGP VRF configuration, the outgoing ports can be designated for VRF routes, thus allowing the traffic to be sent through the specified outgoing ports. 
+
+The sample configuration method is the following
+
+```
+router bgp 200 vrf PUBLIC-TC0
+ bgp router-id 192.168.1.1
+ neighbor 192.168.1.2 remote-as 100
+ neighbor 192.168.1.2 update-source 192.168.1.1
+ srv6-locator a
+!
+ address-family ipv4 unicast
+  rd vpn export 1:200
+  rt vpn both 1:200
+  export vpn
+ exit-address-family
+!
+```
+
+3. Publish SRv6 VPN routes at the local PE
+
+Once PE router learns VRF routes from its local CE, the PE router generates the VPN-SID attribute based on the application locator and publishes VPN routes to remote PEs via MP-BGP. 
+
+After configuring this command, BGP would use the Locator-SID address defined via locator A as the VPN-SID for the routes in the PUBLIC-TC0 VRF and publish them via MP-BGP to remote PEs. The following show command's output contains the locator-SID as VPN-SID>
+
+```
+c328f6288084# show bgp ipv4 vpn 10.0.0.0
+BGP routing table entry for 1:200:10.0.0.0/32, version 1
+not allocated
+Paths: (1 available, best #1)
+Advertised to non peer-group peers:
+fd00:0:200:101::
+100
+192.168.1.2 from 0.0.0.0 (1.1.1.1) vrf PUBLIC-TC0(4) announce-nh-self
+Relay-Nexthop(ip): if pe1-eth4, 
+Origin incomplete, metric 200, valid, sourced, local, best (First path received)
+Community: 0:1
+Extended Community: RT:1:200
+Originator: 1.1.1.1
+Remote label: 3
+Remote SID: fd00:301:2021:fff1:eee::
+Last update: Mon Apr 24 11:39:17 202
+```
+
+4. Learnt SRv6 VPN routes at Remote PEs
+
+After completing the above two configurations on E21, BGP on E21 would publish VPN routes to remote PEs, which includes E11. 
+
+The following show command displays the received VPN routes from E21 on E11 in BGP.
+
+```
+c328f6288084# show bgp ipv4 vpn 10.0.0.0
+BGP routing table entry for 1:200:10.0.0.0/32, version 1
+not allocated
+Paths: (1 available, best #1)
+Not advertised to any peer
+100
+fd00:0:200:171:: from fd00:0:200:101:: (1.1.1.1)
+Relay-Nexthop(ip): gate abcd:100:181:251::2, 
+Origin incomplete, metric 200, localpref 100, valid, internal, best (First path received)
+Community: 0:1
+Extended Community: RT:1:200
+Originator: 1.1.1.1, Cluster list: 5.5.5.5 
+Remote label: 3
+Remote SID: fd00:301:2021:fff1:eee::
+Last update: Mon Apr 24 11:39:18 2023
+```
+
+The following show command displays the received VPN routes from E21 on E11 in RIB (a.k.a zebra).
+
+```
+c328f6288084# show ip route vrf PUBLIC-TC0 10.0.0.0
+Routing entry for 10.0.0.0/32
+Known via "bgp", distance 20, metric 200, vrf PUBLIC-TC0, best
+Last update 00:32:18 ago
+fd00:0:200:171::(vrf Default) (recursive), label implicit-null, seg6local unspec unknown(seg6local_context2str), seg6 fd00:301:2021:fff1:eee::, weight 1
+* abcd:100:181:251::2, via pe3-eth0(vrf Default), label implicit-null, seg6local unspec unknown(seg6local_context2str), seg6 fd00:301:2021:fff1:eee::, weight 1
+AS-Path: 100
+```
+
+5. Remote PE publishs learnt VPN routes to remote CE
+
+On E11, the learnt VPN routes will be published to MAN1 as a unicast IPv4 route. In this topology, MAN1 is acting as a remote CE
+
+```
+c328f6288084# show ip route 10.0.0.0
+Routing entry for 10.0.0.0/32
+Known via "bgp", distance 20, metric 200, best
+Last update 00:34:59 ago
+* 192.168.1.1, via ce3-eth0, weight 1
+AS-Path: 200 100
+```
+
+6. Data Plane Behavior
+
+At this stage, all configurations for the control plane have been finalized, and BGP has disseminated the corresponding information to remote PEs.
+During the data forwarding process, when a packet is sent outward from E11, it will have fd00:301:2021:fff1:eee:: included in an SRH header. Upon reaching E21, the packet will be matched against the locally configured locator-sid forwarding table established in the initial step. Subsequently, the srv6 header will be removed, revealing the inner IP address 10.0.0.0. The packet will then undergo a lookup in the VRF PUBLIC-TC0 before ultimately being directed towards the CE side of MAN2.
 
 ## 4 Unit Test
 
