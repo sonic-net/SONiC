@@ -541,6 +541,23 @@ session_time        = 1*10DIGIT ; Client session time.
 num_clients_auth             =    1*10DIGIT                      ;number of clients authenticated
 ```
 
+***STATE_OPER_PORT***
+```
+"STATE_OPER_PORT": {
+  {
+    "Ethernet0": {  
+      "learn_mode": "cpu_trap",
+      "acquired": "true",
+    }
+  }
+}
+
+;field   =    value
+learn_mode     =    1*255VCHARS	;  learn mode
+acquired     =    1*255VCHARS	;  whether the port is acquired by PAC
+
+```
+
 ***STATE_OPER_VLAN***
 ```
 "STATE_OPER_VLAN_MEMBER": {
@@ -557,6 +574,26 @@ num_clients_auth             =    1*10DIGIT                      ;number of clie
 tagging_mode     =    1*255VCHARS	;  tagging mode                      
 
 ```
+
+***STATE_OPER_FDB***
+```
+"STATE_OPER_FDB": {
+  "Vlan10": [
+    {
+      "00:00:00:00:00:01": {  
+        "port": "Ethernet0",
+        "type": "static",
+      }
+    }
+  ]
+}
+
+;field   =    value
+port     =    1*255VCHARS	;  port
+type     =    1*255VCHARS	;  FDB entry type
+
+```
+
 
 ## 3.3 Switch State Service Design
 
