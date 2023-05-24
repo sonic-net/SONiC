@@ -227,17 +227,9 @@ Hence, unlike existing steaming modules, no new reserved `target` value will be 
 Instead, request `origin` based identification will be used, in accordance with the [gNMI Mixed Schema Specification](https://github.com/openconfig/reference/blob/master/rpc/gnmi/mixed-schema.md).
 Subscribe paths will be treated as translib YANG paths when the `origin` attribute is set as `openconfig`.
 For the sake of backward compatibility, the existing `target` based identification will be retained when the `origin` is not specified.
-Following table summarizes the behavior:
+Following flow diagram summarizes the behavior:
 
-| `origin` value  | `target` value  | Path type                                 |
-|-----------------|-----------------|-------------------------------------------|
-| openconfig      | *{opaque}*      | OpenConfig yang paths handled by translib |
-| *{empty}*       | CONFIG_DB<br>STATE_DB etc...  | DB path (existing logic)    |
-| *{empty}*       | EVENTS          | Event path (existing logic)               |
-| *{empty}*       | OTHERS          | Non-DB path (existing logic)              |
-| *{empty}*       | *{empty}*       | Error (existing logic)                    |
-| *{empty}*       | *{unknown}*     | Error                                     |
-| *{unknown}*     | *{opaque}*      | Error                                     |
+![Path Schema Identification Flow Diagram](images/Subscribe_path_type.svg)
 
 When origin is `openconfig`, no special processing is sone based on the `target` value.
 `target` will be an optional attribute.
@@ -246,7 +238,6 @@ If specified, the server will fill the same value as the `target` for every noti
 Note: gNMI specification recommends using `openconfig` as the default origin when it is not specified by the client.
 However, we cannot implement it right now to maintain backward compatibility with the existing clients.
 Other streaming modules should consider migrating to `origin` based path identification to achieve gNMI specification compliance.
-Existing reserved `target` values can be re-used as `origin` values.
 
 ### 2.3 Manage Subscription RPC Lifecycle
 
