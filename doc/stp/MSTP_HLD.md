@@ -5,9 +5,10 @@
 
 ## Revision History
 
-|Revision No.|Description|Author|Contributors|Date|
-| :- | :- | :- | :- | :- |
-|1.0|MSTP Design|[Hamna Rauf](https://github.com/hamnarauf)|[Muhammad Danish](https://github.com/mdanish-kh), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)|March 20, 2023|
+|Revision No.|Description|Author|Date|
+| :- | :- | :- | :- |
+|0.1|MSTP Design|[Hamna Rauf](https://github.com/hamnarauf), [Muhammad Danish](https://github.com/mdanish-kh), [Rida Hanif](github.com/ridahanif96), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)|March 20, 2023|
+|0.2|MSTP YANG Model|[Hamna Rauf](https://github.com/hamnarauf) & [Muhammad Danish](https://github.com/mdanish-kh)|May 23, 2023|
 
 # Table of Contents
 
