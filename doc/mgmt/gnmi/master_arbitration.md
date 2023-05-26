@@ -19,7 +19,7 @@
 
 | Rev  | Rev Date   | Author(s)          | Change Description |
 |------|------------|--------------------|--------------------|
-| v0.1 | 03/14/2023 | Tomek Madejski (Google), Sally Lyu (Google) | Initial version |
+| v0.1 | 02/28/2023 | Tomek Madejski (Google), Sally Lyu (Google) | Initial version |
 
 ### Scope
 
@@ -130,6 +130,13 @@ When Master Arbitration is enabled, `SetRequest` with `MasterArbitration` messag
 
 The implementation of Master Arbitration, a new built-in feature in SONIC, will involve modifications in the telemetry module and the sonic-gnmi repository. However, it is important to note that this change will not affect other modules or sub-modules. It is worth mentioning that Master Arbitration does not require any changes to be made to SWSS or Syncd. A new field will be created in `CONFIG_DB` to record the status of Master Arbitration.
 
+Proposed `CONFIG_DB` schema:
+{
+  "TELEMETRY|gnmi": {
+    "master_arbitration_enabled": "true"
+  }
+}
+
 **Optional Feature**
 
 Master Arbitration is an optional feature that can be turned on with a command-line option when gNMI server starts. It will not affect the requirements and dependencies for warm reboot or fastboot. Additionally, no docker dependency and build dependency changes are required. The performance and scalability of the system should remain the same as they are currently. The only additional memory requirements are for a 128-bit ID and the memory needed for the role object.
@@ -153,19 +160,19 @@ if withMasterArbitration {
 
 To enable usage of UMF's implementation of gNMI in SDN, it is important to implement Master Arbitration protocols. SDN allows for multiple controllers to interact with a specific switch, but without Master Arbitration, multiple controllers may try to configure the same switch, leading to incorrect configuration of the switch. In the absence of Master Arbitration in the `SetRequest` extension, a default `EID = 0` is assigned to each controller. This can lead to conflicts where one controller may configure the gNMI server with one set of configurations, while another controller wants to configure the server with a different set of configurations. As a result, the gNMI server may receive conflicting `SetRequest`s from both controllers, leading to a situation where it alternates between the configurations set by each controller. Therefore, Master Arbitration is necessary to ensure that only one controller is responsible for configuring the switch and prevent conflicting requests from multiple controllers.
 
-![MA0](images/MA0.png)
+![MA0](images/MA_0.png)
 
 If only one controller is interacting with the gNMI server and Master Arbitration is enabled, the behavior of the controller-switch is identical to the scenario where there is no Master Arbitration.
 
-![MA1](images/MA1.png)
+![MA1](images/MA_1.png)
 
 In a scenario where there are multiple controllers, only the master controller is allowed to modify the switche's configuration using the gNMI server. Suppose Controller 1 with `EID = N` sets a configuration to the gNMI server first. If Controller 2 sends a `SetRequest` with `EID = N + M`, the gNMI server will execute the `SetRequest` from Controller 2 and record `LAST_EID = N + M` to compare with any incoming `SetRequest`s. If Controller 1 subsequently sends a `SetRequest` with `EID = N`, the `SET` operation will not be executed because Controller 2 is currently the master controller.
 
-![MA2](images/MA2.png)
+![MA2](images/MA_2.png)
 
 It should be noted that Master Arbitration only affects `SET` operations. Therefore, when Controller 2 is chosen as the master controller, a `GetRequest` from Controller 1 can be executed without any problem.
 
-![MA3](images/MA3.png)
+![MA3](images/MA_3.png)
 
 **Debug Facility**
 
@@ -203,7 +210,7 @@ func (s *Server) Set(ctx context.Context, req *gnmipb.SetRequest) (*gnmipb.SetRe
   }
 
   // ...
-
+}
 ```
 
 If Master Arbitration is enabled, the following check is executed:
