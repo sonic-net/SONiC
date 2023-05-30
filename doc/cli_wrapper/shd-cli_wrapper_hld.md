@@ -122,6 +122,7 @@ This section provides design details for CLI_wrapper.
 
 In order to send all needed information in a request, some encode processes must be applied before sending it to server.
 The following picture shows two examples for encoded requests.
+
 ![Encode format](images/encode_format.jpg)
 
 * \__wrapper_calling_cmd__: used to indicate the start of a command
