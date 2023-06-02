@@ -45,7 +45,6 @@ Add the option for enabling the SONiC gNMI implementation to save its in-memory 
 - [gNMI](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md) - Google Network Management Interface
 - UMF - Unified Management Framework
 
-
 ### Overview
 
 Having configuration be persistant across switch reboot is a useful feature that is not currently implemented by UMF.
@@ -60,6 +59,7 @@ For this reason and for more versatility the save-on-set behavior should be able
 ### Requirements
 
 This feature should be off by default to avoid interfering with legacy switches.
+
 ### Architecture Design
 
 This feature does not change the SONiC Architecture
@@ -106,9 +106,12 @@ This feature does not change the SONiC Architecture
 #### Required Changes
 
 ##### Telemetry Executable
+
 A new command-line parameter will be added to control the behavior of the save-on-set functionality. By default, i.e. when the option is not specified, the gNMI server will behave as it did before this change - the configuration will not be saved to a file without explicit action from the administrator for example by execution of a command via ssh connection.
 
-The new parameter will be: --with-save-on-set and when present it will configure a function pointer variable gnmi.SaveOnSet to point to a function that actually performs the save operation.
+The telemetry.sh startup script will be modified to read `TELEMETRY|gnmi|save_on_set` and pass the value along during startup. Any changes to this value will only take effect after restarting telemetry.
+
+The new parameter will be: --with-save-on-set and when present it will configure a function pointer variable gnmi.SaveOnSet to point to a function that initiates the save operation.
 
 ```go
 var (
@@ -123,7 +126,8 @@ if *withSaveOnSet {
 ```
 
 ##### Call to Save ConfigDB
-A function to initial the backup located in the sonic-mgmt-framework.
+
+A function to initialize the backup located in the sonic-mgmt-framework.
 
 ```go
 // SaveConfig initiates the operation of saving the current content of
@@ -212,7 +216,8 @@ No effect on warm/fast boot
 #### Unit Test cases
 
 - No behavior change if the feature is not enabled.
-- A gNMI.Set() call should generate a signal to save ConfigDB.
+- A gNMI.Set() call should generate a message to save ConfigDB on the DBUS when enabled.
+
 #### System Test cases
 
 - A gNMI.Set() call should result in an update to the ConfigDB backup file.
