@@ -238,12 +238,11 @@ Reference Register: Upper page 10h byte 153-173 (desired Host defined SI setting
 8. Validate the config_status code, if the status is not config success, then force CMIS to reinit and retry. If the configuration fails after 3 retry attempts, print an error message and exit from initializing this port. If config_status is successful, then continue with the DP_INIT state in the CMIS state machine.  
 Reference Register: Upper Page 11h Byte 202-205 (config_status register)
 
-
-![CMIS_HLD2 drawio-2-2-6](https://user-images.githubusercontent.com/115578705/236578644-fff87bf9-3c0b-4120-9b29-456661a365b3.png)
+![CMIS_HLD2 drawio-2-2-6](https://github.com/AnoopKamath/SONiC/assets/115578705/c3014369-c45c-4601-b365-ec4c288fd4a3)
 
 SI attribute generation flow:
 
-![Untitled Diagram drawio-4](https://user-images.githubusercontent.com/115578705/236578658-fe24292d-a0b1-4f89-a588-d4fa5fe449de.png)
+![Untitled](https://github.com/AnoopKamath/SONiC/assets/115578705/92e0291d-8d76-4d20-a535-95ee30a9265e)
 
 # Feature Enablement
 This feature would be enabled per platform basis. If platform wants to use this feature, they would need to provide optics_si_setting.json file during init for XCVRD to parse it.
