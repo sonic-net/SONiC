@@ -1130,9 +1130,9 @@ ave to be also auto-generated from YANG in the future.
 | Path                   | Type   | Mandatory | Description                                                     |
 | ---------------------- | ------ | --------- | --------------------------------------------------------------- |
 | /cli/mandatory         | boolean| no        | Wether CLI is a mandatory functionality for the package. Default: False. |
-| /cli/show-cli-plugin   | string | no        | A path to a plugin for sonic-utilities show CLI command.        |
-| /cli/config-cli-plugin | string | no        | A path to a plugin for sonic-utilities config CLI command.      |
-| /cli/clear-cli-plugin  | string | no        | A path to a plugin for sonic-utilities sonic-clear CLI command. |
+| /cli/show-cli-plugin   | list of strings | no        | List of paths to plugins for sonic-utilities show CLI command.        |
+| /cli/config-cli-plugin | list of strings | no        | List of paths to plugins for sonic-utilities config CLI command.      |
+| /cli/clear-cli-plugin  | list of strings | no        | List of paths to plugins for sonic-utilities sonic-clear CLI command. |
 
 ### SONiC Processes and Docker Statistics Telemetry Support
 
