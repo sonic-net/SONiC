@@ -25,6 +25,8 @@
   - kill syncd docker
 - stop database
 - use kexec to reboot, plus one extra kernel argument
+![Swss going down](img/swss_going_down.svg)
+![Syncd going down](img/syncd_going_down.svg)
 
 Plan to re-use fast-reboot script. Improve the fast-reboot to handle warm-reboot scenario, have a symbol link to warm-reboot. 
 The script detects the name, and call corresponding reboot.
@@ -60,6 +62,8 @@ Later if we improve the consistency ```SONIC_BOOT_TYPE=[fast|warm|cold]```, this
   - at the same time as swss docker. swss will not read teamd app db until it finishes the comparison logic.
 - start bgp docker
   - at the same time as swss docker. swss will not read bgp route table until it finishes the comparison logic.
+![Swss going up](img/swss_going_up.svg)
+![Syncd going up](img/syncd_going_up.svg)
 
 ## SAI expectations for warm recovery
 - Application sets profile value SAI_KEY_BOOT_TYPE to 1 to indicate WARM BOOT. (0: cold boot, 2: fast boot)
