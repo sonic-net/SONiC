@@ -310,9 +310,9 @@ We have added a new “mode” field in PORT & PORT CHANNEL Table .
 
 
 ## DB Migrator Enhancements
-As there is a change in schema for PORT & PORT CHANNEL Table in config DB . We have added support to migrate the entries to the new schema in db_migrator.py. A new “mode” field is added whose default value is “trunk” to map it with the old configurations for backward compatibility.
+As there is a change in the schema for PORT & PORT CHANNEL Table in config DB. We have added a  new "mode" field in db_migrator.py in order to support backward compatibility. 
 
-Exisitng Before Migration PORT TABLE Schema in Config_DB
+#### Existing Before Migration PORT TABLE Schema in Config_DB
 
      "PORT": 
     {
@@ -326,9 +326,10 @@ Exisitng Before Migration PORT TABLE Schema in Config_DB
         }
     }
 
-After migration PORT TABLE Schema in Config_DB
+ If there is IP or IPV6 configured, no "mode" field will be added which means "routed" for the old configurations. If there is a VLAN membership, then the mode field will be "trunk". 
 
-If a VLAN is configured in old configurations its mode will be set as “trunk” for existing configurations.
+After Migration PORT TABLE if there is VLAN Membership in Config_DB
+
 
     "PORT":
     {
@@ -343,7 +344,8 @@ If a VLAN is configured in old configurations its mode will be set as “trunk�
         }
     }
 
-Exisitng Before Migration PORTCHANNEL TABLE Schema in Config_DB
+
+#### Existing Before Migration PORTCHANNEL TABLE Schema in Config_DB
 
     "PORTCHANNEL": 
      {
@@ -356,9 +358,11 @@ Exisitng Before Migration PORTCHANNEL TABLE Schema in Config_DB
         }
      }
 
-After migration PORTCHANNEL TABLE Schema in Config_DB
 
-If a VLAN is configured in old configurations its mode will be set as “trunk” for existing configurations.
+If there is IP or IPV6 configured, no "mode" field will be added which means "routed" for the old configurations. If there is a VLAN membership, then the mode field will be "trunk". 
+
+
+ After Migration PORTCHANNEL TABLE if there is VLAN Membership in Config_DB
 
      "PORTCHANNEL": 
      {
