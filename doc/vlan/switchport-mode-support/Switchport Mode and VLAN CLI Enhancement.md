@@ -485,7 +485,7 @@ We have given examples only for addition of vlans, commands for deletion of vlan
 
 ###  Examples/Usage of Switchport Modes Command
 
-Following example shows usage of switchport modes “access” and “trunk” and switching of port mode from routed to access/trunk. Before switching mode from routed to access/trunk, the user must remove IP first. After the mode has been switched to access/trunk there will be no untagged/tagged vlan member(s) assigned (Community calls this situation a blackhole). 
+Following example shows usage of switchport modes “access” and “trunk” and switching of port mode from routed to access/trunk. Before switching mode from routed to access/trunk, the user must remove IP first. 
 
 #### Configuring Port & PortChannel from Routed to Access 
 
