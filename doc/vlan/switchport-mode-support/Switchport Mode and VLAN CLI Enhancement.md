@@ -1,3 +1,4 @@
+
 # Switch Port Modes and Vlan CLI Enhancement
 
 
@@ -13,6 +14,9 @@
 |0.3| Revision in Title,Switchport modes and CLI enhancements| [Muhammad Hamza Iqbal](https://github.com/ham-xa)| [Rida Hanif](https://github.com/ridahanif96) , [Umar Asad](https://github.com/MuhammadUmarAsad), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)| 24 Oct 2022|
 |0.4| Addition of Use Cases, Db Migrator and Config-Db Enchanements| [Muhammad Hamza Iqbal](https://github.com/ham-xa)| [Rida Hanif](https://github.com/ridahanif96) , [Umar Asad](https://github.com/MuhammadUmarAsad), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)| 06 Mar 2023|
 |0.5| Detailed Examples Section | [Muhammad Hamza Iqbal](https://github.com/ham-xa)| [Rida Hanif](https://github.com/ridahanif96) , [Umar Asad](https://github.com/MuhammadUmarAsad), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)| 05 May 2023|
+
+
+
 
   
   
@@ -521,11 +525,25 @@ admin@sonic:~$ show int switchport status
 
 **4.** Untagged Vlan Member Assignment on Access Port
 
+a) One Untagged Vlan member can be added on access port by using following command:
+ 
 ```
 admin@sonic:~$ sudo config vlan member add 2 -u Ethernet0
 ```
 
 <img src="https://user-images.githubusercontent.com/61490193/236294143-3df37252-dcf4-46d2-bb0d-b8ad104dbb66.png" width="65%" height="30%"> 
+
+b) Adding a Tagged Vlan Member on Access Port
+
+ If a VLAN member is initially added as an untagged member and then later added as a tagged member, this action is not permitted and will result in the following error being displayed:
+ 
+```
+admin@sonic:~$ sudo config vlan member add 2 Ethernet0          
+```
+
+<img src="https://github.com/ham-xa/SONiC/assets/61490193/b291497d-345b-4fdb-adf9-b1b55cc8751e" width="65%" height="30%">
+
+**Note: This is exisiting VLAN funcationality, This HLD has not proposed any changes/modifications on exisiting behavior of VLAN.**
 
 **5.** Multiple Untagged Vlan Member Assignment on Access Port
 
@@ -547,10 +565,20 @@ Ethernet0 is in Access mode, IP assignment on the access port is not allowed. Co
 
 **8.** Change Mode from Access to Routed
 
-Ethernet0 is in Access mode, switching an access port to routed is not possible until it has an untagged member. Changing  mode from access to routed will show following error:
+a) Ethernet0 is in Access mode, switching an access port to routed is not possible until it has an untagged member. Changing  mode from access to routed will show following error:
 
 <img src="https://user-images.githubusercontent.com/61490193/236168568-40e2c53b-d674-49b5-8885-faefac2283e5.png" width="65%" height="30%"> 
 
+b) Ethernet0 is in Access mode, in order to change mode from access to routed, user first has to remove untagged member assigned to it. 
+After removal of vlan membership, mode can be changed by using switchport mode command as show below.
+Here, in example Interface Ethernet0 is in  "routed" mode which means it has no VLAN membership. It may not have ip address configured either and still qualify as mode "routed". This can be verified by config_db as well after changing mode to "routed" as show below:
+
+<img src="https://github.com/ham-xa/SONiC/assets/61490193/8143f4eb-f36e-4d39-a6b7-19afd252675b" width="65%" height="30%"> 
+
+<img src="https://github.com/ham-xa/SONiC/assets/61490193/77e4dbdf-330c-4750-9978-f5775d7480aa" width="35%" height="20%"> 
+
+
+**Note: This works in the same way for PortChannels as they do for physical ports.**
 
 **9.**  Change Mode from Access to Trunk
 
@@ -587,7 +615,10 @@ admin@sonic:~$ sudo config interface ip remove Ethernet4 10.0.0.2/31
 admin@sonic:~$ sudo config switchport mode Trunk Ethernet4       
 ```
 <img src="https://user-images.githubusercontent.com/61490193/236542261-682ebb20-07bd-4a34-ab9b-dc92bfc95bf0.png" width="65%" height="30%">
+
 **3.** Untagged Vlan Member Assignment on Trunk Port
+
+a) Adding one Untagged Member on Trunk port is allowed. This can be done by follwing command:
 
 ```
 admin@sonic:~$ sudo config vlan member add 3 -u Ethernet4          
@@ -595,39 +626,66 @@ admin@sonic:~$ sudo config vlan member add 3 -u Ethernet4
 
 <img src="https://user-images.githubusercontent.com/61490193/236294289-44cbceff-a3be-4460-a5c0-a8f219720466.png" width="65%" height="30%">
 
-**4.** Multiple Untagged Vlan Member Assignment on Trunk Port
-Ethernet4 is in Trunk mode, it can have only 1 untagged member. Configuring More than 1 untagged member on trunk Port will show following error:
+b) Adding a Tagged Vlan Member on Trunk Port
 
+If a VLAN member is initially added as an untagged member and then later added as a tagged member, this action is not permitted and will result in the following error being displayed:
+
+```
+admin@sonic:~$ sudo config vlan member add 3 Ethernet4          
+```
+<img src="https://github.com/ham-xa/SONiC/assets/61490193/0049f286-c8b4-4533-809f-322e7a5ffd2e" width="65%" height="30%">
+
+**Note: This is existing VLAN functionality, This HLD has not proposed any changes/modifications on exisiting behavior of VLAN.**
+
+**4.** Multiple Untagged Vlan Member Assignment on Trunk Port
+
+Ethernet4 is in Trunk mode, it can have only 1 untagged member. Configuring More than 1 untagged member on trunk Port will show following error:
 
 <img src="https://user-images.githubusercontent.com/61490193/236170542-587403ed-3cf0-465a-9e58-fff7c8130508.png" width="65%" height="30%">
 
 
-**5.** Tagged Vlan Member Assignment on Trunk Port
+**5.**  Single Tagged Vlan Member Assignment on Trunk Port
 
-Ethernet4 is in trunk mode, it can have multiple tagged members. Configuring tagged member on trunk Port will show following
+Ethernet4 is in trunk mode, it can have single tagged member. Configuring tagged member on trunk Port will show following:
+
+
+<img src="https://github.com/ham-xa/SONiC/assets/61490193/f2bee94b-b9ae-45a3-b68b-82b0c6686a2f" width="65%" height="30%">
+
+**6.** Tagged Vlan Member Assignment on Trunk Port
+
+Ethernet4 is in trunk mode, it can have multiple tagged members. Configuring tagged member on trunk Port will show following:
 
 
 <img src="https://user-images.githubusercontent.com/61490193/236294274-61705636-4f9f-4756-9062-58d55334b836.png" width="65%" height="30%">
 
-**6.** IP Assignment on Trunk Port
+**7.** IP Assignment on Trunk Port
 
 
 Ethernet4 is in Trunk mode, IP assignment on the Trunk port is not allowed. Configuring IP Assignment on Trunk Port will show following error:
 
 <img src="https://user-images.githubusercontent.com/61490193/236170307-9c58b1c3-4ad8-4061-9908-4163a833a315.png" width="65%" height="40%">
  
-**7.** Change Mode from Trunk to Routed 
+**8.** Change Mode from Trunk to Routed 
 
-Ethernet4 is in Trunk mode, Changing Trunk port to routed is not possible until it has an untagged and tagged members. Changing Trunk to routed will show following error:
+a) Ethernet4 is in Trunk mode, Changing Trunk port to routed is not possible until it has an untagged and tagged members. Changing Trunk to routed will show following error:
 
 
 <img src="https://user-images.githubusercontent.com/61490193/236533178-bba78b3f-f429-4042-8de9-0decbe938f36.png" width="65%" height="40%">
- 
-**8.** Change Mode from Trunk to Access
+
+b) Ethernet4 is in trunk mode, in order to change mode from trunk to rounted, user first has to remove untagged and tagged member assigned to it. After removal of vlan membership, mode can be changed by using switchport mode command as show below.
+Here, in example Interface Ethernet4 is in  "routed" mode which means it has no VLAN membership. It may not have ip address configured either and still qualify as mode "routed". This can be verified by config_db as well after changing mode "routed" as show below:
+
+ <img src="https://github.com/ham-xa/SONiC/assets/61490193/43a63bc5-bc1c-4001-8197-f0eed4f49246" width="65%" height="40%">
+
+ <img src="https://github.com/ham-xa/SONiC/assets/61490193/00ea0599-0a13-434f-bf41-4a9241c961a6" width="35%" height="20%">
+
+**Note: This works in the same way for PortChannels as they do for physical ports.**
+
+**9.** Change Mode from Trunk to Access
 
 Ethernet4 is in Trunk mode, Changing Trunk port to access is possible and  its  untagged members wll retain. Changing Trunk to access will show following:
 
-<img src="https://user-images.githubusercontent.com/61490193/236170489-5534af51-ce5d-4a39-b2cc-59b3c1660a23.png" width="65%" height="40%">
+<img src="https://user-images.githubusercontent.com/61490193/236170489-5534af51-ce5d-4a39-b2cc-59b3c1660a23.png" width="45%" height="20%">
 
 
 * PortChannel Configurations
