@@ -144,7 +144,7 @@ Default values can be platform defaults for multiple vendors in each section.
       “GLOBAL_MEDIA_SETTINGS” : { 
           “1-20”: { 
               “100G_SPEED”: { 
-                  “CREDO  -CAC82X321M2MC0HW”: { 
+                  “CREDO-CAC82X321M2MC0HW”: { 
                       “SI_PARAM_RX_OUTPUT_PRE” : { 
                           “lane0” : “5”, 
                           “lane1” : “5”,
@@ -153,10 +153,10 @@ Default values can be platform defaults for multiple vendors in each section.
                           “lane4” : “5”,
                           “lane5” : “5”,
                           “lane6” : “5”,
-                          “lane7” : “5”, 
+                          “lane7” : “5” 
                       } 
                   }, 
-                  “INNOLIGHT  -T-DP8CNT-NCI”: {
+                  “INNOLIGHT-T-DP8CNT-NCI”: {
                       “SI_PARAM_RX_OUTPUT_POST” : { 
                           “lane0” : “8”,
                           “lane1” : “8”,
@@ -165,7 +165,7 @@ Default values can be platform defaults for multiple vendors in each section.
                           “lane4” : “8”,
                           “lane5” : “8”,
                           “lane6” : “8”, 
-                          “lane7” : “8”, 
+                          “lane7” : “8” 
                       } 
                   } 
               } 
@@ -228,7 +228,7 @@ Please refer below points in line with flow diagram.
 4. Apply the application code to the configuration with Explicit Control (EC) = 0, and commit to the activate state.  
 Reference Register: Upper Page 10h bytes 145 –152 (desired ApSel Code)
 
-5. Read and cache the default or active TX/RX SI settings. 
+5. Read and cache the default or active TX/RX SI settings. We need to cache the default values of the module. It's possible that we may not modify all the parameters. In such cases, we need to apply new SI values along with the default values that were already present. If we only apply the new values in Staged Control Set, the other values will be set to 0 in the Active Control Set. 
 Reference Register: Upper Page 11h bytes 214 to 234
 
 6. Update the new values from the attribute list (3) to the cached SI list (5).
