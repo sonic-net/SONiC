@@ -31,7 +31,7 @@
   - [2.5 DhcpServ Monitor](#25-dhcpserv-monitor)
   - [2.6 Lease Update Script](#26-lease-update-script)
   - [2.7 Customize DHCP Packet Options](#27-customize-dhcp-packet-options)
-  - [2.8 isc-dhcp-relay Patch](#28-isc-dhcp-relay-patch)
+  - [2.8 dhcrelay Patch](#28-dhcrelay-patch)
   - [2.9 Flow Diagrams](#29-flow-diagrams)
     - [2.9.1 Config Change Flow](#291-config-change-flow)
     - [2.9.2 Lease Update Flow](#292-lease-update-flow)
@@ -61,54 +61,169 @@ This document describes the high level design details about how **ipv4 port base
 | Abbreviation             | Full form                        |
 |--------------------------|----------------------------------|
 | DHCP                      | Dynamic Host Configuration Protocol      |
+| eBPF| extended Berkeley Packet Filter |
 
-# 1 Overview
-A DHCP Server is a server on network that can automatically provide and assign IP addresses, default gateways and other network parameters to client devices. DHCP server listens to port 68 and waits for messages from client. Below are three common scenarios:
+###### Table 2: Definitions
+| Definitions             | Description                        |
+|--------------------------|----------------------------------|
+| dnsmasq                      | A lightweight DHCP and caching DNS server      |
+| dhcrelay | DHCP relay |
 
-**1) Establish new lease**
+# Overview
+A DHCP Server is a server on network that can automatically provide and assign IP addresses, default gateways and other network parameters to client devices. 
 
-<div align="center"> <img src=images/dhcp_process.png width = 520 /> </div>
+## Background
+We plan to implement built-in DHCP Server in SONiC to assign IPs based on physical port.
 
-**2) Renew old lease**
+Port-based DHCP Server has below advantages:
 
-<div align="center"> <img src=images/dhcp_process_renew.png width = 520 /> </div>
+1. Relatively more secure and stable, if no other configured interface requests IP, it will not be assigned.
+2. Assigning IP based on port can quickly complete a self-made network without external information input.
 
-**3) Release old lease**
+## Functional Requirements
+1. SONiC built-in DHCP Server.
+2. Rules to assign IPs based on physical ports.
+3. Packet counter for debug purpose.
 
-<div align="center"> <img src=images/dhcp_process_release.png width = 520 /> </div>
-
-## 1.1 Functional Requirements
-The requirements for DHCP server are: 
-
-1.0 DHCP is standardized through RFC 1541, RFC 2131, RFC 2132.
-
-2.0 Provide the ability to manage IP addresses.
-
-2.1 Provide the ability to map client to IP address without conflicts, and mapping methods should be configurable.
-
-2.2 Netmask, gateway, lease time of DHCP should be configurable per Vlan.
-
-2.3 Provide the ability to customize DHCP options in DHCP packet.
-
-3.0 Provide counter of different type of DHCP packets to monitor whether DHCP server works well.
-
-3.1 Provide ability to clear DHCP packets counter.
-
-## 1.2 Configuration and Management Requirements
+## Configuration and Management Requirements
 Configuration of DHCP server feature can be done via:
 * JSON config input
 * SONiC CLI
 
-# 2 Design
-## 2.1 Design Overview
-The design overview at a high level is as below. The details are explained in the following subsections.
+# Design
+## Design Overview
+We use dnsmasq to reply dhcp request packet. Dnsmasq natively supports mac-based ip assign, but in our scenario dnsmasq need to know which interface this packet come from. And SONiC has integrated dhcrelay, which can add interface info to option82 when it relay DHCP packet. So we use it to add interface information. But we will encounter 2 problems in this scenario:
+
+1. Original dnsmasq and dhcrelay listen to same interface and same UDP port(67), which would cause port conflict.
+
+2. dhcrelay is not supported loopback relay.
+
+So we introduce eBPF to modify DHCP packet contents, including UDP ports, DHCP related information.
+
+<div align="center"> <img src=images/ebpf_dhcp_high_level.png width=450 /> </div>
+
+## DHCP Server Bridge
+eBPF (extended Berkeley Packet Filter) can run sandboxed programs in a privileged context such as the operating system kernel. We use eBPF program to implement DHCP Server bridge to connect loopback dnsmasq and dhcrelay.
+
+### Hook and Modify Packet
+
+So we introduce eBPF to resolve conflict of dnsmasq and dhcrelay working on same machine.
+
+<div align="center"> <img src=images/ebpf_flow.png width=650 /> </div>
+
+For problem 1, it's easy to change listening port for dnsmasq by itself config. But it's no convenient to change relay port for dhcrelay. So we use port 67 as listen and relay port for dhcrelay, and use another port (like 1067) as listen port for dnsmasq. In this setting, origin UDP ports in packets between dnsmasq and dhcrelay is like bellow:
+| Direction      | UDP source port|UDP destination port|
+|--------------------------|--|----|
+| dhcrelay to dnsmasq|67| 67 |
+| dnsmasq to dhcrelay|1067| 1067 |
+
+In this scenario, they cannot communicate with each other. So we use eBPF program to modify packet UDP port, and the result is as below:
+| Direction      | UDP source port|UDP destination port|
+|--------------------------|--|----|
+| dhcrelay to dnsmasq|67| 1067 |
+| dnsmasq to dhcrelay|1067| 67 |
+
+For problem 2, we chose `docker0` as upstream interface of dhcrelay and use eBPF to modify DHCP relay packet from dnsmasq to make it looks like not a loopback DHCP server, and redirect these packet to ingress queue of docker0.
+
+Belows are samples.
+```
+./dhcrelay -d -m discard -a %h:%p %P --name-alias-map-file /tmp/port-name-alias-map.txt -id Vlan1000 -iu docker0 192.168.0.1
+```
+dhcrelay listens on port 67, upstream interface of it is docker0 (We need a interface which would not request dhcp ip to be upstream interface), and downtream interface of it is Vlan1000, server ip is ip of Vlan1000. This config will make dhcrelay to relay dhcp packet between Vlan1000 and docker0.
+```
+bind-interfaces
+interface=Vlan1000
+dhcp-alternate-port=1067
+dhcp-circuitid=set:etp6,"hostname:etp6"
+dhcp-range=tag:etp6,192.168.0.5,192.168.0.5,255.255.255.0
+```
+dnsmasq listens on port 1067, and downstream of it is Vlan1000, it will assign ip by circuit id in option 82. This config will make it reply relayed DHCP request packet from Vlan1000.
+<div align="center"> <img src=images/ebpf.png width=670 /> </div>
+
+1. dhcrelay receive DHCP request and relay it to server. Because we have set server ip as it self, so the relayed packet would be sent from <b>lo</b> interface. The dst and src UDP port of this packet both are 67.
+
+2. eBPF program is hooking in ergress queue in this interface, modify the dst and src UDP to 1067, and not do anything else to this packet.
+
+3. dnsmasq recevie this relayed request packet, and send reply packet from <b>lo</b> intferface. The dst and src UDP port of this packet both are 1067.
+
+4. eBPF program modify the dst and src UDP port and some other contents. And redirect this packet to ingress queue of <b>docker0</b>
+
+5. dhcrelay capture the dhcp reply packet in docker0 and would send relayed reply packet to client.
+
+### Dependency Libraries
+
+apt-get install libbpfcc libbpf-dev bpftool
+
+## DhcpMgr Daemon
+### Generate Config
+
+For each dhcp interface, a dnsmasq process and an dhcrelay process are started. DhcpMgrd is to manager these processes (start/kill/restart) when configuration in config_db is changed.
+<div align="center"> <img src=images/dhcp_server_block_new_diagram.png width=530 /> </div>
+
+### Update Lease
+
+Dnsmasq supports to specify a customize script to execute whenever a new DHCP lease is created, or an old one destroyed. We use this script to send signal to DhcpMgrd to read lease file and update lease table in STATE_DB.
+<div align="center"> <img src=images/lease_update_flow_diagram.png width=380 /> </div>
+
+### Packet Counter
+
+Because we have 3 scenarios of packet communication (client to dhcrelay, dhcrelay to dhcp server bridge, dhcp server bridge to dnsmasq), if DHCP sever cannot work well, we need to now which link have issue. So we need 3 counters.
+
+<div align="center"> <img src=images/ebpf_counter_all.png width=600 /> </div>
+
+#### Dnsmasq Counter
+dnsmasq would log DHCP packet it received or sent like bellow format. From this log, DhcpMgrd can know the mac address of client it communicate to.
+```
+dnsmasq-dhcp: DHCPDISCOVER(Vlan1000) 192.168.0.5 10:70:fd:b6:13:05
+dnsmasq-dhcp: DHCPOFFER(Vlan1000) 192.168.0.5 10:70:fd:b6:13:05
+dnsmasq-dhcp: DHCPREQUEST(Vlan1000) 192.168.0.5 10:70:fd:b6:13:05
+dnsmasq-dhcp: DHCPACK(Vlan1000) 192.168.0.5 10:70:fd:b6:13:05 ea621e1fe61c
+dnsmasq-dhcp: DHCPRELEASE(Vlan1000) 192.168.0.5 10:70:fd:b6:13:05
+dnsmasq-dhcp: DHCPDISCOVER(Vlan1000) 10:70:fd:b6:13:06 no address available
+```
+Below picture describe how DhcpMgrd update related counter table
+<div align="center"> <img src=images/dnsmasq_counter_flow.png width=600 /> </div>
+
+#### DHCP Server Bridge Counter
+
+DHCP server bridge is working on interface `lo`, we can use eBPF map (kind of data structure in eBPF program) to count packet receive in kernel space and read it by `bpftool` in user space. And DhcpServd can get counter information via this tool and update counter table in STATE_DB.
+```
+root@sonic:/usr# bpftool map dump name discover_counter_map | head -n 5
+key: 00 00 00 00  value: 00 00 00 00
+key: 01 00 00 00  value: 04 00 00 00
+key: 02 00 00 00  value: 03 00 00 00
+key: 03 00 00 00  value: 00 00 00 00
+key: 04 00 00 00  value: 00 00 00 00
+```
+
+#### Dhcrelay Counter
+
+eBPF program can hook on `net_dev_queue` and `netif_receive_skb` for all packets send and receive. And filter to get DHCP packet and then update in eBPF map. Further process is similar to DHCP server bridge counter.
+
+## DhcpServ Monitor
+We need to start multiple dnsmasq process and dhcrelay for each DHCP interface, so we need a monitor process DhcpServMon to regularly check whether processes running status consistent with CONFIG_DB.
+
+## Customize DHCP Packet Options
+
+We can customize DHCP Packet options per DHCP interface by dnsmasq. 
+
+We can set tag for each DHCP interface, all DHCP clients connected to this interface share one tag, and DHCP server would add DHCP options by config to each DHCP packet sent to client. Have to be aware of is that below options are not supported to customize, because they are specified by other config or they are critical options.
+| Option code             | Name                        |
+|--------------------------|----------------------------------|
+| 1                      | Subnet Mask      |
+| 3                      | Router           |
+| 51                      | Lease Time      |
+| 53                      | Message Type           |
+| 54                      | DHCP Server ID      |
+
+Currently only support text, ipv4-address.
+
+## DB Changes
+We have two mainly DB changes:
 - Configuration tables for the DHCP server entries.
 - State tables for the DHCP server counter and lease entries.
-- Design is centered around the dnsmasq insides dhcp_relay container.
-- Configuration file for dnsmasq is generated by related configuration tables.
 
-## 2.2 DB Changes
-### 2.2.1 Config DB
+### Config DB
 Following table changes would be added in Config DB, including **DHCP_SERVER_IPV4** table, **DHCP_SERVER_IPV4_PORT** table and **DHCP_SERVER_IPV4_CUSTOMIZE_OPTION** table.
 
 These new tables are introduced to specify configuration of DHCP Server.
@@ -118,7 +233,7 @@ In this section, we assume below config:
 Ethernet1 and Ethernet2 are in Vlan1000, Ethernet15 and PortChannel1 are not in Vlan1000.
 <div align="center"> <img src=images/vlan_sample.png width=400 /> </div>
 
-#### 2.2.1.1 Yang Model
+#### Yang Model
 ```yang
 module sonic-dhcp-server-ipv4 {
   import ietf-inet-types {
@@ -148,9 +263,31 @@ module sonic-dhcp-server-ipv4 {
           description "Netmask of this DHCP server";
           type inet:ipv4-address;
         }
+        leaf customize_options {
+          description "Customize DHCP options";
+          type string;
+        }
       }
     }
     /* end of container DHCP_SERVER_IPV4 */
+    container DHCP_SERVER_IPV4_IP_RANGE {
+      description "DHCP_SERVER_IPV4_IP_RANGE part of config_db.json";
+      list DHCP_SERVER_IPV4_IP_RANGE_LIST {
+        key "name";
+        leaf name {
+          type string;
+        }
+        leaf ip_start {
+          description "Start ip";
+          type inet:ipv4-address;
+        }
+        leaf ip_end {
+          description "End ip";
+          type inet:ipv4-address;
+        }
+      }
+    }
+    /* end of container DHCP_SERVER_IPV4_IP_RANGE */
     container DHCP_SERVER_IPV4_PORT {
       description "DHCP_SERVER_IPV4_PORT part of config_db.json";
       list PORT_LIST {
@@ -158,9 +295,13 @@ module sonic-dhcp-server-ipv4 {
         leaf name {
           type string;
         }
-        leaf ip {
-          description "DHCP ip address assigned to this client";
-          type inet:ipv4-address
+        list IP_RANGE_LIST {
+          description "List of IP range";
+          key "name";
+          leaf name {
+            type string;
+            description "Option name";
+          }
         }
       }
     }
@@ -172,6 +313,10 @@ module sonic-dhcp-server-ipv4 {
       key "name";
       leaf name {
         type string;
+      }
+      leaf id {
+        description "Option ID";
+        type uint8;
       }
       leaf value {
         description "Option value";
@@ -187,7 +332,7 @@ module sonic-dhcp-server-ipv4 {
 }
 ```
 
-#### 2.2.1.2 DB Objects
+#### DB Objects
 ```JSON
 {
   "DHCP_SERVER_IPV4": {
@@ -195,54 +340,85 @@ module sonic-dhcp-server-ipv4 {
       "gateway": "192.168.0.1", // server ip
       "lease_time": "180", // lease time
       "mode": "PORT", // in this mode, server will assign ip by port index
-      "netmask": "255.255.255.0"
+      "netmask": "255.255.255.0",
+      "customize_options": [
+        "option12", // refer to DHCP_SERVER_IPV4_CUSTOMIZE_OPTION
+        "option60"
+      ]
     },
     "Ethernet15": {
       "gateway": "192.168.1.1",
       "lease_time": "180",
       "mode": "PORT",
-      "netmask": "255.255.255.0"
+      "netmask": "255.255.255.0",
+      "customize_options": []
     },
     "PortChannel1": {
       "gateway": "192.168.2.1",
       "lease_time": "180",
       "mode": "PORT",
-      "netmask": "255.255.255.0"
+      "netmask": "255.255.255.0",
+      "customize_options": []
+    }
+  },
+  "DHCP_SERVER_IPV4_IP_RANGE": {
+    "range1": {
+      "ip_start": "192.168.0.2", //This range only contains 3 IPs, 192.168.0.2
+      "ip_end": "192.168.0.4"    // 192.168.0.3 and 192.168.0.4
+    },
+    "range2": {
+      "ip_start": "192.168.0.5",
+      "ip_end": "192.168.0.5"
+    },
+    "range3": {
+      "ip_start": "192.168.1.6",
+      "ip_end": "192.168.1.6"
+    },
+    "range4": {
+      "ip_start": "192.168.1.7",
+      "ip_end": "192.168.1.7"
+    },
+    "range5": {
+      "ip_start": "192.168.0.9",
+      "ip_end": "192.168.0.9"
     }
   },
   "DHCP_SERVER_IPV4_PORT": {
     "Vlan1000|Ethernet1": {
-      "ip_start": "192.168.0.2", // We support use ip range to assign. This config means always
-      "ip_end": "192.168.0.2"    // assign 192.168.0.2 to client connect Ethernet1 in Vlan1000
+      "range1": {},
+      "range2": {}
     },
     "Vlan1000|Ethernet2": {
-      "ip_start": "192.168.0.3",
-      "ip_end": "192.168.0.5"
+      "range3": {}
     },
     "Ethernet15": {
-      "ip_start": "192.168.1.6",
-      "ip_end": "192.168.1.6"
+      "range4": {}
     },
     "PortChannel1": {
-      "ip_start": "192.168.2.7",
-      "ip_end": "192.168.2.8"
+      "range5": {}
     }
   },
   "DHCP_SERVER_IPV4_CUSTOMIZE_OPTION": {
-    "Vlan1000|12": { // Option 12 setting for Vlan1000
+    "option12": { // Option 12 setting
+      "id": 12,
       "value": "host_1",  // option value
+      "type": "text" // option type
+    },
+    "option60": { // Option 60 setting
+      "id": 60,
+      "value": "class_1",  // option value
       "type": "text" // option type
     }
   }
 }
 ```
 
-### 2.2.2 State DB
+### State DB
 Following table changes would be added in State DB, including **DHCP_SERVER_IPV4_COUNTER** table and **DHCP_SERVER_IPV4_LEASE** table.
 
 These new tables are introduced to count different type of DHCP packet and record lease information.
 
-#### 2.2.2.1 Yang Model
+#### Yang Model
 ```yang
 module sonic-dhcp-server-ipv4-counter {
   import ietf-inet-types {
@@ -256,21 +432,31 @@ module sonic-dhcp-server-ipv4-counter {
         leaf name {
           type string;
         }
-        leaf recover {
-          description "Count of recover packets receive";
-          type uint16;
-        }
-        leaf offer {
-          description "Count of offer packets send";
-          type uint16;
-        }
-        leaf request {
-          description "Count of request packets receive";
-          type uint16;
-        }
-        leaf ack {
-          description "Count of ack packets send";
-          type uint16;
+        list DHCP_SERVER_IPV4_COUNTER_TYPE_LIST {
+          key "name";
+          leaf name {
+            type string;
+          }
+          leaf recover {
+            description "Count of recover packets receive";
+            type uint16;
+          }
+          leaf offer {
+            description "Count of offer packets send";
+            type uint16;
+          }
+          leaf request {
+            description "Count of request packets receive";
+            type uint16;
+          }
+          leaf ack {
+            description "Count of ack packets send";
+            type uint16;
+          }
+          leaf release {
+            description "Count of release packets receive";
+            type uint16;
+          }
         }
       }
     }
@@ -302,31 +488,100 @@ module sonic-dhcp-server-ipv4-counter {
 }
 ```
 
-#### 2.2.2.2 DB Objects
+#### DB Objects
 ```JSON
 {
   "DHCP_SERVER_IPV4_COUNTER": {
-    "Vlan1000": {
-      "recover": "0",
-      "offer": "0",
-      "request": "0",
-      "ack": "0",
-      "release": "0"
+    "DNSMASQ": { // Counter of dnsmasq
+      "Vlan1000|Ethernet1": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      },
+      "Vlan1000|Ethernet2": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      },
+      "Ethernet15": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      },
+      "PortChannel1": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      }
     },
-    "Ethernet15": {
-      "recover": "0",
-      "offer": "0",
-      "request": "0",
-      "ack": "0",
-      "release": "0"
+    "DHCP_SERVER_BRIDGE": { // Counter of dhcp server bridge
+      "Vlan1000|Ethernet1": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      },
+      "Vlan1000|Ethernet2": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      },
+      "Ethernet15": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      },
+      "PortChannel1": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      }
     },
-    "PortChannel1": {
-      "recover": "0",
-      "offer": "0",
-      "request": "0",
-      "ack": "0",
-      "release": "0"
-    }
+    "DHCP_RELAY": { // Counter of dhcrelay
+      "Vlan1000|Ethernet1": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      },
+      "Vlan1000|Ethernet2": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      },
+      "Ethernet15": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      },
+      "PortChannel1": {
+        "recover": "0",
+        "offer": "0",
+        "request": "0",
+        "ack": "0",
+        "release": "0"
+      }
+    },
   },
   "DHCP_SERVER_IPV4_LEASE": {
     "Vlan1000|10:70:fd:b6:13:00": {
@@ -348,115 +603,28 @@ module sonic-dhcp-server-ipv4-counter {
 }
 ```
 
-## 2.3 eBPF
-eBPF (extended Berkeley Packet Filter) can run sandboxed programs in a privileged context such as the operating system kernel. eBPF programs are event-driven and are run when the kernel or an application passes a certain hook point. Pre-defined hooks include system calls, function entry/exit, kernel tracepoints, network events, and several others.
+## dhcrelay Patch
+Current dhcrelay in SONiC only support add port information to option82 for interfaces who is in VLAN. Need to add support for single physical ports or port channels.
 
-### 2.3.1 Hook and Modify Packet
-We use dnsmasq to reply dhcp request packet. In our scenario dnsmasq need to know which interface this packet come from. And SONiC has integrated isc-dhcp-relay, which can add port info to option82. So we use it to add port information. But we will encounter 2 problems in this scenario:
-
-1.  Original dnsmasq and isc-dhcp-relay listen to same interface and same UDP port(67), which would cause port conflict.
-
-
-2.  isc-dhcp-relay is not supported loopback relay.
-
-So we introduce eBPF to modify DHCP packet contents, including UDP ports, DHCP related information.
-<div align="center"> <img src=images/ebpf_flow.png width=650 /> </div>
-
-For problem 1, it's easy to change listening port for dnsmasq by itself config. But it's no convenient to change relay port for isc-dhcp-relay. So we use port 67 as listen and relay port for isc-dhcp-relay, and use another port (like 1067) as listen port for dnsmasq. In this setting, origin UDP ports in packets between dnsmasq and isc-dhcp-relay is like bellow:
-| Direction      | UDP source port|UDP destination port|
-|--------------------------|--|----|
-| isc-dhcp-relay to dnsmasq|67| 67 |
-| dnsmasq to isc-dhcp-relay|1067| 1067 |
-
-In this scenario, they cannot communicate with each other. So we use eBPF program to modify packet UDP port, and the result is as below:
-| Direction      | UDP source port|UDP destination port|
-|--------------------------|--|----|
-| isc-dhcp-relay to dnsmasq|67| 1067 |
-| dnsmasq to isc-dhcp-relay|1067| 67 |
-
-For problem 2, we chose `docker0` as upstream interface of isc-dhcp-relay and use eBPF to modify DHCP relay packet from dnsmasq to make it looks like not a loopback DHCP server, and redirect these packet to ingress queue of docker0.
-
-Belows are samples.
-```
-./dhcrelay -d -m discard -a %h:%p %P --name-alias-map-file /tmp/port-name-alias-map.txt -id Vlan1000 -iu docker0 192.168.0.1
-```
-dhcrelay listens on port 67, upstream interface of it is docker0 (We need a interface which would not request dhcp ip to be upstream interface), and downtream interface of it is Vlan1000, server ip is ip of Vlan1000. This config will make dhcrelay to relay dhcp packet between Vlan1000 and docker0.
-```
-bind-interfaces
-interface=Vlan1000
-dhcp-alternate-port=1067
-dhcp-circuitid=set:etp6,"720dt-4:etp6"
-dhcp-range=tag:etp6,192.168.0.5,192.168.0.5,255.255.255.0
-```
-dnsmasq listens on port 1067, and downstream of it is Vlan1000, it will assign ip by circuit id in option 82. This config will make it reply relayed DHCP request packet from Vlan1000.
-<div align="center"> <img src=images/ebpf.png width=650 /> </div>
-
-1. isc-dhcp-relay receive DHCP request and relay it to server. Because we have set server ip as it self, so the relayed packet would be sent from <b>lo</b> interface. The dst and src UDP port of this packet both are 67.
-
-2. eBPF program is hooking in ergress queue in this interface, modify the dst and src UDP to 1067, and not do anything else to this packet.
-
-3. dnsmasq recevie this relayed request packet, and send reply packet from <b>lo</b> intferface. The dst and src UDP port of this packet both are 1067.
-
-4. eBPF program modify the dst and src UDP port and some other contents. And redirect this packet to ingress queue of <b>docker0</b>
-
-5. isc-dhcp-relay capture the dhcp reply packet in docker0 and would send relayed reply packet to client.
-
-### 2.3.2 Packet Counter
-
-eBPF program hooks on <b>net_dev_queue</b> (egress) and <b>netif_receive_skb</b> (ingress) tracepoint to parse packet. eBPF supports to use map to pass information between user space and kernel space. It will count packet in kernel space and update counter result to STATE_DB in user space.
-
-### 2.3.3 Dependency Libraries
-
-From BCC(BPF Compiler Collection) repo [iovisrc/bcc](https://github.com/iovisor/bcc), we can install and compile required dependency.
-
-## 2.4 DhcpMgr Daemon
-For each dhcp interface, a dnsmasq process and an isc-dhcp-relay process are started. DhcpMgrd is to manager these processes (start/kill/restart) when configuration in config_db is changed.
-<div align="center"> <img src=images/dhcp_server_block_new_diagram.png width=530 /> </div>
-
-## 2.5 DhcpServ Monitor
-We need to start multiple dnsmasq process and isc-dhcp-relay for each DHCP interface, so we need a monitor process DhcpServMon to regularly check whether processes running status consistent with CONFIG_DB.
-
-## 2.6 Lease Update Script
-Dnsmasq supports to specify a customize script to execute whenever a new DHCP lease is created, or an old one destroyed. We use this script to send signal to DhcpMgrd to read lease file and update lease table in STATE_DB.
-<div align="center"> <img src=images/lease_update_flow_diagram.png width=380 /> </div>
-
-## 2.7 Customize DHCP Packet Options
-
-We can customize DHCP Packet options per DHCP interface by dnsmasq. 
-
-We can set tag for each DHCP interface, all DHCP clients connected to this interface share one tag, and DHCP server would add DHCP options by config to each DHCP packet sent to client. Have to be aware of is that below options are not supported to customize, because they are specified by other config or they are critical options.
-| Option code             | Name                        |
-|--------------------------|----------------------------------|
-| 1                      | Subnet Mask      |
-| 3                      | Router           |
-| 51                      | Lease Time      |
-| 53                      | Message Type           |
-| 54                      | DHCP Server ID      |
-
-Currently only support text, ipv4-address.
-
-## 2.8 isc-dhcp-relay Patch
-Current isc-dhcp-relay in SONiC only support add port information to option82 for interfaces who is in VLAN. Need to add support for single physical ports or port channels.
-
-## 2.9 Flow Diagrams
-### 2.9.1 Config Change Flow
+## Flow Diagrams
+### Config Change Flow
 This sequence figure describe the work flow for config_db changed CLI.
 <div align="center"> <img src=images/config_change_new_flow.png width=600 /> </div>
 
-### 2.9.2 Lease Update Flow
+### Lease Update Flow
 Below sequence figure describes the work flow how dnsmasq updates lease table while new lease is created.
 
 <div align="center"> <img src=images/lease_update_flow_new.png width=430 /> </div>
 
-### 2.9.3 Count Table Update Flow
+### Count Table Update Flow
 Below sequence figure describes the work flow about server update counter file.
 <div align="center"> <img src=images/ebpf_counter.png width=430 /> </div>
 
 Below sequence figure describes the work flow how to update DHCP_SERVER_IPV4_COUNTER table after log file changed.
 <div align="center"> <img src=images/log_counter_flow.png width=480 /> </div>
 
-## 2.10 CLI
-### 2.10.1 Config CLI
+# CLI
+## Config CLI
 **config dhcp_server add**
 
 This command is used to add dhcp_server for DHCP interface.
@@ -493,21 +661,35 @@ This command is used to update dhcp_server config.
   config dhcp_server ipv4 update --mode PORT --infer_gw_nm --lease_time 300 Vlan1000
   ```
 
+**config dhcp_server ip pool**
+This command is used to config ip pool.
+- Usage
+  ```
+  config dhcp_server ipv4 ip pool add <pool_name> <ip_start> [<ip_end>]
+  config dhcp_server ipv4 ip pool del <pool_name>
+  ```
+
+- Example
+  ```
+   # <ip_end> is not required, if not given, means ip_end is equal to ip_start
+  config dhcp_server ipv4 ip pool add pool1 192.168.0.1
+
+  config dhcp_server ipv4 ip pool del pool1
+  ```
+
 **config dhcp_server port**
 
 This command is used to config dhcp ip per interface.
 - Usage
   ```
-  config dhcp_server ipv4 <mode> [<vlan_interface>] <interface> <ip_start> [<ip_end>]
+  config dhcp_server ipv4 pool bind [<vlan_interface>] <interface> <ip_pool_names>
+  config dhcp_server ipv4 pool unbind [<vlan_interface>] <interface> <ip_pool_names>
   ```
 
 - Example
   ```
-  # <ip_end> is not required, if not given, means ip_end is equal to ip_start
-  config dhcp_server ipv4 PORT Vlan1000 Ethernet1 192.168.0.1
-
-  config dhcp_server ipv4 PORT Vlan1000 Ethernet1 192.168.0.1 192.168.0.5
-  config dhcp_server ipv4 PORT PortChannel1 192.168.0.1
+  config dhcp_server ipv4 pool bind Vlan1000 Ethernet1 pool1 pool2
+  config dhcp_server ipv4 pool unbind Vlan1000 Ethernet1 pool1 pool2
   ```
 
 **config dhcp_server option add**
@@ -552,7 +734,7 @@ This command is used to delete all dhcp_server config for DHCP interface.
   config dhcp_server ipv4 del Vlan1000
   ```
 
-### 2.10.2 Show CLI
+## Show CLI
 **show dhcp_server info**
 
 This command is used to show dhcp_server config.
@@ -679,7 +861,7 @@ This command is used to show dhcp_server lease.
   |Vlan1001   |2e:2e:2e:2e:2e:2e |192.168.8.2 |2023-02-02 10:00:00 |2023-02-02 10:15:00 |
   +-----------+------------------+------------+--------------------+--------------------+
 
-### 2.10.3 Clear CLI
+## Clear CLI
 **sonic-clear dhcp_server ipv4 counter**
 
 This command is used to clear dhcp_server counter.
@@ -693,7 +875,7 @@ This command is used to clear dhcp_server counter.
   sonic-clear dhcp_server ipv4 counter Vlan1000
   ```
 
-# 3 Unit Test
+# Unit Test
 The Unit test case are as below:
 | No |                Test case summary                          |
 |:----------------------|:-----------------------------------------------------------|
