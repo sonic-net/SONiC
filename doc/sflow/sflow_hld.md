@@ -180,6 +180,8 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
   Enable/disable sflow at an interface level. By default, sflow is enabled on all interfaces at the interface level.  Use this command to explicitly disable sFlow for a specific interface. An interface is sampled if sflow is enabled globally as well as at the interface level.
 
   The “all” keyword is used as a convenience to enable/disable sflow at the interface level for all the interfaces.
+  
+  Note: The local configuration applied to an interface has higher precedence over the global configuration provided through the "all" keyword.
 
 * **sflow interface sample-rate** *{interface-name} {value}*
 
