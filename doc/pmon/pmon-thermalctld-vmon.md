@@ -43,6 +43,7 @@ This HLD does not cover
 
 * An automated recovery action that system might take as a result of a fault reported by the voltage sensor device. A network management system may process the alarms and take recvoery action as it sees fit.
 
+
 ### High-Level Design 
 
 The proposal for monitoring voltage sensor devices is to enhance the PMON ThermalCtld Daemon functionality. ThermalCtld monitors the temperature sensors and uses that information to control fan speed in the system. For this purpose ThermalCtld discovers the temperature sensor devices and periodically polls them to collect their information. This mechanism can be extended to monitoring the voltage sensor devices as well. 
