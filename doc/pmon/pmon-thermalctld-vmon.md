@@ -9,8 +9,8 @@
 3. [Overview](#Overview)
 3. [Requirements](#Requirements)
 4. [High Level Design](#High-Level-Design)
-5. [CLI](#CLI/YANG-model-Enhancements)
-7. [Test](#Testing-Requirements/Design)
+5. [CLI](#CLI-Enhancements)
+7. [Test](#Testing-Considerations)
 
 
 
@@ -59,11 +59,11 @@ Platform APIs will provide
 
 The following SONiC repositories will have changes
 
-####sonic-platform-daemons	
+#### sonic-platform-daemons	
 
 Thermaltcld script will retrieve voltage sensors data from the platform on coming up and poll for refreshing the data periodically.
 	
-####sonic-platform-common
+#### sonic-platform-common
 
 Chassis Base class will be enhanced with prototype methods for retrieving number of voltage sensors and voltage sensor objects.
 
@@ -71,12 +71,12 @@ Module base class will also be enhanced with similar methods for retrieving volt
 
 A new base class - VsensorBase - is introduced for voltage sensor objects. The class will have methods to retrieve threshold information, sensor value and min/max recorded values from the sensor.
 	
-####sonic-utilities
+#### sonic-utilities
 	
 CLI is introduced to retrieve and display voltage sensor data from State DB.
 
 
-### CLI/YANG model Enhancements 
+### CLI Enhancements 
 
 Following CLI is introduced to display the Voltage Sensor devices.
 
@@ -110,7 +110,7 @@ The alarm condition will also be visible in the CLI ouput.
 
 Warmboot and Fastboot should not be impacted by this feature. On PMON container restart, the voltage monitoring should restart the same way as on boot.
 
-### Testing Requirements/Design  
+### Testing Considerations  
 
 Unit test cases cover the CLI and voltage monitoring aspect. 
 
