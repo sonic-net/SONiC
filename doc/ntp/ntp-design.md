@@ -296,9 +296,9 @@ config -#}
     {% endif -%}
 
 {{ config.association_type }} {{ config_as }}{{ soptions }}
-{% if global.server_role == 'disabled' %}
-restrict {{ config_as }} kod nomodify notrap noquery{{ aoptions }}
-{% endif %}
+    {%- if global.server_role == 'disabled' +%}
+restrict {{ config_as }} kod limited nomodify notrap noquery{{ aoptions }}
+    {%- endif +%}
 
 {% endfor -%}
 ```
