@@ -1,11 +1,8 @@
-
-
 # TWAMP Light HLD #
 
 ## Table of Contents
 
   - [Definitions/Abbreviation](#definitionsabbreviation)
-
   - [Revision](#Revision)
   - [Scope](#Scope)
   - [Definition/Abbreviation](#Definition_Abbreviation)
@@ -21,8 +18,12 @@
   - [4. High-Level Design](#4-High_Level_Design)
       - [4.1 DB Changes](#4_1-DB_Changes)
         - [4.1.1 CONFIG DB](#4_2_1-CONFIG_DB)
+          - [4.1.1.1 CFG_TWAMP_SESSION_TABLE](#4_1_1_1-CFG_TWAMP_SESSION_TABLE)
         - [4.1.2 STATE DB](#4_2_2-STATE_DB)
+          - [4.1.2.1 STATE_TWAMP_SESSION_TABLE](#4_1_2_1-STATE_TWAMP_SESSION_TABLE)
+          - [4.1.2.2 STATE_SWITCH_CAPABILITY_TABLE](#4_1_2_2-STATE_SWITCH_CAPABILITY_TABLE)
         - [4.1.3 COUNTER DB](#4_2_3-COUNTER_DB)
+          - [4.1.3.1 TWAMP Light counter table](#4_1_3_1-TWAMP_Light_counter_table)
       - [4.2 Flow Diagrams](#4_2-Flow_Diagrams)
         - [4.2.1 Query ASIC capability](#4_2_1-Query_ASIC_capability)
         - [4.2.2 Create session](#4_2_2-Create_session)
@@ -172,7 +173,7 @@ Architecture considers both software and hardware solutions, with the main diffe
 
 * TWAMP Light architecture using the hardware solution. A process twamporch is newly added in the hardware solution. Twamporch subscribes to TWAMP_LIGHT_TABLE and creates a session that includes properties such as IP, UDP PORT and offloads to ASIC. The ASIC generates the test packets, independently calculates the measurement data, and reports it to the up layer system.
 
-* TWAMP Light architecture using the software solution. A TWAMP container is newly added. The container includes twampd which subscribes to TWAMP_LIGHT_TABLE and creates a session that includes properties such as IP, UDP PORT. Twampd runs two threads, one generates TWAMP-test packets and sends them out by Linux socket, the other receives TWAMP-test packets from Linux socket. For Session-Sender, twampd is required to calculate the latency, jitter and packet loss rate based on the measurement data such as timestamp, transmitting and receiving packets count and so on. For Session-Reflector, twampd reflects the TWAMP-test packet with timestamp.
+* TWAMP Light architecture using the software solution. A TWAMP container is newly added. The container includes twampd which subscribes to TWAMP_LIGHT_TABLE and creates a session that includes properties such as IP, UDP PORT. Twampd runs two threads, one generates TWAMP-test packets and sends them out by Linux socket, the other receives TWAMP-test packets from Linux socket. For Session-Sender, twampd is required to calculate the latency, jitter and packet loss rate based on the measurement data such as timestamp, transmitting and receiving packets count and so on. For Session-Reflector, twampd reflects the TWAMP-test packet with timestamp. For TWAMP-Test packet, ACL entry with packet fileds such as ip, udp_port will be installed to ASIC when creating a TWAMP Light session. Aslo a new trap of host interface will be added, and this trap is configurable in COPP rules.
 
 ## 4 High-Level Design
 
@@ -180,47 +181,81 @@ Architecture considers both software and hardware solutions, with the main diffe
 
 #### 4.1.1 CONFIG DB
 
+##### 4.1.1.1 CFG_TWAMP_SESSION_TABLE
+
+Producer: Configuration
+Consumer: TWAMP Light Orch Agent
+Description: New table to store TWAMP Light session configuration. Applications can use it to get TWAMP Light session configuration
+Schema:
+
 ```
 ;Stores TWAMP Light sender or reflector session configuration
 ;Status: work in progress
 key                     = TWAMP_SESSION|session_name ; session_name is
                                                      ; unique session identifier
 
-; field                 = value
+;field                  = value
 mode                    = "LIGHT"          ; TWAMP Light mode
 role                    = SENDER/REFLECTOR ; TWAMP Light role is sender or reflector
 vrf                     = <vrf_name>       ; vrf name
 src_ip                  = <ip_addr>        ; sender ip address
 dst_ip                  = <ip_addr>        ; reflector ip address
-udp_src_port            = <uint16_t>       ; sender udp port
-udp_dst_port            = <uint16_t>       ; reflector udp port
-packet_count            = <uint32_t>       ; TEST-Request packet count
-monitor_time            = <uint32_t>       ; continuous in mins (0 indicates forever)
+udp_src_port            = <uint16_t>       ; sender udp port (862, 863, 1025-65535)
+udp_dst_port            = <uint16_t>       ; reflector udp port (862, 863, 1025-65535)
+packet_count            = <uint32_t>       ; TEST-Request packet count (100 to 30000, DEF:100)
+monitor_time            = <uint32_t>       ; continuous in secs (0 indicates forever)
 tx_interval             = <uint32_t>       ; transmit TEST-Request in msecs ([10,100,1000], DEF:100)
 timeout                 = <uint32_t>       ; timeout in secs (1 to 10, DEF:5)
-statistics_interval     = <uint32_t>       ; calculate in millisecond (DEF:0)
+statistics_interval     = <uint32_t>       ; calculate in msecs (2000 to 3600000)
 test_session_enable     = ENABLE/DISABLE   ; session is enabled or disabled
 dscp                    = <uint8_t>        ; TEST-Request packet DSCP (0 to 63, DEF:0)
 ttl                     = <uint8_t>        ; TEST-Request packet TTL (DEF:255)
+timestamp_format        = NTP/PTP          ; TEST-Request packet timestamp format
+packet_padding          = <uint8_t>        ; TEST-Request packet padding, e.g., 00,55,aa,ff
 packet_padding_size     = <uint16_t>       ; TEST-Request packet padding length (32 to 1454, DEF:108)
 ```
 
 #### 4.1.2 STATE DB
 
+##### 4.1.2.1 STATE_TWAMP_SESSION_TABLE
+
+Producer: syncd
+Consumer: Applications over TWAMP Light
+Description: New table to provide TWAMP Light session states to applications running over TWAMP Light
+Schema:
+
 ```
 ;Stores TWAMP Light state table
 ;Status: work in progress
-key                     = TWAMP_SESSION_TABLE|session_name ; mirror_session_name is
-                                                           ; unique session
-                                                           ; identifier
+key                     = TWAMP_SESSION_TABLE|session_name ; session_name is
+                                                           ; unique session identifier
 
-; field                 = value
+;field                  = value
 status                  = ACTIVE/INACTIVE  ; session test status
+```
+
+##### 4.1.2.2 STATE_SWITCH_CAPABILITY_TABLE
+
+Producer: TwampOrch
+Consumer: TWAMP Light Orch Agent
+Description: New attribute to store TWAMP Light ASIC capability
+Schema:
+
+```
+;Add one new attribute to existing SWITCH_CAPABILITY_TABLE to control whether hardware or software solution should be chosen.
+
+;field                     = value
+MAX_TWAMP_SESSION_COUNT    = <uint16_t>
 ```
 
 #### 4.1.3 COUNTER DB
 
-The following new counters are applicable per session.
+##### 4.1.3.1 TWAMP Light counter table
+
+Producer: syncd
+Consumer: Applications over TWAMP Light
+Description: New table to store TWAMP Light performance measurement data per session
+Schema:
 
 ```
 COUNTERS_TWAMP_SESSION_NAME_MAP
@@ -249,7 +284,7 @@ Below diagram shows the flow for hardware solution.
 
 #### 4.2.1 Query ASIC capability
 
-Below diagram shows the flow for switchporch queries ASIC capability.
+Below diagram shows the flow for twamporch queries ASIC capability.
 
 ![query hw capability flow diagram](./images/TWAMP_Light_query_hw_capability.png)
 
@@ -292,15 +327,15 @@ Following SAI API changes are proposed to program the modes to get the ASIC capa
     .
     .
         /**
-         * @brief Set TWAMP session event notification callback function passed to the adapter.
+         * @brief Set Switch TWAMP session state change event notification callback function passed to the adapter.
          *
-         * Use sai_twamp_session_event_notification_fn as notification function.
+         * Use sai_twamp_session_state_change_notification_fn as notification function.
          *
-         * @type sai_pointer_t sai_twamp_session_event_notification_fn
+         * @type sai_pointer_t sai_twamp_session_state_change_notification_fn
          * @flags CREATE_AND_SET
          * @default NULL
          */
-        SAI_SWITCH_ATTR_TWAMP_SESSION_EVENT_NOTIFY,
+        SAI_SWITCH_ATTR_TWAMP_SESSION_STATE_CHANGE_NOTIFY,
 
         /**
          * @brief Max number of Two-Way Active Measurement Protocol session supports
@@ -580,12 +615,12 @@ Arguments:
   sender_ip_port: sender ip and udp port. e.g: 10.1.1.2:20000
   reflector_ip_port: reflector ip and udp port. e.g: 10.1.1.2:20001
   packet_count: sender transmits Test-request packet count, e.g: 100
-  tx_interval: sender transmits Test-request packet interval in millisecond. e.g: 10
-  timeout: sender receives Test-response packet timeout in second. e.g. 5
-  statistics_interval: sender calculates measurement statistics in millisecond, e.g: 60
+  tx_interval: sender transmits Test-request packet interval in msecs. e.g: 10
+  timeout: sender receives Test-response packet timeout in secs. e.g. 5
+  statistics_interval: sender calculates measurement statistics in msecs, e.g: 6000
 
 Example:
-  config twamp-light session-sender add packet-count s1 10.1.1.2:20000 20.2.2.2:20001 100 10 60
+  config twamp-light session-sender add packet-count s1 10.1.1.2:20000 20.2.2.2:20001 100 10 5 6000
 ```
 
 ##### 6.2.1.2 Session-Sender with continuous mode
@@ -601,13 +636,13 @@ Arguments:
   vrf_name: session vrf name. e.g: vrf1
   sender_ip_port: sender ip and udp port. e.g: 10.1.1.2:20000
   reflector_ip_port: reflector ip and udp port. e.g: 10.1.1.2:20001
-  monitor_time: sender monitor Test-request packet in minute. e.g: 10
-  tx_interval: sender transmits Test-request packet interval in millisecond. e.g: 10
-  timeout: sender receives Test-response packet timeout in second. e.g. 5
-  statistics_interval: sender calculates measurement statistics in millisecond, e.g: 60
+  monitor_time: sender monitor Test-request packet in secs. e.g: 10
+  tx_interval: sender transmits Test-request packet interval in msecs. e.g: 100
+  timeout: sender receives Test-response packet timeout in secs. e.g. 5
+  statistics_interval: sender calculates measurement statistics in msecs, e.g: 15000
 
 Example:
-  config twamp-light session-sender add continuous s1 10.1.1.2:2000 192.168.3.2:20001 10 10 10 60
+  config twamp-light session-sender add continuous s1 10.1.1.2:2000 192.168.3.2:20001 10 100 5 15000
 ```
 
 ##### 6.2.1.3 Start TWAMP Light Session-Sender
@@ -690,11 +725,11 @@ This command is used to display the Session-Sender and Session-Reflector status.
 ```
 show twamp-light session
 TWAMP Light Sender Sessions
-Name    Status    Sender IP:PORT    Reflector IP:PORT    Type            Packet Count     Monitor    Tx Interval    Stats Interval    Timeout  Last Start Time      Last Stop Time
-------  --------  ----------------  -------------------  ------------  --------------  ----------  -------------  ----------------  ---------  -------------------  -------------------
-sdp34   inactive  30.3.3.2:20000    40.4.4.2:20001       Packet-count              10  -                      10                10         10  2023-02-23 15:23:09  2023-02-23 15:23:10
+Name    Status    Sender IP:PORT    Reflector IP:PORT      Packet Count  Monitor Time      Tx Interval    Stats Interval    Timeout  Last Start Time    Last Stop Time
+------  --------  ----------------  -------------------  --------------  --------------  -------------  ----------------  ---------  -----------------  ----------------
+sdp34   inactive  30.3.3.2:20000    40.4.4.2:20001                  100  -                         100              6000          6  2023-02-23 15:23:09  2023-02-23 15:23:10
 
-TWAMP Light Reflector Sessions
+TWAMP-Light Reflector Sessions
 Name    Status    Sender IP:PORT    Reflector IP:PORT
 ------  --------  ----------------  -------------------
 
@@ -866,7 +901,7 @@ sdp34                   0                  0                  0                 
                     }
                     leaf packet_padding_size {
                         type uint16;
-                        default 30;
+                        default 108;
                         description
                             "Size of the Packet Padding. Suggested to run Path MTU
                             Discovery to avoid packet fragmentation in IPv4 and packet
@@ -874,7 +909,7 @@ sdp34                   0                  0                  0                 
                     }
                     leaf packet_count {
                         type uint32;
-                        default 1000;
+                        default 100;
                         description
                             "This value determines if the TWAMP-Test session is
                             bound by number of test packets or not.";
@@ -882,21 +917,21 @@ sdp34                   0                  0                  0                 
                     leaf tx_interval {
                         type union {
                             type uint32 {
-                               range "10 | 100 | 1000 | 30000";
+                               range "10 | 100 | 1000";
                             }
                         }
-                        units microseconds;
+                        units milliseconds;
+                        default 100;
                     }
                     leaf statistics_interval {
                         type uint32;
-                        units millisecond;
-                        default 60;
+                        units milliseconds;
                         description
-                            "Interval to calculate performance metric";
+                            "Interval to calculate performance measurement data";
                     }
                     leaf monitor_time {
                         type uint32;
-                        units minutes;
+                        units seconds;
                         default 0;
                         description
                             "The value 0 indicates that the test session SHALL run *forever*";
