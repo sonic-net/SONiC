@@ -211,7 +211,8 @@ C --> D
 D -- true --> E
 E -- if either happened --> F
 E -- if neither happened --> D
-F --> G
+F -- true --> G
+F -- false --> D
 G --> H
 H -- true --> D
 H -- false --> I
