@@ -196,8 +196,8 @@ if transceiver is not present:
 graph TD;
 A[wait for PortConfigDone]
 B[check if enable_sff_mgr flag exists and is set to true]
-C[spawns sff_mgr]
-D[proceed to other thread spawning]
+C[spawn sff_mgr]
+D[proceed to other thread spawning and tasks]
 
 Start --> A
 A --> B
