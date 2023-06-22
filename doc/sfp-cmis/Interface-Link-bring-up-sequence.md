@@ -149,11 +149,13 @@ Please refer to the  flow/sequence diagrams which covers the following required 
   - No transceiver present
 
 # Feature enablement
+
   This feature (optics Interface Link bring-up sequence) would be enabled on per platform basis.
   There could be cases where vendor(s)/platform(s) may take time to shift from existing codebase to the model (work-flows) described in this document.
+## For CMIS/C-CMIS modules:
   In order to avoid any breakage and ensure gradual migration of different platforms/vendors to this model, will add this new workflow to enable/disable this feature:
   
-  In order to enable this feature, the platform would set ‘skip_xcvrd_cmis_mgr’ to ‘false’ in their respective pmon_daemon_control.json as part of platform bootstrap. When xcvrd would spawn on that hwsku (LC/board), it would parse ‘skip_xcvrd_cmis_mgr’ and if found 'false', it would launch CMIS task manager. This implies enabling this feature. 
+  In order to enable this feature, the platform would set ‘skip_xcvrd_cmis_mgr’ to ‘false’ in their respective pmon_daemon_control.json as part of platform bootstrap. When xcvrd would spawn on that hwsku (LC/board), it would parse ‘skip_xcvrd_cmis_mgr’ and if found 'false', it would launch CMIS task manager. This implies enabling this feature.
 
 Else, if ‘skip_xcvrd_cmis_mgr’ is set/found 'true' by xcvrd, it would skip launching CMIS task manager and this feature would remain disabled.
 If a platform/vendor does not specify/set ‘skip_xcvrd_cmis_mgr’, xcvrd would exercise the default workflow (i.e. when xcvrd detects QSFP-DD, it would luanch CMIS task manager and initialize the module per CMIS specification). 
@@ -163,7 +165,11 @@ Note: This feature flag (skip_xcvrd_cmis_mgr) was added as a flexibility in case
   Workflow :
   ![Enabling 'Interface link bring-up sequence' feature(2)](https://user-images.githubusercontent.com/69485234/154403945-654b49d7-e85f-4a7a-bb4d-e60a16b826a7.png)
 
-
+## For SFF compliant modules:
+Similarly, in order to enable this feature for SFF compliant modules, the platform would set ‘enable_xcvrd_sff_mgr’ to ‘true’ in their respective pmon_daemon_control.json. Xcvrd would parse ‘skip_xcvrd_cmis_mgr’ and if found 'true', it would launch SFF task manager. This implies enabling this feature.
+If a platform/vendor does not specify/set ‘enable_xcvrd_sff_mgr’, xcvrd would not enable this feature, no deterministic bring-up flow.
+> **_NOTE:_**
+There is a behavior change (and requirement) for the platforms that enable this sff_mgr feature: platform needs to keep TX in disabled state after module coming out-of-reset, in either module insertion or bootup cases. This is to make sure the module is not transmitting with TX enabled before host_tx_ready is True. Before enabling this feature, platform needs to follow this behavior and verify it fully. There's no impact for the platforms that don't enable it, and no impact for the systems in current deployment, since they didn't set the enable_flag explictly.
 
 # Transceiver Initialization 
   (at platform bootstrap layer)
@@ -184,6 +190,35 @@ if transceiver is not present:
  - All the workflows mentioned above will reamin same ( or get exercised) till host_tx_ready field update
  - xcvrd will not perform any action on receiving host_tx_ready field update 
 
+# Flow chart
+## SFF task manager (sff_mgr)
+```mermaid
+graph TD;
+A[check if sff_mgr is enabled]
+B[spawn sff_mgr]
+C[subscribe to events]
+D[while task_stopping_event is not set]
+E[check for insertion event and host_tx_ready change event]
+F[double check if module is present]
+G[calculate the target tx_disable value based on host_tx_ready]
+H[check if tx_disable status on module is already the target value]
+I[go ahead to enable/disable TX based on the target tx_disable value]
+
+Start --> A
+A -- true --> B
+B --> C
+C --> D
+D -- true --> E
+E -- if either happened --> F
+E -- if neither happened --> D
+F --> G
+G --> H
+H -- true --> D
+H -- false --> I
+I --> D
+D -- false --> End
+A -- false --> End
+```
 
 # Out of Scope 
 Following items are not in the scope of this document. They would be taken up separately
