@@ -191,34 +191,46 @@ if transceiver is not present:
  - xcvrd will not perform any action on receiving host_tx_ready field update 
 
 # Flow chart
-## SFF task manager (sff_mgr)
+## How Xcvrd main thread spawns SFF task manager thread:
 ```mermaid
 graph TD;
-A[check if sff_mgr is enabled]
-B[spawn sff_mgr]
-C[subscribe to events]
-D[while task_stopping_event is not set]
-E[check for insertion event and host_tx_ready change event]
-F[double check if module is present]
-G[calculate the target tx_disable value based on host_tx_ready]
-H[check if tx_disable status on module is already the target value]
-I[go ahead to enable/disable TX based on the target tx_disable value]
+A[wait for PortConfigDone]
+B[check if enable_sff_mgr flag exists and is set to true]
+C[spawns sff_mgr]
+D[proceed to other thread spawning]
 
 Start --> A
-A -- true --> B
-B --> C
+A --> B
+B -- true --> C
 C --> D
-D -- true --> E
-E -- if either happened --> F
-E -- if neither happened --> D
-F -- true --> G
-F -- false --> D
-G --> H
-H -- true --> D
-H -- false --> I
-I --> D
-D -- false --> End
-A -- false --> End
+B -- false --> D
+D --> End
+```
+## SFF task manager main flow:
+```mermaid
+graph TD;
+A[subscribe to events]
+B[while task_stopping_event is not set]
+C[check for insertion event and host_tx_ready change event]
+D[double check if module is present]
+E[fetch DB and update host_tx_ready value in local cahce, if not available locally]
+F[calculate the target tx_disable value based on host_tx_ready]
+G[check if tx_disable status on module is already the target value]
+H[go ahead to enable/disable TX based on the target tx_disable value]
+
+Start --> A
+A --> B
+B -- true --> C
+C -- if either happened --> E
+C -- if neither happened --> B
+E --> D
+D -- true --> F
+D -- false --> B
+F --> G
+G -- true --> B
+G -- false --> H
+H --> B
+B -- false --> End
 ```
 
 # Out of Scope 
