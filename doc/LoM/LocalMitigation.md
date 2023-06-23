@@ -20,7 +20,7 @@ Today all detections & mitigations are performed by external services. The probl
 2. Any problem/failure in exporting will result in alerts not being created.
    - There have been cases of missing data exports hence missed alerts.
 3. Any inability to access the switch, will block any mitigation action.
-4. No set process to auto-detect service incompatibility with OS upgrades
+4. An OS upgrade could impact external service's ability to detect/mitigate whenexpected bhavior changes.
 5. A single instance handling many switches incurs inherent scaling issues.
 
 # Proposal
