@@ -192,7 +192,7 @@ D --> End
 graph TD;
 A[subscribe to events]
 B[while task_stopping_event is not set]
-C[check for insertion event and host_tx_ready change event for the intended ports]
+C[check for insertion event and host_tx_ready change event for each intended port]
 D[double check if module is present]
 E[fetch DB and update host_tx_ready value in local cahce, if not available locally]
 F[calculate the target tx_disable value based on host_tx_ready]
