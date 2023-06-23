@@ -24,7 +24,8 @@
     - [2.2.3 RADIUS](#223-radius)
     - [2.2.4 PAC Interface Host Modes](#224-pac-interface-host-modes)
     - [2.2.5 VLAN](#225-vlan)
-    - [2.2.6 Warmboot](#226-warmboot)
+    - [2.2.6 MAC move](#226-mac-move)
+    - [2.2.7 Warmboot](#227-warmboot)
 - **[3 Design](#3-design)**
   - [3.1 Overview](#31-overview)
     - [3.1.1 Configuration flow](#311-configuration-flow)
@@ -250,7 +251,11 @@ PAC works with port learning modes and FDB entries to block or allow traffic for
 8. If clients are authorized on RADIUS assigned VLAN, any updates on the port's configured untagged VLAN does not affect the clients. The configuration is updated in the CONFIG_DB but not propagated to the port.
 
 
-### 2.2.6 Warmboot
+### 2.2.6 MAC move
+
+If a client that is authorized on one port moves to another port controlled by PAC, the existing client session is torn down and the authentication is attempted again on the new port.
+
+### 2.2.7 Warmboot
 
 After a Warm Boot, the authenticated client sessions are torn down and they need to authenticate again.
 
@@ -626,6 +631,8 @@ After successful authentication, the authentication method returns the Authoriza
 
 Client reauthentication is also managed by this module.
 
+If RADIUS sends a Session timeout attribute with Termination action RADIUS (reauthenticate) or Default (clear client session), this module manages the client session timers for reauthentication or client cleanup.
+
 
 ### 3.4.2 mabd
 mabd provides the MAC Authentication Bypass (MAB) functionality. MAB is intended to provide 802.1x unaware clients controlled access to the network using the devices’ MAC address as an identifier. This requires that the known and allowable MAC address and corresponding access rights be pre-populated in the authentication server.  
@@ -655,7 +662,7 @@ hostapd informs pacd about the result of the authentication. hostapd also passes
 
 When user or client tries to authenticate and the method selected is MAB, the pacd sends an event to mabd for authenticating the user. The client’s MAC address is sent to mabd for the same. 
 
-pacd learns client’s MAC address through an hardware rule to copy-to-CPU the packets from unknown source MAC addresses.
+pacd learns client’s MAC address through an hardware rule to Trap-to-CPU the packets from unknown source MAC addresses.
 
 mabd informs pacd about the result of the authentication. mabd also passes all the authorization parameters it receives from the RADIUS Server to the pacd. These are used for configuring the NAS to allow authenticated client traffic.
 
@@ -820,6 +827,7 @@ The following scale is supported:
 # 5 Appendix: Sample configuration
 
 ```
+config vlan add 100
 config authentication port contol interface auto Ethernet10
 config authentication dot1x pae interface authenticator Ethernet10
 config authentication host-mode interface multi-auth Ethernet10
