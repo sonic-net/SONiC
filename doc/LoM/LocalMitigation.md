@@ -135,11 +135,11 @@ The supervisord to start & manage all processes and rsyslogd to send logs out to
 ### Plugins
 The plugins are the core workers that runs an action. A plugin == An action. An action is a standalone entity for a *single* purpose, like CRC-detection/link-availability-check/link-down mitigation/... Each plugin is independent and standalone with no dependency or awareness of other workers. The only binding it may have is the i/p data it requires from preceding plugins. This it expresses via schema with leaf-ref to schemas of all possible plugins/actions that could precede. For example, a link safety check references all link detection actions. A plugin is not be aware of other plugins and act pretty independently. So if there is a shared resource, an abstraction may be provided that enables plugins to access transparently w/o awareness of any other plugins. A sample could be SONiC redis DB where concurrent multi-thread / multi-Go-routine access is not allowed via SWSS common.
 
-The plugins are the unit of actions with a simple i/f of 4 APIs only. All 4 APIs are synchronous even in the intances where a request may run for days/weeks/...
-**init**  - Called with action's config. Here the plugin absorbs its config, do its initialization and as well may kick off some long running concurrent activities as needed. 
-**GetId** - Ability to get ID & version of this plugin.  
-**Request** - Run the action's main job, which may be detection, safety-checks & mitigations. This will be invoked with or w/o timeout. 
-**Shutdown** - Way to close/de-init the plugin.
+The plugins are the unit of actions with a simple i/f of 4 APIs only. All 4 APIs are synchronous even in the intances where a request may run for days/weeks/...</br>
+**init**  - Called with action's config only once at the startup. Here the plugin absorbs its config, do its initialization and as well may kick off some long running concurrent activities as needed. </br>
+**GetId** - Ability to get ID & version of this plugin. The pluginMge uses this to confirm the loaded plugiun is the intended one. </br>
+**Request** - Run the action's main job, which may be detection, safety-checks & mitigations. This will be invoked with or w/o timeout. This is raised multiole times as only one call at a time.</br>
+**Shutdown** - Called upon disablie of a plugun or system shutdown. This provides a way to close/de-init the plugin.</br>
 
 Plugins may be compiled statically into Plugin Manager or it could be explicitly loaded from a standalone binary.
 
@@ -153,7 +153,7 @@ It has 4 sets of config and each is detailed in YANG schema.
 As name signifies the global runtime settings, like ports the internal service listens to, running mode as Prod/Debug, ...
 
 ### Procs.conf
-The set of plugin manager instances to run with unique runtime ID for each. Associate a set of plugins against runtime-ID to indicate the set of plugins an instance need to load & manage. Each plugin is referreby name, version and optionally path if not statically integrated. When adding/updating a plugin, upon copying the new plugin binary, update this conf to trigger Plugin Manager to load the new/updated binary.
+The set of plugin manager instances to run with unique runtime ID for each. Associate a set of plugins against runtime-ID to indicate the set of plugins an instance need to load & manage. Each plugin is referred by name, version and optionally path if not statically integrated. When adding/updating a plugin, upon copying the new plugin binary, update this conf with new version to trigger Plugin Manager to load the new/updated binary.
 
 ### bindings.conf
 An detection action is linked to its mitigation actions with preceding safety checks as ordered set of actions. This is called sequence binding. This binding is provided here with plugin/action names in ordered list. A detection with no mitgation may have no sequence, but just one action with no followups.
@@ -241,7 +241,6 @@ State-DB shows running-config. Config-DB + static built-in config == Running con
    "DisableAll": True/False  # Disable all actions
    "DisableMitigations": True/False # Disables all mitigations
    "ActionsDisabled": [ < list of action disabled action names > ]
-   "targetDevices": <Filter by Metadata; OSVersion >= ... Platform in [ ... ] ...> 
 }
 ```
 
@@ -281,9 +280,11 @@ One of the core values of LoM is its flexibility and adaptability to take update
 
 ## Update creation
 - Create a script (bash/Python/...) to vet your action logic.
-- Create the plugin for same using LoM Dev environment.
+- Create the plugin for same using LoM Dev environment.]
+- Create test code for the same and integrate it with automated test suite.
 - Add this plugin to a test switch, update config needed to add new action and test it out as plugin.
-- Write nightly tests to vet it
+- Run the updated test suite to ensure the updated system is good in its current updated state.
+   - Nightly tests run the updated test suite
 - An update to existing plugin may follow subset of above steps based on extent of change.
 - Create an self installable archive that has this plugin and configlet to apply with validation logic of target.
   - Running this archive as script copies the plugin to destination and updates the config with built-in configlet.
@@ -295,7 +296,7 @@ One of the core values of LoM is its flexibility and adaptability to take update
 - Identify the target OS versions & Platform for this update.
 - Auto create test pipelines for all target scenarios.
 - The test pipeline will download the archive from a local repo onto DUT and run the script associated to install.
-- Run the nightly tests for all supported actions.
+- The nightly tests run the test suite that vets all available actions.
   
 ## Fleet upgrade
 - Take help from FUSE
@@ -319,7 +320,7 @@ One of the core values of LoM is its flexibility and adaptability to take update
 - As mentioned above the service comes with built-in config. Need config updates only when an update is needed. 
 - The SONiC DB schema is provided above.
 - YANG schema is provided for config/configlet validation
-- NDM will be required to do the updates
+- NDM will be required to do the updates. NOTE: We need config updates, only when/where a tweak is needed.
 
 # Other teams Ask/Support
 
