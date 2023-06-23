@@ -30,6 +30,12 @@
 		- [1.14. Open/Action items - if any](#114-openaction-items---if-any)
 ###  1.1. <a name='Revision'></a>Revision  
 
+|  Rev  |   Date   |   Author   | Change Description |
+| :---: | :------: | :--------: | ------------------ |
+|  0.1  | 17/05/23 | Yona Coen  | Initial version    |
+|  0.2  | 16/06/23 | Ivan Davydenko | Add descriptions for auto-logout and max-sessions parameters  |
+
+
 ###  1.2. <a name='Scope'></a>Scope  
 
 This hld doc for ssh server global configurations describes the requirements, architecture and general flow details of ssh server config in SONIC OS based switches.
@@ -80,6 +86,8 @@ We want to enable configuring the following policies, with default values are ta
 | authentication retries |     Number of attempts to try to log in   before rejecting the session    |     3-100               |     6            |
 | login timeout  |     SSH session timeout                                                   |     1-600 (secs)        |     120          |
 | ports          |     Port numbers for SSH                                                  |     1-65535             |     22           |
+| auto logout    |     Inactivity timeout for SSH session                                    |     0-35000 (min)       |     15           |
+| max sessions   |     Max number of concurrent logins                                       |     3-100               |     100          |
 
 
 ###  1.8. <a name='Init flow'></a>Init flow 
@@ -92,6 +100,8 @@ Description of default values in init_cfg.json regarding ssh server config:
 authentication retries: 6 
 login timeout: 120 //seconds
 ports: 22
+auto logout: 15 //minutes
+max sessions: 100
 ```
 ###  1.9. <a name='SAI api'></a>SAI api
 NA
@@ -105,6 +115,8 @@ SSH_SERVER:{
 		"authentication_retries": {{num}}
 		"login_timeout": {{secs}}
 		"ports": {{num}}
+		"auto_logout": {{min}}
+		"max_syslogins": {{num}}
 	}
 }
 ```
@@ -116,6 +128,8 @@ key                                   = "POLICIES"             ;ssh server confi
 authentication_retries                = 3*DIGIT                 ; number of login attepmts, should be 100 max
 LOGIN_TIMEOUT                         = 3*DIGIT                 ; login timeout in secs unit, max is 600 secs
 PORTS                                 = 5*DIGIT                 ; ssh port number - max is 65535
+auto_logout                           = 5*DIGIT                 ; autologout timer - max is 35000 minutes
+max_syslogins                         = 3*DIGIT                 ; maximum number of concurrent sessions - max is 100
 ```
 
 ####  1.10.3. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
@@ -161,6 +175,20 @@ module sonic-ssh-server {
                         }
                     }
 				}
+				leaf auto_logout {
+					description "inactivity timeoout (min unit)";
+					default 15;
+					type uint32 {
+						range 0..35000;
+					}
+				}
+				leaf max_syslogins {
+					description "limit of concurrent system logins";
+					default 100;
+					type uint32 {
+						range 3..100;
+					}
+				}
 			}/*container POLICIES */
 		} /* container SSH_SERVER  */
     }/* container sonic-ssh-server */
@@ -177,6 +205,8 @@ The ConfigDB will be extended with next objects:
 			"authentication_retries": "6",
 			"login_timeout": "120",
 			"ports": "22",
+			"auto_logout": "15",
+			"max_syslogins": "100",
 		}
 	}
 }
@@ -205,6 +235,8 @@ Example sub-sections for unit test cases and system test cases are given below.
   - Configure authentication_retries to X and try to connect with wrong password X+1 times
   - Configure login_timeout to X, try to connect and wait for X+5 seconds (need to disconnect)
   - Configure ports to 222 and see if unable to connect to 22
+  - Configure auto_logout to X, login and wait for X+5 seconds (need to disconnect)
+  - Configure max_syslogins to X and see if unable to login to X+1 concurrent sessions
   
 ####  1.13.2. <a name='SystemTestcases'></a>System Test cases
 
