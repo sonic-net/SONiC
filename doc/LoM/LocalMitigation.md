@@ -32,7 +32,7 @@ Today all detections & mitigations are performed by external services. The probl
 2. An action can be a detection for an anomaly, a safety-check for a purpose, a mitigation action for an anomaly, a cleanup, ... 
 3. Actions can vary by logic and/or config.
 4. Actions are vetted by nightly tests hence verfied to work on the hosting OS.
-5. Actions are plugins, so an update/add can be done via file copy.
+5. Actions are plugins, so an update/add can be done via small file copy of that plugin.
 6. Actions are defined by Schema and schema specifies configurable knobs.
 7. Service is built with static config, which can be overrriden via config-DB
 8. Action is implemented by plugins that are versioned.
@@ -70,18 +70,22 @@ Today all detections & mitigations are performed by external services. The probl
 For a link some of the more common issues can be flap, CRC-errors & discards. Here we need a way to watch for it and use an algorithm to identify anomalies. In case of anomaly detected, auto-mitigation is expected to watch the link availability and mitigate by bringing link down. The checks can stop at switch level if availability is > 75%, else additional safety checks are used to evaluate before bringing the link down, including escalating to DRI if SCS would fail.
 
 ### Detection:
-An action may be written for flap by observing STATE-DB changes in link status and an action to watch counters for CRC and/or discards. These actions are run forever until an anomaly is detected or action/service is disabled. Upon detection, it gets published via SONiC events channel that reaches EventHub via low latency channel. Each action is also written into syslog for Kusto based channel, so we have a fallback. Data publiwshed & logged are as per schema.
+An action may be written for flap by observing STATE-DB changes in link status and an action to watch counters for CRC and/or discards. These actions are run forever until an anomaly is detected or action/service is disabled. Upon detection, it gets published via SONiC events channel that reaches EventHub via low latency channel. Each action is also written into syslog for Kusto based channel, so we have a fallback. Data published & logged are as per schema.
 
 ### Safety check:
-A link down auto mitigation needs availability safety check. Returns success if it is > 75%. Whatever it finds gets published via events and logged as well.
+A link down auto mitigation needs availability safety check. Returns success if it is > 75%. The result gets published via events and logged as well. The 75% is a configurable entity.
 
 ### Mitigation:
 Link down  mitigation is invoked which just put admin down for this link. 
 
-### conclusion:
-The original detected anomaly is re-published with final result as success or not.
-In the scenario, where local check suffice, we detect & mitigate in seconds. Every action is published, so external tools are in sync. Even in the case where local check fails (_<= 75%_), we do publish the anomaly in seconds. This happens irrespective of whether device is pushing data w.r.t counters and/or state consistently or not. We have seen cases, where devices miss to publish data.
-NOTE: An ICM is fired. If mitigation is done by LoM, the ICM will be marked "_mitigated_".
+### Wrap-up:
+-   The original detected anomaly is re-published with final result as success or not in seconds. An external service can take up mitigation right upon failure is published.</br>
+-   Every followup action publish its result (success or not).
+-   Every action has a set timeout, and must end by then
+-   During actions run upon detection, in other words while running mitigation sequence, the heartbeats are published more frequently. The HB would carry info on current running action.
+-   An external service can watch the mitigating sequence closely via published action ouptuts & heartbeats. Take over, if result says failure or it doesn't receive any published events.
+-   In scenario where we mitigate successfully, the LOM is in couple of seconds. For any failure, we still get TTD in seconds.</br>
+NOTE: An ICM is fired for every detected anomaly. If mitigation is done by LoM, the ICM will be marked "_mitigated_".
 
 ### Sequencing & config
 Every detection action is tied to corresponding safety check & mitigation actions. This is called sequencing, by adding them in ordered sequence. A sequence progresses only if last executed action succeeds. Any failure aborts the sequence and causes the detected anomaly to be re-published with failure code indicating "_mitigation attempt failed_". This is called binding sequence. The Service comes with built-in actions and associated seqeunces.
@@ -114,14 +118,14 @@ This may be just service restart or more (_say remove/reset files/data_). The ac
 ### Engine
 This is the core controller of the LoM system. Kicks off the actions that are detections, which are also first action in sequences. A sequence may just have one action, if no mitigation actions are available. It communicates with clients via a published lib for defined client i/f. It waits for plugins to register themselves. Upon registration, it sends out request if the registered action is first action in a sequence. So it may send out multiple requests as one per plugin/action for all detection actions.
 
-The detection action can run forever, as it only returns upon anomaly detected, which may never happen on a good system and which is the most common scenario. As this runs forever, to get its state as running healthy or crashed or stuck, the plugin is required to send periodic heartbeat to engine. The engine collects all heartbeats and send out one heartbeat out via SONiC events via gNMI that has the list of all actions that sent heartbeat since last published heartbeat. This heartbeat makes it visible set of detecton actions that are running in the switch, as healthy. Plugins in trouble reported via syslog and periodically re-published until fixed/disabled. During a mitigation sequence, 
+The detection action can run forever, as it only returns upon anomaly detected, which may never happen on a good system and which is the most common scenario. As this runs forever, to get its state as running healthy or crashed or stuck, the plugin is required to send periodic heartbeat to engine. The engine collects all heartbeats and send out one heartbeat out via SONiC events via gNMI that has the list of all actions that sent heartbeat since last published heartbeat. This heartbeat makes it visible set of detecton actions that are running in the switch, as healthy. Plugins in trouble are reported via syslog periodically until fixed/disabled.</br>  
 
-When any action returns, engine publishes its response, check the result code and if good invokes the next action in the sequence if any. In case of failure or no more action in sequence, it re-publishes the original action. The non-first action requests are tracked with timeouts and abort the sequence on timeout. A timedout action continues to be tracked until response or disabled. The stale response from a timedout action is still published for record. 
+During a mitigation sequence,When any action returns, engine publishes its response, check the result code and if good invokes the next action in the sequence if any. In case of failure or no more action in sequence, it re-publishes the original action. The non-first action requests are tracked with timeouts and abort the sequence on timeout. A timedout action continues to be tracked until response or disabled. The stale response from a timedout action is still published for record. 
 
 ### Plugin Manager
 The plugin Manager manages a set of plugins per config. It interfaces the plugins to the engine. It loads & inits the plugins with config. Registers successfully initialized plugins with engine. Any requests engine initiates for a plugin is received by Plugin Manager and route it to appropriate plugin and re-route the plugin's response to engine, including heartbeats raised by long running plugins.
 
-The plugin manager enables to have a simple plugin i/f, where the plugin never calls out, with exception of periodic heartbeat notifications, but gets called in with just 4 simple blocking methods. On any disable/new/update do appropriate de/re-register the plugins with engine. For any mis-behavior by plugins, manager raises syslog periodically until fixed. The plugin manager also ensures the contract set by plugin i/f is strictly adhere to. It runs the set of plugins under a shared process space.
+The plugin manager defines a simple plugin i/f, where the plugin never calls out, with exception of periodic heartbeat notifications, but gets called in with just 4 simple blocking methods. On any disable/new/update do appropriate de/re-register the plugins with engine. For any mis-behavior by plugins, manager raises syslog periodically until fixed. The plugin manager also ensures the contract set by plugin i/f is strictly adhere to. It runs the set of plugins under a shared process space.
 
 On the other hand, the plugins can be compiled into Plugin Manager statically. This can drastically bring down the built binary size, hence container image size. The plugin Manager can also load plugins from standalone binaries. 
 
