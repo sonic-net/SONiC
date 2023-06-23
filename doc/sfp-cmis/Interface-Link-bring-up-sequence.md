@@ -166,10 +166,53 @@ Note: This feature flag (skip_xcvrd_cmis_mgr) was added as a flexibility in case
   ![Enabling 'Interface link bring-up sequence' feature(2)](https://user-images.githubusercontent.com/69485234/154403945-654b49d7-e85f-4a7a-bb4d-e60a16b826a7.png)
 
 ## For SFF compliant modules:
-Similarly, in order to enable this feature for SFF compliant modules, the platform would set ‘enable_xcvrd_sff_mgr’ to ‘true’ in their respective pmon_daemon_control.json. Xcvrd would parse ‘skip_xcvrd_cmis_mgr’ and if found 'true', it would launch SFF task manager. This implies enabling this feature.
-If a platform/vendor does not specify/set ‘enable_xcvrd_sff_mgr’, xcvrd would not enable this feature, no deterministic bring-up flow.
-> **_NOTE:_**
-There is a behavior change (and requirement) for the platforms that enable this sff_mgr feature: platform needs to keep TX in disabled state after module coming out-of-reset, in either module insertion or bootup cases. This is to make sure the module is not transmitting with TX enabled before host_tx_ready is True. Before enabling this feature, platform needs to follow this behavior and verify it fully. There's no impact for the platforms that don't enable it, and no impact for the systems in current deployment, since they didn't set the enable_flag explictly.
+- SFF task manager (sff_mgr) feature brings the deterministic approach for interface link bring-up to SFF compliant module.
+- By default, sff_mgr feature is disabled.
+- In order to enable sff_mgr feature, the platform would set ‘enable_xcvrd_sff_mgr’ to ‘true’ in their respective pmon_daemon_control.json. Xcvrd would parse ‘enable_xcvrd_sff_mgr’ and if found 'true', it would launch SFF task manager (sff_mgr).
+> **_Pre-requisite for enabling sff_mgr:_**
+Platform needs to leave the transceiver (if capable of disabling TX) in TX disabled state when an module inserted or during boot-up. This is to make sure the transceiver is not transmitting with TX enabled before host_tx_ready is True.
+### Flow of xcvrd main thread spawning sff_mgr thread:
+```mermaid
+graph TD;
+A[wait for PortConfigDone]
+B[check if enable_sff_mgr flag exists and is set to true]
+C[spawn sff_mgr]
+D[proceed to other thread spawning and tasks]
+
+Start --> A
+A --> B
+B -- true --> C
+C --> D
+B -- false --> D
+D --> End
+```
+### Flow of sff_mgr:
+(```tx_disable value/status``` is: ```True``` if TX is disabled; ```False``` if TX is enabled)
+```mermaid
+graph TD;
+A[subscribe to events]
+B[while task_stopping_event is not set]
+C[check for insertion event and host_tx_ready change event for the intended ports]
+D[double check if module is present]
+E[fetch DB and update host_tx_ready value in local cahce, if not available locally]
+F[calculate the target tx_disable value based on host_tx_ready]
+G[check if tx_disable status on module is already the target value]
+H[go ahead to enable/disable TX based on the target tx_disable value]
+
+Start --> A
+A --> B
+B -- true --> C
+C -- if either event happened --> E
+C -- if neither event happened --> B
+E --> D
+D -- true --> F
+D -- false --> B
+F --> G
+G -- true --> B
+G -- false --> H
+H --> B
+B -- false --> End
+```
 
 # Transceiver Initialization 
   (at platform bootstrap layer)
@@ -189,49 +232,6 @@ There is a behavior change (and requirement) for the platforms that enable this 
 if transceiver is not present:
  - All the workflows mentioned above will reamin same ( or get exercised) till host_tx_ready field update
  - xcvrd will not perform any action on receiving host_tx_ready field update 
-
-# Flow chart
-## How Xcvrd main thread spawns SFF task manager thread:
-```mermaid
-graph TD;
-A[wait for PortConfigDone]
-B[check if enable_sff_mgr flag exists and is set to true]
-C[spawn sff_mgr]
-D[proceed to other thread spawning and tasks]
-
-Start --> A
-A --> B
-B -- true --> C
-C --> D
-B -- false --> D
-D --> End
-```
-## SFF task manager main flow:
-```mermaid
-graph TD;
-A[subscribe to events]
-B[while task_stopping_event is not set]
-C[check for insertion event and host_tx_ready change event]
-D[double check if module is present]
-E[fetch DB and update host_tx_ready value in local cahce, if not available locally]
-F[calculate the target tx_disable value based on host_tx_ready]
-G[check if tx_disable status on module is already the target value]
-H[go ahead to enable/disable TX based on the target tx_disable value]
-
-Start --> A
-A --> B
-B -- true --> C
-C -- if either happened --> E
-C -- if neither happened --> B
-E --> D
-D -- true --> F
-D -- false --> B
-F --> G
-G -- true --> B
-G -- false --> H
-H --> B
-B -- false --> End
-```
 
 # Out of Scope 
 Following items are not in the scope of this document. They would be taken up separately
