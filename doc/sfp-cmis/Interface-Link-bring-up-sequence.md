@@ -166,7 +166,7 @@ Note: This feature flag (skip_xcvrd_cmis_mgr) was added as a flexibility in case
   ![Enabling 'Interface link bring-up sequence' feature(2)](https://user-images.githubusercontent.com/69485234/154403945-654b49d7-e85f-4a7a-bb4d-e60a16b826a7.png)
 
 ## For SFF compliant modules:
-- SFF task manager (sff_mgr) feature brings the deterministic approach for interface link bring-up to SFF compliant module.
+- SFF task manager (sff_mgr) feature brings the deterministic approach for interface link bring-up to SFF compliant modules. (Refer to [here](#plan) for the reasons of sff_mgr)
 - By default, sff_mgr feature is disabled.
 - In order to enable sff_mgr feature, the platform would set ‘enable_xcvrd_sff_mgr’ to ‘true’ in their respective pmon_daemon_control.json. Xcvrd would parse ‘enable_xcvrd_sff_mgr’ and if found 'true', it would launch SFF task manager (sff_mgr).
 > **_Pre-requisite for enabling sff_mgr:_**
