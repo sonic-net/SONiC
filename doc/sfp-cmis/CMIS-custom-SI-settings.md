@@ -133,79 +133,93 @@ Default values can be platform defaults for multiple vendors in each section.
 ### 3.6 Sample Optics SI setting file:
 ```
 {
-  “TX_SETTING”: { 
-      “EQ_FIXED”: “false”, 
-      “GLOBAL_MEDIA_SETTINGS” : {}, 
-      “PORT_MEDIA_SETTINGS” : {} 
-  },
-  
-  “RX_SETTING”: { 
-      “EQ_FIXED”: “true”, 
-      “GLOBAL_MEDIA_SETTINGS” : { 
-          “1-20”: { 
-              “100G_SPEED”: { 
-                  “CREDO-CAC82X321M2MC0HW”: { 
-                      “SI_PARAM_RX_OUTPUT_PRE” : { 
-                          “lane0” : “5”, 
-                          “lane1” : “5”,
-                          “lane2” : “5”,
-                          “lane3” : “5”,
-                          “lane4” : “5”,
-                          “lane5” : “5”,
-                          “lane6” : “5”,
-                          “lane7” : “5” 
-                      } 
-                  }, 
-                  “INNOLIGHT-T-DP8CNT-NCI”: {
-                      “SI_PARAM_RX_OUTPUT_POST” : { 
-                          “lane0” : “8”,
-                          “lane1” : “8”,
-                          “lane2” : “8”,
-                          “lane3” : “8”,
-                          “lane4” : “8”,
-                          “lane5” : “8”,
-                          “lane6” : “8”, 
-                          “lane7” : “8” 
-                      } 
-                  } 
-              } 
-          }, 
-          “25,28,30”: { 
-              “100G_SPEED”: { 
-                  “Default”: { 
-                      “SI_PARAM_RX_INPUT_AMP” : { 
-                          “lane0” : “7”,
-                          “lane1” : “7”,
-                          “lane2” : “7”,
-                          “lane3” : “7”,
-                          “lane4” : “7”,
-                          “lane5” : “7”,
-                          “lane6” : “7”,
-                          “lane7” : “7” 
-                      } 
-                  } 
-              } 
-          } 
-      }, 
-      “PORT_MEDIA_SETTINGS” : { 
-          “32”: {
-              "100G_SPEED": {
-                  "Default": {
-                      “SI_PARAM_RX_OUTPUT_PRE” : { 
-                          “lane0” : “9”,
-                          “lane1” : “9”,
-                          “lane2” : “9”,
-                          “lane3” : “9”,
-                          “lane4” : “9”,
-                          “lane5” : “9”,
-                          “lane6” : “9”,
-                          “lane7” : “9”,
-                      } 
-                  } 
-              } 
-          } 
-      }
-  }
+        "TX_SETTING": {
+                "EQ_FIXED": "False",
+                "GLOBAL_MEDIA_SETTINGS": {},
+                "PORT_MEDIA_SETTINGS": {}
+        },
+
+        "RX_SETTING": {
+                "EQ_FIXED": "True",
+                "GLOBAL_MEDIA_SETTINGS": {
+                        "0-20,21-24": {
+                                "100G_SPEED": {
+                                        "CREDO-CAC82XYXYXYXYXHW": {
+                                                "OutputEqPreCursorTargetRx": {
+                                                        "OutputEqPreCursorTargetRx1": 5,
+                                                        "OutputEqPreCursorTargetRx2": 5,
+                                                        "OutputEqPreCursorTargetRx3": 5,
+                                                        "OutputEqPreCursorTargetRx4": 5,
+                                                        "OutputEqPreCursorTargetRx5": 5,
+                                                        "OutputEqPreCursorTargetRx6": 5,
+                                                        "OutputEqPreCursorTargetRx7": 5,
+                                                        "OutputEqPreCursorTargetRx8": 5
+                                                }
+                                        },
+                                        "INNOLIGHT-X-XY123-XYZ": {
+                                                "OutputEqPostCursorTargetRx": {
+                                                        "OutputEqPostCursorTargetRx1": 8,
+                                                        "OutputEqPostCursorTargetRx2": 8,
+                                                        "OutputEqPostCursorTargetRx3": 8,
+                                                        "OutputEqPostCursorTargetRx4": 8,
+                                                        "OutputEqPostCursorTargetRx5": 8,
+                                                        "OutputEqPostCursorTargetRx6": 8,
+                                                        "OutputEqPostCursorTargetRx7": 8,
+                                                        "OutputEqPostCursorTargetRx8": 8
+                                                }
+                                        },
+                                        "Default": {
+                                                "OutputEqPreCursorTargetRx": {
+                                                        "OutputEqPreCursorTargetRx1": 9,
+                                                        "OutputEqPreCursorTargetRx2": 9,
+                                                        "OutputEqPreCursorTargetRx3": 9,
+                                                        "OutputEqPreCursorTargetRx4": 9,
+                                                        "OutputEqPreCursorTargetRx5": 9,
+                                                        "OutputEqPreCursorTargetRx6": 9,
+                                                        "OutputEqPreCursorTargetRx7": 9,
+                                                        "OutputEqPreCursorTargetRx8": 9
+                                                }
+
+                                        }
+                                }
+                        },
+                        "25,28,30": {
+                                "100G_SPEED": {
+                                        "Default": {
+                                                "OutputAmplitudeTargetRx": {
+                                                        "OutputAmplitudeTargetRx1": 7,
+                                                        "OutputAmplitudeTargetRx2": 7,
+                                                        "OutputAmplitudeTargetRx3": 7,
+                                                        "OutputAmplitudeTargetRx4": 7,
+                                                        "OutputAmplitudeTargetRx5": 7,
+                                                        "OutputAmplitudeTargetRx6": 7,
+                                                        "OutputAmplitudeTargetRx7": 7,
+                                                        "OutputAmplitudeTargetRx8": 7
+                                                }
+                                        }
+                                }
+                        }
+                },
+                "PORT_MEDIA_SETTINGS": {
+                        "31": {
+                                "100G_SPEED": {
+                                        "Default": {
+                                                "OutputEqPostCursorTargetRx": {
+                                                        "OutputEqPostCursorTargetRx1": 5,
+                                                        "OutputEqPostCursorTargetRx2": 5,
+                                                        "OutputEqPostCursorTargetRx3": 5,
+                                                        "OutputEqPostCursorTargetRx4": 5,
+                                                        "OutputEqPostCursorTargetRx5": 5,
+                                                        "OutputEqPostCursorTargetRx6": 5,
+                                                        "OutputEqPostCursorTargetRx7": 5,
+                                                        "OutputEqPostCursorTargetRx8": 5
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+}
 ```
 
 ## 4 High-Level Design
