@@ -34,6 +34,7 @@ Deterministic Approach for Interface Link bring-up sequence
 | 0.7 | 02/02/2022  | Jaganathan Anbalagan               | Added Breakout Handling 
 | 0.8 | 02/16/2022  | Shyam Kumar                        | Updated feature-enablement workflow
 | 0.9 | 04/05/2022  | Shyam Kumar                        | Addressed review comments           |
+| 0.10| 06/26/2023  | Longyin Huang                      | Added details for sff_mgr           |
 
 
 # About this Manual
