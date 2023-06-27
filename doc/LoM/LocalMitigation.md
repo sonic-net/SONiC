@@ -139,8 +139,11 @@ The engine publishes its own heartbeats periodically using SONiC events channel 
 
 When a detection-action returns with success, indicating that an anomaly is detected, the engine kicks off mitigation sequence. If Engine is already in the middle of another sequence, it put this newly detected anomaly in wait Q, until current sequence is complete. In other words the engine ensures only one mitgation sequence can be active at anytime.
 
-During a mitigation sequence, it invokes actions sequentially as ordered in config. it sets timeout for each action and also sets a timeout for completion of the entire sequence. If an action returns failure or a timeout occurs, engine aborts the sequence by not calling rest of the actions in the sequence, unless marked as mandatory. On success, every action in the sequence is invoked in order until end. Each action's result is published irrespective of success/failure. Each action when invoked, is provided with data/response returned by all preceding actions in the sequence, This gives dynamic context of the sequence to the just invoked action. As data from each action is per its schema, the action receiving the  data knows the entire data type. An acion that needs data from another sets a binding via schema. At the end of a sequence, which may be upon calling all actions or upon abort, the original detected anomaly is re-published with the final result of either last action or timeout.
+During a mitigation sequence, it invokes actions sequentially as ordered in config. it sets timeout for each action and also sets a timeout for completion of the entire sequence. If an action returns failure or a timeout occurs, engine aborts the sequence by not calling rest of the actions in the sequence, unless marked as mandatory. On success, every action in the sequence is invoked in order until end. Each action's result is published irrespective of success/failure. Each action when invoked, is provided with data/response returned by all preceding actions in the sequence, This gives dynamic context of the sequence to the just invoked action. As data from each action is per its schema, the action receiving the  data knows the entire data type. An acion that needs data from another sets a binding via schema. 
 
+At the end of a sequence, which may be upon calling all actions or upon abort, the original detected anomaly is re-published with the final result of either last action or timeout. At the completion of a sequence, the request action is re-raiused to the first action of the sequence, which is a detection action.
+
+For actions with no mitigation, calling the detectionb action immediately is expected to return back in seconds, that this anomaly is still active, which is indeed true. But netassist/DRI could take time betwen seconds to days to fix. Re-publishing the anomaly is *highly* redundant. At the same time, there is a possibility that our push failed. So in case of active anomaly the configuration sets a minimum interval between two reports.
 
 For timedout actions, they are kept in cache as active so as to block engine from sending another request. The plugin's i/f is intentionally made to be simple. The agreement with plugin is that, only one active request will be raised anytime per plugin. Hence a timedout action must return before it can be called again. The timedout action's response is still published even though it is stale as corresponding sequence is already aborted. If a sequence demands an action which still has an outstanding request, then the sequence is put in pending state, until either this sequence timesout or the request returns, whichever happens earlier.
 
@@ -177,7 +180,16 @@ One may write variations of same plugin meant for different Platforms. The build
 ## LoM Config
 It has 4 sets of config and each is detailed in YANG schema.
 ### Globals.conf
-As name signifies the global runtime settings, like ports the internal service listens to, running mode as Prod/Debug, ...
+As name signifies the global runtime settings, like ports the internal service listens to, heartbeat frequency, and more. A static checked in value can be found at `<git repo for fevice-health>/config`. A sample set is below
+{
+    "MAX_SEQ_TIMEOUT_SECS": 120,
+    "MIN_PERIODIC_LOG_PERIOD_SECS": 1,
+    "ENGINE_HB_INTERVAL_SECS": 10,
+    "INITIAL_DETECTION_REPORTING_FREQ_IN_MINS": 5,
+    "SUBSEQUENT_DETECTION_REPORTING_FREQ_IN_MINS": 60,
+    "INITIAL_DETECTION_REPORTING_MAX_COUNT": 12,
+    "PLUGIN_MIN_ERR_CNT_TO_SKIP_HEARTBEAT" : 3
+}
 
 ### Procs.conf
 The set of plugin manager instances to run with unique runtime ID for each. Associate a set of plugins against runtime-ID to indicate the set of plugins an instance need to load & manage. Each plugin is referred by name, version and optionally path if not statically integrated. When adding/updating a plugin, upon copying the new plugin binary, update this conf with new version to trigger Plugin Manager to load the new/updated binary.
