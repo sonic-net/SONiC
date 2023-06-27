@@ -3,7 +3,7 @@ SONiC Local Mitigations (LoM) Service
 
 # Goals
 1. Run a containerized service inside the switch that monitors switch constantly, reports any anomalies and mitigate as needed.
-2. Provide a system based off of multiple different worker units called actions.
+2. Provide a system based off of multiple independent worker units called **actions**.
 3. Provide a way to add/update an action that does one of the following.
    - Run a anomaly detection.
    - Run a safety check that might be required for mitigation.
@@ -20,11 +20,13 @@ Today all detections & mitigations are performed by external services. The probl
 2. Any problem/failure in exporting will result in alerts not being created.
    - There have been cases of missing data exports hence missed alerts.
 3. Any inability to access the switch, will block a mitigation action.
-4. An OS update could affect external service's ability to detect/mitigate.
-   - e.g., A remove/re-write of a log message could affect the service that is detecting basd on that log.
+4. The evolving OS updates could could transparently fail external service's ability to detect/mitigate.
+   - e.g., A remove/re-write of a log message could affect the service that is detecting based on that log.
+   - We don't have process to sync/test evolving OS with external services
 6. An external service has scaling issues in managing thousands of switches.
-7. Inability to access device blocks any mitigation
-8. Inability for a device to export data or lack of reliability in data export, can severely affect anomaly detections
+7. A **single** service code is expected to handle multiple vendors, platforms & OS versions which is a very complex ask that translates to increased probabilities for gaps/failures. 
+8. Inability to access device blocks any mitigation
+9. Inability for a device to export data or lack of reliability in data export, can severely affect anomaly detections
 
 # Proposal
 1. Run a dedicated service that can run all detection & mitigation actions locally within the switch.
