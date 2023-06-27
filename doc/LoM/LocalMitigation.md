@@ -65,35 +65,35 @@ Any inability for a device to export data or lack of reliability in data export,
 10. The actions are defined in YANG schema, hence the published reports are structured 
 11. Actions' runs have full visibility via gNMI & STATE-DB.
 12. For any new SONiC bug in released OS, it could be well managed via small/simple detection/mitigation actions that can be rolled out in hours across the fleet.
-    - Create detection & mitigation action & update nightly tests
+    - Create detection & mitigation action & update automated tests
     - Identify target releases
     - Kick off auto tests runs on target releases.
-    - Deploy the tested action to target devices.
-13. FUSE can proceed to deploy OS version with known issue, as it would transparently install the actions that detect/mitigate.   
+    - Deploy the actions to target devices.
+13. FUSE may continue to deploy this OS version with known issue, as it would transparently *also* install the actions that detect/mitigate.   
 15. Supports enable/disable of actions via config update.
     
 
 # A Use case:
 ## Link flap / CRC / Discards
-For a link the common issues are flaps, CRC-errors & discards. Here we need a way to watch for it with appropriate algorithm to identify anomalies. When an anomaly is detected, the mitigation is bring link down. But this demands basic safety checks. A detection can be configured with appropriate mitigation actions to run upon detection, along with approriate safety checks to precede the mitigation action. This is called action sequence or binding sequence.
+For a link the common issues are flaps, CRC-errors & discards. Here we need a way to watch for it with appropriate algorithm to identify anomalies. When an anomaly is detected, the mitigation is bring link down. But this demands basic safety checks. A detection-action can be configured with appropriate mitigation actions to run upon detection, along with approriate safety checks to precede the mitigation action. This is called action sequence or binding sequence.
 
 ### Link anomaly Detection action:
-An action for link flap may be written for flap by observing STATE-DB changes. An action for CRC-errors/discards may watch counters. These actions are run forever, often cache data at different time points and run an algorithm on the cached data to detect an anomaly. Upon detection, the detectd anomaly is published via SONiC events channel that reaches EventHub via low latency channel in couple of seconds. Every published action is logged too as a fallback. Data published & logged are as per schema.
+An action for link flap may be written for flap by observing STATE-DB changes. An action for CRC-errors/discards may watch counters. These actions are run forever, often cache data at different time points and run an algorithm on the cached data to detect an anomaly. Upon detection, the detected anomaly is published via SONiC events channel that reaches EventHub via low latency channel in couple of seconds. Every published action is logged too as a fallback. Data published & logged are as per schema.
 
 ### Safety check action:
-The mitigation action for a failing link, is to bring the link down. But this demands a safety check to assess the capacity of not just this device, but more of a global scope. One may write a local safety check action, that could succeed if device has the link availability > 75% (_this magic number is configurable_). When this local check fails, the action can reach out to an external SCS service. This action may flag green or red for mitigation. In either case, its result is published & logged. A success/green-flag will allow mitigation to run.
+The mitigation action for a failing link, is to bring the link down. But this demands a safety check to assess the capacity of not just this device, but more of a global scope. One may write a local safety check action, that could succeed if device has the link availability > 75% (_this magic number is configurable_). When this local check fails, the action can reach out to an external SCS service for a global chjeck. This action returns success, if mitigation can happen, else return failure. In either case, its result is published & logged. A success/green-flag will allow mitigation to run.
 
 ### Mitigation action:
-This action can set the admin down for the link. 
+This action can set the admin down for the link. This action is published.
 
-### Sequence completon:
--   The original detected anomaly is re-published with final result as success or not, within seconds after the detection. The success implies a successful mitgation of the detected anomaly. A failure implies that the anomaly is not locally mitigated. The faiure gives appropriate error code that indicates the reason for failure. 
+### Sequence completion:
+-   The original detected anomaly is now re-published with final result as success or not. The success implies a successful mitgation of the detected anomaly. A failure implies that the anomaly is not locally mitigated. The failure gives appropriate error code that indicates the reason for failure. 
 -   An external service can take up mitigation upon failure is published.</br>
--   Every followup action that runs, publish its result (success or not).
--   Every action has a set timeout, and must end by then
+-   The completon is expected within seconds of detection.
+-   Every action run as part of sequence has a set timeout, and must end by then along with overall timeout for entire sequence to complete.
 -   A failing action will abort the sequence at that point which would skip subsequently ordered actions unless marked as mandatory.
--   During a sequnce runn upon detection, the heartbeats are published more frequently. The HB would carry info on current running action.
--   An external service can watch the mitigating sequence closely via published action ouptuts & heartbeats. Take over, if result says failure or it doesn't receive any published events.
+-   During a sequnce run upon detection, the heartbeats are published more frequently. The HB would carry info on current running action.
+-   An external service can watch the mitigating sequence closely via published action ouptuts & heartbeats. It can take over, if result says failure or it doesn't receive any published events.
 -   In scenario where we mitigate successfully, the TTM is in couple of seconds. For any failure, we still get TTD in seconds.</br>
 NOTE: An ICM is fired for every detected anomaly. If mitigation is done by LoM, the ICM will be marked "_mitigated_".
 
@@ -102,22 +102,25 @@ Every detection action is tied to corresponding safety check & mitigation action
 Every action could be fine tuned via some configurable knobs. A SONiC CLI or configlet could do.
 
 ## Memory utilization
-This is a complex probem as memory used by a daemon depends on its load (_e.g. count of peers, routes, route-maps configured_), platform and likely need a proper algorithm to vet it fool-proof as "_is daemon really growing constantly_" vs "_transient blips_". Even the threshold could be dynamic based on load level. This algorithm might need few tweaks & updates as we observe, like storage cluster might need a different algorthm. Hence hard coding this into image will not fit. Actions are small plugins/minions that can be easily updated w/o impact to control/data plane.
+This is a complex probem as memory used by a daemon could vary based on its load (_e.g. count of peers, routes, route-maps configured_). This demands an custom detection per daemon with dynamically computed threshold. The detection needs to distinguish between "_is memory consumption growing constantly_" vs "_transient blips_". This algorithm might need might need few tweaks & updates as we observe its reports. Hence hard coding this into image will not fit. But actions are small plugins/minions that can be easily updated w/o impact to control/data plane.
 
 ### Detection
-The action does the monitoring. We can have variations per platform & target OS version. This is vetted in nightly tests for its target platform & OS version. It constantly monitors. It can cache usage in various time points as required by algorithm to do a proper analysis. This detection action is kicked off at the start and run until detected or disabled.
+The action does the monitoring. We can have variations per platform, target OS version and even cluster type. This is vetted in nightly tests for  all  target platform & OS version. It constantly monitors. It can cache usage in various time points as required by algorithm to do a proper analysis. This detection action is kicked off at the start and run until detected or disabled.
 
 ### Safety-check
-Asses the daemon(s) that is/are in trouble to verify if its restart will impact Dataplane or not. If not, it returns success, else returns failure, which will abort sequence and no mitigation action is executed. This will also look at the service restart history to ensure that no more than N restarts is attempted in M seconds.
+Asses the daemon that is in trouble to verify if its restart will impact Dataplane or not. If not, it returns success, else returns failure, which will abort sequence and no mitigation action is executed. This will also look at the service restart history to ensure that no more than N restarts is attempted in M seconds.
 
 ### Mitigation
 This may be just service restart or more (_say remove/reset files/data_). The action is executed and its result is published
 
-### Conclusion
-- The action is anytime updatable as we see need for tuning.
-- This type of detection is better equipped to run locally as it has wealth  of data, like per daemon load level, combined picture and better customized for this OS version.
-- Mitigation is in seconds if it would not have data plane impact. The most common daemons that face issues are control plane daemons like LLDP.
-- Anomaly is re-published with mitigation result to let exernal services be aware of what LoM did.
+### Sequence completion:
+- Anomaly is re-published with mitigation. An external service may take over mitigation on any failure.
+
+### conclusion
+- The actions are anytime updatable as we see need for tuning.
+- This type of detection is better equipped to run locally as it has wealth  of data, like daemon's current load level, history on restarts for last N seconds.
+- The action can be fully customized for this OS version.
+- Mitigation happens in seconds if it would not have data plane impact. The most common daemons that face issues are control plane daemons like LLDP.
 
 
 # Design
@@ -126,7 +129,7 @@ This may be just service restart or more (_say remove/reset files/data_). The ac
 
 ## Core components
 ### Engine
-This is the core controller of the LoM system. Kicks off the actions that are detections, which are also first action in sequences. A sequence may just have one action, if no mitigation actions are available. It communicates with clients via a published lib for defined client i/f. It waits for plugins to register themselves. Upon registration, it sends out request if the registered action is first action in a sequence. So it may send out multiple requests as one per plugin/action for all detection actions.
+This is the core controller of the LoM system. Kicks off the actions that are detections. Detections are first action in any sequence. A sequence may just have one action, if no mitigation actions are configured. The engine communicates with its clients (_other procs_) via a published client i/f. It waits for plugins to register themselves via registration request. Upon registration, it sends out action-request if the registered action is first action in a sequence. So it may send out multiple requests as one per plugin/action for all detection actions.
 
 The detection action can run forever, as it only returns upon anomaly detected, which may never happen on a good system and which is the most common scenario. As this runs forever, to get its state as running healthy or crashed or stuck, the plugin is required to send periodic heartbeat to engine. The engine collects all heartbeats and send out one heartbeat out via SONiC events via gNMI that has the list of all actions that sent heartbeat since last published heartbeat. This heartbeat makes it visible set of detecton actions that are running in the switch, as healthy. Plugins in trouble are reported via syslog periodically until fixed/disabled.</br>  
 
