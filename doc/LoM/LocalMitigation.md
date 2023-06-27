@@ -129,11 +129,13 @@ This may be just service restart or more (_say remove/reset files/data_). The ac
 
 ## Core components
 ### Engine
-This is the core controller of the LoM system. Kicks off the actions that are detections. Detections are first action in a sequence. A sequence may just have one action, if no mitigation actions are configured. The engine communicates with its clients (_other procs_) via a published client i/f. It waits for plugins to register themselves via registration request. Upon registration, it sends out action-request if the registered action is first action in a sequence. So it may send out multiple requests as one per plugin/action for all detection actions.
+This is the core controller of the LoM system. The engine runs the system by raising requests to registered actions and manages binding/mitigation sequences.
+
+All plugins register with engine. Engine sends requests to all detection actions right upon registration. Engine identifies first action of all registered sequences as detection-action.
 
 The detection actions run forever until an anomaly is detected or it gets disabled. In a healthy system, a detection action may run for days/weeks/months w/o returning. As detection actions run forever, it periodically sends heartbeats to engine to inform that it is active & healthy.
 
-The engine publishes heartbeats periodically using SONiC events channel via gNMI. In each heartbeat it list all the actions it received heartbeas from, since its last heartbeat publish. An external alert service may compare the list of actions in heartbeat with list of expected actions from golden config. It could raise an alert for any difference.
+The engine publishes its own heartbeats periodically using SONiC events channel via gNMI to external services. In each heartbeat published it list all the actions it received hteartbeas from, since its last heartbeat publish. An external alert service may compare the list of actions in heartbeat with list of expected actions from golden config. It could raise an alert for any difference.
 
 When a detection-action returns with success, indicating that an anomaly is detected, the engine kicks off mitigation sequence. If Engine is already in the middle of another sequence, it put this newly detected anomaly in wait Q, until current sequence is complete. In other words the engine ensures only one mitgation sequence can be active at anytime.
 
