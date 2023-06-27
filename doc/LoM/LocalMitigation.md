@@ -165,14 +165,14 @@ A plugin operates under the process space of PluginMgr that has loaded it. There
 The plugins are the unit of actions with a simple i/f of 4 APIs only. All 4 APIs are synchronous even in the intances where a request may run for days/weeks/...</br>
 **init**  - Called with action's config only once at the startup. Here the plugin absorbs its config, do its initialization and as well may kick off some long running concurrent activities as needed. </br>
 **GetId** - Ability to get ID & version of this plugin. The pluginMge uses this to confirm the loaded plugiun is the intended one. </br>
-**Request** - Run the action's main job, which may be detection, safety-checks & mitigations. This will be invoked with or w/o timeout. This is raised multiole times as only one call at a time.</br>
-**Shutdown** - Called upon disablie of a plugun or system shutdown. This provides a way to close/de-init the plugin.</br>
+**Request** - Run the action's main job, which may be detection, safety-checks & mitigations. This will be invoked with or w/o timeout. This is raised multiple times as only one call at a time.</br>
+**Shutdown** - Called upon disable of a plugin or system shutdown. This provides a way to close/de-init the plugin.</br>
 
 Plugins may be compiled statically into Plugin Manager or it could be explicitly loaded from a standalone binary.
 
 Plugins are versioned. The config sets the version to use. This allows for easy rollback via config update.
 
-One may write variations of same plugin meant for different OS versions & Platform. The buildtime picks the right one.
+One may write variations of same plugin meant for different Platforms. The buildtime picks the right one.
 
 ## LoM Config
 It has 4 sets of config and each is detailed in YANG schema.
