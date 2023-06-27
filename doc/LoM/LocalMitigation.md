@@ -20,20 +20,21 @@ Today all detections & mitigations are performed by external services. The probl
 2. Any problem/failure in exporting will result in alerts not being created.
    - There have been cases of missing data exports hence missed alerts.
 3. Any inability to access the switch, will block a mitigation action.
-4. The evolving OS updates could could transparently fail external service's ability to detect/mitigate.
+4. The evolving OS updates often conflicts and hence invalidate external service's ability to detect/mitigate.
    - e.g., A remove/re-write of a log message could affect the service that is detecting based on that log.
    - We don't have process to sync/test evolving OS with external services
 6. An external service has scaling issues in managing thousands of switches.
 7. A **single** service code is expected to handle multiple vendors, platforms & OS versions which is a very complex ask that translates to increased probabilities for gaps/failures. 
-8. Inability to access device blocks any mitigation
-9. Inability for a device to export data or lack of reliability in data export, can severely affect anomaly detections
+8. External services are limited to exported data only.
+  - Any ask for additional data can only be available as part of next OS release and its rollout, which is in the order of months and years to cover entire fleet
+Any inability for a device to export data or lack of reliability in data export, can severely affect anomaly detections
 
 # Proposal
 1. Run a dedicated service that can run all detection & mitigation actions locally within the switch.
    - The detection actions can watch forever until anomaly is detected
    - When detected, run configured mitigation actions, which are often preceded by safety-check actions
    - The entire set of actions to run upon a detection is pre-configured and explicitly ordered, called binding-sequence. 
-   - The mitigation actions may or may not be configured. In other words an empty binding sequence.. 
+   - The mitigation actions hence the safety checks are not mandatory. In other words there can be an empty binding sequence.. 
 2. An action can be a detection for an anomaly, a mitigation action for an anomaly, a safety-check to precede mitigation and a cleanup, ... 
 3. Actions can vary widely by logic and/or config.
 4. Actions are vetted by nightly tests hence verfied to work on the hosting OS.
@@ -41,15 +42,13 @@ Today all detections & mitigations are performed by external services. The probl
 6. Actions are defined by Schema and schema specifies configurable knobs.
 7. Service is built with static config, which can be overrriden via config-DB
 8. The plugins are versioned. 
-9. The running configuration is reflected in STATE-DB.
+9. The running configuration & state/status are reflected in STATE-DB.
 10. The CLI extends dynamically to any action using YANG schema.
 11. An action add/update/re-config will not impact control/data plane
 
 # Benefits
 1. Running locally, hence monitoring the switch constantly will give the **BEST** possible TTD (_Time to Detect_).
-2. Running locally provides access to all data in the switch, whereas an external service strictly relies on exported data _only_, which is often *not* vendor/version agnostic.
-   - log message could vary across versions.
-   - Not all vendors reports same set of counters
+2. Running locally provides access to all data in the switch, whereas an external service strictly relies on exported data _only_.
 3. Local mitigation is triggered right upon an anomaly detection, hence it will give the **BEST** possible TTM (_Time To Mitigate_).
    - Local mitigations can have TTM in seconds
 4. Running locally improves the performance, availability & efficiency.
