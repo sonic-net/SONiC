@@ -181,8 +181,9 @@ One may write variations of same plugin meant for different Platforms. The build
 It has 4 sets of config and each is detailed in YANG schema.
 ### Globals.conf
 As name signifies the global runtime settings, like ports the internal service listens to, heartbeat frequency, and more. A static checked in value can be found at `<git repo for fevice-health>/config`. A sample set is below
+```
 {
-    "MAX_SEQ_TIMEOUT_SECS": 120,
+    "MAX_SEQ_TIMEOUT_SECS": 120,</br>
     "MIN_PERIODIC_LOG_PERIOD_SECS": 1,
     "ENGINE_HB_INTERVAL_SECS": 10,
     "INITIAL_DETECTION_REPORTING_FREQ_IN_MINS": 5,
@@ -190,6 +191,7 @@ As name signifies the global runtime settings, like ports the internal service l
     "INITIAL_DETECTION_REPORTING_MAX_COUNT": 12,
     "PLUGIN_MIN_ERR_CNT_TO_SKIP_HEARTBEAT" : 3
 }
+````
 
 ### Procs.conf
 The set of plugin manager instances to run with unique runtime ID for each. Associate a set of plugins against runtime-ID to indicate the set of plugins an instance need to load & manage. Each plugin is referred by name, version and optionally path if not statically integrated. When adding/updating a plugin, upon copying the new plugin binary, update this conf with new version to trigger Plugin Manager to load the new/updated binary.
