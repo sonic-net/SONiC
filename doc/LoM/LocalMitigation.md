@@ -17,10 +17,11 @@ SONiC Local Mitigations (LoM) Service
 # Problem to solve
 Today all detections & mitigations are performed by external services. The problems or short falls we have are 
 1. As any detection is based on exported data, the latency involved delays the alerting.
-2. Any problem/failure in exporting will result in alerts not being created.
+2. Frquency of monotoring by external service gets a hard limit set by device exporter.
+3. Any problem/failure in exporting will result in alerts not being created.
    - There have been cases of missing data exports hence missed alerts.
-3. Any inability to access the switch, will block a mitigation action.
-4. The evolving OS updates often conflicts and hence invalidate external service's ability to detect/mitigate.
+4. Any inability to access the switch, will block a mitigation action.
+5. The evolving OS updates often conflicts and hence invalidate external service's ability to detect/mitigate.
    - e.g., A remove/re-write of a log message could affect the service that is detecting based on that log.
    - We don't have process to sync/test evolving OS with external services
 6. An external service has scaling issues in managing thousands of switches.
