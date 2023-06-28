@@ -94,7 +94,7 @@ This action can set the admin down for the link. This action is published.
 -   Every action run as part of sequence has a set timeout, and must end by then along with overall timeout for entire sequence to complete.
 -   A failing action will abort the sequence at that point which would skip subsequently ordered actions unless marked as mandatory.
 -   During a sequnce run upon detection, the heartbeats are published more frequently. The HB would carry info on current running action.
--   An external service can watch the mitigating sequence closely via published action ouptuts & heartbeats. It can take over, if result says failure or it doesn't receive any published events.
+-   If LoM fails, the external service cazn take over mitigation as is today.
 -   In scenario where we mitigate successfully, the TTM is in couple of seconds. For any failure, we still get TTD in seconds.</br>
 NOTE: An ICM is fired for every detected anomaly. If mitigation is done by LoM, the ICM will be marked "_mitigated_".
 
