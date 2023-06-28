@@ -332,52 +332,79 @@ The actions.confd dir will hold all the individual conf files.
 LoM is another SONiC service and built as part of SONiC image. Its integration is provided below.
 
 ## LoM Service
-LoM is a systemd maintained containerized service. Like Telemetry, this service is predominantly written in Go with a vision of supporting non-Go plugins too in future. It is built as docker image with all required systemd's service related files and an entry in FEATURE table as enabled.
+LoM is a systemd maintained containerized service. Like Telemetry, this service is predominantly written in Go with a vision of supporting mult-language plugins in future. It is built as docker image with all required systemd's service related files and an entry in FEATURE table as enabled. The code resides in a dedicated sub module.
 
 ## CONFIG
-LoM service comes with static config created during build time. The LoM publishes the running config into STATE-DB. The CONFIG-DB updates are needed only when tweaks are needed over static config. The CLI tabbing will dynamically extend based on available schema & schema's contents (_configure=True_) helps fill tabbing with action specific available knobs.
+LoM service comes with static config created during build time off of schema. The LoM publishes the running config into STATE-DB. The CONFIG-DB updates are needed only when tweaks are needed over static config. 
+The CLI will be dynamically driven via YANG schema. It browses YANG files for modules/objects and within each, it refers schema for configrable attributes, type & defaults. In other words add/remove a YANG file add/remove a LoM key. Add / remove a configurable attribute will transparently reflect in CLI tabbing.
+In short LoM config comands will be indirectly driven by sceham
 
-### STATE-DB & CONFIG-DB:
-State-DB shows running-config. Config-DB + static built-in config == Running config
+### CONFIG-DB:
+- The CLI can be used to add/updarte  any attributes.
+- The updates are only a diff to in-built static config
+- To see the full config call "show LoM config" which will show the current running config
 
-**Table**: LoM<br>
+### STATE-DB :
+The STATE-DB carries 3 categories of data
+- Config -- The current running config == Config-DB + static built-in config
+- Counters -- The stat counters
+- Live-Cache -- The last N actions' o/p
+
+**Table**: LoM|Config<br>
 **Keys**: "Global", "Procs", "binding", "actions" & "Red-button"
 
-#### LoM|Global
+#### LoM|Config|Global
 ```
-"HTTP_RPC_PORT": <port number>
-"JSON_RPC_PORT": <...>
+"MAX_SEQ_TIMEOUT_SECS": 20
+"MIN_PERIODIC_LOG_PERIOD_SECS": 1,
 ... 
 ```
 
-#### LoM|Procs|< Proc ID >:
+#### LoM|Config|Procs|< Proc ID >:
 ```
 [
-   { "action-name":  "<..>", "plugin-version": "<...>", "plugin-filename": <...?> },
-   { "action-name":  "<..>", "plugin-version": "<...>", "plugin-filename": <...?> },
+   '{ "action-name":  "<..>", "plugin-version": "<...>", "plugin-filename": <...?> }',
+   '{ "action-name":  "<..>", "plugin-version": "<...>", "plugin-filename": <...?> }',
    ...
 ]
 
 ```
 
-#### LoM|Binding|< sequence name >:
+#### LoM|Config|Binding|< sequence name >:
 ```
-[
-   {
-      "name": < action name >",
-      "sequence": < Index of the sequence. Expect unique. Executed in ascending order >
-   },
+"priority": 1,
+"timeout:: 20,
+"actions": [
+  '{"name": < action name >", "sequence": < Index within sequence>, "timeout": 5}',
    ...
 ]
 ```
 
-#### LoM|Actions|< action name >
+#### LoM|Config|Actions|< action name >
 ```
 "Description": "..."
 "Disable": "True",
 "HB_Freq": < seconds > 
 "Mimic": "False",
 < action specific attrs per schema >
+```
+#### LoM|Counters
+Stats are maintained as below to cover all actions
+- Count of active actions
+- Count of active detection actions
+- Count of failed actions (enabled but failed to activate)
+- Count of disabled actions
+- count of mimiced actions
+- Total count of anomaly detections made
+- Total count of successful action runs
+- Total count failed action runs ( Has non-zero result code )
+- Total count of successful sequences
+- Total count of failed sequences
+
+#### LoM|liveCache:
+```
+"Actions": [ <Last N published non-heartbeat strings are saved here.>]
+"Heartbeats": [ <last M heartbeats are saved here >]
 ```
 
 #### LoM|RedButton
@@ -400,24 +427,11 @@ State-DB shows running-config. Config-DB + static built-in config == Running con
 Results of all actions are published w/o any constraints to Events Hub via SONiC gNMI. Even a stale response (_one that arrives after timeout_) is also published. The publish use SONic Events channel. As per Event's channel usage agreement, all publish o/p are per defined schema with backward compatibility.
 
 ### State-DB
-#### Actions:
-Results of last N actions are cached. This helps when events are missed or brief past history is needed.
-
-#### Counters
-Stats are maintained as below to cover all actions
-- Count of active actions
-- Count of active detection actions
-- Count of failed actions (enabled but failed to activate)
-- Count of disabled actions
-- count of mimiced actions
-- Total count of anomaly detections made
-- Total count of successful action runs
-- Total count failed action runs ( Has non-zero result code )
-- Total count of successful sequences
-- Total count of failed sequences
+Reports current running config of LoM, LoM maintained counters and last set of N actions published and M heartbeats published.
 
 #### syslog
-All published events are also logged by default by SONiC event module
+All published events are also logged by default by SONiC event module.
+LoM reports all events via syslog.
 
 # Actions Update:
 One of the core values of LoM is its flexibility and adaptability to take updates at run time w/o impacting control or data plane. LoM is not built as one monolithic piece but as a collaborative union of plugins bind by config. Each plugin is an **independent** worker item for one specific purpose and this enables an update of a Plugin transparent to rest of the system. The plugins are versioned and use config to update to new version or easy rollback to previous.
