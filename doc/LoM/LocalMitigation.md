@@ -293,7 +293,7 @@ The actions.confd dir will hold all the individual conf files.
 - The docker is configured with limits on resources like CPU & memory. So a miscreant inside docker can't hijack the switch.
 - First release will be done only with detection plugins. They only Get/subscribe to DB and publish their findings. No write is done on DB or host.
 - Limit the max anomaly report frequence per anomaly key, so that LoM will not flood events channel with redundant alerts, yet repeatedly alert at a sane frequencey to ensure to get external service's attention.
-- Any misbehaving plugin is disabled and error is periodically reported until plugin is re-registered. Re-register happens upon either plugin update or service reatart. 
+- Any misbehaving plugin is disabled and error is periodically reported until plugin is re-registered. Re-register happens upon either plugin update or service restart. 
 - Later when mitigation is enabled
    - Every action is reviewed with SMEs for approval.
    - Any action can be disabled via config, called Red button.
@@ -303,11 +303,11 @@ The actions.confd dir will hold all the individual conf files.
   - Mitigation actions are *always* associated with safety checks
   - Safety checks may only be local, where it suffice.
   - Safety checks could reachout as needed.
-- Mitigation sequwence & individual actions are timed.
+- Mitigation sequence & individual actions are timed.
    - Every action is called with timeout.
    - Upon timeout the sequence  is aborted.
    - The overall sequence execution has its timeout too.
-- Mitigation sequence publishess more frequent heartbeats
+- Mitigation sequence publishes more frequent heartbeats
   - The heartbeat would indicate the current active action and it position in the sequence.
   - The hearbeat will also list completed actions 
   - The absence of two or more heartbeats could be taken for failure and external service will take over.
@@ -318,7 +318,7 @@ The actions.confd dir will hold all the individual conf files.
 - Controls are multi-layered.
   - Actions have their config to ensure sanity in their behavior.
      - A mis-behaving plugin may ignore/fail to honor config
-  - Plugin Manager watches and disables mis-behaving plugins
+  - At next level, Plugin Manager watches and disables mis-behaving plugins
   - Engine adds the final guard on plugins and disable miscreants
   - Any disable by PluginMgr and/or engine reflects out as periodic syslogs reporting the disable, until re-registration..
 - Honor red button config which can disable one/many/all actions with SLA.
