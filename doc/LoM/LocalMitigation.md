@@ -222,6 +222,8 @@ If a sequence has only one action, it implies that this detection action is *not
 
 When configured with mitigation action, there will be a minimum of there will be a minimum of 2 more actions in addition to the first, as first is "detection", second is "safety-check" and  third is "mitigation". There can be more. All are listed with sequence & timeout where needed. The info here should be unambiguous to help execute the actions in order.
 
+A missing sequence defaults to 0. A missing timeout defaults to timeout from this action's config. A missing "mandatory" flag defaults to false. Note: Sequence across all actions have to be numerically unique and positive. The validation will help with these constraints.
+
 ```
 {
     "bindings": [
@@ -235,7 +237,6 @@ When configured with mitigation action, there will be a minimum of there will be
                 },
                 {
                     "name": "link_down_check",
-                    "timeout": 5,
                     "sequence": 1
                 },
                 {
@@ -258,6 +259,32 @@ When configured with mitigation action, there will be a minimum of there will be
 
 ### Actions.conf
 All actions have some shared config like disable, mimic, heartbeat frequency, .... Each action could have action specific configurable attributes. An example could be window size & thresholds for detections with rolling window, a minimum % of availability to succeed for a safety check and more. The shared configurable knobs are listed in base YANG schema shared by all actions' schema. Each action schema provides its proprietary configurable attributes. 
+
+The actions config file is generated from YANG schema for all attributes that has "configure=true" with schema specified defaults, if not pre-provided.
+The actions.confd dir will hold all the individual conf files.
+
+```
+{
+        "link_crc": {
+                "Name": "link_crc",
+                "Type": "Detection",
+                "Timeout": 0,
+                "HeartbeatInt": 30,
+                "Disable": false,
+                "Mimic": false,
+                "ActionKnobs": {
+                        "DetectionFreqInSecs": 30,
+                        "IfInErrorsDiffMinValue": 0,
+                        "InUnicastPacketsMinValue": 100,
+                        "OutUnicastPacketsMinValue": 100,
+                        "OutlierRollingWindowSize": 5,
+                        "MinCrcError": 0.000001,
+                        "MinOutliersForDetection": 2,
+                        "LookBackPeriodInSecs": 125
+                }
+        }
+}
+```
 
 # Safety Traps
 - A detection action has min set frequency to report anomaly. In cases where we don't locally mitigate, the mitigation could take between minutes to hours or even days. Till mitigation is done the anomaly is active. Here we ensure that we do repeatedly raise/publish but at the min frequency set.
