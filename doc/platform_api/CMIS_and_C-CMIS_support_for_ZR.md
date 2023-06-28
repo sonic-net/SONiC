@@ -1700,6 +1700,7 @@ Each window field in TRANSCEIVER_PM_WINDOW_STATS will have following fields and 
   
  
 #### 7.3 CLI Sub-options and Syntax 
+
 ```
 #show int transceiver <enter>​
 commands:​
@@ -1707,25 +1708,34 @@ pm show interface transceiver performance monitoring​
 ​
 #Show int trans pm <enter>​
 commands:​
-Current show current pm data​
+Current show progressing pm data​
 history show historical pm data​
 
 ​
 #show int trans pm current <predefined window period>​
 commands:​
-60sec show cumulative pm statistics for 60sec time window for the current window. ​
-15min show cumulative pm statistics for 15min time window for the current window.​
-24Hr  show cumulative pm statistics for 24Hr time window for the current window.​
-<end> Without time window, the CLI will display the current snapshot of pm parameter.​
+60sec show cumulative pm statistics from the progressing 60sec pm window. ​
+15min show cumulative pm statistics from the progressing 15min pm window.​
+24hrs  show cumulative pm statistics from the progressing 24hrs pm window.​
 
 #show int trans pm history​
 commands:​
-60sec show cumulative pm statistics for 60sec time window for the given window number.​
-15min show cumulative pm statistics for 15min time window for the given window number.​
-24Hr  show cumulative pm statistics for 24Hr time window for the given window number.​
-​
-#show int trans pm history 30sec window <predefined window number> -n asic0 Ethernet0​
-​
+60sec show cumulative pm statistics for the given pm window number from 60sec pm window.​
+15min show cumulative pm statistics for the given pm window number from 15min pm window.​
+24hrs  show cumulative pm statistics for the given pm window number from 24hrs pm window.​
+
+#show int trans pm history 60sec window
+commands:
+1 - 14 PM window number
+
+#show int trans pm history 15min window
+commands:
+1 - 11 PM window number
+
+#show int trans pm history 24hrs window 
+commands:
+1  PM window number
+
 Optional subset display:​
 #Show int trans pm current 60sec –n asic0 Ethernet0​
 commands:​
