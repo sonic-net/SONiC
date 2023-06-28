@@ -94,7 +94,7 @@ This action can set the admin down for the link. This action is published.
 -   Every action run as part of sequence has a set timeout, and must end by then along with overall timeout for entire sequence to complete.
 -   A failing action will abort the sequence at that point which would skip subsequently ordered actions unless marked as mandatory.
 -   During a sequnce run upon detection, the heartbeats are published more frequently. The HB would carry info on current running action.
--   If LoM fails, the external service cazn take over mitigation as is today.
+-   If LoM fails, the external service can take over mitigation as is today.
 -   In scenario where we mitigate successfully, the TTM is in couple of seconds. For any failure, we still get TTD in seconds.</br>
 NOTE: An ICM is fired for every detected anomaly. If mitigation is done by LoM, the ICM will be marked "_mitigated_".
 
@@ -103,7 +103,7 @@ Every detection action is tied to corresponding safety check & mitigation action
 Every action could be fine tuned via some configurable knobs. A SONiC CLI or configlet could do.
 
 ## Memory utilization
-This is a complex probem as memory used by a daemon could vary based on its load (_e.g. count of peers, routes, route-maps configured_). This demands an custom detection per daemon with dynamically computed threshold. The detection needs to distinguish between "_is memory consumption growing constantly_" vs "_transient blips_". This algorithm might need might need few tweaks & updates as we observe its reports. Hence hard coding this into image will not fit. But actions are small plugins/minions that can be easily updated w/o impact to control/data plane.
+This is a complex probem as memory used by a daemon could vary based on its load (_e.g. count of peers, routes, route-maps configured_). This demands an custom detection per daemon with dynamically computed threshold. The detection needs to distinguish between "_is memory consumption growing constantly_" vs "_transient blips_". This algorithm might need few tweaks & updates as we observe its reports. Hence will takje some time to get tune it. Hence hard coding this into image will not fit. But actions are small plugins/minions that can be easily updated w/o impact to control/data plane, hence allows for frequent updates,.
 
 ### Detection
 The action does the monitoring. We can have variations per platform, target OS version and even cluster type. This is vetted in nightly tests for  all  target platform & OS version. It constantly monitors. It can cache usage in various time points as required by algorithm to do a proper analysis. This detection action is kicked off at the start and run until detected or disabled.
@@ -115,13 +115,13 @@ Asses the daemon that is in trouble to verify if its restart will impact Datapla
 This may be just service restart or more (_say remove/reset files/data_). The action is executed and its result is published
 
 ### Sequence completion:
-- Anomaly is re-published with mitigation. An external service may take over mitigation on any failure.
+- Anomaly is re-published with mitigation result. An external service may take over mitigation on any failure.
 
 ### conclusion
 - The actions are anytime updatable as we see need for tuning.
 - This type of detection is better equipped to run locally as it has wealth  of data, like daemon's current load level, history on restarts for last N seconds.
 - The action can be fully customized for this OS version.
-- Mitigation happens in seconds if it would not have data plane impact. The most common daemons that face issues are control plane daemons like LLDP.
+- Mitigation happens in seconds if it would not have data plane impact. The most common daemons that face issues are control plane daemons like SNMP.
 
 
 # Design
@@ -136,15 +136,15 @@ All plugins register with engine. Engine sends requests to all detection actions
 
 The detection actions run forever until an anomaly is detected or it gets disabled. In a healthy system, a detection action may run for days/weeks/months w/o returning. As detection actions run forever, it periodically sends heartbeats to engine to inform that it is active & healthy.
 
-The engine publishes its own heartbeats periodically using SONiC events channel via gNMI to external services. In each heartbeat published it list all the actions it received hteartbeas from, since its last heartbeat publish. An external alert service may compare the list of actions in heartbeat with list of expected actions from golden config. It could raise an alert for any difference.
+The engine publishes its own heartbeats periodically using SONiC events channel via gNMI to external services. In each heartbeat published it list all the actions it received hteartbeats from, since its last heartbeat publish. An external alert service may compare the list of actions in heartbeat with list of expected actions from golden config. It could raise an alert for any difference.
 
 When a detection-action returns with success, indicating that an anomaly is detected, the engine kicks off mitigation sequence. If Engine is already in the middle of another sequence, it put this newly detected anomaly in wait Q, until current sequence is complete. In other words the engine ensures only one mitgation sequence can be active at anytime.
 
-During a mitigation sequence, it invokes actions sequentially as ordered in config. it sets timeout for each action and also sets a timeout for completion of the entire sequence. If an action returns failure or a timeout occurs, engine aborts the sequence by not calling rest of the actions in the sequence, unless marked as mandatory. On success, every action in the sequence is invoked in order until end. Each action's result is published irrespective of success/failure. Each action when invoked, is provided with data/response returned by all preceding actions in the sequence, This gives dynamic context of the sequence to the just invoked action. As data from each action is per its schema, the action receiving the  data knows the entire data type. An acion that needs data from another sets a binding via schema. 
+During a mitigation sequence, it invokes actions sequentially as ordered in config. It sets timeout for each action and also sets a timeout for completion of the entire sequence. If an action returns failure or a timeout occurs, engine aborts the sequence by not calling rest of the actions in the sequence, unless marked as mandatory. On success, every action in the sequence is invoked in order until end. Each action's result is published irrespective of success/failure. Each action when invoked, is provided with data/response returned by all preceding actions in the sequence, This gives dynamic context of the sequence to the just invoked action. As data from each action is per its schema, the action receiving the  data knows the entire data type. An action that needs data from another sets a binding via schema. 
 
-At the end of a sequence, which may be upon calling all actions or upon abort, the original detected anomaly is re-published with the final result of either last action or timeout. At the completion of a sequence, the request action is re-raiused to the first action of the sequence, which is a detection action.
+At the end of a sequence, which may be upon calling all actions or upon abort, the original detected anomaly is re-published with either the the result of last action or timeout. At the completion of a sequence, the request action is re-issued to the first action of the sequence, which is a detection action.
 
-For actions with no mitigation, calling the detectionb action immediately is expected to return back in seconds, that this anomaly is still active, which is indeed true. But netassist/DRI could take time betwen seconds to days to fix. Re-publishing the anomaly is *highly* redundant. At the same time, there is a possibility that our push failed. So in case of active anomaly the configuration sets a minimum interval between two reports.
+LoM ensure periodic re-publish of an active anomaly until fixed, with the configurable period.
 
 For timedout actions, they are kept in cache as active so as to block engine from sending another request. The plugin's i/f is intentionally made to be simple. The agreement with plugin is that, only one active request will be raised anytime per plugin. Hence a timedout action must return before it can be called again. The timedout action's response is still published even though it is stale as corresponding sequence is already aborted. If a sequence demands an action which still has an outstanding request, then the sequence is put in pending state, until either this sequence timesout or the request returns, whichever happens earlier.
 
