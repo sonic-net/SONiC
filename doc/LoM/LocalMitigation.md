@@ -287,10 +287,38 @@ The actions.confd dir will hold all the individual conf files.
 ```
 
 # Safety Traps
-- A detection action has min set frequency to report anomaly. In cases where we don't locally mitigate, the mitigation could take between minutes to hours or even days. Till mitigation is done the anomaly is active. Here we ensure that we do repeatedly raise/publish but at the min frequency set.
-   - Any misbehaving plugin is disabled and error is periodically reported until plugin is re-registered, which is likely with an update
-- Every followup action and the entire action sequence is watched for time taken.
-   - On timeout, the sequence processing is aborted and as well reported/published as mitigation aborted. A periodoc log message is raised for that plugin until response or re-registration. Until the action is considered healthy/active, another request is not sent. 
+- The LoM code runs inside docker and hence restricted to the scope of docker.
+- The docker is configured with limits on resources like CPU & memory. So a miscreant inside docker can't hijack the switch.
+- First release will be done only with detection plugins. They only Get/subscribe to DB and publish their findings. No write is done on DB or host.
+- Limit the max anomaly report frequence per anomaly key, so that LoM will not flood events channel with redundant alerts, yet repeatedly alert at a sane frequencey to ensure to get external service's attention.
+- Any misbehaving plugin is disabled and error is periodically reported until plugin is re-registered. Re-register happens upon either plugin update or service reatart. 
+- Later when mitigation is enabled
+   - Every action is reviewed with SMEs for approval.
+   - Any action can be disabled via config, called Red button.
+   - Red button management will be described in a differetnt HLD.
+   - Red button updates will come with a SLA.
+- Safety checks
+  - Mitigation actions are *always* associated with safety checks
+  - Safety checks may only be local, where it suffice.
+  - Safety checks could reachout as needed.
+- Mitigation sequwence & individual actions are timed.
+   - Every action is called with timeout.
+   - Upon timeout the sequence  is aborted.
+   - The overall sequence execution has its timeout too.
+- Mitigation sequence publishess more frequent heartbeats
+  - The heartbeat would indicate the current active action and it position in the sequence.
+  - The hearbeat will also list completed actions 
+  - The absence of two or more heartbeats could be taken for failure and external service will take over.
+   - All mitigation actions being  idempotent, it would be benign if both LoM and external service act on a single anomaly,
+- Mitigation actions are set with max frequency limit
+  - A mitigation for a key can only happen once within last N seconds.
+  - This avoids a or save from a rogue plugin.
+- Controls are multi-layered.
+  - Actions have their config to ensure sanity in their behavior.
+     - A mis-behaving plugin may ignore/fail to honor config
+  - Plugin Manager watches and disables mis-behaving plugins
+  - Engine adds the final guard on plugins and disable miscreants
+  - Any disable by PluginMgr and/or engine reflects out as periodic syslogs reporting the disable, until re-registration..
 - Honor red button config which can disable one/many/all actions with SLA.
 - Mitigation actions support mimic mode, where we can observe what could have happened w/o making any switch update.
   - A mimiced Link Down will report that it was about to bring link xyz down, but did not as it was in mimic mode.
