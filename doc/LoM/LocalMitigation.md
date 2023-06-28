@@ -435,18 +435,20 @@ LoM reports all events/info.err messages via syslog.
 For persistent errors, it reports periodically, to manage the unreliable syslog transport.
 
 # Actions Update:
-One of the core values of LoM is its flexibility and adaptability to take updates at run time w/o impacting control or data plane. LoM is not built as one monolithic piece but as a collaborative union of plugins bind by config. Each plugin is an **independent** worker item for one specific purpose and this enables an update of a Plugin transparent to rest of the system. The plugins are versioned and use config to update to new version or easy rollback to previous.
+One of the core values of LoM is its management of diverse independent actions yet work in unison with single context during mitigation of detected anomaly. The actions are implemented as plugins to provide the flexibility and adaptability to take updates at run time w/o impacting control or data plane.
+
+LoM is not built as one monolithic piece but as a collaborative union of plugins bind by config. Each plugin is an **independent** worker item for one specific purpose and this enables an update of a Plugin transparent to rest of the system. The plugins are versioned and use config to update to new version or easy rollback to previous.
 
 ## Update requirements
 - To update/fix bugs in a published plugin
 - To add a new plugin
 - To update w/o requiring new SONiC image
-- To update all affected versions in a fleet.
+- To update all affected versions in a fleet in short time.
 - To update w/o impacting control/data plane
 
 ## Update creation
 - Create a script (bash/Python/...) to vet your action logic.
-- Create the plugin for same using LoM Dev environment.]
+- Create the plugin for the same using LoM Dev environment.
 - Create test code for the same and integrate it with automated test suite.
 - Add this plugin to a test switch, update config needed to add new action and test it out as plugin.
 - Run the updated test suite to ensure the updated system is good in its current updated state.
