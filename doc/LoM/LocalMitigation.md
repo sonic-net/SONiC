@@ -87,8 +87,9 @@ The mitigation action for a failing link, is to bring the link down. But this de
 This action can set the admin down for the link. This action is published.
 
 ### Sequence completion:
--   The original detected anomaly is now re-published with final result as success or not. The success implies a successful mitgation of the detected anomaly. A failure implies that the anomaly is not locally mitigated. The failure gives appropriate error code that indicates the reason for failure. 
--   An external service can take up mitigation upon failure is published.</br>
+-   The original detected anomaly is now re-published with final result as success or not.
+     - The success implies a successful mitgation of the detected anomaly.
+     - A failure implies that the anomaly is not locally mitigated. The failure gives appropriate error code that indicates the reason for failure. 
 -   The completon is expected within seconds of detection.
 -   Every action run as part of sequence has a set timeout, and must end by then along with overall timeout for entire sequence to complete.
 -   A failing action will abort the sequence at that point which would skip subsequently ordered actions unless marked as mandatory.
