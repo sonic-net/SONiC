@@ -156,7 +156,7 @@ The plugin manager defines a simple plugin i/f, where the plugin never calls out
 
 On the other hand, the plugins can be compiled into Plugin Manager statically. This can drastically bring down the built binary size, hence container image size. The plugin Manager can also load plugins from standalone binaries. For a quick plugin update, the new binary may be copied to a path accessible by Plugin Manager, update the plugin revision in procs's config. The config manager will send a SIGHUP to pluginMgr which will reload its config and for plugin updates, it will de-register current and load the new.
 
-Based on plugins configureation in procs config, one or more instances of plugin manager could run anytime.
+Based on plugins configuration in procs config, one or more instances of plugin manager could run anytime.
 
 ### Supervisord & rsyslogd
 The supervisord to start & manage all processes and rsyslogd to send logs out to host.
@@ -164,11 +164,12 @@ The supervisord to start & manage all processes and rsyslogd to send logs out to
 ### Plugins
 The plugins are the core workers that runs an action. A plugin == An action. An action is a standalone entity for a *single* purpose, like CRC-detection/link-availability-check/link-down mitigation/... Each plugin is independent and standalone with no dependency or awareness of other workers. The only binding it may have is the i/p data it requires from preceding plugins. This it expresses via schema with leaf-ref to schemas of all possible plugins/actions that could precede. For example, a link safety check references all link detection actions. A plugin is not aware of other plugins and act pretty independently.
 
-A plugin operates under the process space of PluginMgr that has loaded it. There can be multiple plugins loaded by a single Plugin Mgr proc, as per procs' config. When the plugins access a shared resource that does not support concurrent access, appropriate abstraction i/f be provided to manage as multiple clients one one side and this i/f lets only one access the shared resource at any time. A sample could be SONiC redis-DB which does not support concurrent access across threads/go-routines. A redis-access i/f may be provided to manage multiple clients on one side and allow only one of them to reach DB at any time point for Get/Set. 
+A plugin operates under the process space of PluginMgr that has loaded it. There can be multiple plugins loaded by a single Plugin Mgr proc, as per procs' config. When the plugins access a shared resource that does not support concurrent access, appropriate abstraction i/f be provided to manage. This interface accepts multiple clients on one side and let only on reach the resource at any time transparently. A sample could be SONiC redis-DB which does not support concurrent access across threads/go-routines. A redis-access i/f may be provided to manage multiple clients on one side and allow only one of them to reach DB at any time point for Get/Set. 
 
-The plugins are the unit of actions with a simple i/f of 4 APIs only. All 4 APIs are synchronous even in the intances where a request may run for days/weeks/...</br>
+The plugins are the unit of actions with a simple i/f of 4 APIs only. All 4 APIs are synchronous even in the instances where a request may run for days/weeks/...</br>
+
 **init**  - Called with action's config only once at the startup. Here the plugin absorbs its config, do its initialization and as well may kick off some long running concurrent activities as needed. </br>
-**GetId** - Ability to get ID & version of this plugin. The pluginMge uses this to confirm the loaded plugiun is the intended one. </br>
+**GetId** - Ability to get ID & version of this plugin. The pluginMgr uses this to confirm the loaded plugin is the intended one. </br>
 **Request** - Run the action's main job, which may be detection, safety-checks & mitigations. This will be invoked with or w/o timeout. This is raised multiple times as only one call at a time.</br>
 **Shutdown** - Called upon disable of a plugin or system shutdown. This provides a way to close/de-init the plugin.</br>
 
@@ -181,7 +182,7 @@ One may write variations of same plugin meant for different Platforms. The build
 ## LoM Config
 It has 4 sets of config and each is detailed in YANG schema.
 ### Globals.conf
-As name signifies the global runtime settings, like ports the internal service listens to, heartbeat frequency, and more. A static checked in value can be found at `<git repo for fevice-health>/config`. A sample set is below
+As name signifies the global runtime settings, are system level settings like heartbeat interval. A sample set is below.
 ```
 {
     "MAX_SEQ_TIMEOUT_SECS": 120,</br>
