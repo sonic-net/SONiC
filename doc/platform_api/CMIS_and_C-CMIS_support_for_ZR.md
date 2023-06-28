@@ -1799,8 +1799,8 @@ For the long term link health monitoring, device telemetry data can be analyzed 
 
 The number of PM window for each granularity is defined as follow.
 
- - 15 ‘PM windows’ of 60sec  (at any given time user can view 15mins of statistics history once accumulated with 1 min granularity)
- - 12 ‘PM windows’ of 15min  (at any given time user can view 3Hr of statistics history once accumulated with 15min granularity) and
+ - 15 ‘PM windows’ of 60sec  (at any given time user can view 14mins of statistics history once accumulated with 1 min granularity)
+ - 12 ‘PM windows’ of 15min  (at any given time user can view 2.45Hr of statistics history once accumulated with 15min granularity) and
  - 2 ‘PM windows’ of 24hr  (at any given time user can view 24Hr of statistics once accumulated).
 
 So total 29 PM time window slots will be maintained per port/interface when inserted with 400G-ZR module. 
