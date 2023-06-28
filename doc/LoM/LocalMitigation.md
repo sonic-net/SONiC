@@ -194,12 +194,67 @@ As name signifies the global runtime settings, like ports the internal service l
 ````
 
 ### Procs.conf
-The set of plugin manager instances to run with unique runtime ID for each. Associate a set of plugins against runtime-ID to indicate the set of plugins an instance need to load & manage. Each plugin is referred by name, version and optionally path if not statically integrated. When adding/updating a plugin, upon copying the new plugin binary, update this conf with new version to trigger Plugin Manager to load the new/updated binary.
+A plugin Magr proc provides a shared process space and interfaces the plugins to the engine. This configuration provides the grouping of plugins under one or more shared process space. Each space is identified by a unique proc ID. A plugin Mgr proc instance is created per proc-id. The plugin mgr is provided with its proc ID, to enable the instance loads its set of plugins.
+
+Each plugin instance is identified with name, ID & optionally path.. 
+
+The build process builds pluginMgr with all the plugins integrated as one binary. This helps save binary size as all common base elemants used by every Go program gets shared. Hence the initial build time generated static config will have empty string for path. When path is empty, the pluginMgr expects a statically linked copy. In future, when a plugin is updated, it gets copied to a path accessible by pluginMgr and this path is saved in config. Here the Plugin Manager loads from given path.
+
+```
+{
+        "procs": {
+                "proc_0": {
+                        "link_crc": {
+                                "name": "link_crc",
+                                "version": "1.0.0.0",
+                                "path": ""
+                        }
+                }
+        }
+}
+```
+
 
 ### bindings.conf
-An detection action is linked to its mitigation actions with preceding safety checks as ordered set of actions. This is called sequence binding. This binding is provided here with plugin/action names in ordered list. A detection with no mitgation may have no sequence, but just one action with no followups.
+Any action to be executed is required to be part of a sequence, called binding sequence. The first action of a sequence is detection action. Hence the first actions of all sequences are expected to be unique.
 
-Ths first action in a sequence is considered as long running detection action.
+If a sequence has only one action, it implies that this detection action is *not* configured with any mitigation actions. This is also called referred as empty-sequence.
+
+When configured with mitigation action, there will be a minimum of there will be a minimum of 2 more actions in addition to the first, as first is "detection", second is "safety-check" and  third is "mitigation". There can be more. All are listed with sequence & timeout where needed. The info here should be unambiguous to help execute the actions in order.
+
+```
+{
+    "bindings": [
+        {
+            "SequenceName": "link_crc_bind-0",
+            "Priority": 0,
+            "Timeout": 2,
+            "Actions": [
+                {
+                    "name": "link_crc"
+                },
+                {
+                    "name": "link_down_check",
+                    "timeout": 5,
+                    "sequence": 1
+                },
+                {
+                    "name": "link_down",
+                    "timeout": 5,
+                    "sequence": 2
+                },
+                {   
+                    "name": "cleanup",
+                    "timeout": 5,
+                    "sequence": 3,
+                    "mandatory": true
+                }
+            ]
+        }
+    ]
+}
+```
+
 
 ### Actions.conf
 All actions have some shared config like disable, mimic, heartbeat frequency, .... Each action could have action specific configurable attributes. An example could be window size & thresholds for detections with rolling window, a minimum % of availability to succeed for a safety check and more. The shared configurable knobs are listed in base YANG schema shared by all actions' schema. Each action schema provides its proprietary configurable attributes. 
