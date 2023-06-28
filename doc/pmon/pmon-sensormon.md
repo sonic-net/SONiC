@@ -35,7 +35,7 @@ Altitude Sensor - Sensor device which can report the altitude of the system.
 
 Modern hardware systems have many different types of sensors and control devices. Voltage sensor devices can measure and in some cases control the voltages on the boards. Current sensor devices can measure current. It is also possible to have other types of sensors such as Altitude Sensors etc. These devices can report measurements from different parts of the system which are useful for monitoring system health. For example, voltage controller devices distribute power across different parts of the system such as  motherboard, daughterboards etc. and can report voltage measurements from there. Often these devices can report under-voltage/over-voltage faults which should be monitored to alert the operator about any power related failures in the system. This document provides an overview for monitoring voltage and current sensors in SONiC. The solution proposed in this document can be enhanced for other types of sensors as well.
 
-Note that temperature sensor devices are managed via SONiC ThermalCtlD daemon today. At this pointIt is possible to move the temperature sensors monitoring to the proposed model here while keeping the Fan control algorithm in ThermalCtlD. However that is not discussed in this document and might be taken up in future work.
+Note that temperature sensor devices are managed via SONiC ThermalCtlD daemon today. At this point there is no change proposed for ThermalCtlD. This proposed design can be used for voltage, current and other types of sensors.
 
 
 ### Requirements
@@ -58,7 +58,7 @@ The proposal for monitoring sensor devices is to create a new SensorMon daemon. 
 
 If the sensor device readings cross the minor/major/critical thresholds, syslogs will be generated to indicate to the operator about the alarm condition. If the sensor reports normal data in a subsequent poll, another syslog will be generated to indicate that the fault condition is cleared.
 
-CLIs are provided to display the sensor devices, their current measurements, threshold values and if they are reporting an alarm.
+CLIs are provided to display the sensor devices, their measurements, threshold values and if they are reporting an alarm.
 
 Platform APIs will provide 
 
@@ -69,7 +69,7 @@ The following SONiC repositories will have changes
 
 #### sonic-platform-daemons	
 
-SensorMon will retrieve a list of sensors of different sensor types from the platform during initialization. Subsequently it will poll the sensor readings on a periodic basis and update the data in StateDb.
+SensorMon will be a new daemon that will run in PMON container. It will retrieve a list of sensors of different sensor types from the platform during initialization. Subsequently, it will poll the sensor devices on a periodic basis and update their measurments in StateDb. SemsorMon will also raise syslogs on alarm conditions. 
 
 	
 #### sonic-platform-common
