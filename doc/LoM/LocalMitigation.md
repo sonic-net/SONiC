@@ -168,6 +168,7 @@ The plugins are the core workers that runs an action. A plugin == An action. An 
 A plugin operates under the process space of PluginMgr that has loaded it. There can be multiple plugins loaded by a single Plugin Mgr proc, as per procs' config. When the plugins access a shared resource that does not support concurrent access, appropriate abstraction i/f be provided to manage. This interface accepts multiple clients on one side and let only on reach the resource at any time transparently. A sample could be SONiC redis-DB which does not support concurrent access across threads/go-routines. A redis-access i/f may be provided to manage multiple clients on one side and allow only one of them to reach DB at any time point for Get/Set. 
 
 The plugins are the unit of actions with a simple i/f of 4 APIs only. All 4 APIs are synchronous even in the instances where a request may run for days/weeks/...</br>
+This enables plugin writing to be easy and the dev may focus only on algorithm and LoM transparently handles the rest.
 
 **init**  - Called with action's config only once at the startup. Here the plugin absorbs its config, do its initialization and as well may kick off some long running concurrent activities as needed. </br>
 **GetId** - Ability to get ID & version of this plugin. The pluginMgr uses this to confirm the loaded plugin is the intended one. </br>
