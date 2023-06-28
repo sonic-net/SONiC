@@ -1644,13 +1644,22 @@ The statistics then can be displayed for a specific time window using a CLI. All
 
 #### 7.2 Transceiver PM Window statistics parameters
 Please refer to the [2.1.5 Transceiver PM Table]https://github.com/sonic-net/SONiC/blob/c91b25ed8c79cb6e415e6c999affc309e35200f2/doc/platform_api/CMIS_and_C-CMIS_support_for_ZR.md#215-transceiver-pm-table) for the parameters that will be monitored with this CLI.
-
+```
         ; Defines Transceiver PM Window statistics table information for a port
         key                          = TRANSCEIVER_PM_WINDOW_STATS|ifname            ; information of PM on port
-        ; field                      = value 
-        pm_win_num                   = INTEGER                          ; PM window number
-        pm_stat_start_time           = 1*255VCHAR                       ; PM statistics start time for the window.
-        pm_win_period                = 1*255VCHAR                       ; PM window time period
+        ; field                      = value
+	window1                   = 1*255VCHAR                       ; PM window number with PM window start time, end time, current and PM_TABLE fields.
+        window2                   = 1*255VCHAR                       ; PM window number with PM window start time, end time, current and PM_TABLE fields.
+        .
+	.
+        .
+	window29                   = 1*255VCHAR                      ; PM window number with PM window start time, end time, current and PM_TABLE fields.
+        
+Each window field in TRANSCEIVER_PM_WINDOW_STATS will have following fields and respective value as string.
+
+	pm_stat_start_time           = 1*255VCHAR                       ; PM statistics start time for the window.
+	pm_stat_end_time             = 1*255VCHAR                       ; PM statistics end time for the window. 
+        pm_win_current               = 1*255VCHAR                       ; PM statistics collection is Progressing on this window.
         prefec_ber_avg               = FLOAT                            ; prefec ber avg
         prefec_ber_min               = FLOAT                            ; prefec ber min
         prefec_ber_max               = FLOAT                            ; prefec ber max
@@ -1687,7 +1696,7 @@ Please refer to the [2.1.5 Transceiver PM Table]https://github.com/sonic-net/SON
         rx_sig_power_avg             = FLOAT                            ; rx signal power avg
         rx_sig_power_min             = FLOAT                            ; rx signal power min
         rx_sig_power_max             = FLOAT                            ; rx signal power max 
-
+```
   
  
 #### 7.3 CLI Sub-options and Syntax 
@@ -1757,24 +1766,32 @@ Before this configuration get implemented, PM will be enabled by default on all 
 
 ##### 7.5.2 PM Interval and predefined time window:
 
-- ##### PM interval time/statistic collection interval:
-Duration between two ‘VDM freeze’ requests issued by host, which the host collects the cumulative statistics for all PM parameter after the 2nd freeze request. It is a host-controlled monitoring interval. During this time, the module that supports statistics takes short term measurements which are also called samples over a module vendor specific fine measurement time interval (eg : 1ms) and then updates internal statistics variables(min, max, avg), thus providing cumulative statistics until the host issues the 2nd freeze request. 
+- ##### PM interval /statistic collection interval:
+Duration between two ‘VDM freeze’ requests issued by host, which the host collects the cumulative statistics for all PM parameter after the 2nd freeze request. 
+It is a host-controlled monitoring interval. During this time, the module that supports statistics takes short term measurements which are also called samples over a module vendor specific fine measurement time interval (eg : 1ms) and then updates internal statistics variables(min, max, avg), thus providing cumulative statistics until the host issues the 2nd freeze request. 
 
-This feature allows a platform(Pizza-box or distributed system-linecard with CPU ) to choose from following interval period for PM interval. 
-    - 30sec
-    - 60sec and 
-    - 120sec
-It is recommended to choose 30sec, platforms that have high CPU load can choose 120sec as PM interval. By default 60sec is the PM interval if no input provided by platform, please refer '7.5.4' for platform input.
+This feature allows a platform(Pizza-box or distributed system-linecard with CPU ) to choose from following period for PM interval. 
+- 30sec
+- 60sec and
+- 120sec
+  
+It is recommended to choose 30sec, platforms that have high CPU load can choose 120sec as PM interval. By default 60sec is the PM interval when no input provided by platform, please refer '7.5.4' for platform input.
 
-- ##### Pre-defined PM time window:
-The cumulative PM statistics over an interval of time is called a PM time window. The PM statistics will be reset after updating a time window and the statistics will be computed from samples collected from the start time of next ‘PM time window’. The cumulative statistics of a specific time window allow the user to estimate the quality of the link over a specific time slot. 
-The period of a time window and number of windows are not specified in any standard. In this feature three-time window intervals are defined with a granularity of 60seconds, 15mins and 24hour. The 60sec time window is based on the PM interval time and the 15mins and 24hour are defined for the ease of debuggability in realtime. For example, to understand/debug the link stability while bringing up an 400G-ZR interface connection on a topology, a 60sec statistics/current sample will be useful and four 15mins window statistics monitoring will be useful to understand the link stability from initial connection.  
+- ##### PM time window or PM window:
+The cumulative PM statistics over an interval of time is called a PM time window AKA PM window. 
+Each PM window PM Statistics are computed from samples reseted from the start time of that PM window. The cumulative statistics of a specific PM window allow the user to estimate the quality of the link over a specific time period. 
+
+The period of a PM time window and number of windows are not specified in any standard. In this feature three-PM time window intervals are defined with a granularity of 60seconds, 15mins and 24hour. 
+
+The 60sec time window is based on the PM interval time and the 15mins and 24hour are defined for the ease of debuggability in realtime. 
+For example, to understand/debug the link stability while bringing up an 400G-ZR interface connection on a topology, a 60sec statistics/current sample will be useful and four 15mins window statistics monitoring will be useful to understand the link stability from initial connection.  
 For the long term link health monitoring, device telemetry data can be analyzed to estimate the link health but it is out of scope of this HLD/feature.
 
-The number of time window for each granularity is as follow.
--15 ‘time windows’ of 60sec  (at any given time user can view 15mins of statistics with 1 min granularity)
--12 ‘time windows’ of 15min  (at any given time user can view 3Hr of history with 15min granularity) and
--2 ‘time windows’ of 24hr  (at any given time user can view 24Hr of statistics).
+The number of PM window for each granularity is defined as follow.
+
+ - 15 ‘PM windows’ of 60sec  (at any given time user can view 15mins of statistics history once accumulated with 1 min granularity)
+ - 12 ‘PM windows’ of 15min  (at any given time user can view 3Hr of statistics history once accumulated with 15min granularity) and
+ - 2 ‘PM windows’ of 24hr  (at any given time user can view 24Hr of statistics once accumulated).
 
 So total 29 PM time window slots will be maintained per port/interface when inserted with 400G-ZR module. 
 
