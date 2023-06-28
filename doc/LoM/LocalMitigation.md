@@ -196,11 +196,11 @@ As name signifies the global runtime settings, are system level settings like he
 ````
 
 ### Procs.conf
-A plugin Magr proc provides a shared process space and interfaces the plugins to the engine. This configuration provides the grouping of plugins under one or more shared process space. Each space is identified by a unique proc ID. A plugin Mgr proc instance is created per proc-id. The plugin mgr is provided with its proc ID, to enable the instance loads its set of plugins.
+A plugin Mgr proc provides a shared process space and interfaces the plugins to the engine. This configuration provides the grouping of plugins under one or more shared process space. Each space is identified by a unique proc ID. A plugin Mgr proc instance is created per proc-id. The plugin mgr is provided with its proc ID, to enable the instance loads its set of plugins.
 
 Each plugin instance is identified with name, ID & optionally path.. 
 
-The build process builds pluginMgr with all the plugins integrated as one binary. This helps save binary size as all common base elemants used by every Go program gets shared. Hence the initial build time generated static config will have empty string for path. When path is empty, the pluginMgr expects a statically linked copy. In future, when a plugin is updated, it gets copied to a path accessible by pluginMgr and this path is saved in config. Here the Plugin Manager loads from given path.
+The build process builds pluginMgr with all the plugins integrated as one binary. This helps save binary size as all common base elemants used by every Go program gets shared. Hence the initial build generated config will have empty string for path. When path is empty, the pluginMgr expects a statically linked copy. In future, when a plugin is updated, it gets copied to a path accessible by pluginMgr and this path is saved in config. Here the Plugin Manager loads from given path.
 
 ```
 {
@@ -222,7 +222,7 @@ Any action to be executed is required to be part of a sequence, called binding s
 
 If a sequence has only one action, it implies that this detection action is *not* configured with any mitigation actions. This is also called referred as empty-sequence.
 
-When configured with mitigation action, there will be a minimum of there will be a minimum of 2 more actions in addition to the first, as first is "detection", second is "safety-check" and  third is "mitigation". There can be more. All are listed with sequence & timeout where needed. The info here should be unambiguous to help execute the actions in order.
+When configured with mitigation action, there will be a minimum of 2 more actions in addition to the first, as first is "detection", second is "safety-check" and  third is "mitigation". There can be more. All are listed with sequence & timeout where needed. The info here should be unambiguous to help execute the actions in order.
 
 A missing sequence defaults to 0. A missing timeout defaults to timeout from this action's config. A missing "mandatory" flag defaults to false. Note: Sequence across all actions have to be numerically unique and positive. The validation will help with these constraints.
 
@@ -262,7 +262,7 @@ A missing sequence defaults to 0. A missing timeout defaults to timeout from thi
 ### Actions.conf
 All actions have some shared config like disable, mimic, heartbeat frequency, .... Each action could have action specific configurable attributes. An example could be window size & thresholds for detections with rolling window, a minimum % of availability to succeed for a safety check and more. The shared configurable knobs are listed in base YANG schema shared by all actions' schema. Each action schema provides its proprietary configurable attributes. 
 
-The actions config file is generated from YANG schema for all attributes that has "configure=true" with schema specified defaults, if not pre-provided.
+The actions config file is generated from YANG schema for all attributes that has "configure=true" with schema specified defaults.
 The actions.confd dir will hold all the individual conf files.
 
 ```
