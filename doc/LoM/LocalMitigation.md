@@ -337,7 +337,7 @@ LoM is a systemd maintained containerized service. Like Telemetry, this service 
 ## CONFIG
 LoM service comes with static config created during build time off of schema. The LoM publishes the running config into STATE-DB. The CONFIG-DB updates are needed only when tweaks are needed over static config. 
 The CLI will be dynamically driven via YANG schema. It browses YANG files for modules/objects and within each, it refers schema for configrable attributes, type & defaults. In other words add/remove a YANG file add/remove a LoM key. Add / remove a configurable attribute will transparently reflect in CLI tabbing.
-In short LoM config comands will be indirectly driven by sceham
+In short LoM config comands will be indirectly driven by schema.
 
 ### CONFIG-DB:
 - The CLI can be used to add/updarte  any attributes.
@@ -431,7 +431,8 @@ Reports current running config of LoM, LoM maintained counters and last set of N
 
 #### syslog
 All published events are also logged by default by SONiC event module.
-LoM reports all events via syslog.
+LoM reports all events/info.err messages via syslog.
+For persistent errors, it reports periodically, to manage the unreliable syslog transport.
 
 # Actions Update:
 One of the core values of LoM is its flexibility and adaptability to take updates at run time w/o impacting control or data plane. LoM is not built as one monolithic piece but as a collaborative union of plugins bind by config. Each plugin is an **independent** worker item for one specific purpose and this enables an update of a Plugin transparent to rest of the system. The plugins are versioned and use config to update to new version or easy rollback to previous.
