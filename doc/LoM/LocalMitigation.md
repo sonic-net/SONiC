@@ -1,6 +1,13 @@
 SONiC Local Mitigations (LoM) Service
 =====================================
 
+# Purpose
+1. To bring device-health monitoring's TTD & TTM drastically down from minutes to seconds
+2. To enhance device health monitoring & mitigation via
+   - Increasing its reliability & efficiency
+   - Extend its device data accessibility to more than what is exported.
+3. To enhance its capability via a local agent running inside the device under monitoring.
+   
 # Goals
 1. Run a containerized service inside the switch that monitors switch constantly, reports any anomalies and mitigate as needed.
 2. Provide a system based off of multiple independent worker units called **actions**.
