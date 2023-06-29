@@ -1,7 +1,7 @@
 SONiC Local Mitigations (LoM) Service
 =====================================
 
-# Purpose
+# Objective
 1. To bring device-health monitoring's TTD & TTM drastically down from minutes to seconds
 2. To enhance device health monitoring & mitigation via
    - Increasing its reliability & efficiency
