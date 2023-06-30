@@ -8,7 +8,7 @@ SONiC Local Mitigations (LoM) Service
    - Extend its device data accessibility to more than what is exported.
    
 # Goals
-1. Run a containerized service inside the switch that monitors switch constantly, reports any anomalies and mitigate as needed.
+1. Run a containerized service inside the switch that monitors the switch constantly, reports any anomalies and mitigate as needed.
 2. Provide a system based off of multiple independent worker units called **actions**.
 3. Provide a way to add/update an action that does one of the following.
    - Run a anomaly detection.
@@ -373,7 +373,7 @@ The STATE-DB carries 3 categories of data
 
 #### LoM|Config|Procs|< Proc ID >:
 ```
-[
+"actions": [
    '{ "action-name":  "<..>", "plugin-version": "<...>", "plugin-filename": <...?> }',
    '{ "action-name":  "<..>", "plugin-version": "<...>", "plugin-filename": <...?> }',
    ...
