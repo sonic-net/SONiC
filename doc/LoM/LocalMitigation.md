@@ -347,19 +347,20 @@ LoM is a systemd maintained containerized service. Like Telemetry, this service 
 
 ## CONFIG
 LoM service comes with static config created during build time off of schema. The LoM publishes the running config into STATE-DB. The CONFIG-DB updates are needed only when tweaks are needed over static config. 
-The CLI will be dynamically driven via YANG schema. It browses YANG files for modules/objects and within each, it refers schema for configrable attributes, type & defaults. In other words add/remove a YANG file add/remove a LoM key. Add / remove a configurable attribute will transparently reflect in CLI tabbing.
-In short LoM config comands will be indirectly driven by schema.
+The SONiC-CLI will be enhanced for LoM. This added module will be written as dynamically driven by YANG schema. It would browse YANG files for modules/objects to configure and within each, it refers schema for configurable attributes, their types & defaults. In other words add/remove a YANG file add/remove a LoM key. Add / remove a configurable attribute will transparently reflect in CLI tabbing.
+In short LoM config commands will be indirectly driven by schema.
+The sceham updates are always backward compatible, hence data created by older versions of scehma will remain valid.
 
 ### CONFIG-DB:
-- The CLI can be used to add/updarte  any attributes.
+- The CLI can be used to GET/SET any attributes.
 - The updates are only a diff to in-built static config
 - To see the full config call "show LoM config" which will show the current running config
 
 ### STATE-DB :
 The STATE-DB carries 3 categories of data
-- Config -- The current running config == Config-DB + static built-in config
+- Config -- The current running config == static built-in config + Config-DB
 - Counters -- The stat counters
-- Live-Cache -- The last N actions' o/p
+- Live-Cache -- The last N actions' & heartbeats published.
 
 **Table**: LoM|Config<br>
 **Keys**: "Global", "Procs", "binding", "actions" & "Red-button"
@@ -465,12 +466,11 @@ LoM is not built as one monolithic piece but as a collaborative union of plugins
 - Run the updated test suite to ensure the updated system is good in its current updated state.
    - Nightly tests run the updated test suite
 - An update to existing plugin may follow subset of above steps based on extent of change.
-- Create an self installable archive that has this plugin and configlet to apply with validation logic of target.
+- Create an self installable archive that has this plugin and configlet to apply with metadata to filter out target devices.
   - Running this archive as script copies the plugin to destination and updates the config with built-in configlet.
   - The archive may have metadata for target matching, like "OSVersion <= .... && PLATFORM == .... If present install proceeds on match only.
 - Save this archive in a local repo.
-  - Services that run update download this onto switch and run it.
-
+ 
 ## Update vetting
 - Identify the target OS versions & Platform for this update.
 - Auto create test pipelines for all target scenarios.
@@ -490,7 +490,7 @@ LoM is not built as one monolithic piece but as a collaborative union of plugins
 - The switch has current running versions in STATE-DB.
 - FUSE is used for Action(s)/Plugin(s) update.
   - It updates plugin files & CONFIG-DB.
-  - LoM takes in the update, load new plugins and reflect the new values in STATE-DB.
+  - LoM takes in the update transparently by watching CONFIG-DB, load new plugins and reflect the new values in STATE-DB.
   - On any failure, it sets version to an reserved error string and provide detailed error message in logs repeatedly until fixed.
   - FUSE watch for STATE-DB change with timeout to validate the success of the update.
 
@@ -504,7 +504,7 @@ LoM is not built as one monolithic piece but as a collaborative union of plugins
 # Other teams Ask/Support
 
 ## SONiC - Core team
-1. To review & approve LoM HLD
+1. Help review LoM HLD
 2. Help with review of all SONiC image changes
 3. Help with review SONiC nightly tests
 4. Help with Pipeline updae with action-update added and auto-pipeline creation for all target scenarios.
@@ -520,135 +520,6 @@ LoM is not built as one monolithic piece but as a collaborative union of plugins
 1. Add a new schema for LoM objects
 2. The rest should be transparent as all validations are run inside SONiC
 
-### LoM Global config
-This can be a set of Key-val pairs as map<string, string>. This helps LoM add new vars or retire old ones w/o updating NDM schema.
-`map<string, string`
-
-#### Sample
-```
-"ENGINE_HB_INTERVAL_SECS" : "5",
-"MAX_SEQ_TIMEOUT_SECS": "10",
-"MIN_PERIODIC_LOG_PERIOD_SECS": 30
-```
-
-### LoM Procs Config
-This associates a Proc instance with a set of plugins to manage.
-```
-[
-   "<proc-id-0>": [
-      {
-         "action-name": "<name>",
-         "plugin-version": "<version string>",
-         "plugin-filename": "<Name of the file>"
-      },
-      ...
-  ],
-  "<proc-id-1>": [ ... ]
-  ...
-]
-```
-#### Sample:
-```
-[
-   "proc-link-detect": [
-      { "action-name": "CRC-Detection", "plugin-version": "1.1.0", "plugin-filename": "crc-detect.0.1.9"},  
-      { "action-name": "link-flap", "plugin-version": "1.1.5", "plugin-filename": "linkFlap.xyz"}
-   ],
-   "proc-link-mitigate": [
-      { "plugin-name": "link-safety-check", "plugin-version": "1.2.3", "plugin-filename": "link_safety_ch.8"},  
-      { "plugin-name": "link-down", "plugin-version": "1.0.3", "plugin-filename": "link_down_9"}
-   ]
-]
-```
-
-### LoM Actions Config
-This configures individual actions. There are common set of attributes shared bu all and each action will have proprietary/custom attributes that can widely vary across actions. The schema of an action will list all its proprietary configurable attributes. To better suit this model, this can be defined as generic `map<key, val>` where key can be any string and val is any string too. The list of actions too vary dynamically. Hence the actions are grouped as a list of action objects with each object holding data as `map<key, val>` where both ekey & val are strings
-```
-[
-   "<action name>": { 
-      "<key>": "<val>",
-      "<key>": "<val>",
-      ...
-   },
-   ...
-]
-```
-
-#### Sample
-```
-[
-   "crc-detect": {
-      "disable": "false",
-      "window-size": "100",
-      "min-threshold": "1000",
-   }, 
-   "link-flap": {
-      "disable": "false",
-      "flap-cnt": "5",
-      "flap-duration": "10"
-   },
-   "safety-check": {
-      "disable": "true",
-      "min-availability": "75",
-      ...
-   },
-   ...
-]
-```
-      
-### LoM Bindings config
-This helps bind a set of actions to run sequentially. First action in a sequence is *always* detection. This action will complete only upon detection of an anomaly. When detected, we need to run a sequence of actions like safety checks and mitigation. This binding associates the required safety checks, miitgation actions and possible cleanup as ordered set of actions via this config. A detection action may not have any action to follow up, if mitigation is not available or not added intentionally. LoM identifies an action to be detection action, if it is available in this config and as first/only action of a sequence.
-
-As actions are dynamic and the sequences too, the config is created as list of entities with key and its value is list of actions as strings. Key is the name of this sequence.
-```
-[
-   "<sequence name>": [
-      {
-         "action-name": "<Name of the action>",
-         "sequence-index": "<Index in this sequence - executed as ordered by sequence>"
-      },
-      { ... }
-      ...
-   ],
-   ...
-]
-```
-
-#### Sample:
-```
-[
-   "CRC-Sequence": [
-      {
-         "action-name": "CRC-detect",
-         "sequence-index": "0"
-      },
-      {
-         "action-name": "Link-down",
-         "sequence-index": "2"
-      },
-      {
-         "action-name": "Link-Availability-check",
-         "sequence-index": "1"
-      }
-   ]
-   "Link-flap": [
-      {
-         "action-name": "link-flap-detector",
-         "sequence-index": "0"
-      },
-      {
-         "action-name": "Link-down",
-         "sequence-index": "2"
-      },
-      {
-         "action-name": "Link-Availability-check",
-         "sequence-index": "1"
-      }
-   ]
-]
-```
-         
-      
 ## GWS
 ### Red Button:
 1. Watch for Red Button changes in NDM config.
