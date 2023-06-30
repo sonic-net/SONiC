@@ -86,14 +86,20 @@ This feature would be enabled per platform basis. If platform wants to use this 
 ## 3 Architecture Design
 The SI media setting file optics_si_setting.json needs to be defined by each platform_vendor that will need SI settings. All SKUs of the platform will share the same optics_si_setting.json file. If no file is found, then this mechanism will be ignored.
 
-This file will have TX, RX setting blocks, and each block will have two subblocks: the first is global level setting and the next is port level setting. These subblocks will eventually contain per-lane SI parameter setting values based on the type of vendor and speed that are expected to be programmed. The SI settings will not depend on cable length.
+This file will have two blocks: the first is global level setting and the next is port level setting. These blocks will contain subblocks of range or indiviual ports. Inside this port block, there will be subblocks for different lane speeds which will eventuall have per-lane SI parameter setting values based on the type of vendor that are expected to be programmed. The SI settings will not depend on cable length.
 
 ### 3.1 TX_SETTING:   
-This section will provide details on whether the TX EQ (TX input equalizer control) setting is FIXED or ADAPTIVE. Only adaptive EQ should be used for TX input, and it's enabled as the default setting in module. Fixed EQ is not recommended for TX direction and will not work until the SI/Hardware team explicitly recommends it.
+TX EQ (TX input equalizer control) setting can be FIXED or ADAPTIVE. Only adaptive EQ should be used for TX input, and it's enabled as the default setting in module. Fixed EQ is not recommended for TX direction and will not work until the SI/Hardware team explicitly recommends it.
 
-If the EQ_FIXED flag is false or not present, then the SI param generation flow will come out of TX_SETTING and continue with the RX_SETTING block. But if the EQ_FIXED flag is true for TX_SETTING, then we need to disable AdaptiveInputEqEnableTx.
+If the TxInputEqFixedManualControlSupported flag is set, then the TX SI params will be applied and we need to disable AdaptiveInputEqEnableTx.
 
-The TX Input EQ register control: Page 10h Byte 153 – 159 
+TX SI Control Advertisement: Page 01h Byte 161 -
+Bit 2 - TxInputEqFixedManualControlSupported
+Bit 3 - TxInputAdaptiveEqSupported 
+
+![image](https://github.com/AnoopKamath/SONiC/assets/115578705/be63096a-ee4e-4749-9698-707f54fe595f)
+
+TX Input EQ register control: Page 10h Byte 153 – 159
 
 | **Byte**       | **Field Name**                            |
 | -------------- | ----------------------------------------- |
@@ -102,7 +108,13 @@ The TX Input EQ register control: Page 10h Byte 153 – 159
 | 156 - 159      | FixedInputEqTargetTx1..8    (lane 1-8)    |
 
 ### 3.2 RX_SETTING:   
-The RX_SETTING block contains the same sections as TX_SETTING, but the EQ_FIXED flag should always be true. The SI settings can be directly written and applied for RX output equalization.
+The RX_SETTING SI settings can be directly written and applied for RX output equalization if RX Output Controls are Supported.
+
+TX SI Control Advertisement: Page 01h Byte 162 -
+Bit 2 - RxOutputAmplitudeControlSupported
+Bit 3-4 - RxOutputEqControlSupported
+
+![image](https://github.com/AnoopKamath/SONiC/assets/115578705/ce986f24-13bb-494f-a2b0-64e6d2f8b76b)
 
 The RX Output EQ register control: Page 10h Byte 162 – 173
 
@@ -111,6 +123,8 @@ The RX Output EQ register control: Page 10h Byte 162 – 173
 | 162 - 165      | OutputEqPreCursorTargetRx1..8 (lane 1-8)  |
 | 166 - 169      | OutputEqPostCursorTargetRx1..8 (lane 1-8) |
 | 170 - 173      | OutputAmplitudeTargetRx1..8    (lane 1-8) |
+
+
 
 ### 3.3 GLOBAL_MEDIA_SETTINGS:  
 This block's first level of identification will be the range of port numbers. The ports can be defined as a range of 0-31 or a list of multiple ports: 1, 2, 3, or a list of ports in the range of 5–10, 25–31, matching the index number in the port_config.ini file. This port range will have a unique defined lane speed, which will have unique vendor and vendor part number entries supporting this speed. Module key will be created based on speed and vendor details.
@@ -133,87 +147,65 @@ Default values can be platform defaults for multiple vendors in each section.
 ### 3.6 Sample Optics SI setting file:
 ```
 {
-        "TX_SETTING": {
-                "EQ_FIXED": "False",
-                "GLOBAL_MEDIA_SETTINGS": {},
-                "PORT_MEDIA_SETTINGS": {}
-        },
-
-        "RX_SETTING": {
-                "EQ_FIXED": "True",
-                "GLOBAL_MEDIA_SETTINGS": {
-                        "0-20,21-24": {
-                                "100G_SPEED": {
-                                        "CREDO-CAC82XYXYXYXYXHW": {
-                                                "OutputEqPreCursorTargetRx": {
-                                                        "OutputEqPreCursorTargetRx1": 5,
-                                                        "OutputEqPreCursorTargetRx2": 5,
-                                                        "OutputEqPreCursorTargetRx3": 5,
-                                                        "OutputEqPreCursorTargetRx4": 5,
-                                                        "OutputEqPreCursorTargetRx5": 5,
-                                                        "OutputEqPreCursorTargetRx6": 5,
-                                                        "OutputEqPreCursorTargetRx7": 5,
-                                                        "OutputEqPreCursorTargetRx8": 5
-                                                }
-                                        },
-                                        "INNOLIGHT-X-XY123-XYZ": {
-                                                "OutputEqPostCursorTargetRx": {
-                                                        "OutputEqPostCursorTargetRx1": 8,
-                                                        "OutputEqPostCursorTargetRx2": 8,
-                                                        "OutputEqPostCursorTargetRx3": 8,
-                                                        "OutputEqPostCursorTargetRx4": 8,
-                                                        "OutputEqPostCursorTargetRx5": 8,
-                                                        "OutputEqPostCursorTargetRx6": 8,
-                                                        "OutputEqPostCursorTargetRx7": 8,
-                                                        "OutputEqPostCursorTargetRx8": 8
-                                                }
-                                        },
-                                        "Default": {
-                                                "OutputEqPreCursorTargetRx": {
-                                                        "OutputEqPreCursorTargetRx1": 9,
-                                                        "OutputEqPreCursorTargetRx2": 9,
-                                                        "OutputEqPreCursorTargetRx3": 9,
-                                                        "OutputEqPreCursorTargetRx4": 9,
-                                                        "OutputEqPreCursorTargetRx5": 9,
-                                                        "OutputEqPreCursorTargetRx6": 9,
-                                                        "OutputEqPreCursorTargetRx7": 9,
-                                                        "OutputEqPreCursorTargetRx8": 9
-                                                }
-
+        "GLOBAL_MEDIA_SETTINGS": {
+                "0-17,19-24": {
+                        "100G_SPEED": {
+                                "CREDO-CAC82X321MXYXYHW": {
+                                        "OutputEqPreCursorTargetRx": {
+                                                "OutputEqPreCursorTargetRx1": 5,
+                                                "OutputEqPreCursorTargetRx2": 5,
+                                                "OutputEqPreCursorTargetRx3": 5,
+                                                "OutputEqPreCursorTargetRx4": 5,
+                                                "OutputEqPreCursorTargetRx5": 5,
+                                                "OutputEqPreCursorTargetRx6": 5,
+                                                "OutputEqPreCursorTargetRx7": 5,
+                                                "OutputEqPreCursorTargetRx8": 5
                                         }
-                                }
-                        },
-                        "25,28,30": {
-                                "100G_SPEED": {
-                                        "Default": {
-                                                "OutputAmplitudeTargetRx": {
-                                                        "OutputAmplitudeTargetRx1": 7,
-                                                        "OutputAmplitudeTargetRx2": 7,
-                                                        "OutputAmplitudeTargetRx3": 7,
-                                                        "OutputAmplitudeTargetRx4": 7,
-                                                        "OutputAmplitudeTargetRx5": 7,
-                                                        "OutputAmplitudeTargetRx6": 7,
-                                                        "OutputAmplitudeTargetRx7": 7,
-                                                        "OutputAmplitudeTargetRx8": 7
-                                                }
+                                },
+                                "CISCO-INNOLIGHT-T-DXXNT-NCI": {
+                                        "OutputEqPostCursorTargetRx": {
+                                                "OutputEqPostCursorTargetRx1": 8,
+                                                "OutputEqPostCursorTargetRx2": 8,
+                                                "OutputEqPostCursorTargetRx3": 8,
+                                                "OutputEqPostCursorTargetRx4": 8,
+                                                "OutputEqPostCursorTargetRx5": 8,
+                                                "OutputEqPostCursorTargetRx6": 8,
+                                                "OutputEqPostCursorTargetRx7": 8,
+                                                "OutputEqPostCursorTargetRx8": 8
                                         }
                                 }
                         }
                 },
-                "PORT_MEDIA_SETTINGS": {
-                        "31": {
-                                "100G_SPEED": {
-                                        "Default": {
-                                                "OutputEqPostCursorTargetRx": {
-                                                        "OutputEqPostCursorTargetRx1": 5,
-                                                        "OutputEqPostCursorTargetRx2": 5,
-                                                        "OutputEqPostCursorTargetRx3": 5,
-                                                        "OutputEqPostCursorTargetRx4": 5,
-                                                        "OutputEqPostCursorTargetRx5": 5,
-                                                        "OutputEqPostCursorTargetRx6": 5,
-                                                        "OutputEqPostCursorTargetRx7": 5,
-                                                        "OutputEqPostCursorTargetRx8": 5
-                                                }
+                "25,28,30": {
+                        "100G_SPEED": {
+                                "Default": {
+                                        "OutputAmplitudeTargetRx": {
+                                                "OutputAmplitudeTargetRx1": 7,
+                                                "OutputAmplitudeTargetRx2": 7,
+                                                "OutputAmplitudeTargetRx3": 7,
+                                                "OutputAmplitudeTargetRx4": 7,
+                                                "OutputAmplitudeTargetRx5": 7,
+                                                "OutputAmplitudeTargetRx6": 7,
+                                                "OutputAmplitudeTargetRx7": 7,
+                                                "OutputAmplitudeTargetRx8": 7
+                                        }
+                                }
+                        }
+                }
+        },
+        "PORT_MEDIA_SETTINGS": {
+                "18": {
+                        "100G_SPEED": {
+                                "Default": {
+                                        "OutputEqPostCursorTargetRx": {
+                                                "OutputEqPostCursorTargetRx1": 5,
+                                                "OutputEqPostCursorTargetRx2": 5,
+                                                "OutputEqPostCursorTargetRx3": 5,
+                                                "OutputEqPostCursorTargetRx4": 5,
+                                                "OutputEqPostCursorTargetRx5": 5,
+                                                "OutputEqPostCursorTargetRx6": 5,
+                                                "OutputEqPostCursorTargetRx7": 5,
+                                                "OutputEqPostCursorTargetRx8": 5
                                         }
                                 }
                         }
@@ -225,41 +217,45 @@ Default values can be platform defaults for multiple vendors in each section.
 ## 4 High-Level Design
 Please refer below points in line with flow diagram.
 
-1. When CMIS-supported module insertion happens in XCVRD, the module will progress to the AP_CONFIG state (after DP_DEINIT state) in the CMIS state machine. During which, when the module is in DataPathDeactivated or Disabled state, check if the optics_si_setting.json file is parsed successfully and if lane speed needs special Signal Integrity (SI) settings.
+1. When CMIS-supported module insertion happens in XCVRD, the module will progress to the AP_CONFIG state (after DP_DEINIT state applying app code, EC = 0)) in the CMIS state machine. During which, when the module is in DataPathDeactivated or Disabled state, the desired AppSel code is applied. When the Config Success is validated and before DP_INIT state, check if the optics_si_setting.json file is parsed successfully and if lane speed needs special Signal Integrity (SI) settings. The lane speed is generated based on the module speed and the host lane count.
 
 2. If both of the above conditions are met, then proceed to generate the key (module key) and retrieve the SI attribute list.  
-  2.1. The JSON file has two directions (TX_SETTING and RX_SETTING) blocks. Each of these blocks contains sub-blocks of module vendors and other details that will help identify the best match to generate the SI attribute list, if applicable.  
-  2.2.  The EQ_FIXED flag is required to validate if the TX input EQ (equalization) setting is adaptive or fixed. TX EQ settings are adaptive by default and should be disabled to apply host-defined SI settings. Currently, fixed EQ settings are not recommended for TX input EQ settings. This kind of validation is not required to apply RX EQ settings. If EQ_FIXED is set to true only, then flow will move ahead with list generation, or else it will return an empty list for the direction (TX/RX) setting (2.10).   
-  2.3. Generate module key based on Data Path(DP) lane speed + module vendor name, + module vendor part number.    
-  2.4. Using this module key (2.3), the search begins for the detected port in the GLOBAL_MEDIA_SETTINGS section of the applicable direction (TX/RX) setting block. If the module key matches any entries or any search that matches for (2.5) to (2.8) sections, then SI attributes from this section are copied to the SI param attribute list (2.9).   
-  2.5. If no match happens in 2.4, reduce the search to module default + speed of the detected port in GLOBAL_MEDIA_SETTINGS  
-  2.6. If no match happens in 2.5, reduce the search to the speed of the detected port in GLOBAL_MEDIA_SETTINGS  
-  2.7. If no match happens in the GLOBAL_MEDIA_SETTINGS block, the search now begins in the PORT_MEDIA_SETTINGS block for the detected port. If no match happens in the PORT_MEDIA_SETTINGS block, the final search for the default block is done.  
-  2.8. If no match happens to the default block, then an empty attribute list (2.10) is returned.
+  2.1. Generate module key based on Data Path(DP) lane speed + module vendor name, + module vendor part number.    
+  2.2. Using this module key (2.1), the search begins for the detected port in the GLOBAL_MEDIA_SETTINGS section. If the module key matches any entries or any search that matches for (2.3) to (2.5) sections, then SI attributes from this section are copied to the SI param attribute list (2.7).   
+  2.3. If no match happens in 2.2, reduce the search to module default + speed of the detected port in GLOBAL_MEDIA_SETTINGS  
+  2.4. If no match happens in 2.3, reduce the search to the speed of the detected port in GLOBAL_MEDIA_SETTINGS  
+  2.5. If no match happens in the GLOBAL_MEDIA_SETTINGS block, the search now begins in the PORT_MEDIA_SETTINGS block for the detected port. If no match happens in the PORT_MEDIA_SETTINGS block, the final search for the default block is done.  
+  2.6. If no match happens to the default block, then an empty attribute list (2.8) is returned.
 
-3. Get the attribute list and validate if the list is not empty, then proceed to process the SI setting param list. If the list is empty, continue with the AP_CONF (applying app code, EC = 0) and DP_INIT state in the CMIS state machine.
+3. Get the attribute list and validate if the list is not empty, then proceed to process the SI setting param list. If the list is empty, continue with the DP_INIT state in the CMIS state machine.
 
-4. Apply the application code to the configuration with Explicit Control (EC) = 0, and commit to the activate state.  
-Reference Register: Upper Page 10h bytes 145 –152 (desired ApSel Code)
-
-5. Read and cache the default or active TX/RX SI settings. We need to cache the default values of the module. It's possible that we may not modify all the parameters. In such cases, we need to apply new SI values along with the default values that were already present. If we only apply the new values in Staged Control Set, the other values will be set to 0 in the Active Control Set. 
+4. After applying the application code to the configuration with Explicit Control (EC) = 0, and committed to the activate state, now read and cache the default or active TX/RX SI settings. We need to cache the default values of the module. It's possible that we may not modify all the parameters. In such cases, we need to apply new SI values along with the default values that were already present. If we only apply the new values in Staged Control Set, the other values will be set to 0 in the Active Control Set.  
+Reference Register: Upper Page 10h bytes 145 –152 (desired ApSel Code)  
 Reference Register: Upper Page 11h bytes 214 to 234
 
-6. Update the new values from the attribute list (3) to the cached SI list (5).
+5. Update the new values from the attribute list (3) to the cached SI list (5).
   
-7. Write new EQ settings to Staged Control Set 0. EQ settings include: new SI attribute list from (6), disabling adaptive TX input EQ settings if applicable. Apply application code to config with EC = 1 and commit to the active set.  
-Reference Register: Upper Page 10h bytes 143 (Applying APSel Config using ApplyDPInit, Copying from Staged Control Set to Active Control Set).
-Reference Register: Upper Page 10h bytes 145 –152 (desired ApSel Code).   
-Reference Register: Upper page 10h byte 153-173 (desired Host defined SI settings for EC=1 mode)
+6. Write new EQ settings to Staged Control Set 0. EQ settings include: new SI attribute list from (5) - Validate this against SI Controls Advertisement, disabling adaptive TX input EQ settings if applicable. Apply application code to config with EC = 1 and commit to the active set.   
+Reference Register: Upper Page 01h bytes 161 - 162 (TX/RX SI Controls Advertisement)  
+Reference Register: Upper Page 10h bytes 143 (Applying APSel Config using ApplyDPInit, Copying from Staged Control Set to Active Control Set)    
+Reference Register: Upper Page 10h bytes 145 – 152 (desired ApSel Code)     
+Reference Register: Upper page 10h byte 153 - 173 (desired Host defined SI settings for EC=1 mode)  
 
-8. Validate the config_status code, if the status is not config success, then force CMIS to reinit and retry. If the configuration fails after 3 retry attempts, print an error message and exit from initializing this port. If config_status is successful, then continue with the DP_INIT state in the CMIS state machine.  
-Reference Register: Upper Page 11h Byte 202-205 (config_status register)
+7. Validate the config_status code, if the status is not config success, then force CMIS to reinit and retry. If the configuration fails after 3 retry attempts, print an error message and exit from initializing this port. If config_status is successful, then continue with the DP_INIT state in the CMIS state machine.  
+Reference Register: Upper Page 11h Byte 202-205 (config_status register)  
 
-![CMIS_HLD2 drawio-2-2-6](https://github.com/AnoopKamath/SONiC/assets/115578705/c3014369-c45c-4601-b365-ec4c288fd4a3)
+CMIS FSM change:
+
+![CMIS_FSM drawio (1)](https://github.com/AnoopKamath/SONiC/assets/115578705/36fc90a7-37f9-4c63-b073-034943daa517)
+
+
 
 SI attribute generation flow:
 
-![Untitled](https://github.com/AnoopKamath/SONiC/assets/115578705/92e0291d-8d76-4d20-a535-95ee30a9265e)
+
+![CMIS_SI drawio](https://github.com/AnoopKamath/SONiC/assets/115578705/eb21718a-be04-441e-8d4c-321592fed9ee)
+
+
 
 ## 5 SAI API
 There are no changes to SAI API
