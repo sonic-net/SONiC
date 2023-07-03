@@ -723,8 +723,37 @@ Eventd reads the file name from this table and merges it with its static_event_m
 
 The following is SONiC yang for events.
 ```
-module: sonic-event
-  +--rw sonic-event
+
+update existing sonic-events-comm.yang
+Add attributes type-id and action.
+
+   grouping sonic-events-cmn {
+
+       ....
+       ....
+
+        leaf type-id {
+            type union {
+                type string;
+                type identityref {
+                   base SONIC_EVENT_TYPE_ID;
+                }
+            }
+            description
+            "The abbreviated name of the alarm";
+        }
+
+        leaf action {
+           type event-action;
+           description
+           "The action to operation on the event";
+        }
+    }
+
+
+
+module: sonic-event-history
+  +--rw sonic-event-history
      +--rw EVENT
      |  +--rw EVENT_LIST* [id]
      |     +--rw id              uint64
@@ -744,7 +773,7 @@ module: sonic-event
            +--rw cleared?   uint64
 
   rpcs:
-    +---x show-events
+    +---x show-event-history
        +---w input
        |  +---w (option)?
        |     +--:(time)
@@ -1076,8 +1105,8 @@ Acnowledged:                   2
 ### 3.3.3 REST API Support
 
 sonic REST links:
-*  /restconf/data/sonic-event:sonic-event/EVENT/EVENT_LIST
-*  /restconf/data/sonic-event:sonic-event/EVENT_STATS/EVENT_STATS_LIST
+*  /restconf/data/sonic-event:sonic-event-history/EVENT/EVENT_LIST
+*  /restconf/data/sonic-event:sonic-event-history/EVENT_STATS/EVENT_STATS_LIST
 *  /restconf/data/sonic-alarm:sonic-alarm/ALARM/ALARM_LIST
 *  /restconf/data/sonic-alarm:sonic-alarm/ALARM_STATS/ALARM_STATS_LIST
 *  /restconf/operations/sonic-evprofile:get-evprofile
@@ -1086,8 +1115,8 @@ sonic REST links:
 *  /restconf/operations/sonic-alarm:unacknowledge-alarms
 
 openconfig REST links:
-*  /restconf/data/openconfig-system:system/openconfig-events:events
-*  /restconf/data/openconfig-system:system/openconfig-events:event-stats
+*  /restconf/data/openconfig-system:system/openconfig-event-history:events
+*  /restconf/data/openconfig-system:system/openconfig-event-history:event-stats
 *  /restconf/data/openconfig-system:system/alarms
 *  /restconf/data/openconfig-system:system/openconfig-alarms-ext:alarm-stats
 
