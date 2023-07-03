@@ -13,7 +13,7 @@
     - Start command probe example:
     - ![](startup_probe.jpg)
 
-# How do we implement the script inside container
+# How do we implement the health-check script inside container
 - Script path and name
     - /usr/bin/readiness_probe.sh
 - Health-Check logic in the script(two steps for now)
