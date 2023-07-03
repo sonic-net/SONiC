@@ -21,7 +21,7 @@
         - Currently, one common check is that if the supervisor start.sh exists, we need to ensure that it exits with code 0.
         - Will not check critical services, because these services should be managed by the exit-listener supervisor service.
     - Call container self-related specific executable script if exists
-        - executable script path and name
+        - Executable script path and name
             - /usr/bin/readiness_probe_hook
         - Feature owner should implement the pythons script if needed
             - One note is that exit code should be 0 if all are good. If not, need to define the exit code clearly so that we can figure out the issue once happens.
