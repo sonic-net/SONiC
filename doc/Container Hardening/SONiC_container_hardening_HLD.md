@@ -103,57 +103,57 @@ Removing the `--privileged` flag is done by editing the docker_image_ctl.j2 file
 
 docker_image_ctl.j2 file
 
-        docker create {{docker_image_run_opt}} \ # *Need to modify this parameter "docker_image_run_opt" to not contain the --privileged flag*
-        {%- if docker_container_name != "database" %}
-                --net=$NET \
-                --uts=host \{# W/A: this should be set per-docker, for those dockers which really need host's UTS namespace #}
-        {%- endif %}
-        {%- if docker_container_name == "database" %}
-                -p 6379:6379 \
-        {%- endif %}
-                -e RUNTIME_OWNER=local \
-        {%- if install_debug_image == "y" %}
-                -v /src:/src:ro -v /debug:/debug:rw \
-        {%- endif %}
-        {%- if '--log-driver=json-file' in docker_image_run_opt or '--log-driver' not in docker_image_run_opt %}
-                --log-opt max-size=2M --log-opt max-file=5 \
-        {%- endif %}
+	docker create {{docker_image_run_opt}} \ # *Need to modify this parameter "docker_image_run_opt" to not contain the --privileged flag*
+	{%- if docker_container_name != "database" %}
+		--net=$NET \
+		--uts=host \{# W/A: this should be set per-docker, for those dockers which really need host's UTS namespace #}
+	{%- endif %}
+	{%- if docker_container_name == "database" %}
+		-p 6379:6379 \
+	{%- endif %}
+		-e RUNTIME_OWNER=local \
+	{%- if install_debug_image == "y" %}
+		-v /src:/src:ro -v /debug:/debug:rw \
+	{%- endif %}
+	{%- if '--log-driver=json-file' in docker_image_run_opt or '--log-driver' not in docker_image_run_opt %}
+		--log-opt max-size=2M --log-opt max-file=5 \
+	{%- endif %}
 
 This will cause the docker file to be altered in the following manner:
 
 **database.sh file**
 
-        docker create --privileged -t -v /etc/sonic:/etc/sonic:ro \ # *Need to remove the --privileged flag*
-                -p 6379:6379 \
-                -e RUNTIME_OWNER=local \
-                --log-opt max-size=2M --log-opt max-file=5 \
-                --tmpfs /tmp \
-                $DB_OPT \
-                $REDIS_MNT \
-                -v /usr/share/sonic/device/$PLATFORM:/usr/share/sonic/platform:ro \
-                --tmpfs /var/tmp \
-                --env "NAMESPACE_ID"="$DEV" \
-                --env "NAMESPACE_PREFIX"="$NAMESPACE_PREFIX" \
-                --env "NAMESPACE_COUNT"=$NUM_ASIC \
-                --name=$DOCKERNAME \
-                docker-database:latest \
-                || {
-                        echo "Failed to docker run" >&1
-                        exit 4
-                }
+	docker create --privileged -t -v /etc/sonic:/etc/sonic:ro \ # *Need to remove the --privileged flag*
+		-p 6379:6379 \
+		-e RUNTIME_OWNER=local \
+		--log-opt max-size=2M --log-opt max-file=5 \
+		--tmpfs /tmp \
+		$DB_OPT \
+		$REDIS_MNT \
+		-v /usr/share/sonic/device/$PLATFORM:/usr/share/sonic/platform:ro \
+		--tmpfs /var/tmp \
+		--env "NAMESPACE_ID"="$DEV" \
+		--env "NAMESPACE_PREFIX"="$NAMESPACE_PREFIX" \
+		--env "NAMESPACE_COUNT"=$NUM_ASIC \
+		--name=$DOCKERNAME \
+		docker-database:latest \
+		|| {
+			echo "Failed to docker run" >&1
+			exit 4
+		}
 
 #### Docker privileges
 Removing the root privileges from the docker container - will remove some Linux capabilities that are inherited from the root level permissions.
 
-Running the capabilities list command on a privileged container, this includes all capabilities captured in both [Table 1: Default Linux capabilities](#table-1-default-linux-capabilities) and [Table 1: Extended Linux capabilities](#table-2-extended-linux-capabilities)
+Running the capabilities list command on a privileged container, this includes all capabilities captured in both [Table 3: Default Linux capabilities](#table-3-default-linux-capabilities) and [Table 4: Extended Linux capabilities](#table-4-extended-linux-capabilities)
 
-        root@str-e1031-acs-1:/# capsh --print
-        Current: = cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_fsetid,cap_kill,cap_setgid,cap_setuid,cap_setpcap,cap_linux_immutable,cap_net_bind_service,cap_net_broadcast,cap_net_admin,cap_net_raw,cap_ipc_lock,cap_ipc_owner,cap_sys_module,cap_sys_rawio,cap_sys_chroot,cap_sys_ptrace,cap_sys_pacct,cap_sys_admin,cap_sys_boot,cap_sys_nice,cap_sys_resource,cap_sys_time,cap_sys_tty_config,cap_mknod,cap_lease,cap_audit_write,cap_audit_control,cap_setfcap,cap_mac_override,cap_mac_admin,cap_syslog,cap_wake_alarm,cap_block_suspend,cap_audit_read+eip
+	root@ce2c36a0b20c:/# capsh --print
+	Current: = cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_fsetid,cap_kill,cap_setgid,cap_setuid,cap_setpcap,cap_linux_immutable,cap_net_bind_service,cap_net_broadcast,cap_net_admin,cap_net_raw,cap_ipc_lock,cap_ipc_owner,cap_sys_module,cap_sys_rawio,cap_sys_chroot,cap_sys_ptrace,cap_sys_pacct,cap_sys_admin,cap_sys_boot,cap_sys_nice,cap_sys_resource,cap_sys_time,cap_sys_tty_config,cap_mknod,cap_lease,cap_audit_write,cap_audit_control,cap_setfcap,cap_mac_override,cap_mac_admin,cap_syslog,cap_wake_alarm,cap_block_suspend,cap_audit_read+eip
 
-Running the capabilities list command on an un-privileged container, this includes all capabilities captured in [Table 1: Default Linux capabilities](#table-1-default-linux-capabilities):
+Running the capabilities list command on an un-privileged container, this includes all capabilities captured in [Table 3: Default Linux capabilities](#table-3-default-linux-capabilities):
 
-        root@ce2c36a0b20c:/# capsh --print
-        Current: cap_chown,cap_dac_override,cap_fowner,cap_fsetid,cap_kill,cap_setgid,cap_setuid,cap_setpcap,cap_net_bind_service,cap_net_raw,cap_sys_chroot,cap_mknod,cap_audit_write,cap_setfcap=eip
+	root@ce2c36a0b20c:/# capsh --print
+	Current: cap_chown,cap_dac_override,cap_fowner,cap_fsetid,cap_kill,cap_setgid,cap_setuid,cap_setpcap,cap_net_bind_service,cap_net_raw,cap_sys_chroot,cap_mknod,cap_audit_write,cap_setfcap=eip
 
 If, for some reason, a docker must retain a specific capablity functionality on top of the container (which is removed after removing the `--privileged` flag), we can do that with the following:
 
@@ -166,46 +166,48 @@ In the docker-database.mk file adjust this line:
 Here we will provide a detailed example of how to switch from the `--net=host` configuration (host network) to the `--net=bridge` configuration paired with port forwarding in a specific container. We are using the database container as an example for this item.
 
 The original docker creation should be like in the example below:
+
 docker with host sharing:
 
-        docker create --privileged -t -v /etc/sonic:/etc/sonic:ro  \
-                        --net=$NET \
-                        -e RUNTIME_OWNER=local \
-                        --uts=host \
-                        --log-opt max-size=2M --log-opt max-file=5 \
-                        --tmpfs /tmp \
-                        $DB_OPT \
-                        $REDIS_MNT \
-                        -v /usr/share/sonic/device/$PLATFORM:/usr/share/sonic/platform:ro \
-                        --tmpfs /var/tmp \
-                        --env "NAMESPACE_ID"="$DEV" \
-                        --env "NAMESPACE_PREFIX"="$NAMESPACE_PREFIX" \
-                        --env "NAMESPACE_COUNT"=$NUM_ASIC \
-                        --name=database_no_net \
-                                --cap-drop=NET_ADMIN \
-                        docker-database:latest
+	docker create --privileged -t -v /etc/sonic:/etc/sonic:ro  \
+					--net=$NET \
+					-e RUNTIME_OWNER=local \
+					--uts=host \
+					--log-opt max-size=2M --log-opt max-file=5 \
+					--tmpfs /tmp \
+					$DB_OPT \
+					$REDIS_MNT \
+					-v /usr/share/sonic/device/$PLATFORM:/usr/share/sonic/platform:ro \
+					--tmpfs /var/tmp \
+					--env "NAMESPACE_ID"="$DEV" \
+					--env "NAMESPACE_PREFIX"="$NAMESPACE_PREFIX" \
+					--env "NAMESPACE_COUNT"=$NUM_ASIC \
+					--name=database_no_net \
+					--cap-drop=NET_ADMIN \
+					docker-database:latest
 
 To disable the sharing of the networking stack between the host and a container we need to remove the flag: `--net=host`. Because we have not specified any `--network` flag, the containers connect to the default bridge network `--net=bridge`.
 To support port forwarding we are required to add the flag:  `-p <port>:<port>`
 
 The "new" docker creation file database.sh can be seen in the code block below:
+
 Docker with port forwarding and default bridge network
 
-        docker create --privileged -t -v /etc/sonic:/etc/sonic:ro  \
-                        **-p 6379:6379** \
-                        -e RUNTIME_OWNER=local \
-                        --uts=host \
-                        --log-opt max-size=2M --log-opt max-file=5 \
-                        --tmpfs /tmp \
-                        $DB_OPT \
-                        $REDIS_MNT \
-                        -v /usr/share/sonic/device/$PLATFORM:/usr/share/sonic/platform:ro \
-                        --tmpfs /var/tmp \
-                        --env "NAMESPACE_ID"="$DEV" \
-                        --env "NAMESPACE_PREFIX"="$NAMESPACE_PREFIX" \
-                        --env "NAMESPACE_COUNT"=$NUM_ASIC \
-                        --name=$DOCKERNAME \
-                        docker-database:latest \
+	docker create --privileged -t -v /etc/sonic:/etc/sonic:ro  \
+					**-p 6379:6379** \
+					-e RUNTIME_OWNER=local \
+					--uts=host \
+					--log-opt max-size=2M --log-opt max-file=5 \
+					--tmpfs /tmp \
+					$DB_OPT \
+					$REDIS_MNT \
+					-v /usr/share/sonic/device/$PLATFORM:/usr/share/sonic/platform:ro \
+					--tmpfs /var/tmp \
+					--env "NAMESPACE_ID"="$DEV" \
+					--env "NAMESPACE_PREFIX"="$NAMESPACE_PREFIX" \
+					--env "NAMESPACE_COUNT"=$NUM_ASIC \
+					--name=$DOCKERNAME \
+					docker-database:latest \
 
 **How we did it?**
 
@@ -213,12 +215,12 @@ To create a docker with the flags above it is required to set the "new" flag in 
 and replace the `–--net=$NET`.
 docker flag generation
 
-        {%- if docker_container_name != "database" %}
-                        --net=$NET \
-        {%- endif %}
-        {%- if docker_container_name == "database" %}
-                        -p 6379:6379 \
-        {%- endif %}
+	{%- if docker_container_name != "database" %}
+					--net=$NET \
+	{%- endif %}
+	{%- if docker_container_name == "database" %}
+					-p 6379:6379 \
+	{%- endif %}
 
 #### How to check?
 
