@@ -7,7 +7,7 @@
 
 # How do we Implement the health-check 
 - Leverage k8s probe tool
-    - K8s has three kinds of probe, liveness, readiness and startup probes which can help us probe state inside container. Configure Liveness, Readiness and Startup Probes | Kubernetes, we can use startup probe for our scenario.
+    - K8s has three kinds of probe, [liveness, readiness and startup probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#define-startup-probes) which can help us probe state inside container. we can use startup probe for our scenario.
     - Startup probe has four probe types, http|TCP|gRPC|command, command type should be good for our scenario.
     - Command type means that we could deploy one script inside container, k8s will call this script and get the exit code when start the container. If the script exit code is zero, k8s thinks it's healthy. If the script exit code is non-zero, k8s think it's not healthy. We can use different non-zero exit codes to recognize what the issue is if probe failed.
     - Start command probe example:
