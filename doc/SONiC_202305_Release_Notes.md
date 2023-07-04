@@ -87,7 +87,7 @@ Please find the list of API's classified along the newly added SAI features. For
 
 # Contributors 
 
-SONiC community would like to thank all the contributors from various companies and the individuals who has contributed for the release. Special thanks to the major contributors - AvizNetworks, Broadcom, Celestica, Cisco, Dell, Edge-core, Google, Innovium, Intel, Marvell, Microsoft, Nvidia, Xflow Research Inc.    
+SONiC community would like to thank all the contributors from various companies and the individuals who has contributed for the release. Special thanks to the major contributors - AvizNetworks, Broadcom, Celestica, Cisco, Dell, Edge-core, Google, Innovium, Intel, Marvell, Microsoft, Nvidia, xFlow Research Inc.    
 
 <br> 
 
