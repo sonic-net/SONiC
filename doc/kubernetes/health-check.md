@@ -7,11 +7,16 @@
 
 # How do we Implement the health-check 
 - Leverage k8s probe tool
-    - K8s has three kinds of probe, [liveness, readiness and startup probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#define-startup-probes) which can help us probe state inside container. we can use startup probe for our scenario.
-    - Startup probe has four probe types, http|TCP|gRPC|command, command type should be good for our scenario.
-    - Command type means that we could deploy one script inside container, k8s will call this script and get the exit code when start the container. If the script exit code is zero, k8s thinks it's healthy. If the script exit code is non-zero, k8s think it's not healthy. We can use different non-zero exit codes to recognize what the issue is if probe failed.
+    - K8s has three kinds of probe, [liveness, readiness and startup probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#define-startup-probes) which can help us probe state inside container. we can use readiness probe for our scenario.
+    - Every probe has four probe types, http|TCP|gRPC|command, command type should be good for our scenario.
+    - Command type means that we could deploy one script inside container, k8s will call this script and record the exit code during the container's whole lifecycle. We can use different non-zero exit codes to recognize what the issue is if probe failed.
     - Start command probe example:
     - ![](startup_probe.jpg)
+- Controller action from k8s side
+    - In its post-check stage, controller will check the readiness probe exit code, if the exit code is zero, controller think it's healthy, post-check will proceed. If the exit code is non-zero, controller think it's not healthy and will re-check again and again util timeout. If timeout happens, controller will do fallback.
+- Why not startup and liveness probe
+    - For startup probe, k8s will help restart container if startup probe failed number meet limit, we don't need k8s do this, we will do fallback to handle this case other than do restart.
+    - For liveness probe, existing code has already implemented the liveness probe function. Supervisor exit-listener service inside container will kill itself container to handle critical service unexpected exit.
 
 # How do we implement the health-check script inside container
 - Script path and name
@@ -25,3 +30,7 @@
             - /usr/bin/readiness_probe_hook
         - Feature owner should implement the pythons script if needed
             - One note is that exit code should be 0 if all are good. If not, need to define the exit code clearly so that we can figure out the issue once happens.
+
+# Why check start service
+- Most sonic container has a start.sh which is for the real service initialization. Check the initialization finished or not.
+- Including call k8s startup script, k8s startup script will participate the upgrade process, proceeding to upgrade container must be after the k8s startup script finished, so need to check start service whether exit as expected.
