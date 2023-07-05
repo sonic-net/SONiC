@@ -1655,11 +1655,11 @@ Please refer to the [2.1.5 Transceiver PM Table]https://github.com/sonic-net/SON
         .
 	window29                   = 1*255VCHAR                      ; PM window number with PM window start time, end time, current and PM_TABLE fields.
         
-Each window field in TRANSCEIVER_PM_WINDOW_STATS will have following fields and respective value as string.
+Each window field(Key) in TRANSCEIVER_PM_WINDOW_STATS have a value string comprises of following fields.
 
-	pm_stat_start_time           = 1*255VCHAR                       ; PM statistics start time for the window.
-	pm_stat_end_time             = 1*255VCHAR                       ; PM statistics end time for the window. 
-        pm_win_current               = 1*255VCHAR                       ; PM statistics collection is Progressing on this window.
+	pm_win_start_time           = 1*255VCHAR                       ; PM statistics start time for the window.
+	pm_win_end_time             = 1*255VCHAR                       ; PM statistics end time for the window. 
+        pm_win_current               = 1*255VCHAR                       ; PM statistics collection is Progressing on this window. (True/False)
         prefec_ber_avg               = FLOAT                            ; prefec ber avg
         prefec_ber_min               = FLOAT                            ; prefec ber min
         prefec_ber_max               = FLOAT                            ; prefec ber max
@@ -1711,8 +1711,7 @@ commands:​
 Current show progressing pm data​
 history show historical pm data​
 
-​
-#show int trans pm current <predefined window period>​
+​#show int trans pm current <time window period>​
 commands:​
 60sec show cumulative pm statistics from the progressing 60sec pm window. ​
 15min show cumulative pm statistics from the progressing 15min pm window.​
@@ -1741,6 +1740,23 @@ Optional subset display:​
 commands:​
 fec shows pm fec data​
 ```
+
+**Current window** :
+
+A PM window is marked as current until the PM data updated for the fixed interval(60sec/15min/24hrs) of time is complete.  When the CLI option 'current' is executed with a fixed interval time, the data will be displayed from the PM window that is being updated at present.
+
+For example: Updating one of the 15min fixed interval PM window.
+Upon every PM interval time (60 sec), the 15min interval PM window data is sampled and updated with collected PM data from module. 
+Let say the PM window number '16' update started at time T, then the PM window '16' is filled with 5 mins of sampled PM data at T+300sec. So another 10 more mins the window number '16' will be sampled with module fetched PM data and updated, during this entire 15mins of update the window is marked with current/called current window.
+
+**History window** :
+
+A PM window gets completed with PM data update for the whole fixed interval (60sec/15min/24Hr) of time is marked/called as history. When the CLI option 'history' is selected with a window number, it display the sampled PM data for the fixed interval duration with the timestamp when it is collected.
+
+For example: Updating one of the 15min fixed interval PM window.
+Upon every PM interval time (60 sec), the 15min interval PM window data is sampled and updated with collected PM data from module. 
+Let say the PM window number '16' update started at time T, then the PM window '16' is filled with 15 mins of sampled PM data at T+900sec. At 'T+900sec'/ next PM interval collection the PM window number '16' is marked as history and PM window number '17' become a current window and will be sampled and updated with PM data collected from the module.
+
 
 #### 7.4 CLI Sample Output format
 ```
@@ -1774,7 +1790,7 @@ Ethernet2:
 1. performance monitor enable - Global CLI to enable PM on all ports. 
 Before this configuration get implemented, PM will be enabled by default on all ports
 
-##### 7.5.2 PM Interval and predefined time window:
+##### 7.5.2 PM Interval and PM time window:
 
 - ##### PM interval /statistic collection interval:
 Duration between two ‘VDM freeze’ requests issued by host, which the host collects the cumulative statistics for all PM parameter after the 2nd freeze request. 
@@ -1787,21 +1803,21 @@ This feature allows a platform(Pizza-box or distributed system-linecard with CPU
   
 It is recommended to choose 30sec, platforms that have high CPU load can choose 120sec as PM interval. By default 60sec is the PM interval when no input provided by platform, please refer '7.5.4' for platform input.
 
-- ##### PM time window or PM window:
-The cumulative PM statistics over an interval of time is called a PM time window AKA PM window. 
-Each PM window PM Statistics are computed from samples reseted from the start time of that PM window. The cumulative statistics of a specific PM window allow the user to estimate the quality of the link over a specific time period. 
+- ##### PM time window or PM window :
+The cumulative PM statistics over an fixed interval of time is called a PM time window AKA PM window. 
+Each PM window PM Statistics are computed from samples reseted from the start time of that PM window. The cumulative statistics of a specific fixed PM window allow the user to estimate the quality of the link over a specific time period. 
 
-The period of a PM time window and number of windows are not specified in any standard. In this feature three-PM time window intervals are defined with a granularity of 60seconds, 15mins and 24hour. 
+The 'fixed interval' of a PM time window and number of windows are not specified in any standard. In this feature three different fixed interval of PM windows are defined with interval time/granularity of 60seconds, 15mins and 24hour. 
 
-The 60sec time window is based on the PM interval time and the 15mins and 24hour are defined for the ease of debuggability in realtime. 
+The 60sec fixed interval time window is based on the PM interval time and the 15mins and 24hour are defined for the ease of debuggability in realtime. 
 For example, to understand/debug the link stability while bringing up an 400G-ZR interface connection on a topology, a 60sec statistics/current sample will be useful and four 15mins window statistics monitoring will be useful to understand the link stability from initial connection.  
 For the long term link health monitoring, device telemetry data can be analyzed to estimate the link health but it is out of scope of this HLD/feature.
 
-The number of PM window for each granularity is defined as follow.
+The number of PM windows for each granularity/ fixed time interval is defined as follow.
 
- - 15 ‘PM windows’ of 60sec  (at any given time user can view 14mins of statistics history once accumulated with 1 min granularity)
- - 12 ‘PM windows’ of 15min  (at any given time user can view 2.45Hr of statistics history once accumulated with 15min granularity) and
- - 2 ‘PM windows’ of 24hr  (at any given time user can view 24Hr of statistics once accumulated).
+ - 15 ‘PM windows’ of 60sec fixed time interval  (at any given time user can view 14mins of statistics history once accumulated with 1 min granularity)
+ - 12 ‘PM windows’ of 15min fixed time interval (at any given time user can view 2.45Hr of statistics history once accumulated with 15min granularity) and
+ - 2 ‘PM windows’ of 24hr fixed time interval (at any given time user can view 24Hr of statistics once accumulated).
 
 So total 29 PM time window slots will be maintained per port/interface when inserted with 400G-ZR module. 
 
