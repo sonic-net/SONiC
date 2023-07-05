@@ -1824,7 +1824,7 @@ So total 29 PM time window slots will be maintained per port/interface when inse
 - ##### Caveat:
 Platform which choose 120sec as PM interval time, the 60sec granularity of 15 ‘time window’ is not valid/not computed as the chosen PM interval time is greater than 60sec. The CLI o/p is valid only for the 15min/24Hr predefined time window.
 
-##### 7.5.3 Examples: 
+##### 7.5.3 Examples and code snipets: 
 - ##### CLI usage and expected output; example: (Platform with PM interval time : 30sec)
     - ##### 15min time window:
 ```
@@ -1842,6 +1842,7 @@ Platform which choose 120sec as PM interval time, the 60sec granularity of 15 �
     60sec time window:
 
     Show int trans pm history 60sec window 15 –n asic0 Ethernet0
+
     Assume the last PM statistics interval started at Time T0-> 9.44.00 by the PM thread running in xcvrd.
     T2 time->9:45:44, above pm history CLI with ‘predefined window’ of 60sec and ‘window number’ 15 is executed. 
     the CLI o/p displays the cumulative data from time 9.00:00 to 9.01:00.
@@ -1858,6 +1859,67 @@ The 60sec time window are filled as it is read from module if the PM interval is
 
 			
 <img src ="https://user-images.githubusercontent.com/97986478/236910604-bbb52e77-5c62-4a7e-b64d-ff883d9b57d3.png" width=60% height=50%>
+
+- #####Code snipet for PM data sampling:
+
+```
+#Sample the PM data for min, max and average between two PM data set and returns the sampled PM data.
+ def pm_data_sampling(self, pm_data_dict1, pm_data_dict2):
+        sampled_pm_dict = {}
+        sampled_pm_dict['prefec_ber_avg'] = self.average_of_two_val(float(pm_data_dict1['prefec_ber_avg']), float(pm_data_dict2['prefec_ber_avg']))
+        sampled_pm_dict['prefec_ber_min'] = min(float(pm_data_dict1['prefec_ber_min']), float(pm_data_dict2['prefec_ber_min']))
+        sampled_pm_dict['prefec_ber_max'] = max(float(pm_data_dict1['prefec_ber_max']), float(pm_data_dict2['prefec_ber_max']))
+
+        sampled_pm_dict['uncorr_frames_avg'] = self.average_of_two_val(float(pm_data_dict1['uncorr_frames_avg']), float(pm_data_dict2['uncorr_frames_avg']))
+        sampled_pm_dict['uncorr_frames_min'] = min(float(pm_data_dict1['uncorr_frames_min']), float(pm_data_dict2['uncorr_frames_min']))
+        sampled_pm_dict['uncorr_frames_max'] = max(float(pm_data_dict1['uncorr_frames_max']), float(pm_data_dict2['uncorr_frames_max']))
+
+        sampled_pm_dict['cd_avg'] = self.average_of_two_val(float(pm_data_dict1['cd_avg']), float(pm_data_dict2['cd_avg']))
+        sampled_pm_dict['cd_min'] = min(float(pm_data_dict1['cd_min']), float(pm_data_dict2['cd_min']))
+        sampled_pm_dict['cd_max'] = max(float(pm_data_dict1['cd_max']), float(pm_data_dict2['cd_max']))
+
+        sampled_pm_dict['dgd_avg']   = self.average_of_two_val(float(pm_data_dict1['dgd_avg']), float(pm_data_dict2['dgd_avg']))
+        sampled_pm_dict['dgd_min']   = min(float(pm_data_dict1['dgd_min']), float(pm_data_dict2['dgd_min']))
+        sampled_pm_dict['dgd_max']   = max(float(pm_data_dict1['dgd_max']), float(pm_data_dict2['dgd_max']))
+
+        sampled_pm_dict['sopmd_avg'] = self.average_of_two_val(float(pm_data_dict1['sopmd_avg']), float(pm_data_dict2['sopmd_avg']))
+sampled_pm_dict['sopmd_min'] = min(float(pm_data_dict1['sopmd_min']), float(pm_data_dict2['sopmd_min']))
+        sampled_pm_dict['sopmd_max'] = max(float(pm_data_dict1['sopmd_max']), float(pm_data_dict2['sopmd_max']))
+
+        sampled_pm_dict['pdl_avg']   = self.average_of_two_val(float(pm_data_dict1['pdl_avg']), float(pm_data_dict2['pdl_avg']))
+        sampled_pm_dict['pdl_min']   = min(float(pm_data_dict1['pdl_min']), float(pm_data_dict2['pdl_min']))
+        sampled_pm_dict['pdl_max']   = max(float(pm_data_dict1['pdl_max']), float(pm_data_dict2['pdl_max']))
+
+        sampled_pm_dict['osnr_avg']  = self.average_of_two_val(float(pm_data_dict1['osnr_avg']), float(pm_data_dict2['osnr_avg']))
+        sampled_pm_dict['osnr_min']  = min(float(pm_data_dict1['osnr_min']), float(pm_data_dict2['osnr_min']))
+        sampled_pm_dict['osnr_max']  = max(float(pm_data_dict1['osnr_max']), float(pm_data_dict2['osnr_max']))
+
+        sampled_pm_dict['esnr_avg']  = self.average_of_two_val(float(pm_data_dict1['esnr_avg']), float(pm_data_dict2['esnr_avg']))
+        sampled_pm_dict['esnr_min']  = min(float(pm_data_dict1['esnr_min']), float(pm_data_dict2['esnr_min']))
+        sampled_pm_dict['esnr_max']  = max(float(pm_data_dict1['esnr_max']), float(pm_data_dict2['esnr_max']))
+
+        sampled_pm_dict['cfo_avg']   = self.average_of_two_val(float(pm_data_dict1['cfo_avg']), float(pm_data_dict2['cfo_avg']))
+        sampled_pm_dict['cfo_min']   = min(float(pm_data_dict1['cfo_min']), float(pm_data_dict2['cfo_min']))
+        sampled_pm_dict['cfo_max']   = max(float(pm_data_dict1['cfo_max']), float(pm_data_dict2['cfo_max']))
+
+        sampled_pm_dict['evm_avg']   = self.average_of_two_val(float(pm_data_dict1['evm_avg']), float(pm_data_dict2['evm_avg']))
+        sampled_pm_dict['evm_min']   = min(float(pm_data_dict1['evm_min']), float(pm_data_dict2['evm_min']))
+        sampled_pm_dict['evm_max']   = max(float(pm_data_dict1['evm_max']), float(pm_data_dict2['evm_max']))
+
+        sampled_pm_dict['soproc_avg'] = self.average_of_two_val(float(pm_data_dict1['soproc_avg']), float(pm_data_dict2['soproc_avg']))
+        sampled_pm_dict['soproc_min'] = min(float(pm_data_dict1['soproc_min']), float(pm_data_dict2['soproc_min']))
+        sampled_pm_dict['soproc_max'] = max(float(pm_data_dict1['soproc_max']), float(pm_data_dict2['soproc_max']))
+
+        sampled_pm_dict['tx_power_avg']  = self.average_of_two_val(float(pm_data_dict1['tx_power_avg']), float(pm_data_dict2['tx_power_avg']))
+        sampled_pm_dict['tx_power_min']  = min(float(pm_data_dict1['tx_power_min']), float(pm_data_dict2['tx_power_min']))
+        sampled_pm_dict['tx_power_max']  = max(float(pm_data_dict1['tx_power_max']), float(pm_data_dict2['tx_power_max']))
+
+        sampled_pm_dict['rx_tot_power_avg']  = self.average_of_two_val(float(pm_data_dict1['rx_tot_power_avg']), float(pm_data_dict2['rx_tot_power_avg']))
+        sampled_pm_dict['rx_sig_power_min'] =  min(float(pm_data_dict1['rx_sig_power_min']), float(pm_data_dict2['rx_sig_power_min']))
+        sampled_pm_dict['rx_sig_power_max'] =  max(float(pm_data_dict1['rx_sig_power_max']), float(pm_data_dict2['rx_sig_power_max']))
+        return sampled_pm_dict
+
+```
 
 ##### 7.5.4 Platform specific flags/inputs:
 "xcvrd_pm_poll_interval" - Platform to define the PM polling periodicity as 30sec or 60sec of the PM thread which will be fed as input argument. When the arg is not defined, default periodicity is 60sec. 
