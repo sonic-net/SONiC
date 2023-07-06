@@ -1974,7 +1974,7 @@ A[Iterate from start window number to end window number of a fixed interval PM w
 B[Retrieve PM DB data from TRANSCEIVER_PM_WIN_STATS table for the window number]
 C[PM DB data is empty and window number == start number of a fixed interval PM window]
 D[copy PM HW data to DB for the window number, update pm_win_current = ture, update start time with end time]
-E[End of this PM interval iteration]
+O[End of this PM interval iteration]
 F[if window PM DB data start time == end time]
 G[copy the PM HW data for the window to DB, update end time with PM HW data end time]
 H[if delta between PM DB data end time and start time is < fixed interval time]
