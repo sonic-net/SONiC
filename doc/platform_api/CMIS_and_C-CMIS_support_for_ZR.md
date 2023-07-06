@@ -1966,43 +1966,49 @@ G --> H
 H --> B
 B -- False --> End
 ```
-##### Flow Diagram for PM window update to DB
+##### Flow Diagram for PM window update Algorithm to DB with PM Stats collected over PM interval.
 ```mermaid
 graph TD;
-O[PM HW data is input]
-A[Iterate from start window number to end window number of each fixed interval PM window]
-B[Retrieve PM data from TRANSCEIVER_PM_WIN_STATS table for the window number]
-C[PM data is empty]
-D[PM data is not empty]
-E[PM data is not empty but window number+1 PM data is empty]
-F[PM data is not empty and window number+1 PM data is not empty]
-G[copy PM HW data to DB, update current ture, update start time with end time]
-H[if start time == end time]
-I[copy the PM HW data for the window to DB, update end time with PM HW data]
-J[delta between end time and start time is < fixed interval time]
-K[sample the PM HW data with PM data of the window from DB, update end time and update DB]
-L[update current=false to PM data of window, update the DB]
-M[copy PM HW data to window num+1 PM data, update current=True, start time and end time to DB]
+P[Start with PM HW data as input]
+A[Iterate from start window number to end window number of a fixed interval PM window]
+B[Retrieve PM DB data from TRANSCEIVER_PM_WIN_STATS table for the window number]
+C[PM DB data is empty and window number == start number of a fixed interval PM window]
+D[copy PM HW data to DB for the window number, update pm_win_current = ture, update start time with end time]
+E[End of this PM interval iteration]
+F[if window PM DB data start time == end time]
+G[copy the PM HW data for the window to DB, update end time with PM HW data end time]
+H[if delta between PM DB data end time and start time is < fixed interval time]
+I[sample the PM HW data with PM DB data from DB for the window]
+J[update sampled PM data and PM HW data end time to DB, no change in start time]
+K[update pm_win_current = False to PM DB data for the window. update DB, Move to next window]
+L[if next window PM DB data is empty]
+M[if next window PM DB is not empty and end time > start time]
+N[if previous window PM DB data start time < next window PM DB data start time]
+R[update previous window PM DB data pm_win_current = False]
+S[copy PM HW data to window num+1 PM data, update current=True, start time and end time to DB]
 
-O --> A
+P --> A
 A --> B
 B --> C
-C -- True --> G
-G --> A
-C -- False --> D
-D -- True --> H
-H -- True --> I
-I --> A
-H -- false --> J
-J -- True --> K
-K --> A
-J -- False --> L
-L --> E
-E --> H
-L --> F
-F --> H
-L --> M
-M --> A
+C -- True --> D
+D --> O
+C -- False --> F
+F -- True --> G
+G --> O
+F -- False --> H
+H -- True --> I 
+I --> J
+J --> O
+H -- False --> K
+K --> L
+L -- True --> D
+L -- False --> M
+M -- False --> F
+M -- True --> N
+N -- True, window = window+1 --> A
+N -- False --> R
+R --> S
+S --> O
 ```
 
  #### 7.6 Out of Scope
