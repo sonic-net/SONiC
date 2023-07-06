@@ -62,7 +62,7 @@ A new FEC mode called 'auto' is introduced.
 
 ### SAI API Requirements
 
-The following is an existing attribute which was recently added to support the FEC override functionality.
+The following is an existing attribute which was added to support the FEC override functionality.
 ```
     /**
      * @brief FEC mode auto-negotiation override status
@@ -78,7 +78,7 @@ The following is an existing attribute which was recently added to support the F
 ```
 Any SAI vendors who want to make use of this deterministic behavior should implement the above attribute.
 
-In order to get operation FEC the following attributes will be introduced
+In order to get operation FEC the following attributes was recently introduced
 ```
     /**
      * @brief Operational FEC mode
