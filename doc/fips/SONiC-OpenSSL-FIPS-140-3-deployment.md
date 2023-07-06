@@ -37,21 +37,21 @@ It is for the security requirement, the FIPS 140-3 feature should be enabled for
 {
     "FIPS": {
       "global": {
-        "mode": "NoneEnforce"
+        "enable": "true",
+        "enforce": "true"
       }
     }
 }
 ```
 
-| Mode | Description |
+| Key | Description |
 |:----:|---------------------|
-| None | FIPS is not enabled |
-| Enforce | FIPS is enabled and enforced |
-| NoneEnforce | FIPS is enabled, but not enforced, can be enabled or disabled in the runtime |
+| enable | enable or not enable the FIPS, true is to enable, the default value is false  |
+| enforce | enforce or not enforce the FIPS, true is to enforce, the default value is false |
 
-The only difference between the Enforce mode and the NoneEnforce mode is whether to support to disable the FIPS in the runtime.
+If the enforce is true, then enable is ignored. If the enforce is not set, it supports to disable the FIPS in the runtime.
 
-The mode NoneEnforce is transition mode for the scenario to change the devices from the None FIPS mode to the Enforce mode. It allows you to rollback the change without rebooting the devices if any issues in your datacenters.
+The enable setting is a transition mode for the scenario to change the devices from the FIPS none enforce mode to the enforce mode. It allows you to rollback the change without rebooting the devices if any issues in your datacenters.
 
 ### FIPS None Enforce Mode
 It is supported to enable the [OpenSSL SymCrypt engine](https://github.com/microsoft/SymCrypt-OpenSSL) (see [design](https://github.com/sonic-net/SONiC/blob/master/doc/fips/SONiC-OpenSSL-FIPS-140-3.md)) in the runtime by using the FIPS flag file or Kernel options, (see [OpenSSL patch](https://github.com/sonic-net/sonic-fips/blob/main/src/openssl.patch/10-support-fips-mode.patch)).
@@ -78,11 +78,11 @@ systemctl restart sshd
 
 The script will be automatically triggred when the DB FIPS config change detected by the [hostcfgd](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-host-services-data/debian/sonic-host-services-data.hostcfgd.service), so it does not need to run it manually again in the new images.
 
-### FIPS Enforce Mode
-It is required to reboot the SONiC device when changing the FIPS mode from the mode None/NoneEnforce to the mode Enforce, or from the mode Enforce to the mode None/NoneEnforce.
+### FIPS enable Mode
+It is required to reboot the SONiC device when changing the FIPS mode from the mode none-enforce to the enforce mode, or from the mode enforce to the mode none-enforce.
 When installing the SONiC image at the first time, or upgrading the SONiC image, the default FIPS option is disabled by default (see [ENABLE_FIPS](https://github.com/sonic-net/sonic-buildimage/blob/6ba5b84d980983312f779ad65cfc8c90b9674707/rules/config#L292)). You can override the option in the build time to set ENABLE_FIPS=y, so it is not required for an additional reboot, after you install or upgrade the SONiC OS.
 
-When you plan to enable the mode Enforce for all datacenters, you can build the SONiC with FIPS enabled by default, and set the configuration mode=Enforce for all devices.
+When you plan to enable the enforce mode for all datacenters, you can build the SONiC with FIPS enabled by default, and set the configuration enforce=true for all devices.
 
 ## SONiC FIPS State
 The SONiC FIPS state in the redis STATE_DB as below:
@@ -90,6 +90,7 @@ The SONiC FIPS state in the redis STATE_DB as below:
 |:----:|---------------------|
 | enabled | The flag indicating whether the FIPS enabled, 1 enabled, others not enabled |
 | enforced | The flag indicating whether the FIPS enforced, 1 enforced, others not enforced |
+| enforced_next | The flag indicating whether the FIPS will be enforced in the next reboot, 1 enforced, others not enforced |
 
 The redis dictionary key is FIPS_STAT\|state.
 
@@ -97,7 +98,7 @@ GitHub Pull Request for reference: https://github.com/sonic-net/sonic-host-servi
 
 ## SONiC reboot and upgarde
 ### SONiC warm-reboot or fast-reboot
-SONiC ware-reboot/fast-reboot will initialize the kernel command line, it only has impact when the FIPS enforcement flag changed, either from Enforce to None/NoneEnforce, or from None/NoneEnforce to enforce.
+SONiC ware-reboot/fast-reboot will initialize the kernel command line, it only has impact when the FIPS enforcement flag changed, either from enforce to none-nforce, or from none-enforce to enforce.
 
 When the FIPS enforcement config changed, it is required to do the warm-reboot or fast-reboot to make the change take effect.
 
@@ -108,29 +109,27 @@ The runtime FIPS option will set after running into the new image based on the c
 
 ## Test cases
 
-### Test case #1 – Test the FIPS NoneEnforce mode
+### Test case #1 – Test the FIPS enable mode
 
 1. Setup the test environment to the FIPS None mode.
-1. Apply the patch to change the FIPS mode in configDB from None to NoneEnforce.
-    ```json
-    [
-    {
-      "op": "replace",
-      "path": "FIPS/global/mode",
-      "value": "NoneEnforce"
-    }
-    ]
-    ```
-1. Waiting for 10 seconds, verfiy the FIPS enabled in the runtime, it can be verified by the command 'openssl engine -vv'. And check the flag file /etc/fips/fips_enabled changed to 1.
-1. Verfy the STATE_DB key "enable" is set to 1.
-1. Apply the patch to change the FIPS mode in configDB back to None.
-1. Waiting for 10 seconds, verfiy the FIPS disabled.
+1. Change the ConfigDB setting to enable the FIPS.
+1. Verify the required service restarted.
+1. Verify the runtime config option changed to 1 in OpenSSL config file. 
 
-### Test case #2 – Test the FIPS Enforce mode
+### Test case #2 – Test the FIPS to disable
+
+1. Setup the test environment to enable the FIPS.
+1. Change the ConfigDB setting to disable the FIPS.
+1. Verify the required service restarted.
+1. Verify the runtime config option changed to 0 in OpenSSL config file. 
+
+### Test case #3 – Test the FIPS enforce mode
 
 1. Setup the test environment to the FIPS None mode.
-1. Apply the patch to change the FIPS mode in configDB from None to Enforce.
-1. Waiting for 10 seconds, verfiy the FIPS enabled in the runtime, it can be verified by the command 'sonic-installer get-fips'.
-1. Verfy the STATE_DB key "enforce" is set to 1.
-1. Apply the patch to change the FIPS mode in configDB back to None.
-1. Waiting for 10 seconds, verfiy the FIPS disabled.
+1. Change the ConfigDB setting to enforce the FIPS.
+1. Verify the required service restarted.
+1. Verify the fips enforce command called.
+
+### Test case #4 - Test the FIPS telemetry
+1. Run the command collect the FIPS state.
+2. Verify the expected values in the StateDB.
