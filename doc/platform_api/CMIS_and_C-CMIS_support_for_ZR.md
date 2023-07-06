@@ -1937,7 +1937,74 @@ sampled_pm_dict['sopmd_min'] = min(float(pm_data_dict1['sopmd_min']), float(pm_d
   9.  PM CLI mentoned in 7.3 will always fetch data from TRANSCEIVER_PM_WINDOW_STATS and provide the display.
   10. All the PM time window slots for the port is cleared when an optics is inserted/deleted to/from the port.
   11. When xcvrd process is restarted, PM statistics collection will be resumed.
- 
+
+##### Flow Diagram of PmUpdateTask thread
+
+```mermaid
+flowchart TD;
+A[Subscribe to State-DB TRANSCEIVER_INFO Table change event]
+B[while task_stopping_event is not set]
+C[TRANSCEIVER_INFO Table creation]
+D[TRANSCEIVER_INFO Table deletion]
+E[update port_list local cache with port number contains 400GZR module]
+F[Iterate each port in port_list and check for 400GZR presence]
+G[Freeze the PM stats and collect the PM data, unfreeze PM stats]
+H[sample and update the respective PM windows in TRANCEIVER_PM_WIN_STATS table]
+
+
+Start --> A
+A --> B
+B -- True --> F
+B -- event optics OIR --> C
+B -- event optics OIR --> D
+C -- add port number to cache if not present and reset the PM STATS in DB if not process restart --> E
+D -- remove port number from cache and reset the PM STATS in DB  --> E
+E --> F
+F -- False --> B
+F -- True --> G
+G --> H
+H --> B
+B -- False --> End
+```
+##### Flow Diagram for PM window update to DB
+```mermaid
+graph TD;
+O[PM HW data is input]
+A[Iterate from start window number to end window number of each fixed interval PM window]
+B[Retrieve PM data from TRANSCEIVER_PM_WIN_STATS table for the window number]
+C[PM data is empty]
+D[PM data is not empty]
+E[PM data is not empty but window number+1 PM data is empty]
+F[PM data is not empty and window number+1 PM data is not empty]
+G[copy PM HW data to DB, update current ture, update start time with end time]
+H[if start time == end time]
+I[copy the PM HW data for the window to DB, update end time with PM HW data]
+J[delta between end time and start time is < fixed interval time]
+K[sample the PM HW data with PM data of the window from DB, update end time and update DB]
+L[update current=false to PM data of window, update the DB]
+M[copy PM HW data to window num+1 PM data, update current=True, start time and end time to DB]
+
+O --> A
+A --> B
+B --> C
+C -- True --> G
+G --> A
+C -- False --> D
+D -- True --> H
+H -- True --> I
+I --> A
+H -- false --> J
+J -- True --> K
+K --> A
+J -- False --> L
+L --> E
+E --> H
+L --> F
+F --> H
+L --> M
+M --> A
+```
+
  #### 7.6 Out of Scope
  1. Peformance monitoring is not enabled/performed for modules other than 400G-ZR.
  2. Thershold crossing setting/monitoring for PM params are not covered as part of this implementation.
