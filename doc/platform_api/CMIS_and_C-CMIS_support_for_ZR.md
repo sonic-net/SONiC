@@ -1975,15 +1975,15 @@ B[Retrieve PM DB data from TRANSCEIVER_PM_WIN_STATS table for the window number]
 C[PM DB data is empty and window number == start number of a fixed interval PM window]
 D[copy PM HW data to DB for the window number, update pm_win_current = ture, update start time with end time]
 O[End of this PM interval iteration]
-F[if window PM DB data start time == end time]
+F(if window PM DB data start time == end time)
 G[copy the PM HW data for the window to DB, update end time with PM HW data end time]
-H[if delta between PM DB data end time and start time is < fixed interval time]
+H(if delta between PM DB data end time and start time is < fixed interval time)
 I[sample the PM HW data with PM DB data from DB for the window]
 J[update sampled PM data and PM HW data end time to DB, no change in start time]
 K[update pm_win_current = False to PM DB data for the window. update DB, Move to next window]
-L[if next window PM DB data is empty]
+L(if next window PM DB data is empty)
 M[if next window PM DB is not empty and end time > start time]
-N[if previous window PM DB data start time < next window PM DB data start time]
+N(if previous window PM DB data start time < next window PM DB data start time)
 R[update previous window PM DB data pm_win_current = False]
 S[copy PM HW data to window num+1 PM data, update current=True, start time and end time to DB]
 
@@ -2009,6 +2009,36 @@ N -- True, window = window+1 --> A
 N -- False --> R
 R --> S
 S --> O
+```
+
+##### Flow Diagram for PM window retrieval upon CLI execution.
+
+```mermaid
+flowchart TD;
+A[PM cli execution with Fixed interval window and Port number]
+B(if 400G-ZR is not present in the port)
+C[Return with msg = No data available for the request]
+D[Retreive the TRANSCIEVER_PM_WIN_STATS table for the port number]
+E[Iterate start to end window number of the Fixed interval window in the table]
+F[Find the current window, window number set with pm_win_current == true from the table]
+G(cli sub option)
+H[Return the PM data associated with the current window]
+I[iterate back for number times with suboption window number from current window]
+J[Return the PM data for this window number]
+
+Start --> A
+A --> B
+B -- True --> C
+C --> End
+B -- False --> D
+D --> E
+E --> F
+F --> G
+G -- suboption is current --> H
+H --> End
+G -- suboption is history --> I
+I --> J
+J --> End
 ```
 
  #### 7.6 Out of Scope
