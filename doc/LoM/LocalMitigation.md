@@ -100,10 +100,10 @@ This action can set the admin down for the link. This action is published.
      - The success implies a successful mitgation of the detected anomaly.
      - A failure implies that the anomaly is not locally mitigated. The failure gives appropriate error code that indicates the reason for failure. 
 -   The completon is expected within seconds of detection.
--   Every action run as part of sequence has a set timeout, and must end by then along with overall timeout for entire sequence to complete.
--   A failing action will abort the sequence at that point which would skip subsequently ordered actions unless marked as mandatory.
+-   Every action that is invoked as part of sequence has a set timeout, and must end by then along with overall timeout for entire sequence to complete.
+-   A failing action or timeout will abort the sequence at that point which would skip subsequently ordered actions unless marked as mandatory.
 -   During a sequnce run upon detection, the heartbeats are published more frequently. The HB would carry info on current running action.
--   If LoM fails, the external service can take over mitigation as is today.
+-   If the sequence fails to mitigate, the external service can take over mitigation as is today.
 -   In scenario where we mitigate successfully, the TTM is in couple of seconds. For any failure, we still get TTD in seconds.</br>
 NOTE: An ICM is fired for every detected anomaly. If mitigation is done by LoM, the ICM will be marked "_mitigated_".
 
@@ -112,7 +112,7 @@ Every detection action is tied to corresponding safety check & mitigation action
 Every action could be fine tuned via some configurable knobs. A SONiC CLI or configlet could do.
 
 ## Memory utilization
-This is a complex probem as memory used by a daemon could vary based on its load (_e.g. count of peers, routes, route-maps configured_). This demands an custom detection per daemon with dynamically computed threshold. The detection needs to distinguish between "_is memory consumption growing constantly_" vs "_transient blips_". This algorithm might need few tweaks & updates as we observe its reports. Hence will takje some time to get tune it. Hence hard coding this into image will not fit. But actions are small plugins/minions that can be easily updated w/o impact to control/data plane, hence allows for frequent updates,.
+This is a complex probem as memory used by a daemon could vary based on its load (_e.g. count of peers, routes, route-maps configured_). This demands an custom detection per daemon with dynamically computed threshold. The detection needs to distinguish between "_is memory consumption growing constantly_" vs "_transient blips_". This algorithm being complex, might need few tweaks & updates overtime before it become solid. Hence hard coding this into image will not fit. But actions are small plugins/minions that can be easily updated w/o impact to control/data plane, hence allows for frequent updates,.
 
 ### Detection
 The action does the monitoring. We can have variations per platform, target OS version and even cluster type. This is vetted in nightly tests for  all  target platform & OS version. It constantly monitors. It can cache usage in various time points as required by algorithm to do a proper analysis. This detection action is kicked off at the start and run until detected or disabled.
@@ -126,11 +126,14 @@ This may be just service restart or more (_say remove/reset files/data_). The ac
 ### Sequence completion:
 - Anomaly is re-published with mitigation result. An external service may take over mitigation on any failure.
 
-### conclusion
-- The actions are anytime updatable as we see need for tuning.
-- This type of detection is better equipped to run locally as it has wealth  of data, like daemon's current load level, history on restarts for last N seconds.
-- The action can be fully customized for this OS version.
-- Mitigation happens in seconds if it would not have data plane impact. The most common daemons that face issues are control plane daemons like SNMP.
+## conclusion
+- The actions the real workers that do the detection, mitigation & checks.
+- The actions have wealth of data to access - Literally any.
+- They are anytime updatable as we see need for tuning.
+- The actions are independent entities bound together by config
+- Being independent helps accelerate them to evolve quickly with no impact to others.
+- Being built-in they are OS & platform specific and forced to evolve with OS updates by nightly tests.
+- Mitigation happens in seconds if it would not have data plane impact.
 
 
 # Design
