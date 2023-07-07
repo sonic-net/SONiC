@@ -22,19 +22,21 @@ SONiC Local Mitigations (LoM) Service
 
 # Problem to solve
 Today all detections & mitigations are performed by external services. The problems or short falls we have are 
-1. As any detection is based on exported data, the latency involved delays the alerting.
-2. Frquency of monotoring by external service gets a hard limit set by device exporter.
+1. As any detection is based on exported data, the latency involved delays the alerting. This latency could be in minutes.
+2. Any detecton algorithm is restricted to exported data only.
+   - Any ask for additional data can only be available as part of next OS release and its rollout, which is in the order of months and years to cover entire fleet
 3. Any problem/failure in exporting will result in alerts not being created.
    - There have been cases of missing data exports hence missed alerts.
-4. Any inability to access the switch, will block a mitigation action.
-5. The evolving OS updates often conflicts and hence invalidate external service's ability to detect/mitigate.
+   - It is not easy to alert for gaps in missed exports
+   - Exports channels are not reliable inherently
+4. Finding anomaly in the heavy volume of exported data, is like finding a needle in Haystack and cost heavily on resources.
+5. Any inability to access the switch, will block a mitigation action.
+6. The evolving OS updates often conflicts and invalidates external service's ability to detect/mitigate, silently.
    - e.g., A remove/re-write of a log message could affect the service that is detecting based on that log.
    - We don't have process to sync/test evolving OS with external services
-6. An external service has scaling issues in managing thousands of switches.
-7. A **single** service code is expected to handle multiple vendors, platforms & OS versions which is a very complex ask that translates to increased probabilities for gaps/failures. 
-8. External services are limited to exported data only.
-  - Any ask for additional data can only be available as part of next OS release and its rollout, which is in the order of months and years to cover entire fleet
-Any inability for a device to export data or lack of reliability in data export, can severely affect anomaly detections
+7. An external service has scaling issues in managing thousands of switches.
+8. A **single** service code is expected to handle multiple vendors, platforms & OS versions which is a very complex ask that translates to increased probabilities for gaps/failures. 
+
 
 # Proposal
 1. Run a dedicated service that can run all detection & mitigation actions locally within the switch.
