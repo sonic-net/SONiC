@@ -90,7 +90,6 @@ The SONiC FIPS state in the redis STATE_DB as below:
 |:----:|---------------------|
 | enabled | The flag indicating whether the FIPS enabled, 1 enabled, others not enabled |
 | enforced | The flag indicating whether the FIPS enforced, 1 enforced, others not enforced |
-| enforced_next | The flag indicating whether the FIPS will be enforced in the next reboot, 1 enforced, others not enforced |
 
 The redis dictionary key is FIPS_STAT\|state.
 
@@ -98,7 +97,7 @@ GitHub Pull Request for reference: https://github.com/sonic-net/sonic-host-servi
 
 ## SONiC reboot and upgarde
 ### SONiC warm-reboot or fast-reboot
-SONiC ware-reboot/fast-reboot will initialize the kernel command line, it only has impact when the FIPS enforcement flag changed, either from enforce to none-nforce, or from none-enforce to enforce.
+SONiC ware-reboot/fast-reboot will initialize the kernel command line, it only has impact when the FIPS enforcement flag changed, either from enforce to none-enforce, or from none-enforce to enforce.
 
 When the FIPS enforcement config changed, it is required to do the warm-reboot or fast-reboot to make the change take effect.
 
