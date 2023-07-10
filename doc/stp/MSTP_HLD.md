@@ -82,9 +82,9 @@ Multiple Spanning Tree Protocol (MSTP) enhances the Spanning Tree Protocol (STP)
 # Introduction
 Spanning Tree Protocol (STP) prevents bridge looping on LANs that include redundant links. Per VLAN Spanning Tree (PVST) is a modification of STP that allows for running separate instances of spanning tree for each VLAN. 
 
-Multiple Spanning Tree Protocol (MSTP) allows frames assigned to different VLANs to follow separate paths. These paths are based on independent Multiple Spanning Tree Instances (MSTI), within Multiple Spanning Tree (MST) Region. These Regions and the other Bridges and LANs are connected into a single Common Spanning Tree (CST).
+Multiple Spanning Tree Protocol (MSTP) allows the mapping of multiple VLANs to a single instance hence allows frames assigned to different VLANs to follow separate paths. These paths are based on independent Multiple Spanning Tree Instances (MSTI) that run inside MST Region. VLANs that are not explicitly assigned to any specific MSTI are automatically managed by the default Internal Spanning Tree (IST) associated with instance 0. MSTP ensures that frames with a given VID are assigned to only one of the MSTIs or the IST within the Region and the assignment is consistent amongst all the Bridges within the region. 
 
-MSTP connects all Bridges and LANs with a single Common and Internal Spanning Tree (CIST). The connectivity calculated for the CIST provides the CST for interconnecting these Regions, and an Internal Spanning Tree (IST) within each Region. MSTP ensures that frames with a given VID are assigned to one and only one of the MSTIs or the IST within the Region, that the assignment is consistent amongst all the Bridges within the region. 
+To facilitate the interconnection among MST regions, a Common Spanning Tree (CST) is established, allowing communication between switches in different MST regions. MSTP connects all Bridges and LANs with a single Common and Internal Spanning Tree (CIST). CIST refers to the combination of the Common Spanning Tree (CST) and the Internal Spanning Tree (IST) and it is the overall spanning tree instance that spans the entire MSTP domain.
 
 By providing VLAN-to-instance mapping, MSTP ensures that a limited number of instances are created, allowing for network segregation. In contrast, PVST lacks control over VLAN-to-instance mapping, leading to numerous instances and inefficient memory utilization. 
 
@@ -93,21 +93,24 @@ STP only supports a single instance, resulting in under utilized network bandwid
 MSTP calculates spanning trees on the basis of Multiple Spanning Tree Bridge Protocol Data Units (MST BPDUs).
 
 <div align="center">
-MSTP BPDU Format<br>
 <img src="images/MSTP_BPDU.png" alt="MSTP BPDU">
+<p>MSTP BPDU Format</p>
 </div><br>
 <div align="center">
-MSTI Configuration Messages<br>
 <img src="images/MSTI_config_message.PNG" alt="MSTP Config Message">
+<p>MSTI Configuration Messages</p>
 </div>
 
+*Refer to [RFC IEEE 802.1s-2002](https://standards.ieee.org/ieee/802.1s/1042/) for MSTP BPDU details.* 
+
 # Requirements
-1. Support the assignment of multiple VLAN(s) to multiple spanning tree identifiers (MSTI) within each region.
+1. Support the creation of Multiple Spanning Tree Instances (MSTIs).
+1. Support the assignment of one or more VLANs to a specific MSTI within a region.
 1. Support the option to assign a region name and revision number to MSTP regions in order to achieve unique identification of VLAN to instance mapping across switches.
 1. Support path selection and forwarding behaviour in MSTI to optimize network performance within each instance by configuring a distinct root bridge.
-1. Support the configuration of spanning tree parameters such as forward delay, hello timer, hop count, max age.
+1. Support the configuration of spanning tree parameters such as forward delay, hello timer, hop count and max age.
 1. The Destination Mac Address will be 01:80:C2:00:00:00 for MSTP BPDUs.
-1. Support compatibility with networks employing different spanning tree protocols, such as STP, RSTP via Protocol Migration.
+1. Support compatibility with networks employing different spanning tree protocols, such as STP, RSTP and PVST via Protocol Migration.
 
 # Architecture Design
 Following diagram explains the architectural design and linkages for MSTP. MSTP uses multiple existing SONiC containers, configuration details of each is mentioned below as well.
@@ -126,7 +129,9 @@ Responsible for all MST protocol related calculations. BPDUs are sent and receiv
 ### STPSync
 A process running as a part of STPD. Responsible for updating all the MSTP states in APP DB.
 
-The BPDU rx/tx, handling of changes related to port or LAG using netlink events and STP port state sync to Linux Kernel will function the same as PVST.
+The BPDU rx/tx, BPDU processing, handling of timers, handling of changes related to port or LAG using netlink events and STP port state sync to Linux Kernel will function the same as PVST.
+
+*Refer to [PVST's STP Container Details](https://github.com/sandeep-kulambi/SONiC/blob/631ab18211e7e396b138ace561b7a04e7f7b49a1/doc/stp/SONiC_PVST_HLD.md#34-stp-container)*
 
 ## SWSS Container
 
@@ -160,8 +165,8 @@ Following existing table of CONFIG_DB will be modified for MSTP implementation:
 #### STP_GLOBAL_TABLE
 A new value of `mstp` for `mode` column and a new column for holding `max-hops`
 ```
-mode 		  = "pvst" / "mstp" / "none"      ; a new option for mstp (DEF: "none")
-max_hops	  = 1*3DIGIT		          ; max hops (1 to 255, DEF: 20)
+mode 		  = "pvst" / "mstp" / "disable"      ; a new option for mstp (DEF: "disable")
+max_hops	  = 1*3DIGIT		             ; max hops (1 to 255, DEF: 20)
 ```
 Other fields of this table i.e rootguard_timeout, forward_delay, hello_time, max_age, priority will also be used to hold the configurations received from CLI.
 
@@ -211,11 +216,9 @@ region_name 	        = 1*32CHAR            ; region name (DEF: mac-address of sw
 revision	        = 1*5DIGIT            ; region revision (0 to 65535, DEF: 0)
 bridge_id	        = 16HEX	              ; bridge id
 cist_root_bridge_id	= 16HEX	              ; CIST root’s bridge id
-regional_root_bridge_id	= 16HEX	              ; Regional root’s bridge id
-external_path_cost	= 1*9DIGIT	      ; path cost to CIST bridge
-internal_path_cost 	= 1*9DIGIT	      ; path cost to regional root bridge
-root_port               = ifName	      ; Root port name
-root_max_age            = 1*2DIGIT	      ; Max age as per CIST root bridge
+external_path_cost	= 1*9DIGIT	      ; path cost to CIST root bridge
+root_port               = ifName	      ; root port name
+root_max_age            = 1*2DIGIT	      ; max age as per CIST root bridge
 root_hello_time         = 1*2DIGIT	      ; hello time as per CIST root bridge
 root_forward_delay      = 1*2DIGIT	      ; forward delay as per CIST root bridge
 root_max_hops		= 1*3DIGIT	      ; max hops as per CIST root bridge
@@ -224,7 +227,7 @@ hello_time              = 1*2DIGIT            ; hello time in secs (1 to 10, DEF
 forward_delay           = 1*2DIGIT            ; forward delay in secs (4 to 30, DEF: 15)
 max_hops	        = 1*3DIGIT	      ; max hops (1 to 255; DEF:20)   
 last_topology_change    = 1*10DIGIT           ; time in secs since last topology change occured
-topology_change_count   = 1*10DIGIT           ; Number of times topology change occured
+topology_change_count   = 1*10DIGIT           ; number of times topology change occured
 instances_configured    = 1*2DIGIT            ; total number of instances configured (DEF: 1)
 ```
 
@@ -235,11 +238,11 @@ key                       = MSTP_INSTANCE:"Instance"instanceid    ; instance id 
 vlanids	                  = vlan_id-or-range[,vlan_id-or-range]   ; list of VLAN IDs
 oper_status	          = "active" / "inactive"                 ; instance is active in mstp
 bridge_id                 = 16HEXDIG                              ; bridge id
-msti_root_bridge_id       = 16HEXDIG                              ; MSTI regional root’s bridge id
-msti_root_path_cost       = 1*9DIGIT	                          ; port path cost to MSTI root
-msti_root_port            = ifName	                          ; Root port name
+regional_root_bridge_id   = 16HEXDIG                              ; regional root’s bridge id
+internal_root_path_cost   = 1*9DIGIT	                          ; port path cost to regional root
+root_port                 = ifName	                          ; root port name
 last_topology_change      = 1*10DIGIT                             ; time in sec since last topology change occured 
-topology_change_count     = 1*10DIGIT                             ; Number of times topology change occured
+topology_change_count     = 1*10DIGIT                             ; number of times topology change occured
 ```
 
 #### MSTP_INSTANCE_PORT_TABLE
@@ -249,7 +252,8 @@ key                 = MSTP_INSTANCE_PORT:"Instance"instanceid:ifname    ; instan
 port_num            = 1*3DIGIT                                          ; port number of bridge port
 path_cost           = 1*9DIGIT                                          ; port path cost (1 to 200000000)
 priority            = 1*3DIGIT                                          ; port priority (0 to 240, DEF:128)
-port_state          = "state"                                           ; STP state-disabled, block, listen, learn, forward
+port_state          = "state"                                           ; STP state - disabled, block, listen, learn, forward
+port_role           = "role"                                            ; STP port role - root, designated, blocking, alternate, master
 desig_root    	    = 16HEXDIG                                          ; designated root
 desig_cost   	    = 1*9DIGIT                                          ; designated cost
 desig_bridge  	    = 16HEXDIG                                          ; designated bridge
@@ -319,7 +323,7 @@ MSTP design requires one new attribute `SAI_HOSTIF_TRAP_TYPE_MSTP` for control t
 ## Del VLAN from instance
 ![MSTP VLAN Del](images/MSTP_vlan_del.png)
 
-Update port-state, topology change and instance-interface events remain the same as depicted in sequence diagrams of PVST.
+Update port-state, topology change and instance-interface events remain the same as depicted in [Sequence Diagrams of PVST](https://github.com/sandeep-kulambi/SONiC/blob/631ab18211e7e396b138ace561b7a04e7f7b49a1/doc/stp/SONiC_PVST_HLD.md#4-flow-diagrams).
 
 # Configuration Commands
 Following configuration commands will be provided for configuration of MSTP:
@@ -370,9 +374,9 @@ Following commands are used for spanning-tree configurations on per instance, pe
   - cost-value: Range: 1-200000000
 
 ## Show Commands
-- show spanning_tree region brief
-- show spanning_tree instance \<instance-id\>
-- show spanning_tree instance interface \<instance-id\> \<ifname\>
+- show spanning_tree
+
+    The output of this command will be as follows for `mstp`:
 ```
 Spanning-tree Mode: MSTP
 
@@ -382,8 +386,6 @@ Revision                        : 0
 CIST Bridge Identifier          : 32768002438eefbc3
 CIST Root Identifier            : 32768002438eefbc3
 CIST External Path Cost         : 0
-CIST Regional Root Identifier   : 32768002438eefbc3
-CIST Internal Path Cost         : 0
 Instances configured            : 1
 Last Topology Change            : 0s
 Number of Topology Changes      : 0
@@ -393,19 +395,53 @@ CIST Root Timers                : MaxAge 20s Hello 2s FwdDly 15s MaxHops 20
 MSTP instance 0 - VLANs 10, 20, 30
 -------------------------------------------------------------------------------------------------
 
-Bridge              MSTI Root Bridge    RootPath  Root Port   LastTopology  Topology
+Bridge              Regional Bridge     RootPath  RootPort    LastTopology  Topology
 Identifier          Identifier          Cost      Identifier  Change        Change
 hex                 hex                                       sec           cnt
 32768002438eefbc3   32768002438eefbc3   0         128.13      0             0
 
 MSTP Port Parameters:
 
-Port        Prio Path Port Uplink   State      Designated  Designated          Designated
-Num         rity Cost Fast Fast                Cost        Root                Bridge
-Ethernet13  128  4    Y    N        FORWARDING 0           32768002438eefbc3   32768002438eefbc3 
+Port        Prio Path Port Uplink State      Role  Designated  Designated          Designated
+Num         rity Cost Fast Fast                    Cost        Root                Bridge
+Ethernet13  128  4    Y    N      FORWARDING Root  0           32768002438eefbc3   32768002438eefbc3 
+```
+- show spanning_tree region
+
+```
+Region Name                     : regionA
+Revision                        : 0
+CIST Bridge Identifier          : 32768002438eefbc3
+CIST Root Identifier            : 32768002438eefbc3
+CIST External Path Cost         : 0
+Instances configured            : 1
+Last Topology Change            : 0s
+Number of Topology Changes      : 0
+Bridge Timers                   : MaxAge 20s Hello 2s FwdDly 15s MaxHops 20
+CIST Root Timers                : MaxAge 20s Hello 2s FwdDly 15s MaxHops 20
 ```
 
-- show spanning_tree statistics region
+- show spanning_tree instance \<instance-id\>
+
+```
+MSTP instance 0 - VLANs 10, 20, 30
+-------------------------------------------------------------------------------------------------
+
+Bridge              Regional Bridge     RootPath  RootPort    LastTopology  Topology
+Identifier          Identifier          Cost      Identifier  Change        Change
+hex                 hex                                       sec           cnt
+32768002438eefbc3   32768002438eefbc3   0         128.13      0             0
+```
+
+- show spanning_tree instance interface \<instance-id\> \<ifname\>
+
+```
+Port        Prio Path Port Uplink State      Role  Designated  Designated          Designated
+Num         rity Cost Fast Fast                    Cost        Root                Bridge
+Ethernet13  128  4    Y    N      FORWARDING Root  0           32768002438eefbc3   32768002438eefbc3 
+```
+
+### Statistics Commands
 - show spanning_tree statistics instance \<instance-id\>
 ```
 MSTP instance 0 - VLANs 10, 20, 30
@@ -416,7 +452,6 @@ PortChannel15     20	      6           4          1
 ```
 
 ## Clear Commands
-- sonic-clear spanning_tree statistics region
 - sonic-clear spanning_tree statistics instance \<instance-id\>
 - sonic-clear spanning_tree statistics instance interface \<instance-id\> \<ifname\>
 
@@ -433,7 +468,7 @@ Following debug commands will be supported for displaying internal data structur
 - debug spanning_tree dump instance interface \<instance-id\> \<ifname\>
 
 ## Disabled Commands
-Following commands are used to configure parameters at VLAN level and these commands are disabled if spanning-tree mode is MSTP:
+Following commands are used to configure parameters at VLAN level and these commands are disabled if spanning-tree mode is `mstp`:
 
 - config spanning_tree vlan (enable|disable) \<vlan\>
 - config spanning_tree vlan forward_delay \<vlan\> \<fwd-delay-value\>
@@ -443,7 +478,7 @@ Following commands are used to configure parameters at VLAN level and these comm
 - config spanning_tree vlan interface cost \<vlan\> \<ifname\> \<value\>
 - config spanning_tree vlan interface priority \<vlan\> \<ifname\> \<value\>
 
-Also, Instance level commands will be disabled if spanning-tree mode is PVST.
+Also, Region level and Instance level commands will be disabled if spanning-tree mode is `pvst`.
 
 
 # YANG Model
@@ -492,9 +527,9 @@ module sonic-stp {
                 type enumeration {
                     enum "pvst";
                     enum "mstp";
-                    enum "none";
+                    enum "disable";
                 }
-                default "none";
+                default "disable";
                 description "STP mode";
             }
 
