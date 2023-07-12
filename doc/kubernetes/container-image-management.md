@@ -1,40 +1,75 @@
 # Why container image management
 
-- After we support container upgrade via k8s, for the container image, we have two problem to be fixed.
-    - After we upgrade one container to a higher version via k8s, in this time, k8s is down or something wrong, container need to go back to local mode, local mode container should be the higher version other than the original version.
-    - Upgrade will bring a new version container image to sonic, after many times upgrade, the disk will be full, need to avoid this.
-- So we need to manage the container image to fix these two problems
+After we support container upgrade via k8s, for the container image, we have two problem to be fixed.
+- After we upgrade one container to a higher version via k8s, if k8s control plane is down and worker reboot, container need to go back to local mode, local mode container should run the higher version other than the original version.
+- Upgrade will bring a new version image to device, after upgrade many times, the disk will be full, need to avoid this.
 
+So we need to manage the container image to fix these two problems
 
+# Existing designs need to know first
+### 1. local mode and kube mode
+The container has two modes. Kube mode means that the contianer is deployed by k8s, the container image version is defined in daemonset like below. The image need to be downloaded from ACR, so it's with ACR prefix.
+```
+sonick8scue.azurecr.io/docker-sonic-telemetry:v1
+```
+ Local mode means that the container is created and started by systemd service, and systemd service will always use local latest image like below to create container.
+ ```
+ docker-sonic-telemetry:latest
+ ```
+
+### 2. Kube container will not replace the local container when their image versions are the same.
+##### why this design
+when the kube container and local container are in the same version, local container should be more stable, becasue it has run for some time. And when device first join k8s cluster as worker, k8s will try to deploy a same version container with local, if we choose replace, the container will has a down time, actually no upgrade happens, down time is not necessary.
+##### one note
+The kube container will dry-run, no real services start inside the container. But it still downloads the sonick8scue.azurecr.io/docker-sonic-telemetry:v1 image on device.
 # How to handle the two problems
-- Tag latest
-    - Each time we do upgrade, after we think the new version is good, we tag the image version to latest. When need to go back to local, local mode will use the latest version image
-    - How to "think the new version is good", after the new version container is running, we will check the container is still running or not in ten minutes, still running mean the new version is good so that we can do  tag latest. Not running means fallback happens or something wrong, we can't tag the new version image to latest
-    - After we tag latest, we need to remove the previous stopped local container, otherwise when go back to local, systemd service will not create new local container with new version image and will start the stopped container which running on a previous version image.
-- Image Clean-Up
-    - Tag latest will trigger Clean-Up, once the tag latest successfully finished, we will do Clean-Up
-    - Clean-Up will clean up all old version images beside the last latest version image(for fallback usage)
-    - How to handle one special case
-        - After we upgrade one container from local mode(v1) to kube mode(v2) and we tag the v2 version image to latest, before we do Clean-Up we will find there is two cases for container image versions
-            - Case 1:
-                ```
-                docker-sonic-telemetry:latest(v2)
-                docker-sonic-telemetry:v1
-                sonick8scue.azurecr.io/docker-sonic-telemetry:v1
-                sonick8scue.azurecr.io/docker-sonic-telemetry:v2
-                ```
-            - Case 2:
-                ```
-                docker-sonic-telemetry:latest(v2)
-                docker-sonic-telemetry:v1
-                sonick8scue.azurecr.io/docker-sonic-telemetry:v2
-                ```
-        - For case-1, we remove sonick8scue.azurecr.io/docker-sonic-telemetry:v1 and tag docker-sonic-telemetry:v1 to sonick8scue.azurecr.io/docker-sonic-telemetry:v1 and remove docker-sonic-telemetry:v1.
-        - For case-2, we remove docker-sonic-telemetry:v1 directly.
-        - Why are there these two cases, find answer in next section.
+For the first problem, since the systemd service will alway use image with latest tag, we can tag the newest version image with latest. How to Tag-Latest:
+- When: If the new version of container has been running for more than 10 minutes, it means it's stable, and we will tag it as latest.
+- Our customized k8s controller will complete the upgrade process within 10 minutes, if fallback happens or something wrong, it's impossible that the container run for more than 10 minutes, for this case, we can't tag the new version image to latest
+- After we tag latest, we need to remove the previous stopped local container, otherwise when go back to local, systemd service will not create new local container with new version image and will start the stopped container which running with a previous version image.
 
-# Kube container will not replace the local container when their image version are the same.(Suppose the versions are both v1)
-- Why: when they are in the same version, local container should be more stable and no need to restart the container so no down time; when we rollout, we will enable k8s on many devices, we don't want the containers restart at the same time.
-- The kube container will dry-run, no real services start inside the container. But it will still download the sonick8scue.azurecr.io/docker-sonic-telemetry:v1 image.
-- Actually docker-sonic-telemetry:v1 and sonick8scue.azurecr.io/docker-sonic-telemetry:v1 have the defferent image id, but docker-sonic-telemetry:v1 really runs before and the latter not. So for the Clean-Up case-1, we will remove latter, because it never really run before, and tag the docker-sonic-telemetry:v1 to sonick8scue.azurecr.io/docker-sonic-telemetry:v1 and remove docker-sonic-telemetry:v1 to get last latest image prepared for fallback
-- How Clean-Up case-2 comes? Suppose we have a device group, all devices' containers running on v2 version in kube mode, now one device reimaged, it's sonic version is v3, once the device rejoin to k8s cluster, k8s scheduled v2 container will replace the local v3 container. V3 image can't be the last latest image version, so clean up the v3 image directly.
+For the second problem, we need to remove the old version images in time. How to Clean-Up:
+- When: Tag latest will trigger Clean-Up, once the tag latest successfully finished, we will do Clean-Up
+- Clean-Up will clean up all old version images beside the last latest version image(for fallback usage)
+- For image removal, we have three cases to handle:
+    - Case 1: after device(v1) joined k8s cluster, k8s will deploy v1 container to device, kube v1 container  will dry-run. Due to no local to kube replacement happens, Tag-Latest and Clean-Up will not happen. Then we upgrade container to v2 via k8s, kube v2 container will really run and replace the local one. Then the images on device after Tag-Latest should be like below:
+        ```
+        docker-sonic-telemetry:latest(v2)  image_id: kube_v2
+        docker-sonic-telemetry:v1  image_id: local_v1
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v1  image_id: kube_v1
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v2  image_id: kube_v2
+        ```
+        This case we need to remove kube v1 image, because it never really runs, then we tag local v1 image to kube v1 image for fallback prepared, then remove local v1 tag. Then the images after Clean-Up should be like below:
+        ```
+        docker-sonic-telemetry:latest(v2)  image_id: kube_v2
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v1  image_id: local_v1
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v2  image_id: kube_v2
+        ```
+    - Case 2: proceed from the case-1, we have upgrade all devices in one device group container to kube v2 via k8s, then one device get re-imageed, the device is v3, after the device rejoin to k8s cluster, k8s will deploy kube v2 container, kube v2 container will really run and replace the local v3 one. Then the images on device after Tag-Latest should be like below:
+        ```
+        docker-sonic-telemetry:latest(v2)  image_id: kube_v2
+        docker-sonic-telemetry:v3  image_id: local_v3
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v2  image_id: kube_v2
+        ```
+        This case we only need to remove local v3 image, becase it's not last latest version for the k8s daemonset. Then the images after Clean-Up should be like below:
+        ```
+        docker-sonic-telemetry:latest(v2)  image_id: kube_v2
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v2  image_id: kube_v2
+        ```
+        
+    - Case-3, proceed from the case-1, we upgrade container to v3 via k8s, kube v3 container will really run and replace the last kube v2 container. Then the images on device after Tag-Latest should be like below:
+        ```
+        docker-sonic-telemetry:latest(v3)  image_id: kube_v3
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v1  image_id: local_v1
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v2  image_id: kube_v2
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v3  image_id: kube_v3
+        ```
+        This case we only need to remove local v1 image which is with kube tag. Then the images after Clean-Up should be like below:
+        ```
+        docker-sonic-telemetry:latest(v3)  image_id: kube_v3
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v2  image_id: kube_v2
+        sonick8scue.azurecr.io/docker-sonic-telemetry:v3  image_id: kube_v3
+        ```
+        This case is most ofen happened
+
+- one note is that kube v1 image and local v1 image's image id maybe not same.
