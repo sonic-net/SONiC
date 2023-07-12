@@ -34,7 +34,6 @@ Deterministic Approach for Interface Link bring-up sequence
 | 0.7 | 02/02/2022  | Jaganathan Anbalagan               | Added Breakout Handling 
 | 0.8 | 02/16/2022  | Shyam Kumar                        | Updated feature-enablement workflow
 | 0.9 | 04/05/2022  | Shyam Kumar                        | Addressed review comments           |
-| 0.10| 06/26/2023  | Longyin Huang                      | Added details for sff_mgr           |
 
 
 # About this Manual
@@ -152,7 +151,6 @@ Please refer to the  flow/sequence diagrams which covers the following required 
 # Feature enablement
   This feature (optics Interface Link bring-up sequence) would be enabled on per platform basis.
   There could be cases where vendor(s)/platform(s) may take time to shift from existing codebase to the model (work-flows) described in this document.
-## For CMIS/C-CMIS modules:
   In order to avoid any breakage and ensure gradual migration of different platforms/vendors to this model, will add this new workflow to enable/disable this feature:
   
   In order to enable this feature, the platform would set ‘skip_xcvrd_cmis_mgr’ to ‘false’ in their respective pmon_daemon_control.json as part of platform bootstrap. When xcvrd would spawn on that hwsku (LC/board), it would parse ‘skip_xcvrd_cmis_mgr’ and if found 'false', it would launch CMIS task manager. This implies enabling this feature. 
@@ -165,54 +163,7 @@ Note: This feature flag (skip_xcvrd_cmis_mgr) was added as a flexibility in case
   Workflow :
   ![Enabling 'Interface link bring-up sequence' feature(2)](https://user-images.githubusercontent.com/69485234/154403945-654b49d7-e85f-4a7a-bb4d-e60a16b826a7.png)
 
-## For SFF compliant modules:
-- SFF task manager (sff_mgr) feature brings the deterministic approach for interface link bring-up to SFF compliant modules. (Refer to [here](#plan) for the reasons of sff_mgr)
-- By default, sff_mgr feature is disabled.
-- In order to enable sff_mgr feature, the platform would set ‘enable_xcvrd_sff_mgr’ to ‘true’ in their respective pmon_daemon_control.json. Xcvrd would parse ‘enable_xcvrd_sff_mgr’ and if found 'true', it would launch SFF task manager (sff_mgr).
-> **_Pre-requisite for enabling sff_mgr:_**
-Platform needs to leave the transceiver (if capable of disabling TX) in TX disabled state when an module inserted or during boot-up. This is to make sure the transceiver is not transmitting with TX enabled before host_tx_ready is True.
-### Flow of xcvrd main thread spawning sff_mgr thread:
-```mermaid
-graph TD;
-A[wait for PortConfigDone]
-B[check if enable_sff_mgr flag exists and is set to true]
-C[spawn sff_mgr]
-D[proceed to other thread spawning and tasks]
 
-Start --> A
-A --> B
-B -- true --> C
-C --> D
-B -- false --> D
-D --> End
-```
-### Flow of sff_mgr:
-(```tx_disable value/status``` is: ```True``` if TX is disabled; ```False``` if TX is enabled)
-```mermaid
-graph TD;
-A[subscribe to events]
-B[while task_stopping_event is not set]
-C[check for insertion event and host_tx_ready change event for each intended port]
-D[double check if module is present]
-E[fetch DB and update host_tx_ready value in local cahce, if not available locally]
-F[calculate the target tx_disable value based on host_tx_ready]
-G[check if tx_disable status on module is already the target value]
-H[go ahead to enable/disable TX based on the target tx_disable value]
-
-Start --> A
-A --> B
-B -- true --> C
-C -- if either event happened --> E
-C -- if neither event happened --> B
-E --> D
-D -- true --> F
-D -- false --> B
-F --> G
-G -- true --> B
-G -- false --> H
-H --> B
-B -- false --> End
-```
 
 # Transceiver Initialization 
   (at platform bootstrap layer)
