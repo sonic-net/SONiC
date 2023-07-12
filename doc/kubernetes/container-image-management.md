@@ -73,3 +73,4 @@ For the second problem, we need to remove the old version images in time. How to
         This case is most ofen happened
 
 - one note is that kube v1 image and local v1 image's image id maybe not same.
+- Why don't we leverage k8s image clean up function for worker. Kubelet will try to remove all docker images which is not used, our upgrade only support telemetry now, we don't want k8s touch other container's image.
