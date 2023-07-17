@@ -20,13 +20,9 @@
     - [Configuration and Management Requirements](#configuration-and-management-requirements)
 - [Design](#design)
     - [Design Overview](#design-overview)
-    - [DHCP Server Bridge](#dhcp-server-bridge)
-        - [Hook and Modify Packet](#hook-and-modify-packet)
-        - [Dependency Libraries](#dependency-libraries)
-    - [DhcpMgr Daemon](#dhcpmgr-daemon)
+    - [Dhcp Server Daemon](#dhcp-server-daemon)
         - [Generate Config](#generate-config)
         - [Update Lease](#update-lease)
-    - [DhcpServ Monitor](#dhcpserv-monitor)
     - [Customize DHCP Packet Options](#customize-dhcp-packet-options)
     - [DB Changes](#db-changes)
         - [Config DB](#config-db)
@@ -36,6 +32,7 @@
             - [Yang Model](#yang-model)
             - [DB Objects](#db-objects)
     - [Flow Diagrams](#flow-diagrams)
+        - [DHCP Server Flow](#dhcp-server-flow)
         - [Config Change Flow](#config-change-flow)
         - [Lease Update Flow](#lease-update-flow)
 - [CLI](#cli)
@@ -66,13 +63,12 @@ This document describes the high level design details about how **ipv4 port base
 | Abbreviation             | Full form                        |
 |--------------------------|----------------------------------|
 | DHCP                      | Dynamic Host Configuration Protocol      |
-| eBPF| extended Berkeley Packet Filter |
 
 ###### Table 2: Definitions
 | Definitions             | Description                        |
 |--------------------------|----------------------------------|
-| dnsmasq                      | A lightweight DHCP and caching DNS server      |
-| dhcrelay | DHCP relay |
+| kea-dhcp-server    | Open source DHCP server process distributed by ISC      |
+| dhcrelay | Open source DHCP relay process distributed by ISC |
 
 # Overview
 A DHCP Server is a server on network that can automatically provide and assign IP addresses, default gateways and other network parameters to client devices. 
@@ -96,84 +92,105 @@ Configuration of DHCP server feature can be done via:
 
 # Design
 ## Design Overview
-We use dnsmasq to reply dhcp request packet. Dnsmasq natively supports mac-based ip assign, but in our scenario dnsmasq need to know which interface this packet come from. And SONiC has integrated dhcrelay, which can add interface information to option82 in packet when it relay DHCP packet. So we use it to add interface information. But we will encounter 2 problems in this scenario:
+We use kea-dhcp-server to reply dhcp request packet. kea-dhcp-server natively supports to assign IPs by mac or contents in DHCP packet (like client id or other options), but in our scenario kea-dhcp-server need to know which interface this packet come from. And SONiC has integrated dhcrelay, which can add interface information to option82 in packet when it relay DHCP packet. So we use it to add interface information.
 
-1. Original dnsmasq and dhcrelay listen to same interface and same UDP port(67), which would cause port conflict.
+<div align="center"> <img src=images/overview_kea.png width=570 /> </div>
 
-2. dhcrelay is not supported loopback relay.
+In our design, dhcp_relay container works on host network mode as before. And dhcp_server container works on bridge network mode, means that it can communicate with switch network only via eth0.
 
-So we introduce DHCP Server Bridge(implemented by eBPF) to modify DHCP packet contents, including UDP ports, DHCP related information.
+For broadcast packet (discover, request) sent by client, obviously it would be routed to the related DHCP interface. For unicast packet (release), client will get server IP from Option 54 (server identifier) in DHCP reply packet receivced previously. But in our scenario, server identifier is the ip of `eth0` inside dhcp_server container (240.127.1.2), packet with this destination IP cannot be routed successfully. So we need to specify that kea-dhcp-server replies DHCP request with Option 54 filled with IP of DHCP interface (which is the downstream interface IP of dhcrelay), to let client take relay as server and send unicast packet to relay, and relay would transfer this packet to the real server.
 
-<div align="center"> <img src=images/ebpf_dhcp_high_level.png width=570 /> </div>
+Belows are sample configurations for dhcrelay and kea-dhcp-server:
 
-## DHCP Server Bridge
-eBPF (extended Berkeley Packet Filter) can run sandboxed programs in a privileged context such as in kernel space. We use eBPF program to implement DHCP Server bridge to connect loopback dnsmasq and dhcrelay.
+- dhcprelay:
+  ```CMD
+  ./dhcrelay -d -m discard -a %h:%p %P --name-alias-map-file /tmp/port-name-alias-map.txt -id Vlan1000 -iu docker0 240.127.1.2
+  ```
 
-### Hook and Modify Packet
+- kea-dhcp-server
+  ```JSON
+  {
+    "Dhcp4": {
+      ...
+      "interfaces-config": {
+        // Listen on eth0
+        "interfaces": ["eth0"]
+      },
+      "client-classes": [
+          {
+              // Check sub-options of option82, if circuit-id equals to "hostname:etp1",
+              // tag it as "hostname-etp1"
+              "name": "hostname-etp1",
+              "test": "relay4[1].hex == 'hostname:etp1'"
+          }
+      ],
+      "subnet4": [
+        {
+          "subnet": "192.168.0.0/24",
+          "pools": [
+            {
+              // Assign ip from this pool for packet tagged as "hostname-etp1"
+              "pool": "192.168.0.1 - 192.168.0.1",
+              "client-class": "hostname-etp1"
+            }
+          ]
+        }
+      ]
+      ...
+    }
+  }
+  ```
 
-We introduce eBPF to resolve conflict of dnsmasq and dhcrelay working on same machine.
-
-<div align="center"> <img src=images/ebpf_flow.png width=650 /> </div>
-
-For problem 1, it's easy to change listening port for dnsmasq by itself configuration. But it's no convenient to change relay port for dhcrelay. So we use port 67 as listen and relay port for dhcrelay, and use another port (like 10067) as listen port for dnsmasq. In this setting, origin UDP ports in packets between dnsmasq and dhcrelay is like bellow:
-| Direction      | UDP source port|UDP destination port|
-|--------------------------|--|----|
-| dhcrelay to dnsmasq|67| 67 |
-| dnsmasq to dhcrelay|10067| 10067 |
-
-In this scenario, they cannot communicate with each other. DHCP server bridge will modify packet UDP port, for packet from dhcrelay to dnsmasq, the UDP port will be modified from 67 to 10067 and for dnsmasq to dhcrelay, the UDP port will be modified from 10067 to 67.
-
-For problem 2, we chose `docker0` as upstream interface of dhcrelay and use eBPF to modify DHCP relay packet from dnsmasq to make it looks like not a loopback DHCP server, and redirect these packet to ingress queue of docker0.
-
-Belows are samples.
-```
-./dhcrelay -d -m discard -a %h:%p %P --name-alias-map-file /tmp/port-name-alias-map.txt -id Vlan1000 -iu docker0 192.168.0.1
-```
-dhcrelay listens on port 67, upstream interface of it is docker0 (We need a interface which would not request dhcp ip to be upstream interface), and downtream interface of it is Vlan1000, server ip is ip of Vlan1000. This config will make dhcrelay to relay dhcp packet between Vlan1000 and docker0.
-```
-bind-interfaces
-interface=Vlan1000
-dhcp-alternate-port=10067
-dhcp-circuitid=set:etp6,"hostname:etp6"
-dhcp-range=tag:etp6,192.168.0.5,192.168.0.5,255.255.255.0
-```
-dnsmasq listens on port 10067, and downstream of it is Vlan1000, it will assign ip by circuit id in option 82. This config will make it reply relayed DHCP request packet from Vlan1000.
-<div align="center"> <img src=images/ebpf.png width=670 /> </div>
-
-1. dhcrelay receive DHCP request and relay it to server. Because we have set server ip as it self, so the relayed packet would be sent from <b>lo</b> interface. The dst and src UDP port of this packet both are 67.
-
-2. DHCP server bridge is hooking in ergress queue of interface `lo`, modify the dst and src UDP to 10067, and not do anything else to this packet.
-
-3. dnsmasq recevie this relayed request packet, and send reply packet from <b>lo</b> intferface. The dst and src UDP port of this packet both are 10067.
-
-4. DHCP server bridge modify the dst and src UDP port and some other contents. And redirect this packet to ingress queue of <b>docker0</b>
-
-5. dhcrelay capture the DHCP reply packet in docker0 and would send relayed reply packet to client.
-
-### Dependency Libraries
-
-apt-get install libbpfcc libbpf-dev bpftool
-
-## DhcpMgr Daemon
+## Dhcp Server Daemon
 ### Generate Config
 
-For each dhcp interface, a dnsmasq process and an dhcrelay process are started. DhcpMgrd is to manager these processes (start/kill/restart) when configuration in config_db is changed.
+DhcpServd is to generate configuration file for kea-dhcp-server while DHCP Server config in CONFIG_DB changed, and then send SIGHUP signal to kea-dhcp-server process to let new config take affect.
 <div align="center"> <img src=images/dhcp_server_block_new_diagram.png width=530 /> </div>
 
 ### Update Lease
 
-Dnsmasq supports to specify a customize script to execute whenever a new DHCP lease is created, or an old one destroyed. We use this script to send signal to DhcpMgrd to read lease file and update lease table in STATE_DB.
+kea-dhcp-server supports to specify a customize script (`/tmp/lease_update.sh`) to execute whenever a new DHCP lease is created, or an old one destroyed. We use this script to send signal to DhcpServd to read lease file and update lease table in STATE_DB.
 <div align="center"> <img src=images/lease_update_flow_diagram.png width=380 /> </div>
 
-## DhcpServ Monitor
-
-If we enable a new DHCP interface, we should interface config of dnsmasq and dhcrelay, it requires process restart. In order to avoid affecting the existing DHCP interface, we will start another couple of dnsmasq and dhcrelay process. For this reason, we need a monitor process DhcpServMon to regularly check whether processes running status consistent with CONFIG_DB.
+```JSON
+{
+  "Dhcp4": {
+    "hooks-libraries": [
+      {
+          "library": "/usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_run_script.so",
+          "parameters": {
+              "name": "/tmp/lease_update.sh",
+              "sync": false
+          }
+      }
+    ]
+  }
+}
+```
 
 ## Customize DHCP Packet Options
 
-We can customize DHCP Packet options per DHCP interface by dnsmasq. 
+We can customize DHCP Packet options per DHCP interface by kea-dhcp-server. 
 
-We can set tag for each DHCP interface, all DHCP clients connected to this interface share one tag, and DHCP server would add DHCP options by config to each DHCP packet sent to client. Have to be aware of is that below options are not supported to customize, because they are specified by other config or they are critical options.
+We can set customized options for each DHCP interface, all DHCP clients connected to this interface share one configuration, and DHCP server would add DHCP options by config to each DHCP packet sent to client.
+```JSON
+{
+  "Dhcp4": {
+    "subnet4": [
+      {
+        "option-data": [
+            {
+                "code": 223,
+                "data": "'1,1,1,1,1,1,,1,1,1,1,1'",
+                "always-send": true
+            }
+        ],
+      }
+    ]
+  }
+}
+```
+Have to be aware of is that below options are not supported to customize, because they are specified by other config or they are critical options.
 | Option code             | Name                        |
 |--------------------------|----------------------------------|
 | 1                      | Subnet Mask      |
@@ -420,14 +437,19 @@ module sonic-dhcp-server-ipv4 {
 ```
 
 ## Flow Diagrams
+### DHCP Server Flow
+This sequence figure describe the work flow for reply DHCP packet.
+<div align="center"> <img src=images/server_flow.png width=500 /> </div>
+
 ### Config Change Flow
 This sequence figure describe the work flow for config_db changed CLI.
 <div align="center"> <img src=images/config_change_new_flow.png width=600 /> </div>
+<div align="center"> <img src=images/config_change_new_flow_vlan.png width=680 /> </div>
 
 ### Lease Update Flow
-Below sequence figure describes the work flow how dnsmasq updates lease table while new lease is created.
+Below sequence figure describes the work flow how kea-dhcp-server updates lease table while new lease is created.
 
-<div align="center"> <img src=images/lease_update_flow_new.png width=430 /> </div>
+<div align="center"> <img src=images/lease_update_flow_new.png width=480 /> </div>
 
 # CLI
 * config CLI
@@ -738,7 +760,7 @@ The Unit test case are as below:
 | 5 | Verify that show dhcp_server info can work well |
 | 6 | Verify that show dhcp_server lease can work well |
 | 7 | Verify that lease update script can work well |
-| 8 | Verify that config files for dnsmasq and dhcrelay generated by DhcpMgrd are correct |
+| 8 | Verify that config files for kea-dhcp-server and dhcrelay generated by DhcpServd are correct |
 
 ## Test Plan
 Test plan will be published in [sonic-net/sonic-mgmt](https://github.com/sonic-net/sonic-mgmt)
