@@ -37,6 +37,14 @@ Modern hardware systems have many different types of sensors and control devices
 
 Note that temperature sensor devices are managed via SONiC ThermalCtlD daemon today. At this point there is no change proposed for ThermalCtlD. This proposed design can be used for voltage, current and other types of sensors.
 
+Linux does provide some support of voltage and current sensor monitoring using lmsensors/hwmon infrastructure. However there are a few limitations with that
+
+- Devices not supported with Hwmon are not covered
+- Simple devices which donot have an inbuilt monitoring functions do not generate any alarms
+- Platform specific thresholds for monitoring are not available
+
+The solution proposed in this document tries to address these limitations by extending the coverage to a larger set of devices and providing platform specific thresholds for sensor monitoring.
+
 
 ### Requirements
 
