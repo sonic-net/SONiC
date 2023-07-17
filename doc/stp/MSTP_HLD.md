@@ -27,6 +27,7 @@
   - [CONFIG DB](#config-db)
   - [APP DB](#app-db)
 * [SAI](#sai)
+* [Additional Features](#additional-features)
 * [Sequence Diagrams](#sequence-diagrams)
   - [MSTP global enable](#mstp-global-enable)
   - [MSTP global disable](#mstp-global-disable)
