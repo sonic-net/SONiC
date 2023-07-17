@@ -110,7 +110,12 @@ MSTP calculates spanning trees on the basis of Multiple Spanning Tree Bridge Pro
 1. Support path selection and forwarding behaviour in MSTI to optimize network performance within each instance by configuring a distinct root bridge.
 1. Support the configuration of spanning tree parameters such as forward delay, hello timer, hop count and max age.
 1. The Destination Mac Address will be 01:80:C2:00:00:00 for MSTP BPDUs.
-1. Support compatibility with networks employing different spanning tree protocols, such as STP, RSTP and PVST via Protocol Migration.
+1. Support compatibility with networks employing different spanning tree protocols, such as STP, RSTP and PVST via Protocol Migration. 
+1. Support edge port functionality
+1. Support BPDU guard functionality
+1. Support root guard functionality
+1. Support protocol operation on static breakout ports
+1. Support protocol operation on Port-channel interfaces
 
 # Architecture Design
 Following diagram explains the architectural design and linkages for MSTP. MSTP uses multiple existing SONiC containers, configuration details of each is mentioned below as well.
@@ -145,6 +150,8 @@ Updates SAI via following APIs:
 3. Creation of STP Port and assigning port state with respect to each instance via SAI STP API.
 4. Flushing FDB entries via SAI FDB API.
 
+There are no changes in PortOrch.
+
 ## CoPP Configurations
 MSTP facilitates the exchange of control packets, known as Bridge Protocol Data Units (BPDUs), among switches to establish and maintain loop-free paths in a network. In order to trap these BPDUs, Control Plane Policing (CoPP) will be extended as follows:
 ```
@@ -165,7 +172,7 @@ Following existing table of CONFIG_DB will be modified for MSTP implementation:
 #### STP_GLOBAL_TABLE
 A new value of `mstp` for `mode` column and a new column for holding `max-hops`
 ```
-mode 		  = "pvst" / "mstp" / "disable"      ; a new option for mstp (DEF: "disable")
+mode 		  = "pvst" / "mstp"                  ; a new option for mstp
 max_hops	  = 1*3DIGIT		             ; max hops (1 to 255, DEF: 20)
 ```
 Other fields of this table i.e rootguard_timeout, forward_delay, hello_time, max_age, priority will also be used to hold the configurations received from CLI.
@@ -186,13 +193,7 @@ revision	  = 1*5DIGIT 	          ; region revision number(0 to 65535, DEF: 0)
 ;Stores the MSTP instance operational details
 key           = MSTP_INSTANCE|"Instance"instanceid	  ; instance id with MSTP_INSTANCE as a prefix
 priority      = 1*5DIGIT 			          ; bridge priority (0 to 61440, DEF:32768)
-```
-
-#### MSTP_VLAN_TABLE
-```
-;Stores MSTP VLAN to instance mapping
-key               = MSTP_VLAN|"Vlan"vlanid              ; vlan id with MSTP_VLAN as a prefix
-instance_id	  = 1*2DIGIT	                        ; instance id vlan is mapped to (0-63, DEF:0)
+vlanids	      = vlan_id-or-range[,vlan_id-or-range]       ; list of VLAN IDs mapped to instance
 ```
 
 #### MSTP_INSTANCE_PORT_TABLE
@@ -301,8 +302,30 @@ MSTP design requires one new attribute `SAI_HOSTIF_TRAP_TYPE_MSTP` for control t
 
 [SAI/saihostif.h](https://github.com/opencomputeproject/SAI/blob/master/inc/saihostif.h)
 
+# Additional Features
+
+## BPDU Guard
+BPDU guard feature will also be supported by MSTP. The details are mentioned in PVST HLD.
+
+## Root Guard
+Root guard feature will also be supported by MSTP. The details are mentioned in PVST HLD.
+
+## Edge Port
+Edge ports immediately transition to the forwarding state upon activation and do not participate in STP topology calculations. In PVST, this functionality is achieved through the "Portfast" feature, while in MSTP standard, the term "Edge Port" is used. To ensure user clarity, separate command will be provided for configuring Edge Ports.
+
+Portfast command will be disabled when the spanning-tree mode is set to `mstp` and Edge Port command will not function under `pvst` spanning-tree mode.
+
+Please note that the Edge Port functionality is equivalent to Portfast, with the only difference being the terminology and command usage based on the spanning-tree mode. The configuration for Edge ports will be stored in the portfast attribute in the database and the backend functionality remains the same as portfast.
+
+## Uplink Fast
+MSTP standard does not support uplink fast so uplink fast functionality will be disable for MSTP.
+
+
 #  Sequence Diagrams
 ## MSTP global enable
+
+Only the VLANs that are currently present will be mapped to IST instance. A VLAN cannot be mapped to an instance if it has not been created yet.
+
 ![MSTP Global Enable](images/MSTP_global_enable.png)
 
 ## MSTP global disable
@@ -322,6 +345,12 @@ MSTP design requires one new attribute `SAI_HOSTIF_TRAP_TYPE_MSTP` for control t
 
 ## Del VLAN from instance
 ![MSTP VLAN Del](images/MSTP_vlan_del.png)
+
+## Add VLAN member
+![MSTP VLAN Member Add](images/MSTP_vlan_member_add.png)
+
+## Del VLAN member
+![MSTP VLAN Member Del](images/MSTP_vlan_member_del.png)
 
 Update port-state, topology change and instance-interface events remain the same as depicted in [Sequence Diagrams of PVST](https://github.com/sandeep-kulambi/SONiC/blob/631ab18211e7e396b138ace561b7a04e7f7b49a1/doc/stp/SONiC_PVST_HLD.md#4-flow-diagrams).
 
@@ -373,6 +402,14 @@ Following commands are used for spanning-tree configurations on per instance, pe
   - Configure path cost of an interface for an instance.
   - cost-value: Range: 1-200000000
 
+## Interface Level
+Following new command will be added:
+
+- **config spanning_tree interface edgeport {enable|disable} \<ifname\>**
+  - Configure an interface as an edge port.
+
+Interface level CLI configurations of root guard, BPDU guard will also be supported for spanning-tree mode `mstp`.
+
 ## Show Commands
 - show spanning_tree
 
@@ -402,9 +439,9 @@ hex                 hex                                       sec           cnt
 
 MSTP Port Parameters:
 
-Port        Prio Path Port Uplink State      Role  Designated  Designated          Designated
-Num         rity Cost Fast Fast                    Cost        Root                Bridge
-Ethernet13  128  4    Y    N      FORWARDING Root  0           32768002438eefbc3   32768002438eefbc3 
+Port        Prio Path Edge State      Role  Designated  Designated          Designated
+Num         rity Cost Port                  Cost        Root                Bridge
+Ethernet13  128  4    N    FORWARDING Root  0           32768002438eefbc3   32768002438eefbc3 
 ```
 - show spanning_tree region
 
@@ -436,9 +473,9 @@ hex                 hex                                       sec           cnt
 - show spanning_tree instance interface \<instance-id\> \<ifname\>
 
 ```
-Port        Prio Path Port Uplink State      Role  Designated  Designated          Designated
-Num         rity Cost Fast Fast                    Cost        Root                Bridge
-Ethernet13  128  4    Y    N      FORWARDING Root  0           32768002438eefbc3   32768002438eefbc3 
+Port        Prio Path Edge State      Role  Designated  Designated          Designated
+Num         rity Cost Port                  Cost        Root                Bridge
+Ethernet13  128  4    N    FORWARDING Root  0           32768002438eefbc3   32768002438eefbc3
 ```
 
 ### Statistics Commands
@@ -478,7 +515,11 @@ Following commands are used to configure parameters at VLAN level and these comm
 - config spanning_tree vlan interface cost \<vlan\> \<ifname\> \<value\>
 - config spanning_tree vlan interface priority \<vlan\> \<ifname\> \<value\>
 
-Also, Region level and Instance level commands will be disabled if spanning-tree mode is `pvst`.
+Following command is used to configure portfast feature. This command is disbaled if spanning-tree mode is `mstp` because an equivalent command of edge port is provided:
+
+- config spanning_tree interface portfast {enable|disable} <ifname>
+
+Also, Region level, Instance level & Edge port configuation commands will be disabled if spanning-tree mode is `pvst`.
 
 
 # YANG Model
@@ -527,9 +568,7 @@ module sonic-stp {
                 type enumeration {
                     enum "pvst";
                     enum "mstp";
-                    enum "disable";
                 }
-                default "disable";
                 description "STP mode";
             }
 
@@ -645,35 +684,16 @@ module sonic-stp {
                     default 32768;
                     description "Bridge priority";
                 }
-            }
-        }
 
-        container MSTP_VLAN {
-            description "MSTP VLAN to instance mapping";
-
-            list MSTP_VLAN_LIST {
-                key "vlan";
-
-                leaf vlan {
-                    must "(current() = /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name)" {
+                leaf-list vlanids {
+					must "(current() = /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name)" {
                         error-message "Must condition not satisfied, Try adding Vlan<vlanid>: {}, Example: 'Vlan2': {}";
                     }
 
                     type leafref {
                         path "/vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name";
                     }
-                }
-
-                leaf instance_id {
-                    must "(concat('Instance', current()) = ../../../MSTP_INSTANCE/MSTP_INSTANCE_LIST[name=concat('Instance', current())]/name)" {
-                        error-message "Must condition not satisfied, Try adding Instance<instanceid>: {}, Example: 'Instance2': {}";
-                    }
-
-                    type uint8 {
-                        range "0..63";
-                    }
-                    default 0;
-                }
+				}
             }
         }
 
