@@ -32,6 +32,8 @@ Deterministic Approach for Interface Link bring-up sequence on SFF compliant mod
 # About this Manual
 This is a high-level design document describing the need to have determinstic approach on SFF compliant modules for Interface link bring-up sequence and workflows for use-cases around it
 
+Parent HLD [Interface-Link-bring-up-sequence.md](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis/Interface-Link-bring-up-sequence.md) focuses on generic high level background/idea and details for CMIS modules, while this HLD focuses on SFF modules with details.
+
 # Abbreviation
 
 # Table 1: Definitions
@@ -53,10 +55,9 @@ This is a high-level design document describing the need to have determinstic ap
 
 
 # Problem Definition
+According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis/Interface-Link-bring-up-sequence.md#plan), as already discussed with sonic-chassis workgroup and OCP community:
 
-1.	Presently in SONiC, for SFF compliant modules (100G/40G), there is no synchronization between enabling Tx of optical module and enabling ASIC (NPU/PHY) Tx which may cause link instability during administrative interface enable “config interface startup Ethernet” configuration and bootup scenarios. According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis/Interface-Link-bring-up-sequence.md#plan), potential problems are:
-    - link stability issue which will be difficult to chase in the production network. e.g. If there is a PHY device in between, PHY may adapt to a bad signal or interface flaps may occur when the optics tx/rx enabled during PHY initialization.
-    - there is a possibility of interface link flaps with non-quiescent optical modules <QSFP+/SFP28/SFP+>
+1.	Presently in SONiC, for SFF compliant modules (100G/40G), there is no synchronization between enabling Tx of optical module and enabling ASIC (NPU/PHY) Tx which may cause link instability during administrative interface enable “config interface startup Ethernet” configuration and bootup scenarios.
 
 2.  During administrative interface disable “config interface shutdown Ethernet”, only the ASIC(NPU) Tx is disabled and not the opticcal module Tx/laser.
       This will lead to power wastage and un-necessary fan power consumption to keep the module temperature in operating range
