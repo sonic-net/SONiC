@@ -93,11 +93,13 @@ The Actor Retry Count and Partner Retry Count TLVs have the following content:
 |      0        |   1    | Retry count     |
 |      1        |   1    | Padding         |
 
-If either side wants to use a non-standard retry count (i.e. retry count set to
-something besides 3), then they must send a LACP version 0xf1 packet. This
-packet will include the retry count of both peers. The receiving device must
-validate the peer's information and then update the retry count that the peer
-wants to use.
+If either side wants to use a non-standard retry count for a member port (i.e.
+retry count set to something besides 3), then they must send a LACP version
+0xf1 packet. This packet will include the retry count of both peers for that
+member port. The receiving device must validate the peer's information and then
+update the retry count that the peer wants to use. This retry count will apply
+only to that member port, and a separate packet will need to be sent for each
+member port.
 
 This retry count is valid until any of the following occurs:
 
@@ -105,14 +107,24 @@ This retry count is valid until any of the following occurs:
 * A duration of 3 minutes times the retry count passes
 * The LACP session goes down for whatever reason (because the new retry count
   expires, because the link goes down, etc.)
-* The peer device sends a version 0x01 LACP PDU (without the retry count TLVs)
+* The peer device sends a version 0x01 LACP PDU (only after 60 seconds)
 
 Except for the first event, after any of these happen, the standard retry count
 of 3 applies.
 
+In the case of the last event, where a 0x01 LACP PDU is received, the retry
+count will get reset to 3 only after 60 seconds after the last 0xf1 LACP PDU
+with non-standard retry count. In other words, when a 0xf1 LACP PDU is received
+with a non-standard retry count, if a 0x01 LACP PDU is received within 60
+seconds of that, then the retry count will not get reset to 3. This is meant to
+act as a transition mechanism during image upgrades.
+
 If both sides want to use the standard retry count of 3 instead, they are
-recommended to send a regular LACP version 0x01 packet, so that the current
-standard is being followed.
+recommended (but not required) to send a regular LACP version 0x01 packet, so
+that the current standard is being followed. For SONiC's purposes, if a 0xf1
+LACP PDU is received by a device, then it will also respond with a 0xf1 LACP
+PDU. This will act as part of a feature presence test, to determine if the peer
+device supports this feature.
 
 #### Changing Max Retries for Warmboot
 
@@ -133,9 +145,24 @@ standard LACP PDU packet (with version 0x01). When the peer teamd client
 receives this packet, it will know that this side's retry count should be
 changed back to 3.
 
+### Feature Test
+
+To test if a neighbor device has this feature, the following checks will be
+done:
+
+* Based on the LLDP neighbor table, check to see if the remote device claims to
+  be a SONiC device. Specifically, check to see if the system description
+  contains SONiC. If desired, a version check could be made here as well. If
+  there is no LLDP data, or the remote device is not a SONiC device, then
+  assume that this feature is not support, and stop here.
+* From a Python script, send a version 0xf1 LACP PDU packet, with the retry
+  count for both sides set to 3. If the neighbor device responds with a valid
+  0xf1 LACP PDU packet, then this indicates that the feature is supported. If
+  not, then this feature is likely not supported.
+
 ### SAI API
 
-There are no changes needed in the SAI API or by vendors.
+There are no changes needed in the SAI API or in the implementation by vendors.
 
 ### Configuration and management
 
@@ -172,6 +199,7 @@ that after the T0 comes up, the retry count has been set to 3.
 
 * [sonic-net/sonic-utilities: Add CLI configuration options for teamd retry count feature](https://github.com/sonic-net/sonic-utilities/pull/2642)
 * [sonic-net/sonic-buildimage: teamd: Add support for custom retry counts for LACP sessions](https://github.com/sonic-net/sonic-buildimage/pull/13453)
+* [sonic-net/sonic-mgmt: Add test cases for teamd retry count feature](https://github.com/sonic-net/sonic-mgmt/pull/8152)
 
 # References
 
