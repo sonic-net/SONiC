@@ -60,7 +60,7 @@ According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp
 1.	Presently in SONiC, for SFF compliant modules (100G/40G), there is no synchronization between enabling Tx of optical module and enabling ASIC (NPU/PHY) Tx which may cause link instability during administrative interface enable “config interface startup Ethernet” configuration and bootup scenarios.
 
 2.  During administrative interface disable “config interface shutdown Ethernet”, only the ASIC(NPU) Tx is disabled and not the opticcal module Tx/laser.
-      This will lead to power wastage and un-necessary fan power consumption to keep the module temperature in operating range
+      This will lead to power wastage, un-necessary fan power consumption to keep the module temperature in operating range, and potential lab hazard when the port is shut off but the laser is still on.
 
 # Background
 
