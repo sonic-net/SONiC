@@ -409,7 +409,7 @@ sequenceDiagram
 ```
 
 ## Test plan and expectation
-|       Event      | APPL_DB cleared | Xcvrd restarted | Media renotify | MEDIA_SETTINGS_SYNC_DONE value on   xcvrd boot-up for initialized transceiver | CMIS re-init triggered | Link flap |
+|       Event      | APPL_DB cleared | Xcvrd restarted | Media renotify | MEDIA_SETTINGS_SYNC_STATUS value on   xcvrd boot-up for initialized transceiver | CMIS re-init triggered | Link flap |
 |:----------------:|:---------------:|:---------------:|:--------------:|:-----------------------------------------------------------------------------:|:----------------------:|:---------:|
 | Xcvrd restart    | N               | Y               | N              | MEDIA_SETTINGS_DONE                                                           | N                      | N         |
 | Pmon restart     | N               | Y               | N              | MEDIA_SETTINGS_DONE                                                           | N                      | N         |
