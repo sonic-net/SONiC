@@ -186,22 +186,28 @@ if transceiver is not present:
  - xcvrd will not perform any action on receiving host_tx_ready field update 
 
 # Port reinitialization during syncd/swss/orchagent crash
-## Overview:
+## Overview
 
-When syncd/swss/orchagent crashes, all ports in the corresponding namespace will be reinitialized by xcvrd irrespective of its current state.  
+When syncd/swss/orchagent crashes, all ports in the corresponding namespace will be reinitialized by xcvrd irrespective of the current state of the port.  
 If just xcvrd crashes and restarts, then forced reinitialization (CMIS reinit + media settings notify) of port will not be performed.  
 Following infra will ensure port reinitialization by xcvrd in case of syncd/swss/orchagent crash:
 
 1. XCVRD main thread init
 	- XCVRD main thread creates the key CMIS_REINIT_REQUIRED in PORT_TABLE:\<port\> (APPL_DB) with value as true for ports which do NOT have this key present 
 	- XCVRD main thread creates the key MEDIA_SETTINGS_SYNC_STATUS in PORT_TABLE:\<port\> (APPL_DB) with value MEDIA_SETTINGS_DEFAULT for ports which do NOT have this key present.  
-  Following are the possible values for MEDIA_SETTINGS_SYNC_STATUS  
-		- MEDIA_SETTINGS_DEFAULT - xcvrd main thread creates this after cold start and sets to this after transceiver removal  
-		- MEDIA_SETTINGS_NOTIFIED - SfpStateUpdateTask sets this during boot-up and transceiver insertion
-		- MEDIA_SETTINGS_DONE - OA sets this after applying SI settings
+      - For transceivers which do not support media settings, MEDIA_SETTINGS_SYNC_STATUS will stay with value MEDIA_SETTINGS_DEFAULT
+
+  Following table describes the various values for MEDIA_SETTINGS_SYNC_STATUS  
+
+|          Value          |                Modifier thread and event               |                                  Consumer thread and purpose                                 |
+|:-----------------------:|:------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
+| MEDIA_SETTINGS_DEFAULT  | XCVRD main thread during cold   start of xcvrd         | XCVRD main thread   during boot-up for deciding to notify media settings                     |
+|                         | SfpStateUpdateTask during   transceiver removal        |                                                                                              |
+| MEDIA_SETTINGS_NOTIFIED | SfpStateUpdateTask while   updating the media settings | Not being used currently                                                                     |
+| MEDIA_SETTINGS_DONE     | Orchagent after applying the SI   settings             | CmisManagerTask for proceeding   to CMIS_STATE_DP_DEINIT from CMIS_STATE_MEDIA_SETTINGS_WAIT |
 
 2. SfpStateUpdateTask thread will notify the media settings to OA based on the value of PORT_TABLE:\<port\>.MEDIA_SETTINGS_SYNC_STATUS  
-If PORT_TABLE:\<port\>.MEDIA_SETTINGS_SYNC_STATUS != MEDIA_SETTINGS_DONE, media settings sync will be invoked and will be set to MEDIA_SETTINGS_NOTIFIED for a port supporting media settings.
+If PORT_TABLE:\<port\>.MEDIA_SETTINGS_SYNC_STATUS != MEDIA_SETTINGS_DONE, notify media settings will be invoked and will be set to MEDIA_SETTINGS_NOTIFIED for a port supporting media settings.
 3. The OA upon receiving media settings will
 	- Disable port admin status
 	- Apply SI settings
@@ -270,7 +276,7 @@ sequenceDiagram
     participant SfpStateUpdateTask
 
     Note over SfpStateUpdateTask: Subscribe to CONFIG_DB:PORT,<br>STATE_DB:TRANSCEIVER_INFO and STATE_DB:PORT_TABLE
-    Note over SfpStateUpdateTask: _post_port_sfp_info_and_dom_thr_to_db_once
+    Note over SfpStateUpdateTask: Following loop represents _post_port_sfp_info_and_dom_thr_to_db_once
     loop lport in logical_port_list
         alt post_port_sfp_info_to_db != SFP_EEPROM_NOT_READY
              Note over SfpStateUpdateTask: post_port_dom_threshold_info_to_db
@@ -348,7 +354,7 @@ sequenceDiagram
         CmisManagerTask ->> CmisManagerTask : Transition CMIS SM to CMIS_STATE_INSERTED
         SfpStateUpdateTask ->> APPL_DB: PORT_TABLE:<lport>.MEDIA_SETTINGS_SYNC_STATUS = <br> MEDIA_SETTINGS_NOTIFIED
         activate OA
-        SfpStateUpdateTask ->> OA: Notify media settings for ports
+        APPL_DB -->> OA: Notify media settings for ports
         Note over OA: Disable admin status<br>setPortSerdesAttribute
         OA ->> APPL_DB: PORT_TABLE:<lport>.MEDIA_SETTINGS_SYNC_STATUS = MEDIA_SETTINGS_DONE
         Note over OA: initHostTxReadyState
@@ -416,15 +422,9 @@ sequenceDiagram
 | Warm   reboot    | N               | Y               | N              | MEDIA_SETTINGS_DONE                                                           | N                      | N         |
 # Out of Scope 
 Following items are not in the scope of this document. They would be taken up separately
-1. xcvrd restart 
-   - If the xcvrd goes for restart, then all the DB events will be replayed. 
-     Here the Datapath init/activate for CMIS compliant optical modules, tx-disable register set (for SFF complaint optical modules), will be a no-op if the optics is already in that state 
-2. syncd/gbsyncd/swss docker container restart
-   - Cleanup scenario - Check if the host_tx_ready field in STATE-DB need to be updated to “False” for any use-case, either in going down or coming up path 
-   - Discuss further on the possible use-cases
-3. CMIS API feature is not part of this design and the APIs will be used in this design. For CMIS HLD, Please refer to:
+1. CMIS API feature is not part of this design and the APIs will be used in this design. For CMIS HLD, Please refer to:
    https://github.com/sonic-net/SONiC/blob/9d480087243fd1158e785e3c2f4d35b73c6d1317/doc/sfp-cmis/cmis-init.md
-4. Error handling of SAI attributes
+2. Error handling of SAI attributes
    a) At present, If there is a set attribute failure, orch agent will exit. 
       Refer the error handling API : https://github.com/sonic-net/sonic-swss/blob/master/orchagent/orch.cpp#L885
    b) Error handling for SET_ADMIN_STATUS attribute will be added in future.
