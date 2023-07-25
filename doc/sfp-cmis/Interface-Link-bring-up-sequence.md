@@ -17,6 +17,7 @@ Deterministic Approach for Interface Link bring-up sequence
   * [Pre-requisite](#pre-requisite)
   * [Breakout handling](#breakout-handling)
   * [Proposed Work-Flows](#proposed-work-flows)
+  * [Port reinitialization during syncd/swss/orchagent crash](#port-reinitialization-during-syncdswssorchagent-crash)
 
 # List of Tables
   * [Table 1: Definitions](#table-1-definitions)
@@ -184,7 +185,235 @@ if transceiver is not present:
  - All the workflows mentioned above will reamin same ( or get exercised) till host_tx_ready field update
  - xcvrd will not perform any action on receiving host_tx_ready field update 
 
+# Port reinitialization during syncd/swss/orchagent crash
+## Overview:
 
+When syncd/swss/orchagent crashes, all ports in the corresponding namespace will be reinitialized by xcvrd irrespective of its current state.  
+If just xcvrd crashes and restarts, then forced reinitialization (CMIS reinit + media settings notify) of port will not be performed.  
+Following infra will ensure port reinitialization by xcvrd in case of syncd/swss/orchagent crash:
+
+1. XCVRD main thread init
+	- XCVRD main thread creates the key CMIS_REINIT_REQUIRED in PORT_TABLE:\<port\> (APPL_DB) with value as true for ports which do NOT have this key present 
+	- XCVRD main thread creates the key MEDIA_SETTINGS_SYNC_STATUS in PORT_TABLE:\<port\> (APPL_DB) with value MEDIA_SETTINGS_DEFAULT for ports which do NOT have this key present.  
+  Following are the possible values for MEDIA_SETTINGS_SYNC_STATUS  
+		- MEDIA_SETTINGS_DEFAULT - xcvrd main thread creates this after cold start and sets to this after transceiver removal  
+		- MEDIA_SETTINGS_NOTIFIED - SfpStateUpdateTask sets this during boot-up and transceiver insertion
+		- MEDIA_SETTINGS_DONE - OA sets this after applying SI settings
+
+2. SfpStateUpdateTask thread will notify the media settings to OA based on the value of PORT_TABLE:\<port\>.MEDIA_SETTINGS_SYNC_STATUS  
+If PORT_TABLE:\<port\>.MEDIA_SETTINGS_SYNC_STATUS != MEDIA_SETTINGS_DONE, media settings sync will be invoked and will be set to MEDIA_SETTINGS_NOTIFIED for a port supporting media settings.
+3. The OA upon receiving media settings will
+	- Disable port admin status
+	- Apply SI settings
+	- PORT_TABLE:\<port\>.MEDIA_SETTINGS_SYNC_STATUS = MEDIA_SETTINGS_DONE
+4. In the CMIS_STATE_INSERTED state, if 'admin_status' is up and 'host_tx_ready' is true, CmisManagerTask thread will check if
+	- the port supports media settings (will be checked using g_dict and finding valid SI values) and
+	- MEDIA_SETTINGS_SYNC_STATUS != MEDIA_SETTINGS_DONE  
+If all the above conditions are true, CMIS SM transitions to CMIS_STATE_MEDIA_SETTINGS_WAIT state.  
+If port doesn't require media settings to be applied, CMIS SM will proceed with normal code flow (transitions to CMIS_STATE_DP_DEINIT)  
+Overall, no functionality change related to CMIS SM transitions is intended for ports not supporting media settings
+5. CMIS_STATE_MEDIA_SETTINGS_WAIT state will wait for MEDIA_SETTINGS_DONE and upon reaching to MEDIA_SETTINGS_DONE, CMIS SM will transition to CMIS_STATE_DP_DEINIT.  
+There will be a timeout of 5s for every retry
+6. The CmisManagerTask thread will set “CMIS_REINIT_REQUIRED" to false after CMIS SM reaches to a steady state (CMIS_STATE_UNKNOWN, CMIS_STATE_FAILED, CMIS_STATE_READY and CMIS_STATE_REMOVED) for the corresponding port
+7. XCVRD will subscribe to PORT_TABLE in APPL_DB and trigger self-restart if the PORT_TABLE is deleted for the namespace.  
+All threads will be gracefully terminated and xcvrd deinit will be performed followed by issuing a SIGABRT to ensure XCVRD is restarted automatically by supervisord. After respawn, CMIS re-init and media_settings notified is triggered for the ports belonging to the affected namespace
+8. syncd/swss/orchagent restart clears the entire APPL-DB, including “MEDIA_SETTINGS_SYNC_STATUS” and "CMIS_REINIT_REQUIRED" in PORT_TABLE
+
+## XCVRD init sequence to support port reinitialization during syncd/swss/orchagent crash
+
+```mermaid
+sequenceDiagram
+    participant APPL_DB
+    participant XCVRDMT as XCVRD main thread
+    participant CmisManagerTask
+    participant SfpStateUpdateTask
+    participant DomInfoUpdateTask
+
+    Note over XCVRDMT: Load new platform specific api class,<br> sfputil class and load namespace details
+    XCVRDMT ->> XCVRDMT: Wait for port config completion
+    loop lport in logical_port_list
+        alt if CMIS_REINIT_REQUIRED not in PORT_TABLE:<lport>
+            XCVRDMT ->> APPL_DB: PORT_TABLE:<lport>.CMIS_REINIT_REQUIRED = true
+        end
+        alt if MEDIA_SETTINGS_SYNC_STATUS not in PORT_TABLE:<lport>
+            XCVRDMT ->> APPL_DB: PORT_TABLE:<lport>.MEDIA_SETTINGS_SYNC_STATUS = MEDIA_SETTINGS_DEFAULT
+        end
+    end
+    Note over APPL_DB: PORT_TABLE:<lport><br>CMIS_REINIT_REQUIRED : true/false<br>MEDIA_NOTIFY_REQUIRED : true/false
+    XCVRDMT ->> CmisManagerTask: Spawns
+    XCVRDMT ->> DomInfoUpdateTask: Spawns
+    XCVRDMT ->> SfpStateUpdateTask: Spawns
+    par XCVRDMT, CmisManagerTask, SfpStateUpdateTask, DomInfoUpdateTask
+        loop Wait for stop_event else poll every 60s
+            DomInfoUpdateTask->>DomInfoUpdateTask: Update TRANSCEIVER_DOM_SENSOR,<br>TRANSCEIVER_STATUS (HW section)<br>TRANSCEIVER_PM tables
+        end
+        loop Wait for stop_event
+            XCVRDMT->>XCVRDMT: Check for changes in PORT_TABLE and act upon receiving DEL event
+        end
+        Note over CmisManagerTask: Subscribe to CONFIG_DB:PORT,<br>STATE_DB:TRANSCEIVER_INFO and STATE_DB:PORT_TABLE
+        loop Wait for stop_event
+            Note over CmisManagerTask: Start the CMIS SM and act based on subscribed DB related changes
+        end
+        Note over SfpStateUpdateTask: _post_port_sfp_info_and_dom_thr_to_db_once<br>_init_port_sfp_status_tbl<br>Subscribe to CONFIG_DB:PORT
+        loop Wait for stop_event
+            SfpStateUpdateTask ->> SfpStateUpdateTask: Handle config change event<br>retry_eeprom_reading()<br>_wrapper_get_transceiver_change_event
+        end
+    end
+```
+
+## SfpStateUpdateTask's role to notify media settings to OA
+
+```mermaid
+sequenceDiagram
+    participant OA
+    participant APPL_DB
+    participant SfpStateUpdateTask
+
+    Note over SfpStateUpdateTask: Subscribe to CONFIG_DB:PORT,<br>STATE_DB:TRANSCEIVER_INFO and STATE_DB:PORT_TABLE
+    Note over SfpStateUpdateTask: _post_port_sfp_info_and_dom_thr_to_db_once
+    loop lport in logical_port_list
+        alt post_port_sfp_info_to_db != SFP_EEPROM_NOT_READY
+             Note over SfpStateUpdateTask: post_port_dom_threshold_info_to_db
+            opt PORT_TABLE:<lport>.MEDIA_SETTINGS_SYNC_STATUS != MEDIA_SETTINGS_DONE
+              opt if lport supports media settings
+                  SfpStateUpdateTask ->> APPL_DB: PORT_TABLE:<lport>.MEDIA_SETTINGS_SYNC_STATUS = MEDIA_SETTINGS_NOTIFIED
+                  APPL_DB -->> OA: Notify media settings for ports
+                  Note over OA: Disable admin status<br>setPortSerdesAttribute
+                  OA ->> APPL_DB: PORT_TABLE:<lport>.MEDIA_SETTINGS_SYNC_STATUS = MEDIA_SETTINGS_DONE
+                  Note over OA: initHostTxReadyState
+                end
+            end
+        else
+            Note over SfpStateUpdateTask: retry_eeprom_set.add(lport)
+        end
+    end
+    Note over SfpStateUpdateTask: _init_port_sfp_status_tbl<br>Subscribe to CONFIG_DB
+    loop Wait for stop_event
+        SfpStateUpdateTask ->> SfpStateUpdateTask: Handle config change event<br>retry_eeprom_reading()<br>_wrapper_get_transceiver_change_event
+    end
+```
+
+## CMIS State machine with CMIS_STATE_MEDIA_SETTINGS_WAIT state
+
+The below state machine is a high level flow and doesn't capture details for states other than CMIS_STATE_MEDIA_SETTINGS_WAIT
+
+```mermaid
+stateDiagram
+    [*] --> CMIS_STATE_INSERTED
+    state if_state <<choice>>
+    state if_state2 <<choice>>
+    CMIS_STATE_INSERTED --> if_state
+    if_state --> CMIS_STATE_READY : if host_tx_ready != True or<br>admin_status != up<br> Action - disable TX
+    if_state --> if_state2 : if host_tx_ready == True and<br>admin_status == up
+    if_state2 --> CMIS_STATE_DP_DEINIT : if PORT_TABLE.port.CMIS_REINIT_REQUIRED == true or<br>is_cmis_application_update_required
+    if_state2 --> CMIS_STATE_MEDIA_SETTINGS_WAIT : if is_media_settings_supported and<br>MEDIA_SETTINGS_SYNC_STATUS != MEDIA_SETTINGS_DONE
+    note left of CMIS_STATE_READY : PORT_TABLE.port.CMIS_REINIT_REQUIRED = false
+    if_state2 --> CMIS_STATE_FAILED : if appl < 1 or <br>host_lanes_mask <= 0 or <br>media_lanes_mask <= 0
+    note left of CMIS_STATE_FAILED : PORT_TABLE.port.CMIS_REINIT_REQUIRED = false
+
+    CMIS_STATE_MEDIA_SETTINGS_WAIT --> CMIS_STATE_DP_DEINIT : if PORT_TABLE&ltport&gt.MEDIA_SETTINGS_SYNC_STATUS == MEDIA_SETTINGS_DONE
+    CMIS_STATE_MEDIA_SETTINGS_WAIT --> CMIS_STATE_INSERTED : Through force_cmis_reinit upon reaching timeout
+    note right of CMIS_STATE_MEDIA_SETTINGS_WAIT
+        Checks if PORT_TABLE&ltport&gt.MEDIA_SETTINGS_SYNC_STATUS == MEDIA_SETTINGS_DONE
+        After 5s timeout, force_cmis_reinit will be called
+    end note
+
+    CMIS_STATE_DP_DEINIT --> CMIS_STATE_AP_CONF
+    CMIS_STATE_AP_CONF --> CMIS_STATE_DP_INIT
+    CMIS_STATE_DP_INIT --> CMIS_STATE_DP_TXON
+    CMIS_STATE_DP_TXON --> CMIS_STATE_DP_ACTIVATE
+    CMIS_STATE_DP_ACTIVATE --> CMIS_STATE_READY
+```
+
+## Transceiver OIR handling
+
+```mermaid
+sequenceDiagram
+    participant STATE_DB
+    participant OA
+    participant APPL_DB
+    participant CmisManagerTask
+    participant SfpStateUpdateTask
+
+    SfpStateUpdateTask ->> SfpStateUpdateTask : event = SFP_STATUS_REMOVED
+    SfpStateUpdateTask -x STATE_DB : Delete TRANSCEIVER_INFO table for the port
+    par         CmisManagerTask, SfpStateUpdateTask
+        CmisManagerTask ->> CmisManagerTask : Transition CMIS SM to CMIS_STATE_REMOVED
+        SfpStateUpdateTask ->> APPL_DB : PORT_TABLE:<lport>.MEDIA_SETTINGS_SYNC_STATUS = <br> MEDIA_SETTINGS_DEFAULT
+    end
+
+    SfpStateUpdateTask ->> SfpStateUpdateTask : event = SFP_STATUS_INSERTED
+    SfpStateUpdateTask ->> STATE_DB : Create TRANSCEIVER_INFO table for the port
+    par CmisManagerTask, SfpStateUpdateTask
+        CmisManagerTask ->> CmisManagerTask : Transition CMIS SM to CMIS_STATE_INSERTED
+        SfpStateUpdateTask ->> APPL_DB: PORT_TABLE:<lport>.MEDIA_SETTINGS_SYNC_STATUS = <br> MEDIA_SETTINGS_NOTIFIED
+        activate OA
+        SfpStateUpdateTask ->> OA: Notify media settings for ports
+        Note over OA: Disable admin status<br>setPortSerdesAttribute
+        OA ->> APPL_DB: PORT_TABLE:<lport>.MEDIA_SETTINGS_SYNC_STATUS = MEDIA_SETTINGS_DONE
+        Note over OA: initHostTxReadyState
+        deactivate OA
+    end
+```
+
+## XCVRD termination during syncd/swss/orchagent crash
+
+The below sequence diagram captures the termination of XCVRD during syncd/swss/orchagent crash.
+<br> supervisord will respawn XCVRD after termination as xcvrd is killed using SIGABRT signal
+
+```mermaid
+sequenceDiagram
+    participant OA
+    participant APPL_DB
+    participant XCVRDMT as XCVRD main thread
+    participant CmisManagerTask
+    participant DomInfoUpdateTask
+    participant SfpStateUpdateTask
+
+    activate OA
+    activate XCVRDMT
+    activate CmisManagerTask
+    activate DomInfoUpdateTask
+    activate SfpStateUpdateTask
+    OA -x OA: Crashes while handling a routine
+    deactivate OA
+    OA ->> APPL_DB : DEL PORT_TABLE
+
+    XCVRDMT -x APPL_DB : XCVRD main thread proecesses DEL event of APPL_DB PORT_TABLE
+    Note over XCVRDMT: generate_sigabrt = True
+    alt If threads > 0 are dead
+        XCVRDMT -x XCVRDMT : Kill XCVRD with SIGKILL
+    end
+    XCVRDMT -x CmisManagerTask : Stop CmisManagerTask
+    deactivate CmisManagerTask
+    XCVRDMT -x DomInfoUpdateTask : Stop DomInfoUpdateTask
+    deactivate DomInfoUpdateTask
+    XCVRDMT -x SfpStateUpdateTask : Stop SfpStateUpdateTask
+    deactivate SfpStateUpdateTask
+    Note over XCVRDMT : deinit()
+    alt self.sfp_error_event.is_set()
+        XCVRDMT -x XCVRDMT : sys.exit(SFP_SYSTEM_ERROR)
+    else if generate_sigabrt is True
+        XCVRDMT -x XCVRDMT : Kill XCVRD with SIGABRT
+
+    else
+        XCVRDMT -x XCVRDMT : Graceful exit
+    end
+    deactivate XCVRDMT
+```
+
+## Test plan and expectation
+|       Event      | APPL_DB cleared | Xcvrd restarted | Media renotify | MEDIA_SETTINGS_SYNC_DONE value on   xcvrd boot-up for initialized transceiver | CMIS re-init triggered | Link flap |
+|:----------------:|:---------------:|:---------------:|:--------------:|:-----------------------------------------------------------------------------:|:----------------------:|:---------:|
+| Xcvrd restart    | N               | Y               | N              | MEDIA_SETTINGS_DONE                                                           | N                      | N         |
+| Pmon restart     | N               | Y               | N              | MEDIA_SETTINGS_DONE                                                           | N                      | N         |
+| Swss restart     | Y               | Y               | Y              | MEDIA_SETTINGS_DEFAULT                                                        | Y                      | Y         |
+| Syncd restart    | Y               | Y               | Y              | MEDIA_SETTINGS_DEFAULT                                                        | Y                      | Y         |
+| config   reload  | Y               | Y               | Y              | MEDIA_SETTINGS_DEFAULT                                                        | Y                      | Y         |
+| Cold reboot      | Y               | Y               | Y              | MEDIA_SETTINGS_DEFAULT                                                        | Y                      | Y         |
+| Config shut      | N               | N               | N              | MEDIA_SETTINGS_DONE                                                           | N                      | Y         |
+| Config no   shut | N               | N               | N              | MEDIA_SETTINGS_DONE                                                           | N                      | Y         |
+| Warm   reboot    | N               | Y               | N              | MEDIA_SETTINGS_DONE                                                           | N                      | N         |
 # Out of Scope 
 Following items are not in the scope of this document. They would be taken up separately
 1. xcvrd restart 
