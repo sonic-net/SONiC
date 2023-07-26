@@ -20,7 +20,8 @@
     - [Configuration and Management Requirements](#configuration-and-management-requirements)
 - [Design](#design)
     - [Design Overview](#design-overview)
-    - [Dhcp Server Daemon](#dhcp-server-daemon)
+    - [Container](#container)
+    - [DHCP Server Daemon](#dhcp-server-daemon)
         - [Generate Config](#generate-config)
         - [Update Lease](#update-lease)
     - [Customize DHCP Packet Options](#customize-dhcp-packet-options)
@@ -41,6 +42,7 @@
 - [Test](#test)
     - [Unit Test](#unit-test)
     - [Test Plan](#test-plan)
+- [Implement Detail](#implement-detail)
 
 <!-- /TOC -->
 
@@ -92,7 +94,7 @@ Configuration of DHCP server feature can be done via:
 
 # Design
 ## Design Overview
-We use kea-dhcp-server to reply dhcp request packet. kea-dhcp-server natively supports to assign IPs by mac or contents in DHCP packet (like client id or other options), but in our scenario kea-dhcp-server need to know which interface this packet come from. And SONiC has integrated dhcrelay, which can add interface information to option82 in packet when it relay DHCP packet. So we use it to add interface information.
+We use kea-dhcp-server to reply DHCP request packet. kea-dhcp-server natively supports to assign IPs by mac or contents in DHCP packet (like client id or other options), but in our scenario kea-dhcp-server need to know which interface this packet come from. And SONiC has integrated dhcrelay, which can add interface information to option82 in packet when it relay DHCP packet. So we use it to add interface information.
 
 <div align="center"> <img src=images/overview_kea.png width=570 /> </div>
 
@@ -141,7 +143,10 @@ Belows are sample configurations for dhcrelay and kea-dhcp-server:
   }
   ```
 
-## Dhcp Server Daemon
+## Container
+A new container dhcp_server based on debian:bookworm, is created to hold DHCP Server logic.
+
+## DHCP Server Daemon
 ### Generate Config
 
 DhcpServd is to generate configuration file for kea-dhcp-server while DHCP Server config in CONFIG_DB changed, and then send SIGHUP signal to kea-dhcp-server process to let new config take affect.
@@ -199,7 +204,7 @@ Have to be aware of is that below options are not supported to customize, becaus
 | 53                      | Message Type           |
 | 54                      | DHCP Server ID      |
 
-Currently only support text, ipv4-address.
+Currently support text, ipv4-address, uint8, uint16, uint32.
 
 ## DB Changes
 We have two mainly DB changes:
@@ -207,7 +212,7 @@ We have two mainly DB changes:
 - State tables for the DHCP server lease entries.
 
 ### Config DB
-Following table changes would be added in Config DB, including **DHCP_SERVER_IPV4** table, **DHCP_SERVER_IPV4_POOL** table, **DHCP_SERVER_IPV4_PORT** table and **DHCP_SERVER_IPV4_CUSTOMIZE_OPTION** table.
+Following table changes would be added in Config DB, including **DHCP_SERVER_IPV4** table, **DHCP_SERVER_IPV4_RANGE** table, **DHCP_SERVER_IPV4_PORT** table and **DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS** table.
 
 These new tables are introduced to specify configuration of DHCP Server.
 
@@ -215,105 +220,200 @@ Below is the sample:
 <div align="center"> <img src=images/config_example.png width=530 /> </div>
 
 #### Yang Model
+[[yang][dhcp_server] Add dhcp_server_ipv4 yang model](https://github.com/sonic-net/sonic-buildimage/pull/15955)
 ```yang
 module sonic-dhcp-server-ipv4 {
-  import ietf-inet-types {
+    yang-version 1.1;
+    namespace "http://github.com/sonic-net/sonic-dhcp-server-ipv4";
+    prefix dhcp-server-ipv4;
+    import ietf-inet-types {
         prefix inet;
-  }
-  container sonic-dhcp-server-ipv4 {
-    container DHCP_SERVER_IPV4 {
-      description "DHCP_SERVER_IPV4 part of config_db.json";
-      list DHCP_SERVER_IPV4_LIST {
-        key "name";
-        leaf name {
-          type string;
-        }
-        leaf gateway {
-          description "Gateway of the DHCP server";
-          type inet:ipv4-address;
-        }
-        leaf lease_time {
-          description "Lease time of client for this DHCP server";
-          type uint16;
-        }
-        leaf mode {
-          description "Mode of assigning IP address";
-          type string;
-        }
-        leaf netmask {
-          description "Netmask of this DHCP server";
-          type inet:ipv4-address;
-        }
-        leaf customize_options {
-          description "Customize DHCP options";
-          type string;
-        }
-        leaf state {
-          description "Enable DHCP server for this interface or not";
-          type string;
-        }
-      }
     }
-    /* end of container DHCP_SERVER_IPV4 */
-    container DHCP_SERVER_IPV4_POOL {
-      description "DHCP_SERVER_IPV4_IP_RANGE part of config_db.json";
-      list DHCP_SERVER_IPV4_IP_RANGE_LIST {
-        key "name";
-        leaf name {
-          type string;
-        }
-        leaf ip_start {
-          description "Start ip";
-          type inet:ipv4-address;
-        }
-        leaf ip_end {
-          description "End ip";
-          type inet:ipv4-address;
-        }
-      }
+    import sonic-vlan {
+        prefix vlan;
     }
-    /* end of container DHCP_SERVER_IPV4_POOL */
-    container DHCP_SERVER_IPV4_PORT {
-      description "DHCP_SERVER_IPV4_PORT part of config_db.json";
-      list PORT_LIST {
-        key "name";
-        leaf name {
-          type string;
-        }
-        list IP_RANGE_LIST {
-          description "List of IP range";
-          key "name";
-          leaf name {
-            type string;
-            description "Option name";
-          }
-        }
-      }
+    import sonic-port {
+        prefix port;
     }
-    /* end of container DHCP_SERVER_IPV4_PORT */
-  }
-  container DHCP_SERVER_IPV4_CUSTOMIZE_OPTION {
-    description "DHCP_SERVER_IPV4_OPTION part of config_db.json";
-    list OPTION_LIST {
-      key "name";
-      leaf name {
-        type string;
-      }
-      leaf id {
-        description "Option ID";
-        type uint8;
-      }
-      leaf value {
-        description "Option value";
-        type string;
-      }
-      leaf type {
-        description "Type of option value";
-        type string;
-      }
+    import sonic-portchannel {
+        prefix lag;
     }
-  }
-  /* end of container sonic-dhcp-server-ipv4 */
+    description "DHCP_SERVER_IPV4 YANG module for SONiC OS";
+    revision 2023-07-19 {
+        description "Initial version";
+    }
+    container sonic-dhcp-server-ipv4 {
+        container DHCP_SERVER_IPV4 {
+            description "DHCP_SERVER_IPV4 part of config_db.json";
+            list DHCP_SERVER_IPV4_LIST {
+                description "DHCP_SERVER_IPV4 list part of config_db.json";
+                key "name";
+                leaf name {
+                    description "Interface name for DHCP server";
+                    type leafref {
+                        path "/vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name";
+                    }
+                }
+                leaf gateway {
+                    description "Gateway IP for DHCP server";
+                    mandatory true;
+                    type inet:ipv4-address;
+                }
+                leaf lease_time {
+                    description "Lease time of DHCP IP";
+                    mandatory true;
+                    type uint32 {
+                        range "1..4294967295";
+                    }
+                }
+                leaf mode {
+                    description "Mode of assigning IP";
+                    mandatory true;
+                    type string {
+                        pattern "PORT" {
+                            error-message "Invalid mode for DHCP server";
+                            error-app-tag dhcp-server-mode-invalid;
+                        }
+                    }
+                }
+                leaf netmask {
+                    description "Subnet mask value for DHCP server";
+                    mandatory true;
+                    type inet:ipv4-address-no-zone;
+                }
+                leaf-list customized_options {
+                    description "Customized options list";
+                    type leafref {
+                        path "/dhcp-server-ipv4:sonic-dhcp-server-ipv4/dhcp-server-ipv4:DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS/dhcp-server-ipv4:DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS_LIST/dhcp-server-ipv4:name";
+                    }
+                }
+                leaf state {
+                    description "State of DHCP server";
+                    mandatory true;
+                    type enumeration {
+                        enum enabled;
+                        enum disabled;
+                    }
+                }
+            }
+            /* end of DHCP_SERVER_IPV4_LIST */
+        }
+        /* end of DHCP_SERVER_IPV4 container */
+        container DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS {
+            description "DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS part of config_db.json";
+            list DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS_LIST {
+                description "DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS list part of config_db.json";
+                key "name";
+                leaf name {
+                    description "Name of customized option";
+                    type string {
+                        length 1..255 {
+                            error-message "Invalid length for the customized options name";
+                        }
+                    }
+                }
+                leaf id {
+                    description "Customized PortChannel0003option ID";
+                    mandatory true;
+                    type uint8 {
+                        range "1..254";
+                    }
+                }
+                leaf type {
+                    description "Type of customized option";
+                    mandatory true;
+                    type enumeration {
+                        enum text;
+                        enum ipv4-address;
+                        enum uint8;
+                        enum uint16;
+                        enum uint32;
+                        enum uint64;
+                    }
+                }
+                leaf value {
+                    description "Value of customized option";
+                    mandatory true;
+                    type union {
+                        type string {
+                            length 0..255;
+                        }
+                        type inet:ipv4-address;
+                        type uint8;
+                        type uint16;
+                        type uint32;
+                        type uint64;
+                    }
+                }
+            }
+            /* end of DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS_LIST */
+        }
+        /* end of DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS container */
+        container DHCP_SERVER_IPV4_RANGE {
+            description "DHCP_SERVER_IPV4_RANGE part of config_db.json";
+            list DHCP_SERVER_IPV4_RANGE_LIST {
+                description "DHCP_SERVER_IPV4_RANGE list part of config_db.json";
+                key "name";
+                leaf name {
+                    description "Name of IP range";
+                    type string {
+                        length 1..255 {
+                            error-message "Invalid length for the IP range name";
+                        }
+                    }
+                }
+                leaf-list ranges {
+                    description "Range of IPs";
+                    type inet:ipv4-address;
+                }
+                must "((count(ranges) <= 2) and (count(ranges) >= 1))";
+            }
+            /* end of DHCP_SERVER_IPV4_RANGE_LIST */
+        }
+        /* end of DHCP_SERVER_IPV4_RANGE */
+        container DHCP_SERVER_IPV4_PORT {
+            description "DHCP_SERVER_IPV4_PORT part of config_db.json";
+            list DHCP_SERVER_IPV4_PORT_LIST {
+                description "DHCP_SERVER_IPV4_PORT list part of config_db.json";
+                key "vlan port";
+                leaf vlan {
+                    description "Name of vlan";
+                    type leafref {
+                      path "/vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name";
+                    }
+                }
+                leaf port {
+                    description "Interface under vlan";
+                    type union {
+                      type leafref {
+                        path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
+                      }
+                      type leafref {
+                        path "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name";
+                      }
+                    }
+				        }
+                leaf-list ips {
+                    description "Assigned IPs";
+                    must "(not(boolean(../ranges)))"{
+                        error-message "Statement of 'ip' and 'ranges' cannot both exist";
+                    }
+                    type inet:ipv4-address;
+                }
+                leaf-list ranges {
+                    description "IP ranges";
+                    must "(not(boolean(../ip)))"{
+                        error-message "Statement of 'ip' and 'ranges' cannot both exist";
+                    }
+                    type leafref {
+                        path "/dhcp-server-ipv4:sonic-dhcp-server-ipv4/dhcp-server-ipv4:DHCP_SERVER_IPV4_RANGE/dhcp-server-ipv4:DHCP_SERVER_IPV4_RANGE_LIST/dhcp-server-ipv4:name";
+                    }
+                }
+            }
+            /* end of DHCP_SERVER_IPV4_PORT_LIST */
+        }
+        /* end of DHCP_SERVER_IPV4_PORT container */
+    }
 }
 ```
 
@@ -321,60 +421,43 @@ module sonic-dhcp-server-ipv4 {
 ```JSON
 {
   "DHCP_SERVER_IPV4": {
-    "Vlan1000": {
-      "gateway": "192.168.0.1", // server ip
-      "lease_time": "180", // lease time
-      "mode": "PORT", // in this mode, server will assign ip by port index
-      "netmask": "255.255.255.0",
-      "customize_options": [
-        "option12", // refer to DHCP_SERVER_IPV4_CUSTOMIZE_OPTION
-        "option60"
-      ],
-      "state": "enable"
-    },
+      "Vlan100": {
+          "gateway": "100.1.1.1",
+          "lease_time": "3600",
+          "mode": "PORT",
+          "netmask": "255.255.255.0",
+          "customized_options": [
+              "option60"
+          ],
+          "state": "enabled"
+      }
   },
-  "DHCP_SERVER_IPV4_CUSTOMIZE_OPTION": {
-    "option12": { // Option 12 setting
-      "id": 12,
-      "value": "host_1",  // option value
-      "type": "text" // option type
-    },
-    "option60": { // Option 60 setting
-      "id": 60,
-      "value": "class_1",  // option value
-      "type": "text" // option type
-    }
+  "DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS": {
+      "option60": {
+          "id": "60",
+          "type": "text",
+          "value": "dummy_value"
+      }
   },
-  "DHCP_SERVER_IPV4_POOL": {
-    "range1": {
-      "ip_start": "192.168.0.2", //This range only contains 3 IPs, 192.168.0.2
-      "ip_end": "192.168.0.4"    // 192.168.0.3 and 192.168.0.4
-    },
-    "range2": {
-      "ip_start": "192.168.0.5",
-      "ip_end": "192.168.0.5"
-    },
-    "range3": {
-      "ip_start": "192.168.1.6",
-      "ip_end": "192.168.1.6"
-    },
-    "range4": {
-      "ip_start": "192.168.1.7",
-      "ip_end": "192.168.1.7"
-    },
-    "range5": {
-      "ip_start": "192.168.0.9",
-      "ip_end": "192.168.0.9"
-    }
+  "DHCP_SERVER_IPV4_RANGE": {
+      "range1": {
+          "ranges": [
+              "100.1.1.3",
+              "100.1.1.5"
+          ]
+      }
   },
   "DHCP_SERVER_IPV4_PORT": {
-    "Vlan1000|Ethernet1": [
-      "range1",
-      "range2"
-    ],
-    "Vlan1000|Ethernet2": [
-      "range3"
-    ]
+      "Vlan100|PortChannel0003": {
+          "ips": [
+              "100.1.1.10"
+          ]
+      },
+      "Vlan100|PortChannel2": {
+          "ranges": [
+              "range1"
+          ]
+      }
   }
 }
 ```
@@ -457,8 +540,8 @@ Below sequence figure describes the work flow how kea-dhcp-server updates lease 
   |:----------------------|:-----------------------------------------------------------|
   | config dhcp_server ipv4 (add \| del \| update) | Add or delete or update DHCP server config |
   | config dhcp_server ipv4 (enable \| disable) | Enable or disable in DHCP server |
-  | config dhcp_server ipv4 pool (add \| del) | Add or delete DHCP server ip pool |
-  | config dhcp_server ipv4 pool (bind \| unbind) | Bind or unbind DHCP server with ip pool |
+  | config dhcp_server ipv4 range (add \| del) | Add or delete DHCP server ip range |
+  | config dhcp_server ipv4 ip (bind \| unbind) | Bind or unbind DHCP server with ip or range |
   | config dhcp_server ipv4 option (add \| del) | Add or delete customized DHCP option |
   | config dhcp_server ipv4 option (bind \| unbind) | Bind or unbind DHCP server with option |
 
@@ -466,7 +549,7 @@ Below sequence figure describes the work flow how kea-dhcp-server updates lease 
   | CLI |               Description                        |
   |:----------------------|:-----------------------------------------------------------|
   | show dhcp_server ipv4 info | Show DHCP server config |
-  | show dhcp_server pool | Show ip pool |
+  | show dhcp_server range | Show ip range |
   | show dhcp_server option | Show customized DHCP options |
   | show dhcp_server lease | Show lease information of DHCP server |
 
@@ -534,36 +617,37 @@ This command is used to update dhcp_server config.
   config dhcp_server ipv4 update --mode PORT --infer_gw_nm --lease_time 300 Vlan1000
   ```
 
-**config dhcp_server pool add/del**
+**config dhcp_server range add/del**
 
-This command is used to config ip pool.
+This command is used to config ip range.
 - Usage
   ```
   # <ip_end> is not required, if not given, means ip_end is equal to ip_start
-  config dhcp_server ipv4 pool add <pool_name> <ip_start> [<ip_end>]
-  config dhcp_server ipv4 pool del <pool_name>
+  config dhcp_server ipv4 range add <range_name> <ip_start> [<ip_end>]
+  config dhcp_server ipv4 range del <range_name>
   ```
 
 - Example
   ```
-  config dhcp_server ipv4 pool add pool1 192.168.0.1
+  config dhcp_server ipv4 range add range1 192.168.0.1
 
-  config dhcp_server ipv4 pool del pool1
+  config dhcp_server ipv4 range del range1
   ```
 
-**config dhcp_server pool bind/unbind**
+**config dhcp_server ip bind/unbind**
 
 This command is used to config dhcp ip per interface.
 - Usage
   ```
-  config dhcp_server ipv4 pool bind [<vlan_interface>] <interface> <ip_pool_names>
-  config dhcp_server ipv4 pool unbind [<vlan_interface>] (<interface> <ip_pool_names> | all)
+  config dhcp_server ipv4 ip bind [<vlan_interface>] <interface> (<ip_range_list> | <ip_list>)
+  config dhcp_server ipv4 ip unbind [<vlan_interface>] <interface> (<ip_range_list> | <ip_list> | all)
   ```
 
 - Example
   ```
-  config dhcp_server ipv4 pool bind Vlan1000 Ethernet1 pool1 pool2
-  config dhcp_server ipv4 pool unbind Vlan1000 Ethernet1 pool1 pool2
+  config dhcp_server ipv4 ip bind Vlan1000 Ethernet1 range1
+  config dhcp_server ipv4 ip bind Vlan1000 Ethernet2 192.168.0.5 192.168.0.6
+  config dhcp_server ipv4 ip unbind Vlan1000 Ethernet1 range1 range1
   ```
 
 **config dhcp_server option add**
@@ -637,59 +721,59 @@ This command is used to show dhcp_server config.
   ```
   show dhcp_server ipv4 info Vlan1000
   +-----------+-----+------------+--------------+--------------+---------+
-  |Interface  |Mode |Gateway     |Netmask       |Lease Time(s) |IP Pools |
+  |Interface  |Mode |Gateway     |Netmask       |Lease Time(s) |IP Bind  |
   |-----------+-----+------------+--------------+----------- --+---------+
-  |Vlan1000   |PORT |192.168.0.1 |255.255.255.0 |180           |pool_1   |
-  |           |     |            |              |              |pool_2   |
-  |           |     |            |              |              |pool_3   |
+  |Vlan1000   |PORT |192.168.0.1 |255.255.255.0 |180           |range_1  |
+  |           |     |            |              |              |range_2  |
+  |           |     |            |              |              |range_3  |
   +-----------+-----+------------+--------------+--------------+---------+
 
   show dhcp_server ipv4 info --with_customize_option Vlan1000
   +-----------+-----+------------+--------------+--------------+---------+-----------------+
-  |Interface  |Mode |Gateway     |Netmask       |Lease Time(s) |IP Pools |Customize Option |
+  |Interface  |Mode |Gateway     |Netmask       |Lease Time(s) |IP Bind  |Customize Option |
   |-----------+-----+------------+--------------+----------- --+---------+-----------------+
-  |Vlan1000   |PORT |192.168.0.1 |255.255.255.0 |180           |pool_1   |option_1         |
-  |           |     |            |              |              |pool_2   |option_2         |
-  |           |     |            |              |              |pool_3   |                 |
+  |Vlan1000   |PORT |192.168.0.1 |255.255.255.0 |180           |range_1  |option_1         |
+  |           |     |            |              |              |range_2  |option_2         |
+  |           |     |            |              |              |range_3  |                 |
   +-----------+-----+------------+--------------+--------------+---------+-----------------+
 
   show dhcp_server ipv4 info
-  +-----------+-----+------------+--------------+--------------+---------+
-  |Interface  |Mode |Gateway     |Netmask       |Lease Time(s) |IP Pools |
-  |-----------+-----+------------+--------------+----------- --+---------+
-  |Vlan1000   |PORT |192.168.0.1 |255.255.255.0 |180           |pool_1   |
-  |           |     |            |              |              |pool_2   |
-  |           |     |            |              |              |pool_3   |
-  +-----------+-----+------------+--------------+--------------+---------+
-  |Vlan2000   |PORT |192.168.1.1 |255.255.255.0 |180           |pool_4   |
-  +-----------+-----+------------+--------------+--------------+---------+
+  +-----------+-----+------------+--------------+--------------+------------+
+  |Interface  |Mode |Gateway     |Netmask       |Lease Time(s) |IP Bind     |
+  |-----------+-----+------------+--------------+----------- --+------------+
+  |Vlan1000   |PORT |192.168.0.1 |255.255.255.0 |180           |range_1     |
+  |           |     |            |              |              |range_2     |
+  |           |     |            |              |              |range_3     |
+  +-----------+-----+------------+--------------+--------------+------------+
+  |Vlan2000   |PORT |192.168.1.1 |255.255.255.0 |180           |192.168.1.2 |
+  +-----------+-----+------------+--------------+--------------+------------+
   ```
 
-**show dhcp_server pool**
+**show dhcp_server range**
 
-This command is used to show dhcp_server ip pool.
+This command is used to show dhcp_server ip range.
 - Usage
   ```
-  show dhcp_server ipv4 pool [<pool_name>]
+  show dhcp_server ipv4 range [<range_name>]
   ```
 
 - Example
   ```
-  show dhcp_server ipv4 pool pool_1
+  show dhcp_server ipv4 range range_1
   +-------------+-------------+-------------+---------+
-  |IP Pool Name |IP Start     |IP End       |IP count |
-  |-------------+-------------+-------------+---------+
-  |pool_1       |192.168.0.5  |192.168.0.10 |6        |
-  +-------------+-------------+-------------+---------+
+  |IP Range Name |IP Start     |IP End       |IP count |
+  |--------------+-------------+-------------+---------+
+  |range_1        |192.168.0.5  |192.168.0.10 |6        |
+  +--------------+-------------+-------------+---------+
 
-  show dhcp_server ipv4 pool
-  +-------------+-------------+-------------+---------+
-  |IP Pool Name |IP Start     |IP End       |IP count |
-  |-------------+-------------+-------------+---------+
-  |pool_1       |192.168.0.5  |192.168.0.10 |6        |
-  +-------------+-------------+-------------+---------+
-  |pool_2       |192.168.0.20 |192.168.0.30 |11       |
-  +-------------+-------------+-------------+---------+
+  show dhcp_server ipv4 range
+  +--------------+-------------+-------------+---------+
+  |IP Range Name |IP Start     |IP End       |IP count |
+  |--------------+-------------+-------------+---------+
+  |range_1        |192.168.0.5  |192.168.0.10 |6        |
+  +--------------+-------------+-------------+---------+
+  |range_2        |192.168.0.20 |192.168.0.30 |11       |
+  +--------------+-------------+-------------+---------+
   ```
 
 **show dhcp_server option**
@@ -753,10 +837,10 @@ This command is used to show dhcp_server lease.
 The Unit test case are as below:
 | No |                Test case summary                          |
 |:----------------------|:-----------------------------------------------------------|
-| 1 | Verify that config add/del dhcp_server can work well |
-| 2 | Verify that config dhcp_server info can work well |
+| 1 | Verify that config add/del/update dhcp_server can work well |
+| 2 | Verify that config dhcp_server ip bind/unbind can work well |
 | 3 | Verify that config dhcp_server option can work well |
-| 4 | Verify that config dhcp_server pool can work well|
+| 4 | Verify that config dhcp_server range can work well|
 | 5 | Verify that show dhcp_server info can work well |
 | 6 | Verify that show dhcp_server lease can work well |
 | 7 | Verify that lease update script can work well |
@@ -764,3 +848,17 @@ The Unit test case are as below:
 
 ## Test Plan
 Test plan will be published in [sonic-net/sonic-mgmt](https://github.com/sonic-net/sonic-mgmt)
+
+# Implement Detail
+
+|Step|Status|
+|:-------------|:---|
+|Publish HLD|https://github.com/sonic-net/SONiC/pull/1282 (Open)|
+|Add yang model in **sonic-buildimage**|https://github.com/sonic-net/sonic-buildimage/pull/15955 (Draft)|
+|Add dhcp_server docker container in **sonic-buildimage**|In progress|
+|Implement DhcpServd in **sonic-buildimage**|To be done|
+|Add support for dhcp_server in minigraph parser in **sonic-buildimage**|To be done||
+|Enhance dhcp_relay container to support dhcp_server in **sonic-buildimage**|To be done|
+|Add cli in **sonic-buildimage**/**sonic-utilities**|To be done|
+|Public test plan in **sonic-mgmt**|To be done|
+|Implement test plan in **sonic-mgmt**|To be done|
