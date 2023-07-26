@@ -11,15 +11,16 @@ The following qualify levels are defined:
 
 ### Alpha level
 - Code PRs must come with unit tests (VS tests if applicable) aligned to code coverage
-- For standalone feature it should be considered to have a compilation flag in disabled mode. Feature requires enabled/disabled via config_db and set to disabled
+- For standalone feature it is required to have enabled/disabled via config_db and set to disabled
 - Can go to master branch only
-- For feature based on ASIC vendor SAI implementation: SAI is not avaialble yet
-- For feature based on Platform vendor API implementation: not avaialble yet.
-- Should not cause any degradation on avaialble features. Need to run and ensure sonic-mgmt test suits is passing with no degradation
+- For feature based on ASIC vendor SAI implementation: SAI is not available yet
+- For feature based on Platform vendor API implementation: not available yet.
+- Should not cause any degradation on available features. Need to run and ensure sonic-mgmt test suits is passing with no degradation
+- New sonic-mgmt. test plan has been reviewed 
 
 ### Beta level
 - Code PRs must come with unit tests aligned to code coverage
-- For standalone feature it should be considered to have a compilation flag in enabled mode. Feature requires enabled/disabled via config_db and set to disable. 
+- For standalone feature it is required to have enabled/disabled via config_db and set to disable. 
 - Can go to master branch only
 - For features based on ASIC vendor SAI implementation: SAI is available for at least 1 vendor
 - For feature based on Platform vendor API implementation: available for at least 1 vendor.
@@ -53,11 +54,11 @@ So, instead of large list, use a table in the following format:
 **Note:** quality can be provided only on tests results availability, and this is out of the scope of this discussion 
 
 ## Action items
-- Suggest to improvde HLD template and include a section for memory consumption. Notes to be taken:
+- Suggest improving HLD template and include a section for memory consumption. Notes to be taken:
    - No memory consumption expected when the feature is disabled via compilation
    - No growing memory consumption while feature is disabled by configuration
 - Feature should be delivered with the following ON/OFF flags
-  - Feature can be runtime disabled/enabled via configuration. 
+  - Feature can be runtime disabled/enabled via configuration
   - Disabled while work in progress and majority is not GA
   - Can be enabled by default (if agreed on HLD review) only in GA level only
 - 202305 Release note should be aligned with the new suggestion. It will be used for sharing information on features and availability of the tests.
