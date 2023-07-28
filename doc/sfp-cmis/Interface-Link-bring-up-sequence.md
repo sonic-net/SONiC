@@ -195,7 +195,7 @@ Following infra will ensure port reinitialization by xcvrd in case of syncd/swss
 1. XCVRD main thread init
 	- XCVRD main thread creates the key CMIS_REINIT_REQUIRED in PORT_TABLE:\<port\> (APPL_DB) with value as true for ports which do NOT have this key present 
 	- XCVRD main thread creates the key MEDIA_SETTINGS_SYNC_STATUS in PORT_TABLE:\<port\> (APPL_DB) with value MEDIA_SETTINGS_DEFAULT for ports which do NOT have this key present.  
-      - For transceivers which do not support media settings, MEDIA_SETTINGS_SYNC_STATUS will stay with value MEDIA_SETTINGS_DEFAULT
+      - For transceivers which do not require media settings, MEDIA_SETTINGS_SYNC_STATUS will stay with value MEDIA_SETTINGS_DEFAULT
 
   Following table describes the various values for MEDIA_SETTINGS_SYNC_STATUS  
 
