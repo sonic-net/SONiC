@@ -7,7 +7,6 @@
 - [Overview](#overview)
 - [Requirements](#requirements)
 - [Architecture Design](#architecture-design)
-  - [Source Code change (TODO: move to proper place)](#source-code-change-todo-move-to-proper-place)
 - [High-Level Design](#high-level-design)
   - [Current fpmsyncd processing flow (for reference)](#current-fpmsyncd-processing-flow-for-reference)
   - [Proposed fpmsyncd processing flow using NextHop Group](#proposed-fpmsyncd-processing-flow-using-nexthop-group)
@@ -16,7 +15,6 @@
   - [Example of entries in ASIC\_DB](#example-of-entries-in-asic_db)
 - [SAI API](#sai-api)
 - [Configuration and management](#configuration-and-management)
-  - [Manifest (if the feature is an Application Extension)](#manifest-if-the-feature-is-an-application-extension)
   - [CLI/YANG model Enhancements](#cliyang-model-enhancements)
   - [Config DB Enhancements](#config-db-enhancements)
 - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
@@ -25,13 +23,16 @@
   - [Unit Test cases](#unit-test-cases)
   - [System Test cases](#system-test-cases)
 - [Open/Action items - if any](#openaction-items---if-any)
+  - [libnl compatibility with upstream](#libnl-compatibility-with-upstream)
+  - [Further performance improvements](#further-performance-improvements)
   - [Backward compatibility with Fine-grain NHG, Ordered NHG/ECMP](#backward-compatibility-with-fine-grain-nhg-ordered-nhgecmp)
 
 ### Revision  
 
-|  Rev  | Date  |               Author                | Change Description |
-| :---: | :---: | :---------------------------------: | ------------------ |
-|  0.1  |  TBD  | Kanji Nakano, Kentaro Ebisawa (NTT) | Initial version    |
+|  Rev  |     Date     |                       Author                       | Change Description                                          |
+| :---: | :----------: | :------------------------------------------------: | ----------------------------------------------------------- |
+|  0.1  | Jul 14, 2023 | Kanji Nakano, Kentaro Ebisawa, Hitoshi Irino (NTT) | Initial version                                             |
+|  0.2  | Jul 30, 2023 |               Kentaro Ebisawa (NTT)                | Remove description about VRF which is not nessesary for NHG. Add High Level Architecture diagram. Add note related to libnl, Routing WG. Fix typo and improve explanations.  |
 
 ### Scope  
 
@@ -55,7 +56,7 @@ These capabilities consist in:
 
 `Fpmsyncd extension` requires:
 - `fpmsyncd` to handle `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` events from zebra via `dplane_fpm_nl`
-- `fpmsyncd` to SET/DEL routes to `APPL_DB: ROUTE_TABLE`` using `nexthop_group`
+- `fpmsyncd` to SET/DEL routes to `APPL_DB: ROUTE_TABLE` using `nexthop_group`
 - `fpmsyncd` to SET/DEL NextHop Group entry to `APPL_DB: NEXTHOP_GROUP_TABLE`
 
 ### Architecture Design 
@@ -67,69 +68,18 @@ This section should explain how the new feature/enhancement (module/sub-module) 
 If this feature is a SONiC Application Extension mention which changes (if any) needed in the Application Extension infrastructure to support new feature.
 -->
 
-This design directly modifies `fpmsyncd` to use the new `APPL_DB` tables.
+This design modifies `fpmsyncd` to use the new `APPL_DB` tables.
 
 The current `fpmsyncd` handle just the `RTM_NEWROUTE` and `RTM_DELROUTE` writing all route information for each route prefix to `ROUTE_TABLE` on Redis DB (`redis-server`).
 When zebra process is initialized using the old fpm module, the `RTM_NEWROUTE` is sent with at least destination address, gateway, and interface id attributes.
-For multipath route, the `RTM_NEWROUTE` is sent with a list of gateways and interfaces id.
+For multipath route, the `RTM_NEWROUTE` is sent with a list of gateway and interface id.
 
 This `Fpmsyncd extension` will modify `fpmsyncd` to handle  `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` as below.
 
-> TODO: Add diagram with flow described in Overview and Requirements
+<!-- omit in toc -->
+##### Figure: Fpmsyncd NHG High Level Architecture
+![fig: fpmsyncd nhg architecture](diagram/fpmsyncd-nhg-architecture.png)
 
-To implement this, below SONiC subsystems will be changed.
-
-- sonic-buildimage
-  - modify `sonic-cfggen` to set `fpm use-nexthop-groups`
-  - patch `src/libnl3` to support `nh_id` (TODO: still required in latest master?)
-  - modify `/zebra/rt_netlink.c` to use `vrf_id` for vrf, not `table_id`
-- fpmsyncd (swss)
-  - add default VRF in `/cfgmgr/vrfmgr.cpp`
-  - add `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` support in `/fpmsyncd/fpmlink.cpp`
-  - add NextHop Group support in `/fpmsyncd/routesync.cpp` and `/fpmsyncd/routesync.h`
-- frr
-  - change plugin from `fpm` to `dplane_fpm_nl` in `/dockers/docker-fpm-frr/frr/supervisord/supervisord.conf.j2`
-  - this is already done in the latest master branch with [PR#12852](https://github.com/sonic-net/sonic-buildimage/pull/12852)
-
-#### Source Code change (TODO: move to proper place)
-
-sonic-buildimage.patch
-
-- /src/libnl3/patch/0003-Adding-support-for-RTA_NH_ID-attribute.patch
-  - /dockers/docker-fpm-frr/frr/supervisord/supervisord.conf.j2
-  - patch to `rt_nh_id`, `rtnl_route_set_nh_id` etc.
-  - TODO: check if this is still required in the latest master
-- add change to use next hop groups
-  - change
-    - `+fpm use-next-hop-groups`
-    - `+fpm address 127.0.0.1 port 2620`
-  - /dockers/docker-fpm-frr/frr/common/daemons.common.conf.j2
-  - /src/sonic-bgpcfgd/tests/data/sonic-cfggen/
-    - bgpd.conf.j2/all.conf
-    - common/daemons.common.conf
-    - frr.conf.j2/all.conf
-    - staticd/staticd.conf
-    - zebra/zebra.conf
-  - /src/sonic-config-engine/tests/sample_output/py2/
-    - bgpd_frr.conf
-    - bgpd_frr_backend_asic.conf
-    - bgpd_frr_frontend_asic.conf
-    - frr.conf
-    - staticd_frr.conf
-    - t2-chassis-fe-bgpd.conf
-    - etc.
-- /src/sonic-frr/patch/dplane_fpm_nl-Use-vrf_id-for-vrf-not-tabled_id.patch
-  - /zebra/rt_netlink.c
-
-sonic-swss.patch
-
-- add default VRF
-  - /cfgmgr/vrfmgr.cpp
-- Add `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` support
-  - /fpmsyncd/fpmlink.cpp
-- many changes to support NextHop Group
-  - /fpmsyncd/routesync.cpp
-  - /fpmsyncd/routesync.h
 
 ### High-Level Design 
 <!--
@@ -270,10 +220,6 @@ No changes are being made in SAI. The end result of what gets programmed via SAI
 The output of 'show ip route' and 'show ipv6 route' will remain unchanged - the CLI code will resolve the NextHop Group ID referenced in the `ROUTE_TABLE` to display the next hops for the routes.
 
 
-#### Manifest (if the feature is an Application Extension)
-
-<!-- Paste a preliminary manifest in a JSON format. -->
-
 #### CLI/YANG model Enhancements 
 
 <!--
@@ -298,15 +244,14 @@ No change.
 Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
 -->
 
-TBD (if applicable)
+There should be no impact to Warmboot and Fastboot Design Impact.
+The change is how fpmsyncd handle message from zebra.
 
 ### Restrictions/Limitations  
 
-TBD (if applicable)
+n/a
 
 ### Testing Requirements/Design  
-
-TBD
 
 <!--
 Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
@@ -316,11 +261,20 @@ Example sub-sections for unit test cases and system test cases are given below.
 
 #### Unit Test cases  
 
-TBD
+> TBD: Should we add script to unit test fpmsyncd?
+> e.g. create a script to push RTM_NEWNEXTHOP and RTM_DELNEXTHOP message to fpmsyncd and create stub redis DB to check entries are created as expected.
 
 #### System Test cases
 
-TBD
+Add route
+
+1. Create static route with 2 or more ECMP routes (which cause zebra to send `RTM_NEWNEXTHOP`)
+2. Confirm `APPL_DB` entries are created as expected
+
+Del route
+
+1. Delete static route created in previous test (which cause zebra to send `RTM_DELNEXTHOP`)
+2. Confirm `APPL_DB` entries are deleted as expected
 
 ### Open/Action items - if any 
 
@@ -328,7 +282,26 @@ TBD
 NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
 -->
 
+#### libnl compatibility with upstream
+
+To add this feature, we have extended `libnl` to support NextHop Group. (i.e. `nh_id`, `RTM_NEWNEXTHOP` etc.)
+
+However, there is a proposal [libnl: PR#332](https://github.com/thom311/libnl/pull/332/) to support NextHop Group in upstream `libnl`.
+We should review this PR (and any other related patches if found) so difference from the upstream code would be minimal.
+
+#### Further performance improvements
+
+Extention to fpmsyncd described in this HLD will only change how `fpmsyncd` will handle `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP`.
+
+This change could be a first step, but does not solve scalability issues discussed in the SONiC Routing WG.
+Further study is required for more fundamental improvements, e.g. how zebra handles NextHop Groups in scale, communication channel between zebra and fpmsyncd etc.
+
+Refer to the meeting minutes [SONiC Routing Working Group](https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki) for discussions related to future improvements.
+For the discussion specific to this HLD, check [07132023 Meeting Minutes](https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/34321)
+
 #### Backward compatibility with Fine-grain NHG, Ordered NHG/ECMP
+
+> TODO: discuss and update this based on feedback
 
 Eddy Kevetny (Nvidia) provided feedback about `net.ipv4.nexthop_compat_mode` and backward compatibility issue.
 
@@ -341,8 +314,7 @@ Eddy Kevetny (Nvidia) provided feedback about `net.ipv4.nexthop_compat_mode` and
 
 We already have set `fpm use-next-hop-groups` in FRR.
 
-We can disable `net.ipv4.nexthop_compat_mode` (set to 0) if it does not cause backward compatibility issue, e.g. if we want to make `fpmsyncd` to use NextHop Group an optional feature.
+We can disable `net.ipv4.nexthop_compat_mode` (set to 0) for performance optimization.
 
-TODO: study NHG creation logic in SWSS (Route/NextHopGroup Orch Agent) to identify:
-1. if we should make this feature an runtime option.
-2. if this has backward compatibility issue
+For backward comptibility, we can keep `fpm use-next-hop-groups` disabled by default in FRR configuration.
+This way, zebra would not send `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` to fpmsyncd and entry created in `APPL_DB` should be identical to when this NHG feature did not exist.
