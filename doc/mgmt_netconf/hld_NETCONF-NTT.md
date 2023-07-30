@@ -4,7 +4,7 @@
 ## High Level Design Document
 
 <!-- omit in toc -->
-#### Rev 0.1
+#### Rev 0.2
 
 <!-- omit in toc -->
 ## Table of Content
@@ -19,10 +19,8 @@
   - [Supported operations](#supported-operations)
   - [Supported XPATH](#supported-xpath)
     - [XPath related to `openconfig-interfaces.yang`, `openconfig-if-ip.yang`](#xpath-related-to-openconfig-interfacesyang-openconfig-if-ipyang)
-    - [XPath related to `openconfig-network-instance.yang`](#xpath-related-to-openconfig-network-instanceyang)
-    - [XPath related to `openconfig-ospfv2.yang`](#xpath-related-to-openconfig-ospfv2yang)
-    - [XPath related to `openconfig-bgp.yang`](#xpath-related-to-openconfig-bgpyang)
 - [Architecture Design](#architecture-design)
+  - [process running in mgmt-framework container](#process-running-in-mgmt-framework-container)
 - [High-Level Design](#high-level-design)
   - [Build time and Run time components](#build-time-and-run-time-components)
   - [Build time workflow](#build-time-workflow)
@@ -31,7 +29,7 @@
     - [NETCONF create connection (capability modification)](#netconf-create-connection-capability-modification)
 - [Building and Configuration](#building-and-configuration)
   - [Repository and directory structure](#repository-and-directory-structure)
-  - [Patches](#patches)
+    - [`sonic-netconf` repository structure and contents](#sonic-netconf-repository-structure-and-contents)
   - [Build dependency](#build-dependency)
   - [New user addition](#new-user-addition)
   - [Scalability and performance requirements/impact](#scalability-and-performance-requirementsimpact)
@@ -51,7 +49,7 @@
     - [Test Plan (overview)](#test-plan-overview)
     - [Config Items](#config-items)
 - [Open/Action items - if any](#openaction-items---if-any)
-  - [Third Party software Open Issues](#third-party-software-open-issues)
+  - [Limitation of the current release](#limitation-of-the-current-release)
 - [Appendix](#appendix)
   - [Netopeer2 initialization and callback registration](#netopeer2-initialization-and-callback-registration)
   - [Netopeer2 Config change notification generation flow](#netopeer2-config-change-notification-generation-flow)
@@ -62,9 +60,10 @@
 
 ## Revision
 
-|  Rev  |     Date     |                       Author                       | Change Description |
-| :---: | :----------: | :------------------------------------------------: | ------------------ |
-|  0.1  | May 24, 2023 | Kentaro Ebisawa, Kanji Nakano, Hitoshi Irino (NTT) | Initial version    |
+|  Rev  |     Date     |                       Author                       | Change Description              |
+| :---: | :----------: | :------------------------------------------------: | ------------------------------- |
+|  0.1  | May 24, 2023 | Kentaro Ebisawa, Kanji Nakano, Hitoshi Irino (NTT) | Initial version                 |
+|  0.2  | Jul 30, 2023 | Kentaro Ebisawa, Kanji Nakano, Hitoshi Irino (NTT) | Removed non-mandatory features. |
 
 ## Scope
 
@@ -118,7 +117,7 @@ As further mentioned in the "Requirements", Redis will be updated using CAS (Che
 - NETCONF server must support below capabilities, operations and XPath marked "Supported == YES".
 - NETCONF server would not support items marked "Supported == NO".
   - Most of the limitation comes from capability of the current SONiC Management Framework and Redis DB.
-  - For example, Locking nor Rollback feature will be provied since current SONiC does not support it with CONFIG_DB.
+  - For example, Locking nor Rollback feature will not be provied since current SONiC does not support it with CONFIG_DB.
 
 ### Supported transport protocols
 
@@ -129,7 +128,7 @@ NETCONF server must support below transport protocols.
 
 ### Supported standards
 
-NETCONF server must comply to below standards.
+NETCONF server must comply to below standards. (excluding capabilities not supported in tihs release)
 
 <!-- omit in toc -->
 ##### Table: Supported standards
@@ -141,50 +140,51 @@ NETCONF server must comply to below standards.
 
 ### Supported capabilities
 
-NETCONF server must support capability marked "Supported == NO".
+NETCONF server must support capability marked "Supported" == "YES" or Partially".
 
 <!-- omit in toc -->
 ##### Table: Supported capabilities
-| Capability Name                    | Supported           | Remark                                     |
-| ---------------------------------- | ------------------- | ------------------------------------------ |
-| Writable-Running Capability        | Yes                 | RFC6241 8.2                                |
-| Candidate Configuration Capability | No                  | RFC6241 8.3 [*1]                           |
-| Confirmed Commit Capability        | No                  | RFC6241 8.4 [*1]                           |
-| Rollback-on-Error Capability       | Yes                 | RFC6241 8.5                                |
-| Validate Capability                | Yes                 | RFC6241 8.6 [*2]                           |
-| Distinct Startup Capability        | No                  | RFC6241 8.7 [*3]                           |
-| URL Capability                     | Partially Supported | RFC6241 8.8 only for edit-config operation |
-| XPath Capability                   | Yes                 | RFC6241 8.9                                |
+| Capability Name                    | Supported | Remark                                     |
+| ---------------------------------- | --------- | ------------------------------------------ |
+| Writable-Running Capability        | Yes       | RFC6241 8.2                                |
+| Candidate Configuration Capability | No        | RFC6241 8.3 [*1]                           |
+| Confirmed Commit Capability        | No        | RFC6241 8.4 [*1]                           |
+| Rollback-on-Error Capability       | Yes       | RFC6241 8.5                                |
+| Validate Capability                | Yes       | RFC6241 8.6 [*2]                           |
+| Distinct Startup Capability        | No        | RFC6241 8.7 [*3]                           |
+| URL Capability                     | Partially | RFC6241 8.8 only for edit-config operation |
+| XPath Capability                   | Yes       | RFC6241 8.9                                |
 
 - [*1] As SONiC management framework doesn’t support transaction for configuration update, this capability is not supported
 - [*2] Syntactic and semantic validation for payload will be supported, but explicit "validation" operation will not be supported in this release
-- [*3] As SONiC infrastructure doesn’t have separate startup and Running Redis DB, this capability is not supported
+- [*3] As SONiC infrastructure doesn’t have separate Startup and Running Redis DB, this capability is not supported
 
 ### Supported operations
 
-NETCONF server must support operations marked "Supported == NO".
+NETCONF server must support operations marked "Supported == YES or Partially".
 
 <!-- omit in toc -->
 ##### Table: Supported operations
 | RFC Operation Name | Supported | Remark |
 | ------------------ | --------- | ------ |
 | edit-config        | Partially | [*1]   |
-| get-config         | No        |        |
+| get-config         | Partially | [*2]   |
 | get                | No        |        |
-| copy-config        | No        | [*2]   |
-| delete-config      | No        | [*2]   |
-| lock               | No        | [*3]   |
-| unlock             | No        | [*3]   |
+| copy-config        | No        | [*3]   |
+| delete-config      | No        | [*3]   |
+| lock               | No        | [*4]   |
+| unlock             | No        | [*4]   |
 | close-session      | Yes       |        |
 | kill-session       | Yes       |        |
 
 - [*1] only below options are supported:
   - operation : merge,delete
-  - target : running (as commit feature is not supported only Running config is applicable)
+  - target : running (as commit feature is not supported, only Running config is applicable)
   - test-option : test-and-set
   - error-option : rollback-on-error
-- [*2] As SONiC infrastructure doesn’t have separate startup and Running Redis DB and also it doesn’t support transaction for config updates
-- [*3] As SONiC management framework doesn’t support transaction for configuration update, this operation is not supported
+- [*2] get-config will return config in netopeer2/sysrepo and not from CONFIG_DB
+- [*3] As SONiC infrastructure doesn not have separate startup and running config. Redis DB also doesn’t support transaction for config updates.
+- [*4] As SONiC management framework does not support transaction for configuration update, this operation is not supported
 
 Below table shows mapping between supported edit-config operation and HTTP method.
 
@@ -198,6 +198,8 @@ Below table shows mapping between supported edit-config operation and HTTP metho
 ### Supported XPATH
 
 NETCONF server must support XPath listed below.
+
+Additional XPath can be supported in future by adding YANG models and related changes to the REST client/server, translib, CONFIG_DB schema etc.
 
 #### XPath related to `openconfig-interfaces.yang`, `openconfig-if-ip.yang`
 
@@ -221,65 +223,6 @@ NETCONF server must support XPath listed below.
 /interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/config/prefix-length
 ```
 
-#### XPath related to `openconfig-network-instance.yang`
-
-```
-/network-instances
-/network-instances/network-instance
-/network-instances/network-instance/name
-/network-instances/network-instance/protocols
-/network-instances/network-instance/protocols/protocol
-/network-instances/network-instance/protocols/protocol/identifier
-/network-instances/network-instance/protocols/protocol/name
-/network-instances/network-instance/protocols/protocol/config
-/network-instances/network-instance/protocols/protocol/config/identifier
-/network-instances/network-instance/protocols/protocol/config/name
-/network-instances/network-instance/protocols/protocol/config/enabled
-```
-
-#### XPath related to `openconfig-ospfv2.yang`
-
-```
-/network-instances/network-instance/protocols/protocol/ospfv2
-/network-instances/network-instance/protocols/protocol/ospfv2/global
-/network-instances/network-instance/protocols/protocol/ospfv2/global/config
-/network-instances/networkinstance/protocols/protocol/ospfv2/global/config/router-id
-/network-instances/network-instance/protocols/protocol/ospfv2/areas
-/network-instances/network-instance/protocols/protocol/ospfv2/areas/area
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/identifier
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/config
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/config/identifier
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/interfaces
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/interfaces/interface
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/interfaces/interface/id
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/interfaces/interface/config
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/interfaces/interface/config/id
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/interfaces/interface/interface-ref
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/interfaces/interface/interface-ref/config
-/network-instances/networkinstance/protocols/protocol/ospfv2/areas/area/interfaces/interface/interface-ref/config/interface
-```
-
-#### XPath related to `openconfig-bgp.yang`
-
-```
-/network-instances/network-instance/protocols/protocol/bgp
-/network-instances/network-instance/protocols/protocol/bgp/global
-/network-instances/network-instance/protocols/protocol/bgp/global/config
-/network-instances/network-instance/protocols/protocol/bgp/global/config/as
-/network-instances/network-instance/protocols/protocol/bgp/neighbors
-/network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/neighbor-address
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/config
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/config/neighbor-address
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/config/peer-as
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/afi-safis
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi/afi-safi-name
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi/config
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi/config/afi-safi-name
-/network-instances/networkinstance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi/config/enabled
-```
-
 ## Architecture Design
 
 > This section covers the changes that are required in the SONiC architecture. In general, it is expected that the current architecture is not changed. This section should explain how the new feature/enhancement (module/sub-module) fits in the existing architecture.
@@ -288,6 +231,7 @@ NETCONF server must support XPath listed below.
 
 Below diagram describes how NETCONF server fits in the existing architecture of the SONiC Management Framework.
 Since it will be an extension to the SONiC Management Framework leveraging its REST API, it would not require any modification to other SONiC modules.
+(except when adding new YANG model support)
 
 Netopeer2 will be used as NETCONF server. It is fully open source and standards compliant implementation of a NETCONF server and YANG configuration data stores (sysrepo) with a active community support.
 It has most of the recent NETCONF features/RFCs supported.
@@ -296,7 +240,7 @@ See [README.md on Netopeer2 GitHub repo](https://github.com/CESNET/netopeer2/blo
 The role of Netopeer2 are:
 - Parsing and loading Standard based YANG models
 - Configuration Validation based on YANG models loaded
-- NETCONF RFCs capabilities and operations support.
+- NETCONF RFCs capabilities and operations support
 
 Below diagram shows how NETCONF server fits into the current SONiC Management Framework.
 Note that TransLib, including Transformer and Config Validation (CVL), will be leveraged to translate data from YANG (e.g. Openconfig) to ABNF/Redis schema and vice versa when set/get-ing data to/from REDIS database.
@@ -307,6 +251,24 @@ Note that TransLib, including Transformer and Config Validation (CVL), will be l
 <img src="diagram/netconf-architecture.png" alt="Figure: NETCONF architecture diagram" width="100%">
 </p>
 
+### process running in mgmt-framework container
+
+Below is a list of process running in mgmt-framework.
+
+You can find `netopeer2-server` running which is NETCONF server instance.
+
+```
+admin@sonic:~$ docker exec -it mgmt-framework bash
+
+root@sonic:/# ps aux
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  0.0  0.6  29112 22492 pts/0    Ss+  Jul26   1:07 /usr/bin/python3 /usr/local/bin/supervisord
+root          13  0.0  0.0 223808  3468 pts/0    Sl   Jul26   0:02 /usr/sbin/rsyslogd -n -iNONE
+root          17  0.0  0.7 643316 28060 pts/0    Sl   Jul26   4:11 /usr/local/sbin/netopeer2-server -d -v2
+root          20  0.1  5.5 1471508 205452 pts/0  Sl   Jul26   9:10 /usr/sbin/rest_server -ui /rest_ui -logtostderr -cert /tmp/cert
+root         814  0.3  0.0   3868  3068 pts/1    Ss   15:37   0:00 bash
+root         821  0.0  0.0   7640  2548 pts/1    R+   15:37   0:00 ps aux
+```
 
 ## High-Level Design
 
@@ -319,6 +281,8 @@ Thus, there is no platform dependency nor impact to other (sub-)modules.
 
 Below diagram describes components related to the NETCONF server feature.
 
+> Note: changes to REST Server, TransLib are required when supporting new models and not directly related to the NETCONF feature it self.
+
 Details of Build time and Run time data flow will be explained in the following sub-sections.
 
 <!-- omit in toc -->
@@ -328,6 +292,8 @@ Details of Build time and Run time data flow will be explained in the following 
 </p>
 
 ### Build time workflow
+
+> TODO: This workflow should be updated after porting to latest master branch & testing the procedure
 
 The NETCONF server leverages below components during build time to create REST client and for schema translation.
 
@@ -348,16 +314,14 @@ Workflow to generate REST Client components required to integrate with Netopeer2
 
 pyang -f swaggerapi --outdir ../build/yaml --supported-xpath-list \
 yangs/oc_omw_xpath_list.txt --plugindir ../tools/pyang/pyang_plugins -p \
-yangs/common:yangs yangs/openconfig-acl.yang
+yangs/common:yangs yangs/openconfig-interfaces.yang
 ```
-> TODO: update this to a model used in test (e.g. BGP/OSPF)
 
 3. Use OpenApi codegen tool to generate REST Client C code, `open_api_client_c`
 
 ```
-java -jar openapi-generator-cli.jar generate -i openconfig-acl.yaml -g c -o openapi_client_c
+java -jar openapi-generator-cli.jar generate -i openconfig-interfaces.yaml -g c -o openapi_client_c
 ```
-> TODO: update this to a model used in test (e.g. BGP/OSPF)
 
 4. Compile and generate shared object library (.so)
 
@@ -371,6 +335,8 @@ xxx
 > TODO: Explain what is required to integrate REST Client to Netopeer2 for an example YANG model used in test. (e.g. BGP)
 
 ### Run time workflow
+
+> TODO: This workflow should be updated after porting to latest master branch & testing the procedure
 
 Below components are involed during the run time.
 
@@ -387,7 +353,7 @@ Only component 1 ~ 2 are newly added by the NETCONF server feature.
 Component 3 ~ 8 are part of the existing SONiC Management Framework.
 
 On build time, one may need to generate and update files related to 4 ~ 8 when adding new YANG model support.
-For details, following procedure covered in the original SONiC Management Framework document.
+For details, follow the procedure covered in the original SONiC Management Framework document.
 
 #### NETCONF edit-config flow
 
@@ -416,7 +382,7 @@ Netopeer2 server supports all standard NETCONF capabilities.
 But as mentioned in Requirements section, the NETCONF server feature has limited support for capabilities.
 This must be reported to NETCONF client in hello message sent during connection creation.
 
-> Note: As a build time change, `nc_server_get_cpblts_version()` must be updated to be inline with the supported capability.
+> Note: As a build time change, `nc_server_get_cpblts_version()` in Netopeer2 must be updated to be inline with the supported capability.
 > (changes are stored under the `patches` directory in `sonic-netconf` repository)
 
 Below diagram shows Netopeer2 create connection flow.
@@ -441,25 +407,25 @@ Below diagram shows Netopeer2 create connection flow.
 
 >	- What are the repositories that would be changed?
 
-- NETCONF server will be part of existing SONiC management container.
-- It will use `sonic-mgmt-common` and `sonic-mgmtframework` components.
-- Files and folders required for NETCONF server will be stored in a new repository called `sonic-netconf` for ease of maintenance.
+- `sonic-netconf`
+  - Files and folders required for NETCONF server will be stored in a new repository called `sonic-netconf` for ease of maintenance.
+  - See: "`sonic-netconf` repository structure and contents" for details
+- `sonic-buildimage`
+  - changes requred to build and run NETCONF server
+  - e.g. `/dockers/docker-sonic-mgmt-framework/supervisord.conf`, `Dockerfile.j2`, `rules/sonic-netconf.[dep|mk]` etc.
+- `sonic-mgmt-common` and `sonic-mgmtframework`
+  - NETCONF server will be part of the existing SONiC management container.
+  - It will use `sonic-mgmt-common` and `sonic-mgmtframework` components.
+  - Files in these directory might be updated when supporting new models.
 
-`sonic-netconf` repository structure and contents:
-
-> TODO: confirm with source code  
+#### `sonic-netconf` repository structure and contents
 
 - Directory `debian`
   - used to build debian package
 - Directory `models`
   - This includes YANG data model files and Makefiles to generate and compile C based REST client.
-- Directory `netconf-server`
-  - libnetconf2
-  - libyang
-  - netopeer2
-  - sysrepo
 - Directory `patches`
-  - This includes patches to apply to `libnetconf2`, `libyang`, `netopeer2`,  `OpenApiTool` and `sysrepo`
+  - This includes patches to be applied to `libnetconf2`, `libyang`, `netopeer2`,  `OpenApiTool` and `sysrepo`
 - Directory `scripts`
   - This includes scripts which needed to build and run netopeer2 server.
 - Directory `startup_config`
@@ -471,32 +437,28 @@ Below diagram shows Netopeer2 create connection flow.
 - `README.md`
   - describes Prerequisites, Build Instruction and Referencesd
 
-### Patches
-
-> TODO: explain what each patch will change. e.g. limit supported operation Netopeer2 will report.
-
-Changes to Netopeer2
-- nc_server_get_cpblts_version()
-  - This is used to construct server hello message.
-  - This is modified to only add supported capabilities in hello message and send to NETCONF Client.
-  - refer to [NETCONF create connection (capability modification)](#netconf-create-connection-capability-modification) for detailed flow
-- x
-
 ### Build dependency
 
 >	- Docker dependency
 >	- Build dependency if any
 
-TODO: list which Linux modules etc. requried.
-TODO: Dependency when building Netopeer2 (including sysrepo, libyang, libnetconf2, libssh, OpenSSL,  etc.)
-TODO: Dependency of other SONiC repo. e.g. sonic-mgmt-framework, sonic-mgmt-common, etc.
-TODO: Dependency of non-SONiC code, files, etc. e.g. Openconfig YANG files
+Build dependency
+
+- `libssh-4`
+- `libcurl4-nss-dev`
+- `libpcre2-dev`
+- `openjdk-11-jdk-headless`
+- `libssh-dev`
+
+Python (pip)
+
+- `pip: ncclient`
 
 ### New user addition
 
 When a new user is created in SONiC host, below steps needs to be done in mgmt-framework container to be able to connect with netopeer2 server using this new user:
 
-- Add this new user and group in mgmt-framework container.
+- Add this new user and group in mgmt-framework container: `/dockers/docker-sonic-mgmt-framework/Dockerfile.j2`
 
 Example:
 ```
@@ -537,7 +499,9 @@ Example:
 >	- Scalability and performance requirements/impact
 >	- Memory requirements
 
-TODO: study and document if there are any.
+No major performance requirements/impact is expected.
+
+> TODO: compare memory usage with NETCONF server enabled/disabled and document if there are any major difference.
 
 ## SAI API (no change required)
 
@@ -547,24 +511,28 @@ There is no change in SAI API for this feature.
 
 > DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB)
 
+Change to `CONFIG_DB` schema is required if (and only if) new model is added.
+
+No schema changes are required for other DBs.
+
 ## Configuration and management
 
 > This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
 
 ### Boot sequence and Config file
 
-TODO:
+> TODO: update after porting to the master branch
+
 1. desribe boot sequence
    - Which startup script will be used and parameter in the script
 2. describe NETCONF server specific config file, if exists
 3. Paste a preliminary manifest in a JSON format, if required.
-4. describe if Non-DB data provider is related to boot or config.
 
 ### Config DB Enhancements
 
 > TODO: This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change.
 
-TODO: Mention here if we need to expain CONFIG_DB schema extention when adding more YANG model which NETCONF server supports (e.g. OSPF). If it was fully covered in the previous sections, i.e. `## DB and Schema changes`, remove this section.
+There is no CONFIG_DB enhancements requrired to support NETCONF server feature.
 
 ## Warmboot and Fastboot Design Impact
 
@@ -573,7 +541,7 @@ TODO: Mention here if we need to expain CONFIG_DB schema extention when adding m
 >	- Warm reboot requirements/dependencies
 >	- Fastboot requirements/dependencies
 
-TODO: describe boot sequence for Warmboot and Fastboot. Clearly mention if there is any difference from Cold Boot (clean boot) or consideration required.
+There should be no impact to the existing warmboot and fastboot design.
 
 ### CLI/YANG model Enhancements
 
@@ -581,23 +549,20 @@ TODO: describe boot sequence for Warmboot and Fastboot. Clearly mention if there
 >This should also explain the CLICK and/or KLISH related configuration/show in detail.
 >https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md needs be updated with the corresponding CLI change.
 
-TODO: describe any CLI command available.
+No CLI enhancements.
 
 ## Serviceability and Debug (logging, counters, trace etc) related design
 
 ### Error Handling on NETCONF server (Netopeer2)
 
 The complete validation of config payload is performed by Netopeer2 against YANG models loaded, so it is not expected for SONiC framework to return validation errors.
-However, such errors are logged into syslog for debugging purposes.
-
-> TODO: Add syslog example?
+However, such errors are logged into syslog for debugging purposes if occurs.
 
 ### debug options on Netopeer2
 
-Netopeer2 have it’s own debug and logging mechanism.While starting netopeer2 server, desired logging level can be given as mentioned in below help output.
+Netopeer2 has it’s own debug and logging mechanism.
+While starting netopeer2 server, desired logging level can be given as mentioned in below help output.
 netopeer2 server can be run in debug mode using -d option.
-
-> TODO: copy and paste output during test.
 
 ```
 ~# netopeer2-server --help
@@ -631,63 +596,123 @@ Usage: netopeer2-server [-dhV] [-p PATH] [-U[PATH]] [-m MODE] [-u UID] [-g GID] 
 
 ### Unit Test cases
 
-TODO: Unit Test == Test internal to sonic-netconf or sonic-mgmt container ??
+> TODO: Unit Test == Test internal to sonic-netconf or sonic-mgmt container ??
+> 
+> TODO: Should we create a test code to unit test NETCONF server?
+> - e.g. create stub code to receive REST requrest, and check with NETCONF request is correctly translated to REST request in expected format.
 
 ### System Test cases
-
-TODO: System Test == Test using sonic-vs ??
 
 #### Test Plan (overview)
 
 - edit-config (merge)
-  - Set conifg via NETCONF
-  - Set the same config via CLI
-  - Compare `CONFIG_DB` entries between NETCONF and CLI
+  - Send NETCONF request to config an interface address
+  - Confirm `CONFIG_DB` entries are created as expected
 - edit-config (delete)
   - Delete config via NETCONF
   - Confirm `CONFIG_DB` entries are removed
+- get-config 
+  - Send NETCONF request to get configuration (filter: subtree interfaces)
+  - Confirm interface config is retured as expected
 
 #### Config Items
 
-> TODO:
-> - add more specific info like XPATH and parameters to be used
-> - Scope
->   - Test CONFIG_DB Update (add/delete)
-> - CONFIG_DB schema
->   - BGP ... reuse current schema (double check it's not modified)
->   - OSPF ... not in current sonic. Create new YANG, ABNF Schema Section in CONFIG_DB
+Config items to test using interface address config.
 
-- Interfaces
-  - CLI
-  - CONFIG_DB Schema
-- BGP
-  - CLI
-    - https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md#bgp-config-commands
-  - CONFIG_DB Schema
-    - https://github.com/sonic-net/SONiC/wiki/Configuration#bgp-sessions
-    - https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/doc/Configuration.md#bgp-sessions
-- OSPF
-  - TODO: There is no support for OSPF in current SONiC (202305). CONFIG_DB schema was created for this feature.
+Expected CONFIG_DB entry
 
+Confirm config was applied.
+
+```
+admin@sonic:~$ sonic-db-cli CONFIG_DB keys INTERFACE*
+INTERFACE|Ethernet0
+INTERFACE|Ethernet0|10.1.1.1/24
+
+admin@sonic:~$ show ip int
+Interface    Master    IPv4 address/mask    Admin/Oper    BGP Neighbor    Neighbor IP
+-----------  --------  -------------------  ------------  --------------  -------------
+Ethernet0              10.1.1.1/24          up/up         N/A             N/A
+docker0                240.127.1.1/24       up/down       N/A             N/A
+eth0                   192.168.122.169/24   up/up         N/A             N/A
+lo                     127.0.0.1/16         up/up         N/A             N/A
+```
+
+Test script (in Python)
+
+```
+from ncclient import manager
+
+m = manager.connect(
+    host="192.168.122.169",
+    port="830",
+    timeout=30,
+    username="admin",
+    password="YourPaSsWoRd",
+    hostkey_verify=False,
+)
+try:
+    m.edit_config(config=cfg, format="xml", default_operation="merge", target="running")
+finally:
+    m.close_session()
+```
+
+NETCONF edit-config (merge) payload
+
+```
+<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <interfaces xmlns="http://openconfig.net/yang/interfaces">
+    <interface>
+      <name>Ethernet0</name>
+      <config>
+        <name>Ethernet0</name>
+      </config>
+      <subinterfaces>
+        <subinterface>
+          <index>0</index>
+          <config>
+            <index>0</index>
+          </config>
+          <ipv4 xmlns="http://openconfig.net/yang/interfaces/ip">
+            <addresses>
+              <address>
+                <ip>10.1.1.1</ip>
+                <config>
+                  <ip>10.1.1.1</ip>
+                  <prefix-length>24</prefix-length>
+                </config>
+              </address>
+            </addresses>
+          </ipv4>
+        </subinterface>
+      </subinterfaces>
+    </interface>
+  </interfaces>
+</config>
+```
+
+Example of get-config
+
+```
+> print(m.get_config(source="running", filter=("subtree", interfaces)))
+
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="urn:uuid:4e02f166-fc2d-4701-a7a1-b15145cc01d6"><data><interfaces xmlns="http://openconfig.net/yang/interfaces"><interface><name>Ethernet0</name><config><name>Ethernet0</name></config><subinterfaces><subinterface><index>0</index><config><index>0</index></config><ipv4 xmlns="http://openconfig.net/yang/interfaces/ip"><addresses><address><ip>10.1.1.1</ip><config><ip>10.1.1.1</ip><prefix-length>24</prefix-length></config></address></addresses></ipv4></subinterface></subinterfaces></interface></interfaces></data></rpc-reply>
+```
 
 ## Open/Action items - if any
 	
 > NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
 
-### Third Party software Open Issues
+### Limitation of the current release
 
-TODO: review below issues and remove if not related to SONiC
-
-OpenConfig
-- https://github.com/openconfig/public/issues/642
-
-OpenAPITools
-- https://github.com/OpenAPITools/openapi-generator/issues/14219
-- https://github.com/OpenAPITools/openapi-generator/issues/14224
+- No preiodic DB syncronization are done between `netopeer2/sysrepo` and `CONFIG_DB`
+  - There is no method to notify configuration change done by `CLISH` or directly in `CONFIG_DB` to `netopeer2/sysrepo`
+  - Thus, any configuration added via NETCONF should be modified / removed via NETCONF
+- `get-config` will return config in `netopeer2/sysrepo` and not from `CONFIG_DB`
+  - This is due to lack of preiodic DB syncronization as mentioned above.
 
 ## Appendix
 
-Useful information to understand the design and implementation are noted here.
+Useful information to understand the design and implementation are noted here as a reference.
 
 ### Netopeer2 initialization and callback registration
 
