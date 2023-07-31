@@ -255,52 +255,52 @@ Here is a part of `ntp.conf.j2` template that can be used to generate configured
 **Example:**
 ```jinja
 {# Getting NTP global configuration -#}
-{% set global = (NTP | d({})).get('global', {}) -%}
+{/% set global = (NTP | d({})).get('global', {}) -/%}
 
 {# Adding NTP servers. We need to know if we have some pools, to set proper
 config -#}
-{% set is_pools = False %}
-{% for server in NTP_SERVER if NTP_SERVER[server].admin_state != 'disabled' and
+{/% set is_pools = False /%}
+{/% for server in NTP_SERVER if NTP_SERVER[server].admin_state != 'disabled' and
                                NTP_SERVER[server].resolve_as and
-                               NTP_SERVER[server].association_type -%}
-    {% set config = NTP_SERVER[server] -%}
+                               NTP_SERVER[server].association_type -/%}
+    {/% set config = NTP_SERVER[server] -/%}
     {# Server options -#}
-    {% set soptions = '' -%}
+    {/% set soptions = '' -/%}
     {# Server access control options -#}
-    {% set aoptions = '' -%}
+    {/% set aoptions = '' -/%}
 
     {# Authentication key -#}
-    {% if config.key -%}
-        {% set soptions = soptions ~ ' key ' ~ config.key -%}
-    {% endif -%}
+    {/% if config.key -/%}
+        {/% set soptions = soptions ~ ' key ' ~ config.key -/%}
+    {/% endif -/%}
 
     {# Aggressive polling -#}
-    {% if config.iburst -%}
-        {% set soptions = soptions ~ ' iburst' -%}
-    {% endif -%}
+    {/% if config.iburst -/%}
+        {/% set soptions = soptions ~ ' iburst' -/%}
+    {/% endif -/%}
 
     {# Protocol version -#}
-    {% if config.version -%}
-        {% set soptions = soptions ~ ' version ' ~ config.version -%}
-    {% endif -%}
+    {/% if config.version -/%}
+        {/% set soptions = soptions ~ ' version ' ~ config.version -/%}
+    {/% endif -/%}
 
     {# Check if there are any pool configured. BTW it doesn't matter what was
     configured as "resolve_as" for pools. If they were configured with FQDN they
     must remain like that -#}
-    {% set config_as = config.resolve_as -%}
-    {% if config.association_type == 'pool' -%}
-        {% set is_pools = True -%}
-        {% set config_as = server -%}
-    {% else -%}
-        {% set aoptions = aoptions ~ ' nopeer' -%}
-    {% endif -%}
+    {/% set config_as = config.resolve_as -/%}
+    {/% if config.association_type == 'pool' -/%}
+        {/% set is_pools = True -/%}
+        {/% set config_as = server -/%}
+    {/% else -/%}
+        {/% set aoptions = aoptions ~ ' nopeer' -/%}
+    {/% endif -/%}
 
 {{ config.association_type }} {{ config_as }}{{ soptions }}
-    {%- if global.server_role == 'disabled' +%}
+    {/%- if global.server_role == 'disabled' +/%}
 restrict {{ config_as }} kod limited nomodify notrap noquery{{ aoptions }}
-    {%- endif +%}
+    {/%- endif +/%}
 
-{% endfor -%}
+{/% endfor -/%}
 ```
 
 <!-- omit in toc -->
@@ -309,20 +309,20 @@ The next part of `ntp.conf.j2` template can be used to manage ntp authentication
 
 **Example:**
 ```jinja
-{% set trusted_keys_arr = [] -%}
-{% for key in NTP_KEY -%}
-    {% set keydata = NTP_KEY[key] -%}
-    {% if keydata.trusted == 'yes' -%}
-        {% set trusted_keys_arr = trusted_keys_arr.append(key) -%}
-    {% endif -%}
-{% endfor %}
+{/% set trusted_keys_arr = [] -/%}
+{/% for key in NTP_KEY -/%}
+    {/% set keydata = NTP_KEY[key] -/%}
+    {/% if keydata.trusted == 'yes' -/%}
+        {/% set trusted_keys_arr = trusted_keys_arr.append(key) -/%}
+    {/% endif -/%}
+{/% endfor /%}
 
-{% if global.authentication == 'enabled' %}
+{/% if global.authentication == 'enabled' /%}
 keys /etc/ntp.keys
-{% if trusted_keys_arr != [] %}
+{/% if trusted_keys_arr != [] /%}
 trustedkey {{ trusted_keys_arr|join(' ') }}
-{% endif %}
-{% endif %}
+{/% endif /%}
+{/% endif /%}
 ```
 
 And for handling VRF, DHCP, and NTP feature state we need to modify `ntp-sytemd-wrapper`:
@@ -374,18 +374,18 @@ And finally authentication keys file `ntp.keys.j2` template is here:
 ###############################################################################
 
 {# We can connect only to the servers we trust. Determine those servers -#}
-{% set trusted_arr = [] -%}
-{% for server in NTP_SERVER if NTP_SERVER[server].trusted == 'yes' and 
-                               NTP_SERVER[server].resolve_as -%}
-    {% set _ = trusted_arr.append(NTP_SERVER[server].resolve_as) -%}
-{% endfor -%}
+{/% set trusted_arr = [] -/%}
+{/% for server in NTP_SERVER if NTP_SERVER[server].trusted == 'yes' and 
+                               NTP_SERVER[server].resolve_as -/%}
+    {/% set _ = trusted_arr.append(NTP_SERVER[server].resolve_as) -/%}
+{/% endfor -/%}
 
 {# Define authentication keys inventory -#}
-{% set trusted_str = ' ' ~ trusted_arr|join(',') -%}
-{% for keyid in NTP_KEY if NTP_KEY[keyid].type and NTP_KEY[keyid].value %}
-{% set keyval = NTP_KEY[keyid].value | b64decode %}
+{/% set trusted_str = ' ' ~ trusted_arr|join(',') -/%}
+{/% for keyid in NTP_KEY if NTP_KEY[keyid].type and NTP_KEY[keyid].value /%}
+{/% set keyval = NTP_KEY[keyid].value | b64decode /%}
 {{ keyid }} {{ NTP_KEY[keyid].type }} {{ keyval }}{{trusted_str}}
-{% endfor -%}
+{/% endfor -/%}
 ```
 
 ## 2.4 DB schema

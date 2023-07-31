@@ -75,6 +75,8 @@ This sub-section covers the addition/deletion/modification of config DB changes 
 ### Warmboot and Fastboot Design Impact  
 Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
 
+### Memory Consumption
+This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration. 
 ### Restrictions/Limitations  
 
 ### Testing Requirements/Design  
