@@ -139,6 +139,7 @@
 | 0.17 | 04/08/2020 | Mohammed Faraaz         | OpenAPI 3.0 enhancements |
 | 0.18 | 04/09/2020 | Kwangsuk Kim            | Updated CLI and Transformer enhancement |
 | 0.19 | 04/15/2020 | Mohammed Faraaz         | Generic REST client for CLI |
+| 0.20 | 07/03/2023 | Abdelmuhaimen Seaudi | Netconf Server |
 
 ## About this Manual
 
@@ -174,30 +175,37 @@ Management framework is a SONiC application which is responsible for providing v
     1. Standard [YANG](https://tools.ietf.org/html/rfc7950) models (e.g. OpenConfig, IETF, IEEE)
     2. Custom YANG models ([SONiC YANG](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md))
     3. Industry-standard CLI / Cisco like CLI
-
-* Must provide support for [OpenAPI spec](http://spec.openapis.org/oas/v3.0.3) to generate REST server side code
+* Must provide support for [OpenAPI spec](http://spec.openapis.org/oas/v3.0.3) to generate REST server side code and NETCONF server side code
 * Must provide support for NBIs such as:
 
     1. CLI
     2. gNMI
     3. REST/RESTCONF
-
+4. NETCONF
 * Must support the following security features:
 
     1. Certificate-based authentication
     2. User/password based authentication
     3. Role based authorization
-
 * Ease of use for developer workflow
 
     1. Specify data model and auto-generate as much as possible from there
-
 * Must support Validation and Error Handling - data model, platform capability/scale, dynamic resources
 * SNMP integration in SONiC is left for future study
 
 ### 1.2 Design Overview
 
-Management framework makes use of the translation library (Translib) written in golang to convert the data models exposed to the management clients into the Redis ABNF schema format. Supported management servers can make use of the Translib to convert the incoming payload to SONiC ABNF schema and vice versa depending on the incoming request. Translib will cater to the needs of REST and gNMI servers. Later the Translib can be enhanced to support other management servers if needed. This framework will support both standard and custom YANG models for communication with the corresponding management servers. Management framework will also take care of maintaining data consistency, when writes are performed from two different management servers at the same time. Management framework will provide a mechanism to authenticate and authorize any incoming requests. Management framework will also take care of validating the requests before writing them into the Redis DB. Config Validation Library is used for syntactic and semantic validation of ABNF JSON based on YANG derived from Redis ABNF schema.
+Management framework makes use of the translation library (Translib) written in golang to convert the data models exposed to the management clients into the Redis ABNF schema format. 
+
+Supported management servers can make use of the Translib to convert the incoming payload to SONiC ABNF schema and vice versa depending on the incoming request. Translib will cater to the needs of REST, NETCONF, and gNMI servers. Later the Translib can be enhanced to support other management servers if needed. 
+
+This framework will support both standard and custom YANG models for communication with the corresponding management servers. 
+
+Management framework will also take care of maintaining data consistency, when writes are performed from two different management servers at the same time. 
+
+Management framework will provide a mechanism to authenticate and authorize any incoming requests. Management framework will also take care of validating the requests before writing them into the Redis DB. 
+
+Config Validation Library is used for syntactic and semantic validation of ABNF JSON based on YANG derived from Redis ABNF schema.
 
 #### 1.2.1 Basic Approach
 
@@ -206,7 +214,7 @@ Management framework makes use of the translation library (Translib) written in 
 	* Open API spec
 	* Industry standard CLI
 	* Config Validation
-* REST server, gNMI server, App module and Translib - all in Go
+* REST server, NETCONF server, gNMI server, App module and Translib - all in Go
 * Translation by using the Translib Library and application specific modules
 * Marshalling and unmarshalling using YGOT
 * Redis updated using CAS(Check-and-Set) trans. (No locking, No rollback)
@@ -217,6 +225,9 @@ Management framework makes use of the translation library (Translib) written in 
 
 The management framework is designed to run in a single container named “sonic-mgmt-framework”. The container includes the REST server linked with Translib, and CLI process.
 The gNMI support requires the gNMI server which is provided as a part of sonic-telemetry container. We would like to rename this container as the sonic-gnmi container as now it can perform configurations as well through the gNMI server.
+
+The Netconf Server will also run in a seperate container called sonic-netconf-server.
+
 Will introduce a new container sonic-mgmt-common to host the common code that is used both in the mgmt-framework and sonic-telemetry container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-telemetry repo can be compiled without the mgmt-framework being present in the code base.
 
 ## 2 Functionality
@@ -225,7 +236,8 @@ Will introduce a new container sonic-mgmt-common to host the common code that is
 
 1. Industry Standard CLI which will use REST client to talk to the corresponding servers to send and receive data.
 2. REST client through which the user can perform POST, PUT, PATCH, DELETE, GET operations on the supported YANG paths.
-3. gNMI client with support for capabilities, get, set, and subscribe based on the supported YANG models.
+3. NETCONF client through which the user can perform NETCONF Operations RFC 6241 <get-config>, <edit-config>, <rpc>, etc ... and RFC 6022 <get-schem>.
+4. gNMI client with support for capabilities, get, set, and subscribe based on the supported YANG models.
 
 ## 3 Design
 
@@ -267,7 +279,12 @@ This can be an independent choice on an application by application basis. Howeve
 1. REST client will use the OpenAPI generated client SDK to send the request to the REST server.
 2. From then on the flow is similar to the one seen in the CLI.
 
-##### 3.1.2.3 gNMI
+##### 3.1.2.3 NETCONF
+
+1. NETCONF client will use the schemas generated and send the request to the NETCONF Server
+2. From then on the flow is similar to REST to Translib, and Common App handlers.
+
+##### 3.1.2.4 gNMI
 
 GNMI service defines a gRPC-based protocol for the modification and retrieval of configuration from a target device, as well as the control and generation of telemetry streams from a target device to a data collection system. Refer  [GNMI spec](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md)
 
@@ -517,6 +534,7 @@ Following are the run time components in the management framework
 7. Config Validation Library (CVL)
 8. Redis DB
 9. Non DB data provider
+10. NETCONF Server
 
 ##### 3.2.2.1 CLI
 
@@ -1100,50 +1118,50 @@ Translib is a library that adapts management server requests to SONiC data provi
         func Subscribe(req SubscribeRequest) ([]*IsSubscribeResponse, error)
         func IsSubscribeSupported(req IsSubscribeRequest) ([]*IsSubscribeResponse, error)
         func GetModels() ([]ModelData, error)
-
+    
         Translib Structures:
         type ErrSource int
-
+    
         const (
             ProtoErr ErrSource = iota
             AppErr
         )
-
+    
         type SetRequest struct {
             Path    string
             Payload []byte
             User    string
             ClientVersion Version
         }
-
+    
         type SetResponse struct {
             ErrSrc ErrSource
             Err    error
         }
-
+    
         type GetRequest struct {
             Path    string
             User    string
             ClientVersion Version
         }
-
+    
         type GetResponse struct {
             Payload []byte
             ErrSrc  ErrSource
         }
-
+    
         type ActionRequest struct {
             Path    string
             Payload []byte
             User    string
             ClientVersion Version
         }
-
+    
         type ActionResponse struct {
             Payload []byte
             ErrSrc  ErrSource
         }
-
+    
         type BulkRequest struct {
             DeleteRequest  []SetRequest
             ReplaceRequest []SetRequest
@@ -1152,14 +1170,14 @@ Translib is a library that adapts management server requests to SONiC data provi
             User           string
             ClientVersion  Version
         }
-
+    
         type BulkResponse struct {
             DeleteResponse  []SetResponse
             ReplaceResponse []SetResponse
             UpdateResponse  []SetResponse
             CreateResponse  []SetResponse
         }
-
+    
         type SubscribeRequest struct {
             Paths           []string
             Q               *queue.PriorityQueue
@@ -1167,7 +1185,7 @@ Translib is a library that adapts management server requests to SONiC data provi
             User            string
             ClientVersion   Version
         }
-
+    
         type SubscribeResponse struct {
             Path         string
             Payload      []byte
@@ -1175,19 +1193,19 @@ Translib is a library that adapts management server requests to SONiC data provi
             SyncComplete bool
             IsTerminated bool
         }
-
+    
         type NotificationType int
-
+    
         const (
             Sample NotificationType = iota
             OnChange
         )
-
+    
         type IsSubscribeRequest struct {
             Paths               []string
             User                string
         }
-
+    
         type IsSubscribeResponse struct {
             Path                string
             IsOnChangeSupported bool
@@ -1195,13 +1213,13 @@ Translib is a library that adapts management server requests to SONiC data provi
             Err                 error
             PreferredType       NotificationType
         }
-
+    
         type ModelData struct {
             Name string
             Org  string
             Ver  string
         }
-
+    
         type Version struct {
             Major uint32
             Minor uint32
@@ -1234,7 +1252,7 @@ App Interface helps in identifying the App module responsible for servicing the 
             model - Filled ModelData structure containing the Name, Organisation and version of the model that is being supported.
             Returns:
             error - error string
-
+    
         App Interface Structures:
         //Structure containing App module information
         type AppInfo struct {
@@ -1243,7 +1261,7 @@ App Interface helps in identifying the App module responsible for servicing the 
             IsNative        bool
             tablesToWatch   []*db.TableSpec
         }
-
+    
         Example Usages:
         func init () {
             log.Info("Init called for ACL module")
@@ -1252,11 +1270,11 @@ App Interface helps in identifying the App module responsible for servicing the 
                     ygotRootType:  reflect.TypeOf(ocbinds.OpenconfigAcl_Acl{}),
                     isNative:      false,
                     tablesToWatch: []*db.TableSpec{&db.TableSpec{Name: ACL_TABLE}, &db.TableSpec{Name: RULE_TABLE}}})
-
+    
             if err != nil {
                 log.Fatal("Register ACL App module with App Interface failed with error=", err)
             }
-
+    
             err = appinterface.AddModel(&gnmi.ModelData{Name:"openconfig-acl",
                                                         Organization:"OpenConfig working group",
                                                         Version:"1.0.2"})
@@ -1264,7 +1282,7 @@ App Interface helps in identifying the App module responsible for servicing the 
                 log.Fatal("Adding model data to appinterface failed with error=", err)
             }
         }
-
+    
         type AclApp struct {
             path string
             YGOTRoot *YGOT.GoStruct
@@ -1297,7 +1315,7 @@ This RequestBinder module exposes the below mentioned APIs which will be used to
             appRootNodeType - pointer to the reflect.Type object of the App module root node's YGOT structure object
         Returns:
         requestBinder -  pointer to the requestBinder object instance
-
+    
     func (binder *requestBinder) unMarshall() (*YGOT.GoStruct, *interface{}, error)
         This method is be used to unmarshall the request into Go structure objects, and validates the request against YANG model schema
         Returns:
@@ -1317,7 +1335,7 @@ These utilities methods provides below mentioned common operations on the YGOT s
         interface{} - pointer to the parent object of the given target object's URI path
         YANG.Entry - pointer to the YANG schema of the parent object
         error - error object to describe the error if this methods fails to return the parent object, otherwise nil
-
+    
     func getNodeName(targetUri *string, deviceObj *ocbinds.Device) (string, error)
         This method is used to get the YANG node name of the given target object's uri path.
         Input parameters:
@@ -1326,7 +1344,7 @@ These utilities methods provides below mentioned common operations on the YGOT s
         Returns:
         string - YANG node name of the given target object
         error - error object to describe the error if this methods fails to return the parent object, otherwise nil
-
+    
     func getObjectFieldName(targetUri *string, deviceObj *ocbinds.Device, YGOTTarget *interface{}) (string, error)
         This method is used to get the go structure object field name of the given target object.
         Input parameters:
@@ -1415,14 +1433,14 @@ Detail Method Signature:
 Concurrent Access via Redis CAS transactions:
 
     Upto 4 levels of concurrent write access support.
-
+    
     1. Table based watch keys (Recommended):
        At App module registration, the set of Tables that are to be managed by
        the module are provided. External (i.e. non-Management-Framework)
        applications may choose to watch and set these same table keys to detect
        and prevent concurrent write access. The format of the table key is
        "CONFIG_DB_UPDATED_<TABLE>".  (Eg: CONFIG_DB_UPDATED_ACL_TABLE)
-
+    
     2. Row based watch keys:
        For every transaction, the App module provides a list of keys that it
        would need exclusive access to for the transaction to succeed. Hence,
@@ -1431,10 +1449,10 @@ Concurrent Access via Redis CAS transactions:
        concurrent modification of yet to be created keys (i.e. keys which are
        not in the DB, but might be created by a concurrent application) may not
        be detected.
-
+    
     3. A combination of 1. and 2.:
        More complex, but easier concurrent write access detection.
-
+    
     4. None:
        For applications not needing concurrent write access protections.
 
@@ -1950,7 +1968,7 @@ module sonic-acl-deviation {
 		RClient *redis.Client //Redis client
 	}
 ```
- 
+
 ###### 3.2.2.8.3 CVL APIs
 
 ```
@@ -2032,7 +2050,7 @@ module sonic-acl-deviation {
                 CVL_INTERNAL_UNKNOWN /*Internal unknown error */
                 CVL_FAILURE          /* Generic failure */
         )
-```	
+```
 
 1. func Initialize() CVLRetCode
 	- Initialize the library only once, subsequent calls does not affect once library is already initialized . This automatically called when if ‘cvl’ package is imported.
@@ -2195,6 +2213,27 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 24. Status is returned from DB access layer after performing commit operation.
 25. Write lock acquired in Step 3 is released.
 26. Final response is returned from the Translib infra to REST/GNMI.
+
+### 4.3 NETCONF <get> flow
+
+1. NETCONF <get> request from the NETCONF client is sent to the NETCONF Server.
+2. NETCONF Server invokes a common request handler.
+3. Authentication of the incoming request is performed.
+4. Request handler calls the Translib exposed GET API with the uri of the request.
+5. Translib infra gets the App module corresponding to the incoming uri.
+6. Translib infra calls the initialize function of the App module with the YGOT structures and path. App module caches them.
+7. Status retuned from App module.
+8. App module queries Transformer to translate the path to the Redis keys that need to be queried.
+9. Status returned from App module.
+10. Translib infra calls the processGet function on the App module
+11. App modules calls read APIs exposed by the DB access layer to read data from the Redis DB.
+12. Data is read from the Redis DB is returned to the App module
+13. App module fills the YGOT structure with the data from the Redis DB and validated the filled YGOT structure for the syntax.
+14. App module converts the YGOT structures to JSON format.
+15. IETF JSON payload is returned to the Translib infra.
+16. IETF JSON payload is returned to the request handler.
+17. Response is returned to NETCONF Server.
+18. NETCONF response is returned to the NETCONF client from the NETCONF gateway.
 
 ## 5 Developer Work flow
 Developer work flow differs for standard YANG (IETF/OpenConfig) vs proprietary YANG used for a feature. When a standards-based YANG model is chosen for a new feature, the associated Redis DB design should take the design of this model into account - the closer the mapping between these, then the less translation logic is required in the Management path. This simplifies the work flow as translation intelligence can be avoided as both Redis schema and NB YANG schema are aligned.
