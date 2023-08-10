@@ -291,7 +291,7 @@ sequenceDiagram
     loop lport in logical_port_list
         alt post_port_sfp_info_to_db != SFP_EEPROM_NOT_READY
              Note over SfpStateUpdateTask: post_port_dom_threshold_info_to_db
-            opt if is_module_cmis_sm_driven and PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS != NPU_SI_SETTINGS_DONE
+            opt if not is_module_cmis_sm_driven and PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS != NPU_SI_SETTINGS_DONE
               opt if module_requires_npu_si_settings
                   SfpStateUpdateTask ->> APPL_DB: Update SI params from NPU_SI_SETTINGS.json to PORT_TABLE:<lport>
                   SfpStateUpdateTask ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_NOTIFIED
