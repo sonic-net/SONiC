@@ -93,7 +93,7 @@ We want to enable configuring the following policies, with default values are ta
 | login timeout  |     SSH session timeout                                                   |     1-600 (secs)        |     120          |
 | ports          |     Port numbers for SSH                                                  |     1-65535             |     22           |
 | inactivity timeout |     Inactivity timeout for SSH session                                    |     0-35000 (min)       |     15           |
-| max sessions   |     Max number of concurrent logins                                       |     0-100               |     100          |
+| max sessions   |     Max number of concurrent logins                                       |     0-100               |     0          |
 
 
 ###  1.8. Init flow 
@@ -190,7 +190,7 @@ module sonic-ssh-server {
 				}
 				leaf max_syslogins {
 					description "limit of concurrent system logins, 0 means no limit";
-					default 100;
+					default 0;
 					type uint32 {
 						range 0..100;
 					}
@@ -212,7 +212,7 @@ The ConfigDB will be extended with next objects:
 			"login_timeout": "120",
 			"ports": "22",
 			"inactivity_timeout": "15",
-			"max_syslogins": "100",
+			"max_syslogins": "0"
 		}
 	}
 }
