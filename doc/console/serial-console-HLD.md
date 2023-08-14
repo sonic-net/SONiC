@@ -119,8 +119,10 @@ NA
 
 ```
 SERIAL_CONSOLE:{
-	"inactivity_timeout": {{min}}
-	"sysrq-capabilities": {{enabled|disabled}}
+	POLICIES:{
+		"inactivity_timeout": {{min}}
+		"sysrq-capabilities": {{enabled|disabled}}
+	}
 }
 ```
 ### 6.2. ConfigDB schemas
@@ -152,24 +154,26 @@ module sonic-serial-console {
 
             description "SERIAL_CONSOLE part of config_db.json";
 
-            key "name";
+            container POLICIES {
 
-            leaf inactivity_timeout {
-                description "serial-console inactivity-timeout timer value in minutes";
-                type int32 {
-                    range "0..35000";
-                }
-                default 15;
-            }
-
-            leaf sysrq_capabilities {
-                description "managing SysRq capabilities";
-                type enumeration {
-                    enum disabled;
-                    enum enabled;
-                }
-                default disabled;
-            }
+	            leaf inactivity_timeout {
+	                description "serial-console inactivity-timeout timer value in minutes";
+	                type int32 {
+	                    range "0..35000";
+	                }
+	                default 15;
+	            }
+	
+	            leaf sysrq_capabilities {
+	                description "managing SysRq capabilities";
+	                type enumeration {
+	                    enum disabled;
+	                    enum enabled;
+	                }
+	                default disabled;
+	            }
+		}
+		/* end of container POLICIES */
         }
         /* end of container SERIAL_CONSOLE */
     }
@@ -185,8 +189,10 @@ The ConfigDB will be extended with next objects:
 ```json
 {
 	"SERIAL_CONSOLE": {
-		"inactivity_timeout": "15",
-		"sysrq_capabilities": "disabled",
+		POLICIES: {
+			"inactivity_timeout": "15",
+			"sysrq_capabilities": "disabled",
+		}
 	}
 }
 ```
