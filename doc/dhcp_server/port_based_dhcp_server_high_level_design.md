@@ -41,8 +41,10 @@
     - [Show CLI](#show-cli)
 - [Test](#test)
     - [Unit Test](#unit-test)
+        - [Config CLI](#config-cli)
+        - [Show CLI](#show-cli)
+        - [Others](#others)
     - [Test Plan](#test-plan)
-- [Implement Detail](#implement-detail)
 
 <!-- /TOC -->
 
@@ -144,17 +146,32 @@ Belows are sample configurations for dhcrelay and kea-dhcp-server:
   ```
 
 ## Container
-A new container dhcp_server based on debian:bookworm, is created to hold DHCP Server logic.
+A new container dhcp_server based on debian:bookworm, is created to hold DHCP Server logic. Also, related entry would be added to `FEATURE` table to control enabled/disabled of this feature like below, and the default state of this feature is `disabled`
+```
+{
+  "FEATURE": {
+    "dhcp_server": {
+      "auto_restart": "enabled",
+      "delayed": "False",
+      "has_global_scope": "True",
+      "has_per_asic_scope": "False",
+      "high_mem_alert": "disabled",
+      "state": "disabled",
+      "support_syslog_rate_limit": "true"
+    },
+  }
+}
+```
 
 ## DHCP Server Daemon
 ### Generate Config
 
-DhcpServd is to generate configuration file for kea-dhcp-server while DHCP Server config in CONFIG_DB changed, and then send SIGHUP signal to kea-dhcp-server process to let new config take affect.
+dhcpservd is to generate configuration file for kea-dhcp-server while DHCP Server config in CONFIG_DB changed, and then send SIGHUP signal to kea-dhcp-server process to let new config take affect.
 <div align="center"> <img src=images/dhcp_server_block_new_diagram.png width=530 /> </div>
 
 ### Update Lease
 
-kea-dhcp-server supports to specify a customize script (`/tmp/lease_update.sh`) to execute whenever a new DHCP lease is created, or an old one destroyed. We use this script to send signal to DhcpServd to read lease file and update lease table in STATE_DB.
+kea-dhcp-server supports to specify a customize script (`/tmp/lease_update.sh`) to execute whenever a new DHCP lease is created, or an old one destroyed. We use this script to send signal to dhcpservd to read lease file and update lease table in STATE_DB.
 <div align="center"> <img src=images/lease_update_flow_diagram.png width=380 /> </div>
 
 ```JSON
@@ -558,10 +575,9 @@ Below sequence figure describes the work flow how kea-dhcp-server updates lease 
 
 This command is used to add dhcp_server for DHCP interface.
 
-**Notice**: Adding dhcp_server would enable dhcp_server feature automatically, it require that dhcp_relay feature is disabled.
 - Usage
   ```
-  config dhcp_server ipv4 add [--mode <mode>] [--infer_gw_nm] [--lease_time <lease_time>] [--gateway <gateway>] [--netmask <netmask>] <dhcp_interface>
+  config dhcp_server ipv4 add --mode <mode> [--infer_gw_nm] [--lease_time <lease_time>] [--gateway <gateway>] [--netmask <netmask>] <dhcp_interface>
 
   Options:
      mode: Specify mode of assign IP, currently only support 'PORT'. [required]
@@ -579,7 +595,7 @@ This command is used to add dhcp_server for DHCP interface.
 
 **config dhcp_server del**
 
-This command is used to delete all dhcp_server config for DHCP interface.
+This command is used to delete all dhcp_server config for DHCP interface, to be clarify that delete a `enable` dhcp_server is not allowed.
 - Usage
   ```
   config dhcp_server ipv4 del <dhcp_interface>
@@ -592,7 +608,7 @@ This command is used to delete all dhcp_server config for DHCP interface.
 
 **config dhcp_server enable/disable**
 
-This command is used to enable or disable dhcp_server for DHCP interface.
+This command is used to enable or disable dhcp_server for DHCP interface, this state is set to `disable` by default while adding a new dhcp_server.
 - Usage
   ```
   config dhcp_server ipv4 (enable | disable) <dhcp_interface>
@@ -609,7 +625,7 @@ This command is used to enable or disable dhcp_server for DHCP interface.
 This command is used to update dhcp_server config.
 - Usage
   ```
-  config dhcp_server ipv4 update [--mode <mode>] [--infer_gw_nm] [--lease_time <lease_time>] [--gateway <gateway>] [--netmask <netmask>] <dhcp_interface>
+  config dhcp_server ipv4 update --mode <mode> [--infer_gw_nm] [--lease_time <lease_time>] [--gateway <gateway>] [--netmask <netmask>] <dhcp_interface>
   ```
 
 - Example
@@ -639,15 +655,15 @@ This command is used to config ip range.
 This command is used to config dhcp ip per interface.
 - Usage
   ```
-  config dhcp_server ipv4 ip bind [<vlan_interface>] <interface> (<ip_range_list> | <ip_list>)
-  config dhcp_server ipv4 ip unbind [<vlan_interface>] <interface> (<ip_range_list> | <ip_list> | all)
+  config dhcp_server ipv4 ip bind <vlan_interface> <interface> (--range <ip_range_list> | <ip_list>)
+  config dhcp_server ipv4 ip unbind <vlan_interface> <interface> (--range <ip_range_list> | <ip_list> | all)
   ```
 
 - Example
   ```
-  config dhcp_server ipv4 ip bind Vlan1000 Ethernet1 range1
+  config dhcp_server ipv4 ip bind Vlan1000 Ethernet1 --range range1
   config dhcp_server ipv4 ip bind Vlan1000 Ethernet2 192.168.0.5 192.168.0.6
-  config dhcp_server ipv4 ip unbind Vlan1000 Ethernet1 range1 range1
+  config dhcp_server ipv4 ip unbind Vlan1000 Ethernet1 --range range1 range2
   ```
 
 **config dhcp_server option add**
@@ -657,7 +673,7 @@ Type field can refer to [Customize DHCP Packet Options](#customize-dhcp-packet-o
 
 - Usage
   ```
-  config dhcp_server ipv4 option add <option_name> <option_id> <type> <value>
+  config dhcp_server ipv4 option add <option_name> <option_id> [<type>] <value>
   ```
 
 - Example
@@ -671,12 +687,11 @@ This command is used to del dhcp option.
 
 - Usage
   ```
-  config dhcp_server ipv4 option del <option_name> (<option_id> <type> <value> | all)
+  config dhcp_server ipv4 option del <option_name>
   ```
 
 - Example
   ```
-  config dhcp_server ipv4 option del option_1 12 text host_1
   config dhcp_server ipv4 option del option_1
   ```
 
@@ -698,12 +713,12 @@ This command is used to bind dhcp option per dhcp interface.
 This command is used to unbind dhcp option.
 - Usage
   ```
-  config dhcp_server ipv4 option unbind <dhcp_interface> (all | <option_name>)
+  config dhcp_server ipv4 option unbind <dhcp_interface> (--all | <option_name>)
   ```
 
 - Exampe
   ```
-  config dhcp_server ipv4 option unbind Vlan1000 all
+  config dhcp_server ipv4 option unbind Vlan1000 --all
 
   config dhcp_server ipv4 option unbind Vlan1000 option_1
   ```
@@ -834,31 +849,142 @@ This command is used to show dhcp_server lease.
 
 # Test
 ## Unit Test
-The Unit test case are as below:
-| No |                Test case summary                          |
-|:----------------------|:-----------------------------------------------------------|
-| 1 | Verify that config add/del/update dhcp_server can work well |
-| 2 | Verify that config dhcp_server ip bind/unbind can work well |
-| 3 | Verify that config dhcp_server option can work well |
-| 4 | Verify that config dhcp_server range can work well|
-| 5 | Verify that show dhcp_server info can work well |
-| 6 | Verify that show dhcp_server lease can work well |
-| 7 | Verify that lease update script can work well |
-| 8 | Verify that config files for kea-dhcp-server and dhcrelay generated by DhcpServd are correct |
+### Config CLI
+- config dhcp_server ipv4 add [--mode <mode>] [--infer_gw_nm] [--lease_time <lease_time>] [--gateway <gateway>] [--netmask <netmask>] <dhcp_interface>
+  |Case Description|Expected res|
+  |:-|:-|
+  |Add with --infer_gw_nm, --mode=PORT|Add success, state is disabled|
+  |Add with --mode=DYNAMIC |Add failed because port not supported|
+  |Add interface not exist|Add failed|
+  |Add without --mode |Add failed because mode is missing|
+  |Add without --infer_gw_nm, --gateway and --netmask |Add failed because netmask and gateway is not specified|
+  |Add with invalid netmask |Add failed because netmask invalid|
+  |Add with invalid gateway | Add failed because gateway invalid|
+  |Add with invalid lease_time |Add failed because lease_time invalid|
+
+- config dhcp_server ipv4 del
+  |Case Description|Expected res|
+  |:-|:-|
+  |Delete valid interface |Delete success|
+  |Delete interface not exist|Delete failed|
+
+- config dhcp_server ipv4 (enable | disable) <dhcp_interface>
+  |Case Description|Expected res|
+  |:-|:-|
+  |Enable valid interface |Enable success|
+  |Enable invalid interface|Enable failed|
+  |Enable enabled interface|Enable success|
+  |Disable valid interface |Disable success|
+  |Disable invalid interface|Disable failed|
+  |Disable disabled interface|Disable success|
+
+- config dhcp_server ipv4 update -mode <mode> [--infer_gw_nm] [--lease_time <lease_time>] [--gateway <gateway>] [--netmask <netmask>] <dhcp_interface>
+  |Case Description|Expected res|
+  |:-|:-|
+  |Update with --infer_gw_nm, --mode=PORT|Update success|
+  |Update not exist dhcp_server interface|Update failed|
+  |Update invalid interface|Update failed|
+  |Update with invalid netmask|Update failed|
+  |Update with invalid gateway | Update failed because gateway invalid|
+  |Update with invalid lease_time |Update failed because lease_time invalid|
+
+- config dhcp_server ipv4 range add <range_name> <ip_start> [<ip_end>]
+  |Case Description|Expected res|
+  |:-|:-|
+  |Add without ip_end|Add success|
+  |Add with ip_start and ip_end|Add success|
+  |Add with ip_start greater than ip_end|Add failed|
+
+- config dhcp_server ipv4 range del <range_name>
+  |Case Description|Expected res|
+  |:-|:-|
+  |Delete valid range|Delete success|
+  |Delete not exist range|Delete failed|
+
+- config dhcp_server ipv4 ip bind <vlan_interface> <interface> (--range <ip_range_list> | <ip_list>)
+  |Case Description|Expected res|
+  |:-|:-|
+  |Bind valid vlan_interface, interface with valid ip_range_list|Bind success|
+  |Bind valid vlan_interface, interface with valid ip_list|Bind success|
+  |Bind no exist vlan_interface|Bind failed|
+  |Bind interface not in related vlan_interface|Bind failed|
+  |Bind ip_range_list not in vlan net|Bind failed|
+  |Bind ip_list not in vlan net|Bind failed|
+
+- config dhcp_server ipv4 ip unbind <vlan_interface> <interface> (--range <ip_range_list> | <ip_list> | all)
+  |Case Description|Expected res|
+  |:-|:-|
+  |Unbind valid vlan_interface, interface with valid ip_range_list|Unbind success|
+  |Unbind valid vlan_interface, interface with valid ip_list|Unbind success|
+  |Unbind valid vlan_interface, interface with all|Unbind success, all ips/ranges are unbind|
+  |Unbind no exist vlan_interface|Unbind failed|
+  |Unbind interface not in related vlan_interface|Unbind failed|
+  |Unbind ip_range_list not binded in interface|Unbind failed|
+  |Unbind ip_list not binded in interface|Unbind failed|
+
+- config dhcp_server ipv4 option add <option_name> <option_id> [<type>] <value>
+  |Case Description|Expected res|
+  |:-|:-|
+  |Add with valid name, option_id, type, value|Add success|
+  |Add with invalid option_id|Add failed|
+  |Add with invalid type|Add failed|
+  |Add with value inconsistent with type|Add failed|
+  |Add with type inconsistent with option_id defined by RFC|Add failed|
+
+- config dhcp_server ipv4 option del <option_name>
+  |Case Description|Expected res|
+  |:-|:-|
+  |Delete valid option|Delete success|
+  |Delete not exist option|Delete failed|
+
+- config dhcp_server ipv4 option bind <dhcp_interface> <option_list>
+  |Case Description|Expected res|
+  |:-|:-|
+  |Bind valid dhcp_interface with valid option_list|Bind success|
+  |Bind no exist dhcp_interface|Bind failed|
+  |Bind no exist option_list|Bind failed|
+
+- config dhcp_server ipv4 option unbind <dhcp_interface> (--all | <option_name>)
+  |Case Description|Expected res|
+  |:-|:-|
+  |Unbind valid dhcp_interface with valid option_name|Unbind success|
+  |Unbind valid dhcp_interface with valid all|Unbind success, all options unbind|
+  |Unbind valid dhcp_interface with invalid option_name|Unbind failed|
+  |Unbind no exist dhcp_interface|Unbind failed|
+
+### Show CLI
+
+- show dhcp_server ipv4 info [--with_customize_option] [<dhcp_interface>]
+  |Case Description|Expected res|
+  |:-|:-|
+  |Show without dhcp_interface|Display all info of dhcp_interface|
+  |Show valid dhcp_interface without --with_customize_option|Display dhcp info without customized option|
+  |Show valid dhcp_interface with --with_customize_option|Display dhcp info with customized option|
+  |Show no exist dhcp_interface|Error|
+
+- show dhcp_server ipv4 range [<range_name>]
+  |Case Description|Expected res|
+  |:-|:-|
+  |Show without range_name|Display all ranges|
+  |Show with valid range_name|Display range|
+  |Show no exist range_name|Error|
+
+- show dhcp_server ipv4 option [<option_name>]
+  |Case Description|Expected res|
+  |:-|:-|
+  |Show without option_name|Display all options|
+  |Show with valid option_name|Display option|
+  |Show no exist option_name|Error|
+
+- show dhcp_server ipv4 lease [<dhcp_interface>]
+  |Case Description|Expected res|
+  |:-|:-|
+  |Show without dhcp_interface|Display all DHCP interface|
+  |Show with valid dhcp_interface|Display DHCP interface|
+  |Show no exist dhcp_interface|Error|
+
+### Others
+- Verify config for kea-dhcp-server and dhcrelay generated by dhcpservd are correct
 
 ## Test Plan
 Test plan will be published in [sonic-net/sonic-mgmt](https://github.com/sonic-net/sonic-mgmt)
-
-# Implement Detail
-
-|Step|Status|
-|:-------------|:---|
-|Publish HLD|https://github.com/sonic-net/SONiC/pull/1282 (Open)|
-|Add yang model in **sonic-buildimage**|https://github.com/sonic-net/sonic-buildimage/pull/15955 (Draft)|
-|Add dhcp_server docker container in **sonic-buildimage**|In progress|
-|Implement DhcpServd in **sonic-buildimage**|To be done|
-|Add support for dhcp_server in minigraph parser in **sonic-buildimage**|To be done||
-|Enhance dhcp_relay container to support dhcp_server in **sonic-buildimage**|To be done|
-|Add cli in **sonic-buildimage**/**sonic-utilities**|To be done|
-|Public test plan in **sonic-mgmt**|To be done|
-|Implement test plan in **sonic-mgmt**|To be done|
