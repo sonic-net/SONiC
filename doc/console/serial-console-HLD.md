@@ -43,7 +43,7 @@ This hld doc for serial cli global configurations describes the requirements, ar
 
 ###  1.2. Definitions/Abbreviations 
 
-	serial - secure shell
+	serial - connection achieved via serial interface and represented as _tty_ from the linux perspective;
 	TCP - Transmission Control protocol	
 	
 ###  1.3. Overview 
@@ -72,7 +72,7 @@ We want to enable serial-console configuration in SONIC. In order to do so will 
 ### 3.1 Flow description
 When the feature is enabled, by modifying the DB manually, user will set serial-console configurations by modifing CONFIG_DB in SERIAL_CONSOLE table.
 
-The hostcfgd daemon will be extended to listen to confogurations from SERIAL_CONSOLE table and restarts the serial_console.service. Serial console script will read SERIAL_CONSOLE table and update config files accordingly.
+The hostcfgd daemon will be extended to listen to configurations from SERIAL_CONSOLE table and restarts the serial_console.service. Serial console script will read SERIAL_CONSOLE table and update config files accordingly.
 
 serial-config.service will start `Before=getty-pre.target` and run serial.config.sh to apply configuration before serial console became available.
 
