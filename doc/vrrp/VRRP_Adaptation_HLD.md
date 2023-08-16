@@ -188,11 +188,11 @@ Significantly, This feature extends functionality implemented in [SONiC FRR-BGP 
 #### Operating environment
 
 Since support for placing macvlan devices into protodown was not added to Linux until version 5.1, the kernel version is required:
--Linux kernel version 5.1+
+- Linux kernel version 5.1+
 
 #### Scalability Requirements
 
--Max number of VRRP instances: 254
+- Max number of VRRP instances: 254
 
 #### Container
 
@@ -217,7 +217,7 @@ vrrpsyncd:
 
 ##### SWSS container
 
-Vrrporch: 
+vrrporch: 
 - Subscribes to APPL_DB tables, responsible for updating the ASIC DB. Creating/deleting Virtual RIF object via SAI API.
 
 #### CoPP Configurations
@@ -436,47 +436,47 @@ SONIC Click based configuration and monitoring CLIs have been introduced in SONI
 
 ##### Config commands
 
-- config interface vrrp add/remove <interface_name> <vrid>
+- config interface vrrp add/remove <interface_name> <vrrp_id>
   - This command adds/ removes a VRRP instance on an interface.
   - interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
-  - vrid:VRRP instance identifier.
+  - vrrp_id:VRRP instance identifier.
 - config interface vrrp backup_forward < interface_name > <vrrp_id> enabled|disabled
 	- This command configures  enables/disables the VRRP instance to forward service traffic even if the VRRP instance in the backup state
 	- interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
-	- vrid:VRRP instance identifier.
+	- vrrp_id:VRRP instance identifier.
 	- backup_forward: VRRP instance forwarding traffic in the backup state，can be enabled or disabeld. default is disabled.
-- config interface vrrp vip add/remove <interface_name> <vrid> <virtual_ip_address>
+- config interface vrrp vip add/remove <interface_name> <vrrp_id> <virtual_ip_address>
 	- This command adds a virtual IP address for a VRRP instance on an interface.
 	- interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
-	- vrid:VRRP instance identifier.
+	- vrrp_id:VRRP instance identifier.
 	- virtual_ip_address: VIP address in dotted decimal IPv4 or IPv6 address
-- config interface vrrp priority <interface_name> <vrid> <priority>
+- config interface vrrp priority <interface_name> <vrrp_id> <priority>
 	- This command configures priority for a VRRP instance
 	- interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
-	- vrid:VRRP instance identifier.
+	- vrrp_id:VRRP instance identifier.
 	- priority: VRRP instance priority, range from 1 to 254, default is 100
-- config interface vrrp adv_interval <interface_name> <vrid> <interval>
+- config interface vrrp adv_interval <interface_name> <vrrp_id> <interval>
   - This command configures VRRP periodic advertisement interval for a VRRP instance
-	- interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
-	- vrid:VRRP instance identifier.
-	- Interval: VRRP instance packet sending interval, range from 10 to 40950, unit: ms, default is 1000
-- config interface vrrp pre_empt enable/disable <interface_name> <vrid>
+  - interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
+  - vrrp_id:VRRP instance identifier.
+  - Interval: VRRP instance packet sending interval, range from 10 to 40950, unit: ms, default is 1000
+- config interface vrrp pre_empt enable/disable <interface_name> <vrrp_id>
 	- This command enables pre-emption of a Master when a higher priority VRRP router arrives
 	- interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
-	- vrid:VRRP instance identifier.
-- config interface vrrp track_interface add <interface_name> <vrid> <track_interface> <weight>
+	- vrrp_id:VRRP instance identifier.
+- config interface vrrp track_interface add <interface_name> <vrrp_id> <track_interface> <weight>
 	- This command adds a track interface to a VRRP Instance. A maximum of 8 track interfaces can be added to a VRRP instance.
 	- interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
-	- vrid:VRRP instance identifier.
+	- vrrp_id:VRRP instance identifier.
 	- track_interface: Interface to track. Interface can be Ethernet/Vlan/PortChannel
 	- weight: weight or importance assigned to the track_interface. range from 10 to 50
-- config interface vrrp track_interface remove <interface_name> <vrid> <track_interface>
+- config interface vrrp track_interface remove <interface_name> <vrrp_id> <track_interface>
 	- This command removes an already configured track interface from a VRRP Instance.
 	- interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
-	- vrid:VRRP instance identifier.
+	- vrrp_id:VRRP instance identifier.
 
 ##### Show commands
-- show vrrp {interface <interface_name> }|<vrid>
+- show vrrp {interface <interface_name> } | <vrrp_id>
 - show vrrp summary
 
 ```
@@ -565,29 +565,3 @@ Unit test cases for this specification are as listed below:
 ### Open/Action items
 
 N/A
-
-
-
-This feature will extend functionality implemented in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md) to support additional SONiC FRR-ISIS features. 
-
-![FRR-BGP-Unified-mgmt-frmwrk](https://user-images.githubusercontent.com/114622132/222537856-eefb1a13-bcc0-495b-938a-7ea3abee0c18.png)
-
-Diagram 1. Diagram showing the existing framework that is being extended to include support for now ISIS config schemas. This diagram is taken from and further explained in it's original feature introduction in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md) to support additional SONiC FRR-ISIS features. 
-
-The Management framework will convert the YANG-based config data into requests that will write the configs into Redis DB. Redis DB events will trigger frrcfgd when the field frr_mgmt_framework_config set to "true" in the DEVICE_METADATA table, and then frrcfgd will configure FRR-ISIS using FRR CLI commands.
-
-#### Change Overview
-
-This enhancement will support FRR-ISIS features used in SONiC and all changes will reside in the sonic-buildimage repository. Changes include:
-
-- SONiC FRR-ISIS YANG models and YANG validation tests
-  - /src/sonic-yang-models
-- FRR-ISIS config template files and isisd enabled by default in the FRR container
-  - /dockers/docker-fpm-frr
-- Enable ISIS trap messages
-  - /files/image_config/copp
-- Added support for ISIS tables in frrcfgd and extended frrcfgd unit tests for FRR-ISIS configs
-  - /src/sonic-frr-mgmt-framework
-- Support ISIS show commands and show command unittests
-  - sonic-utilities/show
-  - sonic-utilities/tests
