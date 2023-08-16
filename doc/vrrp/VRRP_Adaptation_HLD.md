@@ -413,8 +413,8 @@ vrrpsyncd:
   - Update priority change by using FRR CLI commands
 
 vrrpd:
-    - Update VRRP packet priority field
-    - Send VRRP packet to Linux Network stack
+  - Update VRRP packet priority field
+  - Send VRRP packet to Linux Network stack
 
 ### SAI API 
 
@@ -547,6 +547,7 @@ admin@sonic:~$ show vrrp summary
 ### Warmboot and Fastboot Design Impact  
 
 Warm boot will not be supported. The VRRPv2 (RFC 3768) and VRRPv3 (RFC 5798) standard of VRRP does not define a way to support it as this might cause data flow interruption in the network.
+
 If a user tries to perform a warm boot while VRRP is enabled, an error message will be displayed. User will first need to disable VRRP so the VRRP topology to reelect the Master.
 
 ### Testing Requirements/Design  
