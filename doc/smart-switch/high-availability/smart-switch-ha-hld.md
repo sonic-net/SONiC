@@ -5,6 +5,7 @@
 | 0.1 | 08/09/2023 | Riff Jiang | Initial version |
 | 0.2 | 08/10/2023 | Riff Jiang | Simpify ENI-level traffic control, primary election algorithm |
 | 0.3 | 08/14/2023 | Riff Jiang | Adding DPU level standalone support |
+| 0.4 | 08/17/2023 | Riff Jiang | Redesign HA control plane data channel |
 
 1. [1. Background](#1-background)
 2. [2. Terminology](#2-terminology)
@@ -23,19 +24,22 @@
          2. [4.2.2.2. Tunneling packet to remote DPU](#4222-tunneling-packet-to-remote-dpu)
          3. [4.2.2.3. Tunneling packet between DPUs](#4223-tunneling-packet-between-dpus)
          4. [4.2.2.4. Put all tunnels together](#4224-put-all-tunnels-together)
-      3. [4.2.3. DPU-to-DPU communication channel](#423-dpu-to-dpu-communication-channel)
-         1. [4.2.3.1. HA Control Plane Channel](#4231-ha-control-plane-channel)
-            1. [4.2.3.1.1. HA control plane control channel](#42311-ha-control-plane-control-channel)
-            2. [4.2.3.1.2. HA control plane data channel](#42312-ha-control-plane-data-channel)
-            3. [4.2.3.1.3. HA control plane channel data path HA](#42313-ha-control-plane-channel-data-path-ha)
-         2. [4.2.3.2. Data Plane Channel](#4232-data-plane-channel)
-            1. [4.2.3.2.1. Data plane channel data path](#42321-data-plane-channel-data-path)
-            2. [4.2.3.2.2. Multi-path data plane channel](#42322-multi-path-data-plane-channel)
-            3. [4.2.3.2.3. (Optional) Multi-path data plane availability tracking](#42323-optional-multi-path-data-plane-availability-tracking)
+      3. [4.2.3. DPU-to-DPU data plane channel](#423-dpu-to-dpu-data-plane-channel)
+            1. [4.2.3.0.1. Data plane channel data path](#42301-data-plane-channel-data-path)
+            2. [4.2.3.0.2. Multi-path data plane channel](#42302-multi-path-data-plane-channel)
+            3. [4.2.3.0.3. (Optional) Multi-path data plane availability tracking](#42303-optional-multi-path-data-plane-availability-tracking)
       4. [4.2.4. VM to DPU data plane](#424-vm-to-dpu-data-plane)
 5. [5. ENI programming with HA setup](#5-eni-programming-with-ha-setup)
    1. [5.1. Working with upstream service](#51-working-with-upstream-service)
    2. [5.2. HA control plane overview](#52-ha-control-plane-overview)
+      1. [5.2.1. HA control plane components](#521-ha-control-plane-components)
+         1. [5.2.1.1. ha containter](#5211-ha-containter)
+         2. [xswbusd](#xswbusd)
+         3. [5.2.1.2. hamgrd](#5212-hamgrd)
+      2. [5.2.2. HA Control Plane Channels](#522-ha-control-plane-channels)
+         1. [5.2.2.1. HA control plane control channel](#5221-ha-control-plane-control-channel)
+         2. [5.2.2.2. HA control plane data channel](#5222-ha-control-plane-data-channel)
+         3. [5.2.2.3. HA control plane channel data path HA](#5223-ha-control-plane-channel-data-path-ha)
    3. [5.3. ENI creation](#53-eni-creation)
    4. [5.4. ENI programming](#54-eni-programming)
    5. [5.5. ENI removal](#55-eni-removal)
@@ -96,7 +100,7 @@
        1. [10.2.1. Syncd crash](#1021-syncd-crash)
        2. [10.2.2. DPU hardware failure](#1022-dpu-hardware-failure)
     3. [10.3. Unplanned NPU failure](#103-unplanned-npu-failure)
-       1. [10.3.1. HA Agent crash](#1031-ha-agent-crash)
+       1. [10.3.1. hamgrd crash](#1031-hamgrd-crash)
        2. [10.3.2. Switch power down or kernel crash](#1032-switch-power-down-or-kernel-crash)
        3. [10.3.3. Back panel port failure](#1033-back-panel-port-failure)
     4. [10.4. Unplanned PCIe failure](#104-unplanned-pcie-failure)
@@ -157,7 +161,7 @@
     2. [13.2. Telemetry](#132-telemetry)
        1. [13.2.1. HA state](#1321-ha-state)
        2. [13.2.2. HA operations](#1322-ha-operations)
-          1. [13.2.2.1. HA agent operations](#13221-ha-agent-operations)
+          1. [13.2.2.1. HA operations](#13221-ha-operations)
           2. [13.2.2.2. HA SAI APIs](#13222-ha-sai-apis)
        3. [13.2.3. HA control plane communication channel related](#1323-ha-control-plane-communication-channel-related)
           1. [13.2.3.1. HA control plane control channel counters](#13231-ha-control-plane-control-channel-counters)
@@ -330,58 +334,11 @@ Now let’s put all tunnels together. This can happen when the packets land on o
  
 <p align="center"><img alt="Tunneling packet between DPUs" src="./images/npu-to-dpu-tunnel-2-stages.svg"></p>
 
-#### 4.2.3. DPU-to-DPU communication channel
+#### 4.2.3. DPU-to-DPU data plane channel
 
-There are 3 types of DPU-to-DPU communication channel: 
+This channel is implemented below SAI, used by inline flow replication or any other network-triggered inline data sync. Since traffic buffer on switch / DPU is limited, we cannot hold the packet when doing the flow replication, hence data sync between DPUs such as flow replication needs to be done inline.
 
-- **Control Plane Control Channel**: This channel is used for transferring lightweighted data, such as control commands like HA state machine. This channel can be implemented by gRPC.
-- **Control Plane Data Channel**: This channel is used for doing heavy data transfer between DPUs, such as bulk sync and other communication that SONiC handles (syncd above SAI). This channel can also be done by gRPC.
-- **Data Plane Channel**: This channel is implemented below SAI, used for inline flow replication or any other network-triggered inline data sync.
-
-And to provide HA for DPU-to-DPU communication, we can also leverage our ECMP network setup.
-
-##### 4.2.3.1. HA Control Plane Channel
-
-###### 4.2.3.1.1. HA control plane control channel
-
-The control plane control channel is used for each DPU to talk to each other for things like state machine management. Implementation-wise, we will need a new service for HA communication and management, likely in its own container or SWSS.
-
-Having our own control channel is important. If we consider the switches as data plane and our upstream services as control plane, then data plane should be able to operate on its own, when control plane is disconnected. For example, when control plane is down and network is having trouble, we should still be able to react and adjust our services. Coupling data plane with control plane will introduce more failure modes also making the data plane unable to react properly.
-
-The DPU state machine management will run on NPU. Since each NPU manages multiple DPUs, all NPUs need to connect to all other NPUs, which forms a full mesh.
-
-The data path of this channel will look like below:
-<p align="center"><img alt="HA control plane control channel data path" src="./images/ha-control-plane-control-channel-data-path.svg"></p>
-
-Since DPU events are still coming from the DPU side via SAI/syncd, we will need to pass these events to the NPU side via ZMQ, which go through the PCIe bus.
-
-###### 4.2.3.1.2. HA control plane data channel
-
-The data channel is used for transferring large trunks of data, and being implement on DPU (syncd), because we don’t want these data being passed around, especially on PCIe bus. 
-
-For example, the control channel can send messages which eventually causes bulk sync to be initiated on DPU. However, the bulk sync packets will not go through control channel, but data channel.
-
-This helps us avoid head-of-queue blocking for control messages. Also, we can leave the data channel running on DPU while control channel running on NPU, which allows us to run state machine management independently.
-
-###### 4.2.3.1.3. HA control plane channel data path HA
-
-Although it might be counter-intuitive, we could consider that we can always get a working connection within a bounded time. This is achieved by leveraging our ECMP setup on T1s.
-
-The approach is simply brute force: as long as we have tried enough number of connections with different source port, we can get the channel recovered.
-
-This approach works because with our current setup, it is extremely unlikely that 2 switches cannot communicate with each other. Say, if the possibility of 1 link failing is P, then the possibility of 2 T2s failing talk to each other will be (2p – p^2)^20 to (2p – p^2)^40.
-
-To reduce the time of finding a good path and meet our SLA requirement, we could also try spray the network with a specific number and choose the first one that works.
-
-To summarize, as long as the peer is running, with this approach, we can basically consider we always can get a working connection to our peer, which can be used to simplify our design.
-
-So, to quickly find the next usable connection, we simply retry with rotating the source port and spray whenever the current connection fails.
-
-##### 4.2.3.2. Data Plane Channel
-
-This channel is used for things like inline flow replication. Since traffic buffer on switch / DPU is limited, we cannot hold the packet when doing the flow replication, hence data sync between DPUs such as flow replication needs to be done inline.
-
-###### 4.2.3.2.1. Data plane channel data path
+###### 4.2.3.0.1. Data plane channel data path
 
 Data plane channel is essentially a UDP-based tunnel between DPUs, used in inline flow replications. Conceptually, it works as below in high-level:
 
@@ -394,13 +351,13 @@ Here is an example from "[Flow replication data path overview – Data plane syn
 
 <p align="center"><img alt="Flow replication data plane sync data path" src="./images/flow-replication-data-path.svg"></p>
 
-###### 4.2.3.2.2. Multi-path data plane channel
+###### 4.2.3.0.2. Multi-path data plane channel
 
 Since data plane channel is inline, it is very important to make sure whenever gray network failure happens (traffic being blackholed partially), we should avoid causing the traffic for the entire ENI to be dropped.
 
-This can be achieved by properly selecting different source port, to make the tunneled packets spread across the data path. This is why we must calculate the source port of the outer packet based on the hash of the 5-tuple of the inner packet.
+To provide HA for DPU-to-DPU communication, we can also leverage our ECMP network setup. When sending the tunneled packet, we must calculate the source port from the 5 tuples of the inner packet and fold it into a port range specified by SONiC. This helps us to spread the packets across all possible paths and avoid the blackhole problem.
 
-###### 4.2.3.2.3. (Optional) Multi-path data plane availability tracking
+###### 4.2.3.0.3. (Optional) Multi-path data plane availability tracking
 
 Multi-path communication is great, but it also introduces gray failures. For example, flow replication fails 10% of the time instead of 100% of time. 
 
@@ -446,22 +403,90 @@ The responsibility of these 2 things is defined as below (HA-related only):
 
 ### 5.2. HA control plane overview
 
-To support HA related features, we need a program to help us, for example, manage the state machine. This program can be called "HA Agent":
-
-- The new program will be put in its own container, say "ha".
-- This program will communicate with:
-    - gNMI agent for receiving requests from our upstream service, such as switchover, or sending notifications, such as HA state / active changed.
-    - Redis for:
-        - Learning HA related setups, such as peer info, which switches will be involved in forwarding traffic.
-        - Notify swss control things like, BFD probes, ENI traffic forwarding, etc.
-    - Syncd on DPUs for sending commands to help HA state transition.
-- This container can be put under NPU or DPU. For more information, please see discussions under [Control plane control channel](#42311-ha-control-plane-control-channel).
-
-The control plane data channel will be established by syncd directly. This is to help us avoid moving large chunk of data around in our system as much as possible. 
-
-- For example, when bulk sync happens, after syncd gets the events from SAI, the data will be moved directly to the syncd on peer DPU.
+Here is the overview of HA control plane, and we will walk through the components and communication channels in the following sections.
 
 <p align="center"><img alt="HA control plane overview" src="./images/ha-control-plane-overview.svg"></p>
+
+#### 5.2.1. HA control plane components
+
+##### 5.2.1.1. ha containter
+
+To support HA, we will need to add new programs that communicates between multiple smart switches, manages the HA state machine transition or syncing other data, such as flow info. These programs will be running in a new container called `ha`.
+
+This container will be running on NPU side, so when DPU is down, we can still drive the HA state machine transition properly and notify our upstream service about any state change.
+
+##### xswbusd
+
+`xswbusd` is used for establish the connections between each switches:
+
+- `xswbusd` will be running in the `ha` container.
+- `xswbusd` will be responsible for establishing the HA control plane control channel and data channel between each switches.
+- `xswbusd` will be responsible for running a gRPC server to receive and route the requests coming `hamgrd` to the right switch.
+- `xswbusd` will be responsible for running a gRPC server to receive flow info from DPU ASIC or ARM cores directly, and route the flow info to the right switch.
+
+##### 5.2.1.2. hamgrd
+
+`hamgrd` is used to manage the HA state machine and state transition:
+
+- `hamgrd` will be running in the `ha` container.
+- `hamgrd` will communicate with:
+    - Redis for:
+        - Learning HA related setups, such as peer info, which switches will be involved in forwarding traffic.
+        - Receive the config updates from upstream service, so we can initiate HA operations for planned events or live site mitigations, such as switchover.
+        - Notify swss control things like, BFD probes, ENI traffic forwarding, etc.
+    - gNMI agent for sending state changed notifications, such as HA state changed notifications.
+    - Syncd on DPUs for calling SAI APIs to help HA state transition.
+
+#### 5.2.2. HA Control Plane Channels
+
+There are 2 channels in HA control plane:
+
+- **Control Plane Control Channel** (Red channel above): This channel is used for transferring HA control messages, e.g. messages related to HA state machine transition. This channel can be implemented by gRPC.
+- **Control Plane Data Channel** (Purple channel above): This channel is used for doing heavy data transfer between DPUs, such as bulk sync. This channel can also be done by gRPC.
+
+##### 5.2.2.1. HA control plane control channel
+
+The control plane control channel is used for each DPU to talk to each other for things like state machine management. Implementation-wise, we will need a new service for HA communication and management.
+
+Having our own control channel is important. If we consider the switches as data plane and our upstream services as control plane, then data plane should be able to operate on its own, when control plane is disconnected. For example, when upstream service is down due to network problem or other reasons, we should still be able to react and adjust our services. Coupling smart switch with our upstream service in HA state machine transition can cause us fail to react to [unplanned events](#10-unplanned-events).
+
+The DPU state machine management will run on NPU. Since each NPU manages multiple DPUs, all NPUs need to connect to all other NPUs, which forms a full mesh.
+
+The data path of this channel will look like below:
+
+<p align="center"><img alt="HA control plane control channel data path" src="./images/ha-control-plane-control-channel-data-path.svg"></p>
+
+Since DPU events are still coming from the DPU side via SAI/syncd, we will need to pass these events to the NPU side via ZMQ, which go through the PCIe bus.
+
+##### 5.2.2.2. HA control plane data channel
+
+The data channel is used for transferring large trunks of data between DPUs, e.g. [flow bulk sync](#125-bulk-sync). Since control messages and data sync are going through different channels, this helps us avoid head-of-queue blocking for control messages, which ensures the HA control plane and state machine transition is always responsive.
+
+Because we expect large trunks of data being transferred, this channel is designed to:
+
+- Avoid using PCIe bus.
+- Minimize the overhead on DPU, due to limited compute resource on DPU.
+
+The data channel is designed to have 2 parts: from DPU ASIC / ARM core to `xswbusd` and from `xswbusd` to other `xswbusd`. This channel is established with the steps below:
+
+- During DPU initialization, SONiC will get how many channels are needed for bulk sync via SAI API.
+- Once the number is returned, it will be forwarded to local `xswbusd` along with its pairing information to establish the data channels between `xswbusd`.
+- When bulk sync starts, SONiC will call get flow SAI API with all channel information passed as SAI attributes, such as gRPC server addresses, so flows will be send directly to `xswbusd` and being forwarded to its paired DPU.
+
+##### 5.2.2.3. HA control plane channel data path HA
+
+Although it might be counter-intuitive, we could consider that we can always get a working connection within a bounded time for all HA control plane channels. This is achieved by leveraging our ECMP setup on T1s.
+
+The approach is simply brute force: as long as we have tried enough number of connections with different source port, we can get the channel recovered.
+
+This approach works because with our current setup, it is extremely unlikely that 2 switches cannot communicate with each other. 
+
+- If the possibility of 1 link failing is P, and we have N possible links between each T1, then the possibility of 2 switches failing talk to each other will be $(2p – p^2)^{N}$. 
+- Let's say, the down time of each link within the year is 1% and we have 10 links, then the possibility will be $(0.01 - 0.0001)^{10} = 0.0199^{10} = 9.73 * 10^{-18}$. This equals to $3*10^{-10}$ second downtime per year.
+
+Additionally, to reduce the time of finding a good path and meet our SLA requirement, we could also try spray the network with a specific number and choose the first one that works.
+
+To summarize, as long as the peer switch NPU is running, with this approach, we can basically consider we always can get a working connection to our peer, which can be used to simplify our design.
 
 ### 5.3. ENI creation
 
@@ -473,9 +498,9 @@ First, we need to create the ENI in all DPUs:
         1. This will make the 2 ENIs start to connect to each other as preparation. 
         1. Upstream service can create the ENI with a preferred active setting, so when ENIs are launched for the first time, the active one will be created on that side. This allows us to distribute the ENIs evenly on the paired DPUs. See "Primary election".
     2. Program traffic forwarding rules to all the switches that will receive the traffic.
-        1. This will make all the HA agents connect to the HA agents that own the ENI and register the probe listener.
+        1. This will make all the `hamgrd` connect to the `hamgrd` that own the ENI and register the probe listener.
         1. Whenever a probe listener is registered, the latest probe state will be pushed to make it in sync.
-        1. If the probe listener is lost, it should be either the traffic forwarding rules are removed or HA agent is crashed. For the former case, there won’t be any problem. For the latter case, please see "[HA agent crash](#1031-ha-agent-crash)" section on how to handle it.
+        1. If the probe listener is lost, it should be either the traffic forwarding rules are removed or `hamgrd` is crashed. For the former case, there won’t be any problem. For the latter case, please see "[`hamgrd` crash](#1031-ha-agent-crash)" section on how to handle it.
     
     <p align="center"><img alt="ENI creation step 1" src="./images/eni-creation-step-1.svg"></p>
 3. Once programming is finished, ENIs will start forming the HA pair automatically:
@@ -636,7 +661,7 @@ Because of the network setup for achieving data path HA, all T1s will need to kn
 
 To solve this problem, we need to use a new way for controlling the per ENI traffic forwarding behavior: Instead of sending probes, all ENIs broadcast its state to all T1s for traffic control.
 
-To ensure HA state machine can operate on its own, even when upstream service is disconnected, we created the [HA control plane control channel](#42311-ha-control-plane-control-channel), which enables the DPU sending states to its peer DPU. Hence, we can use this channel directly to control the state.
+To ensure HA state machine can operate on its own, even when upstream service is disconnected, we created the [HA control plane control channel](#5221-ha-control-plane-control-channel), which enables the DPU sending states to its peer DPU. Hence, we can use this channel directly to control the state.
 
 The traffic control state update workflow works briefly as below:
 
@@ -831,7 +856,7 @@ Hence, when receiving a `RequestVote` message, our primary election algorithm wo
 
 ### 8.4. HA state persistence and rehydration
 
-Since HA agent could crash in the middle of the HA state transition and lose all its in-memory state, we need to persist the HA state, whenever it is changed and provide a way to rehydrate it back.
+Since `hamgrd` could crash in the middle of the HA state transition and lose all its in-memory state, we need to persist the HA state, whenever it is changed and provide a way to rehydrate it back.
 
 This is done by 2 key things:
 1. All states that is related to HA state machine transition will be saved to Redis, whenever it is changed. This includes: per-ENI current HA state and cached peer state, etc.
@@ -1275,7 +1300,7 @@ If the control channel is down, the HA pair will not be able to share the states
 Whenever this happens, it can be caused by 2 reasons: network failure or peer NPU/DPU going down. Here we only cover the network failure case as steps listed below:
 
 - Keep the state as it is without change, because all intermediate states in planned events can be considered as working state due to 0 loss requirements. 
-- Recover the control channel as what we described in "[HA control plane channel data path HA](#42313-ha-control-plane-channel-data-path-ha)" section above.
+- Recover the control channel as what we described in "[HA control plane channel data path HA](#5223-ha-control-plane-channel-data-path-ha)" section above.
 - Once recovered, we move on the state machine transitions.
 
 For the case of DPU going down, it is covered by "[Unplanned DPU failure](#102-unplanned-dpu-failure)" section, and entire switch failure will be covered by "[Unplanned NPU failure](#103-unplanned-npu-failure)" section.
@@ -1322,8 +1347,8 @@ Same as other unplanned events, network interruption will be unavoidable, and we
 
 When syncd on DPU crashes, from HA perspective, the impact would be:
 
-- HA agent will fail to connect to syncd. If it lasts long, it will look like a DPU hardware failure or PCIe bus failure. 
-- HA agent cannot invoke SAI APIs for initiating bulk sync or receive SAI notifications for bulk sync being done.
+- `hamgrd` will fail to connect to syncd. If it lasts long, it will look like a DPU hardware failure or PCIe bus failure. 
+- `hamgrd` cannot invoke SAI APIs for initiating bulk sync or receive SAI notifications for bulk sync being done.
 
 However, when this happens, we will ***NOT*** drive the HA pair into standalone setup, but keep the HA pair running as is, and wait for syncd to recover.
 
@@ -1349,9 +1374,9 @@ Once detected, we will start to [drive the HA pair into standalone setup](#111-w
 
 Besides failures on DPU, NPU could also run into certain problems.
 
-#### 10.3.1. HA Agent crash
+#### 10.3.1. hamgrd crash
 
-Whenever HA agent crashes, 2 things will happen:
+Whenever `hamgrd` crashes, 2 things will happen:
 
 1. HA state machine transition will stop.
 2. Both card-level probe state and ENI level traffic control state update will stop, which will stop us from shifting traffic from one DPU to another during HA state transition.
@@ -1378,7 +1403,7 @@ This could be caused by hardware problem or certain configuration problem kills 
 Whenever this failure happens:
 
 - Both HA data channel and data plane channel will stop working, as they all go through the back panel ports. This will cause peer lost SAI notification happen.
-- HA control channel will be still working, and HA agent can still talk to syncd.
+- HA control channel will be still working, and `hamgrd` can still talk to syncd.
 - Port/serdes will be monitored by pmon on DPU side. Depending on how the monitor is implemented, we will see this failure soon and use it as signal to react on it.
 
 To mitigate this issue, we can:
@@ -1407,7 +1432,7 @@ The standalone setup is designed with the following considerations and principle
 2. Standalone setup is a best-effort mitigation. When network is dropping packet, no matter what we do, we will never be able to avoid the impact perfectly. We can only try to reduce the network hops to reduce the chance of packet drop.
 3. Automated actions ***MUST*** be safe, otherwise it will cause more damage than good. If something we cannot handle automatically, we will fire alerts and wait for manual mitigation.
 4. If we are running in standalone setup for a long time, we shall raise alerts, because it means something is going wrong and we cannot recover.
-5. Driving into standalone setup will require 2 DPUs to work together. This communication is still done via HA control channel, because [as long as the peer DPU is running fine, we can always get a working control channel within a bounded time](#42311-ha-control-plane-control-channel). 
+5. Driving into standalone setup will require 2 DPUs to work together. This communication is still done via HA control channel, because [as long as the peer DPU is running fine, we can always get a working control channel within a bounded time](#5223-ha-control-plane-channel-data-path-ha). 
 
 Because of these, the standalone setup is designed to be Standalone-Standby pair.
 
@@ -1611,7 +1636,7 @@ Data plane sync can also be DPU triggered instead of packet triggered, for examp
 
 Besides data plane sync, flow sync can also happen during bulk operations, such as bulk sync.
 
-This is done by using the [HA control plane data channel](#42312-ha-control-plane-data-channel), which starts from syncd on one side of the DPU to the syncd on its peer DPU.
+This is done by using the [HA control plane data channel](#5222-ha-control-plane-data-channel), which starts from syncd on one side of the DPU to the syncd on its peer DPU.
 
 Unlike data plane sync data path, which is usually triggered by network packet and handled directly within data plane (under SAI). Control plane sync will require the data being sent to SONiC via SAI as an notification event, and SONiC will send it to the other side and program it back to ASIC by calling a SAI API.
 
@@ -1776,7 +1801,7 @@ Bulk sync is not a cheap operation. When bulk sync is triggered, it will check a
 
 With current design, if we are running in steady state or doing planned switchover, inline sync is enough to keep all DPUs in sync. However, there are still, and not only limit to, some cases when bulk sync is needed, such as whenever a DPU joined back to a HA set, e.g. fresh restart, upgrade, recover from failure/crash, recover from standalone setup.
 
-For data path, bulk sync uses our [HA control plane data channel](#42312-ha-control-plane-data-channel) to deliver the flow info to the other side.
+For data path, bulk sync uses our [HA control plane data channel](#5222-ha-control-plane-data-channel) to deliver the flow info to the other side.
 
 #### 12.5.1. Perfect sync
 
@@ -1885,7 +1910,7 @@ We will focus on only the HA counters below, which will not include basic counte
 
 First of all, we need to store the HA states for us to check:
 
-- Saved in NPU side `STATE_DB`, since HA agent is running on NPU side.
+- Saved in NPU side `STATE_DB`, since `hamgrd` is running on NPU side.
 - Partitioned into ENI level key: `ENI_HA_STATES|<DPU IP>|<ENI MAC>`.
 
 | Name | Description |
@@ -1904,13 +1929,13 @@ First of all, we need to store the HA states for us to check:
 
 Besides the HA states, we also need to log all the operations that is related to HA.
 
-HA operations are mostly lies in 2 places: HA agent for operations coming from northbound interfaces and syncd for SAI APIs we call or SAI notification we handle related to HA.
+HA operations are mostly lies in 2 places: `hamgrd` for operations coming from northbound interfaces and syncd for SAI APIs we call or SAI notification we handle related to HA.
 
-##### 13.2.2.1. HA agent operations
+##### 13.2.2.1. HA operations
 
-All the HA agent operation counters will be:
+All the HA operation counters will be:
 
-- Saved in NPU side `COUNTER_DB`, since the HA agent is running on NPU side.
+- Saved in NPU side `COUNTER_DB`, since the `hamgrd` is running on NPU side.
 - Partitioned with ENI level key: `HA_OP_STATS|<DPU IP>|<ENI MAC>`.
 
 | Name | Description |
@@ -1944,7 +1969,7 @@ HA control plane control channel is running on NPU side, mainly used for passing
 
 The counters of this channel will be:
 
-- Collected by HA agent on NPU side.
+- Collected by `hamgrd` on NPU side.
 - Saved in NPU side `COUNTER_DB`.
 - Stored with key: `HA_CP_CTRL_CHANNEL_STATS`.
   - This counter doesn’t need to be partitioned on a single switch, because it is shared for all ENIs.
