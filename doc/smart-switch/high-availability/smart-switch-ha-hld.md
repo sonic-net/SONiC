@@ -250,7 +250,7 @@ The goal of the SmartSwitch HA design is trying to achieve the following goals:
 When designing HA for SmartSwitch, we have a few assumptions:
 
 1. Stable decision on packet transformation: The same packet will always implement the same packet transformation as long as the DASH policies stay the same. Changes, such as random port selection, are not allowed in the current pipeline.
-2. No delay sync support: When creating a flow, we will replicate this flow to the standby DPU immediately with inline. The flow will not be truly created before receiving the ack from the standby DPU.
+2. No delayed flow replication support: In [steady state](#41-flow-ha), when a flow is created, updated or deleted by a network packet, the change ***MUST*** be replicated to its pair by attaching the metadata into the original packet and forwarding the packet. This is called inline flow replication ([more described here](#12-flow-tracking-and-replication-steady-state)). We should never delay the flow replication, and before we receive the ack from the standby side, we should not consider the change is applied.
 3. No warm boot support: Warm boot is used to keep the data path continuing to work while upgrade happens. It is mostly used for upgrading switches that being considered as SPOF, as a gentler solution than a hard data plane down. However, it requires complicated coordination between many services on NPU and DPU. Gladly, since HA requires more than 1 switch to participate, we don’t need to worry about SPOF problem, hence we don’t need to consider warm boot support in our design.
 
 ## 4. Network Physical Topology
