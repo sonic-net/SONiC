@@ -456,7 +456,7 @@ The data path of this channel will look like below:
 
 <p align="center"><img alt="HA control plane control channel data path" src="./images/ha-control-plane-control-channel-data-path.svg"></p>
 
-Since DPU events are still coming from the DPU side SAI/syncd, we will need to pass these events to the NPU side via ZMQ, which goes through the PCIe bus.
+Since DPU events are still coming from the DPU side SAI/syncd, we will need to pass these events to the NPU side via our internal service communication channel, which goes through the PCIe bus (see [HA control plane overview](#52-ha-control-plane-overview) for more details).
 
 ##### 5.2.2.2. HA control plane data channel
 
