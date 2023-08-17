@@ -212,6 +212,7 @@ This doc covers the aspect of High Availability and Scalability for SmartSwitch 
 | Upstream Service | The services that programs ENIs to smart switches, e.g., SDN controller. |
 | UD / Update domain | It defines the groups of virtual machines and underlying physical hardware that can be rebooted at the same time. |
 | FD / Fault domain | It defines the group of virtual machines that share a common power source and network switch. |
+| SPOF | Single point of failure. |
 
 For more terminology, please refer to <https://github.com/sonic-net/DASH/wiki/Glossary>.
 
