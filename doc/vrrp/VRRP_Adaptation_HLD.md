@@ -37,7 +37,7 @@
     - [Configuration and management](#configuration-and-management)
       - [Manifest](#manifest)
       - [CLI/YANG Model Enhancements](#cliyang-model-enhancements)
-        - [SNOiC VRRP YANG MODEL](#yang-modle)
+        - [SNOiC VRRP YANG MODEL](#sonic-vrrp-yang-model)
 		- [CLI](#cli)
           - [Config commands](#config-commands)
           - [Show commands](#show-commands)
