@@ -37,8 +37,10 @@
     - [Configuration and management](#configuration-and-management)
       - [Manifest](#manifest)
       - [CLI/YANG Model Enhancements](#cliyang-model-enhancements)
-        - [Config commands](#config-commands)
-        - [Show commands](#show-commands)
+        - [SNOiC VRRP YANG MODEL](#yang-modle)
+		- [CLI](#cli)
+          - [Config commands](#config-commands)
+          - [Show commands](#show-commands)
     - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
     - [Testing Requirements/Design](#testing-requirementsdesign)
       - [Unit Test cases](#unit-test-cases)
@@ -70,10 +72,11 @@ Table 1: Abbreviations
 | VRRP Owner      | VRRP owner (of a VRRP instance) is the router whose virtual IP address is the same as the real interface IP address        |
 
 ### Overview 
+This document describes the high level design details of VRRP and its components. VRRP(Virtual Router Redundancy Protocol) specifies an election protocol that dynamically assigns responsibility for a virtual router to one of the VRRP routers on a LAN.
+The election provides two basic functionality:
+	support dynamic failover in the forwarding responsibility when the Master become unavailable.
+	support load sharing among multiple routers by running multiple instances.
 
-FRR has already accomplished the VRRP protocol implementation. The implementation uses Linux macvlan devices to implement the shared virtual MAC feature of the protocol. However, so far, FRR-VRRP has not created these system interfaces.
-
-This document provides a design for configuring Linux Macvlan devices in the SONiC infrastructure to enable FRR-VRRP functionality.
 
 ### Requirements
 
@@ -89,7 +92,7 @@ Following requirements are addressed by the design presented in this document:
 
 ### Feature Description
 
-Each interface on which VRRP will be enabled must have at least one Macvlan device configured with the virtual MAC and placed in the proper operation mode. The addresses backed up by VRRP are assigned to these interfaces.
+FRR has already accomplished the VRRP protocol implementation. The implementation uses Linux macvlan devices to implement the shared virtual MAC feature of the protocol.Each interface on which VRRP will be enabled must have at least one Macvlan device configured with the virtual MAC and placed in the proper operation mode. The addresses backed up by VRRP are assigned to these interfaces.
 
 Suppose you have an interface eth0 with the following configuration:
 ```
@@ -133,16 +136,10 @@ $ ip addr show vrrp6-2-1
  inet6 fe80::f8b7:c9dd:a1e8:9844/64 scope link stable-privacy
     valid_lft forever preferred_lft forever
 ```
-Using vrrp4-2-1 as an example, a few things to note about this interface:
+a few things to note about this interface:
 - It is slaved to eth0; any packets transmitted on this interface will egress via eth0
-- Its MAC address is set to the VRRP IPv4 virtual MAC specified by the RFC for VRID 5
+- Its MAC address is set to the VRRP virtual MAC specified by the RFC for VRID 5
 - The link local address on the interface is not derived from the interface MAC
-
-First to note is that packets transmitted on this interface will egress via eth0, but with their Ethernet source MAC set to the VRRP virtual MAC. This is how FRR’s VRRP implementation accomplishes the virtual MAC requirement on real hardware.
-
-As for the MAC address assigned to this interface, the last byte of the address holds the VRID, in this case 0x05. The second to last byte is 0x01, as specified by the RFC for IPv4 operation. The IPv6 MAC address is be identical except that the second to last byte is defined to be 0x02. Two things to note from this arrangement:
-1. There can only be up to 255 unique Virtual Routers on an interface (only 1 byte is available for the VRID)
-2. IPv4 and IPv6 addresses must be assigned to different Macvlan devices, because they have different MAC addresses
 
 #### Functional Description
 
@@ -174,7 +171,7 @@ VRRP control packets have IP protocol type as 112 (reserved for VRRP), for VRRPv
 
 ##### Uplink Interface Tracking
 
-The point of failure which VRRP safeguards against is the interface on which VRRP instance is present and the router as a whole. Even if all of the connectivity of master to the external network fails, VRRP will still not trigger the failover to the backup gateway. Uplink interface tracking feature has been introduced to overcome this limitation.
+The fault point which VRRP safeguards against is the interface on which VRRP instance is present. Even if all of the connectivity of master to the external network fails, VRRP will still not trigger the failover to the backup gateway. Uplink interface tracking feature has been introduced to overcome this limitation.
 
 ![VRRP Tracking Interface Scenarios](images/VRRP_Tracking_Interface_Scenarios_Diagram.png "Figure 1: VRRP Tracking Interface Scenarios")
 
@@ -182,13 +179,11 @@ As shown in the figure，Configure VRRP backup groups between RouterA and Router
 
 ### Architecture Design 
 
-Currently, in order to enable the FRR-VRRP function, it is necessary to configure the corresponding Linux Macvlan devices externally on FRR to implement the shared virtual MAC function of the protocol. Considering the overall architecture of SONiC, it has been decided to add vrrpmgr and vrrpsyncd in bgp container, and vrrporch in swss container to implement this operation.
-
-At a high level below are some of the interactions between relevant components and the DB involved for VRRP support in SONiC architecture.
+Below diagram illuminates the interactions between relevant components and the DB involved for VRRP support in SONiC architecture at a high level.
 
 ![VRRP Architecture](images/VRRP_Architecture_Diagram.png "Figure 2: VRRP in SONiC Architecture")
 
-Diagram 1. Diagram showing the existing framework that is being extended to include support for now FRR-VRRP feature.
+Diagram 1. VRRP components.
 
 Significantly, This feature extends functionality implemented in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md), Redis DB events will trigger frrcfgd when the field frr_mgmt_framework_config set to "true" in the DEVICE_METADATA table, otherwise will trigger vrrpcfgd, and then frrcfgd or vrrpcfgd will configure FRR-VRRP using FRR CLI commands.
 
@@ -274,21 +269,21 @@ CoPP will be extended as follows for trapping VRRPs:
 
 ##### CONFIG_DB changes
 
-VRRP_TABLE
+VRRP
 Producer: config manager
 Consumer: vrrpmgrd and vrrpcfgd/frrcfgd
 Description: New table that stores VRRP configuration for per interface + VRID.
 ```
 ;New table
 ;holds the VRRP configuration per interface and VRID
-key             = VRRP_TABLE:interface_name:vrid
+key             = VRRP:interface_name:vrid
                                                 ; Interface name string. Vlan, Ethernet or PortChannel
                                                 ; vrid is an integer
 ; field = value
-vrid            = 1*3DIGIT                      ; VRRP Instance Identifier
+vrid            = 3DIGIT                        ; VRRP Instance Identifier
 vip             = ip_address                    ; Virtual IP address. This is a list of IP addresses
-priority        = vrrp_priority                 ; Priority of VRRP instance
-adv_interval    = 2*5DIGITS                     ; Advertisement interval for VRRP. Default = 1000ms
+priority        = 3DIGIT                        ; Priority of VRRP instance
+adv_interval    = 5DIGIT                        ; Advertisement interval for VRRP. Default = 1000ms
 state           = vrrp_state                    ; String denoting the state of VRRP instance
 version         = vrrp_version                  ; VRRP version. Value is 2 or 3. Default is 3
 preempt         = "enabled"/"disabled"          ; VRRP pre-emption is enabled? Default is enabled
@@ -318,7 +313,7 @@ admin@sonic:~$ redis-cli -n 4 HGETALL " VRRP|Vlan10|10"
 ""
 "version"
 "3"
-"pre_empt"
+"preempt"
 "enabled"
 "track_interface"
 "Ethernet5|10, Ethernet9|20"
@@ -398,10 +393,10 @@ vrrpsyncd:
   - Listens to Macvlan interface programming in kernel.
   - Update the kernel Macvlan device’s state to the VRRP table entry of APPL DB.
 
-vrrporchd:
+vrrporch:
   - Listens to VRRP_Table in APP_DB and adds/dels virtual MAC entries in ASIC_DB for VRRP instances
 
-##### Tracking interface
+##### Uplink interface tracking
 
 ![VRRP Tracking interface Flows](images/VRRP_Tracking_Interface_Flow.png)
 
@@ -449,9 +444,139 @@ N/A
 
 #### CLI/YANG Model Enhancements
 
+##### SNOiC VRRP YANG MODEL
+
+```yang
+module sonic-vrrp {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/Azure/sonic-vrrp";
+    prefix vrrp;
+
+    import sonic-port {
+        prefix port;
+    }
+
+    import sonic-portchannel {
+        prefix lag;
+    }
+
+    import sonic-vlan {
+        prefix vlan;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description "VRRP yang Module for SONiC OS";
+
+    revision 2023-08-10 {
+        description "add sonic-vrrp.yang";
+    }
+
+    container sonic-vrrp {
+
+        container VRRP_TABLE {
+
+            description "VRRP_TABLE part of configdb.json"
+
+            list VRRP_TABLE_LIST {
+
+                key "interface_name vrid";
+
+                leaf interface_name {
+                    type union {
+                        type leafref {
+                            path /port:sonic-port/port:PORT/port:PORT_LIST/port:ifname;
+                        }
+                        type leafref {
+                            path /lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name;
+                        }
+                        type leafref {
+                            path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name;
+                        }
+                    }
+                }
+
+                leaf vrid {
+                    type uint16 {
+                        range 1..255;
+                    }
+                }
+
+                leaf vip {
+                    type union {
+                        type inet:ipv4-address;
+                        type inet:ipv6-address;
+                    }
+                }
+
+                leaf priority {
+                    type uint16 {
+                        range 1..254;
+                    }
+                    default 100;
+                }
+
+                leaf adv_interval {
+                    type uint16 {
+                        range 10..40950;
+                    }
+                    default 1000;
+                }
+
+                leaf state {
+                    type enumeration {
+                        enum up;
+                        enum down;
+                    }
+                }
+
+                leaf version {
+                    type enumeration {
+                        enum 2;
+                        enum 3;
+                    }
+                    default 3；
+                }
+
+                leaf pre_empt {
+                    type enumeration {
+                        enum enabled;
+                        enum disabled;
+                    }
+                }
+
+                leaf track_interface {
+                    description "track_interface is a list, base type will be like A|weight|B,
+                                A is interface name, which must be an Ethernet,
+                                B is integer ranges from 10 to 50.
+                                for example, track_interface could be: Ethernet1|weight|30,Ethernet2|weight|40";
+
+                    type string;
+                }
+
+            } /* end of list VRRP_TABLE_LIST  */
+
+        } /* end of container VRRP_TABLE */
+
+    } /* end of container sonic-vrrp */
+
+} /* end of module sonic-vrrp */
+```
+##### CLI
+
 SONIC Click based configuration and monitoring CLIs have been introduced in SONIC for VRRP
 
-##### Config commands
+###### Config commands
 
 - config interface vrrp add/remove <interface_name> <vrrp_id>
   - This command adds/ removes a VRRP instance on an interface.
@@ -492,7 +617,7 @@ SONIC Click based configuration and monitoring CLIs have been introduced in SONI
     - interface_name:name of interface (Ethernet/Vlan/PortChannel) over which VRRP is to be enabled.
     - vrrp_id:VRRP instance identifier.
 
-##### Show commands
+###### Show commands
 - show vrrp {interface <interface_name> } | <vrrp_id>
 - show vrrp summary
 
