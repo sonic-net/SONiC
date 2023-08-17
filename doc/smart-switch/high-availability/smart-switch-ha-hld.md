@@ -231,7 +231,7 @@ The goal of the SmartSwitch HA design is trying to achieve the following goals:
 3. Ability to resume connections in the event of both planned and unplanned failover.
 4. After both planned and unplanned failover and recovery, the flow on all DPUs will be aligned.
 5. Only focus on the case, in which only 2 DPUs are in the HA set, although conceptually, we can have more than 2, but it is not in our current scope. 
-6. No complicated hashing logic in switches to ensure packets land on right switch.
+6. No complicated logic or ECMP hashing requirement in other switches to ensure packets land on right switch and DPU.
 7. If switch receives a valid packet, it must not drop it due to flow replication delays.
 8. Ensure both inbound and outbound packets transit the same DPU for a given flow.
 
@@ -295,7 +295,7 @@ And this can be addressed by the ECMP setup in our network, as the "[Network top
 
 In HA setup, our upstream service will talk to our northbound interface for:
 
-- Programming SDN dash policies.
+- Programming SDN DASH policies.
 - Initiate the planned operation, or unplanned operation which can be destructive.
 - Get HA states and receive the HA state reports.
 - Setting up the traffic forwarding tunnels.
@@ -471,7 +471,10 @@ The data channel is designed to have 2 parts: from DPU ASIC / ARM core to `xswbu
 
 - During DPU initialization, SONiC will get how many channels are needed for bulk sync via SAI API.
 - Once the number is returned, it will be forwarded to local `xswbusd` along with its pairing information to establish the data channels between `xswbusd`.
-- When bulk sync starts, SONiC will call get flow SAI API with all channel information passed as SAI attributes, such as gRPC server addresses, so flows will be send directly to `xswbusd` and being forwarded to its paired DPU.
+- When bulk sync starts,
+  - SONiC will call get flow SAI API with all channel information passed as SAI attributes, such as gRPC server addresses.
+  - DPU will send the flow info directly to `xswbusd` and being forwarded to its paired DPU. 
+  - The flow info format will be defined publicly as part of the SAI APIs, so we can also directly call the SAI APIs to get the flow info as well.
 
 ##### 5.2.2.3. HA control plane channel data path HA
 
