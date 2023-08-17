@@ -1904,8 +1904,8 @@ To properly monitor the HA related features, we will need to add telemetry for m
 
 The telemetry will cover both state and counters, which can be mapped into `STATE_DB` or `COUNTER_DB`. 
 
-- For ENI level states and counters in NPU DB, we will have DPU IP in the key as well as the ENI mac to make each counter unique, because ENI migration from one DPU to another on the same switch.
-- For ENI level states and counters in DPU DB, we don’t need to have DPU IP in the key, because they are tied to a specific DPU, and we should know which DPU it is during logging.
+- For ENI level states and counters in NPU DB, we will have `VDPU_ID` in the key as well as the `ENI_ID` to make each counter unique, because ENI migration from one DPU to another on the same switch.
+- For ENI level states and counters in DPU DB, we don’t need to have `VDPU_ID` in the key, because they are tied to a specific DPU, and we should know which DPU it is during logging.
 
 We will focus on only the HA counters below, which will not include basic counters, such as ENI creation/removal or generic DPU health/critical event counters, even though some of them works closely with HA workflows.
 
@@ -1914,7 +1914,7 @@ We will focus on only the HA counters below, which will not include basic counte
 First of all, we need to store the HA states for us to check:
 
 - Saved in NPU side `STATE_DB`, since `hamgrd` is running on NPU side.
-- Partitioned into ENI level key: `ENI_HA_STATES|<DPU IP>|<ENI MAC>`.
+- Partitioned into ENI level key: `ENI_HA_STATES|<VDPU_ID>|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -1939,7 +1939,7 @@ HA operations are mostly lies in 2 places: `hamgrd` for operations coming from n
 All the HA operation counters will be:
 
 - Saved in NPU side `COUNTER_DB`, since the `hamgrd` is running on NPU side.
-- Partitioned with ENI level key: `HA_OP_STATS|<DPU IP>|<ENI MAC>`.
+- Partitioned with ENI level key: `HA_OP_STATS|<VDPU_ID>|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -1957,7 +1957,7 @@ All the HA operation counters will be:
 All the HA SAI API counters will be:
 
 - Saved in DPU side `COUNTER_DB`, as SAI APIs are called in DPU side syncd.
-- Partitioned with ENI level key: `HA_OP_STATS|<ENI_MAC>`.
+- Partitioned with ENI level key: `HA_OP_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2008,7 +2008,7 @@ Since the channel is per DPU, hence these counters will be partitioned with card
 
 ###### 13.2.3.2.2. Per ENI counters
 
-The messages that sent via the data channel should be tracked on ENI level, hence they should be partitioned with ENI level key: `HP_CP_DATA_CHANNEL_ENI_STATS|<ENI MAC>`.
+The messages that sent via the data channel should be tracked on ENI level, hence they should be partitioned with ENI level key: `HP_CP_DATA_CHANNEL_ENI_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2031,8 +2031,8 @@ In our design we have 2 different types of NPU-to-DPU probes: Card level and ENI
 
 - Saved in NPU side `STATE_DB`.
 - Partitioned with key:
-  - Card level: `HA_NPU_TO_DPU_PROBE_STATUS|<DPU IP>`
-  - ENI level: `HA_NPU_TO_ENI_PROBE_STATUS|<DPU IP>|<ENI MAC>`
+  - Card level: `HA_NPU_TO_DPU_PROBE_STATUS|<VDPU_ID>`
+  - ENI level: `HA_NPU_TO_ENI_PROBE_STATUS|<VDPU_ID>|<ENI_ID>`
 
 | Name | Description |
 | --- | --- |
@@ -2048,7 +2048,7 @@ Depending on the probe status and HA state, we will update the next hop for each
 All counters should be:
 
 - Saved in NPU side `STATE_DB`.
-- Partitioned with ENI level key: `HA_NPU_TO_ENI_TUNNEL_STATUS|<ENI MAC>`.
+- Partitioned with ENI level key: `HA_NPU_TO_ENI_TUNNEL_STATUS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2061,7 +2061,7 @@ On NPU side, we should also have ENI level tunnel traffic counters:
 
 - Collected on the NPU side via SAI.
 - Saved in the NPU side `COUNTER_DB`.
-- Partitioned into ENI level with key: `HA_NPU_TO_ENI_TUNNEL_STATS|<ENI MAC>`.
+- Partitioned into ENI level with key: `HA_NPU_TO_ENI_TUNNEL_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2079,7 +2079,7 @@ On DPU side, every NPU-to-DPU tunnel traffic needs to be tracked on ENI level as
 
 - Collected on the DPU side via SAI.
 - Saved in DPU side `COUNTER_DB`.
-- Partitioned into ENI level with key: `HA_NPU_TO_ENI_TUNNEL_STATS|<ENI MAC>`.
+- Partitioned into ENI level with key: `HA_NPU_TO_ENI_TUNNEL_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2097,7 +2097,7 @@ The next part is the DPU-to-DPU data plane channel, which is used for inline flo
 
 - Collected on the DPU side via SAI.
 - Saved in DPU side `COUNTER_DB`.
-- Partitioned into ENI level with key: `HA_DPU_DATA_PLANE_STATS|<ENI MAC>`.
+- Partitioned into ENI level with key: `HA_DPU_DATA_PLANE_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2116,7 +2116,7 @@ The last part is how the DPU ENI pipeline works in terms of HA, which includes f
 
 - Collected on the DPU side via SAI.
 - Saved in DPU side `COUNTER_DB`.
-- Partitioned into ENI level with key: `HA_DPU_PIPELINE_STATS|<ENI MAC>`.
+- Partitioned into ENI level with key: `HA_DPU_PIPELINE_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2148,34 +2148,38 @@ Please note that we will also have counters for how many flows are created/updat
 | | | npu_ipv4 | IPv4 address of its owning NPU loopback. |
 | | | npu_ipv6 | IPv6 address of its owning NPU loopback. |
 | | | slot_id | Slot ID of the DPU. |
-| DASH_VDPU | | | Virtual DPU configuration |
+| VDPU | | | Virtual DPU configuration |
 | | \<VDPU_ID\> | | Virtual DPU ID |
 | | | main_dpu_id | The ID of the main physical DPU. |
-| DASH_HA_CONFIG | | | HA global configurations |
-| | | vm_tunnel_port | The port used for VM tunnel. |
+| HA_CONFIG | | | HA global configurations |
+| | | vm_tunnel_dst_port | The port used for VM tunnel. |
 | | | vm_tunnel_vni | The VNI used when talking to VMs. |
-| | | npu_tunnel_port | The port used for NPU tunnel. |
-| | | npu_tunnel_vni | The VNI used when forwarding packets from NPU to the DPU. |
-| | | dp_channel_port | Data plane channel port. |
-| DASH_HA_SET_CONFIG | | | HA set configurations. It describes the DPUs pairs. |
+| | | npu_tunnel_dst_port | The destination port used when tunneling packets via NPU-to-DPU tunnel. |
+| | | npu_tunnel_src_port_min | The min source port used when tunneling packets via NPU-to-DPU tunnel. |
+| | | npu_tunnel_src_port_max | The max source port used when tunneling packets via NPU-to-DPU tunnel. |
+| | | npu_tunnel_vni | The VNI used when tunneling packets via NPU-to-DPU tunnel. |
+| | | dp_channel_dst_port | The destination port used when tunneling packetse via DPU-to-DPU data plane channel. |
+| | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
+| | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
+| HA_SET_CONFIG | | | HA set configurations. It describes the DPUs pairs. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
 | | | local_vdpu_id | The ID of the local DPU. |
 | | | peer_vdpu_id | The ID of the peered DPU. |
 | | | preferred_standalone_vdpu_id | Preferred to be standalone when entering into standalone setup. |
-| DASH_ENI_HA_CONFIG | | | HA configuration for each ENI. |
-| | \<ENI_MAC\> | | ENI mac address. Used for matching incoming packets. |
+| ENI_HA_CONFIG | | | HA configuration for each ENI. |
+| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | version | Config version. |
 | | | ha_set_id | The ID of HA set that this ENI is allocated to. |
 | | | desired_state | The desired state for this ENI. It can only be "" (None), Dead, Active or Standalone. |
-| DASH_NPU_TO_DPU_PROBE_RULES | N/A | | NPU-to-DPU probe rules. Used for setting up the BFD probe sessions.<br><br>Note: This configuration should be programmed for all switches that receive traffic. |
+| NPU_TO_DPU_PROBE_RULES | N/A | | NPU-to-DPU probe rules. Used for setting up the BFD probe sessions.<br><br>Note: This configuration should be programmed for all switches that receive traffic. |
 | | | vdpu_ids | List of DPU IDs we need to probe. |
 | | | pinned_probe_state | List of pinned probe state of each DPU. It can be "" (None), Up or Down. |
 | | | probe_up_threshold | The number of times probed up to probe up. |
 | | | probe_down_threshold | The number of times probed down to probe down. |
 | | | probe_interval_in_ms | The interval of BFD probe in milliseconds. |
-| DASH_ENI_FORWARD_RULES | | | ENI level forwarding rules.<br><br>Note: This configuration should be programmed for all switches that receive traffic. |
-| | \<ENI_MAC\> | | ENI mac address. Used for matching incoming packets. |
+| ENI_FORWARD_RULES | | | ENI level forwarding rules.<br><br>Note: This configuration should be programmed for all switches that receive traffic. |
+| | \<ENI_ID\> | | ENI. Used for identifying a single ENI. |
 | | | eni_mac | ENI mac address. Used for matching incoming packets. |
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
 | | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI forwarding rule. "" = Not set. |
