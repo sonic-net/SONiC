@@ -688,22 +688,22 @@ Unit test cases for this specification are as listed below:
 |                               |  Validate VRRP on more than one interface                                                               |           |
 |                               |  Validate VRRP with more than one VIP per instance                                                      |           |
 |                               |  Validate multiple VRRP instance per interface                                                          |           |
-|                               |  Ensure VMAC is programmed in FDB                                                                       |           |
-|                               |  Ensure macvlan device is configured in kernel                                                          |           |
-|                               |  Ensure that VMAC is generated based on VRID                                                            |           |
-|  Basic functions              |                                                                                                         |           |
-|                               |  Ensure the VRRP packet version is the configuration version                                            | The default version is 3 |
-|                               |  Ensure the VRRP periodic advertisement interval is the configuration interval time                     | The default advertisement interval is 1000ms |
+|                               |  Validate VMAC is programmed in FDB                                                                     |           |
+|                               |  Validate macvlan device is configured in kernel                                                        |           |
+|                               |  Validate that VMAC is generated based on VRID                                                          |           |
+|                               |  Validate the VRRP packet version is the configuration version                                          | The default version is 3 |
+|                               |  Validate the VRRP periodic advertisement interval is the configuration interval time                   | The default advertisement interval is 1000ms |
 |  Ping to VIP                  |                                                                                                         |           |
-|                               |  Validate ping to VRRP from host, master & non vrrp router works                                        |           |
+|                               |  Validate ping to VRRP VIP from host, master & non vrrp router works                                    |           |
 |  L3 Forwarding with VIP as GW |                                                                                                         |           |
 |                               |  Validate that IPv4 traffic forwarding with VIP as gateway works from source to destination host        |           |
 |                               |  Validate that IPv6 traffic forwarding with VIP as gateway works from source to destination host        |           |
 |                               |  Perform VRRP master failover and check if traffic forwarding continues with new master                 |           |
-|  Interface tracking           |                                                                                                         |           |
-|                               |  Run below tests with Ping and traffic running                                                          |           |
+|  Load Sharing                 |                                                                                                         |           |
+|                               |  Perform multiple vrrp instances on one devices to do load sharing, all master can work independently   |           |
+|  Uplink Interface Tracking    |                                                                                                         |           |
 |                               |  Enable interface tracking in a VRRP group with priority, bring down the port and ensure VRRP session priority comes down and session transition from Master to Backup State    |  |
-|                               |  Enable the tracked interface and check if session priority gets restored and session becomes master    |           |
+|                               |  Bring up the tracked interface and check if session priority gets restored and session becomes master  |           |
 
 ### Open/Action items
 
