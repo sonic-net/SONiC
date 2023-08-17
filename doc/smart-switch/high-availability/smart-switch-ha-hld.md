@@ -34,7 +34,7 @@
    2. [5.2. HA control plane overview](#52-ha-control-plane-overview)
       1. [5.2.1. HA control plane components](#521-ha-control-plane-components)
          1. [5.2.1.1. ha containter](#5211-ha-containter)
-         2. [xswbusd](#xswbusd)
+         2. [swbusd](#swbusd)
          3. [5.2.1.2. hamgrd](#5212-hamgrd)
       2. [5.2.2. HA Control Plane Channels](#522-ha-control-plane-channels)
          1. [5.2.2.1. HA control plane control channel](#5221-ha-control-plane-control-channel)
@@ -415,14 +415,14 @@ To support HA, we will need to add new programs that communicates between multip
 
 This container will be running on NPU side, so when DPU is down, we can still drive the HA state machine transition properly and notify our upstream service about any state change.
 
-##### xswbusd
+##### swbusd
 
-`xswbusd` is used for establish the connections between each switches:
+`swbusd` is used for establish the connections between each switches:
 
-- `xswbusd` will be running in the `ha` container.
-- `xswbusd` will be responsible for establishing the HA control plane control channel and data channel between each switches.
-- `xswbusd` will be responsible for running a gRPC server to receive and route the requests coming `hamgrd` to the right switch.
-- `xswbusd` will be responsible for running a gRPC server to receive flow info from DPU ASIC or ARM cores directly, and route the flow info to the right switch.
+- `swbusd` will be running in the `ha` container.
+- `swbusd` will be responsible for establishing the HA control plane control channel and data channel between each switches.
+- `swbusd` will be responsible for running a gRPC server to receive and route the requests coming `hamgrd` to the right switch.
+- `swbusd` will be responsible for running a gRPC server to receive flow info from DPU ASIC or ARM cores directly, and route the flow info to the right switch.
 
 ##### 5.2.1.2. hamgrd
 
@@ -467,13 +467,13 @@ Because we expect large trunks of data being transferred, this channel is design
 - Avoid using PCIe bus.
 - Minimize the overhead on DPU, due to limited compute resource on DPU.
 
-The data channel is designed to have 2 parts: from DPU ASIC / ARM core to `xswbusd` and from `xswbusd` to other `xswbusd`. This channel is established with the steps below:
+The data channel is designed to have 2 parts: from DPU ASIC / ARM core to `swbusd` and from `swbusd` to other `swbusd`. This channel is established with the steps below:
 
 - During DPU initialization, SONiC will get how many channels are needed for bulk sync via SAI API.
-- Once the number is returned, it will be forwarded to local `xswbusd` along with its pairing information to establish the data channels between `xswbusd`.
+- Once the number is returned, it will be forwarded to local `swbusd` along with its pairing information to establish the data channels between `swbusd`.
 - When bulk sync starts,
   - SONiC will call get flow SAI API with all channel information passed as SAI attributes, such as gRPC server addresses.
-  - DPU will send the flow info directly to `xswbusd` and being forwarded to its paired DPU. 
+  - DPU will send the flow info directly to `swbusd` and being forwarded to its paired DPU. 
   - The flow info format will be defined publicly as part of the SAI APIs, so we can also directly call the SAI APIs to get the flow info as well.
 
 ##### 5.2.2.3. HA control plane channel data path HA
