@@ -462,9 +462,9 @@ Since DPU events are still coming from the DPU side SAI/syncd, we will need to p
 
 ##### 5.2.2.2. HA control plane data channel
 
-The data channel is used for transferring large trunks of data between DPUs, e.g. [flow bulk sync](#125-bulk-sync). Since control messages and data sync are going through different channels, this helps us avoid head-of-queue blocking for control messages, which ensures the HA control plane and state machine transition is always responsive.
+The data channel is used for transferring large chunks of data between DPUs, e.g. [flow bulk sync](#125-bulk-sync). Since control messages and data sync are going through different channels, this helps us avoid head-of-queue blocking for control messages, which ensures the HA control plane and state machine transition is always responsive.
 
-Because we expect large trunks of data being transferred, this channel is designed to:
+Because we expect large chunks of data being transferred, this channel is designed to:
 
 - Avoid using PCIe bus.
 - Minimize the overhead on DPU, due to limited compute resource on DPU.
