@@ -163,11 +163,11 @@ IPv4 case: 00-00-5e-00-01-{vrid}
 
 IPv6 case: 00-00-5e-00-02-{vrid}
 
-where, vrid is user configured 1-byte virtual router identifier. VRID has interface scope; that is, VRID has to be unique among the VRRP instances on an interface. However, same VRID can be used for two or more virtual router instances across different interfaces.
+where, vrid is user configured 1-byte virtual router identifier. VRID has interface scope; that is, VRID has to be unique among the VRRP instances on an interface.
 
 ##### VRRP Advertisement Frame
 
-VRRP control packets have IP protocol type as 112 (reserved for VRRP), for VRRPv4, are sent to VRRP multicast address 224.0.0.18, source MAC in VRRP control packets is virtual MAC address and source IP is interface IP. For IPv6 networks, the source address in the VRRPv6 header is the IPv6 link local address of the sending interface, and the destination address is the IPv6 multicast address FF02:: 02/64 assigned by IANA.
+VRRP control packets have IP protocol type as 112 (reserved for VRRP), for IPv4 network, are sent to VRRP multicast address 224.0.0.18, source MAC in VRRP control packets is virtual MAC address and source IP is interface IP (not the virtual IPv4 address). For IPv6 networks, the source address in the VRRPv6 header is the IPv6 link local address of the sending interface, and the destination address is the IPv6 multicast address FF02:: 02/64 assigned by IANA.
 
 ##### Uplink Interface Tracking
 
