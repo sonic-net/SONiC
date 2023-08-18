@@ -487,7 +487,7 @@ This approach works because with our current setup, it is extremely unlikely tha
 - If the possibility of 1 link failing is P, and we have N possible links between each T1, then the possibility of 2 switches failing talk to each other will be $(2p – p^2)^{N}$. 
 - Let's say, the down time of each link within the year is 1% and we have 10 links, then the possibility will be $(0.01 - 0.0001)^{10} = 0.0199^{10} = 9.73 * 10^{-18}$. This equals to $3*10^{-10}$ second downtime per year.
 
-Additionally, to reduce the time of finding a good path and meet our SLA requirement, we could also try spray the network with a specific number and choose the first one that works.
+Additionally, to reduce the time of finding a good path and meet our SLA requirement, we could also try to use multiple different source port to establish the new connection in parallel, and choose whichever one that works first.
 
 To summarize, as long as the peer switch NPU is running, with this approach, we can basically consider we always can get a working connection to our peer, which can be used to simplify our design.
 
