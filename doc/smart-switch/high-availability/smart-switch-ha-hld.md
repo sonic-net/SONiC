@@ -217,6 +217,8 @@ This doc covers the aspect of High Availability and Scalability for SmartSwitch 
 | UD / Update domain | It defines the groups of virtual machines and underlying physical hardware that can be rebooted at the same time. |
 | FD / Fault domain | It defines the group of virtual machines that share a common power source and network switch. |
 | SPOF | Single point of failure. |
+| FP port | Front panel port. The ports on the front panel of the switch. |
+| BP port | Back panel port. The ports that connects the NPU and DPU. |
 
 For more terminology, please refer to <https://github.com/sonic-net/DASH/wiki/Glossary>.
 
@@ -366,10 +368,10 @@ To help us further avoid link problems, DPUs could track the failures of each po
 And here is an example of possible implementation based-on source port rotation that can be considered:
 
 1. Since data plane channel packet has VxLan encap as outermost header, and network routes the packet by outermost header too, the data path entropy is determined only by the source port of the outermost packet (protocol, destination IP/port, source IP are all determined already).
-2. To leverage ECMP setup, we can maintain a pool of source ports to use, and each flow can pick up a random port from the pool. The algorithm for port selection doesn’t matter. As long as we can spread the packet across all ports, we should be good.
+2. To leverage ECMP setup, a range of source ports will be specified for us to use in the VxLan encap. Each flow can pick up a source port from this range, by hashing the 5-tuple of the inner packet.
 3. The flow replication packet will be sent out with the selected source port in outermost packet, as well as in the metadata. And on the other side, the ack packet can use the same source port too. This binds the packets for this flow to a single data path.
 4. If one of the links went down, all the packets with certain source ports will start to fail. Hence, if we could track the failure for each port in the pool, we can avoid using it.
-5. Alternatively, the DPU-to-DPU probe can use the same ports in the pool, in order to reflect the data path problem. This also helps us to see when the data path is recovered, and we can resume using this port again.
+5. DPU-to-DPU probe should also use the same ports in the range, in order to detect the data path problem. This also helps us to determine whether a specific data path is recovered, and we can resume using this port again.
 
 #### 4.2.4. VM to DPU data plane
 
@@ -1489,12 +1491,12 @@ First, we need to check the DPU health signals:
 
 1. If the card is already pinned to standalone, we drive ourselves to standalone (no-op).
 2. If the signals have "Peer DPU lost" or "Peer DPU dead", we drive ourselves to standalone.
-   - This covers the cases where the paired card or entire switch is dead, as well as DRI operations.
+   - This covers the cases where the paired card or entire switch is dead, as well as manual operations.
 
 At this moment, both DPU should be running fine, so we start to check the ENI status and data path status. To ensure we have the latest state, we will send the `DPURequestEnterStandalone` message with aggregated signals and ENI states to the peer DPU. And upon receiving the message, we will run the following checks:
 
 1. If the signals from local DPU have "Card pinned to standalone", we return `Deny` to the peer DPU.
-2. Check "Manual Pinned" for DRI opertaions:
+2. Check "Manual Pinned" for manual opertaions:
    1. If the signals from local DPU have "Manual Pinned", which the peer DPU doesn't have, we return `Deny` to the peer DPU.
    2. If the signals from peer DPU have "Manual Pinned", which the local DPU doesn't have, we return `Allow` to the peer DPU.
    3. If both sides have "Manual Pinned", we return `Deny` and raise alert after retrying certain amount of times.
