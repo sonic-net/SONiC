@@ -42,6 +42,7 @@
           - [Config commands](#config-commands)
           - [Show commands](#show-commands)
     - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
+    - [Restrictions/Limitations](#restrictionslimitations)
     - [Testing Requirements/Design](#testing-requirementsdesign)
       - [Unit Test cases](#unit-test-cases)
     - [Open/Action items](#openaction-items)
@@ -139,6 +140,7 @@ $ ip addr show vrrp6-2-1
 a few things to note about this interface:
 - It is slaved to eth0; any packets transmitted on this interface will egress via eth0
 - Its MAC address is set to the VRRP virtual MAC specified by the RFC for VRID 5
+- The VIP address 10.0.2.16 must not be present on the parent interface eth0
 - The link local address on the interface is not derived from the interface MAC
 
 #### Functional Description
@@ -226,6 +228,8 @@ vrrpsyncd:
 
 vrrporch: 
   - Subscribes to APPL_DB tables, responsible for updating the ASIC DB. Creating/deleting Virtual RIF object via SAI API.
+
+![VRRP Vrrporch Uml](images/VRRP_Vrrporch_Uml.png)
 
 #### CoPP Configurations
 
@@ -449,22 +453,8 @@ N/A
 ```yang
 module sonic-vrrp {
 
-    yang-version 1.1;
-
     namespace "http://github.com/Azure/sonic-vrrp";
     prefix vrrp;
-
-    import sonic-port {
-        prefix port;
-    }
-
-    import sonic-portchannel {
-        prefix lag;
-    }
-
-    import sonic-vlan {
-        prefix vlan;
-    }
 
     import ietf-inet-types {
         prefix inet;
@@ -484,46 +474,46 @@ module sonic-vrrp {
 
     container sonic-vrrp {
 
-        container VRRP_TABLE {
+        container VRRP {
 
-            description "VRRP_TABLE part of configdb.json"
+            description "VRRP part of configdb.json"
 
-            list VRRP_TABLE_LIST {
+            list VRRP_LIST {
 
                 key "interface_name vrid";
 
                 leaf interface_name {
                     type union {
-                        type leafref {
-                            path /port:sonic-port/port:PORT/port:PORT_LIST/port:ifname;
+                        type string {
+                            pattern "Ethernet([1-3][0-9]{3}|[1-9][0-9]{2}|[1-9][0-9]|[0-9])";
                         }
-                        type leafref {
-                            path /lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name;
+                        type string {
+                            pattern "PortChannel[0-9]{1,4}";
                         }
-                        type leafref {
-                            path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name;
+                        type string {
+                            pattern "Vlan(409[0-4]|40[0-8][0-9]|[1-3][0-9]{3}|[1-9][0-9]{2}|[1-9][0-9]|[1-9])";
                         }
-                    }
+                    } 
                 }
 
                 leaf vrid {
-                    type uint16 {
+                    type uint8 {
                         range 1..255;
                     }
                 }
 
-                leaf vip {
+                leaf-list vip {
                     type union {
-                        type inet:ipv4-address;
-                        type inet:ipv6-address;
+                        type inet:ipv4-prefix;
+                        type inet:ipv6-prefix;
                     }
                 }
 
                 leaf priority {
-                    type uint16 {
+                    mandatory true;
+                    type uint8 {
                         range 1..254;
                     }
-                    default 100;
                 }
 
                 leaf adv_interval {
@@ -548,25 +538,26 @@ module sonic-vrrp {
                     default 3；
                 }
 
-                leaf pre_empt {
+                leaf preempt {
                     type enumeration {
                         enum enabled;
                         enum disabled;
                     }
                 }
 
-                leaf track_interface {
-                    description "track_interface is a list, base type will be like A|weight|B,
+                leaf-list track_interface {
+                    description "track_interface is a list, base type will be like A|B,
                                 A is interface name, which must be an Ethernet,
-                                B is integer ranges from 10 to 50.
-                                for example, track_interface could be: Ethernet1|weight|30,Ethernet2|weight|40";
+                                B is weight value, integer ranges from 10 to 50.
+                                for example, track_interface could be: Ethernet1|30,Ethernet2|40";
 
                     type string;
+                    max-elements 8;
                 }
 
-            } /* end of list VRRP_TABLE_LIST  */
+            } /* end of list VRRP  */
 
-        } /* end of container VRRP_TABLE */
+        } /* end of container VRRP */
 
     } /* end of container sonic-vrrp */
 
@@ -674,6 +665,12 @@ admin@sonic:~$ show vrrp summary
 Warm boot will not be supported. The VRRPv2 (RFC 3768) and VRRPv3 (RFC 5798) standard of VRRP does not define a way to support it as this might cause data flow interruption in the network.
 
 If a user tries to perform a warm boot while VRRP is enabled, an error message will be displayed. User will first need to disable VRRP so the VRRP topology to reelect the Master.
+
+### Restrictions/Limitations
+
+Currently, due to the limitations of FRR, the following functions are not supported:
+  1.Virtual Router Owner
+  2.Accept Mode configurable function
 
 ### Testing Requirements/Design  
 
