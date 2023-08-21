@@ -273,9 +273,12 @@ CoPP will be extended as follows for trapping VRRPs:
 
 ##### CONFIG_DB changes
 
-VRRP
+VRRP_TABLE
+
 Producer: config manager
+
 Consumer: vrrpmgrd and vrrpcfgd/frrcfgd
+
 Description: New table that stores VRRP configuration for per interface + VRID.
 ```
 ;New table
@@ -326,8 +329,11 @@ admin@sonic:~$ redis-cli -n 4 HGETALL " VRRP|Vlan10|10"
 #### APPL_DB Changes
 
 VRRP_TABLE
+
 Producer: vrrpmgrd and vrrpsyncd
+
 Consumer: vrrporch
+
 Description: This is a new table that contains VRRP state information. This entry will be added to APP_DB for each VRRP instance.
 ```
 ; New table
@@ -669,8 +675,8 @@ If a user tries to perform a warm boot while VRRP is enabled, an error message w
 ### Restrictions/Limitations
 
 Currently, due to the limitations of FRR, the following functions are not supported:
-  1.Virtual Router Owner
-  2.Accept Mode configurable function
+  1. Virtual Router Owner
+  2. Accept Mode configurable function
 
 ### Testing Requirements/Design  
 
