@@ -287,7 +287,6 @@ key             = VRRP:interface_name:vrid
                                                 ; Interface name string. Vlan, Ethernet or PortChannel
                                                 ; vrid is an integer
 ; field = value
-vrid            = 3DIGIT                        ; VRRP Instance Identifier
 vip             = ip_address                    ; Virtual IP address. This is a list of IP addresses
 priority        = 3DIGIT                        ; Priority of VRRP instance
 adv_interval    = 5DIGIT                        ; Advertisement interval for VRRP. Default = 1000ms
@@ -346,7 +345,7 @@ key         = VRRP_TABLE:interface_name:vrid:type
     
 ; field = value
 vmac        = virtual_mac_address   ; Virtual MAC address associated with VRRP instance
-state       = "up" | "down"         ; Linux macvlan device protol state
+state       = "up" | "down"         ; Linux macvlan device state
 priority    = vrrp_priority         ; Priority of VRRP instance
 ```
 Example:-
