@@ -1008,12 +1008,6 @@ sonic# event profile <profile-name>
 ```
 The command takes name of specified file, validates it for its syntax and values; merges it with its internal static map of events *static_event_map*.
 
-```
-sonic# clear event history
-```
-This command clears all the records in the event history table. All the event stats are cleared. 
-The command will not affect alarm table or alarm statistics.
-Eventd generates an event informing that event history table is cleared. 
 
 #### 3.3.2.2 Configuration Commands
 ```
