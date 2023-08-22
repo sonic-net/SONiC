@@ -273,7 +273,7 @@ CoPP will be extended as follows for trapping VRRPs:
 
 ##### CONFIG_DB changes
 
-VRRP_TABLE
+VRRP
 
 Producer: config manager
 
