@@ -68,7 +68,7 @@ Following requirements are addressed by the design presented in this document:
 
 1. Support VRRP v2 (IPv4)
 
-2. Support VRRP v3 (IPv6)
+2. Support VRRP v3 (IPv4 & IPv6)
 
 3. Support multiple VRRP instances (groups) per interface
 
