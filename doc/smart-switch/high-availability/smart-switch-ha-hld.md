@@ -188,8 +188,6 @@
     4. [15.4. SAI APIs](#154-sai-apis)
        1. [15.4.1. HA session APIs](#1541-ha-session-apis)
        2. [15.4.2. Flow APIs](#1542-flow-apis)
-       3. [15.4.3. DPU liveness probe APIs](#1543-dpu-liveness-probe-apis)
-       4. [15.4.4. Telemetry APIs](#1544-telemetry-apis)
     5. [15.5. CLI](#155-cli)
 
 ## 1. Background
@@ -2851,7 +2849,5 @@ typedef struct _sai_dash_ha_api_t
 ```
 
 #### 15.4.2. Flow APIs
-#### 15.4.3. DPU liveness probe APIs
-#### 15.4.4. Telemetry APIs
 
 ### 15.5. CLI
