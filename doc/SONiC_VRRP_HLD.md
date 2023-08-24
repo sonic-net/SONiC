@@ -72,7 +72,7 @@ Following requirements are addressed by the design presented in this document:
 
 3. Support multiple VRRP instances (groups) per interface
 
-4. Support VRRP on VLAN, PortChannel and Ethernet interfaces
+4. Support VRRP on VLAN, PortChannel, Ethernet and sub-interfaces
 
 5. Support Uplink interface tracking
 
@@ -90,7 +90,8 @@ Following requirements are addressed by the design presented in this document:
 
 ## 2.2 Configuration and Management Requirements
 
-This feature will support configuration and display CLIs to control and monitor VRRP parameters
+This feature will support configuration and display CLIs to control and monitor VRRP parameters. 
+Open-config yang and sonic yang support is added for configurating and monitoring VRRP paramters.
 
 1. Support configuration of VRRP instances per interface
 2. Support configuration of VIP, priority, hello interval and pre-emption for VRRP instance
@@ -113,6 +114,8 @@ This feature will support configuration and display CLIs to control and monitor 
 ## 2.4 Warm Boot Requirements
 
 VRRP module is warm reboot compliant but the sessions state will not be maintained during warm-reboot. That is, VRRP docker will be restarted as part of warm-reboot. Master instances on restarting router will go Down, and Backup instance on the restart neighbor routers will transition to Master. The behavior of VRRP will be like Cold reboot.
+
+To aid faster convergence, any Master router will quickly relinquish its mastership by advertising 0 priority keepalives and the Backup router upon receiving 0 priority keepalive will instantaneously become Master.
 
 
 
@@ -308,19 +311,17 @@ Example:-
  1) "vrid"
  2) "1"
  3) "vip"
- 4) "4.1.1.100,"
+ 4) "4.1.1.100"
  5) "priority"
  6) "80"
  7) "adv_interval"
  8) "1"
- 9) "state"
-10) ""
-11) "version"
-12) "2"
-13) "pre_empt"
-14) "True"
-15) "track_interface"
-16) "Ethernet7|weight|10,PortChannel001|weight|10,"
+ 9) "version"
+10) "2"
+11) "pre_empt"
+12) "True"
+13) "track_interface"
+14) "Ethernet7|weight|10,PortChannel001|weight|10"
 
 
 
@@ -330,19 +331,17 @@ admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP|Vlan1|1"
  1) "vrid"
  2) "1"
  3) "vip"
- 4) "4.1.1.100,4.1.1.200,4.1.1.50,4.1.1.150,"
+ 4) "4.1.1.100,4.1.1.200,4.1.1.50,4.1.1.150"
  5) "priority"
  6) "80"
  7) "adv_interval"
  8) "1"
- 9) "state"
-10) ""
-11) "version"
-12) "2"
-13) "pre_empt"
-14) "True"
-15) "track_interface"
-16) "Ethernet7|weight|10,PortChannel001|weight|10,"
+ 9) "version"
+10) "2"
+11) "pre_empt"
+12) "True"
+13) "track_interface"
+14) "Ethernet7|weight|10,PortChannel001|weight|10"
 
 ### 4.2.2 APP_DB Changes
 
