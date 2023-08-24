@@ -25,17 +25,17 @@
          3. [4.2.2.3. Tunneling packet between DPUs](#4223-tunneling-packet-between-dpus)
          4. [4.2.2.4. Put all tunnels together](#4224-put-all-tunnels-together)
       3. [4.2.3. DPU-to-DPU data plane channel](#423-dpu-to-dpu-data-plane-channel)
-            1. [4.2.3.0.1. Data plane channel data path](#42301-data-plane-channel-data-path)
-            2. [4.2.3.0.2. Multi-path data plane channel](#42302-multi-path-data-plane-channel)
-            3. [4.2.3.0.3. (Optional) Multi-path data plane availability tracking](#42303-optional-multi-path-data-plane-availability-tracking)
+         1. [4.2.3.1. Data plane channel data path](#4231-data-plane-channel-data-path)
+         2. [4.2.3.2. Multi-path data plane channel](#4232-multi-path-data-plane-channel)
+         3. [4.2.3.3. (Optional) Multi-path data plane availability tracking](#4233-optional-multi-path-data-plane-availability-tracking)
       4. [4.2.4. VM to DPU data plane](#424-vm-to-dpu-data-plane)
 5. [5. ENI programming with HA setup](#5-eni-programming-with-ha-setup)
    1. [5.1. Working with upstream service](#51-working-with-upstream-service)
    2. [5.2. HA control plane overview](#52-ha-control-plane-overview)
       1. [5.2.1. HA control plane components](#521-ha-control-plane-components)
          1. [5.2.1.1. ha containter](#5211-ha-containter)
-         2. [swbusd](#swbusd)
-         3. [5.2.1.2. hamgrd](#5212-hamgrd)
+         2. [5.2.1.2. swbusd](#5212-swbusd)
+         3. [5.2.1.3. hamgrd](#5213-hamgrd)
       2. [5.2.2. HA Control Plane Channels](#522-ha-control-plane-channels)
          1. [5.2.2.1. HA control plane control channel](#5221-ha-control-plane-control-channel)
          2. [5.2.2.2. HA control plane data channel](#5222-ha-control-plane-data-channel)
@@ -340,7 +340,7 @@ Now let’s put all tunnels together. This can happen when the packets land on o
 
 This channel is implemented below SAI, used by inline flow replication or any other network-triggered inline data sync. Since traffic buffer on switch / DPU is limited, we cannot hold the packet when doing the flow replication, hence data sync between DPUs such as flow replication needs to be done inline.
 
-###### 4.2.3.0.1. Data plane channel data path
+##### 4.2.3.1. Data plane channel data path
 
 Data plane channel is essentially a UDP-based tunnel between DPUs, used in inline flow replications. Conceptually, it works as below in high-level:
 
@@ -353,13 +353,13 @@ Here is an example from "[Flow replication data path overview – Data plane syn
 
 <p align="center"><img alt="Flow replication data plane sync data path" src="./images/flow-replication-data-path.svg"></p>
 
-###### 4.2.3.0.2. Multi-path data plane channel
+##### 4.2.3.2. Multi-path data plane channel
 
 Since data plane channel is inline, it is very important to make sure whenever gray network failure happens (traffic being blackholed partially), we should avoid causing the traffic for the entire ENI to be dropped.
 
 To provide HA for DPU-to-DPU communication, we can also leverage our ECMP network setup. When sending the tunneled packet, we must calculate the source port from the 5 tuples of the inner packet and fold it into a port range specified by SONiC. This helps us to spread the packets across all possible paths and avoid the blackhole problem.
 
-###### 4.2.3.0.3. (Optional) Multi-path data plane availability tracking
+##### 4.2.3.3. (Optional) Multi-path data plane availability tracking
 
 Multi-path communication is great, but it also introduces gray failures. For example, flow replication fails 10% of the time instead of 100% of time. 
 
@@ -417,7 +417,7 @@ To support HA, we will need to add new programs that communicates between multip
 
 This container will be running on NPU side, so when DPU is down, we can still drive the HA state machine transition properly and notify our upstream service about any state change.
 
-##### swbusd
+##### 5.2.1.2. swbusd
 
 `swbusd` is used for establish the connections between each switches:
 
@@ -426,7 +426,7 @@ This container will be running on NPU side, so when DPU is down, we can still dr
 - `swbusd` will be responsible for running a gRPC server to receive and route the requests coming `hamgrd` to the right switch.
 - `swbusd` will be responsible for running a gRPC server to receive flow info from DPU ASIC or ARM cores directly, and route the flow info to the right switch.
 
-##### 5.2.1.2. hamgrd
+##### 5.2.1.3. hamgrd
 
 `hamgrd` is used to manage the HA state machine and state transition:
 
