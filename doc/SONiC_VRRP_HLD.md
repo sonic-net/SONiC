@@ -96,8 +96,8 @@ Open-config yang and sonic yang support is added for configurating and monitorin
 1. Support configuration of VRRP instances per interface
 2. Support configuration of VIP, priority, hello interval and pre-emption for VRRP instance
 3. Support configuration of uplink interface track
-4. Allow users to configure track interface weight to provide flexible policy of Master to Backup switchover
-5. Support display of various VRRP parameters as well as states using CLIs.
+4. Allow users to configure track interface weight to provide flexibility in Master to Backup switchover
+5. Support display of various VRRP parameters as well as states.
 
    
 
@@ -115,7 +115,7 @@ Open-config yang and sonic yang support is added for configurating and monitorin
 
 VRRP module is warm reboot compliant but the sessions state will not be maintained during warm-reboot. That is, VRRP docker will be restarted as part of warm-reboot. Master instances on restarting router will go Down, and Backup instance on the restart neighbor routers will transition to Master. The behavior of VRRP will be like Cold reboot.
 
-To aid faster convergence, any Master router will quickly relinquish its mastership by advertising 0 priority keepalives and the Backup router upon receiving 0 priority keepalive will instantaneously become Master.
+To aid faster convergence, all Master routers will quickly relinquish its mastership by advertising 0 priority keepalives and the Backup router upon receiving 0 priority keepalive will instantaneously become Master.
 
 
 
@@ -197,6 +197,8 @@ VRRP instance whose virtual IP address (VIP) is same as real interface address i
 Following virtual MAC address is used by the protocol (as per RFC 5798)
 
 IPv4 case: **00-00-5e-00-01-{vrid}**
+
+IPv6 case: **00-00-5e-00-02-{vrid}**
 
 where, vrid is user configured 1-byte virtual router identifier. VRID has interface scope; that is, VRID has to be unique among the VRRP instances on an interface. However, same VRID can be used for two  or more virtual router instances across different interfaces.
 
@@ -286,7 +288,6 @@ vrid     = 1*3DIGIT       ; VRRP Instance Identifier
 vip      = ip_address     ; Virtual IP address. This is a list of IP addresses
 priority = vrrp_priority  ; Priority of VRRP instance
 adv_interval = 1*3DIGITS  ; Advertisement interval for VRRP. Default = 1sec
-state    = vrrp_state     ; String denoting the state of VRRP instance
 version  = vrrp_version   ; VRRP version. Value will always be 2 for this release
 pre_empt = "true"/"false" ; VRRP pre-emption is enabled? Default is True
 track_interface = track_interface ; List of interfaces tracked by a VRRP instance
@@ -361,8 +362,8 @@ Schema:
 
 key = VRRP_TABLE:interface_name:vip:type
     interface_name        ; interface name as a string. Vlan, Ethernet or PortChannel
-    vip                   ; virtual IP address in a.b.c.d/32 format
-    type                  ; IP address type string. only IPv4 supported currently
+    vip                   ; virtual IP address in a.b.c.d/32 or a::b/128 format
+    type                  ; IPv4 or IPv6 address type string.
     
 ; field = value
 vmac = virtual_mac_address ; Virtual MAC address associated with VRRP instance
@@ -370,9 +371,11 @@ vmac = virtual_mac_address ; Virtual MAC address associated with VRRP instance
 
 Example:- 
 
-**Key**: VRRP_TABLE:Vlan1000:[40.10.8.101/32:ipv4]
-
+**Key**: VRRP_TABLE:Vlan1000|40.10.8.101/32
 **Value**: "vmac":"00:00:5e:00:01:08"
+
+**Key**: VRRP_TABLE:Vlan1001|40::1/128
+**Value**: "vmac":"00:00:5e:00:02:08"
 
 ## 4.3 Modules Design and Flows
 
@@ -449,89 +452,11 @@ Accept packet though source IP in IP Header matches owned IP on this interface. 
 
 
 
-## 5 CLI
+## 5 Configuration and display
 
-SONIC Click based configuration and monitoring CLIs have been introduced in SONIC for VRRP
+VRRP supports configuration and display of information as per sonic-vrrp.yang.
+The yang file is uploaded as well.
 
-
-### 5.1 Configuration Commands
-
-```
-configure interface vrrp add <interface_name> <vrid>
-This command adds/enables a VRRP instance on an interface.
-- interface_name - name of interface (Ethernet or Vlan or PortChannel) over which VRRP is to be enabled.
-- vrid - VRRP instance identifier.
- 
-configure interface vrrp remove <interface_name> <vrid>
-This command removes a VRRP instance from an interface.
-
-configure interface vrrp vip add <interface_name> <vrid> <virtual_ip_address>
-This command adds a virtual IP address for a VRRP instance on an interface. User is allowed to create multiuple VIPs for a VRRP instance. VIP must fall in the interface's subnet.
-- interface_name - name of interface (Ethernet or Vlan or PortChannel) over which VIP is being added
-- vrid - VRRP instance identifier.
-- virtual_ip_address - VIP address in dotted decimal IPv4 address
-
-configure interface vrrp vip remove <interface_name> <vrid> <virtual_ip_address>
-This command deletes a already configured VIP from a VRRP instance
-
-configure interface vrrp priority <interface_name> <vrid> <priority>
-This command configures priority for a VRRP instance
-- priority - a number between 1 and 254 with 1 being the lowest and 254 being the highest priority. Default is 100. Priority 255 is reserved for owner VRRP router.
-
-configure interface vrrp adv_interval <interface_name> <vrid> <interval>
-This command configures VRRP periodic advertisement interval for a VRRP instance
-- interval - a number between 1 and 255. Unit is in seconds. Default is 1sec. 
-
-configure interface vrrp pre_empt enable <interface_name> <vrid>
-This command enables pre-emption of a Master when a higher priority VRRP router arrives
-- enable - Enable pre-emption. Default is enabled. 
-
-configure interface vrrp pre_empt disable <interface_name> <vrid>
-This command disables pre-emeption of a Master when a higher priority VRRP router arrives
-- disable - Disable pre-emption. Default is enabled. 
-
-configure interface vrrp track_interface add <interface_name> <vrid> <track_interface> <weight>
-This command adds a track interface to a VRRP Instance. A maximum of 8 track interfaces can be added to a VRRP instance. 
-- track_interface - Interface to track. Interface can be Ethernet, Vlan or PortChannel
-- weight - weight or importance assigned to the track_interface. When track interface goes down, the priority of VRRP instance will be reduced by weight
-
-configure interface vrrp track_interface remove <interface_name> <vrid> <track_interface> 
-This command removes an already configured track interface from a VRRP Instance. 
-```
-
-### 5.2 Show Commands
-
-```
-show vrrp
- - lists all the VRRP instances including their current state
- Sample output:-
-admin@sonic:~$ show vrrp
-Interface_Name  VRID   State             VIP  Cfg_Prio  Curr_Prio
-         Vlan1     1  Backup       4.1.1.100       100        120
-         Vlan2     2  Master       4.1.2.100       100        100
-         Vlan3     3  Backup       4.1.3.100       100        100
-         Vlan4     4  Backup       4.1.4.100       100        100
-         Vlan5     5  Master       4.1.5.100       100        100
-
-
-show vrrp <interface_name> <vrid>
- - This command displays data about a VRRP instance in detail
- Sample output:-
-admin@sonic:~$ show vrrp Vlan1 1
-Vlan1, VRID 1
-Version is 2
-State is Backup
-Virtual IP address:
-  4.1.1.100
-Virtual MAC address is 0000.5e00.0101
-Track interface:
-  Intfname       State  Priority
-  Ethernet7      Up     10
-  PortChannel001 Up     10
-Configured Priority is 100, Current Priority is 120
-Advertisement interval is 1 sec
-Preemption is enabled
-```
 
 
 ## 6 Serviceability and Debug
