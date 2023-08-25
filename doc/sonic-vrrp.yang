@@ -1,0 +1,418 @@
+module sonic-vrrp {
+    namespace "http://github.com/Azure/sonic-vrrp";
+    prefix svrrp;
+    yang-version 1.1;
+
+    import ietf-inet-types {
+        prefix "inet";
+    }
+
+    import sonic-interface {
+        prefix sint;
+    }
+
+    import sonic-port {
+        prefix sprt;
+    }
+
+    import sonic-portchannel-interface {
+        prefix spcint;
+    }
+
+    import sonic-portchannel {
+        prefix spc;
+    }
+
+    import sonic-vlan-interface {
+        prefix svlanint;
+    }
+
+    import sonic-vlan {
+        prefix svlan;
+    }
+
+    import sonic-extension {
+            prefix sonic-ext;
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC VRRP";
+
+    revision 2019-11-01 {
+        description
+            "Initial revision.";
+    }
+
+    container sonic-vrrp {
+
+        container VRRP {
+            description
+            "Configures VRRP version 2 or 3 for IPv4.";
+
+            list VRRP_LIST {
+                max-elements 128;
+                key "ifname idkey";
+
+                leaf ifname {
+                    type union {
+                        type leafref {
+                            path "/sint:sonic-interface/sint:INTERFACE/sint:INTERFACE_LIST/sint:portname";
+                        }
+                        type leafref {
+                            path "/spcint:sonic-portchannel-interface/spcint:PORTCHANNEL_INTERFACE/spcint:PORTCHANNEL_INTERFACE_LIST/spcint:pch_name";
+                        }
+                        type leafref {
+                            path "/svlanint:sonic-vlan-interface/svlanint:VLAN_INTERFACE/svlanint:VLAN_INTERFACE_LIST/svlanint:vlanName";
+                        }
+                        type leafref {
+                            path "/sint:sonic-interface/sint:VLAN_SUB_INTERFACE/sint:VLAN_SUB_INTERFACE_LIST/sint:id";
+                        }
+                    }
+                }
+
+                leaf idkey {
+                    type uint8 {
+                    range "1..255";
+                    }
+                    sonic-ext:custom-validation ValidateVrrp;
+                }
+
+                leaf vrid {
+                    type uint8 {
+                    range "1..255";
+                    }
+                }
+
+                leaf version {
+                    type string {
+                        pattern '2|3';
+                    }
+                    // '^[2-3]$';
+                }
+
+                leaf pre_empt {
+                    type string {
+                        pattern 'True|False';
+                    }
+                    sonic-ext:custom-validation ValidatePreempt;
+                }
+
+                leaf use_v2_checksum {
+                    type string {
+                        pattern 'True|False';
+                    }
+                }
+
+                leaf priority {
+                    type uint8 {
+                        range "1..254";
+                    }
+                    default 100;
+                    sonic-ext:custom-validation ValidatePriority;
+                }
+
+                leaf adv_interval {
+                    type uint8 {
+                        range "1..254";
+                    }
+                    default 1;
+                }
+
+                leaf-list vip {
+                    max-elements 4;
+                    type inet:ipv4-address;
+                    sonic-ext:custom-validation ValidateVipSubnet;
+                }
+            }
+        }
+
+        container VRRP_TRACK {
+            description
+            "Configures VRRP track list.";
+
+            list VRRP_TRACK_LIST {
+
+                key "baseifname idkey trackifname";
+
+                leaf baseifname {
+                    type leafref {
+                        path "../../../VRRP/VRRP_LIST/ifname";
+                    }
+                }
+
+                leaf idkey {
+                    type leafref {
+                        path "../../../VRRP/VRRP_LIST/idkey";
+                    }
+                    sonic-ext:custom-validation ValidateVrrp;
+                }
+
+                leaf trackifname {
+                    type union {
+                        type leafref {
+                            path "/sprt:sonic-port/sprt:PORT/sprt:PORT_LIST/sprt:ifname";
+                        }
+                        type leafref {
+                           path "/spc:sonic-portchannel/spc:PORTCHANNEL/spc:PORTCHANNEL_LIST/spc:name";
+                        }
+                        type leafref {
+                            path "/svlan:sonic-vlan/svlan:VLAN/svlan:VLAN_LIST/svlan:name";
+                        }
+                        type leafref {
+                            path "/sint:sonic-interface/sint:VLAN_SUB_INTERFACE/sint:VLAN_SUB_INTERFACE_LIST/sint:id";
+                        }
+                    }
+                }
+
+                leaf priority_increment {
+                    type uint8 {
+                        range "1..255";
+                    }
+                    sonic-ext:custom-validation ValidateTrack;
+                }
+            }
+        }
+
+        container VRRP6 {
+            description
+            "Configures VRRP for IPv6.";
+
+            list VRRP6_LIST {
+                max-elements 128;
+                key "ifname idkey";
+
+                leaf ifname {
+                    type union {
+                        type leafref {
+                            path "/sint:sonic-interface/sint:INTERFACE/sint:INTERFACE_LIST/sint:portname";
+                        }
+                        type leafref {
+                            path "/spcint:sonic-portchannel-interface/spcint:PORTCHANNEL_INTERFACE/spcint:PORTCHANNEL_INTERFACE_LIST/spcint:pch_name";
+                        }
+                        type leafref {
+                            path "/svlanint:sonic-vlan-interface/svlanint:VLAN_INTERFACE/svlanint:VLAN_INTERFACE_LIST/svlanint:vlanName";
+                        }
+                        type leafref {
+                            path "/sint:sonic-interface/sint:VLAN_SUB_INTERFACE/sint:VLAN_SUB_INTERFACE_LIST/sint:id";
+                        }
+                    }
+                }
+
+                leaf idkey {
+                    type uint8 {
+                    range "1..255";
+                    }
+                }
+
+                leaf vrid {
+                    type uint8 {
+                    range "1..255";
+                    }
+                }
+
+                leaf pre_empt {
+                    type string {
+                        pattern 'True|False';
+                    }
+                    sonic-ext:custom-validation ValidatePreempt;
+                }
+
+                leaf use_v2_checksum {
+                    type string {
+                        pattern 'True|False';
+                    }
+                }
+
+                leaf priority {
+                    type uint8 {
+                        range "1..254";
+                    }
+                    default 100;
+                    sonic-ext:custom-validation ValidatePriority;
+                }
+
+                leaf adv_interval {
+                    type uint8 {
+                        range "1..254";
+                    }
+                    default 1;
+                }
+
+                leaf-list vip {
+                    max-elements 4;
+                    type inet:ipv6-address;
+                    sonic-ext:custom-validation ValidateVipSubnet;
+                }
+            }
+        }
+
+        container VRRP6_TRACK {
+            description
+            "Configures VRRP6 track list.";
+
+            list VRRP6_TRACK_LIST {
+
+                key "baseifname idkey trackifname";
+
+                leaf baseifname {
+                    type leafref {
+                        path "../../../VRRP6/VRRP6_LIST/ifname";
+                    }
+                }
+
+                leaf idkey {
+                    type leafref {
+                        path "../../../VRRP6/VRRP6_LIST/idkey";
+                    }
+                }
+
+                leaf trackifname {
+                    type union {
+                        type leafref {
+                            path "/sprt:sonic-port/sprt:PORT/sprt:PORT_LIST/sprt:ifname";
+                        }
+                        type leafref {
+                           path "/spc:sonic-portchannel/spc:PORTCHANNEL/spc:PORTCHANNEL_LIST/spc:name";
+                        }
+                        type leafref {
+                            path "/svlan:sonic-vlan/svlan:VLAN/svlan:VLAN_LIST/svlan:name";
+                        }
+                        type leafref {
+                            path "/sint:sonic-interface/sint:VLAN_SUB_INTERFACE/sint:VLAN_SUB_INTERFACE_LIST/sint:id";
+                        }
+                    }
+                }
+
+                leaf priority_increment {
+                    type uint8 {
+                        range "1..255";
+                    }
+                    sonic-ext:custom-validation ValidateTrack;
+                }
+            }
+        }
+
+    }
+
+    rpc get-vrrp {
+        description
+            "RPC to retrieve VRRP summary data.";
+
+        output {
+            list VRRP_SUMMARY {
+
+                key "ifname idkey";
+
+                leaf ifname {
+                    type union {
+                        type leafref {
+                            path "/sint:sonic-interface/sint:INTERFACE/sint:INTERFACE_LIST/sint:portname";
+                        }
+                        type leafref {
+                            path "/spcint:sonic-portchannel-interface/spcint:PORTCHANNEL_INTERFACE/spcint:PORTCHANNEL_INTERFACE_LIST/spcint:pch_name";
+                        }
+                        type leafref {
+                            path "/svlanint:sonic-vlan-interface/svlanint:VLAN_INTERFACE/svlanint:VLAN_INTERFACE_LIST/svlanint:vlanName";
+                        }
+                        type leafref {
+                            path "/sint:sonic-interface/sint:VLAN_SUB_INTERFACE/sint:VLAN_SUB_INTERFACE_LIST/sint:id";
+                        }
+                    }
+                }
+
+                leaf idkey {
+                    type uint8 {
+                    range "1..255";
+                    }
+                }
+
+                leaf vip {
+                    type inet:ipv4-address;
+                }
+
+                leaf config_priority {
+                    type uint8 {
+                        range "1..254";
+                    }
+                }
+
+                leaf current_priority {
+                    type uint8 {
+                        range "1..255";
+                    }
+                }
+
+                leaf state {
+                    type uint8 {
+                        range "0..2";
+                    }
+                }
+
+            }
+        }
+    }
+
+    rpc get-vrrp6 {
+        description
+            "RPC to retrieve VRRP summary data.";
+
+        output {
+            list VRRP6_SUMMARY {
+
+                key "ifname idkey";
+
+                leaf ifname {
+                    type union {
+                        type leafref {
+                            path "/sint:sonic-interface/sint:INTERFACE/sint:INTERFACE_LIST/sint:portname";
+                        }
+                        type leafref {
+                            path "/spcint:sonic-portchannel-interface/spcint:PORTCHANNEL_INTERFACE/spcint:PORTCHANNEL_INTERFACE_LIST/spcint:pch_name";
+                        }
+                        type leafref {
+                            path "/svlanint:sonic-vlan-interface/svlanint:VLAN_INTERFACE/svlanint:VLAN_INTERFACE_LIST/svlanint:vlanName";
+                        }
+                        type leafref {
+                            path "/sint:sonic-interface/sint:VLAN_SUB_INTERFACE/sint:VLAN_SUB_INTERFACE_LIST/sint:id";
+                        }
+                    }
+                }
+
+                leaf idkey {
+                    type uint8 {
+                    range "1..255";
+                    }
+                }
+
+                leaf vip {
+                    type inet:ipv6-address;
+                }
+
+                leaf config_priority {
+                    type uint8 {
+                        range "1..254";
+                    }
+                }
+
+                leaf current_priority {
+                    type uint8 {
+                        range "1..255";
+                    }
+                }
+
+                leaf state {
+                    type uint8 {
+                        range "0..2";
+                    }
+                }
+
+            }
+        }
+    }
+}
