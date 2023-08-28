@@ -37,7 +37,7 @@
 | PK           | Platform Key.                                |
 | KEK          | Key Exchange Key                             |
 | db           | UEFI Signature Key Database                  |
-| dbx          | Forbidden Signture Key Database              |
+| dbx          | Forbidden Signature Key Database              |
 | UEFI         | Unified Extensible Firmware Interface        |
 | RoT          | Root of Trust                                |
 | TPM          | Trusted platform module                      |
@@ -48,7 +48,7 @@ SONiC is the most popularly growing open-source network operating system and run
 1. Show secureboot keys
 2. Add, remove, update and revoke secureboot keys.
 
-## 2 Ovierview
+## 2 Overview
 How  UEFI secure boot should be implemented is specified in UEFI spec 2.0 onwards. It is widely accepted on various Linux-based distributions including Debian distribution. The UEFI secure boot provides a mechanism to securely verify the image integrity and authenticity before loading into the system. The spec also provides details about how UEFI keys should be managed in the UEFI firmware.
 
 Typically the UEFI is a modern replacement for traditional BIOS. Firmware. The UEFI implementation may vary from system to system but it has to follow the core principles mentioned in the spec. The document references the OVMF UEFI implementation, which is open UEFI firmware available for virtual machines QEMU.
@@ -81,7 +81,7 @@ There are multiple keys involved in the UEFI secure boot implementations. The pl
 These are a special type of UEFI variable that supports cryptographic authentication and integrity verification. The authenticates variable enables a secure way of storing and accessing EFI variables within the UEFI environment and ensures that the UEFI variable remains tamper-proof and authentic.  Since authenticated variables are signed objects, the UEFI firmware can verify them before accessing or updating them.
 
 ```
-Sample example how authenticated variables supports secure way of add, update, remove and revoke UEFI keys.
+Sample example of how authenticated variables support a secure way of adding, updating, removing, and revoking UEFI keys.
 
 uuidgen --random > GUID.txt
 
@@ -103,14 +103,14 @@ openssl x509 -outform DER -in db.crt -out db.cer
 cert-to-efi-sig-list -g "$(< GUID.txt)" db.crt db.esl
 sign-efi-sig-list -g "$(< GUID.txt)" -k KEK.key -c KEK.crt db db.esl db.auth
 ```
-Using above example one should able to create authenticated variable to add, remove, update and revoke UEFI keys from the UEFI database.
+Using the above example one should be able to create an authenticated variable to add, remove, update, and revoke UEFI keys from the UEFI database.
 
 ## 4 UEFI key management
 
-The key management involves following functional area
+The key management involves following the functional area
 1. Generation of keys
-2. Enroll keys into Machine
-3. Update, remove and add new keys into the key database.
+2. Enroll keys into the Machine
+3. Update, remove, and add new keys to the key database.
 4. Revoke keys
 5. Show keys from the machine.
 
@@ -121,25 +121,24 @@ openssl req -newkey rsa:4096 -nodes -keyout PK.key -new -x509 -sha256 -days 3650
 openssl req -newkey rsa:4096 -nodes -keyout KEK.key -new -x509 -sha256 -days 3650 -subj "/CN=Key Exchange Key/" -out KEK.crt
 openssl req -newkey rsa:4096 -nodes -keyout db.key -new -x509 -sha256 -days 3650 -subj "/CN=Database key/" -out db.crt
 ```
-The private keys are kept secretly and used during image signing. The public keys are used to verify images signed by private keys. Public keys are wrapped with x509 format of certificate. These public certificates are enrolled in the SHIM or UEFI key database by the machine owner.
+The private keys are kept secretly and used during image signing. The public keys are used to verify images signed by private keys. Public keys are wrapped in the x509 format of the certificate. These public certificates are enrolled in the SHIM or UEFI key database by the machine owner.
 
 ### 4.2 Enrollment of keys
-The enrollment interface depends on where the keys are stored. The UEFI keys enrollment follows specific policy. UEFI keys are PK, KEK, db and dbX. The enrollment of PK depends on access over UEFI FW's mode(Ex: Setup mode, User mode etc.). Then the owner of PK can enroll KEK since KEKs enrollment requires that KEK and create authenticated variables and it by PK.
+The enrollment interface depends on where the keys are stored. The UEFI keys enrollment follows a specific policy. UEFI keys are PK, KEK, db and dbX. The enrollment of PK depends on access over UEFI FW's mode(Ex: Setup mode, User mode etc.). Then the owner of PK can enroll KEK since KEK enrollment requires authenticated variables signed by PK.
 
 ````
 Ex: Enroll KEK
 sign-efi-sig-list -t "$(date --date='1 second' +'%Y-%m-%d %H:%M:%S')" -k PK.key -c PK.crt KEK KEK.esl KEK.auth
 
-Use the hardware vendor provided interface to enroll KEK.auth
 ````
-Similar principle used for enrolling DB keys. The DB enrollment variable should be created then signed either by PK and KEK. Typically KEK is used to avoid frequent access to PK private keys.
+A similar principle is used for enrolling DB keys. The DB enrollment variable should be created and then signed either by PK or KEK.
 
 ### 4.3 Modify key database
 For UEFI key database modification, requires authenticated variables to modify.
 ````
 Examples: 
 
-To add  DB key in UEFI database following are typical workflow followed
+To add  DB key in UEFI database following are typical workflows followed
 
        # Create key:
        openssl req -subj "/CN=SecBoot db cert/"  -new -x509 -newkey rsa:2048 -nodes -days 730 -outform PEM -keyout "db.key"  -out "db.pem"
@@ -163,7 +162,7 @@ The revoke key is a mechanism to permanently disallow any image signed by the pr
 This is to display the PK, KEK, DB and DBx key lists.
 
 ## 5 SONIC implementation
-The access of UEFI variables may vary from platform to platform depending on the specific implementation of UEFI firmware. Sonic will provide a common layer for accessing these variables and vendors can implement platform specific parts. The SONIC will provide a plugin Python for vendors to implement these APIs and integrate them with the SONiC generic layer.
+The access of UEFI variables may vary from platform to platform depending on the specific implementation of UEFI firmware. Sonic will provide a common layer for accessing these variables and vendors can implement platform-specific parts. The SONIC will provide a plugin Python for vendors to implement these APIs and integrate them with the SONiC generic layer.
 
 ### 5.1 Plugin class
 
@@ -203,7 +202,7 @@ The platform plugin for this OVMF type UEFI can use either sysfs or efi-readvar 
 ```
 
 ## 7 Test considerations
-The sonic-mgmt can cover UEFI keymanagement such as add, update, remove and revoke UEFI keys.
+The sonic-mgmt can cover UEFI key management such as adding, updating, removing, and revoking UEFI keys.
 
 
 
