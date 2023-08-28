@@ -237,8 +237,6 @@ vrrpsyncd:
 intforch: 
   - Subscribes to APPL_DB tables, responsible for updating the ASIC DB. Creating/deleting Virtual RIF object via SAI API.
 
-![VRRP Vrrporch Uml](images/VRRP_Vrrporch_Uml.png)
-
 #### CoPP Configurations
 
 CoPP will be extended as follows for trapping VRRPs:
