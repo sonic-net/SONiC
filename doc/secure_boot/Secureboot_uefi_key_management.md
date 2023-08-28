@@ -44,41 +44,35 @@
 
 
 ## 1 Requirements
-SONiC is the most popularly growing open-source network operating system and runs on switching hardware from multiple vendors. Some of this modern switching hardware implements a hardware root of trust and UEFI firmware which helps establish a secure boot in the system. Most of the system owners would like to manage their own UEFI keys according to their own policy such as periodically changing the secure boot keys, changing ownership, etc. This requires SONiC to access UEFI keys to perform the following primitive actions.
-1. Show secureboot keys
-2. Add, remove, update and revoke secureboot keys.
+Sonic is the most popularly growing open-source network operating system and runs on switching hardware from multiple vendors. Some of this modern switching hardware implements a hardware root of trust and UEFI firmware which helps establish a secure boot in the system. Most of the system owners would like to manage their own UEFI keys according to their own policy such as periodically changing the secure boot keys, changing ownership, etc. This requires SONiC to access UEFI keys to perform the following primitive actions.
+1. Show secure boot keys
+2. Add, remove, update, and revoke secure boot keys.
 
 ## 2 Overview
-How  UEFI secure boot should be implemented is specified in UEFI spec 2.0 onwards. It is widely accepted on various Linux-based distributions including Debian distribution. The UEFI secure boot provides a mechanism to securely verify the image integrity and authenticity before loading into the system. The spec also provides details about how UEFI keys should be managed in the UEFI firmware.
-
-Typically the UEFI is a modern replacement for traditional BIOS. Firmware. The UEFI implementation may vary from system to system but it has to follow the core principles mentioned in the spec. The document references the OVMF UEFI implementation, which is open UEFI firmware available for virtual machines QEMU.
+The UEFI secure boot feature is introduced in UEFI spec version 2.3.1 onwards. The UEFI secure boot provides a mechanism to securely verify the image integrity and authenticity before loading the image into the system. The spec also provides general details about how UEFI keys should be managed. The implementation may vary for different UEFI firmware. 
 
 ## 3 UEFI components
 
 ### 3.1 UEFI firmware
-1. UEFI firmware(Ex: UEFI BIOS) is signed and supplied by hardware vendors.
-2. Hardware implemented root of trust(Ex: TPM chip etc) that verifies UEFI firmware before running into CPU.
-3. Root of trust is the immutable hardware part and it is the most trusted part of the system.
-4. UEFI firmware verifies bootloader(shimx64.efi) of SONiC OS image against keys present in UEFI key database.  
-5. UEFI firmware manages UEFI keys database and verifies any update to these databases. 
+Typically the UEFI is a modern replacement for traditional BIOS. The UEFI implementation may vary from system to system but it has to follow the core principles mentioned in the UEFI spec. This document references the OVMF(Open Virtual Machine Firmware) UEFI implementation, which is the open UEFI firmware available for virtual machines like QEMU and KVM.
 
 ### 3.2 UEFI keys
-UEFI keys are cryptographic keys used in Unified Extensible Firmware Interface (UEFI) enabled systems. Typically used for secure boot purposes.  These are asymmetric cryptographic keys that come with public and private key pairs. The private keys are used for signing data and public keys are enrolled in the UEFI device. The device's secure boot uses these public keys to verify the signed bootloader and kernel during system boot time and protect early boot with any malware. Secure boot ensures integrity and trust source of the image.
+UEFI keys are types of UEFI variables. These are cryptographic keys used in Unified Extensible Firmware Interface (UEFI) firmware. These are asymmetric cryptographic keys that come with public and private key pairs. The private keys are used for signing data and public keys are enrolled in the UEFI device for verifying signed data. 
 
-There are multiple keys involved in the UEFI secure boot implementations. The platform owner sets the policies around these keys. The UEFI firmware and its interface are typically controlled by hardware vendors depending on their UEFI firmware implementations.  However, the platform owner must be able to manage these keys which are enrolled in the UEFI devices in order to securely boot their NOS.
+There are multiple keys involved in the UEFI secure boot implementations. The platform owner sets the policies around these keys. 
 
 <img src="https://wwwin-github.cisco.com/storage/user/4864/files/250b7543-0356-42a0-a203-02c07e64718c" width="600" hight="800">
 
-**1.	Platform Key(PK):** It’s a root of trust key that signs all other keys in the UEFI to be added. Technically PK is used to establish a trust relationship between the device owner and device UEFI firmware. The public part of the PK is enrolled in the device UEFI firmware. The enrollment happens early in manufacturing or initial provisioning time. The private part of the PK.key is used to change the device ownership by changing the existing PK and also to sign the KEK to enroll or update KEK in the device.
+**1.	Platform Key(PK):** The PK is used for establishing a trust relationship between the platform owner and the platform UEFI firmware. The enrollment of the public PK key to the device happens early in manufacturing or initial provisioning time. The private part of the PK.key is used later to change the platform ownership and manage other keys in the UEFI firmware.
 
-**2.	Key Exchange Key(KEK)**: KEK is used to establish trust between NOS and the device. It is used for enrolling secure boot or some other NOS-specific keys in the allowed key list database(Db). The public part of the KEK is enrolled in the device and the private part is used to sign the keys that are enrolled in the key list database(Db).
+**2.	Key Exchange Key(KEK)**: KEK is used for establishing trust between NOS and the platform. It is used for enrolling NOS secure boot keys in the allowed key database(Db). The public part of the KEK is enrolled in the device and the private part is used for authorizing access to the signature key database(Db).
    
-**3.	Signature Database (Db):** It contains secureboot verification keys that are used to verify the signed image artifacts during system boot(Ex: bootloader and kernel). 
+**3.	Signature Database (Db):** It contains secure boot verification keys that are used to verify the signed image artifacts during system boot(Ex: bootloader and kernel). 
    
-**4.	Forbidden Signature Database(Dbx):** These contain keys that are revoked. It is used during the secure boot process to prevent certain bootloaders or images from being loaded if their signature is verified with the keys that are present in this database.
+**4.	Forbidden Signature Database(Dbx):** These contain keys that are revoked. These keys are used during the secure boot process to prevent the booting of certain bootloaders or images which are signed by the private part of these keys.
 
 ### 3.3 Authenticated variable
-These are a special type of UEFI variable that supports cryptographic authentication and integrity verification. The authenticates variable enables a secure way of storing and accessing EFI variables within the UEFI environment and ensures that the UEFI variable remains tamper-proof and authentic.  Since authenticated variables are signed objects, the UEFI firmware can verify them before accessing or updating them.
+These are a special type of UEFI variable that supports cryptographic authentication and integrity verification. The authenticates variable enables a secure way of storing and accessing UEFI variables within the UEFI environment and ensures that the UEFI variable remains tamper-proof and authentic.  Since authenticated variables are signed objects, the UEFI firmware can verify them before accessing or updating them.
 
 ```
 Sample example of how authenticated variables support a secure way of adding, updating, removing, and revoking UEFI keys.
