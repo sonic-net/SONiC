@@ -189,8 +189,6 @@ Below diagram illuminates the interactions between relevant components and the D
 
 Diagram 1. VRRP components.
 
-Significantly, This feature extends functionality implemented in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md), Redis DB events will trigger frrcfgd when the field frr_mgmt_framework_config set to "true" in the DEVICE_METADATA table, otherwise will trigger vrrpcfgd, and then frrcfgd or vrrpcfgd will configure FRR-VRRP using FRR CLI commands.
-
 ### High-Level Design
 
 #### Operating environment
@@ -207,7 +205,7 @@ Since support for placing macvlan devices into protodown was not added to Linux 
 
 ##### VRRP container
 
-Add a new VRRP container to host VRRP protocol operations.
+Add a new VRRP container to host VRRP protocol operations. We control whether the VRRP feature is enabled through the FEATURE table in Config DB, which is disabled by default.
 
 vrrpcfgd: 
   - Subscribes to CONFIG_DB tables, parsing configurations and passes to vrrpd by using FRR CLI commands. 
@@ -232,7 +230,6 @@ vrrpsyncd:
     - Listen for kernel Macvlan device state change events
     - Update the kernel Macvlan device state to the APPL DB.
 
-
 ##### SWSS container
 
 intforch: 
@@ -240,7 +237,7 @@ intforch:
 
 #### CoPP Configurations
 
-CoPP will be extended as follows for trapping VRRPs:
+CoPP will be extended as follows for trapping VRRPs. Whether to install it depends on the FEATURE|vrrp table in Config DB. If the VRRP state is enabled, it will be installed; otherwise, it will not be installed.
 ```
   "trap.group.vrrp": {
     "cir":"300",
@@ -256,10 +253,10 @@ CoPP will be extended as follows for trapping VRRPs:
   ...
   "vrrp": {
     "trap_ids": "vrrp", "vrrpv6",
-    "trap_group": "trap.group.vrrp",
-    "always_enabled": "true"
+    "trap_group": "trap.group.vrrp"
   },
 ```
+
 #### DB Changes
 
 ##### CONFIG_DB changes
