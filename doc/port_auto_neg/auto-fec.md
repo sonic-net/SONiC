@@ -112,7 +112,7 @@ The below table covers different scenarios of what will be programmed in SAI whe
  |  8  |       True         | True       | auto       | SAI_PORT_ATTR_FEC_MODE=none, SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE=False     |
  |  9  |       True         | True       | N/A        | SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE will not be set                        |
  | 10  |       True         | False      | None/rs/fc | SAI_PORT_ATTR_FEC_MODE=none/rs/fc                                               |
- | 11  |       True         | False      | auto       | No FEC attributes will be set                                                   |
+ | 11  |       True         | False      | auto       | SAI_PORT_ATTR_FEC_MODE=none, SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE=False. However the auto will take effect only when AN is enabled and until then the mode will be none. |
  | 12  |       True         | False      | N/A        | No FEC attributes will be set                                                   |
  
  The portsorch will also be responsible to update  operational FEC. This operational mode is applicable only when the mode is 'auto'. When the FEC mode is auto and oper up is detected, SAI_PORT_ATTR_OPER_FEC will be queried and updated in the STATE_DB PORT_TABLE field 'fec'. 
