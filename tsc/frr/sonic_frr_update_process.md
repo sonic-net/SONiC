@@ -32,13 +32,13 @@ FRR upgrade and patch cadence is largely on need basis in the current SONiC rele
   -   OPTIONAL: Additional tests in respect to specific changeset in the upgrade as deem necessary, manual tests should be automated and submitted to improve future test coverage   
 -   Rotate SONiC FRR maintenance duty among repo maintainer org and others (BRCM, MSFT, Alibaba, NVDA, DELL)
 -   Responsibility of SONiC FRR release maintainer
-	-   Default 12 months assignment (or until the next upgrade)
+	-   Default 12 months assignment
 	-   Upgrade FRR version in Nov release, resolve SONiC FRR upgrade integration issues
-  -   If there is a need for May release upgrade due to feature requirement or other reasons, it should be requested in the May release plan and have the same maintainer to handle the second upgrade
-	-   Triage and fix SONiC FRR issues when applicable. Fix may come from SONiC contributors or from FRR community, maintainer is responsible to drive the fix to unblock SONiC community
+    	-   Triage and fix SONiC FRR issues when applicable. Fix may come from SONiC contributors or from FRR community, maintainer is responsible to drive the fix to unblock SONiC community
 	-   Submit fixes to FRR project, submit new FRR topo test to FRR project if there is a gap
 	-   Release maintainer to subscribe to FRR project, and be the FRR Point-of-Contact on behalf of SONiC
 	-   Bring in FRR vulnerabilities and critical patches to SONiC
+  -   If there is a need for May release upgrade due to feature requirement or other reasons, it should be requested in the May release plan and get a consensus with the FRR release maintainer. The person or organization requested the upgrade will be responsible of carrying out FRR upgrade with the same FRR upgrade process described in this proposal. FRR release maintainer will need to work closely with the person or organization to oversee the mid term upgrade, he/she will continue to assume the role of FRR release maintainer until the end of his/her term
 
 # SONiC FRR vulnerability and patch upgrade in between SONiC releases
 
@@ -57,22 +57,23 @@ FRR upgrade and patch cadence is largely on need basis in the current SONiC rele
 -   Create sonic-frr branch for the target FRR version
 	-   Contact release manager
 -   Find new package dependencies
-	  -   Upload newly required packages to a common location (azure?)
--   Submodule update to new FRR commit id.
+	-   Upload newly required packages to a common location (Azure)
+-   Submodule update to new FRR commit id
 -   Code changes
     -   Version change in Makefiles
-    -   New Makefiles for new packages (if any.)
-    -   Port the patches
-	    -   Evaluate whether existing FRR patches still applicable to new FRR version
-		 -   Apply the old patches into new FRR version, and generate new patch files
-			 -   Keep original credentials
-	    -   If the changes are already present in new FRR version, discard the old patch file
-		-   If the patch does not apply, manually merge the changes and resolve any conflicts
+    -   New Makefiles for new packages (if any)
+    -   Port patches
+	-   Evaluate whether existing FRR patches still applicable to new FRR version
+	-   Apply the old patches into new FRR version, and generate new patch files. Keep original credentials
+	-   If the changes are already present in new FRR version, discard the old patch file
+	-   If the patch does not apply, manually merge the changes and resolve any conflicts
     -   Build and verify
 	    -   Use PTF on local server, – or –
 	    -   Manually verify BGP, VRF, IPv4, IPv6 (on sonic-vs.)
-    -   Create PR
--   FRR 8.2.2 upgrade PRs for reference  
+    -   Create PR with the following template
+	- [https://github.com/sonic-net/sonic-buildimage/pull/15965](https://github.com/sonic-net/sonic-buildimage/pull/15965)
+-   FRR upgrade PRs for reference  
+    - [https://github.com/sonic-net/sonic-buildimage/pull/15965](https://github.com/sonic-net/sonic-buildimage/pull/15965)
     - [https://github.com/sonic-net/sonic-buildimage/pull/10691](https://github.com/sonic-net/sonic-buildimage/pull/10691)
     - [https://github.com/sonic-net/sonic-buildimage/pull/11502](https://github.com/sonic-net/sonic-buildimage/pull/11502)
     - [https://github.com/sonic-net/sonic-buildimage/pull/10947](https://github.com/sonic-net/sonic-buildimage/pull/10947)
