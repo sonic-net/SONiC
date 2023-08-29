@@ -220,20 +220,20 @@ zebra:
 
 vrrpmgrd: 
   - Listens to VRRP create, delete and parameter change in CONFIG_DB. Complete the following tasks:
-    - Add/del Linux Macvlan device to kernel
+    - Add/del Linux Macvlan device to kernel. The Macvlan device name starting with 'Vrrp-4' or 'Vrrp-6'.
     - Config virtual MAC to Macvlan device;
     - Add/del VIP to Macvlan device;
     - Update VRRP instance configuration to the APPL DB.
 
 vrrpsyncd: 
   - Complete the following tasks:
-    - Listen for kernel Macvlan device state change events
+    - Listen for kernel Macvlan device state change events, The state of the Macvlan device here determines the Master/Backup state of the VRRP instance, where up represents Master and down represents Backup.
     - Update the kernel Macvlan device state to the APPL DB.
 
 ##### SWSS container
 
 intforch: 
-  - Subscribes to APPL_DB tables, responsible for updating the ASIC DB. Creating/deleting Virtual RIF object via SAI API.
+  - Subscribes to APPL_DB tables, responsible for updating the ASIC DB. Program the VIP and Virtual RIF object via SAI API.
 
 #### CoPP Configurations
 
@@ -265,7 +265,7 @@ VRRP
 
 Producer: config manager
 
-Consumer: vrrpmgrd and vrrpcfgd/frrcfgd
+Consumer: vrrpmgrd and vrrpcfgd
 
 Description: New table that stores VRRP configuration for per interface + VRID.
 ```
@@ -316,29 +316,31 @@ admin@sonic:~$ redis-cli -n 4 HGETALL " VRRP|Vlan10|10"
 
 #### APPL_DB Changes
 
-VRRP_TABLE
+INTF_TABLE
 
 Producer: vrrpmgrd and vrrpsyncd
 
 Consumer: intforch
 
-Description: This is a new table that contains VRRP state information. This entry will be added to APP_DB for each VRRP instance.
+Description: This is an existing table entry that VRRP will extend.
 ```
-; New table
-; holds the VRRP state and VMAC information
+; holds the VRRP state, Vip and VMAC information
 
-key         = VRRP_TABLE:interface_name:vip
-              interface_name        ; interface name as a string. Vlan, Ethernet or PortChannel
-              vip                   ; Virtual IP address. The format is x.x.x.x/32
-    
+key         = INTF_TABLE:macvlan_device:vip
+              macvlan_device        ; macvlan device name as a string. Start with "Vrrp"
+              vip                   ; Virtual IP address. IPv4 format is x.x.x.x/32, IPv6 format is xxx::xx/128
+
 ; field = value
 vmac        = virtual_mac_address   ; Virtual MAC address associated with VRRP instance
+oper_state  = "up"|"down"           ; The oper state of the Macvlan device in kernel, determines the Master/Backup state of the VRRP instance
 ```
 Example:-
 ```
-admin@sonic:~$ redis-cli -n 0 HGETALL "VRRP_TABLE:Ethernet36:10.10.10.1/32"
+admin@sonic:~$ redis-cli -n 0 HGETALL "INTF_TABLE:Vrrp4-5:10.10.10.1/32"
 1) "vmac"
 2) "00:00:5e:00:01:05"
+3) "oper_state"
+4) "up"
 ```
 
 #### ASIC_DB Changes
@@ -377,15 +379,15 @@ vrrpd:
 vrrpmgrd:
   - Listens to VRRP create, delete and parameter change in CONFIG DB
   - Upon change
-    - Add/del VRRP instance corresponding Macvlan device to kernel with IPs and state. 
-    - Updates VRRP instance configuration to the APPL DB, such as interface name, vrid, and IP address type.
+    - Add/del VRRP instance corresponding Macvlan device to kernel with IPs and state.
+    - Updates VRRP instance configuration to the APPL DB, such as Macvlan device name, Vip and VMAC.
 
 vrrpsyncd:
-  - Listens to Macvlan interface programming in kernel.
-  - Update the kernel Macvlan device's state to the INTF table entry of APPL DB.
+  - Listens to Macvlan interface programming in kernel. 
+  - Update the kernel Macvlan device's state to the INTF_table entry of APPL DB.
 
 intforch:
-  - Listens to VRRP_Table in APP_DB and updates Vip and virtual MAC entries in ASIC_DB for VRRP instances
+  - Listens to INTF_Table in APP_DB and updates Vip and virtual MAC entries in ASIC_DB for VRRP instances
 
 ##### Uplink interface tracking
 
