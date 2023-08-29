@@ -29,12 +29,12 @@ FRR upgrade and patch cadence is largely on need basis in the current SONiC rele
 -   SONiC default to rebase FRR in every November community release
 -   SONiC FRR upgrade test requirements
 	-   MANDATORY: Pass all Azure pipeline build test and LGTM as required by the standard code PR merge process 
-  -   OPTIONAL: Additional tests in respect to specific changeset in the upgrade as deem necessary, manual tests should be automated and submitted to improve future test coverage   
+  	-   OPTIONAL: Additional tests in respect to specific changeset in the upgrade as deem necessary, manual tests should be automated and submitted to improve future test coverage   
 -   Rotate SONiC FRR maintenance duty among repo maintainer org and others (BRCM, MSFT, Alibaba, NVDA, DELL)
 -   Responsibility of SONiC FRR release maintainer
 	-   Default 12 months assignment
 	-   Upgrade FRR version in Nov release, resolve SONiC FRR upgrade integration issues
-    	-   Triage and fix SONiC FRR issues when applicable. Fix may come from SONiC contributors or from FRR community, maintainer is responsible to drive the fix to unblock SONiC community
+	-   Triage and fix SONiC FRR issues when applicable. Fix may come from SONiC contributors or from FRR community, maintainer is responsible to drive the fix to unblock SONiC community
 	-   Submit fixes to FRR project, submit new FRR topo test to FRR project if there is a gap
 	-   Release maintainer to subscribe to FRR project, and be the FRR Point-of-Contact on behalf of SONiC
 	-   Bring in FRR vulnerabilities and critical patches to SONiC
@@ -71,7 +71,7 @@ FRR upgrade and patch cadence is largely on need basis in the current SONiC rele
 	    -   Use PTF on local server, – or –
 	    -   Manually verify BGP, VRF, IPv4, IPv6 (on sonic-vs.)
     -   Create PR with the following template
-	- [https://github.com/sonic-net/sonic-buildimage/pull/15965](https://github.com/sonic-net/sonic-buildimage/pull/15965)
+		- [https://github.com/sonic-net/sonic-buildimage/pull/15965](https://github.com/sonic-net/sonic-buildimage/pull/15965)
 -   FRR upgrade PRs for reference  
     - [https://github.com/sonic-net/sonic-buildimage/pull/15965](https://github.com/sonic-net/sonic-buildimage/pull/15965)
     - [https://github.com/sonic-net/sonic-buildimage/pull/10691](https://github.com/sonic-net/sonic-buildimage/pull/10691)
