@@ -61,7 +61,7 @@ UEFI keys are types of UEFI variables. These are cryptographic keys used in Unif
 
 There are multiple keys involved in the UEFI secure boot implementations. The platform owner sets the policies around these keys. 
 
-<img src="https://wwwin-github.cisco.com/storage/user/4864/files/250b7543-0356-42a0-a203-02c07e64718c" width="600" hight="800">
+![image](https://github.com/sacnaik/SONiC/assets/25231205/fdf6a164-6153-4c14-ba6d-b8d30475e390)
 
 **1.	Platform Key(PK):** The PK is used for establishing a trust relationship between the platform owner and the platform UEFI firmware. The enrollment of the public PK key to the device happens early in manufacturing or initial provisioning time. The private part of the PK.key is used later to change the platform ownership and manage other keys in the UEFI firmware.
 
