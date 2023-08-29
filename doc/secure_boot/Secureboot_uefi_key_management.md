@@ -160,13 +160,13 @@ The access of UEFI variables may vary from platform to platform depending on the
 
 ### 5.1 Plugin class
 
-<img src="https://wwwin-github.cisco.com/storage/user/4864/files/2591894f-22f6-4275-9a8f-1e5ca241753b" width="150" height="150">
- 
+![image](https://github.com/sacnaik/SONiC/assets/25231205/a42cd039-0675-4a71-84e0-bce00eb2ca9d)
 
 ### 5.2 OVMF based platform can use Linux implementation to access UEFI variable
 The Linux kernel provides a standard mechanism to interact with UEFI variables. It provides efivarfs filesystem that exposes the EFI runtime variables as a file. In order to manage these efi variables over sysfs requires mounting efivarfs filesystem. This enables users to access these UEFI variables like a file.
 
-![image](https://wwwin-github.cisco.com/storage/user/4864/files/8739b223-6b2a-4f96-b42c-7fa0deec5707)
+![image](https://github.com/sacnaik/SONiC/assets/25231205/fc111e5f-23f9-4c10-b674-f2afc906bd54)
+
 
 ```
 sudo mount -t efivarfs none /sys/firmware/efi/efivars
