@@ -74,31 +74,6 @@ There are multiple keys involved in the UEFI secure boot implementations. The pl
 ### 3.3 Authenticated variable
 These are a special type of UEFI variable that supports cryptographic authentication and integrity verification. The authenticates variable enables a secure way of storing and accessing UEFI variables within the UEFI environment and ensures that the UEFI variable remains tamper-proof and authentic.  Since authenticated variables are signed objects, the UEFI firmware can verify them before accessing or updating them.
 
-```
-Sample example of how authenticated variables support a secure way of adding, updating, removing, and revoking UEFI keys.
-
-uuidgen --random > GUID.txt
-
-**PK authenticated variable:**
-openssl req -newkey rsa:4096 -nodes -keyout PK.key -new -x509 -sha256 -days 3650 -subj "/CN=Platform key/" -out PK.crt
-openssl x509 -outform DER -in PK.crt -out PK.cer
-cert-to-efi-sig-list -g "$(< GUID.txt)" PK.crt PK.esl
-sign-efi-sig-list -g "$(< GUID.txt)" -k PK.key -c PK.crt PK PK.esl PK.auth
-
-**KEK authenticated variable:**
-openssl req -newkey rsa:4096 -nodes -keyout KEK.key -new -x509 -sha256 -days 3650 -subj "/CN=Key Exchange Key/" -out KEK.crt
-openssl x509 -outform DER -in KEK.crt -out KEK.cer
-cert-to-efi-sig-list -g "$(< GUID.txt)" KEK.crt KEK.esl
-sign-efi-sig-list -g "$(< GUID.txt)" -k PK.key -c PK.crt KEK KEK.esl KEK.auth
-
-**Db authenticated variable:**
-openssl req -newkey rsa:4096 -nodes -keyout db.key -new -x509 -sha256 -days 3650 -subj "/CN=Database key/" -out db.crt
-openssl x509 -outform DER -in db.crt -out db.cer
-cert-to-efi-sig-list -g "$(< GUID.txt)" db.crt db.esl
-sign-efi-sig-list -g "$(< GUID.txt)" -k KEK.key -c KEK.crt db db.esl db.auth
-```
-Using the above example one should be able to create an authenticated variable to add, remove, update, and revoke UEFI keys from the UEFI database.
-
 ## 4 UEFI key management
 
 The key management involves following the functional area
@@ -108,27 +83,44 @@ The key management involves following the functional area
 4. Revoke keys
 5. Show keys from the machine.
 
-### 4.1 Generation of keys
-The secure boot key creation happens outside of the device via openSSL or some other key generation. 
+### 4.1 Generation of keys and authenticated variable
+#### asymmetric key creations
+The secure boot key and authenticate variable creation happens outside of the device via openSSL or some other key generation. 
+
 ```
-openssl req -newkey rsa:4096 -nodes -keyout PK.key -new -x509 -sha256 -days 3650 -subj "/CN=Platform key/" -out PK.crt
-openssl req -newkey rsa:4096 -nodes -keyout KEK.key -new -x509 -sha256 -days 3650 -subj "/CN=Key Exchange Key/" -out KEK.crt
-openssl req -newkey rsa:4096 -nodes -keyout db.key -new -x509 -sha256 -days 3650 -subj "/CN=Database key/" -out db.crt
+openssl req -newkey rsa:2048 -nodes -keyout PK.key -new -x509 -sha256 -days 3650 -subj "/CN=Platform key/" -out PK.crt
+openssl req -newkey rsa:2048 -nodes -keyout KEK.key -new -x509 -sha256 -days 3650 -subj "/CN=Key Exchange Key/" -out KEK.crt
+openssl req -newkey rsa:2048 -nodes -keyout db.key -new -x509 -sha256 -days 3650 -subj "/CN=Database key/" -out db.crt
 ```
 The private keys are kept secretly and used during image signing. The public keys are used to verify images signed by private keys. Public keys are wrapped in the x509 format of the certificate. These public certificates are enrolled in the SHIM or UEFI key database by the machine owner.
 
-### 4.2 Enrollment of keys
-The enrollment interface depends on where the keys are stored. The UEFI keys enrollment follows a specific policy. UEFI keys are PK, KEK, db and dbX. The enrollment of PK depends on access over UEFI FW's mode(Ex: Setup mode, User mode etc.). Then the owner of PK can enroll KEK since KEK enrollment requires authenticated variables signed by PK.
+#### Authenticated variable creation
+```
+Sample example of how authenticated variable creation
 
-````
-Ex: Enroll KEK
-sign-efi-sig-list -t "$(date --date='1 second' +'%Y-%m-%d %H:%M:%S')" -k PK.key -c PK.crt KEK KEK.esl KEK.auth
+uuidgen --random > GUID.txt
 
-````
-A similar principle is used for enrolling DB keys. The DB enrollment variable should be created and then signed either by PK or KEK.
+**PK authenticated variable:**
+openssl x509 -outform DER -in PK.crt -out PK.cer
+cert-to-efi-sig-list -g "$(< GUID.txt)" PK.crt PK.esl
+sign-efi-sig-list -g "$(< GUID.txt)" -k PK.key -c PK.crt PK PK.esl PK.auth
+
+**KEK authenticated variable:**
+openssl x509 -outform DER -in KEK.crt -out KEK.cer
+cert-to-efi-sig-list -g "$(< GUID.txt)" KEK.crt KEK.esl
+sign-efi-sig-list -g "$(< GUID.txt)" -k PK.key -c PK.crt KEK KEK.esl KEK.auth
+
+**Db authenticated variable:**
+openssl x509 -outform DER -in db.crt -out db.cer
+cert-to-efi-sig-list -g "$(< GUID.txt)" db.crt db.esl
+sign-efi-sig-list -g "$(< GUID.txt)" -k KEK.key -c KEK.crt db db.esl db.auth
+```
+
+### 4.2 Enrollment of authenticated variables into the device
+The enrollment interface depends on where the keys are stored. The UEFI keys enrollment follows a specific policy. UEFI keys are PK, KEK, db and dbX. The enrollment of PK depends on access over UEFI FW's mode(e.g.: Setup mode, User mode, etc.). Then the owner of PK can enroll KEK since KEK enrollment requires authenticated variables signed by PK. Copy the generated authenticated variable to the device using SONiC UEFI access CLI to enroll the authenticated variable. UEFI firmware checks the trust source and integrity of authenticated variables and enrolls into UEFI database. 
 
 ### 4.3 Modify key database
-For UEFI key database modification, requires authenticated variables to modify.
+For UEFI key database modification, creation of authenticated variables.
 ````
 Examples: 
 
@@ -153,7 +145,7 @@ To add  DB key in UEFI database following are typical workflows followed
 The revoke key is a mechanism to permanently disallow any image signed by the private key whose public key is present in DBx of UEFI database.
 
 ### 4.5 Show keys
-This is to display the PK, KEK, DB and DBx key lists.
+This is to display the PK, KEK, DB, and DBx key lists.
 
 ## 5 SONIC implementation
 The access of UEFI variables may vary from platform to platform depending on the specific implementation of UEFI firmware. Sonic will provide a common layer for accessing these variables and vendors can implement platform-specific parts. The SONIC will provide a plugin Python for vendors to implement these APIs and integrate them with the SONiC generic layer.
