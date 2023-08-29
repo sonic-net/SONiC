@@ -46,7 +46,7 @@
 ## 1 Requirements
 Sonic is the most popularly growing open-source network operating system and runs on switching hardware from multiple vendors. Some of this modern switching hardware implements a hardware root of trust and UEFI firmware which helps establish a secure boot in the system. Most of the system owners would like to manage their own UEFI keys according to their own policy such as periodically changing the secure boot keys, changing ownership, etc. This requires SONiC to access UEFI keys to perform the following primitive actions.
 1. Show secure boot keys
-2. Add, remove, update, and revoke secure boot keys.
+2. Add, remove, and revoke secure boot keys.
 
 ## 2 Overview
 The UEFI secure boot feature is introduced in UEFI spec version 2.3.1 onwards. The UEFI secure boot provides a mechanism to securely verify the image integrity and authenticity before loading the image into the system. The spec also provides general details about how UEFI keys should be managed. The implementation may vary for different UEFI firmware. 
@@ -77,17 +77,19 @@ These are a special type of UEFI variable that supports cryptographic authentica
 ## 4 UEFI key management
 
 The key management involves following the functional area
-1. Generation of keys
-2. Enroll keys into the Machine
-3. Update, remove, and add new keys to the key database.
+1. Generation of keys and authenticated variable
+2. Add the key to the UEFI database
+3. Remove the key to the UEFI database
 4. Revoke keys
-5. Show keys from the machine.
+5. Show key list from UEFI database
 
 ### 4.1 Generation of keys and authenticated variable
 #### asymmetric key creations
-The secure boot key and authenticate variable creation happens outside of the device via openSSL or some other key generation. 
+The secure boot key and authenticate variable creation happens outside of the device. 
 
 ```
+Sample example of key creation:
+
 openssl req -newkey rsa:2048 -nodes -keyout PK.key -new -x509 -sha256 -days 3650 -subj "/CN=Platform key/" -out PK.crt
 openssl req -newkey rsa:2048 -nodes -keyout KEK.key -new -x509 -sha256 -days 3650 -subj "/CN=Key Exchange Key/" -out KEK.crt
 openssl req -newkey rsa:2048 -nodes -keyout db.key -new -x509 -sha256 -days 3650 -subj "/CN=Database key/" -out db.crt
@@ -96,7 +98,7 @@ The private keys are kept secretly and used during image signing. The public key
 
 #### Authenticated variable creation
 ```
-Sample example of how authenticated variable creation
+Sample example of authenticated variable creation:
 
 uuidgen --random > GUID.txt
 
@@ -117,27 +119,37 @@ sign-efi-sig-list -g "$(< GUID.txt)" -k KEK.key -c KEK.crt db db.esl db.auth
 ```
 
 ### 4.2 Enrollment of authenticated variables into the device
-The enrollment interface depends on where the keys are stored. The UEFI keys enrollment follows a specific policy. UEFI keys are PK, KEK, db and dbX. The enrollment of PK depends on access over UEFI FW's mode(e.g.: Setup mode, User mode, etc.). Then the owner of PK can enroll KEK since KEK enrollment requires authenticated variables signed by PK. Copy the generated authenticated variable to the device using SONiC UEFI access CLI to enroll the authenticated variable. UEFI firmware checks the trust source and integrity of authenticated variables and enrolls into UEFI database. 
+The enrollment interface depends on where the keys are stored. The UEFI keys enrollment follows a specific policy. UEFI keys are PK, KEK, db and dbX. The enrollment of PK depends on access over UEFI FW's mode(e.g.: Setup mode, User mode, etc.). Then the owner of PK can enroll KEK since KEK enrollment requires authenticated variables signed by PK. 
+1. Copy the generated authenticated variable(Ex. KEK.auth, db.auth) to the device
+2. Use CLI to send the authenticated variable to UEFI firmware.
+3. UEFI firmware checks the trust source and integrity of authenticated variables and enrolls into UEFI database.
+4. The system requires a reboot to activate the keys for use.
 
-### 4.3 Modify key database
-For UEFI key database modification, creation of authenticated variables.
+### 4.3 Remove keys from UEFI database
+For removal of keys requires the removal of an authenticated variable outside of the system. 
+
 ````
-Examples: 
+Sample example of authenticated variable creation for removal of the key from the signature database list:
+E.g The UEFI database has 3 entries of keys and one of them to be removed here
 
-To add  DB key in UEFI database following are typical workflows followed
+1. Read the db key list from UEFI DB. 
+   efi-readvar -v Db -o DB-orig.esl 
+2. Convert signature list to individual certs. This command extracts DB-orig-1.der DB-orig-2.der DB-orig-3.der so on key files
+   sig-list-to-certs DB-orig.esl DB-orig
+3. Convert each of the certs into pem format
+   openssl x509 -inform der -in db-orig-1.der -out db-orig-1.pem
+   openssl x509 -inform der -in db-orig-2.der -out db-orig-2.pem
+   openssl x509 -inform der -in db-orig-3.der -out db-orig-3.pem
+4. Removal of db-orig-2.pem to be discarded
+5. Convert db-orig-1.pem and db-orig-3.pem to esl format
+   cert-to-efi-sig-list -g <GUID> db-orig-1.pem db-orig-1.esl
+   cert-to-efi-sig-list -g <GUID> db-orig-3.pem db-orig-3.esl
+6. Concatenate these two esl files 
+   cat db-orig-1.esl db-orig-3.esl > DB-new.esl
+7. Create authenticated variable and sign it
+   sign-efi-sig-list -g "<GUID>" -k KEK.key -c KEK.crt db DB-new.esl DB-new.auth
+8. Copy DB-new.auth to the system and use CLI to update UEFI database
 
-       # Create key:
-       openssl req -subj "/CN=SecBoot db cert/"  -new -x509 -newkey rsa:2048 -nodes -days 730 -outform PEM -keyout "db.key"  -out "db.pem"
-       
-       # Conver to signature list 
-       cert-to-efi-sig-list -g <GUID> db.pem  db.esl
-       
-       # Sign keys using KEK
-       sign-efi-sig-list -g <GUID> -c KEK.pem -k KEK.key db  db.esl  db.auth
-       
-       # Update UEFI database
-       efi-updatevar -k KEK.key -g <GUID> -f db.auth  db
- 
 ````
 
 ### 4.4 Revoke keys
