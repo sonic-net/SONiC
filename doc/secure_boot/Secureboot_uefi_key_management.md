@@ -165,8 +165,7 @@ The access of UEFI variables may vary from platform to platform depending on the
 ### 5.2 OVMF based platform can use Linux implementation to access UEFI variable
 The Linux kernel provides a standard mechanism to interact with UEFI variables. It provides efivarfs filesystem that exposes the EFI runtime variables as a file. In order to manage these efi variables over sysfs requires mounting efivarfs filesystem. This enables users to access these UEFI variables like a file.
 
-<img src="https://github.com/sacnaik/SONiC/assets/25231205/fc111e5f-23f9-4c10-b674-f2afc906bd54" width="300" hight="300">
-
+<img src="https://github.com/sacnaik/SONiC/assets/25231205/fc111e5f-23f9-4c10-b674-f2afc906bd54" width="150" hight="150">
 
 ```
 sudo mount -t efivarfs none /sys/firmware/efi/efivars
