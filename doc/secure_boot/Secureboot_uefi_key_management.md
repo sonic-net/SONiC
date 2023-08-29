@@ -153,8 +153,18 @@ E.g The UEFI database has 3 entries of keys and one of them to be removed here
 ````
 
 ### 4.4 Revoke keys
+Revoking a key from the UEFI database is done when the previously trusted key is no longer trustworthy. This action is taken when a key's security has been compromised.
+It is achieved by inserting the authenticated variable for the compromised key into the forbidden key list(DBx). 
 
-The revoke key is a mechanism to permanently disallow any image signed by the private key whose public key is present in DBx of UEFI database.
+```
+Sample example:
+If db-orig-1.pem is compromised the generate an authenticated variable for db-orig-1.pem
+1. Convert ESL of pem cert.
+   cert-to-efi-sig-list -g <GUID> db-orig-3.pem db-orig-3.esl
+2. Create authenticated variable
+   sign-efi-sig-list -g "<GUID>" -k KEK.key -c KEK.crt dbx db-orig-3.esl DB-revoke.auth
+3. Copy DB-revoke.auth to the system and use CLI to update the UEFI database
+```
 
 ### 4.5 Show keys
 This is to display the PK, KEK, DB, and DBx key lists.
