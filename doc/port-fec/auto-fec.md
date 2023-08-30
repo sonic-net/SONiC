@@ -1,3 +1,5 @@
+#### Flow For Breakout And Non-Breakout Use Cases
+
 ```mermaid
 sequenceDiagram
     title Auto-FEC in the case of breakout
@@ -69,6 +71,7 @@ sequenceDiagram
 > [!NOTE]
 > In the above usecases, user needs to save config, so that changed FEC modes can be saved to config_db.json, and persists across config/system reload.
 
+#### Platform Support
 
 FEC mapping in platform.json:
 1. In fec_mapping_based_on_speed_lane, If there are both rs and none in the field of "fec", preferably choose rs
