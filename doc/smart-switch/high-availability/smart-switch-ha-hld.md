@@ -76,6 +76,9 @@
       2. [9.1.2. Launch with standalone peer](#912-launch-with-standalone-peer)
       3. [9.1.3. Launch with no peer](#913-launch-with-no-peer)
    2. [9.2. Planned switchover](#92-planned-switchover)
+      1. [9.2.1. Workflow](#921-workflow)
+      2. [9.2.2. Packet racing during switchover](#922-packet-racing-during-switchover)
+      3. [9.2.3. Failure handling during switchover](#923-failure-handling-during-switchover)
    3. [9.3. Planned shutdown](#93-planned-shutdown)
       1. [9.3.1. Planned shutdown standby node](#931-planned-shutdown-standby-node)
       2. [9.3.2. Planned shutdown active node](#932-planned-shutdown-active-node)
@@ -1036,7 +1039,7 @@ With the planned switchover, we are trying to achieve the following goals:
     1. Only 1 instance takes traffic and makes flow decisions at any moment during the entire switchover.
     1. Avoid using bulk sync for any flow replication. During the transition, all flow should be replicated inline.
 
-> To ensure no stale or conflicting flows are being created, our upstream service, e.g. SDN controller, need to pause the policy updates and ensure the programming of all existing ongoing policies are finished and align in all the DPUs.
+#### 9.2.1. Workflow
 
 Planned switchover starts from a standby node, because in order to avoid flow loss, we need to make sure we have 1 valid standby node that works. And here are the main steps:
 
@@ -1126,9 +1129,41 @@ sequenceDiagram
     S0N->>S1N: Send HAStateChanged to new active ENI
 ```
 
-A few things to notice here:
+#### 9.2.2. Packet racing during switchover
 
-1. Both NPU and DPU liveness detection are still running in the background. If any node died in the middle, instead of rolling states back, we would start unplanned event workflow right away by driving the HA pair into Standalone setup. (See discussions for [unplanned events](#10-unplanned-events) below)
+Although we have ensure that there will be only 1 flow decider at all time, from state machine point of view. In practice, there still could be some packet racing during the switchover, because flow replication packet delay caused by flow insertion latency and network latency.
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    participant C as Customer
+    participant S0D as DPU0<br>(Initial Active)
+    participant S1D as DPU1<br>(Initial Standby)
+
+    C->>S0D: First packet lands on DPU0
+    S0D->>S0D: First packet creates flow on DPU0<br>and start replication
+    note over S0D,S1D: NPU shifted traffic to DPU1
+    C->>S1D: Second packet lands on DPU1<br>before flow replication packet arrives
+    S1D->>S1D: Second packet creates another flow on DPU1
+    S0D->>S1D: Flow replication packet arrives on DPU1
+    note over S0D,S1D: Flow conflict!!!
+```
+
+This case will mostly happen on UDP traffic or other connection-less traffic, because TCP traffic will go through handshake which usually won't run this into problem.
+
+To avoid this issue causing problems, during switchover we will do 2 things below:
+
+1. In the case above, the flow replication packet will be dropped, because the flow is already created on DPU1. This prevents the flow being created on DPU0 and solves this problem.
+2. In switchover step 2 above, we will request approval from our upstream service, which will ensure both DPU runs same set of policy and stop future policy programming until switchover is finished. This helps us ensure the flows that created on both sides are identical, if it happens due to bugs and etc. (see [stable decision assumption](#33-assumptions))
+
+This helps us to avoid conflicting / stale flows being created during the switchover.
+
+#### 9.2.3. Failure handling during switchover
+
+During switchover, both NPU and DPU liveness detection are still running in the background. If any node died in the middle, instead of rolling states back, we would start unplanned event workflow right away by driving the HA pair into Standalone setup. 
+
+See discussions for [unplanned events](#10-unplanned-events) below.
 
 ### 9.3. Planned shutdown
 
