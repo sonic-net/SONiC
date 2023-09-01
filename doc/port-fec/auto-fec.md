@@ -94,14 +94,15 @@ def determine_fec(lane_speed: int, num_lanes: int, optics_type: Optional[str] = 
     """
 ```
 
-#### (optional) Platform Prequisite
+#### Platform Prequisite (optional)
 
 FEC mapping rules are defined in platform.json:
-1. For now, there are two mapping rules
+1. FEC mapping rule is optional in platform.json. If platform/vendor doesn't define it, it's no-op in terms of FEC auto determination.
+2. For now, there are two mapping rules
     - ```fec_mapping_based_on_speed_lane```: This will be looked up if lane_speed and num_lanes are provided in parameters of determine_fec API.
     - ```fec_mapping_based_on_optics_type```: This will be looked up if optics_type is provided in parameters of determine_fec API.
-2. In ```fec_mapping_based_on_speed_lane```, if there are multiple FEC values (e.g. ```rs``` and ```none```) in the field of ```fec```, preferably choose the first value (in this example, ```rs```).
-3. If a port has matched FEC entry in both ```fec_mapping_based_on_speed_lane``` and ```fec_mapping_based_on_optics_type```, then prefers FEC entry in ```fec_mapping_based_on_optics_type```, which is the first mapping rule defined in platform.json.
+3. In ```fec_mapping_based_on_speed_lane```, if there are multiple FEC values (e.g. ```rs``` and ```none```) in the field of ```fec```, preferably choose the first value (in this example, ```rs```).
+4. If a port has matched FEC entry in both ```fec_mapping_based_on_speed_lane``` and ```fec_mapping_based_on_optics_type```, then prefers FEC entry in ```fec_mapping_based_on_optics_type```, which is the first mapping rule defined in platform.json.
 ```
 {
 "fec_mapping_based_on_optics_type": [
