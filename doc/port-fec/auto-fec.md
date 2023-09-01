@@ -115,8 +115,19 @@ FEC mapping rules are defined in platform.json:
     {
         "optics_type": "100G-FR",
         "fec": ["none"]
-    }
-    ....
+    },
+    {
+        "optics_type": "100G-LR",
+        "fec": ["none"]
+    },
+    {
+        "optics_type": "100G AOC",
+        "fec": ["none"]
+    },
+    {
+        "optics_type": "ALL_OTHER",
+        "fec": ["rs"]
+    },
 ],
 "fec_mapping_based_on_speed_lane": [
     {
