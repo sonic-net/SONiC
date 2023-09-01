@@ -1,4 +1,4 @@
-#### Flow For Breakout And Non-Breakout Use Cases
+#### Flow For Different Use Cases
 
 ```mermaid
 sequenceDiagram
@@ -70,7 +70,8 @@ sequenceDiagram
 ```
 
 > [!NOTE]
-> In the above usecases, user needs to save config, so that changed FEC modes can be saved to config_db.json, and persists across config/system reload.
+> 1. In the above usecases, user needs to save config, so that changed FEC modes can be saved to config_db.json, and persists across config/system reload.
+> 2. For non-braekout use case, in the future, auto-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
 
 #### API design
 ```
@@ -99,7 +100,7 @@ def determine_fec(lane_speed: int, num_lanes: int, optics_type: Optional[str] = 
 
 FEC mapping rules are defined in platform.json:
 1. FEC mapping rule is optional in platform.json. If platform/vendor doesn't define it, it's no-op in terms of FEC auto determination.
-2. For now, there are two mapping rules
+2. For now, there are two mapping rules (More rules can be added in the future if required)
     - ```fec_mapping_based_on_speed_lane```: This will be looked up if lane_speed and num_lanes are provided in parameters of determine_fec API.
     - ```fec_mapping_based_on_optics_type```: This will be looked up if optics_type is provided in parameters of determine_fec API.
 3. In ```fec_mapping_based_on_speed_lane```, if there are multiple FEC values (e.g. ```rs``` and ```none```) in the field of ```fec```, preferably choose the first value (in this example, ```rs```).
