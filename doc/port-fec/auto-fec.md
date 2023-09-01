@@ -71,7 +71,7 @@ sequenceDiagram
 
 > [!NOTE]
 > 1. In the above usecases, user needs to save config, so that changed FEC modes can be saved to config_db.json, and persists across config/system reload.
-> 2. For non-braekout use case, in the future, auto-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
+> 2. For non-breakout use case, in the future, auto-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
 
 #### API design
 ```
