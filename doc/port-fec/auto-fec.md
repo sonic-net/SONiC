@@ -22,6 +22,7 @@ sequenceDiagram
         auto_fec -->>- dpb_cli: return FEC mode
     end
 
+    note over dpb_cli, config_db: run today's logic:
     dpb_cli ->>+ config_db: Add new ports in PORT table (today's workflow), <BR> additionally with proper FEC if determined above <BR> instead of FEC=none as default
 
     par
