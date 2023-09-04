@@ -8,6 +8,7 @@
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 1.0 | 22 Aug 2019 | Praveen Chaudhary  | Initial version                   |
  | 1.0 | 11 Sep 2019 | Partha Dutta       | Adding additional steps for SONiC YANG  |
+ | 1.1 | 04 Sep 2023 | Mohammed Faraaz    | Added rules for List Keys |
 
 ## References
 | References 		    |     Date/Version    |   		    Link     	 	|
@@ -44,7 +45,7 @@ sonic-vlan.yang
 
 Example :
 ####  YANG
-```
+```yang
 module sonic-acl {
 	container sonic-acl {
 		.....
@@ -57,7 +58,7 @@ module sonic-acl {
 
 Example :
 ####  YANG
-```
+```yang
 module sonic-acl {
 	namespace "http://github.com/Azure/sonic-acl";
 	.....
@@ -70,7 +71,7 @@ module sonic-acl {
 Example :
 
 #### YANG
-```
+```yang
 module sonic-acl {
 	revision 2019-09-02 {
 		description
@@ -92,7 +93,7 @@ Example: Table VLAN will translate to container VLAN.
 
 #### ABNF
 
-```
+```yang
 "VLAN": {
         "Vlan100": {
              "vlanid": "100"
@@ -103,7 +104,7 @@ will translate to:
 
 ####  YANG
 --
-```
+```yang
 container VLAN {  //"VLAN" mapped to a container
  list VLAN_LIST {
    key name;
@@ -132,7 +133,7 @@ Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY, which are defined in AB
 ```
 
 ####  YANG
-```
+```yang
             leaf PACKET_ACTION {
                 .....
             }
@@ -148,7 +149,7 @@ Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY, which are defined in AB
 Example:
 
 #### YANG
-```
+```yang
 	leaf SRC_IP {
 		type inet:ipv4-prefix; <<<<
 	}
@@ -182,7 +183,7 @@ For Example:
 ```
 ####  YANG
 In YANG, "Family" of VLAN_INTERFACE and "IP_TYPE" of ACL_RULE is at same level.
-```
+```yang
 container VLAN_INTERFACE {
         description "VLAN_INTERFACE part of config_db.json";
         list VLAN_INTERFACE_LIST {
@@ -222,7 +223,7 @@ Example: VLAN_MEMBER dictionary in ABNF.json has both vlan-id and ifname part of
 key                 = VLAN_MEMBER_TABLE:"Vlan"vlanid:ifname ;
 
 #### YANG
-```
+```yang
 container VLAN_MEMBER {
     description "VLAN_MEMBER part of config_db.json";
         list ..... {
@@ -242,7 +243,7 @@ key: ACL_RULE_TABLE:table_name:rule_name
 .....
 ```
 #### YANG
-```
+```yang
 .....
 container ACL_TABLE {
 	list ACL_TABLE_LIST {
@@ -289,7 +290,7 @@ queue  = 1*DIGIT; queue index
 ```
 
 #### YANG
-```
+```yang
 	container TC_TO_QUEUE_MAP {
 		list TC_TO_QUEUE_MAP_LIST {
 			key "name";
@@ -336,7 +337,7 @@ wred_profile = ref_hash_key_reference; reference to wred profile key
 ```
 
 #### YANG
-```
+```yang
 container sonic-queue {
 	container QUEUE {
 		list QUEUE_LIST {
@@ -361,7 +362,7 @@ container sonic-queue {
 Example:
 
 #### YANG
-```
+```yang
 	must "(/sonic-ext:operation/sonic-ext:operation != 'DELETE') or " +
 		"count(../../ACL_TABLE[aclname=current()]/ports) = 0" {
 			error-message "Ports are already bound to this rule.";
@@ -373,7 +374,7 @@ Example:
 Example:
 
 #### YANG
-```
+```yang
 module sonic-vlan {
 	....
 	....
@@ -422,7 +423,7 @@ Example of When Statement: Orchagent of SONiC will have unknown behavior if belo
 
 ```
 #### YANG:
-```
+```yang
 choice ip_prefix {
                 case ip4_prefix {
                     when "boolean(IP_TYPE[.='ANY' or .='IP' or .='IPV4' or .='IPV4ANY' or .='ARP'])";
@@ -456,7 +457,7 @@ leaf L4_DST_PORT_RANGE {
 Example:
 
 #### YANG
-```
+```yang
 leaf family {
                 /* family leaf needed for backward compatibility
                    Both ip4 and ip6 address are string in IETF RFC 6020,
@@ -485,7 +486,7 @@ For Example: Below entries in PORTCHANNEL_INTERFACE Table must be part of List O
 ```
 
 #### YANG
-```
+```yang
 container PORTCHANNEL_INTERFACE {
 
         description "PORTCHANNEL_INTERFACE part of config_db.json";
@@ -497,9 +498,17 @@ container PORTCHANNEL_INTERFACE {
 }
 ```
 
-### 18. In some cases it may be required to split an ABNF table into multiple YANG lists based on the data stored in the ABNF table. 
+### 18. In some cases it may be required to split an ABNF table into multiple YANG lists based on the data stored in the ABNF table. In this case it is crucial to ensure that the List keys are non-overlapping, unique, and unambiguous.
 
-Example : "INTERFACE" table stores VRF names to which an interface belongs, also it stores IP address of each interface. Hence it is needed to split them into two different YANG lists.
+#### Strategies for Ensuring Unique and Unambiguous Keys
+
+1. **Composite Keys with Different Number of Elements**: Utilize composite keys that have a different number of key elements to distinguish lists.
+
+2. **Different Data Types with Constraints**: Use constraints like length, pattern, or range to make keys of different data types non-overlapping.
+  
+3. **Pattern Constraints**: Implement regular expressions to define specific patterns that keys must match.
+
+4. **Length and Range Constraints**: Limit the length of strings or the range of integers to make them unique.
 
 #### ABNF
 ```
@@ -511,8 +520,11 @@ Example : "INTERFACE" table stores VRF names to which an interface belongs, also
 	}
 }
 ```
-#### YANG
-```
+#### Example 1: Composite Keys with Different Number of Elements(Allowed case)
+
+`INTERFACE` table stores VRF names to which an interface belongs, also it stores IP address of each interface. Hence it is needed to split them into two different YANG lists.
+
+```yang
 ......
 container sonic-interface {
 	container INTERFACE {
@@ -550,12 +562,166 @@ container sonic-interface {
 ......
 ```
 
+#### Example 2: Composite Keys with Same Number of Elements(NOT Allowed case)
+
+```yang
+......
+container sonic-interface {
+	container INTERFACE {
+		list INTERFACE_LIST {  // 1st list
+			key ifname;
+			leaf ifname {
+				type string;
+			}
+			// ...
+		}
+
+		list INTERFACE_ANOTHER_LIST { // Negative case
+			key ifname;
+			leaf ifname {
+				type string;
+			}
+			// ...
+		}
+	} 
+}
+......
+```
+
+#### Example 3: Pattern Constraints (Allowed case)
+
+In this example, `INTERFACE_LIST` uses a key `ifname` that must start with "Eth", while `INTERFACE_IPADDR_LIST` uses a key `ifname` that must start with "Vlan".
+
+```yang
+......
+container sonic-interface {
+	container INTERFACE {
+		list INTERFACE_LIST {  // 1st list
+			key ifname;
+			leaf ifname {
+				type string {
+					pattern "Eth.*";
+				}
+			}
+			// ...
+		}
+
+		list INTERFACE_IPADDR_LIST { // 2nd list
+			key "ifname ip_addr";
+			leaf ifname {
+				type string {
+					pattern "Vlan.*";
+				}
+			}
+			// ...
+		}
+	} 
+}
+......
+```
+
+#### Example 4: Pattern Constraints (NOT Allowed case)
+
+Here, both INTERFACE_LIST and INTERFACE_ANOTHER_LIST use a key ifname with the same pattern constraint, making them potentially overlapping and ambiguous.
+
+```yang
+......
+container sonic-interface {
+	container INTERFACE {
+		list INTERFACE_LIST {  // 1st list
+			key ifname;
+			leaf ifname {
+				type string {
+					pattern "Eth.*";
+				}
+			}
+			// ...
+		}
+
+		list INTERFACE_ANOTHER_LIST { // Negative case
+			key ifname;
+			leaf ifname {
+				type string {
+					pattern "Eth.*";
+				}
+			}
+			// ...
+		}
+	} 
+}
+......
+```
+
+#### Example 5: Length Constraints (Allowed case)
+
+In this example, `INTERFACE_LIST` uses a key ifname that must be exactly 3 characters long, while `INTERFACE_IPADDR_LIST` uses a key ifname that must be at least 4 characters long.
+
+```yang
+......
+container sonic-interface {
+	container INTERFACE {
+		list INTERFACE_LIST {  // 1st list
+			key ifname;
+			leaf ifname {
+				type string {
+					length "3..3";
+				}
+			}
+			// ...
+		}
+
+		list INTERFACE_IPADDR_LIST { // 2nd list
+			key "ifname ip_addr";
+			leaf ifname {
+				type string {
+					length "4..max";
+				}
+			}
+			// ...
+		}
+	} 
+}
+......
+```
+
+#### Example 6: Length Constraints (NOT Allowed case)
+
+Here, both `INTERFACE_LIST` and `INTERFACE_ANOTHER_LIST` use a key ifname with overlapping length constraints, making them potentially ambiguous.
+
+```yang
+......
+container sonic-interface {
+	container INTERFACE {
+		list INTERFACE_LIST {  // 1st list
+			key ifname;
+			leaf ifname {
+				type string {
+					length "3..5";
+				}
+			}
+			// ...
+		}
+
+		list INTERFACE_ANOTHER_LIST { // Negative case
+			key ifname;
+			leaf ifname {
+				type string {
+					length "4..6";
+				}
+			}
+			// ...
+		}
+	} 
+}
+......
+```
+
 ### 19. Add read-only nodes for state data using 'config false' statement. Define a separate top level container for state data. If state data is defined in other DB than CONFIG_DB, use extension 'sonic-ext:db-name' for defining the table present in other Redis DB. The default separator used in table key  is "|", if it is different, use 'sonic-ext:key-delim {separator};' YANG extension. This step applies when SONiC YANG is used as Northbound YANG.
 
 Example:
 
 #### YANG
-```
+```yang
 container ACL_RULE {
 	list  ACL_RULE_LIST {
 	....
@@ -584,7 +750,7 @@ container ACL_RULE {
 Example:
 
 #### YANG
-```
+```yang
 container sonic-acl {
 	....
 	....
@@ -607,7 +773,7 @@ container sonic-acl {
 Example:
 
 #### YANG
-```
+```yang
 module sonic-port {
 	....
 	....
@@ -621,17 +787,11 @@ module sonic-port {
 }
 ```
 
-
-
-
-
-
-
 ## APPENDIX
 
 ### Sample SONiC ACL YANG
 
-```
+```yang
 module sonic-acl {
 	namespace "http://github.com/Azure/sonic-acl";
 	prefix sacl;
