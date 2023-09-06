@@ -1,3 +1,8 @@
+
+#### Background
+
+If not configured in CONFIG_DB, FEC mode is default to none, which might not be the correct FEC for this port/optics, and link might not come up.
+
 #### Flow For Different Use Cases
 
 ```mermaid
@@ -70,7 +75,7 @@ sequenceDiagram
 ```
 
 > [!NOTE]
-> 1. In the above use cases, automatically determined FEC mode is saved in running config, user needs to do ```config save``` to save it permanently, irregardless of config/system reload.
+> 1. In the above use cases, automatically determined FEC mode is saved in running config, user needs to do ```config save``` to save it permanently, which will persist across config/system reload.
 > 2. For non-breakout use case, in the future, determine-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
 
 #### API design
