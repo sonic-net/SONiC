@@ -185,10 +185,11 @@ FEC mapping rules are defined in platform.json:
 ```
 #### Platform Common Dependency
 A new ```optics_type``` field (human-readable type for optics, such as ```100G-DR```, ```100G-FR```, etc) will be added to TRANSCEIVER_INFO table, so that determine-FEC module can read it for the non-breakout use case.
-Basically, ```optics_type``` can be determined based on today's transceiver_info, and be added as part of output of API [get_transceiver_info()](https://github.com/sonic-net/sonic-platform-common/blob/1988b37c7668394f38f155c86f5462a4461fe82e/sonic_platform_base/sonic_xcvr/api/xcvr_api.py#L42-L71) in ```sonic-platform-common``` repo.
 
-```optics_type``` field can also provide other benefits:
-1. help user to easily and quickly identify what optics are plugged onto the router (if it can be added to show CLI output later)
+To implement this, ```optics_type``` can be determined based on today's transceiver_info, and be added as part of output of API [get_transceiver_info()](https://github.com/sonic-net/sonic-platform-common/blob/1988b37c7668394f38f155c86f5462a4461fe82e/sonic_platform_base/sonic_xcvr/api/xcvr_api.py#L42-L71) in ```sonic-platform-common``` repo.
+
+```optics_type``` field can also provide benefits in readability/service-ability/debug-ability:
+1. help user/engineer to easily and quickly identify what optics are plugged onto the router (if it can be added to show CLI output later)
 2. test script can easily figure out the optics type based on this single ```optics_type``` field and do test actions accordingly.
 
 #### Difference between other design
