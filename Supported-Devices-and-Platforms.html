@@ -1255,25 +1255,29 @@ Note:
 		    }
 		    var table = document.getElementById("data_table").children;
 		    for (var i = 0; i < table.length; i++) {
+			pvendor = table[i].children[0].textContent;
 			vdata = table[i].children[2].textContent;
+			asic_name = table[i].children[3].textContent;
 			if (vdata == "Nvidia")
 			    vdata = "Mellanox";
-				
-			if (vdata == "Intel")
-			    vdata = "Barefoot";	
 
-			if (vdata == "Marvell"){
+			if (vdata == "Intel")
+			    vdata = "Barefoot";
+
+			if (vdata == "Marvell")
 			    vdata = "Marvell-armhf";
-			}
+
+			if (pvendor == "Arista")
+			    vdata = "Aboot-" + vdata.charAt(0).toLowerCase() + vdata.slice(1);
+
+			if (asic_name.startsWith("Jericho") || asic_name.startsWith("Qumran"))
+			    vdata += "-dnx";
 
 			if(vendor_data[vdata] == "")
 			    table[i].children[5].innerHTML = "<td style=\"text-align: center;\"><span style=\"color: #0000ff;\">N/A</span></td>";
 			else
 				table[i].children[5].innerHTML = vendor_data[vdata];
-			    
 			}
-		    
-
 		});
 
 	});
