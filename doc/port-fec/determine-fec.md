@@ -70,7 +70,7 @@ sequenceDiagram
 ```
 
 > [!NOTE]
-> 1. In the above usecases, user needs to save config, so that changed FEC modes can be saved to config_db.json, and persists across config/system reload.
+> 1. In the above use cases, automatically determined FEC mode is saved in running config, user needs to do ```config save``` to save it permanently, irregardless of config/system reload.
 > 2. For non-breakout use case, in the future, determine-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
 
 #### API design
