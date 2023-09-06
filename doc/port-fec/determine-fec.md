@@ -2,11 +2,11 @@
 
 ```mermaid
 sequenceDiagram
-    title Auto-FEC in the case of breakout
+    title determine-FEC in the case of breakout
 
     actor user as User
     participant dpb_cli as today's DPB CLI
-    participant auto_fec as auto-FEC module
+    participant determine_fec as determine-FEC module
     participant config_db as CONFIG_DB
     participant syncd as SYNCD
 
@@ -16,10 +16,10 @@ sequenceDiagram
     dpb_cli ->>+ dpb_cli: generate the config(speed/lanes/etc) for each new port
 
     alt FEC mapping section exists in platform.json
-        note over dpb_cli,auto_fec: run below additional logic per port:
-        dpb_cli ->>+ auto_fec: call API determine_fec(lane_speed, num_lanes) per port
-        auto_fec ->>+ auto_fec: calculate FEC mode based on FEC mapping obtained from platform.json
-        auto_fec -->>- dpb_cli: return FEC mode
+        note over dpb_cli,determine_fec: run below additional logic per port:
+        dpb_cli ->>+ determine_fec: call API determine_fec(lane_speed, num_lanes) per port
+        determine_fec ->>+ determine_fec: calculate FEC mode based on FEC mapping obtained from platform.json
+        determine_fec -->>- dpb_cli: return FEC mode
     end
 
     note over dpb_cli, syncd: run today's logic:
@@ -36,42 +36,42 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    title Auto-FEC in the case of non-breakout
+    title determine-FEC in the case of non-breakout
 
     actor user as User
     participant fec_correct_cli as FEC correction CLI <BR> (just a wrapper)
-    participant auto_fec as auto-FEC module
+    participant determine_fec as determine-FEC module
     participant state_db as STATE_DB
     participant config_db as CONFIG_DB
     participant syncd as SYNCD
 
     user ->>+ fec_correct_cli: auto-correct FEC mode for all ports
-    fec_correct_cli ->>+ auto_fec: call API correct_fec_for_all_ports()
+    fec_correct_cli ->>+ determine_fec: call API correct_fec_for_all_ports()
 
     alt FEC mapping table exists in platform.json
         loop every port
-            auto_fec ->>+ state_db: read optics_type from TRANSCEIVER_INFO table
-            state_db -->>- auto_fec: return optics_type
-            auto_fec ->>+ auto_fec: internally call API determine_fec(lane_speed, num_lanes, optics_type) <BR> which calculates FEC mode based on FEC mapping obtained from platform.json
+            determine_fec ->>+ state_db: read optics_type from TRANSCEIVER_INFO table
+            state_db -->>- determine_fec: return optics_type
+            determine_fec ->>+ determine_fec: internally call API determine_fec(lane_speed, num_lanes, optics_type) <BR> which calculates FEC mode based on FEC mapping obtained from platform.json
         end
 
-        auto_fec ->>+ config_db: update FEC if needed
+        determine_fec ->>+ config_db: update FEC if needed
 
         par
-            config_db -->>- auto_fec: Done
+            config_db -->>- determine_fec: Done
         and
             config_db ->>+ syncd: notify for FEC update
         end
     end
 
-    auto_fec -->>- fec_correct_cli: Done
+    determine_fec -->>- fec_correct_cli: Done
     fec_correct_cli -->>- user: Done
 
 ```
 
 > [!NOTE]
 > 1. In the above usecases, user needs to save config, so that changed FEC modes can be saved to config_db.json, and persists across config/system reload.
-> 2. For non-breakout use case, in the future, auto-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
+> 2. For non-breakout use case, in the future, determine-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
 
 #### API design
 ```
@@ -183,3 +183,18 @@ FEC mapping rules are defined in platform.json:
 ]
 }
 ```
+#### Platform Common Dependency
+A new ```optics_type``` field (human-readable type for optics, such as ```100G-DR```, ```100G-FR```, etc) will be added to TRANSCEIVER_INFO table, so that determine-FEC module can read it for the non-breakout use case.
+Basically, ```optics_type``` can be determined based on today's transceiver_info, and be added as part of output of API [get_transceiver_info()](https://github.com/sonic-net/sonic-platform-common/blob/1988b37c7668394f38f155c86f5462a4461fe82e/sonic_platform_base/sonic_xcvr/api/xcvr_api.py#L42-L71) in ```sonic-platform-common``` repo.
+
+```optics_type``` field can also provide other benefits:
+1. help user to easily and quickly identify what optics are plugged onto the router (if it can be added to show CLI output later)
+2. test script can easily figure out the optics type based on this single ```optics_type``` field and do test actions accordingly.
+
+#### Difference between other design
+1. [[FEC] Design for auto-fec](https://github.com/sonic-net/SONiC/pull/1416):
+    - FEC mode will be decided automatically at SAI/SDK(and HW) level as part of auto-negotiation feature, if auto-neg is implemented and enabled for this platform.
+    - fec=```auto``` in CONFIG_DB
+2. determine-FEC module (this HLD's design):
+    - FEC mode will be decided automatically above CONFIG_DB level based on platform provided rules, and be pushed into CONFIG_DB. (flow: CONFIG_DB->syncd->orcagent->SAI/SDK)
+    - fec=```none```/```rs```/```fc``` in CONFIG_DB
