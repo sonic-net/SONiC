@@ -91,7 +91,7 @@ def determine_fec(lane_speed: int, num_lanes: int, optics_type: Optional[str] = 
     - optics_type (Optional[str]): The type of optics in use. Can be None if not applicable.
 
     Returns:
-    - str: The recommended FEC type based on the rules in platform.json.
+    - str: The recommended FEC type based on the rules in platform.json. It can be either 'none'/'rs'/'fc'.
            If no matched entry is found in the rules or no rules are defined in platform.json, return None.
 
     Example:
