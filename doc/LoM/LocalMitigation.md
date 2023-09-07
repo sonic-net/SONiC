@@ -343,71 +343,22 @@ The actions.confd dir will hold all the individual conf files.
 - The engine Heartbeats will report the active detections currently running. During mitigation, the position in sequence is reported and heartbeats are more frequent during a sequence run.
    - Any diff between expected list of actions and actions listed in Heartbeats could raise an alert.
    - Absence of heartbeats indicate unhealthy LoM
-- The entire state of LoM is available in STATE-DB which is polled out by GWS
+  
 
 # SONiC i/f
-LoM is another SONiC service and built as part of SONiC image. Its integration is provided below.
+LoM is installed as SONiC service.
 
 ## LoM Service
 LoM is a systemd maintained containerized service. Like Telemetry, this service is predominantly written in Go with a vision of supporting mult-language plugins in future. It is built as docker image with all required systemd's service related files and an entry in FEATURE table as enabled. The code resides in a dedicated sub module.
 
 ## CONFIG
-LoM service comes with static config created during build time off of schema. The LoM publishes the running config into STATE-DB. The CONFIG-DB updates are needed only when tweaks are needed over static config. 
-The SONiC-CLI will be enhanced for LoM. This added module will be written as dynamically driven by YANG schema. It would browse YANG files for modules/objects to configure and within each, it refers schema for configurable attributes, their types & defaults. In other words add/remove a YANG file add/remove a LoM key. Add / remove a configurable attribute will transparently reflect in CLI tabbing.
-In short LoM config commands will be indirectly driven by schema.
-The sceham updates are always backward compatible, hence data created by older versions of scehma will remain valid.
+LoM service comes with static config created during build time off of schema. The LoM publishes the status & stats to Geneva metrics. An updated config can be copied on to a path accessible by LoM container and it absorbs the update transparently. 
+LoM comes with its own CLI for update/show of the config. All config entities are declared in schema.
+The regular heartbeats will list all the active actions.
 
-### CONFIG-DB:
-- The CLI can be used to GET/SET any attributes.
-- The updates are only a diff to in-built static config
-- To see the full config call "show LoM config" which will show the current running config
 
-### STATE-DB :
-The STATE-DB carries 3 categories of data
-- Config -- The current running config == static built-in config + Config-DB
-- Counters -- The stat counters
-- Live-Cache -- The last N actions' & heartbeats published.
-
-**Table**: LoM|Config<br>
-**Keys**: "Global", "Procs", "binding", "actions" & "Red-button"
-
-#### LoM|Config|Global
-```
-"MAX_SEQ_TIMEOUT_SECS": 20
-"MIN_PERIODIC_LOG_PERIOD_SECS": 1,
-... 
-```
-
-#### LoM|Config|Procs|< Proc ID >:
-```
-"actions": [
-   '{ "action-name":  "<..>", "plugin-version": "<...>", "plugin-filename": <...?> }',
-   '{ "action-name":  "<..>", "plugin-version": "<...>", "plugin-filename": <...?> }',
-   ...
-]
-
-```
-
-#### LoM|Config|Binding|< sequence name >:
-```
-"priority": 1,
-"timeout:: 20,
-"actions": [
-  '{"name": < action name >", "sequence": < Index within sequence>, "timeout": 5}',
-   ...
-]
-```
-
-#### LoM|Config|Actions|< action name >
-```
-"Description": "..."
-"Disable": "True",
-"HB_Freq": < seconds > 
-"Mimic": "False",
-< action specific attrs per schema >
-```
 #### LoM|Counters
-Stats are maintained as below to cover all actions
+Stats are maintained as below to cover all actions. The stats are exported to Geneva metrics. A LoM-CLI command is available for show with support for streaming mode.
 - Count of active actions
 - Count of active detection actions
 - Count of failed actions (enabled but failed to activate)
@@ -420,42 +371,32 @@ Stats are maintained as below to cover all actions
 - Total count of failed sequences
 
 #### LoM|liveCache:
-```
-"Actions": [ <Last N published non-heartbeat strings are saved here.>]
-"Heartbeats": [ <last M heartbeats are saved here >]
-```
+LOM's CLI could be used to stream events as they are published by LoM to EventHub.
+
 
 #### LoM|RedButton
 - This is used to disable one/subset/all actions.
 - Unlike other configurations, this RedButton config has a ***SLA*** to reach the target device as this could be disabling an action, which is critical that it is disabled within set SLA
-- Red Button config is versioned.
-- Update is via CONFIG-DB and LoM updates its running value for the same in STATE-DB.
-```
-{
-   "CreateTimestamp": < Timestamp of the create/udpate by external user >
-   "updateTiemstamp": < update timestamp in DUT >
-   "DisableAll": True/False  # Disable all actions
-   "DisableMitigations": True/False # Disables all mitigations
-   "ActionsDisabled": [ < list of action disabled action names > ]
-}
-```
+- Red Button config is available in external DB, which could be Cosmos-DB.
+- LoM-CLI could be used to read the current state
+
 
 ## LoM Visibility / State / Status
 ### SONiC events
-Results of all actions are published w/o any constraints to Events Hub via SONiC gNMI. Even a stale response (_one that arrives after timeout_) is also published. The publish use SONic Events channel. As per Event's channel usage agreement, all publish o/p are per defined schema with backward compatibility.
+Results of all actions are published w/o any constraints to Events Hub via SONiC gNMI. Even a stale response (_one that arrives after timeout_) is also published. The publish use LoM's gNMI channel. All publish o/p are per defined schema with backward compatibility.
 
-### State-DB
-Reports current running config of LoM, LoM maintained counters and last set of N actions published and M heartbeats published.
+### MDM Dashboard
+Reports counters published over time.
 
 #### syslog
-All published events are also logged by default by SONiC event module.
-LoM reports all events/info.err messages via syslog.
-For persistent errors, it reports periodically, to manage the unreliable syslog transport.
+All published events are also logged via syslog.
+LoM reports all its internal info/error messages too via syslog.
+For persistent errors, LoM reports periodically until fixed, to manage the unreliable syslog transport.
 
 # Actions Update:
 One of the core values of LoM is its management of diverse independent actions yet work in unison with single context during mitigation of detected anomaly. The actions are implemented as plugins to provide the flexibility and adaptability to take updates at run time w/o impacting control or data plane.
 
-LoM is not built as one monolithic piece but as a collaborative union of plugins bind by config. Each plugin is an **independent** worker item for one specific purpose and this enables an update of a Plugin transparent to rest of the system. The plugins are versioned and use config to update to new version or easy rollback to previous.
+In the initial phases, the plugins may be cmpiled in and updates would be via entire LoM agent update. In future phases we support dynamic/runtime update of individual plugins.
 
 ## Update requirements
 - To update/fix bugs in a published plugin
@@ -468,57 +409,46 @@ LoM is not built as one monolithic piece but as a collaborative union of plugins
 - Create a script (bash/Python/...) to vet your action logic.
 - Create the plugin for the same using LoM Dev environment.
 - Create test code for the same and integrate it with automated test suite.
-- Add this plugin to a test switch, update config needed to add new action and test it out as plugin.
+- Update the config to include the plugin.
+- Build the new LoM agent and deploy to SONiC switch in lab.
 - Run the updated test suite to ensure the updated system is good in its current updated state.
    - Nightly tests run the updated test suite
 - An update to existing plugin may follow subset of above steps based on extent of change.
-- Create an self installable archive that has this plugin and configlet to apply with metadata to filter out target devices.
-  - Running this archive as script copies the plugin to destination and updates the config with built-in configlet.
-  - The archive may have metadata for target matching, like "OSVersion <= .... && PLATFORM == .... If present install proceeds on match only.
-- Save this archive in a local repo.
+- The built LoM agent is a self-installable archive.
  
 ## Update vetting
 - Identify the target OS versions & Platform for this update.
 - Auto create test pipelines for all target scenarios.
-- The test pipeline will download the archive from a local repo onto DUT and run the script associated to install.
+- The test pipeline will download the archive from a local repo onto DUT and run the downloaded archive to install.
 - The nightly tests run the test suite that vets all available actions.
   
 ## Fleet upgrade
 - Take help from FUSE
 - FUSE need not do any device isolation for update as these updates are transparent to both control & data planes
-- An explicit FUSE policy is created with following info
-   - Device metadata to match (e.g. `OSVersion >= 20221131.80`) by specifying few filters.
-       - This includes current plugin version <= this update's or not present
-   - URL of the self-installable Plugin archive.
+- LoM-agent is versioned. The config as suggested by FUSE would help pick the right LoM version for each OS version.
 - FUSE identifies the matching devices in current scope, download the archive and run the script associated with the archive.
 
 ## Fleet update status
-- The switch has current running versions in STATE-DB.
-- FUSE is used for Action(s)/Plugin(s) update.
-  - It updates plugin files & CONFIG-DB.
-  - LoM takes in the update transparently by watching CONFIG-DB, load new plugins and reflect the new values in STATE-DB.
-  - On any failure, it sets version to an reserved error string and provide detailed error message in logs repeatedly until fixed.
-  - FUSE watch for STATE-DB change with timeout to validate the success of the update.
+- Configuration & current state would be visible in NSS.
+- FUSE updae plan would be described in detail in a dedicated HLD.
 
    
 # LoM config update
 - As mentioned above the service comes with built-in config. Need config updates only when an update is needed. 
-- The SONiC DB schema is provided above.
-- YANG schema is provided for config/configlet validation
-- NDM will be required to do the updates. NOTE: We need config updates, only when/where a tweak is needed.
+- Any update is checked into an internal repo upon review & tests
+- Workflow will trigger auto udpate at switches
 
 # Other teams Ask/Support
 
 ## SONiC - Core team
 1. Help review LoM HLD
-2. Help with review of all SONiC image changes
-3. Help with review SONiC nightly tests
-4. Help with Pipeline updae with action-update added and auto-pipeline creation for all target scenarios.
-5. Help with internal repo creation for LoM
+2. Help with review of all plugins design- especially the mitigation plugins
+3. Help with review of Lom-tests integraion with SONiC nightly tests
+4. Help with internal repo creation for LoM
 
 ## FUSE
-1. Help with LoM actions update as described above
-2. On any SONiC image upgrade, look for possible plugin updates and apply as part of image update
+1. Help with LoM deployment.
+2. On any SONiC image upgrade/conversion, deploy appropriate LoM agent based on vendor & OS version.
 3. Help with Policy creation & management.
 4. Help with internal repo where update archive canbe held
 
@@ -528,10 +458,10 @@ LoM is not built as one monolithic piece but as a collaborative union of plugins
 
 ## GWS
 ### Red Button:
-1. Watch for Red Button changes in NDM config.
+1. Watch for Red Button changes in external config.
 2. A GWS instance is associated with a set of devices
 3. For each matching device  in that set, it pushes the RedButton config.
-4. RedButton config has a timestamp of update. This can be compared with red-button config in switch as reflected in STATE-DB. If NDM has later update push it, else all good.
+4. RedButton config has a timestamp of update. 
 5. GWS helps ensure SLA to update the switch upon any Red Button config changes.
 
 ### Heartbeat watcher:
@@ -543,7 +473,7 @@ LoM is not built as one monolithic piece but as a collaborative union of plugins
 - As acttions update are intended for all released images, we would need to create Test Run pipeline for any release, run the install script (_as FUSE would do_) and run the entire test suite.
 - As the target OS & platforms would be few many, we need a way to automate these pipelines creation
 
-## LoM Dashboard
+## LoM Dashboard in Geneva
 - Shows all devices running LoM
 - Shows by plugin
 - A view on counters reported by all devices.
