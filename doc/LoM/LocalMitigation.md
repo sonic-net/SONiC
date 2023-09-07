@@ -136,7 +136,10 @@ This may be just service restart or more (_say remove/reset files/data_). The ac
 
 
 # Design
-![image](https://github.com/renukamanavalan/SONiC/assets/47282725/4255824b-8927-4c81-9962-5e04dc783743)
+![image](https://github.com/renukamanavalan/SONiC/assets/47282725/14fcd472-d68d-4a55-8e85-85f7abd1f5c6)
+
+![image](https://github.com/renukamanavalan/SONiC/assets/47282725/feca5cfd-5aa8-46cf-9383-d27b1b960987)
+
 
 
 ## Core components
