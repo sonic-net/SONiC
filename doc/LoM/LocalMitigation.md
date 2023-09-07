@@ -18,7 +18,7 @@ SONiC Local Mitigations (LoM) Service
 4. Provide a unified way to describe each action in schema.
 5. Provide a unified way to configure the actions.
 6. Provide a way to run a set of actions sequentially to mitigate a detected action.
-7. Report run of any action to external clients via SONiC events channel.
+7. Report run of any action to external clients via export to Event-Hub.
 
 # Problem to solve
 Today all detections & mitigations are performed by external services. The problems or short falls we have are 
@@ -47,13 +47,13 @@ Today all detections & mitigations are performed by external services. The probl
 2. An action can be a detection for an anomaly, a mitigation action for an anomaly, a safety-check to precede mitigation and a cleanup, ... 
 3. Actions can vary widely by logic and/or config.
 4. Actions are vetted by nightly tests hence verfied to work on the hosting OS.
-5. Actions are implemented as plugins, so an update/add can be done via small file copy of that plugin.
+5. Actions are implemented as plugins.
 6. Actions are defined by Schema and schema specifies configurable knobs.
-7. Service is built with static config, which can be overrriden via config-DB
-8. The plugins are versioned. 
-9. The running configuration & state/status are reflected in STATE-DB.
-10. The CLI extends dynamically to any action using YANG schema.
-11. An action add/update/re-config will not impact control/data plane
+7. Service is built with static config, which can be updated during runtime.
+8. The LoM system is versioned.
+9. LoM provides a CLI to show running config, status and stats.
+10. LoM publishes all counters to Geneva Metrics
+11. Results of all actions are published to Event-Hub.
 
 # Benefits
 1. Running locally, hence monitoring the switch constantly will give the **BEST** possible TTD (_Time to Detect_).
@@ -70,16 +70,15 @@ Today all detections & mitigations are performed by external services. The probl
 8. The plugin model allows for granular update of actions to the affected devices ***only*** with a simple file copy & config update.
    - An action/plugin could be deployed in hours across fleet to check/mitigate a newly found bug in a released OS.
    - Plugin update does not affect control & Data planes
-9. The plugins as versioned and switches report the running versions. Rollback to any older version can be done via small config update.
-10. The actions are defined in YANG schema, hence the published reports are structured 
-11. Actions' runs have full visibility via gNMI & STATE-DB.
-12. For any new SONiC bug in released OS, it could be well managed via small/simple detection/mitigation actions that can be rolled out in hours across the fleet.
+9. The actions are defined in YANG schema, hence the published reports are structured 
+10. Actions' runs have full visibility via gNMI in EVENT-HUB.
+11. For any new SONiC bug in released OS, it could be well managed via small/simple detection/mitigation actions that can be rolled out in hours across the fleet.
     - Create detection & mitigation action & update automated tests
     - Identify target releases
     - Kick off auto tests runs on target releases.
-    - Deploy the actions to target devices.
-13. FUSE may continue to deploy this OS version with known issue, as it would transparently *also* install the actions that detect/mitigate.   
-15. Supports enable/disable of actions via config update.
+    - Deploy the updated LoM to target devices.
+12. FUSE may continue to deploy this OS version with known issue, as it would transparently *also* install the actions that detect/mitigate.   
+13. Supports enable/disable of actions via config update.
     
 
 # A Use case:
@@ -87,10 +86,10 @@ Today all detections & mitigations are performed by external services. The probl
 For a link the common issues are flaps, CRC-errors & discards. Here we need a way to watch for it with appropriate algorithm to identify anomalies. When an anomaly is detected, the mitigation is bring link down. But this demands basic safety checks. A detection-action can be configured with appropriate mitigation actions to run upon detection, along with approriate safety checks to precede the mitigation action. This is called action sequence or binding sequence.
 
 ### Link anomaly Detection action:
-An action for link flap may be written for flap by observing STATE-DB changes. An action for CRC-errors/discards may watch counters. These actions are run forever, often cache data at different time points and run an algorithm on the cached data to detect an anomaly. Upon detection, the detected anomaly is published via SONiC events channel that reaches EventHub via low latency channel in couple of seconds. Every published action is logged too as a fallback. Data published & logged are as per schema.
+An action for link flap may be written for flap by observing STATE-DB changes. An action for CRC-errors/discards may watch counters. These actions are run forever, often cache data at different time points and run an algorithm on the cached data to detect an anomaly. Upon detection, the detected anomaly is published via gNMI channel to EventHub in few seconds. Every published action is also logged as a fallback. Data published & logged are as per schema.
 
 ### Safety check action:
-The mitigation action for a failing link, is to bring the link down. But this demands a safety check to assess the capacity of not just this device, but more of a global scope. One may write a local safety check action, that could succeed if device has the link availability > 75% (_this magic number is configurable_). When this local check fails, the action can reach out to an external SCS service for a global chjeck. This action returns success, if mitigation can happen, else return failure. In either case, its result is published & logged. A success/green-flag will allow mitigation to run.
+The mitigation action for a failing link, is to bring the link down. But this demands a safety check to assess the capacity of not just this device, but more of a global scope. One may write a local safety check action, that could succeed if device has the link availability > 75% (_this magic number is configurable_). When this local check fails, the action can reach out to an external SCS service for a global check. This action returns success, if mitigation can happen, else return failure. In either case, its result is published & logged. A success/green-flag will allow mitigation to run.
 
 ### Mitigation action:
 This action can set the admin down for the link. This action is published.
