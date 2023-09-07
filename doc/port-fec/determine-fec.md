@@ -112,88 +112,88 @@ FEC mapping rules are defined in platform.json:
 4. If a port has matched FEC entry in both ```fec_mapping_based_on_speed_lane``` and ```fec_mapping_based_on_optics_type```, then prefers FEC entry in ```fec_mapping_based_on_optics_type```, which is the first mapping rule defined in platform.json.
 ```
 {
-"fec_mapping_based_on_optics_type": [
-    {
-        "optics_type": "100G-DR",
-        "fec": ["none"]
-    },
-    {
-        "optics_type": "100G-FR",
-        "fec": ["none"]
-    },
-    {
-        "optics_type": "100G-LR",
-        "fec": ["none"]
-    },
-    {
-        "optics_type": "100G AOC",
-        "fec": ["none"]
-    },
-    {
-        "optics_type": "400G",
-        "fec": ["rs"]
-    },
-    {
-        "optics_type": "40G",
-        "fec": ["fc"]
-    },
-    {
-        "optics_type": "ALL_OTHER",
-        "fec": ["rs"]
-    },
-],
-"fec_mapping_based_on_speed_lane": [
-    {
-        "lane_speed": 10,
-        "num_lanes": 4,
-        "fec": ["fc", "none"]
-    },
-    {
-        "lane_speed": 20,
-        "num_lanes": 2,
-        "fec": ["none"]
-    },
-    {
-        "lane_speed": 25,
-        "num_lanes": 2,
-        "fec": ["rs", "none"]
-    },
-    {
-        "lane_speed": 25,
-        "num_lanes": 4,
-        "fec": ["rs", "none"]
-    },
-    {
-        "lane_speed": 25,
-        "num_lanes": 8,
-        "fec": ["rs"]
-    },
-    {
-        "lane_speed": 50,
-        "num_lanes": 1,
-        "fec": ["rs"]
-    },
-    {
-        "lane_speed": 50,
-        "num_lanes": 4,
-        "fec": ["rs"]
-    },
-    {
-        "lane_speed": 50,
-        "num_lanes": 8,
-        "fec": ["rs"]
-    },
-    {
-        "lane_speed": 50,
-        "num_lanes": 16,
-        "fec": ["rs"]
-    },
-    {
-        "lane_speed": 50,
-        "num_lanes": 2,
-        "fec": ["rs"]
-    }
-]
+    "fec_mapping_based_on_optics_type": [
+        {
+            "optics_type": "100G-DR",
+            "fec": ["none"]
+        },
+        {
+            "optics_type": "100G-FR",
+            "fec": ["none"]
+        },
+        {
+            "optics_type": "100G-LR",
+            "fec": ["none"]
+        },
+        {
+            "optics_type": "100G AOC",
+            "fec": ["none"]
+        },
+        {
+            "optics_type": "400G",
+            "fec": ["rs"]
+        },
+        {
+            "optics_type": "40G",
+            "fec": ["fc"]
+        },
+        {
+            "optics_type": "ALL_OTHER",
+            "fec": ["rs"]
+        },
+    ],
+    "fec_mapping_based_on_speed_lane": [
+        {
+            "lane_speed": 10,
+            "num_lanes": 4,
+            "fec": ["fc", "none"]
+        },
+        {
+            "lane_speed": 20,
+            "num_lanes": 2,
+            "fec": ["none"]
+        },
+        {
+            "lane_speed": 25,
+            "num_lanes": 2,
+            "fec": ["rs", "none"]
+        },
+        {
+            "lane_speed": 25,
+            "num_lanes": 4,
+            "fec": ["rs", "none"]
+        },
+        {
+            "lane_speed": 25,
+            "num_lanes": 8,
+            "fec": ["rs"]
+        },
+        {
+            "lane_speed": 50,
+            "num_lanes": 1,
+            "fec": ["rs"]
+        },
+        {
+            "lane_speed": 50,
+            "num_lanes": 4,
+            "fec": ["rs"]
+        },
+        {
+            "lane_speed": 50,
+            "num_lanes": 8,
+            "fec": ["rs"]
+        },
+        {
+            "lane_speed": 50,
+            "num_lanes": 16,
+            "fec": ["rs"]
+        },
+        {
+            "lane_speed": 50,
+            "num_lanes": 2,
+            "fec": ["rs"]
+        }
+    ]
 }
 ```
 #### Platform Common Dependency
