@@ -53,6 +53,8 @@ This HLD covers
 * Discovery of voltage and current sensor devices in the system
 * Monitoring the sensor devices periodically and update that data in Redis DB
 * Raise/Clear alarms if the sensor devices indicate readings which are unexpected and clear them if they return to a good state.
+* Report sensor alarm conditions in system health
+* Enable such sensors in Entity MIB
 * A framework for adding new sensor types in future
 
 This HLD does not cover
@@ -97,6 +99,13 @@ The classes will have methods to retrieve threshold information, sensor value an
 	
 CLIs are introduced to retrieve and display sensor data from State DB for different sensor types. CLIs are described in the next section.
 
+#### sonic-buildimage
+
+The CLI "show system-health" should report sensor fault conditions. Hardware health check script will need enhancement to retrieve sensor data from StateDB. 
+
+#### sonic-snmpagent
+
+Voltage and Current sensors should be available in Entity MIB. Entity MIB implementation will need an enhancement to retrieve voltage and current sensors from the state DB.
 
 ### CLI Enhancements 
 
@@ -128,16 +137,28 @@ If the SensorMon daemon is not desired to be run in the system, an entry can be 
 
 It is advised to monitor the sensor alarms and use that to debug and identify any issues in the system. In the event, a sensor crosses a high or low threshold, syslogs will be raised indicating the alarm.
 
-	Feb  4 09:11:24.669278 sonic WARNING pmon#sensormon: High voltage warning: VP0P75_CORE_NPU3 current voltage 750C, high threshold 720C
+	FJul 27 08:26:32.561330 sonic WARNING pmon#sensormond: High voltage warning: VP0P75_CORE_NPU2 current voltage 880mV, high threshold 856mV
 
-The alarm condition will also be visible in the CLI ouput.
+The alarm condition will be visible in the CLI ouputs for sensor data and system health.
 
 	e.g 
 	root@sonic:/home/cisco# show platform voltage
 	          Sensor    Voltage(mV)    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
 	----------------  -------------  ---------  --------  --------------  -------------  ---------  -----------------
-	VP0P75_CORE_NPU3            750        720       684             720            664       True  20230204 11:35:22
+	VP0P75_CORE_NPU2            880        720       684             720            664       True  20230204 11:35:22
 	
+	root@sonic:/home/cisco# show system-health detail
+	System status summary
+  	...
+  	  Hardware:
+       Status: Not OK
+       Reasons: Voltage sensor VP0P75_CORE_NPU2 measurement 880 mV out of range (679,856)
+    	...
+    	VP0P75_CORE_NPU2            Not OK    voltage
+    	...
+
+	
+
 
 #### Warmboot and Fastboot Design Impact  
 
