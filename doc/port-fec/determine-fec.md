@@ -109,10 +109,18 @@ FEC mapping rules are defined in platform.json:
     - ```fec_mapping_based_on_speed_lane```: This will be looked up if lane_speed and num_lanes are provided in parameters of determine_fec API.
     - ```fec_mapping_based_on_optics_type```: This will be looked up if optics_type is provided in parameters of determine_fec API.
 3. In ```fec_mapping_based_on_speed_lane```, if there are multiple FEC values (e.g. ```rs``` and ```none```) in the field of ```fec```, preferably choose the first value (in this example, ```rs```).
-4. If a port has matched FEC entry in both ```fec_mapping_based_on_speed_lane``` and ```fec_mapping_based_on_optics_type```, then prefers FEC entry in ```fec_mapping_based_on_optics_type```, which is the first mapping rule defined in platform.json.
+4. If a port has matched FEC entry in both ```fec_mapping_based_on_speed_lane``` and ```fec_mapping_based_on_optics_type```, then prefers FEC entry in ```fec_mapping_based_on_optics_type```, which is the first mapping rule defined in platform.json. (e.g. 100G-DR will have a match in both rules, the matched FEC entry in ```fec_mapping_based_on_optics_type``` will be preferably choosen, which is ```none```)
+
+Open questions:
+1. What is FC FEC mode for 40G in [saiport.h](https://github.com/opencomputeproject/SAI/blob/4cb229c2d55cbe36c2ac10204d1fe4476f4937bd/inc/saiport.h#L191-L222)? what FEC we should put in ```fec_mapping_based_on_optics_type``` for ```optics_type=40G```? And what FEC to be put for ```lane_speed=10, num_lanes=4``` in ```fec_mapping_based_on_speed_lane```?
+2. For ```100G-ER4``` ```100G-LR4``` and ```100G AOC```, shall we put FEC=rs for non-low-BER, and FEC=none for low-BER? And how do we tell if it's low-BER/non-low-BER based on optics_type? If optics_type is not enough to tell, what specific field we need to tell the BER, and shall we add another column in the mapping rule?
 ```
 {
     "fec_mapping_based_on_optics_type": [
+        {
+            "optics_type": "40G",
+            "fec": ["fc"]
+        },
         {
             "optics_type": "100G-DR",
             "fec": ["none"]
@@ -126,16 +134,20 @@ FEC mapping rules are defined in platform.json:
             "fec": ["none"]
         },
         {
+            "optics_type": "100G-LR4",
+            "fec": ["none"]
+        },
+        {
+            "optics_type": "100G-ER4",
+            "fec": ["none"]
+        },
+        {
             "optics_type": "100G AOC",
             "fec": ["none"]
         },
         {
             "optics_type": "400G",
             "fec": ["rs"]
-        },
-        {
-            "optics_type": "40G",
-            "fec": ["fc"]
         },
         {
             "optics_type": "ALL_OTHER",
@@ -175,6 +187,11 @@ FEC mapping rules are defined in platform.json:
         },
         {
             "lane_speed": 50,
+            "num_lanes": 2,
+            "fec": ["rs"]
+        },
+        {
+            "lane_speed": 50,
             "num_lanes": 4,
             "fec": ["rs"]
         },
@@ -188,11 +205,6 @@ FEC mapping rules are defined in platform.json:
             "num_lanes": 16,
             "fec": ["rs"]
         },
-        {
-            "lane_speed": 50,
-            "num_lanes": 2,
-            "fec": ["rs"]
-        }
     ]
 }
 ```
