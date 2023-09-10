@@ -222,5 +222,6 @@ To implement this, ```optics_type``` can be determined based on today's transcei
     - FEC mode will be decided automatically at SAI/SDK(and HW) level as part of auto-negotiation feature, if auto-neg is implemented and enabled for this platform.
     - fec=```auto``` in CONFIG_DB
 2. determine-FEC module (this HLD's design):
-    - FEC mode will be decided automatically above CONFIG_DB level based on platform provided rules, and be pushed into CONFIG_DB. (flow: CONFIG_DB->syncd->orcagent->SAI/SDK)
+    - FEC mode will be decided automatically above at system start-up at CONFIG_DB level, based on platform provided rules, and be pushed into CONFIG_DB. (flow: CONFIG_DB->syncd->orcagent->SAI/SDK)
     - fec=```none```/```rs```/```fc``` in CONFIG_DB
+    - Also, this mechanism/model helps determine right FEC for dynamic events, such as: DPB (Dynamic Port Breakout), transceivers/optics insertion (OIR) etc.
