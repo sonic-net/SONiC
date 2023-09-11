@@ -49,7 +49,7 @@ The behavior of FEC when autoneg is configured is currently not defined. By intr
 Primary requirements for configuring FEC are
 - Honor the backward compatibility.
 - Allow user to enable FEC to be auto negotiated
-- Allow user to force set FEC
+- Allow user to override the auto-negotiated FEC
 
 
 ### High-Level Design
