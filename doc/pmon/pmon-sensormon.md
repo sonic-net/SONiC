@@ -166,9 +166,16 @@ Warmboot and Fastboot should not be impacted by this feature. On PMON container 
 
 ### Testing Considerations  
 
-Unit test cases cover the CLI and sensor monitoring aspect. 
+Unit test cases cover the CLI and sensor monitoring aspects. All SONiC common repos will have unit tests and meet code coverage requirements for the respective repos. In addition SONiC management tests will cover the feature on the target.
+
+### Feature availability
+
+The core implementation for the daemon process is available at this time along with the HLD. This includes changes in the following repos
+
+* Sonic-platform-daemons
+* sonic-platform-common
+* sonic-utilities
+* sonic-buildimage
 
 
-#### Unit Test cases  
-
-TBD
+SNMP, System Health and SONiC management test cases will be available in the next phase of development.
