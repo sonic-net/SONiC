@@ -337,10 +337,11 @@ None
 ## 3.7 Manageability
 
 ### 3.7.1 Yang Model
-```
-**Yang Model**   
-``` 
+
 File: sonic-hostapd.yang
+```
+** sonic-hostapd Yang Model**   
+``` 
 module sonic-hostapd {
  namespace http://github.com/sonic-net/sonic-hostapd;
  prefix shostapd;
@@ -429,7 +430,7 @@ module sonic-hostapd {
  } 
 }
 }
-
+``` 
 File: sonic-pac.yang
 module sonic-pac {
   namespace http://github.com/sonic-net/sonic-pac;
