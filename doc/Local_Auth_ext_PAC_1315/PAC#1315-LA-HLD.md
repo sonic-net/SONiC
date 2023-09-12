@@ -1,4 +1,3 @@
-
 # Local Authentication Feature extension to PAC #1315
 
 # Table of Contents
@@ -338,6 +337,9 @@ None
 ## 3.7 Manageability
 
 ### 3.7.1 Yang Model
+```
+**Yang Model**   
+``` 
 File: sonic-hostapd.yang
 module sonic-hostapd {
  namespace http://github.com/sonic-net/sonic-hostapd;
@@ -649,103 +651,4 @@ module sonic-pac {
           type auth_priority_enumeration;
           description
             "Enables configuration of authmgr authentication methods priority.";
-        }
-
-        leaf port_pae_role {
-          type port_role_enumeration;
-          description
-            "Enables configuration of dot1x port's pae role.
-            Note: Enabling PAC on the port will revert all switchport configurations on the
-                  port, if port control mode is auto/force-unauthorized and port pae role is
-                  authenticator.";
-        }
-    }
- }
-
- container MAB_PORT_CONFIG {
-
-   list MAB_PORT_CONFIG_TABLE_LIST {
-     key "port";
-     leaf port {
-     type leafref {
-       path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:name";
-     }
-     description
-       "Name of the interface on which mab gets applied.";
-     }
-     leaf mab {
-       type boolean;
-       description
-         "Enable mab on the interface.";
-     }
-     leaf mab_auth_type {
-       type auth_type_enumeration;
-         description
-           "MAB authentication type.";
-     }
-   }
- }
-
- container MAB_USER_CONFIG {
-   list MAC_ADDRESS {
-     key "mac";
-       description "MAB client configuration";
-     leaf mac {
-       type yang:mac-address;
-         description "MAC address of the MAB client";
-     }
-     leaf access-type {
-       type AccessType;
-         default "allow";
-         description "Access type for the MAB client";
-     }
-     leaf vlan-id {
-       type uint32 {
-       range "1..4094";
-       }
-       description "VLAN ID associated with the authorized client";
-     }
-     leaf session-timeout {
-       type uint32;
-       description "Client session timeout in seconds";
-     }
-   }
- }
-
- container PAC_GLOBAL_CONFIG {
-   description "PAC global configuration.";
-
- container global {
-   description "Global PAC configuration.";
-   leaf-list auth_order_list {
-     type user_auth_order_enumeration;
-     description "Order list of authentication mechanisms used by PAC.";
-   }
- }
- }
- }
-}
-### 3.7.2 Configuration Commands
-
-The following commands are used to configure Local Authentication.  
-
-
-
-### 3.7.3 Show Commands
-
-Need to be added
-
-# 4 Scalability
-
-No Impact
-
-
-
-# 5 Appendix: Sample configuration
-
-need to be added
-
-
-# 6 Future Enhancements
-
-None
+```
