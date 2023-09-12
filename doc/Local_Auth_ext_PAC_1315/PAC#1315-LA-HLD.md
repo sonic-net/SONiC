@@ -341,7 +341,7 @@ None
 File: sonic-hostapd.yang
 ```
 ** sonic-hostapd Yang Model**   
-``` 
+
 module sonic-hostapd {
  namespace http://github.com/sonic-net/sonic-hostapd;
  prefix shostapd;
