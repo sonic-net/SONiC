@@ -86,7 +86,7 @@ The election provides two basic functionality:
 
 Following requirements are addressed by the design presented in this document:
   1. Support VRRPv2(IPv4) and VRRPv3(IPv4 and IPv6)
-  2. Support VRRP on Ethernet, VLAN and PortChannel interfaces
+  2. Support VRRP on Ethernet, VLAN, sub-interfaces and PortChannel interfaces
   3. Support interface configuration of multiple VRRP instances.
   4. Support configurable priority for VRRP instance
   5. Support configurable preempt mode for VRRP instance
@@ -220,7 +220,7 @@ zebra:
 
 vrrpmgrd: 
   - Listens to VRRP create, delete and parameter change in CONFIG_DB. Complete the following tasks:
-    - Add/del Linux Macvlan device to kernel. The Macvlan device name starting with 'Vrrp-4' or 'Vrrp-6'.
+    - Add/del Linux Macvlan device to kernel. The Macvlan device name starting with 'Vrrp4-' or 'Vrrp6-'.
     - Config virtual MAC to Macvlan device;
     - Add/del VIP to Macvlan device;
     - Update VRRP instance configuration to the APPL DB.
@@ -272,7 +272,7 @@ Description: New table that stores VRRP configuration for per interface + VRID.
 ;New table
 ;holds the VRRP configuration per interface and VRID
 key             = VRRP:interface_name:vrid
-                                                ; Interface name string. Vlan, Ethernet or PortChannel
+                                                ; Interface name string. Vlan, Ethernet, sub-interfaces or PortChannel
                                                 ; vrid is an integer
 ; field = value
 vip                   = ip_address                    ; Virtual IP address. This is a list of IP addresses
@@ -324,23 +324,37 @@ Consumer: intforch
 
 Description: This is an existing table entry that VRRP will extend.
 ```
-; holds the VRRP state, Vip and VMAC information
+; holds the VRRP state and VMAC information
 
-key         = INTF_TABLE:macvlan_device:vip
-              macvlan_device        ; macvlan device name as a string. Start with "Vrrp"
-              vip                   ; Virtual IP address. IPv4 format is x.x.x.x/32, IPv6 format is xxx::xx/128
+key           = INTF_TABLE:Vrrp_intf_name
+                Vrrp_intf_name        ; macvlan device name as a string. The IPv4 format is "Vrrp4-"+"Vrid", while the IPv6 format is "Vrrp6-"+"Vrid"
 
 ; field = value
-vmac        = virtual_mac_address   ; Virtual MAC address associated with VRRP instance
-oper_state  = "up"|"down"           ; The oper state of the Macvlan device in kernel, determines the Master/Backup state of the VRRP instance
+parent_intf   = interface_name       ; Interface name string. Vlan, Ethernet, PortChannel or sub-interface.
+oper_state    = "up"|"down"          ; The oper state of the Macvlan device in kernel, determines the Master/Backup state of the VRRP instance
+```
+```
+; holds the VRRP Vip information
+
+key           = INTF_TABLE:Vrrp_intf_name:vip
+                Vrrp_intf_name        ; macvlan device name as a string. The IPv4 format is "Vrrp4-"+"Vrid", while the IPv6 format is "Vrrp6-"+"Vrid"
+                vip                   ; Virtual IP address. IPv4 format is x.x.x.x/32, IPv6 format is xxx::xx/128
+
+; field = value
 ```
 Example:-
 ```
-admin@sonic:~$ redis-cli -n 0 HGETALL "INTF_TABLE:Vrrp4-5:10.10.10.1/32"
-1) "vmac"
-2) "00:00:5e:00:01:05"
+admin@sonic:~$ redis-cli -n 0 HGETALL "INTF_TABLE:Vrrp4-5"
+
+1) "parent_intf"
+2) "Ethernet51"
 3) "oper_state"
 4) "up"
+
+admin@sonic:~$ redis-cli -n 0 HGETALL "INTF_TABLE:Vrrp4-5:10.10.10.1/32"
+
+1) "NULL"
+2) "NULL"
 ```
 
 #### ASIC_DB Changes
@@ -368,7 +382,7 @@ admin@sonic:~$ redis-cli -n 1 hgetall "ASIC_STATE:SAI_OBJECT_TYPE_ROUTER_INTERFA
 
 vrrpcfgd:
   - Listens to VRRP create, delete and parameter change in CONFIG DB
-  - Update changes by using FRR CLI commands
+  - Update changes by using vtysh commands
 
 vrrpd:
   - Listens to VRRP create, delete and parameter change in vrrpcfgd
@@ -380,7 +394,7 @@ vrrpmgrd:
   - Listens to VRRP create, delete and parameter change in CONFIG DB
   - Upon change
     - Add/del VRRP instance corresponding Macvlan device to kernel with IPs and state.
-    - Updates VRRP instance configuration to the APPL DB, such as Macvlan device name, Vip and VMAC.
+    - Updates VRRP instance configuration to the APPL DB, such as Macvlan device name and Vip.
 
 vrrpsyncd:
   - Listens to Macvlan interface programming in kernel. 
@@ -587,49 +601,45 @@ SONIC Click based configuration and monitoring CLIs have been introduced in SONI
 
 - config interface vrrp add/remove <interface_name> <vrrp_id>
     - This command adds/ removes a VRRP instance on an interface.
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
 - config interface vrrp backup_forward <interface_name> <vrrp_id> enabled|disabled
     - This command configures  enables/disables the VRRP instance to forward service traffic even if the VRRP instance in the backup state
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
     - backup_forward: VRRP instance forwarding traffic in the backup state，can be enabled or disabeld. default is disabled.
 - config interface vrrp vip add/remove <interface_name> <vrrp_id> <virtual_ip_address>
     - This command adds a virtual IP address for a VRRP instance on an interface.
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
     - virtual_ip_address: VIP address in dotted decimal IPv4 or IPv6 address
 - config interface vrrp priority <interface_name> <vrrp_id> <priority>
     - This command configures priority for a VRRP instance
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
     - priority: VRRP instance priority, range from 1 to 254, default is 100
 - config interface vrrp adv_interval <interface_name> <vrrp_id> <interval>
     - This command configures VRRP periodic advertisement interval for a VRRP instance
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
     - Interval: VRRP instance packet sending interval, range from 10 to 40950, unit: ms, default is 1000
 - config interface vrrp pre_empt enable/disable <interface_name> <vrrp_id>
     - This command enables pre-emption of a Master when a higher priority VRRP router arrives
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
-- config interface vrrp track_interface add <interface_name> <vrrp_id> <track_interface>
+- config interface vrrp track_interface add/remove <interface_name> <vrrp_id> <track_interface>
     - This command adds a track interface to a VRRP Instance.
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
     - track_interface: Interface to track. Interface can be Ethernet/Vlan/PortChannel
-- config interface vrrp track_interface remove <interface_name> <vrrp_id> <track_interface>
-    - This command removes an already configured track interface from a VRRP Instance.
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
-    - vrrp_id:VRRP instance identifier.
 - config interface vrrp priority_decrement <interface_name> <vrrp_id> <decrement_value>
     - This command configures priority_decrement for a VRRP instance
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
     - decrement_value: decrement the priority of the VRRP instance if the tracking interface goes down. range from 10 to 50, default is 20
 - config interface vrrp shutdown/startup <interface_name> <vrrp_id>
     - This command control up/down status of VRRP instance.
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel).
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
 
 ###### Show commands
