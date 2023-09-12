@@ -343,314 +343,415 @@ File: sonic-hostapd.yang
 ** sonic-hostapd Yang Model**   
 
 module sonic-hostapd {
- namespace http://github.com/sonic-net/sonic-hostapd;
- prefix shostapd;
- yang-version 1.1;
+    namespace http://github.com/sonic-net/sonic-hostapd;
+    prefix shostapd;
+    yang-version 1.1;
 
- description
- "SONiC HOSTAPD";
+    description
+        "SONiC HOSTAPD";
 
- revision 2023-08-29 {
-   description "Addition of HOSTAPD_USER_CONFIG to the yang module";
- }
+    revision 2023-08-29 {
+        description "Addition of HOSTAPD_USER_CONFIG to the yang module";
+    }
 
- revision 2023-08-02 {
-   description "Initial revision.";
- }
- 
- typedef auth_type_enumeration {
-   type enumeration {
-   enum eap-md5 {
-   description
-   "Configure EAP-MD5 auth type for MAB.";
-   }
+    revision 2023-08-02 {
+        description "Initial revision.";
+    }
+    
+    typedef auth_type_enumeration {
+        type enumeration {
+            enum eap-md5 {
+                description
+                    "Configure EAP-MD5 auth type for MAB.";
+            }
 
-   enum pap {
-     description
-     "Configure PAP auth type for MAB.";
-   }
+            enum pap {
+                description
+                    "Configure PAP auth type for MAB.";
+            }
 
-   enum chap {
-     description
-     "Configure CHAP auth type for MAB.";
-   }
- }
- container sonic-hostapd {
-   description "HOSTAPD top level container.";
+            enum chap {
+                description
+                    "Configure CHAP auth type for MAB.";
+            }
+        }
+    }
 
- container HOSTAPD_GLOBAL_CONFIG {
-   description
-   "Container for hostapd global config.";
+    container sonic-hostapd {
+        description "HOSTAPD top level container.";
 
-   list HOSTAPD_GLOBAL_CONFIG_LIST {
-     key "global";
-     leaf global {
-       type enumeration {
-       enum GLOBAL;
-       }
-       description
-       "Configure dot1x/hostapd global configuration.";
-     }
-     leaf dot1x_system_auth_control {
-       type boolean;
-       description
-       "Indicates whether dot1x/hostapd is enabled/disabled on the switch.";
-     }
-   }
- }
+        container HOSTAPD_GLOBAL_CONFIG {
+            description
+                "Container for hostapd global config.";
 
- container HOSTAPD_USER_CONFIG {
-   description
-     "Container for hostapd user config";
-   list HOSTAPD_USER_CONFIG_LIST {
-     key "username";
-     leaf username {
-       type string {
-       length 1..32;
-       }
-     }
-     leaf password {
-       type string {
-       length 1..255;
-       }
-     }
-     leaf auth_type {
-       type auth_type_enumeration;
-       default "eap-md5";
-     }
-     leaf vlan_id {
-       type uint16 {
-       range "1..4094";
-       }
-     }
-     leaf session_timeout {
-       type uint32;
-     }
-   }
- } 
-}
+            list HOSTAPD_GLOBAL_CONFIG_LIST {
+                key "global";
+
+                leaf global {
+                    type enumeration {
+                        enum GLOBAL;
+                    }
+                    description
+                        "Configure dot1x/hostapd global configuration.";
+                }
+
+                leaf dot1x_system_auth_control {
+                    type boolean;
+                    description
+                        "Indicates whether dot1x/hostapd is enabled/disabled on the switch.";
+                }
+            }
+        }
+
+        container HOSTAPD_USER_CONFIG {
+            description
+                "Container for hostapd user config";
+
+            list HOSTAPD_USER_CONFIG_LIST {
+                key "username";
+
+                leaf username {
+                    type string {
+                        length 1..32;
+                    }
+                }
+
+                leaf password {
+                    type string {
+                        length 1..255;
+                    }
+                }
+
+                leaf auth_type {
+                    type auth_type_enumeration;
+                    default "eap-md5";
+                }
+
+                leaf vlan_id {
+                    type uint16 {
+                        range "1..4094";
+                    }
+                }
+
+                leaf session_timeout {
+                    type uint32;
+                }
+            }
+        } 
+    }
 }
 ``` 
 File: sonic-pac.yang
 ``` 
 module sonic-pac {
-  namespace http://github.com/sonic-net/sonic-pac;
-  prefix spac;
-  yang-version 1.1;
+    namespace http://github.com/sonic-net/sonic-pac;
+    prefix spac;
+    yang-version 1.1;
 
-  import sonic-port {
-    prefix prt;
-  }
-
-  import sonic-types {
-    prefix stypes;
-  }
-
-  import ietf-yang-types {
-    prefix yang;
-  }
- 
-  description
-    "SONiC PAC";
-
-  revision 2023-08-31 {
-    description "Updated revision.";
-  }
-
-  revision 2023-03-28 {
-    description "Initial revision.";
-  }
-
-  typedef port_mode_enumeration {
-    type enumeration {
-    enum auto {
-      description
-        "Enable auto port control mode on a port.";
+    import sonic-port {
+        prefix prt;
     }
 
-    enum force-authorized {
-      description
-        "Enable force authorized port control mode on a port.";
+    import sonic-types {
+        prefix stypes;
     }
 
-    enum force-unauthorized {
-      description
-        "Enable force unauthorized port control mode on a port.";
+    import ietf-yang-types {
+        prefix yang;
     }
-  }
- }
+    
+    description
+        "SONiC PAC";
 
- typedef host_mode_enumeration {
-    type enumeration {
-      enum single-host {
-        description
-          "One data client or one voice client can be authenticated on the port.";
-      }
-
-      enum multi-auth {
-        description
-          "Multiple data client and one voice client can be authenticated on the port.";
-      }
-
-      enum multi-host {
-        description
-          "One data client can be authenticated on the port. Rest of the
-           clients tailgate once the first client is authenticated.";
-      }
+    revision 2023-08-31 {
+        description "Updated revision.";
     }
- }
 
- typedef auth_order_enumeration {
-   type enumeration {
-     enum dot1x {
-     description
-       "Configure authmgr authentication order as dot1x";
-     }
+    revision 2023-03-28 {
+        description "Initial revision.";
+    }
 
-     enum mab {
-       description
-         "Configure authmgr authentication order as mab";
-     }
-   }
- }
+    typedef port_mode_enumeration {
+        type enumeration {
+            enum auto {
+                description
+                    "Enable auto port control mode on a port.";
+            }
 
- typedef user_auth_order_enumeration {
-   type enumeration {
-     enum remote {
-       description "Configure authmgr authentication order as remote";
-     }
+            enum force-authorized {
+                description
+                    "Enable force authorized port control mode on a port.";
+            }
 
-     enum local {
-       description "Configure authmgr authentication order as local";
-     }
-   }
- }
-
- typedef auth_priority_enumeration {
-   type enumeration {
-     enum dot1x {
-       description
-         "Configure authmgr authentication priority as dot1x";
-     }
-
-     enum mab {
-       description
-         "Configure authmgr authentication priority as mab";
-     }
-   }
- }
-
- typedef port_role_enumeration {
-   type enumeration {
-     enum authenticator {
-       description
-         "Allows config of dot1x port's pae role as authenticator.";
-     }
-
-     enum none {
-       description
-         "Allows config of dot1x port's pae role as none.";
-     }
-   }
- }
-
- typedef auth_type_enumeration {
-   type enumeration {
-     enum eap-md5 {
-       description
-         "Configure EAP-MD5 auth type for MAB.";
-     }
-
-     enum pap {
-       description
-         "Configure PAP auth type for MAB.";
-     }
-
-     enum chap {
-       description
-         "Configure CHAP auth type for MAB.";
-     }
-   }
- }
-
- typedef AccessType {
-   type enumeration {
-     enum allow;
-     enum deny;
-   }
- }
-
- container sonic-pac {
-   description 
-     "pac top level container.";
-
-   container PAC_PORT_CONFIG {
-     description
-     "Container for port config table.";
-
-     list PAC_PORT_CONFIG_TABLE_LIST {
-       key "port";
-       leaf port {
-         type leafref {
-           path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:name";
-         }
-         description
-           "Name of the interface on which PAC configuration gets applied.";
-       }
-
-       leaf port_control_mode {
-         type port_mode_enumeration;
-           description
-             "Determines whether or not to enforce authentication on an interface.";
+            enum force-unauthorized {
+                description
+                    "Enable force unauthorized port control mode on a port.";
+            }
         }
+    }
 
-        leaf host_control_mode {
-           type host_mode_enumeration;
-           description
-             "Allow for single or multiple hosts to communicate through
-              a PAC controlled port.";
-         }
+    typedef host_mode_enumeration {
+        type enumeration {
+            enum single-host {
+                description
+                    "One data client or one voice client can be authenticated on the port.";
+            }
 
-        leaf reauth_enable {
-          type boolean;
+            enum multi-auth {
+                description
+                    "Multiple data client and one voice client can be authenticated on the port.";
+            }
+
+            enum multi-host {
+                description
+                    "One data client can be authenticated on the port. Rest of the
+                        clients tailgate once the first client is authenticated.";
+            }
+        }
+    }
+
+    typedef auth_order_enumeration {
+        type enumeration {
+            enum dot1x {
+                description
+                    "Configure authmgr authentication order as dot1x";
+            }
+
+            enum mab {
+                description
+                    "Configure authmgr authentication order as mab";
+            }
+        }
+    }
+
+    typedef user_auth_order_enumeration {
+        type enumeration {
+            enum remote {
+                description "Configure authmgr authentication order as remote";
+            }
+
+            enum local {
+                description "Configure authmgr authentication order as local";
+            }
+        }
+    }
+
+    typedef auth_priority_enumeration {
+        type enumeration {
+            enum dot1x {
+                description
+                    "Configure authmgr authentication priority as dot1x";
+            }
+
+            enum mab {
+                description
+                    "Configure authmgr authentication priority as mab";
+            }
+        }
+    }
+
+    typedef port_role_enumeration {
+        type enumeration {
+            enum authenticator {
+                description
+                    "Allows config of dot1x port's pae role as authenticator.";
+            }
+
+            enum none {
+                description
+                    "Allows config of dot1x port's pae role as none.";
+            }
+        }
+    }
+
+    typedef auth_type_enumeration {
+        type enumeration {
+            enum eap-md5 {
+                description
+                    "Configure EAP-MD5 auth type for MAB.";
+            }
+
+            enum pap {
+                description
+                    "Configure PAP auth type for MAB.";
+            }
+
+            enum chap {
+                description
+                    "Configure CHAP auth type for MAB.";
+            }
+        }
+    }
+
+    typedef AccessType {
+        type enumeration {
+            enum allow;
+            enum deny;
+        }
+    }
+
+    container sonic-pac {
+
+        description 
+            "pac top level container.";
+
+        
+        
+        
+        container PAC_PORT_CONFIG {
+
             description
-              "Indicates whether Reauthentication is enabled on
-               the port.";
-        }
+                "Container for port config table.";
 
-        leaf reauth_period {
-          type uint32 {
-            range 1..65535 {
-              error-message "reauth period value must be in range of 1-65535.";
-              error-app-tag reauth-period-invalid;
+            list PAC_PORT_CONFIG_TABLE_LIST {
+                key "port";
+
+                leaf port {
+                    type leafref {
+                        path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:name";
+                    }
+                    description
+                        "Name of the interface on which PAC configuration gets applied.";
+                }
+
+                leaf port_control_mode {
+                    type port_mode_enumeration;
+                    description
+                        "Determines whether or not to enforce authentication on an interface.";
+                }
+
+                leaf host_control_mode {
+                    type host_mode_enumeration;
+                    description
+                        "Allow for single or multiple hosts to communicate through
+                           a PAC controlled port.";
+                }
+
+                leaf reauth_enable {
+                    type boolean;
+                    description
+                        "Indicates whether Reauthentication is enabled on
+                            the port.";
+                }
+
+                leaf reauth_period {
+                    type uint32 {
+                        range 1..65535 {
+                            error-message "reauth period value must be in range of 1-65535.";
+                            error-app-tag reauth-period-invalid;
+                        }
+                    }
+                    units seconds;
+                    description
+                         "The value of the timer that defines the period
+                              after which the Authenticator will reauthenticate the Supplicant.";
+                }
+
+                leaf max_users_per_port {
+                    type uint8 {
+                        range 1..48 {
+                            error-message "max users per port value must be in range of 1-48.";
+                            error-app-tag max-users-per-port-invalid;
+                        }
+                    }
+                    description
+                        "Maximum number of clients that can be authenticated
+                             on the port. This is applicable only for multi-auth host mode.";
+                }
+
+                leaf-list method_list {
+                    type auth_order_enumeration;
+                    description
+                        "Enables configuration of authmgr authentication methods order.";
+                }
+
+                leaf-list priority_list {
+                    type auth_priority_enumeration;
+                     description
+                         "Enables configuration of authmgr authentication methods priority.";
+                }
+
+                leaf port_pae_role {
+                    type port_role_enumeration;
+                    description
+                        "Enables configuration of dot1x port's pae role.
+                          Note: Enabling PAC on the port will revert all switchport configurations on the
+                          port,
+                          if port control mode is auto/force-unauthorized and port pae role is
+                          authenticator.";
+                }
             }
-          }
-          units seconds;
-          description
-            "The value of the timer that defines the period
-            after which the Authenticator will reauthenticate the Supplicant.";
         }
 
-        leaf max_users_per_port {
-          type uint8 {
-            range 1..48 {
-              error-message "max users per port value must be in range of 1-48.";
-              error-app-tag max-users-per-port-invalid;
+        container MAB_PORT_CONFIG {
+
+            list MAB_PORT_CONFIG_TABLE_LIST {
+                key "port";
+
+                leaf port {
+                    type leafref {
+                        path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:name";
+                    }
+                    description
+                        "Name of the interface on which mab gets applied.";
+                }
+
+                leaf mab {
+                    type boolean;
+                    description
+                        "Enable mab on the interface.";
+                }
+
+                leaf mab_auth_type {
+                    type auth_type_enumeration;
+                    description
+                        "MAB authentication type.";
+                }
             }
-          }
-          description
-            "Maximum number of clients that can be authenticated
-             on the port. This is applicable only for multi-auth host mode.";
         }
 
-        leaf-list method_list {
-          type auth_order_enumeration;
-          description
-            "Enables configuration of authmgr authentication methods order.";
+        container MAB_USER_CONFIG {
+            list MAC_ADDRESS {
+                key "mac";
+                description "MAB client configuration";
+                
+                leaf mac {
+                    type yang:mac-address;
+                    description "MAC address of the MAB client";
+                }
+
+                leaf access-type {
+                    type AccessType;
+                    default "allow";
+                    description "Access type for the MAB client";
+                }
+
+                leaf vlan-id {
+                    type uint32 {
+                    range "1..4094";
+                    }
+                description "VLAN ID associated with the authorized client";
+                }
+
+                leaf session-timeout {
+                type uint32;
+                description "Client session timeout in seconds";
+                }
+            }
         }
 
-        leaf-list priority_list {
-          type auth_priority_enumeration;
-          description
-            "Enables configuration of authmgr authentication methods priority.";
+        container PAC_GLOBAL_CONFIG {
+            description "PAC global configuration.";
+
+            container global {
+                description "Global PAC configuration.";
+
+                leaf-list auth_order_list {
+                    type user_auth_order_enumeration;
+                    description "Order list of authentication mechanisms used by PAC.";
+                }
+            }
+        }
+    }
+}
 ```
