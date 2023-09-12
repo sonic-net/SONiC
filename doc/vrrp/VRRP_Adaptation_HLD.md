@@ -23,6 +23,7 @@
       - [Operating environment](#operating-environment)
       - [Scalability Requirements](#scalability-requirements)
       - [Container](#container)
+        - [VRRP container](#vrrp-container)
         - [BGP container](#bgp-container)
         - [SWSS container](#swss-container)
       - [CoPP Configurations](#copp-configurations)
@@ -207,28 +208,28 @@ Since support for placing macvlan devices into protodown was not added to Linux 
 
 Add a new VRRP container to host VRRP protocol operations. We control whether the VRRP feature is enabled through the FEATURE table in Config DB, which is disabled by default.
 
-vrrpcfgd: 
-  - Subscribes to CONFIG_DB tables, parsing configurations and passes to vrrpd by using FRR CLI commands. 
-
 vrrpd: 
   - Responsible for all VRRP protocol related calculations. VRRP packets are sent and received in vrrpd and states are updated accordingly.
   - Match VRRP instance tracking interface and recalculate priority.
-
-zebra:
-  - Provide an API for vrrpd to update kernel Macvlan device state.
-  - Listen for kernel interface state change events and notify vrrpd.
 
 vrrpmgrd: 
   - Listens to VRRP create, delete and parameter change in CONFIG_DB. Complete the following tasks:
     - Add/del Linux Macvlan device to kernel. The Macvlan device name starting with 'Vrrp4-' or 'Vrrp6-'.
     - Config virtual MAC to Macvlan device;
     - Add/del VIP to Macvlan device;
-    - Update VRRP instance configuration to the APPL DB.
+    - Update VRRP instance configuration to the APPL DB;
+    - Update VRRP instance configuration to vrrpd by using vtysh commands.
 
 vrrpsyncd: 
   - Complete the following tasks:
     - Listen for kernel Macvlan device state change events, The state of the Macvlan device here determines the Master/Backup state of the VRRP instance, where up represents Master and down represents Backup.
     - Update the kernel Macvlan device state to the APPL DB.
+
+##### BGP container
+
+zebra:
+  - Provide an API for vrrpd to update kernel Macvlan device state.
+  - Listen for kernel interface state change events and notify vrrpd.
 
 ##### SWSS container
 
@@ -265,7 +266,7 @@ VRRP
 
 Producer: config manager
 
-Consumer: vrrpmgrd and vrrpcfgd
+Consumer: vrrpmgrd
 
 Description: New table that stores VRRP configuration for per interface + VRID.
 ```
@@ -282,7 +283,7 @@ admin_status          = "up" | "down"                 ; String denoting the stat
 version               = vrrp_version                  ; VRRP version. Value is 2 or 3. Default is 3
 preempt               = "enabled"/"disabled"          ; VRRP pre-emption is enabled? Default is enabled
 track_interface       = interface_name                ; This is a list of configured tracking interfaces
-priority_decrement    = 2DIGIT                        ; Specifies how much to decrement the priority of the VRRP instance if the tracking interface goes down.
+priority_decrement    = 2DIGIT                        ; Specifies how much to decrement the priority of the VRRP instance if the tracking interface goes down, Default is 20
 ```
 Example:-
 ```
@@ -380,21 +381,18 @@ admin@sonic:~$ redis-cli -n 1 hgetall "ASIC_STATE:SAI_OBJECT_TYPE_ROUTER_INTERFA
 
 ![VRRP ADD/DEL VRRP instance Flows](images/VRRP_Config_Instance_Flow.png)
 
-vrrpcfgd:
+vrrpmgrd:
   - Listens to VRRP create, delete and parameter change in CONFIG DB
-  - Update changes by using vtysh commands
+  - Upon change
+    - Add/del VRRP instance corresponding Macvlan device to kernel with IPs and state.
+    - Updates VRRP instance configuration to the APPL DB, such as Macvlan device name and Vip.
+    - Update changes to vrrpd by using vtysh commands
 
 vrrpd:
   - Listens to VRRP create, delete and parameter change in vrrpcfgd
   - Run VRRP state machine
     - For VRRP instances state transition to Master, set the Macvlan device into protodown off
     - For VRRP instances state transition to non-Master, set the Macvlan interface into protodown on
-
-vrrpmgrd:
-  - Listens to VRRP create, delete and parameter change in CONFIG DB
-  - Upon change
-    - Add/del VRRP instance corresponding Macvlan device to kernel with IPs and state.
-    - Updates VRRP instance configuration to the APPL DB, such as Macvlan device name and Vip.
 
 vrrpsyncd:
   - Listens to Macvlan interface programming in kernel. 
