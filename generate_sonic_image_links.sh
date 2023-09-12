@@ -24,7 +24,7 @@ DEFID_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definition
 
 echo '{' > sonic_image_links.json
 first=1
-for BRANCH in  master 202111 202106 202012 201911 201811
+for BRANCH in  master 202305 202211 202205 202111 202106
 do
 	if [ -z "${first}" ]; then
 		echo ',' >> sonic_image_links.json
@@ -101,8 +101,22 @@ do
 	echo "  \"build\": \"${BUILD_BRCM}\"," >> sonic_image_links.json
 	echo "  \"date\": \"${BUILD_BRCM_TS}\"" >> sonic_image_links.json
 	echo " }," >> sonic_image_links.json
+	echo "\"sonic-broadcom-dnx.bin\": {" >> sonic_image_links.json
+	echo "  \"url\": \"$(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom-dnx.bin/')\","  >> sonic_image_links.json
+	echo "  \"build-url\": \"https://dev.azure.com/mssonic/build/_build/results?buildId=${BUILD_BRCM}&view=results\"," >> sonic_image_links.json
+	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_BRCM_2}"..."${COMMIT_BRCM_1}"\"," >> sonic_image_links.json
+	echo "  \"build\": \"${BUILD_BRCM}\"," >> sonic_image_links.json
+	echo "  \"date\": \"${BUILD_BRCM_TS}\"" >> sonic_image_links.json
+	echo " }," >> sonic_image_links.json
 	echo "\"sonic-aboot-broadcom.swi\": {" >> sonic_image_links.json
 	echo "  \"url\": \"$(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-aboot-broadcom.swi/')\"," >> sonic_image_links.json
+	echo "  \"build-url\": \"https://dev.azure.com/mssonic/build/_build/results?buildId=${BUILD_BRCM}&view=results\"," >> sonic_image_links.json
+	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_BRCM_2}"..."${COMMIT_BRCM_1}"\"," >> sonic_image_links.json
+	echo "  \"build\": \"${BUILD_BRCM}\"," >> sonic_image_links.json
+	echo "  \"date\": \"${BUILD_BRCM_TS}\"" >> sonic_image_links.json
+	echo " }," >> sonic_image_links.json
+	echo "\"sonic-aboot-broadcom-dnx.swi\": {" >> sonic_image_links.json
+	echo "  \"url\": \"$(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-aboot-broadcom-dnx.swi/')\"," >> sonic_image_links.json
 	echo "  \"build-url\": \"https://dev.azure.com/mssonic/build/_build/results?buildId=${BUILD_BRCM}&view=results\"," >> sonic_image_links.json
 	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_BRCM_2}"..."${COMMIT_BRCM_1}"\"," >> sonic_image_links.json
 	echo "  \"build\": \"${BUILD_BRCM}\"," >> sonic_image_links.json
@@ -138,6 +152,13 @@ do
 	echo " }," >> sonic_image_links.json
 	echo "\"sonic-barefoot.bin\": {" >> sonic_image_links.json
 	echo "  \"url\": \"$(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-barefoot.bin/')\"," >> sonic_image_links.json
+	echo "  \"build-url\": \"https://dev.azure.com/mssonic/build/_build/results?buildId=${BUILD_BFT}&view=results\"," >> sonic_image_links.json
+	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_BFT_2}"..."${COMMIT_BFT_1}"\"," >> sonic_image_links.json
+	echo "  \"build\": \"${BUILD_BFT}\"," >> sonic_image_links.json
+	echo "  \"date\": \"${BUILD_BFT_TS}\"" >> sonic_image_links.json
+	echo " }," >> sonic_image_links.json
+	echo "\"sonic-aboot-barefoot.swi\": {" >> sonic_image_links.json
+	echo "  \"url\": \"$(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-aboot-barefoot.swi/')\"," >> sonic_image_links.json
 	echo "  \"build-url\": \"https://dev.azure.com/mssonic/build/_build/results?buildId=${BUILD_BFT}&view=results\"," >> sonic_image_links.json
 	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_BFT_2}"..."${COMMIT_BFT_1}"\"," >> sonic_image_links.json
 	echo "  \"build\": \"${BUILD_BFT}\"," >> sonic_image_links.json
