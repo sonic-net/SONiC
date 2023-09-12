@@ -432,6 +432,7 @@ module sonic-hostapd {
 }
 ``` 
 File: sonic-pac.yang
+``` 
 module sonic-pac {
   namespace http://github.com/sonic-net/sonic-pac;
   prefix spac;
