@@ -106,7 +106,7 @@ The below table covers different scenarios of what will be programmed in SAI whe
  |  2  |       False        | False      | auto       | CLI will throw error. No FEC attributes will be set                             |
  |  3  |       False        | False      | N/A        | No FEC attributes will be set                                                   |
  |  4  |       False        | True       | none/rs/fc | SAI_PORT_ATTR_FEC_MODE=none/rs/fc. Behavior is undeterministic when AN is enabled and user has configured FEC |
- |  5  |       False        | True       | auto       | No FEC attributes will be set                                                   |
+ |  5  |       False        | True       | auto       | CLI will throw error. No FEC attributes will be set                             |
  |  6  |       False        | True       | N/A        | No FEC attributes will be set                                                   |
  |  7  |       True         | True       | none/rs/fc | SAI_PORT_ATTR_FEC_MODE=none/rs/fc SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE=True |
  |  8  |       True         | True       | auto       | SAI_PORT_ATTR_FEC_MODE=none, SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE=False     |
