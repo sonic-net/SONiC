@@ -95,7 +95,7 @@ In order to get operation FEC the following attributes was recently introduced
 ### SWSS Enhancements
 
 As specified in the high level design, the SAI attribute SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE will be queried in portsorch. If it is not supported the existing behavior will continue to be in effect. If it is supported and FEC is configured, SAI_PORT_ATTR_FEC_MODE will be set to the configured FEC value followed by SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE set to true.
-If FEC is configured as 'auto' by the user SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE will be set to false. If AN is set to false, SAI_PORT_ATTR_FEC_MODE will be set to SAI_PORT_FEC_MODE_NONE. Only when autoneg is set to true, FEC mode auto will take effect.
+If FEC is configured as 'auto' by the user SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE will be set to false. With FEC as 'auto', if AN is set to false, SAI_PORT_ATTR_FEC_MODE will be set to SAI_PORT_FEC_MODE_NONE. Only when autoneg is set to true, FEC mode auto will take effect.
 If AN is set to true and FEC is not set, no FEC related attributes will be programmed and existing behavior will continue.
 The below table covers different scenarios of what will be programmed in SAI when override is supported and not supported for various combinations of FEC and autoneg. The override supported column is updated based on querying SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE from SAI , while Autoneg and FEC comes from user configuration.
 
