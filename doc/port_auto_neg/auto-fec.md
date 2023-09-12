@@ -80,16 +80,16 @@ Any SAI vendors who want to make use of this deterministic behavior should imple
 
 In order to get operation FEC the following attributes was recently introduced
 ```
-    /**
      * @brief Operational FEC mode
      *
-     * If port is down, the returned value should be zero.
-     * If auto negotiation is on, the returned value should be the negotiated fec.
+     * If port is down or auto negotiation is in progress, the returned value should be SAI_PORT_FEC_MODE_NONE.
+     * If auto negotiation is on, the returned value should be the negotiated FEC.
+     * If auto negotiation is off, the returned value should be the set value.
      *
      * @type sai_port_fec_mode_t
      * @flags READ_ONLY
      */
-    SAI_PORT_ATTR_OPER_FEC,
+    SAI_PORT_ATTR_OPER_PORT_FEC_MODE
 ```
 
 ### SWSS Enhancements
