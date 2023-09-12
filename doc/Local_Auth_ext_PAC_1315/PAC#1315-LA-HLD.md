@@ -126,7 +126,7 @@ The following figure illustrates how clients like PCs and printers are locally a
 
 The following figure illustrates how clients like PCs and printers are authenticated and authorized for accessing the network.   
 
-![Local-authentication-deployment](images/PAC target deployment use cases using Local authentication.jpg)
+![Local-authentication-deployment](images/Local Auth Use Case.jpg)
 
 **Figure 1 : PAC target deployment use cases using Local authentication**   
 
