@@ -14,27 +14,27 @@ The following qualify levels are defined:
 - For standalone feature it is required to have enabled/disabled via config_db and set to disabled
 - Can go to master branch only
 - For feature based on ASIC vendor SAI implementation: SAI is not available yet
-- For feature based on Platform vendor API implementation: not available yet.
+- For feature based on Platform vendor API implementation: not available yet
 - Should not cause any degradation on available features. Need to run and ensure sonic-mgmt test suits is passing with no degradation
-- New sonic-mgmt. test plan has been reviewed 
+- New sonic-mgmt test plan has been reviewed 
 
 ### Beta level
 - Code PRs must come with unit tests aligned to code coverage
-- For standalone feature it is required to have enabled/disabled via config_db and set to disable. 
+- For standalone feature it is required to have enabled/disabled via config_db and set to disable
 - Can go to master branch only
 - For features based on ASIC vendor SAI implementation: SAI is available for at least 1 vendor
-- For feature based on Platform vendor API implementation: available for at least 1 vendor.
+- For feature based on Platform vendor API implementation: available for at least 1 vendor
 - Should not cause any degradation on production features use relevant sonic-mgmt. tests to confirm
-- New sonic-mgmt. test plan has been reviewed but partially implemented
+- New sonic-mgmt test plan has been reviewed but partially implemented
 
 ### GA level
 - Code PRs must come unit tests aligned to code coverage 
-- For standalone feature it should be considered to have a compilation flag in disabled mode. Feature requires enabled/disabled via config_db and set to enabled if HLD claims for it
+- For standalone feature it is required to have enabled/disabled via config_db and set to enabled if HLD claims for it
 - Can go to master branch and can be considered as backport feature if must
 - For features based on ASIC vendor SAI implementation: SAI is available for at least 1 vendor
 - For feature based on Platform vendor API implementation: available for at least 1 vendor 
-- Should not cause any degradation on production features use relevant sonic-mgmt. tests to confirm
-- New sonic-mgmt. test plan has been signed off and fully implemented
+- Should not cause any degradation on production features use relevant sonic-mgmt tests to confirm
+- New sonic-mgmt test plan has been signed off and fully implemented
 
 ## Quality level exposed in SONiC Release Notes
 Extend the SONiC Release Notes which already covers the new features added to a release, with the quality release. 
