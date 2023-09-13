@@ -105,7 +105,12 @@ show tacacs
 
 TACACS passkey encryption adds an extra layer of security to safeguard the passkey on each device throughout the network. Moreover, the utilization of MAC address-based encryption ensures that each network device possesses its distinct encrypted passkey. This strategy effectively mitigates the risk of a major network breach in case one of the devices is compromised.
 
+### Limitation
+We choose MAC address is unique and better for management, however if the MAC address of the device is known, we could decrypt the key. If we want to use any other ciper we should manage / stored it in the DB, it is again defeating the purpose. So for now we are going ahead with mac as network admins can orchestartion system to use mac address for passkey encryption. However we are open to new ideas and thoughts to hardened the security and we should be able to accomodate with later releases.
 
 ### Testing Requirements
 
 Need to add new / update the existing TACACS testcases to incorporate this new feature
+Test cases to unit test encrypt and decrypt fucntions 
+Test cases to add test the TACACS+ functionality with passkey encryption
+Test cases to cover DB migration 
