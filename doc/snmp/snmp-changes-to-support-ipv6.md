@@ -7,7 +7,7 @@ This document captures the changes required to support SNMP over IPv6.
 SNMP query over IPv6 address fails in certain scenarios on single asic platforms.
 Ideally, SNMP over IPv6 should be successful over both IPv4 and IPv6.
 
-## Current configurtion for SNMP ##
+## Current configuration for SNMP ##
 
 Currently, snmpd process inside SNMP docker uses snmpd.conf as the configuration file.
 One of the configuration directives in snmpd.conf is *agentaddress*.
@@ -18,7 +18,7 @@ agentAddress udp:161
 agentAddress udp6:161
 ```
 The other method is to use the below configuration command to configure agent address.
-```
+``a`
 config snmpagentaddress add <ip>
 ```
 
@@ -29,8 +29,8 @@ This SRC IP is incorrect in SNMP packet as snmpd does not keep track of the DST 
 Below is a packet capture showing SNMP request packet sent to DUT Loopback IPV6 address with  SRC IP as port-channel IP of cEOS neighbor. The SNMP response packet goes out with SRC address as DUT port-channel IP whereas it should have been the DUT Loopback IPv6 address.
 
 ```
-23:18:51.620897  In 22:26:27:e6:e0:07 ethertype IPv6 (0x86dd), length 105: fc00::72.41725 > fc00:1::32.161:  C="msft" GetRequest(28)  .1.3.6.1.2.1.1.1.0
-23:18:51.621441 Out 28:99:3a:a0:97:30 ethertype IPv6 (0x86dd), length 241: fc00::71.161 > fc00::72.41725:  C="msft" GetResponse(162)  .1.3.6.1.2.1.1.1.0="SONiC Software Version: SONiC.xxx - HwSku: xx - Distribution: Debian 10.13 - Kernel: 4.19.0-12-2-amd64"
+23:18:51.620897  In 22:26:27:e6:e0:07 ethertype IPv6 (0x86dd), length 105: fc00::72.41725 > fc00:1::32.161:  C="public" GetRequest(28)  .1.3.6.1.2.1.1.1.0
+23:18:51.621441 Out 28:99:3a:a0:97:30 ethertype IPv6 (0x86dd), length 241: fc00::71.161 > fc00::72.41725:  C="public" GetResponse(162)  .1.3.6.1.2.1.1.1.0="SONiC Software Version: SONiC.xxx - HwSku: xx - Distribution: Debian 10.13 - Kernel: 4.19.0-12-2-amd64"
 ```
 **Sequence of SNMP request and response**
 
