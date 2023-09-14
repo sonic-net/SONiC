@@ -100,6 +100,8 @@ Furthermore, aside from encrypting the passkey stored within CONFIG_DB, this inf
 show tacacs
 ["TACPLUS global passkey configured Yes / No"]
 
+### DB migration 
+A DB migration script will be added for users to migrate existing config_db to convert tacacs passkey plaintext to encypted. 
 
 ### Benifits
 
