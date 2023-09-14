@@ -90,7 +90,7 @@ This decryption step is crucial because the login or SSH daemon references the P
 The implementation stands on three key pillars.
 1. OPENSSL toolkit is used for encryption / decryption
 2. aes-128-cbc is the encoding format used for encryption / decryption
-3. Device MAC address is used as a Password for encryption / decryption
+3. A unique Device MAC address used as a salt/password to encrypt/decrypt the configured pass key 
 
 
 #### Show CLI changes
