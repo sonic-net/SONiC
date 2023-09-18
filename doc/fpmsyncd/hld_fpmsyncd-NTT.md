@@ -27,6 +27,7 @@
   - [Backward compatibility with current NHG creation logic (Fine-grain NHG, Ordered NHG/ECMP)](#backward-compatibility-with-current-nhg-creation-logic-fine-grain-nhg-ordered-nhgecmp)
   - [nexthop\_compat\_mode Kernel option](#nexthop_compat_mode-kernel-option)
   - [Warmboot/Fastboot support](#warmbootfastboot-support)
+  - [No support for setting config enable/disable on runtime](#no-support-for-setting-config-enabledisable-on-runtime)
 
 ### Revision  
 
@@ -34,7 +35,7 @@
 | :---: | :----------: | :------------------------------------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |  0.1  | Jul 14, 2023 | Kanji Nakano, Kentaro Ebisawa, Hitoshi Irino (NTT) | Initial version                                                                                                                                                             |
 |  0.2  | Jul 30, 2023 |               Kentaro Ebisawa (NTT)                | Remove description about VRF which is not nessesary for NHG. Add High Level Architecture diagram. Add note related to libnl, Routing WG. Fix typo and improve explanations. |
-|  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th (Scope, Warmboot/Fastboot)                                                                                             |
+|  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th (Scope, Warmboot/Fastboot, CONFIG_DB)                                                                                             |
 
 ### Scope  
 
@@ -238,9 +239,6 @@ The end result of what gets programmed via SAI will be the same as current imple
 
 ### Configuration and management 
 
-The output of 'show ip route' and 'show ipv6 route' will remain unchanged - the CLI code will resolve the NextHop Group ID referenced in the `ROUTE_TABLE` to display the next hops for the routes.
-
-
 #### CLI/YANG model Enhancements 
 
 <!--
@@ -249,7 +247,9 @@ This should also explain the CLICK and/or KLISH related configuration/show in de
 https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md needs be updated with the corresponding CLI change.
 -->
 
-TODO: update based on CONFIG_DB enhancement.
+The output of 'show ip route' and 'show ipv6 route' will remain unchanged - the CLI code will resolve the NextHop Group ID referenced in the `ROUTE_TABLE` to display the next hops for the routes.
+
+TODO: update config/show CLI inline with CONFIG_DB enhancement. (including CLI/YANG model Enhancements)
 
 #### Config DB Enhancements  
 
@@ -257,7 +257,27 @@ TODO: update based on CONFIG_DB enhancement.
 This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change. 
 -->
 
-TODO: make it able to disable(default)/enable based on CONFIG_DB
+This feature should be disabled/enabled using CONFIG_DB.
+
+This configuration is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behavior as this flag is set to be disabled by default.
+
+This setting can NOT be enabled or disabled at runtime.
+Reboot is required after enabling/disabling this feature to make sure route entry using and not using this NHG feature would not co-exisit in the `APPL_DB`.
+
+TODO: add schema and example of CONFIG_DB entry to below.
+
+Configuration schema in ABNF format:
+
+```
+TODO
+```
+
+Sample of CONFIG DB snippet given below:
+
+```
+TODO
+```
+
 
 ### Warmboot and Fastboot Design Impact  
 
@@ -342,3 +362,8 @@ One should carefully study the impact of this change before chainging this optio
 
 Currently this feature does not work with Warmboot/Fastboot.
 We will continue discussion on how we could support Warmboot/Fastboot for future enhancements.
+
+#### No support for setting config enable/disable on runtime
+
+This feature can NOT be enabled or disabled at runtime.
+Reboot is required after enabling/disabling this feature to make sure route entry using and not using this NHG feature would not co-exisit in the `APPL_DB`.
