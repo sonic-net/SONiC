@@ -30,6 +30,7 @@
 	- [10. Open/Action items - if any](#10-openaction-items---if-any)
 	- [Appendix A: Further reading](#appendix-a-further-reading)
 	- [Appendix B: Linux Capabilities](#appendix-b-linux-capabilities)
+ 	- [Appendix C: Container List](#appendix-c-container-list)
 
 ## List of Tables
 * [Table 1: Revision](#table-1-revision)
@@ -347,3 +348,27 @@ The next table shows the capabilities which are not granted by default and may b
 | SYS_TTY_CONFIG                | Use vhangup(2); employ various privileged ioctl(2) operations on virtual terminals.        |
 | SYSLOG                                | Perform privileged syslog(2) operations.         |
 | WAKE_ALARM                    | Trigger something that will wake up the system        |
+
+## Appendix C: Container List
+| Container	| Host Network Recommendation 	| Privilege Recommendation	| Comments |
+| -----------   | ----------- 			|-----------			|-----------|
+| Database	| Remove host network		|Remove container root privilege| Port forward|
+| SNMP	| Remove host network		|Remove container root privilege| Port forward|
+| Teamd	| Remove host network		|Remove container root privilege| Retain net_cap_admin|
+| FRR	| Retain 		|Remove container root privilege| Retain net_cap_admin|
+| LLDP	| Retain 		|Remove container root privilege| Retain net_cap_admin|
+| DHCPrelay	| Remove host network		|Remove container root privilege| Retain net_cap_admin|
+| Mux | Remove host network		|Remove container root privilege| Retain net_cap_admin|
+| Telemetry	| Remove host network		|Remove container root privilege| Port forward for gnmi |
+| Radv	| Remove host network		|Remove container root privilege| Might need additional capabilities for L2 data|
+| RestAPI	| Remove host network		|Remove container root privilege| Planned for deprecation |
+| Eventd	| Remove host network		|Remove container root privilege|  |
+| iccpd	| Remove host network		|Remove container root privilege| |
+| macsec	| Remove host network		|Remove container root privilege| |
+| NAT	| Remove host network		|Remove container root privilege| Retain net_cap_admin |
+| SWSS	| Retain 		|Retain root privilege| |
+| syncd	| Retain 		|Retain root privilege| |
+| PMON	| Remove host network		|Remove container root privilege| Check file descriptor privileges |
+| sFlow	| Remove host network		|Remove container root privilege| |
+| Management Framework	| TBD		|TBD| |
+| P4rt	| TBD		|TBD| |
