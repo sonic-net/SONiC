@@ -18,7 +18,6 @@
   - [CLI/YANG model Enhancements](#cliyang-model-enhancements)
   - [Config DB Enhancements](#config-db-enhancements)
 - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
-- [Restrictions/Limitations](#restrictionslimitations)
 - [Testing Requirements/Design](#testing-requirementsdesign)
   - [Unit Test cases](#unit-test-cases)
   - [System Test cases](#system-test-cases)
@@ -27,6 +26,7 @@
   - [Further performance improvements](#further-performance-improvements)
   - [Backward compatibility with current NHG creation logic (Fine-grain NHG, Ordered NHG/ECMP)](#backward-compatibility-with-current-nhg-creation-logic-fine-grain-nhg-ordered-nhgecmp)
   - [nexthop\_compat\_mode Kernel option](#nexthop_compat_mode-kernel-option)
+  - [Warmboot/Fastboot support](#warmbootfastboot-support)
 
 ### Revision  
 
@@ -34,7 +34,7 @@
 | :---: | :----------: | :------------------------------------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |  0.1  | Jul 14, 2023 | Kanji Nakano, Kentaro Ebisawa, Hitoshi Irino (NTT) | Initial version                                                                                                                                                             |
 |  0.2  | Jul 30, 2023 |               Kentaro Ebisawa (NTT)                | Remove description about VRF which is not nessesary for NHG. Add High Level Architecture diagram. Add note related to libnl, Routing WG. Fix typo and improve explanations. |
-|  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th                                                                                                                        |
+|  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th (Scope, Warmboot/Fastboot)                                                                                             |
 
 ### Scope  
 
@@ -265,12 +265,13 @@ TODO: make it able to disable(default)/enable based on CONFIG_DB
 Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
 -->
 
-There should be no impact to Warmboot and Fastboot Design Impact.
-The change is how fpmsyncd handle message from zebra.
+- When the feature is disabled, there should be no impact to Warmboot and Fastboot.
+- When the feature is enabled, there will be no warmboot nor fastboot support.
 
-### Restrictions/Limitations  
+When the feature is enabled, NHG ID will be managed by FRR which will change after FRR related process or BGP container restart.
+We need a way to either let FRR preserve the ID or a way to correlate the NHGs, IDs and it's members before and after the restart.
 
-n/a
+We will continue discussion on how we could support Warmboot/Fastboot for future enhancements.
 
 ### Testing Requirements/Design  
 
@@ -336,3 +337,8 @@ There is a `sysctl` option `net.ipv4.nexthop_compat_mode nexthop_compat_mode` wh
 This option is not changed as part this HLD to avoid unexpected impact to the existing behavior.
 
 One should carefully study the impact of this change before chainging this option.
+
+#### Warmboot/Fastboot support
+
+Currently this feature does not work with Warmboot/Fastboot.
+We will continue discussion on how we could support Warmboot/Fastboot for future enhancements.
