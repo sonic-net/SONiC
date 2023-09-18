@@ -28,6 +28,7 @@
   - [nexthop\_compat\_mode Kernel option](#nexthop_compat_mode-kernel-option)
   - [Warmboot/Fastboot support](#warmbootfastboot-support)
   - [No support for setting config enable/disable on runtime](#no-support-for-setting-config-enabledisable-on-runtime)
+  - [Source of APPL\_DB entry related to NHG](#source-of-appl_db-entry-related-to-nhg)
 
 ### Revision  
 
@@ -40,7 +41,7 @@
 ### Scope  
 
 This document details the design and implementation of the "fpmsyncd extension" related to NextHop Group behavior in SONiC.
-The goal of this "fpmsyncd extension" is to integrate NextHop Group functionality into SONiC by writing NextHop Group entry from `fpmsyncd` to `APPL_DB` for NextHop Group operation in SONiC.
+The goal of this "fpmsyncd extension" is to integrate NextHop Group (NHG) functionality into SONiC by writing NextHop Group entry from `fpmsyncd` to `APPL_DB` for NextHop Group operation in SONiC.
 
 - Scope of this change is to extend `fpmsyncd` to handle `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` messages from FPM.
 - There will be no change to SWSS/Orchagent.
@@ -55,6 +56,10 @@ Since at scale many routes will use the same NextHop Groups, this requires much 
 The current version of `fpmsyncd` has no support to handle the NextHop Group netlink messages sent by zebra process via `FPM` using the `dplane_fpm_nl` module.
 This implementation modifies the `fpmsyncd` code to handle `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` events and write it to the database.
 Also, the `fpmsyncd` was modified to use the NextHop Group ID (`nexthop_group`) when programming the route to the `ROUTE_TABLE` if `RTA_NH_ID` was included in the `RTM_NEWROUTE` message from zebra via `FPM`.
+
+NHG ID and members are managed by `FRR`.
+`fpmsyncd` will use NHG ID provided in FPM message from `FRR(zebra)`.
+Thus, logic of either if updating NHG members or create NHG with new ID during topology change is managed by `FRR`.
 
 Use case example of this feature would be BGP PIC, and recursive routes handling.
 BGP PIC has started in design discussion in the SONiC Routing WG.
@@ -367,3 +372,12 @@ We will continue discussion on how we could support Warmboot/Fastboot for future
 
 This feature can NOT be enabled or disabled at runtime.
 Reboot is required after enabling/disabling this feature to make sure route entry using and not using this NHG feature would not co-exisit in the `APPL_DB`.
+
+#### Source of APPL_DB entry related to NHG
+
+Expectation today is there is only one source, FRR or some other routing container, to modify NHG related entries in `APPL_DB`.
+
+If there is any use case to use more than one source, then design of `APPL_DB` schema and related logic need to be studied.
+For example, we might need additional attr/entity to distinguish the source of the NHG/NH entry.
+
+Not that this not specific to NHG feature but typical limitation when more than one entities are modifying same `APPL_DB` entry.
