@@ -28,6 +28,7 @@
 | Rev | Date       | Author            | Description     |
 |:---:|:----------:|:-----------------:|:----------------|
 | 0.1 | 01/02/2023 | Yevhen Fastiuk 🇺🇦  | Initial version |
+| 0.1 | 09/18/2023 | Bing Sun | Add NTP server minpoll and maxpoll |
 
 # About this manual
 This document provides general information about NTP implementation in SONiC and NTP CLI.
@@ -68,6 +69,8 @@ The document covers the next CLI:
 | VRF   | Virtual Routing and Forwarding            |
 | CLI   | Сommand-line Interface                    |
 | YANG  | Yet Another Next Generation               |
+| minpoll | minimum poll interval                   |
+| maxpoll | maximum poll interval                   |
 
 <!-- omit in toc -->
 ## List of figures
@@ -128,6 +131,7 @@ Here is the representation of SONiC platform using NTP feature:
    3. Modify server's NTP communication protocol version
    4. Assign authentication key
    5. Turn on/off aggressive mode (iburst)
+   6. Add minpoll or maxpoll for a NTP server, in seconds as a power of 2. By default, minpoll is 6 and maxpoll is 10
 3. config: NTP authentication keys management
    1. Change key type
    2. Trustiness enable/disable
@@ -189,6 +193,8 @@ Addresses are classed by type as (s) a remote server or peer (IPv4 class A, B an
 | key (ntpd) | none    | All packets sent to and received from the server or peer are to include authentication fields encrypted using the specified key identifier with values from 1 to 65535, inclusive. The default is to include no encryption field. |
 | version    | 4       | Specifies the version number to be used for outgoing NTP packets. Versions 1-4 are the choices, with version 4 the default. |
 | iburst     | none    | When the server is unreachable, send a burst of eight packets instead of the usual one. The packet spacing is normally 2 s; however, the spacing between the first two packets can be changed with the calldelay command to allow additional time for a modem or ISDN call to complete. This is designed to speed the initial synchronization acquisition with the server command and s addresses and when ntpd is started with the -q option. |
+| minpoll    | 6        | |
+| maxpoll    | 10       | These options specify the minimum and maximum poll intervals for NTP messages, as a power of 2 in seconds. The maximum poll interval defaults to 10(1,024 s), but can be increased by the maxpoll option to an upper limit of 17 ( 36.4 h). The minimum poll interval defaults to 6 (64 s), but can be decreased by the minpoll option to a lower limit of 4 (16 s). | 
 | keys       | none    | Specifies the complete path and location of the key file containing the keys and key identifiers used by ntpd, ntpq and ntpdc when operating with symmetric key cryptography. This is the same operation as the -k command line option. |
 | trustedkey | none    | Specifies the key identifiers which are trusted for the purposes of authenticating peers with symmetric key cryptography, as well as keys used by the ntpq and ntpdc programs. The authentication procedures require that both the local and remote servers share the same key and key identifier for this purpose, although different keys can be used with different servers. The key arguments are 32-bit unsigned integers with values from 1 to 65535. |
 | keyno      | none    | Positive integer (between 1 and 65535). |
@@ -233,6 +239,8 @@ The `ntp-config` service performs the next actions:
 | type           | server, pool           | NTP_SERVER\|\<key\>\|association_type:\<val\> |
 | version        | version                | NTP_SERVER\|\<key\>\|version:\<val\> |
 | aggressive     | iburst                 | NTP_SERVER\|\<key\>\|iburst:\<val\>|
+| minpoll        | minpoll                | NTP_SERVER\|\<key\>\|minpoll:\<val\>|
+| maxpoll        | maxpoll                | NTP_SERVER\|\<key\>\|maxpoll:\<val\>|
 | key (server)   | key                    | NTP_SERVER\|\<key\>\|key:\<val\>   |
 | key (auth)     | keyno                  | NTP_KEY\|\<key\>\|value:\<val\>    |
 | type (auth)    | type                   | NTP_KEY\|\<key\>\|type:\<val\>     |
@@ -241,7 +249,7 @@ The `ntp-config` service performs the next actions:
 <!-- omit in toc -->
 ### 2.3.3 NTP configuration
 NTP global configuration offers `state`, `authentication`, `vrf` parameters for flexible configuration of NTP client.
-For the server the next configuration options are supported: `state`, `type`, `version`, `key`.
+For the server the next configuration options are supported: `state`, `type`, `version`, `key`, `minpoll`, `maxpoll`.
 And finally NTP key management supports the next options: `value`, `type`, `trusted`.
 
 **Note:**
@@ -429,6 +437,20 @@ redis-cli -n 4 HGETALL 'NTP_SERVER|1.1.1.1'
 7) "association_type"
 8) "server"
 
+redis-cli -n 4 HGETALL 'NTP_SERVER|2.2.2.2'
+1) "admin_state"
+2) "disabled"
+3) "version"
+4) "4"
+5) "iburst"
+6) "on"
+7) "association_type"
+8) "server"
+9) "minpoll"
+10) "8"
+11) "maxpoll"
+12) "12"
+
 redis-cli -n 4 HGETALL 'NTP_SERVER|somehost'
 1) "admin_state"
 2) "enabled"
@@ -482,6 +504,14 @@ redis-cli -n 4 HGETALL 'NTP|42'
             "version": "3",
             "iburst": "on",
             "association_type": "pool"
+        },
+        "2.2.2.2": {
+            "admin_state": "enabled",
+            "version": "4",
+            "iburst": "on",
+            "association_type": "server",
+            "minpoll": "8",
+            "maxpoll": "12"
         }
     },
     "NTP_KEY": {
@@ -616,6 +646,8 @@ filegen clockstats file clockstats type day enable
 
 server 2.3.4.5 key 42 iburst version 4
 
+server 2.2.2.2 iburst version 4 minpoll 8 maxpoll 12
+
 server 216.239.35.8
 
 pool pool.ntp.org iburst
@@ -726,7 +758,8 @@ _SRV_OPTS_:
 2. `-k|--key` - NTP authentication key ID: `integer: 1-65535`
 3. `-v|--version` - NTP protocol version `integer: 3-4`
 4. `-a|--aggressive` - NTP enable aggresive polling
-
+5. `-m|--minpoll` - NTP minpoll `integer: 3-17`
+6. `-M|--maxpoll` - NTP maxpoll `integer: 3-17`
 _KEY_OPTS_:
 1. `-t|--type` - NTP key type: `enum: md5, sha1`
 3. `-s|--trusted` - NTP key trustiness: `enum: yes, no`
@@ -1057,6 +1090,33 @@ module sonic-ntp {
                                  server";
                 }
 
+                leaf minpoll {
+                    must "(current()/../maxpoll > current())" {
+                        error-message "maxpoll has to be larger than minpoll.";
+                    }
+                    default 6;
+                    type uint8 {
+                        range "3..17";
+                    }
+                    description
+		        "The minimum poll interval used in this association.";
+                    reference
+                        "RFC 5905: Network Time Protocol Version 4: Protocol and Algorithms Specification";
+                }
+
+                leaf maxpoll {
+                    must "(current()/../minpoll < current())" {
+                        error-message "maxpoll has to be larger than minpoll.";
+                    }
+                    default 10;
+                    type uint8 {
+                        range "3..17";
+                    }
+                    description
+                        "The maximum poll interval used in this association.";
+                    reference
+                        "RFC 5905: Network Time Protocol Version 4: Protocol and Algorithms Specification";
+                }
             } /* end of list NTP_SERVER_LIST */
 
         } /* end of container NTP_SERVER */
