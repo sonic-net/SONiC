@@ -760,6 +760,7 @@ _SRV_OPTS_:
 4. `-a|--aggressive` - NTP enable aggresive polling
 5. `-m|--minpoll` - NTP minpoll `integer: 3-17`
 6. `-M|--maxpoll` - NTP maxpoll `integer: 3-17`
+
 _KEY_OPTS_:
 1. `-t|--type` - NTP key type: `enum: md5, sha1`
 3. `-s|--trusted` - NTP key trustiness: `enum: yes, no`
