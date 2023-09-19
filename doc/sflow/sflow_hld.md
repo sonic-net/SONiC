@@ -448,6 +448,7 @@ sFlow Global Information:
   sFlow Admin State:          up
   sFlow Sample Direction:     both
   sFlow Polling Interval:     0
+  sFlow Drop Notification Limit: 0
   sFlow AgentID:              default
 
   2 Collectors configured:
