@@ -139,10 +139,10 @@ sfp.write_eeprom_by_page(page=1, offset=0, bytearray.fromhex('ff'))     # invali
 ##### sff8472 implementation
 
 Passive cable:
-Valid page: [A0h] (case insensitive)
+Valid wire address: [A0h] (case insensitive)
 Valid offset: A0h (0-128)
 
-Active cable:
+Active wire address:
 Valid page: [A0h, A2h] (case insensitive)
 Valid offset: A0h (0-255), A2h (0-255)
 
