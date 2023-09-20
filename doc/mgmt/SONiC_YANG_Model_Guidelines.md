@@ -561,7 +561,7 @@ container sonic-interface {
 } 
 ......
 ```
-*** In the example above if the config DB contains an INTERFACE table with single key element then it will be associted with the INTERFACE_LIST and if contains 2 key elements then it will be associated with INTERFACE_IPADDR_LIST ***
+***In the example above if the config DB contains an INTERFACE table with single key element then it will be associted with the INTERFACE_LIST and if contains 2 key elements then it will be associated with INTERFACE_IPADDR_LIST***
 
 #### Example 2: Keys with Same Number of Elements(NOT Allowed case)
 
@@ -589,7 +589,7 @@ container sonic-interface {
 ......
 ```
 
-*** In the example above if the config DB contains an INTERFACE table with key Ethernet1 then it would match with both the list, this is an overlapping scenario. ***
+***In the example above if the config DB contains an INTERFACE table with key Ethernet1 then it would match with both the list, this is an overlapping scenario.***
 
 #### Example 3: Pattern Constraints (Allowed case)
 
@@ -623,7 +623,7 @@ container sonic-interface {
 ......
 ```
 
-*** In the given example, if the configuration database has an INTERFACE table with the key "Ethernet1, it would correspond to the INTERFACE_LIST. Similarly, if the configuration database features an INTERFACE table with the key "Vlan10," it would align with the VLAN_LIST. In this context, each key uniquely identifies a specific list. ***
+***In the given example, if the configuration database has an INTERFACE table with the key "Ethernet1, it would correspond to the INTERFACE_LIST. Similarly, if the configuration database features an INTERFACE table with the key "Vlan10," it would align with the VLAN_LIST. In this context, each key uniquely identifies a specific list.***
 
 #### Example 4: Pattern Constraints (NOT Allowed case)
 
@@ -656,7 +656,7 @@ container sonic-interface {
 }
 ......
 ```
-*** In the given example, if the configuration database has an INTERFACE table with the key "Ethernet1, it would correspond to both the LIST, this is an overlapping scenario. ******
+***In the given example, if the configuration database has an INTERFACE table with the key "Ethernet1, it would correspond to both the LIST, this is an overlapping scenario.******
 
 #### Example 5: Length Constraints (Allowed case)
 
