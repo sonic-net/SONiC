@@ -520,7 +520,7 @@ container PORTCHANNEL_INTERFACE {
 	}
 }
 ```
-#### Example 1: Composite Keys with Different Number of Elements(Allowed case)
+#### Example 1: Key with Different Number of Elements(composite keys - Allowed case)
 
 `INTERFACE` table stores VRF names to which an interface belongs, also it stores IP address of each interface. Hence it is needed to split them into two different YANG lists.
 
@@ -561,8 +561,9 @@ container sonic-interface {
 } 
 ......
 ```
+*** In the example above if the config DB contains an INTERFACE table with single key element then it will be associted with the INTERFACE_LIST and if contains 2 key elements then it will be associated with INTERFACE_IPADDR_LIST ***
 
-#### Example 2: Composite Keys with Same Number of Elements(NOT Allowed case)
+#### Example 2: Keys with Same Number of Elements(NOT Allowed case)
 
 ```yang
 ......
@@ -588,6 +589,8 @@ container sonic-interface {
 ......
 ```
 
+*** In the example above if the config DB contains an INTERFACE table with key Ethernet1 then it would match with both the list, this is an overlapping scenario. ***
+
 #### Example 3: Pattern Constraints (Allowed case)
 
 In this example, `INTERFACE_LIST` uses a key `ifname` that must start with "Eth", while `INTERFACE_IPADDR_LIST` uses a key `ifname` that must start with "Vlan".
@@ -606,7 +609,7 @@ container sonic-interface {
 			// ...
 		}
 
-		list INTERFACE_IPADDR_LIST { // 2nd list
+		list VLAN_LIST { // 2nd list
 			key "ifname ip_addr";
 			leaf ifname {
 				type string {
@@ -619,6 +622,8 @@ container sonic-interface {
 }
 ......
 ```
+
+*** In the given example, if the configuration database has an INTERFACE table with the key "Ethernet1, it would correspond to the INTERFACE_LIST. Similarly, if the configuration database features an INTERFACE table with the key "Vlan10," it would align with the VLAN_LIST. In this context, each key uniquely identifies a specific list. ***
 
 #### Example 4: Pattern Constraints (NOT Allowed case)
 
@@ -651,6 +656,7 @@ container sonic-interface {
 }
 ......
 ```
+*** In the given example, if the configuration database has an INTERFACE table with the key "Ethernet1, it would correspond to both the LIST, this is an overlapping scenario. ******
 
 #### Example 5: Length Constraints (Allowed case)
 
@@ -671,7 +677,7 @@ container sonic-interface {
 		}
 
 		list INTERFACE_IPADDR_LIST { // 2nd list
-			key "ifname ip_addr";
+			key "ifname";
 			leaf ifname {
 				type string {
 					length "4..max";
