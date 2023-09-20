@@ -47,7 +47,7 @@ The behavior of FEC when autoneg is configured is currently not defined. By intr
 ### Requirements
 
 Primary requirements for configuring FEC are
-- Honor the backward compatibility.
+- Honor the backward compatibility. If an image upgrade is done from an image without the feature to image with the feature, there should be no issues. E.g a port with 'rs' fec and AN enabled should work the same before and after the upgrade to image with the feature.
 - Allow user to enable FEC to be auto negotiated
 - Allow user to override the auto-negotiated FEC
 
