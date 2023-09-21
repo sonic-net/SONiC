@@ -265,7 +265,7 @@ Through CLI, REST or gNMI, event table and alarm table can be retrieved using va
 
 ### 3.1.1 Event Producers
 
-For one-shot events, applications need to provide event id (name), (source), dynamic message. 
+For one-shot events, applications need to provide event-id (name), (source), dynamic message. 
 
 For alarms, applications need to provide event-id (name ), source, dynamic message, and event action (RAISE_ALARM / CLEAR_ALARM / ACK_ALARM /UNACK_ALARM).
 The ACK_ALARM/UNACK_ALARM action types are used only by mgmt-framework to provide the functionality to acknowledge/unacknowledge the alarms through NBI.
@@ -303,7 +303,9 @@ Developers of new events or alarms need to update this file by declaring name an
 
 #### 3.1.1.2 Development Process
 
-Declare the name of new event/alarm along with revision, severity, enable flag and static message in sonic-eventd/etc/evprofile/default.json
+Declare the event-id of new event/alarm along with revision, severity, enable flag and static message in sonic-eventd/etc/evprofile/default.json
+
+Create a sonic-yang representation of the event as described in the producer framework.
 
 In the source file, the event is published with action as RAISE_ALARM/CLEAR_ALARM (ACK_ALARM/UNACK_ALARM are used by mgmt-framework to allow users to acknowledge/unacknowledge alarms).
 
@@ -322,9 +324,13 @@ current call:
     event_publish(g_events_handle, "if-state", &params);
 
 new call:
-    event_params_t params = {{"ifname",port.m_alias},{"status",isUp ? "up" : "down"}, {"resource", port.m_alias}};
+    event_params_t params = {{"ifname",port.m_alias},{"status",isUp ? "up" : "down"}, {"resource", port.m_alias}, {"event-id", "INTERFACE_OPER_STATUS_CHANGE"}, {"text", isUp? "status:UP" : "status:DOWN"}};
     event_publish(g_events_handle, "if-state", &params);
 
+
+e.g., Sensor temperature critical high
+    event_params_t params = {{"event-id", "SENSOR_TEMP_CRTICAL_HIGH"}, {"text", "Current temperature {}C, critical high threshold {}C", {"action":"RAISE_ALARM"}, {"resource":"sensor_name"}}} ;
+    event_publish(g_events_handle, "sensor_temp_critical_high", &params);
 ### 3.1.2 Event Consumer
 The event consumer is a class in EventDB service that processes the incoming events.
 
@@ -336,7 +342,7 @@ On reading the event, using the event-id in the record, event consumer fetches s
 As mentioned above, static information contains severity, static message and event enable flag.
 If the enable flag is set to false, event consumer ignores the event by logging a debug message.
 If the flag is set to true, it continues to process the event as follows:
-- Get source, event name, sequence id and dynamic msg from the published event. 
+- Get source, event-id, sequence id and dynamic msg from the published event. 
 - Write the event to Event Table
 - It verifies if the event corresponds to an alarm - by checking the *action* field. If so, alarm consumer API is invoked for the event for further processing.
     - If action is RAISE_ALARM, add the record to ALARM table
@@ -352,7 +358,7 @@ The corresponding syslog severities are: log-alert, log-crit, log-error, log-war
 Severity INFORMATIONAL is not applicable to alarms.
 
 #### 3.1.2.2 Sequence-ID
-Every new event should have a unique sequential ID. The sequence-id is of the format <32 bit time_t><5 digit running sequence 00000 to 99999>. These semantics allows applications to layout the logs chronologically. Seqence Id is given by the published event. A  unique id will be associated to every alarm.
+Every new event should have a unique sequential ID. The sequence-id is of the format <32 bit time_t><5 digit running sequence 00000 to 99999>. These semantics allows applications to layout the logs chronologically. Sequence Id is given by the published event. A  unique id will be associated to every alarm.
 
 #### 3.1.2.3 Revision
 Every event/alarm defined in the profile must have a revision specified as a numerical.  If not given, the default revision '0' is assigned to the event/alarm. This revision is to be incremented if the alarm parameters are updated.
@@ -451,7 +457,7 @@ The proposed solution is to have pmon use ALAMR_STATS counters in conjunction wi
 #### 3.1.4.2 Event/Alarm flooding
 There are scenarios when system enters a loop of a fault condition that makes application trigger events continuously. To avoid such
 instances flood the EVENT or ALARM tables, eventd maintains a cache of last event/alarm. Every new event/alarm is compared against this cache entry
-to make sure it is not a flood. If it is found to be same event/alarm, the newly raised entry will be silently discarded.
+to make sure it is not a flood. If it is found to be same event/alarm, the newly raised entry will be silently discarded. 
 
 
 ### 3.1.5 Event Profile
@@ -739,6 +745,28 @@ Eventd reads the file name from this table and merges it with its static_event_m
 
 The following is SONiC yang for events.
 ```
+
+update existing sonic-events-comm.yang
+Add attributes type-id and action.
+   grouping sonic-events-cmn {
+       ....
+       ....
+        leaf type-id {
+            type union {
+                type string;
+                type identityref {
+                   base SONIC_EVENT_TYPE_ID;
+                }
+            }
+            description
+            "The abbreviated name of the alarm";
+        }
+        leaf action {
+           type event-action;
+           description
+           "The action to operation on the event";
+        }
+    }
 
 module: sonic-event-history
   +--rw sonic-event-history
