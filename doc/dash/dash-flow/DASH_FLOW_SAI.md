@@ -513,7 +513,6 @@ sai_attribute_t sai_attrs_list[1];
 sai_attrs_list[0].id = SAI_FLOW_STATE_ATTR_METADATA_PROTOBUF;
 sai_attr_list[0].value = buf;
 
-## 2.Length
 
 /* Use the buffer as desired, e.g., as an attribute */
 /* ... */
