@@ -46,7 +46,7 @@ typedef struct _sai_protobuf_t
 
 
 
-### Flow state attribute definiation
+### Flow table attribute definiation
 
 ```c
 typedef enum _sai_flow_table_attr_t {
