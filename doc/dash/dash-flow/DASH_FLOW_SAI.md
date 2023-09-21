@@ -85,7 +85,7 @@ typedef enum _sai_flow_table_attr_t {
 
 
 
-# Flow atrribute 
+# Flow attribute
 
 ```c
 typedef struct _sai_flow_state_t {
