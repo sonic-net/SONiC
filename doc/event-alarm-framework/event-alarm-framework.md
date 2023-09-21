@@ -265,9 +265,9 @@ Through CLI, REST or gNMI, event table and alarm table can be retrieved using va
 
 ### 3.1.1 Event Producers
 
-For one-shot events, applications need to provide event-id (name of the event), source, dynamic message, and event action set to NOTIFY.
+For one-shot events, applications need to provide event id (name), (source), dynamic message. 
 
-For alarms, applications need to provide event-id (name of the event), source, dynamic message, and event action (RAISE_ALARM / CLEAR_ALARM / ACK_ALARM /UNACK_ALARM).
+For alarms, applications need to provide event-id (name ), source, dynamic message, and event action (RAISE_ALARM / CLEAR_ALARM / ACK_ALARM /UNACK_ALARM).
 The ACK_ALARM/UNACK_ALARM action types are used only by mgmt-framework to provide the functionality to acknowledge/unacknowledge the alarms through NBI.
 
 Eventd maintains a json file of events and alarms at sonic-eventd/etc/evprofile/default.json. This is the default event profile that gets installed on the device at /etc/evprofile/default.json.
@@ -305,11 +305,28 @@ Developers of new events or alarms need to update this file by declaring name an
 
 Declare the name of new event/alarm along with revision, severity, enable flag and static message in sonic-eventd/etc/evprofile/default.json
 
-In the source file, the event is published with action as NOTIFY/RAISE_ALARM/CLEAR_ALARM (ACK_ALARM/UNACK_ALARM are used by mgmt-framework to allow users to acknowledge/unacknowledge alarms).
+In the source file, the event is published with action as RAISE_ALARM/CLEAR_ALARM (ACK_ALARM/UNACK_ALARM are used by mgmt-framework to allow users to acknowledge/unacknowledge alarms).
 
+The  event publish api introduced by the producer framework  is:
+void event_publish(event_handle_t handle, const std:string &event_tag,
+        const event_params_t *params=NULL);
+
+For further details of this API, refer to events-producer.md.
+The following additional parameters to be given with this api:
+1. action - If application has to raise an alarm an "action" attribute has to be given which this api call.
+2. resource- The resource on which this event is raised. for e.g., interface name, ip address, etc. 
+
+For e.g call for port down event.
+current call:
+    event_params_t params = {{"ifname",port.m_alias},{"status",isUp ? "up" : "down"}};
+    event_publish(g_events_handle, "if-state", &params);
+
+new call:
+    event_params_t params = {{"ifname",port.m_alias},{"status",isUp ? "up" : "down"}, {"resource", port.m_alias}};
+    event_publish(g_events_handle, "if-state", &params);
 
 ### 3.1.2 Event Consumer
-The event consumer is a class in EventDB service that processes the incoming record.
+The event consumer is a class in EventDB service that processes the incoming events.
 
 On intitialization, event consumer reads */etc/evprofile/default.json* and builds an internal map of events, called *static_event_map*.
 It then verifies if there was a custom event profile configured and merges its contents to static_event_map built from default event profile.
@@ -319,7 +336,7 @@ On reading the event, using the event-id in the record, event consumer fetches s
 As mentioned above, static information contains severity, static message and event enable flag.
 If the enable flag is set to false, event consumer ignores the event by logging a debug message.
 If the flag is set to true, it continues to process the event as follows:
-- Generate new sequence-id for the event
+- Get source, event name, sequence id and dynamic msg from the published event. 
 - Write the event to Event Table
 - It verifies if the event corresponds to an alarm - by checking the *action* field. If so, alarm consumer API is invoked for the event for further processing.
     - If action is RAISE_ALARM, add the record to ALARM table
@@ -335,7 +352,7 @@ The corresponding syslog severities are: log-alert, log-crit, log-error, log-war
 Severity INFORMATIONAL is not applicable to alarms.
 
 #### 3.1.2.2 Sequence-ID
-Every new event should have a unique sequential ID. The sequence-id is of the format <32 bit time_t><5 digit running sequence 00000 to 99999>. These semantics allows applications to layout the logs chronologically.
+Every new event should have a unique sequential ID. The sequence-id is of the format <32 bit time_t><5 digit running sequence 00000 to 99999>. These semantics allows applications to layout the logs chronologically. Seqence Id is given by the published event. A  unique id will be associated to every alarm.
 
 #### 3.1.2.3 Revision
 Every event/alarm defined in the profile must have a revision specified as a numerical.  If not given, the default revision '0' is assigned to the event/alarm. This revision is to be incremented if the alarm parameters are updated.
@@ -570,7 +587,6 @@ When either of the limit is reached, the framework wraps around the table by dis
 
 User can send SIGINT to eventd process to force read and apply the manifest limits.
 
-The EVENTPUBSUB table will be periodically monitored and flushed based of a pre-defined table limit. Based on discussions this can be plugged into existing system jobs.    
 
 An example of an event in EVENT table.
 ```
@@ -724,34 +740,6 @@ Eventd reads the file name from this table and merges it with its static_event_m
 The following is SONiC yang for events.
 ```
 
-update existing sonic-events-comm.yang
-Add attributes type-id and action.
-
-   grouping sonic-events-cmn {
-
-       ....
-       ....
-
-        leaf type-id {
-            type union {
-                type string;
-                type identityref {
-                   base SONIC_EVENT_TYPE_ID;
-                }
-            }
-            description
-            "The abbreviated name of the alarm";
-        }
-
-        leaf action {
-           type event-action;
-           description
-           "The action to operation on the event";
-        }
-    }
-
-
-
 module: sonic-event-history
   +--rw sonic-event-history
      +--rw EVENT
@@ -888,7 +876,7 @@ module: sonic-evprofile
           +--ro status?   string
 ```
 
-openconfig alarms yang is defined at [here](https://github.com/openconfig/public/blob/master/release/models/system/openconfig-alarms.yang)
+openconfig alarms yang is defined  [here](https://github.com/openconfig/public/blob/master/release/models/system/openconfig-alarms.yang)
 
 ### 3.3.2 CLI
 #### 3.3.2.1 Exec Commands
