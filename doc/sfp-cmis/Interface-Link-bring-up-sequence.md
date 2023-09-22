@@ -17,7 +17,7 @@ Deterministic Approach for Interface Link bring-up sequence
   * [Pre-requisite](#pre-requisite)
   * [Breakout handling](#breakout-handling)
   * [Proposed Work-Flows](#proposed-work-flows)
-  * [Port reinitialization during syncd/swss/orchagent crash](#port-reinitialization-during-syncdswssorchagent-crash)
+  * [Port re-initialization during syncd/swss/orchagent crash](#port-re-initialization-during-syncdswssorchagent-crash)
 
 # List of Tables
   * [Table 1: Definitions](#table-1-definitions)
@@ -126,7 +126,7 @@ Plan is to follow this high-level work-flow sequence to accomplish the Objective
     - deterministic approach to bring the interface will eliminate any link stability issue which will be difficult to chase in the production network
       e.g. If there is a PHY device in between, and this 'deterministic approach' is not followed, PHY may adapt to a bad signal or interface flaps may occur when the optics tx/rx  enabled during PHY initialization. 
     - there is a possibility of interface link flaps with non-quiescent optical modules <QSFP+/SFP28/SFP+> if this 'deterministic approach' is not followed
-    - It helps bring down the optical module laser when interface is adminstiratively shutdown. Per the workflow here, this is acheived by xcvrd listening to host_tx_ready field from PORT_TABLE of STATE_DB. Turning the laser off would reduce the power consumption and avoid any lab hazard
+    - It helps bring down the optical module laser when interface is adminstiratively shutdown. Per the workflow here, this is achieved by xcvrd listening to host_tx_ready field from PORT_TABLE of STATE_DB. Turning the laser off would reduce the power consumption and avoid any lab hazard
     - Additionally provides uniform workflow (from SONiC NOS) across all interface types with or without module presence. 
   - This synchronization will also benefit SFP+ optical modules as they are "plug N play" and may not have quiescent functionality. (xcvrd can use the optional 'soft tx disable' ctrl reg to disable the tx)
 
@@ -187,16 +187,17 @@ if transceiver is not present:
  - All the workflows mentioned above will reamin same ( or get exercised) till host_tx_ready field update
  - xcvrd will not perform any action on receiving host_tx_ready field update 
 
-# Port reinitialization during syncd/swss/orchagent crash
+# Port re-initialization during syncd/swss/orchagent crash
 ## Overview
 
-When syncd/swss/orchagent crashes, all ports in the corresponding namespace will be reinitialized by xcvrd irrespective of the current state of the port.  
-If just xcvrd crashes and restarts, then forced reinitialization (CMIS reinit + NPU SI settings notification) of ports will not be performed.  
-CMIS_REINIT_REQUIRED and NPU_SI_SETTINGS_SYNC_STATUS keys in PORT_TABLE:\<port\> (APPL_DB) are used to determine if port reinitialization is required or not.
-  - CMIS_REINIT_REQUIRED key states if CMIS reinitialization is required for a port after xcvrd is spawned. CMIS_REINIT_REQUIRED helps in mainly driving CMIS reinitialization after syncd/swss/orchagent crash since it will allow reinitializing ports belonging to the relevant namespace of the crashing process. This key is not planned to drive CMIS initialization after transceiver insertion. 
+When syncd/swss/orchagent crashes, all ports in the corresponding namespace will be reinitialized by xcvrd irrespective of the current state of the port. All the corresponding ports are expected to experience link down until the initialization is complete.  
+If just xcvrd crashes and restarts, then forced re-initialization (CMIS reinit + NPU SI settings notification) of ports will not be performed. Hence, the ports will not experience link downtime during scenario.
+CMIS_REINIT_REQUIRED and NPU_SI_SETTINGS_SYNC_STATUS keys in PORT_TABLE:\<port\> (APPL_DB) are used to determine if port re-initialization is required or not.
+  - CMIS_REINIT_REQUIRED key states if CMIS re-initialization is required for a port after xcvrd is spawned. CMIS_REINIT_REQUIRED helps in mainly driving CMIS re-initialization after syncd/swss/orchagent crash since it will allow reinitializing ports belonging to the relevant namespace of the crashing process. This key is not planned to drive CMIS initialization after transceiver insertion.  
   - NPU_SI_SETTINGS_SYNC_STATUS key is used as a means to communicate the status of applying NPU SI settings for a transceiver requiring NPU SI settings. This key is used to update the NPU SI settings application status between SfpStateUpdateTask, CmisManagerTask and Orchagent. In case of warm reboot or xcvrd restart, this key will prevent application of NPU SI settings on the port if the settings are already applied. In case of transceiver insertion, NPU SI settings will be applied irrespective of the NPU SI settings application status for the port.  
+In case of continuous restart of xcvrd, both the keys will still hold the same value as before the restart. This would ensure that the port re-initialization is resumed from the last known state.  
 
-Following infra will ensure port reinitialization by xcvrd in case of syncd/swss/orchagent crash
+Following infra will ensure port re-initialization by xcvrd in case of syncd/swss/orchagent crash
 
 1. XCVRD main thread init
 	- XCVRD main thread creates the key CMIS_REINIT_REQUIRED in PORT_TABLE:\<port\> (APPL_DB) with value as true for ports which do NOT have this key present 
@@ -236,7 +237,7 @@ All threads will be gracefully terminated and xcvrd deinit will be performed fol
 
 8. In case of warm reboot, the APPL_DB is not cleared and hence, once xcvrd is spawned after the reboot, the ports are not initialized again.
 
-## XCVRD init sequence to support port reinitialization during syncd/swss/orchagent crash
+## XCVRD init sequence to support port re-initialization during syncd/swss/orchagent crash
 
 ```mermaid
 sequenceDiagram
