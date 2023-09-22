@@ -126,7 +126,7 @@ Plan is to follow this high-level work-flow sequence to accomplish the Objective
     - deterministic approach to bring the interface will eliminate any link stability issue which will be difficult to chase in the production network
       e.g. If there is a PHY device in between, and this 'deterministic approach' is not followed, PHY may adapt to a bad signal or interface flaps may occur when the optics tx/rx  enabled during PHY initialization. 
     - there is a possibility of interface link flaps with non-quiescent optical modules <QSFP+/SFP28/SFP+> if this 'deterministic approach' is not followed
-    - It helps bring down the optical module laser when interface is adminstiratively shutdown. Per the workflow here, this is achieved by xcvrd listening to host_tx_ready field from PORT_TABLE of STATE_DB. Turning the laser off would reduce the power consumption and avoid any lab hazard
+    - It helps bring down the optical module laser when interface is adminstiratively shutdown. Per the workflow here, this is acheived by xcvrd listening to host_tx_ready field from PORT_TABLE of STATE_DB. Turning the laser off would reduce the power consumption and avoid any lab hazard
     - Additionally provides uniform workflow (from SONiC NOS) across all interface types with or without module presence. 
   - This synchronization will also benefit SFP+ optical modules as they are "plug N play" and may not have quiescent functionality. (xcvrd can use the optional 'soft tx disable' ctrl reg to disable the tx)
 
