@@ -233,7 +233,7 @@ There will be a timeout of 5s for every retry
 6. XCVRD will subscribe to PORT_TABLE in APPL_DB and trigger self-restart if the PORT_TABLE is deleted for the namespace.  
 All threads will be gracefully terminated and xcvrd deinit will be performed followed by issuing a SIGABRT to ensure XCVRD is restarted automatically by supervisord. After respawn, CMIS re-init and NPU_SI_SETTINGS notified is triggered for the ports belonging to the affected namespace
 
-7. syncd/swss/orchagent restart clears the entire APPL-DB, including “NPU_SI_SETTINGS_SYNC_STATUS” and "CMIS_REINIT_REQUIRED" in PORT_TABLE
+7. syncd/swss/orchagent restart (restart triggered due to docker container crash) clears the entire APPL-DB, including “NPU_SI_SETTINGS_SYNC_STATUS” and "CMIS_REINIT_REQUIRED" in PORT_TABLE
 
 8. In case of warm reboot, the APPL_DB is not cleared and hence, once xcvrd is spawned after the reboot, the ports are not initialized again.
 
@@ -436,18 +436,25 @@ sequenceDiagram
 ```
 
 ## Test plan and expectation
+
+**Process and device crash/restart and interface config command handling testplan**  
 | Event          | APPL_DB_<asic_n> cleared | Xcvrd restarted | NPU SI settings renotify | NPU_SI_SETTINGS_SYNC_STATUS value on xcvrd boot-up for initialized transceiver | CMIS re-init triggered | Link flap |
 | -------------- | ------------------------ | --------------- | ------------------------ | ------------------------------------------------------------------------------ | ---------------------- | --------- |
-| Xcvrd restart  | N                        | Y               | N                        | NPU_SI_SETTINGS_DONE                                                           | N                      | N         |
-| Pmon restart   | N                        | Y               | N                        | NPU_SI_SETTINGS_DONE                                                           | N                      | N         |
-| Swss restart   | Y                        | Y               | Y                        | NPU_SI_SETTINGS_DEFAULT                                                        | Y                      | N/A       |
-| Syncd restart  | Y                        | Y               | Y                        | NPU_SI_SETTINGS_DEFAULT                                                        | Y                      | N/A       |
-| config reload  | Y                        | Y               | Y                        | NPU_SI_SETTINGS_DEFAULT                                                        | Y                      | N/A       |
-| Cold reboot    | Y                        | Y               | Y                        | NPU_SI_SETTINGS_DEFAULT                                                        | Y                      | N/A       |
-| Config shut    | N                        | N               | N                        | NPU_SI_SETTINGS_DONE                                                           | N                      | N/A       |
-| Config no shut | N                        | N               | N                        | NPU_SI_SETTINGS_DONE                                                           | N                      | N/A       |
-| Warm reboot    | N                        | Y               | N                        | NPU_SI_SETTINGS_DONE                                                           | N                      | N         |
+| Xcvrd restart | N | Y | N | NPU_SI_SETTINGS_DONE | N | N |
+| Pmon restart | N | Y | N | NPU_SI_SETTINGS_DONE | N | N |
+| Swss restart | Y | Y | Y | NPU_SI_SETTINGS_DEFAULT | Y | N/A |
+| Syncd restart | Y | Y | Y | NPU_SI_SETTINGS_DEFAULT | Y | N/A |
+| config reload | Y | Y | Y | NPU_SI_SETTINGS_DEFAULT | Y | N/A |
+| Cold reboot | Y | Y | Y | NPU_SI_SETTINGS_DEFAULT | Y | N/A |
+| Warm reboot | N | Y | N | NPU_SI_SETTINGS_DONE | N | N |  
+| config interface shut | N | N | N | NPU_SI_SETTINGS_DONE | N | N/A |
+| config interface no shut | N | N | N | NPU_SI_SETTINGS_DONE | N | N/A |
 
+**Transceiver OIR testplan**  
+| Event | APPL_DB_<asic_n> cleared | Xcvrd restarted | NPU SI settings notified | NPU_SI_SETTINGS_SYNC_STATUS value upon event completion | CMIS init triggered |
+| -------------- | ------------------------ | --------------- | ------------------------ | ------------------------------------------------------------------------------ | ---------------------- |
+| Transceiver Removal | N | N | Y | NPU_SI_SETTINGS_DEFAULT | Y |
+| Transceiver Insertion | N | N | Y | NPU_SI_SETTINGS_DONE | Y |
 # Out of Scope 
 Following items are not in the scope of this document. They would be taken up separately
 1. CMIS API feature is not part of this design and the APIs will be used in this design. For CMIS HLD, Please refer to:
