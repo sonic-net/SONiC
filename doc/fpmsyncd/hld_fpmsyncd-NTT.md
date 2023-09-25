@@ -15,11 +15,13 @@
   - [Example of entries in ASIC\_DB](#example-of-entries-in-asic_db)
 - [SAI API](#sai-api)
 - [Configuration and management](#configuration-and-management)
+  - [Configuration data flow](#configuration-data-flow)
   - [CLI/YANG model Enhancements](#cliyang-model-enhancements)
   - [Config DB Enhancements](#config-db-enhancements)
 - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
 - [Testing Requirements/Design](#testing-requirementsdesign)
   - [Unit Test cases](#unit-test-cases)
+  - [Config test cases (feature enable/disable)](#config-test-cases-feature-enabledisable)
   - [System Test cases](#system-test-cases)
 - [Open/Action items - if any](#openaction-items---if-any)
   - [libnl compatibility with upstream](#libnl-compatibility-with-upstream)
@@ -36,7 +38,8 @@
 | :---: | :----------: | :------------------------------------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |  0.1  | Jul 14, 2023 | Kanji Nakano, Kentaro Ebisawa, Hitoshi Irino (NTT) | Initial version                                                                                                                                                             |
 |  0.2  | Jul 30, 2023 |               Kentaro Ebisawa (NTT)                | Remove description about VRF which is not nessesary for NHG. Add High Level Architecture diagram. Add note related to libnl, Routing WG. Fix typo and improve explanations. |
-|  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th (Scope, Warmboot/Fastboot, CONFIG_DB)                                                                                             |
+|  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th (Scope, Warmboot/Fastboot, CONFIG_DB)                                                                                  |
+|  0.4  | Sep 24, 2023 |               Kentaro Ebisawa (NTT)                | Add feature enable/disable design and CLI. Update test plan.                                                                                                                     |
 
 ### Scope  
 
@@ -244,6 +247,65 @@ The end result of what gets programmed via SAI will be the same as current imple
 
 ### Configuration and management 
 
+This NextHop Group feature is enabled/disabled by config option of zebra (BGP container): `[no] fpm use-next-hop-groups`
+
+- To disable this feature (default): configure `no fpm use-next-hop-groups`
+- To enable this feature: configure `fpm use-next-hop-groups`
+
+On FRR, one can configure this zebra option via vtysh (zebra CLI) or `zebra.conf` (zebra startup config).
+
+In SONiC, we will use CONFIG_DB data to enable/disable this option to be consistent with other SONiC features.
+We will also use `config_db.json` to preserve config among system reboot.
+
+Users (SONiC admin) are expected to use only SONiC CLI or edit `config_db.json` file to enable/disable this feature, and should not edit `zebra.conf` directly.
+
+
+This configuration is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behavior as this flag is set to be disabled by default. (i.e. It's disabled if `FEATURE|nexthop_group` entry does not exist in CONFIG_DB)
+
+This setting can NOT be enabled or disabled at runtime.
+System reboot is required after enabling/disabling this feature to make sure route entry using and not using this NHG feature would not co-exisit in the `APPL_DB`.
+
+#### Configuration data flow
+
+Diagram shows how `zebra.conf` is genereated from CONFIG_DB data.
+
+<!-- omit in toc -->
+##### Figure: Configuration data flow
+![fig4](diagram/fig4-config.svg)
+
+- CONFIG_DB entry is created via CLI or data stored in `config_db.json` file
+- `sonic-cfggen` will generate `zebra.conf` based on template file named `zebra.conf.j2`
+- FRR will use `zebra.conf` during startup to apply config stored in the file
+
+This flow is existing framework and not specific to this feature.
+
+Modification made for this feature is in `zebra.conf.j2` to generate config with `[no] fpm use-next-hop-groups` based on `FEATURE|nexthop_group` entry in CONFIG_DB.
+
+As shown in below diff code, the template will generate config following below logic.
+
+- If `FEATURE|nexthop_group` is not present in CONFIG_DB => disabled
+- If `FEATURE|nexthop_group` is present in CONFIG_DB but there is no "state" attribute => disabled
+- If `FEATURE|nexthop_group` is present in CONFIG_DB and "state" attribute is different of "enabled" => disabled
+- If `FEATURE|nexthop_group` is present in CONFIG_DB and "state" attribute is "enabled" => enabled
+
+```
+> zebra.conf.j2
+
+ {% endblock banner %}
+ !
+ {% block fpm %}
++{% if ( ('nexthop_group' in FEATURE) and ('state' in  FEATURE['nexthop_group']) and
++        (FEATURE['nexthop_group']['state'] == 'enabled') ) %}
++fpm use-next-hop-groups
++{% else %}
+ ! Uses the old known FPM behavior of including next hop information in the route (e.g. RTM_NEWROUTE) messages
+ no fpm use-next-hop-groups
++{% endif %}
+ !
+ fpm address 127.0.0.1
+ {% endblock fpm %}
+```
+
 #### CLI/YANG model Enhancements 
 
 <!--
@@ -254,7 +316,95 @@ https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.m
 
 The output of 'show ip route' and 'show ipv6 route' will remain unchanged - the CLI code will resolve the NextHop Group ID referenced in the `ROUTE_TABLE` to display the next hops for the routes.
 
-TODO: update config/show CLI inline with CONFIG_DB enhancement. (including CLI/YANG model Enhancements)
+To enable/disable this feature, two new CLI (Klish) would be introduced.
+
+- Enable: `feature next-hop-group enable`
+- Disable: `no feature next-hop-group`
+
+CONFIG_DB entry will be created (enable) or removed (disable) by entering above CLI command.
+
+This setting is read at boot time during FRR startup so it requires a reboot once it’s changed and saved to startup configuration.
+So after config is changed by CLI (KLISH via RESTCONF), user must run `sudo config save -y` in order for the configuration to be saved in `config_db.json` and take effect after system restart.
+
+Below is example when using this CLI command to enable/disable the feature.
+
+Enable
+
+```sh
+admin@sonic:~$ sonic-db-cli CONFIG_DB keys "FEATURE|nexthop_group"
+# no output
+
+admin@sonic:~$ sonic-cli
+
+sonic# configure terminal
+
+sonic(config)#
+  end        Exit to EXEC mode
+  exit       Exit from current mode
+  feature    Configure additional feature
+  interface  Select an interface
+  ip         Global IP configuration subcommands
+  mclag      domain
+  no         To delete / disable commands in config mode
+
+sonic(config)# feature
+  next-hop-group  Next-hop Groups feature
+
+sonic(config)# feature next-hop-group
+  enable  Enable Next-hop Groups feature
+
+sonic(config)# feature next-hop-group enable
+
+admin@sonic:~$ sonic-db-cli CONFIG_DB keys "FEATURE|nexthop_group"
+FEATURE|nexthop_group
+```
+
+Disable
+
+```sh
+sonic(config)# no
+  feature  Disable additional feature
+  ip       Global IP configuration subcommands
+  mclag    domain
+
+sonic(config)# no feature
+  next-hop-group  Disable Next-hop Groups feature
+
+sonic(config)# no feature next-hop-group
+
+admin@sonic:~$ sonic-db-cli CONFIG_DB keys "FEATURE|nexthop_group"
+# no output
+```
+
+Implementation:
+
+- New CLI actioner `sonic-cli-feature.py` will be added for this CLI command.
+- The CLI command will be defined in a new cli-xml file: `/CLI/clitree/cli-xml/sonic-feature.xml`
+
+When actioner `sonic-cli-feature.py` is called from the Klish framework, it will call RESTCONF to create / remove the CONFIG_DB entry.
+
+- enable:  `$SONIC_CLI_ROOT/sonic-cli-feature.py configure_sonic_nexthop_groups 1`
+- disable: `$SONIC_CLI_ROOT/sonic-cli-feature.py configure_sonic_nexthop_groups 0`
+- RESTCONF URI called from `sonic-cli-feature.py`: `/restconf/data/sonic-feature:sonic-feature`
+
+The model is not newly introduced but using pre-existing `sonic-feature.yang` model present in the source code at https://github.com/sonic-net/sonicbuildimage/blob/master/src/sonic-yang-models/yang-models/sonic-feature.yang
+
+```
+module: sonic-feature
+   +--rw sonic-feature
+      +--rw FEATURE
+         +--rw FEATURE_LIST* [name]
+         +--rw name string
+         +--rw state? feature-state
+         +--rw auto_restart? feature-state
+         +--rw delayed? stypes:boolean_type
+         +--rw has_global_scope? stypes:boolean_type
+         +--rw has_per_asic_scope? feature-scope-status
+         +--rw high_mem_alert? feature-state
+         +--rw set_owner? feature-owner
+         +--rw check_up_status? stypes:boolean_type
+         +--rw support_syslog_rate_limit? stypes:boolean_type
+```
 
 #### Config DB Enhancements  
 
@@ -262,27 +412,27 @@ TODO: update config/show CLI inline with CONFIG_DB enhancement. (including CLI/Y
 This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change. 
 -->
 
-This feature should be disabled/enabled using CONFIG_DB.
-
-This configuration is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behavior as this flag is set to be disabled by default.
-
-This setting can NOT be enabled or disabled at runtime.
-Reboot is required after enabling/disabling this feature to make sure route entry using and not using this NHG feature would not co-exisit in the `APPL_DB`.
-
-TODO: add schema and example of CONFIG_DB entry to below.
+This feature should be disabled/enabled using the existing CONFIG_DB `FEATURE` Table.
+The key name will be `FEATURE|nexthop_group` with `state` attribute.
 
 Configuration schema in ABNF format:
 
 ```
-TODO
+; FEATURE table
+key = FEATURE|nexthop_group     ; FEATURE configuration table
+state = "enabled" or "disabled" ; Globally enable/disable next-hop group feature,
+                                ; by default this flag is disabled
 ```
 
 Sample of CONFIG DB snippet given below:
 
 ```
-TODO
+    "FEATURE": {
+        "nexthop_group": {
+            "has_per_asic_scope": "False",
+            "state": "enabled"
+        },
 ```
-
 
 ### Warmboot and Fastboot Design Impact  
 
@@ -306,10 +456,48 @@ Ensure that the existing warmboot/fastboot requirements are met. For example, if
 Example sub-sections for unit test cases and system test cases are given below. 
 -->
 
+One can use `sonic-db-cli` command to check entries in CONFIG_DB.
+
+```sh
+admin@sonic:/etc/sonic$ sonic-db-cli CONFIG_DB keys "FEATURE|nexthop_group"
+FEATURE|nexthop_group
+
+admin@sonic:~$ sonic-db-cli CONFIG_DB HGETALL "FEATURE|nexthop_group"
+{'has_per_asic_scope': 'False', 'state': 'enabled'}
+```
+
+
 #### Unit Test cases  
 
 > TBD: Should we add script to unit test fpmsyncd?
 > e.g. create a script to push RTM_NEWNEXTHOP and RTM_DELNEXTHOP message to fpmsyncd and create stub redis DB to check entries are created as expected.
+
+#### Config test cases (feature enable/disable)
+
+Confirm the feature is disabled by default.
+
+1. Boot SONiC with default config (clean install)
+2. Check there is no `FEATURE|nexthop_group` entry in CONFIG_DB
+3. Log into BGP container. Check `/etc/sonic/frr/zebra.conf` has config `no fpm use-next-hop-groups`
+
+CONFIG_DB entry add/del via Klish CLI
+
+1. From CLI, enter `feature next-hop-group enable`
+2. Confirm `FEATURE|nexthop_group` entry with attr `state=enabled` is created CONFIG_DB
+3. From CLI, enter `no feature next-hop-group`
+4. Confirm `FEATURE|nexthop_group` entry does not exist in CONFIG_DB
+
+`zebra.conf` option based on CONFIG_DB entry (disable)
+
+1. Confirm `FEATURE|nexthop_group` entry does not exist in CONFIG_DB
+2. Reboot system
+3. Confirm `/etc/sonic/frr/zebra.conf` has config `no fpm use-next-hop-groups`
+
+`zebra.conf` option based on CONFIG_DB entry (enable)
+
+1. Confirm `FEATURE|nexthop_group` entry with attr `state=enabled` exist in CONFIG_DB
+2. Reboot system
+3. Confirm `/etc/sonic/frr/zebra.conf` has config `fpm use-next-hop-groups`
 
 #### System Test cases
 
