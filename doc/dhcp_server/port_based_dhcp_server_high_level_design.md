@@ -25,17 +25,20 @@
         - [Generate Config](#generate-config)
         - [Update Lease](#update-lease)
     - [Customize DHCP Packet Options](#customize-dhcp-packet-options)
+    - [DHCP Relay Daemon](#dhcp-relay-daemon)
     - [DB Changes](#db-changes)
         - [Config DB](#config-db)
-            - [Yang Model](#yang-model)
             - [DB Objects](#db-objects)
+            - [Yang Model](#yang-model)
         - [State DB](#state-db)
-            - [Yang Model](#yang-model)
             - [DB Objects](#db-objects)
+            - [Yang Model](#yang-model)
     - [Flow Diagrams](#flow-diagrams)
         - [DHCP Server Flow](#dhcp-server-flow)
         - [Config Change Flow](#config-change-flow)
         - [Lease Update Flow](#lease-update-flow)
+        - [Start flow of dhcprelayd](#start-flow-of-dhcprelayd)
+        - [Work flow of dhcprelayd capture db change](#work-flow-of-dhcprelayd-capture-db-change)
 - [CLI](#cli)
     - [Config CLI](#config-cli)
     - [Show CLI](#show-cli)
@@ -47,6 +50,7 @@
     - [Test Plan](#test-plan)
 
 <!-- /TOC -->
+
 
 # Revision
 
@@ -98,11 +102,11 @@ Configuration of DHCP server feature can be done via:
 ## Design Overview
 We use kea-dhcp-server to reply DHCP request packet. kea-dhcp-server natively supports to assign IPs by mac or contents in DHCP packet (like client id or other options), but in our scenario kea-dhcp-server need to know which interface this packet come from. And SONiC has integrated dhcrelay, which can add interface information to option82 in packet when it relay DHCP packet. So we use it to add interface information.
 
-<div align="center"> <img src=images/overview_kea.png width=570 /> </div>
-
 In our design, dhcp_relay container works on host network mode as before. And dhcp_server container works on bridge network mode, means that it can communicate with switch network only via eth0.
 
 For broadcast packet (discover, request) sent by client, obviously it would be routed to the related DHCP interface. For unicast packet (release), client will get server IP from Option 54 (server identifier) in DHCP reply packet receivced previously. But in our scenario, server identifier is the ip of `eth0` inside dhcp_server container (240.127.1.2), packet with this destination IP cannot be routed successfully. So we need to specify that kea-dhcp-server replies DHCP request with Option 54 filled with IP of DHCP interface (which is the downstream interface IP of dhcrelay), to let client take relay as server and send unicast packet to relay, and relay would transfer this packet to the real server.
+
+<div align="center"> <img src=images/overview_kea.png width=570 /> </div>
 
 Belows are sample configurations for dhcrelay and kea-dhcp-server:
 
@@ -134,9 +138,15 @@ Belows are sample configurations for dhcrelay and kea-dhcp-server:
           "pools": [
             {
               // Assign ip from this pool for packet tagged as "hostname-etp1"
-              "pool": "192.168.0.1 - 192.168.0.1",
+              "pool": "192.168.0.2 - 192.168.0.2",
               "client-class": "hostname-etp1"
             }
+          ],
+          "option-data": [
+              {
+                  "name": "dhcp-server-identifier",
+                  "data": "192.168.0.1"
+              }
           ]
         }
       ]
@@ -166,7 +176,7 @@ A new container dhcp_server based on debian:bookworm, is created to hold DHCP Se
 ## DHCP Server Daemon
 ### Generate Config
 
-dhcpservd is to generate configuration file for kea-dhcp-server while DHCP Server config in CONFIG_DB changed, and then send SIGHUP signal to kea-dhcp-server process to let new config take affect.
+dhcpservd is to generate configuration file for kea-dhcp-server while DHCP Server config in CONFIG_DB changed, and then send SIGHUP signal to kea-dhcp-server process to let new config take effect.
 <div align="center"> <img src=images/dhcp_server_block_new_diagram.png width=530 /> </div>
 
 ### Update Lease
@@ -177,6 +187,11 @@ kea-dhcp-server supports to specify a customize script (`/tmp/lease_update.sh`) 
 ```JSON
 {
   "Dhcp4": {
+    "lease-database": {
+        "type": "memfile",
+        "persist": true,
+        "name": "/tmp/kea-lease.csv"
+    },
     "hooks-libraries": [
       {
           "library": "/usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_run_script.so",
@@ -189,12 +204,19 @@ kea-dhcp-server supports to specify a customize script (`/tmp/lease_update.sh`) 
   }
 }
 ```
+```
+address,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state,user_context,pool_id
+192.168.0.2,aa:bb:cc:dd:ee:ff,,3600,1694000905,1,0,0,hostname,0,,0
+192.168.0.131,aa:aa:cc:dd:ee:ff,,3600,1694000909,1,0,0,hostname,0,,1
+192.168.0.131,aa:aa:cc:dd:ee:ff,,0,1693997309,1,0,0,hostname,0,,1
+192.168.0.131,aa:aa:cc:dd:ee:ff,,0,1693997309,1,0,0,,2,,1
+192.168.0.131,aa:aa:cc:dd:ee:ff,,3600,1694000915,1,0,0,hostname,0,,1
+192.168.0.2,aa:bb:cc:dd:ee:ff,,0,1693997305,1,0,0,hostname,0,,0
+```
 
 ## Customize DHCP Packet Options
 
-We can customize DHCP Packet options per DHCP interface by kea-dhcp-server. 
-
-We can set customized options for each DHCP interface, all DHCP clients connected to this interface share one configuration, and DHCP server would add DHCP options by config to each DHCP packet sent to client.
+We can customize DHCP Packet options per DHCP interface by kea-dhcp-server, all DHCP clients connected to this interface share one configuration, and DHCP server would add DHCP options by config to each DHCP packet sent to client.
 ```JSON
 {
   "Dhcp4": {
@@ -223,10 +245,15 @@ Have to be aware of is that below options are not supported to customize, becaus
 
 Currently support text, ipv4-address, uint8, uint16, uint32.
 
+## DHCP Relay Daemon
+For scenario of dhcp_server feature is enabled, we need a daemon process inside dhcp_relay container to manage dhcrelay processes. dhcprelayd would subcribe VLAN/VLAN_MEMBER/DHCP_SERVER_IPV4* table in config_db, and when dhcp_relay container restart or related config changed, dhcprelayd will kill/start/restart dhcrelay process.
+
+<div align="center"> <img src=images/dhcprelayd_flow.png width=350 /> </div>
+
 ## DB Changes
-We have two mainly DB changes:
-- Configuration tables for the DHCP server entries.
-- State tables for the DHCP server lease entries.
+We have two main DB changes:
+- CONFIG_DB change.
+- STATE_DB change.
 
 ### Config DB
 Following table changes would be added in Config DB, including **DHCP_SERVER_IPV4** table, **DHCP_SERVER_IPV4_RANGE** table, **DHCP_SERVER_IPV4_PORT** table and **DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS** table.
@@ -235,6 +262,56 @@ These new tables are introduced to specify configuration of DHCP Server.
 
 Below is the sample:
 <div align="center"> <img src=images/config_example.png width=530 /> </div>
+
+#### DB Objects
+```JSON
+{
+  "DHCP_SERVER_IPV4": {
+      "Vlan100": {
+          "gateway": "100.1.1.1",
+          "lease_time": "3600",
+          "mode": "PORT",
+          "netmask": "255.255.255.0",
+          "customized_options": [
+              "option60"
+          ],
+          "state": "enabled"
+      }
+  },
+  "DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS": {
+      "option60": {
+          "id": "60",
+          "type": "text",
+          "value": "dummy_value"
+      }
+  },
+  "DHCP_SERVER_IPV4_RANGE": {
+      "range1": {
+          "ranges": [
+              "100.1.1.3",
+              "100.1.1.5"
+          ]
+      }
+  },
+  "DHCP_SERVER_IPV4_PORT": {
+      "Vlan100|PortChannel0003": {
+          "ips": [
+              "100.1.1.10"
+          ]
+      },
+      "Vlan100|PortChannel2": {
+          "ranges": [
+              "range1"
+          ]
+      }
+  },
+  "DHCP_SERER_IPV4_IP": {
+      "eth0": {
+          "ip": "240.127.1.2"
+      }
+  }
+}
+```
 
 #### Yang Model
 [[yang][dhcp_server] Add dhcp_server_ipv4 yang model](https://github.com/sonic-net/sonic-buildimage/pull/15955)
@@ -434,55 +511,31 @@ module sonic-dhcp-server-ipv4 {
 }
 ```
 
+### State DB
+Following table changes would be added in State DB, including **DHCP_SERVER_IPV4_LEASE** table and **DHCP_SERVER_IPV4_SERVER_IP** table.
+
 #### DB Objects
 ```JSON
 {
-  "DHCP_SERVER_IPV4": {
-      "Vlan100": {
-          "gateway": "100.1.1.1",
-          "lease_time": "3600",
-          "mode": "PORT",
-          "netmask": "255.255.255.0",
-          "customized_options": [
-              "option60"
-          ],
-          "state": "enabled"
-      }
+  "DHCP_SERVER_IPV4_LEASE": {
+    "Vlan1000|10:70:fd:b6:13:00": {
+      "lease_start": "1677640581", // Start time of lease, unix time
+      "lease_end": "1677641481", // End time of lease
+      "ip": "192.168.0.1"
+    },
+    "Vlan1000|10:70:fd:b6:13:01": {
+      "lease_start": "1677640581",
+      "lease_end": "1677641481",
+      "ip": "192.168.0.2"
+    }
   },
-  "DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS": {
-      "option60": {
-          "id": "60",
-          "type": "text",
-          "value": "dummy_value"
-      }
-  },
-  "DHCP_SERVER_IPV4_RANGE": {
-      "range1": {
-          "ranges": [
-              "100.1.1.3",
-              "100.1.1.5"
-          ]
-      }
-  },
-  "DHCP_SERVER_IPV4_PORT": {
-      "Vlan100|PortChannel0003": {
-          "ips": [
-              "100.1.1.10"
-          ]
-      },
-      "Vlan100|PortChannel2": {
-          "ranges": [
-              "range1"
-          ]
-      }
+  "DHCP_SERVER_IPV4_SERVER_IP": {
+    "eth0": {
+      "ip": "240.127.1.2"
+    }
   }
 }
 ```
-
-### State DB
-Following table changes would be added in State DB, including table and **DHCP_SERVER_IPV4_LEASE** table.
-
-These new tables are introduced to count different type of DHCP packet and record lease information.
 
 #### Yang Model
 ```yang
@@ -513,26 +566,21 @@ module sonic-dhcp-server-ipv4 {
       }
     }
     /* end of container DHCP_SERVER_IPV4_LEASE */
-  }
-  /* end of container sonic-dhcp-server-ipv4 */
-}
-```
-
-#### DB Objects
-```JSON
-{
-  "DHCP_SERVER_IPV4_LEASE": {
-    "Vlan1000|10:70:fd:b6:13:00": {
-      "lease_start": "1677640581", // Start time of lease, unix time
-      "lease_end": "1677641481", // End time of lease
-      "ip": "192.168.0.1"
-    },
-    "Vlan1000|10:70:fd:b6:13:01": {
-      "lease_start": "1677640581",
-      "lease_end": "1677641481",
-      "ip": "192.168.0.2"
+    container DHCP_SERVER_IPV4_SERVER_IP {
+      description "DHCP_SERVER_IPV4_SERVER_IP part of state_db";
+      list DHCP_SERVER_IPV4_SERVER_IP_list {
+        key "name";
+        leaf name {
+          type string;          
+        }
+        leaf ip {
+          description "IP address of dhcp_server";
+          type inet:ipv4-address
+        }
+      }
     }
   }
+  /* end of container sonic-dhcp-server-ipv4 */
 }
 ```
 
@@ -542,14 +590,21 @@ This sequence figure describe the work flow for reply DHCP packet.
 <div align="center"> <img src=images/server_flow.png width=500 /> </div>
 
 ### Config Change Flow
-This sequence figure describe the work flow for config_db changed CLI.
+This sequence figure describe the work flow of dhcpservd detect config_db changed CLI.
 <div align="center"> <img src=images/config_change_new_flow.png width=600 /> </div>
-<div align="center"> <img src=images/config_change_new_flow_vlan.png width=680 /> </div>
 
 ### Lease Update Flow
 Below sequence figure describes the work flow how kea-dhcp-server updates lease table while new lease is created.
 
 <div align="center"> <img src=images/lease_update_flow_new.png width=480 /> </div>
+
+### Start flow of dhcprelayd
+This sequence figure describe the work flow of dhcprelayd start. (Under enabled dhcp_server feature)
+<div align="center"> <img src=images/dhcprelayd_sequence.png width=670 /> </div>
+
+### Work flow of dhcprelayd capture db change
+This sequence figure describe the work flow of dhcprelayd capture DHCP_SERVER_IPV4 table change. (Under enabled dhcp_server feature)
+<div align="center"> <img src=images/dhcprelayd_sequence_disable.png width=650 /> </div>
 
 # CLI
 * config CLI
@@ -854,7 +909,7 @@ This command is used to show dhcp_server lease.
   |Case Description|Expected res|
   |:-|:-|
   |Add with --infer_gw_nm, --mode=PORT|Add success, state is disabled|
-  |Add with --mode=DYNAMIC |Add failed because port not supported|
+  |Add with --mode=DYNAMIC |Add failed because mode not supported|
   |Add interface not exist|Add failed|
   |Add without --mode |Add failed because mode is missing|
   |Add without --infer_gw_nm, --gateway and --netmask |Add failed because netmask and gateway is not specified|
