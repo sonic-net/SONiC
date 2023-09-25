@@ -114,7 +114,12 @@ The below table covers different scenarios of what will be programmed in SAI whe
  | 10  |       True         | False      | None/rs/fc | SAI_PORT_ATTR_FEC_MODE=none/rs/fc                                               |
  | 11  |       True         | False      | auto       | SAI_PORT_ATTR_FEC_MODE=none, SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE=False. However the auto will take effect only when AN is enabled and until then the mode will be none. |
  | 12  |       True         | False      | N/A        | No FEC attributes will be set                                                   |
- 
+
+ When auto FEC mode is configured without AN enabled, or the configurations order is first FEC mode auto, followed by autoneg, the below notice log will be seen to notify user that auto FEC will work only with autoneg enabled
+
+```
+NOTICE swss#orchagent: :- isFecModeSupported:Autoneg must be enabled for port fec mode auto to work
+```
  The portsorch will also be responsible to update  operational FEC. This operational mode is applicable only when the mode is 'auto'. When the FEC mode is auto and oper up is detected, SAI_PORT_ATTR_OPER_FEC will be queried and updated in the STATE_DB PORT_TABLE field 'fec'. 
  If the vendor SAI does not support SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE, and mode auto is configured through config_db.json the following error log will be thrown
 
