@@ -184,7 +184,7 @@ No impact to warm or fastboot
 
 Since previously the behavior of FEC with autoneg is undefined, if a vendor always gives precedence for auto negotiated FEC over user configured FEC, implementing the new attribute may lead to backward incompatibility issues when SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE is implemented. Since orchagent will always set SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE to true when FEC is explicitly configured and the attribute is supported by SAI, there will be difference in behavior before and after upgrade.
 
-In order to mitigate for those platforms, a db migrator plugin can be introduced which will be executed based on platform check. This plugin will change change 'fec' to 'auto' if the attribute exists in port table and 'autoneg' is enabled. This will make sure that previously when autoneg was given precedence over user configuration, it will continue to happen even after the upgrade.
+In order to mitigate for those platforms, a db migrator plugin can be introduced which will be executed based on platform check. This plugin will change 'fec' to 'auto' if the attribute exists in port table and 'autoneg' is enabled. This will make sure that previously when autoneg was given precedence over user configuration, it will continue to happen even after the upgrade.
 Below table gives details on when db_migrator will be needed when vendor implements FEC override. The previous behavior details when user has configured FEC as well as autoneg enabled.
 
  | Idx | Previous behavior                                          | DB Migrator required    | 
