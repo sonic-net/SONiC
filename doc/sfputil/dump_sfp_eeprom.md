@@ -73,7 +73,7 @@ Following sonic_xcvr API implementation shall implement the new API `dump_eeprom
   - optical: pages 0h (0-255), 1h, 2h, 3h (128-255)
 - sonic_xcvr.api.public.sff8472
   - copper: page A0h (0-128)
-  - optical: page A0h (0-255), A2h (0-255)
+  - optical: page A0h (0-255), A2h (0-128)
 - sonic_xcvr.api.public.sff8636
   - copper: page 0h (0-255)
   - optical: pages 0h (0-255), 1h, 2h, 3h (128-255)
@@ -94,7 +94,7 @@ Note: dumping EEPROM data might cause firmware busy, the command shall not be ru
 
 ##### sfputil change
 
-A new subcommand `eeprom_hexdump_all` shall be added to `sfputil show` command group. The comamnd shall dump eeprom data for all existing cables except RJ45.
+A new subcommand `eeprom_hexdump_all` shall be added to `sfputil show` command group. The command shall dump eeprom data for all existing cables except RJ45.
 
 Sample output:
 
@@ -173,8 +173,8 @@ Vendor should support platform API `sfp.read_eeprom` to support this feature.
 
 #### Unit Test cases
 
-sonic-utilities unit test shall be extended to cover new subcommand `sfputil show eeprom-dump-all`
-sonic-platform-common unit test shall be extended to cover new API `sfp.dump_eeprom`
+- sonic-utilities unit test shall be extended to cover new subcommand `sfputil show eeprom-dump-all`
+- sonic-platform-common unit test shall be extended to cover new API `sfp.dump_eeprom`
 
 #### System Test cases
 
