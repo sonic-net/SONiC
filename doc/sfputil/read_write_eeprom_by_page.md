@@ -100,12 +100,12 @@ Each API implementation shall implement `get_overall_offset` function based on s
 ##### CMIS implementation
 
 Passive cable:
-Valid page: 0
-Valid offset: 0-255
+- Valid page: 0
+- Valid offset: 0-255
 
 Active cable:
-Valid page: 0-255
-Valid offset: page 0 (0-255), other (128-255)
+- Valid page: 0-255
+= Valid offset: page 0 (0-255), other (128-255)
 
 For active cable, there is no "perfect" page validation as it is too complicated. User is responsible to make sure the page existence according to cable user manual.
 
@@ -120,12 +120,12 @@ sfp.read_eeprom_by_page(page=1, offset=0, size=1)   # invalid offset 0 for page 
 ##### sff8436 and sff8636 implementation
 
 Passive cable:
-Valid page: 0
-Valid offset: 0-255
+- Valid page: 0
+- Valid offset: 0-255
 
 Active cable:
-Valid page: 0-255
-Valid offset: page 0 (0-255), other (128-255)
+- Valid page: 0-255
+- Valid offset: page 0 (0-255), other (128-255)
 
 For active cable, there is no "perfect" page validation as it is too complicated. User is responsible to make sure the page existence according to cable user manual.
 
@@ -139,12 +139,12 @@ sfp.write_eeprom_by_page(page=1, offset=0, bytearray.fromhex('ff'))     # invali
 ##### sff8472 implementation
 
 Passive cable:
-Valid wire address: [A0h] (case insensitive)
-Valid offset: A0h (0-128)
+- Valid wire address: [A0h] (case insensitive)
+- Valid offset: A0h (0-128)
 
-Active wire address:
-Valid page: [A0h, A2h] (case insensitive)
-Valid offset: A0h (0-255), A2h (0-255)
+Active cable:
+- Valid wire address: [A0h, A2h] (case insensitive)
+- Valid offset: A0h (0-255), A2h (0-255)
 
 ```python
 sfp.read_eeprom_by_page(0, 0, 1, wire_addr='a0h') # valid
@@ -242,8 +242,8 @@ No memory consumption is expected when the feature is disabled via compilation a
 
 #### Unit Test cases
 
-sonic-utilities unit test shall be extended to cover new subcommands
-sonic-platform-common unit test shall be extended to cover new APIs
+- sonic-utilities unit test shall be extended to cover new subcommands
+- sonic-platform-common unit test shall be extended to cover new APIs
 
 #### System Test cases
 
