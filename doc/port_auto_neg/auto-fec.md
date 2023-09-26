@@ -120,7 +120,7 @@ The below table covers different scenarios of what will be programmed in SAI whe
 ```
 NOTICE swss#orchagent: :- isFecModeSupported:Autoneg must be enabled for port fec mode auto to work
 ```
- The portsorch will also be responsible to update  operational FEC. This operational mode is applicable only when the mode is 'auto'. When the FEC mode is auto and oper up is detected, SAI_PORT_ATTR_OPER_FEC will be queried and updated in the STATE_DB PORT_TABLE field 'fec'. 
+ The portsorch will also be responsible to update  operational FEC. When oper up is detected, SAI_PORT_ATTR_OPER_FEC will be queried and updated in the STATE_DB PORT_TABLE field 'fec'. 
  If the vendor SAI does not support SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE, and mode auto is configured through config_db.json the following error log will be thrown
 
 ```
@@ -156,17 +156,21 @@ fec auto is not in ['rs', 'fc', 'none']
 
 #### Show command
 
-Currently the configured FEC mode is displayed in "show interfaces status" command. With the introduction of mode 'auto' it becomes necessary to display operational FEC. For modes other than auto, the config will match the operational FEC. In case of mode 'auto' the operational FEC will be queried from SAI during oper up sequence using SAI_PORT_ATTR_OPER_FEC. This will be updated to state_db PORT_TABLE field "fec". The value will contain the operational FEC and have the config auto in paranthesis as shown below.
+Currently the configured FEC mode is displayed in "show interfaces status" command. With the introduction of mode 'auto' it becomes necessary to display operational FEC.  The operational FEC will be queried from SAI during oper up sequence using SAI_PORT_ATTR_OPER_FEC. This will be updated to state_db PORT_TABLE field "fec". 
+A new show command is introduced to display the FEC admin and oper status.
 The show command will query the state DB and if there is FEC field, it would be displayed.
-If the field is not present, the config will be displayed, similar to the legacy behavior.
 
 ````
-show interfaces  status
-   Interface            Lanes    Speed    MTU    FEC       Alias          Vlan    Oper    Admin             Type    Asym PFC
-------------  ---------------  -------  -----  ---------   -------  ------------  ------  -------  ---------------  ----------
-   Ethernet0          0,1,2,3     100G   9100    N/A       etp1        routed      up       up   QSFP+ or later         N/A
-   Ethernet4          4,5,6,7     100G   9100     rs       etp2  PortChannel1      up       up   QSFP+ or later         N/A
-   Ethernet8        8,9,10,11     100G   9100   rs(auto)   etp3        routed      up       up   QSFP+ or later         N/A
+admin@sonic:~$ show interfaces fec status
+  Interface    FEC Oper    FEC Admin
+  -----------  ----------  -----------
+  Ethernet0         N/A           rs
+ Ethernet32         N/A           rs
+ Ethernet36         N/A          N/A
+Ethernet112         N/A           rs
+Ethernet116         N/A           rs
+Ethernet120         N/A           rs
+Ethernet124          rs         auto
 ````
 
 ### YANG model changes
