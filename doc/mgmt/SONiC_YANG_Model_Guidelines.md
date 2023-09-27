@@ -503,12 +503,8 @@ container PORTCHANNEL_INTERFACE {
 #### Strategies for Ensuring Unique and Unambiguous Keys
 
 1. **Composite Keys with Different Number of Elements**: Utilize composite keys that have a different number of key elements to distinguish lists.
-
-2. **Different Data Types with Constraints**: Use constraints like length, pattern, or range to make keys of different data types non-overlapping.
   
-3. **Pattern Constraints**: Implement regular expressions to define specific patterns that keys must match.
-
-4. **Length and Range Constraints**: Limit the length of strings or the range of integers to make them unique.
+2. **Pattern Constraints**: Implement regular expressions to define specific patterns that keys must match (Only applicable to string datatype).
 
 #### ABNF
 ```
@@ -520,207 +516,219 @@ container PORTCHANNEL_INTERFACE {
 	}
 }
 ```
-#### Example 1: Key with Different Number of Elements(composite keys - Allowed case)
+#### Example 1: Key with different number of elements(composite keys - Allowed case)
 
 `INTERFACE` table stores VRF names to which an interface belongs, also it stores IP address of each interface. Hence it is needed to split them into two different YANG lists.
 
 ```yang
 ......
-container sonic-interface {
-	container INTERFACE {
-		list INTERFACE_LIST {  // 1st list
-    			key ifname;
-			
-			leaf ifname {
-				type leafref { 
-				......
-				}
-			}
-			leaf vrf-name {
-				type leafref { 
-				......
-				}
-			}
-    			......
-		}
-
-		list INTERFACE_IPADDR_LIST { //2nd list
-   			key ifname, ip_addr;
-			
-  			leaf ifname {
-				type leafref { 
-				......
-				}
-			}
-  			leaf ip_addr {
-      				  type inet:ipv4-prefix;
-  			}
+container INTERFACE {
+	list INTERFACE_LIST {  // 1st list
+		key ifname;
+		
+		leaf ifname {
+			type leafref { 
 			......
+			}
 		}
-	} 
+		leaf vrf-name {
+			type leafref { 
+			......
+			}
+		}
+		......
+	}
+
+	list INTERFACE_IPADDR_LIST { //2nd list
+		key ifname, ip_addr;
+		
+		leaf ifname {
+			type leafref { 
+			......
+			}
+		}
+		leaf ip_addr {
+			  type inet:ipv4-prefix;
+		}
+		......
+	}
 } 
 ......
 ```
 ***In the example above if the config DB contains an INTERFACE table with single key element then it will be associted with the INTERFACE_LIST and if contains 2 key elements then it will be associated with INTERFACE_IPADDR_LIST***
 
-#### Example 2: Keys with Same Number of Elements(NOT Allowed case)
+#### Example 2: Keys with same number of elements of same type (NOT Allowed case)
 
 ```yang
 ......
-container sonic-interface {
-	container INTERFACE {
-		list INTERFACE_LIST {  // 1st list
-			key ifname;
-			leaf ifname {
-				type string;
-			}
-			// ...
+container NOT_SUPPORTED_INTERFACE {
+	list NOT_SUPPORTED_INTERFACE_LIST {  // 1st list
+		key ifname;
+		leaf ifname {
+			type string;
 		}
+		// ...
+	}
 
-		list INTERFACE_ANOTHER_LIST { // Negative case
-			key ifname;
-			leaf ifname {
-				type string;
-			}
-			// ...
+	list NOT_SUPPORTED_INTERFACE_ANOTHER_LIST { // Negative case
+		key ifname;
+		leaf ifname {
+			type string;
 		}
-	} 
+		// ...
+	}
+} 
+......
+```
+
+***In the example above if the config DB contains an NOT_SUPPORTED_INTERFACE table with key Ethernet1 then it would match with both the list, this is an overlapping scenario***
+
+#### Example 3: Pattern Constraints with same number of elements and same type(Allowed case)
+
+```yang
+......
+container TELEMETRY_CLIENT {
+    list TELEMETRY_CLIENT_DS_LIST {
+	key "prefix";
+
+	leaf prefix {
+	    type string {
+		pattern "DestinationGroup_" + ".*";
+	    }
+	}
+
+	leaf dst_addr {
+	    type ipv4-port;
+	}
+    }
+
+    list TELEMETRY_CLIENT_SUB_LIST {
+	key "prefix";
+
+	leaf prefix {
+	    type string {
+		pattern "Subscription_" + ".*";
+	    }
+	}
+
+	leaf dst_group {
+	    must "(contains(../../TELEMETRY_CLIENT_DS_LIST/prefix, current()))";
+	    type string;
+	}
+    }
 }
 ......
 ```
 
-***In the example above if the config DB contains an INTERFACE table with key Ethernet1 then it would match with both the list, this is an overlapping scenario***
+#### Example 4: Pattern Constraints with same number of elements and same type (NOT Allowed case)
 
-#### Example 3: Pattern Constraints (Allowed case)
-
-In this example, `INTERFACE_LIST` uses a key `ifname` that must start with "Eth", while `INTERFACE_IPADDR_LIST` uses a key `ifname` that must start with "Vlan".
+***In the given example, if the configuration database has an NOT_SUPPORTED_TELEMETRY_CLIENT table with the key "DestinationGroup_HS, it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario. It is required to have pattern constraint for both the LISTs.***
 
 ```yang
 ......
-container sonic-interface {
-	container INTERFACE {
-		list INTERFACE_LIST {  // 1st list
-			key ifname;
-			leaf ifname {
-				type string {
-					pattern "Eth.*";
-				}
-			}
-			// ...
-		}
+container NOT_SUPPORTED_TELEMETRY_CLIENT {
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST {
+	key "prefix";
 
-		list VLAN_LIST { // 2nd list
-			key "ifname ip_addr";
-			leaf ifname {
-				type string {
-					pattern "Vlan.*";
-				}
-			}
-			// ...
-		}
-	} 
+	leaf prefix {
+	    type string {
+		pattern "DestinationGroup_" + ".*";
+	    }
+	}
+
+	leaf dst_addr {
+	    type ipv4-port;
+	}
+    }
+
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST {
+	key "prefix";
+
+	leaf prefix {
+	    type string;
+	}
+
+	leaf dst_group {
+	    must "(contains(../../TELEMETRY_CLIENT_DS_LIST/prefix, current()))";
+	    type string;
+	}
+    }
 }
 ......
 ```
 
-***In the given example, if the configuration database has an INTERFACE table with the key "Ethernet1, it would correspond to the INTERFACE_LIST. Similarly, if the configuration database features an INTERFACE table with the key "Vlan10," it would align with the VLAN_LIST. In this context, each key uniquely identifies a specific list***
+#### Example 5: keys with same number of elements and different type(NOT Allowed case 1)
 
-#### Example 4: Pattern Constraints (NOT Allowed case)
-
-Here, both INTERFACE_LIST and INTERFACE_ANOTHER_LIST use a key ifname with the same pattern constraint, making them potentially overlapping and ambiguous.
+***In the given example, if the configuration database has an NOT_SUPPORTED_TELEMETRY_CLIENT table with the key "1234, it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario***
 
 ```yang
 ......
-container sonic-interface {
-	container INTERFACE {
-		list INTERFACE_LIST {  // 1st list
-			key ifname;
-			leaf ifname {
-				type string {
-					pattern "Eth.*";
-				}
-			}
-			// ...
-		}
+container NOT_SUPPORTED_TELEMETRY_CLIENT {
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST {
+	key "prefix";
 
-		list INTERFACE_ANOTHER_LIST { // Negative case
-			key ifname;
-			leaf ifname {
-				type string {
-					pattern "Eth.*";
-				}
-			}
-			// ...
-		}
-	} 
-}
-......
-```
-***In the given example, if the configuration database has an INTERFACE table with the key "Ethernet1, it would correspond to both the LIST, this is an overlapping scenario******
+	leaf prefix {
+	    type string {
+		pattern ".*";
+	    }
+	}
 
-#### Example 5: Length Constraints (Allowed case)
+	leaf dst_addr {
+	    type ipv4-port;
+	}
+    }
 
-In this example, `INTERFACE_LIST` uses a key ifname that must be exactly 3 characters long, while `INTERFACE_IPADDR_LIST` uses a key ifname that must be at least 4 characters long.
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST {
+	key "prefix";
 
-```yang
-......
-container sonic-interface {
-	container INTERFACE {
-		list INTERFACE_LIST {  // 1st list
-			key ifname;
-			leaf ifname {
-				type string {
-					length "3..3";
-				}
-			}
-			// ...
-		}
+	leaf prefix {
+	    type int32;
+	}
 
-		list INTERFACE_IPADDR_LIST { // 2nd list
-			key "ifname";
-			leaf ifname {
-				type string {
-					length "4..max";
-				}
-			}
-			// ...
-		}
-	} 
+	leaf dst_group {
+	    must "(contains(../../TELEMETRY_CLIENT_DS_LIST/prefix, current()))";
+	    type int32;
+	}
+    }
 }
 ......
 ```
 
-#### Example 6: Length Constraints (NOT Allowed case)
+#### Example 6: keys with same number of elements and different type(NOT Allowed case 2)
 
-Here, both `INTERFACE_LIST` and `INTERFACE_ANOTHER_LIST` use a key ifname with overlapping length constraints, making them potentially ambiguous.
+***In the given example, if the configuration database has an NOT_SUPPORTED_TELEMETRY_CLIENT table with the key "1234, it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario***
 
 ```yang
 ......
-container sonic-interface {
-	container INTERFACE {
-		list INTERFACE_LIST {  // 1st list
-			key ifname;
-			leaf ifname {
-				type string {
-					length "3..5";
-				}
-			}
-			// ...
-		}
+container NOT_SUPPORTED_TELEMETRY_CLIENT {
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST {
+	key "prefix";
 
-		list INTERFACE_ANOTHER_LIST { // Negative case
-			key ifname;
-			leaf ifname {
-				type string {
-					length "4..6";
-				}
-			}
-			// ...
-		}
-	} 
+	leaf prefix {
+	    type string;
+	}
+
+	leaf dst_addr {
+	    type ipv4-port;
+	}
+    }
+
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST {
+	key "prefix";
+
+	leaf prefix {
+	    type int32;
+	}
+
+	leaf dst_group {
+	    must "(contains(../../TELEMETRY_CLIENT_DS_LIST/prefix, current()))";
+	    type int32;
+	}
+    }
 }
 ......
 ```
+
 
 ### 19. Add read-only nodes for state data using 'config false' statement. Define a separate top level container for state data. If state data is defined in other DB than CONFIG_DB, use extension 'sonic-ext:db-name' for defining the table present in other Redis DB. The default separator used in table key  is "|", if it is different, use 'sonic-ext:key-delim {separator};' YANG extension. This step applies when SONiC YANG is used as Northbound YANG.
 
