@@ -1,4 +1,4 @@
-# SRv6 Path Tracing Midpoint #
+# Path Tracing Midpoint #
 
 ## Table of Content 
 
@@ -21,6 +21,7 @@
     - [PortsOrch OrchAgent Changes](#portsorch-orchagent-changes)
     - [ASIC_DB Changes](#asic_db-changes)
 - [SAI API](#sai-api)
+- [YANG Models Enhancements](#yang-model-enhancements)
 - [Testing Requirements/Design](#testing-requirementsdesign)
     - [Unit Test cases](#unit-test-cases)
         - [Test cases for configuration CLI commands](#test-cases-for-configuration-cli-commands)
@@ -119,11 +120,11 @@ The only requirement is to extend some components (namely SONiC CLI and OrchAgen
 The following diagram shows the steps required to configure the PT Midpoint feature in SONiC:
 <br> <br>
 
-![SRv6 Path Tracing Midpoint Sequence Diagram](images/srv6_path_tracing_midpoint_sequence_diagram.png "SRv6 Path Tracing Midpoint Sequence Diagram").
+![Path Tracing Midpoint Sequence Diagram](images/path_tracing_midpoint_sequence_diagram.png "Path Tracing Midpoint Sequence Diagram").
 
 (1) The user configures the *PT Interface ID* and *PT Timestamp Template* of a physical port via the SONiC CLI.
 
-(2) The SONiC CLI uses the _portconfig_ script to inject the PT Interface ID and PT Timestamp Template into the PORT table in CONFIG_DB.
+(2) The SONiC CLI injects the PT Interface ID and PT Timestamp Template into the PORT table in CONFIG_DB.
 
 (3) portmgrd receives a PORT update notification (portmgrd is an CONFIG_DB subscriber).
 
@@ -131,7 +132,7 @@ The following diagram shows the steps required to configure the PT Midpoint feat
 
 (5) PortsOrch receives a PORT_TABLE update notification (PortsOrch is an APPL_DB subscriber).
 
-(6) PortsOrch invokes the sairedis `set_port_attribute()` APIs to set the port PT attributes including PT Interface ID, PT Timestamp Template, PT TAM Object. The port PT attributes are injected  into the ÀSIC_DB.
+(6) PortsOrch invokes the sairedis `set_port_attribute()` APIs to set the port PT attributes including PT Interface ID, PT Timestamp Template, PT TAM Object. The port PT attributes are injected  into the ASIC_DB.
 
 The next subsections describe the changes required to support the PT Midpoint HLD described above. 
 
@@ -139,13 +140,15 @@ The next subsections describe the changes required to support the PT Midpoint HL
 
 #### CLI Configuration Commands
 
-The existing `config interface` command is extended by introducing a new subcommand `pt` that allows users to configure the Interface ID and Timestamp Template parameters required for the PT Midpoint functionality. The Timestamp Template is optional. The default template is *template3*.
+The existing `config interface` command is extended by introducing a new subcommand `path-tracing` that allows users to enable/disable Path Tracing and configure the Interface ID and Timestamp Template parameters required for the PT Midpoint functionality. The Timestamp Template is optional. The default template is *template3*.
+
+Enable Path Tracing and configure Interface ID and Timestamp Template:
 
 ```
-admin@sonic:~# config interface pt <interface_name> <pt_interface_id> [pt_timestamp_template]
+admin@sonic:~# config interface path-tracing add <interface_name> --interface-id <pt_interface_id> --ts-template [pt_timestamp_template]
 
     <interface_name>: interface name 
-    <pt_interface_id>: Path Tracing Interface ID (0-4095)
+    <pt_interface_id>: Path Tracing Interface ID (1-4095)
     [pt_timestamp_template]: Path Tracing timestamp template (optional)
         Supported templates {template1, template2, template3, template4}
             template1: timestamp[08:15]
@@ -155,10 +158,23 @@ admin@sonic:~# config interface pt <interface_name> <pt_interface_id> [pt_timest
         Default: template3
 ```
 
+Disable Path Tracing:
+
+```
+admin@sonic:~# config interface path-tracing del <interface_name>
+
+    <interface_name>: interface name 
+```
+
+During the initialization of PortsOrch, we query ASIC_DB Path Tracing capability to check if Path Tracing is supported by the ASIC and store the result in the STATE_DB SWITCH_CAPABILITY table.
+When the user tries to configure Path Tracing, we check the STATE_DB SWITCH_CAPABILITY table and return an error if Path Tracing is not supported.
+
+We added a new attribute `path_tracing_capable` to the STATE_DB SWITCH_CAPABILITY table schema. When Path Tracing is supported, `path_tracing_capable` is set to `true`.
+
 **Example 1:**
 
 ```
-admin@sonic:~# config interface pt Ethernet8 128
+admin@sonic:~# config interface path-tracing add Ethernet8 --interface-id 128
 ```
 
 The above command assigns Ethernet8 a Path Tracing Interface ID of 128 and a Timestamp Template template3 (default).
@@ -166,23 +182,31 @@ The above command assigns Ethernet8 a Path Tracing Interface ID of 128 and a Tim
 **Example 2:**
 
 ```
-admin@sonic:~# config interface pt Ethernet9 129 template2
+admin@sonic:~# config interface path-tracing add Ethernet9 --interface-id 129 --ts-template template2
 ```
 
 The above command assigns Ethernet9 a Path Tracing Interface ID of 129 and a Timestamp Template template2.
 
-#### CLI Show Commands
-
-The existing `show interfaces` command is extended by introducing a new subcommand `pt` that allows users to verify the current PT Midpoint configuration (i.e., the Interface ID and Timestamp Template parameters).
+**Example 3:**
 
 ```
-admin@sonic:~$ show interfaces pt [interface_name]
+admin@sonic:~# config interface path-tracing del Ethernet9
+```
+
+The above command disable Path Tracing on Ethernet9.
+
+#### CLI Show Commands
+
+The existing `show interfaces` command is extended by introducing a new subcommand `path-tracing` that allows users to verify the current PT Midpoint configuration (i.e., the Interface ID and Timestamp Template parameters).
+
+```
+admin@sonic:~$ show interfaces path-tracing [interface_name]
 ```
 
 **Example 1** - Show PT Midpoint configuration for all interfaces:
 
 ```
-admin@sonic:~$ show interfaces pt
+admin@sonic:~$ show interfaces path-tracing
 
       Interface            Alias    Oper    Admin    PT Interface ID   PT Timestamp Template
 ---------------  ---------------  ------  -------  -----------------  ---------------------- 
@@ -190,15 +214,28 @@ admin@sonic:~$ show interfaces pt
       Ethernet9   fortyGigE0/0/9      up       up                129               template2 
 ```
 
-**Example 2** - Show PT Midpoint configuration for interface Ethernet8:
+**Example 2** - Show PT Midpoint configuration for interface Ethernet9:
 
 ```
-admin@sonic:~$ show interfaces pt Ethernet9
+admin@sonic:~$ show interfaces path-tracing Ethernet9
 
       Interface            Alias    Oper    Admin    PT Interface ID   PT Timestamp Template
 ---------------  ---------------  ------  -------  -----------------  ---------------------- 
-      Ethernet8   fortyGigE0/0/9      up       up                129               template2
+      Ethernet9   fortyGigE0/0/9      up       up                129               template2
 ```
+
+The following example clarifies how the PT Midpoint functionality works:
+
+![Path Tracing Midpoint Diagram](images/path_tracing_midpoint_diagram.png "Path Tracing Midpoint Diagram").
+
+Using the SONiC CLI,
+- the user assigns an Interface ID of 111 and a Timestamp Template template2 to the node 1 interface facing node 2
+- the user assigns an Interface ID of 222 and a Timestamp Template template3 (default) to the outward-facing interface of node 2
+
+Node 1 receives an IPv6 packet that contains an IPv6 HBH-PT option. Node 1 does the regular packet processing, and just before forwarding the packet on the outgoing interface, node 1 pushes a new MCD (MCD1) to the HBH-PT. MCD1 encodes the outgoing interface ID (111) and the timestamp at which the packet is being forwarded (t1). According to the timestamp template template2, only bits [12-19] of the timestamp are encoded in the MCD.
+
+Then, node 1 forwards to the packet to node 2. Node 2 does the regular packet processing, and just before forwarding the packet on the outgoing interface, node 2 pushes a new MCD (MCD2). MCD2 encodes the outgoing interface ID (222) and the timestamp at which the packet is being forwarded (t2). According to the timestamp template template3, only bits [16-23] of the timestamp are encoded in the MCD.
+
 
 ### CONFIG_DB Changes
 
@@ -281,7 +318,23 @@ pt_timestamp_template = "template1" / "template2" / "template3" / "template4"; P
 
 PortsOrch is an existing component of the OrchAgent daemon in the SWSS container. PortsOrch monitors operations on Port related tables in APPL_DB and converts those operations into SAI commands to manage port entries.
 
-PortsOrch is extended to support PT Midpoint. It  invokes the sairedis `set_port_attribute()` APIs to set the port PT attributes including PT Interface ID, PT Timestamp Template, PT TAM Object. The port PT attributes are injected  into the ÀSIC_DB.
+PortsOrch is extended to support PT Midpoint. It  invokes the sairedis `set_port_attribute()` APIs to set the port PT attributes including PT Interface ID, PT Timestamp Template, PT TAM Object. The port PT attributes are injected  into the ASIC_DB.
+
+### STATE_DB Changes
+
+The capabilities supported by the switch are stored in the SWITCH_CAPABILITY table in STATE_DB.
+
+To support PT Midpoint in SONiC, a new attribute `path_tracing_capable` is added to the SWITCH_CAPABILITY schema.
+
+```
+key                   = SWITCH_CAPABILITY:switch
+...
+path_tracing_capable       = "true" / "false"      ; Whether Path Tracing is supported or not
+```
+
+During the initialization, PortsOrch uses the sairedis `sai_query_attribute_capability()` API to check if the switch supports Path Tracing or not and sets the `path_tracing_capable` attribute in SWITCH_CAPABILITY table accordingly.
+
+The `path_tracing_capable` attribute is used by the SONiC CLI to prevent users from enabling Path Tracing if it is not supported by the switch. 
 
 ## SAI API 
 
@@ -381,6 +434,73 @@ typedef enum _sai_tam_int_type_t
 
 These attributes allows to enable PatH Tracing on the interface and set the PT Interface ID and PT Timestamp Template for a SAI_OBJECT_TYPE_PORT. The new SAI attributes is merged in SAI in [PR#1841](https://github.com/opencomputeproject/SAI/pull/1841#) and will be will be available in SAI 1.13 release.
 
+## YANG Model Enhancements
+
+A new enumeration is added to `sonic-types.yang.j2` to enumerate the supported Timestamp Templates.
+
+```
+module sonic-types {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/sonic-head";
+    prefix sonic-types;
+
+    description "SONiC type for yang Models of SONiC OS";
+    /*
+     * Try to define only sonic specific types here. Rest can be written in
+     * respective YANG files.
+     */
+
++    typedef path_tracing_timestamp_template {
++        description "Path Tracing Timestamp Template ";
++        type enumeration {
++            enum template1;
++            enum template2;
++            enum template3;
++            enum template4;
++        }
++    }
+}
+```
+
+The existing `sonic-port.yang` model is extended to support the new `pt_interface_id` and `pt_timestamp_template` port attributes.
+
+```
+module sonic-port{
+
+	container sonic-port{
+
+		container PORT {
+
+			description "PORT part of config_db.json";
+
+			list PORT_LIST {
+
+				key "name";
+
++				leaf pt_interface_id {
++					description "Path Tracing Interface ID";
++					type int16 {
++						range 1..4095;
++					}
++				}
++
++				leaf pt_timestamp_template {
++					when "current()/../pt_interface_id";
++					description "Path Tracing Timestamp Template";
++					type stypes:path_tracing_timestamp_template;
++					default template3;
++				}
+
+			} /* end of list PORT_LIST */
+
+		} /* end of container PORT */
+
+	} /* end of container sonic-port */
+
+} /* end of module sonic-port */
+```
 		
 ## Testing Requirements/Design  
 
@@ -409,28 +529,29 @@ Two new test cases are added:
 To validate PT Midpoint, two test cases are added to the existing PortMgr unit test (`portmgr_ut.cpp`):
 
 - `ConfigurePortPTDefaultTimestampTemplate` writes a port configuration to the CONFIG_DB (without specifying the PT Timestamp Template) and verifies that PortMgr correctly propagates the PT Midpoint parameters to the APP_DB.
-- `ConfigurePortPTTimestampTemplate2` writes a port configuration to the CONFIG_DB (with a specific PT Timestamp Template) and verifies that PortMgr correctly propagates the PT Midpoint parameters to the APP_DB.
+- `ConfigurePortPTNonDefaultTimestampTemplate` writes a port configuration to the CONFIG_DB (with a specific PT Timestamp Template) and verifies that PortMgr correctly propagates the PT Midpoint parameters to the APP_DB.
 
 #### Test cases for OrchAgent
 
 To validate PT Midpoint, two test cases are added to the existing PortsOrch unit test (`portsorch_ut.cpp`):
 
 - `PortPTConfigDefaultTimestampTemplate` writes a port configuration to the APPL_DB (with PT Interface ID non-zero and default PT Timestamp Template) and verifies that PortsOrch propagates the PT Midpoint parameters to the ASIC_DB.
-- `PortPTConfigTimestampTemplate2` writes a port configuration to the APPL_DB (with PT Interface ID non-zero and PT Timestamp Template specified) and verifies that PortsOrch correctly propagates the PT Midpoint parameters to the ASIC_DB.
+- `PortPTConfigNonDefaultTimestampTemplate` writes a port configuration to the APPL_DB (with PT Interface ID non-zero and PT Timestamp Template specified) and verifies that PortsOrch correctly propagates the PT Midpoint parameters to the ASIC_DB.
 
 ### System Test cases
 
 To validate PT Midpoint, two test cases are added to the existing `tests/test_port.py` (in the `sonic-swss` repository):
 
 - `test_PortPtDefaultTimestampTemplate` writes a port configuration to the CONFIG_DB (with PT Interface ID non-zero and default PT Timestamp Template) and verifies that APPL_DB and ASIC_DB are updated correctly.
-- `test_PortPtTimestampTemplate2` writes a port configuration to the CONFIG_DB (with PT Interface ID non-zero and PT Timestamp Template specified) and verifies that APPL_DB and ASIC_DB are updated correctly.
+- `test_PortPtNonDefaultTimestampTemplate` writes a port configuration to the CONFIG_DB (with PT Interface ID non-zero and PT Timestamp Template specified) and verifies that APPL_DB and ASIC_DB are updated correctly.
 
 ## Open/Action items
 
 The PT Midpoint feature proposed in this document depends on the following PRs:
 
-- Add CLI commands for SRv6 Path Tracing: https://github.com/sonic-net/sonic-utilities/pull/2983.
+- [SONiC CLI] Add CLI commands for SRv6 Path Tracing: https://github.com/sonic-net/sonic-utilities/pull/2983.
 - [orchagent] Add support for SRv6 Path Tracing Midpoint: https://github.com/sonic-net/sonic-swss/pull/2903
+- [sonic-yang-models] Add Path Tracing attributes to SONiC Port YANG model: https://github.com/sonic-net/sonic-buildimage/pull/16758
 
 ## References
 
