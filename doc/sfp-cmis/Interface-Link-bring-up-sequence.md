@@ -199,6 +199,13 @@ In case of continuous restart of xcvrd, both the keys will still hold the same v
 
 Following infra will ensure port re-initialization by xcvrd in case of syncd/swss/orchagent crash
 
+Pre-requisites for the infra to work:
+  - APPL_DB should be cleared after syncd/swss/orchagent crash/restart, config reload and cold reboot
+  - APPL_DB should be retained after 
+    - pmon crash/restart
+    - xcvrd crash/restart (does not apply to xcvrd restart triggered due to a different docker container crash/restart)
+    - warm reboot
+
 1. XCVRD main thread init
 	- XCVRD main thread creates the key CMIS_REINIT_REQUIRED in PORT_TABLE:\<port\> (APPL_DB) with value as true for ports which do NOT have this key present 
 	- XCVRD main thread creates the key NPU_SI_SETTINGS_SYNC_STATUS in PORT_TABLE:\<port\> (APPL_DB) with value NPU_SI_SETTINGS_DEFAULT for ports which do NOT have this key present.  
@@ -442,13 +449,14 @@ sequenceDiagram
 | -------------- | ------------------------ | --------------- | ------------------------ | ------------------------------------------------------------------------------ | ---------------------- | --------- |
 | Xcvrd restart | N | Y | N | NPU_SI_SETTINGS_DONE | N | N |
 | Pmon restart | N | Y | N | NPU_SI_SETTINGS_DONE | N | N |
+| orchagent restart | Y | Y | Y | NPU_SI_SETTINGS_DEFAULT | Y | N/A |
 | Swss restart | Y | Y | Y | NPU_SI_SETTINGS_DEFAULT | Y | N/A |
 | Syncd restart | Y | Y | Y | NPU_SI_SETTINGS_DEFAULT | Y | N/A |
 | config reload | Y | Y | Y | NPU_SI_SETTINGS_DEFAULT | Y | N/A |
 | Cold reboot | Y | Y | Y | NPU_SI_SETTINGS_DEFAULT | Y | N/A |
 | Warm reboot | N | Y | N | NPU_SI_SETTINGS_DONE | N | N |  
-| config interface shut | N | N | N | NPU_SI_SETTINGS_DONE | N | N/A |
-| config interface no shut | N | N | N | NPU_SI_SETTINGS_DONE | N | N/A |
+| config interface shutdown | N | N | N | NPU_SI_SETTINGS_DONE | N | N/A |
+| config interface startup | N | N | N | NPU_SI_SETTINGS_DONE | N | N/A |
 
 **Transceiver OIR testplan**  
 | Event | APPL_DB_<asic_n> cleared | Xcvrd restarted | NPU SI settings notified | NPU_SI_SETTINGS_SYNC_STATUS value upon event completion | CMIS init triggered |
