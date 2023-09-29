@@ -89,7 +89,6 @@ The reboot request contains a delay parameter, method and subcomponent fields. F
 
 * system reboot (method = warm, cold, fast, etc)
 * optic reboot
-* container reboot
 * etc
 
 The immediate short term use case for the reboot backend daemon is to support system warm boot. During warmboot applications will be requested and confirmed to:
