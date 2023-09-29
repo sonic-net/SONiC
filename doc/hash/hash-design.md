@@ -28,7 +28,6 @@
             - [2.4.2.1 Switch hash capabilities](#2421-switch-hash-capabilities)
         - [2.4.3 Data sample](#243-data-sample)
         - [2.4.4 Configuration sample](#244-configuration-sample)
-        - [2.4.5 Initial configuration](#245-initial-configuration)
     - [2.5 Flows](#25-flows)
         - [2.5.1 Config section](#251-config-section)
             - [2.5.1.1 GH update](#2511-gh-update)
@@ -48,10 +47,11 @@
 
 ## Revision
 
-| Rev | Date       | Author         | Description                                     |
-|:---:|:----------:|:--------------:|:------------------------------------------------|
-| 0.1 | 12/09/2022 | Nazarii Hnydyn | Initial version                                 |
-| 0.2 | 05/12/2022 | Nazarii Hnydyn | Capabilities validation                         |
+| Rev | Date       | Author         | Description                     |
+|:---:|:----------:|:--------------:|:--------------------------------|
+| 0.1 | 12/09/2022 | Nazarii Hnydyn | Initial version                 |
+| 0.2 | 05/12/2022 | Nazarii Hnydyn | Capabilities validation         |
+| 0.3 | 25/09/2023 | Nazarii Hnydyn | Hashing algorithm configuration |
 
 ## About this manual
 
@@ -63,10 +63,11 @@ This document describes the high level design of GH feature in SONiC
 
 **In scope:**  
 1. ECMP/LAG switch hash configuration
+2. ECMP/LAG switch hash algorithm configuration
 
 **Out of scope:**  
 1. ECMP/LAG switch hash seed configuration
-2. ECMP/LAG switch hash algorithm configuration
+2. ECMP/LAG switch hash offset configuration
 
 ## Abbreviations
 
@@ -112,7 +113,7 @@ For ECMP, the hashing algorithm determines how incoming traffic is forwarded to 
 For LAG, the hashing algorithm determines how traffic is placed onto the LAG member links to manage  
 bandwidth by evenly load-balancing traffic across the outgoing links.
 
-GH is a feature which allows user to configure which hash fields suppose to be used by hashing algorithm.  
+GH is a feature which allows user to configure various aspects of hashing algorithm.  
 GH provides global switch hash configuration for ECMP and LAG.
 
 ## 1.2 Requirements
@@ -189,51 +190,69 @@ GH provides global switch hash configuration for ECMP and LAG.
 
 ###### Figure 1: GH design
 
-GH will use SAI Hash API to configure user-defined list of hash fields to ASIC.  
+GH will use SAI Hash API to configure various aspects of hashing algorithm to ASIC.  
 Hashing policy can be set independently for ECMP and LAG.
 
 **GH important notes:**
 1. According to the SAI Behavioral Model, the hash is calculated on ingress to pipeline
-2. SAI configuration of hash fields is applicable to an original packet before any DECAP/ENCAP,
+2. SAI configuration of hash fields is applicable to original packet before any DECAP/ENCAP,
 i.e. configuration is tunnel-agnostic
-3. If some configured field is not present in an incoming packet, then zero is assumed for hash calculation
+3. If some configured hash field is not present in an incoming packet, then zero is assumed for hash calculation
 
 ## 2.2 SAI API
 
 **SAI native hash fields which shall be used for GH:**
 
-| Field                                   | Comment                                 |
-|:----------------------------------------|:----------------------------------------|
-| SAI_NATIVE_HASH_FIELD_IN_PORT           | SWITCH_HASH\|GLOBAL\|ecmp_hash/lag_hash |
-| SAI_NATIVE_HASH_FIELD_DST_MAC           |                                         |
-| SAI_NATIVE_HASH_FIELD_SRC_MAC           |                                         |
-| SAI_NATIVE_HASH_FIELD_ETHERTYPE         |                                         |
-| SAI_NATIVE_HASH_FIELD_VLAN_ID           |                                         |
-| SAI_NATIVE_HASH_FIELD_IP_PROTOCOL       |                                         |
-| SAI_NATIVE_HASH_FIELD_DST_IP            |                                         |
-| SAI_NATIVE_HASH_FIELD_SRC_IP            |                                         |
-| SAI_NATIVE_HASH_FIELD_L4_DST_PORT       |                                         |
-| SAI_NATIVE_HASH_FIELD_L4_SRC_PORT       |                                         |
-| SAI_NATIVE_HASH_FIELD_INNER_DST_MAC     |                                         |
-| SAI_NATIVE_HASH_FIELD_INNER_SRC_MAC     |                                         |
-| SAI_NATIVE_HASH_FIELD_INNER_ETHERTYPE   |                                         |
-| SAI_NATIVE_HASH_FIELD_INNER_IP_PROTOCOL |                                         |
-| SAI_NATIVE_HASH_FIELD_INNER_DST_IP      |                                         |
-| SAI_NATIVE_HASH_FIELD_INNER_SRC_IP      |                                         |
-| SAI_NATIVE_HASH_FIELD_INNER_L4_DST_PORT |                                         |
-| SAI_NATIVE_HASH_FIELD_INNER_L4_SRC_PORT |                                         |
+| Field                                   | Comment                        |
+|:----------------------------------------|:-------------------------------|
+| SAI_NATIVE_HASH_FIELD_IN_PORT           | SWITCH_HASH\|GLOBAL\|ecmp_hash |
+| SAI_NATIVE_HASH_FIELD_DST_MAC           | SWITCH_HASH\|GLOBAL\|lag_hash  |
+| SAI_NATIVE_HASH_FIELD_SRC_MAC           |                                |
+| SAI_NATIVE_HASH_FIELD_ETHERTYPE         |                                |
+| SAI_NATIVE_HASH_FIELD_VLAN_ID           |                                |
+| SAI_NATIVE_HASH_FIELD_IP_PROTOCOL       |                                |
+| SAI_NATIVE_HASH_FIELD_DST_IP            |                                |
+| SAI_NATIVE_HASH_FIELD_SRC_IP            |                                |
+| SAI_NATIVE_HASH_FIELD_L4_DST_PORT       |                                |
+| SAI_NATIVE_HASH_FIELD_L4_SRC_PORT       |                                |
+| SAI_NATIVE_HASH_FIELD_INNER_DST_MAC     |                                |
+| SAI_NATIVE_HASH_FIELD_INNER_SRC_MAC     |                                |
+| SAI_NATIVE_HASH_FIELD_INNER_ETHERTYPE   |                                |
+| SAI_NATIVE_HASH_FIELD_INNER_IP_PROTOCOL |                                |
+| SAI_NATIVE_HASH_FIELD_INNER_DST_IP      |                                |
+| SAI_NATIVE_HASH_FIELD_INNER_SRC_IP      |                                |
+| SAI_NATIVE_HASH_FIELD_INNER_L4_DST_PORT |                                |
+| SAI_NATIVE_HASH_FIELD_INNER_L4_SRC_PORT |                                |
+
+**SAI hash algorithms which shall be used for GH:**
+
+| Algorithm                    | Comment                                  |
+|:-----------------------------|:-----------------------------------------|
+| SAI_HASH_ALGORITHM_CRC       | SWITCH_HASH\|GLOBAL\|ecmp_hash_algorithm |
+| SAI_HASH_ALGORITHM_XOR       | SWITCH_HASH\|GLOBAL\|lag_hash_algorithm  |
+| SAI_HASH_ALGORITHM_RANDOM    |                                          |
+| SAI_HASH_ALGORITHM_CRC_32LO  |                                          |
+| SAI_HASH_ALGORITHM_CRC_32HI  |                                          |
+| SAI_HASH_ALGORITHM_CRC_CCITT |                                          |
+| SAI_HASH_ALGORITHM_CRC_XOR   |                                          |
 
 **SAI attributes which shall be used for GH:**
 
-| API    | Function                                   | Attribute                            |
-|:-------|:-------------------------------------------|:-------------------------------------|
-| OBJECT | sai_query_attribute_capability             | SAI_SWITCH_ATTR_ECMP_HASH            |
-|        |                                            | SAI_SWITCH_ATTR_LAG_HASH             |
-|        |                                            | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST |
-|        | sai_query_attribute_enum_values_capability | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST |
-| SWITCH | get_switch_attribute                       | SAI_SWITCH_ATTR_ECMP_HASH            |
-|        |                                            | SAI_SWITCH_ATTR_LAG_HASH             |
-| HASH   | set_hash_attribute                         | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST |
+| API    | Function                                   | Attribute                                   |
+|:-------|:-------------------------------------------|:--------------------------------------------|
+| OBJECT | sai_query_attribute_capability             | SAI_SWITCH_ATTR_ECMP_HASH                   |
+|        |                                            | SAI_SWITCH_ATTR_LAG_HASH                    |
+|        |                                            | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST        |
+|        |                                            | SAI_SWITCH_ATTR_ECMP_DEFAULT_HASH_ALGORITHM |
+|        |                                            | SAI_SWITCH_ATTR_LAG_DEFAULT_HASH_ALGORITHM  |
+|        | sai_query_attribute_enum_values_capability | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST        |
+|        |                                            | SAI_SWITCH_ATTR_ECMP_DEFAULT_HASH_ALGORITHM |
+|        |                                            | SAI_SWITCH_ATTR_LAG_DEFAULT_HASH_ALGORITHM  |
+| SWITCH | get_switch_attribute                       | SAI_SWITCH_ATTR_ECMP_HASH                   |
+|        |                                            | SAI_SWITCH_ATTR_LAG_HASH                    |
+|        | set_switch_attribute                       | SAI_SWITCH_ATTR_ECMP_DEFAULT_HASH_ALGORITHM |
+|        |                                            | SAI_SWITCH_ATTR_LAG_DEFAULT_HASH_ALGORITHM  |
+| HASH   | set_hash_attribute                         | SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST        |
 
 ## 2.3 Orchestration agent
 
@@ -316,9 +335,11 @@ private:
 ; defines schema for switch hash configuration attributes
 key = SWITCH_HASH|GLOBAL ; switch hash global. Must be unique
 
-; field   = value
-ecmp_hash = hash-field-list ; hash fields for hashing packets going through ECMP
-lag_hash  = hash-field-list ; hash fields for hashing packets going through LAG
+; field             = value
+ecmp_hash           = hash-field-list ; hash fields for hashing packets going through ECMP
+lag_hash            = hash-field-list ; hash fields for hashing packets going through LAG
+ecmp_hash_algorithm = hash-algorithm  ; hash algorithm for hashing packets going through ECMP
+lag_hash_algorithm  = hash-algorithm  ; hash algorithm for hashing packets going through LAG
 
 ; value annotations
 hash-field      = "IN_PORT"
@@ -340,6 +361,13 @@ hash-field      = "IN_PORT"
                 / "INNER_L4_DST_PORT"
                 / "INNER_L4_SRC_PORT"
 hash-field-list = hash-field [ 1*( "," hash-field ) ]
+hash-algorithm  = "CRC"
+                / "XOR"
+                / "RANDOM"
+                / "CRC_32LO"
+                / "CRC_32HI"
+                / "CRC_CCITT"
+                / "CRC_XOR"
 ```
 
 ### 2.4.2 State DB
@@ -353,10 +381,15 @@ key = SWITCH_CAPABILITY|switch ; must be unique
 ECMP_HASH_CAPABLE           = capability-knob ; specifies whether switch is ECMP hash capable
 LAG_HASH_CAPABLE            = capability-knob ; specifies whether switch is LAG hash capable
 HASH|NATIVE_HASH_FIELD_LIST = hash-field-list ; hash field capabilities for hashing packets going through switch
+ECMP_HASH_ALGORITHM_CAPABLE = capability-knob ; specifies whether switch is ECMP hash algorithm capable
+LAG_HASH_ALGORITHM_CAPABLE  = capability-knob ; specifies whether switch is LAG hash algorithm capable
+ECMP_HASH_ALGORITHM         = hash-algorithm  ; hash algorithm capabilities for hashing packets going through ECMP
+LAG_HASH_ALGORITHM          = hash-algorithm  ; hash algorithm capabilities for hashing packets going through LAG
 
 ; value annotations
 capability-knob = "true" / "false"
 hash-field      = ""
+                / "N/A"
                 / "IN_PORT"
                 / "DST_MAC"
                 / "SRC_MAC"
@@ -376,6 +409,15 @@ hash-field      = ""
                 / "INNER_L4_DST_PORT"
                 / "INNER_L4_SRC_PORT"
 hash-field-list = hash-field [ 1*( "," hash-field ) ]
+hash-algorithm  = ""
+                / "N/A"
+                / "CRC"
+                / "XOR"
+                / "RANDOM"
+                / "CRC_32LO"
+                / "CRC_32HI"
+                / "CRC_CCITT"
+                / "CRC_XOR"
 ```
 
 ### 2.4.3 Data sample
@@ -389,6 +431,10 @@ INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER
 3) "lag_hash@"
 4) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
+5) "ecmp_hash_algorithm"
+6) "CRC"
+7) "lag_hash_algorithm"
+8) "CRC"
 ```
 
 **State DB:**
@@ -402,6 +448,14 @@ redis-cli -n 6 HGETALL 'SWITCH_CAPABILITY|switch'
  6) "IN_PORT,DST_MAC,SRC_MAC,ETHERTYPE,VLAN_ID,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP, \
 INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
+ 7) "ECMP_HASH_ALGORITHM_CAPABLE"
+ 8) "true"
+ 9) "LAG_HASH_ALGORITHM_CAPABLE"
+10) "true"
+11) "ECMP_HASH_ALGORITHM"
+12) "CRC,XOR,RANDOM,CRC_32LO,CRC_32HI,CRC_CCITT,CRC_XOR"
+13) "LAG_HASH_ALGORITHM"
+14) "CRC,XOR,RANDOM,CRC_32LO,CRC_32HI,CRC_CCITT,CRC_XOR"
 ```
 
 ### 2.4.4 Configuration sample
@@ -446,48 +500,11 @@ INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
                 "INNER_SRC_IP",
                 "INNER_L4_DST_PORT",
                 "INNER_L4_SRC_PORT"
-            ]
+            ],
+            "ecmp_hash_algorithm": "CRC",
+            "lag_hash_algorithm": "CRC"
         }
     }
-}
-```
-
-### 2.4.5 Initial configuration
-
-GH initial configuration will be updated at `sonic-buildimage/files/build_templates/init_cfg.json.j2`  
-in order to match vendor specific requirements.
-
-**Skeleton code:**
-```jinja
-{
-    ...
-
-{%- if sonic_asic_platform == "mellanox" %}
-    "SWITCH_HASH": {
-        "GLOBAL": {
-            "ecmp_hash": [
-                "DST_IP",
-                "SRC_IP",
-                "IP_PROTOCOL",
-                "L4_DST_PORT",
-                "L4_SRC_PORT",
-                "INNER_DST_IP",
-                "INNER_SRC_IP"
-            ],
-            "lag_hash": [
-                "DST_IP",
-                "SRC_IP",
-                "IP_PROTOCOL",
-                "L4_DST_PORT",
-                "L4_SRC_PORT",
-                "INNER_DST_IP",
-                "INNER_SRC_IP"
-            ]
-        }
-    },
-{%- endif %}
-
-    ...
 }
 ```
 
@@ -532,6 +549,8 @@ config
      |--- global
           |--- ecmp-hash ARGS
           |--- lag-hash ARGS
+          |--- ecmp-hash-algorithm ARG
+          |--- lag-hash-algorithm ARG
 
 show
 |--- switch-hash
@@ -581,54 +600,100 @@ config switch-hash global lag-hash \
 'INNER_L4_SRC_PORT'
 ```
 
+**The following command updates switch hash algorithm global:**
+```bash
+config switch-hash global ecmp-hash-algorithm 'CRC'
+config switch-hash global lag-hash-algorithm 'CRC'
+```
+
 #### 2.6.2.2 Show command group
 
 **The following command shows switch hash global configuration:**
 ```bash
 root@sonic:/home/admin# show switch-hash global
-ECMP HASH          LAG HASH
------------------  -----------------
-DST_MAC            DST_MAC
-SRC_MAC            SRC_MAC
-ETHERTYPE          ETHERTYPE
-IP_PROTOCOL        IP_PROTOCOL
-DST_IP             DST_IP
-SRC_IP             SRC_IP
-L4_DST_PORT        L4_DST_PORT
-L4_SRC_PORT        L4_SRC_PORT
-INNER_DST_MAC      INNER_DST_MAC
-INNER_SRC_MAC      INNER_SRC_MAC
-INNER_ETHERTYPE    INNER_ETHERTYPE
-INNER_IP_PROTOCOL  INNER_IP_PROTOCOL
-INNER_DST_IP       INNER_DST_IP
-INNER_SRC_IP       INNER_SRC_IP
-INNER_L4_DST_PORT  INNER_L4_DST_PORT
-INNER_L4_SRC_PORT  INNER_L4_SRC_PORT
+ECMP HASH          ECMP HASH ALGORITHM
+-----------------  --------------------
+DST_MAC            CRC
+SRC_MAC
+ETHERTYPE
+IP_PROTOCOL
+DST_IP
+SRC_IP
+L4_DST_PORT
+L4_SRC_PORT
+INNER_DST_MAC
+INNER_SRC_MAC
+INNER_ETHERTYPE
+INNER_IP_PROTOCOL
+INNER_DST_IP
+INNER_SRC_IP
+INNER_L4_DST_PORT
+INNER_L4_SRC_PORT
+
+LAG HASH           LAG HASH ALGORITHM
+-----------------  -------------------
+DST_MAC            CRC
+SRC_MAC
+ETHERTYPE
+IP_PROTOCOL
+DST_IP
+SRC_IP
+L4_DST_PORT
+L4_SRC_PORT
+INNER_DST_MAC
+INNER_SRC_MAC
+INNER_ETHERTYPE
+INNER_IP_PROTOCOL
+INNER_DST_IP
+INNER_SRC_IP
+INNER_L4_DST_PORT
+INNER_L4_SRC_PORT
 ```
 
 **The following command shows switch hash capabilities:**
 ```bash
 root@sonic:/home/admin# show switch-hash capabilities
-ECMP HASH          LAG HASH
------------------  -----------------
-IN_PORT            IN_PORT
-DST_MAC            DST_MAC
-SRC_MAC            SRC_MAC
-ETHERTYPE          ETHERTYPE
-VLAN_ID            VLAN_ID
-IP_PROTOCOL        IP_PROTOCOL
-DST_IP             DST_IP
-SRC_IP             SRC_IP
-L4_DST_PORT        L4_DST_PORT
-L4_SRC_PORT        L4_SRC_PORT
-INNER_DST_MAC      INNER_DST_MAC
-INNER_SRC_MAC      INNER_SRC_MAC
-INNER_ETHERTYPE    INNER_ETHERTYPE
-INNER_IP_PROTOCOL  INNER_IP_PROTOCOL
-INNER_DST_IP       INNER_DST_IP
-INNER_SRC_IP       INNER_SRC_IP
-INNER_L4_DST_PORT  INNER_L4_DST_PORT
-INNER_L4_SRC_PORT  INNER_L4_SRC_PORT
+ECMP HASH          ECMP HASH ALGORITHM
+-----------------  --------------------
+IN_PORT            CRC
+DST_MAC            XOR
+SRC_MAC            RANDOM
+ETHERTYPE          CRC_32LO
+VLAN_ID            CRC_32HI
+IP_PROTOCOL        CRC_CCITT
+DST_IP             CRC_XOR
+SRC_IP
+L4_DST_PORT
+L4_SRC_PORT
+INNER_DST_MAC
+INNER_SRC_MAC
+INNER_ETHERTYPE
+INNER_IP_PROTOCOL
+INNER_DST_IP
+INNER_SRC_IP
+INNER_L4_DST_PORT
+INNER_L4_SRC_PORT
+
+LAG HASH           LAG HASH ALGORITHM
+-----------------  -------------------
+IN_PORT            CRC
+DST_MAC            XOR
+SRC_MAC            RANDOM
+ETHERTYPE          CRC_32LO
+VLAN_ID            CRC_32HI
+IP_PROTOCOL        CRC_CCITT
+DST_IP             CRC_XOR
+SRC_IP
+L4_DST_PORT
+L4_SRC_PORT
+INNER_DST_MAC
+INNER_SRC_MAC
+INNER_ETHERTYPE
+INNER_IP_PROTOCOL
+INNER_DST_IP
+INNER_SRC_IP
+INNER_L4_DST_PORT
+INNER_L4_SRC_PORT
 ```
 
 ## 2.7 YANG model
@@ -665,6 +730,19 @@ will be extended with a new common type.
             enum INNER_L4_SRC_PORT;
         }
     }
+
+    typedef hash-algorithm {
+        description "Represents hash algorithm";
+        type enumeration {
+            enum CRC;
+            enum XOR;
+            enum RANDOM;
+            enum CRC_32LO;
+            enum CRC_32HI;
+            enum CRC_CCITT;
+            enum CRC_XOR;
+        }
+    }
 ```
 
 New YANG model `sonic-hash.yang` will be added to `sonic-buildimage/src/sonic-yang-models/yang-models`  
@@ -676,7 +754,7 @@ module sonic-hash {
 
     yang-version 1.1;
 
-    namespace "http://github.com/Azure/sonic-hash";
+    namespace "http://github.com/sonic-net/sonic-hash";
     prefix hash;
 
     import sonic-types {
@@ -689,6 +767,30 @@ module sonic-hash {
         description "First Revision";
     }
 
+    typedef hash-field {
+        description "Represents native hash field";
+        type stypes:hash-field {
+            enum IN_PORT;
+            enum DST_MAC;
+            enum SRC_MAC;
+            enum ETHERTYPE;
+            enum VLAN_ID;
+            enum IP_PROTOCOL;
+            enum DST_IP;
+            enum SRC_IP;
+            enum L4_DST_PORT;
+            enum L4_SRC_PORT;
+            enum INNER_DST_MAC;
+            enum INNER_SRC_MAC;
+            enum INNER_ETHERTYPE;
+            enum INNER_IP_PROTOCOL;
+            enum INNER_DST_IP;
+            enum INNER_SRC_IP;
+            enum INNER_L4_DST_PORT;
+            enum INNER_L4_SRC_PORT;
+        }
+    }
+
     container sonic-hash {
 
         container SWITCH_HASH {
@@ -699,12 +801,22 @@ module sonic-hash {
 
                 leaf-list ecmp_hash {
                     description "Hash fields for hashing packets going through ECMP";
-                    type stypes:hash-field;
+                    type hash:hash-field;
                 }
 
                 leaf-list lag_hash  {
                     description "Hash fields for hashing packets going through LAG";
-                    type stypes:hash-field;
+                    type hash:hash-field;
+                }
+
+                leaf ecmp_hash_algorithm {
+                    description "Hash algorithm for hashing packets going through ECMP";
+                    type stypes:hash-algorithm;
+                }
+
+                leaf lag_hash_algorithm {
+                    description "Hash algorithm for hashing packets going through LAG";
+                    type stypes:hash-algorithm;
                 }
 
             }
@@ -728,7 +840,9 @@ No special handling is required
 GH basic configuration test:
 1. Verify ASIC DB object state after switch ECMP hash update
 2. Verify ASIC DB object state after switch LAG hash update
+3. Verify ASIC DB object state after switch ECMP hash algorithm update
+4. Verify ASIC DB object state after switch LAG hash algorithm update
 
 ## 3.2 Data plane tests via PTF
 
-TBD
+1. [Generic Hash Test Plan](https://github.com/sonic-net/sonic-mgmt/pull/7524 "Test Plan")
