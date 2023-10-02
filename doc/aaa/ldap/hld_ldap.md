@@ -117,7 +117,6 @@ LDAP_TABLE:{
 		" hostname_check ": {{False}}
 		" ldap_version": {{3}}
 		" user_base_dn": {{ou=users,dc=example,dc=com (string)}}
-		" login_name_attribute ": {{num}}
 		" ldap_port": {{389}}
 		" referrals": {{enabled}}
 		" timeout": {{5 (duration_sec)}}
@@ -144,10 +143,6 @@ uid=6000(test_admin), groups=1000(admin),4(adm),27(sudo),999(docker),1001(redis)
 ### SAI API 
 
 not relevant
-
-### Configuration and management 
-TODO restapi?
-ngmi?
 
 #### Manifest (if the feature is an Application Extension)
 
@@ -286,13 +281,6 @@ module sonic-system-ldap {
                     description "Ldap user base dn";
                 }
 
-                leaf login_name_attribute {
-                    type string {
-                        length "1..65";
-                    }
-                    description "Ldap login name attribute";
-                }
-
                 leaf ldap_port {
                     type inet:port-number;
                     default 389;
@@ -412,7 +400,7 @@ Example of error flows:
 •	Timeout
 •	Loss of network connectivity
 
-When LDAP login failed as result of authentication timeout. If configured fallback enabled(TBD: check if default in SONiC). The login flow will do the next follow the authentication method detected.
+When LDAP login failed as result of authentication timeout the login flow will do the next following authentication method detected. If configured fallback enabled.
 Authentication failed – user will not be able to connect like regular authentication fail.
 
 ### Restrictions/Limitations  
@@ -443,7 +431,18 @@ AAA LDAP login configuration:
 -	Configure AAA authentication login local, ldap
 
 #### Unit Test cases  
-TODO
+#### Unit Test cases
+Test changes in database affect end-point configuration.
+Check config files after all config are set
+-	Configure base-dn
+-	Configure bind-dn
+-	Configure bind-password
+-	Configure ldap server-ip
+-	Configure group-attribute
+-	Configure ldap port
+-	Configure scope
+-	Configure timeout
+-	Configure version
 
 #### System Test cases
 

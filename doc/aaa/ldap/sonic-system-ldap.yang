@@ -127,13 +127,6 @@ module sonic-system-ldap {
                     description "Ldap user base dn";
                 }
 
-                leaf login_name_attribute {
-                    type string {
-                        length "1..65";
-                    }
-                    description "Ldap login name attribute";
-                }
-
                 leaf ldap_port {
                     type inet:port-number;
                     default 389;
