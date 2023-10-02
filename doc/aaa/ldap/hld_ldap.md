@@ -155,10 +155,170 @@ not relevant
 
 #### CLI/YANG model Enhancements 
 
-TODO
-This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from the previous release even after the new CLI is implemented. 
-This should also explain the CLICK and/or KLISH related configuration/show in detail.
-https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md needs to be updated with the corresponding CLI change.
+```yang
+//filename: sonic-system-ldap.yang
+module sonic-system-ldap {
+    yang-version 1.1;
+    namespace "http://github.com/Azure/sonic-system-ldap";
+    prefix ssys;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    import sonic-port {
+        prefix port;
+    }
+
+    import sonic-portchannel {
+        prefix lag;
+    }
+
+    import sonic-loopback-interface {
+        prefix loopback;
+    }
+
+    import sonic-interface {
+        prefix interface;
+    }
+
+    import sonic-mgmt_port {
+        prefix mgmt-port;
+    }
+
+    description "LDAP YANG Module for SONiC OS";
+
+    revision 2023-10-01 {
+        description "First Revision";
+    }
+
+    container sonic-system-ldap {
+
+        container LDAP_SERVER {
+            list LDAP_SERVER_LIST {
+                max-elements 8;
+                key "ipaddress";
+
+                leaf ipaddress {
+                    type inet:host;
+                    description
+                        "LDAP server's Domain name or IP address (IPv4 or IPv6)";
+                }
+
+                leaf priority {
+                    default 1;
+                    type uint8 {
+                        range "1..8" {
+                            error-message "LDAP server priority must be 1..8";
+                        }
+                    }
+                    description "Server priority";
+                }
+        }
+
+        container LDAP {
+
+            container global {
+
+
+                leaf bind_dn {
+                    type string {
+                        length "1..65";
+                    }
+                    description
+                            'LDAP global bind dn';
+                }
+
+                leaf bind_password {
+                    type string {
+                        length "1..65";
+                        pattern "[^ #,]*" {
+                            error-message 'TACACS shared secret (Valid chars are ASCII printable except SPACE, "#", and ",")';
+                        }
+                    }
+                    description "Shared secret used for encrypting the communication";
+                }
+
+                leaf bind_timeout {
+                    default 5;
+                    type uint16 {
+                        range "1..120" {
+                            error-message "Ldap bind timeout must be 1..120";
+                        }
+                    }
+                    description "Ldap bind timeout";
+                }
+
+                leaf group_base_dn {
+                    type string {
+                        length "1..65";
+                    }
+                    description "Ldap group base dn";
+                }
+
+                leaf group_member_attribute {
+                    type string {
+                        length "1..65";
+                    }
+                    description "Ldap group member attribute";
+                }
+
+                leaf hostname_check {
+                    description "Ldap server hostname check";
+                    default false;
+                    type boolean;
+                }
+
+                leaf ldap_version {
+                    default 3;
+                    type uint16 {
+                        range "1..3" {
+                            error-message "Ldap version must be 1..3";
+                        }
+                    }
+                    description "Ldap version";
+                }
+
+                leaf user_base_dn {
+                    type string {
+                        length "1..65";
+                    }
+                    description "Ldap user base dn";
+                }
+
+                leaf login_name_attribute {
+                    type string {
+                        length "1..65";
+                    }
+                    description "Ldap login name attribute";
+                }
+
+                leaf ldap_port {
+                    type inet:port-number;
+                    default 389;
+                    description "TCP port to communite with LDAP server";
+                }
+
+                leaf referrals {
+                    description "Should Ldap referrals be enabled/disabled";
+                    default true;
+                    type boolean;
+                }
+
+                leaf timeout {
+                    description "Ldap timeout duration in sec";
+                    type uint16 {
+                        range "1..60" {
+                            error-message "LDAP timeout must be 1..60";
+                        }
+                    }
+                }
+            } /* container global */
+        } /* container LDAP  */
+    }/* container sonic-system-ldap */
+}/* end of module sonic-system-ldap */
+
+``` 
 
 #### Config DB Enhancements
 
