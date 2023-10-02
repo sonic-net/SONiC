@@ -71,8 +71,12 @@ The next subsections describe the SRv6Orch changes required to support the HLD d
 We extend SRv6Orch to support the programming of the L3Adj associated with uA, End.X, uDX4, uDX6, End.DX4, and End.DX6 behaviors.
 
 When SRv6Orch receives a SID with the `adj` parameter set, it calls the function `neighOrch->hasNextHop()` to make sure a nexthop associated with the adjacency exists.
-- If the nexthop does not exist, SRv6Orch returns an error.
 - If the nexthop exists, SRv6Orch invokes the sairedis API `sai_srv6_api->create_my_sid_entry()` to create an entry `SAI_OBJECT_TYPE_MY_SID_ENTRY` into the ASIC DB. The `SAI_MY_SID_ENTRY_ATTR_NEXT_HOP_ID` of the entry is set to the nexthop ID.
+- If the nexthop does not exist or is not ready, SRv6Orch keeps the SID in a new data structure called `m_pendingSRv6MySIDEntries`.
+
+SRv6Orch subscribes to Neighbor Change notifications. When the neighbor becomes ready, SRv6Orch receives a Neighbor ADD notification, walks through the `m_pendingSRv6MySIDEntries` list and installs all pending SIDs into the ASIC.
+
+We also handle the case when the neighbor associated with a SID is removed from the system. In this case, SRv6Orch receives a Neighbor DELETE notification, removes the SID from the ASIC and adds the SID to the `m_pendingSRv6MySIDEntries`. When the neighbor comes back, the SID is installed again into the ASIC.
 
 ## SAI API 
 
