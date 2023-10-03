@@ -37,6 +37,9 @@ LDAP, the Lightweight Directory Access Protocol, is a mature, flexible, and well
 In simple words, instead to config hundreds of same usernames and passwords in different switch devices, you can configure it one time and the validate in every case will be derive to the LDAP server instead locally in every device.
 https://en.wikipedia.org/wiki/Lightweight_Directory_Access_Protocol 
 
+LDAP motivation\
+![ldap_intro](ldap_intro.jpg)
+
 ### Requirements
 
 -	Support LDAP login authentication for ssh/serial connection from an external LDAP server.
@@ -68,8 +71,7 @@ The file list below will be modified according to the flows of the feature, and 
 LDAP Server – should have the DB of the LDAP users and do the user validation/authentication.
 Not required to do any implementation, each vendor should be able to create his own LDAP server.
 DIT of LDAP server diagram: (https://ldapwiki.com/wiki/Distinguished%20Names )
-Distinguished Names is a Distinguished Name (often referred to as a DN or FDN) is a string that uniquely identifies an entry in the DIT.
-A Distinguished Names is comprised of zero or more Relative Distinguished Name components that identify the location of the entry in the DIT.
+A DN is comprised of zero or more Relative Distinguished Name components that identify the location of the entry in the DIT.
 
 An LDAP Entry's Distinguished Names can be thought of as a kind of an analog to an absolute path in a File System in that it specifies both the name and hierarchical location.
 
