@@ -484,6 +484,30 @@ LDAP configuration can be debug in syslog.
 In addition, this feature show more debug msg in the following file:
 /var/log/auth.log
 
+### CLI
+The AAA commands are existing and will be extended for the LDAP feature support
+Ldap commands are as defined as follows:
+
+```
+config aaa authentication login {local | ldap}
+config aaa authentication failthrough enable/disable
+
+show aaa
+
+config ldap host <ADDRESS> --prio <1 - 8>
+config ldap bind_dn <TEXT>
+config ldap bind_password <TEXT>
+config ldap bind_timeout <0 – 120>
+config ldap group_base_dn <TEXT>
+config ldap group_member_attribute <TEXT>
+config ldap hostname_check  <enable/disable>
+config ldap ldap_version <1 - 3>
+config ldap user_base_dn <TEXT>
+config ldap ldap_port <1-65535>
+config ldap referrals <enable/disable>
+config ldap timeout <1-60>
+```
+
 ### Open/Action items - if any 
 
 	
