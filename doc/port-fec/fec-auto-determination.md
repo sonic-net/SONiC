@@ -120,16 +120,16 @@ sequenceDiagram
 
 
     user ->>+ dpb_cli: do breakout on a port
-    note over dpb_cli: run today's logic per port:
+    note over dpb_cli: run today's flow per port:
     dpb_cli ->>+ dpb_cli: generate the config(speed/lanes/etc) for each new port
 
     note over dpb_cli,determine_fec: run below additional logic per port:
     dpb_cli ->>+ determine_fec: call API determine_fec(lane_speed, num_lanes) per port
-    determine_fec ->>+ determine_fec: calculate FEC mode based on FEC mapping
+    determine_fec ->>+ determine_fec: calculate FEC mode based on common rule
     determine_fec -->>- dpb_cli: return FEC mode
 
-    note over dpb_cli, syncd: run today's logic:
-    dpb_cli ->>+ config_db: Add new ports in PORT table (today's workflow), <BR> additionally with proper FEC if determined above <BR> instead of FEC=none as default
+    note over dpb_cli, syncd: run today's flow:
+    dpb_cli ->>+ config_db: Add new ports in PORT table (today's flow), <BR> additionally with proper FEC if determined above
 
     par
         config_db -->>- dpb_cli: Done
@@ -157,7 +157,7 @@ sequenceDiagram
     loop every port
         determine_fec ->>+ state_db: read optics_type from TRANSCEIVER_INFO table
         state_db -->>- determine_fec: return optics_type
-        determine_fec ->>+ determine_fec: internally call API determine_fec(lane_speed, num_lanes, optics_type) <BR> which calculates FEC mode based on FEC mapping
+        determine_fec ->>+ determine_fec: internally call API determine_fec(lane_speed, num_lanes, optics_type) <BR> which calculates FEC mode based on common rule
     end
 
     determine_fec ->>+ config_db: update FEC if needed
