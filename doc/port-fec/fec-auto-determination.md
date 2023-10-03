@@ -45,7 +45,7 @@ The feature in this document is to address the issue in both of above scenarios 
 
 ### High-Level Design
 
-- Add determine-fec module which can determine FEC mode based on common rule for a given port with a given optics.
+- Add `determine-fec` module which can determine FEC mode based on common rule for a given port with a given optics.
     - This module provides a `determine_fec` API which can be invoked by below entities.
 - Enhance today's DPB CLI to automatically determine and configure FEC in CONFIG_DB for newly created ports, based on determine-fec module.
 - Add a user-triggered CLI `fec-auto-correct` to automatically determine and configure FEC in CONFIG_DB for existing ports, based on determine-fec module.
@@ -110,11 +110,11 @@ def determine_fec(lane_speed: int, num_lanes: int, optics_type: Optional[str] = 
 
 ```mermaid
 sequenceDiagram
-    title determine-FEC in DPB case
+    title FEC determination in DPB case
 
     actor user as User
     participant dpb_cli as today's DPB CLI
-    participant determine_fec as determine-FEC module
+    participant determine_fec as determine-fec module
     participant config_db as CONFIG_DB
     participant syncd as SYNCD
 
@@ -142,11 +142,11 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    title determine-FEC in non-DPB case
+    title FEC determination in non-DPB case
 
     actor user as User
     participant fec_correct_cli as fec-auto-correct CLI <BR> (just a wrapper)
-    participant determine_fec as determine-FEC module
+    participant determine_fec as determine-fec module
     participant state_db as STATE_DB
     participant config_db as CONFIG_DB
     participant syncd as SYNCD
@@ -178,7 +178,7 @@ sequenceDiagram
 > 2. For non-DPB use case, in the future, determine-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
 
 ### Dependency
-A new ```optics_type``` field (human-readable type for optics, such as ```100G-DR```, ```100G-FR```, etc) will be added to TRANSCEIVER_INFO table, so that determine-FEC module can read it for the non-breakout use case.
+A new ```optics_type``` field (human-readable type for optics, such as ```100G-DR```, ```100G-FR```, etc) will be added to TRANSCEIVER_INFO table, so that determine-fec module can read it for the non-DPB use case.
 
 To implement this, ```optics_type``` can be determined based on today's transceiver_info, and be added as part of output of API [get_transceiver_info()](https://github.com/sonic-net/sonic-platform-common/blob/1988b37c7668394f38f155c86f5462a4461fe82e/sonic_platform_base/sonic_xcvr/api/xcvr_api.py#L42-L71) in ```sonic-platform-common``` repo.
 
@@ -193,7 +193,9 @@ N/A
 1. [[FEC] Design for auto-fec](https://github.com/sonic-net/SONiC/blob/master/doc/port_auto_neg/auto-fec.md#sonic-port-auto-fec-design):
     - FEC mode will be decided automatically at SAI/SDK(and/or HW) level as part of auto-negotiation feature, if auto-neg is implemented and enabled for this platform.
     - fec=```auto``` in CONFIG_DB
+    - Not all platforms have auto-neg implemented and enabled. Even if a platform has auto-neg running, auto-fec might not be supported as part of auto-neg.
 2. This HLD's design:
     - FEC mode will be decided automatically at level way above SAI/SDK/HW, based on common rules, and be pushed into CONFIG_DB. (flow: CONFIG_DB->syncd->orcagent->SAI/SDK)
     - fec=```none```/```rs```/```fc``` in CONFIG_DB
+    - This is independent from auto-neg, can work for all platforms.
     - Also, this mechanism/model helps determine right FEC for dynamic events, such as: DPB (Dynamic Port Breakout), transceivers/optics insertion (OIR) etc.
