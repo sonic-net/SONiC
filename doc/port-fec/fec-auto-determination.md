@@ -1,0 +1,199 @@
+# SONiC FEC Auto Determination Design #
+
+## Table of Content
+
+- [Revision](#revision)
+- [Scope](#scope)
+- [Definitions/Abbreviations](#definitions/abbreviations)
+- [Overview](#overview)
+- [High-Level Design](#high-level-design)
+- [API design](#api-design)
+- [Common Rule for FEC Determination](#common-rule-for-fec-determination)
+    - [Table 1: FEC Mapping Based on Optics Type](#table-1-fec-mapping-based-on-optics-type)
+    - [Table 2: FEC Mapping Based on Lane Speed and Number of Lanes](#table-2-fec-mapping-based-on-lane-speed-and-number-of-lanes)
+- [Diagram For Different Use Cases](#diagram-for-different-use-cases)
+- [Dependency](#dependency)
+- [Restrictions/Limitations](#restrictions/limitations)
+- [Difference compared to other design](#difference-compared-to-other-design)
+
+### Revision
+
+ | Rev |     Date    |       Author        | Change Description                         |
+ |:---:|:-----------:|:-------------------:|--------------------------------------------|
+ | 0.1 |             |     Shyam Kumar, Longyin Huang   | Initial version                            |
+
+### Scope
+This document is the design document for FEC auto-determination feature on SONiC.
+
+### Definitions/Abbreviations
+| **Term**       | **Definition**                                   |
+| -------------- | ------------------------------------------------ |
+| FEC            | Forward Error Correction                         |
+| DPB            | Dynamic Port Breakout                            |
+
+### Overview
+
+ If not configured in CONFIG_DB, FEC mode is set to default value `none` at [SAI/SDK]((https://github.com/opencomputeproject/SAI/blob/a94bbbe43242a4d9e1a4d9f70780ea9251127f5d/inc/saiport.h#L1012)) layer, which might not be the proper FEC mode for this port/optics, and link might not come up.
+
+Two scenarios:
+1. In DPB case, today's DPB CLI doesn't generate FEC config for newly created ports, FEC mode is default to none at SAI layer.
+2. In non-DPB case,
+    - Some platforms have no FEC configured in CONFIG_DB by default. The FEC mode can be either default to none at SAI layer or manually configured by user who might not have enough domain knowledge.
+    - Some platforms have default FEC defined in port_config.ini, which however might not be suitable for the specific port/optics on the system.
+
+The feature in this document is to address the issue in both of above scenarios in a common platform-independent way, since the rule to determine FEC for a given port/optics is common for all platforms.
+
+### High-Level Design
+
+- Add determine-fec module which can determine FEC mode based on common rule for a given port with a given optics.
+    - This module provides a `determine_fec` API which can be invoked by below entities.
+- Enhance today's DPB CLI to automatically determine and configure FEC in CONFIG_DB for newly created ports, based on determine-fec module.
+- Add a user-triggered CLI `fec-auto-correct` to automatically determine and configure FEC in CONFIG_DB for existing ports, based on determine-fec module.
+
+### API design
+```
+def determine_fec(lane_speed: int, num_lanes: int, optics_type: Optional[str] = None) -> str:
+    """
+    Determines the appropriate Forward Error Correction (FEC) type based on lane speed, number of lanes, and optics type for a specific port.
+    This logic is based on FEC mapping rules common for all platforms.
+
+    Parameters:
+    - lane_speed (int): The speed of each lane in GB.
+    - num_lanes (int): The total number of lanes.
+    - optics_type (Optional[str]): The type of optics in use. Can be None if not applicable.
+
+    Returns:
+    - str: The recommended FEC type based on the common rules. It can be either 'none'/'rs'/'fc'.
+
+    Example:
+    >>> determine_fec(25, 4, "100G-SR4")
+    "rs"
+
+    """
+```
+
+### Common Rule for FEC Determination
+
+#### Table 1: FEC Mapping Based on Optics Type
+| Optics Type | FEC  |
+|-------------|------|
+| 40G         | none |
+| 100G-DR     | none |
+| 100G-FR     | none |
+| 100G-LR     | none |
+| 100G-LR4    | none |
+| 100G-ER4    | none |
+| 100G AOC    | none |
+| 400G        | rs   |
+| ALL_OTHER   | rs   |
+
+
+#### Table 2: FEC Mapping Based on Lane Speed and Number of Lanes
+| Lane Speed | Number of Lanes | FEC  |
+|------------|-----------------|------|
+| 10         | 4               | none |
+| 20         | 2               | none |
+| 25         | 2               | rs   |
+| 25         | 4               | rs   |
+| 25         | 8               | rs   |
+| 50         | 1               | rs   |
+| 50         | 2               | rs   |
+| 50         | 4               | rs   |
+| 50         | 8               | rs   |
+| 50         | 16              | rs   |
+
+> [!NOTE]
+> If a port has matched FEC entry in both above tables, then prefers FEC entry in first table.
+> For example: A port with 100G-DR optics running in non-breakout mode (`optics_type=100G-DR, lane_speed=25, num_lane=4`) will have a match in both rules, the matched FEC entry in table 1 will be preferably choosen, which is ```none``` in this case.
+
+### Diagram For Different Use Cases
+
+```mermaid
+sequenceDiagram
+    title determine-FEC in DPB case
+
+    actor user as User
+    participant dpb_cli as today's DPB CLI
+    participant determine_fec as determine-FEC module
+    participant config_db as CONFIG_DB
+    participant syncd as SYNCD
+
+
+    user ->>+ dpb_cli: do breakout on a port
+    note over dpb_cli: run today's logic per port:
+    dpb_cli ->>+ dpb_cli: generate the config(speed/lanes/etc) for each new port
+
+    note over dpb_cli,determine_fec: run below additional logic per port:
+    dpb_cli ->>+ determine_fec: call API determine_fec(lane_speed, num_lanes) per port
+    determine_fec ->>+ determine_fec: calculate FEC mode based on FEC mapping
+    determine_fec -->>- dpb_cli: return FEC mode
+
+    note over dpb_cli, syncd: run today's logic:
+    dpb_cli ->>+ config_db: Add new ports in PORT table (today's workflow), <BR> additionally with proper FEC if determined above <BR> instead of FEC=none as default
+
+    par
+        config_db -->>- dpb_cli: Done
+    and
+        config_db ->>+ syncd: notify for new port creation
+    end
+
+    dpb_cli -->>- user: Done
+```
+
+```mermaid
+sequenceDiagram
+    title determine-FEC in non-DPB case
+
+    actor user as User
+    participant fec_correct_cli as fec-auto-correct CLI <BR> (just a wrapper)
+    participant determine_fec as determine-FEC module
+    participant state_db as STATE_DB
+    participant config_db as CONFIG_DB
+    participant syncd as SYNCD
+
+    user ->>+ fec_correct_cli: auto-correct FEC mode for all ports
+    fec_correct_cli ->>+ determine_fec: call API correct_fec_for_all_ports()
+
+    loop every port
+        determine_fec ->>+ state_db: read optics_type from TRANSCEIVER_INFO table
+        state_db -->>- determine_fec: return optics_type
+        determine_fec ->>+ determine_fec: internally call API determine_fec(lane_speed, num_lanes, optics_type) <BR> which calculates FEC mode based on FEC mapping
+    end
+
+    determine_fec ->>+ config_db: update FEC if needed
+
+    par
+        config_db -->>- determine_fec: Done
+    and
+        config_db ->>+ syncd: notify for FEC update
+    end
+
+    determine_fec -->>- fec_correct_cli: Done
+    fec_correct_cli -->>- user: Done
+
+```
+
+> [!NOTE]
+> 1. In the above use cases, automatically determined FEC mode is saved in running config, user needs to do ```config save``` to save it permanently.
+> 2. For non-DPB use case, in the future, determine-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
+
+### Dependency
+A new ```optics_type``` field (human-readable type for optics, such as ```100G-DR```, ```100G-FR```, etc) will be added to TRANSCEIVER_INFO table, so that determine-FEC module can read it for the non-breakout use case.
+
+To implement this, ```optics_type``` can be determined based on today's transceiver_info, and be added as part of output of API [get_transceiver_info()](https://github.com/sonic-net/sonic-platform-common/blob/1988b37c7668394f38f155c86f5462a4461fe82e/sonic_platform_base/sonic_xcvr/api/xcvr_api.py#L42-L71) in ```sonic-platform-common``` repo.
+
+```optics_type``` field can also provide benefits in readability/service-ability/debug-ability:
+1. help user/engineer to easily and quickly identify what optics are plugged onto the router (if it can be added to show CLI output later)
+2. test script can easily figure out the optics type based on this single ```optics_type``` field and do test actions accordingly.
+
+### Restrictions/Limitations
+N/A
+
+### Difference compared to other design
+1. [[FEC] Design for auto-fec](https://github.com/sonic-net/SONiC/blob/master/doc/port_auto_neg/auto-fec.md#sonic-port-auto-fec-design):
+    - FEC mode will be decided automatically at SAI/SDK(and/or HW) level as part of auto-negotiation feature, if auto-neg is implemented and enabled for this platform.
+    - fec=```auto``` in CONFIG_DB
+2. This HLD's design:
+    - FEC mode will be decided automatically at level way above SAI/SDK/HW, based on common rules, and be pushed into CONFIG_DB. (flow: CONFIG_DB->syncd->orcagent->SAI/SDK)
+    - fec=```none```/```rs```/```fc``` in CONFIG_DB
+    - Also, this mechanism/model helps determine right FEC for dynamic events, such as: DPB (Dynamic Port Breakout), transceivers/optics insertion (OIR) etc.
