@@ -33,13 +33,13 @@ This document is the design document for FEC auto-determination feature on SONiC
 
 ### Overview
 
- If not configured in CONFIG_DB, FEC mode is set to default value `none` at [SAI/SDK](https://github.com/opencomputeproject/SAI/blob/a94bbbe43242a4d9e1a4d9f70780ea9251127f5d/inc/saiport.h#L1012) layer, which might not be the proper FEC mode for this port/optics, and link might not come up.
+FEC mode is a critical configuration for a port, which needs to be configured properly for the port to come up.
 
-Two scenarios:
-1. In DPB(Dynamic Port Breakout) case, today's DPB CLI doesn't generate FEC config for newly created ports, FEC mode is default to none at SAI layer.
+There are below scenarios that can end up with wrong FEC mode:
+1. In DPB(Dynamic Port Breakout) case, today's DPB CLI doesn't generate FEC config for newly created ports, FEC mode is default to `none` at [SAI/SDK](https://github.com/opencomputeproject/SAI/blob/a94bbbe43242a4d9e1a4d9f70780ea9251127f5d/inc/saiport.h#L1012) layer.
 2. In non-DPB case,
-    - Some platforms have no FEC configured in CONFIG_DB by default. The FEC mode can be either default to none at SAI layer or manually configured by user who might not have enough domain knowledge.
-    - Some platforms have default FEC defined in port_config.ini, which however might not be suitable for the specific port/optics on the system.
+    - Some platforms have no FEC configured in CONFIG_DB by default. The FEC mode can be either default to `none` at SAI/SDK layer or manually configured by user who might not have enough domain knowledge.
+    - Some platforms have default FEC defined in `port_config.ini`, which however might not be suitable for the specific port/optics on the system.
 
 The feature in this document is to address the issue in both of above scenarios in a common platform-independent way, since the rule to determine FEC for a given port/optics is common for all platforms.
 
