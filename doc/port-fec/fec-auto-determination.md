@@ -13,8 +13,6 @@
     - [Table 2: FEC Mapping Based on Lane Speed and Number of Lanes](#table-2-fec-mapping-based-on-lane-speed-and-number-of-lanes)
 - [Diagram For Different Use Cases](#diagram-for-different-use-cases)
 - [Dependency](#dependency)
-- [Restrictions/Limitations](#restrictions/limitations)
-- [Difference compared to other design](#difference-compared-to-other-design)
 
 ### Revision
 
@@ -185,17 +183,3 @@ To implement this, ```optics_type``` can be determined based on today's transcei
 ```optics_type``` field can also provide benefits in readability/service-ability/debug-ability:
 1. help user/engineer to easily and quickly identify what optics are plugged onto the router (if it can be added to show CLI output later)
 2. test script can easily figure out the optics type based on this single ```optics_type``` field and do test actions accordingly.
-
-### Restrictions/Limitations
-N/A
-
-### Difference compared to other design
-1. [[FEC] Design for auto-fec](https://github.com/sonic-net/SONiC/blob/master/doc/port_auto_neg/auto-fec.md#sonic-port-auto-fec-design):
-    - FEC mode will be decided automatically at SAI/SDK(and/or HW) level as part of auto-negotiation feature, if auto-neg is implemented and enabled for this platform.
-    - fec=```auto``` in CONFIG_DB
-    - Not all platforms have auto-neg implemented and enabled. Even if a platform has auto-neg running, auto-fec might not be supported as part of auto-neg.
-2. This HLD's design:
-    - FEC mode will be decided automatically at level way above SAI/SDK/HW, based on common rules, and be pushed into CONFIG_DB. (flow: CONFIG_DB->syncd->orcagent->SAI/SDK)
-    - fec=```none```/```rs```/```fc``` in CONFIG_DB
-    - This is independent from auto-neg, can work for all platforms.
-    - Also, this mechanism/model helps determine right FEC for dynamic events, such as: DPB (Dynamic Port Breakout), transceivers/optics insertion (OIR) etc.
