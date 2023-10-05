@@ -23,7 +23,7 @@ FRR upgrade and patch cadence is largely on need basis in the current SONiC rele
 	- Nov 2021 - Release 8.1.0 (1200+ commits)
 	- Jul 2021 - Release 8.0.0 (2200+ commits)
 
--   SONiC to stay out from major/minor releases (x.y) and use patch release (.z) for stability (eg, FRR 8.3.1 instead of 8.3 if it is for 202211 release)
+-   SONiC to stay out from major/minor releases (x.y) and use patch release (.z) for stability (eg, FRR 8.3.1 instead of 8.3 if it is for 202211 release). Another example, at the time of SONiC FRR upgrade, the following FRR versions are avaialble 9.0.1, 8.5.3, 9.0, the guidance is to upgrade with the latest patch release 9.0.1 
 
 # SONiC Release FRR Upgrade
 -   SONiC default to rebase FRR in every November community release
