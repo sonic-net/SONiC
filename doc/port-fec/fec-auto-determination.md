@@ -43,16 +43,16 @@ The feature in this document is to address the issue in both of above scenarios 
 
 ### High-Level Design
 
-- Add `determine-fec` module which can determine FEC mode based on common rule for a given port with a given optics.
-    - This module provides a `determine_fec` API which can be invoked by below entities.
-- Enhance today's DPB CLI to automatically determine and configure FEC in CONFIG_DB for newly created ports, based on determine-fec module.
-- Add a user-triggered CLI `fec-auto-correct` to automatically determine and configure FEC in CONFIG_DB for existing ports, based on determine-fec module.
+Add `determine-fec` module which can determine FEC mode based on common rule for a given port with a given optics. This module provides a `determine_fec` API which can be invoked in below use cases:
+1. DPB use case: Enhance today's DPB CLI to automatically determine and configure FEC in CONFIG_DB for dynamically created ports, based on determine-fec module.
+2. non-DPB use case: Add a user-triggered CLI `fec-auto-correct` to automatically determine and configure FEC in CONFIG_DB for existing ports, based on determine-fec module.
+    - Future plan: determine-fec module can be further enhanced to be integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention. (details TBD)
 
 ### API design
 ```
 def determine_fec(lane_speed: int, num_lanes: int, optics_type: Optional[str] = None) -> str:
     """
-    Determines the appropriate Forward Error Correction (FEC) type based on lane speed, number of lanes, and optics type for a specific port.
+    Determines the appropriate Forward Error Correction (FEC) type based on lane speed, number of lanes, and optics type for a specific logical port.
     This logic is based on FEC mapping rules common for all platforms.
 
     Parameters:
@@ -85,24 +85,27 @@ def determine_fec(lane_speed: int, num_lanes: int, optics_type: Optional[str] = 
 | 400G        | rs   |
 | ALL_OTHER   | rs   |
 
-
 #### Table 2: FEC Mapping Based on Lane Speed and Number of Lanes
-| Lane Speed | Number of Lanes | FEC  |
-|------------|-----------------|------|
-| 10         | 4               | none |
-| 20         | 2               | none |
-| 25         | 2               | rs   |
-| 25         | 4               | rs   |
-| 25         | 8               | rs   |
-| 50         | 1               | rs   |
-| 50         | 2               | rs   |
-| 50         | 4               | rs   |
-| 50         | 8               | rs   |
-| 50         | 16              | rs   |
+| Lane Speed | Number of Lanes (per Logical Port) | FEC  |
+|------------|-----------------------------------|------|
+| 10         | 1                                 | none |
+| 10         | 4                                 | none |
+| 20         | 2                                 | none |
+| 25         | 1                                 | rs   |
+| 25         | 2                                 | rs   |
+| 25         | 4                                 | rs   |
+| 25         | 8                                 | rs   |
+| 50         | 1                                 | rs   |
+| 50         | 2                                 | rs   |
+| 50         | 4                                 | rs   |
+| 50         | 8                                 | rs   |
+| 50         | 16                                | rs   |
+
+Above tables can be defined as JSON file, and be loaded by determine-fec module. Platform can also override the default FEC mapping by providing its own JSON file.
 
 > [!NOTE]
-> If a port has matched FEC entry in both above tables, then prefers FEC entry in first table.
-> For example: A port with 100G-DR optics running in non-breakout mode (`optics_type=100G-DR, lane_speed=25, num_lane=4`) will have a match in both rules, the matched FEC entry in table 1 will be preferably choosen, which is ```none``` in this case.
+> If a port has matched FEC entry in both above tables, then prefers FEC entry in first table. (Only exception: For `lane_speed=10, num_lane=1 or 4`, we prefer FEC entry in second table)
+
 
 ### Diagram For Different Use Cases
 
@@ -111,7 +114,7 @@ sequenceDiagram
     title FEC determination in DPB case
 
     actor user as User
-    participant dpb_cli as today's DPB CLI
+    participant dpb_cli as DPB CLI
     participant determine_fec as determine-fec module
     participant config_db as CONFIG_DB
     participant syncd as SYNCD
@@ -172,8 +175,7 @@ sequenceDiagram
 ```
 
 > [!NOTE]
-> 1. In the above use cases, automatically determined FEC mode is saved in running config, user needs to do ```config save``` to save it permanently.
-> 2. For non-DPB use case, in the future, determine-fec module can be further enhanced to integrated with xcvrd, which can be triggered automatically during transceiver insertion, without human intervention.
+> In the above use cases, automatically determined FEC mode is saved in running config, user needs to do ```config save``` to save it permanently.
 
 ### Dependency
 A new ```optics_type``` field (human-readable type for optics, such as ```100G-DR```, ```100G-FR```, etc) will be added to TRANSCEIVER_INFO table, so that determine-fec module can read it for the non-DPB use case.
