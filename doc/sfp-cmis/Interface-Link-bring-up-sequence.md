@@ -224,7 +224,7 @@ A transceiver is classified as CMIS SM driven transceiver if its module type is 
 2. Update and notify NPU SI settings to OA  
       For non-CMIS SM driven transceivers, SfpStateUpdateTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and notify to OA based on the value of PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS  
       If PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS != NPU_SI_SETTINGS_DONE, update and notify NPU SI settings will be invoked and will be set to NPU_SI_SETTINGS_NOTIFIED for a port requiring NPU SI settings.  
-      For CMIS SM driven transceivers, based on the value of PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS, CmisManagerTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and notify to OA for a port requiring NPU SI settings. The CMIS SM will then transition from CMIS_STATE_AP_CONF to CMIS_STATE_NPU_SI_SETTINGS_WAIT. If port doesn't require NPU SI settings, CMIS SM will transition to CMIS_STATE_DP_INIT state.  
+      For CMIS SM driven transceivers, if the value of PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS is NPU_SI_SETTINGS_DEFAULT and the module requires NPU SI settings, CmisManagerTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and notify to OA. The CMIS SM will then transition from CMIS_STATE_AP_CONF to CMIS_STATE_NPU_SI_SETTINGS_WAIT. If port doesn't require NPU SI settings, CMIS SM will transition to CMIS_STATE_DP_INIT state.  
 
 3. The OA upon receiving NPU SI settings will  
 	- Disable port admin status
@@ -264,7 +264,7 @@ sequenceDiagram
             XCVRDMT ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DEFAULT
         end
     end
-    Note over APPL_DB: PORT_TABLE:<lport><br>CMIS_REINIT_REQUIRED : true/false<br>NPU SI_NOTIFY_REQUIRED : true/false
+    Note over APPL_DB: PORT_TABLE:<lport><br>CMIS_REINIT_REQUIRED : true/false<br>NPU_SI_SETTINGS_SYNC_STATUS : NPU_SI_SETTINGS_DEFAULT/NPU_SI_SETTINGS_NOTIFIED/NPU_SI_SETTINGS_DONE
     XCVRDMT ->> CmisManagerTask: Spawns
     XCVRDMT ->> DomInfoUpdateTask: Spawns
     XCVRDMT ->> SfpStateUpdateTask: Spawns
