@@ -10,18 +10,18 @@
 | 0.3 | Sept 5 2023 |   Nikhil Kelapure  | Supplement of Async SAI Part      |
 
 <!-- omit in toc -->
-## Table of Content
+## Table of Contents
 - [Goal \& Scope](#goal--scope)
 - [Definitions \& Abbreviations](#definitions--abbreviations)
 - [Bottleneck Analysis](#bottleneck-analysis)
   - [Problem overview](#problem-overview)
   - [Single-threaded orchagent](#single-threaded-orchagent)
   - [Single-threaded syncd](#single-threaded-syncd)
-  - [Synchronous sairedis API usage](#synchronous-sairedis-api-usage)
   - [Redundant APPL\_DB I/O traffic](#redundant-appl_db-io-traffic)
     - [fpmsyncd flushes on every incoming route](#fpmsyncd-flushes-on-every-incoming-route)
     - [APPL\_DB does redundant housekeeping](#appl_db-does-redundant-housekeeping)
   - [Slow Routes decode and kernel thread overhead in zebra](#slow-routes-decode-and-kernel-thread-overhead-in-zebra)
+  - [Synchronous sairedis API usage](#synchronous-sairedis-api-usage)
 - [Requirements](#requirements)
 - [High-Level Proposal](#high-level-proposal)
   - [Modification in orchagent/syncd to enable multi-threading](#modification-in-orchagentsyncd-to-enable-multi-threading)
@@ -37,7 +37,6 @@
   - [Asynchronous sairedis API usage and new  ResponseThread in orchagent](#asynchronous-sairedis-api-usage-and-new--responsethread-in-orchagent)
   - [Fpmsyncd](#fpmsyncd)
   - [APPL\_DB](#appl_db)
-  - [Zebra](#zebra)
 - [WarmRestart scenario](#warmrestart-scenario)
 - [Testing Requirements/Design](#testing-requirementsdesign)
   - [System test](#system-test)
@@ -47,7 +46,7 @@
 The goal of this project is to significantly increase the end-to-end BGP loading speed of SONiC
   - from 10k routes per sec to 20K routes per sec
   
-To achieve this, we analyzed factors that may slow down each related module and optimized them accordingly, which would be elaborated in this HLD. The table below compares the loading speed of the interested modules before and after optimization. The bottleneck has been lying in `orchagent` and `syncd`, which makes the overal optimized BGP loading speed be around 20k/s. 
+To achieve this, we analyzed factors that may slow down each related module and optimized them accordingly, which would be elaborated in this HLD. The table below compares the loading speed of the interested modules before and after optimization, tested on the Cisco Silicon One Q200 platform. The bottleneck has been lying in `orchagent` and `syncd`, which makes the overal optimized BGP loading speed be around 20k/s. 
 
 <!-- <style>
 table{
@@ -142,15 +141,6 @@ The main performance bottleneck here lies in the linearity of the 3 tasks.
     <figcaption>Figure 4. Syncd workflow<figcaption>
 </figure>  
 
-### Synchronous sairedis API usage
-
-The interaction between `orchagent` and `syncd` is using synchronous `sairedis` API.
-Once `orchagent` `doTask` writes data to ASIC_DB, it waits for response from `syncd`. And since there is only single thread in `orchagent` it cannot process other routing messages until the response is received and processed.
-
-<figure align=center>
-    <img src="images/sync-sairedis1.png" width="40%" height=20%>
-    <figcaption>Figure 5. Sync sairedis workflow<figcaption>
-</figure> 
 
 ### Redundant APPL_DB I/O traffic
 
@@ -161,7 +151,9 @@ In the original design, `fpmsyncd` maintains a variable `pipeline`. Each time `f
 
 Each flush corresponds to a redis `SET` operation in `APPL_DB`, which triggers the `PUBLISH` event, then all subscribers get notified of the updates in `APPL_DB`, perform Redis `GET` operations to fetch the new route information from `APPL_DB`. 
 
-That means, a single `pipeline` flush not only leads to redis `SET`, but also `PUBISH` and `GET`, hence a high flush frequency would cause a huge volumn of `REDIS` I/O traffic. However, the original `pipeline` flush frequency is decided by the routes incoming frequency and the `pipeline` size, which is unnecessarily high and hurts performance.
+That means, a single `pipeline` flush not only leads to redis `SET`, but also `PUBISH` and `GET`, hence a high flush frequency would cause a huge volumn of `REDIS` I/O traffic. However, the original `pipeline` flush frequency is decided by the routes incoming frequency and the `pipeline` size, which is unnecessarily high and hurts performance. 
+
+In the original design, the performance here is not very critical since the bottleneck lies in the downstream modules. But with the downstream `orchagent` getting faster, the performance here then matters, we should avoid flushing on each route arrival to reduce I/O.
 
 #### APPL_DB does redundant housekeeping
 When `orchagent` consumes `APPL_DB` with `pops()`, as Figure 3 shows, `pops` function not only reads from `route_table_set` to retrieve route prefixes, but also utilizes these prefixes to delete the entries in the temporary table `_ROUTE_TABLE` and write into the stable table `ROUTE_TABLE`, while at the same time transferring messages to `addToSync` procedure. The transformation from temporary tables to the stable tables causes much traffic but is actually not worth the time. 
@@ -180,6 +172,17 @@ The main thread of `zebra` not only needs to send routes to `fpmsyncd`, but also
     <img src="images/zebra.jpg" width="60%" height=auto>
     <figcaption>Figure 6. Zebra flame graph<figcaption>
 </figure>  
+      
+### Synchronous sairedis API usage
+
+The interaction between `orchagent` and `syncd` is using synchronous `sairedis` API.
+Once `orchagent` `doTask` writes data to ASIC_DB, it waits for response from `syncd`. And since there is only single thread in `orchagent` it cannot process other routing messages until the response is received and processed.
+
+<figure align=center>
+    <img src="images/sync-sairedis1.png" width="40%" height=20%>
+    <figcaption>Figure 5. Sync sairedis workflow<figcaption>
+</figure> 
+
 
 ## Requirements
 
@@ -335,11 +338,9 @@ New pthread in orchagent
 
 ### Fpmsyncd
 
-As mentioned, <b>a timer thread</b> is added to control the flush behavior of `fpmsyncd` to `APPL_DB`, mutex is required since both the timer thread and the master thread access `fpmsyncd`'s  `pipeline`.
+`fpmsyncd` would flush the pipeline when it's full, `10000` to `15000` is tested to be a good range for the buffer size variable `REDIS_PIPELINE_SIZE` in our use cases. 
 
-We define a variable `FLUSH_INTERVAL` to represent the flush frequency, although we expect a lower frequency, it should make sure that data in the pipeline don't wait for too long to enter `APPL_DB`.
-
-Since `fpmsyncd` flushes the pipeline when it's full, `REDIS_PIPELINE_SIZE` needs to be tuned. `10000` to `15000` is tested to be a good range in our use cases. 
+In the new design, the flush on the route arrival is cancelled. To avoid critical routing data being stuck in the pipeline, it uses <b>a timer thread</b> to flush data at a fixed frequency defined by `FLUSH_INTERVAL`, mutex is required since both the timer thread and the master thread access `fpmsyncd`'s  `pipeline`. Although we expect a lower flush frequency, it should make sure that the slight data delay in the pipeline doesn't hurt the overall performance, and 200 ms is tested to be a good value for `FLUSH_INTERVAL`.
 
 ### APPL_DB
 <!-- omit in toc -->
@@ -391,9 +392,6 @@ return ret
 This change doubles the performance of `Table->pops()` and hence leads to routing from `fpmsyncd` to `orchagent` via APPL_DB 10% faster than before.
 
 **NOTE:** This script change limits to `routeorch` module.
-
-### Zebra
-TBD
 
 ## WarmRestart scenario
 This proposal considers the compatibility with SONiC `WarmRestart` feature. For example, when a user updates the config, a warm restart may be needed for the config update to be reflected. SONiC's main thread would call `dumpPendingTasks()` function to save the current system states and restore the states after the warm restart. Since this HLD introduces a new thread and a new structure `ring buffer` which stores some data, then we have to ensure that the data in `ring buffer` all gets processed before warm restart. During warm start, the main thread would modify the variable `m_toSync`, which the new thread also have access to. Therefore we should block the new thread during warm restart to avoid conflict.
