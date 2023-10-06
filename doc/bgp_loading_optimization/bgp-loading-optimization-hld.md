@@ -6,8 +6,8 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | Aug 16 2023 |   FengSheng Yang   | Initial Draft                     |
-| 0.2 | Aug 29 2023 |   Yijiao Qin       | Supplement & Polish               |
-| 0.3 | Sept 5 2023 |   Nikhil Kelapure  | Async SAI additions               |
+| 0.2 | Aug 29 2023 |   Yijiao Qin       | Second Draft                      |
+| 0.3 | Sept 5 2023 |   Nikhil Kelapure  | Supplement of Async SAI Part      |
 
 <!-- omit in toc -->
 ## Table of Content
@@ -17,6 +17,7 @@
   - [Problem overview](#problem-overview)
   - [Single-threaded orchagent](#single-threaded-orchagent)
   - [Single-threaded syncd](#single-threaded-syncd)
+  - [Synchronous sairedis API usage](#synchronous-sairedis-api-usage)
   - [Redundant APPL\_DB I/O traffic](#redundant-appl_db-io-traffic)
     - [fpmsyncd flushes on every incoming route](#fpmsyncd-flushes-on-every-incoming-route)
     - [APPL\_DB does redundant housekeeping](#appl_db-does-redundant-housekeeping)
@@ -25,12 +26,15 @@
 - [High-Level Proposal](#high-level-proposal)
   - [Modification in orchagent/syncd to enable multi-threading](#modification-in-orchagentsyncd-to-enable-multi-threading)
     - [Ring buffer for low-cost thread coordination](#ring-buffer-for-low-cost-thread-coordination)
+    - [Asynchronous sairedis API usage](#asynchronous-sairedis-api-usage)
+    - [New ResponseThread in OA](#new-responsethread-in-oa)
   - [Streamlining Redis I/O](#streamlining-redis-io)
     - [Lower frequency of the fpmsyncd flush \& APPL\_DB publish](#lower-frequency-of-the-fpmsyncd-flush--appl_db-publish)
     - [Disable the temporary table mechanism in APPL\_DB](#disable-the-temporary-table-mechanism-in-appl_db)
 - [Low-Level Implementation](#low-level-implementation)
   - [Multi-threaded orchagent with a ring buffer](#multi-threaded-orchagent-with-a-ring-buffer)
   - [Syncd \[similar optimization to orchagent\]](#syncd-similar-optimization-to-orchagent)
+  - [Asynchronous sairedis API usage and new  ResponseThread in orchagent](#asynchronous-sairedis-api-usage-and-new--responsethread-in-orchagent)
   - [Fpmsyncd](#fpmsyncd)
   - [APPL\_DB](#appl_db)
   - [Zebra](#zebra)
@@ -41,17 +45,29 @@
 
 ## Goal & Scope
 The goal of this project is to significantly increase the end-to-end BGP loading speed of SONiC
-  - from 10k routes per sec to 25K routes per sec
+  - from 10k routes per sec to 20K routes per sec
   
-<figure align=center>
-    <img src="images/performance.png" >
-    <figcaption>Figure 1. The module performance on Alibaba's platform loading 500k routes after optimization <figcaption>
-</figure>  
+To achieve this, we analyzed factors that may slow down each related module and optimized them accordingly, which would be elaborated in this HLD. The table below compares the loading speed of the interested modules before and after optimization. The bottleneck has been lying in `orchagent` and `syncd`, which makes the overal optimized BGP loading speed be around 20k/s. 
 
+<!-- <style>
+table{
+  margin:auto;
+}
+</style> -->
+| Module                   |  Original Speed(routes/s)    | Optimized Speed (routes/s) |
+| ------------------------ | -----------------------------| -----------------------------|
+| Zebra / Fpmsyncd         |  <center>17K                 | <center>25.4K                 |
+| Orchagent                |  <center>10.5K               | <center>23.5K                 |
+| Syncd                    |  <center>10.5K               | <center>19.6K                 |
 
 
 The scope of this document only covers the performance optimization in `fpmsyncd`, `orchagent`, `syncd` and `zebra` and Redis I/O.
 We also observed performance bottleneck in `libsai`, but SAI/ASIC optimaztion is out of our scope since it varies by hardware.
+
+<figure align=center>
+    <img src="images/performance.png" >
+    <figcaption>Figure 1. The module performance on Alibaba's platform loading 500k routes after optimization <figcaption>
+</figure>  
 
 ## Definitions & Abbreviations
 
@@ -81,6 +97,7 @@ With the rapid growth of network demands, the number of BGP routes on routers ro
 6. `syncd` gets notified of the newly added routing message in `ASIC_DB` due to the subscription
 7. `syncd` processes the new routing message, then invokes `SAI` APIs to finally inject the new routing message into the hardware
 
+
 **NOTE**: This is not the [whole workflow for routing](https://github.com/SONiC-net/SONiC/wiki/Architecture#routing-state-interactions), we ignore the Linux kernel part since we currently focus only on the SONiC part.
 
 <figure align="center">
@@ -88,22 +105,6 @@ With the rapid growth of network demands, the number of BGP routes on routers ro
     <figcaption>Figure 2. SONiC BGP loading workflow</figcaption>
 </figure>
 
-
-We have measured the end-to-end BGP loading performance on Alibaba platform. 
-<!-- <style>
-table{
-  margin:auto;
-}
-</style> -->
-| Module                   |  Speed(routes per second)    |
-| ------------------------ | -----------------------------|
-| Zebra                    |  <center>17K                 |
-| Fpmsyncd                 |  <center>17K                 |
-| Orchagent                |  <center>10.5K               |
-| Syncd                    |  <center>10.5K               |
-| Total                    |  <center>10.5K               |
-
-The current bottleneck is 10.5K routes/s in `orchagent` and `syncd`  as shown in the table. 
 
 ### Single-threaded orchagent
 
