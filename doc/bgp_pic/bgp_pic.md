@@ -4,7 +4,7 @@
 ### Revision
 | Rev |     Date    |       Author           | Change Description                |
 |:---:|:-----------:|:----------------------:|-----------------------------------|
-| 0.1 | Oct  8 2023 |   Eddie Ruan / lingyu Zhang   | Initial Draft              |
+| 0.1 | Oct  8 2023 |   Eddie Ruan / Lingyu Zhang   | Initial Draft              |
 
 <!-- omit in toc -->
 ## Table of Content
@@ -19,7 +19,8 @@ BGP PIC, as detailed in the RFC available at https://datatracker.ietf.org/doc/dr
     <img src="images/srv6_igp2bgp.jpg" >
     <figcaption>Figure 1. Alibaba issue Underlay routes flap affecting Overlay SRv6 routes <figcaption>
 </figure> 
-Note: we only handle VPN overlay routes via BGP PIC. For global table's recursive routes handling, it would be handled via a seperate HLD and done by Accton team.
+
+**Note:** we only handle VPN overlay routes via BGP PIC. For global table's recursive routes handling, it would be handled via a seperate HLD and done by Accton team.
 
 2. We aim to achieve fast convergence in the event of a hardware forwarding failure related to a remote BGP PE becoming unreachable. Convergence in the slow path forwarding mode is not a priority.
 
@@ -119,7 +120,7 @@ We will add two new fields, zd_pic_nhg_id , zd_pic_ng. zd_pic_nhg_id is for pic_
 
 | Cases |    Linux Kernel Update (slow path)   |      FPM (fast path)          |
 |:-----:|:------------------------------------:|:-----------------------------:|
-| No BGP PIC enabled | zd_ng is used as NHG  |    
+| No BGP PIC enabled | zd_ng is used as NHG  |    zd_ng is used as NHG |
 | BGP PIC enabled | zd_ng is used as NHG | zd_ng is used for PIC_CONTEXT, zd_pic_ng is used for NHG |
 
 ### struct dplane_neigh_info
