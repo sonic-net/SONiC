@@ -178,20 +178,19 @@
        5. [13.2.5. NPU-to-DPU tunnel related (DPU side)](#1325-npu-to-dpu-tunnel-related-dpu-side)
        6. [13.2.6. DPU-to-DPU data plane channel related](#1326-dpu-to-dpu-data-plane-channel-related)
        7. [13.2.7. DPU ENI pipeline related](#1327-dpu-eni-pipeline-related)
-14. [14. Test plan (WIP)](#14-test-plan-wip)
-15. [15. Detailed Design (WIP)](#15-detailed-design-wip)
-    1. [15.1. NPU DB schema](#151-npu-db-schema)
-       1. [15.1.1. CONFIG DB](#1511-config-db)
-       2. [15.1.2. STATE DB](#1512-state-db)
-       3. [15.1.3. COUNTER DB](#1513-counter-db)
-    2. [15.2. DPU DB schema](#152-dpu-db-schema)
-       1. [15.2.1. STATE DB](#1521-state-db)
-       2. [15.2.2. COUNTER DB](#1522-counter-db)
-    3. [15.3. Northbound Interface](#153-northbound-interface)
-    4. [15.4. SAI APIs](#154-sai-apis)
-       1. [15.4.1. HA session APIs](#1541-ha-session-apis)
-       2. [15.4.2. Flow APIs](#1542-flow-apis)
-    5. [15.5. CLI](#155-cli)
+14. [14. Detailed Design](#14-detailed-design)
+    1. [14.1. NPU DB schema](#141-npu-db-schema)
+       1. [14.1.1. CONFIG DB](#1411-config-db)
+       2. [14.1.2. STATE DB](#1412-state-db)
+       3. [14.1.3. COUNTER DB](#1413-counter-db)
+    2. [14.2. DPU DB schema](#142-dpu-db-schema)
+       1. [14.2.1. STATE DB](#1421-state-db)
+       2. [14.2.2. COUNTER DB](#1422-counter-db)
+    3. [14.3. Northbound Interface](#143-northbound-interface)
+    4. [14.4. SAI APIs](#144-sai-apis)
+       1. [14.4.1. HA session APIs](#1441-ha-session-apis)
+       2. [14.4.2. Flow APIs](#1442-flow-apis)
+    5. [14.5. CLI](#145-cli)
 
 ## 1. Background
 
@@ -2166,13 +2165,12 @@ The last part is how the DPU ENI pipeline works in terms of HA, which includes f
 
 Please note that we will also have counters for how many flows are created/updated/deleted (succeeded or failed), aged out or resimulated, but this is not in the scope of HA, hence omitted here.
 
-## 14. Test plan (WIP)
 
-## 15. Detailed Design (WIP)
+## 14. Detailed Design
 
-### 15.1. NPU DB schema
+### 14.1. NPU DB schema
 
-#### 15.1.1. CONFIG DB
+#### 14.1.1. CONFIG DB
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -2220,21 +2218,21 @@ Please note that we will also have counters for how many flows are created/updat
 | | | data_plane_vip_v4 | The IPv4 address of the data plane VIP. This will be used for validation against BGP config. |
 | | | data_plane_vip_v6 | The IPv6 address of the data plane VIP. This will be used for validation against BGP config. |
 
-#### 15.1.2. STATE DB
+#### 14.1.2. STATE DB
 
-#### 15.1.3. COUNTER DB
+#### 14.1.3. COUNTER DB
 
-### 15.2. DPU DB schema
+### 14.2. DPU DB schema
 
-#### 15.2.1. STATE DB
+#### 14.2.1. STATE DB
 
-#### 15.2.2. COUNTER DB
+#### 14.2.2. COUNTER DB
 
-### 15.3. Northbound Interface
+### 14.3. Northbound Interface
 
-### 15.4. SAI APIs
+### 14.4. SAI APIs
 
-#### 15.4.1. HA session APIs
+#### 14.4.1. HA session APIs
 
 The HA session APIs can be defined as below:
 
@@ -2883,6 +2881,6 @@ typedef struct _sai_dash_ha_api_t
 } sai_dash_ha_api_t;
 ```
 
-#### 15.4.2. Flow APIs
+#### 14.4.2. Flow APIs
 
-### 15.5. CLI
+### 14.5. CLI
