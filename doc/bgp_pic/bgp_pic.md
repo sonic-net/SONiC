@@ -8,7 +8,30 @@
 
 <!-- omit in toc -->
 ## Table of Content
-- [Goal \& Scope](#goal--scope)
+- [Goal and Scope](#goal-and-scope)
+- [High Level Design](#high-level-design)
+- [Zebra's Data Structure Modifications](#zebras-data-structure-modifications)
+  - [Exiting Struct nexthop](#exiting-struct-nexthop)
+  - [Updated data structure with BGP PIC changes](#updated-data-structure-with-bgp-pic-changes)
+  - [struct nhg\_hash\_entry](#struct-nhg_hash_entry)
+  - [struct dplane\_route\_info](#struct-dplane_route_info)
+  - [struct dplane\_neigh\_info](#struct-dplane_neigh_info)
+- [Zebra Modifications](#zebra-modifications)
+  - [BGP\_PIC enable flag](#bgp_pic-enable-flag)
+  - [Create pic\_nhe](#create-pic_nhe)
+  - [Handles kernel forwarding objects](#handles-kernel-forwarding-objects)
+  - [Handles FPM forwarding objects](#handles-fpm-forwarding-objects)
+    - [Map Zebra objects to APP\_DB via FPM](#map-zebra-objects-to-app_db-via-fpm)
+    - [SRv6 VPN SAI Objects](#srv6-vpn-sai-objects)
+    - [Map APP\_DB to SAI objects](#map-app_db-to-sai-objects)
+  - [Orchagent Modifications](#orchagent-modifications)
+- [Zebra handles NHG member down events](#zebra-handles-nhg-member-down-events)
+  - [Local link down events](#local-link-down-events)
+  - [BGP NH down events](#bgp-nh-down-events)
+- [Unit Test](#unit-test)
+  - [FRR Topotest](#frr-topotest)
+  - [SONiC mgmt test](#sonic-mgmt-test)
+- [References](#references)
 
 ## Goal and Scope
 BGP PIC, as detailed in the RFC available at https://datatracker.ietf.org/doc/draft-ietf-rtgwg-bgp-pic/, addresses the enhancement of BGP route convergence. This document outlines a method to arrange forwarding structures that can lead to improved BGP route convergence. BGP PIC offers two primary enhancements:
@@ -20,9 +43,9 @@ BGP PIC, as detailed in the RFC available at https://datatracker.ietf.org/doc/dr
     <figcaption>Figure 1. Alibaba issue Underlay routes flap affecting Overlay SRv6 routes <figcaption>
 </figure> 
 
-**Note:** we only handle VPN overlay routes via BGP PIC. For global table's recursive routes handling, it would be handled via a seperate HLD and done by Accton team.
+**Note:** <span style="color:yellow"> We only handle VPN overlay routes via BGP PIC in this HLD. For global table's recursive routes handling, it would be handled via an incoming HLD which would be led by Accton team. </span>
 
-2. We aim to achieve fast convergence in the event of a hardware forwarding failure related to a remote BGP PE becoming unreachable. Convergence in the slow path forwarding mode is not a priority.
+1. We aim to achieve fast convergence in the event of a hardware forwarding failure related to a remote BGP PE becoming unreachable. Convergence in the slow path forwarding mode is not a priority.
 
 ## High Level Design
 One of the challenges in implementing PIC within FRR is the absence of PIC support in the Linux kernel. To minimize alterations in FRR while enabling PIC on platforms that do not require Linux kernel support for this feature, we are primarily focused on two key modifications:
@@ -192,6 +215,16 @@ When the route 2033::178, marked in blue, is deleted, find its corresponding nhg
 Similarly, when the route 1000::178, marked in brown, is deleted, find its corresponding nhg(66). Based on the dependents list of nhg(66), find nhg(95) and remove the nexthop member(1000::178) from nhg(95). After completing this action, trigger a refresh of nhg(95) to fpm.
 
 ## Unit Test
+### FRR Topotest
+Add a new SRv6 VPN topotest test topology, and use fpm simulator to check fpm output with the following scenarios.
+1. Normal set up
+2. Simulate IGP NH down event via shutting down an IGP link
+3. Simulate BGP NH down event via shutting down remote BGP session. 
+
+### SONiC mgmt test
+Add a new SRv6 VPN test in sonic_mgmt. 
+
+**Note:** <span style="color:red">we may not be able to upstream this part as Cisco Silicon one's dataplane simulator has not been upstreamed to vSONiC yet. </span>
 
 ## References
 - https://datatracker.ietf.org/doc/draft-ietf-rtgwg-bgp-pic/
