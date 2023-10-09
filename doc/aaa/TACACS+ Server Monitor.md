@@ -13,21 +13,29 @@ There is a timeout for each server, the default value is 5 seconds, this means i
 To improve this issue, SONiC will add a TACACS+ server monitor to change server priority, a server unreachable or slow response will be downgrade.
 
 ### Functional Requirement
-- Monit TACACS+ server unreachable event from syslog.
-- Monit TACACS+ server slow response event from syslog.
+- Monit TACACS+ server unreachable event from COUNTER_DB.
+- Monit TACACS+ server slow response event from COUNTER_DB.
 - Change server priority based unreachable event and slow response event.
 - Not change any other server attribute.
 - Not change any other TACACS+ config.
 
-### Syslog format
-- TACACS+ server unreachable event format:
+### Counter DB schema
+#### TACPLUS_SERVER_LATENCY Table schema
 ```
-    failed to connect TACACS+ server [ip address]
+; Key
+server_key           = IPAddress  ;  TACACS+ server’s address
+; Attributes
+latency              = 1*10DIGIT  ; server network latency in MS, -1 for connect to server timeout
 ```
 
-- TACACS+ server slow response event format:
+### Config DB schema
+#### TACPLUS_SERVER_MONITOR Table schema
 ```
-    connect TACACS+ server [ip address] take [time span] ms
+; Key
+config_key           = 'config'  ;  The configuration key
+; Attributes
+time_window              = 1*5DIGIT  ; Monitor time window in minute, default is 5
+high_latency_threshold   = 1*5DIGIT  ; High latency threshold in ms, default is 20
 ```
 
 # 3 Limitation
@@ -44,33 +52,31 @@ To improve this issue, SONiC will add a TACACS+ server monitor to change server 
 +------------v--------------+       +---------------------+
 |                           |       |                     |
 |                           |       |                     |
-|     TACACS+ Monitor       |------>|       syslog        |
+|     TACACS+ Monitor       |------>|      COUNTER_DB     |
 |                           |       |                     |
 |                           |       |                     |
 +------------+--------------+       +---------------------
              |                                
    +---------v---------+               +-------+--------+
    |                   |               |                |
-   | TACACS config cli +--------------->    ConifgDB    |
-   |                   |               |                |
+   | TACACS config file+--------------->  config file   |
+   | generate script   |               |                |
    +-------------------+               +-------+--------+
 
 ```
 - TACACS+ monitor is a Monit profile.
-- TACACS+ monitor will monit syslog for TACACS+ server unreachable or slow response event.
-- Monit time window will be 5 minutes, this will hardcode in profile script.
-- When a TACACS+ server event happen, monitor will change server priority according following rules:
-    - If this is the only TACACS+ server, keeps no change.
-    - If server with issue already has priority 1:
-        - If any other server also has priority 1, change that server to higher priority, value will be: index*10
-        - If all other server already has higher priority, keep no change. 
-    - If server with issue not has priority 1:
-        - change server priority to 1.
-        - If any other server also has priority 1, change that server to higher priority, value will be: index*10
-        - If all other server already has higher priority, keep no change. 
-- sonic-utilities need change to support 'sudo config tacacs update' operation. 
-    - Today there is only 'add' and 'delete'
-    - Using 'add' and 'delete' in script have risk to lost all server.
+- TACACS+ monitor will perdically check TACACS server latency and update latency to COUNTER_DB.
+    - The latency in COUNTER_DB TACPLUS_SERVER_LATENCY table is average latency in recent time window.
+    - The time window side defined in CONFIG_DB TACPLUS_SERVER_MONITOR table.
+- TACACS+ monitor also will write warning message to syslog and re-generate TACACS server config file when following event happen in COUNTER_DB:
+    - Any server latency is -1, which means the server is unreachable.
+    - Any server latency is bigger than high_latency_threshold.
+- TACACS+ monitor will not change TACACS server config in CONFIG_DB, it only re-generate TACACS config file based on CONFIG_DB and COUNTER_DB.
+- The TACACS config file generate code will move to a new script file, both hostcfgd and TACACS+ monitor will use this file to re-generate TACACS config file.
+- When generate TACACS config file, server priority calculated according to following rules:
+    - Change high latency server and un-reachable server priority to 1, this is because 1 is the smallest priority, and SONiC device will use high priority server first.
+    - If other server also has priority 1 in CONFIG_DB, change priority to 2
+    - If other server priority is no 1, using original priority in CONFIG_DB
 
 # 5 References
 
