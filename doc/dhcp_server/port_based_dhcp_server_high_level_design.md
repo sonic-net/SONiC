@@ -19,6 +19,7 @@
     - [Functional Requirements](#functional-requirements)
     - [Configuration and Management Requirements](#configuration-and-management-requirements)
 - [Design](#design)
+    - [Design considerations](#design-considerations)
     - [Design Overview](#design-overview)
     - [Container](#container)
     - [DHCP Server Daemon](#dhcp-server-daemon)
@@ -99,6 +100,16 @@ Configuration of DHCP server feature can be done via:
 * SONiC CLI
 
 # Design
+
+## Design considerations
+* `Port based` means that client from 1 interface can only obtain ip address from specified ip pool we configured.
+<div align="center"> <img src=images/use_case.png width=450 /> </div>
+
+* Currently, we only support enabling dhcp_server per switch, means functionality of dhcp_relay cannot work with functionality dhcp_server. We will add restrictions in CLI to prevent users from configuring dhcp_relay when dhcp_server feature is enabled. Maybe add support in future releases for enabling dhcp_server feature per vlan, means enable dhcp_server in one vlan and enable dhcp_relay in other vlan.
+* This feature requires changes in dhcp_relay container. But in the scenario of disabling dhcp_server feature, dhcp_relay work as previous.
+* For MAC address remove scenario, like Client_A get IP_A from port_1 and then moved to port_2. In current design, client_A would keep using IP_A till lease expired, then it would get another IP from port_2 if we configured. But before this lease expire, other clients connected to port_1 cannot get IP_A. Maybe add monitoring mechanism to check fdb table and lease table, to release outdated lease from kea-dhcp-server side in time.
+* In current design, we do not support reply relayed DHCP packet, maybe support this scenario by appending option 82 in future releases.
+
 ## Design Overview
 We use kea-dhcp-server to reply DHCP request packet. kea-dhcp-server natively supports to assign IPs by mac or contents in DHCP packet (like client id or other options), but in our scenario kea-dhcp-server need to know which interface this packet come from. And SONiC has integrated dhcrelay, which can add interface information to option82 in packet when it relay DHCP packet. So we use it to add interface information.
 
@@ -612,7 +623,7 @@ This sequence figure describe the work flow of dhcprelayd capture DHCP_SERVER_IP
   |:----------------------|:-----------------------------------------------------------|
   | config dhcp_server ipv4 (add \| del \| update) | Add or delete or update DHCP server config |
   | config dhcp_server ipv4 (enable \| disable) | Enable or disable in DHCP server |
-  | config dhcp_server ipv4 range (add \| del) | Add or delete DHCP server ip range |
+  | config dhcp_server ipv4 range (add \| del \ update) | Add, delete or update DHCP server ip range |
   | config dhcp_server ipv4 ip (bind \| unbind) | Bind or unbind DHCP server with ip or range |
   | config dhcp_server ipv4 option (add \| del) | Add or delete customized DHCP option |
   | config dhcp_server ipv4 option (bind \| unbind) | Bind or unbind DHCP server with option |
@@ -688,19 +699,22 @@ This command is used to update dhcp_server config.
   config dhcp_server ipv4 update --mode PORT --infer_gw_nm --lease_time 300 Vlan1000
   ```
 
-**config dhcp_server range add/del**
+**config dhcp_server range add/del/update**
 
 This command is used to config ip range.
 - Usage
   ```
   # <ip_end> is not required, if not given, means ip_end is equal to ip_start
   config dhcp_server ipv4 range add <range_name> <ip_start> [<ip_end>]
+  config dhcp_server ipv4 range update <range_name> <ip_start> [<ip_end>]
   config dhcp_server ipv4 range del <range_name>
   ```
 
 - Example
   ```
   config dhcp_server ipv4 range add range1 192.168.0.1
+
+  config dhcp_server ipv4 range update range1 192.168.0.2
 
   config dhcp_server ipv4 range del range1
   ```
@@ -949,6 +963,15 @@ This command is used to show dhcp_server lease.
   |Add without ip_end|Add success|
   |Add with ip_start and ip_end|Add success|
   |Add with ip_start greater than ip_end|Add failed|
+  |Add existed range|Add failed|
+
+- config dhcp_server ipv4 range update <range_name> <ip_start> [<ip_end>]
+  |Case Description|Expected res|
+  |:-|:-|
+  |Update without ip_end|Update success|
+  |Update with ip_start and ip_end|Update success|
+  |Update with ip_start greater than ip_end|Update failed|
+  |Update existed range|Update failed|
 
 - config dhcp_server ipv4 range del <range_name>
   |Case Description|Expected res|
