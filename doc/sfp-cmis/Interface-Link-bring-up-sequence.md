@@ -464,7 +464,7 @@ sequenceDiagram
 **Transceiver OIR testplan**  
 | Event | APPL_DB_<asic_n> cleared | Xcvrd restarted | NPU SI settings notified | NPU_SI_SETTINGS_SYNC_STATUS value upon event completion | CMIS init triggered |
 | -------------- | ------------------------ | --------------- | ------------------------ | ------------------------------------------------------------------------------ | ---------------------- |
-| Transceiver Removal | N | N | Y | NPU_SI_SETTINGS_DEFAULT | Y |
+| Transceiver Removal | N | N | Y | NPU_SI_SETTINGS_DEFAULT | N/A |
 | Transceiver Insertion | N | N | Y | NPU_SI_SETTINGS_DONE | Y |
 # Out of Scope 
 Following items are not in the scope of this document. They would be taken up separately
