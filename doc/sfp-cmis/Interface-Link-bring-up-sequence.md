@@ -222,9 +222,14 @@ A transceiver is classified as CMIS SM driven transceiver if its module type is 
 
 
 2. Update and notify NPU SI settings to OA  
-      For non-CMIS SM driven transceivers, SfpStateUpdateTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and notify to OA based on the value of PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS  
-      If PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS != NPU_SI_SETTINGS_DONE, update and notify NPU SI settings will be invoked and will be set to NPU_SI_SETTINGS_NOTIFIED for a port requiring NPU SI settings.  
-      For CMIS SM driven transceivers, if the value of PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS is NPU_SI_SETTINGS_DEFAULT and the module requires NPU SI settings, CmisManagerTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and notify to OA. The CMIS SM will then transition from CMIS_STATE_AP_CONF to CMIS_STATE_NPU_SI_SETTINGS_WAIT. If port doesn't require NPU SI settings, CMIS SM will transition to CMIS_STATE_DP_INIT state.  
+      The API is_npu_si_settings_update_required will return true if a module requires NPU SI settings and PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS == NPU_SI_SETTINGS_DEFAULT. It will return false in other cases  
+
+      For non-CMIS SM driven transceivers, if is_npu_si_settings_update_required returns true, SfpStateUpdateTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and OA will be notified eventually. Also, NPU_SI_SETTINGS_SYNC_STATUS will be set to NPU_SI_SETTINGS_NOTIFIED.  
+
+      For CMIS SM driven transceivers, if is_npu_si_settings_update_required returns true, CmisManagerTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and OA will be notified eventually.  Also, NPU_SI_SETTINGS_SYNC_STATUS will be set to NPU_SI_SETTINGS_NOTIFIED.  
+      The CMIS SM will then transition from CMIS_STATE_AP_CONF to CMIS_STATE_NPU_SI_SETTINGS_WAIT. If port doesn't require NPU SI settings, CMIS SM will transition to CMIS_STATE_DP_INIT state.  
+
+
 
 3. The OA upon receiving NPU SI settings will  
 	- Disable port admin status
@@ -299,15 +304,13 @@ sequenceDiagram
     loop lport in logical_port_list
         alt post_port_sfp_info_to_db != SFP_EEPROM_NOT_READY
              Note over SfpStateUpdateTask: post_port_dom_threshold_info_to_db
-            opt if not is_module_cmis_sm_driven and PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS != NPU_SI_SETTINGS_DONE
-              opt if module_requires_npu_si_settings
-                  SfpStateUpdateTask ->> APPL_DB: Update SI params from NPU_SI_SETTINGS.json to PORT_TABLE:<lport>
-                  SfpStateUpdateTask ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_NOTIFIED
-                  APPL_DB -->> OA: Notify NPU SI settings for ports
-                  Note over OA: Disable admin status<br>setPortSerdesAttribute
-                  OA ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DONE
-                  Note over OA: initHostTxReadyState
-                end
+            opt if not is_module_cmis_sm_driven and is_npu_si_settings_update_required
+                SfpStateUpdateTask ->> APPL_DB: Update SI params from media_settings.json to PORT_TABLE:<lport>
+                SfpStateUpdateTask ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_NOTIFIED
+                APPL_DB -->> OA: Notify NPU SI settings for ports
+                Note over OA: Disable admin status<br>setPortSerdesAttribute
+                OA ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DONE
+                Note over OA: initHostTxReadyState
             end
         else
             Note over SfpStateUpdateTask: retry_eeprom_set.add(lport)
@@ -341,8 +344,8 @@ stateDiagram
 
     note left of CMIS_STATE_AP_CONF : Ensure current states are ModuleReady and DataPathDeactivated<br>Configure laser frequency for ZR module<br>Apply module SI settings<br>Update NPU SI settings to PORT_TABLE (APPL_DB) and notify to OA<br>set_application
     CMIS_STATE_AP_CONF --> if_state3
-    if_state3 --> CMIS_STATE_NPU_SI_SETTINGS_WAIT : if module_requires_npu_si_settings
-    if_state3 --> CMIS_STATE_DP_INIT : if not module_requires_npu_si_settings
+    if_state3 --> CMIS_STATE_NPU_SI_SETTINGS_WAIT : if is_npu_si_settings_update_required
+    if_state3 --> CMIS_STATE_DP_INIT : if not is_npu_si_settings_update_required
     CMIS_STATE_NPU_SI_SETTINGS_WAIT --> CMIS_STATE_DP_INIT : if PORT_TABLE&ltport&gt.NPU_SI_SETTINGS_SYNC_STATUS == NPU_SI_SETTINGS_DONE
     CMIS_STATE_NPU_SI_SETTINGS_WAIT --> CMIS_STATE_INSERTED : Through force_cmis_reinit upon reaching timeout
     note right of CMIS_STATE_NPU_SI_SETTINGS_WAIT
@@ -376,12 +379,12 @@ sequenceDiagram
     par CmisManagerTask, SfpStateUpdateTask
         CmisManagerTask ->> CmisManagerTask : Transition CMIS SM to CMIS_STATE_INSERTED
         CmisManagerTask ->> CmisManagerTask : Eventually, CMIS SM transitions to CMIS_STATE_AP_CONF
-        opt is_module_cmis_sm_driven and module_requires_npu_si_settings
-          SfpStateUpdateTask ->> APPL_DB: Update SI params from NPU_SI_SETTINGS.json to PORT_TABLE:<lport>
+        opt not is_module_cmis_sm_driven and is_npu_si_settings_update_required
+          SfpStateUpdateTask ->> APPL_DB: Update SI params from media_settings.json to PORT_TABLE:<lport>
           SfpStateUpdateTask ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = <br> NPU_SI_SETTINGS_NOTIFIED
         end
-        opt not is_module_cmis_sm_driven and module_requires_npu_si_settings
-          CmisManagerTask ->> APPL_DB: Update SI params from NPU_SI_SETTINGS.json to PORT_TABLE:<lport>
+        opt is_module_cmis_sm_driven and is_npu_si_settings_update_required
+          CmisManagerTask ->> APPL_DB: Update SI params from media_settings.json to PORT_TABLE:<lport>
           CmisManagerTask ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = <br> NPU_SI_SETTINGS_NOTIFIED
           CmisManagerTask ->> CmisManagerTask : Transition CMIS SM to CMIS_STATE_NPU_SI_SETTINGS_WAIT
         end
