@@ -2,7 +2,7 @@
 # Local Authentication Feature extension to PAC #1315
 
 # Table of Contents
-- **[List o Tables](#list-of-tables)**
+- **[List of Tables](#list-of-tables)**
 - **[Revision](#revision)**
 - **[About this Manual](#about-this-manual)**
 - **[Definitions and Abbreviations](#definitions-and-abbreviations)**
