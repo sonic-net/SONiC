@@ -1,7 +1,8 @@
+
 # Local Authentication Feature extension to PAC #1315
 
 # Table of Contents
-- **[List of Tables](#list-of-tables)**
+- **[List o Tables](#list-of-tables)**
 - **[Revision](#revision)**
 - **[About this Manual](#about-this-manual)**
 - **[Definitions and Abbreviations](#definitions-and-abbreviations)**
@@ -38,8 +39,7 @@
     - [3.6.2 Configuration Commands](#362-configuration-commands)
     - [3.6.3 Show Commands](#363-show-commands)
 - **[4 Scalability](#4-scalability)**
-- **[5 Appendix: Sample configuration](#5-appendix-sample-configuration)**
-- **[6 Future Enhancements](#6-future-enhancements)**
+- **[5 Future Enhancements](#5-future-enhancements)**
 
 # List of Tables
 [Table 1 Abbreviations](#table-1-abbreviations)
@@ -47,8 +47,8 @@
 # Revision
 | Rev  | Date       | Author                                   | Change Description |
 | ---- | ---------- | ---------------------------------------- | ------------------ |
-| 0.1  | 27/08/2023 | Kishor Kulkarni, Keerthi Kumar Thovi |
-| Initial version    |
+| 0.1  | 27/08/2023 | Kishor Kulkarni, Keerthi Kumar Thovi     | Initial version    |
+| 1.0  | 21/09/2023 | Chiranjeevi Uddanti, Kishor Kulkarni     | Version updated with latest YANG models |
 
 
 # About this Manual
@@ -111,9 +111,13 @@ List of configuration shall include the following:
 
 ## 1.3 Design Overview
 ### 1.3.1 Configuration of user databases in hostapd
-The Local Authentication module allows user to add, remove & modify local authentication database of hostapd. This database contain username and password both in plain text and VLAN ID for authorisation.
-### 1.3.2 lauthmgrd
-This module allows end user to maintain local database of MAC addresses with VLAN ID and session timeout value. MAC addresses in this list provides the list of MAC addresses those are allowed for network Access.  This module provides VLAN ID associated with the specific MAC address.
+hostapdmgrd updates "hostapd.conf" file w.r.t. local authtication user for required configuration updates and user credentials information are updated in "hostapd.eap_user".
+### 1.3.2 mablauthlib
+This is a library with list of APIs thats can be invoked for,
+1. To update MAC user with NAC session params 
+   a. mapping vlan-id
+   b. session timeout 
+2. To authenticate Client MAC addresses 
 ### 1.3.3 SAI Support
 No changes to SAI spec for supporting PAC.
 
@@ -125,7 +129,7 @@ The following figure illustrates how clients like PCs and printers are locally a
 
 The following figure illustrates how clients like PCs and printers are authenticated and authorized for accessing the network.   
 
-![Local-authentication-deployment](images/Local-Auth-Use-Case.jpg)
+![Local-authentication-deployment](images/PAC target deployment use cases using Local authentication.jpg)
 
 **Figure 1 : PAC target deployment use cases using Local authentication**   
 
@@ -140,7 +144,7 @@ In case the Authentication server like Radius is not reachable or user explicitl
 
 ### 2.2.2 Local Authentication support for MAC Authentication Bypass
 
-PAC makes use of MAC Authentication Bypass (MAB) feature to authenticate devices like cameras or printers which do not support 802.1x. MAB makes use of the device MAC address to authenticate the client. If user configures/enables Local Authentication then device mac addresses are verified against local database. If the client MAC address is present in the local database then Local Auth Module returns Authorisation success along with VLAN ID. Then the client is allowed network access in the specific VLAN. 
+PAC makes use of MAC Authentication Bypass (MAB) feature to authenticate devices like cameras or printers which do not support 802.1x. MAB makes use of the device MAC address to authenticate the client. If user configures/enables Local Authentication then device mac addresses are verified against RedisDB. If the client MAC address is present in the DB then Local Auth Module returns Authorisation success along with VLAN ID. Then the client is allowed network access in the specific VLAN. 
 
 ### 2.2.3 Warmboot
 
@@ -154,156 +158,92 @@ After a Warm Boot, the authenticated client sessions are torn down and they need
 [Figure 2](#Local-Authentication-Flow) 
 Above figure shows the high level design overview of local authentication for both use cases i.e. clients supporting 802.1x and clients not supporting 802.1.x (in this case authentication shall be based on client MAC address).
 
-Local Authentication is composed of multiple sub-modules. 
+Local Authentication is composed of following moduel. 
 
-1. lauthmgrd: This is the hostapd manager module. It listens to Local authentiation user specific configurations from CONFIG_DB and translates them to respective hostapd.conf file config entries and commands to hostapd. 
+1. mablauthlib: mablauthlib is libray of APIs. List of APIs are invoked by pacd for,
+   a. Authenticate MAC address and provide validation outcome.
 
-2. mablauthmgr: This is a thread which is a part of pacd and connects to CONFIG_DB. This module which is integrated in pacd as an extensible module. API of this module shall be invoked by pacd to authenticate/authorise clients using MAC database locally maintained by mablauthmgr. 
-
-### 3.1.1 Configuration flow for lauthmgrd to update hostapd user database for local authentication
+### 3.1.1 Configuration flow to update hostapd user database for local authentication
 Below figure explains the flow for local authentication for clients supporting 802.1x.
 ![Local-Authentication-Flow-For-802.1x-clients](images/Local-Authentication-802-1x-client.jpg)
 [Figure 2](#Local-Authentication-Flow-For-802.1x-clients) 
 
-1. Mgmt interfaces like CLI write the user provided configuration to CONFIG_DB. This configuration involves user credentials addition along with 
-2. The lauthmgrd, mablauthmgr gets notified about their respective configurations.
-3. lauthmgrd interacts with hostapd to update user database. hostapd uses user database to authenticate client if the local authentication is the configured authentication method.
-4. mablauthmgr module provides API to the external word. These APIs takes MAC address of client as an input and returns Authorisation status i.e. pass/fail, Session-Timeout and VLAN ID associated with client. 
-mablauthmgr connects to Redisdb to access local MAC table to check if Client MAC address is present in the database or not?
-
+1. Mgmt interfaces like CLI write the user provided configuration to CONFIG_DB. This configuration involves user credentials. 
+2. hostapdmgrd tracks changes in config_DB and update conf file maitained by hostapd for USER and credientals information.
 
 ### 3.1.2 MAB Local Authentication Flow Diagram
 
 
 1. Unknown source MAC packets are received by hardware on a front panel interface and trapped to CPU. The packets gets delivered to a pacd socket.
 2. pacd sends a "Client Authenticate" message along with the received packet MAC to mabd.
-3. mabd interacts with mablauthmgr module to authenticate the given client based on the MAC.
+3. mabd invokes "mablauthlib" to authenticate MAC addrsses.
 4. On successful authentication of a client, mabd sends an "Client Authenticated" message to pacd with all the authorization parameters like VLAN, Session-Timeout, etc.
 5. All other tasks are completed in sequence as defined in HLD #1315.
 
 ## 3.2 DB Changes due to inclusion of local authentication module
 
 ### 3.2.1 Config DB
-
-**PAC_PORT_CONFIG**   
-```   
-"PAC_PORT_CONFIG": {
-  "Ethernet1": {
-    "method_list": [
-      "dot1x",
-      "mab"
-    ],
-    "priority_list": [
-      "dot1x",
-      "mab"
-    ],
-    "port_pae_role": "authenticator",
-    "port_control_mode": "auto",
-    "host_control_mode": "multi_auth",
-    "reauth_period": 60,
-    "reauth_enable": "true",
-    "max_users_per_port": 16,
+**Order of Authentication**
+```
+"PAC_GLOBAL_CONFIG": {
+"global": {
+    "auth_order_list": [
+                      "remote",
+                      "local"
+    ]
+  }           
+}
+key             = PAC_GLOBAL_CONFIG:global 
+;field          = value 
+auth_order_list = “remote”/”local”  ; Order list of authentication mechanisms used by PAC
+```
+**hostapd User Config**
+```
+"HOSTAPD_USER_CONFIG": {
+  "username1": {
+              "password": "password1",
+              "auth_type": "eap-md5",
+              "vlan_id": 20,
+              "session_timeout": 60
+  },
+  ...
+  ...
+  "usernameN": {
+              "password": "passwordN",
+              "auth_type": "eap-md5",
+              "vlan_id": 25,
+              "session_timeout": 60
   }
 }
-
-
-key                       =      PAC_PORT_CONFIG:port     ;Physical port
-     
-;field                    =      value
-     
-method_list               =      "dot1x"/"mab"                  ;List of methods to be used for authentication
-     
-priority_list             =      "dot1x"/"mab"                  ;Relative priority of methods to be used for authentication
-     
-port_pae_role             =      "none"/"authenticator"         ;"none": PAC is disabled on the port
-                                                                "authenticator": PAC is enabled on the port
-
-port_control_mode         =      "auto"/"force_authorized"/     ;"auto": authentication enforced on port
-                                "force_unauthorized" ;          "force_authorized": authentication not enforced on port
-                                                                "force_unauthorized": authentication not enforced on port but port is blocked for all traffic
-     
-host_control_mode         =      "multi-host"/                  ;"multi-host": One data client can be authenticated on the port. Rest of the
-                                "multi-auth"/"single-auth"      clients tailgate once the first client is authenticated.
-                                                                "multi-auth": Multiple data client and one voice client can be authenticated on the port.
-                                                                "single-auth": One data client or one voice client can be authenticated on the port.
-     
-reauth_period             =      1*10DIGIT                      ;The initial value of the timer that defines the period after which the will
-                                                                 reauthenticate the Supplicant. Range is 1 - 65535 seconds.
-
-reauth_enable             =     "true"/"false"                  ;Indicates whether Reauthentication is enabled on the port.
-     
-max_users_per_port        =     1*2DIGIT                        ;Maximum number of clients that can be authenticated on the port. This is applicable
-                                                                 only for "multi-auth" host mode. Range is 1 - 16 clients.
-
+key             = HOSTAPD_USER_CONFIG:user_name 
+;field          = value 
+password        = 1*255VCHARS ; password of the user
+vlan_id         = 1*4DIGIT     ; VLAN to be associated with the authorized client
+session_time    = 1*10DIGIT    ; Client session time
+auth_type       = "eap-md5"/"pap"/"chap'; authentication type. Default: ‘eap-md5’
 ```
-
-**HOSTAPD_GLOBAL_CONFIG**   
+**MAB_USER_CONFIG**
 ```
-"HOSTAPD_GLOBAL_CONFIG": {
-  "global": {
-    "dot1x_system_auth_control": "enable"
-  }
+"MAB_USER_CONFIG": {
+"mac_address_1": {
+              "access_type": "allow", //default
+              "vlan_id": 20,
+              "session_timeout": 50
+              },
+              ...
+              ...
+"mac_address_2": {
+              "access_type": "allow",
+              "vlan_id": 0,
+              "session_timeout": 60
+              }
 }
-
-
-;field = value 
-dot1x_system_auth_control "true"/"false" ; Indicates whether 802.1x is enabled in the system.
+key             = MAB_USER_CONFIG:mac_address   ; mac address of the MAB client 
+;field          = value 
+Access_type     = “allow”     ; allow list of the source mac. Default: “allow”
+vlan_id         = 1*4DIGIT     ; VLAN to be associated with the authorized client
+session_time    = 1*10DIGIT    ; Client session time
 ```
-
-**MAB_PORT_CONFIG**   
-```   
-"PAC_PORT_CONFIG": {
-  "Ethernet1": {
-    "mab": "enable",
-    "mab_auth_type": "eap-md5",
-  }
-}
-
-
-key                       =      PAC_PORT_CONFIG:port     ;Physical port
-     
-;field                    =      value
-     
-mab                       =      "enable"/"disable"              ;Indicates whether MAB is enabled on the port.
-     
-mab_auth_type             =      "eap-md5"/"pap"/"chap'          ;MAB authentication type
-
-```
-**Local Authentication User Table**   
-```  
-container HOSTAPD_USER_CONFIG {
-  description
-    "Container for hostapd user config";
-       list HOSTAPD_USER_CONFIG_LIST {
-         key "username";
-           leaf username {
-              type string {
-                length 1..32;
-                  }
-                }
-              leaf password {
-                 type string { 
-                   length 1..255;
-                   }
-                 }
-               leaf auth_type {
-                 type auth_type_enumeration;
-                   default "eap-md5";
-                 }
-               leaf vlan_id {
-                 type uint16 {
-                 range "1..4094";
-                   }
-                 }
-               leaf session_timeout {
-                 type uint32;
-                 }
-             }
-          }
-       }
-
-```
-
 ### 3.2.2 App DB
 
 None
@@ -337,134 +277,24 @@ None
 ## 3.7 Manageability
 
 ### 3.7.1 Yang Model
-
-File: sonic-hostapd.yang
-```
-** sonic-hostapd Yang Model**   
-
-module sonic-hostapd {
-    namespace http://github.com/sonic-net/sonic-hostapd;
-    prefix shostapd;
-    yang-version 1.1;
-
-    description
-        "SONiC HOSTAPD";
-
-    revision 2023-08-29 {
-        description "Addition of HOSTAPD_USER_CONFIG to the yang module";
-    }
-
-    revision 2023-08-02 {
-        description "Initial revision.";
-    }
-    
-    typedef auth_type_enumeration {
-        type enumeration {
-            enum eap-md5 {
-                description
-                    "Configure EAP-MD5 auth type for MAB.";
-            }
-
-            enum pap {
-                description
-                    "Configure PAP auth type for MAB.";
-            }
-
-            enum chap {
-                description
-                    "Configure CHAP auth type for MAB.";
-            }
-        }
-    }
-
-    container sonic-hostapd {
-        description "HOSTAPD top level container.";
-
-        container HOSTAPD_GLOBAL_CONFIG {
-            description
-                "Container for hostapd global config.";
-
-            list HOSTAPD_GLOBAL_CONFIG_LIST {
-                key "global";
-
-                leaf global {
-                    type enumeration {
-                        enum GLOBAL;
-                    }
-                    description
-                        "Configure dot1x/hostapd global configuration.";
-                }
-
-                leaf dot1x_system_auth_control {
-                    type boolean;
-                    description
-                        "Indicates whether dot1x/hostapd is enabled/disabled on the switch.";
-                }
-            }
-        }
-
-        container HOSTAPD_USER_CONFIG {
-            description
-                "Container for hostapd user config";
-
-            list HOSTAPD_USER_CONFIG_LIST {
-                key "username";
-
-                leaf username {
-                    type string {
-                        length 1..32;
-                    }
-                }
-
-                leaf password {
-                    type string {
-                        length 1..255;
-                    }
-                }
-
-                leaf auth_type {
-                    type auth_type_enumeration;
-                    default "eap-md5";
-                }
-
-                leaf vlan_id {
-                    type uint16 {
-                        range "1..4094";
-                    }
-                }
-
-                leaf session_timeout {
-                    type uint32;
-                }
-            }
-        } 
-    }
-}
-``` 
-File: sonic-pac.yang
-``` 
 module sonic-pac {
-    namespace http://github.com/sonic-net/sonic-pac;
+    namespace "http://github.com/sonic-net/sonic-pac";
     prefix spac;
     yang-version 1.1;
+
+    import ietf-yang-types {
+        prefix yang;
+    }
 
     import sonic-port {
         prefix prt;
     }
 
-    import sonic-types {
-        prefix stypes;
-    }
-
-    import ietf-yang-types {
-        prefix yang;
-    }
-    
     description
         "SONiC PAC";
 
-    revision 2023-08-31 {
-        description "Updated revision.";
+    revision "2023-09-15" {
+        description "Enhancement: Added MAB UserConfig and PAC Config Functionality, Contributed by CG.";
     }
 
     revision 2023-03-28 {
@@ -524,18 +354,6 @@ module sonic-pac {
         }
     }
 
-    typedef user_auth_order_enumeration {
-        type enumeration {
-            enum remote {
-                description "Configure authmgr authentication order as remote";
-            }
-
-            enum local {
-                description "Configure authmgr authentication order as local";
-            }
-        }
-    }
-
     typedef auth_priority_enumeration {
         type enumeration {
             enum dot1x {
@@ -583,10 +401,22 @@ module sonic-pac {
         }
     }
 
-    typedef AccessType {
+    typedef access_type_enumeration {
         type enumeration {
             enum allow;
-            enum deny;
+         /* enum deny; */
+        }
+    }
+
+    typedef pac_auth_enumeration {
+        type enumeration {
+            enum remote {
+                description "Configure authmgr authentication type as remote";
+            }
+
+            enum local {
+                description "Configure authmgr authentication type as local";
+            }
         }
     }
 
@@ -595,9 +425,6 @@ module sonic-pac {
         description 
             "pac top level container.";
 
-        
-        
-        
         container PAC_PORT_CONFIG {
 
             description
@@ -711,7 +538,7 @@ module sonic-pac {
         }
 
         container MAB_USER_CONFIG {
-            list MAC_ADDRESS {
+            list MAB_USER_CONFIG_LIST {
                 key "mac";
                 description "MAB client configuration";
                 
@@ -720,38 +547,57 @@ module sonic-pac {
                     description "MAC address of the MAB client";
                 }
 
-                leaf access-type {
-                    type AccessType;
+                leaf access_type {
+                    type access_type_enumeration;
                     default "allow";
-                    description "Access type for the MAB client";
+                    description "Access type for the MAB client (allow or deny)";
                 }
 
-                leaf vlan-id {
-                    type uint32 {
-                    range "1..4094";
+                leaf vlan_id {
+                    type uint16 {
+                        range 1..4094;
                     }
-                description "VLAN ID associated with the authorized client";
+                    description "VLAN ID associated with the authorized client";
                 }
 
-                leaf session-timeout {
-                type uint32;
-                description "Client session timeout in seconds";
+                leaf session_timeout {
+                    type uint32;
+                    description "Client session timeout in seconds";
                 }
             }
         }
 
-        container PAC_GLOBAL_CONFIG {
+        container PAC_CONFIG {
             description "PAC global configuration.";
 
             container global {
                 description "Global PAC configuration.";
 
-                leaf-list auth_order_list {
-                    type user_auth_order_enumeration;
-                    description "Order list of authentication mechanisms used by PAC.";
+                leaf auth_order_list {
+                    type pac_auth_enumeration;
+                    description "Order list of authentication mechanisms used by PAC. Must be 'remote' or 'local'.";
                 }
             }
         }
     }
 }
-```
+### 3.7.2 Configuration Commands
+
+Refer below link for Configuration related CLI commands.
+
+[Link text](https://github.com/sonic-net/sonic-utilities/pull/3006/files)
+
+### 3.7.3 Show Commands
+Refer below link for Show related CLI commands.
+
+[Link text](https://github.com/sonic-net/sonic-utilities/pull/3006/files)
+
+
+# 4 Scalability
+
+No Impact
+
+
+# 5 Future Enhancements
+
+None
