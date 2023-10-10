@@ -2172,19 +2172,31 @@ Please note that we will also have counters for how many flows are created/updat
 
 #### 14.1.1. CONFIG DB
 
+DPU / vDPU definitions:
+
+> NOTE:
+> - These tables are imported from the SmartSwitch HLD to make the doc more convenient for reading, and we should always use that doc as the source of truth.
+> - These tables should be prepopulated before any HA configuration tables below are programmed.
+
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | DPU | | | Physical DPU configuration |
 | | \<DPU_ID\> | | Physical DPU ID |
-| | | ipv4 | IPv4 address. |
-| | | ipv6 | IPv6 address. |
+| | | state | Admin state of the DPU device. |
+| | | pa_ipv4 | IPv4 address. |
+| | | pa_ipv6 | IPv6 address. |
 | | | npu_ipv4 | IPv4 address of its owning NPU loopback. |
 | | | npu_ipv6 | IPv6 address of its owning NPU loopback. |
 | | | slot_id | Slot ID of the DPU. |
 | VDPU | | | Virtual DPU configuration |
 | | \<VDPU_ID\> | | Virtual DPU ID |
 | | | main_dpu_id | The ID of the main physical DPU. |
-| HA_CONFIG | | | HA global configurations |
+
+HA configurations:
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| HA_CONFIG | N/A | | HA global configurations |
 | | | npu_tunnel_dst_port | The destination port used when tunneling packets via NPU-to-DPU tunnel. |
 | | | npu_tunnel_src_port_min | The min source port used when tunneling packets via NPU-to-DPU tunnel. |
 | | | npu_tunnel_src_port_max | The max source port used when tunneling packets via NPU-to-DPU tunnel. |
@@ -2193,23 +2205,19 @@ Please note that we will also have counters for how many flows are created/updat
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
+| | | dpu_bfd_probe_multiplier| The number of DPU BFD probe failure before probe down. |
+| | | dpu_bfd_probe_interval_in_ms | The interval of DPU BFD probe in milliseconds. |
 | HA_SET_CONFIG | | | HA set configurations. It describes the DPUs pairs. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
-| | | local_vdpu_id | The ID of the local DPU. |
-| | | peer_vdpu_id | The ID of the peered DPU. |
-| | | preferred_standalone_vdpu_id | Preferred to be standalone when entering into standalone setup. |
-| ENI_HA_CONFIG | | | HA configuration for each ENI. |
+| | | vdpu_ids | The ID of the vDPUs. |
+| | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (None), Up or Down. |
+| | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
+| DASH_ENI_TABLE | | | HA configuration for each ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | version | Config version. |
 | | | ha_set_id | The ID of HA set that this ENI is allocated to. |
 | | | desired_state | The desired state for this ENI. It can only be "" (None), Dead, Active or Standalone. |
-| NPU_TO_DPU_PROBE_RULES | N/A | | NPU-to-DPU probe rules. Used for setting up the BFD probe sessions.<br><br>Note: This configuration should be programmed for all switches that receive traffic. |
-| | | vdpu_ids | List of DPU IDs we need to probe. |
-| | | pinned_probe_state | List of pinned probe state of each DPU. It can be "" (None), Up or Down. |
-| | | probe_up_threshold | The number of times probed up to probe up. |
-| | | probe_down_threshold | The number of times probed down to probe down. |
-| | | probe_interval_in_ms | The interval of BFD probe in milliseconds. |
 | ENI_FORWARD_RULES | | | ENI level forwarding rules.<br><br>Note: This configuration should be programmed for all switches that receive traffic. |
 | | \<ENI_ID\> | | ENI. Used for identifying a single ENI. |
 | | | eni_mac | ENI mac address. Used for matching incoming packets. |
