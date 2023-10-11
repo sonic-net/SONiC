@@ -28,7 +28,12 @@ We are intrested in the following characteristics that describe various aspects 
 
 **IO Reads/Writes** - SSDs use wear-leveling algorithms to distribute write and erase cycles evenly across the NAND cells to extend their lifespan. However, write amplification can occur when data is written, rewritten, and erased in a way that creates additional write operations, which can slow down performance.
 
-**Reserved Blocks Count** - Reserving some number of filesystem blocks for use by privileged processes is done to avoid filesystem fragmentation, and to allow system daemons, such as syslogd(8), to continue to function correctly after non-privileged processes are prevented from writing to the filesystem. Normally, the default percentage of reserved blocks is 5%.<sup>[1](#1-man-tune2fs)</sup>
+**Reserved Blocks Count** - Reserved blocks in a Solid State Drive (SSD) serve several critical purposes to enhance the drive's performance, reliability, and longevity. These reserved blocks are managed by the drive's firmware, and their specific allocation and management may vary between SSD manufacturers. The primary purposes of reserved blocks in an SSD are:
+
+- **Bad-block replacement:** When the firmware detects a bad block, it can map it to a reserved block and continue using the drive without data loss.
+- **Wear Leveling:** Reserved blocks are used to replace or relocate data from cells that have been heavily used, ensuring that all cells are used evenly. 
+- **Over-Provisioning:** Over-provisioning helps maintain consistent performance and extends the lifespan of the SSD by providing additional resources for wear leveling and bad block management.
+- **Garbage collection:** When files are deleted or modified, the old data needs to be erased and marked as available for new data. Reserved blocks can help facilitate this process by providing a temporary location to move valid data from blocks that need to be erased. 
 
 **Temperature** - Extreme temperatures can affect SSD performance. Excessive heat can lead to throttling to prevent damage, while extreme cold can slow down data access.
 
@@ -47,21 +52,15 @@ These fields are self-explanatory.
 
 ### **2.3 `ssdmond` Daemon Flow**
 
-0. Vendor would be responsible for configuring the following values:
-    - **loop timeout** - This determines how often the dynamic information would be updated. Default is 6 hours.
-    - **SSD vendor-specific search terms** - This would ensure that all the attributes are properly parsed from the device.
+0. SONiC partners would be responsible for configuring the **loop timeout** - This determines how often the dynamic information would be updated. Default is 6 hours.
 
 1. `ssdmond` would be started by the `pmon` docker container
-2. The daemon would gather the static info once init-ed, by leveraging the `ssdutil` utility and update the StateDB
-3. It would periodically parse the priority 0 attributes either by leveraging `ssdutil` or directly through Linux utilities and update the StateDB.
+2. The daemon would gather the static info once init-ed, by leveraging the `SsdBase` class and update the StateDB
+3. It would periodically parse the priority 0 attributes by leveraging `SsdBase` class and update the StateDB.
 
 This is detailed in the sequence diagram below:
 
 ![image.png](images/SSDMOND_SequenceDiagram.png)
-
-
-NOTE: While it is previously established that we use the abstraction provided by the `ssdutil` class to offer vendors the opportunity to implement their own SSD parsing logic, the [primary intent](#1-overview) of this iteration of the design is to enable streaming telemetry of these attributes, i.e., update the StateDB with the parsed data. A design choice is therefore made to bypass the abstraction logic in favor of this goal in the interim, with the expressed understanding that said abstraction will follow in a [future version](#future-work) of this daemon.
-
 
 ### **2.4 Data Collection Logic**
 
@@ -70,55 +69,103 @@ The SONiC OS already contains logic to parse information about SSDs from several
 - Priority 0: Temperature
 - Priority 1: All aforementioned attributes
 
-This section will therefore only go into detail about data collection of attributes mentioned in [section 2.1](#21-priority-0-attributes):
+This section will therefore only go into detail about data collection of attributes mentioned in [section 2.1](#21-priority-0-attributes).
 
-#### **2.4.1 IO Reads/Writes**
+#### **2.4.1 SsdBase API additions**
 
-- grep `/proc/diskstats` for statistics about the SSD of interest
-- Read the 4th value for reads completed successfully and the 8th value for writes completed<sup>[2](#2-kernelorg-procdiskstats)</sup>
+In order to collect IO reads/writes and number of reserved blocks, we would need to add the following member methods to the `SsdBase` class in [ssd_base.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_base.py):
 
-#### **2.4.2 Reserved Blocks Count**
 
-- Examine the SMART data for attributes related to reserved blocks or over-provisioning.
-- The exact attribute name and number can vary depending on the SSD manufacturer and model.
-- Look for keywords like "Reserved Block Count," "Over Provisioning," or similar terms.
-
-    Here's an example of what the SMART data output might look like:
-
-    ```
-    ...
-    ID# ATTRIBUTE_NAME          FLAGS    VALUE WORST THRESH FAIL RAW_VALUE
-    ...
-    173 Wear_Leveling_Count     0x0032   100   100   000    Old_age   Always       -       123
-    192 Power-Off_Retract_Count 0x0032   100   100   000    Old_age   Always       -       456
-    ...
-
-    ```
-
-    In this example, the "Wear_Leveling_Count" attribute might be indicative of reserved blocks or over-provisioning. However, the specific attribute and its interpretation can vary, so we make the search term and ID configurable by our vendors while maintaining a default search term in the event that this value is left unconfigured.
-
-## **StateDB Schema**
 ```
-; Defines information for the SSD in a device
+class SsdBase(object):
 
-key                 = SSD_INFO                       ; This key is for information that does not change for the lifetime of the SSD
+...
 
-; field              = value
+def get_io_reads(self):
+"""
+Retrieves the total number of Input/Output (I/O) reads done on an SSD
 
-Temperature         = STRING                            ; Describes the operating temperature of the SSD                                        (Priority 0, Dynamic)
+Returns:
+    An integer value of the total number of I/O reads
+"""
+
+def get_io_writes(self):
+"""
+Retrieves the total number of Input/Output (I/O) writes done on an SSD
+
+Returns:
+    An integer value of the total number of I/O writes
+"""
+
+def get_reserves_blocks(self):
+"""
+Retrieves the total number of reserved blocks in an SSD
+
+Returns:
+    An integer value of the total number of reserved blocks
+"""
+
+```
+
+#### **2.4.2 Support for Multiple SSDs**
+
+The `ssdutil` utility assumes that the SSD drive is  `/dev/sda` whereas the drive letter could be any label based on the nuber of SSDs. We leverage the `lsblk` command to get  list of all the SSDs in the device. For instance, if there were three disks labeled 'sda', 'sdb', and 'sdc' on a device, the output of the `lsblk -d -o name,type` command would typically look something like this:
+
+NAME TYPE
+sda  disk
+sdb  disk
+sdc  disk
+
+This output lists the names of the disks (sda, sdb, and sdc) and their types (which are "disk" in this case, indicating that they are block storage devices). This output format makes it easy to identify the disks on any system. We then leverage the following proposed StateDB schema to store and stream information about each of these disks.
+
+## **3. StateDB Schema**
+```
+; Defines information for each SSD in a device
+
+key                 = SSD_INFO|<ssd_name>               ; This key is for information that does not change for the lifetime of the SSD - SSD_INFO|SDX
+
+; field             = value
+
+temperature_celsius = STRING                            ; Describes the operating temperature of the SSD in Celsius                             (Priority 0, Dynamic)
 io_reads            = INT                               ; Describes the total number of reads completed successfully from the SSD               (Priority 0, Dynamic)
 io_writes           = INT                               ; Describes the total number of writes completed on the SSD                             (Priority 0, Dynamic)
 reserve_blocks      = INT                               ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
 device_model        = STRING                            ; Describes the Vendor information of the SSD                                           (Priority 1, Static)
 serial              = STRING                            ; Describes the Serial number of the SSD                                                (Priority 1, Static)
 firmware            = STRING                            ; Describes the Firmware version of the SSD                                             (Priority 1, Static)
-health              = STRING                            ; Describes the overall health of the SSD                                               (Priority 1, Dynamic)
+health              = STRING                            ; Describes the overall health of the SSD as a % value based on several SMART attrs     (Priority 1, Dynamic)
+```
+
+Example: For an SSD with name 'SDA', the STATE_DB entry would be:
+
+```
+127.0.0.1:6379[6]> KEYS SSD_INFO|*
+1) "SSD_INFO|SDB"
+2) "SSD_INFO|SDA"
+127.0.0.1:6379[6]> HGETALL SSD_INFO|SDA
+ 1) "temperature"
+ 2) "30C"
+ 3) "io_reads"
+ 4) "49527"
+ 5) "io_writes"
+ 6) "238309"
+ 7) "reserve_blocks"
+ 8) "0"
+ 9) "device_model"
+10) "InnoDisk Corp. - mSATA 3IE3"
+11) "health"
+12) "92"
+13) "serial"
+14) "BCA11712190600251"
+15) "firmware"
+16) "S16425cG"
+127.0.0.1:6379[6]> 
 ```
 
 ## Future Work
 
-1. Code abstraction and CLI support for aforementioned newly introduced fields
-2. Support for eMMC storage
+1. Support for eMMC storage
+2. Support for more SSD vendors
 
 ## References
 
