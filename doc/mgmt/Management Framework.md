@@ -250,7 +250,7 @@ The SONiC management framework comprises two workflows:
 
 as show in the architecture diagram below.
 
-![Management Framework Architecture diagram](images/Mgmt_Frmk_Arch.jpg)
+![Management Framework Architecture diagram](images/Mgmt_Frmk_Arch2.jpg)
 
 #### 3.1.1 Build time flow
 
