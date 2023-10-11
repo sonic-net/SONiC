@@ -158,7 +158,7 @@ After a Warm Boot, the authenticated client sessions are torn down and they need
 [Figure 2](#Local-Authentication-Flow) 
 Above figure shows the high level design overview of local authentication for both use cases i.e. clients supporting 802.1x and clients not supporting 802.1.x (in this case authentication shall be based on client MAC address).
 
-Local Authentication is composed of following moduel. 
+Local Authentication is composed of following module. 
 
 1. mablauthlib: mablauthlib is libray of APIs. List of APIs are invoked by pacd for,
    a. Authenticate MAC address and provide validation outcome.
