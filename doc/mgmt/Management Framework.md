@@ -2233,7 +2233,7 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 15. IETF JSON payload is returned to the Translib infra.
 16. IETF JSON payload is returned to the request handler.
 17. Response is returned to NETCONF Server.
-18. NETCONF response is returned to the NETCONF client from the NETCONF gateway.
+18. NETCONF response is returned to the NETCONF client from the NETCONF server.
 
 ## 5 Developer Work flow
 Developer work flow differs for standard YANG (IETF/OpenConfig) vs proprietary YANG used for a feature. When a standards-based YANG model is chosen for a new feature, the associated Redis DB design should take the design of this model into account - the closer the mapping between these, then the less translation logic is required in the Management path. This simplifies the work flow as translation intelligence can be avoided as both Redis schema and NB YANG schema are aligned.
