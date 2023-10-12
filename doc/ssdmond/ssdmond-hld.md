@@ -129,19 +129,19 @@ key                 = SSD_INFO|<ssd_name>               ; This key is for inform
 temperature_celsius = STRING                            ; Describes the operating temperature of the SSD in Celsius                             (Priority 0, Dynamic)
 io_reads            = INT                               ; Describes the total number of reads completed successfully from the SSD               (Priority 0, Dynamic)
 io_writes           = INT                               ; Describes the total number of writes completed on the SSD                             (Priority 0, Dynamic)
-reserve_blocks      = INT                               ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
+reserved_blocks      = INT                               ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
 device_model        = STRING                            ; Describes the Vendor information of the SSD                                           (Priority 1, Static)
 serial              = STRING                            ; Describes the Serial number of the SSD                                                (Priority 1, Static)
 firmware            = STRING                            ; Describes the Firmware version of the SSD                                             (Priority 1, Static)
 health              = STRING                            ; Describes the overall health of the SSD as a % value based on several SMART attrs     (Priority 1, Dynamic)
 ```
 
-Example: For an SSD with name 'SDA', the STATE_DB entry would be:
+Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
 ```
 127.0.0.1:6379[6]> KEYS SSD_INFO|*
-1) "SSD_INFO|SDB"
-2) "SSD_INFO|SDA"
+1) "SSD_INFO|sdb"
+2) "SSD_INFO|sda"
 127.0.0.1:6379[6]> HGETALL SSD_INFO|SDA
  1) "temperature"
  2) "30C"
@@ -149,7 +149,7 @@ Example: For an SSD with name 'SDA', the STATE_DB entry would be:
  4) "49527"
  5) "io_writes"
  6) "238309"
- 7) "reserve_blocks"
+ 7) "reserved_blocks"
  8) "0"
  9) "device_model"
 10) "InnoDisk Corp. - mSATA 3IE3"
