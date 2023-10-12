@@ -175,7 +175,7 @@ Management framework is a SONiC application which is responsible for providing v
     1. Standard [YANG](https://tools.ietf.org/html/rfc7950) models (e.g. OpenConfig, IETF, IEEE)
     2. Custom YANG models ([SONiC YANG](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md))
     3. Industry-standard CLI / Cisco like CLI
-* Must provide support for [OpenAPI spec](http://spec.openapis.org/oas/v3.0.3) to generate REST server side code and NETCONF server side code
+* Must provide support for [OpenAPI spec](http://spec.openapis.org/oas/v3.0.3) to generate REST server side code
 * Must provide support for NBIs such as:
 
     1. CLI
