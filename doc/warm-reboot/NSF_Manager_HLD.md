@@ -140,7 +140,7 @@ Reconciliation = <True>/<False>
 
 Components that want to participate in warm-boot orchestration need to register the above details with NSF Manager. NSF Manager will use these registration details to determine the components that are going to participate in the orchestrated shutdown sequence and monitor reconciliation statuses during bootup. If a component doesn’t register with the NSF Manager then it will continue to operate normally until it is shutdown in [Phase 4](#phase-4-prepare-and-perform-reboot). Components that modify the switch state should register with NSF Manager because they can change the state of other components such as Orchagent, Syncd etc. that participate in the warm reboot orchestration and thus they can impact the warm reboot process.
 
-Components that want to participate in an orchestrated shutdown during warm reboot need to set _freeze = true_. NSF Manager will send freeze to all components that have _freeze = true_ in their registration. If _checkpoint = True_ only then will NSF Manager send checkpointing notification to that component and wait for it to complete checkpointing. Components that want NSF Manager to monitor their reconciliation status need to set _reconciliation = true_.
+Components that want to participate in an orchestrated shutdown during warm reboot need to set _freeze = true_. NSF Manager will wait for the quiescence of all components that have _freeze = true_ in their registration. If _checkpoint = True_ only then will NSF Manager wait for the component to complete checkpointing. Components that want NSF Manager to monitor their reconciliation status need to set _reconciliation = true_.
 
 
 #### Shutdown Orchestration
@@ -161,7 +161,7 @@ During warm reboot, NSF Manager will orchestrate switch shutdown in a multi-phas
 
 ![alt_text](img/freeze.png)
 
-NSF Manager will send freeze notification to those registered components that have set _freeze = true_. Upon receiving the freeze notification, the component will complete processing the current request queue and stop generating new intents. Stopping new intents from being generated means that boundary components should stop processing requests from external components (external events) and all components should stop their periodic timers that generate new requests (internal events). For example:
+NSF Manager will send freeze notification to all registered components and will wait for the quiescence of only those components that have set _freeze = true_. Upon receiving the freeze notification, the component will complete processing the current request queue and stop generating new intents. Stopping new intents from being generated means that boundary components should stop processing requests from external components (external events) and all components should stop their periodic timers that generate new requests (internal events). For example:
 
 
 
@@ -181,7 +181,7 @@ After all components have been freezed, the switch would eventually reach a stat
 *   All timers that generate new events have been stopped.
 *   All components have completed processing their pending requests and thus there are no in-flight messages.
 
-After receiving the freeze notification, the components will update their quiescent state in STATE DB when they receive a new request (i.e. they are no longer quiescent) and when they complete processing their current request queue (i.e. they become quiescent). NSF Manager will monitor the quiescent state of all components in STATE DB to determine that the switch has become quiescent and thus further state changes won’t occur in the switch. If all components are in quiescent state then NSF Manager will declare that the switch has become quiescent and thus the switch has attained its final state. NSF Manager will wait for 2 minutes for the switch to become quiescent after which it will determine that warm reboot failed and abort the warm reboot operation.
+After receiving the freeze notification, the components will update their quiescent state in STATE DB when they receive a new request (i.e. they are no longer quiescent) and when they complete processing their current request queue (i.e. they become quiescent). NSF Manager will monitor the quiescent state of all components in STATE DB to determine that the switch has become quiescent and thus further state changes won’t occur in the switch. If all components are in quiescent state then NSF Manager will declare that the switch has become quiescent and thus the switch has attained its final state. NSF Manager will wait for a period of time for the switch to become quiescent after which it will determine that warm reboot failed and abort the warm reboot operation.
 
 
 ##### Phase 2: State Verification (Optional)
@@ -199,7 +199,7 @@ Since the switch is in quiescent state, this will be the final state of the swit
 
 ![alt_text](img/checkpoint.png)
 
-NSF Manager will send checkpoint notification only to those registered components that set _checkpoint = true_ to trigger checkpointing i.e. save internal states to either the DB or persistent file system. Checkpointing after state verification is successful ensures that the switch is reconciling from a consistent state. NSF Manager will wait for a period of time for the components to update STATE DB with their checkpointing status after which it will abort the warm reboot operation.
+NSF Manager will send checkpoint notification to all registered components and wait for only to those components that set _checkpoint = true_ to trigger checkpointing i.e. save internal states to either the DB or persistent file system. Checkpointing after state verification is successful ensures that the switch is reconciling from a consistent state. NSF Manager will wait for a period of time for the components to update STATE DB with their checkpointing status after which it will abort the warm reboot operation.
 
 
 ##### Phase 4: Prepare and Perform Reboot
