@@ -55,8 +55,8 @@ These fields are self-explanatory.
 0. SONiC partners would be responsible for configuring the **loop timeout** - This determines how often the dynamic information would be updated. Default is 6 hours.
 
 1. `ssdmond` would be started by the `pmon` docker container
-2. The daemon would gather the static info once init-ed, by leveraging the `SsdBase` class and update the StateDB
-3. It would periodically parse the priority 0 attributes by leveraging `SsdBase` class and update the StateDB.
+2. The daemon would gather the static info once init-ed, by leveraging the `SsdUtil` class and update the StateDB
+3. It would periodically parse the priority 0 attributes by leveraging `SsdUtil` class and update the StateDB.
 
 This is detailed in the sequence diagram below:
 
@@ -64,7 +64,7 @@ This is detailed in the sequence diagram below:
 
 ### **2.4 Data Collection Logic**
 
-The SONiC OS already contains logic to parse information about SSDs from several vendors by way of the `ssdutil` platform utility. We leverage this utility to gather the following information:
+The SONiC OS already contains logic to parse information about SSDs from several vendors by way of the `SsdUtil` class. We leverage this to gather the following information:
 
 - Priority 0: Temperature
 - Priority 1: All aforementioned attributes
@@ -73,7 +73,7 @@ This section will therefore only go into detail about data collection of attribu
 
 #### **2.4.1 SsdBase API additions**
 
-In order to collect IO reads/writes and number of reserved blocks, we would need to add the following member methods to the `SsdBase` class in [ssd_base.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_base.py):
+In order to collect IO reads/writes and number of reserved blocks, we would need to add the following member methods to the `SsdBase` class in [ssd_base.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_base.py) and provide a generic implementation in [ssd_generic.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_generic.py):
 
 
 ```
