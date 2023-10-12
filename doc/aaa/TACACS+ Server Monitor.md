@@ -29,7 +29,7 @@ latency              = 1*10DIGIT  ; server network latency in MS, -1 for connect
 ```
 
 ### Config DB schema
-#### TACPLUS_SERVER_MONITOR Table schema
+#### TACPLUS_MONITOR Table schema
 ```
 ; Key
 config_key           = 'config'  ;  The configuration key
@@ -67,13 +67,15 @@ high_latency_threshold   = 1*5DIGIT  ; High latency threshold in ms, default is 
 - TACACS+ monitor is a Monit profile.
 - TACACS+ monitor will perdically check TACACS server latency and update latency to COUNTER_DB.
     - The latency in COUNTER_DB TACPLUS_SERVER_LATENCY table is average latency in recent time window.
-    - The time window side defined in CONFIG_DB TACPLUS_SERVER_MONITOR table.
-- TACACS+ monitor also will write warning message to syslog and re-generate TACACS server config file when following event happen in COUNTER_DB:
+    - The time window side defined in CONFIG_DB TACPLUS_MONITOR table.
+- TACACS+ monitor also will write warning message to syslog when following event happen:
     - Any server latency is -1, which means the server is unreachable.
     - Any server latency is bigger than high_latency_threshold.
-- TACACS+ monitor will not change TACACS server config in CONFIG_DB, it only re-generate TACACS config file based on CONFIG_DB and COUNTER_DB.
-- The TACACS config file generate code will move to a new script file, both hostcfgd and TACACS+ monitor will use this file to re-generate TACACS config file.
-- When generate TACACS config file, server priority calculated according to following rules:
+- Hostcfgd will monitor TACPLUS_SERVER_LATENCY table, and will re-generate TACACS config file when following event happen:
+    - Any server latency is -1, which means the server is unreachable.
+    - Any server latency is bigger than high_latency_threshold.
+- When hostcfgd generate TACACS config file, server priority calculated according to following rules:
+    - Get server priority info from CONFIG_DB TACPLUS_SERVER table.
     - Change high latency server and un-reachable server priority to 1, this is because 1 is the smallest priority, and SONiC device will use high priority server first.
     - If other server also has priority 1 in CONFIG_DB, change priority to 2
     - If other server priority is no 1, using original priority in CONFIG_DB
