@@ -92,7 +92,7 @@ sonic-restapi will be replaced by gNMI interface in the future.
 
 sonic-telemetry provides gNMI/gNOI server interface. And sonic-telemetry provides only telemetry via gRPC, and the gap is configuration.
 
-We will update sonic-telemetry to support configuration.
+We will change the name of sonic-telemetry to sonic-gnmi, as it better reflects the functionality of the service. The gnmi container will handle both configuration and telemetry tasks, simplifying the deployment and management of the system.
 
 ## 1.1 Requirements
 
