@@ -82,6 +82,7 @@
 				* [3.2.2.8.3 CVL APIs](#32283-cvl-apis)
             * [3.2.2.9 Redis DB](#3229-redis-db)
             * [3.2.2.10 Non DB data provider](#32210-non-db-data-provider)
+            * [3.2.2.11 NETCONF Server](#32211-netconf-server)
 * [4 Flow Diagrams](#4-flow-diagrams)
     * [4.1 REST SET flow](#41-REST-set-flow)
     * [4.2 REST GET flow](#42-REST-get-flow)
@@ -2096,6 +2097,124 @@ Please see [3.2.2.6.5 DB access layer](#32265-db-access-layer)
 
 Currently, it is up to each App module to perform the proprietary access
 mechanism for the app specific configuration.
+
+##### 3.2.2.11 NETCONF Server
+
+The management NETCONF server is a NETCONF server implemented in Go language.
+It supports following operations:
+
+* NETCONF RPCs for YANG data
+
+###### 3.2.2.11.1 Transport options
+
+NETCONF server supports only SSH transport and listens on default port 830.
+Server port can be changed through an entry in ConfigDB NETCONF_SERVER table.
+
+By default a temporary SSH Host Keys is used by the SSH Server.
+It can be overridden by specifiying a valid SSH Host key file
+paths through the NETCONF_SERVER table.
+
+NETCONF_SERVER table schema is described in [DB Schema](#322414-db-schema) section.
+
+###### 3.2.2.11.2 Translib linking
+
+NETCONF server will statically link with Translib. For each NETCONF request, the server
+invokes Translib API which then invokes appropriate App module to process the request.
+Below is the mapping of NETCONF operations to Translib APIs:
+
+ NETCONF Method | Translib API     | Request data  | Response data
+----------------|------------------|---------------|---------------
+ <get>          | translib.Get     | path          | status, payload
+ others to be added ...
+
+More details about Translib APIs are in section [3.2.2.6](#3_2_2_6-Translib).
+
+
+###### 3.2.2.11.3 Media Types
+
+NETCONF Protocol uses an Extensible Markup Language (XML)-based data encoding for the configuration data as well as the protocol messages.
+Request and response payloads follow [RFC6241](https://tools.ietf.org/html/rfc6241)
+defined encoding rules. 
+
+###### 3.2.2.11.4 Payload Validations
+
+NETCONF server does not validate request payload for YANG defined NETCONF RPCs.
+Payload will be validated automatically in lower layers when it gets loaded
+into YGOT bindings.
+
+###### 3.2.2.11.5 Concurrency
+
+REST server will accept concurrent requests. Translib provides appropriate locking mechanism - parallel reads and sequential writes.
+
+###### 3.2.2.11.6 Versioning
+
+NETCONF server will Support Netconf 1.1.
+
+###### 3.2.2.11.8 NETCONF Discovery
+
+RNETCONF server supports following RPCs for clients to discover various NETCONF data models supported by the NETCONF server as described in [RFC6022](https://tools.ietf.org/html/rfc6022), via the <get-schema> NETCONF RPC.
+
+
+###### 3.2.2.11.8.1 YANG module library
+
+NETCONF server allows clients to discover and download all YANG modules supported by the server by retrieving the /netconf-state/schemas subtree via a <get> operation.. Response data includes YANG module information as per [RFC6022](https://tools.ietf.org/html/rfc6022) requirements.
+
+NETCONF server allows clients to download the YANG files via <get-schema> NETCONF RPC.
+YANG module library response includes full yang file for every YANG module entry.
+
+###### 3.2.2.11.8.2 NETCONF capabilities
+
+NETCONF server advertise its capabilities as described in [RFC6241, section 8](https://tools.ietf.org/html/rfc6241#section-8).
+
+###### 3.2.2.11.9 NETCONF Operations
+
+The NETCONF server uses an RPC-based communication model.  NETCONF peers use <rpc> and <rpc-reply> elements to provide framing of NETCONF requests and responses.
+
+YGOT binding objects are not available for YANG RPC input and output data model.
+Hence payload validation is not performed by REST server or Translib for these APIs.
+App modules will receive raw JSON data.
+
+###### 3.2.2.11.10 RESTCONF Notifications
+
+NETCONF Notification are not supported by framework. Clients can use gNMI for monitoring and notifications.
+
+###### 3.2.2.11.11 Authentication
+
+NETCONF server supports following authentication modes.
+
+* Password authentication (username/password authentication)
+* TACACS authenticaation.
+* No authentication
+
+Details are in [SONiC RBAC HLD](https://github.com/project-arlo/SONiC/blob/master/doc/aaa/SONiC%20RBAC%20HLD.md).
+
+By default password authentication is enabled.
+It can be overridden through ConfigDB [NETCONF_SERVER table](#322414-db-schema) entry.
+
+###### 3.2.2.11.12 Error Response
+
+The NETCONF server will reply back with error in several situations, to be defined ...
+
+###### 3.2.2.4.13 DB Schema
+
+A new table "NETCONF_SERVER" is introduced in ConfigDB for maintaining NETCONF server configurations.
+
+    key         = NETCONF_SERVER|default   ; NETCONF server configurations.
+    ;field      = value
+    port        = 1*5DIGIT              ; server port - defaults to 830
+    client_auth = "none" / "password" / "jwt" / "cert" 
+                                        ; Client authentication mode.
+                                        ; none: No authentication, all clients
+                                        ;       are allowed. Should be used only
+                                        ;       for debugging.
+                                        ; password: password authentication.
+    log_level   = DIGIT                 ; Verbosity for glog.V logs
+    ssh_key     = 1*VCHAR               ; Path to SSH Host Key file
+
+
+###### 3.2.2.11.14 API Documentation
+
+NETCONF server will provide all schemas, check section 3.2.2.11.8.3.
 
 ## 4 Flow Diagrams
 
