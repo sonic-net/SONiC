@@ -87,18 +87,18 @@ We want to enable configuring the following attributes:
 j2 examples:
 ```
 # tmout-env.sh.j2
-{% set serial_pol = (SERIAL_CONSOLE | d({})).get('POLICIES', {}) -%}
+{/% set serial_pol = (SERIAL_CONSOLE | d({})).get('POLICIES', {}) -/%}
 {# apply only for serial tty #}
 tty | grep -q tty &&  \
 export TMOUT={{ serial_pol.inactivity_timeout | int * 60 }}
 ```
 ```
 # sysrq-sysctl.conf.j2
-{% set sysrq = 0 %}
-{% set serial_policies = (SERIAL_CONSOLE | d({})).get('POLICIES', {}) -%}
-{% if serial_policies.sysrq_capabilities == 'enabled' %}
-{% set sysrq = 1 %}
-{% endif %}
+{/% set sysrq = 0 /%}
+{/% set serial_policies = (SERIAL_CONSOLE | d({})).get('POLICIES', {}) -/%}
+{/% if serial_policies.sysrq_capabilities == 'enabled' /%}
+{/% set sysrq = 1 /%}
+{/% endif /%}
 kernel.sysrq={{ sysrq }}
 ```
 ##  4. Init flow 
