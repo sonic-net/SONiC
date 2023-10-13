@@ -2166,6 +2166,21 @@ YANG module library response includes full yang file for every YANG module entry
 
 NETCONF server advertise its capabilities as described in [RFC6241, section 8](https://tools.ietf.org/html/rfc6241#section-8).
 
+Netconf server supports the following capabilities:
+* Support Running Configuration Datastore (RFC 8342 Section 5.1.2)
+* Support Writeable-Running Capability (RFC 6241 Section 8.2)
+  urn:ietf:params:netconf:capability:writable-running:1.0
+* Support Startup Configuration Datastore (RFC 8342 Section 5.1.1)
+* Support Distinct Startup Capability (RFC 6241 Section 8.7)
+  urn:ietf:params:netconf:capability:startup:1.0
+* Support Copy running config to startup config (RFC 6241 Section 7.3)
+  <copy><source>running</source><target>startup</target></copy>
+* Support Lock and Unlock running config datastore (RFC 6241 Section 7.5 and 7.6)
+
+Netconf server does not support the following capabilities:
+* No Support for Candidate Configuration Capability (RFC 6241 Section 8.3)
+* No Support for Confirmed Commit Capability (RFC 6241 Section 8.4)
+
 ###### 3.2.2.11.9 NETCONF Operations
 
 The NETCONF server uses an RPC-based communication model.  NETCONF peers use <rpc> and <rpc-reply> elements to provide framing of NETCONF requests and responses.
@@ -2173,6 +2188,16 @@ The NETCONF server uses an RPC-based communication model.  NETCONF peers use <rp
 YGOT binding objects are not available for YANG RPC input and output data model.
 Hence payload validation is not performed by REST server or Translib for these APIs.
 App modules will receive raw JSON data.
+
+Netconf server supports the following operations:
+* <get> (RFC 6241 Section 7.7)
+* <get-config> (RFC 6241 Section 7.1)
+* <copy-config> (RFC 6241 Section 7.3)
+* <lock> (RFC 6241 Section 7.5)
+* <unlock> (RFC 6241 Section 7.6)
+* <close-session> (RFC 6241 Section 7.8)
+* <kill-session> (RFC 6241 Section 7.9)
+* <get-schema> (RFC 6022 Section 3.1)
 
 ###### 3.2.2.11.10 RESTCONF Notifications
 
