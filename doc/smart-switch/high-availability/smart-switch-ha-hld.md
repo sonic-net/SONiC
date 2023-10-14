@@ -225,7 +225,7 @@ The goal of the SmartSwitch HA design is trying to achieve the following goals:
 2. <2 sec downtime on failover to standalone setup for each ENI.
 3. Ability to resume connections in the event of both planned and unplanned failover.
 4. After both planned and unplanned failover and recovery, the flow on all DPUs will be aligned.
-5. Only focus on the case, in which only 2 DPUs are in the HA set, although conceptually, we can have more than 2, but it is not in our current scope. 
+5. Only focus on the case, in which only 2 DPUs are in the HA set, although conceptually, we can have more than 2, but it is not in our current scope.
 6. No complicated logic or ECMP hashing requirement in other switches to ensure packets land on right switch and DPU.
 7. If switch receives a valid packet, it must not drop it due to flow replication delays.
 8. Ensure both inbound and outbound packets transit the same DPU for a given flow.
@@ -256,8 +256,8 @@ When designing HA for SmartSwitch, we have a few assumptions:
 
 To provide high availability for any network function / pipeline we model in the SmartSwitch, we must ensure the following redundencies are provided:
 
-- A single ENI **MUST** be placed on multiple DPUs forming a HA set. (Avoid single ENI or DPU failure)
-- Each ENI instance within a HA set, **MUST** be placed on different DPUs which resides in different Tier-1 switches. (Avoid single DPU or switch failure)
+* A single ENI **MUST** be placed on multiple DPUs forming a HA set. (Avoid single ENI or DPU failure)
+* Each ENI instance within a HA set, **MUST** be placed on different DPUs which resides in different Tier-1 switches. (Avoid single DPU or switch failure)
 
 As we have multiple ENI instance forming a HA set, for properly defining the impact radius for HA discussions, we need to make the resource allocation strategy clear.
 
@@ -267,8 +267,8 @@ From a high level, the DASH pipeline placement is completely decided by our upst
 
 When ensuring the data path high availability for SmartSwitch, we need to ensure the following to avoid single link failure causing catastrophic impact:
 
-- Enough redundant links **MUST** be provided for the traffic to reach its target HA set.
-- Enough redundant links **MUST** be provided for the all DPUs in the HA set to talk to each other.
+* Enough redundant links **MUST** be provided for the traffic to reach its target HA set.
+* Enough redundant links **MUST** be provided for the all DPUs in the HA set to talk to each other.
 
 This drives us to model the SmartSwitches as our Tier-1 switches. And the data path HA can be achieved by ECMP setup in the network, as the following diagram shows:
 
@@ -280,8 +280,8 @@ To establish the data path for DPU, NPU will advertise the BGP session to the ne
 
 On high level, NPU uses the data path VIP and ENI MAC to find the ENI pipeline, and it always follows the following logic for traffic forwarding:
 
-- If the traffic is for a local ENI, and the ENI is **active**, it will forward the traffic to the local DPU by moving the packet to the DPU’s ingress port.
-- If not, it will forward the traffic to one of the remote _**active**_ DPUs as an ECMP group using a NPU side VxLan tunnel.
+* If the traffic is for a local ENI, and the ENI is **active**, it will forward the traffic to the local DPU by moving the packet to the DPU’s ingress port.
+* If not, it will forward the traffic to one of the remote ***active*** DPUs as an ECMP group using a NPU side VxLan tunnel.
 
 The data path is shown and explained as below. And this helps the DPU always receives traffic without any additional encap from NPU and speed up the packet processing.
 
@@ -312,36 +312,36 @@ Besides data path HA, SmartSwitch also supports Flow HA to provide high availabi
 
 To provide HA functionality, we are going to use Active-Standby setup. In this setup:
 
-- 1 DPU will act as active and making flow decisions, while the non-active node will act as a pure backup flow storage.
-- When packets land on active DPU and creates a new flow, the new flow will be replicated to the standby DPU inline.
-- When packets land on standby side, they will be tunneled to the active DPU by NPU (or DPU as fallback). 
-- When the active DPU runs into issues, we will failover the active, make the standby the new active, and switch over the traffic to avoid further impact.
+* 1 DPU will act as active and making flow decisions, while the non-active node will act as a pure backup flow storage.
+* When packets land on active DPU and creates a new flow, the new flow will be replicated to the standby DPU inline.
+* When packets land on standby side, they will be tunneled to the active DPU by NPU (or DPU as fallback).
+* When the active DPU runs into issues, we will failover the active, make the standby the new active, and switch over the traffic to avoid further impact.
 
 <p align="center"><img src="./images/ha-active-standby-setup.svg"></p>
 
 #### 4.3.2. Card-level ENI pair placement
 
-How to place the ENIs is critical for defining the impact radius. Currently, we are going with card level pairing. 
+How to place the ENIs is critical for defining the impact radius. Currently, we are going with card level pairing.
 
-- Whenever we want to move the ENI, all ENIs on the card will always be moved together. (See "[ENI migration](#95-eni-migration)" for more details.)
-- When one card fails, all ENIs on that card will failover to the paired card.
-- Different DPUs on the same switch can be paired with any other DPU on any other switches.
+* Whenever we want to move the ENI, all ENIs on the card will always be moved together. (See "[ENI migration](#95-eni-migration)" for more details.)
+* When one card fails, all ENIs on that card will failover to the paired card.
+* Different DPUs on the same switch can be paired with any other DPU on any other switches.
 
 This allows us to spread the load to all switches. And taking down a switch will not cause traffic to be shifted to another single switch, as it can be spread on multiple DPUs in the T1 set.
 
 To clarify on ENI pair placement a bit more, here are a few rules that always apply no matter how we place the pairs:
 
-- ENI pair placement doesn’t affect the physical network topology for each ENI:
-    - Each ENI will still be served by a pair of DPUs, which shares the same DP VIP for getting the traffic for this ENI.
-    - One of the DPUs will be active one handling the traffic for the ENI, and the flow will be replicated to the other one as standby.
-    - Traffic forwarding is based on the ENI level forwarding rule on NPU side, so all ENIs in the same Tire-1 switch set can share the same data path VIP.
-- It doesn’t affect the HA failover scope, which is on ENI level. Please see "[ENI-level HA scope](#62-eni-level-ha-scope)" section below.
+* ENI pair placement doesn’t affect the physical network topology for each ENI:
+  * Each ENI will still be served by a pair of DPUs, which shares the same DP VIP for getting the traffic for this ENI.
+  * One of the DPUs will be active one handling the traffic for the ENI, and the flow will be replicated to the other one as standby.
+  * Traffic forwarding is based on the ENI level forwarding rule on NPU side, so all ENIs in the same Tire-1 switch set can share the same data path VIP.
+* It doesn’t affect the HA failover scope, which is on ENI level. Please see "[ENI-level HA scope](#62-eni-level-ha-scope)" section below.
 
 <p align="center"><img alt="ENI pair placement" src="./images/eni-pair-placement.svg"></p>
 
 #### 4.3.3. ENI-level HA scope
 
-Although we are using card-level ENI pair placement, each ENI pair has its own active instance. In another word, HA scope is on ENI-level. This means - when failover happens, we only move the active for that single ENI to the standby. 
+Although we are using card-level ENI pair placement, each ENI pair has its own active instance. In another word, HA scope is on ENI-level. This means - when failover happens, we only move the active for that single ENI to the standby.
 
 This helps us spread the traffic load between the paired DPUs - Instead of having the active DPU handling all the traffic, each DPU can have half of the active ENIs and handle half of the traffic. Especially when traffic is skewed, we can failover some active ENIs to avoid one side of DPU being busy.
 
@@ -349,13 +349,13 @@ This helps us spread the traffic load between the paired DPUs - Instead of havin
 
 #### 4.3.4. ENI update domain (UD) / fault domain (FD) handling
 
-Many customer tenants have restrictions on how many nodes can be impacted when upgrade or impact happens. Today in Azure, this is controlled by update domain and fault domain (see "[Availability set overview](https://learn.microsoft.com/en-us/azure/virtual-machines/availability-set-overview)" doc). 
+Many customer tenants have restrictions on how many nodes can be impacted when upgrade or impact happens. Today in Azure, this is controlled by update domain and fault domain (see "[Availability set overview](https://learn.microsoft.com/en-us/azure/virtual-machines/availability-set-overview)" doc).
 
-- Update domain defines the groups of virtual machines and underlying physical hardware that can be rebooted at the same time.
-- Fault domain defines the group of virtual machines that share a common power source and network switch.
+* Update domain defines the groups of virtual machines and underlying physical hardware that can be rebooted at the same time.
+* Fault domain defines the group of virtual machines that share a common power source and network switch.
 
 Since SmartSwitch is a shared network service, one single DPU could host multiple ENIs from the same UD or FD. And with the ENI-level setup, these restrictions could also be supported by simply batching the ENI failover based on the UD and FD information when upgrade or other maintainance work happens.
- 
+
 #### 4.3.5. DPU to DPU communication for flow HA
 
 ##### 4.3.5.1. Standby to active DPU tunnel
@@ -367,7 +367,7 @@ Since the standby DPU knows the IP of the active DPU, this can be achieved easil
 <p align="center"><img alt="Tunneling packet between DPUs" src="./images/npu-to-dpu-tunnel-from-dpu.svg"></p>
 
 Now, let’s add the NPU-to-NPU tunnels in the picture as well. This is how the data path looks like with all tunnels together:
- 
+
 <p align="center"><img alt="Tunneling packet between DPUs" src="./images/npu-to-dpu-tunnel-2-stages.svg"></p>
 
 ##### 4.3.5.2. DPU-to-DPU data plane channel
@@ -393,7 +393,7 @@ To provide HA for DPU-to-DPU communication, we can also leverage our ECMP networ
 
 ###### 4.3.5.2.2. (Optional) Multi-path data plane availability tracking
 
-Multi-path communication is great, but it also introduces gray failures. For example, flow replication fails 10% of the time instead of 100% of time. 
+Multi-path communication is great, but it also introduces gray failures. For example, flow replication fails 10% of the time instead of 100% of time.
 
 To help us further avoid link problems, DPUs could track the failures of each possible path and avoid using it when it is possible. This can be done by using actively probing (see "[DPU-to-DPU liveness probe](#73-dpu-to-dpu-liveness-probe)") or tracking the reachability of each data path by checking the response of data plane channel requests, e.g. flow replication.
 
@@ -422,6 +422,7 @@ After HA is enabled, instead of programming a single DPU for a single ENI, now w
 In SmartSwitch, upstream service and switches will work together on providing the HA features.
 
 The responsibility of these 2 things is defined as below (HA-related only):
+
 1. Upstream service is responsible for:
     1. Deciding ENI placement and pairing.
     2. Deciding preferred active ENI placement.
@@ -453,30 +454,30 @@ This container will be running on NPU side, so when DPU is down, we can still dr
 
 `swbusd` is used for establish the connections between each switches:
 
-- `swbusd` will be running in the `ha` container.
-- `swbusd` will be responsible for establishing the HA control plane control channel and data channel between each switches.
-- `swbusd` will be responsible for running a gRPC server to receive and route the requests coming `hamgrd` to the right switch.
-- `swbusd` will be responsible for running a gRPC server to receive flow info from DPU ASIC or ARM cores directly, and route the flow info to the right switch.
+* `swbusd` will be running in the `ha` container.
+* `swbusd` will be responsible for establishing the HA control plane control channel and data channel between each switches.
+* `swbusd` will be responsible for running a gRPC server to receive and route the requests coming `hamgrd` to the right switch.
+* `swbusd` will be responsible for running a gRPC server to receive flow info from DPU ASIC or ARM cores directly, and route the flow info to the right switch.
 
 ##### 5.2.1.3. hamgrd
 
 `hamgrd` is used to manage the HA state machine and state transition:
 
-- `hamgrd` will be running in the `ha` container.
-- `hamgrd` will communicate with:
-    - Redis for:
-        - Learning HA related setups, such as peer info, which switches will be involved in forwarding traffic.
-        - Receive the config updates from upstream service, so we can initiate HA operations for planned events or live site mitigations, such as switchover.
-        - Notify swss control things like, BFD probes, ENI traffic forwarding, etc.
-    - gNMI agent for sending state changed notifications, such as HA state changed notifications.
-    - Syncd on DPUs for calling SAI APIs to help HA state transition.
+* `hamgrd` will be running in the `ha` container.
+* `hamgrd` will communicate with:
+  * Redis for:
+    * Learning HA related setups, such as peer info, which switches will be involved in forwarding traffic.
+    * Receive the config updates from upstream service, so we can initiate HA operations for planned events or live site mitigations, such as switchover.
+    * Notify swss control things like, BFD probes, ENI traffic forwarding, etc.
+  * gNMI agent for sending state changed notifications, such as HA state changed notifications.
+  * Syncd on DPUs for calling SAI APIs to help HA state transition.
 
 #### 5.2.2. HA Control Plane Channels
 
 There are 2 channels in HA control plane:
 
-- **Control Plane Control Channel** (Red channel above): This channel is used for transferring HA control messages, e.g. messages related to HA state machine transition. This channel can be implemented by gRPC.
-- **Control Plane Data Channel** (Purple channel above): This channel is used for doing heavy data transfer between DPUs, such as bulk sync. This channel can also be done by gRPC.
+* **Control Plane Control Channel** (Red channel above): This channel is used for transferring HA control messages, e.g. messages related to HA state machine transition. This channel can be implemented by gRPC.
+* **Control Plane Data Channel** (Purple channel above): This channel is used for doing heavy data transfer between DPUs, such as bulk sync. This channel can also be done by gRPC.
 
 ##### 5.2.2.1. HA control plane control channel
 
@@ -498,17 +499,17 @@ The data channel is used for transferring large chunks of data between DPUs, e.g
 
 Because we expect large chunks of data being transferred, this channel is designed to:
 
-- Avoid using PCIe bus.
-- Minimize the overhead on DPU, due to limited compute resource on DPU.
+* Avoid using PCIe bus.
+* Minimize the overhead on DPU, due to limited compute resource on DPU.
 
 The data channel is designed to have 2 parts: from DPU ASIC / ARM core to `swbusd` and from `swbusd` to other `swbusd`. This channel is established with the steps below:
 
-- During DPU initialization, SONiC will get how many channels are needed for bulk sync via SAI API.
-- Once the number is returned, it will be forwarded to local `swbusd` along with its pairing information to establish the data channels between `swbusd`.
-- When bulk sync starts,
-  - SONiC will call get flow SAI API with all channel information passed as SAI attributes, such as gRPC server addresses.
-  - DPU will send the flow info directly to `swbusd` and being forwarded to its paired DPU. 
-  - The flow info format will be defined publicly as part of the SAI APIs, so we can also directly call the SAI APIs to get the flow info as well.
+* During DPU initialization, SONiC will get how many channels are needed for bulk sync via SAI API.
+* Once the number is returned, it will be forwarded to local `swbusd` along with its pairing information to establish the data channels between `swbusd`.
+* When bulk sync starts,
+  * SONiC will call get flow SAI API with all channel information passed as SAI attributes, such as gRPC server addresses.
+  * DPU will send the flow info directly to `swbusd` and being forwarded to its paired DPU.
+  * The flow info format will be defined publicly as part of the SAI APIs, so we can also directly call the SAI APIs to get the flow info as well.
 
 ##### 5.2.2.3. HA control plane channel data path HA
 
@@ -516,10 +517,10 @@ Although it might be counter-intuitive, we could consider that we can always get
 
 The approach is simply brute force: as long as we have tried enough number of connections with different source port, we can get the channel recovered.
 
-This approach works because with our current setup, it is extremely unlikely that 2 switches cannot communicate with each other. 
+This approach works because with our current setup, it is extremely unlikely that 2 switches cannot communicate with each other.
 
-- If the possibility of 1 link failing is P, and we have N possible links between each T1, then the possibility of 2 switches failing talk to each other will be $(2p – p^2)^{N}$. 
-- Let's say, the down time of each link within the year is 1% and we have 10 links, then the possibility will be $(0.01 - 0.0001)^{10} = 0.0199^{10} = 9.73 * 10^{-18}$. This equals to $3*10^{-10}$ second downtime per year.
+* If the possibility of 1 link failing is P, and we have N possible links between each T1, then the possibility of 2 switches failing talk to each other will be $(2p – p^2)^{N}$.
+* Let's say, the down time of each link within the year is 1% and we have 10 links, then the possibility will be $(0.01 - 0.0001)^{10} = 0.0199^{10} = 9.73 * 10^{-18}$. This equals to $3*10^{-10}$ second downtime per year.
 
 Additionally, to reduce the time of finding a good path and meet our SLA requirement, we could also try to use multiple different source port to establish the new connection in parallel, and choose whichever one that works first.
 
@@ -532,25 +533,26 @@ First, we need to create the ENI in all DPUs:
 1. Upstream service will first decide where to put the new ENI and form the HA set, based on the load and other information.
 2. Upstream service calls northbound interface and programs the following things on each SmartSwitch independently:
     1. Create the ENI on selected DPUs with its peer information, so we can form a HA set.
-        1. This will make the 2 ENIs start to connect to each other as preparation. 
+        1. This will make the 2 ENIs start to connect to each other as preparation.
         1. Upstream service can create the ENI with a preferred active setting, so when ENIs are launched for the first time, the active one will be created on that side. This allows us to distribute the ENIs evenly on the paired DPUs. See "Primary election".
     2. Program traffic forwarding rules to all the switches that will receive the traffic.
         1. This will make all the `hamgrd` connect to the `hamgrd` that own the ENI and register the probe listener.
         1. Whenever a probe listener is registered, the latest probe state will be pushed to make it in sync.
         1. If the probe listener is lost, it should be either the traffic forwarding rules are removed or `hamgrd` is crashed. For the former case, there won’t be any problem. For the latter case, please see "[`hamgrd` crash](#1031-ha-agent-crash)" section on how to handle it.
-    
+
     <p align="center"><img alt="ENI creation step 1" src="./images/eni-creation-step-1.svg"></p>
+
 3. Once programming is finished, ENIs will start forming the HA pair automatically:
     1. The ENI level control plane channels will be created.
     2. The 2 DPUs will start to communicate with each other via the control plane control channel, elect the primary and form a HA set automatically.
 4. Once the new primary is elected, SmartSwitch will notify the upstream service that the primary is selected.
     1. The primary may or may not be the preferred one, because in cases like "[ENI migration](#95-eni-migration)", the peer ENI might be already running in standalone state. In this case, the new ENI has to be launched as standby. However, we can issue "[Planned Switchover](#92-planned-switchover)" later, if we want to shift the primary.
-    
-    <p align="center"><img alt="ENI creation step 2" src="./images/eni-creation-step-2.svg"></p>
-5. In the meantime, the primary election process will also update the probe state of all ENIs, making sure the traffic is forwarded to the right DPU.
-    
-    <p align="center"><img alt="ENI creation step 3" src="./images/eni-creation-step-3.svg"></p>
 
+    <p align="center"><img alt="ENI creation step 2" src="./images/eni-creation-step-2.svg"></p>
+
+5. In the meantime, the primary election process will also update the probe state of all ENIs, making sure the traffic is forwarded to the right DPU.
+
+    <p align="center"><img alt="ENI creation step 3" src="./images/eni-creation-step-3.svg"></p>
 
 ### 5.4. ENI programming
 
@@ -576,7 +578,7 @@ The target of liveness detection is to determine the DPU state, and we are not t
 To determine the DPU state, we are using 3 approaches:
 
 1. **Card level NPU-to-DPU liveness probe**: Detect if a DPU is reachable from a switch or not. The minimum scope of this probe is card level, so it can only control the traffic for the entire card. If this probe is up, NPU will be ***allowed*** to forward traffic to this card, otherwise, NPU will stop forwarding traffic to all ENIs on that card.
-2. **ENI level NPU-to-DPU probe report**: This report is using the control channel to report its liveness status to all the switches that advertises the DP VIP and involved in traffic forwarding. 
+2. **ENI level NPU-to-DPU probe report**: This report is using the control channel to report its liveness status to all the switches that advertises the DP VIP and involved in traffic forwarding.
 3. **DPU-to-DPU liveness probe**: Detects gray network failure between DPUs. It can be on card-level or ENI-level. Whenever this probe fails or failure rate above certain level, we will start to consider the peer is dead and drive into standalone mode.
 
 ### 6.1. Card level NPU-to-DPU liveness probe
@@ -585,9 +587,10 @@ Today, we will use BFD sessions to probe the local and remote DPU in SmartSwitch
 BFD is already supported by SONiC and can be offloaded to switch ASIC. After we setup the BFD sessions, switch ASIC will generate BFD packet to local or remote DPUs to test if the DPUs are live or not.
 
 To control this probe behavior, we have 3 configurations:
-- The interval between each probes.
-- How many probes succeed continuously, we probe it up?
-- How many probes fail continuously, we probe it down?
+
+* The interval between each probes.
+* How many probes succeed continuously, we probe it up?
+* How many probes fail continuously, we probe it down?
 
 And here are the details on how the card level probe controls the traffic:
 
@@ -612,7 +615,7 @@ The lite-BFD server will be a standalone program running on DPU. It will be resp
 
 ##### 6.1.1.2. BFD initialization on DPU boot
 
-During DPU boot and initialization, certain parts of the DPU packet processing pipeline might not be fully running, while our programs are already launched. If we start BFD session at this moment, packets might be coming and getting dropped. 
+During DPU boot and initialization, certain parts of the DPU packet processing pipeline might not be fully running, while our programs are already launched. If we start BFD session at this moment, packets might be coming and getting dropped.
 
 To reflect the true liveness, we will postpone the BFD session setup after SAI create switch is done. And SAI create switch should make sure every component in the system is fully running.
 
@@ -665,12 +668,13 @@ The traffic control state update mechanism is really simple. It works as the las
 
 The purpose of DPU-to-DPU liveness probe is to find gray failures in the system. Currently, gray failures can happen in 2 ways:
 
-- **Data path failure**: Some links are dropping traffic and how can we avoid these links.
-- **ENI pipeline failure**: Pipeline for certain ENI is failing, but not all.
+* **Data path failure**: Some links are dropping traffic and how can we avoid these links.
+* **ENI pipeline failure**: Pipeline for certain ENI is failing, but not all.
 
 #### 6.3.1. Card-level and ENI-level data plane failure
 
 To detect data plane failure, there are 2 things we should do:
+
 1. Have counters on how many flow replication packets are dropped overall and for each ENI.
 2. Send probe packet, so we can detect data path gray failure actively.
     1. The probe packet should have source port rotated.
@@ -678,15 +682,15 @@ To detect data plane failure, there are 2 things we should do:
 
 When failures are detected by these 2 things, we will start drive the ENI into standalone mode.
 
-Furthermore, we could also consider tracking the data path availability for each link/source port independently and avoid the bad path actively. Please see "[Multi-path data plane availability tracking](#42322-optional-multi-path-data-plane-availability-tracking)" for more information. But this is totally optional, as we stated in our "[Requirements, Assumptions and SLA]()", handling data path gray failure is nice to have, but it is not one of our main goal. 
+Furthermore, we could also consider tracking the data path availability for each link/source port independently and avoid the bad path actively. Please see "[Multi-path data plane availability tracking](#42322-optional-multi-path-data-plane-availability-tracking)" for more information. But this is totally optional, as we stated in our "[Requirements, Assumptions and SLA]()", handling data path gray failure is nice to have, but it is not one of our main goal.
 
 #### 6.3.2. ENI-level pipeline failure
 
 The hard problem is how to really detect gray failure with generic probe mechanism.
 
-- If it is for detecting hardware failure, it can and should be monitored by hardware monitors.
-- If it is for detecting if hardware is booted and really to use, delaying BFD responses to create switch and hardware BFD can both handle it well (see "[BFD support on DPU](#711-bfd-support-on-dpu)" section).
-- If it is for detecting certain scenario failing, we don’t have enough knowledge to build the required packets to make sure it exercises the expected policies and assert the expected final transformation. Hence, having a scenario-based probing service will be a better solution.
+* If it is for detecting hardware failure, it can and should be monitored by hardware monitors.
+* If it is for detecting if hardware is booted and really to use, delaying BFD responses to create switch and hardware BFD can both handle it well (see "[BFD support on DPU](#711-bfd-support-on-dpu)" section).
+* If it is for detecting certain scenario failing, we don’t have enough knowledge to build the required packets to make sure it exercises the expected policies and assert the expected final transformation. Hence, having a scenario-based probing service will be a better solution.
 
 Hence, to summarize, we are skipping designing ENI-level pipeline probe here.
 
@@ -698,15 +702,15 @@ Since we have 2 probes to control the traffic – card level and ENI-level, we n
 
 The underlying mechanism for both types of probes are working in similar way:
 
-- Pinning a probe state will not stop the underlying probe mechanism from running. The original probe state will still be updated, whenever it is changed.
-- Whenever a pinned probe exists, we will always honor the pinned probe state. However, due to certain limitations, the detailed effect of pinned probe state will be slightly different. Please see the sub-sections below.
+* Pinning a probe state will not stop the underlying probe mechanism from running. The original probe state will still be updated, whenever it is changed.
+* Whenever a pinned probe exists, we will always honor the pinned probe state. However, due to certain limitations, the detailed effect of pinned probe state will be slightly different. Please see the sub-sections below.
 
 #### 6.4.1. Pinning BFD probe
 
 When a BFD probe state is pinned, it will control the traffic for the entire switch or card, depends on HA scope.
 
-- If pinned to up, it will allow the traffic of its owning ENI being forwarded.
-- If pinned to down, it will stop all traffic of its owning being forwarded.
+* If pinned to up, it will allow the traffic of its owning ENI being forwarded.
+* If pinned to down, it will stop all traffic of its owning being forwarded.
 
 The detailed effects of probe pinning are listed below.
 
@@ -721,8 +725,8 @@ The detailed effects of probe pinning are listed below.
 
 A few things to note:
 
-- BFD probe is a big hummer. It only controls on a higher level. ENI-level probe will still be honored when forwarding traffic. Hence, the traffic will only be forward, when both BFD probe and ENI-level probe are up.
-- It is ok for both cards to be pinned as up, because it will allow the traffic to be forwarded to either side but won’t force the traffic to be forwarded to both sides.
+* BFD probe is a big hummer. It only controls on a higher level. ENI-level probe will still be honored when forwarding traffic. Hence, the traffic will only be forward, when both BFD probe and ENI-level probe are up.
+* It is ok for both cards to be pinned as up, because it will allow the traffic to be forwarded to either side but won’t force the traffic to be forwarded to both sides.
 
 #### 6.4.2. Pinning ENI-level traffic control state
 
@@ -759,13 +763,13 @@ In real implementation, we could consider pre-calculating certain decisions, suc
 
 ## 7. HA state machine
 
-Since switch and DPU can be restarted and ENIs can be created/moved/destroyed, for each HA scope, i.e. ENI, we will need to manage its states during its lifecycle. 
+Since switch and DPU can be restarted and ENIs can be created/moved/destroyed, for each HA scope, i.e. ENI, we will need to manage its states during its lifecycle.
 
 Again – the goals of the HA design are:
 
-- Providing a failover plan with only 2 instances in a HA set, forming a HA pair. If there are more than 2 instances, we will need a more complicated state machine or underlying mechanism to work.
-- At the end of each planned or unplanned event w/ recovery, the flows in all HA participants are matched. 
-- Stale flow can be created due to policy being not up to date. It is the responsibility of the upstream services to make sure the policy in all DPUs are up to date and aligned to avoid stale / conflicting flows from being created.
+* Providing a failover plan with only 2 instances in a HA set, forming a HA pair. If there are more than 2 instances, we will need a more complicated state machine or underlying mechanism to work.
+* At the end of each planned or unplanned event w/ recovery, the flows in all HA participants are matched.
+* Stale flow can be created due to policy being not up to date. It is the responsibility of the upstream services to make sure the policy in all DPUs are up to date and aligned to avoid stale / conflicting flows from being created.
 
 > In this section, we will have a lot of graphs showing how "Term" is changed during the state transitions. For what is term and how it affects flow replication, please refer to  "[Primary election](#83-primary-election)" and "[Range sync](#1252-range-sync)" sections for more explanation.
 
@@ -789,12 +793,12 @@ Here are all the states that each HA participants will go through to help us ach
 
 Here are the definitions of the columns above:
 
-- **Receive traffic from NPU**: ENI level NPU-to-DPU traffic control state. If yes, we will set this DPU as the next hop for the ENI, so NPU will forwarding traffic to it.
-- **Make decision**: Will this DPU create new flows for new connections (not found in flow table, including both syn/non-syn cases, see "[Flow creation and initial sync](#123-flow-creation-and-initial-sync)" section)
-- **Old flow handling**: When packets of existing flow arrive to this DPU, what will the DPU do?
-- **Respond flow sync**: Will this DPU accept flow replication request from its paired DPU?
-- **Init flow sync**: Will this DPU send replicate flow request to its paired DPU when new flow is created?
-- **Init bulk sync**: Will this DPU start bulk sync in this state?
+* **Receive traffic from NPU**: ENI level NPU-to-DPU traffic control state. If yes, we will set this DPU as the next hop for the ENI, so NPU will forwarding traffic to it.
+* **Make decision**: Will this DPU create new flows for new connections (not found in flow table, including both syn/non-syn cases, see "[Flow creation and initial sync](#123-flow-creation-and-initial-sync)" section)
+* **Old flow handling**: When packets of existing flow arrive to this DPU, what will the DPU do?
+* **Respond flow sync**: Will this DPU accept flow replication request from its paired DPU?
+* **Init flow sync**: Will this DPU send replicate flow request to its paired DPU when new flow is created?
+* **Init bulk sync**: Will this DPU start bulk sync in this state?
 
 ### 7.2. State transition
 
@@ -804,7 +808,7 @@ The state transition graph is shown as below:
 
 ### 7.3. Primary election
 
-When 2 DPUs reconnect to each other, they will need to decide which one should be the active side. 
+When 2 DPUs reconnect to each other, they will need to decide which one should be the active side.
 
 The key idea is to find the DPU that lives the longest and knows the most on the historical flow changes. To do it, we introduce a concept called "Term":
 
@@ -813,16 +817,16 @@ The key idea is to find the DPU that lives the longest and knows the most on the
 3. Whenever the inline sync channel can be established again, the flow data will stop diverging, so we can move to next term and resume the inline sync.
 4. Hence, whenever the term is larger, it means this node knows more about the flow history, and it should be preferred.
 
-With this idea, the implementation becomes really simple – we only need to compare the term. However, we might have some cases where we prefer the active on one side for better traffic distribution or might end up with situations with both sides having the same term. Hence, to make the algorithm more practical, we add a few more things in the primary election algorithm. 
+With this idea, the implementation becomes really simple – we only need to compare the term. However, we might have some cases where we prefer the active on one side for better traffic distribution or might end up with situations with both sides having the same term. Hence, to make the algorithm more practical, we add a few more things in the primary election algorithm.
 
 The key variables are shown as below:
 
-- **Term** (Int, Default = 0): The term of the ENI. It changes in 2 cases:
-  - Increases whenever the ENI establishes or loses inline sync channel with its peer, while it can make flow decision.
-  - Match to active side, when we are back to stable state – Active-Standby pair.
-- **CurrentState** (Enum): The current HA state of the ENI. This is to avoid comparing with ENIs before Connected state.
-- **DesiredState** (Enum): When both sides are in the same term, set the active to the preferred side. The initial value comes from the ENI configuration.
-- **RetryCount** (Int, Default = 0): How many times we have retried. This is to avoid retrying forever.
+* **Term** (Int, Default = 0): The term of the ENI. It changes in 2 cases:
+  * Increases whenever the ENI establishes or loses inline sync channel with its peer, while it can make flow decision.
+  * Match to active side, when we are back to stable state – Active-Standby pair.
+* **CurrentState** (Enum): The current HA state of the ENI. This is to avoid comparing with ENIs before Connected state.
+* **DesiredState** (Enum): When both sides are in the same term, set the active to the preferred side. The initial value comes from the ENI configuration.
+* **RetryCount** (Int, Default = 0): How many times we have retried. This is to avoid retrying forever.
 
 Hence, when receiving a `RequestVote` message, our primary election algorithm works as below:
 
@@ -844,15 +848,16 @@ Hence, when receiving a `RequestVote` message, our primary election algorithm wo
 Since `hamgrd` could crash in the middle of the HA state transition and lose all its in-memory state, we need to persist the HA state, whenever it is changed and provide a way to rehydrate it back.
 
 This is done by 2 key things:
+
 1. All states that is related to HA state machine transition will be saved to Redis, whenever it is changed. This includes: per-ENI current HA state and cached peer state, etc.
 2. All actions that we do during state transition are idempotent. For examples,
-    - **Move the current state to a specific state**: If we repeat this action, it won’t have any effect.
-    - **Update all probe state to Up or Down**: If we repeat this action, we will get the same result.
-    - **RequestVote**: If we win or lose the vote previously, we shall win or lose the vote now, as long as the peer is not crashed.
-    - **Start bulk sync**: If we start it again, we should either get a in-progress response or start a new one, if previous one is done.
-    - **Bulk sync done**: This action is usually equivalent to "Update state to Standby". If we are already in standby, then no-op.
-    - **SwitchOver/ShutdownStandby**: If we are already in next state, then the operation will be a no-op.
-    - ...
+    * **Move the current state to a specific state**: If we repeat this action, it won’t have any effect.
+    * **Update all probe state to Up or Down**: If we repeat this action, we will get the same result.
+    * **RequestVote**: If we win or lose the vote previously, we shall win or lose the vote now, as long as the peer is not crashed.
+    * **Start bulk sync**: If we start it again, we should either get a in-progress response or start a new one, if previous one is done.
+    * **Bulk sync done**: This action is usually equivalent to "Update state to Standby". If we are already in standby, then no-op.
+    * **SwitchOver/ShutdownStandby**: If we are already in next state, then the operation will be a no-op.
+    * ...
 
 This makes the state being rehydratable. Once we move the state into certain state, we can update redis to make sure it is persistent, then invoke whatever actions we want and move on. If we crashed, then we can read the states back from redis and retry all actions safely.
 
@@ -862,7 +867,7 @@ During rehydration, we also need to check the current config of ENI, to ensure i
 
 ### 8.1. Launch
 
-After a new HA participant is being created, e.g. ENI, we need to make it join the existing HA set, getting existing flows from its peer and start taking traffic. 
+After a new HA participant is being created, e.g. ENI, we need to make it join the existing HA set, getting existing flows from its peer and start taking traffic.
 
 #### 8.1.1. Clean launch on both sides
 
@@ -872,8 +877,8 @@ Once ENIs are created, they will start the clean launch process:
 
 <p align="center"><img alt="HA clean launch" src="./images/ha-planned-events-launch-clean.svg"></p>
 
-1. Both DPUs will start with `Dead` state. 
-2. During launch, they will move to `Connecting` state and start to connect to its peer. 
+1. Both DPUs will start with `Dead` state.
+2. During launch, they will move to `Connecting` state and start to connect to its peer.
 3. Once connected, they will start to send `RequestVote` to its peer with its own information, such as Term, to start Primary election process. This will decide which of them will become Active or Standby.
 4. Say, DPU0 will become active. Then, DPU0 will start to move to `InitializingToActive` state, while its peer moves to `InitializingToStandby` state.
 5. Once DPU0 receives `HAStateChanged` event and knows DPU1 is ready, DPU0 will:
@@ -927,8 +932,8 @@ Once created, the new ENI will go through similar steps as above and join the HA
 1. DPU1 will start as `Dead` state as initial state, then move to `Connecting` state and start to connect to its HA pair.
 2. After successfully connected to its peer, the new node will move to `Connected` state and send out `RequestVote` message to its peer to start primary election (see "[Primary Election](#83-primary-election)" for detailed algorithm).
 3. The primary election response will move the new node to `InitializingToStandby` state.
-    - Using `RequestVote` method is trying to make the launch process simple, because the pair could also be doing a clean start, so we are not determined to become standby, but also might become the active.
-    - If the DPU0 is pinned to standalone state, we can reject the `RequestVote` message with retry later.
+    * Using `RequestVote` method is trying to make the launch process simple, because the pair could also be doing a clean start, so we are not determined to become standby, but also might become the active.
+    * If the DPU0 is pinned to standalone state, we can reject the `RequestVote` message with retry later.
 4. DPU1 sends `HAStateChanged` event to DPU0, so DPU0 knows DPU1 is ready. Then it moves to `Active` state, which will,
     1. Start replicating flows inline.
     2. Start bulk sync to replicate all old flows.
@@ -1009,7 +1014,7 @@ Afterwards, when DPU0 comes back, it will launch again, following the sequence o
 
 ### 8.2. Planned switchover
 
-Planned switchovers are usually done for reasons like maintenance. 
+Planned switchovers are usually done for reasons like maintenance.
 
 With the planned switchover, we are trying to achieve the following goals:
 
@@ -1022,19 +1027,19 @@ With the planned switchover, we are trying to achieve the following goals:
 
 Planned switchover starts from a standby node, because in order to avoid flow loss, we need to make sure we have 1 valid standby node that works. And here are the main steps:
 
-1.	Upstream service set standby (DPU1) desired state to `Active` and current Active (DPU0) to `None` to initiate switchover.
+1. Upstream service set standby (DPU1) desired state to `Active` and current Active (DPU0) to `None` to initiate switchover.
 
     <p align="center"><img alt="HA planned switchover step 1" src="./images/ha-planned-events-switchover-step-1.svg"></p>
 
     To ensure we know which config is the latest one, due to 2 ENIs are programmed independently, the HA config should have a version number, which is increased whenever the config is changed. And the upstream service should set the desired state to `Active` with the latest version number.
 
-2.	Switch 1 detects desired state not matching and updates its state to trigger gNMI notification to upstream service for requesting switching over. Upstream service sets the approved switchover id after ensuring the policy matches and pausing future policy updates.
+2. Switch 1 detects desired state not matching and updates its state to trigger gNMI notification to upstream service for requesting switching over. Upstream service sets the approved switchover id after ensuring the policy matches and pausing future policy updates.
 
     <p align="center"><img alt="HA planned switchover step 1" src="./images/ha-planned-events-switchover-step-2.svg"></p>
 
     This extra step here is also used when we [recover from standalone setup](#1055-recovery-from-standalone-setup).
 
-3.	DPU1 moves to `SwitchingToActive` state and send `SwitchOver` to DPU0 (active). 
+3. DPU1 moves to `SwitchingToActive` state and send `SwitchOver` to DPU0 (active).
 
     <p align="center"><img alt="HA planned switchover step 2" src="./images/ha-planned-events-switchover-step-3.svg"></p>
 
@@ -1043,12 +1048,12 @@ Planned switchover starts from a standby node, because in order to avoid flow lo
     To ensure we always have 1 decision maker at all times, the `SwitchingToActive` state will:
 
     1. Support making decisions and handling traffic.
-    1. Set ENI probe to down, but wait for the other side giving up active state and tunnel the traffic across. 
+    1. Set ENI probe to down, but wait for the other side giving up active state and tunnel the traffic across.
     1. Accepts flow replication request, because the other side is still running at active state and replicate flow.
 
     If DPU0 is not in `Active` state or also have desired state set to `Active`, it will reject the `SwitchOver` request, which moves DPU1 back to `Standby`. And later on, DPU1 will retry the switchover again.
 
-4.	Once switch 1 receives approval, DPU0 moves itself to `SwitchingToStandby` state and notifies DPU1 that it is ready with `HAStateChanged`.
+4. Once switch 1 receives approval, DPU0 moves itself to `SwitchingToStandby` state and notifies DPU1 that it is ready with `HAStateChanged`.
 
     <p align="center"><img alt="HA planned switchover step 3" src="./images/ha-planned-events-switchover-step-4.svg"></p>
 
@@ -1064,7 +1069,7 @@ Planned switchover starts from a standby node, because in order to avoid flow lo
 
     <p align="center"><img alt="HA planned switchover step 4" src="./images/ha-planned-events-switchover-step-5.svg"></p>
 
-    This will probe DPU1 up on both NPUs. And due to the last-win rule, all traffic will be forwarded to DPU1. 
+    This will probe DPU1 up on both NPUs. And due to the last-win rule, all traffic will be forwarded to DPU1.
 
 6. At last, the old active DPU0 drives itself to `Standby` state. This probes the DPU0 down on both NPUs. All traffic will be kept on DPU1, as NextHop is not changed.
 
@@ -1140,7 +1145,7 @@ This helps us to avoid conflicting / stale flows being created during the switch
 
 #### 8.2.3. Failure handling during switchover
 
-During switchover, both NPU and DPU liveness detection are still running in the background. If any node died in the middle, instead of rolling states back, we would start unplanned event workflow right away by driving the HA pair into Standalone setup. 
+During switchover, both NPU and DPU liveness detection are still running in the background. If any node died in the middle, instead of rolling states back, we would start unplanned event workflow right away by driving the HA pair into Standalone setup.
 
 See discussions for [unplanned events](#10-unplanned-events) below.
 
@@ -1222,7 +1227,7 @@ If we suspect an ENI pipeline is not working right and it is caused by unknown D
 2. Set active node desired state to `Standalone` to drive this ENI into standalone setup.
 
     <p align="center"><img alt="HA pin standalone" src="./images/ha-planned-events-standalone-pin.svg"></p>
- 
+
 3. To recover, upstream service set the standalone node desired state back to `Active` to remove the pinning.
 
     <p align="center"><img alt="HA unpin standalone" src="./images/ha-planned-events-standalone-unpin.svg"></p>
@@ -1231,13 +1236,13 @@ If we suspect an ENI pipeline is not working right and it is caused by unknown D
 
 There are a few cases which need us to move the ENI from one DPU to another. For example,
 
-- When doing upgrades, sometimes unfortunately, we might upgrade both DPUs for the same ENI at the same time.
-- Moving ENI due to capacity reasons.
-- When upstream service lost connection to one side of the switches and like to establish a new pair somewhere else.
+* When doing upgrades, sometimes unfortunately, we might upgrade both DPUs for the same ENI at the same time.
+* Moving ENI due to capacity reasons.
+* When upstream service lost connection to one side of the switches and like to establish a new pair somewhere else.
 
 #### 8.5.1. Card-level ENI migration
 
-ENI migration is limited to ENI pair placement – with card-level ENI pair placement, we can only migrate all ENIs on the card together. 
+ENI migration is limited to ENI pair placement – with card-level ENI pair placement, we can only migrate all ENIs on the card together.
 
 ENI migration can be done in 3 steps:
 
@@ -1302,7 +1307,7 @@ If only one side switch is not reachable, we won’t be able to send the latest 
 
 Whenever our upstream service detected this issue, we can [pin the reachable side to standalone](#94-eni-level-dpu-isolation--standalone-pinning) as mitigation. And since the policy doesn't match on both sides, we assume the reachable side should have a newer policy, hence flow resimulation should be triggered to make sure the flow actions are up to date.
 
-##### 9.1.1.2. Both side switches are not reachable 
+##### 9.1.1.2. Both side switches are not reachable
 
 Since switch HA management is decoupled with upstream service, switches will automatically move to standalone state, if they cannot talk to each other. Hence, data path will continue to work, although policies cannot be updated anymore.
 
@@ -1316,9 +1321,9 @@ If the control channel is down, the HA pair will not be able to share the states
 
 Whenever this happens, it can be caused by 2 reasons: network failure or peer NPU/DPU going down. Here we only cover the network failure case as steps listed below:
 
-- Keep the state as it is without change, because all intermediate states in planned events can be considered as working state due to 0 loss requirements. 
-- Recover the control channel as what we described in "[HA control plane channel data path HA](#5223-ha-control-plane-channel-data-path-ha)" section above.
-- Once recovered, we move on the state machine transitions.
+* Keep the state as it is without change, because all intermediate states in planned events can be considered as working state due to 0 loss requirements.
+* Recover the control channel as what we described in "[HA control plane channel data path HA](#5223-ha-control-plane-channel-data-path-ha)" section above.
+* Once recovered, we move on the state machine transitions.
 
 For the case of DPU going down, it is covered by "[Unplanned DPU failure](#102-unplanned-dpu-failure)" section, and entire switch failure will be covered by "[Unplanned NPU failure](#103-unplanned-npu-failure)" section.
 
@@ -1350,7 +1355,7 @@ When data plan channel failure occurs, it is very important to avoid making a gr
 Furthermore, we can monitor 2 things:
 
 1. How many packets are lost in the data plane, e.g. flow replication request ack miss rate (1 - ack packet count / (request packet count + ack packet count))?
-2. How large is the DPU-to-DPU data plane probe failure rate? 
+2. How large is the DPU-to-DPU data plane probe failure rate?
 
 If these 2 rates are larger than certain threshold, we can start to [drive the DPU to standalone setup](#111-working-as-standalone-setup), avoiding unnecessary packet drop.
 
@@ -1364,8 +1369,8 @@ Same as other unplanned events, network interruption will be unavoidable, and we
 
 When syncd on DPU crashes, from HA perspective, the impact would be:
 
-- `hamgrd` will fail to connect to syncd. If it lasts long, it will look like a DPU hardware failure or PCIe bus failure. 
-- `hamgrd` cannot invoke SAI APIs for initiating bulk sync or receive SAI notifications for bulk sync being done.
+* `hamgrd` will fail to connect to syncd. If it lasts long, it will look like a DPU hardware failure or PCIe bus failure.
+* `hamgrd` cannot invoke SAI APIs for initiating bulk sync or receive SAI notifications for bulk sync being done.
 
 However, when this happens, we will ***NOT*** drive the HA pair into standalone setup, but keep the HA pair running as is, and wait for syncd to recover.
 
@@ -1377,8 +1382,8 @@ To differentiate from the cases of DPU having hardware failure or PCIe bus went 
 
 When a DPU dies, it could kill both active and standby ENIs. In both cases, the network interruption will still be unavoidable:
 
-- When standby ENIs die, although it doesn’t directly serve the traffic, some flow replication packets will still be lost and there is no way to get them back (we don’t store packets in active side). 
-- When active ENIs die, some packets will be dropped for sure until the traffic being shifted to the other side.
+* When standby ENIs die, although it doesn’t directly serve the traffic, some flow replication packets will still be lost and there is no way to get them back (we don’t store packets in active side).
+* When active ENIs die, some packets will be dropped for sure until the traffic being shifted to the other side.
 
 To detect this issue, we will use 2 ways:
 
@@ -1405,7 +1410,7 @@ To solve problem 2, we have 2 mechanisms:
 1. **DPU packet tunneling**: Once an ENI is connected to its peer and knows peer is also ready, all HA states is defined to either handle the traffic directly or tunnelling the traffic to its peer via NPU-to-DPU traffic forward tunnel. If the packet happens to be sent to the wrong side, it will be forwarded to the right side by DPU.
 2. **DP VIP range BGP withdraw**: We will also withdraw all DP VIPs routes, so the traffic will so shifts to other switches and get forwarded to the right side directly.
 
-With these 2 mechanisms, as long as we have 1 switch working, the traffic will be forwarded correctly. 
+With these 2 mechanisms, as long as we have 1 switch working, the traffic will be forwarded correctly.
 
 For detailed data path, please see "[NPU-to-DPU traffic forward tunnel – Put all tunnels together](#4234-put-all-tunnels-together)" section.
 
@@ -1419,9 +1424,9 @@ This could be caused by hardware problem or certain configuration problem kills 
 
 Whenever this failure happens:
 
-- Both HA data channel and data plane channel will stop working, as they all go through the back panel ports. This will cause peer lost SAI notification happen.
-- HA control channel will be still working, and `hamgrd` can still talk to syncd.
-- Port/serdes will be monitored by pmon on DPU side. Depending on how the monitor is implemented, we will see this failure soon and use it as signal to react on it.
+* Both HA data channel and data plane channel will stop working, as they all go through the back panel ports. This will cause peer lost SAI notification happen.
+* HA control channel will be still working, and `hamgrd` can still talk to syncd.
+* Port/serdes will be monitored by pmon on DPU side. Depending on how the monitor is implemented, we will see this failure soon and use it as signal to react on it.
 
 To mitigate this issue, we can:
 
@@ -1444,18 +1449,18 @@ The standalone setup is used whenever we only have one side of DPU running or we
 
 The standalone setup is designed with the following considerations and principles:
 
-1. A ENI ***MUST*** only be served by a single DPU, just like Active-Standby setup. 
-   - If both DPUs run as Standalone-Standalone pair, the incoming and outgoing traffic might land on 2 different DPUs. Since both DPU can make flow decisions, we will create unexpected flows and causing packet to be dropped.
+1. A ENI ***MUST*** only be served by a single DPU, just like Active-Standby setup.
+   * If both DPUs run as Standalone-Standalone pair, the incoming and outgoing traffic might land on 2 different DPUs. Since both DPU can make flow decisions, we will create unexpected flows and causing packet to be dropped.
 2. Standalone setup is a best-effort mitigation. When network is dropping packet, no matter what we do, we will never be able to avoid the impact perfectly. We can only try to reduce the network hops to reduce the chance of packet drop.
 3. Automated actions ***MUST*** be safe, otherwise it will cause more damage than good. If something we cannot handle automatically, we will fire alerts and wait for manual mitigation.
 4. If we are running in standalone setup for a long time, we shall raise alerts, because it means something is going wrong and we cannot recover.
-5. Driving into standalone setup will require 2 DPUs to work together. This communication is still done via HA control channel, because [as long as the peer DPU is running fine, we can always get a working control channel within a bounded time](#5223-ha-control-plane-channel-data-path-ha). 
+5. Driving into standalone setup will require 2 DPUs to work together. This communication is still done via HA control channel, because [as long as the peer DPU is running fine, we can always get a working control channel within a bounded time](#5223-ha-control-plane-channel-data-path-ha).
 
 Because of these, the standalone setup is designed to be Standalone-Standby pair.
 
 ##### 10.1.1.1. Standalone setup vs bulk sync
 
-Once the HA pair starts to run as standalone setup, the inline sync will stop working, and their saved flows will start to diverge. 
+Once the HA pair starts to run as standalone setup, the inline sync will stop working, and their saved flows will start to diverge.
 
 1. New flows can be created on one side, but not the other.
 2. Existing flows can be terminated on one side, but not the other.
@@ -1468,8 +1473,8 @@ And during recovery, we need to merge these 2 sets of flows back to one using "[
 
 There are 2 ways to implement standalone setup: Card-level and ENI-level.
 
-- Card-level standalone setup: All ENIs on the paired cards will be failover to one side and go into the `Standalone` state, so only one card can have ENIs running in `Standalone` state.
-- ENI-level standalone setup: Each ENI can failover by itself and go into the `Standalone` state, so both cards can have ENIs running in `Standalone` state.
+* Card-level standalone setup: All ENIs on the paired cards will be failover to one side and go into the `Standalone` state, so only one card can have ENIs running in `Standalone` state.
+* ENI-level standalone setup: Each ENI can failover by itself and go into the `Standalone` state, so both cards can have ENIs running in `Standalone` state.
 
 Obviously, card-level standalone setup is easier to implement, but any ENI-level operations that involves standalone state, such as planned shutdown, will cause all ENIs failover to one side of the card, even if only one ENI is having problem. On the other hand, ENI-level standalone setup will be much more flexible, safe, but also harder to implement.
 
@@ -1490,7 +1495,6 @@ The standalone setup can be triggered by following types of signals. Each signal
 | Manual Pinned | ENI-level DPU isolation | Isolation removed |
 | Card pinned to standalone | Card pinned to standalone | Pinning removed |
 
-
 #### 10.1.3. Determine desired standalone setup
 
 The key of driving the HA pair into standalone setup is to determine which side should be the standalone. The steps are different for card-level and ENI-level standalone setup.
@@ -1503,7 +1507,7 @@ First, we need to check the DPU health signals:
 
 1. If the card is already pinned to standalone, we drive ourselves to standalone (no-op).
 2. If the signals have "Peer DPU lost" or "Peer DPU dead", we drive ourselves to standalone.
-   - This covers the cases where the paired card or entire switch is dead, as well as manual operations.
+   * This covers the cases where the paired card or entire switch is dead, as well as manual operations.
 
 At this moment, both DPU should be running fine, so we start to check the ENI status and data path status. To ensure we have the latest state, we will send the `DPURequestEnterStandalone` message with aggregated signals and ENI states to the peer DPU. And upon receiving the message, we will run the following checks:
 
@@ -1517,8 +1521,8 @@ At this moment, both DPU should be running fine, so we start to check the ENI st
    2. If the signals from peer DPU have "Peer shutdown", we return `Allow` to the peer DPU.
    3. If both sides have "Peer shutdown", we return `Deny` and raise alert after retrying certain amount of times.
 4. If PreferredStandalone is set to local DPU, we return `Deny` to the peer DPU, otherwise, we return `Allow`.
-   - This covers the last case - high data plane packet drop rate.
-   - The reason we use predefined side here is that - there is no perfect solution in this case, and both side can send request at the same time. If we use information such as packet drop rate, we might get inconsistent data and making conflict decisions. So, instead of being too smart, we prefer to be stable.
+   * This covers the last case - high data plane packet drop rate.
+   * The reason we use predefined side here is that - there is no perfect solution in this case, and both side can send request at the same time. If we use information such as packet drop rate, we might get inconsistent data and making conflict decisions. So, instead of being too smart, we prefer to be stable.
 
 Once the we determined which DPU should be the standalone, we notify all ENIs in the DPU with "Card pinned to standalone" signal, so they can start to drive themselves to standalone.
 
@@ -1529,9 +1533,9 @@ If ENI-level standalone is supported, each ENI decide on its own with the follow
 1. If the ENI is already pinned to standalone, we drive ourselves to standalone (no-op).
 2. If the signals have "Manual Pinned", we drive ourselves to standalone.
 3. If the signals have "Peer DPU lost" or "Peer DPU dead", we drive ourselves to standalone.
-   - This should cover the DPU or switch level failure.
+   * This should cover the DPU or switch level failure.
 4. Use primary election (maybe w/ local cached data) and use primary as the preferred standalone.
-   - This covers cases where both DPU and services are running fine, but network is having gray failure and killing flow replication packets.
+   * This covers cases where both DPU and services are running fine, but network is having gray failure and killing flow replication packets.
 
 When doing these tests, we won’t change the HA state. Remaining stable and avoiding making bad moves are very important when we don’t have enough confidence. The worse case than not doing anything is breaking the current steady state and causing more damage.
 
@@ -1543,7 +1547,7 @@ Once we have decided who to be the standalone, we will drive the HA pair into St
 
 This is usually caused by data plane gray failure. The detailed steps are listed as below:
 
-1. Firstly, packet loss will be detected by our counters in active (DPU0). 
+1. Firstly, packet loss will be detected by our counters in active (DPU0).
 
     <p align="center"><img alt="Entering standalone setup with peer up step 1" src="images/ha-unplanned-events-enter-standalone-with-peer-up-step-1.svg"></p>
 
@@ -1562,8 +1566,8 @@ When peer DPU is dead, the other DPU will start to drive itself to standalone, n
 1. On the dead DPU side, we will detect the DPU went down by DPU critical event from pmon.
 
     <p align="center"><img alt="Entering standalone setup with peer down step 1" src="images/ha-unplanned-events-enter-standalone-with-peer-down-step-1.svg"></p>
- 
-2. On the peer DPU side, we will receive 2 notifications: 
+
+2. On the peer DPU side, we will receive 2 notifications:
 
     1. HAStateChanged indicating ENIs on DPU0 are going to Dead state.
     2. SAI notification saying the peer DPU are 100% unreachable, indicating peer lost.
@@ -1571,8 +1575,8 @@ When peer DPU is dead, the other DPU will start to drive itself to standalone, n
     On these 2 signals, we can run the checks in step 1, which will eventually move ourselves to Standalone state and update the next hop for this ENI to DPU1. And per our term definition, this will move DPU1 to next term.
 
     <p align="center"><img alt="Entering standalone setup with peer down step 2" src="images/ha-unplanned-events-enter-standalone-with-peer-down-step-2.svg"></p>
- 
-3.	Later, when DPU0 launches, it will join back the HA set as what we have already discussed in "[Launch with standalone peer](#912-launch-with-standalone-peer)" section, which will cause all existing flows to be replicated from DPU1 to DPU0 and move into a new Active-Standby pair.
+
+3. Later, when DPU0 launches, it will join back the HA set as what we have already discussed in "[Launch with standalone peer](#912-launch-with-standalone-peer)" section, which will cause all existing flows to be replicated from DPU1 to DPU0 and move into a new Active-Standby pair.
 
 #### 10.1.5. DPU restart in standalone setup
 
@@ -1582,16 +1586,15 @@ However, we are not expecting standalone state to last long (if so, alerts will 
 
 #### 10.1.6. Recovery from standalone setup
 
-After all problems that we detected are solved, we will start moving the standalone setup back to active-standby pair automatically, and sync the flows to standby side with bulk sync. 
+After all problems that we detected are solved, we will start moving the standalone setup back to active-standby pair automatically, and sync the flows to standby side with bulk sync.
 
 The detailed steps are similar to "[Launch with standalone peer](#912-launch-with-standalone-peer)" as below:
 
 1. When we see all problems we detected are resolved on standalone node (DPU0), we start to drive ourselves out of standalone to active.
 
     <p align="center"><img alt="Recovery from standalone setup step 1" src="images/ha-unplanned-events-exit-standalone-step-1.svg"></p>
- 
 
-2. Standalone (DPU0) will first trying to make sure Standby side is truly ready by sending a `ExitStandalone` message to standby (DPU1). This will move DPU1 to `InitializingToStandby` state. 
+2. Standalone (DPU0) will first trying to make sure Standby side is truly ready by sending a `ExitStandalone` message to standby (DPU1). This will move DPU1 to `InitializingToStandby` state.
 
     <p align="center"><img alt="Recovery from standalone setup step 2" src="images/ha-unplanned-events-exit-standalone-step-2.svg"></p>
 
@@ -1607,17 +1610,16 @@ During the whole process, probe states are never changed, hence transition shoul
 
 #### 10.1.7. Force exit standalone (WIP)
 
-
 ### 10.2. Force shutdown (WIP)
 
 ## 11. Flow tracking and replication (Steady State)
 
 For deterministically applying the actions to the network packets of each connection as well as offloading the actions to hardware, we will create a session for every connection (3 tuple or 5 tuple depending on scenarios). Although sessions can be implemented in different ways, conceptually, each session will always have a few characteristics:
 
-- When a session is created, we will create a pair of flows – forwarding flow and reverse flow. 
-- Each flow will have 2 parts: match condition for matching the network packets, and flow actions to specify what transformations we need to apply to every packets of this connection.
-- The forwarding flow matches the initial direction packet, e.g. syn, while the reverse flow matches the return packets, e.g. syn-ack.
-- Each session will also maintain other metadata, such as epoch, for supporting idle timeout or flow re-simulation.
+* When a session is created, we will create a pair of flows – forwarding flow and reverse flow.
+* Each flow will have 2 parts: match condition for matching the network packets, and flow actions to specify what transformations we need to apply to every packets of this connection.
+* The forwarding flow matches the initial direction packet, e.g. syn, while the reverse flow matches the return packets, e.g. syn-ack.
+* Each session will also maintain other metadata, such as epoch, for supporting idle timeout or flow re-simulation.
 
 Once a session is created, it can be offloaded to hardware for packet processing, which essentially runs the match and actions in its flows.
 
@@ -1627,22 +1629,22 @@ However, when a node is down, all flows on it will be lost, which is unacceptabl
 
 With flow being replicated, we need to make sure the lifetime of the flows are properly managed. Essentially, in our HA set setup, the lifetime of all flows is always controlled by the active node:
 
-- When a new connection is created or existing connection is closed or re-simulated, the flow change ***MUST*** be replicated inline to the standby side.
-- When a connection is aged out or terminated by other non-packet triggered reasons, the active side ***MUST*** send notification to standby side to close the flows.
-- The standby side ***MUST*** never ages flow by itself, because it doesn't handle any traffic, so only active side knows the real flow ttl.
-- When a node is rejoining the HA set, the active side ***MUST*** use [bulk sync](#125-bulk-sync) to send all existing flows to standby side.
-- [TCP sequence number should be sync'ed in bulk during flow age out process](#12442-bulk-tcp-seq-syncing-during-flow-aging) for idle flows, so we can have RST on flow age out working properly.
+* When a new connection is created or existing connection is closed or re-simulated, the flow change ***MUST*** be replicated inline to the standby side.
+* When a connection is aged out or terminated by other non-packet triggered reasons, the active side ***MUST*** send notification to standby side to close the flows.
+* The standby side ***MUST*** never ages flow by itself, because it doesn't handle any traffic, so only active side knows the real flow ttl.
+* When a node is rejoining the HA set, the active side ***MUST*** use [bulk sync](#125-bulk-sync) to send all existing flows to standby side.
+* [TCP sequence number should be sync'ed in bulk during flow age out process](#12442-bulk-tcp-seq-syncing-during-flow-aging) for idle flows, so we can have RST on flow age out working properly.
 
 ### 11.2. Flow replication data path overview
 
-Currently, flows can be replicated in 2 different ways: data plane sync and control plane sync, such as bulk sync. 
+Currently, flows can be replicated in 2 different ways: data plane sync and control plane sync, such as bulk sync.
 
 #### 11.2.1. Data plane sync channel data path
 
-Whenever a flow is created, destroyed due to a network packet being arrived, inline flow replication will be triggered. 
+Whenever a flow is created, destroyed due to a network packet being arrived, inline flow replication will be triggered.
 
 This is done by using the [data plane channel](#4232-data-plane-channel) defined above. And since different vendors may have different implementation of flows, the metadata used for replicating the flows will be kept as vendor-defined format.
- 
+
 <p align="center"><img alt="Flow replication data plane sync data path" src="./images/flow-replication-data-path.svg"></p>
 
 Since the metadata format is vendor defined, it is particularly important to make the format backward compatible. Otherwise, there is no way to upgrade the device anymore, since we need to upgrade both sides at the same time, which will cause all flows to be lost.
@@ -1680,14 +1682,14 @@ Initial sync will always be done inline with the very first packet, using the [d
 
 This can happen in cases below:
 
-1.	Planned or Unplanned events cause certain flows not being fully replicated over the network, specifically for connection-less protocols, like UDP. For example:
-    - During switchover, the first UDP packet goes to DPU 1 while the second packet right behind it goes to DPU 2.
-    - In standalone setup, the standalone side crashed, and we have to shift to standby side. However, the new flows are not replicated over. 
-2.	Flow being dropped:
-    - Usually, this is caused by flow aged out due to misconfigured TTL or missing keep-alive.
-    - Flow conflicts when doing flow merge after recovered from standalone setup and somehow caused flow to be dropped.
+1. Planned or Unplanned events cause certain flows not being fully replicated over the network, specifically for connection-less protocols, like UDP. For example:
+    * During switchover, the first UDP packet goes to DPU 1 while the second packet right behind it goes to DPU 2.
+    * In standalone setup, the standalone side crashed, and we have to shift to standby side. However, the new flows are not replicated over.
+2. Flow being dropped:
+    * Usually, this is caused by flow aged out due to misconfigured TTL or missing keep-alive.
+    * Flow conflicts when doing flow merge after recovered from standalone setup and somehow caused flow to be dropped.
 
-This requires us to have the ability to recreate the flow whenever it is needed. 
+This requires us to have the ability to recreate the flow whenever it is needed.
 
 ##### 11.3.2.1. Challenge
 
@@ -1695,8 +1697,8 @@ The problem is the asymmetrical policy on the 2 traffic directions.
 
 A typical case is network ACL. Customer can create a VM with ACL set to "only allow outbound connections while blocking all inbound connections", which will work as per-connection ACL. Say, we created a connection from A to B,
 
-- For the initial packet, the packet will flow from A to B, so we will hit the outgoing side ACL and allow the packet going out and creates the flow. When the return packet comes back from B, the packet will hit the flow instead of going through ACLs again, hence it will be allowed. 
-- But, if we lost the flow in the middle of the traffic, the return packet will be dropped, because it will match the incoming side ACLs and hit the drop policy.
+* For the initial packet, the packet will flow from A to B, so we will hit the outgoing side ACL and allow the packet going out and creates the flow. When the return packet comes back from B, the packet will hit the flow instead of going through ACLs again, hence it will be allowed.
+* But, if we lost the flow in the middle of the traffic, the return packet will be dropped, because it will match the incoming side ACLs and hit the drop policy.
 
 Furthermore, dropping packet is not the worst, if we somehow get wrong packet transformation and send it out, it will be even worse.
 
@@ -1716,7 +1718,7 @@ For certain connection-ish cases like CONENAT, there is not much we could do her
 
 ### 11.4. Flow destroy
 
-When a connection is closed, the corresponding session needs to be destroyed. This includes 3 cases: explicit connection close, flow age out and upon request. 
+When a connection is closed, the corresponding session needs to be destroyed. This includes 3 cases: explicit connection close, flow age out and upon request.
 
 #### 11.4.1. Flow destroy on explicit connection close
 
@@ -1738,10 +1740,9 @@ In TCP, RST packet will force the connection to be closed in both directions and
 
 Since there is only 1 packet in this case, the flow state needs to be sync’ed to other nodes in-band with the RST packet, using the same [data plane sync channel](#1121-data-plane-sync-channel-data-path) as above.
 
-
 #### 11.4.2. Flow destroy on flow aged out
 
-Every session, even connection-less one like UDP, it will have a property called "idle timeout" or "ttl". Whenever a session is not matched by any packet (idle) for certain period of time, we can consider the connection is closed and destroy the flow. 
+Every session, even connection-less one like UDP, it will have a property called "idle timeout" or "ttl". Whenever a session is not matched by any packet (idle) for certain period of time, we can consider the connection is closed and destroy the flow.
 
 With HA setup, a flow will exist in both active and standby nodes, so we need to ensure their lifetime stays the same, otherwise flow leak will happen.
 
@@ -1761,19 +1762,19 @@ This feature is supported by providing a flow APIs in SAI for explicitly killing
 
 #### 11.4.4. RST on flow destroy
 
-In certain cases, we are required to send RST packet to both sides whenever the flow is destroyed by any reasons other than explicit connection close, such as flow aged out or on request. With this feature, the client will know bad things is happening early and can retry if they want. 
+In certain cases, we are required to send RST packet to both sides whenever the flow is destroyed by any reasons other than explicit connection close, such as flow aged out or on request. With this feature, the client will know bad things is happening early and can retry if they want.
 
 This is particularly useful for long-running database queries, as the TCP keep-alive is usually set to very large timeout, e.g. 30s to 15mins. Without this feature, the client will blindly wait for long time, until sending the next packet and waiting for a timeout.
 
 However, this feature causes certain challenges in HA design:
 
-1.	To send the RST packet, we need to have the right sequence number for every TCP connection. However, we are not going to sync every TCP sequence number update, so we might not have a up-to-date one in standby side. And after switchover, we might not be able to craft the RST packet. 
+1. To send the RST packet, we need to have the right sequence number for every TCP connection. However, we are not going to sync every TCP sequence number update, so we might not have a up-to-date one in standby side. And after switchover, we might not be able to craft the RST packet.
 
 ##### 11.4.4.1. Send RST when denying packets
 
 The first thing we can do is to actively send RST packet back, whenever a packet gets dropped by ACL or any other reason.
 
-This can cover the case where we don’t care about terminating the connection on time that much, because: 
+This can cover the case where we don’t care about terminating the connection on time that much, because:
 
 1. Per [RFC 793 – Reset Generation](https://www.ietf.org/rfc/rfc793.txt), RST packet must be sent whenever a segment arrives which apparently is not intended for the current connection. This means after a connection is dead, any packet should trigger RST being sent back.
 2. In our case, 2 cases might happen and results in the same behavior:
@@ -1802,17 +1803,17 @@ If we are not running in the states which can make flow decisions, such as stand
 
 #### 11.4.5. Packet racing on flow destroy
 
-When destroying a flow, we could run into a small race condition problem due to HA being involved. It happens when a flow gets hit while it is terminating. 
+When destroying a flow, we could run into a small race condition problem due to HA being involved. It happens when a flow gets hit while it is terminating.
 
 One example is when a packet arrives while its flow is right in the middle of aged out, the flow replication packets is sent out, but haven’t come back yet. In this case, flow still exists in active side and will still be hit.
 
 To simplify this problem, whenever a flow is being destroyed on active side, we can consider this flow is already gone. The main goal of HA is to ensure flows on 2 sides matches and this is a very rare case.
 
-Hence, when destroying a flow, we can consider removing the flow from regular flow table and put it into a temporary flow storage, only waiting for flow replication ACK packet coming back. During this time, if any new packet showing up, we can treat it as the first packet for a new flow. 
+Hence, when destroying a flow, we can consider removing the flow from regular flow table and put it into a temporary flow storage, only waiting for flow replication ACK packet coming back. During this time, if any new packet showing up, we can treat it as the first packet for a new flow.
 
 ### 11.5. Bulk sync
 
-Bulk sync is used for replicating the flows from one DPU to its peer to make sure the flows match on both DPUs. 
+Bulk sync is used for replicating the flows from one DPU to its peer to make sure the flows match on both DPUs.
 
 Bulk sync is not a cheap operation. When bulk sync is triggered, it will check all the relevant flows, gather all the info that needs to be sync’ed across, then forward to it peer. This process usually can take 1 minute or so to complete, so we should avoid it as much as possible.
 
@@ -1838,23 +1839,24 @@ The algorithm assumes that no flow can be created or changed on active side, if 
 
 And the key idea is to find the start and end time whenever the DPUs are not in sync, then only sync the flow changes within this range:
 
-- ImpactStart = Whenever inline flow sync channel breaks:
-    - This means - the DPU is in a state that can initiate inline flow sync but its peer enters a state which doesn’t respond to flow sync.
-    - There will be a small time period from the actual impact start time to whenever we found the impact start. However, the flow will stay the same on both side, because no flow can be created/deleted/updated, unless the old active receives the flow replication ack.
-- ImpactEnd = Whenever inline flow sync channel reestablished:
-    - This means - the DPU is in a state that can initiate inline flow sync while its peer also enters the state that responds to flow sync.
+* ImpactStart = Whenever inline flow sync channel breaks:
+  * This means - the DPU is in a state that can initiate inline flow sync but its peer enters a state which doesn’t respond to flow sync.
+  * There will be a small time period from the actual impact start time to whenever we found the impact start. However, the flow will stay the same on both side, because no flow can be created/deleted/updated, unless the old active receives the flow replication ack.
+* ImpactEnd = Whenever inline flow sync channel reestablished:
+  * This means - the DPU is in a state that can initiate inline flow sync while its peer also enters the state that responds to flow sync.
 
 Once impact ends, we need to sync all flow changes during the impact time, which includes:
 
-- New flows created after impact starts.
-- Flows that created before impact starts but deleted during the impact period, including explicit close, but not flow aged out.
-- Flows that created before impact start but updated during the impact period, such as flow resimulation.
+* New flows created after impact starts.
+* Flows that created before impact starts but deleted during the impact period, including explicit close, but not flow aged out.
+* Flows that created before impact start but updated during the impact period, such as flow resimulation.
 
 Based on this, we can design the algorithm as below:
 
 ##### 11.5.2.1. Init phase
 
 Every DPU maintains a set of variables. When a HA scope, such as ENI, is created, init all of them to 0.
+
 1. `LocalFlowVer`: The flow version of current node. It is updated in 2 cases:
     1. Whenever we detected impact starts or ends as defined above, it increases by 1.
     1. Whenever we go back to steady state (forms active-standby pair), the standby side updates it to match the active side.
@@ -1867,7 +1869,7 @@ Whenever any flow is created or updated (flow re-simulation), update the flow ve
 ##### 11.5.2.3. Tracking phase
 
 1. When impact starts, increase `LocalFlowVer` by 1. Then, call SAI API to pass in the new HA state, `LocalFlowVer` and start tracking all flows that is deleted and has lower flow version than `LocalFlowVer`. If `ToSyncFlowVerMin` is 0, set it to `LocalFlowVer`.
-2. When impact ends, set `ToSyncFlowVerMax` to current `LocalFlowVer` and then increase `LocalFlowVer` by 1. Then, call SAI API to pass in the new HA state, `LocalFlowVer` and stop tracking the existing flow deletions. 
+2. When impact ends, set `ToSyncFlowVerMax` to current `LocalFlowVer` and then increase `LocalFlowVer` by 1. Then, call SAI API to pass in the new HA state, `LocalFlowVer` and stop tracking the existing flow deletions.
 
 ##### 11.5.2.4. Syncing phase
 
@@ -1876,23 +1878,23 @@ Whenever any flow is created or updated (flow re-simulation), update the flow ve
 2. Handle flow change event from ASIC and send it over to peer.
 3. Once received flow change event on the peer side, update the flow table accordingly.
     1. For all existing flows (not only new), if flow doesn’t exist on peer side or has lower flow version, insert or update it. This covers new flows and flow re-simulation case.
-    2. For flow deletions, only delete the flow if the flow exists and flow version matches. 
+    2. For flow deletions, only delete the flow if the flow exists and flow version matches.
 4. Handle bulk sync done event from ASIC, which will be sent after all flow change events are notified.
 5. Call bulk sync completed SAI API, so ASIC can delete all tracked flow deletion records. Also reset `ToSyncFlowVerMin` and `ToSyncFlowVerMax` to 0, because there is nothing to sync anymore.
 
 ### 11.6. Flow re-simulation support
 
-When certain policies are updated, we will have to update the existing flows to ensure the latest policy takes effect. This is called "flow re-simulation". 
+When certain policies are updated, we will have to update the existing flows to ensure the latest policy takes effect. This is called "flow re-simulation".
 
 Flow re-simulation is needed and not limited in following cases:
 
-- ACL updated. Existing connections are now getting denied.
-- CA-PA mapping update for cases like VM getting moved from one machine to another.
+* ACL updated. Existing connections are now getting denied.
+* CA-PA mapping update for cases like VM getting moved from one machine to another.
 
 To support flow re-simulation, we can use a few different ways:
 
-- Adding a new attribute on certain DASH object, say `resimulate_on_update`. Then, whenever the object is updated, we will resimulate all corresponding flows.
-- Provide an API to resimulate all or any specific flows.
+* Adding a new attribute on certain DASH object, say `resimulate_on_update`. Then, whenever the object is updated, we will resimulate all corresponding flows.
+* Provide an API to resimulate all or any specific flows.
 
 Although the approach of adding flag makes re-simulation simple, it is quite expensive to update all flows, especially whenever the policy changes. To save the cost, the re-simulation should be postponed to whenever the next packet matches the forwarding flow comes in (direction is important here), and use the packet to trigger the policy re-evaluation.
 
@@ -1914,12 +1916,12 @@ In HA setup, whenever a flow gets re-simulated, we will need to sync the latest 
 
 ### 12.2. Telemetry
 
-To properly monitor the HA related features, we will need to add telemetry for monitoring it. 
+To properly monitor the HA related features, we will need to add telemetry for monitoring it.
 
-The telemetry will cover both state and counters, which can be mapped into `STATE_DB` or `COUNTER_DB`. 
+The telemetry will cover both state and counters, which can be mapped into `STATE_DB` or `COUNTER_DB`.
 
-- For ENI level states and counters in NPU DB, we will have `VDPU_ID` in the key as well as the `ENI_ID` to make each counter unique, because ENI migration from one DPU to another on the same switch.
-- For ENI level states and counters in DPU DB, we don’t need to have `VDPU_ID` in the key, because they are tied to a specific DPU, and we should know which DPU it is during logging.
+* For ENI level states and counters in NPU DB, we will have `VDPU_ID` in the key as well as the `ENI_ID` to make each counter unique, because ENI migration from one DPU to another on the same switch.
+* For ENI level states and counters in DPU DB, we don’t need to have `VDPU_ID` in the key, because they are tied to a specific DPU, and we should know which DPU it is during logging.
 
 We will focus on only the HA counters below, which will not include basic counters, such as ENI creation/removal or generic DPU health/critical event counters, even though some of them works closely with HA workflows.
 
@@ -1927,8 +1929,8 @@ We will focus on only the HA counters below, which will not include basic counte
 
 First of all, we need to store the HA states for us to check:
 
-- Saved in NPU side `STATE_DB`, since `hamgrd` is running on NPU side.
-- Partitioned into ENI level key: `ENI_HA_STATES|<VDPU_ID>|<ENI_ID>`.
+* Saved in NPU side `STATE_DB`, since `hamgrd` is running on NPU side.
+* Partitioned into ENI level key: `ENI_HA_STATES|<VDPU_ID>|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -1952,12 +1954,12 @@ HA operations are mostly lies in 2 places: `hamgrd` for operations coming from n
 
 All the HA operation counters will be:
 
-- Saved in NPU side `COUNTER_DB`, since the `hamgrd` is running on NPU side.
-- Partitioned with ENI level key: `HA_OP_STATS|<VDPU_ID>|<ENI_ID>`.
+* Saved in NPU side `COUNTER_DB`, since the `hamgrd` is running on NPU side.
+* Partitioned with ENI level key: `HA_OP_STATS|<VDPU_ID>|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
-| *_state_enter_(req/success/failure)_count | Number of state transitions we have done (Request/Succeeded Request/Failed request). |
+| **state_enter*(req/success/failure)_count | Number of state transitions we have done (Request/Succeeded Request/Failed request). |
 | total_(successful/failed)_*_state_enter_time_in_us | The total time we used to transit to specific state in microseconds. Successful and failed transitions need to be tracked separately, as they will have different patterns. |
 | switchover_(req/success/failure)_count | Similar as above, but for switchover operations. |
 | total_(successful/failed)_switchover_time_in_us | Similar as above, but for switchover operations. |
@@ -1970,8 +1972,8 @@ All the HA operation counters will be:
 
 All the HA SAI API counters will be:
 
-- Saved in DPU side `COUNTER_DB`, as SAI APIs are called in DPU side syncd.
-- Partitioned with ENI level key: `HA_OP_STATS|<ENI_ID>`.
+* Saved in DPU side `COUNTER_DB`, as SAI APIs are called in DPU side syncd.
+* Partitioned with ENI level key: `HA_OP_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -1986,10 +1988,10 @@ HA control plane control channel is running on NPU side, mainly used for passing
 
 The counters of this channel will be:
 
-- Collected by `hamgrd` on NPU side.
-- Saved in NPU side `COUNTER_DB`.
-- Stored with key: `HA_CP_CTRL_CHANNEL_STATS`.
-  - This counter doesn’t need to be partitioned on a single switch, because it is shared for all ENIs.
+* Collected by `hamgrd` on NPU side.
+* Saved in NPU side `COUNTER_DB`.
+* Stored with key: `HA_CP_CTRL_CHANNEL_STATS`.
+  * This counter doesn’t need to be partitioned on a single switch, because it is shared for all ENIs.
 
 | Name | Description |
 | --- | --- |
@@ -2001,12 +2003,12 @@ The counters of this channel will be:
 
 ##### 12.2.3.2. HA control plane data channel counters
 
-HA control plane data channel is running on DPU side, mainly used for bulk sync to transfer the flow events to the other side. 
+HA control plane data channel is running on DPU side, mainly used for bulk sync to transfer the flow events to the other side.
 
 The counters for this channel will be:
 
-- Collected on syncd on DPU side.
-- Saved in DPU side `COUNTER_DB`.
+* Collected on syncd on DPU side.
+* Saved in DPU side `COUNTER_DB`.
 
 ###### 12.2.3.2.1. Per DPU counters
 
@@ -2043,10 +2045,10 @@ Latest probe status is critical for checking how each card and ENI performs, and
 
 In our design we have 2 different types of NPU-to-DPU probes: Card level and ENI level. They should:
 
-- Saved in NPU side `STATE_DB`.
-- Partitioned with key:
-  - Card level: `HA_NPU_TO_DPU_PROBE_STATUS|<VDPU_ID>`
-  - ENI level: `HA_NPU_TO_ENI_PROBE_STATUS|<VDPU_ID>|<ENI_ID>`
+* Saved in NPU side `STATE_DB`.
+* Partitioned with key:
+  * Card level: `HA_NPU_TO_DPU_PROBE_STATUS|<VDPU_ID>`
+  * ENI level: `HA_NPU_TO_ENI_PROBE_STATUS|<VDPU_ID>|<ENI_ID>`
 
 | Name | Description |
 | --- | --- |
@@ -2061,8 +2063,8 @@ Depending on the probe status and HA state, we will update the next hop for each
 
 All counters should be:
 
-- Saved in NPU side `STATE_DB`.
-- Partitioned with ENI level key: `HA_NPU_TO_ENI_TUNNEL_STATUS|<ENI_ID>`.
+* Saved in NPU side `STATE_DB`.
+* Partitioned with ENI level key: `HA_NPU_TO_ENI_TUNNEL_STATUS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2073,9 +2075,9 @@ All counters should be:
 
 On NPU side, we should also have ENI level tunnel traffic counters:
 
-- Collected on the NPU side via SAI.
-- Saved in the NPU side `COUNTER_DB`.
-- Partitioned into ENI level with key: `HA_NPU_TO_ENI_TUNNEL_STATS|<ENI_ID>`.
+* Collected on the NPU side via SAI.
+* Saved in the NPU side `COUNTER_DB`.
+* Partitioned into ENI level with key: `HA_NPU_TO_ENI_TUNNEL_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2091,9 +2093,9 @@ On NPU side, we should also have ENI level tunnel traffic counters:
 
 On DPU side, every NPU-to-DPU tunnel traffic needs to be tracked on ENI level as well:
 
-- Collected on the DPU side via SAI.
-- Saved in DPU side `COUNTER_DB`.
-- Partitioned into ENI level with key: `HA_NPU_TO_ENI_TUNNEL_STATS|<ENI_ID>`.
+* Collected on the DPU side via SAI.
+* Saved in DPU side `COUNTER_DB`.
+* Partitioned into ENI level with key: `HA_NPU_TO_ENI_TUNNEL_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2109,9 +2111,9 @@ On DPU side, every NPU-to-DPU tunnel traffic needs to be tracked on ENI level as
 
 The next part is the DPU-to-DPU data plane channel, which is used for inline flow replications.
 
-- Collected on the DPU side via SAI.
-- Saved in DPU side `COUNTER_DB`.
-- Partitioned into ENI level with key: `HA_DPU_DATA_PLANE_STATS|<ENI_ID>`.
+* Collected on the DPU side via SAI.
+* Saved in DPU side `COUNTER_DB`.
+* Partitioned into ENI level with key: `HA_DPU_DATA_PLANE_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2128,9 +2130,9 @@ The next part is the DPU-to-DPU data plane channel, which is used for inline flo
 
 The last part is how the DPU ENI pipeline works in terms of HA, which includes flow operations:
 
-- Collected on the DPU side via SAI.
-- Saved in DPU side `COUNTER_DB`.
-- Partitioned into ENI level with key: `HA_DPU_PIPELINE_STATS|<ENI_ID>`.
+* Collected on the DPU side via SAI.
+* Saved in DPU side `COUNTER_DB`.
+* Partitioned into ENI level with key: `HA_DPU_PIPELINE_STATS|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
@@ -2154,8 +2156,9 @@ Please note that we will also have counters for how many flows are created/updat
 DPU / vDPU definitions:
 
 > NOTE:
-> - These tables are imported from the SmartSwitch HLD to make the doc more convenient for reading, and we should always use that doc as the source of truth.
-> - These tables should be prepopulated before any HA configuration tables below are programmed.
+>
+> * These tables are imported from the SmartSwitch HLD to make the doc more convenient for reading, and we should always use that doc as the source of truth.
+> * These tables should be prepopulated before any HA configuration tables below are programmed.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
