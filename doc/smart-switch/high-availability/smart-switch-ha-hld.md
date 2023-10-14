@@ -67,7 +67,7 @@
    2. [7.2. State transition](#72-state-transition)
    3. [7.3. Primary election](#73-primary-election)
    4. [7.4. HA state persistence and rehydration](#74-ha-state-persistence-and-rehydration)
-8. [8. Planned events](#8-planned-events)
+8. [8. Planned events and operations](#8-planned-events-and-operations)
    1. [8.1. Launch](#81-launch)
       1. [8.1.1. Clean launch on both sides](#811-clean-launch-on-both-sides)
       2. [8.1.2. Launch with standalone peer](#812-launch-with-standalone-peer)
@@ -288,7 +288,7 @@ Besides data path HA, SmartSwitch also supports Flow HA to provide high availabi
 
 To provide HA functionality, we are going to use Active-Standby setup. In this setup:
 
-* 1 DPU will act as active and making flow decisions, while the non-active node will act as a pure backup flow storage.
+* One DPU will act as active and making flow decisions, while the non-active node will act as a pure backup flow storage.
 * When packets land on active DPU and creates a new flow, the new flow will be replicated to the standby DPU inline.
 * When packets land on standby side, they will be tunneled to the active DPU by NPU (or DPU as fallback).
 * When the active DPU runs into issues, we will failover the active, make the standby the new active, and switch over the traffic to avoid further impact.
@@ -297,21 +297,13 @@ To provide HA functionality, we are going to use Active-Standby setup. In this s
 
 #### 4.3.2. Card-level ENI pair placement
 
-How to place the ENIs is critical for defining the impact radius. Currently, we are going with card level pairing.
+How to place the ENIs is critical for defining the impact radius. Currently, we are going with card level pairing. It works as below:
 
 * Whenever we want to move the ENI, all ENIs on the card will always be moved together. (See "[ENI migration](#95-eni-migration)" for more details.)
 * When one card fails, all ENIs on that card will failover to the paired card.
 * Different DPUs on the same switch can be paired with any other DPU on any other switches.
 
 This allows us to spread the load to all switches. And taking down a switch will not cause traffic to be shifted to another single switch, as it can be spread on multiple DPUs in the T1 set.
-
-To clarify on ENI pair placement a bit more, here are a few rules that always apply no matter how we place the pairs:
-
-* ENI pair placement doesn’t affect the physical network topology for each ENI:
-  * Each ENI will still be served by a pair of DPUs, which shares the same DP VIP for getting the traffic for this ENI.
-  * One of the DPUs will be active one handling the traffic for the ENI, and the flow will be replicated to the other one as standby.
-  * Traffic forwarding is based on the ENI level forwarding rule on NPU side, so all ENIs in the same Tire-1 switch set can share the same data path VIP.
-* It doesn’t affect the HA failover scope, which is on ENI level. Please see "[ENI-level HA scope](#62-eni-level-ha-scope)" section below.
 
 <p align="center"><img alt="ENI pair placement" src="./images/eni-pair-placement.svg"></p>
 
@@ -839,7 +831,7 @@ This makes the state being rehydratable. Once we move the state into certain sta
 
 During rehydration, we also need to check the current config of ENI, to ensure it is not removed.
 
-## 8. Planned events
+## 8. Planned events and operations
 
 ### 8.1. Launch
 
