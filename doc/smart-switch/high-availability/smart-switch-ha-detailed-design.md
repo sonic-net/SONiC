@@ -7,6 +7,10 @@
 1. [1. Database Schema](#1-database-schema)
    1. [1.1. NPU DB schema](#11-npu-db-schema)
       1. [1.1.1. CONFIG DB](#111-config-db)
+         1. [1.1.1.1. DPU / vDPU definitions](#1111-dpu--vdpu-definitions)
+         2. [1.1.1.2. HA global configurations](#1112-ha-global-configurations)
+         3. [1.1.1.3. Per HA set configurations](#1113-per-ha-set-configurations)
+         4. [1.1.1.4. Per ENI configurations](#1114-per-eni-configurations)
 2. [2. Telemetry](#2-telemetry)
    1. [2.1. HA state](#21-ha-state)
    2. [2.2. HA operations](#22-ha-operations)
@@ -33,12 +37,10 @@
 
 #### 1.1.1. CONFIG DB
 
-DPU / vDPU definitions:
+##### 1.1.1.1. DPU / vDPU definitions
 
-> NOTE:
->
-> * These tables are imported from the SmartSwitch HLD to make the doc more convenient for reading, and we should always use that doc as the source of truth.
-> * These tables should be prepopulated before any HA configuration tables below are programmed.
+* These tables are imported from the SmartSwitch HLD to make the doc more convenient for reading, and we should always use that doc as the source of truth.
+* These tables should be prepopulated before any HA configuration tables below are programmed.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -54,7 +56,9 @@ DPU / vDPU definitions:
 | | \<VDPU_ID\> | | Virtual DPU ID |
 | | | main_dpu_id | The ID of the main physical DPU. |
 
-HA configurations:
+##### 1.1.1.2. HA global configurations
+
+* The global configuration is shared by all HA sets, and ENIs, and should be programmed before any HA set configurations below are programmed.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -69,24 +73,32 @@ HA configurations:
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
 | | | dpu_bfd_probe_multiplier| The number of DPU BFD probe failure before probe down. |
 | | | dpu_bfd_probe_interval_in_ms | The interval of DPU BFD probe in milliseconds. |
+
+##### 1.1.1.3. Per HA set configurations
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
 | HA_SET_CONFIG | | | HA set configurations, which describes the DPU pairs. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
 | | | vdpu_ids | The ID of the vDPUs. |
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (None), Up or Down. |
 | | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
-| DASH_ENI_TABLE | | | HA configuration for each ENI. |
-| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | version | Config version. |
-| | | ha_set_id | The ID of HA set that this ENI is allocated to. |
-| | | desired_state | The desired state for this ENI. It can only be "" (None), Dead, Active or Standalone. |
 | ENI_FORWARD_RULES | | | ENI level forwarding rules.<br><br>Note: This configuration should be programmed for all switches that receive traffic. |
 | | \<ENI_ID\> | | ENI. Used for identifying a single ENI. |
 | | | eni_mac | ENI mac address. Used for matching incoming packets. |
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
 | | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI forwarding rule. "" = Not set. |
-| | | data_plane_vip_v4 | The IPv4 address of the data plane VIP. This will be used for validation against BGP config. |
-| | | data_plane_vip_v6 | The IPv6 address of the data plane VIP. This will be used for validation against BGP config. |
+
+##### 1.1.1.4. Per ENI configurations
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_ENI_TABLE | | | HA configuration for each ENI. |
+| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
+| | | version | Config version. |
+| | | ha_set_id | The ID of HA set that this ENI is allocated to. |
+| | | desired_state | The desired state for this ENI. It can only be "" (None), Dead, Active or Standalone. |
 
 ## 2. Telemetry
 

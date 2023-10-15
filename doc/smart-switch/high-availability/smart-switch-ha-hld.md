@@ -6,6 +6,7 @@
 | 0.2 | 08/10/2023 | Riff Jiang | Simpify ENI-level traffic control, primary election algorithm |
 | 0.3 | 08/14/2023 | Riff Jiang | Adding DPU level standalone support |
 | 0.4 | 08/17/2023 | Riff Jiang | Redesign HA control plane data channel |
+| 0.5 | 10/14/2023 | Riff Jiang | Merged resource placement and topology section and moved detailed design out for better readability |
 
 1. [1. Background](#1-background)
 2. [2. Terminology](#2-terminology)
