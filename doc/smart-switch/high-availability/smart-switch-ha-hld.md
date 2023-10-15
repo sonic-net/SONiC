@@ -103,8 +103,8 @@
       1. [9.3.1. hamgrd crash](#931-hamgrd-crash)
       2. [9.3.2. Switch power down or kernel crash](#932-switch-power-down-or-kernel-crash)
       3. [9.3.3. Back panel port failure](#933-back-panel-port-failure)
-   4. [9.4. Unplanned PCIe failure](#94-unplanned-pcie-failure)
-   5. [9.5. Summary](#95-summary)
+      4. [9.4. Unplanned PCIe failure](#94-unplanned-pcie-failure)
+   4. [9.5. Summary](#95-summary)
 10. [10. Unplanned operations](#10-unplanned-operations)
     1. [10.1. Working as standalone setup](#101-working-as-standalone-setup)
        1. [10.1.1. Design considerations](#1011-design-considerations)
@@ -222,7 +222,7 @@ The goal of the SmartSwitch HA design is trying to achieve the following goals:
 When designing HA for SmartSwitch, we have a few assumptions:
 
 1. Stable decision on packet transformation: The same packet will always implement the same packet transformation as long as the DASH policies stay the same. Changes, such as random port selection, are not allowed in the current pipeline.
-2. No delayed flow replication support: In [steady state](#41-flow-ha), when a flow is created, updated or deleted by a network packet, the change ***MUST*** be replicated to its pair by attaching the metadata into the original packet and forwarding the packet. This is called inline flow replication ([more described here](#12-flow-tracking-and-replication-steady-state)). We should never delay the flow replication, and before we receive the ack from the standby side, we should not consider the change is applied.
+2. No delayed flow replication support: In [steady state](#43-flow-ha), when a flow is created, updated or deleted by a network packet, the change ***MUST*** be replicated to its pair by attaching the metadata into the original packet and forwarding the packet. This is called inline flow replication ([more described here](#11-flow-tracking-and-replication-steady-state)). We should never delay the flow replication, and before we receive the ack from the standby side, we should not consider the change is applied.
 3. No warm boot support: Warm boot is used to keep the data path continuing to work while upgrade happens. It is mostly used for upgrading switches that being considered as SPOF, as a gentler solution than a hard data plane down. However, it requires complicated coordination between many services on NPU and DPU. Gladly, since HA requires more than 1 switch to participate, we don’t need to worry about SPOF problem, hence we don’t need to consider warm boot support in our design.
 
 ## 4. Network Physical Topology
@@ -300,7 +300,7 @@ To provide HA functionality, we are going to use Active-Standby setup. In this s
 
 How to place the ENIs is critical for defining the impact radius. Currently, we are going with card level pairing. It works as below:
 
-* Whenever we want to move the ENI, all ENIs on the card will always be moved together. (See "[ENI migration](#95-eni-migration)" for more details.)
+* Whenever we want to move the ENI, all ENIs on the card will always be moved together. (See "[ENI migration](#85-eni-migration)" for more details.)
 * When one card fails, all ENIs on that card will failover to the paired card.
 * Different DPUs on the same switch can be paired with any other DPU on any other switches.
 
@@ -350,7 +350,7 @@ Conceptually, this channel works as below in high-level:
 3. The outer packet ***MUST*** have the same DSCP fields as the inner packet.
 4. Different vendors ***CAN*** have their own definition of metadata format as payload.
 
-Here is an example from "[Flow replication data path overview – Data plane sync data path](#1221-data-plane-sync-channel-data-path)":
+Here is an example from "[Flow replication data path overview – Data plane sync data path](#1121-data-plane-sync-channel-data-path)":
 
 <p align="center"><img alt="Flow replication data plane sync data path" src="./images/flow-replication-data-path.svg"></p>
 
@@ -364,7 +364,7 @@ To provide HA for DPU-to-DPU communication, we can also leverage our ECMP networ
 
 Multi-path communication is great, but it also introduces gray failures. For example, flow replication fails 10% of the time instead of 100% of time.
 
-To help us further avoid link problems, DPUs could track the failures of each possible path and avoid using it when it is possible. This can be done by using actively probing (see "[DPU-to-DPU liveness probe](#73-dpu-to-dpu-liveness-probe)") or tracking the reachability of each data path by checking the response of data plane channel requests, e.g. flow replication.
+To help us further avoid link problems, DPUs could track the failures of each possible path and avoid using it when it is possible. This can be done by using actively probing (see "[DPU-to-DPU liveness probe](#63-dpu-to-dpu-liveness-probe)") or tracking the reachability of each data path by checking the response of data plane channel requests, e.g. flow replication.
 
 And here is an example of possible implementation based-on source port rotation that can be considered:
 
@@ -452,7 +452,7 @@ There are 2 channels in HA control plane:
 
 The control plane control channel is used for each DPU to talk to each other for things like state machine management. Implementation-wise, we will need a new service for HA communication and management.
 
-Having our own control channel is important. If we consider the switches as data plane and our upstream services as control plane, then data plane should be able to operate on its own, when control plane is disconnected. For example, when upstream service is down due to network problem or other reasons, we should still be able to react and adjust our services. Coupling smart switch with our upstream service in HA state machine transition can cause us fail to react to [unplanned events](#10-unplanned-events).
+Having our own control channel is important. If we consider the switches as data plane and our upstream services as control plane, then data plane should be able to operate on its own, when control plane is disconnected. For example, when upstream service is down due to network problem or other reasons, we should still be able to react and adjust our services. Coupling smart switch with our upstream service in HA state machine transition can cause us fail to react to [unplanned events](#9-unplanned-events).
 
 The DPU state machine management will run on NPU. Since each NPU manages multiple DPUs, all NPUs need to connect to all other NPUs, which forms a full mesh.
 
@@ -464,7 +464,7 @@ Since DPU events are still coming from the DPU side SAI/syncd, we will need to p
 
 ##### 5.2.2.2. HA control plane data channel
 
-The data channel is used for transferring large chunks of data between DPUs, e.g. [flow bulk sync](#125-bulk-sync). Since control messages and data sync are going through different channels, this helps us avoid head-of-queue blocking for control messages, which ensures the HA control plane and state machine transition is always responsive.
+The data channel is used for transferring large chunks of data between DPUs, e.g. [flow bulk sync](#115-bulk-sync). Since control messages and data sync are going through different channels, this helps us avoid head-of-queue blocking for control messages, which ensures the HA control plane and state machine transition is always responsive.
 
 Because we expect large chunks of data being transferred, this channel is designed to:
 
@@ -507,7 +507,7 @@ First, we need to create the ENI in all DPUs:
     2. Program traffic forwarding rules to all the switches that will receive the traffic.
         1. This will make all the `hamgrd` connect to the `hamgrd` that own the ENI and register the probe listener.
         1. Whenever a probe listener is registered, the latest probe state will be pushed to make it in sync.
-        1. If the probe listener is lost, it should be either the traffic forwarding rules are removed or `hamgrd` is crashed. For the former case, there won’t be any problem. For the latter case, please see "[`hamgrd` crash](#1031-ha-agent-crash)" section on how to handle it.
+        1. If the probe listener is lost, it should be either the traffic forwarding rules are removed or `hamgrd` is crashed. For the former case, there won’t be any problem. For the latter case, please see "[`hamgrd` crash](#931-hamgrd-crash)" section on how to handle it.
 
     <p align="center"><img alt="ENI creation step 1" src="./images/eni-creation-step-1.svg"></p>
 
@@ -515,7 +515,7 @@ First, we need to create the ENI in all DPUs:
     1. The ENI level control plane channels will be created.
     2. The 2 DPUs will start to communicate with each other via the control plane control channel, elect the primary and form a HA set automatically.
 4. Once the new primary is elected, SmartSwitch will notify the upstream service that the primary is selected.
-    1. The primary may or may not be the preferred one, because in cases like "[ENI migration](#95-eni-migration)", the peer ENI might be already running in standalone state. In this case, the new ENI has to be launched as standby. However, we can issue "[Planned Switchover](#92-planned-switchover)" later, if we want to shift the primary.
+    1. The primary may or may not be the preferred one, because in cases like "[ENI migration](#85-eni-migration)", the peer ENI might be already running in standalone state. In this case, the new ENI has to be launched as standby. However, we can issue "[Planned Switchover](#82-planned-switchover)" later, if we want to shift the primary.
 
     <p align="center"><img alt="ENI creation step 2" src="./images/eni-creation-step-2.svg"></p>
 
@@ -536,7 +536,7 @@ ENI removal works in similar way as ENI programming. In HA setup, every ENI exis
 1. Upstream service first program all switches to remove the traffic forwarding rules to stop the traffic.
 2. Upstream service then programs the 2 DPUs to remove the ENIs.
 
-If we decide to remove only a single ENI instead of pair, it is very important to avoid data path impact as much as possible. In this case, we can use "[Planned Shutdown](#93-planned-shutdown)" to pin the traffic to the other side before removing the ENI.
+If we decide to remove only a single ENI instead of pair, it is very important to avoid data path impact as much as possible. In this case, we can use "[Planned Shutdown](#83-planned-shutdown)" to pin the traffic to the other side before removing the ENI.
 
 ## 6. DPU liveness detection
 
@@ -651,14 +651,14 @@ To detect data plane failure, there are 2 things we should do:
 
 When failures are detected by these 2 things, we will start drive the ENI into standalone mode.
 
-Furthermore, we could also consider tracking the data path availability for each link/source port independently and avoid the bad path actively. Please see "[Multi-path data plane availability tracking](#42322-optional-multi-path-data-plane-availability-tracking)" for more information. But this is totally optional, as we stated in our "[Requirements, Assumptions and SLA]()", handling data path gray failure is nice to have, but it is not one of our main goal.
+Furthermore, we could also consider tracking the data path availability for each link/source port independently and avoid the bad path actively. Please see "[Multi-path data plane availability tracking](#43522-optional-multi-path-data-plane-availability-tracking)" for more information. But this is totally optional, as we stated in our "[Requirements, Assumptions and SLA](#3-requirements-assumptions-and-sla)", handling data path gray failure is nice to have, but it is not one of our main goal.
 
 #### 6.3.2. ENI-level pipeline failure
 
 The hard problem is how to really detect gray failure with generic probe mechanism.
 
 * If it is for detecting hardware failure, it can and should be monitored by hardware monitors.
-* If it is for detecting if hardware is booted and really to use, delaying BFD responses to create switch and hardware BFD can both handle it well (see "[BFD support on DPU](#711-bfd-support-on-dpu)" section).
+* If it is for detecting if hardware is booted and really to use, delaying BFD responses to create switch and hardware BFD can both handle it well (see "[BFD support on DPU](#611-bfd-support-on-dpu)" section).
 * If it is for detecting certain scenario failing, we don’t have enough knowledge to build the required packets to make sure it exercises the expected policies and assert the expected final transformation. Hence, having a scenario-based probing service will be a better solution.
 
 Hence, to summarize, we are skipping designing ENI-level pipeline probe here.
@@ -740,7 +740,7 @@ Again – the goals of the HA design are:
 * At the end of each planned or unplanned event w/ recovery, the flows in all HA participants are matched.
 * Stale flow can be created due to policy being not up to date. It is the responsibility of the upstream services to make sure the policy in all DPUs are up to date and aligned to avoid stale / conflicting flows from being created.
 
-> In this section, we will have a lot of graphs showing how "Term" is changed during the state transitions. For what is term and how it affects flow replication, please refer to  "[Primary election](#83-primary-election)" and "[Range sync](#1252-range-sync)" sections for more explanation.
+> In this section, we will have a lot of graphs showing how "Term" is changed during the state transitions. For what is term and how it affects flow replication, please refer to  "[Primary election](#73-primary-election)" and "[Range sync](#1152-range-sync-eni-level-only)" sections for more explanation.
 
 ### 7.1. HA state definition and behavior
 
@@ -763,7 +763,7 @@ Here are all the states that each HA participants will go through to help us ach
 Here are the definitions of the columns above:
 
 * **Receive traffic from NPU**: ENI level NPU-to-DPU traffic control state. If yes, we will set this DPU as the next hop for the ENI, so NPU will forwarding traffic to it.
-* **Make decision**: Will this DPU create new flows for new connections (not found in flow table, including both syn/non-syn cases, see "[Flow creation and initial sync](#123-flow-creation-and-initial-sync)" section)
+* **Make decision**: Will this DPU create new flows for new connections (not found in flow table, including both syn/non-syn cases, see "[Flow creation and initial sync](#113-flow-creation-and-initial-sync)" section)
 * **Old flow handling**: When packets of existing flow arrive to this DPU, what will the DPU do?
 * **Respond flow sync**: Will this DPU accept flow replication request from its paired DPU?
 * **Init flow sync**: Will this DPU send replicate flow request to its paired DPU when new flow is created?
@@ -899,7 +899,7 @@ Once created, the new ENI will go through similar steps as above and join the HA
 <p align="center"><img alt="HA launch with standalone peer" src="./images/ha-planned-events-launch-rejoin.svg"></p>
 
 1. DPU1 will start as `Dead` state as initial state, then move to `Connecting` state and start to connect to its HA pair.
-2. After successfully connected to its peer, the new node will move to `Connected` state and send out `RequestVote` message to its peer to start primary election (see "[Primary Election](#83-primary-election)" for detailed algorithm).
+2. After successfully connected to its peer, the new node will move to `Connected` state and send out `RequestVote` message to its peer to start primary election (see "[Primary Election](#73-primary-election)" for detailed algorithm).
 3. The primary election response will move the new node to `InitializingToStandby` state.
     * Using `RequestVote` method is trying to make the launch process simple, because the pair could also be doing a clean start, so we are not determined to become standby, but also might become the active.
     * If the DPU0 is pinned to standalone state, we can reject the `RequestVote` message with retry later.
@@ -979,7 +979,7 @@ sequenceDiagram
     Note over S1N,SA: From now on, traffic will be forwarded<br>from all NPUs to DPU1
 ```
 
-Afterwards, when DPU0 comes back, it will launch again, following the sequence of "[Launch with standalone peer](#912-launch-with-standalone-peer)" as above.
+Afterwards, when DPU0 comes back, it will launch again, following the sequence of "[Launch with standalone peer](#812-launch-with-standalone-peer)" as above.
 
 ### 8.2. Planned switchover
 
@@ -1006,7 +1006,7 @@ Planned switchover starts from a standby node, because in order to avoid flow lo
 
     <p align="center"><img alt="HA planned switchover step 1" src="./images/ha-planned-events-switchover-step-2.svg"></p>
 
-    This extra step here is also used when we [recover from standalone setup](#1055-recovery-from-standalone-setup).
+    This extra step here is also used when we [recover from standalone setup](#1016-recovery-from-standalone-setup).
 
 3. DPU1 moves to `SwitchingToActive` state and send `SwitchOver` to DPU0 (active).
 
@@ -1116,7 +1116,7 @@ This helps us to avoid conflicting / stale flows being created during the switch
 
 During switchover, both NPU and DPU liveness detection are still running in the background. If any node died in the middle, instead of rolling states back, we would start unplanned event workflow right away by driving the HA pair into Standalone setup.
 
-See discussions for [unplanned events](#10-unplanned-events) below.
+See discussions for [unplanned events](#9-unplanned-events) below.
 
 ### 8.3. Planned shutdown
 
@@ -1185,14 +1185,14 @@ sequenceDiagram
 
 To shutdown active node, the most important thing is to make sure the new active node will be running properly. Hence, this can be split into 2 steps:
 
-1. Switchover the current active to the desired active node. (See "[Planned switchover](#92-planned-switchover)" for detailed workflow)
-2. Shutdown the old active node, which is running as standby now. (See "[Planned shutdown standby node](#931-planned-shutdown-standby-node)" for detailed workflow).
+1. Switchover the current active to the desired active node. (See "[Planned switchover](#82-planned-switchover)" for detailed workflow)
+2. Shutdown the old active node, which is running as standby now. (See "[Planned shutdown standby node](#831-planned-shutdown-standby-node)" for detailed workflow).
 
 ### 8.4. ENI-level DPU isolation / Standalone pinning
 
 If we suspect an ENI pipeline is not working right and it is caused by unknown DPU hardware/software problem, we could try to isolate this DPU for this ENI. This can be achieved by 2 steps:
 
-1. Use [Planned Switchover](#92-planned-switchover) to move the active to the other DPU.
+1. Use [Planned Switchover](#82-planned-switchover) to move the active to the other DPU.
 2. Set active node desired state to `Standalone` to drive this ENI into standalone setup.
 
     <p align="center"><img alt="HA pin standalone" src="./images/ha-planned-events-standalone-pin.svg"></p>
@@ -1221,7 +1221,7 @@ ENI migration can be done in 3 steps:
 
 #### 8.5.2. Migrating active ENI
 
-Migrating active ENI directly will cause data path impact and should be avoided as much as possible. Please try to use "[Planned Switchover](#92-planned-switchover)" workflow to move the active away before removing it.
+Migrating active ENI directly will cause data path impact and should be avoided as much as possible. Please try to use "[Planned Switchover](#82-planned-switchover)" workflow to move the active away before removing it.
 
 #### 8.5.3. Migrating standalone ENI
 
@@ -1274,7 +1274,7 @@ More discussions on each case are placed below.
 
 If only one side switch is not reachable, we won’t be able to send the latest policy to it. This will eventually build up enough difference between the latest policy and the ones that run on the switch and cause live site to happen.
 
-Whenever our upstream service detected this issue, we can [pin the reachable side to standalone](#94-eni-level-dpu-isolation--standalone-pinning) as mitigation. And since the policy doesn't match on both sides, we assume the reachable side should have a newer policy, hence flow resimulation should be triggered to make sure the flow actions are up to date.
+Whenever our upstream service detected this issue, we can [pin the reachable side to standalone](#84-eni-level-dpu-isolation--standalone-pinning) as mitigation. And since the policy doesn't match on both sides, we assume the reachable side should have a newer policy, hence flow resimulation should be triggered to make sure the flow actions are up to date.
 
 ##### 9.1.1.2. Both side switches are not reachable
 
@@ -1294,7 +1294,7 @@ Whenever this happens, it can be caused by 2 reasons: network failure or peer NP
 * Recover the control channel as what we described in "[HA control plane channel data path HA](#5223-ha-control-plane-channel-data-path-ha)" section above.
 * Once recovered, we move on the state machine transitions.
 
-For the case of DPU going down, it is covered by "[Unplanned DPU failure](#102-unplanned-dpu-failure)" section, and entire switch failure will be covered by "[Unplanned NPU failure](#103-unplanned-npu-failure)" section.
+For the case of DPU going down, it is covered by "[Unplanned DPU failure](#92-unplanned-dpu-failure)" section, and entire switch failure will be covered by "[Unplanned NPU failure](#93-unplanned-npu-failure)" section.
 
 #### 9.1.3. HA control plane data channel failure
 
@@ -1315,18 +1315,18 @@ The card level NPU-to-DPU probe only controls which DPU PA the NPU will use to f
 
 This probe is mostly used for determining if the NPU (no matter if it owns the DPU) can reach the wanted DPU directly or not. And if the DPU cannot reached, it will send traffic to the other one, which will tunnel the traffic to the right one again.
 
-The detailed mechanism is described in "[Card level NPU-to-DPU liveness probe](#71-card-level-npu-to-dpu-liveness-probe)" and "[All probe state altogether](#75-all-probe-states-altogether)" sections. The detailed data path is described in "[NPU-to-DPU traffic forward tunnel](#422-npu-to-dpu-traffic-forward-tunnel)" section.
+The detailed mechanism is described in "[Card level NPU-to-DPU liveness probe](#61-card-level-npu-to-dpu-liveness-probe)" and "[All probe state altogether](#65-all-probe-states-altogether)" sections. The detailed data path is described in "[NPU-to-DPU traffic forwarding](#421-eni-level-npu-to-dpu-traffic-forwarding)" section.
 
 ##### 9.1.4.2. Data plane gray failure
 
-When data plan channel failure occurs, it is very important to avoid making a gray failure becoming 100% down. See "[Data Plane Channel data path HA](#4232-data-plane-channel)" for more information.
+When data plan channel failure occurs, it is very important to avoid making a gray failure becoming 100% down. See "[DPU-to-DPU Data Plane Channel](#4352-dpu-to-dpu-data-plane-channel)" for more information.
 
 Furthermore, we can monitor 2 things:
 
 1. How many packets are lost in the data plane, e.g. flow replication request ack miss rate (1 - ack packet count / (request packet count + ack packet count))?
 2. How large is the DPU-to-DPU data plane probe failure rate?
 
-If these 2 rates are larger than certain threshold, we can start to [drive the DPU to standalone setup](#111-working-as-standalone-setup), avoiding unnecessary packet drop.
+If these 2 rates are larger than certain threshold, we can start to [drive the DPU to standalone setup](#101-working-as-standalone-setup), avoiding unnecessary packet drop.
 
 ### 9.2. Unplanned DPU failure
 
@@ -1359,7 +1359,7 @@ To detect this issue, we will use 2 ways:
 1. For local DPU, NPU will receive DPU status change as critical events from pmon.
 2. For peer DPU, we will receive SAI notification about peer lost, and we can also use SAI API to check DPU-to-DPU probe state or data path availability to confirm.
 
-Once detected, we will start to [drive the HA pair into standalone setup](#111-working-as-standalone-setup). The recovery path in this case will be the same as launch. Please see "[Launch](#91-launch)" section for more details.
+Once detected, we will start to [drive the HA pair into standalone setup](#101-working-as-standalone-setup). The recovery path in this case will be the same as launch. Please see "[Launch](#81-launch)" section for more details.
 
 ### 9.3. Unplanned NPU failure
 
@@ -1372,7 +1372,7 @@ Whenever `hamgrd` crashes, 2 things will happen:
 1. HA state machine transition will stop.
 2. Both card-level probe state and ENI level traffic control state update will stop, which will stop us from shifting traffic from one DPU to another during HA state transition.
 
-Problem 1 will be handled by the mechanism we described in "[HA state persistence and rehydration](#84-ha-state-persistence-and-rehydration)" section. And we will focus on problem 2 here.
+Problem 1 will be handled by the mechanism we described in "[HA state persistence and rehydration](#74-ha-state-persistence-and-rehydration)" section. And we will focus on problem 2 here.
 
 To solve problem 2, we have 2 mechanisms:
 
@@ -1381,11 +1381,11 @@ To solve problem 2, we have 2 mechanisms:
 
 With these 2 mechanisms, as long as we have 1 switch working, the traffic will be forwarded correctly.
 
-For detailed data path, please see "[NPU-to-DPU traffic forward tunnel – Put all tunnels together](#4234-put-all-tunnels-together)" section.
+For detailed data path, please see "[Standy to active DPU tunnel](#4351-standby-to-active-dpu-tunnel)" section.
 
 #### 9.3.2. Switch power down or kernel crash
 
-When switch completely goes down, all DPUs on this switch go down with it. This will show up and handled in the same way as "[DPU hardware failure](#1022-dpu-hardware-failure)". The good side will receive peer lost SAI notification, which drives the HA set into standalone setup.
+When switch completely goes down, all DPUs on this switch go down with it. This will show up and handled in the same way as "[DPU hardware failure](#922-dpu-hardware-failure)". The good side will receive peer lost SAI notification, which drives the HA set into standalone setup.
 
 #### 9.3.3. Back panel port failure
 
@@ -1400,13 +1400,13 @@ Whenever this failure happens:
 To mitigate this issue, we can:
 
 1. Trigger alerts, so we can be aware of this issue and RMA the switch.
-2. Switchover all active ENIs to the other side, then [pin them to Standalone state](#94-eni-level-dpu-isolation--standalone-pinning).
+2. Switchover all active ENIs to the other side, then [pin them to Standalone state](#84-eni-level-dpu-isolation--standalone-pinning).
 
-### 9.4. Unplanned PCIe failure
+#### 9.4. Unplanned PCIe failure
 
 When PCIe fails, we will not be able to talk to the local DPUs from NPU. This will be detected by pmon.
 
-PCIe should be really hard to fail. And whenever it fails, it could be something serious happening on hardware. So, to mitigate this, we will treat this as DPU hard down and force the DPU to be powered off, then handle it as [DPU hardware failure](#1022-dpu-hardware-failure).
+PCIe should be really hard to fail. And whenever it fails, it could be something serious happening on hardware. So, to mitigate this, we will treat this as DPU hard down and force the DPU to be powered off, then handle it as [DPU hardware failure](#922-dpu-hardware-failure).
 
 ### 9.5. Summary
 
@@ -1459,7 +1459,7 @@ Once the HA pair starts to run as standalone setup, the inline sync will stop wo
 3. Existing flows can be aged out on one side, but not the other, depending on how we manage the lifetime of the lows.
 4. Due to policy updates, the same flow might get different packet transformations now, e.g., flow resimulation or flow recreation after policy update.
 
-And during recovery, we need to merge these 2 sets of flows back to one using "[bulk sync](#125-bulk-sync)".
+And during recovery, we need to merge these 2 sets of flows back to one using "[bulk sync](#115-bulk-sync)".
 
 ##### 10.1.1.2. Card-level vs ENI-level standalone setup
 
@@ -1472,7 +1472,7 @@ Obviously, card-level standalone setup is easier to implement, but any ENI-level
 
 However, which one is supported depends on the bulk sync ability. If ENI level bulk sync is supported, we can drive the HA pair into standalone setup at ENI level. Otherwise, we can only do it at card level.
 
-More details on bulk sync implementation can be found later in "[Bulk sync](#125-bulk-sync)" section.
+More details on bulk sync implementation can be found later in "[Bulk sync](#115-bulk-sync)" section.
 
 #### 10.1.2. Workflow triggers
 
@@ -1568,7 +1568,7 @@ When peer DPU is dead, the other DPU will start to drive itself to standalone, n
 
     <p align="center"><img alt="Entering standalone setup with peer down step 2" src="images/ha-unplanned-events-enter-standalone-with-peer-down-step-2.svg"></p>
 
-3. Later, when DPU0 launches, it will join back the HA set as what we have already discussed in "[Launch with standalone peer](#912-launch-with-standalone-peer)" section, which will cause all existing flows to be replicated from DPU1 to DPU0 and move into a new Active-Standby pair.
+3. Later, when DPU0 launches, it will join back the HA set as what we have already discussed in "[Launch with standalone peer](#812-launch-with-standalone-peer)" section, which will cause all existing flows to be replicated from DPU1 to DPU0 and move into a new Active-Standby pair.
 
 #### 10.1.5. DPU restart in standalone setup
 
@@ -1580,7 +1580,7 @@ However, we are not expecting standalone state to last long (if so, alerts will 
 
 After all problems that we detected are solved, we will start moving the standalone setup back to active-standby pair automatically, and sync the flows to standby side with bulk sync.
 
-The detailed steps are similar to "[Launch with standalone peer](#912-launch-with-standalone-peer)" as below:
+The detailed steps are similar to "[Launch with standalone peer](#812-launch-with-standalone-peer)" as below:
 
 1. When we see all problems we detected are resolved on standalone node (DPU0), we start to drive ourselves out of standalone to active.
 
@@ -1590,7 +1590,7 @@ The detailed steps are similar to "[Launch with standalone peer](#912-launch-wit
 
     <p align="center"><img alt="Recovery from standalone setup step 2" src="images/ha-unplanned-events-exit-standalone-step-2.svg"></p>
 
-3. Now, we are back to the same track as "[Launch with standalone peer](#912-launch-with-standalone-peer)". DPU1 will send `HAStateChanged` back to DPU0, which drives DPU0 to active and initiates bulk sync.
+3. Now, we are back to the same track as "[Launch with standalone peer](#812-launch-with-standalone-peer)". DPU1 will send `HAStateChanged` back to DPU0, which drives DPU0 to active and initiates bulk sync.
 
     <p align="center"><img alt="Recovery from standalone setup step 3" src="images/ha-unplanned-events-exit-standalone-step-3.svg"></p>
 
@@ -1624,8 +1624,8 @@ With flow being replicated, we need to make sure the lifetime of the flows are p
 * When a new connection is created or existing connection is closed or re-simulated, the flow change ***MUST*** be replicated inline to the standby side.
 * When a connection is aged out or terminated by other non-packet triggered reasons, the active side ***MUST*** send notification to standby side to close the flows.
 * The standby side ***MUST*** never ages flow by itself, because it doesn't handle any traffic, so only active side knows the real flow ttl.
-* When a node is rejoining the HA set, the active side ***MUST*** use [bulk sync](#125-bulk-sync) to send all existing flows to standby side.
-* [TCP sequence number should be sync'ed in bulk during flow age out process](#12442-bulk-tcp-seq-syncing-during-flow-aging) for idle flows, so we can have RST on flow age out working properly.
+* When a node is rejoining the HA set, the active side ***MUST*** use [bulk sync](#115-bulk-sync) to send all existing flows to standby side.
+* [TCP sequence number should be sync'ed in bulk during flow age out process](#11442-bulk-tcp-seq-syncing-during-flow-aging) for idle flows, so we can have RST on flow age out working properly.
 
 ### 11.2. Flow replication data path overview
 
@@ -1635,7 +1635,7 @@ Currently, flows can be replicated in 2 different ways: data plane sync and cont
 
 Whenever a flow is created, destroyed due to a network packet being arrived, inline flow replication will be triggered.
 
-This is done by using the [data plane channel](#4232-data-plane-channel) defined above. And since different vendors may have different implementation of flows, the metadata used for replicating the flows will be kept as vendor-defined format.
+This is done by using the [data plane channel](#4352-dpu-to-dpu-data-plane-channel) defined above. And since different vendors may have different implementation of flows, the metadata used for replicating the flows will be kept as vendor-defined format.
 
 <p align="center"><img alt="Flow replication data plane sync data path" src="./images/flow-replication-data-path.svg"></p>
 
@@ -1662,13 +1662,13 @@ Flows can be created in multiple cases when we don’t have any existing flow:
     1. When a TCP non-syn packet arrives.
     2. In the middle of any other protocol traffic.
 
-Case 1 is straightforward to understand – Whenever we receive a new connection, we need to create a flow for it. However, case 2 might not be and we will discuss later in section "[Flow recreation for non-first packet](#1232-case-2-flow-recreation-for-non-first-packet)".
+Case 1 is straightforward to understand – Whenever we receive a new connection, we need to create a flow for it. However, case 2 might not be and we will discuss later in section "[Flow recreation for non-first packet](#1132-case-2-flow-recreation-for-non-first-packet)".
 
 #### 11.3.1. Case 1: Flow creation for first packet and initial sync
 
 Whenever a new flow is created, for HA purposes, we need to sync the flow across all the DPUs in the HA set for this ENI. This is called initial sync.
 
-Initial sync will always be done inline with the very first packet, using the [data plane sync channel](#1121-data-plane-sync-channel-data-path).
+Initial sync will always be done inline with the very first packet, using the [DPU-to-DPU data plane channel](#4352-dpu-to-dpu-data-plane-channel).
 
 #### 11.3.2. Case 2: Flow recreation for non-first packet
 
@@ -1724,13 +1724,13 @@ The FIN packets need to be handled as follows:
 2. When FIN-ACK arrives from the other side, we need to mark the flow for the original direction as closed. And same as 1, the flow shall still remain to work, because we need it to deliver FIN-ACK packet to the other side later.
 3. When both flows are marked as closed, we can destroy the flow.
 
-Since the termination handshake changes the TCP state machine, all 4 packets need to trigger the inline flow replication logic to make sure the connection state in standby nodes is up-to-date. Please see [data plane sync channel](#1121-data-plane-sync-channel-data-path) for more details.
+Since the termination handshake changes the TCP state machine, all 4 packets need to trigger the inline flow replication logic to make sure the connection state in standby nodes is up-to-date. Please see [data plane channel](#4352-dpu-to-dpu-data-plane-channel) for more details.
 
 ##### 11.4.1.2. Abrupt connection termination with RST packets
 
 In TCP, RST packet will force the connection to be closed in both directions and there is no ACK packet for RST packet too. Hence, when RST arrives, we can destroy the flow in both ways after forwarding the packet.
 
-Since there is only 1 packet in this case, the flow state needs to be sync’ed to other nodes in-band with the RST packet, using the same [data plane sync channel](#1121-data-plane-sync-channel-data-path) as above.
+Since there is only 1 packet in this case, the flow state needs to be sync’ed to other nodes in-band with the RST packet, using the same [data plane channel](#4352-dpu-to-dpu-data-plane-channel) as above.
 
 #### 11.4.2. Flow destroy on flow aged out
 
@@ -1738,7 +1738,7 @@ Every session, even connection-less one like UDP, it will have a property called
 
 With HA setup, a flow will exist in both active and standby nodes, so we need to ensure their lifetime stays the same, otherwise flow leak will happen.
 
-Please see "[Flow lifetime management](#121-flow-lifetime-management)" section for more details.
+Please see "[Flow lifetime management](#111-flow-lifetime-management)" section for more details.
 
 #### 11.4.3. Flow destroy on request
 
