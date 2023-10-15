@@ -104,6 +104,7 @@
       2. [9.3.2. Switch power down or kernel crash](#932-switch-power-down-or-kernel-crash)
       3. [9.3.3. Back panel port failure](#933-back-panel-port-failure)
    4. [9.4. Unplanned PCIe failure](#94-unplanned-pcie-failure)
+   5. [9.5. Summary](#95-summary)
 10. [10. Unplanned operations](#10-unplanned-operations)
     1. [10.1. Working as standalone setup](#101-working-as-standalone-setup)
        1. [10.1.1. Design considerations](#1011-design-considerations)
@@ -1337,12 +1338,12 @@ Same as other unplanned events, network interruption will be unavoidable, and we
 
 When syncd on DPU crashes, from HA perspective, the impact would be:
 
-* `hamgrd` will fail to connect to syncd. If it lasts long, it will look like a DPU hardware failure or PCIe bus failure.
+* `hamgrd` will fail to talk to syncd. If it lasts long, it will look like a DPU hardware failure or PCIe bus failure.
 * `hamgrd` cannot invoke SAI APIs for initiating bulk sync or receive SAI notifications for bulk sync being done.
 
 However, when this happens, we will ***NOT*** drive the HA pair into standalone setup, but keep the HA pair running as is, and wait for syncd to recover.
 
-When syncd recovers, all SAI objects will be redriven by syncd, which recovers all SAI objects we programmed, such as bulk sync session, HA state machine state and etc. During the syncd crash, no new policies can be programmed, but this should not cause any flow to be dropped.
+When syncd recovers, all SAI objects will be redriven by syncd, which recovers all ENIs we created, DASH-SAI objects we programmed, such as bulk sync session, HA state machine state and etc. During the syncd crash, no new policies can be programmed, but this should not cause any flow to be dropped.
 
 To differentiate from the cases of DPU having hardware failure or PCIe bus went down, we will check the signals from pmon, such as DPU state, PCIe status or other hardware monitor status.
 
@@ -1406,6 +1407,29 @@ To mitigate this issue, we can:
 When PCIe fails, we will not be able to talk to the local DPUs from NPU. This will be detected by pmon.
 
 PCIe should be really hard to fail. And whenever it fails, it could be something serious happening on hardware. So, to mitigate this, we will treat this as DPU hard down and force the DPU to be powered off, then handle it as [DPU hardware failure](#1022-dpu-hardware-failure).
+
+### 9.5. Summary
+
+First of all, please note that, all unplanned events will be monitored. Alerts will be fired, if it lasts for certain time, so it is not included in the mitigations below, but we should consider they are always included.
+
+| Category | Problem | Detected By | Resolve Signal | Mitigation |
+| --- | --- | --- | --- | --- |
+| Upstream service failure | | | | |
+| | Upstream service cannot talk to one side of switches | Upstream service | Upstream service can talk to both sides of switches | [Upstream pin the reachable side to standalone](#84-eni-level-dpu-isolation--standalone-pinning) |
+| | Upstream service cannot talk to both sides of switches | Upstream service | Upstream service can talk to both sides of switches | No-op |
+| HA control plane channel failure | | | | |
+| | HA control plane control channel failure | hamgrd | HA control plane control channel recovers | Spray network to restabilish the data path |
+| | HA control plane data channel failure | swbusd | HA control plane data channel recovers | Rotate source port to restabilish the data path (w/o spray) |
+| Data plane channel failure | | | | |
+| | High data plane packet drop rate | SAI notification | Data plane packet drop rate recovers | [Drive to standalone setup](#101-working-as-standalone-setup) |
+| DPU failure | | | | |
+| | syncd crash | syncd container supervisor | syncd recovers | No-op, but syncd will hard reinit all SAI objects in ASIC, including ENI, HA session, etc, which resets the states in hamgrd as well |
+| | DPU hardware failure | pmon | DPU state change | PeerDead state change will make us [drive to standalone setup](#101-working-as-standalone-setup) |
+| NPU failure | | | | |
+| | hamgrd crash | ha container supervisor | hamgrd recovers | Withdraw SmartSwitch BGP routes, until hamgrd recovers |
+| | Switch power down or kernel crash | PeerLost SAI notification on the peer switch | Peer connected SAI notification | [Drive to standalone setup](#101-working-as-standalone-setup) |
+| | Back panel port failure | PeerLost SAI notification on the peer switch | Peer connected SAI notification | [Drive to standalone setup](#101-working-as-standalone-setup) |
+| | PCIe failure | pmon | PCIe recovers | Treat as hard down and power cycle the DPU from NPU |
 
 ## 10. Unplanned operations
 
