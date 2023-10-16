@@ -52,7 +52,7 @@ One of the challenges in implementing PIC within FRR is the absence of PIC suppo
 1. In the 'zebra' component:
     - Introduce a new Next Hop Group (PIC-NHG) specifically for the FORWARDING function. This NHG will serve as the shareable NHG in hardware.
     - When a BGP next hop becomes unavailable, zebra will first update the new FORWARDING-ONLY NHG before BGP convergence takes place.
-    - If changes occur in the IGP NHG and these changes do not affect the reachability of individual members within the BGP NHG, there is no need to update the BGP NHG.
+    - When IGP updates, zebra will check associated BGP NHs' reachabilities. If the reachability of each individual member within the BGP NHG is not changed, there is no need to update the BGP NHG.
     - Zebra will transmit two new forwarding objects, BGP PIC context, and NHG, to orchagent via FPM. The handling of NHG is outlined in https://github.com/sonic-net/SONiC/pull/1425.
     - Zebra will continue to update kernel routes in the same manner as before, as the kernel does not support BGP PIC.
 2. In the orchagent component:
