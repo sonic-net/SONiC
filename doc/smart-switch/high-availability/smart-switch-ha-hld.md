@@ -1422,14 +1422,14 @@ First of all, please note that, all unplanned events will be monitored. Alerts w
 | | HA control plane control channel failure | hamgrd | HA control plane control channel recovers | Spray network to restabilish the data path |
 | | HA control plane data channel failure | swbusd | HA control plane data channel recovers | Rotate source port to restabilish the data path (w/o spray) |
 | Data plane channel failure | | | | |
-| | High data plane packet drop rate | SAI notification | Data plane packet drop rate recovers | [Drive to standalone setup](#101-working-as-standalone-setup) |
+| | High data plane packet drop rate | DPU counter updates | Data plane packet drop rate recovers | [Drive to standalone setup](#101-working-as-standalone-setup) |
 | DPU failure | | | | |
 | | syncd crash | syncd container supervisor | syncd recovers | No-op, but syncd will hard reinit all SAI objects in ASIC, including ENI, HA session, etc, which resets the states in hamgrd as well |
-| | DPU hardware failure | pmon | DPU state change | PeerDead state change will make us [drive to standalone setup](#101-working-as-standalone-setup) |
+| | DPU hardware failure | **Local**: DPU state change by pmon<br><br>**Peer**: Peer state update to Dead by hamgrd | **Local**: DPU state change by pmon<br><br>**Peer**: Peer state update to Connected | [Drive to standalone setup](#101-working-as-standalone-setup) |
 | NPU failure | | | | |
 | | hamgrd crash | ha container supervisor | hamgrd recovers | Withdraw SmartSwitch BGP routes, until hamgrd recovers |
-| | Switch power down or kernel crash | PeerLost SAI notification on the peer switch | Peer connected SAI notification | [Drive to standalone setup](#101-working-as-standalone-setup) |
-| | Back panel port failure | PeerLost SAI notification on the peer switch | Peer connected SAI notification | [Drive to standalone setup](#101-working-as-standalone-setup) |
+| | Switch power down or kernel crash | PeerLost SAI notification on the peer switch | PeerConnected SAI notification | [Drive to standalone setup](#101-working-as-standalone-setup) |
+| | Back panel port failure | PeerLost SAI notification on the peer switch | PeerConnected SAI notification | [Drive to standalone setup](#101-working-as-standalone-setup) |
 | | PCIe failure | pmon | PCIe recovers | Treat as hard down and power cycle the DPU from NPU |
 
 ## 10. Unplanned operations
