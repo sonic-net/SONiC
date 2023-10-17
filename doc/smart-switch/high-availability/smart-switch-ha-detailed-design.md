@@ -9,8 +9,15 @@
       1. [1.1.1. CONFIG DB](#111-config-db)
          1. [1.1.1.1. DPU / vDPU definitions](#1111-dpu--vdpu-definitions)
          2. [1.1.1.2. HA global configurations](#1112-ha-global-configurations)
-         3. [1.1.1.3. HA set and ENI location configurations](#1113-ha-set-and-eni-location-configurations)
-         4. [1.1.1.4. ENI configurations](#1114-eni-configurations)
+      2. [1.1.2. APP DB](#112-app-db)
+         1. [1.1.2.1. HA set configurations](#1121-ha-set-configurations)
+         2. [1.1.2.2. ENI HA configurations](#1122-eni-ha-configurations)
+      3. [1.1.3. State DB](#113-state-db)
+         1. [1.1.3.1. DPU / vDPU state](#1131-dpu--vdpu-state)
+         2. [1.1.3.2. ENI state](#1132-eni-state)
+   2. [1.2. DPU DB schema](#12-dpu-db-schema)
+      1. [1.2.1. APP DB](#121-app-db)
+         1. [1.2.1.1. DASH ENI object table](#1211-dash-eni-object-table)
 2. [2. Telemetry](#2-telemetry)
    1. [2.1. HA state](#21-ha-state)
    2. [2.2. HA operations](#22-ha-operations)
@@ -44,17 +51,21 @@
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DPU | | | Physical DPU configuration |
+| DPU_TABLE | | | Physical DPU configuration |
 | | \<DPU_ID\> | | Physical DPU ID |
+| | | type | Type of DPU. It can be "local", "cluster" or "external". |
 | | | state | Admin state of the DPU device. |
+| | | slot_id | Slot ID of the DPU. |
 | | | pa_ipv4 | IPv4 address. |
 | | | pa_ipv6 | IPv6 address. |
 | | | npu_ipv4 | IPv4 address of its owning NPU loopback. |
 | | | npu_ipv6 | IPv6 address of its owning NPU loopback. |
-| | | slot_id | Slot ID of the DPU. |
-| VDPU | | | Virtual DPU configuration |
+| | | probe_ip | Custom probe point if we prefer to use a different one from the DPU IP address. |
+| VDPU_TABLE | | | Virtual DPU configuration |
 | | \<VDPU_ID\> | | Virtual DPU ID |
-| | | main_dpu_id | The ID of the main physical DPU. |
+| | | profile | The profile of the vDPU. |
+| | | tier | The tier of the vDPU. |
+| | | main_dpu_ids | The IDs of the main physical DPU. |
 
 ##### 1.1.1.2. HA global configurations
 
@@ -72,29 +83,84 @@
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
-| | | dpu_bfd_probe_multiplier| The number of DPU BFD probe failure before probe down. |
+| | | dpu_bfd_probe_multiplier | The number of DPU BFD probe failure before probe down. |
 | | | dpu_bfd_probe_interval_in_ms | The interval of DPU BFD probe in milliseconds. |
 
-##### 1.1.1.3. HA set and ENI location configurations
+#### 1.1.2. APP DB
 
-* The HA set configuration and ENI location should be programmed on all switches, so we could setup the traffic forwarding rules for each ENI.
+##### 1.1.2.1. HA set configurations
+
+The HA set configuration should be programmed on all switches, so we could program the ENI location information and setup the traffic forwarding rules.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_HA_SET_CONFIG | | | HA set configurations, which describes the DPU pairs. |
+| DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
 | | | vdpu_ids | The ID of the vDPUs. |
-| | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (None), Up or Down. |
+| | | mode | Mode of HA set. It can be "activestandby". |
+| | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), "up" or "down". |
 | | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
-| DASH_HA_ENI_CONFIG_TABLE | | | ENI level HA configuration. |
-| | \<ENI_ID\> | | ENI. Used for identifying a single ENI. |
+
+##### 1.1.2.2. ENI HA configurations
+
+The ENI HA configuration defines which HA set this ENI belongs to, and how to forward the traffic.
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_HA_ENI_CONFIG_TABLE | | | ENI HA configuration. |
+| | \<ENI_ID\> | | ENI ID. Used for identifying a single ENI. |
 | | | version | Config version. |
-| | | eni_mac | ENI mac address. Used for matching incoming packets. |
+| | | eni_mac | ENI mac address. Used to create the NPU side ACL rules to match the incoming packets and forward to the right DPUs. |
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
 | | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI forwarding rule. "" = Not set. |
 
-##### 1.1.1.4. ENI configurations
+#### 1.1.3. State DB
+
+##### 1.1.3.1. DPU / vDPU state
+
+DPU/vDPU state table stores the states of each DPU/vDPU, e.g.:
+
+* Card level probe state.
+* Health state, if the DPU/vDPU is local.
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DPU_TABLE | | | Physical DPU state |
+| | \<DPU_ID\> | | Physical DPU ID |
+| | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
+| | | health_state | Health state of the DPU device. It can be "healthy", "unhealthy". Only valid when the DPU is local. |
+| VDPU_TABLE | | | Virtual DPU state |
+| | \<VDPU_ID\> | | Virtual DPU ID |
+| | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
+| | | health_state | Health state of the DPU device. It can be "healthy", "unhealthy". Only valid when the DPU is local. |
+
+##### 1.1.3.2. ENI state
+
+On NPU side, the ENI state table shows:
+
+* The HA state of each ENI.
+* The traffic forwarding state of each ENI.
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_ENI_TABLE | | | Data plane state of each ENI. |
+| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
+| | | ha_state | The state of the HA state machine. |
+| | | ... | ... |
+| DASH_ENI_DP_STATE_TABLE | | | Data plane state of each ENI. |
+| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
+| | | next_hops | All possible next hops for this ENI. |
+| | | next_hops_types | Type of each next hops, connected by ",". |
+| | | next_hops_card_level_probe_states | Card level probe state for each next hop, connected by ",". It can be "unknown", "up", "down". |
+| | | next_hops_active_states | Is next hop set as active the ENI HA state machine. It can be "unknown", "true", "false". |
+| | | next_hops_final_state | Final state for each next hops, connected by ",". It can be "up", "down". |
+
+### 1.2. DPU DB schema
+
+#### 1.2.1. APP DB
+
+##### 1.2.1.1. DASH ENI object table
 
 * The ENI configuration will only be programmed on the switch that is hosting the ENIs.
 * Please NOTE that only the configuration that is related to HA is listed here and please check [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) to see other fields.
@@ -104,7 +170,7 @@
 | DASH_ENI_TABLE | | | HA configuration for each ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | ha_config_version | Config version. |
-| | | desired_state | The desired state for this ENI. It can only be "" (None), Dead, Active or Standalone. |
+| | | desired_state | The desired state for this ENI. It can only be "" (none), Dead, Active or Standalone. |
 
 ## 2. Telemetry
 
