@@ -58,7 +58,7 @@ Existing subcommand `eeprom-hexdump` shall be extended to dump eeprom data for a
 
 - CMIS
   - copper: page 0h (0-255)
-  - optical: pages 0h (0-255), 1h, 2h, 10h, 11h (128-255), CDB pages if available (128-255), 400G ZR pages if available (128-255)
+  - optical: pages 0h (0-255), 1h, 2h, 10h, 11h (128-255), CDB page 0x9f if available (128-255), 400G ZR pages 30h, 31h, 32h, 33h, 34h, 35h, 38h, 39h, 3ah, 3bh if available (128-255)
 - sff8436
   - copper: page 0h (0-255)
   - optical: pages 0h (0-255), 1h, 2h, 3h (128-255)
