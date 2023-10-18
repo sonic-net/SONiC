@@ -31,25 +31,6 @@ The current architecture is not changed
 
 Submodule sonic-utilities shall be changed. By default, vendor platform API implementation is not required.
 
-#### sonic-platform-common
-
-##### sonic_xcvr change
-
-Following sonic_xcvr API implementation shall implement the new API `dump_eeprom`:
-
-- sonic_xcvr.api.public.cmis
-  - copper: page 0h (0-255)
-  - optical: pages 0h (0-255), 1h, 2h, 10h, 11h (128-255)
-- sonic_xcvr.api.public.sff8436
-  - copper: page 0h (0-255)
-  - optical: pages 0h (0-255), 1h, 2h, 3h (128-255)
-- sonic_xcvr.api.public.sff8472
-  - copper: page A0h (0-128)
-  - optical: page A0h (0-255), A2h (0-128)
-- sonic_xcvr.api.public.sff8636
-  - copper: page 0h (0-255)
-  - optical: pages 0h (0-255), 1h, 2h, 3h (128-255)
-
 #### sonic-utilities
 
 ##### generate_dump change
@@ -73,7 +54,7 @@ Existing subcommand `eeprom-hexdump` shall be extended to dump eeprom data for a
 3. `sfputil show eeprom-hexdump --page <page>`: dump given page for all ports, fail if any port does not support the page
 4. `sfputil show eeprom-hexdump`: dump available pages for all ports.
 
-For current phase, `sfputil show eeprom-hexdump` shall dump pages based on cable type:
+`sfputil show eeprom-hexdump` shall dump pages based on cable type:
 
 - CMIS
   - copper: page 0h (0-255)
@@ -87,6 +68,8 @@ For current phase, `sfputil show eeprom-hexdump` shall dump pages based on cable
 - sff8636
   - copper: page 0h (0-255)
   - optical: pages 0h (0-255), 1h, 2h, 3h (128-255)
+
+> Note: it is very complicated to dump all possible pages. So, only basic pages shall be dumped in the current implementation.  
 
 Sample output:
 
