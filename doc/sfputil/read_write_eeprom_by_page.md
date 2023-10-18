@@ -21,7 +21,7 @@ CLI sfputil shall be extended to support reading/writing cable EEPROM by page an
 - Support reading/writing cable EEPROM data by page, offset and size. For sff8472, wire address "a0h" or "a2h" must be provided by user.
 - Support basic validation for input parameter such as page, offset and size.
 - Support reading/writing cable EEPROM for all types of cables except RJ45.
-- Support non flat memory mode reading/writing. In this mode, user shall proved page and offset according to the standard. For example, CMIS page 1h starting offset is 128, offset less than 128 shall be treated as invalid.
+- Support non flat memory mode reading/writing. In this mode, user shall provide page and offset according to the standard. For example, CMIS page 1h starting offset is 128, offset less than 128 shall be treated as invalid.
 - Support flat memory mode reading/writing (Phase 2). In this mode, the EEPROM memory shall be treated as continues flat memory. This design document will not discuss this mode.
 - Vendor who does not support `sfp.read_eeprom` and `sfp.write_eeprom` is expected to raise `NotImplementedError`, this error shall be properly handled
 - Others error shall be treated as read/write failure
@@ -160,7 +160,7 @@ Two new CLIs shall be added to sfputil module:
 - sfputil read-eeprom
 - sfputil write-eeprom
 
-For detail please check chapter "CLI/YANG model Enhancements".
+For detail please check chapter [CLI/YANG model Enhancements](#cliyang-model-enhancements)
 
 ### SAI API
 
