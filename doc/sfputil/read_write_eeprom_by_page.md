@@ -49,7 +49,7 @@ def read_eeprom_by_page(self, page, offset, size, wire_addr=None, flat=False):
     Args:
         page: EEPROM page number. Raise ValueError for invalid page.
         offset: EEPROM page offset. Raise ValueError for invalid offset.
-        size: Read size. Raise ValueError for invalid size.
+        size: Number of bytes to be read. Raise ValueError for invalid size.
         wire_addr: Wire address. Only valid for sff8472. Raise ValueError for invalid wire address.
         flat: Read mode.
 
@@ -212,6 +212,7 @@ Usage: sfputil write-eeprom [OPTIONS] <port> <page> <offset> <data>
 
 Options:
   --wire-addr             Wire address of sff8472.
+  --verify                Verify the data by reading back.
   --help                  Show this message and exit.
 ```
 
@@ -219,6 +220,9 @@ Example:
 
 ```
 sfputil write-eeprom Ethernet0 0 100 4a44
+
+sfputil write-eeprom Etherent0 0 100 4a44 --verify
+Error: Write data failed! Write: 4a44, read: 0000.
 ```
 
 #### Config DB Enhancements
