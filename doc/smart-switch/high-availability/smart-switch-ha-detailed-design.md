@@ -9,14 +9,15 @@
       1. [1.1.1. CONFIG DB](#111-config-db)
          1. [1.1.1.1. DPU / vDPU definitions](#1111-dpu--vdpu-definitions)
          2. [1.1.1.2. HA global configurations](#1112-ha-global-configurations)
-      2. [1.1.2. APP DB](#112-app-db)
+      2. [1.1.2. APPL DB](#112-appl-db)
          1. [1.1.2.1. HA set configurations](#1121-ha-set-configurations)
-         2. [1.1.2.2. ENI HA configurations](#1122-eni-ha-configurations)
+         2. [1.1.2.2. ENI placement configurations](#1122-eni-placement-configurations)
+         3. [1.1.2.3. ENI configurations](#1123-eni-configurations)
       3. [1.1.3. State DB](#113-state-db)
          1. [1.1.3.1. DPU / vDPU state](#1131-dpu--vdpu-state)
-         2. [1.1.3.2. ENI state](#1132-eni-state)
+         2. [1.1.3.2. ENI status](#1132-eni-status)
    2. [1.2. DPU DB schema](#12-dpu-db-schema)
-      1. [1.2.1. APP DB](#121-app-db)
+      1. [1.2.1. APPL DB](#121-appl-db)
          1. [1.2.1.1. DASH ENI object table](#1211-dash-eni-object-table)
 2. [2. Telemetry](#2-telemetry)
    1. [2.1. HA state](#21-ha-state)
@@ -74,7 +75,7 @@
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_HA_CONFIG | N/A | | HA global configurations |
+| DPU_HA_GLOBAL_CONFIG | N/A | | HA global configurations |
 | | | npu_tunnel_dst_port | The destination port used when tunneling packets via NPU-to-DPU tunnel. |
 | | | npu_tunnel_src_port_min | The min source port used when tunneling packets via NPU-to-DPU tunnel. |
 | | | npu_tunnel_src_port_max | The max source port used when tunneling packets via NPU-to-DPU tunnel. |
@@ -86,7 +87,7 @@
 | | | dpu_bfd_probe_multiplier | The number of DPU BFD probe failure before probe down. |
 | | | dpu_bfd_probe_interval_in_ms | The interval of DPU BFD probe in milliseconds. |
 
-#### 1.1.2. APP DB
+#### 1.1.2. APPL DB
 
 ##### 1.1.2.1. HA set configurations
 
@@ -94,7 +95,7 @@ The HA set configuration should be programmed on all switches, so we could progr
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set. |
+| DPU_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
 | | | vdpu_ids | The ID of the vDPUs. |
@@ -102,18 +103,29 @@ The HA set configuration should be programmed on all switches, so we could progr
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), "up" or "down". |
 | | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
 
-##### 1.1.2.2. ENI HA configurations
+##### 1.1.2.2. ENI placement configurations
 
-The ENI HA configuration defines which HA set this ENI belongs to, and how to forward the traffic.
+The ENI placement table defines which HA set this ENI belongs to, and how to forward the traffic.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_HA_ENI_CONFIG_TABLE | | | ENI HA configuration. |
+| ENI_PLACEMENT_TABLE | | | ENI placement. |
 | | \<ENI_ID\> | | ENI ID. Used for identifying a single ENI. |
 | | | version | Config version. |
 | | | eni_mac | ENI mac address. Used to create the NPU side ACL rules to match the incoming packets and forward to the right DPUs. |
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
 | | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI forwarding rule. "" = Not set. |
+
+##### 1.1.2.3. ENI configurations
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| ENI_CONFIG_TABLE | | | ENI configuration. |
+| | \<VDPU_ID\> | | vDPU ID. Used to identifying a single vDPU. |
+| | \<ENI_ID\> | | ENI ID. Used for identifying a single ENI. |
+| | | ha_config_version | Config version. |
+| | | desired_ha_state | The desired state for this ENI. It can only be "" (none), dead, active or standalone. |
+| | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
 
 #### 1.1.3. State DB
 
@@ -133,22 +145,37 @@ DPU/vDPU state table stores the states of each DPU/vDPU, e.g.:
 | VDPU_TABLE | | | Virtual DPU state |
 | | \<VDPU_ID\> | | Virtual DPU ID |
 | | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
-| | | health_state | Health state of the DPU device. It can be "healthy", "unhealthy". Only valid when the DPU is local. |
+| | | health_state | Health state of the vDPU. It can be "healthy", "unhealthy". Only valid when the vDPU is local. |
 
-##### 1.1.3.2. ENI state
+##### 1.1.3.2. ENI status
 
-On NPU side, the ENI state table shows:
+On NPU side, the ENI status table shows:
 
-* The HA state of each ENI.
-* The traffic forwarding state of each ENI.
+* The HA state of each local ENI.
+* The traffic forwarding state of all known ENIs.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_TABLE | | | Data plane state of each ENI. |
+| ENI_STATUS_TABLE | | | Data plane state of each ENI. |
+| | \<VDPU_ID\> | | VDPU ID. Used to identifying a single VDPU. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | ha_state | The state of the HA state machine. |
-| | | ... | ... |
-| DASH_ENI_DP_STATE_TABLE | | | Data plane state of each ENI. |
+| | | data_path_vip | Data path VIP of the ENI. |
+| | | creation_time_is_ms | ENI creation time in milliseconds. |
+| | | local_ha_state | The state of the HA state machine. This is the state in NPU hamgrd. |
+| | | local_ha_state_last_update_time_in_ms | The time when local target HA state is set. |
+| | | local_ha_state_last_update_reason | The reason of the last HA state change. |
+| | | local_target_asic_ha_state | The target HA state in ASIC. This is the state that hamgrd generates and asking DPU to move to. |
+| | | local_acked_asic_ha_state | The HA state that ASIC acked. |
+| | | local_target_term | The current target term of the HA state machine. |
+| | | local_acked_term | The current term that acked by ASIC. |
+| | | peer_ip | The IP of peer DPU. |
+| | | peer_ha_state | The state of the HA state machine in peer DPU. |
+| | | peer_term | The current term in peer DPU. |
+| | | pending_approval_operation_type | Pending approval operation type, e.g., "switchover". |
+| | | pending_approval_operation_id | Pending approval operation ID (GUID). |
+| | | pending_approval_operation_start_time_in_ms | The time when last operation request is sent. |
+| | | bulk_sync_start_time_in_ms | Bulk sync start time in milliseconds. |
+| ENI_DP_STATUS_TABLE | | | Data plane state of each ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | next_hops | All possible next hops for this ENI. |
 | | | next_hops_types | Type of each next hops, connected by ",". |
@@ -158,7 +185,7 @@ On NPU side, the ENI state table shows:
 
 ### 1.2. DPU DB schema
 
-#### 1.2.1. APP DB
+#### 1.2.1. APPL DB
 
 ##### 1.2.1.1. DASH ENI object table
 
@@ -169,8 +196,6 @@ On NPU side, the ENI state table shows:
 | --- | --- | --- | --- |
 | DASH_ENI_TABLE | | | HA configuration for each ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | ha_config_version | Config version. |
-| | | desired_state | The desired state for this ENI. It can only be "" (none), Dead, Active or Standalone. |
 
 ## 2. Telemetry
 
@@ -185,22 +210,9 @@ We will focus on only the HA counters below, which will not include basic counte
 
 ### 2.1. HA state
 
-First of all, we need to store the HA states for us to check:
+First of all, we need to store the HA states for us to check.
 
-* Saved in NPU side `STATE_DB`, since `hamgrd` is running on NPU side.
-* Partitioned into ENI level key: `ENI_HA_STATES|<VDPU_ID>|<ENI_ID>`.
-
-| Name | Description |
-| --- | --- |
-| local/peer_state | HA state of local / peer ENI. |
-| last_local_state_update_time_in_ms | Last update time of local state. |
-| local/peer_term | Current term of local / peer ENI. |
-| local/peer_term_start_time_in_ms | Start time of current term of local / peer ENI. |
-| local/peer_eni_create_time_in_ms | Creation time of local / peer ENI. |
-| peer_ip | IP of peer ENI. |
-| eni_data_path_vip | DP VIP of current ENI. |
-| bulk_sync_start_time_in_ms | Start time of current bulk sync operation. If no bulk sync is ongoing, set to 0. |
-| shutdown_by_upstream | Is requested to be shutdown by our upstream service. If true, we will stop auto peering the ENI, in cases like DPU reboot. |
+Please refer to the [ENI state](#1132-eni-status) table in NPU DB for detailed DB schema design.
 
 ### 2.2. HA operations
 
@@ -414,5 +426,7 @@ Please refer to HA session API and flow API HLD in DASH repo for SAI API designs
 The following commands shall be added in CLI for checking the HA config and states:
 
 ```
-
+- show dash ha config
+- show dash eni ha status
+- show dash eni ha dp-status
 ```
