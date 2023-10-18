@@ -14,8 +14,8 @@ N/A
 
 ### Overview
 
-1. A new CLI `sfputil show eeprom-hexdump-all` shall dump EEPROM pages in a single call.
-2. Show techsupport command shall be extended to call `sfputil show eeprom-hexdump-all` command to collect module EEPROM data.
+1. Existing CLI `sfputil show eeprom-hexdump` shall be extended to dump EEPROM pages in a single call.
+2. Show techsupport command shall be extended to call `sfputil show eeprom-hexdump` command to collect module EEPROM data.
 
 ### Requirements
 
@@ -29,37 +29,9 @@ The current architecture is not changed
 
 ### High-Level Design
 
-Submodule sonic-platform-common and sonic-utilities shall be changed. By default, vendor platform API implementation is not required.
+Submodule sonic-utilities shall be changed. By default, vendor platform API implementation is not required.
 
 #### sonic-platform-common
-
-##### sfp_base change
-
-A new API `dump_eeprom` shall be added to `sfp_base.SfpBase`. This API shall be used by `sfputil show eeprom-hexdump-all` command to collect module EEPROM data.
-
-```python
-def dump_eeprom(self, page=None):
-    """
-    Dump all EEPROM data for this SFP
-
-    Args:
-        page: EEPROM page number, dump all pages if page is None
-
-    Returns:
-        A string contains the hex format EEPROM data
-    """
-    raise NotImplementedError
-```
-
-##### sfp_optoe_base change
-
-`sfp_optoe_base.SfpOptoeBase` shall implement the new API `dump_eeprom` so that vendor does not have to implement it (Vendor specific implementation is also possible).
-
-```python
-def dump_eeprom(self, page=None):
-    api = self.get_xcvr_api()
-    return api.dump_eeprom(page) if api is not None else None
-```
 
 ##### sonic_xcvr change
 
@@ -82,23 +54,44 @@ Following sonic_xcvr API implementation shall implement the new API `dump_eeprom
 
 ##### generate_dump change
 
-1. New subcommand `sfputil show eeprom-hexdump-all` shall be used to dump module EEPROM data
+1. New subcommand `sfputil show eeprom-hexdump` shall be used to dump module EEPROM data
 2. EEPROM data shall be saved to path `$TARDIR/dump/`
 
 Sample code:
 ```
-save_cmd "sfputil show eeprom-hexdump-all" "interface.xcvrs.eeprom.raw" &
+save_cmd "sfputil show eeprom-hexdump" "interface.xcvrs.eeprom.raw" &
 ```
 
 Note: dumping EEPROM data might cause firmware busy, the command shall not be run parallel with save_saidump to avoid hardware access conflict.
 
 ##### sfputil change
 
-A new subcommand `eeprom_hexdump_all` shall be added to `sfputil show` command group. The command shall dump eeprom data for all existing cables except RJ45.
+Existing subcommand `eeprom-hexdump` shall be extended to dump eeprom data for all existing cables except RJ45. Currently, `sfputil show eeprom-hexdump` accept two options `--port` and `--page`. It shall be extended like this:
+
+1. `sfputil show eeprom-hexdump --port <port> --page <page>`: dump given page for given port
+2. `sfputil show eeprom-hexdump --port <port>`: dump page 0 for given port (to keep backwardcompatible)
+3. `sfputil show eeprom-hexdump --page <page>`: dump given page for all ports, fail if any port does not support the page
+4. `sfputil show eeprom-hexdump`: dump available pages for all ports.
+
+For current phase, `sfputil show eeprom-hexdump` shall dump pages based on cable type:
+
+- CMIS
+  - copper: page 0h (0-255)
+  - optical: pages 0h (0-255), 1h, 2h, 10h, 11h (128-255), CDB pages if available (128-255), 400G ZR pages if available (128-255)
+- sff8436
+  - copper: page 0h (0-255)
+  - optical: pages 0h (0-255), 1h, 2h, 3h (128-255)
+- sff8472
+  - copper: page A0h (0-128)
+  - optical: page A0h (0-255), A2h (0-128)
+- sff8636
+  - copper: page 0h (0-255)
+  - optical: pages 0h (0-255), 1h, 2h, 3h (128-255)
 
 Sample output:
 
 ```
+sfputil show eeprom-hexdump
 EEPROM hexdump for module 1
         Lower page 0h
         00000000 11 08 06 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
@@ -173,8 +166,7 @@ Vendor should support platform API `sfp.read_eeprom` to support this feature.
 
 #### Unit Test cases
 
-- sonic-utilities unit test shall be extended to cover new subcommand `sfputil show eeprom-dump-all`
-- sonic-platform-common unit test shall be extended to cover new API `sfp.dump_eeprom`
+- sonic-utilities unit test shall be extended to cover changes for subcommand `sfputil show eeprom-dump`
 
 #### System Test cases
 
