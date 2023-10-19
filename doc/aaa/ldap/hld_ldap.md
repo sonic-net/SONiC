@@ -1,4 +1,4 @@
-# HLD Name #
+# HLD LDAP #
 
 ## Table of Content 
 
@@ -128,13 +128,13 @@ LDAP_TABLE:{
 
 LDAP_SERVER:{
 		<Sever-ip>:{
-			prio: {{1}}
+			priority: {{1}}
 			}
 		}
 AAA:{
 	Authentication:{
-			Failthought: {{“True”}}
-			Login :{{“local}}
+			failthought: {{“True”}}
+			login :{{“local}}
 	}
 }
 ```
