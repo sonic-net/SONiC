@@ -5,23 +5,24 @@
 | 0.1 | 10/14/2023 | Riff Jiang | Initial version |
 
 1. [1. Database Schema](#1-database-schema)
-   1. [1.1. NPU DB schema](#11-npu-db-schema)
-      1. [1.1.1. CONFIG DB](#111-config-db)
-         1. [1.1.1.1. DPU / vDPU definitions](#1111-dpu--vdpu-definitions)
-         2. [1.1.1.2. HA global configurations](#1112-ha-global-configurations)
-      2. [1.1.2. APPL DB](#112-appl-db)
-         1. [1.1.2.1. HA set configurations](#1121-ha-set-configurations)
-         2. [1.1.2.2. ENI placement configurations](#1122-eni-placement-configurations)
-         3. [1.1.2.3. ENI configurations](#1123-eni-configurations)
-      3. [1.1.3. State DB](#113-state-db)
-         1. [1.1.3.1. DPU / vDPU state](#1131-dpu--vdpu-state)
-         2. [1.1.3.2. ENI state](#1132-eni-state)
-   2. [1.2. DPU DB schema](#12-dpu-db-schema)
-      1. [1.2.1. APPL DB](#121-appl-db)
-         1. [1.2.1.1. HA set configurations](#1211-ha-set-configurations)
-         2. [1.2.1.2. DASH ENI object table](#1212-dash-eni-object-table)
-      2. [1.2.2. State DB](#122-state-db)
-         1. [1.2.2.1. ENI HA state](#1221-eni-ha-state)
+   1. [1.1. High level relationships](#11-high-level-relationships)
+   2. [1.2. NPU DB schema](#12-npu-db-schema)
+      1. [1.2.1. CONFIG DB](#121-config-db)
+         1. [1.2.1.1. DPU / vDPU definitions](#1211-dpu--vdpu-definitions)
+         2. [1.2.1.2. HA global configurations](#1212-ha-global-configurations)
+      2. [1.2.2. APPL DB](#122-appl-db)
+         1. [1.2.2.1. HA set configurations](#1221-ha-set-configurations)
+         2. [1.2.2.2. ENI placement configurations](#1222-eni-placement-configurations)
+         3. [1.2.2.3. ENI configurations](#1223-eni-configurations)
+      3. [1.2.3. State DB](#123-state-db)
+         1. [1.2.3.1. DPU / vDPU state](#1231-dpu--vdpu-state)
+         2. [1.2.3.2. ENI state](#1232-eni-state)
+   3. [1.3. DPU DB schema](#13-dpu-db-schema)
+      1. [1.3.1. APPL DB](#131-appl-db)
+         1. [1.3.1.1. HA set configurations](#1311-ha-set-configurations)
+         2. [1.3.1.2. DASH ENI object table](#1312-dash-eni-object-table)
+      2. [1.3.2. State DB](#132-state-db)
+         1. [1.3.2.1. ENI HA state](#1321-eni-ha-state)
 2. [2. Telemetry](#2-telemetry)
    1. [2.1. HA state](#21-ha-state)
    2. [2.2. HA operations](#22-ha-operations)
@@ -46,11 +47,82 @@
 
 NOTE: Only the configuration that is related to HA is listed here and please check [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) to see other fields.
 
-### 1.1. NPU DB schema
+### 1.1. High level relationships
 
-#### 1.1.1. CONFIG DB
+```mermaid
+flowchart LR
+   NC[Network Controllers]
+   SC[SDN Controllers]
 
-##### 1.1.1.1. DPU / vDPU definitions
+   subgraph NPU Components
+      NPU_SWSS[swss]
+      NPU_HAMGRD[hamgrd]
+
+      subgraph CONFIG DB
+         NPU_DPU[DPU_TABLE]
+         NPU_VDPU[VDPU_TABLE]
+         NPU_DASH_HA_GLOBAL_CONFIG[DASH_HA_GLOBAL_CONFIG]
+      end
+
+      subgraph APPL DB
+         NPU_DASH_HA_SET[DASH_HA_SET_TABLE]
+         NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
+         NPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
+      end
+
+      subgraph STATE DB
+         NPU_DPU_STATE[DPU_TABLE]
+         NPU_VDPU_STATE[VDPU_TABLE]
+         NPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
+         NPU_ENI_DP_STATE[ENI_DP_STATE_TABLE]
+      end
+   end
+
+   subgraph "DPU0 Components (Same for other DPUs)"
+      DPU_SWSS[swss]
+
+      subgraph APPL DB
+         DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
+         DPU_DASH_ENI[DASH_ENI_TABLE]
+         DPU_DASH_ENI_HA_BULK_SYNC_SESSION[DASH_ENI_HA_BULK_SYNC_SESSION_TABLE]
+      end
+
+      subgraph STATE DB
+         DPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
+      end
+   end
+
+   NC --> NPU_DPU
+   NC --> NPU_VDPU
+   NC --> NPU_DASH_HA_GLOBAL_CONFIG
+
+   SC --> NPU_DASH_HA_SET
+   SC --> NPU_DASH_ENI_PLACEMENT
+   SC --> NPU_DASH_ENI_HA_CONFIG
+   SC --> DPU_DASH_ENI
+
+   NPU_DPU --> NPU_SWSS
+   NPU_DPU --> NPU_HAMGRD
+   NPU_VDPU --> NPU_SWSS
+   NPU_VDPU --> NPU_HAMGRD
+
+   NPU_SWSS --> NPU_DPU_STATE
+   NPU_SWSS --> NPU_VDPU_STATE
+
+   NPU_DASH_HA_GLOBAL_CONFIG --> NPU_HAMGRD
+   NPU_DASH_HA_SET --> NPU_HAMGRD
+   NPU_DASH_ENI_PLACEMENT --> NPU_HAMGRD
+   NPU_DASH_ENI_HA_CONFIG --> NPU_HAMGRD
+
+   NPU_HAMGRD --> NPU_DASH_ENI_HA_STATE
+   NPU_HAMGRD --> NPU_ENI_DP_STATE
+```
+
+### 1.2. NPU DB schema
+
+#### 1.2.1. CONFIG DB
+
+##### 1.2.1.1. DPU / vDPU definitions
 
 * These tables are imported from the SmartSwitch HLD to make the doc more convenient for reading, and we should always use that doc as the source of truth.
 * These tables should be prepopulated before any HA configuration tables below are programmed.
@@ -73,7 +145,7 @@ NOTE: Only the configuration that is related to HA is listed here and please che
 | | | tier | The tier of the vDPU. |
 | | | main_dpu_ids | The IDs of the main physical DPU. |
 
-##### 1.1.1.2. HA global configurations
+##### 1.2.1.2. HA global configurations
 
 * The global configuration is shared by all HA sets, and ENIs and should be programmed on all switches.
 * The global configuration should be programmed before any HA set configurations below are programmed.
@@ -88,11 +160,11 @@ NOTE: Only the configuration that is related to HA is listed here and please che
 | | | dpu_bfd_probe_multiplier | The number of DPU BFD probe failure before probe down. |
 | | | dpu_bfd_probe_interval_in_ms | The interval of DPU BFD probe in milliseconds. |
 
-#### 1.1.2. APPL DB
+#### 1.2.2. APPL DB
 
-##### 1.1.2.1. HA set configurations
+##### 1.2.2.1. HA set configurations
 
-* The HA set table defines which DPUs should be forming the same HA set and how. 
+* The HA set table defines which DPUs should be forming the same HA set and how.
 * The HA set table should be programmed on all switches, so we could program the ENI location information and setup the traffic forwarding rules.
 * If the HA set contains local vDPU, it will be copied to DPU side DB by `hamgrd` as well.
 
@@ -106,9 +178,9 @@ NOTE: Only the configuration that is related to HA is listed here and please che
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), "up" or "down". |
 | | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
 
-##### 1.1.2.2. ENI placement configurations
+##### 1.2.2.2. ENI placement configurations
 
-* The ENI placement table defines which HA set this ENI belongs to, and how to forward the traffic. 
+* The ENI placement table defines which HA set this ENI belongs to, and how to forward the traffic.
 * The ENI placement table should be programmed on all switches.
 * Once this table is programmed, `hamgrd` will generate the BFD
 
@@ -121,7 +193,7 @@ NOTE: Only the configuration that is related to HA is listed here and please che
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
 | | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI forwarding rule. "" = Not set. |
 
-##### 1.1.2.3. ENI configurations
+##### 1.2.2.3. ENI configurations
 
 * The ENI HA configuration table contains the ENI-level HA config.
 * The ENI HA configuraiton table only contains the ENIs that is hosted on the local switch.
@@ -135,9 +207,9 @@ NOTE: Only the configuration that is related to HA is listed here and please che
 | | | desired_ha_state | The desired state for this ENI. It can only be "" (none), dead, active or standalone. |
 | | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
 
-#### 1.1.3. State DB
+#### 1.2.3. State DB
 
-##### 1.1.3.1. DPU / vDPU state
+##### 1.2.3.1. DPU / vDPU state
 
 DPU/vDPU state table stores the states of each DPU/vDPU, e.g.: Card level probe state, Health state, if the DPU/vDPU is local.
 
@@ -152,7 +224,7 @@ DPU/vDPU state table stores the states of each DPU/vDPU, e.g.: Card level probe 
 | | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
 | | | health_state | Health state of the vDPU. It can be "healthy", "unhealthy". Only valid when the vDPU is local. |
 
-##### 1.1.3.2. ENI state
+##### 1.2.3.2. ENI state
 
 On NPU side, the ENI state table shows:
 
@@ -188,11 +260,11 @@ On NPU side, the ENI state table shows:
 | | | next_hops_active_states | Is next hop set as active the ENI HA state machine. It can be "unknown", "true", "false". |
 | | | next_hops_final_state | Final state for each next hops, connected by ",". It can be "up", "down". |
 
-### 1.2. DPU DB schema
+### 1.3. DPU DB schema
 
-#### 1.2.1. APPL DB
+#### 1.3.1. APPL DB
 
-##### 1.2.1.1. HA set configurations
+##### 1.3.1.1. HA set configurations
 
 If any HA set configuration is related to local DPU, it will be parsed and being programmed to the DPU side DB, which will be translated to SAI API calls and sent to ASIC by DPU side swss.
 
@@ -209,7 +281,7 @@ If any HA set configuration is related to local DPU, it will be parsed and being
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
 
-##### 1.2.1.2. DASH ENI object table
+##### 1.3.1.2. DASH ENI object table
 
 * The DASH objects will only be programmed on the DPU that is hosting the ENIs.
 
@@ -225,9 +297,9 @@ If any HA set configuration is related to local DPU, it will be parsed and being
 | | | session_id | Bulk sync session id. |
 | | | flow_svrs | Server IP endpoints that receives flow records. The server is based on gRPC and more details can be found in flow API doc. |
 
-#### 1.2.2. State DB
+#### 1.3.2. State DB
 
-##### 1.2.2.1. ENI HA state
+##### 1.3.2.1. ENI HA state
 
 * The ENI HA state table contains the ENI-level HA state.
 * The ENI HA state table only contains the ENIs that is hosted on the local DPU.
@@ -257,7 +329,7 @@ We will focus on only the HA counters below, which will not include basic counte
 
 First of all, we need to store the HA states for us to check.
 
-Please refer to the [ENI state](#1132-eni-state) table in NPU DB for detailed DB schema design.
+Please refer to the [ENI state](#1232-eni-state) table in NPU DB for detailed DB schema design.
 
 ### 2.2. HA operations
 
