@@ -88,11 +88,14 @@ flowchart LR
          NPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
          NPU_DASH_ENI_DP_STATE[DASH_ENI_DP_STATE_TABLE]
       end
+
+      subgraph DASH COUNTER DB
+         NPU_DASH_COUNTERS[DASH_*_COUNTER_TABLE]
+      end
    end
 
    subgraph "DPU0 Components (Same for other DPUs)"
       DPU_SWSS[swss]
-      DPU_SYNCD[syncd]
 
       subgraph DASH APPL DB
          DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
@@ -109,6 +112,7 @@ flowchart LR
       end
    end
 
+   %% Upstream services --> northbound interfaces:
    NC --> |gNMI| NPU_DPU
    NC --> |gNMI| NPU_VDPU
    NC --> |gNMI| NPU_DASH_HA_GLOBAL_CONFIG
@@ -118,42 +122,51 @@ flowchart LR
    SC --> |gNMI| NPU_DASH_ENI_HA_CONFIG
    SC --> |gNMI| DPU_DASH_ENI
 
+   %% NPU tables --> NPU side SWSS:
    NPU_DPU --> NPU_SWSS
-   NPU_DPU --> NPU_HAMGRD
    NPU_VDPU --> NPU_SWSS
-   NPU_VDPU --> NPU_HAMGRD
+   NPU_BFD_SESSION --> NPU_SWSS
 
+   %% NPU side SWSS --> NPU tables:
    NPU_SWSS --> NPU_DPU_STATE
    NPU_SWSS --> NPU_VDPU_STATE
    NPU_SWSS --> NPU_BFD_SESSION_STATE
 
-   NPU_BFD_SESSION --> NPU_SWSS
-   NPU_DPU_STATE --> NPU_HAMGRD
-   NPU_VDPU_STATE --> NPU_HAMGRD
+   %% NPU tables --> hamgrd:
+   NPU_DPU --> NPU_HAMGRD
+   NPU_VDPU --> NPU_HAMGRD
+   NPU_DPU_STATE --> |via Table Query| NPU_HAMGRD
+   NPU_VDPU_STATE --> |via Table Query| NPU_HAMGRD
    NPU_BFD_SESSION_STATE --> NPU_HAMGRD
    NPU_DASH_HA_GLOBAL_CONFIG --> NPU_HAMGRD
    NPU_DASH_HA_SET --> NPU_HAMGRD
    NPU_DASH_ENI_PLACEMENT --> NPU_HAMGRD
    NPU_DASH_ENI_HA_CONFIG --> NPU_HAMGRD
+   NPU_DASH_COUNTERS --> |via Table Query| NPU_HAMGRD
 
+   %% DPU tables --> hamgrd:
+   DPU_DASH_ENI_HA_STATE --> NPU_HAMGRD
+   DPU_DASH_COUNTERS --> |via Table Query| NPU_HAMGRD
+
+   %% hamgrd --> NPU tables:
    NPU_HAMGRD --> NPU_DASH_DPU_HA_STATE
    NPU_HAMGRD --> NPU_DASH_VDPU_HA_STATE
    NPU_HAMGRD --> NPU_DASH_ENI_HA_STATE
    NPU_HAMGRD --> NPU_DASH_ENI_DP_STATE
    NPU_HAMGRD --> NPU_BFD_SESSION
 
+   %% hamgrd --> DPU tables:
    NPU_HAMGRD --> DPU_DASH_HA_SET
    NPU_HAMGRD --> DPU_DASH_ENI_HA_BULK_SYNC_SESSION
 
+   %% DPU tables --> DPU SWSS:
    DPU_DASH_ENI --> DPU_SWSS
    DPU_DASH_HA_SET --> DPU_SWSS
    DPU_DASH_ENI_HA_BULK_SYNC_SESSION --> DPU_SWSS
 
-   DPU_SWSS --> DPU_SYNCD
+   %% DPU swss --> DPU tables:
    DPU_SWSS --> DPU_DASH_ENI_HA_STATE
-
-   DPU_DASH_ENI_HA_STATE --> NPU_HAMGRD
-   DPU_SYNCD --> DPU_DASH_COUNTERS
+   DPU_SWSS --> DPU_DASH_COUNTERS
 ```
 
 ### 1.2. NPU DB schema
@@ -596,6 +609,6 @@ Please refer to HA session API and flow API HLD in DASH repo for SAI API designs
 The following commands shall be added in CLI for checking the HA config and states:
 
 * `show dash ha config`: Shows HA global configuration.
-* `show dash eni ha config`: Show the ENI level HA configuration
-* `show dash eni ha status`: Show the ENI level HA status
-* `show dash eni ha dp-status`
+* `show dash eni ha config`: Show the ENI level HA configuration.
+* `show dash eni ha status`: Show the ENI level HA status.
+* `show dash eni ha dp-status`: Show the ENI level data path status.
