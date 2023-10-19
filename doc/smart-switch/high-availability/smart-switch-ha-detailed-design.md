@@ -15,10 +15,13 @@
          3. [1.1.2.3. ENI configurations](#1123-eni-configurations)
       3. [1.1.3. State DB](#113-state-db)
          1. [1.1.3.1. DPU / vDPU state](#1131-dpu--vdpu-state)
-         2. [1.1.3.2. ENI status](#1132-eni-status)
+         2. [1.1.3.2. ENI state](#1132-eni-state)
    2. [1.2. DPU DB schema](#12-dpu-db-schema)
       1. [1.2.1. APPL DB](#121-appl-db)
-         1. [1.2.1.1. DASH ENI object table](#1211-dash-eni-object-table)
+         1. [1.2.1.1. HA set configurations](#1211-ha-set-configurations)
+         2. [1.2.1.2. DASH ENI object table](#1212-dash-eni-object-table)
+      2. [1.2.2. State DB](#122-state-db)
+         1. [1.2.2.1. ENI HA state](#1221-eni-ha-state)
 2. [2. Telemetry](#2-telemetry)
    1. [2.1. HA state](#21-ha-state)
    2. [2.2. HA operations](#22-ha-operations)
@@ -41,6 +44,8 @@
 
 ## 1. Database Schema
 
+NOTE: Only the configuration that is related to HA is listed here and please check [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) to see other fields.
+
 ### 1.1. NPU DB schema
 
 #### 1.1.1. CONFIG DB
@@ -52,7 +57,7 @@
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DPU_TABLE | | | Physical DPU configuration |
+| DPU_TABLE | | | Physical DPU configuration.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
 | | \<DPU_ID\> | | Physical DPU ID |
 | | | type | Type of DPU. It can be "local", "cluster" or "external". |
 | | | state | Admin state of the DPU device. |
@@ -62,7 +67,7 @@
 | | | npu_ipv4 | IPv4 address of its owning NPU loopback. |
 | | | npu_ipv6 | IPv6 address of its owning NPU loopback. |
 | | | probe_ip | Custom probe point if we prefer to use a different one from the DPU IP address. |
-| VDPU_TABLE | | | Virtual DPU configuration |
+| VDPU_TABLE | | | Virtual DPU configuration.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
 | | \<VDPU_ID\> | | Virtual DPU ID |
 | | | profile | The profile of the vDPU. |
 | | | tier | The tier of the vDPU. |
@@ -75,11 +80,7 @@
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DPU_HA_GLOBAL_CONFIG | N/A | | HA global configurations |
-| | | npu_tunnel_dst_port | The destination port used when tunneling packets via NPU-to-DPU tunnel. |
-| | | npu_tunnel_src_port_min | The min source port used when tunneling packets via NPU-to-DPU tunnel. |
-| | | npu_tunnel_src_port_max | The max source port used when tunneling packets via NPU-to-DPU tunnel. |
-| | | npu_tunnel_vni | The VNI used when tunneling packets via NPU-to-DPU tunnel. |
+| DASH_HA_GLOBAL_CONFIG | N/A | | HA global configurations.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
 | | | dp_channel_dst_port | The destination port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
@@ -91,11 +92,13 @@
 
 ##### 1.1.2.1. HA set configurations
 
-The HA set configuration should be programmed on all switches, so we could program the ENI location information and setup the traffic forwarding rules.
+* The HA set table defines which DPUs should be forming the same HA set and how. 
+* The HA set table should be programmed on all switches, so we could program the ENI location information and setup the traffic forwarding rules.
+* If the HA set contains local vDPU, it will be copied to DPU side DB by `hamgrd` as well.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DPU_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set. |
+| DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
 | | | vdpu_ids | The ID of the vDPUs. |
@@ -105,11 +108,13 @@ The HA set configuration should be programmed on all switches, so we could progr
 
 ##### 1.1.2.2. ENI placement configurations
 
-The ENI placement table defines which HA set this ENI belongs to, and how to forward the traffic.
+* The ENI placement table defines which HA set this ENI belongs to, and how to forward the traffic. 
+* The ENI placement table should be programmed on all switches.
+* Once this table is programmed, `hamgrd` will generate the BFD
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| ENI_PLACEMENT_TABLE | | | ENI placement. |
+| DASH_ENI_PLACEMENT_TABLE | | | ENI placement.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
 | | \<ENI_ID\> | | ENI ID. Used for identifying a single ENI. |
 | | | version | Config version. |
 | | | eni_mac | ENI mac address. Used to create the NPU side ACL rules to match the incoming packets and forward to the right DPUs. |
@@ -118,12 +123,15 @@ The ENI placement table defines which HA set this ENI belongs to, and how to for
 
 ##### 1.1.2.3. ENI configurations
 
+* The ENI HA configuration table contains the ENI-level HA config.
+* The ENI HA configuraiton table only contains the ENIs that is hosted on the local switch.
+
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| ENI_CONFIG_TABLE | | | ENI configuration. |
+| DASH_ENI_HA_CONFIG_TABLE | | | ENI HA configuration.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
 | | \<VDPU_ID\> | | vDPU ID. Used to identifying a single vDPU. |
 | | \<ENI_ID\> | | ENI ID. Used for identifying a single ENI. |
-| | | ha_config_version | Config version. |
+| | | version | Config version. |
 | | | desired_ha_state | The desired state for this ENI. It can only be "" (none), dead, active or standalone. |
 | | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
 
@@ -131,32 +139,29 @@ The ENI placement table defines which HA set this ENI belongs to, and how to for
 
 ##### 1.1.3.1. DPU / vDPU state
 
-DPU/vDPU state table stores the states of each DPU/vDPU, e.g.:
-
-* Card level probe state.
-* Health state, if the DPU/vDPU is local.
+DPU/vDPU state table stores the states of each DPU/vDPU, e.g.: Card level probe state, Health state, if the DPU/vDPU is local.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DPU_TABLE | | | Physical DPU state |
+| DPU_TABLE | | | Physical DPU state.<br><br>Producer: NPU side `swss`, Consumer: DPU side `swss`. |
 | | \<DPU_ID\> | | Physical DPU ID |
 | | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
 | | | health_state | Health state of the DPU device. It can be "healthy", "unhealthy". Only valid when the DPU is local. |
-| VDPU_TABLE | | | Virtual DPU state |
+| VDPU_TABLE | | | Virtual DPU state.<br><br>Producer: NPU side `swss`, Consumer: DPU side `swss`. |
 | | \<VDPU_ID\> | | Virtual DPU ID |
 | | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
 | | | health_state | Health state of the vDPU. It can be "healthy", "unhealthy". Only valid when the vDPU is local. |
 
-##### 1.1.3.2. ENI status
+##### 1.1.3.2. ENI state
 
-On NPU side, the ENI status table shows:
+On NPU side, the ENI state table shows:
 
 * The HA state of each local ENI.
 * The traffic forwarding state of all known ENIs.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| ENI_STATUS_TABLE | | | Data plane state of each ENI. |
+| DASH_ENI_HA_STATE_TABLE | | | Data plane state of each ENI that is hosted on local switch.<br><br>Producer: `hamgrd`. |
 | | \<VDPU_ID\> | | VDPU ID. Used to identifying a single VDPU. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | data_path_vip | Data path VIP of the ENI. |
@@ -175,7 +180,7 @@ On NPU side, the ENI status table shows:
 | | | pending_approval_operation_id | Pending approval operation ID (GUID). |
 | | | pending_approval_operation_start_time_in_ms | The time when last operation request is sent. |
 | | | bulk_sync_start_time_in_ms | Bulk sync start time in milliseconds. |
-| ENI_DP_STATUS_TABLE | | | Data plane state of each ENI. |
+| ENI_DP_STATE_TABLE | | | Data plane state of all known ENI.<br><br>Producer: `hamgrd`. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | next_hops | All possible next hops for this ENI. |
 | | | next_hops_types | Type of each next hops, connected by ",". |
@@ -187,15 +192,55 @@ On NPU side, the ENI status table shows:
 
 #### 1.2.1. APPL DB
 
-##### 1.2.1.1. DASH ENI object table
+##### 1.2.1.1. HA set configurations
 
-* The ENI configuration will only be programmed on the switch that is hosting the ENIs.
-* Please NOTE that only the configuration that is related to HA is listed here and please check [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) to see other fields.
+If any HA set configuration is related to local DPU, it will be parsed and being programmed to the DPU side DB, which will be translated to SAI API calls and sent to ASIC by DPU side swss.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_TABLE | | | HA configuration for each ENI. |
+| DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set.<br><br>Producer: `hamgrd`, Consumer: DPU side `swss`. |
+| | \<HA_SET_ID\> | | HA set ID |
+| | | version | Config version. |
+| | | mode | Mode of HA set. It can be "activestandby". |
+| | | peer_dpu_ipv4 | The IPv4 address of peer DPU. |
+| | | peer_dpu_ipv6 | The IPv6 address of peer DPU. |
+| | | dp_channel_dst_port | The destination port used when tunneling packetse via DPU-to-DPU data plane channel. |
+| | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
+| | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
+| | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
+
+##### 1.2.1.2. DASH ENI object table
+
+* The DASH objects will only be programmed on the DPU that is hosting the ENIs.
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_ENI_TABLE | | | HA configuration for each ENI.<br><br>Producer: `gNMI`, Consumer: DPU side `swss`. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
+| | | ha_set_id | HA set id. |
+| | | ha_role | HA role. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
+| | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
+| DASH_ENI_HA_BULK_SYNC_SESSION_TABLE | | | HA bulk sync session table.<br><br>Producer: `hamgrd`, Consumer: DPU side `swss`. |
+| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
+| | | session_id | Bulk sync session id. |
+| | | flow_svrs | Server IP endpoints that receives flow records. The server is based on gRPC and more details can be found in flow API doc. |
+
+#### 1.2.2. State DB
+
+##### 1.2.2.1. ENI HA state
+
+* The ENI HA state table contains the ENI-level HA state.
+* The ENI HA state table only contains the ENIs that is hosted on the local DPU.
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_ENI_HA_STATE_TABLE | | | HA state of each ENI that is hosted on local DPU.<br><br>Producer: DPU side `swss`, Consumer: `hamgrd`. |
+| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
+| | | ha_role | The current HA role confirmed by ASIC. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
+| | | term | The current term confirmed by ASIC. |
+| | | ha_role_last_update_time | The time when HA role is last updated in milliseconds. |
+| | | ongoing_bulk_sync_session_id | Ongoing bulk sync session id. |
+| | | ongoing_bulk_sync_session_start_time_in_ms | Ongoing bulk sync session start time in milliseconds. |
 
 ## 2. Telemetry
 
@@ -212,7 +257,7 @@ We will focus on only the HA counters below, which will not include basic counte
 
 First of all, we need to store the HA states for us to check.
 
-Please refer to the [ENI state](#1132-eni-status) table in NPU DB for detailed DB schema design.
+Please refer to the [ENI state](#1132-eni-state) table in NPU DB for detailed DB schema design.
 
 ### 2.2. HA operations
 
@@ -425,8 +470,7 @@ Please refer to HA session API and flow API HLD in DASH repo for SAI API designs
 
 The following commands shall be added in CLI for checking the HA config and states:
 
-```
-- show dash ha config
-- show dash eni ha status
-- show dash eni ha dp-status
-```
+* `show dash ha config`: Shows HA global configuration.
+* `show dash eni ha config`: Show the ENI level HA configuration
+* `show dash eni ha status`: Show the ENI level HA status
+* `show dash eni ha dp-status`
