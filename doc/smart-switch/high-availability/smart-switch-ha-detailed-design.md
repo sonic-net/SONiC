@@ -16,7 +16,9 @@
          3. [1.2.2.3. ENI configurations](#1223-eni-configurations)
       3. [1.2.3. State DB](#123-state-db)
          1. [1.2.3.1. DPU / vDPU state](#1231-dpu--vdpu-state)
-         2. [1.2.3.2. ENI state](#1232-eni-state)
+      4. [1.2.4. DASH State DB](#124-dash-state-db)
+         1. [1.2.4.1. DPU / vDPU HA states](#1241-dpu--vdpu-ha-states)
+         2. [1.2.4.2. ENI state](#1242-eni-state)
    3. [1.3. DPU DB schema](#13-dpu-db-schema)
       1. [1.3.1. APPL DB](#131-appl-db)
          1. [1.3.1.1. HA set configurations](#1311-ha-set-configurations)
@@ -65,6 +67,10 @@ flowchart LR
       end
 
       subgraph APPL DB
+         NPU_BFD_SESSION[BFD_SESSION_TABLE]
+      end
+
+      subgraph DASH APPL DB
          NPU_DASH_HA_SET[DASH_HA_SET_TABLE]
          NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
          NPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
@@ -73,33 +79,44 @@ flowchart LR
       subgraph STATE DB
          NPU_DPU_STATE[DPU_TABLE]
          NPU_VDPU_STATE[VDPU_TABLE]
+         NPU_BFD_SESSION_STATE[BFD_SESSION_TABLE]
+      end
+
+      subgraph DASH STATE DB
+         NPU_DASH_DPU_HA_STATE[DASH_DPU_HA_STATE_TABLE]
+         NPU_DASH_VDPU_HA_STATE[DASH_VDPU_HA_STATE_TABLE]
          NPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
-         NPU_ENI_DP_STATE[ENI_DP_STATE_TABLE]
+         NPU_DASH_ENI_DP_STATE[DASH_ENI_DP_STATE_TABLE]
       end
    end
 
    subgraph "DPU0 Components (Same for other DPUs)"
       DPU_SWSS[swss]
+      DPU_SYNCD[syncd]
 
-      subgraph APPL DB
+      subgraph DASH APPL DB
          DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
          DPU_DASH_ENI[DASH_ENI_TABLE]
          DPU_DASH_ENI_HA_BULK_SYNC_SESSION[DASH_ENI_HA_BULK_SYNC_SESSION_TABLE]
       end
 
-      subgraph STATE DB
+      subgraph DASH STATE DB
          DPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
+      end
+
+      subgraph DASH COUNTER DB
+         DPU_DASH_COUNTERS[DASH_*_COUNTER_TABLE]
       end
    end
 
-   NC --> NPU_DPU
-   NC --> NPU_VDPU
-   NC --> NPU_DASH_HA_GLOBAL_CONFIG
+   NC --> |gNMI| NPU_DPU
+   NC --> |gNMI| NPU_VDPU
+   NC --> |gNMI| NPU_DASH_HA_GLOBAL_CONFIG
 
-   SC --> NPU_DASH_HA_SET
-   SC --> NPU_DASH_ENI_PLACEMENT
-   SC --> NPU_DASH_ENI_HA_CONFIG
-   SC --> DPU_DASH_ENI
+   SC --> |gNMI| NPU_DASH_HA_SET
+   SC --> |gNMI| NPU_DASH_ENI_PLACEMENT
+   SC --> |gNMI| NPU_DASH_ENI_HA_CONFIG
+   SC --> |gNMI| DPU_DASH_ENI
 
    NPU_DPU --> NPU_SWSS
    NPU_DPU --> NPU_HAMGRD
@@ -108,14 +125,35 @@ flowchart LR
 
    NPU_SWSS --> NPU_DPU_STATE
    NPU_SWSS --> NPU_VDPU_STATE
+   NPU_SWSS --> NPU_BFD_SESSION_STATE
 
+   NPU_BFD_SESSION --> NPU_SWSS
+   NPU_DPU_STATE --> NPU_HAMGRD
+   NPU_VDPU_STATE --> NPU_HAMGRD
+   NPU_BFD_SESSION_STATE --> NPU_HAMGRD
    NPU_DASH_HA_GLOBAL_CONFIG --> NPU_HAMGRD
    NPU_DASH_HA_SET --> NPU_HAMGRD
    NPU_DASH_ENI_PLACEMENT --> NPU_HAMGRD
    NPU_DASH_ENI_HA_CONFIG --> NPU_HAMGRD
 
+   NPU_HAMGRD --> NPU_DASH_DPU_HA_STATE
+   NPU_HAMGRD --> NPU_DASH_VDPU_HA_STATE
    NPU_HAMGRD --> NPU_DASH_ENI_HA_STATE
-   NPU_HAMGRD --> NPU_ENI_DP_STATE
+   NPU_HAMGRD --> NPU_DASH_ENI_DP_STATE
+   NPU_HAMGRD --> NPU_BFD_SESSION
+
+   NPU_HAMGRD --> DPU_DASH_HA_SET
+   NPU_HAMGRD --> DPU_DASH_ENI_HA_BULK_SYNC_SESSION
+
+   DPU_DASH_ENI --> DPU_SWSS
+   DPU_DASH_HA_SET --> DPU_SWSS
+   DPU_DASH_ENI_HA_BULK_SYNC_SESSION --> DPU_SWSS
+
+   DPU_SWSS --> DPU_SYNCD
+   DPU_SWSS --> DPU_DASH_ENI_HA_STATE
+
+   DPU_DASH_ENI_HA_STATE --> NPU_HAMGRD
+   DPU_SYNCD --> DPU_DASH_COUNTERS
 ```
 
 ### 1.2. NPU DB schema
@@ -129,7 +167,7 @@ flowchart LR
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DPU_TABLE | | | Physical DPU configuration.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
+| DPU_TABLE | | | Physical DPU configuration. |
 | | \<DPU_ID\> | | Physical DPU ID |
 | | | type | Type of DPU. It can be "local", "cluster" or "external". |
 | | | state | Admin state of the DPU device. |
@@ -139,7 +177,7 @@ flowchart LR
 | | | npu_ipv4 | IPv4 address of its owning NPU loopback. |
 | | | npu_ipv6 | IPv6 address of its owning NPU loopback. |
 | | | probe_ip | Custom probe point if we prefer to use a different one from the DPU IP address. |
-| VDPU_TABLE | | | Virtual DPU configuration.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
+| VDPU_TABLE | | | Virtual DPU configuration. |
 | | \<VDPU_ID\> | | Virtual DPU ID |
 | | | profile | The profile of the vDPU. |
 | | | tier | The tier of the vDPU. |
@@ -152,7 +190,7 @@ flowchart LR
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_HA_GLOBAL_CONFIG | N/A | | HA global configurations.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
+| DASH_HA_GLOBAL_CONFIG | N/A | | HA global configurations. |
 | | | dp_channel_dst_port | The destination port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
@@ -170,7 +208,7 @@ flowchart LR
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
+| DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
 | | | vdpu_ids | The ID of the vDPUs. |
@@ -186,7 +224,7 @@ flowchart LR
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_PLACEMENT_TABLE | | | ENI placement.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
+| DASH_ENI_PLACEMENT_TABLE | | | ENI placement. |
 | | \<ENI_ID\> | | ENI ID. Used for identifying a single ENI. |
 | | | version | Config version. |
 | | | eni_mac | ENI mac address. Used to create the NPU side ACL rules to match the incoming packets and forward to the right DPUs. |
@@ -200,7 +238,7 @@ flowchart LR
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_HA_CONFIG_TABLE | | | ENI HA configuration.<br><br>Producer: `gNMI`, Consumer: `hamgrd`. |
+| DASH_ENI_HA_CONFIG_TABLE | | | ENI HA configuration. |
 | | \<VDPU_ID\> | | vDPU ID. Used to identifying a single vDPU. |
 | | \<ENI_ID\> | | ENI ID. Used for identifying a single ENI. |
 | | | version | Config version. |
@@ -211,20 +249,35 @@ flowchart LR
 
 ##### 1.2.3.1. DPU / vDPU state
 
-DPU/vDPU state table stores the states of each DPU/vDPU, e.g.: Card level probe state, Health state, if the DPU/vDPU is local.
+DPU/vDPU state table stores the health states of each DPU/vDPU. These data are collected by `pmon`.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DPU_TABLE | | | Physical DPU state.<br><br>Producer: NPU side `swss`, Consumer: DPU side `swss`. |
+| DPU_TABLE | | | Physical DPU state. |
+| | \<DPU_ID\> | | Physical DPU ID |
+| | | health_state | Health state of the DPU device. It can be "healthy", "unhealthy". Only valid when the DPU is local. |
+| | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
+| VDPU_TABLE | | | Virtual DPU state. |
+| | \<VDPU_ID\> | | Virtual DPU ID |
+| | | health_state | Health state of the vDPU. It can be "healthy", "unhealthy". Only valid when the vDPU is local. |
+| | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
+
+#### 1.2.4. DASH State DB
+
+##### 1.2.4.1. DPU / vDPU HA states
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_HA_DPU_STATE_TABLE | | | HA related Physical DPU state. |
 | | \<DPU_ID\> | | Physical DPU ID |
 | | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
-| | | health_state | Health state of the DPU device. It can be "healthy", "unhealthy". Only valid when the DPU is local. |
-| VDPU_TABLE | | | Virtual DPU state.<br><br>Producer: NPU side `swss`, Consumer: DPU side `swss`. |
+| | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
+| DASH_HA_VDPU_STATE_TABLE | | | HA related Virtual DPU state. |
 | | \<VDPU_ID\> | | Virtual DPU ID |
 | | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
-| | | health_state | Health state of the vDPU. It can be "healthy", "unhealthy". Only valid when the vDPU is local. |
+| | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
 
-##### 1.2.3.2. ENI state
+##### 1.2.4.2. ENI state
 
 On NPU side, the ENI state table shows:
 
@@ -233,7 +286,7 @@ On NPU side, the ENI state table shows:
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_HA_STATE_TABLE | | | Data plane state of each ENI that is hosted on local switch.<br><br>Producer: `hamgrd`. |
+| DASH_ENI_HA_STATE_TABLE | | | Data plane state of each ENI that is hosted on local switch. |
 | | \<VDPU_ID\> | | VDPU ID. Used to identifying a single VDPU. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | data_path_vip | Data path VIP of the ENI. |
@@ -252,7 +305,7 @@ On NPU side, the ENI state table shows:
 | | | pending_approval_operation_id | Pending approval operation ID (GUID). |
 | | | pending_approval_operation_start_time_in_ms | The time when last operation request is sent. |
 | | | bulk_sync_start_time_in_ms | Bulk sync start time in milliseconds. |
-| ENI_DP_STATE_TABLE | | | Data plane state of all known ENI.<br><br>Producer: `hamgrd`. |
+| DASH_ENI_DP_STATE_TABLE | | | Data plane state of all known ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | next_hops | All possible next hops for this ENI. |
 | | | next_hops_types | Type of each next hops, connected by ",". |
@@ -270,7 +323,7 @@ If any HA set configuration is related to local DPU, it will be parsed and being
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set.<br><br>Producer: `hamgrd`, Consumer: DPU side `swss`. |
+| DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
 | | | mode | Mode of HA set. It can be "activestandby". |
@@ -287,12 +340,12 @@ If any HA set configuration is related to local DPU, it will be parsed and being
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_TABLE | | | HA configuration for each ENI.<br><br>Producer: `gNMI`, Consumer: DPU side `swss`. |
+| DASH_ENI_TABLE | | | HA configuration for each ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | ha_set_id | HA set id. |
 | | | ha_role | HA role. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
 | | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
-| DASH_ENI_HA_BULK_SYNC_SESSION_TABLE | | | HA bulk sync session table.<br><br>Producer: `hamgrd`, Consumer: DPU side `swss`. |
+| DASH_ENI_HA_BULK_SYNC_SESSION_TABLE | | | HA bulk sync session table. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | session_id | Bulk sync session id. |
 | | | flow_svrs | Server IP endpoints that receives flow records. The server is based on gRPC and more details can be found in flow API doc. |
@@ -306,7 +359,7 @@ If any HA set configuration is related to local DPU, it will be parsed and being
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_HA_STATE_TABLE | | | HA state of each ENI that is hosted on local DPU.<br><br>Producer: DPU side `swss`, Consumer: `hamgrd`. |
+| DASH_ENI_HA_STATE_TABLE | | | HA state of each ENI that is hosted on local DPU. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | ha_role | The current HA role confirmed by ASIC. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
 | | | term | The current term confirmed by ASIC. |
