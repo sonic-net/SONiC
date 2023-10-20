@@ -35,6 +35,7 @@ Deterministic Approach for Interface Link bring-up sequence
 | 0.7 | 02/02/2022  | Jaganathan Anbalagan               | Added Breakout Handling 
 | 0.8 | 02/16/2022  | Shyam Kumar                        | Updated feature-enablement workflow
 | 0.9 | 04/05/2022  | Shyam Kumar                        | Addressed review comments           |
+| 1.0 | 10/20/2023  | Mihir Patel                        | Added Port re-initialization during syncd/swss/orchagent crash section           |
 
 
 # About this Manual
@@ -192,13 +193,17 @@ if transceiver is not present:
 
 When syncd/swss/orchagent crashes, all ports in the corresponding namespace will be reinitialized by xcvrd irrespective of the current state of the port. All the corresponding ports are expected to experience link down until the initialization is complete.  
 If just xcvrd crashes and restarts, then forced re-initialization (CMIS reinit + NPU SI settings notification) of ports will not be performed. Hence, the ports will not experience link downtime during scenario.
-CMIS_REINIT_REQUIRED and NPU_SI_SETTINGS_SYNC_STATUS keys in PORT_TABLE:\<port\> (APPL_DB) are used to determine if port re-initialization is required or not.
+CMIS_REINIT_REQUIRED and NPU_SI_SETTINGS_SYNC_STATUS keys in PORT_TABLE:\<port\> (APPL_DB) are used to determine if port re-initialization is required or not.  
   - CMIS_REINIT_REQUIRED key states if CMIS re-initialization is required for a port after xcvrd is spawned. CMIS_REINIT_REQUIRED helps in mainly driving CMIS re-initialization after syncd/swss/orchagent crash since it will allow reinitializing ports belonging to the relevant namespace of the crashing process. This key is not planned to drive CMIS initialization after transceiver insertion.  
   - NPU_SI_SETTINGS_SYNC_STATUS key is used as a means to communicate the status of applying NPU SI settings for a transceiver requiring NPU SI settings. This key is used to update the NPU SI settings application status between SfpStateUpdateTask, CmisManagerTask and Orchagent. In case of warm reboot or xcvrd restart, this key will prevent application of NPU SI settings on the port if the settings are already applied. In case of transceiver insertion, NPU SI settings will be applied irrespective of the NPU SI settings application status for the port.  
+  Also, this key helps in preventing additional link flap which can happen if CMIS state machine initializes a port before NPU SI settings are applied (since application of NPU SI settings involves disabling the port followed by enabling it).  
 In case of continuous restart of xcvrd, both the keys will still hold the same value as before the restart. This would ensure that the port re-initialization is resumed from the last known state.  
 
-Following infra will ensure port re-initialization by xcvrd in case of syncd/swss/orchagent crash
+Rationale for choosing APPL_DB over STATE_DB for storing CMIS_REINIT_REQUIRED and NPU_SI_SETTINGS_SYNC_STATUS keys
+ - APPL_DB is the first DB which gets cleared as part of SWSS crash handling. This inturn helps XCVRD to detect DB removal and terminate child threads and itself earlier than other DBs.
+ - The PORT_TABLE in STATE_DB has multiple fields which can dynamically change (such as netdev_oper_status and host_tx_ready) more often than PORT_TABLE in APPL_DB. Hence, XCVRD will receive less events if it watches PORT_TABLE in APPL_DB. The watch is needed to kill XCVRD and its child threads during syncd/swss/orcahagent crash
 
+Following infra will ensure port re-initialization by xcvrd in case of syncd/swss/orchagent crash
 Pre-requisites for the infra to work:
   - APPL_DB should be cleared after syncd/swss/orchagent crash/restart, config reload and cold reboot
   - APPL_DB should be retained after 
@@ -217,7 +222,7 @@ A transceiver is classified as CMIS SM driven transceiver if its module type is 
 | Value                    | Modifier thread and event                                                                                                                                                                                           | Consumer thread and purpose                                                                     |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | NPU_SI_SETTINGS_DEFAULT  | 1\. XCVRD main thread during cold start of XCVRD<br>2. SfpStateUpdateTask during transceiver removal                                                                                                                | XCVRD main thread during boot-up for deciding to notify NPU SI settings                         |
-| NPU_SI_SETTINGS_NOTIFIED | 1\. SfpStateUpdateTask while updating and notifying the NPU SI settings for non-CMIS SM driven transceivers<br> 2. CmisManagerTask while updating and notifying the NPU SI settings for CMIS SM driven transceivers | Not being used currently                                                                        |
+| NPU_SI_SETTINGS_NOTIFIED | 1\. SfpStateUpdateTask while updating and notifying the NPU SI settings for non-CMIS SM driven transceivers (this approach was chosen to preserve the existing behavior for non-CMIS SM driven transceivers)<br> 2. CmisManagerTask while updating and notifying the NPU SI settings for CMIS SM driven transceivers | Not being used currently                                                                        |
 | NPU_SI_SETTINGS_DONE     | Orchagent after applying the SI settings                                                                                                                                                                            | CmisManagerTask for proceeding from CMIS_STATE_NPU_SI_SETTINGS_WAIT to CMIS_STATE_DP_INIT state |
 
 
