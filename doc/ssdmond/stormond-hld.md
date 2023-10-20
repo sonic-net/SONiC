@@ -52,11 +52,9 @@ These fields are self-explanatory.
 
 ### **2.3 `stormond` Daemon Flow**
 
-0. SONiC partners would be responsible for configuring the **loop timeout** - This determines how often the dynamic information would be updated. Default is 6 hours.
-
 1. `stormond` would be started by the `pmon` docker container
 2. The daemon would gather the static info once init-ed, by leveraging the `SsdUtil` class and update the StateDB
-3. It would periodically parse the priority 0 attributes by leveraging `SsdUtil` class and update the StateDB.
+3. It would parse the priority 0 attributes by leveraging `SsdUtil` class and update the StateDB every hour.
 
 This is detailed in the sequence diagram below:
 
@@ -111,7 +109,7 @@ Returns:
 
 The `ssdutil` utility assumes that the disk drive is `/dev/sda` whereas the drive letter could be any label based on the number of SSDs. It could also be a different type of storage device such as eMMC, eUSB or NVMe.
 
-In order to get a clear picture of the number and type of disks present on a device, we introduce a new class `StorageDevices()` This new class provides the following methods:
+In order to get a clear picture of the number and type of disks present on a device, we introduce a new class `StorageDevices()` which will accompany the stormond daemon at `sonic-platform-daemons/sonic-stormond/scripts/StorageDevices.py`. This new class provides the following methods:
 
 ```
 class StorageDevices():
@@ -124,11 +122,12 @@ devices = {}
 def get_storage_devices(self):
 """
 Retrieves all the storage disks on the device and adds their names as key to the 'devices' dict.
-
+"""
 
 def get_storage_device_object(self):
 """
-Instantiates an object of the corresponding storage device class. Appends the instantiated class object to the corresponding dictionary object key.
+Instantiates an object of the corresponding storage device class. 
+Adds the instantiated class object as a value to the corresponding key in the dictionary object.
 
 NOTE: SsdUtil is supported currently. Future support for EmmcUtil, eUSBUtil and NVMeUtil
 
@@ -141,19 +140,19 @@ This class is a helper to the Storage Daemon class.
 Example usage:
 
 Assuming a device contains the following storage disks:
-
+```
 root@str-a7280cr3-2:~# ls /sys/block/
 loop0  loop1  loop2  loop3  loop4  loop5  loop6  loop7  **mmcblk0**  mmcblk0boot0  mmcblk0boot1  **sda**
-
+```
 
 We would instantiate an object of the StorageDevices() class
-storage = StorageDevices()
+`storage = StorageDevices()`
 
-storage.devices would contain {"mmcblk0": <Emmcutil object>, "sda": <SsdUtil object>}
+`storage.devices` would contain `{"mmcblk0": <Emmcutil object>, "sda": <SsdUtil object>}`
 
 we would then get static and dynamic information by leveraging the respective member function implementations of `SsdUtil` and `EmmcUtil`, as they both derive from `SsdBase`.
 
-Note that eUSBUtil and NVMeUtil classes are not yet available.
+**NOTE:** eUSBUtil and NVMeUtil classes are not yet available.
 
 
 We then leverage the following proposed StateDB schema to store and stream information about each of these disks.
@@ -206,6 +205,7 @@ Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
 1. Support for eMMC, eUSB and NVMe storage disks
 2. Refactor `ssdutil` [in sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/ssdutil) to cover all storage types, including changing the name of the utility to 'storageutil'
+3. Rename `sonic_ssd` and its constituent scripts (`ssd_generic.py`, `ssd_emmc.py`) to encompass all storage types
 
 <br><br><br>
 <sup>[Back to top](#1-overview)</sup>
