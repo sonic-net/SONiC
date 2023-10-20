@@ -1,4 +1,4 @@
-# SONiC SSD Daemon Design #
+# SONiC Storage Monitoring Daemon Design #
 ### Rev 0.1 ###
 
  | Rev |     Date    |       Author       | Change Description                |
@@ -7,11 +7,11 @@
 
 ## 1. Overview
 
-This document is intended to provide a high-level design for a Solid-State Drive monitoring daemon.
+This document is intended to provide a high-level design for a Storage monitoring daemon.
 
 Solid-State Drives (SSDs) are storage devices that use NAND-flash technology to store data. They offer the end user significant benefits compared to HDDs, some of which include reliability, reduced size, increased energy efficiency and improved IO speeds which translates to faster boot times, quicker computational capabilities and an improved system responsiveness overall. Like all devices, however, they experience performance degradation over time on account of a variety of factors such as overall disk writes, bad-blocks management, lack of free space, sub-optimal operational temperature and good-old wear-and-tear which speaks to the overall health of the SSD. 
 
-The goal of the SSD Monitoring Daemon (ssdmond) is to provide meaningful metrics for the aforementioned issues and enable streaming telemetry for these attributes so that the required preventative measures are triggered in the eventuality of performance degradation.
+The goal of the Storage Monitoring Daemon (stormond) is to provide meaningful metrics for the aforementioned issues and enable streaming telemetry for these attributes so that the required preventative measures are triggered in the eventuality of performance degradation.
 
 ## 2. Data Collection
 
@@ -50,17 +50,17 @@ We are intrested in the following characteristics that describe various aspects 
 These fields are self-explanatory.
 
 
-### **2.3 `ssdmond` Daemon Flow**
+### **2.3 `stormond` Daemon Flow**
 
 0. SONiC partners would be responsible for configuring the **loop timeout** - This determines how often the dynamic information would be updated. Default is 6 hours.
 
-1. `ssdmond` would be started by the `pmon` docker container
+1. `stormond` would be started by the `pmon` docker container
 2. The daemon would gather the static info once init-ed, by leveraging the `SsdUtil` class and update the StateDB
 3. It would periodically parse the priority 0 attributes by leveraging `SsdUtil` class and update the StateDB.
 
 This is detailed in the sequence diagram below:
 
-![image.png](images/SSDMOND_SequenceDiagram.png)
+![image.png](images/stormond_SequenceDiagram.png)
 
 ### **2.4 Data Collection Logic**
 
@@ -107,29 +107,69 @@ Returns:
 
 ```
 
-#### **2.4.2 Support for Multiple SSDs**
+#### **2.4.2 Support for Multiple Storage Disks**
 
-The `ssdutil` utility assumes that the SSD drive is  `/dev/sda` whereas the drive letter could be any label based on the nuber of SSDs. We leverage the `lsblk` command to get  list of all the SSDs in the device. For instance, if there were three disks labeled 'sda', 'sdb', and 'sdc' on a device, the output of the `lsblk -d -o name,type` command would typically look something like this:
+The `ssdutil` utility assumes that the disk drive is `/dev/sda` whereas the drive letter could be any label based on the number of SSDs. It could also be a different type of storage device such as eMMC, eUSB or NVMe.
 
-NAME TYPE
-sda  disk
-sdb  disk
-sdc  disk
+In order to get a clear picture of the number and type of disks present on a device, we introduce a new class `StorageDevices()` This new class provides the following methods:
 
-This output lists the names of the disks (sda, sdb, and sdc) and their types (which are "disk" in this case, indicating that they are block storage devices). This output format makes it easy to identify the disks on any system. We then leverage the following proposed StateDB schema to store and stream information about each of these disks.
+```
+class StorageDevices():
+
+# A dictionary where the key is the name of the disk and the value is the corresponding class object
+devices = {}
+
+...
+
+def get_storage_devices(self):
+"""
+Retrieves all the storage disks on the device and adds their names as key to the 'devices' dict.
+
+
+def get_storage_device_object(self):
+"""
+Instantiates an object of the corresponding storage device class. Appends the instantiated class object to the corresponding dictionary object key.
+
+NOTE: SsdUtil is supported currently. Future support for EmmcUtil, eUSBUtil and NVMeUtil
+
+"""
+
+```
+
+This class is a helper to the Storage Daemon class. 
+
+Example usage:
+
+Assuming a device contains the following storage disks:
+
+root@str-a7280cr3-2:~# ls /sys/block/
+loop0  loop1  loop2  loop3  loop4  loop5  loop6  loop7  **mmcblk0**  mmcblk0boot0  mmcblk0boot1  **sda**
+
+
+We would instantiate an object of the StorageDevices() class
+storage = StorageDevices()
+
+storage.devices would contain {"mmcblk0": <Emmcutil object>, "sda": <SsdUtil object>}
+
+we would then get static and dynamic information by leveraging the respective member function implementations of `SsdUtil` and `EmmcUtil`, as they both derive from `SsdBase`.
+
+Note that eUSBUtil and NVMeUtil classes are not yet available.
+
+
+We then leverage the following proposed StateDB schema to store and stream information about each of these disks.
 
 ## **3. StateDB Schema**
 ```
-; Defines information for each SSD in a device
+; Defines information for each Storage Disk in a device
 
-key                 = SSD_INFO|<ssd_name>               ; This key is for information that does not change for the lifetime of the SSD - SSD_INFO|SDX
+key                 = STORAGE_INFO|<disk_name>          ; This key is for information that does not change for the lifetime of the SSD - SSD_INFO|SDX
 
 ; field             = value
 
 temperature_celsius = STRING                            ; Describes the operating temperature of the SSD in Celsius                             (Priority 0, Dynamic)
 io_reads            = INT                               ; Describes the total number of reads completed successfully from the SSD               (Priority 0, Dynamic)
 io_writes           = INT                               ; Describes the total number of writes completed on the SSD                             (Priority 0, Dynamic)
-reserved_blocks      = INT                               ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
+reserved_blocks     = INT                               ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
 device_model        = STRING                            ; Describes the Vendor information of the SSD                                           (Priority 1, Static)
 serial              = STRING                            ; Describes the Serial number of the SSD                                                (Priority 1, Static)
 firmware            = STRING                            ; Describes the Firmware version of the SSD                                             (Priority 1, Static)
@@ -139,10 +179,10 @@ health              = STRING                            ; Describes the overall 
 Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
 ```
-127.0.0.1:6379[6]> KEYS SSD_INFO|*
-1) "SSD_INFO|sdb"
-2) "SSD_INFO|sda"
-127.0.0.1:6379[6]> HGETALL SSD_INFO|SDA
+127.0.0.1:6379[6]> KEYS STORAGE_INFO|*
+1) "STORAGE_INFO|sdb"
+2) "STORAGE_INFO|sda"
+127.0.0.1:6379[6]> HGETALL STORAGE_INFO|sda
  1) "temperature"
  2) "30C"
  3) "io_reads"
@@ -164,13 +204,8 @@ Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
 ## Future Work
 
-1. Support for eMMC storage
-2. Support for more SSD vendors
-
-## References
-
-### 1. [man tune2fs](https://linux.die.net/man/8/tune2f)
-### 2. [kernel.org /proc/diskstats](https://www.kernel.org/doc/Documentation/ABI/testing/procfs-diskstats)
+1. Support for eMMC, eUSB and NVMe storage disks
+2. Refactor `ssdutil` [in sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/ssdutil) to cover all storage types, including changing the name of the utility to 'storageutil'
 
 <br><br><br>
 <sup>[Back to top](#1-overview)</sup>
