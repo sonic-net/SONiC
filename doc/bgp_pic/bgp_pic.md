@@ -50,9 +50,12 @@ BGP PIC, as detailed in the RFC available at https://datatracker.ietf.org/doc/dr
     <img src="images/pic.png" >
     <figcaption>Figure 2. BGP PIC for improving remote BGP PE down event handling <figcaption>
 </figure> 
- The provided graph illustrates that the BGP route 1.1.1.1 is advertised by both PE2 and PE3 to PE1. Each BGP route update message not only conveys the BGP next-hop information but also includes VPN context details. Consequently, when forming BGP Equal-Cost Multipath (ECMP) data structures, it is natural to retain both the BGP next-hop data and context information for each path. The VPN context could be specific to each prefix (a.k.a per prefix), individual customer edge (a.k.a per CE), or Virtual Routing and Forwarding (per VRF) type. This often leads to situations where BGP ECMP data structures cannot be effectively shared, as indicated in the lower-left section of the diagram. When a remote PE goes offline, PE1 must update all relevant BGP ECMP data structures, which can involve handling prefixes of varying lengths, resulting in an operation with a time complexity of O(N). 
 
- The concept of the Parefix Independent Convergence's (PIC) proposal is to restructure this information by segregating the BGP next-hop information from the VPN context. The BGP next-hop-only information will constitute a new BGP ECMP structure that can be shared among all associated BGP VPN routes, as depicted in the lower-right part of the diagram. This approach allows for more efficient updates when the Interior Gateway Protocol (IGP) detects a BGP next-hop failure, resulting in an operation with a time complexity of O(1). This strategy aims to minimize traffic disruption in the hardware. The VPN context will be updated once BGP routes have reconverged.
+
+  -  The provided graph illustrates that the BGP route 1.1.1.1 is advertised by both PE2 and PE3 to PE1. Each BGP route update message not only conveys the BGP next-hop information but also includes VPN context details. 
+  -  Consequently, when forming BGP Equal-Cost Multipath (ECMP) data structures, it is natural to retain both the BGP next-hop data and context information for each path. The VPN context could be specific to each prefix (a.k.a per prefix), individual customer edge (a.k.a per CE), or Virtual Routing and Forwarding (per VRF) type. This often leads to situations where BGP ECMP data structures cannot be effectively shared, as indicated in the lower-left section of the diagram. When a remote PE goes offline, PE1 must update all relevant BGP ECMP data structures, which can involve handling prefixes of varying lengths, resulting in an operation with a time complexity of O(N). 
+
+   - The concept of the Parefix Independent Convergence's (PIC) proposal is to restructure this information by segregating the BGP next-hop information from the VPN context. The BGP next-hop-only information will constitute a new BGP ECMP structure that can be shared among all associated BGP VPN routes, as depicted in the lower-right part of the diagram. This approach allows for more efficient updates when the Interior Gateway Protocol (IGP) detects a BGP next-hop failure, resulting in an operation with a time complexity of O(1). This strategy aims to minimize traffic disruption in the hardware. The VPN context will be updated once BGP routes have reconverged.
 
 ## High Level Design
 One of the challenges in implementing PIC within FRR is the absence of PIC support in the Linux kernel. To minimize alterations in FRR while enabling PIC on platforms that do not require Linux kernel support for this feature, we are primarily focused on two key modifications:
@@ -112,7 +115,7 @@ struct nexthop {
 The forwarding objects in zebra are organized as the following mannar. Each struct nexthop contains forwarding only part and route context part. Due to route context parts are route attributes, they may be different for different routes. Therefore, struct nexthop_group may not be sharable. 
 <figure align=center>
     <img src="images/zebra_fwding_obj_no_share.jpg" >
-    <figcaption>Figure 2. Existing Zebra forwarding objects <figcaption>
+    <figcaption>Figure 3. Existing Zebra forwarding objects <figcaption>
 </figure> 
 
 ### Updated data structure with BGP PIC changes
@@ -127,7 +130,7 @@ This approach allows us to achieve the following objectives:
 The new forwarding chain will be organized as follows.
 <figure align=center>
     <img src="images/zebra_fwding_obj_sharing.jpg" >
-    <figcaption>Figure 3. Zebra forwarding objects after enabling BGP PIC <figcaption>
+    <figcaption>Figure 4. Zebra forwarding objects after enabling BGP PIC <figcaption>
 </figure> 
 
 ### struct nhg_hash_entry 
@@ -174,7 +177,7 @@ Route object would use nhe's id as context id and use pic_nhe's id as NHG id.
 
 <figure align=center>
     <img src="images/zebra_map_to_fpm_objs.jpg" >
-    <figcaption>Figure 4. Zebra maps forwarding objects to APP DB Objs when BGP PIC enables.<figcaption>
+    <figcaption>Figure 5. Zebra maps forwarding objects to APP DB Objs when BGP PIC enables.<figcaption>
 </figure> 
 
 #### SRv6 VPN SAI Objects
@@ -183,13 +186,13 @@ https://github.com/opencomputeproject/SAI/blob/master/doc/SAI-IPv6-Segment-Routi
 
 <figure align=center>
     <img src="images/srv6_sai_objs.png" >
-    <figcaption>Figure 5. SRv6 VPN SAI Objects<figcaption>
+    <figcaption>Figure 6. SRv6 VPN SAI Objects<figcaption>
 </figure> 
 
 #### Map APP_DB to SAI objects
 <figure align=center>
     <img src="images/app_db_to_sai.png" >
-    <figcaption>Figure 6. APP DB to SAI OBJs mapping<figcaption>
+    <figcaption>Figure 7. APP DB to SAI OBJs mapping<figcaption>
 </figure> 
 
 ### Orchagent Modifications
@@ -214,7 +217,7 @@ As shown in the following image：
 
 <figure align=center>
     <img src="images/BGP_NH_update.png" >
-    <figcaption>Figure 7. BGP NH down event Handling<figcaption>
+    <figcaption>Figure 8. BGP NH down event Handling<figcaption>
 </figure> 
 
 When the route 2033::178, marked in blue, is deleted, find its corresponding nhg(68) based on 2033::178. Then, iterate through the Dependents list of nhg(68) and find the dependent nhg(67). Remove the nexthop member(2033::178) from nhg(67). After completing this action, trigger a refresh of nhg(67) to fpm.
