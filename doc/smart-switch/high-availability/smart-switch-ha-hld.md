@@ -3,10 +3,11 @@
 | Rev | Date | Author | Change Description |
 | --- | ---- | ------ | ------------------ |
 | 0.1 | 08/09/2023 | Riff Jiang | Initial version |
-| 0.2 | 08/10/2023 | Riff Jiang | Simpify ENI-level traffic control, primary election algorithm |
-| 0.3 | 08/14/2023 | Riff Jiang | Adding DPU level standalone support |
-| 0.4 | 08/17/2023 | Riff Jiang | Redesign HA control plane data channel |
+| 0.2 | 08/10/2023 | Riff Jiang | Simpified ENI-level traffic control, primary election algorithm |
+| 0.3 | 08/14/2023 | Riff Jiang | Added DPU level standalone support |
+| 0.4 | 08/17/2023 | Riff Jiang | Redesigned HA control plane data channel |
 | 0.5 | 10/14/2023 | Riff Jiang | Merged resource placement and topology section and moved detailed design out for better readability |
+| 0.6 | 10/22/2023 | Riff Jiang | Added ENI leak detection |
 
 1. [1. Background](#1-background)
 2. [2. Terminology](#2-terminology)
@@ -104,8 +105,8 @@
       1. [9.3.1. hamgrd crash](#931-hamgrd-crash)
       2. [9.3.2. Switch power down or kernel crash](#932-switch-power-down-or-kernel-crash)
       3. [9.3.3. Back panel port failure](#933-back-panel-port-failure)
-      4. [9.4. Unplanned PCIe failure](#94-unplanned-pcie-failure)
-   4. [9.5. Summary](#95-summary)
+      4. [9.3.4. Unplanned PCIe failure](#934-unplanned-pcie-failure)
+   4. [9.4. Summary](#94-summary)
 10. [10. Unplanned operations](#10-unplanned-operations)
     1. [10.1. Working as standalone setup](#101-working-as-standalone-setup)
        1. [10.1.1. Design considerations](#1011-design-considerations)
@@ -154,12 +155,7 @@
           4. [11.5.2.4. Syncing phase](#11524-syncing-phase)
     6. [11.6. Flow re-simulation support](#116-flow-re-simulation-support)
 12. [12. Debuggability](#12-debuggability)
-    1. [12.1. System validation (WIP)](#121-system-validation-wip)
-       1. [12.1.1. Control plane validation](#1211-control-plane-validation)
-          1. [12.1.1.1. ENI leak detection](#12111-eni-leak-detection)
-       2. [12.1.2. Data plane validation](#1212-data-plane-validation)
-          1. [12.1.2.1. Packet drop logging](#12121-packet-drop-logging)
-          2. [12.1.2.2. Flow leak/mismatch detection](#12122-flow-leakmismatch-detection)
+    1. [12.1. ENI leak detection](#121-eni-leak-detection)
 13. [13. Detailed Design](#13-detailed-design)
 14. [14. Test Plan](#14-test-plan)
 
@@ -1403,13 +1399,13 @@ To mitigate this issue, we can:
 1. Trigger alerts, so we can be aware of this issue and RMA the switch.
 2. Switchover all active ENIs to the other side, then [pin them to Standalone state](#84-eni-level-dpu-isolation--standalone-pinning).
 
-#### 9.4. Unplanned PCIe failure
+#### 9.3.4. Unplanned PCIe failure
 
 When PCIe fails, we will not be able to talk to the local DPUs from NPU. This will be detected by pmon.
 
 PCIe should be really hard to fail. And whenever it fails, it could be something serious happening on hardware. So, to mitigate this, we will treat this as DPU hard down and force the DPU to be powered off, then handle it as [DPU hardware failure](#922-dpu-hardware-failure).
 
-### 9.5. Summary
+### 9.4. Summary
 
 First of all, please note that, all unplanned events will be monitored. Alerts will be fired, if it lasts for certain time, so it is not included in the mitigations below, but we should consider they are always included.
 
@@ -1895,17 +1891,11 @@ In HA setup, whenever a flow gets re-simulated, we will need to sync the latest 
 
 ## 12. Debuggability
 
-### 12.1. System validation (WIP)
+### 12.1. ENI leak detection
 
-#### 12.1.1. Control plane validation
+In order to avoid ENI being leaked after unplanned events, such as ENI being migrated away but doesn't cleaned up properly, each ENI will have a timer to update its state as heartbeat to notify our upstream service or using telemetry for ENI leak detection.
 
-##### 12.1.1.1. ENI leak detection
-
-#### 12.1.2. Data plane validation
-
-##### 12.1.2.1. Packet drop logging
-
-##### 12.1.2.2. Flow leak/mismatch detection
+For more detailed design, please refer to the detailed design doc.
 
 ## 13. Detailed Design
 
