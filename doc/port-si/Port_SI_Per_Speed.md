@@ -110,7 +110,7 @@ The updated format is the following:
 Within the "PORT_MEDIA_SETTINGS" section (or "GLOBAL_MEDIA_SETTINGS" if dealing with port ranges, instead of individual ports), the SI values for each port are organized into four levels of hierarchy:
 
 * The first level relates to the vendor_key/media_key level
-* The second hierarchy level is the lane_speed_key level, which specifies the port speed and lane count.
+* The second hierarchy level is the lane_speed_key level, which specifies the port speed and lane count. Entries at this hierarchy level always begin with the prefix 'speed:'.
 * On the third level, we encounter the names of the SI fields.
 * Finally, at the last hierarchy level, the corresponding values for these fields are presented.
 
@@ -130,7 +130,7 @@ The flow of using this json will be referred to as the **_Notify-Media-setting-P
 
 ## Port SI configuration (flows)
 
-Currently, the Notify-Media-Settings-Process is carried out only in the initialization phase of xcvrd and whenever a module is plugged in. After applying the port SI per speed enhancements, it will also be carried out upon port speed change events: Whenever a port speed change is detected by listening to STATE_DB, Notify-Media-Settings-Process will be called to send the most applicable SI values in the JSON to SAI.
+Currently, the Notify-Media-Settings-Process is carried out only in the initialization phase of xcvrd and whenever a module is plugged in. After applying the port SI per speed enhancements, it will also be carried out upon port speed change events: Whenever a port speed change is detected by listening to CONFIG_DB, Notify-Media-Settings-Process will be called to send the most applicable SI values in the JSON to SAI.
 Port speed changes require invoking the Notify-Media-Settings-Process becuase after such a change, the lane_speed_key used for lookup in the JSON changes accordingly, and the previously configured SI values in the ASIC are no longer relevant.
 </br></br>
 
@@ -141,7 +141,7 @@ Port speed changes require invoking the Notify-Media-Settings-Process becuase af
 
 1. Changes in SfpStateUpdateTask thread:</br></br>
     With the port SI per speed enhancements applied, we rely on the lane speed when we lookup in _media_settings,json_. Hence, this flow has to be triggered not only by insertion/removal of modules, but by speed configuration changes as well.</br>
-    In order to establish the dependency of port SI configurations on lane speed, we need to be able to monitor speed configuration changes. Therefore, we will add to the SfpStateUpdateTask a listener to detect such changes: a new member will be added to SfpStateUpdateTask to listen to changes in STATE_DB.PORT_TABLE, and once such change is detected, _notify_media_settings()_ will be trigerred. Additionally, the SfpStateUpdateTask thread will have a new dictionary that will store the speed and number of lanes for each port.
+    In order to establish the dependency of port SI configurations on lane speed, we need to be able to monitor speed configuration changes. Therefore, we will add to the SfpStateUpdateTask a listener to detect such changes: a new member will be added to SfpStateUpdateTask to listen to changes in CONFIG_DB.PORT_TABLE, and once such change is detected, _notify_media_settings()_ will be trigerred. Additionally, the SfpStateUpdateTask thread will have a new dictionary that will store the speed and number of lanes for each port.
 </br></br>
 
 
@@ -151,7 +151,7 @@ Port speed changes require invoking the Notify-Media-Settings-Process becuase af
 
       We need to extend the key used for lookup in the '_media_settings.json_' file to consider lane speed. </br>
       Currently, there are two types of keys: 'vendor_key' (vendor name + vendor part number, for example: 'AMPHENOL-1234') and 'media_key' (media type + media_compliance_code + media length, for example: 'QSFP28-40GBASE-CR4-1M'). </br>
-      In the new format of '_media_settings.json_', the '_get_media_settings_key()_' method will return three values instead of the two values described above. The additional value returned from this method will be the 'lane_speed_key', for example: '400GAUI-8' (where '400' refers to the port speed and '8' refers to the lane count). </br></br>
+      In the new format of '_media_settings.json_', the '_get_media_settings_key()_' method will return three values instead of the two values described above. The additional value returned from this method will be the 'lane_speed_key', for example: 'speed:400GAUI-8' (where 'speed:' is the lane_speed_key prefix, '400' refers to the port speed and '8' refers to the lane count). </br></br>
 
       How will the 'lane_speed_key' be calculated? </br>
       Each module contains a list called Application Advertisements in its EEPROM, which is a list of all speeds the module is compatible with. For example:
@@ -164,7 +164,7 @@ Port speed changes require invoking the Notify-Media-Settings-Process becuase af
         CAUI-4 C2M (Annex 83E) without FEC - Host Assign (0x11) - Active Cable assembly with BER < 10^-12 - Media Assign (0x11)
       ```
 
-      We will use this list to derive the lane_speed_key. We will iterate over this list and return the item whose port speed and lane count match the port speed and lane count for the corresponding port that were extracted from STATE_DB into the newly added dictionary (The mapping between ports and their speeds and lane counts as described earlier).
+      We will use this list to derive the lane_speed_key. We will iterate over this list and return the item whose port speed and lane count match the port speed and lane count for the corresponding port, that were extracted from CONFIG_DB.
       The existing method '_get_cmis_application_desired()_' performs exactly this task, so we will use it to calculate the new key.
 
     </br>
