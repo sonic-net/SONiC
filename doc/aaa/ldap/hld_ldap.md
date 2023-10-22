@@ -114,14 +114,10 @@ LDAP_TABLE:{
 		"bind_dn": {{ (emtpy) }}
 		"bind_password": {{ empty with starts **** }}
 		"bind_timeout": {{ (5 (duration_sec)) }}
-		"group_base_dn": {{ ou=users,dc=example,dc=com}}
-		"group_member_attribute": {{member}}
-		" hostname_check ": {{False}}
-		" ldap_version": {{3}}
-		" user_base_dn": {{ou=users,dc=example,dc=com (string)}}
-		" ldap_port": {{389}}
-		" referrals": {{enabled}}
-		" timeout": {{5 (duration_sec)}}
+		"ldap_version": {{3}}
+		"base_dn": {{ou=users,dc=example,dc=com (string)}}
+		"port": {{389}}
+		"timeout": {{5 (duration_sec)}}
 		}
 	}
 }
@@ -211,6 +207,7 @@ module sonic-system-ldap {
                     }
                     description "Server priority";
                 }
+            }
         }
 
         container LDAP {
@@ -246,26 +243,6 @@ module sonic-system-ldap {
                     description "Ldap bind timeout";
                 }
 
-                leaf group_base_dn {
-                    type string {
-                        length "1..65";
-                    }
-                    description "Ldap group base dn";
-                }
-
-                leaf group_member_attribute {
-                    type string {
-                        length "1..65";
-                    }
-                    description "Ldap group member attribute";
-                }
-
-                leaf hostname_check {
-                    description "Ldap server hostname check";
-                    default false;
-                    type boolean;
-                }
-
                 leaf ldap_version {
                     default 3;
                     type uint16 {
@@ -276,7 +253,7 @@ module sonic-system-ldap {
                     description "Ldap version";
                 }
 
-                leaf user_base_dn {
+                leaf base_dn {
                     type string {
                         length "1..65";
                     }
@@ -287,12 +264,6 @@ module sonic-system-ldap {
                     type inet:port-number;
                     default 389;
                     description "TCP port to communite with LDAP server";
-                }
-
-                leaf referrals {
-                    description "Should Ldap referrals be enabled/disabled";
-                    default true;
-                    type boolean;
                 }
 
                 leaf timeout {
