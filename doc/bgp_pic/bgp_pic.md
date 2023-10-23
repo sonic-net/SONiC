@@ -22,6 +22,7 @@
   - [Handles kernel forwarding objects](#handles-kernel-forwarding-objects)
   - [Handles FPM forwarding objects](#handles-fpm-forwarding-objects)
     - [Map Zebra objects to APP\_DB via FPM](#map-zebra-objects-to-app_db-via-fpm)
+    - [How would pic\_nhg improve BGP convergence](#how-would-pic_nhg-improve-bgp-convergence)
     - [SRv6 VPN SAI Objects](#srv6-vpn-sai-objects)
     - [Map APP\_DB to SAI objects](#map-app_db-to-sai-objects)
   - [Orchagent Modifications](#orchagent-modifications)
@@ -179,6 +180,20 @@ Route object would use nhe's id as context id and use pic_nhe's id as NHG id.
     <img src="images/zebra_map_to_fpm_objs.jpg" >
     <figcaption>Figure 5. Zebra maps forwarding objects to APP DB Objs when BGP PIC enables.<figcaption>
 </figure> 
+
+The following talbe compares the number of forwarding objects created with and without PIC enabled. N is the number of VPN routes and assume all N VPN routes share the same forwarding only part which makes the discussion easy. 
+| Forwarding Objects | No BGP PIC enabled | BGP PIC enabled |
+|:-----:|:------------------------------------:|:-----------------------------:|
+| Route |  N  | N |
+| NHG   |  N  | 1 |
+| CONTEXT | n/a | N |
+
+#### How would pic_nhg improve BGP convergence
+When IGP detects a BGP Nexthop is down, IGP would inform zebra on this route delete event. Zebra needs to make the following handlings. 
+1. Find out all associated forwarding only nexthops resolved via this route. The nexthop lookup logic is similar to what it does in zebra_nhg_proto_add().
+2. Trigger a back walk from each impacted nexthop to all associated PIC NHG and reresolve each PIC NHG
+3. Update each PIC NHG in hardware. Sine PIC NHG is shared by VPN routes, it could quickly stop traffic loss before BGP reconvergence.
+4. BGP nexthop down event would lead to BGP reconvergence which would update CONTEXT properly later. 
 
 #### SRv6 VPN SAI Objects
 The following diagram shows SAI objects related to SRv6. The detail information could be found at
