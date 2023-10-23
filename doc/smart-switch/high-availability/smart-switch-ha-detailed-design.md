@@ -5,7 +5,7 @@
 | 0.1 | 10/14/2023 | Riff Jiang | Initial version |
 
 1. [1. Database Schema](#1-database-schema)
-   1. [1.1. High level relationships](#11-high-level-relationships)
+   1. [1.1. High level data flow](#11-high-level-data-flow)
    2. [1.2. NPU DB schema](#12-npu-db-schema)
       1. [1.2.1. CONFIG DB](#121-config-db)
          1. [1.2.1.1. DPU / vDPU definitions](#1211-dpu--vdpu-definitions)
@@ -49,7 +49,7 @@
 
 NOTE: Only the configuration that is related to HA is listed here and please check [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) to see other fields.
 
-### 1.1. High level relationships
+### 1.1. High level data flow
 
 ```mermaid
 flowchart LR
@@ -68,6 +68,8 @@ flowchart LR
 
       subgraph APPL DB
          NPU_BFD_SESSION[BFD_SESSION_TABLE]
+         NPU_ACL_TABLE[APP_TABLE_TABLE]
+         NPU_ACL_RULE[APP_RULE_TABLE]
       end
 
       subgraph DASH APPL DB
@@ -80,6 +82,8 @@ flowchart LR
          NPU_DPU_STATE[DPU_TABLE]
          NPU_VDPU_STATE[VDPU_TABLE]
          NPU_BFD_SESSION_STATE[BFD_SESSION_TABLE]
+         NPU_ACL_TABLE_STATE[APP_TABLE_TABLE]
+         NPU_ACL_RULE_STATE[APP_RULE_TABLE]
       end
 
       subgraph DASH STATE DB
@@ -125,35 +129,41 @@ flowchart LR
    %% NPU tables --> NPU side SWSS:
    NPU_DPU --> NPU_SWSS
    NPU_VDPU --> NPU_SWSS
-   NPU_BFD_SESSION --> NPU_SWSS
+   NPU_BFD_SESSION --> |ConsumerStateTable| NPU_SWSS
+   NPU_ACL_TABLE --> |ConsumerStateTable| NPU_SWSS
+   NPU_ACL_RULE --> |ConsumerStateTable| NPU_SWSS
 
    %% NPU side SWSS --> NPU tables:
    NPU_SWSS --> NPU_DPU_STATE
    NPU_SWSS --> NPU_VDPU_STATE
    NPU_SWSS --> NPU_BFD_SESSION_STATE
+   NPU_SWSS --> NPU_ACL_TABLE_STATE
+   NPU_SWSS --> NPU_ACL_RULE_STATE
    NPU_SWSS --> |Forward BFD Update| NPU_HAMGRD
 
    %% NPU tables --> hamgrd:
    NPU_DPU --> NPU_HAMGRD
    NPU_VDPU --> NPU_HAMGRD
-   NPU_DPU_STATE --> |via Table Query| NPU_HAMGRD
-   NPU_VDPU_STATE --> |via Table Query| NPU_HAMGRD
+   NPU_DPU_STATE --> |Direct Table Query| NPU_HAMGRD
+   NPU_VDPU_STATE --> |Direct Table Query| NPU_HAMGRD
    NPU_DASH_HA_GLOBAL_CONFIG --> NPU_HAMGRD
    NPU_DASH_HA_SET --> NPU_HAMGRD
    NPU_DASH_ENI_PLACEMENT --> NPU_HAMGRD
    NPU_DASH_ENI_HA_CONFIG --> NPU_HAMGRD
-   NPU_DASH_COUNTERS --> |via Table Query| NPU_HAMGRD
+   NPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
 
    %% DPU tables --> hamgrd:
    DPU_DASH_ENI_HA_STATE --> NPU_HAMGRD
-   DPU_DASH_COUNTERS --> |via Table Query| NPU_HAMGRD
+   DPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
 
    %% hamgrd --> NPU tables:
    NPU_HAMGRD --> NPU_DASH_DPU_HA_STATE
    NPU_HAMGRD --> NPU_DASH_VDPU_HA_STATE
    NPU_HAMGRD --> NPU_DASH_ENI_HA_STATE
    NPU_HAMGRD --> NPU_DASH_ENI_DP_STATE
-   NPU_HAMGRD --> NPU_BFD_SESSION
+   NPU_HAMGRD --> |ProducerStateTable| NPU_BFD_SESSION
+   NPU_HAMGRD --> |ProducerStateTable| NPU_ACL_TABLE
+   NPU_HAMGRD --> |ProducerStateTable| NPU_ACL_RULE
 
    %% hamgrd --> DPU tables:
    NPU_HAMGRD --> DPU_DASH_HA_SET
