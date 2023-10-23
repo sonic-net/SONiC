@@ -76,7 +76,8 @@ high_latency_threshold   = 1*5DIGIT  ; High latency threshold in ms, default is 
     - Any server latency is bigger than high_latency_threshold.
 - When hostcfgd generate TACACS config file, server priority calculated according to following rules:
     - Get server priority info from CONFIG_DB TACPLUS_SERVER table.
-    - Change high latency server and un-reachable server priority to 1, this is because 1 is the smallest priority, and SONiC device will use high priority server first.
+    - Change high latency server to 1, this is because 1 is the smallest priority, and SONiC device will use high priority server first.
+    - Un-reachable server will not include in TACACS config file.
     - If other server also has priority 1 in CONFIG_DB, change priority to 2
     - If other server priority is no 1, using original priority in CONFIG_DB
 
