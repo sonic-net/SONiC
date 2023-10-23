@@ -530,11 +530,14 @@ First, we need to create the ENI in all DPUs:
 
 Programming ENI follows the same rule as ENI creation – Upstream service programs each ENI independently via our northbound interface.
 
+* For all DASH objects, they will directly go to DPU side databases.
+* For HA configurations, they will be programmed on NPU side databases, because HA control plane is running on NPU side. However, each ENI will still be programmed independently.
+
 <p align="center"><img alt="ENI programming" src="./images/eni-programming.svg"></p>
 
 ### 5.5. ENI removal
 
-ENI removal works in similar way as ENI programming. In HA setup, every ENI exists in multiple DPUs. Since our upstream knows where all the ENIs are allocated on the switches, it can send the request down to all related switches to remove the ENI via our northbound interface.
+ENI removal works in similar way as ENI programming. In HA setup, every ENI exists in multiple DPUs. Since our upstream knows where all the ENIs are allocated on the switches, it can send the request down to all related switches to shutdown and remove the ENI via our northbound interface.
 
 1. Upstream service first program all switches to remove the traffic forwarding rules to stop the traffic.
 2. Upstream service then programs the 2 DPUs to remove the ENIs.
@@ -579,13 +582,13 @@ Currently, BFD is running as part of FRR in BGP container. However, in DPU, we w
 
 To make BFD work, the practical and memory/space saving way is to implement a light-weighted BFD server on DPU.
 
-This approach allows us to reflect the true DPU liveness. DPU is running doesn’t mean the programs we run on DPU are ready to take traffic, e.g. in standby state. And having a custom implemented BFD server can help us better control the traffic.
+This approach allows us to reflect the true DPU liveness. DPU is running doesn't mean the programs we run on DPU are ready to take traffic, e.g. in standby state. And having a custom implemented BFD server can help us better control the traffic.
 
 ##### 6.1.1.1. Lite-BFD server
 
-The lite-BFD server will be a standalone program running on DPU. It will be responsible for:
-
 ##### 6.1.1.2. BFD initialization on DPU boot
+
+The lite-BFD server will be a standalone program running on DPU.
 
 During DPU boot and initialization, certain parts of the DPU packet processing pipeline might not be fully running, while our programs are already launched. If we start BFD session at this moment, packets might be coming and getting dropped.
 
