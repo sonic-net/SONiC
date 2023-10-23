@@ -611,89 +611,105 @@ config switch-hash global lag-hash-algorithm 'CRC'
 **The following command shows switch hash global configuration:**
 ```bash
 root@sonic:/home/admin# show switch-hash global
-ECMP HASH          ECMP HASH ALGORITHM
------------------  --------------------
-DST_MAC            CRC
-SRC_MAC
-ETHERTYPE
-IP_PROTOCOL
-DST_IP
-SRC_IP
-L4_DST_PORT
-L4_SRC_PORT
-INNER_DST_MAC
-INNER_SRC_MAC
-INNER_ETHERTYPE
-INNER_IP_PROTOCOL
-INNER_DST_IP
-INNER_SRC_IP
-INNER_L4_DST_PORT
-INNER_L4_SRC_PORT
-
-LAG HASH           LAG HASH ALGORITHM
------------------  -------------------
-DST_MAC            CRC
-SRC_MAC
-ETHERTYPE
-IP_PROTOCOL
-DST_IP
-SRC_IP
-L4_DST_PORT
-L4_SRC_PORT
-INNER_DST_MAC
-INNER_SRC_MAC
-INNER_ETHERTYPE
-INNER_IP_PROTOCOL
-INNER_DST_IP
-INNER_SRC_IP
-INNER_L4_DST_PORT
-INNER_L4_SRC_PORT
++--------+-------------------------------------+
+| Hash   | Configuration                       |
++========+=====================================+
+| ECMP   | +-------------------+-------------+ |
+|        | | Hash Field        | Algorithm   | |
+|        | |-------------------+-------------| |
+|        | | DST_MAC           | CRC         | |
+|        | | SRC_MAC           |             | |
+|        | | ETHERTYPE         |             | |
+|        | | IP_PROTOCOL       |             | |
+|        | | DST_IP            |             | |
+|        | | SRC_IP            |             | |
+|        | | L4_DST_PORT       |             | |
+|        | | L4_SRC_PORT       |             | |
+|        | | INNER_DST_MAC     |             | |
+|        | | INNER_SRC_MAC     |             | |
+|        | | INNER_ETHERTYPE   |             | |
+|        | | INNER_IP_PROTOCOL |             | |
+|        | | INNER_DST_IP      |             | |
+|        | | INNER_SRC_IP      |             | |
+|        | | INNER_L4_DST_PORT |             | |
+|        | | INNER_L4_SRC_PORT |             | |
+|        | +-------------------+-------------+ |
++--------+-------------------------------------+
+| LAG    | +-------------------+-------------+ |
+|        | | Hash Field        | Algorithm   | |
+|        | |-------------------+-------------| |
+|        | | DST_MAC           | CRC         | |
+|        | | SRC_MAC           |             | |
+|        | | ETHERTYPE         |             | |
+|        | | IP_PROTOCOL       |             | |
+|        | | DST_IP            |             | |
+|        | | SRC_IP            |             | |
+|        | | L4_DST_PORT       |             | |
+|        | | L4_SRC_PORT       |             | |
+|        | | INNER_DST_MAC     |             | |
+|        | | INNER_SRC_MAC     |             | |
+|        | | INNER_ETHERTYPE   |             | |
+|        | | INNER_IP_PROTOCOL |             | |
+|        | | INNER_DST_IP      |             | |
+|        | | INNER_SRC_IP      |             | |
+|        | | INNER_L4_DST_PORT |             | |
+|        | | INNER_L4_SRC_PORT |             | |
+|        | +-------------------+-------------+ |
++--------+-------------------------------------+
 ```
 
 **The following command shows switch hash capabilities:**
 ```bash
 root@sonic:/home/admin# show switch-hash capabilities
-ECMP HASH          ECMP HASH ALGORITHM
------------------  --------------------
-IN_PORT            CRC
-DST_MAC            XOR
-SRC_MAC            RANDOM
-ETHERTYPE          CRC_32LO
-VLAN_ID            CRC_32HI
-IP_PROTOCOL        CRC_CCITT
-DST_IP             CRC_XOR
-SRC_IP
-L4_DST_PORT
-L4_SRC_PORT
-INNER_DST_MAC
-INNER_SRC_MAC
-INNER_ETHERTYPE
-INNER_IP_PROTOCOL
-INNER_DST_IP
-INNER_SRC_IP
-INNER_L4_DST_PORT
-INNER_L4_SRC_PORT
-
-LAG HASH           LAG HASH ALGORITHM
------------------  -------------------
-IN_PORT            CRC
-DST_MAC            XOR
-SRC_MAC            RANDOM
-ETHERTYPE          CRC_32LO
-VLAN_ID            CRC_32HI
-IP_PROTOCOL        CRC_CCITT
-DST_IP             CRC_XOR
-SRC_IP
-L4_DST_PORT
-L4_SRC_PORT
-INNER_DST_MAC
-INNER_SRC_MAC
-INNER_ETHERTYPE
-INNER_IP_PROTOCOL
-INNER_DST_IP
-INNER_SRC_IP
-INNER_L4_DST_PORT
-INNER_L4_SRC_PORT
++--------+-------------------------------------+
+| Hash   | Capabilities                        |
++========+=====================================+
+| ECMP   | +-------------------+-------------+ |
+|        | | Hash Field        | Algorithm   | |
+|        | |-------------------+-------------| |
+|        | | IN_PORT           | CRC         | |
+|        | | DST_MAC           | XOR         | |
+|        | | SRC_MAC           | RANDOM      | |
+|        | | ETHERTYPE         | CRC_32LO    | |
+|        | | VLAN_ID           | CRC_32HI    | |
+|        | | IP_PROTOCOL       | CRC_CCITT   | |
+|        | | DST_IP            | CRC_XOR     | |
+|        | | SRC_IP            |             | |
+|        | | L4_DST_PORT       |             | |
+|        | | L4_SRC_PORT       |             | |
+|        | | INNER_DST_MAC     |             | |
+|        | | INNER_SRC_MAC     |             | |
+|        | | INNER_ETHERTYPE   |             | |
+|        | | INNER_IP_PROTOCOL |             | |
+|        | | INNER_DST_IP      |             | |
+|        | | INNER_SRC_IP      |             | |
+|        | | INNER_L4_DST_PORT |             | |
+|        | | INNER_L4_SRC_PORT |             | |
+|        | +-------------------+-------------+ |
++--------+-------------------------------------+
+| LAG    | +-------------------+-------------+ |
+|        | | Hash Field        | Algorithm   | |
+|        | |-------------------+-------------| |
+|        | | IN_PORT           | CRC         | |
+|        | | DST_MAC           | XOR         | |
+|        | | SRC_MAC           | RANDOM      | |
+|        | | ETHERTYPE         | CRC_32LO    | |
+|        | | VLAN_ID           | CRC_32HI    | |
+|        | | IP_PROTOCOL       | CRC_CCITT   | |
+|        | | DST_IP            | CRC_XOR     | |
+|        | | SRC_IP            |             | |
+|        | | L4_DST_PORT       |             | |
+|        | | L4_SRC_PORT       |             | |
+|        | | INNER_DST_MAC     |             | |
+|        | | INNER_SRC_MAC     |             | |
+|        | | INNER_ETHERTYPE   |             | |
+|        | | INNER_IP_PROTOCOL |             | |
+|        | | INNER_DST_IP      |             | |
+|        | | INNER_SRC_IP      |             | |
+|        | | INNER_L4_DST_PORT |             | |
+|        | | INNER_L4_SRC_PORT |             | |
+|        | +-------------------+-------------+ |
++--------+-------------------------------------+
 ```
 
 ## 2.7 YANG model
