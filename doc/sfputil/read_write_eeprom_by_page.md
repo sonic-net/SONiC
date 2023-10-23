@@ -240,7 +240,6 @@ No memory consumption is expected when the feature is disabled via compilation a
 ### Restrictions/Limitations
 
 - Vendor should support plaform API `sfp.read_eeprom` and `sfp.write_eeprom` to support this feature.
-- For dependent mode, module EEPROM might be managed by FW and cannot be written. CLI shall provide proper message for such situation.
 
 ### Testing Requirements/Design
 
