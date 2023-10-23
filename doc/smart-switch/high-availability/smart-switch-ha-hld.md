@@ -498,25 +498,31 @@ First, we need to create the ENI in all DPUs:
 
 1. Upstream service will first decide where to put the new ENI and form the HA set, based on the load and other information.
 2. Upstream service calls northbound interface and programs the following things on each SmartSwitch independently:
-    1. Create the ENI on selected DPUs with its peer information, so we can form a HA set.
-        1. This will make the 2 ENIs start to connect to each other as preparation.
-        1. Upstream service can create the ENI with a preferred active setting, so when ENIs are launched for the first time, the active one will be created on that side. This allows us to distribute the ENIs evenly on the paired DPUs. See "Primary election".
-    2. Program traffic forwarding rules to all the switches that will receive the traffic.
-        1. This will make all the `hamgrd` connect to the `hamgrd` that own the ENI and register the probe listener.
-        1. Whenever a probe listener is registered, the latest probe state will be pushed to make it in sync.
-        1. If the probe listener is lost, it should be either the traffic forwarding rules are removed or `hamgrd` is crashed. For the former case, there won’t be any problem. For the latter case, please see "[`hamgrd` crash](#931-hamgrd-crash)" section on how to handle it.
+    1. Program HA set information and ENI placement information to all the switches that will receive the traffic.
+        1. This will make `hamgrd` setup the traffic forwarding ACLs on the NPU side.
+        2. This will make all the `hamgrd` connect to the `hamgrd` that own the ENI and register the probe listener.
+            1. Whenever a probe listener is registered, the latest probe state will be pushed to make it in sync.
+            2. If the probe listener is lost, it should be either the ENI placement information is removed or `hamgrd` is crashed. For the former case, there won’t be any problem. For the latter case, please see "[`hamgrd` crash](#931-hamgrd-crash)" section on how to handle it.
+        3. If the ENI is placed on the local DPU, `hamgrd` will create the state machine for the ENI. The state will be initially set to `Dead`, until it see the state report from DPU.
+    2. Create the DASH ENI object on selected DPUs with its HA set id.
+        1. The detailed HA set information will be copied from NPU to DPU by SWSS, and DPU side SWSS will wait for the HA set information gets ready and then create the DASH objects.
+        2. With the detailed HA set information, when ENIs in DPU becomes active or standby, it will know how to esablish the data plane channel to its peer.
+        3. After the DASH ENI object is created, it will report its state into DASH state table, which then being consumed by `hamgrd` to drive the state machine transition.
+        4. When upstream service creates the ENI, it could use desired state to control which side should be active. This allows us to distribute the ENIs evenly on the paired DPUs. Here are the 2 typical ways of using this state:
+           1. Set the desired state of preferred side to `Active`. When the ENI is created, the `hamgrd` will start to drive the state machine transition immediately, and try to make the preferred side active with the [Primary election](#73-primary-election) process.
+           2. If we want to make sure the DASH objects are programmed before the ENI is launched, we can set the ENI to `Dead` state first, then program the DASH objects, and then set the desired state to `Active` or empty (as standby).
 
     <p align="center"><img alt="ENI creation step 1" src="./images/eni-creation-step-1.svg"></p>
 
-3. Once programming is finished, ENIs will start forming the HA pair automatically:
+3. Once programming is finished and coming out of `Dead` state, ENIs will start forming the HA pair automatically:
     1. The ENI level control plane channels will be created.
-    2. The 2 DPUs will start to communicate with each other via the control plane control channel, elect the primary and form a HA set automatically.
-4. Once the new primary is elected, SmartSwitch will notify the upstream service that the primary is selected.
-    1. The primary may or may not be the preferred one, because in cases like "[ENI migration](#85-eni-migration)", the peer ENI might be already running in standalone state. In this case, the new ENI has to be launched as standby. However, we can issue "[Planned Switchover](#82-planned-switchover)" later, if we want to shift the primary.
+    2. The 2 ENI state machine will start to communicate with each other via the control plane control channel, elect the primary and form a HA set automatically.
+4. All state transitions will be reported to upstream service via gNMI, so upstream service will know which ENI becomes the active side.
+    1. However, the elected active may or may not be the preferred one. For example, if the DPU pair is running in standalone setup and the non-preferred side might be running in standalone state, then the non-preferred side will be elected instead.
 
     <p align="center"><img alt="ENI creation step 2" src="./images/eni-creation-step-2.svg"></p>
 
-5. In the meantime, the primary election process will also update the probe state of all ENIs, making sure the traffic is forwarded to the right DPU.
+5. In the meantime, the state machine transition will also update the state of all ENIs, making sure the traffic is forwarded to the right DPU.
 
     <p align="center"><img alt="ENI creation step 3" src="./images/eni-creation-step-3.svg"></p>
 
