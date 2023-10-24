@@ -290,15 +290,10 @@ LDAP_TABLE:{
 		"bind_dn": {{ (string) }}
 		"bind_password": {{ ******** (string)}}
 		"bind_timeout": {{ (5 (duration_sec)) }}
-		"group_base_dn": {{ (string) }}
-		"group_member_attribute": {{member}}
-		" hostname_check ": {{False}}
-		" ldap_version": {{num}}
-		" user_base_dn": {{ou=users,dc=example,dc=com (string)}}
-		" login_name_attribute ": {{num}}
-		" ldap_port": {{num}}
-		" referrals": {{enable}}
-		" timeout": {{5 (duration_sec)}}
+		"ldap_version": {{num}}
+		"user_base_dn": {{ou=users,dc=example,dc=com (string)}}
+		"ldap_port": {{num}}
+		"timeout": {{5 (duration_sec)}}
 	}
 }
 
@@ -469,13 +464,9 @@ config ldap host <ADDRESS> --prio <1 - 8>
 config ldap bind_dn <TEXT>
 config ldap bind_password <TEXT>
 config ldap bind_timeout <0 – 120>
-config ldap group_base_dn <TEXT>
-config ldap group_member_attribute <TEXT>
-config ldap hostname_check  <enable/disable>
 config ldap ldap_version <1 - 3>
-config ldap user_base_dn <TEXT>
-config ldap ldap_port <1-65535>
-config ldap referrals <enable/disable>
+config ldap base_dn <TEXT>
+config ldap port <1-65535>
 config ldap timeout <1-60>
 ```
 
