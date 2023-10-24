@@ -43,8 +43,6 @@ Sample code:
 save_cmd "sfputil show eeprom-hexdump" "interface.xcvrs.eeprom.raw" &
 ```
 
-Note: dumping EEPROM data might cause firmware busy, the command shall not be run parallel with save_saidump to avoid hardware access conflict.
-
 ##### sfputil change
 
 Existing subcommand `eeprom-hexdump` shall be extended to dump eeprom data for all existing cables except RJ45. Currently, `sfputil show eeprom-hexdump` accept two options `--port` and `--page`. It shall be extended like this:
@@ -139,7 +137,7 @@ N/A
 
 ### Memory Consumption
 
-No memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration.
+Dumping module EEPROM pages takes memory which shall be freed after finishing the command.
 
 ### Restrictions/Limitations
 
