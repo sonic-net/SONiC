@@ -1643,7 +1643,7 @@ Over the defined PM interval time, the statistics are collected for the paramter
 The statistics then can be displayed for a specific time window using a CLI. All this functionality will be done by xcvrd process in pmon container. 
 
 #### 7.2 Transceiver PM Window statistics parameters
-Please refer to the [2.1.5 Transceiver PM Table]https://github.com/sonic-net/SONiC/blob/c91b25ed8c79cb6e415e6c999affc309e35200f2/doc/platform_api/CMIS_and_C-CMIS_support_for_ZR.md#215-transceiver-pm-table) for the parameters that will be monitored with this CLI.
+All the fields from table [2\.1\.5 Transceiver PM Table](#215-transceiver-pm-table) are part of the TRANSCEIVER_PM_WINDOW_STATS table along with below mentioned fields.
 ```
         ; Defines Transceiver PM Window statistics table information for a port
         key                          = TRANSCEIVER_PM_WINDOW_STATS|ifname            ; information of PM on port
@@ -1659,45 +1659,8 @@ Each window field(Key) in TRANSCEIVER_PM_WINDOW_STATS have a value string compri
 
 	pm_win_start_time           = 1*255VCHAR                       ; PM statistics start time for the window.
 	pm_win_end_time             = 1*255VCHAR                       ; PM statistics end time for the window. 
-        pm_win_current               = 1*255VCHAR                       ; PM statistics collection is Progressing on this window. (True/False)
-        prefec_ber_avg               = FLOAT                            ; prefec ber avg
-        prefec_ber_min               = FLOAT                            ; prefec ber min
-        prefec_ber_max               = FLOAT                            ; prefec ber max
-        cd_avg                       = FLOAT                            ; chromatic dispersion avg
-        cd_min                       = FLOAT                            ; chromatic dispersion min
-        cd_max                       = FLOAT                            ; chromatic dispersion max
-        dgd_avg                      = FLOAT                            ; differential group delay avg
-        dgd_min                      = FLOAT                            ; differential group delay min
-        dgd_max                      = FLOAT                            ; differential group delay max
-        sopmd_avg                    = FLOAT                            ; second order polarization mode dispersion avg
-        sopmd_min                    = FLOAT                            ; second order polarization mode dispersion min
-        sopmd_max                    = FLOAT                            ; second order polarization mode dispersion max
-        pdl_avg                      = FLOAT                            ; polarization dependent loss avg
-        pdl_min                      = FLOAT                            ; polarization dependent loss min
-        pdl_max                      = FLOAT                            ; polarization dependent loss max
-        osnr_avg                     = FLOAT                            ; optical signal to noise ratio avg
-        osnr_min                     = FLOAT                            ; optical signal to noise ratio min
-        osnr_max                     = FLOAT                            ; optical signal to noise ratio max
-        esnr_avg                     = FLOAT                            ; electrical signal to noise ratio avg
-        esnr_min                     = FLOAT                            ; electrical signal to noise ratio min
-        esnr_max                     = FLOAT                            ; electrical signal to noise ratio max
-        cfo_avg                      = FLOAT                            ; carrier frequency offset avg
-        cfo_min                      = FLOAT                            ; carrier frequency offset min
-        cfo_max                      = FLOAT                            ; carrier frequency offset max
-        soproc_avg                   = FLOAT                            ; state of polarization rate of change avg
-        soproc_min                   = FLOAT                            ; state of polarization rate of change min
-        soproc_max                   = FLOAT                            ; state of polarization rate of change max
-        tx_power_avg                 = FLOAT                            ; tx output power avg
-        tx_power_min                 = FLOAT                            ; tx output power min
-        tx_power_max                 = FLOAT                            ; tx output power max
-        rx_tot_power_avg             = FLOAT                            ; rx total power avg
-        rx_tot_power_min             = FLOAT                            ; rx total power min
-        rx_tot_power_max             = FLOAT                            ; rx total power max
-        rx_sig_power_avg             = FLOAT                            ; rx signal power avg
-        rx_sig_power_min             = FLOAT                            ; rx signal power min
-        rx_sig_power_max             = FLOAT                            ; rx signal power max 
+        pm_win_current               = 1*255VCHAR                       ; PM statistics collection is Progressing on this window. (True/False)      
 ```
-  
  
 #### 7.3 CLI Sub-options and Syntax 
 
@@ -1801,7 +1764,7 @@ This feature allows a platform(Pizza-box or distributed system-linecard with CPU
 - 60sec and
 - 120sec
   
-It is recommended to choose 30sec, platforms that have high CPU load can choose 120sec as PM interval. By default 60sec is the PM interval when no input provided by platform, please refer '7.5.4' for platform input.
+It is recommended to choose 30sec, platforms that have high CPU load can choose 120sec as PM interval. By default 60sec is the PM interval when no input provided by platform, please refer to [7\.5\.4 Platform specific flags and input](#754-platform-specific-flags-and-inputs)  for platform input.
 
 - ##### PM time window or PM window :
 The cumulative PM statistics over an fixed interval of time is called a PM time window AKA PM window. 
@@ -1863,65 +1826,18 @@ The 60sec time window are filled as it is read from module if the PM interval is
 - #####Code snipet for PM data sampling:
 
 ```
-#Sample the PM data for min, max and average between two PM data set and returns the sampled PM data.
+#Sample the PM data for min, max and average between two PM data set and returns the sampled PM data. Below is the snippet of a field min, max and average calculation.
  def pm_data_sampling(self, pm_data_dict1, pm_data_dict2):
         sampled_pm_dict = {}
         sampled_pm_dict['prefec_ber_avg'] = self.average_of_two_val(float(pm_data_dict1['prefec_ber_avg']), float(pm_data_dict2['prefec_ber_avg']))
         sampled_pm_dict['prefec_ber_min'] = min(float(pm_data_dict1['prefec_ber_min']), float(pm_data_dict2['prefec_ber_min']))
         sampled_pm_dict['prefec_ber_max'] = max(float(pm_data_dict1['prefec_ber_max']), float(pm_data_dict2['prefec_ber_max']))
 
-        sampled_pm_dict['uncorr_frames_avg'] = self.average_of_two_val(float(pm_data_dict1['uncorr_frames_avg']), float(pm_data_dict2['uncorr_frames_avg']))
-        sampled_pm_dict['uncorr_frames_min'] = min(float(pm_data_dict1['uncorr_frames_min']), float(pm_data_dict2['uncorr_frames_min']))
-        sampled_pm_dict['uncorr_frames_max'] = max(float(pm_data_dict1['uncorr_frames_max']), float(pm_data_dict2['uncorr_frames_max']))
-
-        sampled_pm_dict['cd_avg'] = self.average_of_two_val(float(pm_data_dict1['cd_avg']), float(pm_data_dict2['cd_avg']))
-        sampled_pm_dict['cd_min'] = min(float(pm_data_dict1['cd_min']), float(pm_data_dict2['cd_min']))
-        sampled_pm_dict['cd_max'] = max(float(pm_data_dict1['cd_max']), float(pm_data_dict2['cd_max']))
-
-        sampled_pm_dict['dgd_avg']   = self.average_of_two_val(float(pm_data_dict1['dgd_avg']), float(pm_data_dict2['dgd_avg']))
-        sampled_pm_dict['dgd_min']   = min(float(pm_data_dict1['dgd_min']), float(pm_data_dict2['dgd_min']))
-        sampled_pm_dict['dgd_max']   = max(float(pm_data_dict1['dgd_max']), float(pm_data_dict2['dgd_max']))
-
-        sampled_pm_dict['sopmd_avg'] = self.average_of_two_val(float(pm_data_dict1['sopmd_avg']), float(pm_data_dict2['sopmd_avg']))
-sampled_pm_dict['sopmd_min'] = min(float(pm_data_dict1['sopmd_min']), float(pm_data_dict2['sopmd_min']))
-        sampled_pm_dict['sopmd_max'] = max(float(pm_data_dict1['sopmd_max']), float(pm_data_dict2['sopmd_max']))
-
-        sampled_pm_dict['pdl_avg']   = self.average_of_two_val(float(pm_data_dict1['pdl_avg']), float(pm_data_dict2['pdl_avg']))
-        sampled_pm_dict['pdl_min']   = min(float(pm_data_dict1['pdl_min']), float(pm_data_dict2['pdl_min']))
-        sampled_pm_dict['pdl_max']   = max(float(pm_data_dict1['pdl_max']), float(pm_data_dict2['pdl_max']))
-
-        sampled_pm_dict['osnr_avg']  = self.average_of_two_val(float(pm_data_dict1['osnr_avg']), float(pm_data_dict2['osnr_avg']))
-        sampled_pm_dict['osnr_min']  = min(float(pm_data_dict1['osnr_min']), float(pm_data_dict2['osnr_min']))
-        sampled_pm_dict['osnr_max']  = max(float(pm_data_dict1['osnr_max']), float(pm_data_dict2['osnr_max']))
-
-        sampled_pm_dict['esnr_avg']  = self.average_of_two_val(float(pm_data_dict1['esnr_avg']), float(pm_data_dict2['esnr_avg']))
-        sampled_pm_dict['esnr_min']  = min(float(pm_data_dict1['esnr_min']), float(pm_data_dict2['esnr_min']))
-        sampled_pm_dict['esnr_max']  = max(float(pm_data_dict1['esnr_max']), float(pm_data_dict2['esnr_max']))
-
-        sampled_pm_dict['cfo_avg']   = self.average_of_two_val(float(pm_data_dict1['cfo_avg']), float(pm_data_dict2['cfo_avg']))
-        sampled_pm_dict['cfo_min']   = min(float(pm_data_dict1['cfo_min']), float(pm_data_dict2['cfo_min']))
-        sampled_pm_dict['cfo_max']   = max(float(pm_data_dict1['cfo_max']), float(pm_data_dict2['cfo_max']))
-
-        sampled_pm_dict['evm_avg']   = self.average_of_two_val(float(pm_data_dict1['evm_avg']), float(pm_data_dict2['evm_avg']))
-        sampled_pm_dict['evm_min']   = min(float(pm_data_dict1['evm_min']), float(pm_data_dict2['evm_min']))
-        sampled_pm_dict['evm_max']   = max(float(pm_data_dict1['evm_max']), float(pm_data_dict2['evm_max']))
-
-        sampled_pm_dict['soproc_avg'] = self.average_of_two_val(float(pm_data_dict1['soproc_avg']), float(pm_data_dict2['soproc_avg']))
-        sampled_pm_dict['soproc_min'] = min(float(pm_data_dict1['soproc_min']), float(pm_data_dict2['soproc_min']))
-        sampled_pm_dict['soproc_max'] = max(float(pm_data_dict1['soproc_max']), float(pm_data_dict2['soproc_max']))
-
-        sampled_pm_dict['tx_power_avg']  = self.average_of_two_val(float(pm_data_dict1['tx_power_avg']), float(pm_data_dict2['tx_power_avg']))
-        sampled_pm_dict['tx_power_min']  = min(float(pm_data_dict1['tx_power_min']), float(pm_data_dict2['tx_power_min']))
-        sampled_pm_dict['tx_power_max']  = max(float(pm_data_dict1['tx_power_max']), float(pm_data_dict2['tx_power_max']))
-
-        sampled_pm_dict['rx_tot_power_avg']  = self.average_of_two_val(float(pm_data_dict1['rx_tot_power_avg']), float(pm_data_dict2['rx_tot_power_avg']))
-        sampled_pm_dict['rx_sig_power_min'] =  min(float(pm_data_dict1['rx_sig_power_min']), float(pm_data_dict2['rx_sig_power_min']))
-        sampled_pm_dict['rx_sig_power_max'] =  max(float(pm_data_dict1['rx_sig_power_max']), float(pm_data_dict2['rx_sig_power_max']))
-        return sampled_pm_dict
-
+def average_of_two_val(self, val1, val2):
+        return((val1+val2)/2)
 ```
 
-##### 7.5.4 Platform specific flags/inputs:
+##### 7.5.4 Platform specific flags and inputs:
 "xcvrd_pm_poll_interval" - Platform to define the PM polling periodicity as 30sec or 60sec of the PM thread which will be fed as input argument. When the arg is not defined, default periodicity is 60sec. 
 
 
