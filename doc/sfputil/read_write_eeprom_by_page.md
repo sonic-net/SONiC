@@ -21,8 +21,7 @@ CLI sfputil shall be extended to support reading/writing cable EEPROM by page an
 - Support reading/writing cable EEPROM data by page, offset and size. For sff8472, wire address "a0h" or "a2h" must be provided by user.
 - Support basic validation for input parameter such as page, offset and size.
 - Support reading/writing cable EEPROM for all types of cables except RJ45.
-- Support non flat memory mode reading/writing. In this mode, user shall provide page and offset according to the standard. For example, CMIS page 1h starting offset is 128, offset less than 128 shall be treated as invalid.
-- Support flat memory mode reading/writing (Phase 2). In this mode, the EEPROM memory shall be treated as continues flat memory. This design document will not discuss this mode.
+- User shall provide page and offset according to the standard. For example, CMIS page 1h starting offset is 128, offset less than 128 shall be treated as invalid.
 - Vendor who does not support `sfp.read_eeprom` and `sfp.write_eeprom` is expected to raise `NotImplementedError`, this error shall be properly handled
 - Others error shall be treated as read/write failure
 - Vendor specific implementation is not required but still possible.
@@ -42,7 +41,7 @@ The existing API `sfp.read_eeprom` and `sfp.write_eeprom` accept "overall offset
 
 ```python
 
-def read_eeprom_by_page(self, page, offset, size, wire_addr=None, flat=False):
+def read_eeprom_by_page(self, page, offset, size, wire_addr=None):
     """
     Read EEPROM by page
 
@@ -51,14 +50,13 @@ def read_eeprom_by_page(self, page, offset, size, wire_addr=None, flat=False):
         offset: EEPROM page offset. Raise ValueError for invalid offset.
         size: Number of bytes to be read. Raise ValueError for invalid size.
         wire_addr: Wire address. Only valid for sff8472. Raise ValueError for invalid wire address.
-        flat: Read mode.
 
     Returns:
         A string contains the hex format EEPROM data.
     """
     raise NotImplementedError
 
-def write_eeprom_by_page(self, page, offset, data, wire_addr=None, flat=False):
+def write_eeprom_by_page(self, page, offset, data, wire_addr=None):
     """
     Write EEPROM by page
 
@@ -67,7 +65,6 @@ def write_eeprom_by_page(self, page, offset, data, wire_addr=None, flat=False):
         offset: EEPROM page offset. Raise ValueError for invalid offset.
         data: Binary EEPROM data.
         wire_addr: Wire address. Only valid for sff8472. Raise ValueError for invalid wire address.
-        flat: Write mode.
 
     Returns:
         True if write successfully else False
@@ -78,16 +75,16 @@ def write_eeprom_by_page(self, page, offset, data, wire_addr=None, flat=False):
 `sfp_optoe_base.SfpOptoeBase` shall implement these new APIs so that vendor does not have to implement it (Vendor specific implementation is also possible).
 
 ```python
-def read_eeprom_by_page(self, page, offset, size, wire_addr=None, flat=False):
+def read_eeprom_by_page(self, page, offset, size, wire_addr=None):
     api = self.get_xcvr_api()
-    overall_offset = api.get_overall_offset(page, offset, size, wire_addr, flat) if api is not None else None
+    overall_offset = api.get_overall_offset(page, offset, size, wire_addr) if api is not None else None
     if overall_offset is None:
         return None
     return self.read_eeprom(overall_offset, size)
 
-def write_eeprom_by_page(self, page, offset, data, wire_addr=None, flat=False):
+def write_eeprom_by_page(self, page, offset, data, wire_addr=None):
     api = self.get_xcvr_api()
-    overall_offset = api.get_overall_offset(page, offset, len(data), wire_addr, flat) if api is not None else None
+    overall_offset = api.get_overall_offset(page, offset, len(data), wire_addr) if api is not None else None
     if overall_offset is None:
         return False
     return self.write_eeprom(overall_offset, len(data), data)
