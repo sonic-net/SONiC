@@ -1817,11 +1817,12 @@ Platform which choose 120sec as PM interval time, the 60sec granularity of 15 â€
 For Platform with PM interval time of 60sec: the above CLI will display the statistics from 9:43:00 to 9:44:00, which will be same as history with window 1 as there is no PM statistics collected within the 60sec.
 
 - ##### Sampling for fixed time window; example:
-    In this example only Rx total power statistics parameter is displayed for simplicity, The assumption is PM started for the port at Apr 27 9.44.00 UTC 2023. At this time all the time window slots are empty and will be updated every PM interval time (default 60sec).
+    In this example only Rx total power statistics parameter is displayed for simplicity, The assumption is PM started for the port at Apr 27 9.44.02 UTC 2023. At this time all the time window slots are empty and will be updated every PM interval time (default 60sec).
 The 60sec time window are filled as it is read from module if the PM interval is 60sec, the 60sec sample collected from module is then sampled for 15mins and 24Hr window every 60seconds.
 
 			
-<img src ="https://user-images.githubusercontent.com/97986478/236910604-bbb52e77-5c62-4a7e-b64d-ff883d9b57d3.png" width=60% height=50%>
+<img src ="https://user-images.githubusercontent.com/97986478/278157900-01a32358-d257-4ff2-9fb2-af5ce404d6df.png" width=70% height=60%>
+
 
 - #####Code snipet for PM data sampling:
 
