@@ -79,9 +79,43 @@ The following SONiC repositories will have changes
 
 #### sonic-platform-daemons	
 
-SensorMon will be a new daemon that will run in PMON container. It will retrieve a list of sensors of different sensor types from the platform during initialization. Subsequently, it will poll the sensor devices on a periodic basis and update their measurments in StateDb. SemsorMon will also raise syslogs on alarm conditions. 
+SensorMon will be a new daemon that will run in PMON container. It will retrieve a list of sensors of different sensor types from the platform during initialization. Subsequently, it will poll the sensor devices on a periodic basis and update their measurments in StateDb. SensorMon will also raise syslogs on alarm conditions. 
 
+Following is the DB schema for voltage and current sensor data.
+
+##### Voltage Sensor StateDb Schema
+
+	; Defines information for a voltage sensor
+	key                     = VOLTAGE_INFO|sensor_name       ; Voltage sensor name
+	; field                 = value
+	voltage                 = float                          : Voltage measurement
+	unit                    = string                         ; Unit for the measurement
+	high_threshold          = float                          ; High threshold 
+	low_threshold           = float                          ; Low threshold 
+	critical_high_threshold = float                          ; Critical high threshold
+	critical_low_threshold  = float                          ; Critical low threshold
+	warning_status          = boolean                        ; Sensor value in range
+	timestamp               = string                         ; Last update time
+	maximum_voltage         = float                          ; Maximum recorded measurement
+	minimum_voltage         = float                          ; Mininum recorded measurement
+
+##### Current Sensor StateDb Schema
+
+	; Defines information for a current sensor
+	key                     = CURRENT_INFO|sensor_name       ; Current sensor name
+	; field                 = value
+	current                 = float                          : Current measurement
+	unit                    = string                         ; Unit for the measurement
+	high_threshold          = float                          ; High threshold 
+	low_threshold           = float                          ; Low threshold 
+	critical_high_threshold = float                          ; Critical high threshold
+	critical_low_threshold  = float                          ; Critical low threshold
+	warning_status          = boolean                        ; Sensor value in range
+	timestamp               = string                         ; Last update time
+	maximum_current         = float                          ; Maximum recorded measurement
+	minimum_current         = float                          ; Mininum recorded measurement
 	
+		
 #### sonic-platform-common
 
 Chassis Base class will be enhanced with prototype methods for retrieving number of sensors and sensor objects of a specific type.
@@ -112,19 +146,20 @@ Voltage and Current sensors should be available in Entity MIB. Entity MIB implem
 Following CLI is introduced to display the Voltage and Current Sensor devices.
 
 	root@sonic:/home/cisco# show platform voltage
-	          Sensor    Voltage(mV)    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
+	          Sensor       Voltage    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
 	----------------  -------------  ---------  --------  --------------  -------------  ---------  -----------------
-	VP0P75_CORE_NPU0            750        852       684             872            664      False  20230204 11:35:21
-	VP0P75_CORE_NPU1            750        852       684             872            664      False  20230204 11:35:21
-	VP0P75_CORE_NPU2            750        852       684             872            664      False  20230204 11:35:22
+	VP0P75_CORE_NPU0         750 mV        852       684             872            664      False  20230204 11:35:21
+	VP0P75_CORE_NPU1         750 mV        852       684             872            664      False  20230204 11:35:21
+	VP0P75_CORE_NPU2         750 mV        852       684             872            664      False  20230204 11:35:22
+	
 	...
 	
 	root@sonic:/home/cisco# show platform current
-	        Sensor    Current(mA)    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
+	        Sensor        Current    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
 	--------------  -------------  ---------  --------  --------------  -------------  ---------  -----------------
-	POL_CORE_N0_I0          25000      30000     18000           28000          15000      False  20230212 11:18:28
-	POL_CORE_N0_I1          21562      30000     18000           28000          15000      False  20230212 11:18:28
-	POL_CORE_N0_I2          22250      30000     18000           28000          15000      False  20230212 11:18:28
+	POL_CORE_N0_I0       25000 mA      30000     18000           28000          15000      False  20230212 11:18:28
+	POL_CORE_N0_I1       21562 mA      30000     18000           28000          15000      False  20230212 11:18:28
+	POL_CORE_N0_I2       22250 mA      30000     18000           28000          15000      False  20230212 11:18:28
 
 
 	
@@ -143,9 +178,9 @@ The alarm condition will be visible in the CLI ouputs for sensor data and system
 
 	e.g 
 	root@sonic:/home/cisco# show platform voltage
-	          Sensor    Voltage(mV)    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
+	          Sensor        Voltage    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
 	----------------  -------------  ---------  --------  --------------  -------------  ---------  -----------------
-	VP0P75_CORE_NPU2            880        720       684             720            664       True  20230204 11:35:22
+	VP0P75_CORE_NPU2         880 mV        720       684             720            664       True  20230204 11:35:22
 	
 	root@sonic:/home/cisco# show system-health detail
 	System status summary
@@ -158,7 +193,10 @@ The alarm condition will be visible in the CLI ouputs for sensor data and system
     	...
 
 	
+##### PDDF Support
 
+SONiC PDDF provides a data driven framework to access platform HW devices. PDDF allows for sensor access information to be read from platform specific json files. PDDF support can be added for voltage and current sensors which can be retrieved by Sensormon.
+ 
 
 #### Warmboot and Fastboot Design Impact  
 
@@ -176,6 +214,6 @@ The core implementation for the daemon process is available at this time along w
 * sonic-platform-common
 * sonic-utilities
 * sonic-buildimage
+* sonic-snmpagent
 
-
-SNMP, System Health and SONiC management test cases will be available in the next phase of development.
+SONiC management test cases and PDDF support will be available in the next phase of development.
