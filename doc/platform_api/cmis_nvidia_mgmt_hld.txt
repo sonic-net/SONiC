@@ -1,0 +1,2 @@
+SONiC CMIS host management is defined to allow user to integrate and qualify different modules by different vendors and change parameters as needed
+ without the need of upgrading the entire sw and to have run time change of the module parameters.
