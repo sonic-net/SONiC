@@ -1,4 +1,4 @@
-# DHCPv4 - Specify Gateway explicitly #
+# DHCP Relay (v4) - Specify gaaddr as Primary Interface's Gateway explicitly #
 
 ## Table of Content 
 1. [Scope](#Scope)
@@ -12,8 +12,7 @@
 
 ### Scope  
 
-This document describes the High Level Design of 'Subnets' of vlan and use of same in dhcpv4.
-This HLD document represent the changes in PR: https://github.com/sonic-net/sonic-buildimage/pull/15969.
+This document describes the High Level Design of 'secondary' interfaces of vlan and use of primary (non-secondary) interface for dhcpv4 relay's giaddr.
 
 ### Definitions/Abbreviations 
 
@@ -21,22 +20,29 @@ This HLD document represent the changes in PR: https://github.com/sonic-net/soni
 
 ### Overview 
 
-'Subnets' specify the primary subnet of a vlan (IPv4;IPv6). When a dhcpv4 packet is forwarded via dhcprelayagent, it embeds its own gateway address as 'giaddr' for return communication.
-In case of multiple interfaces, dhcprelayagent misconfigures this giaddr to any of the interfaces. 
-This change fixes this behaviour by explicitly specifying the primary interface/gateway.
-This primary subnet is stored in db as 'subnets' of VLAN.
+A vlan can support multiple subnets/interfaces. Some of these interfaces (ideally all except one) can be marked as 'secondary'.
+
+Secondary addresses do not support DHCP (with dhcp relay). Dhcp relay agent will insert its primary address in dhcp request, and dhcp server should assign addresses from primary range only. 
+
+When a dhcpv4 packet is forwarded via (isc) dhcprelayagent, it embeds its interface's gateway address as 'giaddr' for return communication.
+In case of multiple (primary) interfaces, dhcprelayagent randomly (mis)configures this giaddr to any of the interfaces. 
+This design fixes this behaviour by marking some interfaces as secondary, and explicitly specifying the primary interface for dhcp relay agent's gateway.
+
+Secondary interface increases the number of IPs supported by switch without affecting live workloads. Such IPs will be used for virtualized machines on existing baremetals. This also provides finer control for different workloads from network security.
+
+This feature is limited to IPv4-only.
 
 ### Requirements
 
-1. Support a new member 'Subnets' of VLAN in config_db.
-2. Support parsing and assignment of subnets from minigraph to config_db. 
-3. Support specifying subnet's first address as gateway address to command line arguments to /usr/sbin/dhcrelay as -g.
+1. Support a new member 'secondary' of VLAN_INTERFACE in config_db.
+2. Support parsing and assignment of subnets from minigraph/json to config_db. 
+3. Support specifying non-secondary interfaces' gateway address to command line arguments to /usr/sbin/dhcrelay as -g.
 4. isc-dhcp/dhcrelay to support '-g gateway' argument, by porting an existing patch.
 
 ### Architecture Design 
 
 This HLD doesn't propose any sonic architectural changes. It follows the existing architecture of sonic - open source asc-dhcp is used for its dhcpv4 requirements.
-This HLD prposes to enhance the dhcpv4 capability by avoiding ambiguity in dhcpv4 packets wrt giaddr field.
+This HLD proposes to enhance the dhcp-relay (v4) capability by avoiding ambiguity in dhcpv4 request packet's giaddr field.
 
 ### High-Level Design 
 
@@ -47,7 +53,7 @@ This section covers the high level design of the feature/enhancement. This secti
 	- What are the repositories that would be changed? - sonic-subnet/sonic-buildimage.
 	- Module/sub-module interfaces and dependencies. 
 	- SWSS and Syncd changes in detail - N/A.
-	- DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB) - sonic-vlan/sonic-vlan/VLAN/VLAN_LIST/Subnets.
+	- DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB) - CONFIG_DB sonic-vlan/sonic-vlan/VLAN_INTERFACE.
 	- Sequence diagram if required. - N/A.
 	- Linux dependencies and interface - N/A.
 	- Warm reboot requirements/dependencies - N/A.
@@ -70,22 +76,16 @@ No change in SAI API.
 
 #### Minigraph 
 
-<<Redis DB Structure | Json Style>>
+Redis DB Structure | Json Style
+```
 {
-"VLAN": {
-	"Vlan1000": {
-		"dhcp_servers": [
-			"192.0.0.1"
-		],
-		"members": [
-			"Ethernet0"
-		],
-		"vlanid": "1000",
-		“subnets”: “192.168.0.1/27”
+"VLAN_INTERFACE": {
+	"Vlan1000": {},
+	"Vlan1000|20.11.12.13/27": {"secondary": "true"},
+	"Vlan1000|20.11.10.13/27": {},
 	}
-  }
 }
-<<End Json Style>>
+```
 
 #### Manifest (if the feature is an Application Extension)
 
@@ -94,11 +94,25 @@ N/A
 
 #### CLI/YANG model Enhancements 
 
-There is no change in CLI.
+Extend CLI:
+
+	$ sudo config interface ip add Vlan1000 20.11.12.13/27 20.11.12.254 --secondary
+	Usage: config interface ip add <interface_name> <ip_addr> <default gateway IP address> <secondary>
+
+Extend yang (sonic-vlan.yang):
+```
+	list VLAN_INTERFACE_IPPREFIX_LIST {
+
+				leaf secondary	{
+					type boolean;
+				}
+			}
+```
 
 #### Config DB Enhancements  
 
-Support a new member 'Subnets' of VLAN in config_db.
+Support a new option member 'secondary' of VLAN_INTERFACE in config_db. Type: bool, Default: false.
+No upgrade/action required in config_db for existing interfaces.
 
 
 ### Warmboot and Fastboot Design Impact  
