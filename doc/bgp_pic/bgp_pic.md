@@ -135,7 +135,11 @@ The new forwarding chain will be organized as follows.
 </figure> 
 
 ### struct nhg_hash_entry 
-As described in the previous section, we will add a new field struct nhg_hash_entry *pic_nhe in struct nhg_hash_entry.
+As described in the previous section, we will add a new field struct nhg_hash_entry *pic_nhe in struct nhg_hash_entry, zebra_nhg.h
+
+	struct nhg_connected_tree_head nhg_depends, nhg_dependents;
+    struct nhg_hash_entry *pic_nhe;
+
 If PIC NHE is not used, pic_nhe would be set to NULL.
 
 ### struct dplane_route_info
@@ -166,7 +170,98 @@ BGP_PIC_enable flag would be set based on zebra's command line arguments. This f
 
 ### Create pic_nhe
 From dplane_nexthop_add(), when normal NHG is created, we will try to create PIC NHG as well.
-zebra_nhe_find() is used to create or find a NHE. In create case, when NHE is for BGP PIC and BGP_PIC is enabled, we use the same same API to create a pic_nhe, a.ka. create nexthop with FORWARDING information only. The created pic_nhe would be stored in the new added field struct nhg_hash_entry *pic_nhe.
+zebra_nhe_find() is used to create or find a NHE. In create case, when NHE is for BGP PIC and BGP_PIC is enabled, we use a similar API zebra_pic_nhe_find() to create a pic_nhe, a.ka. create nexthop with FORWARDING information only. The created pic_nhe would be stored in the new added field struct nhg_hash_entry *pic_nhe. The following code is a sample code which would be created in zebra_nhg.c.
+
+
+    bool zebra_pic_nhe_find(struct nhg_hash_entry **pic_nhe, /* return value */
+			   struct nhg_hash_entry *nhe,
+			   afi_t afi, bool from_dplane)
+    {
+	    bool created = false;
+	    struct nhg_hash_entry *picnhe;
+	    struct nexthop *nh = NULL;
+	    struct nhg_hash_entry pic_nh_lookup = {};
+	    //struct nexthop *nexthop_tmp;
+	    struct nexthop *pic_nexthop_tmp;
+	    bool ret = 0;
+
+    if (nhe->pic_nhe) {
+		*pic_nhe = nhe->pic_nhe;
+		return false;
+    }
+	/* Use a temporary nhe to find pic nh */
+	pic_nh_lookup.type = nhe->type ? nhe->type : ZEBRA_ROUTE_NHG;
+	pic_nh_lookup.vrf_id = nhe->vrf_id;
+    /* the nhg.nexthop is sorted */
+	for (nh = nhe->nhg.nexthop; nh; nh = nh->next) {
+		if (nh->type == NEXTHOP_TYPE_IFINDEX)
+			continue;
+		pic_nexthop_tmp = nexthop_dup_no_context(nh, NULL);
+		ret = nexthop_group_add_sorted_nodup(&pic_nh_lookup.nhg, pic_nexthop_tmp);
+		if (!ret)
+			nexthop_free(pic_nexthop_tmp);
+	}
+	if (pic_nh_lookup.nhg.nexthop == NULL) {
+		*pic_nhe = NULL;
+		return false;
+    }
+
+	if (!zebra_nhg_dependents_is_empty(nhe) || pic_nh_lookup.nhg.nexthop->next) {
+		/* Groups can have all vrfs and AF's in them */
+		pic_nh_lookup.afi = AFI_UNSPEC;
+	} else {
+		switch (pic_nh_lookup.nhg.nexthop->type) {
+		case (NEXTHOP_TYPE_IFINDEX):
+		case (NEXTHOP_TYPE_BLACKHOLE):
+			/*
+			 * This switch case handles setting the afi different
+			 * for ipv4/v6 routes. Ifindex/blackhole nexthop
+			 * objects cannot be ambiguous, they must be Address
+			 * Family specific. If we get here, we will either use
+			 * the AF of the route, or the one we got passed from
+			 * here from the kernel.
+			 */
+			pic_nh_lookup.afi = afi;
+			break;
+		case (NEXTHOP_TYPE_IPV4_IFINDEX):
+		case (NEXTHOP_TYPE_IPV4):
+			pic_nh_lookup.afi = AFI_IP;
+			break;
+		case (NEXTHOP_TYPE_IPV6_IFINDEX):
+		case (NEXTHOP_TYPE_IPV6):
+			pic_nh_lookup.afi = AFI_IP6;
+			break;
+		}
+	}
+
+	created = zebra_nhe_find(&picnhe, &pic_nh_lookup, NULL, afi, from_dplane, true);
+	*pic_nhe = picnhe;
+	if (pic_nh_lookup.nhg.nexthop)
+		nexthops_free(pic_nh_lookup.nhg.nexthop);
+	if (IS_ZEBRA_DEBUG_NHG_DETAIL)
+		zlog_debug("%s: create PIC nhe id %d for nhe %d",
+			   __func__, picnhe->id, nhe->id);
+	return created;
+
+}
+
+This function is called by zebra_nhe_find() when pic_nhe is needed, but not gets created. 
+
+    ...
+    done:
+	      /* create pic_nexthop */
+	      if (fpm_pic_nexthop && created && !pic) {
+		        zebra_pic_nhe_find(&pic_nhe, *nhe, afi, from_dplane);
+		        if (pic_nhe && pic_nhe != *nhe && ((*nhe)->pic_nhe) == NULL) {
+			          (*nhe)->pic_nhe = pic_nhe; 
+			          zebra_nhg_increment_ref(pic_nhe);
+			          SET_FLAG(pic_nhe->flags, NEXTHOP_GROUP_PIC_NHT);
+		        }
+	      }
+
+	    /* Reset time since last update */
+	    (*nhe)->uptime = monotime(NULL);
+      ...
 
 ### Handles kernel forwarding objects
 There is no change for zebra to handle kernel forwarding objects. Only zg_ng is used for NHG programming in kernel. 
