@@ -283,6 +283,27 @@ The following talbe compares the number of forwarding objects created with and w
 | NHG   |  N  | 1 |
 | CONTEXT | n/a | N |
 
+Here is an example of the "show ip route"'s information, which shows two IDs. One ID is for NHG ID. The other ID is for PIC CONTEXT ID.
+<figure align=center>
+    <img src="images/show_ip_route.png" >
+    <figcaption>Figure 6. The output for show ip route.<figcaption>
+</figure> 
+
+The following graph shows pic_nhe, i.e. NHE with forwarding only part. In hardwward forwarding, it is associated with the NHG ID shown in "show ip route".
+<figure align=center>
+    <img src="images/nhg_pic.png" >
+    <figcaption>Figure 7. PIC NHG<figcaption>
+</figure> 
+
+The following graph shows normal NHE, which contains both forwarding information and context. In hardware forwarding, it is associated with the PIC CONTEXT ID shown in "show ip route".
+<figure align=center>
+    <img src="images/nhg_normal.png" >
+    <figcaption>Figure 8. Normal NHG.<figcaption>
+</figure> 
+
+
+
+
 #### How would pic_nhg improve BGP convergence
 When IGP detects a BGP Nexthop is down, IGP would inform zebra on this route delete event. Zebra needs to make the following handlings. 
 1. Find out all associated forwarding only nexthops resolved via this route. The nexthop lookup logic is similar to what it does in zebra_nhg_proto_add().
@@ -296,13 +317,13 @@ https://github.com/opencomputeproject/SAI/blob/master/doc/SAI-IPv6-Segment-Routi
 
 <figure align=center>
     <img src="images/srv6_sai_objs.png" >
-    <figcaption>Figure 6. SRv6 VPN SAI Objects<figcaption>
+    <figcaption>Figure 9. SRv6 VPN SAI Objects<figcaption>
 </figure> 
 
 #### Map APP_DB to SAI objects
 <figure align=center>
     <img src="images/app_db_to_sai.png" >
-    <figcaption>Figure 7. APP DB to SAI OBJs mapping<figcaption>
+    <figcaption>Figure 10. APP DB to SAI OBJs mapping<figcaption>
 </figure> 
 
 ### Orchagent Modifications
@@ -327,7 +348,7 @@ As shown in the following image：
 
 <figure align=center>
     <img src="images/BGP_NH_update.png" >
-    <figcaption>Figure 8. BGP NH down event Handling<figcaption>
+    <figcaption>Figure 11. BGP NH down event Handling<figcaption>
 </figure> 
 
 When the route 2033::178, marked in blue, is deleted, find its corresponding nhg(68) based on 2033::178. Then, iterate through the Dependents list of nhg(68) and find the dependent nhg(67). Remove the nexthop member(2033::178) from nhg(67). After completing this action, trigger a refresh of nhg(67) to fpm.
