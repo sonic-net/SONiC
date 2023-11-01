@@ -107,7 +107,7 @@ Returns:
 
 #### **2.4.2 Support for Multiple Storage Disks**
 
-The `ssdutil` utility assumes that the disk drive is `/dev/sda` whereas the drive letter could be any label based on the number of SSDs. It could also be a different type of storage device such as eMMC, eUSB or NVMe.
+The `ssdutil` utility assumes that the disk drive is `/dev/sda` whereas the drive letter could be any label based on the number of SSDs. It could also be a different type of storage device such as eMMC, USB or NVMe.
 
 In order to get a clear picture of the number and type of disks present on a device, we introduce a new class `StorageDevices()` which will accompany the stormond daemon at `sonic-platform-daemons/sonic-stormond/scripts/StorageDevices.py`. This new class provides the following methods:
 
@@ -129,7 +129,7 @@ def get_storage_device_object(self):
 Instantiates an object of the corresponding storage device class. 
 Adds the instantiated class object as a value to the corresponding key in the dictionary object.
 
-NOTE: SsdUtil is supported currently. Future support for EmmcUtil, eUSBUtil and NVMeUtil
+NOTE: SsdUtil is supported currently. Future support for EmmcUtil, USBUtil and NVMeUtil
 
 """
 
@@ -161,7 +161,7 @@ We then leverage the following proposed StateDB schema to store and stream infor
 ```
 ; Defines information for each Storage Disk in a device
 
-key                 = STORAGE_INFO|<disk_name>          ; This key is for information that does not change for the lifetime of the SSD - SSD_INFO|SDX
+key                 = STORAGE_INFO|<disk_name>          ; This key is for information that does not change for the lifetime of the SSD - STORAGE_INFO|SDX
 
 ; field             = value
 
