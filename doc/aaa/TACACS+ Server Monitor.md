@@ -154,6 +154,9 @@ module sonic-tacplus-monitor {
 
 ```
 - TACACS+ monitor is a Monit profile.
+- Hostcfgd will update Monit profile based on TACPLUS_MONITOR table and TACPLUS_SERVER table:
+    - When monitor feature disabled, hostcfgd will disable the Monit profile.
+    - When TACPLUS_SERVER changed, hostcfgd will update Monit profile.
 - TACACS+ monitor will perdically check TACACS server latency and update latency to COUNTER_DB.
     - The latency in COUNTER_DB TACPLUS_SERVER_LATENCY table is average latency in recent time window.
     - The time window side defined in CONFIG_DB TACPLUS_MONITOR table.
