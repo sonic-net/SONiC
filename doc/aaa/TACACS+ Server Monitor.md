@@ -160,7 +160,8 @@ module sonic-tacplus-monitor {
 - TACACS+ monitor also will write warning message to syslog when following event happen:
     - Any server latency is -1, which means the server is unreachable.
     - Any server latency is bigger than high_latency_threshold.
-- Hostcfgd will monitor TACPLUS_SERVER_LATENCY table and re-generate TACACS config file:
+- Hostcfgd will monit TACPLUS_SERVER_LATENCY table and re-generate TACACS config file:
+    - When monitor feature disabled, hostcfgd will not monit TACPLUS_SERVER_LATENCY table.
     - Hostcfgd will cache last time table data, and compare with latest table data.
     - Based on compare result, if found following change, hostcfgd will re-generate TACACS config file:
         - Any server latency is -1, which means the server is unreachable.
@@ -168,10 +169,12 @@ module sonic-tacplus-monitor {
         - Any server latency is bigger than high_latency_threshold.
 - When hostcfgd generate TACACS config file, server priority calculated according to following rules:
     - Get server priority info from CONFIG_DB TACPLUS_SERVER table.
-    - Change high latency server to 1, this is because 1 is the smallest priority, and SONiC device will use high priority server first.
-    - Un-reachable server will not include in TACACS config file. When server become reachable, hostcfgd will add server back.
-    - If other server also has priority 1 in CONFIG_DB, change priority to 2
-    - If other server priority is no 1, using original priority in CONFIG_DB
+    - When monitor feature disabled, will use priority in TACPLUS_SERVER table as server priority.
+    - When monitor feature enabled:
+        - Change high latency server to 1, this is because 1 is the smallest priority, and SONiC device will use high priority server first.
+        - Un-reachable server will not include in TACACS config file. When server become reachable, hostcfgd will add server back.
+        - If other server also has priority 1 in CONFIG_DB, change priority to 2
+        - If other server priority is no 1, using original priority in CONFIG_DB
 
 # 5 References
 
