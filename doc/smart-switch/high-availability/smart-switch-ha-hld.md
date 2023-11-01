@@ -161,7 +161,7 @@
 
 ## 1. Background
 
-As the continuation of [Sirius](https://www.usenix.org/conference/nsdi23/presentation/bansal) project, SmartSwitch provides an even more cost-effective and space-saving way for Azure to build SDN solutions, with even lower network latency. However, like all the other network solutions, one of the biggest challenges we need to solve is how to provide a reliable network service.
+To help disaggregate network functions, SmartSwitch provides an cost-effective and space-saving way to build SDN solutions, with low network latency. However, like all the other network solutions, one of the biggest challenges we need to solve is how to provide a reliable network service.
 
 This doc covers the aspect of High Availability and Scalability for SmartSwitch in the aspects of Requirements / SLA, the network physical topology, ENI allocation/placement, HA state management and transition under each planned or unplanned events, flow replication and more.
 
@@ -286,7 +286,7 @@ Besides data path HA, SmartSwitch also supports Flow HA to provide high availabi
 
 To provide HA functionality, we are going to use Active-Standby setup. In this setup:
 
-* One DPU will act as active and making flow decisions, while the non-active node will act as a pure backup flow storage.
+* One side will act as active and making flow decisions, while the non-active node will act as a pure backup flow storage.
 * When packets land on active DPU and creates a new flow, the new flow will be replicated to the standby DPU inline.
 * When packets land on standby side, they will be tunneled to the active DPU by NPU (or DPU as fallback).
 * When the active DPU runs into issues, we will failover the active, make the standby the new active, and switch over the traffic to avoid further impact.
@@ -309,7 +309,7 @@ This allows us to spread the load to all switches. And taking down a switch will
 
 Although we are using card-level ENI pair placement, each ENI pair has its own active instance. In another word, HA scope is on ENI-level. This means - when failover happens, we only move the active for that single ENI to the standby.
 
-This helps us spread the traffic load between the paired DPUs - Instead of having the active DPU handling all the traffic, each DPU can have half of the active ENIs and handle half of the traffic. Especially when traffic is skewed, we can failover some active ENIs to avoid one side of DPU being busy.
+This helps us spread the traffic load and flow creation cost between the paired DPUs - Instead of having the active DPU handling all the traffic, each DPU can have half of the active ENIs and handle half of the traffic. Especially when traffic is skewed, we can failover some active ENIs to avoid one side of DPU being busy.
 
 <p align="center"><img alt="ENI pair placement" src="./images/ha-scope.svg"></p>
 
