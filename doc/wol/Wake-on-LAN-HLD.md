@@ -12,9 +12,9 @@
 
 ## Revision
 
-| Revision | Date        | Author           | Change Description |
-| -------- | ----------- | ---------------- | ------------------ |
-| 1.0      | Oct 24 2023 | Zhijian Li       | Initial proposal   |
+| Revision | Date       | Author     | Change Description |
+| -------- | ---------- | ---------- | ------------------ |
+| 1.0      | Nov 7 2023 | Zhijian Li | Initial proposal   |
 
 ## Definitions/Abbreviations 
 
@@ -43,7 +43,7 @@ Below diagram describes a common usage of WoL on SONiC switch, this HLD will foc
   * **Source MAC address**. [6 bytes]
   * **EtherType**: `0x0842`. [2 bytes]
 * **Ethernet Frame Payload**:
-  * Six bytes of all 0xff. [6 bytes]
+  * Six bytes of all `0xff`. [6 bytes]
   * Sixteen repetitions of the target device's MAC address. [96 bytes]
   * (Optional) A four or six byte password. [4 or 6 bytes]
 
@@ -74,21 +74,23 @@ This command requires root privilege because it'll modify the power-mode of targ
 ### Usage
 
 ```
-wol <interface> <target_mac> [-b] [-p password]
+wol <interface> <target_mac> [-b] [-p password] [-c count] [-i interval]
 ```
 
 - `interface`: SONiC interface name.
 - `target_mac`: MAC address of the target device.
 - `-b`: Use broadcast MAC address instead of target device's MAC address as **Destination MAC Address in Ethernet Frame Header**.
-- `password`: An optional 4 or 6 byte password, in ethernet hex format or quad-dotted decimal[^3].
+- `-p password`: An optional 4 or 6 byte password, in ethernet hex format or quad-dotted decimal[^3].
+- `-c count`: Count of magic packet to send. `count` must between 1 and 5. Default value is 1. This param must use with `-i`.
+- `-i interval`: Wait `interval` milliseconds between sending each magic packet. `interval` must between 0 and 2000. Default value is 0. This param must use with `-c`.
 
 ### Example
 
 ```
-admin@sonic:~$ wol Ethernet10 2c:dd:e9:fc:df:08
-admin@sonic:~$ wol Ethernet10 2c:dd:e9:fc:df:08 -b
-admin@sonic:~$ wol Vlan1000 2c:dd:e9:fc:df:08 -p 00:22:44:66:88:aa
-admin@sonic:~$ wol Vlan1000 2c:dd:e9:fc:df:08 -p 192.168.1.1
+admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55
+admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55 -b
+admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55 -p 00:22:44:66:88:aa
+admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55 -p 192.168.1.1 -c 3 -i 2000
 ```
 
 ## gNOI Design
@@ -111,10 +113,12 @@ service SonicWolService {
 }
 
 message WolRequest {
-    string interface = 1;  // SONiC interface name
-    string target_mac = 2; // MAC addresses in colon notation
+    string interface = 1;         // SONiC interface name
+    string target_mac = 2;        // MAC addresses in colon notation
     optional bool broadcast = 3;  // Default false
     optional string password = 4; // In ethernet hex format or quad-dotted decimal
+    optional int32 count = 5;     // Count of magic packet to send, must use with interval together.
+    optional int32 interval = 6;  // Wait interval milliseconds between sending each magic packet, must use with count together.
 }
 
 message WolResponse {
