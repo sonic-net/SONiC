@@ -57,6 +57,7 @@ This section should list the SAI APIs/objects used by the design so that silicon
 
 ### Configuration and management 
 This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
+If there is breaking change which may impact existing platforms, please call out in the design and get platform vendors reviewed. 
 
 #### Manifest (if the feature is an Application Extension)
 
@@ -75,6 +76,8 @@ This sub-section covers the addition/deletion/modification of config DB changes 
 ### Warmboot and Fastboot Design Impact  
 Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
 
+### Memory Consumption
+This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration. 
 ### Restrictions/Limitations  
 
 ### Testing Requirements/Design  
