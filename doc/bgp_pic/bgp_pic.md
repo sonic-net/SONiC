@@ -9,6 +9,7 @@
 <!-- omit in toc -->
 ## Table of Content
 - [Goal and Scope](#goal-and-scope)
+  - [BGP PIC at high level](#bgp-pic-at-high-level)
 - [High Level Design](#high-level-design)
 - [Zebra's Data Structure Modifications](#zebras-data-structure-modifications)
   - [Exiting Struct nexthop](#exiting-struct-nexthop)
@@ -35,27 +36,29 @@
 - [References](#references)
 
 ## Goal and Scope
-BGP PIC, as detailed in the RFC available at https://datatracker.ietf.org/doc/draft-ietf-rtgwg-bgp-pic/, addresses the enhancement of BGP route convergence. This document outlines a method to arrange forwarding structures that can lead to improved BGP route convergence. BGP PIC offers two primary enhancements:
+BGP PIC, as detailed in the RFC available at https://datatracker.ietf.org/doc/draft-ietf-rtgwg-bgp-pic/, addresses the enhancement of BGP route convergence. This document outlines a method to arrange forwarding structures that can lead to improved BGP route convergence. From architecture level, the same approach could enhance prefixes convergence for all VPN cases, MPLS VPN, SRv6 VPN and EVPN. 
 
-- It prevents BGP load balancing updates from being triggered by IGP load balancing updates. This issue, which is discussed in the SONiC Routing Working Group (https://lists.sonicfoundation.dev/g/sonic-wg-routing/files/SRv6%20use%20case%20-%20Routing%20WG.pptx), can be effectively resolved using BGP PIC.
+The above draft offers two primary enhancements:
+
+- It prevents BGP load balancing updates from being triggered by IGP load balancing updates. This is essentially the recursive VPN route support. This issue, which is discussed in the SONiC Routing Working Group (https://lists.sonicfoundation.dev/g/sonic-wg-routing/files/SRv6%20use%20case%20-%20Routing%20WG.pptx), can be effectively resolved. The recursive routes support would be detailed in a separate HLD.
 
 <figure align=center>
     <img src="images/srv6_igp2bgp.jpg" >
     <figcaption>Figure 1. Alibaba issue Underlay routes flap affecting Overlay SRv6 routes <figcaption>
 </figure> 
 
-**Note:** <span style="color:yellow"> We only handle VPN overlay routes via BGP PIC in this HLD. For global table's recursive routes handling, it would be handled via an incoming HLD which would be led by Accton team. </span>
+-  We aim to achieve fast convergence in the event of a hardware forwarding failure related to a remote BGP PE becoming unreachable. Convergence in the slow path forwarding mode is not a priority. This is the main benefit for BGP PIC which would be addressed mainly in this HLD.
 
--  We aim to achieve fast convergence in the event of a hardware forwarding failure related to a remote BGP PE becoming unreachable. Convergence in the slow path forwarding mode is not a priority.
+### BGP PIC at high level
 <figure align=center>
     <img src="images/pic.png" >
     <figcaption>Figure 2. BGP PIC for improving remote BGP PE down event handling <figcaption>
 </figure> 
 
-
   -  The provided graph illustrates that the BGP route 1.1.1.1 is advertised by both PE2 and PE3 to PE1. Each BGP route update message not only conveys the BGP next-hop information but also includes VPN context details. 
+  
   -  Consequently, when forming BGP Equal-Cost Multipath (ECMP) data structures, it is natural to retain both the BGP next-hop data and context information for each path. The VPN context could be specific to each prefix (a.k.a per prefix), individual customer edge (a.k.a per CE), or Virtual Routing and Forwarding (per VRF) type. This often leads to situations where BGP ECMP data structures cannot be effectively shared, as indicated in the lower-left section of the diagram. When a remote PE goes offline, PE1 must update all relevant BGP ECMP data structures, which can involve handling prefixes of varying lengths, resulting in an operation with a time complexity of O(N). 
-
+  
    - The concept of the Prefix Independent Convergence's (PIC) proposal is to restructure this information by segregating the BGP next-hop information from the VPN context. The BGP next-hop-only information will constitute a new BGP ECMP structure that can be shared among all associated BGP VPN routes, as depicted in the lower-right part of the diagram. This approach allows for more efficient updates when the Interior Gateway Protocol (IGP) detects a BGP next-hop failure, resulting in an operation with a time complexity of O(1). This strategy aims to minimize traffic disruption in the hardware. The VPN context will be updated once BGP routes have reconverged.
 
 ## High Level Design
@@ -166,10 +169,20 @@ This stucture is initialized via dplane_ctx_nexthop_init(), which is used to tri
 
 ## Zebra Modifications
 ### BGP_PIC enable flag
-BGP_PIC_enable flag would be set based on zebra's command line arguments. This flag would be set only on the platform which Linux kernel supports NHG, a.k.a kernel_nexthops_supported() returns true.
+fpm_pic_nexthop flag would be set based on zebra's command line arguments and only on the platform which Linux kernel supports NHG, a.k.a kernel_nexthops_supported() returns true.
 
 ### Create pic_nhe
-From dplane_nexthop_add(), when normal NHG is created, we will try to create PIC NHG as well.
+From dplane_nexthop_add(), when normal NHG is created, we will try to create PIC NHG as well. Currently, PIC NHG would be created for both BGP and IGP NHGs for all cases once pic is enable a.k.a fpm_pic_nexthop flag is set. We could skip IGP NHG's handling since the value is not big, although it is stated in the draft.
+
+	if (fpm_pic_nexthop && created && !pic) {
+		zebra_pic_nhe_find(&pic_nhe, *nhe, afi, from_dplane);
+		if (pic_nhe && pic_nhe != *nhe && ((*nhe)->pic_nhe) == NULL) {
+			(*nhe)->pic_nhe = pic_nhe; 
+			zebra_nhg_increment_ref(pic_nhe);
+			SET_FLAG(pic_nhe->flags, NEXTHOP_GROUP_PIC_NHT);
+		}
+	}
+
 zebra_nhe_find() is used to create or find a NHE. In create case, when NHE is for BGP PIC and BGP_PIC is enabled, we use a similar API zebra_pic_nhe_find() to create a pic_nhe, a.ka. create nexthop with FORWARDING information only. The created pic_nhe would be stored in the new added field struct nhg_hash_entry *pic_nhe. The following code is a sample code which would be created in zebra_nhg.c.
 
 
@@ -301,9 +314,6 @@ The following graph shows normal NHE, which contains both forwarding information
     <figcaption>Figure 8. Normal NHG.<figcaption>
 </figure> 
 
-
-
-
 #### How would pic_nhg improve BGP convergence
 When IGP detects a BGP Nexthop is down, IGP would inform zebra on this route delete event. Zebra needs to make the following handlings. 
 1. Find out all associated forwarding only nexthops resolved via this route. The nexthop lookup logic is similar to what it does in zebra_nhg_proto_add().
@@ -312,6 +322,8 @@ When IGP detects a BGP Nexthop is down, IGP would inform zebra on this route del
 4. BGP nexthop down event would lead to BGP reconvergence which would update CONTEXT properly later. 
 
 #### SRv6 VPN SAI Objects
+Current use case is for SRv6 VPN. Therefore, we explicitly call out how to map fpm object to SRv6 VPN SAI objects. For MPLS VPN, EVPN use cases, the fpm to SAI object mapping would be added later once we have solid use cases in SONIC. 
+
 The following diagram shows SAI objects related to SRv6. The detail information could be found at
 https://github.com/opencomputeproject/SAI/blob/master/doc/SAI-IPv6-Segment-Routing-VPN.md
 
@@ -331,8 +343,7 @@ Handle two new forwarding objects from APP_DB, NEXTHOP_TABLE and PIC_CONTEXT_TAB
 
 ## Zebra handles NHG member down events
 ### Local link down events
-In Local link down event which would not triger BGP NH's reachability change case, we expect BGP NHG should not be updated. 
-TODO: Need to check with Kentaro to see if they would handle this event as the part of NHG handling.
+https://github.com/sonic-net/SONiC/pull/1425 brings in NHG support, but it doesn't bring in how to trigger NHG update for various events. The recursive route support would be documented via a separate HLD document, since it is independent with BGP PIC approach.
 
 ### BGP NH down events
 BGP NHG not reachable could be triggered from eBGP events or local link down events. We want zebra to backwalk all related BGP PIC NHG and update these NHG directly. 
@@ -354,6 +365,8 @@ As shown in the following image：
 When the route 2033::178, marked in blue, is deleted, find its corresponding nhg(68) based on 2033::178. Then, iterate through the Dependents list of nhg(68) and find the dependent nhg(67). Remove the nexthop member(2033::178) from nhg(67). After completing this action, trigger a refresh of nhg(67) to fpm.
 
 Similarly, when the route 1000::178, marked in brown, is deleted, find its corresponding nhg(66). Based on the dependents list of nhg(66), find nhg(95) and remove the nexthop member(1000::178) from nhg(95). After completing this action, trigger a refresh of nhg(95) to fpm.
+
+Notes: this would be share with the same backwalk infra for recursive routes handling. 
 
 ## Unit Test
 ### FRR Topotest
