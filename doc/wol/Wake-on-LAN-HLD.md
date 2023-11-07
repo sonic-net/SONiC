@@ -4,6 +4,7 @@
 
 - [Overview](#overview)
 - [Background](#background)
+- [Components](#components)
 - [Magic Packet](#magic-packet)
 - [CLI Design](#cli-design)
 - [gNOI Design](#gnoi-design)
@@ -32,7 +33,29 @@
 
 Below diagram describes a common usage of WoL on SONiC switch, this HLD will focus on the green part:
 
-![WoL Background](./wol-background.png)
+![WoL Background](./img/background.png)
+
+## Components
+
+### `wol` CLI script in sonic-utilities
+
+A `wol` script will be introduced in [sonic-utilities](https://github.com/sonic-net/sonic-utilities). The workflow of command line utility `wol` is:
+
+0. User login to the SONiC switch and enter the `wol` command.
+1. The `wol` script send magic packet to specific interface or VLAN.
+
+![Component Utilities](./img/component-utilities.png)
+
+### gNOI service
+
+A new gNOI service `SONiCWolService` will be implemented in sonic-gnmi container. The workflow is:
+
+0. User initialize a gNOI Client to communicate with gNOI server.
+1. The gNOI Client call the RPC function `SONiCWolService.Wol`.
+2. The gNOI server send a D-Bus request to sonic-host-service[^2].
+3. sonic-host-service call `wol` CLI to send the magic packet.
+
+![Component gNOI](./img/component-gnoi.png)
 
 ## Magic Packet
 
@@ -68,8 +91,6 @@ Offset   |0     |1     |2     |3     |4     |5     |
 ## CLI Design
 
 The `wol` command is used to send magic packet to target device.
-
-This command requires root privilege because it'll modify the power-mode of target device.
 
 ### Usage
 
@@ -127,10 +148,25 @@ message WolResponse {
 ```
 
 ## Test Plan
-Test plan will be published in [sonic-net/sonic-mgmt](https://github.com/sonic-net/sonic-mgmt).
+
+### Unit Tests for `wol` CLI
+| Case Description | Expected Result |
+| :- | :- |
+| Input a valid SONiC interface name. | Parameter validation pass, send magic packet |
+| Input an invalid SONiC interface name. | Parameter validation Fail |
+| Input a valid SONiC interface name, but the interface status is not `up`. | Return `Error: interface not up` |
+| Input `target_mac` or `password` with invalid format | Parameter validation Fail |
+| Input valid `count` and `interval`. | Parameter validation pass, send magic packet |
+| Input value of `count` or `interval` is out of range. | Parameter validation Fail |
+| Param `count` and `interval` not appear in input together. | Parameter validation Fail |
+| Mock a send magic packet failure (e.g., socket error) | Return user friendly error message |
+
+### Functional Test
+
+Functional test plan will be published in [sonic-net/sonic-mgmt](https://github.com/sonic-net/sonic-mgmt).
 
 ## Reference
 
 [^1]: [Wake-on-LAN - Wikipedia](https://en.wikipedia.org/wiki/Wake-on-LAN)
-[^2]: [ether-wake.c - BusyBox](https://git.busybox.net/busybox/tree/networking/ether-wake.c)
+[^2]: [Docker to Host communication.md - sonic-net/SONiC](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md)
 [^3]: [Dot-decimal notation - Wikipedia](https://en.wikipedia.org/wiki/Dot-decimal_notation)
