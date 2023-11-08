@@ -86,7 +86,7 @@ To implement the switch side functionality the following changes shall be done:
     - DPU modules available on the platform.
     - DPU to netdev mapping.
 - Config DB schema should be extended to include the following information:
-  - Support of the new `SmartSwitch` type in DEVICE_METADATA config DB table. The new type shall allow to identify when the SONiC is running on the Smart Switch.
+  - Support of the new `SmartSwitch` subtype in DEVICE_METADATA config DB table. The new subtype shall allow to identify when the SONiC is running on the Smart Switch.
   - Support of the new `MID_PLANE_BRIDGE` table with the following information
     - Midplane bridge configuration with the bridge IP address and list of the DPU PCIe interfaces that should be added to the bridge for the Smart Switch case.
 - sonic-cfggen utility shall be extended to generate the following sample configuration based on the `t1-smartswitch` topology:
@@ -107,11 +107,11 @@ The HWSKU configuration shall be extended to provide the information about the D
 ```json
 {
     "DPUS": {
-        "Dpu0" {
-            "interface":  "Dpu0",
+        "dpu0": {
+            "midplane_interface":  "dpu0",
         },
-        "Dpu1" {
-            "interface":  "Dpu1",
+        "dpu1": {
+            "midplane_interface":  "dpu1",
         }
     }
 }
@@ -119,7 +119,7 @@ The HWSKU configuration shall be extended to provide the information about the D
 
 ### DPU and PCIe interfaces naming convention ###
 
-To follow the SONiC interfaces naming convention names of the DPUs in the DB and the PCIe interfaces that are connected to the DPUs shall start from the "Dpu" prefix. The indexes shall start from "0" and shall represent the id of the DPU. For example Dpu0, Dpu1, etc. It is up to vendors' implementation to ensure that interfaces are assigned with the correct name during the system initialization.
+To follow the SONiC interfaces naming convention names of the DPUs in the DB and the PCIe interfaces that are connected to the DPUs shall start from the "dpu" prefix. The indexes shall start from "0" and shall represent the id of the DPU. For example dpu0, dpu1, etc. It is up to vendors' implementation to ensure that interfaces are assigned with the correct name during the system initialization.
 
 ### Configuration generation for IP address assignment ###
 
@@ -145,14 +145,14 @@ Based on the preset `t1-smartswitch` default topology the configuration generate
     "DEVICE_METADATA": {
         "localhost": {
             "switch_type": "switch",
-            "type": "SmartSwitch",
+            "type": "LeafRouter",
+            "subtype": "SmartSwitch",
         }
     },
     "MID_PLANE_BRIDGE" {
         "GLOBAL": {
             "bridge" : "bridge_midplane",
-            "address": "169.254.200.254/24",
-            "members": ["Dpu0", "Dpu1"]
+            "address": "169.254.200.254/24"
         }
     },
     "DHCP_SERVER_IPV4": {
@@ -160,17 +160,17 @@ Based on the preset `t1-smartswitch` default topology the configuration generate
             "gateway": "169.254.200.254",
             "lease_time": "infinite",
             "mode": "PORT",
-            "netmask": "255.255.0.0",
+            "netmask": "255.255.255.0",
             "state": "enabled"
         }
     },
     "DHCP_SERVER_IPV4_PORT": {
-        "bridge_midplane|Dpu0": {
+        "bridge_midplane|dpu0": {
             "ips": [
                 "169.254.200.1"
             ]
         },
-        "bridge_midplane|Dpu1": {
+        "bridge_midplane|dpu1": {
             "ips": [
                 "169.254.200.2"
             ]
@@ -223,10 +223,11 @@ iface bridge_midplane inet static
 
 ![image](./smart-switch-ip-assignment-ip-assignment-flow.png)
 
-- (1) DhcpServd when starts consumes DHCP configuration from the Config DB that includes configuration for DPU interfaces.
-- (2) DhcpServd renders configuration for DHCP server.
-- (3) DhcpServd starts DHCP server
-- (4-7) DPU request IP address from the DHCP server
+- (1) sonic-cfggen based on hwsku.json renders midplane bridge and DHCP server configuration.
+- (2) sonic-cfggen pushes configuration into the Config DB.
+- (3-4) DHCP server and DHCP relay containers upon start consume configuration from the config DB and start listening for a requests from DHCP clients.
+- (5) DHCP client on the DPU sends a request over the eth0 interfaces. The request comes to the DHCP relay through the midplane bridge. DHCP relay inserts option 82 into the request with the information about the interface from which the request came. DHCP relay forwards the packet to the DHCP server.
+- (6) The DHCP server sends a reply with the IP configuration to the DHCP client on the DPU.
 
 ### DPU ###
 
@@ -269,9 +270,9 @@ The YANG model shown in this section is provided as a reference. The complete mo
 
         container DEVICE_METADATA {
             leaf type {
-                    type string {
+                    subtype string {
                         length 1..255;
-                        pattern "<All existing types>|SmartSwitch";
+                        pattern "<All existing subtypes>|SmartSwitch";
                     }
                 }
         }
@@ -294,20 +295,12 @@ The YANG model shown in this section is provided as a reference. The complete mo
                     }
                     description "Name of the midplane bridge";
 
-                    must "(current()/../ip_prefix) and (current()/../members)";
+                    must "(current()/../ip_prefix)";
                 }
 
                 leaf ip_prefix {
                     type inet:ipv4-prefix;
                     description "IP prefix of the midplane bridge";
-                }
-
-                leaf-list members {
-                    description "List of the DPU interfaces.";
-
-                    type string {
-                        pattern "Dpu[0-9]+";
-                    }
                 }
             }
             /* end of container GLOBAL */
@@ -323,15 +316,15 @@ The YANG model shown in this section is provided as a reference. The complete mo
                 leaf dpu_name {
                     description "Name of the DPU";
                     type string {
-                        pattern "DPU[0-9]+";
+                        pattern "dpu[0-9]+";
                     }
                 }
 
-                leaf interface {
+                leaf midplane_interface {
                     description "Name of the interface that represents DPU";
 
                     type string {
-                        pattern "Dpu[0-9]+";
+                        pattern "dpu[0-9]+";
                     }
                 }
             }
@@ -340,7 +333,6 @@ The YANG model shown in this section is provided as a reference. The complete mo
         /* end of container DPUS */
     }
     /* end of container sonic-smart-switch */
-
 ```
 
 ## Warmboot and Fastboot Design Impact ##
