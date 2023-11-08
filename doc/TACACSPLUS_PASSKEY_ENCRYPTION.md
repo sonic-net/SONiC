@@ -58,6 +58,17 @@ The revised data handling procedure among the modules is outlined as follows:
            +---------+                                                     +----------------+
 ```
 This decryption step is crucial because the login or SSH daemon references the PAM config file to verify the TACACS secret / passkey. If it remains encrypted, the SSH daemon will be unable to recognize the passkey, leading to login failures. The depicted block diagram clearly showcases the enhanced capabilities of the existing submodules.
+
+### Approach 1:
+1. A runtime flag (via config_db) for Enable / disable feature: "key_encrypt"
+2. Use admin password from shadow file to encrypt the TACACS passkey
+3. Use the same password to decrypt the TACACS paskey
+
+### Approach 2:
+1. A runtime flag (via config_db) for Enable / disable feature: "key_encrypt"
+2. CLI will ask for a encryption password while configuring the TACACS passkey and at the backend it will be stored at /etc/encrypt_pass file
+3. Same file will be read while decrypting the passkey at hostcfgd
+   
 ### Implementation details
 The implementation stands on four key pillars.
 1. OPENSSL toolkit is used for encryption / decryption.
@@ -68,11 +79,13 @@ Following is the snippet captured from a sample shadow file.
 <snip_from_shadow_file>
 admin:$6$YTJ7JKnfsB4esnbS$5XvmYk2.GXVWhDo2TYGN2hCitD/wU9Kov.uZD8xsnleuf1r0ARX3qodIKiDsdoQA444b8IMPMOnUWDmVJVkeg1:19446:0:99999:7:::
 <snip_from_shadow_file>
-Here, "YTJ7JKnfsB4esnbS$5XvmYk2.GXVWhDo2TYGN2hCitD/wU9Kov.uZD8xsnleuf1r0ARX3qodIKiDsdoQA444b8IMPMOnUWDmVJVkeg1" is the encrypted version of the admin level password. 
+Here, "YTJ7JKnfsB4esnbS$5XvmYk2.GXVWhDo2TYGN2hCitD/wU9Kov.uZD8xsnleuf1r0ARX3qodIKiDsdoQA444b8IMPMOnUWDmVJVkeg1" is the encrypted version of the admin level password.
+
 #### Show CLI changes
 Furthermore, aside from encrypting the passkey stored within CONFIG_DB, this infrastructure ensures that the passkey itself remains concealed from any of the displayed CLI outputs. Consequently, the passkey field has been eliminated from the "show tacacs" output, and it will now solely indicate the status whether the passkey is configured or not. For instance,
 show tacacs
 ["TACPLUS global passkey configured Yes / No"]
+
 ### DB migration
 A DB migration script will be added for users to migrate existing config_db to convert tacacs passkey plaintext to encrypted.
 ### Benefits
