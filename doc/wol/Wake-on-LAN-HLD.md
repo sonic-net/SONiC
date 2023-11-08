@@ -42,7 +42,7 @@ Below diagram describes a common usage of WoL on SONiC switch, this HLD will foc
 A `wol` script will be introduced in [sonic-utilities](https://github.com/sonic-net/sonic-utilities). The workflow of command line utility `wol` is:
 
 0. User login to the SONiC switch and enter the `wol` command.
-1. The `wol` script send magic packet to specific interface or VLAN.
+1. The `wol` script send magic packet to specific interface, VLAN or port-channel.
 
 ![Component Utilities](./img/component-utilities.png)
 
@@ -99,10 +99,10 @@ wol <interface> <target_mac> [-b] [-p password] [-c count] [-i interval]
 ```
 
 - `interface`: SONiC interface name.
-- `target_mac`: MAC address of the target device.
+- `target_mac`: a list of target devices' MAC address, separated by comma.
 - `-b`: Use broadcast MAC address instead of target device's MAC address as **Destination MAC Address in Ethernet Frame Header**.
 - `-p password`: An optional 4 or 6 byte password, in ethernet hex format or quad-dotted decimal[^3].
-- `-c count`: Count of magic packet to send. `count` must between 1 and 5. Default value is 1. This param must use with `-i`.
+- `-c count`: For each target MAC address, the `count` of magic packets to send. `count` must between 1 and 5. Default value is 1. This param must use with `-i`.
 - `-i interval`: Wait `interval` milliseconds between sending each magic packet. `interval` must between 0 and 2000. Default value is 0. This param must use with `-c`.
 
 ### Example
@@ -110,9 +110,11 @@ wol <interface> <target_mac> [-b] [-p password] [-c count] [-i interval]
 ```
 admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55
 admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55 -b
-admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55 -p 00:22:44:66:88:aa
-admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55 -p 192.168.1.1 -c 3 -i 2000
+admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -p 00:22:44:66:88:aa
+admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -p 192.168.1.1 -c 3 -i 2000
 ```
+
+For the 4th example, it specifise 2 target MAC addresses and `count` is 3. So it'll send 6 magic packets in total.
 
 ## gNOI Design
 
@@ -134,16 +136,16 @@ service SonicWolService {
 }
 
 message WolRequest {
-    string interface = 1;         // SONiC interface name
-    string target_mac = 2;        // MAC addresses in colon notation
-    optional bool broadcast = 3;  // Default false
-    optional string password = 4; // In ethernet hex format or quad-dotted decimal
-    optional int32 count = 5;     // Count of magic packet to send, must use with interval together.
-    optional int32 interval = 6;  // Wait interval milliseconds between sending each magic packet, must use with count together.
+  string interface = 1;           // SONiC interface name
+  repeated string target_mac = 2; // Target device's MAC addresses
+  optional bool broadcast = 3;    // Default false
+  optional string password = 4;   // In ethernet hex format or quad-dotted decimal
+  optional int32 count = 5;       // For each target MAC address, the count of magic packets to send. Must use with interval together.
+  optional int32 interval = 6;    // Wait interval milliseconds between sending each magic packet. Must use with count together.
 }
 
 message WolResponse {
-    SonicOutput output = 1;
+  SonicOutput output = 1;
 }
 ```
 
