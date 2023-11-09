@@ -1,8 +1,0 @@
-blank_issues_enabled: true
-contact_links:
-  - name: Bug report
-    url: https://github.com/sonic-net/SONiC/blob/master/.github/ISSUE_TEMPLATE/bug_report.md
-    about: Please report bug.
-  - name: Workgroup Request
-    url: https://github.com/sonic-net/SONiC/blob/master/.github/ISSUE_TEMPLATE/workgroup_request.md
-    about: SONiC workgroup request
