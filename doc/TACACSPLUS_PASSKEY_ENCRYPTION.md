@@ -54,7 +54,7 @@ The revised data handling procedure among the modules is outlined as follows:
                 |                     |    +-------------+    |o |                 |
            +----v----+                |           |           |t |         +-------+--------+
            |         |                |           |            --          |                |
-           |   CLI   +----------------+           +------------------------>    ConifgDB    |
+           |   CLI   +----------------+           +------------------------>    ConfigDB    |
            |         |                                  Encrypted passkey  |                |
            +---------+                                                     +----------------+
 ```
