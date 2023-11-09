@@ -10,6 +10,7 @@
 ## Table of Content
 - [Goal and Scope](#goal-and-scope)
   - [BGP PIC at high level](#bgp-pic-at-high-level)
+  - [Current Linux Kernel Forwarding behavior](#current-linux-kernel-forwarding-behavior)
 - [High Level Design](#high-level-design)
 - [Zebra's Data Structure Modifications](#zebras-data-structure-modifications)
   - [Exiting Struct nexthop](#exiting-struct-nexthop)
@@ -47,7 +48,7 @@ The above draft offers two primary enhancements:
     <figcaption>Figure 1. Alibaba issue Underlay routes flap affecting Overlay SRv6 routes <figcaption>
 </figure> 
 
--  We aim to achieve fast convergence in the event of a hardware forwarding failure related to a remote BGP PE becoming unreachable. Convergence in the slow path forwarding mode is not a priority. This is the main benefit for BGP PIC which would be addressed mainly in this HLD.
+-  We aim to achieve fast convergence in the event of a hardware forwarding failure related to a remote BGP PE becoming unreachable. Convergence in the slow path forwarding mode is not a priority. This is the main benefit for BGP PIC which would be addressed in this HLD.
 
 ### BGP PIC at high level
 <figure align=center>
@@ -60,6 +61,21 @@ The above draft offers two primary enhancements:
   -  Consequently, when forming BGP Equal-Cost Multipath (ECMP) data structures, it is natural to retain both the BGP next-hop data and context information for each path. The VPN context could be specific to each prefix (a.k.a per prefix), individual customer edge (a.k.a per CE), or Virtual Routing and Forwarding (per VRF) type. This often leads to situations where BGP ECMP data structures cannot be effectively shared, as indicated in the lower-left section of the diagram. When a remote PE goes offline, PE1 must update all relevant BGP ECMP data structures, which can involve handling prefixes of varying lengths, resulting in an operation with a time complexity of O(N). 
   
    - The concept of the Prefix Independent Convergence's (PIC) proposal is to restructure this information by segregating the BGP next-hop information from the VPN context. The BGP next-hop-only information will constitute a new BGP ECMP structure that can be shared among all associated BGP VPN routes, as depicted in the lower-right part of the diagram. This approach allows for more efficient updates when the Interior Gateway Protocol (IGP) detects a BGP next-hop failure, resulting in an operation with a time complexity of O(1). This strategy aims to minimize traffic disruption in the hardware. The VPN context will be updated once BGP routes have reconverged.
+
+### Current Linux Kernel Forwarding behavior
+NHG in kernel is flat. BGP and IGP ECMP have to be collapsed in the same NHG. Currently, MPLS VPN, BGP EVPN are supported in Linux kernel. SRv6 VPN's support has not supported in. 
+
+There are two aspects of view on adding routes in Linux. 
+1. FRR is used as the routing stack for SONiC for white box switch / routers. For these devices, VPN routes may not be required to add to kernel since these devices normally are the middle man for VPN traffic. For SRv6 VPN case, we add a route map to skip Linux kernel programming for SRv6 VPN routes. We only keep underlay routes in kernel for routing protocols.
+2. For NFV type of services, linux kernel forwarding is their main forwarding resource.
+
+Current thought is to find a balance way to support both kinds of requirements.
+
+| Features | Linux Kernel |
+|:---:|:-----------:|
+| MPLS VPN | Flat   | 
+| EVPN     | Flat   |
+| SRv6 VPN | No support | 
 
 ## High Level Design
 One of the challenges in implementing PIC within FRR is the absence of PIC support in the Linux kernel. To minimize alterations in FRR while enabling PIC on platforms that do not require Linux kernel support for this feature, we are primarily focused on two key modifications:
