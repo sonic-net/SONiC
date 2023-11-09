@@ -7,9 +7,7 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | Oct 23, 2023 | Stephen Sun | Initial version |
-| 0.2 | Oct 31, 2023 | Stephen Sun | Adjust according to the internal review comments. Add CLI to suppress certain event. |
-| 0.3 | Nov 1, 2023 | Stephen Sun | Add ASIC/SDK health event to show techsupport. |
-| 0.4 | Nov 6, 2023 | Stephen Sun | Add capabilities support and move the logic to notificatioin thread. |
+| 0.2 | Nov 17, 2023 | Stephen Sun | Fix internal review comments |
 
 ### Scope
 
@@ -289,15 +287,17 @@ N/A.
 
 #### CLI Enhancements
 
-##### Configure suporess ASIC/SDK health events by severity and category
+##### Configure suppress ASIC/SDK health events by severity and category
 
-Command `config asic-sdk-health-event suppress <severity> <category-list>|<none>` is introduced for a customer to configure the categories that he/she wants to suppress for a certain severity.
+Command `config asic-sdk-health-event suppress <severity> <category-list>|<none>|<all>` is introduced for a customer to configure the categories that he/she wants to suppress for a certain severity.
 
 The severity can be one of `fatal`, `warning`, and `notice`.
 
 The category-list is a list whose element is one of `software`, `firmware`, `cpu_hw`, `asic_hw` separated by a comma. The order does not matter.
 
-If the category-list is `none`, all the categories will be notified for `severity`.
+If the category-list is `none`, none category is suppressed and all the categories will be notified for `severity`.
+
+If the category-list is `all`, all the categories are suppressed and none category will be notified for `severity`.
 
 The ASIC/SDK health events whose `category` is in `category-list` with the `severity` will not be reported by the vendor SAI once the corresponding SAI attributes are set.
 But the events that were reported after the command is executed but before the SAI attributes are set will be handled by orchagent and pushed into `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` as usual.
@@ -316,7 +316,7 @@ The following error message will be shown if a customer suppresses a severity wh
 
 ##### Display the ASIC/SDK health events
 
-Command `show asic-sdk-health-events received-events` is introduced to display the ASIC/SDK health events as a table.
+Command `show asic-sdk-health-events received` is introduced to display the ASIC/SDK health events as a table.
 An example of the output is as below:
 
 ```
@@ -447,7 +447,7 @@ categories  = <software|firmware|cpu_hw|asic_hw>{,<software|firmware|cpu_hw|asic
 
 We leverage the existing framework to register the ASIC/SDK health event handler.
 
-Various events can occur when a switch system is running, which requires orchagent, upper layer application or protocol to handle. Currently, this has been done by using event handlers. There is a dedicated event handler defined as an attribute of switch object for each event that needs to be handled. They are handled in different ways.
+Various events can occur when a switch system is running, which requires orchagent, upper layer application or protocol to handle. Currently, this has been done by using event handlers. There is a dedicated event handler defined as an attribute of switch object for each event that needs to be handled.
 
 Currently, there are following event handlers defined.
 
@@ -461,7 +461,10 @@ Currently, there are following event handlers defined.
 | SAI_SWITCH_ATTR_QUEUE_PFC_DEADLOCK_NOTIFY | PFC watchdog |
 | SAI_SWITCH_ATTR_BFD_SESSION_STATE_CHANGE_NOTIFY | BFD session state change |
 
+These events can be handled in different ways. Eg. `Shutdown a switch` event is handled directly in the event handler. For other events, the event handler is empty and the real logic is handled in orchagent main thread using `NotificationConsumer`.
+
 To handle ASIC/SDK health event, a new event handler should be implemented and registered as below.
+The ASIC/SDK health event will be handled in the event handler, which is the same way as `Shutdown a switch`. This is because we need to guarantee that `ASIC/SDK health` will always be handled before `shutdown a switch`, otherwise the information can be lost.
 
 | Attribute name | Event | Callback prototype |
 |:---:|:---:|:---:|
@@ -545,9 +548,9 @@ The flow to handle suppress ASIC/SDK health event configuration is as below:
 
 ![Flow](handle-ASIC-SDK-health-event-images/suppressflow.png "Figure: handle suppress ASIC/SDK health event configuration")
 
-##### Add ASIC/SDK health event to `show asic-sdk-health-event received-events` to show techsupport
+##### Add ASIC/SDK health event to `show asic-sdk-health-event received` to show techsupport
 
-The command `show asic-sdk-health-event received-events` will be invoked during collecting techsupport dump.
+The command `show asic-sdk-health-event received` will be invoked during collecting techsupport dump.
 
 A file `asic-sdk-health-event` will contain all the ASIC/SDK health events and be saved in `dump` folder of the techsupport dump.
 
