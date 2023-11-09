@@ -1,0 +1,41 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "master", "202006_release_notes_updated", "202006_release_notes", "202106_release_notes", "June_MoM", "MoM_June", "SONiC-Entity-MIB-Extension-HLD", "Supported-Platforms-html-update", "Webpage_logo-addition", "add-code-of-conduct-1", "bingwang-ms-patch-1", "commit_json_to_branch", "feb22_MoM", "gh-pages", "hld_template", "kannankvs-patch-1", "kannankvs-patch-2", "keboliu-RJ45-support", "keboliu-patch-1", "lihuay-patch-1", "newsletter_update", "partner-logo-and-MoM-update", "prsunny-coppmgr", "prsunny-overlay-ecmp", "prsunny-proxy_arp", "sonic_buid_image_update_json", "sonic_image_htlm_update", "sonic_image_md_update", "sonic_image_update_json", "sonic_latest_images_links", "supported_platform_md_update", "updating_workflow_permission", "vxlan_bgp_storm" ]
+  pull_request:
+    branches: [ "master" ]
+  schedule:
+    - cron: "1 11 * * 0"
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ javascript ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{ matrix.language }}"
