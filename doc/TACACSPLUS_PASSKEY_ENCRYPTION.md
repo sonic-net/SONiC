@@ -15,6 +15,7 @@
  |:---:|:-----------:|:-----------------------:|:----------------------------------|
  | 0.1 |             | Nikhil Moray (nmoray)   | Initial version                   |
  | 0.1 |             | Madhu Paluru (madhupalu)| Updated                           |
+ | 0.1 |   11/09/2023| Madhu Paluru (madhupalu)| Addressed review comments         |
  ### Scope
 This document describes the High Level Design of "TACACS+ Passkey Encryption" feature support in SONiC. It encompasses design and implementation considerations for enhancing the security of TACACS+ (Terminal Access Controller Access-Control System) authentication by introducing an encrypted passkey.
 ### Abbreviations
@@ -41,60 +42,62 @@ The revised data handling procedure among the modules is outlined as follows:
            |           |   
 +----------v-----------v---------+                                      +---------------------+
 | AUTHENTICATION                 |                                      |                     |
-|   +-------------------------+  |  Decrypted passkey                   |  +------------+     |
-|   | PAM Configuration Files <-----------------------------------------+  | AAA Config |     |
-|   +-------------------------+  |                                      |  +------------+     |
-|                                |                                      |                     |
-|         +-------------+        |                                      |  HostCfg Enforcer   |
-|         |     PAM     |        |                                      +----------^----------+
-|         |  Libraries  |        |                                                 |
-|         +-------------+        |                                                 | Encrypted passkey
-+---------------+----------------+                                                 |
-                |                                                                  |
-           +----v----+                                                     +-------+--------+
-           |         |             Encrypted passkey                       |                |
-           |   CLI   +------------------------------------------------------>    ConifgDB   |
-           |         |                                                     |                |
+|   +-------------------------+  |         Decrypted passkey            |  +------------+     |
+|   | PAM Configuration Files    <------------+       +-----------------+  | AAA Config |     |
+|   +-------------------------+  |            |       |                 |  +------------+     |
+|                                |            |       |                 |                     |
+|         +-------------+        |         +-------------+              |  HostCfg Enforcer   |
+|         |     PAM     |        |         |             |   key-store  +----------^----------+
+|         |  Libraries  |        |    +---->  Master key |     __                  |
+|         +-------------+        |    |    |   Manager   |----|r |                 | Encrypted passkey
++---------------+----------------+    |    |             |    |o |                 |
+                |                     |    +-------------+    |o |                 |
+           +----v----+                |           |           |t |         +-------+--------+
+           |         |                |           |            --          |                |
+           |   CLI   +----------------+           +------------------------>    ConifgDB    |
+           |         |                                  Encrypted passkey  |                |
            +---------+                                                     +----------------+
 ```
 This decryption step is crucial because the login or SSH daemon references the PAM config file to verify the TACACS secret / passkey. If it remains encrypted, the SSH daemon will be unable to recognize the passkey, leading to login failures. The depicted block diagram clearly showcases the enhanced capabilities of the existing submodules.
 
-### Approach 1:
-1. A runtime flag (via config_db) for Enable / disable feature: "key_encrypt"
-2. Use admin password from shadow file to encrypt the TACACS passkey
-3. Use the same password to decrypt the TACACS paskey
 
-### Approach 2:
+### Approach
 1. A runtime flag (via config_db) for Enable / disable feature: "key_encrypt"
-2. CLI will ask for a encryption password while configuring the TACACS passkey and at the backend it will be stored at /etc/encrypt_pass file
+2. CLI will ask for a encryption master key/password while configuring the TACACS passkey and at the backend it will be stored at /etc/cipher_pass file which is accessible to only root user with read only permissions
 3. Same file will be read while decrypting the passkey at hostcfgd
+4. The infra (encrypt/decrypt and master key/password storage & retrieval) will be common for all the features like TACACS, RADIUS, LDAP etc..
    
 ### Implementation details
-The implementation stands on four key pillars.
+The implementation as follows
 1. OPENSSL toolkit is used for encryption / decryption.
-2. aes-128-cbc is the encoding format used for encryption / decryption.
-3. A unique device admin password (encrypted hash from linux shadow file) will be used as a salt/password to encrypt/decrypt the configured pass key in ConfigDB.
-4. In absence of configured admin password (default behaviour), a fixed / hardcoded hash will be used as a salt/password for encryption/decryption and it will be saved locally not in any of the databases.
-Following is the snippet captured from a sample shadow file.
-<snip_from_shadow_file>
-admin:$6$YTJ7JKnfsB4esnbS$5XvmYk2.GXVWhDo2TYGN2hCitD/wU9Kov.uZD8xsnleuf1r0ARX3qodIKiDsdoQA444b8IMPMOnUWDmVJVkeg1:19446:0:99999:7:::
-<snip_from_shadow_file>
-Here, "YTJ7JKnfsB4esnbS$5XvmYk2.GXVWhDo2TYGN2hCitD/wU9Kov.uZD8xsnleuf1r0ARX3qodIKiDsdoQA444b8IMPMOnUWDmVJVkeg1" is the encrypted version of the admin level password.
+2. base64 is the encoding format used for encryption / decryption.
+4. sonic_utilities extended to passkey encyption using the master key/passwd manager.
+5. User has to enter master key/passwd at the time of configuring the passkey, this is mandatory requirement only if "key_encrypt" run time flag is enabled.
+6. The encrypted passkey stored in config_db 
+7. The master key/paswd used for encryption/decryption and will be stored in the same device with root access previleges.
+8. HostCfg will use the master key/passwd to decrypt the encrypted passkey and further store it in PAM configuration files. 
+
+#### CLI Changes 
+config tacacs passkey TEST1
+
+Password: 
 
 #### Show CLI changes
 Furthermore, aside from encrypting the passkey stored within CONFIG_DB, this infrastructure ensures that the passkey itself remains concealed from any of the displayed CLI outputs. Consequently, the passkey field has been eliminated from the "show tacacs" output, and it will now solely indicate the status whether the passkey is configured or not. For instance,
 show tacacs
 ["TACPLUS global passkey configured Yes / No"]
 
-### DB migration
-A DB migration script will be added for users to migrate existing config_db to convert tacacs passkey plaintext to encrypted.
+### Yang Changes 
+Increase existing passkey leaf length to 256.
+
+### Config DB changes 
+A new run time flag to enable/disable the tacacs passkey encryption feature - "key_encrypt".
+
 ### Benefits
-TACACS passkey encryption adds an extra layer of security to safeguard the passkey on each device throughout the network. Furthermore, the implementation of shadow file-based encryption ensures that encrypted passkeys can be reused across network nodes without any complications. Consequently, there are no obstacles when it comes to utilizing the config_db.json file from one device on another. Additionally, the use of a shadow file effectively reduces the risk of exposing the encryption/decryption salt since it is only accessible to root users and remains inaccessible to external entities.
-### Limitation
-The chosen way to encrypt the passkey is using an already encrypted admin password from the shadow file. Thus, the network admin needs to regenerate the encrypted passkey in ConfigDB only if there is a change in the admin password of the network.
-For now we are planning to go ahead with this approach. However we are open to new ideas and thoughts to harden the security and we should be able to accommodate that with later releases.
+TACACS passkey encryption adds an extra layer of security to safeguard the passkey on each device throughout the network. Furthermore, the implementation of master key/password manager encryption ensures that encrypted passkeys can be reused across network nodes without any complications. Consequently, there are no obstacles when it comes to utilizing the config_db.json file from one device on another. Additionally, the use of a root protected config file effectively reduces the risk of exposing the encryption/decryption master key/passwd since it is only accessible to root users and remains inaccessible to external entities.
+
 ### Testing Requirements
 Need to add new / update the existing TACACS test cases to incorporate this new feature
 Test cases to unit test encrypt and decrypt functions
 Test cases to add test the TACACS+ functionality with passkey encryption
-Test cases to cover DB migration
+
