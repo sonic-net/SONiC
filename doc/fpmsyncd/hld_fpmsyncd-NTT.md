@@ -40,6 +40,7 @@
 |  0.2  | Jul 30, 2023 |               Kentaro Ebisawa (NTT)                | Remove description about VRF which is not nessesary for NHG. Add High Level Architecture diagram. Add note related to libnl, Routing WG. Fix typo and improve explanations. |
 |  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th (Scope, Warmboot/Fastboot, CONFIG_DB)                                                                                  |
 |  0.4  | Sep 24, 2023 |               Kentaro Ebisawa (NTT)                | Add feature enable/disable design and CLI. Update test plan.                                                                                                                     |
+|  0.5  | Nov 10, 2023 |               Kanji Nakano (NTT)                   | Update feature enable/disable design and CLI. Update test plan.                                                                                                                     |
 
 ### Scope  
 
@@ -140,19 +141,16 @@ This section covers the high level design of the feature/enhancement. This secti
 For example, if one configure following routes:
 
 ```
-S>* 8.8.8.0/24 [1/0] via 10.0.1.5, Ethernet4, weight 1, 00:00:05
-* via 10.0.1.6, Ethernet4, weight 1, 00:00:05
-S>* 9.9.9.0/24 [1/0] via 10.0.1.5, Ethernet4, weight 1, 00:00:19
-* via 10.0.1.6, Ethernet4, weight 1, 00:00:19
+B>*10.1.1.4/32 [20/0] via 10.0.0.1, Ethernet0, 00:00:08
+  *                   via 10.0.0.3, Ethernet4, 00:00:08
 ```
 
 it will generate the following `APPL_DB` entries:
 
 ```
-admin@sonic:~$ sonic-db-cli APPL_DB hgetall "ROUTE_TABLE:8.8.8.0/24"
-{'nexthop': '10.0.1.5,10.0.1.6', 'ifname': 'Ethernet4,Ethernet4', 'weight': '1,1'}
-admin@sonic:~$ sonic-db-cli APPL_DB hgetall "ROUTE_TABLE:9.9.9.0/24"
-{'nexthop': '10.0.1.5,10.0.1.6', 'ifname': 'Ethernet4,Ethernet4', 'weight': '1,1'}
+admin@sonic:~$ sonic-db-cli APPL_DB hgetall "ROUTE_TABLE:10.1.1.4/32"
+{'nexthop': '10.0.0.1,10.0.0.3', 'ifname': 'Ethernet0,Ethernet4', 'weight': '1,1'}
+
 ```
 
 The flow below shows how `zebra`, `fpmsyncd` and `redis-server` interacts when using `fpm plugin` without NextHop Group:
@@ -201,25 +199,37 @@ After sending the `RTM_NEWNEXTHOP` events, zebra sends the `RTM_NEWROUTE` to `fp
 For example. following route configuration will generate events show in the table below:
 
 ```
-S>* 8.8.8.0/24 [1/0] via 10.0.1.5, Ethernet4, weight 1, 00:01:09 
-  * via 10.0.2.6, Ethernet8, weight 1, 00:01:09 
-S>* 9.9.9.0/24 [1/0] via 10.0.1.5, Ethernet4, weight 1, 00:00:04 
-  * via 10.0.2.6, Ethernet8, weight 1, 00:00:04
+admin@sonic:~$ show ip route
+B>*10.1.1.4/32 [20/0] via 10.0.0.1, Ethernet0, 00:00:08
+  *                   via 10.0.0.3, Ethernet4, 00:00:08
 ```
+
+```
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep NEXT
+NEXTHOP_GROUP_TABLE:ID127
+
+admin@sonic:~$ sonic-db-cli APPL_DB HGETALL NEXTHOP_GROUP_TABLE:ID127
+{'nexthop': '10.0.0.1,10.0.0.3', 'ifname': 'Ethernet0,Ethernet4', 'weight': '1,1'}
+
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep ROUTE
+ROUTE_TABLE:10.1.1.4
+
+admin@sonic:~$ sonic-db-cli APPL_DB HGETALL ROUTE_TABLE:10.1.1.4
+{'nexthop_group': 'ID127', 'protocol': 'bgp'}
+```
+
 <table>
   <tr><td>Seq</td><td>Event</td><td>Attributes</td><td>Value</td></tr>
-  <tr><td rowspan="3">1</td><td rowspan="3">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>116</td></tr>
-  <tr><td>NHA_GATEWAY</td><td>10.0.1.5</td></tr>
+  <tr><td rowspan="3">1</td><td rowspan="3">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>ID125</td></tr>
+  <tr><td>NHA_GATEWAY</td><td>10.0.0.1</td></tr>
   <tr><td>NHA_OIF</td><td>22</td></tr>
-  <tr><td rowspan="3">2</td><td rowspan="3">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>117</td></tr>
-  <tr><td>NHA_GATEWAY</td><td>10.0.2.6</td></tr>
+  <tr><td rowspan="3">2</td><td rowspan="3">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>ID126</td></tr>
+  <tr><td>NHA_GATEWAY</td><td>10.0.0.3</td></tr>
   <tr><td>NHA_OIF</td><td>23</td></tr>
-  <tr><td rowspan="2">3</td><td rowspan="2">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>118</td></tr>
-  <tr><td>NHA_GROUP</td><td>[{116,1},{117,1}]</td></tr>
-  <tr><td rowspan="2">4</td><td rowspan="2">RTM_NEWROUTE</td><td>RTA_DST</td><td>8.8.8.0/24</td></tr>
-  <tr><td>RTA_NH_ID</td><td>118</td></tr>
-  <tr><td rowspan="2">5</td><td rowspan="2">RTM_NEWROUTE</td><td>RTA_DST</td><td>9.9.9.0/24</td></tr>
-  <tr><td>RTA_NH_ID</td><td>118</td></tr>
+  <tr><td rowspan="2">3</td><td rowspan="2">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>ID127</td></tr>
+  <tr><td>NHA_GROUP</td><td>[{125,1},{126,1}]</td></tr>
+  <tr><td rowspan="2">4</td><td rowspan="2">RTM_NEWROUTE</td><td>RTA_DST</td><td>10.1.1.4</td></tr>
+  <tr><td>RTA_NH_ID</td><td>ID127</td></tr>
 </table>
 
 A short description of `fpmsyncd` logic flow:
@@ -279,14 +289,12 @@ Diagram shows how `zebra.conf` is genereated from CONFIG_DB data.
 
 This flow is existing framework and not specific to this feature.
 
-Modification made for this feature is in `zebra.conf.j2` to generate config with `[no] fpm use-next-hop-groups` based on `FEATURE|nexthop_group` entry in CONFIG_DB.
+Modification made for this feature is in `zebra.conf.j2` to generate config with `[no] fpm use-next-hop-groups` based on `DEVICE_METADATA|localhost` entry in CONFIG_DB.
 
 As shown in below diff code, the template will generate config following below logic.
 
-- If `FEATURE|nexthop_group` is not present in CONFIG_DB => disabled
-- If `FEATURE|nexthop_group` is present in CONFIG_DB but there is no "state" attribute => disabled
-- If `FEATURE|nexthop_group` is present in CONFIG_DB and "state" attribute is different of "enabled" => disabled
-- If `FEATURE|nexthop_group` is present in CONFIG_DB and "state" attribute is "enabled" => enabled
+- If `DEVICE_METADATA|localhost` is present in CONFIG_DB but there is no "nexthop_group" attribute => disabled
+- If `DEVICE_METADATA|localhost` is present in CONFIG_DB and "nexthop_group" attribute is "enabled" => enabled
 
 ```
 > zebra.conf.j2
@@ -294,8 +302,8 @@ As shown in below diff code, the template will generate config following below l
  {% endblock banner %}
  !
  {% block fpm %}
-+{% if ( ('nexthop_group' in FEATURE) and ('state' in  FEATURE['nexthop_group']) and
-+        (FEATURE['nexthop_group']['state'] == 'enabled') ) %}
++{% if ( ('localhost' in DEVICE_METADATA) and ('nexthop_group' in  DEVICE_METADATA['localhost']) and
++        (DEVICE_METADATA['localhost']['nexthop_group'] == 'enabled') ) %}
 +fpm use-next-hop-groups
 +{% else %}
  ! Uses the old known FPM behavior of including next hop information in the route (e.g. RTM_NEWROUTE) messages
@@ -331,8 +339,8 @@ Below is example when using this CLI command to enable/disable the feature.
 Enable
 
 ```sh
-admin@sonic:~$ sonic-db-cli CONFIG_DB keys "FEATURE|nexthop_group"
-# no output
+admin@sonic:~$ redis-cli -n 4 hget "DEVICE_METADATA|localhost" nexthop_group
+(nil)
 
 admin@sonic:~$ sonic-cli
 
@@ -355,8 +363,8 @@ sonic(config)# feature next-hop-group
 
 sonic(config)# feature next-hop-group enable
 
-admin@sonic:~$ sonic-db-cli CONFIG_DB keys "FEATURE|nexthop_group"
-FEATURE|nexthop_group
+admin@sonic:~$ redis-cli -n 4 hget "DEVICE_METADATA|localhost" nexthop_group
+"enabled"
 ```
 
 Disable
@@ -372,8 +380,8 @@ sonic(config)# no feature
 
 sonic(config)# no feature next-hop-group
 
-admin@sonic:~$ sonic-db-cli CONFIG_DB keys "FEATURE|nexthop_group"
-# no output
+admin@sonic:~$ redis-cli -n 4 hget "DEVICE_METADATA|localhost" nexthop_group
+(nil)
 ```
 
 Implementation:
@@ -387,23 +395,47 @@ When actioner `sonic-cli-feature.py` is called from the Klish framework, it will
 - disable: `$SONIC_CLI_ROOT/sonic-cli-feature.py configure_sonic_nexthop_groups 0`
 - RESTCONF URI called from `sonic-cli-feature.py`: `/restconf/data/sonic-feature:sonic-feature`
 
-The model is not newly introduced but using pre-existing `sonic-feature.yang` model present in the source code at https://github.com/sonic-net/sonicbuildimage/blob/master/src/sonic-yang-models/yang-models/sonic-feature.yang
+The model is not newly introduced but using pre-existing `sonic-device_metadata.yang` model present in the source code at https://github.com/sonic-net/sonicbuildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang
 
 ```
-module: sonic-feature
-   +--rw sonic-feature
-      +--rw FEATURE
-         +--rw FEATURE_LIST* [name]
-         +--rw name string
-         +--rw state? feature-state
-         +--rw auto_restart? feature-state
-         +--rw delayed? stypes:boolean_type
-         +--rw has_global_scope? stypes:boolean_type
-         +--rw has_per_asic_scope? feature-scope-status
-         +--rw high_mem_alert? feature-state
-         +--rw set_owner? feature-owner
-         +--rw check_up_status? stypes:boolean_type
-         +--rw support_syslog_rate_limit? stypes:boolean_type
+module: sonic-device_metadata
+  +--rw sonic-device_metadata
+     +--rw DEVICE_METADATA
+        +--rw localhost
+           +--rw hwsku?                           stypes:hwsku
+           +--rw default_bgp_status?              enumeration
+           +--rw docker_routing_config_mode?      string
+           +--rw hostname?                        stypes:hostname
+           +--rw platform?                        string
+           +--rw mac?                             yang:mac-address
+           +--rw default_pfcwd_status?            enumeration
+           +--rw bgp_asn?                         inet:as-number
+           +--rw deployment_id?                   uint32
+           +--rw type?                            string
+           +--rw buffer_model?                    string
+           +--rw frr_mgmt_framework_config?       boolean
+           +--rw synchronous_mode?                enumeration
+           +--rw yang_config_validation?          stypes:mode-status
+           +--rw cloudtype?                       string
+           +--rw region?                          string
+           +--rw sub_role?                        string
+           +--rw downstream_subrole?              string
+           +--rw resource_type?                   string
+           +--rw cluster?                         string
+           +--rw subtype?                         string
+           +--rw peer_switch?                     stypes:hostname
+           +--rw storage_device?                  boolean
+           +--rw asic_name?                       string
+           +--rw switch_id?                       uint16
+           +--rw switch_type?                     string
+           +--rw max_cores?                       uint8
+           +--rw dhcp_server?                     stypes:admin_mode
+           +--rw bgp_adv_lo_prefix_as_128?        boolean
+           +--rw suppress-fib-pending?            enumeration
+           +--rw rack_mgmt_map?                   string
+           +--rw timezone?                        stypes:timezone-name-type
+           +--rw create_only_config_db_buffers?   boolean
+           +--rw nexthop_group?                   enumeration
 ```
 
 #### Config DB Enhancements  
@@ -412,26 +444,36 @@ module: sonic-feature
 This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change. 
 -->
 
-This feature should be disabled/enabled using the existing CONFIG_DB `FEATURE` Table.
-The key name will be `FEATURE|nexthop_group` with `state` attribute.
+This feature should be disabled/enabled using the existing CONFIG_DB `DEVICE_METADATA` Table.
+The key name will be `DEVICE_METADATA|localhost` with `nexthop_group` attribute.
 
 Configuration schema in ABNF format:
 
 ```
-; FEATURE table
-key = FEATURE|nexthop_group     ; FEATURE configuration table
-state = "enabled" or "disabled" ; Globally enable/disable next-hop group feature,
-                                ; by default this flag is disabled
+; DEVICE_METADATA table
+key = DEVICE_METADATA|localhost`        ; DEVICE_METADATA configuration table
+nexthop_group = "enabled" or "disabled" ; Globally enable/disable next-hop group feature,
+                                        ; by default this flag is disabled
 ```
 
 Sample of CONFIG DB snippet given below:
 
 ```
-    "FEATURE": {
-        "nexthop_group": {
-            "has_per_asic_scope": "False",
-            "state": "enabled"
-        },
+    "DEVICE_METADATA": {
+        "localhost": {
+            "bgp_asn": "65100",
+            "buffer_model": "traditional",
+            "default_bgp_status": "up",
+            "default_pfcwd_status": "disable",
+            "hostname": "sonic",
+            "hwsku": "Force10-S6000",
+            "mac": "50:00:00:0f:00:00",
+            "nexthop_group": "enabled",
+            "platform": "x86_64-kvm_x86_64-r0",
+            "timezone": "UTC",
+            "type": "LeafRouter"
+        }
+    },
 ```
 
 ### Warmboot and Fastboot Design Impact  
@@ -456,60 +498,136 @@ Ensure that the existing warmboot/fastboot requirements are met. For example, if
 Example sub-sections for unit test cases and system test cases are given below. 
 -->
 
-One can use `sonic-db-cli` command to check entries in CONFIG_DB.
+One can use `redis-cli` command to check entries in CONFIG_DB.
 
 ```sh
-admin@sonic:/etc/sonic$ sonic-db-cli CONFIG_DB keys "FEATURE|nexthop_group"
-FEATURE|nexthop_group
-
-admin@sonic:~$ sonic-db-cli CONFIG_DB HGETALL "FEATURE|nexthop_group"
-{'has_per_asic_scope': 'False', 'state': 'enabled'}
+admin@sonic:/etc/sonic$ redis-cli -n 4 hget "DEVICE_METADATA|localhost" nexthop_group
+    "enabled"
 ```
 
 
 #### Unit Test cases  
-
-> TBD: Should we add script to unit test fpmsyncd?
-> e.g. create a script to push RTM_NEWNEXTHOP and RTM_DELNEXTHOP message to fpmsyncd and create stub redis DB to check entries are created as expected.
 
 #### Config test cases (feature enable/disable)
 
 Confirm the feature is disabled by default.
 
 1. Boot SONiC with default config (clean install)
-2. Check there is no `FEATURE|nexthop_group` entry in CONFIG_DB
+2. Check there is no `DEVICE_METADATA|localhost` entry in CONFIG_DB
 3. Log into BGP container. Check `/etc/sonic/frr/zebra.conf` has config `no fpm use-next-hop-groups`
 
 CONFIG_DB entry add/del via Klish CLI
 
 1. From CLI, enter `feature next-hop-group enable`
-2. Confirm `FEATURE|nexthop_group` entry with attr `state=enabled` is created CONFIG_DB
+2. Confirm `DEVICE_METADATA|localhost` entry with attr `nexthop_group=enabled` is created CONFIG_DB
 3. From CLI, enter `no feature next-hop-group`
-4. Confirm `FEATURE|nexthop_group` entry does not exist in CONFIG_DB
+4. Confirm `DEVICE_METADATA|localhost` entry does not exist in CONFIG_DB
 
 `zebra.conf` option based on CONFIG_DB entry (disable)
 
-1. Confirm `FEATURE|nexthop_group` entry does not exist in CONFIG_DB
+1. Confirm `DEVICE_METADATA|localhost` entry does not exist in CONFIG_DB
 2. Reboot system
 3. Confirm `/etc/sonic/frr/zebra.conf` has config `no fpm use-next-hop-groups`
 
 `zebra.conf` option based on CONFIG_DB entry (enable)
 
-1. Confirm `FEATURE|nexthop_group` entry with attr `state=enabled` exist in CONFIG_DB
+1. Confirm `DEVICE_METADATA|localhost` entry with attr `nexthop_group=enabled` exist in CONFIG_DB
 2. Reboot system
 3. Confirm `/etc/sonic/frr/zebra.conf` has config `fpm use-next-hop-groups`
 
 #### System Test cases
+##### Multiple NextHops
+In case of multiple nexthops, Nexthop group will create it.
+For multiple nexthops, ensure next hop group is created.
 
 Add route
 
-1. Create static route with 2 or more ECMP routes (which cause zebra to send `RTM_NEWNEXTHOP`)
+1. Create static route or bgp with 2 or more ECMP routes (which cause zebra to send `RTM_NEWNEXTHOP`)
 2. Confirm `APPL_DB` entries are created as expected
+
+Sample of APPL_DB output result when Add route.
+```
+admin@sonic:~$ show ip route
+B>*10.1.1.2/32 [20/0] via 10.0.0.1, Ethernet0, 00:00:14
+  *                   via 10.0.0.3, Ethernet4, 00:00:14
+
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep NEXT
+NEXTHOP_GROUP_TABLE:ID94
+
+admin@sonic:~$ sonic-db-cli APPL_DB HGETALL NEXTHOP_GROUP_TABLE:ID94
+{'nexthop': '10.0.0.1,10.0.0.3', 'ifname': 'Ethernet0,Ethernet4', 'weight': '1,1'}
+
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep ROUTE
+ROUTE_TABLE:10.1.1.2
+
+admin@sonic:~$ sonic-db-cli APPL_DB HGETALL ROUTE_TABLE:10.1.1.2
+{'nexthop_group': 'ID94', 'protocol': 'bgp'}
+```
 
 Del route
 
-1. Delete static route created in previous test (which cause zebra to send `RTM_DELNEXTHOP`)
+1. Delete nexthop(s) except one nexthop.
 2. Confirm `APPL_DB` entries are deleted as expected
+
+Sample of APPL_DB output result when Del route.
+```
+admin@sonic:~$ show ip route
+B>*10.1.1.2/32 [20/0] via 10.0.0.3, Ethernet4, 00:00:14
+
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep NEXT
+
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep ROUTE
+ROUTE_TABLE:10.1.1.2
+
+admin@sonic:~$ sonic-db-cli APPL_DB HGETALL ROUTE_TABLE:10.1.1.2
+{'nexthop': '10.0.0.3', 'ifname': 'Ethernet4', 'protocol': 'bgp'}
+```
+
+##### Single NextHops
+For Single NextHop, ensure next hop group is not created.
+
+Add route
+
+1. Create static route or bgp with 1 routes
+2. Confirm `APPL_DB` entries are created as expected
+
+Sample of APPL_DB output result when Add route.
+```
+admin@sonic:~$ show ip route
+B>*10.1.1.3/32 [20/0] via 10.0.0.1, Ethernet0, 00:00:34
+B>*10.1.1.4/32 [20/0] via 10.0.0.3, Ethernet4, 00:00:34
+
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep NEXT
+
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep ROUTE
+ROUTE_TABLE:10.1.1.3
+ROUTE_TABLE:10.1.1.4
+
+admin@sonic:~$ sonic-db-cli APPL_DB HGETALL ROUTE_TABLE:10.1.1.3
+{'nexthop': '10.0.0.1', 'ifname': 'Ethernet0', 'protocol': 'bgp'}
+
+admin@sonic:~$ sonic-db-cli APPL_DB HGETALL ROUTE_TABLE:10.1.1.4
+{'nexthop': '10.0.0.3', 'ifname': 'Ethernet4', 'protocol': 'bgp'}
+```
+
+Del route
+
+1. Delete static or bgp route created in previous test
+2. Confirm `APPL_DB` entries are deleted as expected
+
+Sample of APPL_DB output result when Del route.
+```
+admin@sonic:~$ show ip route
+B>*10.1.1.4/32 [20/0] via 10.0.0.3, Ethernet4, 00:09:30
+
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep NEXT
+
+admin@sonic:~$ sonic-db-cli APPL_DB keys \* | grep ROUTE
+ROUTE_TABLE:10.1.1.4
+
+admin@sonic:~$ sonic-db-cli APPL_DB HGETALL ROUTE_TABLE:10.1.1.4
+{'nexthop': '10.0.0.3', 'ifname': 'Ethernet4', 'protocol': 'bgp'}
+```
 
 ### Open/Action items - if any 
 
