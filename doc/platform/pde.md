@@ -120,9 +120,9 @@ The PDE incorporates the necessary SAI / SDK version for the ODM to bring up the
 # 3 Design
 ## 3.1 Overview
 
-The below diagram shows the build process for generating the initial PDE repository.  
+The below diagram shows the build process for generating PDE SONiC Image.  
 
-![PDE](../../images/platform/initialcreationflow.png)
+![PDE](../../images/platform/PDE_BuildGeneration_Steps.png)
 
 The below diagram depicts the normal sonic build running with its associated docker containers. The PDE container is not included / active in a regular SONiC build.
 
