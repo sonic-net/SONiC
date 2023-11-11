@@ -1242,7 +1242,7 @@ For the example configuration above, the following is a brief explanation of loo
 
 For the inbound direction, after Route/ACL lookup, pipeline shall use the "underlay_ip" as specified in the ENI table to VXLAN encapsulate the packet and VNI shall be the ```vm_vni``` specified in the APPLIANCE table 
 	
-	5. Inbound packet destined to 10.1.2.5 with source PA 101.1.2.3 and VNI 45654
+	5. Inbound packet destined to 10.1.1.1 with source PA 101.1.2.3 and VNI 45654
 		a. After setting direction to inbound, the Route Rule table is looked up based on priority
 		b. First Inbound rule gets hit as PR prefix and VNI key match
 		c. PA validation is set to true and Vnet is given as Vnet1. 
