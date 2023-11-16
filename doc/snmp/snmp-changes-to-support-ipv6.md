@@ -18,7 +18,7 @@ agentAddress udp:161
 agentAddress udp6:161
 ```
 The other method is to use the below configuration command to configure agent address.
-``a`
+```
 config snmpagentaddress add <ip>
 ```
 
@@ -58,6 +58,16 @@ https://github.com/net-snmp/net-snmp/blob/master/snmplib/transports/snmpUDPBaseD
 ipi.ipi_spec_dst.s_addr = srcip->s_addr
 Reference: https://man7.org/linux/man-pages/man7/ip.7.html
 
+**Why should the SRC IP in SNMP response match the DST IP in SNMP request?** 
+
+In snmp pdu, There is a  request-id, and response has to match the request id.
+
+Reference RFC 1157
+
+_In GetResponse-PDU, the value of the request-id field of the GetResponse-PDU is that of the received message._
+
+
+
 **This issue is not seen on multi-asic platform, why?**
 
 On multi-asic platform, there exists different network namespaces.
@@ -68,9 +78,13 @@ Additional inforamtion on how the packet coming over Loopback IP reaches snmpd p
 Because of this separation of network namespaces, the route lookup of destination IP is confined to routing table of specific namespace where packet is received.
 If packet is received over management interface, SNMP response also is sent out of management interface. Same goes with packet received over Loopback Ip.
 
-## Changes done to fix the issue ##
+## Changes done to workaround the issue ##
 
-Currently snmpd listens on any ip by default, this default behavior is changed to listen on management and Loopback0 IP addresses. 
+Currently snmpd listens on any ip by default, after this change:
+1. If minigraph.xml is used to load the initial configuration, then SNMP_AGENT_ADDRESS_CONFIG in config_db will be updated with Loopback0 and Managment interface IP addresses during the parsing of minigraph.xml.
+2. No change will be done if config_db.json is used to load the configuration.
+config_db.json file could have SNMP_AGENT_ADDRESS_CONFIG table udpated with required IP addresses for snmpd to listen on. 
+
 Before the change:
 snmpd listens on any IP, snmpd binds to IPv4 and IPv6 sockets as below:
 ```
@@ -81,7 +95,7 @@ netsnmp_udpbase: binding socket: 8 to UDP/IPv6: [::]:161
 When IPv4 response is sent, it goes out of fd 7 and IPv6 response goes out of fd 8.
 When IPv6 response is sent, it does not have the right SRC IP and it can lead to the issue described.
 
-When snmpd listens on specific Loopback/Management IPs, snmpd binds to different sockets:
+If minigraph.xml is used, then SNMP_AGENT_ADDRESS_CONFIG will be configured with Loopback0 and Managment interface IP addresses. When snmpd listens on specific Loopback/Management IPs, snmpd binds to different sockets:
 ```
 trace: netsnmp_udpipv4base_transport_bind(): transports/snmpUDPIPv4BaseDomain.c, 207:
 netsnmp_udpbase: binding socket: 7 to UDP: [0.0.0.0]:0->[10.250.0.101]:161
@@ -114,22 +128,11 @@ This change is also more secure approach instead of listening over any ip.
 
 
 ### Effects of this change ###
-1. By default, SNMP will listen on Management and Loopback0 IPs configured via config_db.
-2. By default, SNMP will no longer listen on any IP.
-
-### Known issue with this approach ##
-SNMP query will not work over management IP if DHCP is used to confiure management IP.
-https://github.com/sonic-net/sonic-buildimage/issues/16165
-
-**Possible solution**
-
-Update STATE_DB with DHCP configured management IP address.
-Modify SNMP to get notified on the change in IP address and restart SNMP service if IP address is modified and snmpd should listen on the newly obtained management IP address.
+1. If minigraph.xml is used to load the initial configuration, then snmpd will listen on Loopback0/Management IPs.
+2. If config_db.json is used load the configuration, then snmpd will listen on any IP, the IPv6 issue will be seen. To overcome IPv6 issue, SNMP_AGENT_ADDRESS_CONFIG table should be udpated to listen to specific IPv4 or IPv6 addresses using "config snmpagentaddress add <ip>".
 
 ### Pull request to support this change ###
 
 1. [SNMP][IPv6]: Fix SNMP IPv6 reachability issue in certain scenarios https://github.com/sonic-net/sonic-buildimage/pull/15487
 2. [SNMP][IPv6]: Fix to use link local IPv6 address as snmp agentAddress https://github.com/sonic-net/sonic-buildimage/pull/16013
-3. [SNMP][IPv6][202012]: Fix SNMP IPv6 reachability issue in certain scenarios https://github.com/sonic-net/sonic-buildimage/pull/16329 https://github.com/sonic-net/sonic-buildimage/pull/16329
-
-
+3. [SNMP]: Modify minigraph parser to update SNMP_AGENT_ADDRESS_CONFIG https://github.com/sonic-net/sonic-buildimage/pull/17045
