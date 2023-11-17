@@ -81,6 +81,7 @@ The implementation as follows
 config tacacs passkey TEST1
 
 Password: 
+Note: It will ask for a master key/password only when the 'key_encrypt' flag is set under respective feature table (ex: TACPLUS) in config_db.
 
 #### Show CLI changes
 Furthermore, aside from encrypting the passkey stored within CONFIG_DB, this infrastructure ensures that the passkey itself remains concealed from any of the displayed CLI outputs. Consequently, the passkey field has been eliminated from the "show tacacs" output, and it will now solely indicate the status whether the passkey is configured or not. For instance,
