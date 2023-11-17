@@ -90,6 +90,7 @@ show tacacs
 
 ### Yang Changes 
 Increase existing passkey leaf length to 256.
+Create a new leaf for newly introduced run time flag 'key_encrypt'.
 
 ### Config DB changes 
 A new run time flag to enable/disable the tacacs passkey encryption feature - "key_encrypt".
