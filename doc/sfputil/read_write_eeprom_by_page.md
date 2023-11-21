@@ -22,10 +22,8 @@ CLI sfputil shall be extended to support reading/writing cable EEPROM by page an
 - Support basic validation for input parameter such as page, offset and size.
 - Support reading/writing cable EEPROM for all types of cables except RJ45.
 - Support non flat memory mode reading/writing. In this mode, user shall proved page and offset according to the standard. For example, CMIS page 1h starting offset is 128, offset less than 128 shall be treated as invalid.
-- Support flat memory mode reading/writing (Phase 2). In this mode, the EEPROM memory shall be treated as continues flat memory. This design document will not discuss this mode.
 - Vendor who does not support `sfp.read_eeprom` and `sfp.write_eeprom` is expected to raise `NotImplementedError`, this error shall be properly handled
 - Others error shall be treated as read/write failure
-- Vendor specific implementation is not required but still possible.
 
 
 ### Architecture Design
@@ -34,70 +32,20 @@ The current architecture is not changed.
 
 ### High-Level Design
 
-Submodule sonic-platform-common and sonic-utilities shall be extended to support this feature. Vendor specific implementation is not required but still possible.
+Submodule sonic-utilities shall be extended to support this feature.
 
-#### sonic-platform-common
+#### sonic-utilities
 
-The existing API `sfp.read_eeprom` and `sfp.write_eeprom` accept "overall offset" as parameter. They have no concept of page. If user wants to use it, user has to convert page and offset to "overall offset" manually. Different cable types use different covert method according to the standard. So, it is not user friendly to provide such API directly to user. Two new API shall be added to support this feature:
+Two new CLIs shall be added to sfputil module:
 
-```python
+- sfputil read-eeprom
+- sfputil write-eeprom
 
-def read_eeprom_by_page(self, page, offset, size, wire_addr=None, flat=False):
-    """
-    Read EEPROM by page
+For CLI detail please check chapter "CLI/YANG model Enhancements".
 
-    Args:
-        page: EEPROM page number. Raise ValueError for invalid page.
-        offset: EEPROM page offset. Raise ValueError for invalid offset.
-        size: Read size. Raise ValueError for invalid size.
-        wire_addr: Wire address. Only valid for sff8472. Raise ValueError for invalid wire address.
-        flat: Read mode.
+The existing API `sfp.read_eeprom` and `sfp.write_eeprom` accept "overall offset" as parameter. They have no concept of page. If user wants to use it, user has to convert page and offset to "overall offset" manually. Different cable types use different covert method according to the standard. So, it is not user friendly to provide such API directly to user. sonic-utilities shall provide the function to translate from page offset to overall offset.
 
-    Returns:
-        A string contains the hex format EEPROM data.
-    """
-    raise NotImplementedError
-
-def write_eeprom_by_page(self, page, offset, data, wire_addr=None, flat=False):
-    """
-    Write EEPROM by page
-
-    Args:
-        page: EEPROM page number. Raise ValueError for invalid page.
-        offset: EEPROM page offset. Raise ValueError for invalid offset.
-        data: Binary EEPROM data.
-        wire_addr: Wire address. Only valid for sff8472. Raise ValueError for invalid wire address.
-        flat: Write mode.
-
-    Returns:
-        True if write successfully else False
-    """
-    raise NotImplementedError
-```
-
-`sfp_optoe_base.SfpOptoeBase` shall implement these new APIs so that vendor does not have to implement it (Vendor specific implementation is also possible).
-
-```python
-def read_eeprom_by_page(self, page, offset, size, wire_addr=None, flat=False):
-    api = self.get_xcvr_api()
-    overall_offset = api.get_overall_offset(page, offset, size, wire_addr, flat) if api is not None else None
-    if overall_offset is None:
-        return None
-    return self.read_eeprom(overall_offset, size)
-
-def write_eeprom_by_page(self, page, offset, data, wire_addr=None, flat=False):
-    api = self.get_xcvr_api()
-    overall_offset = api.get_overall_offset(page, offset, len(data), wire_addr, flat) if api is not None else None
-    if overall_offset is None:
-        return False
-    return self.write_eeprom(overall_offset, len(data), data)
-```
-
-> Note: Not all bytes are valid for write. User is responsible to give a valid page and offset according to standard and cable vendor user manual. SONiC does not do such validation. If user writes data to a read only byte, vendor platform API shall return False but this is not guaranteed.
-
-Each API implementation shall implement `get_overall_offset` function based on standard.
-
-##### CMIS implementation
+##### CMIS validation
 
 Passive cable:
 - Valid page: 0
@@ -110,14 +58,14 @@ Active cable:
 For active cable, there is no "perfect" page validation as it is too complicated. User is responsible to make sure the page existence according to cable user manual.
 
 Example:
-```python
-sfp.read_eeprom_by_page(page=0, offset=255, size=1) # valid
-sfp.read_eeprom_by_page(page=0, offset=255, size=2) # invalid size, out of range, 255+2=257 is not a valid offset
-sfp.read_eeprom_by_page(page=0, offset=256, size=1) # invalid offset 256 for page 0, must be in range [0, 255]
-sfp.read_eeprom_by_page(page=1, offset=0, size=1)   # invalid offset 0 for page 1, must be >=128
+```
+sfputil read-eeprom Ethernet0 0 255 1               # valid
+sfputil read-eeprom Ethernet0 0 255 2               # invalid size, out of range, 255+2=257 is not a valid offset
+sfputil read-eeprom Ethernet0 0 256 1               # invalid offset 256 for page 0, must be in range [0, 255]
+sfputil read-eeprom Ethernet0 1 0 1                 # invalid offset 0 for page 1, must be >=128
 ```
 
-##### sff8436 and sff8636 implementation
+##### sff8436 and sff8636 validation
 
 Passive cable:
 - Valid page: 0
@@ -129,14 +77,14 @@ Active cable:
 
 For active cable, there is no "perfect" page validation as it is too complicated. User is responsible to make sure the page existence according to cable user manual.
 
-```python
-sfp.write_eeprom_by_page(page=0, offset=255, bytearray.fromhex('ff'))   # valid
-sfp.write_eeprom_by_page(page=0, offset=255, bytearray.fromhex('ff00')) # invalid size, out of range, 255+2=257 is not a valid offset
-sfp.write_eeprom_by_page(page=0, offset=256, bytearray.fromhex('ff'))   # invalid offset 256 for page 0, must be in range [0, 255]
-sfp.write_eeprom_by_page(page=1, offset=0, bytearray.fromhex('ff'))     # invalid offset 0 for page 1, must be >=128
+```
+sfputil write-eeprom Ethernet0 0 255 ff            # valid
+sfputil write-eeprom Ethernet0 0 255 ff00          # invalid size, out of range, 255+2=257 is not a valid offset
+sfputil write-eeprom Ethernet0 0 256 ff            # invalid offset 256 for page 0, must be in range [0, 255]
+sfputil write-eeprom Ethernet0 1 0 ff              # invalid offset 0 for page 1, must be >=128
 ```
 
-##### sff8472 implementation
+##### sff8472 validation
 
 Passive cable:
 - Valid wire address: [A0h] (case insensitive)
@@ -146,21 +94,12 @@ Active cable:
 - Valid wire address: [A0h, A2h] (case insensitive)
 - Valid offset: A0h (0-255), A2h (0-255)
 
-```python
-sfp.read_eeprom_by_page(0, 0, 1, wire_addr='a0h') # valid
-sfp.read_eeprom_by_page(0, 0, 1, wire_addr='A0h') # valid, wire address is case insensitive
-sfp.read_eeprom_by_page(1, 0, 1, wire_addr='a2h') # valid
-sfp.read_eeprom_by_page(1, 0, 1, wire_addr='a0h') # invalid page 1, wire address a0h has no page 1
 ```
-
-#### sonic-utilities
-
-Two new CLIs shall be added to sfputil module:
-
-- sfputil read-eeprom
-- sfputil write-eeprom
-
-For detail please check chapter "CLI/YANG model Enhancements".
+sfputil read-eeprom Ethernet0 0 0 1 --wire-addr a0h               # valid
+sfputil read-eeprom Ethernet0 0 0 2 --wire-addr A0h               # invalid size, out of range, 255+2=257 is not a valid offset
+sfputil read-eeprom Ethernet0 1 0 1 --wire-addr a2h               # invalid offset 256 for page 0, must be in range [0, 255]
+sfputil read-eeprom Ethernet0 1 0 1 --wire-addr a0h               # invalid offset 0 for page 1, must be >=128
+```
 
 ### SAI API
 
@@ -192,11 +131,11 @@ Example:
 
 ```
 sfputil read-eeprom Ethernet0 0 100 2
-00000064 4a 44                                            |..|
+        00000064 4a 44                                            |..|
 
 sfputil read-eeprom Ethernet0 0 0 32
-00000000 11 08 06 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
-00000010 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+        00000000 11 08 06 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+        00000010 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
 
 sfputil read-eeprom Ethernet0 0 100 2 --no-format
 4a44
@@ -236,14 +175,12 @@ No memory consumption is expected when the feature is disabled via compilation a
 ### Restrictions/Limitations
 
 - Vendor should support plaform API `sfp.read_eeprom` and `sfp.write_eeprom` to support this feature.
-- For dependent mode, module EEPROM might be managed by FW and cannot be written. CLI shall provide proper message for such situation.
 
 ### Testing Requirements/Design
 
 #### Unit Test cases
 
 - sonic-utilities unit test shall be extended to cover new subcommands
-- sonic-platform-common unit test shall be extended to cover new APIs
 
 #### System Test cases
 
