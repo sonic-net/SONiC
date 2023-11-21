@@ -12,6 +12,7 @@
 <!-- omit in toc -->
 ## Table of Contents
 - [Goal \& Scope](#goal--scope)
+  - [Similar works](#similar-works)
 - [Definitions \& Abbreviations](#definitions--abbreviations)
 - [Bottleneck Analysis](#bottleneck-analysis)
   - [Problem overview](#problem-overview)
@@ -67,6 +68,11 @@ We also observed performance bottleneck in `libsai`, but SAI/ASIC optimaztion is
     <img src="images/performance.png" >
     <figcaption>Figure 1. The module performance on Alibaba's platform loading 500k routes after optimization <figcaption>
 </figure>  
+
+### Similar works
+
+Recently, JNPR team has raised BGP loading time to 47K routes per second. https://community.juniper.net/blogs/suneesh-babu/2023/11/20/mx304-fib-install-rate 
+This is an excellent achievement and we would kudo JNPR team to raise this racing bar higher. This JNPR's achievement gives us a new aiming point for the next round optimization.
 
 ## Definitions & Abbreviations
 
