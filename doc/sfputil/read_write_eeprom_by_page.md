@@ -21,7 +21,7 @@ CLI sfputil shall be extended to support reading/writing cable EEPROM by page an
 - Support reading/writing cable EEPROM data by page, offset and size. For sff8472, wire address "a0h" or "a2h" must be provided by user.
 - Support basic validation for input parameter such as page, offset and size.
 - Support reading/writing cable EEPROM for all types of cables except RJ45.
-- Support non flat memory mode reading/writing. In this mode, user shall proved page and offset according to the standard. For example, CMIS page 1h starting offset is 128, offset less than 128 shall be treated as invalid.
+- User shall provide page and offset according to the standard. For example, CMIS page 1h starting offset is 128, offset less than 128 shall be treated as invalid.
 - Vendor who does not support `sfp.read_eeprom` and `sfp.write_eeprom` is expected to raise `NotImplementedError`, this error shall be properly handled
 - Others error shall be treated as read/write failure
 
@@ -41,7 +41,7 @@ Two new CLIs shall be added to sfputil module:
 - sfputil read-eeprom
 - sfputil write-eeprom
 
-For CLI detail please check chapter "CLI/YANG model Enhancements".
+For detail please check chapter [CLI/YANG model Enhancements](#cliyang-model-enhancements)
 
 The existing API `sfp.read_eeprom` and `sfp.write_eeprom` accept "overall offset" as parameter. They have no concept of page. If user wants to use it, user has to convert page and offset to "overall offset" manually. Different cable types use different covert method according to the standard. So, it is not user friendly to provide such API directly to user. sonic-utilities shall provide the function to translate from page offset to overall offset.
 
@@ -151,6 +151,7 @@ Usage: sfputil write-eeprom [OPTIONS] <port> <page> <offset> <data>
 
 Options:
   --wire-addr             Wire address of sff8472.
+  --verify                Verify the data by reading back.
   --help                  Show this message and exit.
 ```
 
@@ -158,6 +159,9 @@ Example:
 
 ```
 sfputil write-eeprom Ethernet0 0 100 4a44
+
+sfputil write-eeprom Etherent0 0 100 4a44 --verify
+Error: Write data failed! Write: 4a44, read: 0000.
 ```
 
 #### Config DB Enhancements
