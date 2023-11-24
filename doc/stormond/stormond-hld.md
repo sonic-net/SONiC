@@ -95,7 +95,7 @@ Returns:
     An integer value of the total number of I/O writes
 """
 
-def get_reserves_blocks(self):
+def get_reserved_blocks(self):
 """
 Retrieves the total number of reserved blocks in an SSD
 
@@ -122,6 +122,7 @@ devices = {}
 def get_storage_devices(self):
 """
 Retrieves all the storage disks on the device and adds their names as key to the 'devices' dict.
+
 """
 
 def get_storage_device_object(self):
@@ -132,12 +133,57 @@ Adds the instantiated class object as a value to the corresponding key in the di
 NOTE: SsdUtil is supported currently. Future support for EmmcUtil, USBUtil and NVMeUtil
 
 """
-
 ```
 
-This class is a helper to the Storage Daemon class. 
+This class is a helper to the Storage Daemon class.
 
-Example usage:
+**get_storage_devices() Logic:**
+
+- In the base path of `/sys/block/`, for each fd:
+    - If the fd does not have `boot` or `loop`, add it as a key to the `devices` dictionary with a temporary value of `NoneType`
+    ```
+    Example:
+    admin@str2-7050cx3-acs-01:/sys/block$ ls | grep -v -e "boot" -e "loop"
+    mmcblk0
+    sda
+    ```
+
+In the example scenario above, the dictionary `devices` would look like this:
+
+```
+devices = {
+'mmcblk0' : None
+'sda'     : None
+}
+```
+
+**get_storage_device_object() Logic:**
+
+- For each key in the `devices` dictionary:
+    - If key starts with the term `sd`:
+        - If the realpath of `/sys/block/[KEY]/device` has the term `ata` in it:
+        - Instantiate an object<sup>READ NOTE</sup> of type `SsdUtil` and add this object as value of the key
+        ```
+        Example:
+        root@str-msn2700-02:~# cd /sys/block/sda/../../../0:0:0:0
+        root@str-msn2700-02:/sys/devices/pci0000:00/0000:00:1f.2/ata1/host0/target0:0:0/0:0:0:0#
+        ```
+    - else if the realpath of `/sys/block/[KEY]/device` has the term `usb` in it:
+        - Instantiate an object<sup>READ NOTE</sup> of type `UsbUtil` and add this object as value of the key
+        ```
+        Example:
+        root@str2-7050qx-32s-acs-01:~# cd /sys/block/sda/../../../2:0:0:0
+        root@str2-7050qx-32s-acs-01:/sys/devices/pci0000:00/0000:00:12.2/usb1/1-2/1-2:1.0/host2/target2:0:0/2:0:0:0#
+        ```
+- else if key starts with the term `mmcblk`:
+    - Instantiate an object<sup>READ NOTE</sup> of type `EmmcUtil` and add this object as value of the key
+    ```
+    Example:
+    root@str2-7050cx3-acs-01:/sys/block$ ls | grep -i "mmcblk" | grep -v "boot" | grep -v "loop"
+    mmcblk0
+    ```
+
+**Example usage:**
 
 Assuming a device contains the following storage disks:
 ```
@@ -148,27 +194,32 @@ loop0  loop1  loop2  loop3  loop4  loop5  loop6  loop7  **mmcblk0**  mmcblk0boot
 We would instantiate an object of the StorageDevices() class
 `storage = StorageDevices()`
 
-`storage.devices` would contain `{"mmcblk0": <Emmcutil object>, "sda": <SsdUtil object>}`
+`storage.devices` would contain:
+```
+{
+    'mmcblk0': <Emmcutil object>,
+    'sda': <SsdUtil object>
+}
+```
 
 we would then get static and dynamic information by leveraging the respective member function implementations of `SsdUtil` and `EmmcUtil`, as they both derive from `SsdBase`.
-
-**NOTE:** eUSBUtil and NVMeUtil classes are not yet available.
-
-
 We then leverage the following proposed StateDB schema to store and stream information about each of these disks.
+
+
+<sub>**NOTE:** `UsbUtil` and `NVMeUtil` classes are not yet available. `EmmcUtil` class does not currently have IO reads, IO writes and Reserved Blocks support.</sub>
 
 ## **3. StateDB Schema**
 ```
 ; Defines information for each Storage Disk in a device
 
-key                 = STORAGE_INFO|<disk_name>          ; This key is for information that does not change for the lifetime of the SSD - STORAGE_INFO|SDX
+key                 = STORAGE_INFO|<disk_name>          ; This key is for information about a specific storage disk - STORAGE_INFO|SDX
 
 ; field             = value
 
 temperature_celsius = STRING                            ; Describes the operating temperature of the SSD in Celsius                             (Priority 0, Dynamic)
-io_reads            = INT                               ; Describes the total number of reads completed successfully from the SSD               (Priority 0, Dynamic)
-io_writes           = INT                               ; Describes the total number of writes completed on the SSD                             (Priority 0, Dynamic)
-reserved_blocks     = INT                               ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
+io_reads            = STRING                            ; Describes the total number of reads completed successfully from the SSD               (Priority 0, Dynamic)
+io_writes           = STRING                            ; Describes the total number of writes completed on the SSD                             (Priority 0, Dynamic)
+reserved_blocks     = STRING                            ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
 device_model        = STRING                            ; Describes the Vendor information of the SSD                                           (Priority 1, Static)
 serial              = STRING                            ; Describes the Serial number of the SSD                                                (Priority 1, Static)
 firmware            = STRING                            ; Describes the Firmware version of the SSD                                             (Priority 1, Static)
@@ -203,9 +254,10 @@ Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
 ## Future Work
 
-1. Support for eMMC, eUSB and NVMe storage disks
-2. Refactor `ssdutil` [in sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/ssdutil) to cover all storage types, including changing the name of the utility to 'storageutil'
-3. Rename `sonic_ssd` and its constituent scripts (`ssd_generic.py`, `ssd_emmc.py`) to encompass all storage types
+1. Enhanced support for eMMC
+2. Support for USB and NVMe storage disks
+3. Refactor `ssdutil` [in sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/ssdutil) to cover all storage types, including changing the name of the utility to 'storageutil'
+4. Rename `sonic_ssd` and its constituent scripts (`ssd_generic.py`, `ssd_emmc.py`) to encompass all storage types
 
 <br><br><br>
 <sup>[Back to top](#1-overview)</sup>
