@@ -28,7 +28,7 @@
 | Rev | Date       | Author            | Description     |
 |:---:|:----------:|:-----------------:|:----------------|
 | 0.1 | 01/02/2023 | Yevhen Fastiuk 🇺🇦  | Initial version |
-| 0.1 | 09/18/2023 | Bing Sun | Add NTP server minpoll and maxpoll |
+| 0.2 | 09/18/2023 | Bing Sun | Add NTP server minpoll and maxpoll |
 
 # About this manual
 This document provides general information about NTP implementation in SONiC and NTP CLI.
@@ -69,8 +69,8 @@ The document covers the next CLI:
 | VRF   | Virtual Routing and Forwarding            |
 | CLI   | Сommand-line Interface                    |
 | YANG  | Yet Another Next Generation               |
-| minpoll | minimum poll interval                   |
-| maxpoll | maximum poll interval                   |
+| minpoll | Minimum poll interval                   |
+| maxpoll | Maximum poll interval                   |
 
 <!-- omit in toc -->
 ## List of figures
@@ -193,8 +193,8 @@ Addresses are classed by type as (s) a remote server or peer (IPv4 class A, B an
 | key (ntpd) | none    | All packets sent to and received from the server or peer are to include authentication fields encrypted using the specified key identifier with values from 1 to 65535, inclusive. The default is to include no encryption field. |
 | version    | 4       | Specifies the version number to be used for outgoing NTP packets. Versions 1-4 are the choices, with version 4 the default. |
 | iburst     | none    | When the server is unreachable, send a burst of eight packets instead of the usual one. The packet spacing is normally 2 s; however, the spacing between the first two packets can be changed with the calldelay command to allow additional time for a modem or ISDN call to complete. This is designed to speed the initial synchronization acquisition with the server command and s addresses and when ntpd is started with the -q option. |
-| minpoll    | 6        | |
-| maxpoll    | 10       | These options specify the minimum and maximum poll intervals for NTP messages, as a power of 2 in seconds. The maximum poll interval defaults to 10(1,024 s), but can be increased by the maxpoll option to an upper limit of 17 ( 36.4 h). The minimum poll interval defaults to 6 (64 s), but can be decreased by the minpoll option to a lower limit of 4 (16 s). | 
+| minpoll    | 6        | Refers to the minimum polling interval or minimum poll exponent for NTP clients when communicating with NTP servers. |
+| maxpoll    | 10       | Refers to the maximum polling interval or maximum poll exponent for NTP clients when communicating with NTP servers. These options specify the minimum and maximum poll intervals for NTP messages, as a power of 2 in seconds. The maximum poll interval defaults to 10(1,024 s), but can be increased by the maxpoll option to an upper limit of 17 ( 36.4 h). The minimum poll interval defaults to 6 (64 s), but can be decreased by the minpoll option to a lower limit of 4 (16 s). | 
 | keys       | none    | Specifies the complete path and location of the key file containing the keys and key identifiers used by ntpd, ntpq and ntpdc when operating with symmetric key cryptography. This is the same operation as the -k command line option. |
 | trustedkey | none    | Specifies the key identifiers which are trusted for the purposes of authenticating peers with symmetric key cryptography, as well as keys used by the ntpq and ntpdc programs. The authentication procedures require that both the local and remote servers share the same key and key identifier for this purpose, although different keys can be used with different servers. The key arguments are 32-bit unsigned integers with values from 1 to 65535. |
 | keyno      | none    | Positive integer (between 1 and 65535). |
@@ -1092,8 +1092,8 @@ module sonic-ntp {
                 }
 
                 leaf minpoll {
-                    must "(current()/../maxpoll > current())" {
-                        error-message "maxpoll has to be larger than minpoll.";
+                    must "(current()/../maxpoll >= current())" {
+                        error-message "maxpoll has to be larger than or equal to minpoll.";
                     }
                     default 6;
                     type uint8 {
@@ -1106,8 +1106,8 @@ module sonic-ntp {
                 }
 
                 leaf maxpoll {
-                    must "(current()/../minpoll < current())" {
-                        error-message "maxpoll has to be larger than minpoll.";
+                    must "(current()/../minpoll <= current())" {
+                        error-message "maxpoll has to be larger than or equal to minpoll.";
                     }
                     default 10;
                     type uint8 {
