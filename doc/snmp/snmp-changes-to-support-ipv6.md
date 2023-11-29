@@ -5,7 +5,7 @@ This document captures the changes required to support SNMP over IPv6.
 ## Motivation ##
 
 SNMP query over IPv6 address fails in certain scenarios on single asic platforms.
-Ideally, SNMP over IPv6 should be successful over both IPv4 and IPv6.
+Ideally, SNMP query should be successful over both IPv4 and IPv6 addresses.
 
 ## Current configuration for SNMP ##
 
@@ -128,8 +128,9 @@ This change is also more secure approach instead of listening over any ip.
 
 
 ### Effects of this change ###
-1. If minigraph.xml is used to load the initial configuration, then snmpd will listen on Loopback0/Management IPs.
+1. If minigraph.xml is used to load the initial configuration, then snmpd will listen on Loopback0/Management IPs on single asic platform.
 2. If config_db.json is used load the configuration, then snmpd will listen on any IP, the IPv6 issue will be seen. To overcome IPv6 issue, SNMP_AGENT_ADDRESS_CONFIG table should be udpated to listen to specific IPv4 or IPv6 addresses using "config snmpagentaddress add <ip>".
+3. No change required or done for multi-asic platforms.
 
 ### Pull request to support this change ###
 
