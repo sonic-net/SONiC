@@ -92,17 +92,17 @@ This document captures the high-level design for NSF Manager - a new daemon that
 
 ### Overview
 
-SONiC uses [fast-reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot) and [finalize\_warmboot.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/warmboot-finalizer/finalize-warmboot.sh) scripts for warm reboot reconciliation. The former script is responsible for preparing the platform and database for reboot and orchestrating switch shutdown. The latter script is responsible for monitoring the reconciliation status of a fixed set of switch stack components and eventually removing the warm-boot flag from Redis DB.There are multiple drawbacks of using a bash script:
+SONiC uses [fast-reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot) and [finalize\_warmboot.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/warmboot-finalizer/finalize-warmboot.sh) scripts for warm reboot reconciliation. The former script is responsible for preparing the platform and database for reboot and orchestrating switch shutdown. The latter script is responsible for monitoring the reconciliation status of a fixed set of switch stack components and eventually removing the warm-boot flag from Redis DB. There are multiple drawbacks of using a bash script:
 
 
 
 *   Separate binaries need to be developed for each component to send shutdown related notifications.
 *   The rich set of Redis DB features provided by swss-common library cannot be utilized.
-*   A framework to send notifications to components and wait for updates cannot be developed.
+*  Cannot develop an efficient framework that sends notifications to components and monitors their warm-boot states.
 
 Additionally, the current SONiC warm shutdown algorithm has custom shutdown related notifications for different components that triggers their warm shutdown logic. For example, Orchagent uses _freeze_ notification and notifies its ready status via notification channel. Syncd uses _pre-shutdown_ and _shutdown_ notifications and notifies its status via Redis DB.
 
-The proposal is to introduce a new daemon called NSF Manager that will be responsible for both shutdown orchestration and reconciliation monitoring during warm reboot. It will leverage Redis DB features provided by swss-common to create a common framework for warm-boot orchestration. As a result, there will be a unified framework for warm-boot orchestration for all switch stack components.
+The proposal is to introduce a new component called NSF Manager that will be responsible for both shutdown orchestration and reconciliation monitoring during warm reboot. It will leverage Redis DB features provided by swss-common to create a common framework for warm-boot orchestration. As a result, there will be a unified framework for warm-boot orchestration for all switch stack components. NSF Manager will be an alternative to the existing SONiC warm-boot orchestation scripts and thus both these orchestration frameworks will co-exist in SONiC. More details about this are described in the [Backward Compatibility](#backward-compatibility) section.
 
 
 ### Requirements
@@ -198,6 +198,8 @@ After receiving the freeze notification, the components will update their quiesc
 
 Since the switch is in quiescent state, this will be the final state of the switch before reboot. NSF Manager will trigger state verification to ensure that the switch is in a consistent state. Reconciling from an inconsistent state might cause traffic loss and thus it is important to ensure that the switch is in a consistent state before warm rebooting. NSF Manager will abort warm reboot operation if state verification fails.
 
+An additional flag will be added in Redis DB which will be used NSF Manager to determine whether this phase is required during warm-boot orchestration.
+
 
 ##### Phase 3: Trigger Checkpointing
 
@@ -258,9 +260,15 @@ After warm reboot, a component will transition to _initialized_ state after it h
 Components will update their state in STATE DB using [setWarmStartState()](https://github.com/sonic-net/sonic-swss-common/blob/master/common/warm_restart.cpp#L223) API during the different warm reboot stages. NSF Manager will monitor these NSF states in STATE DB to determine whether it needs to proceed with the next phase of the warm-boot orchestration or not.
 
 
+### Backward Compatibility
+
+![alt_text](img/notification-channels.png)
+
+NSF Manager and the existing warm-boot orchestration scripts will co-exist in SONiC. NSF Manager will use different notification channels than the existing scripts to send warm-boot related notifications to the switch components. Components will identify the warm-boot orchestrator based on the notification channel and take actions accordingly. This will only impact the shutdown path of the components since the two orchestrations differ only during warm shutdown i.e. the proposed design doesn't impact the warm bootup path of the components. Therefore, the transition of components from existing to the proposed warm-boot orchestration involves registering NSF details with NSF Manager during initialization and adding support for NSF Manager notifications while maintaining support for existing warm-boot notifications.
+
 ### SAI API
 
-_NA_
+There are no SAI changes required to support this new warm-boot orchestration framework. Syncd will continue to use the existing SAI APIs to perform freeze and checkpointing operations.
 
 
 ### Configuration and management
@@ -268,18 +276,16 @@ _NA_
 _NA_
 
 
-### Warmboot and Fastboot Design Impact
-
-Users of the existing warmboot and fastboot mechanism will not be impacted. All components will be compatible with the existing SONiC design. An additional flag will be added in CONFIG DB to indicate whether state verification is required during warm-boot orchestration or not.
-
-
 ### Restrictions/Limitations
 
 
 ### Testing Requirements/Design
 
-NSF Manager will have unit and component tests to verify shutdown orchestration and reconciliation monitoring functionality. Component tests will be added to all switch stack components that will register with NSF Manager to ensure that they process notifications from NSF Manager and update STATE DB correctly.
+NSF Manager will have unit and component tests to verify shutdown orchestration and reconciliation monitoring functionality. Unit/Component tests will be added to all switch stack components that will register with NSF Manager to ensure that they process notifications from NSF Manager and update STATE DB correctly.
 
+Integration tests will be added to verify the end-to-end functionality of this new warm-boot orchestration framework. At a high-level, the integration test will trigger warm reboot using NSF Manager and will verify that the switch warm reboots with 0 packet loss.
+
+NSF Manager is independent of the underlying forwarding ASIC and thus it will support all NPU types. The above integration test can be used to verify warm-boot orchestration on the different NPU types.
 
 ### Open/Action items - if any
 
