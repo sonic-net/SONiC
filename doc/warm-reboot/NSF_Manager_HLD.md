@@ -112,7 +112,13 @@ The current design covers warm reboot orchestration daemon along with the warm s
 
 ### Architecture Design
 
-_NA_
+
+
+![alt_text](img/nsf-mgr-location.png)
+
+
+
+NSF Manager will run as a part of the Reboot Backend daemon inside a new _Framework_ docker. The high-level design of this daemon is specified [here](https://github.com/sonic-net/SONiC/pull/1489). Since NSF Manager will run inside a docker, it will communicate with processes in other dockers using notification channel and Redis DB, and will perform host actions using DBUS.
 
 
 ### High-Level Design
@@ -123,7 +129,7 @@ _NA_
 
 
 
-NSF Manager will replace the existing [fast-reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot) and [finalize\_warmboot.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/warmboot-finalizer/finalize-warmboot.sh) scripts to perform shutdown orchestration and reconciliation monitoring during warm reboot. It will use a registration based mechanism to determine the switch stack components that need to perform an orchestrated shutdown and bootup. This ensures that the NSF Manager design is generic, flexible and also avoids any hardcoding of component information in NSF Manager.
+NSF Manager will be an alternative to the existing [fast-reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot) and [finalize\_warmboot.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/warmboot-finalizer/finalize-warmboot.sh) scripts to perform shutdown orchestration and reconciliation monitoring during warm reboot. It will use a registration based mechanism to determine the switch stack components that need to perform an orchestrated shutdown and bootup. This ensures that the NSF Manager design is generic, flexible and also avoids any hardcoding of component information in NSF Manager.
 
 
 #### NSF Details Registration
