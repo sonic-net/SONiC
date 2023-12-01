@@ -362,7 +362,7 @@ After the command is executed, all items in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABL
 
 The following YANG model is introduced for the suppress ASIC/SDK health event
 
-```test
+```text
     container sonic-suppress-asic-sdk-health-event {
         container SUPPRESS_ASIC_SDK_HEALTH_EVENT {
             list SUPPRESS_ASIC_SDK_HEALTH_EVENT_LIST {
@@ -377,7 +377,7 @@ The following YANG model is introduced for the suppress ASIC/SDK health event
                     description "Severity of the ASIC/SDK health event";
                 }
 
-                leaf-list category-list {
+                leaf-list categories {
                     mandatory true;
                     type enumeration {
                         enum software;
@@ -401,8 +401,7 @@ The following YANG model is introduced for ASIC/SDK health event
     container sonic-events-swss {
         container asic-sdk-health-event {
             evtcmn:ALARM_SEVERITY_MAJOR;
-            description "
-                Declares an event for ASIC/SDK health event.";
+            description "Declares an event for ASIC/SDK health event.";
             leaf timestamp {
                 type string {
                     pattern '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}';
@@ -412,17 +411,19 @@ The following YANG model is introduced for ASIC/SDK health event
                 type int;
             }
             leaf severity {
-                type enumeration
+                type enumeration {
                     enum fatal;
                     enum warning;
                     enum notice;
+                }
             }
             leaf category {
-                type enumeration
+                type enumeration {
                     enum software;
                     enum firmware;
                     enum cpu_hw;
                     enum asic_hw;
+                }
             }
             leaf description {
                 type string;
