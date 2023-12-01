@@ -107,7 +107,7 @@ module sonic-tacplus-monitor {
                 leaf enable {
                     description "Enable Monitor feature";
                     type boolean;
-                    default true;
+                    default false;
                 }
 
                 leaf time_window {
