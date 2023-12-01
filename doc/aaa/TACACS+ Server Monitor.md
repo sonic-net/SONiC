@@ -20,8 +20,7 @@ To improve this issue, SONiC will add a TACACS+ server monitor to change server 
     - Write TACACS+ server slow response message to syslog.
 - Hostcfgd requirement:
     - Change server priority based on TACACS+ network latency data in COUNTER_DB.
-    - Not change any other server attribute.
-    - Not change any other TACACS+ config.
+    - Not change CONFIG_DB.
 
 ### Counter DB schema
 #### TACPLUS_SERVER_LATENCY Table schema
