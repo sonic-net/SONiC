@@ -57,12 +57,19 @@ This feature aims at adding a generic FM (Fault Management) Infrastructure which
    2) Fetch these events (alarms/faults) from the eventD (based on published YANG/schema)
    3) Analyze them (in a generic way) against the above-mentioned Policy Table
    4) Take action based on the lookup/match in Policy Table
-   5) Action could either be generic or platform specfic
+   5) Action could either be generic or platform specific
 
 # Objective
-Primary objective of producing this document:
-Platform supplied 'Fault-Action Policy table' has a holistic/system-level view of the platform (chassis/board/HWSKU) and can gauge the right action required to recover from the fault.
-It can either go with the recommended action (provided by the fault source/detector) or override it with the system-level one.
+Objective of producing this document is two-fold:
+
+   a) Every SONiC NOS deployement may not have External Controller to take the action upon fault occurence. 
+      In that case, expects SONiC (with its underlying platform) to take the required action to recover the system/chassis from the fault.
+      
+   b) Platform supplied 'Fault-Action Policy table' has a holistic/system-level view of the platform (chassis/board/HWSKU) 
+      and can gauge the right action required to recover from the fault.
+      It can either go with the recommended action (provided by the fault source/detector) or override it with the system-level one.
+
+Fault Manager module (as described in below block diagram) would serve the purpose of taking necessary action(s) to log and handle the faults.
 
 # High Level Block diagram and System Flow
 
@@ -70,7 +77,7 @@ High-Level design (end-to-end workflow) to inject, detect, report, analyze and h
 
 Note: Errors/Failures/Faults are regarded as Faults here.
 
-The beige oval-shaped box (on the right) represents the FM (Fault Managment) infrastructure being added and developed
+The beige oval-shaped box (on the right) represents the FM (Fault Managment) infrastructure module being added and developed
 via this HLD/Feature.
 
 <img width="892" alt="Screenshot 2023-11-30 at 5 36 53 PM" src="https://github.com/shyam77git/SONiC/assets/69485234/47a5fa4a-7f3d-4d45-86a4-81cb3fb893f1">
@@ -90,29 +97,31 @@ Following are the main functionalities/tasks of the FM core infra introduced as 
    - action may range from logging (disk, OBFL flash etc.) to reload/shutdown etc.
 8. Tabulate event entry (along with action taken) for book-keeping purposes
 
-# Fault-Action Policy Table (sample)
+# Fault-Action Policy Table (fault_action_policy.json)
 
 {
 
-    "faults": [
-    
-        {
+    "chassis": {
+        "name": "PID or HWSKU",
+        "faults": [
+            {
         
-            "type" : "CUSTOM_EVPROFILE_CHANGE",
-            "severity" : "MAJOR",
-            "action" : "logging"
-        },
-        {
-            "type" : "TEMPERATURE_EXCEEDED",
-            "severity" : "CRITICAL",
-            "action" : "reload"
-        },
-        {
-            "type": "FANS MISSING",
-            "severity": "CRITICAL",
-            "action": "shutdown"
-        }
-    ]
+                 "type" : "CUSTOM_EVPROFILE_CHANGE",
+                 "severity" : "MAJOR",
+                 "action" : ["syslog"]
+            },
+            {
+                 "type" : "TEMPERATURE_EXCEEDED",
+                 "severity" : "CRITICAL",
+                 "action" : ["syslog", "obfl", "reload"]
+            },
+            {
+                 "type": "FANS MISSING",
+                 "severity": "CRITICAL",
+                 "action" : ["syslog", "obfl", "shutdown"]
+            }
+        ]
+    }
 }
 
 # References
@@ -128,4 +137,9 @@ SONiC Events Yang models (schema):
     - https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-eventd/src/eventd.cpp
     - https://github.com/sonic-net/sonic-swss-common/blob/master/common/events.cpp
     - Leveraging ZMQ and providing event_publish() and event_receive() support/definitions etc.
-    - https://github.com/sonic-net/sonic-buildimage/blob/202305/dockers/docker-eventd/supervisord.conf 
+    - https://github.com/sonic-net/sonic-buildimage/blob/202305/dockers/docker-eventd/supervisord.conf
+ - Following yet to be committed to sonic mainline (202305, master etc.). Still in PR https://github.com/sonic-net/sonic-mgmt-common/pull/48
+    - sonic-event.yang
+      - https://github.com/sonic-net/sonic-mgmt-common/pull/48/files#diff-79e2d8d548330caba6bf4578fd5319cd27c7f27f0576ed7558c8197ffe262049
+    - sonic-alarm.yang
+      - https://github.com/sonic-net/sonic-mgmt-common/pull/48/files#diff-b8e4e92cd1215ac998304fafecb94406af73185f07a055b7bde9dfbb8acebc82
