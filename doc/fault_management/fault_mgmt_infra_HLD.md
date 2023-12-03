@@ -1,5 +1,5 @@
 # Feature Name 
-This is generic Fault Management Infrastructure document aiming at Fault Analysis and Handling
+This is a platform independent **Fault Management Infrastructure** document aiming at Fault Analysis and Handling
 
 # High Level Design Document
 #### Rev 0.1
@@ -8,7 +8,7 @@ This is generic Fault Management Infrastructure document aiming at Fault Analysi
 * [Revision](#revision)
 * [Definitions](#definitions)
 * [Background/Context](#background/context)
-* [Present State (Problem Definmition)](#present-state-(Problem-Definmition))
+* [Present State (Problem Definition)](#present-state-(problem-definition))
 * [Overview](#overview)
 * [Objective](#objective)
 * [High Level Block diagram and System Flow](#high-level-block-diagram-and-system-flow)
@@ -46,7 +46,7 @@ They may occur at any of the following stages of system's functioning:
 
 # Present State (Problem Definmition)
 In SONiC, Fault is represented via an Event or an Alarm.
-SONiC has Event Framework HLD (https://github.com/sonic-net/SONiC/blob/master/doc/event-alarm-framework/event-alarm-framework.md), 
+SONiC has Event Framework HLD https://github.com/sonic-net/SONiC/pull/1409 (https://github.com/sonic-net/SONiC/blob/master/doc/event-alarm-framework/event-alarm-framework.md), 
 which can help event-detector to publish its event to the eventD redisDB.
 
 However, there is no Fault Manager/Handler which can take the needed platform-specified action(s) to recover the system from the generated fault.
@@ -62,8 +62,8 @@ This feature aims at adding a generic FM (Fault Management) Infrastructure which
 # Objective
 Objective of producing this document is two-fold:
 
-   a) Every SONiC NOS deployement may not have External Controller to take the action upon fault occurence. 
-      In that case, expects SONiC (with its underlying platform) to take the required action to recover the system/chassis from the fault.
+   a) Every SONiC NOS deployment may not have External Controller to take the action upon fault occurence. 
+      In that case, SONiC (with its underlying platform) is expected to take the required action to recover the system/chassis from the fault.
       
    b) Platform supplied 'Fault-Action Policy table' has a holistic/system-level view of the platform (chassis/board/HWSKU) 
       and can gauge the right action required to recover from the fault.
@@ -77,13 +77,18 @@ High-Level design (end-to-end workflow) to inject, detect, report, analyze and h
 
 Note: Errors/Failures/Faults are regarded as Faults here.
 
-The beige oval-shaped box (on the right) represents the FM (Fault Managment) infrastructure module being added and developed
-via this HLD/Feature.
-
 <img width="892" alt="Screenshot 2023-11-30 at 5 36 53 PM" src="https://github.com/shyam77git/SONiC/assets/69485234/47a5fa4a-7f3d-4d45-86a4-81cb3fb893f1">
 
+**Block diagram's markers/steps (#1 through #9) explanation:**
+|      Markers        |                   Brief Description                                    | State                                                  |
+| --------------------|------------------------------------------------------------------------|--------------------------------------------------------|
+| Markers 1 through 3 | Fault detector (source) publishes its events(faults, alarms) to eventD | Available in SONiC 202305
+| Marker 4            | Storing the events to eventD's redisDB instance                        | codeflow to be committed as part of revised HLD: https://github.com/sonic-net/SONiC/pull/1409 |                                                                            
+| Marker 5 through 9  | This is the beige oval-shaped box (on the right) representing the FM (Fault Managment) infrastructure module being added and developed as part of this HLD/Feature| This HLD|
+                                                                    
+
 # High Level Work Flow
-Following are the main functionalities/tasks of the FM core infra introduced as part of this document:
+Following are the main functionalities/tasks of the **FM infrastructure module** being introduced as part of this document:
 1. Formulate platform/HWSKU specific Fault-Action Policy Table (json or yaml file)
    - There would be generic (default) table if none provided by platform
    - A platform supplied file would override the default one
