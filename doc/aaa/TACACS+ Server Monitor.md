@@ -18,9 +18,6 @@ To improve this issue, SONiC will add a TACACS+ server monitor, a server unreach
     - Check TACACS+ server connection and write network latency data to COUNTER_DB.
     - Write TACACS+ server unreachable message to syslog.
     - Write TACACS+ server slow response message to syslog.
-- Hostcfgd requirement:
-    - Not change CONFIG_DB.
-    - Change server priority in config file based on TACACS+ network latency data in COUNTER_DB.
 
 ### Counter DB schema
 #### TACPLUS_SERVER_LATENCY Table schema
@@ -147,19 +144,19 @@ module sonic-tacplus-monitor {
    +---------+---------+
              |
              |
-   +---------v---------+               +----------------+
-   |                   |               |                |
-   |     HostCfgd      +--------------->  config file   |
-   |                   |               |                |
-   +---------+-----^---+               +----------------+
-             |     |
-             |     +---------------------------+
-             |                                 |
-   +---------v---------+               +-------+--------+
-   |                   |               |                |
-   | TACACS+ Monitor   +--------------->   COUNTER_DB   |
-   |                   |               |                |
-   +-------------------+               +----------------+
+   +---------v---------+
+   |                   |
+   |     HostCfgd      |
+   |                   |
+   +---------+---------+
+             |
+             |
+             |
+   +---------v---------+
+   |                   |
+   | TACACS+ Monitor   |
+   |                   |
+   +-------------------+
 ```
 - TACACS+ monitor is a Monit profile.
 - Hostcfgd will update Monit profile based on TACPLUS_MONITOR table and TACPLUS_SERVER table:
@@ -171,21 +168,6 @@ module sonic-tacplus-monitor {
 - TACACS+ monitor also will write warning message to syslog when following event happen:
     - Any server latency is -1, which means the server is unreachable.
     - Any server latency is bigger than high_latency_threshold.
-- Hostcfgd will monit TACPLUS_SERVER_LATENCY table and re-generate TACACS config file:
-    - When monitor feature disabled, hostcfgd will not monit TACPLUS_SERVER_LATENCY table.
-    - Hostcfgd will cache last time table data, and compare with latest table data.
-    - Based on compare result, if found following change, hostcfgd will re-generate TACACS config file:
-        - Any server latency is -1, which means the server is unreachable.
-        - Any unreachable server become reachable.
-        - Any server latency is bigger than high_latency_threshold.
-- When hostcfgd generate TACACS config file, server priority calculated according to following rules:
-    - Get server priority info from CONFIG_DB TACPLUS_SERVER table.
-    - When monitor feature disabled, will use priority in TACPLUS_SERVER table as server priority.
-    - When monitor feature enabled:
-        - Change high latency server to 1, this is because 1 is the smallest priority, and SONiC device will use high priority server first.
-        - Un-reachable server will not include in TACACS config file. When server become reachable, hostcfgd will add server back.
-        - If other server also has priority 1 in CONFIG_DB, change priority to 2
-        - If other server priority is no 1, using original priority in CONFIG_DB
 
 # 5 References
 
