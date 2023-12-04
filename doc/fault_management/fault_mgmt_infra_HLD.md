@@ -21,15 +21,18 @@ This is a platform independent **Fault Management Infrastructure** document aimi
 # Revision
 | Rev |     Date    |       Author                       | Change Description                  |
 |:---:|:-----------:|:----------------------------------:|-------------------------------------|
-| 0.1 | 11/29/2023  | Shyam Kumar                        | Initial Version                     |
+| 0.1 | 11/29/2023  | Shyam Kumar                        | Draft Version                       |
+| 1.0 | 12/04/2023  | Shyam Kumar                        | External PR - Initial Version       |
 
 
 ### Definitions
 | **Term**       | **Definition**                                   |
 | -------------- | ------------------------------------------------ |
+| HLD            | High Level Design                                |
 | FM             | Fault Management                                 |
 | FDR            | Fault Detection and Reporting                    |
 | FAH            | Fault Analysis and Handling                      |
+| F-A            | Fault-Action                                     |
 
 # Background/Context
 Any failure or an error impacting a sub-system or system is regarded as a fault. 
@@ -44,7 +47,7 @@ They may occur at any of the following stages of system's functioning:
    - feature disablement/unconfiguration
    - while going-down (config reload, reboot etc.)
 
-# Present State (Problem Definmition)
+# Present State (Problem Definition)
 In SONiC, Fault is represented via an Event or an Alarm.
 SONiC has Event Framework HLD https://github.com/sonic-net/SONiC/pull/1409 (https://github.com/sonic-net/SONiC/blob/master/doc/event-alarm-framework/event-alarm-framework.md), 
 which can help event-detector to publish its event to the eventD redisDB.
@@ -66,10 +69,10 @@ Objective of producing this document is two-fold:
       In that case, SONiC (with its underlying platform) is expected to take the required action to recover the system/chassis from the fault.
       
    b) Platform supplied 'Fault-Action Policy table' has a holistic/system-level view of the platform (chassis/board/HWSKU) 
-      and can gauge the right action required to recover from the fault.
-      It can either go with the recommended action (provided by the fault source/detector) or override it with the system-level one.
+      and can gauge the right action required to recover the system from the fault.
+      It can either go with the recommended action (provided by the FDR - fault source/detector) or override it with the system-level one.
 
-Fault Manager module (as described in below block diagram) would serve the purpose of taking necessary action(s) to log and handle the faults.
+**Fault Manager** module (as described in below block diagram) would serve the purpose of taking necessary action(s) to log and handle the faults.
 
 # High Level Block diagram and System Flow
 
@@ -92,15 +95,16 @@ Following are the main functionalities/tasks of the **FM infrastructure module**
 1. Formulate platform/HWSKU specific Fault-Action Policy Table (json or yaml file)
    - There would be generic (default) table if none provided by platform
    - A platform supplied file would override the default one
-3. Introduce a new micro-service (fault_manager) at host (Linux Kernel)
-4. This service to subscribe to eventsDB redisDB (once available) and fetch events and alarms from it
-5. Parse events against sonic-events yang model
-6. Analyze them against Fault-Action Policy Table (file)
+2. Introduce a new micro-service (fault_manager) at host (Linux Kernel)
+3. This service to subscribe to eventsD redisDB instance (once available) and fetch events and alarms from it
+4. Parse events against event_tag in sonic-events yang model 
+5. Analyze them against Fault-Action Policy Table (file)
    - Take fault_type and fault_severity as input from the fetched event and perform lookup
-     for these fields in Fault-Action Policy Table to determine the action(s) needed
-7. Handle the fault (i.e. take action) based on action(s) specified in Fault-Action Policy Table
+     on these fields in Fault-Action Policy Table to determine the action(s) needed
+6. Handle the fault (i.e. take action) based on action(s) specified in Fault-Action Policy Table
    - action may range from logging (disk, OBFL flash etc.) to reload/shutdown etc.
-8. Tabulate event entry (along with action taken) for book-keeping purposes
+   - Taking action would either be by itself (i.e. in ts own micro-service) or delegating it to action's owner
+7. Tabulate event entry (along with action taken) for book-keeping purposes
 
 # Fault-Action Policy Table (fault_action_policy.json)
 
@@ -128,6 +132,18 @@ Following are the main functionalities/tasks of the **FM infrastructure module**
         ]
     }
 }
+
+# Use-cases
+Following are some of the Faults' uses-cases 
+| Sr # | Fault Type                    | FDR (Fault source/detector)  |  Fault informant   |  FAH (Fault Analyzer & Handler) |
+|------|-------------------------------|------------------------------|--------------------|---------------------------------|
+| 1.   | Thermal sensors (Temperature) | thermalctld                  |  eventD            |  FM (this HLD/module)           |
+| 2.   | Voltage & Current sensors     | snesormond                   |  eventD            |  FM                             |
+| 3.   | FanTrays and Fans             | thermalctld                  |  eventD            |  FM                             |
+| 4.   | PowerTrays and PSUs           | psud                         |  eventD            |  FM                             |
+| 5.   | transceivers                  | xcvrd                        |  eventD            |  FM                             |
+| 6.   | PCIe faults                   | Host's PCIEd bin/util        |  eventD            |  FM                             |
+| 7.   | Ethernet Switch faults        | platform's ethSwitch service |  eventD            |  FM                             |
 
 # References
 SONiC Events Yang models (schema): 
