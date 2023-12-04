@@ -2,7 +2,7 @@
 This is a platform independent **Fault Management Infrastructure** document aiming at Fault Analysis and Handling
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 1.0
 
 # Table of contents
 * [Revision](#revision)
@@ -22,7 +22,7 @@ This is a platform independent **Fault Management Infrastructure** document aimi
 | Rev |     Date    |       Author                       | Change Description                  |
 |:---:|:-----------:|:----------------------------------:|-------------------------------------|
 | 0.1 | 11/29/2023  | Shyam Kumar                        | Draft Version                       |
-| 1.0 | 12/04/2023  | Shyam Kumar                        | External PR - Initial Version       |
+| 1.0 | 12/04/2023  | Shyam Kumar                        | Initial Version                     |
 
 
 ### Definitions
