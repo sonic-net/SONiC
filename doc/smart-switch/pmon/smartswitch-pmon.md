@@ -167,6 +167,17 @@ Potential consumer: Switch CLIs, Utils (install/repair images), HA, LB, Life Cyc
 
 Use cases: Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state/health
 
+#### 3.3.3. End User Reboot Cause Table
+This table shows the frame work for DPU reboot-cause reporting
+
+| DPU Reboot Cause | HW/SW | End_User_Message_in_DPU_STATE |
+| --- | --- | --- |
+| REBOOT_CAUSE_POWER_LOSS | HW | Power failure |
+| REBOOT_CAUSE_HOST_DETECT_DPU_FAILURE | SW | Host lost DPU - Try resetting DPU |
+| REBOOT_CAUSE_HOST_RECOVER_DPU_FAILURE | SW | Host lost DPU - Power cycled DPU |
+| REBOOT_CAUSE_SW_THERMAL |	SW |Switch software Powered Down DPU due to DPU temperature failure |
+| PCIE_RESET_CAUSE_SWITCH |	SW | Switch Software Reset DPU PCIe due to PCIe failure |
+
 #### 3.3.3. ChassisStateDB Schema for DPU_STATE
 ```
 Table: “DPU_STATE”
@@ -208,38 +219,27 @@ Besides the state and previous_reboot_reason_from_host other fields will be upda
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. The same design has been extended in case of a SmartSwitch. The mnic ethernet interface over PCIe which is the midplane-interface, interconnect the Switch Host and the DPUs.
 
 * When DPU card (SLED) or the Supervisor boots and as part of its initialization, midplane interface gets initialized.
-* Slot number is used in assigning an IP address to these interfaces.
+* For midplane-interface IP address allocation we will follow the procedure in the link https://github.com/sonic-net/SONiC/tree/master/doc/smart-switch/ip-address-assigment
 
-### 3.4.1.    DPU IP address allocation
+### 3.4.1.    MAC address distribution
 
-The table shows how the DPU-ID is used in assigning IP address to the midplane-interface endpoints for both the host and dpu end.
+* Mac allocation for the Switch Host
+    * port X 16 =  512  
+        * Example: 28 external ports + 4 internal host-dpu ports
+    * default = 8
+        * Example: management port, dockers, loopback, midplane-bridge, plus some spare
+    * midplane DPU interface host end point X DPUs  = 8
+        * Example: 1 per dpu interface
 
+* Mac allocation per DPU
+    * default = 8
+        * Example: management port, dockers, loopback, 1 for midplane-interface dpu end point, plus some spare
+    * application extension = 8
+        * Note: 8 mac addresses for future application expansion
+ 
+* Total mac for SmartSwich = (512 + 8 + 8) + ((8 + 8) * 8) =   656 mac addresses
 
-| DPU_ID | DPU_Endpoint_IP | Host_Endpoint_IP | DPU_Endpoint_MAC | HOST_Endpoint_MAC |
-| --- | ---- | ------ | ------------------ | ------------------ |
-| 1 | 169.254.dpu_id.1 | 169.254.dpu_id.2 | DPU_MP_MAC1 | HOST_MP_MAC1 |
-| 2 | 169.254.2.1 | 169.254.2.2 | DPU_MP_MAC2 | HOST_MP_MAC2 |
-| 3 | 169.254.3.1 | 169.254.3.2 | DPU_MP_MAC3 | HOST_MP_MAC3 |
-| 4 | 169.254.4.1 | 169.254.4.2 | DPU_MP_MAC4 | HOST_MP_MAC4 |
-| 5 | 169.254.5.1 | 169.254.5.2 | DPU_MP_MAC5 | HOST_MP_MAC5 |
-| 6 | 169.254.6.1 | 169.254.6.2 | DPU_MP_MAC6 | HOST_MP_MAC6 |
-| 7 | 169.254.7.1 | 169.254.7.2 | DPU_MP_MAC7 | HOST_MP_MAC7 |
-| 8 | 169.254.8.1 | 169.254.8.2 | DPU_MP_MAC8 | HOST_MP_MAC8 |
-
-* The IP address allocation for the DPUs and the host can be static as in Modular chassis design 
-* PCIe interface between the Switch Host and the DPUs act as the midplane interface. 
-* For each DPU interface one endpoint is on the NPU side and the other endpoint is on the DPU side 
-* When DPU or the Supervisor boots and as part of its initialization, midplane interface gets initialized.
-* Slot number is used in assigning an IP and MAC address to these interfaces 
-* Example: 
-    * We use the subnet "169.254.0.0/16” for midplane-interface
-    * Switch Host DPU interface IPs will be: 169.254.dpu_id.2
-    * DPU endpoint IPs will be 169.254.dpu_id.1
-* The MAC address for each host endpoint will be read from the FPGA and updated into the MID_PLANE_IP_MAC table in the ChassisStateDB
-* The MAC address for each DPU endpoint will be updated by the DPU into the MID_PLANE_IP_MAC table in the ChassisStateDB
-* Example
-    * HOST_MP_MAC1 = BA:CE:AD:D0:C0:01
-    * DPU_MP_MAC1 = BA:CE:AD:D0:D0:01
+* The MAC address for each host endpoint and the corresponding DPU endpoint will be read from the hardware and updated into the MID_PLANE_IP_MAC table in the ChassisStateDB as shown below. The IP addess will also be stored here for convenience.
 
 ### 3.4.2.  ChassisStateDB Schema for MID_PLANE_IP_MAC
 ```
@@ -275,7 +275,5 @@ show platform dpu state - will show the dpu status of all DPUs
 show platform dpu health (On DPU) - shows the health info of DPU 
 <p align="center"><img src="./images/sh-pl-dpu-health.svg"></p>
 
-## 4.    Detailed design
-Provide the link
-## 5.    Test Plan
-Work in progress
+## 4.   Test Plan
+Provide the Link here
