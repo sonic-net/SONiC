@@ -12,6 +12,9 @@
     - [Architecture Design](#architecture-design)
       - [Database services](#database-services)
       - [Database flow](#database-flow)
+        - [Update Overlay Objects via GNMI:](#update-overlay-objects-via-gnmi)
+        - [Update Object Status:](#update-object-status)
+        - [Update Counters and Meters:](#update-counters-and-meters)
     - [High-Level Design](#high-level-design)
     - [SAI API](#sai-api)
     - [Configuration and management](#configuration-and-management)
@@ -20,7 +23,11 @@
     - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
     - [Memory Consumption](#memory-consumption)
       - [DPU\_APPL\_DB](#dpu_appl_db)
+        - [Global Tables](#global-tables)
+        - [Per ENI Tables](#per-eni-tables)
       - [DPU\_APPL\_STATE\_DB/DPU\_STATE\_DB](#dpu_appl_state_dbdpu_state_db)
+        - [Global Tables](#global-tables-1)
+        - [Per ENI Tables](#per-eni-tables-1)
     - [Restrictions/Limitations](#restrictionslimitations)
     - [Testing Requirements/Design](#testing-requirementsdesign)
       - [Unit Test cases](#unit-test-cases)
@@ -39,12 +46,14 @@ This document provides a high-level design for Smart Switch database.
 
 ### Definitions/Abbreviations 
 
-| Term | Meaning                           |
-| ---- | --------------------------------- |
-| NPU  | Network Processing Unit           |
-| DPU  | Data Processing Unit              |
-| DB   | Database                          |
-| GNMI | gRPC Network Management Interface |
+| Term              | Meaning                                                                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NPU               | Network Processing Unit                                                                                                                                                         |
+| DPU               | Data Processing Unit                                                                                                                                                            |
+| DB                | Database                                                                                                                                                                        |
+| GNMI              | gRPC Network Management Interface                                                                                                                                               |
+| overlayer objects | All objects defined in the [sonic-dash-api](https://github.com/sonic-net/sonic-dash-api)                                                                                        |
+| midplane bridge   | Defined in the [smart-switch-ip-address-assignment](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) |
 
 ### Overview
 
@@ -59,7 +68,7 @@ In addition, dedicated database containers are maintained in the NPU for each DP
 - Each DPU database instance on the NPU is associated with a unique TCP port and domain Unix socket path.
 - All DPU database instances on the NPU will be bound to the IP address of the midplane bridge.
 - All database instances on the NPU share the same network namespace to facilitate seamless communication.
-- DPUs can access their respective overlay database instances using the IP of the midplane bridge and a pre-assigned unique TCP port.
+- DPUs can access their respective overlay database instances on the NPU using the IP of the midplane bridge and a pre-assigned unique TCP port.
 
 ### Architecture Design
 
@@ -148,15 +157,15 @@ There are four new tables introduction for the DPU overlay database:
 
 This section outlines critical workflows interacting with the DPU overlay database.
 
-- Update Overlay Objects via GNMI:
+##### Update Overlay Objects via GNMI:
 
 Communication with the SWSS of the DPU occurs through GNMI, leveraging ZMQ. Simultaneously, an asynchronous insertion of the object backup is made to the DPU_APPL_DB. This backup mechanism serves purposes such as debugging, migration, and future considerations.
 
-- Update Object Status:
+##### Update Object Status:
 
 The SWSS of the DPU takes a proactive role in updating the DPU_APPL_STATE_DB and DPU_STATE_DB when corresponding objects undergo updates. This update can be triggered either by GNMI message commands or internal service logic.
 
-- Update Counters and Meters:
+##### Update Counters and Meters:
 
 Flex counter management in Syncd of the DPU handles the update of counters and meters for overlay objects. Traditional counters are also managed through this mechanism.
 
@@ -170,7 +179,7 @@ N/A
 
 ### Configuration and management 
 
-No new CLI commands are required
+A enhanced database CLI offers the capability to convert binary messages within the DPU_APPL_DB into human-readable text.
 
 #### CLI/YANG model Enhancements 
 
@@ -201,11 +210,11 @@ N/A
 
 #### DPU_APPL_DB
 
-The estimated memory consumption for the Smart Switch database is calculated based on entry sizes sourced from the [sonic-dash-api](https://github.com/sonic-net/sonic-dash-api) repository and entry numbers derived from the [DASH high-level design scaling requirements](https://github.com/sonic-net/DASH/blob/main/documentation/general/dash-sonic-hld.md#14-scaling-requirements).
+The estimated memory consumption for the Smart Switch database is calculated based on entry sizes sourced from the [sonic-dash-api](https://github.com/sonic-net/sonic-dash-api) repository with the [commit](https://github.com/sonic-net/sonic-dash-api/tree/d4448c78b4e0afd1ec6dfaa390aef5c650cee4b3) and entry numbers derived from the [DASH high-level design scaling requirements](https://github.com/sonic-net/DASH/blob/main/documentation/general/dash-sonic-hld.md#14-scaling-requirements).
 
 The following tables comprises two parts: Global tables and per ENI tables. Notably, when calculating the total size per card, the memory consumption of per ENI tables is adjusted by multiplying it by the exact number of ENIs.
 
-- Global Tables
+##### Global Tables
 
 | Table name              | Entry size (bytes) | No. of entries in the Table | Total size per card (KB) |
 | ----------------------- | ------------------ | --------------------------- | ------------------------ |
@@ -214,7 +223,7 @@ The following tables comprises two parts: Global tables and per ENI tables. Nota
 | DASH_PREFIX_TAG(IPv6)   | 229,492            | 32                          | 7,172                    |
 | DASH_VNET_MAPPING_TABLE | 216                | 10,000,000                  | 2,109,375                |
 
-- Per ENI Tables
+##### Per ENI Tables
 
 | Table name                     | Entry size (bytes) | No. of entries in the Table per ENI | Total size per card (KB) |
 | ------------------------------ | ------------------ | ----------------------------------- | ------------------------ |
@@ -228,7 +237,7 @@ Based on the provided data and calculations, the estimated memory consumption fo
 
 For the DPU_APPL_STATE_DB and DPU_STATE_DB, the storage focus is specifically on retaining the keys and its status of each object rather than storing the metadata. This results in a reduced memory footprint compared to the DPU_APPL_DB. The estimated memory consumption for these databases is approximately 2.45GB.
 
-- Global Tables
+##### Global Tables
 
 | Table name              | Entry size (bytes) | No. of entries in the Table | Total size per card (KB) |
 | ----------------------- | ------------------ | --------------------------- | ------------------------ |
@@ -237,7 +246,7 @@ For the DPU_APPL_STATE_DB and DPU_STATE_DB, the storage focus is specifically on
 | DASH_PREFIX_TAG(IPv6)   | 104                | 32                          | 3                        |
 | DASH_VNET_MAPPING_TABLE | 144                | 10,000,000                  | 1,406,250                |
 
-- Per ENI Tables
+##### Per ENI Tables
 
 | Table name                     | Entry size (bytes) | No. of entries in the Table per ENI | Total size per card (KB) |
 | ------------------------------ | ------------------ | ----------------------------------- | ------------------------ |
