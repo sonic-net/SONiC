@@ -59,7 +59,7 @@ According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp
 
 1.	Presently in SONiC, for SFF compliant modules (100G/40G), there is no synchronization between enabling Tx of optical module and enabling ASIC (NPU/PHY) Tx which may cause link instability during administrative interface enable “config interface startup Ethernet” configuration and bootup scenarios.
 
-2.  During administrative interface disable “config interface shutdown Ethernet”, only the ASIC(NPU) Tx is disabled and not the opticcal module Tx/laser.
+2.  During administrative interface disable “config interface shutdown Ethernet”, only the ASIC(NPU) Tx is disabled and not the optical module Tx/laser.
       This will lead to power wastage, un-necessary fan power consumption to keep the module temperature in operating range, and potential lab hazard when the port is shut off but the laser is still on.
 
 # Background
@@ -77,7 +77,7 @@ According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp
 
 Plan is to follow this high-level work-flow sequence to accomplish the Objective:
 - Add a new thread SFF task manager (called sff_mgr) inside xcvrd to subscribe to existing field “host_tx_ready” in port table state-DB
-- “host_tx_ready” is set to true only when admin_status is true and setting admin_status to syncd/gbsyncd is successful. (As part of setting admin_status to syncd/gbsyncd successfully, the NPU/PHY Tx is enabled/disabled)
+- “host_tx_ready” is set to true only when admin_status is up and setting admin_status to syncd/gbsyncd is successful. (As part of setting admin_status to syncd/gbsyncd successfully, the NPU/PHY Tx is enabled/disabled)
 - sff_mgr processes the “host_tx_ready” value change event and do optics Tx enable/disable using tx_disable API
 
 # Breakout Handling
