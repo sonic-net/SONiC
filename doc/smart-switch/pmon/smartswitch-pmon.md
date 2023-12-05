@@ -219,7 +219,7 @@ Besides the state and previous_reboot_reason_from_host other fields will be upda
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. The same design has been extended in case of a SmartSwitch. The mnic ethernet interface over PCIe which is the midplane-interface, interconnect the Switch Host and the DPUs.
 
 * When DPU card (SLED) or the Supervisor boots and as part of its initialization, midplane interface gets initialized.
-* For midplane-interface IP address allocation we will follow the procedure in the link https://github.com/sonic-net/SONiC/tree/master/doc/smart-switch/ip-address-assigment
+* For midplane-interface IP address allocation we will follow the procedure in the link https://github.com/rameshraghupathy/SONiC/blob/origin/ss_pmon_hld/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md
 
 ### 3.4.1.    MAC address distribution
 
