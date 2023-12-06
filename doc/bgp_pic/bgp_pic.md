@@ -394,6 +394,22 @@ Add a new SRv6 VPN topotest test topology, and use fpm simulator to check fpm ou
 ### SONiC mgmt test
 Add a new SRv6 VPN test in sonic_mgmt. 
 
+### BGP_PIC test result
+Testing the impact of PIC functionality on performance, the conclusions are as follows:
+1. Against the backdrop of a 40W router, when 2 BGP neighbors become 1 BGP neighbor, without PIC enabled, packet loss lasts for about 1 minute.
+
+<figure align=center>
+    <img src="images/picbefore.png" >
+    <figcaption>Figure 12. Packet loss lasts for about 1 minute<figcaption>
+</figure> 
+
+2.With PIC enabled: There is basically no sustained packet loss, with a total packet loss count of 4,516 packets (at a packet sending rate of 1750MB/s), which translates to an actual packet loss time optimized to around 2ms.
+
+<figure align=center>
+    <img src="images/picafter.png" >
+    <figcaption>Figure 13. Packet loss for about 2ms<figcaption>
+</figure> 
+
 **Note:** <span style="color:red">we may not be able to upstream this part as Cisco Silicon one's dataplane simulator has not been upstreamed to vSONiC yet. </span>
 
 ## References
