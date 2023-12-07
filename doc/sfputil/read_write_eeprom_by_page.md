@@ -59,10 +59,10 @@ For active cable, there is no "perfect" page validation as it is too complicated
 
 Example:
 ```
-sfputil read-eeprom Ethernet0 0 255 1               # valid
-sfputil read-eeprom Ethernet0 0 255 2               # invalid size, out of range, 255+2=257 is not a valid offset
-sfputil read-eeprom Ethernet0 0 256 1               # invalid offset 256 for page 0, must be in range [0, 255]
-sfputil read-eeprom Ethernet0 1 0 1                 # invalid offset 0 for page 1, must be >=128
+sfputil read-eeprom -p Ethernet0 -n 0 -o 255 -s 1               # valid
+sfputil read-eeprom -p Ethernet0 -n 0 -o 255 -s 2               # invalid size, out of range, 255+2=257 is not a valid offset
+sfputil read-eeprom -p Ethernet0 -n 0 -o 256 -s 1               # invalid offset 256 for page 0, must be in range [0, 255]
+sfputil read-eeprom -p Ethernet0 -n 1 -o 0 -s 1                 # invalid offset 0 for page 1, must be >=128
 ```
 
 ##### sff8436 and sff8636 validation
@@ -78,10 +78,10 @@ Active cable:
 For active cable, there is no "perfect" page validation as it is too complicated. User is responsible to make sure the page existence according to cable user manual.
 
 ```
-sfputil write-eeprom Ethernet0 0 255 ff            # valid
-sfputil write-eeprom Ethernet0 0 255 ff00          # invalid size, out of range, 255+2=257 is not a valid offset
-sfputil write-eeprom Ethernet0 0 256 ff            # invalid offset 256 for page 0, must be in range [0, 255]
-sfputil write-eeprom Ethernet0 1 0 ff              # invalid offset 0 for page 1, must be >=128
+sfputil write-eeprom -p Ethernet0 -n 0 -o 255 -d ff            # valid
+sfputil write-eeprom -p Ethernet0 -n 0 -o 255 -d ff00          # invalid size, out of range, 255+2=257 is not a valid offset
+sfputil write-eeprom -p Ethernet0 -n 0 -o 256 -d ff            # invalid offset 256 for page 0, must be in range [0, 255]
+sfputil write-eeprom -p Ethernet0 -n 1 -o 0 -d ff              # invalid offset 0 for page 1, must be >=128
 ```
 
 ##### sff8472 validation
@@ -95,10 +95,10 @@ Active cable:
 - Valid offset: A0h (0-255), A2h (0-255)
 
 ```
-sfputil read-eeprom Ethernet0 0 0 1 --wire-addr a0h               # valid
-sfputil read-eeprom Ethernet0 0 0 2 --wire-addr A0h               # invalid size, out of range, 255+2=257 is not a valid offset
-sfputil read-eeprom Ethernet0 1 0 1 --wire-addr a2h               # invalid offset 256 for page 0, must be in range [0, 255]
-sfputil read-eeprom Ethernet0 1 0 1 --wire-addr a0h               # invalid offset 0 for page 1, must be >=128
+sfputil read-eeprom -p Ethernet0 -n 0 -o 0 -s 1 --wire-addr a0h               # valid
+sfputil read-eeprom -p Ethernet0 -n 0 -o 0 -s 2 --wire-addr A0h               # invalid size, out of range, 255+2=257 is not a valid offset
+sfputil read-eeprom -p Ethernet0 -n 1 -o 0 -s 1 --wire-addr a2h               # invalid offset 256 for page 0, must be in range [0, 255]
+sfputil read-eeprom -p Ethernet0 -n 1 -o 0 -s 1 --wire-addr a0h               # invalid offset 0 for page 1, must be >=128
 ```
 
 ### SAI API
@@ -117,27 +117,31 @@ N/A
 
 ```
 admin@sonic:~$ sfputil read-eeprom --help
-Usage: sfputil read-eeprom [OPTIONS] <port_name> <page> <offset> <size>
+Usage: sfputil read-eeprom [OPTIONS]
 
   Read SFP EEPROM data
 
 Options:
-  --no-format             Display non formatted data.
-  --wire-addr             Wire address of sff8472.
-  --help                  Show this message and exit.
+  -p, --port <logical_port_name>  Logical port name  [required]
+  -n, --page <page>               EEPROM page number  [required]
+  -o, --offset <offset>           EEPROM offset within the page  [required]
+  -s, --size <size>               Size of byte to be read  [required]
+  --no-format                     Display non formatted data
+  --wire-addr TEXT                Wire address of sff8472
+  --help                          Show this message and exit.
 ```
 
 Example:
 
 ```
-sfputil read-eeprom Ethernet0 0 100 2
+sfputil read-eeprom -p Ethernet0 -n 0 -o 100 -s 2
         00000064 4a 44                                            |..|
 
-sfputil read-eeprom Ethernet0 0 0 32
+sfputil read-eeprom -p Ethernet0 -n 0 -o 0 -s 32
         00000000 11 08 06 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
         00000010 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
 
-sfputil read-eeprom Ethernet0 0 100 2 --no-format
+sfputil read-eeprom -p Ethernet0 -n 0 -o 100 -s 2 --no-format
 4a44
 ```
 
@@ -145,22 +149,26 @@ sfputil read-eeprom Ethernet0 0 100 2 --no-format
 
 ```
 admin@sonic:~$ sfputil write-eeprom --help
-Usage: sfputil write-eeprom [OPTIONS] <port> <page> <offset> <data>
+Usage: sfputil write-eeprom [OPTIONS]
 
   Write SFP EEPROM data
 
 Options:
-  --wire-addr             Wire address of sff8472.
-  --verify                Verify the data by reading back.
-  --help                  Show this message and exit.
+  -p, --port <logical_port_name>  Logical port name  [required]
+  -n, --page <page>               EEPROM page number  [required]
+  -o, --offset <offset>           EEPROM offset within the page  [required]
+  -d, --data <data>               Hex string EEPROM data  [required]
+  --wire-addr TEXT                Wire address of sff8472
+  --verify                        Verify the data by reading back
+  --help                          Show this message and exit.
 ```
 
 Example:
 
 ```
-sfputil write-eeprom Ethernet0 0 100 4a44
+sfputil write-eeprom -p Ethernet0 -n 0 -o 100 -d 4a44
 
-sfputil write-eeprom Etherent0 0 100 4a44 --verify
+sfputil write-eeprom -p Etherent0 -n 0 -o 100 -d 4a44 --verify
 Error: Write data failed! Write: 4a44, read: 0000.
 ```
 
