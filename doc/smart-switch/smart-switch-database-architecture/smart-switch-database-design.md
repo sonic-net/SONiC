@@ -104,6 +104,31 @@ To align with the established multi-ASIC design in SONiC, a new field, `"has_per
 },
 ```
 
+Our design also extends its multi-ASIC principles by introducing a database_global.json file. It includes two critical fields:
+
+- database_name: This field uniquely maps to the DPU's index, ensuring a clear association between the database instances and the respective DPU.
+- include: The include field serves as a pointer to the location of the DPU's database configuration.
+
+``` json
+
+{
+    "INCLUDES" : [
+        {
+            "include" : "../../redis/sonic-db/database_config.json"
+        },
+        {
+            "database_name" : "dpu1",
+            "include" : "../../redisdpu0/sonic-db/database_config.json"
+        },
+        {
+            "database_name" : "dpu0",
+            "include" : "../../redisdpu1/sonic-db/database_config.json"
+        }
+    ],
+    "VERSION" : "1.0"
+}
+```
+
 Within the NPU, the management of DPU overlay databases involves specific configurations. Each DPU overlay database instance is bound to the IP address of the midplane bridge (169.254.200.254 by default). The TCP port assignment follows a predictable pattern, with each DPU ID associated with a unique port (6380 + DPU ID). Additionally, the Unix domain socket path is structured as /var/run/redisdpu{DPU_ID}.
 
 Here is an example includes two DPU:
