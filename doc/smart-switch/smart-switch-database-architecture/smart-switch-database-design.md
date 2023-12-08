@@ -129,7 +129,7 @@ Our design also extends its multi-ASIC principles by introducing a database_glob
 }
 ```
 
-Within the NPU, the management of DPU overlay databases involves specific configurations. Each DPU overlay database instance is bound to the IP address of the midplane bridge (169.254.200.254 by default). The TCP port assignment follows a predictable pattern, with each DPU ID associated with a unique port (6380 + DPU ID). Additionally, the Unix domain socket path is structured as /var/run/redisdpu{DPU_ID}.
+Within the NPU, the management of DPU overlay databases involves specific configurations. Each DPU overlay database instance is bound to the IP address of the midplane bridge (169.254.200.254 by default). The TCP port assignment follows a predictable pattern, with each DPU ID associated with a unique port (6381 + DPU ID).
 
 Here is an example includes two DPU:
 
@@ -204,7 +204,7 @@ N/A
 
 ### Configuration and management 
 
-A enhanced database CLI offers the capability to convert binary messages within the DPU_APPL_DB into human-readable text.
+An enhanced database CLI offers the capability to convert binary messages within the DPU_APPL_DB into human-readable text.
 
 #### CLI/YANG model Enhancements 
 
