@@ -11,6 +11,8 @@
     - [Requirements](#requirements)
     - [Architecture Design](#architecture-design)
       - [Database services](#database-services)
+        - [NPU side](#npu-side)
+        - [DPU side](#dpu-side)
       - [Database flow](#database-flow)
         - [Update Overlay Objects via GNMI:](#update-overlay-objects-via-gnmi)
         - [Update Object Status:](#update-object-status)
@@ -22,10 +24,10 @@
       - [Config DB Enhancements](#config-db-enhancements)
     - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
     - [Memory Consumption](#memory-consumption)
-      - [DPU_APPL_DB](#dpu_appl_db)
+      - [DPU\_APPL\_DB](#dpu_appl_db)
         - [Global Tables](#global-tables)
         - [Per ENI Tables](#per-eni-tables)
-      - [DPU_APPL_STATE_DB/DPU_STATE_DB](#dpu_appl_state_dbdpu_state_db)
+      - [DPU\_APPL\_STATE\_DB/DPU\_STATE\_DB](#dpu_appl_state_dbdpu_state_db)
         - [Global Tables](#global-tables-1)
         - [Per ENI Tables](#per-eni-tables-1)
     - [Restrictions/Limitations](#restrictionslimitations)
@@ -74,6 +76,8 @@ In addition, dedicated database containers are maintained in the NPU for each DP
 ![smart-switch-database-architecture](smart-switch-database-architecture.png)
 
 #### Database services
+
+##### NPU side
 
 In this section, the focus is on illustrating the maintenance of DPU overlay databases within the NPU. It's essential to note that the traditional database services of both NPU and DPU remain unchanged and do not necessitate further design modifications.
 
@@ -174,6 +178,125 @@ There are four new tables introduction for the DPU overlay database:
     "separator": ":",
     "instance": "redis"
 }
+```
+
+##### DPU side
+
+In the architecture of our Smart Switch, DPU operation involves accessing both local and remote database services. This document is on elucidating the interaction with remote database services in the NPU, specifically for overlay objects.
+
+The DPU employs a DHCP server hosted on the NPU, ensuring each DPU fetches a predetermined and consistent IP address. Leveraging this IP address, the DPU determines the TCP port of its associated overlay database. Following this design principle, the DPU autonomously generates the requisite configuration for remote database services.
+
+``` json
+# /var/run/redis/sonic-db/database_config.json
+{
+    "INSTANCES": {
+        "redis": {
+            "hostname": "127.0.0.1",
+            "port": 6379,
+            "unix_socket_path": "/var/run/redis/redis.sock",
+            "persistence_for_warm_boot": "yes"
+        },
+        "remote-redis": {
+            "hostname": "169.254.200.254",
+            "port": 6381,
+        }
+    },
+    "DATABASES": {
+        "APPL_DB": {
+            "id": 0,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "ASIC_DB": {
+            "id": 1,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "COUNTERS_DB": {
+            "id": 2,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "LOGLEVEL_DB": {
+            "id": 3,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "CONFIG_DB": {
+            "id": 4,
+            "separator": "|",
+            "instance": "redis"
+        },
+        "PFC_WD_DB": {
+            "id": 5,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "FLEX_COUNTER_DB": {
+            "id": 5,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "STATE_DB": {
+            "id": 6,
+            "separator": "|",
+            "instance": "redis"
+        },
+        "SNMP_OVERLAY_DB": {
+            "id": 7,
+            "separator": "|",
+            "instance": "redis"
+        },
+        "RESTAPI_DB": {
+            "id": 8,
+            "separator": "|",
+            "instance": "redis"
+        },
+        "GB_ASIC_DB": {
+            "id": 9,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "GB_COUNTERS_DB": {
+            "id": 10,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "GB_FLEX_COUNTER_DB": {
+            "id": 11,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "APPL_STATE_DB": {
+            "id": 14,
+            "separator": ":",
+            "instance": "redis"
+        },
+        "DPU_APPL_DB": {
+            "id": 15,
+            "separator": ":",
+            "instance": "remote-redis",
+            "format": "proto"
+        },
+        "DPU_APPL_STATE_DB": {
+            "id": 16,
+            "separator": "|",
+            "instance": "remote-redis"
+        },
+        "DPU_STATE_DB": {
+            "id": 17,
+            "separator": "|",
+            "instance": "remote-redis"
+        },
+        "DPU_COUNTERS_DB": {
+            "id": 18,
+            "separator": ":",
+            "instance": "remote-redis"
+        }
+    },
+    "VERSION": "1.0"
+}
+
 ```
 
 #### Database flow
