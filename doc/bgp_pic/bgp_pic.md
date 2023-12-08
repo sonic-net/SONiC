@@ -401,22 +401,22 @@ Add a new SRv6 VPN test in sonic_mgmt.
 
 ### BGP_PIC Traffic Verification Test
 #### Test Bed for BGP PIC Test
-<figure align=center>
-    <img src="images/pic_testbed1.png" >
-    <figcaption>Figure 12. PIC Testbed via two physical devices<figcaption>
-</figure> 
 We utilize two physical devices to establish a logically configured 3 PE testbed. One physical device corresponds to a single PE (PE1), while the other physical device represents two PEs (PE2 and PE3) solely from a BGP perspective. PE1 is interconnected with both PE2 and PE3. IXIA serves as CEs, with one CE connected to PE1 and the other CE dual-homed to PE2 and PE3.
 
 The loopback address on PE2 is 1000:178, disseminated through an eBGP session between PE1 and PE2. Similarly, the loopback address on PE3 is 2000:178, published via an eBGP session between PE1 and PE3. PE1 acquires knowledge of CE2's SRv6 VPN routes through PE2 and PE3. Consequently, these VPN routes form an Equal-Cost Multipath (ECMP) on PE1, accessible via both PE2 and PE3.
 
 CE2 published 400K routes to PE1, while CE1 (IXIA) generates traffic with a destination address traversing through these 400K routes. This traffic is evenly distributed through PE2 and PE3 to reach CE2 (IXIA).
+<figure align=center>
+    <img src="images/pic_testbed1.png" >
+    <figcaption>Figure 12. PIC Testbed via two physical devices<figcaption>
+</figure> 
 
 ####  Traffic Verification Test
+Our objective is to deactivate PE2 and assess the speed at which all traffic can be redirected to PE3 on PE1.
 <figure align=center>
     <img src="images/pic_testbed2.png" >
     <figcaption>Figure 13. PIC Testbed when shut down PE2<figcaption>
 </figure> 
-Our objective is to deactivate PE2 and assess the speed at which all traffic can be redirected to PE3 on PE1.
 
 #### Test result without PIC
 Initially, we conduct this test without activating PIC. The traffic rate is expected to decrease by nearly half due to the absence of PE2. As PE1 sequentially updates 400K routes to eliminate the PE2 path, the traffic rate gradually recovers. The packet loss persists for approximately 1 minute during this process.
@@ -427,7 +427,6 @@ Initially, we conduct this test without activating PIC. The traffic rate is expe
 
 #### Test result with PIC
 Subsequently, we activate PIC and replicate the identical test. Remarkably, there is virtually no continuous packet loss, and the overall count of lost packets stands at 4,516 (with a packet transmission rate of 1750MB/s). This translates to an optimized actual packet loss duration of approximately 2 milliseconds.
-
 <figure align=center>
     <img src="images/picafter.png" >
     <figcaption>Figure 15. Packet loss for about 2ms<figcaption>
