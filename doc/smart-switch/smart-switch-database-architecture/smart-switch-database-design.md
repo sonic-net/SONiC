@@ -1,6 +1,6 @@
-# Smart Switch Database design #
+# Smart Switch Database design
 
-## Table of Content 
+## Table of Content
 
 - [Smart Switch Database design](#smart-switch-database-design)
   - [Table of Content](#table-of-content)
@@ -22,10 +22,10 @@
       - [Config DB Enhancements](#config-db-enhancements)
     - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
     - [Memory Consumption](#memory-consumption)
-      - [DPU\_APPL\_DB](#dpu_appl_db)
+      - [DPU_APPL_DB](#dpu_appl_db)
         - [Global Tables](#global-tables)
         - [Per ENI Tables](#per-eni-tables)
-      - [DPU\_APPL\_STATE\_DB/DPU\_STATE\_DB](#dpu_appl_state_dbdpu_state_db)
+      - [DPU_APPL_STATE_DB/DPU_STATE_DB](#dpu_appl_state_dbdpu_state_db)
         - [Global Tables](#global-tables-1)
         - [Per ENI Tables](#per-eni-tables-1)
     - [Restrictions/Limitations](#restrictionslimitations)
@@ -36,31 +36,30 @@
 
 ### Revision
 
-|  Rev  | Date  | Author | Change Description               |
-| :---: | :---: | :----: | -------------------------------- |
-|  0.1  |       | Ze Gan | Initial version. Database design |
+| Rev | Date | Author | Change Description               |
+| :-: | :--: | :----: | -------------------------------- |
+| 0.1 |      | Ze Gan | Initial version. Database design |
 
 ### Scope
 
 This document provides a high-level design for Smart Switch database.
 
-### Definitions/Abbreviations 
+### Definitions/Abbreviations
 
-| Term              | Meaning                                                                                                                                                                         |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NPU               | Network Processing Unit                                                                                                                                                         |
-| DPU               | Data Processing Unit                                                                                                                                                            |
-| DB                | Database                                                                                                                                                                        |
-| GNMI              | gRPC Network Management Interface                                                                                                                                               |
-| overlayer objects | All objects defined in the [sonic-dash-api](https://github.com/sonic-net/sonic-dash-api)                                                                                        |
-| midplane bridge   | Defined in the [smart-switch-ip-address-assignment](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) |
+| Term            | Meaning                                                                                                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NPU             | Network Processing Unit                                                                                                                                                         |
+| DPU             | Data Processing Unit                                                                                                                                                            |
+| DB              | Database                                                                                                                                                                        |
+| GNMI            | gRPC Network Management Interface                                                                                                                                               |
+| overlay objects | All objects defined in the [sonic-dash-api](https://github.com/sonic-net/sonic-dash-api)                                                                                        |
+| midplane bridge | Defined in the [smart-switch-ip-address-assignment](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) |
 
 ### Overview
 
-The Smart Switch comprises two integral components: the Network Processing Unit (NPU) and the Data Processing Unit (DPU), both operating on the SONiC OS. The database stack encompasses the entire database infrastructure for both the NPU and DPU. However, due to memory limitations on the DPU, certain overlayer objects, such as DASH objects, are stored in the NPU.
+The Smart Switch comprises two integral components: the Network Processing Unit (NPU) and the Data Processing Unit (DPU), both operating on the SONiC OS. The database stack encompasses the entire database infrastructure for both the NPU and DPU. However, due to memory limitations on the DPU, certain overlay objects, such as DASH objects, are stored in the NPU.
 
 In addition, dedicated database containers are maintained in the NPU for each DPU, serving the purpose of resource management within the Smart Switch architecture. This separation allows for efficient handling of database-related operations and ensures optimal utilization of resources across the entire Smart Switch.
-
 
 ### Requirements
 
@@ -82,14 +81,14 @@ The management of DPU overlay databases within the NPU is orchestrated through e
 
 To determine the DPU number, the "featured" daemon should leverage the platform API. However, for the sake of implementation simplicity, the DPU number is extracted directly from the platform_env.conf file firstly.
 
-``` shell
+```shell
 cat /usr/share/sonic/device/$PLATFORM/platform_env.conf
 NUM_DPU=2
 ```
 
 To align with the established multi-ASIC design in SONiC, a new field, `"has_per_dpu_scope": "True"``, is introduced in the database feature table within config_db.json. This field plays a crucial role in ensuring that each DPU database instance is initiated within a dedicated database container. This design approach maintains consistency with SONiC's existing architecture while accommodating the specific requirements of DPU overlay databases.
 
-``` json
+```json
 # config_db.json
 
 "database": {
@@ -109,23 +108,22 @@ Our design also extends its multi-ASIC principles by introducing a database_glob
 - database_name: This field uniquely maps to the DPU's index, ensuring a clear association between the database instances and the respective DPU.
 - include: The include field serves as a pointer to the location of the DPU's database configuration.
 
-``` json
-
+```json
 {
-    "INCLUDES" : [
-        {
-            "include" : "../../redis/sonic-db/database_config.json"
-        },
-        {
-            "database_name" : "dpu1",
-            "include" : "../../redisdpu0/sonic-db/database_config.json"
-        },
-        {
-            "database_name" : "dpu0",
-            "include" : "../../redisdpu1/sonic-db/database_config.json"
-        }
-    ],
-    "VERSION" : "1.0"
+  "INCLUDES": [
+    {
+      "include": "../../redis/sonic-db/database_config.json"
+    },
+    {
+      "database_name": "dpu1",
+      "include": "../../redisdpu0/sonic-db/database_config.json"
+    },
+    {
+      "database_name": "dpu0",
+      "include": "../../redisdpu1/sonic-db/database_config.json"
+    }
+  ],
+  "VERSION": "1.0"
 }
 ```
 
@@ -133,7 +131,7 @@ Within the NPU, the management of DPU overlay databases involves specific config
 
 Here is an example includes two DPU:
 
-``` json
+```json
 # DPU0: /var/run/redisdpu2/sonic-db/database_config.json
 "redis": {
     "hostname": "169.254.200.254",
@@ -154,7 +152,7 @@ Here is an example includes two DPU:
 
 There are four new tables introduction for the DPU overlay database:
 
-``` json
+```json
 "DPU_APPL_DB": {
     "id": 15,
     "separator": ":",
@@ -196,20 +194,19 @@ Flex counter management in Syncd of the DPU handles the update of counters and m
 
 These workflows ensure an interaction between the DPU overlay database and various components within the Smart Switch. The DPUs access their respective database instances via the IP address of the midplane bridge and the assigned TCP port. Concurrently, GNMI accesses these instances through the Unix domain socket
 
-### High-Level Design 
+### High-Level Design
 
-### SAI API 
+### SAI API
 
 N/A
 
-### Configuration and management 
+### Configuration and management
 
 An enhanced database CLI offers the capability to convert binary messages within the DPU_APPL_DB into human-readable text.
 
-#### CLI/YANG model Enhancements 
+#### CLI/YANG model Enhancements
 
-
-``` yang
+```yang
     container sonic-feature {
         container FEATURE {
                 leaf has_per_dpu_scope {
@@ -222,11 +219,10 @@ An enhanced database CLI offers the capability to convert binary messages within
     }
 ```
 
-#### Config DB Enhancements  
+#### Config DB Enhancements
 
 Refer section: [Database services](#database-services)
 
-        
 ### Warmboot and Fastboot Design Impact
 
 N/A
@@ -279,11 +275,11 @@ For the DPU_APPL_STATE_DB and DPU_STATE_DB, the storage focus is specifically on
 | DASH_ROUTE_RULE_TABLE(inbound) | 160                | 10,000                              | 100,000                  |
 | DASH_ROUTE_TABLE(outbound)     | 160                | 100,000                             | 1,000,000                |
 
-### Restrictions/Limitations  
+### Restrictions/Limitations
 
-### Testing Requirements/Design  
+### Testing Requirements/Design
 
-#### Unit Test cases  
+#### Unit Test cases
 
 No separate test for the is required. The feature will be tested implicitly by the other DASH tests.
 
@@ -291,6 +287,6 @@ No separate test for the is required. The feature will be tested implicitly by t
 
 No separate test for the is required. The feature will be tested implicitly by the other DASH tests.
 
-### Open/Action items - if any 
+### Open/Action items - if any
 
 1. Platform API for fetch DPU numbers
