@@ -39,6 +39,9 @@
     - [Traffic Verification Test](#traffic-verification-test)
     - [Test result without PIC](#test-result-without-pic)
     - [Test result with PIC](#test-result-with-pic)
+  - [Recursive Traffic Verification Test](#recursive-traffic-verification-test)
+    - [Test Bed for Recursive Test](#test-bed-for-recursive-test)
+    - [Traffic Verification Test](#traffic-verification-test-1)
 - [References](#references)
 
 ## Goal and Scope
@@ -403,9 +406,9 @@ Add a new SRv6 VPN test in sonic_mgmt.
 #### Test Bed for BGP PIC Test
 We utilize two physical devices to establish a logically configured 3 PE testbed. One physical device corresponds to a single PE (PE1), while the other physical device represents two PEs (PE2 and PE3) solely from a BGP perspective. PE1 is interconnected with both PE2 and PE3. IXIA serves as CEs, with one CE connected to PE1 and the other CE dual-homed to PE2 and PE3.
 
-The loopback address on PE2 is 1000:178, disseminated through an eBGP session between PE1 and PE2. Similarly, the loopback address on PE3 is 2000:178, published via an eBGP session between PE1 and PE3. PE1 acquires knowledge of CE2's SRv6 VPN routes through PE2 and PE3. Consequently, these VPN routes form an Equal-Cost Multipath (ECMP) on PE1, accessible via both PE2 and PE3.
+The loopback address on PE2 is 1000::178, disseminated through an eBGP session between PE1 and PE2. Similarly, the loopback address on PE3 is 2000::178, published via an eBGP session between PE1 and PE3. PE1 acquires knowledge of CE2's SRv6 VPN routes through PE2 and PE3. Consequently, these VPN routes form an Equal-Cost Multipath (ECMP) on PE1, accessible via both PE2 and PE3.
 
-CE2 published 400K routes to PE1, while CE1 (IXIA) generates traffic with a destination address traversing through these 400K routes. This traffic is evenly distributed through PE2 and PE3 to reach CE2 (IXIA).
+CE2 published 400K routes to PE1, while CE1 (IXIA) generates traffic with a destination address traversing through these 400K routes. The traffic is evenly distributed through PE2 and PE3 to reach CE2 (IXIA).
 <figure align=center>
     <img src="images/pic_testbed1.png" >
     <figcaption>Figure 12. PIC Testbed via two physical devices<figcaption>
@@ -430,6 +433,36 @@ Subsequently, we activate PIC and replicate the identical test. Remarkably, ther
 <figure align=center>
     <img src="images/picafter.png" >
     <figcaption>Figure 15. Packet loss for about 2ms<figcaption>
+</figure> 
+
+| Cases |    Traffic loss window   | 
+|:-----:|:------------------------------------:|
+| without PIC |  About 60 second |
+| with PIC | about 2ms
+
+### Recursive Traffic Verification Test
+#### Test Bed for Recursive Test
+Different from previous test bed, We utilize two physical devices to establish a logically configured 2 PE testbed. Each physical device is one PE. There are two links conncected with these two PEs, (PE1 and PE3). IXIA serves as CEs, with one CE connected to PE1 and the other CE2 is connected to PE3.
+
+The loopback address on PE3 is 2000::178, disseminated through eBGP sessions between PE1 and PE3 via two links, a.k.a 2000::178 takes two IGP paths from PE1 to PE3. CE2 published 400K routes to PE1, while CE1 (IXIA) generates traffic with a destination address traversing through these 400K routes. The traffic is evenly distributed between two IGP paths between PE1 and PE3. 
+
+<figure align=center>
+    <img src="images/recursive1.png" >
+    <figcaption>Figure 16. Recursive Testbed<figcaption>
+</figure> 
+
+####  Traffic Verification Test
+Our objective is to deactivate one link between PE1 and PE3, and assess the speed at which all traffic should take the remaining link from PE1 to PE3.
+<figure align=center>
+    <img src="images/recursive2.png" >
+    <figcaption>Figure 17. Recursive Test : shut one IGP path<figcaption>
+</figure> 
+
+By incorporating recursive routes support, we can streamline the transition from two paths to one path in the IGP NHG when a link-down notification is received. As the reachability of BGP NH remains unchanged, there is no need to update the BGP NHG or BGP routes. The transition period does not result in noticeable traffic loss.
+
+<figure align=center>
+    <img src="images/recursive_result.png" >
+    <figcaption>Figure 18. Resurvie Test : no noticeable traffic loss<figcaption>
 </figure> 
 
 **Note:** <span style="color:red">we may not be able to upstream this part as Cisco Silicon one's dataplane simulator has not been upstreamed to vSONiC yet. </span>
