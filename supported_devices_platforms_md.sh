@@ -194,6 +194,7 @@ echo "| 117   | Tencent       | TCS9400-128CC   | Broadcom    | Tomahawk 4      
 echo "| 118   | Wistron 	  | sw-to3200k  	| Marvell     | Teralynx 7        | 32x400G              |[SONiC-ONIE-Innovium]($(echo "${ARTF_INNO}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-innovium-dbg.bin/')) |" >> supported_devices_platforms.md
 echo "| 119   | Wistron 	  | 6512-32r  		| Marvell     | Teralynx 7        | 32x400G              |[SONiC-ONIE-Innovium]($(echo "${ARTF_INNO}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-innovium-dbg.bin/')) |" >> supported_devices_platforms.md
 echo "| 120   | Wnc           | OSW1800        	| Intel       | Tofino            | 48x25G + 6x100G         | [SONiC-ONIE-Barefoot]($(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-barefoot.bin/')) |" >> supported_devices_platforms.md
+echo "| 121   | FS  	| S5800-48T4S		| Centec      | Centec        | 48x1G+4x10G | [SONiC-ONIE-Centec]($(echo "${ARTF_CTC64}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-centec-arm64.bin/')) |" >> supported_devices_platforms.md
 
 echo "#### Note- Dell S6000-ON* supports the build till 202012 release image. No other image after 202012 release works on S6000." >> supported_devices_platforms.md
 echo "#### [click here](https://sonic-build.azurewebsites.net/ui/sonic/Pipelines) for previous builds. " >> supported_devices_platforms.md
