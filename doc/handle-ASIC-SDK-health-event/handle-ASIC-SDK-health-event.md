@@ -8,6 +8,7 @@
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | Oct 23, 2023 | Stephen Sun | Initial version |
 | 0.2 | Nov 17, 2023 | Stephen Sun | Fix internal review comments |
+| 0.3 | Dec 11, 2023 | Stephen Sun | Adjust for multi ASIC platform according to the common pratice in the community |
 
 ### Scope
 
@@ -18,7 +19,8 @@ This document describes the high level design of handle ASIC/SDK health event fr
 | Name | Meaning |
 |:----:|:-------:|
 | ASIC/SDK health event | Health event is a way for SAI to inform NOS about HW/SW health issues. Usually they are not directly caused by a SAI API call. |
-|| An ASIC/SDK health event is described using `asic_id`, `severity`, `category`, `timestamp`, `description`. |
+|| An ASIC/SDK health event is described using `severity`, `category`, `timestamp`, `description`. |
+|| For multi ASIC system it also includes `asic name`. |
 | severity of an ASIC/SDK health event | one of `fatal`, `warning`, and `notice`, which represents how severe the event is |
 | category of an ASIC/SDK health event | one of `software`, `firmware`, `cpu_hw`, `asic_hw`, which usually represents the component from which the event is detected |
 
@@ -116,7 +118,6 @@ Table `ASIC_SDK_HEALTH_EVENT_TABLE` contains the ASIC/SDK health events informat
 ```text
 key           =  ASIC_SDK_HEALTH_EVENT_TABLE:timestamp_string       ; "%Y-%m-%d %H:%M:%S", full-date and partial-time separated by white space.
                                                                     ; Example: 2022-09-12 09:39:19
-asicid        = 1*4DIGIT                                            ; ASIC ID for multi ASIC system
 severity      = "fatal" | "warning" | "notice"
 category      = "software" | "firmware" | "cpu_hw" | "asic_hw"
 description   = 1*255VCHAR                                          ; ASIC/SDK health event's description text
@@ -321,12 +322,28 @@ An example of the output is as below:
 
 ```
 admin@sonic:~$ show asic-sdk-health-events
-Time                 ASIC ID  Severity     Category   Description
--------------------  -------  -----------  ---------  -----------------
-2023-10-20 05:07:34        0  fatal        firmware   Command timeout
-2023-10-20 03:06:25        0  fatal        software   SDK daemon keep alive failed
-2023-10-20 05:07:34        0  fatal        asic_hw    Uncorrectable ECC error
-2023-10-20 01:58:43        0  notice       asic_hw    Correctable ECC error
+Time                 Severity     Category   Description
+-------------------  -----------  ---------  -----------------
+2023-10-20 05:07:34  fatal        firmware   Command timeout
+2023-10-20 03:06:25  fatal        software   SDK daemon keep alive failed
+2023-10-20 05:07:34  fatal        asic_hw    Uncorrectable ECC error
+2023-10-20 01:58:43  notice       asic_hw    Correctable ECC error
+```
+
+An example of the output on a multi ASIC system:
+
+```
+admin@sonic:~$ show asic-sdk-health-events
+asic0:
+Time                 Severity     Category   Description
+-------------------  -----------  ---------  -----------------
+2023-10-20 05:07:34  fatal        firmware   Command timeout
+2023-10-20 03:06:25  fatal        software   SDK daemon keep alive failed
+asic1:
+Time                 Severity     Category   Description
+-------------------  -----------  ---------  -----------------
+2023-10-20 05:07:34  fatal        asic_hw    Uncorrectable ECC error
+2023-10-20 01:58:43  notice       asic_hw    Correctable ECC error
 ```
 
 The following error message will be shown if a customer executes the command on a platform that does not support it.
@@ -344,6 +361,19 @@ admin@sonic:~$ show asic-sdk-health-events suppressed-category-list
 Severity    Suppressed category-list
 ----------  --------------------------
 notice      asic_hw,cpu_hw
+```
+
+An example of the output on a multi ASIC system:
+```
+admin@sonic:~$ show asic-sdk-health-events suppressed-category-list
+asic0:
+Severity    Suppressed category-list
+----------  --------------------------
+notice      asic_hw
+asic1:
+Severity    Suppressed category-list
+----------  --------------------------
+notice      cpu_hw
 ```
 
 The following error message will be shown if a customer executes the command on a platform that does not support it.
@@ -395,20 +425,24 @@ The following YANG model is introduced for the suppress ASIC/SDK health event
 
 ##### YANG model of the ASIC/SDK health event
 
-The following YANG model is introduced for ASIC/SDK health event
+The following YANG model is introduced for ASIC/SDK health event.
+
+A `sai_timestamp` is provided on top of `timestamp` which is provided by the event collect mechanism since they differ.
 
 ```text
     container sonic-events-swss {
         container asic-sdk-health-event {
             evtcmn:ALARM_SEVERITY_MAJOR;
             description "Declares an event for ASIC/SDK health event.";
-            leaf timestamp {
+            leaf sai_timestamp {
                 type string {
                     pattern '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}';
                 }
             }
-            leaf asicid {
-                type int;
+            leaf asic_name {
+                type string {
+                    pattern 'asic[0-9]{1,2}';
+                }
             }
             leaf severity {
                 type enumeration {
@@ -499,15 +533,16 @@ The initialize flow is:
 
 The flow to handle ASIC/SDK health event is as below. The steps 1~3 are introduced in this HLD and the rest steps already existed.
 
-1. A vendor SAI calls the stored callback function `sai_switch_asic_sdk_health_event_notification_fn` with arguments `asic_id`, `timestamp`, `severity`, `category`, and `description` when it detects a HW/SW health issue.
+1. A vendor SAI calls the stored callback function `sai_switch_asic_sdk_health_event_notification_fn` with arguments `timestamp`, `severity`, `category`, and `description` when it detects a HW/SW health issue.
 2. Sai redis handles the ASIC/SDK health event, exacts the information, serializes it and then notifies orchagent using `switch_asic_sdk_health_event`.
 3. Orchagent handles the sai redis notification
-    1. arguments `asic_id`, `timestamp`, `severity`, and `category` are translated to corresponding representations in SONiC.
+    1. arguments `timestamp`, `severity`, and `category` are translated to corresponding representations in SONiC.
     2. pushes the information to `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` with timestamp being the key of the table
     3. publishes the information to gNMI using event collect mechanism
-    4. prints a syslog message: `[<severity>] ASIC/SDK health event occurred at <timestamp>, asic <asicid>, category <category>: <description>`
+    4. prints a syslog message: `[<severity>] ASIC/SDK health event occurred at <timestamp>, [asic <asic name>, ]category <category>: <description>`
         - the severity of the message is `NOTICE`
-        - `<asic id>`, `<severity>`, `<timestamp>`, `<category>` and `<description>` are translated from the event
+        - `<severity>`, `<timestamp>`, `<category>` and `<description>` are translated from the event
+        - `asic <asic name>` is printed only for multi ASIC system. The `asic name` is `CONFIG_DB|DEVICE_METADATA|localhost.asic_name`.
 4. The flow finishes if the vendor SAI decides not to ask orchagent to shutdown.
 
    Usually, vendor SAI does not need to ask orchagent to shutdown switch on receiving an ASIC/SDK health event with `NOTICE` severity.
@@ -554,17 +589,6 @@ The flow to handle suppress ASIC/SDK health event configuration is as below:
 The command `show asic-sdk-health-event received` will be invoked during collecting techsupport dump.
 
 A file `asic-sdk-health-event` will contain all the ASIC/SDK health events and be saved in `dump` folder of the techsupport dump.
-
-An example of `asic-sdk-health-event` can be as below
-
-```text
-Time                 ASIC ID  Severity     Category   Description
--------------------  -------  -----------  ---------  -----------------
-2023-10-20 05:07:34        0  fatal        firmware   Command timeout
-2023-10-20 03:06:25        0  fatal        software   SDK daemon keep alive failed
-2023-10-20 05:07:34        0  fatal        asic_hw    Uncorrectable ECC error
-2023-10-20 01:58:43        0  notice       asic_hw    Correctable ECC error
-```
 
 ### Warmboot and Fastboot Design Impact
 
