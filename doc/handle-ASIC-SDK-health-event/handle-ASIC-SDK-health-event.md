@@ -290,7 +290,7 @@ N/A.
 
 ##### Configure suppress ASIC/SDK health events by severity and category
 
-Command `config asic-sdk-health-event suppress <severity> <category-list>|<none>|<all>` is introduced for a customer to configure the categories that he/she wants to suppress for a certain severity.
+Command `config asic-sdk-health-event suppress <severity> <category-list>|<none>|<all> [<--namespace|-n> <namespace>]` is introduced for a customer to configure the categories that he/she wants to suppress for a certain severity.
 
 The severity can be one of `fatal`, `warning`, and `notice`.
 
@@ -299,6 +299,8 @@ The category-list is a list whose element is one of `software`, `firmware`, `cpu
 If the category-list is `none`, none category is suppressed and all the categories will be notified for `severity`.
 
 If the category-list is `all`, all the categories are suppressed and none category will be notified for `severity`.
+
+The namespace is an option for multi ASIC platforms only.
 
 The ASIC/SDK health events whose `category` is in `category-list` with the `severity` will not be reported by the vendor SAI once the corresponding SAI attributes are set.
 But the events that were reported after the command is executed but before the SAI attributes are set will be handled by orchagent and pushed into `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` as usual.
@@ -317,11 +319,13 @@ The following error message will be shown if a customer suppresses a severity wh
 
 ##### Display the ASIC/SDK health events
 
-Command `show asic-sdk-health-events received` is introduced to display the ASIC/SDK health events as a table.
+Command `show asic-sdk-health-event received [<--namespace|-n> <namespace>]` is introduced to display the ASIC/SDK health events as a table.
 An example of the output is as below:
 
+The namespace is an option for multi ASIC platforms only.
+
 ```
-admin@sonic:~$ show asic-sdk-health-events
+admin@sonic:~$ show asic-sdk-health-event received
 Time                 Severity     Category   Description
 -------------------  -----------  ---------  -----------------
 2023-10-20 05:07:34  fatal        firmware   Command timeout
@@ -333,7 +337,7 @@ Time                 Severity     Category   Description
 An example of the output on a multi ASIC system:
 
 ```
-admin@sonic:~$ show asic-sdk-health-events
+admin@sonic:~$ show asic-sdk-health-event received
 asic0:
 Time                 Severity     Category   Description
 -------------------  -----------  ---------  -----------------
@@ -352,12 +356,14 @@ The following error message will be shown if a customer executes the command on 
 
 ##### Display the ASIC/SDK health suppress configuration
 
-Command `show asic-sdk-health-events suppressed-category-list` is introduced to display the suppressed categories of each severity of ASIC/SDK health events.
+Command `show asic-sdk-health-event suppressed-category-list [<--namespace|-n> <namespace>]` is introduced to display the suppressed categories of each severity of ASIC/SDK health events.
 
 An example of the output is as below:
 
+The namespace is an option for multi ASIC platforms only.
+
 ```
-admin@sonic:~$ show asic-sdk-health-events suppressed-category-list
+admin@sonic:~$ show asic-sdk-health-event suppressed-category-list
 Severity    Suppressed category-list
 ----------  --------------------------
 notice      asic_hw,cpu_hw
@@ -365,7 +371,7 @@ notice      asic_hw,cpu_hw
 
 An example of the output on a multi ASIC system:
 ```
-admin@sonic:~$ show asic-sdk-health-events suppressed-category-list
+admin@sonic:~$ show asic-sdk-health-event suppressed-category-list
 asic0:
 Severity    Suppressed category-list
 ----------  --------------------------
@@ -382,7 +388,9 @@ The following error message will be shown if a customer executes the command on 
 
 ##### Clear the ASIC/SDK health events
 
-Command `sonic-clear asic-sdk-health-events` is introduced to clear the ASIC/SDK health events stored in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`.
+Command `sonic-clear asic-sdk-health-events [<--namespace|-n> <namespace>]` is introduced to clear the ASIC/SDK health events stored in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`.
+
+The namespace is an option for multi ASIC platforms only.
 
 After the command is executed, all items in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` will be cleared.
 
