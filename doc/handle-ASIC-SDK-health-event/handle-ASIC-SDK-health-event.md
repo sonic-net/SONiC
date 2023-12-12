@@ -613,7 +613,26 @@ Example sub-sections for unit test cases and system test cases are given below.
 
 #### Unit Test cases
 
-TBD
+##### sonic-swss
+
+1. Configure suppress all categories for a severity, and then check whether empty list has been set on the SAI attribute.
+2. Configure suppress none categories for a severity, and then check whether all categories have been set on the SAI attribute.
+3. Configure suppress part of the categories (eg. software, cpu_hw), and then check whether corresponding categories have been set on the SAI attribute.
+4. Check whether the capabilities have been exposed to `STATE_DB.SWITCH_CAPABILITY|switch` correctly.
+5. Check whether mocked event has been correctly handled.
+
+##### sonic-sairedis
+
+1. Check whether ASIC/SDK health event handler is correctly registered.
+2. Check whether an instance of ASIC/SDK health event notification handler class is correctly created based on the notification string.
+3. Check whether an ASIC/SDK health event is correctly serialized and then deserialized.
+
+##### sonic-utilities
+
+1. Check whether `CONFIG_DB.SUPPRESS_ASIC_SDK_HEALTH_EVENT` table is correctly updated based on CLI input.
+2. Check whether `show asic-sdk-health-event received` correctly displays the information based on the `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`.
+3. Check whether `show asic-sdk-health-event suppressed-category-list` correctly displays the configuration based on the `CONFIG_DB.SUPPRESS_ASIC_SDK_HEALTH_EVENT`.
+4. Check whether the information in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` has been cleared by executing `sonic-clear asic-sdk-health-event`.
 
 #### System Test cases
 
