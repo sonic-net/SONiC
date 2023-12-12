@@ -193,7 +193,7 @@ The alarm condition will be visible in the CLI ouputs for sensor data and system
     	...
 
 
-#####Platform Sensors Configuration
+##### Platform Sensors Configuration
 
 Sensormond will use the platform APIs for retrieving platform sensor information. However, for platforms with only file-system/sysfs based drivers, a simple implementation is provided wherein the platform can specify the sensor information for the board and any submodules (such as fabric cards) in a data file and Sensormond can use that for finding sensors and monitoring them. 
 
@@ -201,35 +201,37 @@ The file system/Sysfs based platform sensor information can be provided using a 
 
  	
 	sensors.yaml
-	
-	voltage_sensors:
-  	  - name : <sensor name> 
-         sensor: <sysfs path>
-         high_thresholds: [ <critical>, <major>, <minor> ]
-    	  low_thresholds: [ <critical>, <major>, <minor> ]
-    	...
-    		
+      
+    voltage_sensors:
+      - name : <sensor name>
+          sensor: <sysfs path>
+          high_thresholds: [ <critical>, <major>, <minor> ]
+          low_thresholds: [ <critical>, <major>, <minor> ]
+        ...
+      
     current_sensors:
-  	   - name : <sensor name> 
-    	    sensor: <sysfs path>
-    	    high_thresholds: [ <critical>, <major>, <minor> ]
-    	    low_thresholds: [ <critical>, <major>, <minor> ]
-    	...
-    		
+      - name : <sensor name>
+          sensor: <sysfs path>
+          high_thresholds: [ <critical>, <major>, <minor> ]
+          low_thresholds: [ <critical>, <major>, <minor> ]
+        ...
+      
     <module_name>:
-    	voltage_sensors:
- 			- name: <sensor name> 
-    		    sensor: <sysfs path>
-    		    high_thresholds: [ <critical>, <major>, <minor> ]
-    		    low_thresholds: [ <critical>, <major>, <minor> ]
-    		...
+      voltage_sensors:
+        - name: <sensor name>
+            sensor: <sysfs path>
+            high_thresholds: [ <critical>, <major>, <minor> ]
+            low_thresholds: [ <critical>, <major>, <minor> ]
+          ...
+ 
+      current_sensors:
+        - name: <sensor name>
+            sensor: <sysfs path>
+            high_thresholds: [ <critical>, <major>, <minor> ]
+            low_thresholds: [ <critical>, <major>, <minor> ]
+          ...
 
-		current_sensors:
- 			- name: <sensor name> 
-    		    sensor: <sysfs path>
-    		    high_thresholds: [ <critical>, <major>, <minor> ]
-    		    low_thresholds: [ <critical>, <major>, <minor> ]
-    		...
+
 
 
 ##### PDDF Support
