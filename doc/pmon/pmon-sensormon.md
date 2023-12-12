@@ -192,7 +192,46 @@ The alarm condition will be visible in the CLI ouputs for sensor data and system
     	VP0P75_CORE_NPU2            Not OK    voltage
     	...
 
+
+#####Platform Sensors Configuration
+
+Sensormond will use the platform APIs for retrieving platform sensor information. However, for platforms with only file-system/sysfs based drivers, a simple implementation is provided wherein the platform can specify the sensor information for the board and any submodules (such as fabric cards) in a data file and Sensormond can use that for finding sensors and monitoring them. 
+
+The file system/Sysfs based platform sensor information can be provided using a yaml file. The yaml file shall have the following format.
+
+ 	
+	sensors.yaml
 	
+	voltage_sensors:
+  	  - name : <sensor name> 
+         sensor: <sysfs path>
+         high_thresholds: [ <critical>, <major>, <minor> ]
+    	  low_thresholds: [ <critical>, <major>, <minor> ]
+    	...
+    		
+    current_sensors:
+  	   - name : <sensor name> 
+    	    sensor: <sysfs path>
+    	    high_thresholds: [ <critical>, <major>, <minor> ]
+    	    low_thresholds: [ <critical>, <major>, <minor> ]
+    	...
+    		
+    <module_name>:
+    	voltage_sensors:
+ 			- name: <sensor name> 
+    		    sensor: <sysfs path>
+    		    high_thresholds: [ <critical>, <major>, <minor> ]
+    		    low_thresholds: [ <critical>, <major>, <minor> ]
+    		...
+
+		current_sensors:
+ 			- name: <sensor name> 
+    		    sensor: <sysfs path>
+    		    high_thresholds: [ <critical>, <major>, <minor> ]
+    		    low_thresholds: [ <critical>, <major>, <minor> ]
+    		...
+
+
 ##### PDDF Support
 
 SONiC PDDF provides a data driven framework to access platform HW devices. PDDF allows for sensor access information to be read from platform specific json files. PDDF support can be added for voltage and current sensors which can be retrieved by Sensormon.
