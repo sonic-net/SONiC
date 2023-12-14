@@ -13,6 +13,7 @@ This is a platform independent **Fault Management Infrastructure** document aimi
 * [Objective](#objective)
 * [High Level Block diagram and System Flow](#high-level-block-diagram-and-system-flow)
 * [High Level Work Flow](#high-level-work-flow)
+* [Fault's End-to-End WorkFlow Sequence](#fault's-end-to-end-workflow-sequence)
 * [Fault-Action Policy Table (sample)](#fault-action-policy-table-(sample))
 * [References](#references)
 
@@ -106,6 +107,12 @@ Following are the main functionalities/tasks of the **FM infrastructure module**
    - Taking action would either be by itself (i.e. in ts own micro-service) or delegating it to action's owner
 7. Tabulate event entry (along with action taken) for book-keeping purposes
 
+
+# Fault's End-to-End WorkFlow Sequence
+Following workflow depicts the end-to-end fault (event) flow from Fault generation to Fault Handling
+![Fault Management (FM) Workflow sequence](https://github.com/shyam77git/SONiC/assets/69485234/2b453a1b-6e14-48c6-bf61-ab978e62a3bf)
+
+
 # Fault-Action Policy Table (fault_action_policy.json)
 
 {
@@ -138,7 +145,7 @@ Following are some of the Faults' uses-cases
 | Sr # | Fault Type                    | FDR (Fault source/detector)  |  Fault informant   |  FAH (Fault Analyzer & Handler) |
 |------|-------------------------------|------------------------------|--------------------|---------------------------------|
 | 1.   | Thermal sensors (Temperature) | thermalctld                  |  eventD            |  FM (this HLD/module)           |
-| 2.   | Voltage & Current sensors     | snesormond                   |  eventD            |  FM                             |
+| 2.   | Voltage & Current sensors     | sensormond                   |  eventD            |  FM                             |
 | 3.   | FanTrays and Fans             | thermalctld                  |  eventD            |  FM                             |
 | 4.   | PowerTrays and PSUs           | psud                         |  eventD            |  FM                             |
 | 5.   | transceivers                  | xcvrd                        |  eventD            |  FM                             |
