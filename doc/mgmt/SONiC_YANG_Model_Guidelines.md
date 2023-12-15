@@ -536,7 +536,7 @@ container INTERFACE {
 	}
 
 	list INTERFACE_IPADDR_LIST { //2nd list
-		key ifname, ip_addr;
+		key "ifname ip_addr"
 
 		leaf ifname {
 			type leafref {
@@ -583,7 +583,7 @@ container NOT_SUPPORTED_INTERFACE {
 
 ```yang
 ......
-container TELEMETRY_CLIENT {
+container NOT_SUPPORTED_TELEMETRY_CLIENT {
     list NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST {  // 1st list
         key "prefix name";
 
@@ -623,11 +623,11 @@ container TELEMETRY_CLIENT {
 }
 ......
 ```
-***In the example above if the config DB contains an TELEMETRY_CLIENT_SUB_LIST table with key DestinationGroup|HS then it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario***
+***In the example above if the config DB contains an NOT_SUPPORTED_TELEMETRY_CLIENT table with key "DestinationGroup|HS", then it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario***
 
 #### Example 4: keys with same number of elements and different type(NOT Allowed case 1)
 
-***In the given example, if the configuration database has an NOT_SUPPORTED_TELEMETRY_CLIENT table with the key "1234, it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario***
+***In the given example, if the configuration database has an NOT_SUPPORTED_TELEMETRY_CLIENT table with the key "1234", it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario***
 
 ```yang
 ......
@@ -664,11 +664,11 @@ container NOT_SUPPORTED_TELEMETRY_CLIENT {
 
 #### Example 5: keys with same number of elements and different type(NOT Allowed case 2)
 
-***In the given example, if the configuration database has an NOT_SUPPORTED_TELEMETRY_CLIENT table with the key "1234, it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario***
+***In the given example, if the configuration database has an NOT_SUPPORTED_TELEMETRY_CLIENT table with the key "1234|1234", it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario***
 
 ```yang
 ......
-container TELEMETRY_CLIENT {
+container NOT_SUPPORTED_TELEMETRY_CLIENT {
     list NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST {  // 1st list
         key "prefix name";
 
