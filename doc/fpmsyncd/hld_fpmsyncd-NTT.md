@@ -299,19 +299,19 @@ As shown in below diff code, the template will generate config following below l
 ```
 > zebra.conf.j2
 
- {% endblock banner %}
+ {/% endblock banner /%}
  !
- {% block fpm %}
-+{% if ( ('localhost' in DEVICE_METADATA) and ('nexthop_group' in  DEVICE_METADATA['localhost']) and
-+        (DEVICE_METADATA['localhost']['nexthop_group'] == 'enabled') ) %}
+ {/% block fpm /%}
++{/% if ( ('localhost' in DEVICE_METADATA) and ('nexthop_group' in  DEVICE_METADATA['localhost']) and
++        (DEVICE_METADATA['localhost']['nexthop_group'] == 'enabled') ) /%}
 +fpm use-next-hop-groups
-+{% else %}
++{/% else /%}
  ! Uses the old known FPM behavior of including next hop information in the route (e.g. RTM_NEWROUTE) messages
  no fpm use-next-hop-groups
-+{% endif %}
++{/% endif /%}
  !
  fpm address 127.0.0.1
- {% endblock fpm %}
+ {/% endblock fpm /%}
 ```
 
 #### CLI/YANG model Enhancements 
