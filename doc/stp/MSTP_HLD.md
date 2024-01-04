@@ -299,9 +299,7 @@ Following table shows the existing SAI Attributes that will be used:
 ||SAI_SWITCH_ATTR_MAX_STP_INSTANCE|
 
 ## New SAI Attributes
-MSTP design requires one new attribute `SAI_HOSTIF_TRAP_TYPE_MSTP` for control trap packets which will be defined in saihostif.h.
-
-[SAI/saihostif.h](https://github.com/opencomputeproject/SAI/blob/master/inc/saihostif.h)
+MSTP design will not require any new SAI Attributes for Control Packet trap. We will use the existing traps as DMAC and LLC fields are identical for STP and MSTP
 
 # Additional Features
 
