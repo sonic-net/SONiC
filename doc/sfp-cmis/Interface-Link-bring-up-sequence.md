@@ -192,28 +192,24 @@ if transceiver is not present:
 ## Overview
 
 When syncd/swss/orchagent crashes, all ports in the corresponding namespace will be reinitialized by xcvrd irrespective of the current state of the port. All the corresponding ports are expected to experience link down until the initialization is complete.  
-If just xcvrd crashes and restarts, then forced re-initialization (CMIS reinit + NPU SI settings notification) of ports will not be performed. Hence, the ports will not experience link downtime during scenario.
-CMIS_REINIT_REQUIRED and NPU_SI_SETTINGS_SYNC_STATUS keys in PORT_TABLE:\<port\> (APPL_DB) are used to determine if port re-initialization is required or not.  
+If just xcvrd crashes and restarts, then forced re-initialization (CMIS reinit + NPU SI settings notification) of ports will not be performed. Hence, the ports will not experience link downtime during this scenario.
+CMIS_REINIT_REQUIRED and NPU_SI_SETTINGS_SYNC_STATUS keys in PORT_TABLE|\<port\> (STATE_DB) are used to determine if port re-initialization is required or not.  
   - CMIS_REINIT_REQUIRED key states if CMIS re-initialization is required for a port after xcvrd is spawned. CMIS_REINIT_REQUIRED helps in mainly driving CMIS re-initialization after syncd/swss/orchagent crash since it will allow reinitializing ports belonging to the relevant namespace of the crashing process. This key is not planned to drive CMIS initialization after transceiver insertion.  
   - NPU_SI_SETTINGS_SYNC_STATUS key is used as a means to communicate the status of applying NPU SI settings for a transceiver requiring NPU SI settings. This key is used to update the NPU SI settings application status between SfpStateUpdateTask, CmisManagerTask and Orchagent. In case of warm reboot or xcvrd restart, this key will prevent application of NPU SI settings on the port if the settings are already applied. In case of transceiver insertion, NPU SI settings will be applied irrespective of the NPU SI settings application status for the port.  
-  Also, this key helps in preventing additional link flap which can happen if CMIS state machine initializes a port before NPU SI settings are applied (since application of NPU SI settings involves disabling the port followed by enabling it).  
+  Also, this key helps in preventing additional link flap which can happen if CMIS state machine initializes a port before NPU SI settings are applied (since application of NPU SI settings involves disable followed by enable of it).  
 In case of continuous restart of xcvrd, both the keys will still hold the same value as before the restart. This would ensure that the port re-initialization is resumed from the last known state.  
 
-Rationale for choosing APPL_DB over STATE_DB for storing CMIS_REINIT_REQUIRED and NPU_SI_SETTINGS_SYNC_STATUS keys
- - APPL_DB is the first DB which gets cleared as part of SWSS crash handling. This inturn helps XCVRD to detect DB removal and terminate child threads and itself earlier than other DBs.
- - The PORT_TABLE in STATE_DB has multiple fields which can dynamically change (such as netdev_oper_status and host_tx_ready) more often than PORT_TABLE in APPL_DB. Hence, XCVRD will receive less events if it watches PORT_TABLE in APPL_DB. The watch is needed to kill XCVRD and its child threads during syncd/swss/orcahagent crash
-
-Following infra will ensure port re-initialization by xcvrd in case of syncd/swss/orchagent crash
+Following infra will ensure port re-initialization by xcvrd in case of syncd/swss/orchagent crash  
 Pre-requisites for the infra to work:
-  - APPL_DB should be cleared after syncd/swss/orchagent crash/restart, config reload and cold reboot
-  - APPL_DB should be retained after 
+  - All PORT_TABLE|Ethernet* keys of STATE_DB should be cleared after syncd/swss/orchagent crash/restart, config reload and cold reboot
+  - All PORT_TABLE|Ethernet* keys of STATE_DB should be retained after 
     - pmon crash/restart
     - xcvrd crash/restart (does not apply to xcvrd restart triggered due to a different docker container crash/restart)
     - warm reboot
 
 1. XCVRD main thread init
-	- XCVRD main thread creates the key CMIS_REINIT_REQUIRED in PORT_TABLE:\<port\> (APPL_DB) with value as true for ports which do NOT have this key present 
-	- XCVRD main thread creates the key NPU_SI_SETTINGS_SYNC_STATUS in PORT_TABLE:\<port\> (APPL_DB) with value NPU_SI_SETTINGS_DEFAULT for ports which do NOT have this key present.  
+	- XCVRD main thread creates the key CMIS_REINIT_REQUIRED in PORT_TABLE|\<port\> (STATE_DB) with value as true for ports which do NOT have this key present 
+	- XCVRD main thread creates the key NPU_SI_SETTINGS_SYNC_STATUS in PORT_TABLE|\<port\> (STATE_DB) with value NPU_SI_SETTINGS_DEFAULT for ports which do NOT have this key present.  
       - For transceivers which do not require NPU SI settings, NPU_SI_SETTINGS_SYNC_STATUS will stay with value NPU_SI_SETTINGS_DEFAULT  
 
     Following table describes the various values for NPU_SI_SETTINGS_SYNC_STATUS  
@@ -227,11 +223,11 @@ A transceiver is classified as CMIS SM driven transceiver if its module type is 
 
 
 2. Update and notify NPU SI settings to OA  
-      The API is_npu_si_settings_update_required will return true if a module requires NPU SI settings and PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS == NPU_SI_SETTINGS_DEFAULT. It will return false in other cases  
+      The API is_npu_si_settings_update_required will return true if a module requires NPU SI settings and PORT_TABLE|\<port\>.NPU_SI_SETTINGS_SYNC_STATUS == NPU_SI_SETTINGS_DEFAULT. It will return false in other cases  
 
-      For non-CMIS SM driven transceivers, if is_npu_si_settings_update_required returns true, SfpStateUpdateTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and OA will be notified eventually. Also, NPU_SI_SETTINGS_SYNC_STATUS will be set to NPU_SI_SETTINGS_NOTIFIED.  
+      For non-CMIS SM driven transceivers, if is_npu_si_settings_update_required returns true, SfpStateUpdateTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and OA will be notified eventually. Also, NPU_SI_SETTINGS_SYNC_STATUS will be set to NPU_SI_SETTINGS_NOTIFIED in PORT_TABLE (STATE_DB).  
 
-      For CMIS SM driven transceivers, if is_npu_si_settings_update_required returns true, CmisManagerTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and OA will be notified eventually.  Also, NPU_SI_SETTINGS_SYNC_STATUS will be set to NPU_SI_SETTINGS_NOTIFIED.  
+      For CMIS SM driven transceivers, if is_npu_si_settings_update_required returns true, CmisManagerTask thread will update NPU SI settings in the PORT_TABLE (APPL_DB) and OA will be notified eventually.  Also, NPU_SI_SETTINGS_SYNC_STATUS will be set to NPU_SI_SETTINGS_NOTIFIED in PORT_TABLE (STATE_DB).  
       The CMIS SM will then transition from CMIS_STATE_AP_CONF to CMIS_STATE_NPU_SI_SETTINGS_WAIT. If port doesn't require NPU SI settings, CMIS SM will transition to CMIS_STATE_DP_INIT state.  
 
 
@@ -239,7 +235,7 @@ A transceiver is classified as CMIS SM driven transceiver if its module type is 
 3. The OA upon receiving NPU SI settings will  
 	- Disable port admin status
 	- Request SAI-SDK to apply the NPU SI settings via syncd
-		- If SAI-SDK returns success, OA will update the PORT_TABLE:\<port\>.NPU_SI_SETTINGS_SYNC_STATUS to NPU_SI_SETTINGS_DONE
+		- If SAI-SDK returns success, OA will update the PORT_TABLE|\<port\>.NPU_SI_SETTINGS_SYNC_STATUS to NPU_SI_SETTINGS_DONE in STATE_DB
 		- In case of failure, OA will log an error message and proceed to handling the next port
 
 4. CMIS_STATE_NPU_SI_SETTINGS_WAIT state will wait for NPU_SI_SETTINGS_DONE and upon reaching to NPU_SI_SETTINGS_DONE, CMIS SM will transition to CMIS_STATE_DP_INIT state.  
@@ -247,18 +243,18 @@ There will be a timeout of 5s for every retry
 
 5. The CmisManagerTask thread will set “CMIS_REINIT_REQUIRED" to false after CMIS SM reaches to a steady state (CMIS_STATE_UNKNOWN, CMIS_STATE_FAILED, CMIS_STATE_READY and CMIS_STATE_REMOVED) for the corresponding port
 
-6. XCVRD will subscribe to PORT_TABLE in APPL_DB and trigger self-restart if the PORT_TABLE is deleted for the namespace.  
+6. XCVRD will subscribe to PORT_TABLE in STATE_DB and trigger self-restart if the PORT_TABLE|Ethernet* is deleted for the namespace.  
 All threads will be gracefully terminated and xcvrd deinit will be performed followed by issuing a SIGABRT to ensure XCVRD is restarted automatically by supervisord. After respawn, CMIS re-init and NPU_SI_SETTINGS notified is triggered for the ports belonging to the affected namespace
 
-7. syncd/swss/orchagent restart (restart triggered due to docker container crash) clears the entire APPL-DB, including “NPU_SI_SETTINGS_SYNC_STATUS” and "CMIS_REINIT_REQUIRED" in PORT_TABLE
+7. syncd/swss/orchagent restart (restart triggered due to docker container crash) clears the entire APPL-DB and PORT_TABLE|Ethernet* of STATE_DB (including “NPU_SI_SETTINGS_SYNC_STATUS” and "CMIS_REINIT_REQUIRED" keys in PORT_TABLE of STATE_DB)
 
-8. In case of warm reboot, the APPL_DB is not cleared and hence, once xcvrd is spawned after the reboot, the ports are not initialized again.
+8. In case of warm reboot, the PORT_TABLE in STATE_DB is not cleared. Hence, once xcvrd is spawned after the device reboot, the ports are not initialized again.
 
 ## XCVRD init sequence to support port re-initialization during syncd/swss/orchagent crash
 
 ```mermaid
 sequenceDiagram
-    participant APPL_DB as APPL_DB@asic_n
+    participant STATE_DB as STATE_DB@asic_n
     participant XCVRDMT as XCVRD main thread
     participant CmisManagerTask
     participant SfpStateUpdateTask
@@ -267,14 +263,14 @@ sequenceDiagram
     Note over XCVRDMT: Load new platform specific api class,<br> sfputil class and load namespace details<br> load_NPU_SI_SETTINGS()
     XCVRDMT ->> XCVRDMT: Wait for port config completion
     loop lport in logical_port_list
-        alt if CMIS_REINIT_REQUIRED not in PORT_TABLE:<lport>
-            XCVRDMT ->> APPL_DB: PORT_TABLE:<lport>.CMIS_REINIT_REQUIRED = true
+        alt if CMIS_REINIT_REQUIRED not in PORT_TABLE|<lport>
+            XCVRDMT ->> STATE_DB: PORT_TABLE|<lport>.CMIS_REINIT_REQUIRED = true
         end
-        alt if NPU_SI_SETTINGS_SYNC_STATUS not in PORT_TABLE:<lport>
-            XCVRDMT ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DEFAULT
+        alt if NPU_SI_SETTINGS_SYNC_STATUS not in PORT_TABLE|<lport>
+            XCVRDMT ->> STATE_DB: PORT_TABLE|<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DEFAULT
         end
     end
-    Note over APPL_DB: PORT_TABLE:<lport><br>CMIS_REINIT_REQUIRED : true/false<br>NPU_SI_SETTINGS_SYNC_STATUS : NPU_SI_SETTINGS_DEFAULT/NPU_SI_SETTINGS_NOTIFIED/NPU_SI_SETTINGS_DONE
+    Note over STATE_DB: PORT_TABLE|<lport><br>CMIS_REINIT_REQUIRED : true/false<br>NPU_SI_SETTINGS_SYNC_STATUS : NPU_SI_SETTINGS_DEFAULT/NPU_SI_SETTINGS_NOTIFIED/NPU_SI_SETTINGS_DONE
     XCVRDMT ->> CmisManagerTask: Spawns
     XCVRDMT ->> DomInfoUpdateTask: Spawns
     XCVRDMT ->> SfpStateUpdateTask: Spawns
@@ -283,7 +279,7 @@ sequenceDiagram
             DomInfoUpdateTask->>DomInfoUpdateTask: Update TRANSCEIVER_DOM_SENSOR,<br>TRANSCEIVER_STATUS (HW section)<br>TRANSCEIVER_PM tables
         end
         loop Wait for stop_event
-            XCVRDMT->>XCVRDMT: Check for changes in APPL_DB:PORT_TABLE and act upon receiving DEL event
+            XCVRDMT->>XCVRDMT: Check for changes in STATE_DB:PORT_TABLE and act upon receiving DEL event
         end
         Note over CmisManagerTask: Subscribe to CONFIG_DB:PORT,<br>STATE_DB:TRANSCEIVER_INFO and STATE_DB:PORT_TABLE
         loop Wait for stop_event
@@ -302,6 +298,7 @@ sequenceDiagram
 sequenceDiagram
     participant OA
     participant APPL_DB as APPL_DB@asic_n
+    participant STATE_DB as STATE_DB@asic_n
     participant SfpStateUpdateTask
 
     Note over SfpStateUpdateTask: Subscribe to CONFIG_DB:PORT,<br>STATE_DB:TRANSCEIVER_INFO and STATE_DB:PORT_TABLE
@@ -311,10 +308,10 @@ sequenceDiagram
              Note over SfpStateUpdateTask: post_port_dom_threshold_info_to_db
             opt if not is_module_cmis_sm_driven and is_npu_si_settings_update_required
                 SfpStateUpdateTask ->> APPL_DB: Update SI params from media_settings.json to PORT_TABLE:<lport>
-                SfpStateUpdateTask ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_NOTIFIED
+                SfpStateUpdateTask ->> STATE_DB: PORT_TABLE|<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_NOTIFIED
                 APPL_DB -->> OA: Notify NPU SI settings for ports
                 Note over OA: Disable admin status<br>setPortSerdesAttribute
-                OA ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DONE
+                OA ->> STATE_DB: PORT_TABLE|<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DONE
                 Note over OA: initHostTxReadyState
             end
         else
@@ -347,7 +344,7 @@ stateDiagram
 
     CMIS_STATE_DP_DEINIT --> CMIS_STATE_AP_CONF
 
-    note left of CMIS_STATE_AP_CONF : Ensure current states are ModuleReady and DataPathDeactivated<br>Configure laser frequency for ZR module<br>Apply module SI settings<br>Update NPU SI settings to PORT_TABLE (APPL_DB) and notify to OA<br>set_application
+    note left of CMIS_STATE_AP_CONF : Ensure current states are ModuleReady and DataPathDeactivated<br>Configure laser frequency for ZR module<br>Apply module SI settings<br>Update NPU SI settings to PORT_TABLE (APPL_DB) and notify to OA<br>Set PORT_TABLE|lport.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DONE (STATE_DB)<br>set_application
     CMIS_STATE_AP_CONF --> if_state3
     if_state3 --> CMIS_STATE_NPU_SI_SETTINGS_WAIT : if is_npu_si_settings_update_required
     if_state3 --> CMIS_STATE_DP_INIT : if not is_npu_si_settings_update_required
@@ -376,7 +373,7 @@ sequenceDiagram
     SfpStateUpdateTask -x STATE_DB : Delete TRANSCEIVER_INFO table for the port
     par         CmisManagerTask, SfpStateUpdateTask
         CmisManagerTask ->> CmisManagerTask : Transition CMIS SM to CMIS_STATE_REMOVED
-        SfpStateUpdateTask ->> APPL_DB : PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = <br> NPU_SI_SETTINGS_DEFAULT
+        SfpStateUpdateTask ->> STATE_DB : PORT_TABLE|<lport>.NPU_SI_SETTINGS_SYNC_STATUS = <br> NPU_SI_SETTINGS_DEFAULT
     end
 
     SfpStateUpdateTask ->> SfpStateUpdateTask : event = SFP_STATUS_INSERTED
@@ -386,18 +383,18 @@ sequenceDiagram
         CmisManagerTask ->> CmisManagerTask : Eventually, CMIS SM transitions to CMIS_STATE_AP_CONF
         opt not is_module_cmis_sm_driven and is_npu_si_settings_update_required
           SfpStateUpdateTask ->> APPL_DB: Update SI params from media_settings.json to PORT_TABLE:<lport>
-          SfpStateUpdateTask ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = <br> NPU_SI_SETTINGS_NOTIFIED
+          SfpStateUpdateTask ->> STATE_DB: PORT_TABLE|<lport>.NPU_SI_SETTINGS_SYNC_STATUS = <br> NPU_SI_SETTINGS_NOTIFIED
         end
         opt is_module_cmis_sm_driven and is_npu_si_settings_update_required
           CmisManagerTask ->> APPL_DB: Update SI params from media_settings.json to PORT_TABLE:<lport>
-          CmisManagerTask ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = <br> NPU_SI_SETTINGS_NOTIFIED
+          CmisManagerTask ->> STATE_DB: PORT_TABLE|<lport>.NPU_SI_SETTINGS_SYNC_STATUS = <br> NPU_SI_SETTINGS_NOTIFIED
           CmisManagerTask ->> CmisManagerTask : Transition CMIS SM to CMIS_STATE_NPU_SI_SETTINGS_WAIT
         end
         activate OA
         APPL_DB -->> OA: Notify NPU SI settings for ports
         Note over OA: Disable admin status<br>setPortSerdesAttribute
-        OA ->> APPL_DB: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DONE
-        APPL_DB --> CmisManagerTask: PORT_TABLE:<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DONE
+        OA ->> STATE_DB: PORT_TABLE|<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DONE
+        STATE_DB --> CmisManagerTask: PORT_TABLE|<lport>.NPU_SI_SETTINGS_SYNC_STATUS = NPU_SI_SETTINGS_DONE
         Note over OA: initHostTxReadyState
         deactivate OA
         CmisManagerTask ->> CmisManagerTask : Transition CMIS SM to CMIS_STATE_DP_INIT
@@ -412,7 +409,7 @@ The below sequence diagram captures the termination of XCVRD during syncd/swss/o
 ```mermaid
 sequenceDiagram
     participant OA
-    participant APPL_DB as APPL_DB@asic_n
+    participant STATE_DB as STATE_DB@asic_n
     participant XCVRDMT as XCVRD main thread
     participant CmisManagerTask
     participant DomInfoUpdateTask
@@ -425,9 +422,9 @@ sequenceDiagram
     activate SfpStateUpdateTask
     OA -x OA: Crashes while handling a routine
     deactivate OA
-    OA ->> APPL_DB : DEL PORT_TABLE
+    OA ->> STATE_DB : DEL PORT_TABLE
 
-    XCVRDMT -x APPL_DB : XCVRD main thread proecesses DEL event of APPL_DB PORT_TABLE
+    XCVRDMT -x STATE_DB : XCVRD main thread proecesses DEL event of STATE_DB PORT_TABLE
     Note over XCVRDMT: generate_sigabrt = True
     alt If threads > 0 are dead
         XCVRDMT -x XCVRDMT : Kill XCVRD with SIGKILL
@@ -453,7 +450,7 @@ sequenceDiagram
 ## Test plan and expectation
 
 **Process and device crash/restart and interface config command handling testplan**  
-| Event          | APPL_DB_<asic_n> cleared | Xcvrd restarted | NPU SI settings renotify | NPU_SI_SETTINGS_SYNC_STATUS value on xcvrd boot-up for initialized transceiver | CMIS re-init triggered | Link flap |
+| Event          | STATE_DB_<asic_n> cleared | Xcvrd restarted | NPU SI settings renotify | NPU_SI_SETTINGS_SYNC_STATUS value on xcvrd boot-up for initialized transceiver | CMIS re-init triggered | Link flap |
 | -------------- | ------------------------ | --------------- | ------------------------ | ------------------------------------------------------------------------------ | ---------------------- | --------- |
 | Xcvrd restart | N | Y | N | NPU_SI_SETTINGS_DONE | N | N |
 | Pmon restart | N | Y | N | NPU_SI_SETTINGS_DONE | N | N |
@@ -467,7 +464,7 @@ sequenceDiagram
 | config interface startup | N | N | N | NPU_SI_SETTINGS_DONE | N | N/A |
 
 **Transceiver OIR testplan**  
-| Event | APPL_DB_<asic_n> cleared | Xcvrd restarted | NPU SI settings notified | NPU_SI_SETTINGS_SYNC_STATUS value upon event completion | CMIS init triggered |
+| Event | STATE_DB_<asic_n> cleared | Xcvrd restarted | NPU SI settings notified | NPU_SI_SETTINGS_SYNC_STATUS value upon event completion | CMIS init triggered |
 | -------------- | ------------------------ | --------------- | ------------------------ | ------------------------------------------------------------------------------ | ---------------------- |
 | Transceiver Removal | N | N | Y | NPU_SI_SETTINGS_DEFAULT | N/A |
 | Transceiver Insertion | N | N | Y | NPU_SI_SETTINGS_DONE | Y |
