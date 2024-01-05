@@ -63,7 +63,7 @@ The picture below highlights the PMON vertical and its association with other lo
 * The DPUs should be uniquely identified (See DPU-ID IP/MAC allocation table) and the DPU upon boot should get this ID from the host and identify itself.
 * Implement the required API enhancements and new APIs for DPU management (see details in design section)
 * SmartSwitch should use the existing SONiC midplane-interface model in modular chassis design for communication between the DPU and the NPU
-* SmartSwitch should extend the SONiC modular chassis design and treat the dpu-cards (SLED) just like line-cards in existing design
+* SmartSwitch should extend the SONiC modular chassis design and treat the dpu-cards just like line-cards in existing design
 * Reboot
     * Only cold reboot of DPUs is required, warm boot support is not required.
 ### 2.2. Monitoring and Thermal Management
@@ -98,7 +98,7 @@ The picture below highlights the PMON vertical and its association with other lo
 ### 2.3. RMA
 * The dpu-cards should be displayed as part of inventory
 * Extend the CLI “show platform inventory” to display the dpu-cards and their state
-* The system should be powered down for replacement of dpu-card (SLED)
+* The system should be powered down for replacement of dpu-card
 
 ## 3.	SmartSwitch PMON Design
 SmartSwitch PMON block diagram
@@ -274,7 +274,7 @@ Thermal management sequence diagram
 ### 3.3.   Midplane Interface
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. The same design has been extended in case of a SmartSwitch. The mnic ethernet interface over PCIe which is the midplane-interface, interconnect the Switch Host and the DPUs.
 
-* When DPU card (SLED) or the Supervisor boots and as part of its initialization, midplane interface gets initialized.
+* When DPU card or the Supervisor boots and as part of its initialization, midplane interface gets initialized.
 * Two solutions were proposed for this purpose.  
     * Solution 1. uses a dhcp server - client model between the switch host and the dpus to allocate IP address. [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
     * Solution 2. static ip allocation based on DPU ID. [link](https://github.com/rameshraghupathy/SONiC/blob/origin/ss_pmon_hld/doc/smart-switch/pmon/static-ip-assignment.md)
@@ -315,7 +315,7 @@ Key: "midplane_interface|dpu0"
 ## 3.4. Debuggability & RMA
 CLI Extensions and Additions
 
-show platform inventory - shows the SLEDs
+show platform inventory - shows the dpu-cards
 <p align="left"><img src="./images/sh-pl-inv.svg"></p>
 
 show platform temperature - shows the DPU temperature
