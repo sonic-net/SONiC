@@ -61,15 +61,14 @@ The picture below highlights the PMON vertical and its association with other lo
 * When the SmartSwitch host reboots the DPU, the host should update the previous-reboot-cause-host field in the ChassisStateDB
 * The reboot-cause history should provide a holistic view of the reboot cause of the SmartSwitch host CPU, the reboot-cause of all the DPUs as seen by the Switch and the DPU itself.
 * The DPUs should be uniquely identified (See DPU-ID IP/MAC allocation table) and the DPU upon boot should get this ID from the host and identify itself.
-* The DPU-ID itself can be used to assign the IP address of the midplane interface for both end points of the midplane interface between the host and dpu (see the midplane-interface  IP address assignment section)
-* Implement the required new APIs for DPU management (see details in design section)
+* Implement the required API enhancements and new APIs for DPU management (see details in design section)
 * SmartSwitch should use the existing SONiC midplane-interface model in modular chassis design for communication between the DPU and the NPU
 * SmartSwitch should extend the SONiC modular chassis design and treat the dpu-cards (SLED) just like line-cards in existing design
 * Reboot
     * Only cold reboot of DPUs is required, warm boot support is not required.
 ### 2.2. Monitoring and Thermal Management
 * Dpu State
-    * The DPUs should provide their state to the host as the boot progression happens, through the host hardware (see the DPU state table for details)
+    * The DPUs should provide their state to the host as the boot progression happens
     * SmartSwitch should store the dpu state data in the DPU_STATE table in the host ChassisStateDB (explained in DB schema)
     * DPUs should be able to store the data using a redis call
     * The DPU must provide additional information on the state once it boots its OS to DPU_STATE table.
@@ -111,7 +110,7 @@ SmartSwitch PMON block diagram
 * SmartSwitch design Extends the existing chassis_base and module_base as described below.
 * Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch
 
-| API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| HW mgmet change | comments |
+| API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| HW mgmt change | comments |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | class ModuleBase | # Possible module types MODULE_TYPE_SUPERVISOR MODULE_TYPE_LINE MODULE_TYPE_FABRIC | yes | yes | #new module type MODULE_TYPE_DPU MODULE_TYPE_SWITCH  | no |  | no |  |
 
@@ -159,8 +158,7 @@ DPU: {
 }
 ```
 #### 3.1.4 ModuleBase class API enhancements
-
-| API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| HW mgmet change | comments |
+| API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| HW mgmt change | comments |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | get_base_mac(self) | Retrieves the base MAC address for the module | yes | yes | no | yes | yes |  |
 | get_system_eeprom_info(self) | Retrieves the full content of system EEPROM information for the module | yes | yes | no | yes | yes |  |
@@ -175,6 +173,91 @@ DPU: {
 | get_midplane_ip(self) | Retrieves the midplane IP-address of the module in a modular chassis. When called from the Supervisor, the module could represent the line-card and return the midplane IP-address of the line-card. When called from the line-card, the module will represent the Supervisor and return its midplane IP-address. | yes | yes | new module Switch, DPU | yes | no | IP address for PCIe interface for DPU |
 | is_midplane_reachable(self) | Retrieves the reachability status of the module from the Supervisor or of the Supervisor from the module via the midplane of the modular chassis | yes | yes | no | yes | no |  |
 | get_all_asics(self) | Retrieves the list of all ASICs on the module that are visible in PCI domain. When called from the Supervisor of modular system, the module could be fabric card, and the function returns all fabric ASICs on this module that appear in PCI domain of the Supervisor. | yes | yes | no | yes | no | TBD: Needs some investigation |
+
+#### 3.1.5 ModuleBase class new APIs
+
+##### 3.1.5.1 Need for consistant storage and access of DPU state and health
+1.  get_reboot_cause for the modules is missing in the existing code. The smartswitch needs to know the reboot cuase for DPUs.
+
+* End User Reboot Cause Table: This table shows the frame work for DPU reboot-cause reporting
+
+    | DPU Reboot Cause | HW/SW | End_User_Message_in_DPU_STATE |
+    | --- | --- | --- |
+    | REBOOT_CAUSE_POWER_LOSS | HW | Power failure |
+    | REBOOT_CAUSE_HOST_DPU_RESET | SW | Host lost DPU - Try resetting DPU |
+    | REBOOT_CAUSE_HOST_DPU_POWERCYCLE | SW | Host lost DPU - Power cycled DPU |
+    | REBOOT_CAUSE_SW_THERMAL |	SW | Switch software Powered Down DPU due to DPU temperature failure |
+    | PCIE_RESET_CAUSE_SWITCH_INITIATED |	SW | Switch Software resets DPU PCIe link due to PCIe failure |
+
+2. Though the get_oper_status(self) can get the operational status of the DPU Moudules, the current implementation only has limited capabilites.
+    * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progrression the DPU failed
+    * This is critical in fault isolation, DPU switch over decision, resilliency and recovery
+    * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistant way of storing and acessing the information.
+    * Store the state progression (Powered, PCIe-Link-Status, Host-DPU Eth-Link-Status, Firmware-Boot_status, OS-Boot-Status, CcontrolPlane-State, DataPlane-Status) on the host ChassisStateDB as shown below
+    * get_oper_state_detail(self) will retrun an object with the ChassisStateDB data
+    * Potential consumer: Switch CLIs, Utils (install/repair images), HA, LB, Life Cycle Manager 
+    * Use cases: Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state
+
+* ChassisStateDB Schema for DPU_STATE
+    ```
+    Table: “DPU_STATE”
+
+    SCHEMA
+    key:  dpu_state:1
+    
+    HMSET dpu_state:1
+            "id": "1",    		#Key itself can be used?
+            "powered": "ON",
+            "pcie_link_state": "UP",
+            "pcie_link_time": "timestamp",
+            "pcie_link_reason": "up_down_related string",
+            "host_eth_link_state": "UP",
+            "host_eth_link_time": " timestamp ",
+            "host_eth_link_reason": "up_down_related string",
+            "firmware_state": "UP",
+            "firmware_time": " timestamp ",
+            "firmware_reason": ”gold boot a, ONIE version x",
+            "os_state": "UP",
+            "os_state_time": "timestamp",
+            "os_reason": ”version x",
+            "previos_reboot_reason_from_dpu": “Software reboot ”,
+            "previos_reboot_time_from_dpu ": “timestamp”,
+            “previous_reboot_reason_from_host”: ”Powered Down DPU - Temperature failure”,
+            "previos_reboot_time_from_host ": “timestamp”,
+            "control_plane_state": ”DOWN",
+            "control_plane_time": ”timestamp",
+            "control_plane_reason": ”containers restarting",
+            "data_plane_state": ”DOWN",
+            "data_plane_time": ”timestamp",
+            "data_plane_reason": ”Pipeline failure",
+    ```
+
+3. Each DPU has to maintain a table for storing the health in its local DB (get_health_info(self))
+* The DPU is a complex hardware, for debuggability, a consistant way of storing and accessing the health record of the DPUs is critical in a multi vendor senario even though it is platform specific implementation.
+* Each DPU stores the health information in its local stateDB
+* DPU local stateDB Schema for DPU_HEALTH
+    ```
+    Table: “DPU_HEALTH”
+
+    SCHEMA
+    key:  dpu_health
+    
+    HMSET dpu_health 
+        "value": { 
+            "count": "1",  # number of occurance of event 
+            "description": "Single bit error Correction", # Event
+            "name": "ms.ms.int_prp2_read", 
+            "severity": "LEVEL_INFO", # DEBUG, INFO, WARRNIG, ERROR
+            "timestamp": "20230618 14:56:15" 
+        } 
+    ```
+
+| API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| HW mgmt change | comments |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| get_reboot_cause(self) | Retrieves the cause of the previous reboot | yes | yes | yes | yes | yes | Missing in module_base.py |
+| get_state_info(self) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes | TBD |
+| get_health_info(self) | Retrieves the dpu health object | no | yes | yes | yes | yes | TBD |
+
 ### 3.2. Thermal management
 * Platform  initializes all sensors
 * Thermalctld fetch CPU temperature, DPU temperature, fan speed, monitor and update the DB
@@ -190,85 +273,16 @@ Thermal management sequence diagram
 * during the boot up of the daemons, it will collect the constant data like serial number, manufacture name, etc.
 * For the variable ones (temperature, voltage, fan speed ....) need to be collected periodically. 
 
-### 3.3. DPU STATE
-* DPU state represents the various operational states of the DPU. They are: Powered, PCIe-Link, Host-DPU Eth-Link, Firmware, OS, CP, DP.
-* The table below shows the various DPU states, the producer and consumers of them.
-#### 3.3.1. DPU_STATE - Before DPU OS boots
-* All DPU States are updated by the Host PMON
-* These states are available to host PMON as register bits from DPUs.
-* Additionally, the FPGA provides temp sensor values too
-#### 3.3.2. DPU_STATE - After DPU OS boots
-* DPU updates the DB with additional information such as the reason for every state, and timestamp 
-* Carries Die Temp and threshold
-* Has reason for previous reboot
-* Carries DP, CP up down reasons
-
-DPU_STATE Table
-
-| DPU_STATE | Powered | PCIe_Link | NPU_DPU_Ge_Link | Firmware | OS_boot |  | CtrlPlane | DataPlane |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DPU0 | on | up | up | up | up |  | up | down |
-| DPU1 | off | down | down | up | up |  | down | up |
-| Genrated By | dpu | dpu | dpu | dpu | dpu |  | dpu | dpu |
-| Updated By | ss-pmon | ss-pmon | ss-pmon | ss-pmon  | ss-pmon |  | ss-pmon | ss-pmon |
-
-Potential consumer: Switch CLIs, Utils (install/repair images), HA, LB, Life Cycle Manager 
-
-Use cases: Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state/health
-
-#### 3.3.3. End User Reboot Cause Table
-This table shows the frame work for DPU reboot-cause reporting
-
-| DPU Reboot Cause | HW/SW | End_User_Message_in_DPU_STATE |
-| --- | --- | --- |
-| REBOOT_CAUSE_POWER_LOSS | HW | Power failure |
-| REBOOT_CAUSE_HOST_DETECT_DPU_FAILURE | SW | Host lost DPU - Try resetting DPU |
-| REBOOT_CAUSE_HOST_RECOVER_DPU_FAILURE | SW | Host lost DPU - Power cycled DPU |
-| REBOOT_CAUSE_SW_THERMAL |	SW |Switch software Powered Down DPU due to DPU temperature failure |
-| PCIE_RESET_CAUSE_SWITCH |	SW | Switch Software Reset DPU PCIe due to PCIe failure |
-
-#### 3.3.3. ChassisStateDB Schema for DPU_STATE
-```
-Table: “DPU_STATE”
-
-SCHEMA
-key:  dpu_state:1
- 
-HMSET dpu_state:1
-        "id": "1",    		#Key itself can be used?
-        "powered": "ON",
-        "pcie_link_state": "UP",
-        "pcie_link_time": "timestamp",
-        "pcie_link_reason": "up_down_related string",
-        "host_eth_link_state": "UP",
-        "host_eth_link_time": " timestamp ",
-        "host_eth_link_reason": "up_down_related string",
-        "firmware_state": "UP",
-        "firmware_time": " timestamp ",
-        "firmware_reason": ”gold boot a, ONIE version x",
-        "os_state": "UP",
-        "os_state_time": "timestamp",
-        "os_reason": ”version x",
-        "previos_reboot_reason_from_dpu": “Software reboot ”,
-        "previos_reboot_time_from_dpu ": “timestamp”,
-        “previous_reboot_reason_from_host”: ”Powered Down DPU - Temperature failure”,
-        "previos_reboot_time_from_host ": “timestamp”,
-        "control_plane_state": ”DOWN",
-        "control_plane_time": ”timestamp",
-        "control_plane_reason": ”containers restarting",
-        "data_plane_state": ”DOWN",
-        "data_plane_time": ”timestamp",
-        "data_plane_reason": ”Pipeline failure",
-```
-
-Besides the state and previous_reboot_reason_from_host other fields will be updated by the DPU once it boots.  The other fields will be updated by the switch from the information read from the hardware registers.
 
 ### 3.4.   Midplane Interface
 
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. The same design has been extended in case of a SmartSwitch. The mnic ethernet interface over PCIe which is the midplane-interface, interconnect the Switch Host and the DPUs.
 
 * When DPU card (SLED) or the Supervisor boots and as part of its initialization, midplane interface gets initialized.
-* For midplane-interface IP address allocation we will follow the procedure in the [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
+* Two solutions were proposed for this purpose.  
+    * Solution 1. uses a dhcp server - client model between the switch host and the dpus to allocate IP address. [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
+    * Solution 2. static ip allocation based on DPU ID. [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/pmon/static-ip-assignment.md)
+* For midplane-interface IP address allocation we will follow the procedure in solution.1 [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
 
 ### 3.4.1.    MAC address distribution
 
