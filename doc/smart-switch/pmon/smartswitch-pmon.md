@@ -22,7 +22,7 @@
 | DP | Data Plane |
 | SLED | Single Large Extender Device, DPU Card |
 
-## 1. Background
+## 1. Introduction
 SmartSwitch offloads the Packet Processors (NPUs) and the host CPUs, freeing up resources for application performance, thereby performing layer four to layer seven functions in a cost effective and space saving way. 
 
 The specialized DPUs when built into a regular switch, can provide such a capability, which is being referred as SmartSwitch.
@@ -251,12 +251,13 @@ DPU: {
             "timestamp": "20230618 14:56:15" 
         } 
     ```
+* ModuleBase class new APIs
 
-| API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| HW mgmt change | comments |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| get_reboot_cause(self) | Retrieves the cause of the previous reboot | yes | yes | yes | yes | yes | Missing in module_base.py |
-| get_state_info(self) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes | TBD |
-| get_health_info(self) | Retrieves the dpu health object | no | yes | yes | yes | yes | TBD |
+    | API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| HW mgmt change | comments |
+    | --- | --- | --- | --- | --- | --- | --- | --- |
+    | get_reboot_cause(self) | Retrieves the cause of the previous reboot | yes | yes | yes | yes | yes | Missing in module_base.py |
+    | get_state_info(self) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes | TBD |
+    | get_health_info(self) | Retrieves the dpu health object | no | yes | yes | yes | yes | TBD |
 
 ### 3.2. Thermal management
 * Platform  initializes all sensors
@@ -273,15 +274,13 @@ Thermal management sequence diagram
 * during the boot up of the daemons, it will collect the constant data like serial number, manufacture name, etc.
 * For the variable ones (temperature, voltage, fan speed ....) need to be collected periodically. 
 
-
 ### 3.4.   Midplane Interface
-
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. The same design has been extended in case of a SmartSwitch. The mnic ethernet interface over PCIe which is the midplane-interface, interconnect the Switch Host and the DPUs.
 
 * When DPU card (SLED) or the Supervisor boots and as part of its initialization, midplane interface gets initialized.
 * Two solutions were proposed for this purpose.  
     * Solution 1. uses a dhcp server - client model between the switch host and the dpus to allocate IP address. [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
-    * Solution 2. static ip allocation based on DPU ID. [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/pmon/static-ip-assignment.md)
+    * Solution 2. static ip allocation based on DPU ID. [link](https://github.com/rameshraghupathy/SONiC/blob/origin/ss_pmon_hld/doc/smart-switch/pmon/static-ip-assignment.md)
 * For midplane-interface IP address allocation we will follow the procedure in solution.1 [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
 
 ### 3.4.1.    MAC address distribution
@@ -328,12 +327,14 @@ show platform temperature - shows the DPU temperature
 show platform fan - shows the fan speed and status
 <p align="center"><img src="./images/sh-pl-fan.svg"></p>
 
-show platform dpu state - will show the dpu status of all DPUs
+show chassis modules status - will show the dpu status of all DPUs and the Switch supervisor card
 
-| DPU_STATE | Powered | PCIe_Link | NPU_DPU_Ge_Link | Firmware | OS_boot |  | CtrlPlane | DataPlane |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DPU0 | on | up | up | up | up |  | up | down |
-| DPU1 | off | down | down | up | up |  | down | up |
+| Name | Description | Physical-Slot | Oper-Status | Admin-Status | Serial |
+| --- | --- | --- | --- | --- | --- |
+| DPU0 | DPU-12-XX | 1 | Online | up | SN20240105 |
+| DPU1 | DPU-32-XX | 2 | Online | up | SN20240106 |
+| DPU7 | DPU-32-XX | 8 | Online | up | SN20240108 |
+| SUPERVISOR | DSC-7800-SUP1A | 0 | Online | up | SSN20040100 |
 
 show platform dpu health (On DPU) - shows the health info of DPU 
 <p align="center"><img src="./images/sh-pl-dpu-health.svg"></p>
