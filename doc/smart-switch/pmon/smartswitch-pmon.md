@@ -266,12 +266,12 @@ DPU: {
 Thermal management sequence diagram
 <p align="center"><img src="./images/thermal-mgmt-seq.svg"></p>
 
-### 3.2. Platform device data collection 
+### 3.2.1 Platform device data collection 
 * thermalcontrold, led and PSUd post device data to DB periodically
 * during the boot up of the daemons, it will collect the constant data like serial number, manufacture name, etc.
 * For the variable ones (temperature, voltage, fan speed ....) need to be collected periodically. 
 
-### 3.4.   Midplane Interface
+### 3.3.   Midplane Interface
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. The same design has been extended in case of a SmartSwitch. The mnic ethernet interface over PCIe which is the midplane-interface, interconnect the Switch Host and the DPUs.
 
 * When DPU card (SLED) or the Supervisor boots and as part of its initialization, midplane interface gets initialized.
@@ -280,7 +280,7 @@ A typical modular chassis includes a midplane-interface to interconnect the Supe
     * Solution 2. static ip allocation based on DPU ID. [link](https://github.com/rameshraghupathy/SONiC/blob/origin/ss_pmon_hld/doc/smart-switch/pmon/static-ip-assignment.md)
 * For midplane-interface IP address allocation we will follow the procedure in solution.1 [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
 
-### 3.4.1.    MAC address distribution
+### 3.3.1.    MAC address distribution
 
 * Mac allocation for the Switch Host
     * port X 16 =  512  
@@ -300,7 +300,7 @@ A typical modular chassis includes a midplane-interface to interconnect the Supe
 
 * The MAC address for each host endpoint and the corresponding DPU endpoint will be read from the hardware and updated into the MID_PLANE_IP_MAC table in the ChassisStateDB as shown below. The IP addess will also be stored here for convenience.
 
-### 3.4.2.  ChassisStateDB Schema for MID_PLANE_IP_MAC
+### 3.3.2.  ChassisStateDB Schema for MID_PLANE_IP_MAC
 ```
 Table: “MID_PLANE_IP_MAC”
 
@@ -312,17 +312,17 @@ Key: "midplane_interface|dpu0"
             “dpu_mac”: “BA:CE:AD:D0:D0:01”  # will be updated by the DPU
 ```
 
-## 3.5. Debuggability & RMA
+## 3.4. Debuggability & RMA
 CLI Extensions and Additions
 
 show platform inventory - shows the SLEDs
-<p align="center"><img src="./images/sh-pl-inv.svg"></p>
+<p align="left"><img src="./images/sh-pl-inv.svg"></p>
 
 show platform temperature - shows the DPU temperature
-<p align="center"><img src="./images/sh-pl-tmp.svg"></p>
+<p align="left"><img src="./images/sh-pl-tmp.svg"></p>
 
 show platform fan - shows the fan speed and status
-<p align="center"><img src="./images/sh-pl-fan.svg"></p>
+<p align="left"><img src="./images/sh-pl-fan.svg"></p>
 
 show chassis modules status - will show the dpu status of all DPUs and the Switch supervisor card
 
@@ -334,7 +334,7 @@ show chassis modules status - will show the dpu status of all DPUs and the Switc
 | SUPERVISOR | DSC-7800-SUP1A | 0 | Online | up | SSN20040100 |
 
 show platform dpu health (On DPU) - shows the health info of DPU 
-<p align="center"><img src="./images/sh-pl-dpu-health.svg"></p>
+<p align="left"><img src="./images/sh-pl-dpu-health.svg"></p>
 
 ## 4.   Test Plan
 Provide the Link here
