@@ -53,7 +53,7 @@ The picture below highlights the PMON vertical and its association with other lo
 
 <p align="center"><img src="./images/pmon-vertical.svg"></p>
 
-## 2.	Requirements, Assumptions and SLA
+## 2.	Requirements and Assumptions
 ### 2.1.    Onboarding
 * The SmartSwitch host PMON should be able to Power Cycle, Shutdown, Reset, and rest the PCIe link per DPU or the entire system
 * The DPU must provide additional information such as reboot cause, timestamp, etc as explained in the scheme once it boots its OS to DPU_STATE table.
@@ -76,15 +76,13 @@ The picture below highlights the PMON vertical and its association with other lo
 
 * Thermal management
     * Sensor values and fan speeds, status should be read periodically and stored in SmartSwitch StateDB
-    * Platform modules should use this thermal sensor values against the thresholds in the thermal policy and adjust fan speeds depending on the temperature
+    * Platform modules should use the thermal sensor values against the thresholds in the thermal policy and adjust fan speeds depending on the temperature
     * Trigger thermal shut down on critical policy violation
 
 * Show CLIs
-    * Extend existing CLIs such as show platform fan/temperature to support the new HW
-    * Add new CLIs 
-        ```
-        show dpu <id> state
-        ```
+    * Extend existing CLIs such as 'show platform fan/temperature' to support the new HW
+    * Extend the modular chassis CLI 'show chassis modules status" to display the DPU status
+
 ### 2.3. Detect and Debug
 * Health
     * SmartSwitch DPUs should store their health data in their local StateDB 
@@ -176,10 +174,10 @@ DPU: {
 
 #### 3.1.5 ModuleBase class new APIs
 
-##### 3.1.5.1 Need for consistant storage and access of DPU state and health
+##### 3.1.5.1 Need for consistant storage and access of DPU reboot causae, state and health
 1.  get_reboot_cause for the modules is missing in the existing code. The smartswitch needs to know the reboot cuase for DPUs.
 
-* End User Reboot Cause Table: This table shows the frame work for DPU reboot-cause reporting
+    Table shows the frame work for DPU reboot-cause reporting
 
     | DPU Reboot Cause | HW/SW | End_User_Message_in_DPU_STATE |
     | --- | --- | --- |
@@ -190,11 +188,10 @@ DPU: {
     | PCIE_RESET_CAUSE_SWITCH_INITIATED |	SW | Switch Software resets DPU PCIe link due to PCIe failure |
 
 2. Though the get_oper_status(self) can get the operational status of the DPU Moudules, the current implementation only has limited capabilites.
-    * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progrression the DPU failed
-    * This is critical in fault isolation, DPU switch over decision, resilliency and recovery
+    * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progrression the DPU failed. This is critical in fault isolation, DPU switch over decision, resilliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistant way of storing and acessing the information.
-    * Store the state progression (Powered, PCIe-Link-Status, Host-DPU Eth-Link-Status, Firmware-Boot_status, OS-Boot-Status, CcontrolPlane-State, DataPlane-Status) on the host ChassisStateDB as shown below
-    * get_oper_state_detail(self) will retrun an object with the ChassisStateDB data
+    * Store the state progression (Powered, PCIe-Link-Status, Host-DPU Eth-Link-Status, Firmware-Boot_status, OS-Boot-Status, CcontrolPlane-State, DataPlane-Status) on the host ChassisStateDB.
+    * get_state_info(self) will retrun an object with the ChassisStateDB data
     * Potential consumer: Switch CLIs, Utils (install/repair images), HA, LB, Life Cycle Manager 
     * Use cases: Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state
 
