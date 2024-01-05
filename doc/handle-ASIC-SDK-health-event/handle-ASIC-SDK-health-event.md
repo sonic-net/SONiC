@@ -9,6 +9,7 @@
 | 0.1 | Oct 23, 2023 | Stephen Sun | Initial version |
 | 0.2 | Nov 17, 2023 | Stephen Sun | Fix internal review comments |
 | 0.3 | Dec 11, 2023 | Stephen Sun | Adjust for multi ASIC platform according to the common pratice in the community |
+| 0.4 | Jan 05, 2023 | Stephen Sun | Address community review comments |
 
 ### Scope
 
@@ -37,7 +38,7 @@ Orchagent can abort itself if a SAI API call fails, usually due to a bad argumen
 The current implementation has the following limitations:
 
 - It is difficult for a customer to understand what occured on SAI and below or distinguish an SDK/FW internal error from a SAI API call. Even a customer can analyze the issue using the log message, it is not intuitive.
-- It is unable notify an ASIC/FW/SDK event if the event is less serious to ask for shutdown.
+- It is unable to notify an ASIC/FW/SDK event if the event is less serious to ask for shutdown.
 - It is unable for telementry agent to collect such information.
 
 In this design, we will introduce a new way to address the limitations.
@@ -56,7 +57,9 @@ This section list out all the requirements for the HLD coverage and exemptions (
     1. Extract data from the event (severity, timestamp, description) and push data to the STATE_DB table using timestamp and date as a key
     2. Report the event to gNMI server using the event collect mechanism
 4. CLI commands shall be provided to display or clear all the ASIC/SDK health events in the STATE_DB
-5. A CLI command shall be provided for a customer to suppress a certain type of ASIC/SDK health event on a certain severity.
+5. A CLI command shall be provided for a customer
+    1. to suppress a certain type of ASIC/SDK health event on a certain severity.
+    2. to eliminate old ASIC/SDK health events in the database in order to avoid consuming too much resource.
 6. ASIC/SDK health events should be collected in `show techsupport` as an independent file in `dump`.
 
 ### Architecture Design
@@ -317,6 +320,30 @@ The following error message will be shown if a customer suppresses a severity wh
 
 `Suppressing ASIC/SDK health {severity} event is not supported on the platform`
 
+##### Configure maximum number of ASIC/SDK health events by severity
+
+Command `config asic-sdk-health-event max-event <severity> <max-events>` is introduced for a customer to configure the maximum number of ASIC/SDK health events to be stored in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`.
+
+The severity can be one of `fatal`, `warning`, and `notice`.
+
+The max-events is a number, which represents the maximum number of events the customer wants to store in the database.
+If the max-events is `0`, all events of that severity will be stored in the database and the field `max-events` will be removed from `CONFIG_DB`.
+The system will remove the oldest events of each severity every 1 hour.
+
+The namespace is an option for multi ASIC platforms only.
+
+Eg. the following command configures maximum of `notice` events to 10240.
+
+`config asic-sdk-health-event max-event notice 10240`
+
+The following error message will be shown if a customer configures it on a platform that does not support it.
+
+`ASIC/SDK health event is not supported on the platform`
+
+The following error message will be shown if a customer suppresses a severity which is not supported on the platform.
+
+`Suppressing ASIC/SDK health {severity} event is not supported on the platform`
+
 ##### Display the ASIC/SDK health events
 
 Command `show asic-sdk-health-event received [<--namespace|-n> <namespace>]` is introduced to display the ASIC/SDK health events as a table.
@@ -415,6 +442,10 @@ The following YANG model is introduced for the suppress ASIC/SDK health event
                     description "Severity of the ASIC/SDK health event";
                 }
 
+                leaf max_events {
+                    type int32;
+                }
+
                 leaf-list categories {
                     mandatory true;
                     type enumeration {
@@ -476,12 +507,17 @@ A `sai_timestamp` is provided on top of `timestamp` which is provided by the eve
 
 #### Config DB Enhancements
 
-Table `SUPPRESS_ASIC_SDK_HEALTH_EVENT` contains the list of categories of ASIC/SDK health events that a user wants to suppress for a certain severity.
+Table `SUPPRESS_ASIC_SDK_HEALTH_EVENT` contains
+
+1. the list of categories of ASIC/SDK health events that a user wants to suppress for a certain severity.
+2. the number of events of each severity a user wants to keep
 
 ```text
 key         = SUPPRESS_ASIC_SDK_HEALTH_EVENT:<severity>         ; severity can be one of fatal, warning or notice
 categories  = <software|firmware|cpu_hw|asic_hw>{,<software|firmware|cpu_hw|asic_hw>}
                                                                 ; a list whose element can be one of software, firmware, cpu_hw, asic_hw separated by a comma
+max_events = 1*10DIGIT                                          ; the number of events for a severity a user wants to keep.
+                                                                ; If there are more events than max_events in the database, the older ones will be removed.
 ```
 
 #### Flows
@@ -591,6 +627,19 @@ The flow to handle suppress ASIC/SDK health event configuration is as below:
 7. SAI redis receives the call, validates the arguments, and then call vendor SAI's API.
 
 ![Flow](handle-ASIC-SDK-health-event-images/suppressflow.png "Figure: handle suppress ASIC/SDK health event configuration")
+
+##### Eliminate oldest events from the database
+
+A user can configure the maximum number of events of each severity. The system will check `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` every 1 hour, and remove the oldest entries of a severity if it exceeds the threshold.
+
+As it requires frequent communitcate with redis server, a Lua plugin will be introduced to do this job.
+The Lua plugin will be loaded during system intialization, and check the number of entries in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`, and remove the old entries every 1 hour.
+
+The flow is as below:
+
+1. Check whether `max_events` is configured and exit the flow if it is not configured for any severity.
+2. Check the events in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` and exit the flow if the number of events does not exceed the threshold.
+3. Sort the events by time and remove the oldest events.
 
 ##### Add ASIC/SDK health event to `show asic-sdk-health-event received` to show techsupport
 
