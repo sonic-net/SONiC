@@ -95,6 +95,7 @@ The picture below highlights the PMON vertical and its association with other lo
     * Trigger syslog
 * Console
     * Provide console access to the DPUs through the Host CPU from the front panel management port
+    * The modular chassis console utility will be extended to access DPUs in place of LCs
 ### 2.3. RMA
 * The dpu-cards should be displayed as part of inventory
 * Extend the CLI “show platform inventory” to display the dpu-cards and their state
@@ -130,21 +131,27 @@ SmartSwitch PMON block diagram
 | get_module_dpu_port(self, index) | Retrieves the DPU port (internal ASIC port for DPU) represented by DPU index - 1,8 | yes | na | yes | yes | See section 3.1.3 below |
 
 #### 3.1.3 NPU to DPU port mapping
-platform.json of NPU/switch to have below mapping showing the NPU port to DPU port mapping. This will be used by services early in the system boot for midplane IP assignment
+platform.json of NPU/switch will show the NPU port to DPU port mapping. This will be used by services early in the system boot for midplane IP assignment. In this example there are 8 DPUs and ach having a 200G interface.
 ```
 "DPUs" : [
     {
       "DPU0": {
-                "Ethernet228": "Ehternet0",
-                "Ethernet232": "Ethernet1"  
+                "Ethernet224": "Ehternet0"
        }
     },
     {
        "DPU1": {
-                "Ethernet236": "Ethernet0",
-                "Ethernet240": "Ethernet1"
+                "Ethernet228": "Ethernet0"
         },
-    }
+    },
+    .
+    .
+    {
+       "DPU7": {
+                "Ethernet252": "Ethernet0"
+        },
+    },
+
 ]
 ```
 On the DPU's platform.json, we can have 
@@ -170,7 +177,7 @@ DPU: {
 | get_maximum_consumed_power(self) | Retrieves the maximum power drawn by this module | yes | yes | no | yes | yes |  |
 | get_midplane_ip(self) | Retrieves the midplane IP-address of the module in a modular chassis. When called from the Supervisor, the module could represent the line-card and return the midplane IP-address of the line-card. When called from the line-card, the module will represent the Supervisor and return its midplane IP-address. | yes | yes | new module Switch, DPU | yes | no | IP address for PCIe interface for DPU |
 | is_midplane_reachable(self) | Retrieves the reachability status of the module from the Supervisor or of the Supervisor from the module via the midplane of the modular chassis | yes | yes | no | yes | no |  |
-| get_all_asics(self) | Retrieves the list of all ASICs on the module that are visible in PCI domain. When called from the Supervisor of modular system, the module could be fabric card, and the function returns all fabric ASICs on this module that appear in PCI domain of the Supervisor. | yes | yes | no | yes | no | TBD: Needs some investigation |
+| get_all_asics(self) | Retrieves the list of all ASICs on the module that are visible in PCI domain. When called from the Supervisor of modular system, the module could be fabric card, and the function returns all fabric ASICs on this module that appear in PCI domain of the Supervisor. | na | na | no | na | na | For smartswitch this is NA |
 
 #### 3.1.5 ModuleBase class new APIs
 
@@ -253,8 +260,8 @@ DPU: {
     | API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| HW mgmt change | comments |
     | --- | --- | --- | --- | --- | --- | --- | --- |
     | get_reboot_cause(self) | Retrieves the cause of the previous reboot | yes | yes | yes | yes | yes | Missing in module_base.py |
-    | get_state_info(self) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes | TBD |
-    | get_health_info(self) | Retrieves the dpu health object | no | yes | yes | yes | yes | TBD |
+    | get_state_info(self) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes |  |
+    | get_health_info(self) | Retrieves the dpu health object | no | yes | yes | yes | yes |  |
 
 ### 3.2. Thermal management
 * Platform  initializes all sensors
@@ -324,17 +331,64 @@ show platform temperature - shows the DPU temperature
 show platform fan - shows the fan speed and status
 <p align="left"><img src="./images/sh-pl-fan.svg"></p>
 
+
 show chassis modules status - will show the dpu status of all DPUs and the Switch supervisor card
-
-| Name | Description | Physical-Slot | Oper-Status | Admin-Status | Serial |
-| --- | --- | --- | --- | --- | --- |
-| DPU0 | DPU-12-XX | 1 | Online | up | SN20240105 |
-| DPU1 | DPU-32-XX | 2 | Online | up | SN20240106 |
-| DPU7 | DPU-32-XX | 8 | Online | up | SN20240108 |
-| SUPERVISOR | DSC-7800-SUP1A | 0 | Online | up | SSN20040100 |
-
+```
+root@sonic:~# show chassis modules status
+Name        Description     Physical-Slot   Oper-Status       Admin-Status      Serial
+----        -----------     -------------   -----------       ------------      ------
+DPU0        DPU-12-XX       1               Online             up               SN20240105
+DPU1        DPU-32-XX       2               Online             up               SN20240106
+DPU7        DPU-32-XX       8               Online             up               SN20240108
+CHASSIS     8102-28FH-DPU-O 0               Online              up               FLM274802ER
+``` 
 show platform dpu health (On DPU) - shows the health info of DPU 
 <p align="left"><img src="./images/sh-pl-dpu-health.svg"></p>
 
+show interface status - will show the NPU-DPU interface status also
+```
+root@sonic:~# show interfaces status
+  Interface                                    Lanes    Speed    MTU    FEC    Alias    Vlan    Oper    Admin    Type    Asym PFC
+-----------  ---------------------------------------  -------  -----  -----  -------  ------  ------  -------  ------  ----------
+  Ethernet0  2816,2817,2818,2819,2820,2821,2822,2823     400G   9100    N/A     etp0  routed    down       up     N/A         N/A
+  Ethernet8  2824,2825,2826,2827,2828,2829,2830,2831     400G   9100    N/A     etp1  routed    down       up     N/A         N/A
+ Ethernet16  2056,2057,2058,2059,2060,2061,2062,2063     400G   9100    N/A     etp2  routed    down       up     N/A         N/A
+ Ethernet24  2048,2049,2050,2051,2052,2053,2054,2055     400G   9100    N/A     etp3  routed    down       up     N/A         N/A
+ Ethernet32  1792,1793,1794,1795,1796,1797,1798,1799     400G   9100    N/A     etp4  routed    down       up     N/A         N/A
+ Ethernet40  1800,1801,1802,1803,1804,1805,1806,1807     400G   9100    N/A     etp5  routed    down       up     N/A         N/A
+ Ethernet48  1536,1537,1538,1539,1540,1541,1542,1543     400G   9100    N/A     etp6  routed    down       up     N/A         N/A
+ Ethernet56  1544,1545,1546,1547,1548,1549,1550,1551     400G   9100    N/A     etp7  routed    down       up     N/A         N/A
+ Ethernet64  2304,2305,2306,2307,2308,2309,2310,2311     400G   9100    N/A     etp8  routed    down       up     N/A         N/A
+ Ethernet72  2312,2313,2314,2315,2316,2317,2318,2319     400G   9100    N/A     etp9  routed    down       up     N/A         N/A
+ Ethernet80  2568,2569,2570,2571,2572,2573,2574,2575     400G   9100    N/A    etp10  routed    down       up     N/A         N/A
+ Ethernet88  2576,2577,2578,2579,2580,2581,2582,2583     400G   9100    N/A    etp11  routed    down       up     N/A         N/A
+ Ethernet96  2832,2833,2834,2835,2836,2837,2838,2839     400G   9100    N/A    etp12  routed    down       up     N/A         N/A
+Ethernet104  2560,2561,2562,2563,2564,2565,2566,2567     400G   9100    N/A    etp13  routed    down       up     N/A         N/A
+Ethernet112  2320,2321,2322,2323,2324,2325,2326,2327     400G   9100    N/A    etp14  routed    down       up     N/A         N/A
+Ethernet120  1552,1553,1554,1555,1556,1557,1558,1559     400G   9100    N/A    etp15  routed    down       up     N/A         N/A
+Ethernet128          528,529,530,531,532,533,534,535     400G   9100    N/A    etp16  routed    down       up     N/A         N/A
+Ethernet136  1296,1297,1298,1299,1300,1301,1302,1303     400G   9100    N/A    etp17  routed    down       up     N/A         N/A
+Ethernet144          512,513,514,515,516,517,518,519     400G   9100    N/A    etp18  routed    down       up     N/A         N/A
+Ethernet152          520,521,522,523,524,525,526,527     400G   9100    N/A    etp19  routed    down       up     N/A         N/A
+Ethernet160          272,273,274,275,276,277,278,279     400G   9100    N/A    etp20  routed    down       up     N/A         N/A
+Ethernet168          264,265,266,267,268,269,270,271     400G   9100    N/A    etp21  routed    down       up     N/A         N/A
+Ethernet176                  16,17,18,19,20,21,22,23     400G   9100    N/A    etp22  routed    down       up     N/A         N/A
+Ethernet184          256,257,258,259,260,261,262,263     400G   9100    N/A    etp23  routed    down       up     N/A         N/A
+Ethernet192  1280,1281,1282,1283,1284,1285,1286,1287     400G   9100    N/A    etp24  routed    down       up     N/A         N/A
+Ethernet200  1288,1289,1290,1291,1292,1293,1294,1295     400G   9100    N/A    etp25  routed    down       up     N/A         N/A
+Ethernet208  1024,1025,1026,1027,1028,1029,1030,1031     400G   9100    N/A    etp26  routed    down       up     N/A         N/A
+Ethernet216  1032,1033,1034,1035,1036,1037,1038,1039     400G   9100    N/A    etp27  routed    down       up     N/A         N/A
+
+### SmartSwitch DPU0-7 ###
+Ethernet224                          780,781,782,783     100G   9100    N/A   etp28a  routed    down       up     N/A         N/A
+Ethernet228                          776,777,778,779     100G   9100    N/A   etp28b  routed    down       up     N/A         N/A
+Ethernet232                          768,769,770,771     100G   9100    N/A   etp29a  routed    down       up     N/A         N/A
+Ethernet236                          772,773,774,775     100G   9100    N/A   etp29b  routed    down       up     N/A         N/A
+Ethernet240                                  4,5,6,7     100G   9100    N/A   etp30a  routed    down       up     N/A         N/A
+Ethernet244                                  0,1,2,3     100G   9100    N/A   etp30b  routed    down       up     N/A         N/A
+Ethernet248                                8,9,10,11     100G   9100    N/A   etp31a  routed    down       up     N/A         N/A
+Ethernet252                              12,13,14,15     100G   9100    N/A   etp31b  routed    down       up     N/A         N/A
+
+```
 ## 4.   Test Plan
 Provide the Link here
