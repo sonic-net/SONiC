@@ -2,7 +2,8 @@
 
 | Rev | Date | Author | Change Description |
 | --- | ---- | ------ | ------------------ |
-| 0.1 | 12/02/2023 | Ramesh Raghupathy | Initial version| 
+| 0.1 | 12/02/2023 | Ramesh Raghupathy | Initial version|
+| 0.2 | 01/08/2024 | Ramesh Raghupathy | Updated API, CPI sections and addressed review comments |
 
 ## Definitions / Abbreviations
 
@@ -340,7 +341,7 @@ Name        Description     Physical-Slot   Oper-Status       Admin-Status      
 DPU0        DPU-12-XX       1               Online             up               SN20240105
 DPU1        DPU-32-XX       2               Online             up               SN20240106
 DPU7        DPU-32-XX       8               Online             up               SN20240108
-CHASSIS     8102-28FH-DPU-O 0               Online              up               FLM274802ER
+CHASSIS     8102-28FH-DPU-O 0               Online             up               FLM274802ER
 ``` 
 show platform dpu health (On DPU) - shows the health info of DPU 
 <p align="left"><img src="./images/sh-pl-dpu-health.svg"></p>
