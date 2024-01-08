@@ -311,16 +311,16 @@ The following additional parameters to be given with this api:
 
 For e.g call for port down event.
 current call:
-    event_params_t params = {{"ifname",port.m_alias},{"status",isUp ? "up" : "down"}};
+    event_params_t params = /{/{"ifname",port.m_alias/},/{"status",isUp ? "up" : "down"/}/};
     event_publish(g_events_handle, "if-state", &params);
 
 new call:
-    event_params_t params = {{"ifname",port.m_alias},{"status",isUp ? "up" : "down"}, {"resource", port.m_alias}, {"event-id", "INTERFACE_OPER_STATUS_CHANGE"}, {"text", isUp? "status:UP" : "status:DOWN"}};
+    event_params_t params = /{/{"ifname",port.m_alias},{"status",isUp ? "up" : "down"}, {"resource", port.m_alias}, {"event-id", "INTERFACE_OPER_STATUS_CHANGE"}, {"text", isUp? "status:UP" : "status:DOWN"/}/};
     event_publish(g_events_handle, "if-state", &params);
 
 
 e.g., Sensor temperature critical high
-    event_params_t params = {{"event-id", "SENSOR_TEMP_CRTICAL_HIGH"}, {"text", "Current temperature {}C, critical high threshold {}C", {"action":"RAISE_ALARM"}, {"resource":"sensor_name"}}} ;
+    event_params_t params = /{/{"event-id", "SENSOR_TEMP_CRTICAL_HIGH"}, {"text", "Current temperature {}C, critical high threshold {}C", {"action":"RAISE_ALARM"}, {"resource":"sensor_name"/}/}/} ;
     event_publish(g_events_handle, "sensor_temp_critical_high", &params);
 ### 3.1.2 Event Consumer
 The event consumer is a class in EventDB service that processes the incoming events.
