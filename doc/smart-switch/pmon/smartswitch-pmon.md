@@ -61,7 +61,7 @@ The picture below highlights the PMON vertical and its association with other lo
 * When the DPU reboots itself, should log the reboot cause and update the previous-reboot-cause-dpu field in the ChassisStateDB when it boots up again
 * When the SmartSwitch host reboots the DPU, the host should update the previous-reboot-cause-host field in the ChassisStateDB
 * The reboot-cause history should provide a holistic view of the reboot cause of the SmartSwitch host CPU, the reboot-cause of all the DPUs as seen by the Switch and the DPU itself.
-* The DPUs should be uniquely identified (See DPU-ID IP/MAC allocation table) and the DPU upon boot should get this ID from the host and identify itself.
+* The DPUs should be uniquely identified and the DPU upon boot may get this ID from the host and identify itself.
 * Implement the required API enhancements and new APIs for DPU management (see details in design section)
 * SmartSwitch should use the existing SONiC midplane-interface model in modular chassis design for communication between the DPU and the NPU
 * SmartSwitch should extend the SONiC modular chassis design and treat the dpu-cards just like line-cards in existing design
@@ -112,14 +112,14 @@ SmartSwitch PMON block diagram
 
 | API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| HW mgmt change | comments |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| class ModuleBase | # Possible module types MODULE_TYPE_SUPERVISOR MODULE_TYPE_LINE MODULE_TYPE_FABRIC | yes | yes | #new module type MODULE_TYPE_DPU MODULE_TYPE_SWITCH  | no |  | no |  |
+| class ModuleBase | # Possible module types MODULE_TYPE_SUPERVISOR MODULE_TYPE_LINE MODULE_TYPE_FABRIC | yes | yes | #new module type MODULE_TYPE_DPU MODULE_TYPE_SWITCH  |  |  |  |  |
 
 #### 3.1.1 ChassisBase class API enhancements
 | API | current_usage | switch_cpu | dpu | SONiC_enhancements | PD plugin change| comments |
 | --- | --- | --- | --- | --- | --- | --- |
 | get_supervisor_slot(self) | Retrieves the physical-slot of the supervisor-module in the modular chassis. On the supervisor or line-card modules, it will return the physical-slot of the supervisor-module. | na | na | no  | return 0  | chassisd does not like MODULE_INVALID_SLOT smart switch as chassis, where slot is used as follows 0 - switch, 1 - DPU1, 2 - DPU2, .. 8 - DPU8 |
 | get_my_slot(self) | Retrieves the physical-slot of this module in the modular chassis. | na | na | no | return 0/1-8 | 0 - switch, 1 - DPU1, 2 - DPU2, ... 8 - DPU8 |
-| is_modular_chassis(self) | Retrieves whether the sonic instance is part of modular chassis | yes | na | no | return False | smartswitch chassis is fixed, we are extendign the modular chassis class to support DPU modules |
+| is_modular_chassis(self) | Retrieves whether the sonic instance is part of modular chassis | yes | na | no | return False | smartswitch chassis is fixed, we are extending the modular chassis class to support DPU modules |
 | get_num_modules(self) | Retrieves the number of modules available on this chassis | yes | yes | no | yes | include DPUs |
 | get_all_modules(self) | Retrieves all modules available on this chassis | yes | yes | no | yes | include DPUs |
 | get_module(self, index) | Retrieves module represented by (0-based) index <index> | yes | yes | no | yes | include DPU |
