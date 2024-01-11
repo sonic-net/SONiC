@@ -49,7 +49,7 @@
 				<title>Sheet.1001</title>
 				<v:userDefs>
 					<v:ud v:nameU="ControlHalfHeight" v:prompt="" v:val="VT0(0.125):1"/>
-					<v:ud v:nameU="FillForegnd" v:prompt="" v:val="VT5(1)"/>
+					<v:ud v:nameU="FillForegnd" v:prompt="" v:val="VT0(1):26"/>
 					<v:ud v:nameU="FillForegnd" v:prompt="" v:val="VT5(#92b0da)"/>
 				</v:userDefs>
 				<path d="M0 365.5 A36 9 -180 1 0 72 365.5 L72 293.5 L0 293.5 L0 365.5 Z" class="st1"/>
@@ -89,7 +89,7 @@
 						x="17.03" dy="1.2em" class="st4">network.service</tspan></text>		</g>
 		<g id="shape1003-11" v:mID="1003" v:groupContext="shape" v:layerMember="0" transform="translate(0.25,-315.75)">
 			<title>Document.1003</title>
-			<desc>hwsku.json</desc>
+			<desc>platform.json</desc>
 			<v:custProps>
 				<v:cp v:nameU="Cost" v:lbl="Cost" v:prompt="" v:type="7" v:format="@" v:sortKey="" v:invis="false" v:ask="false"
 						v:langID="1033" v:cal="0"/>
@@ -116,7 +116,7 @@
 			<v:textBlock v:margins="rect(2,2,2,2)"/>
 			<v:textRect cx="36" cy="341.5" width="72" height="42"/>
 			<path d="M0 368.5 L0 320.5 L72 320.5 L72 368.5 A30 30 -180 0 0 36 368.5 A30 30 0 0 1 -0 368.5 Z" class="st5"/>
-			<text x="17.81" y="343.9" class="st6" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>hwsku.json</text>		</g>
+			<text x="14.06" y="343.9" class="st6" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>platform.json</text>		</g>
 		<g id="shape1004-14" v:mID="1004" v:groupContext="shape" transform="translate(87.9999,-349.5)">
 			<title>Circle.1004</title>
 			<desc>1</desc>

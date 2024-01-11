@@ -66,7 +66,7 @@
 						x="17.03" dy="1.2em" class="st3">network.service</tspan></text>		</g>
 		<g id="shape1001-5" v:mID="1001" v:groupContext="shape" v:layerMember="0" transform="translate(0.25,-112.75)">
 			<title>Document.1001</title>
-			<desc>hwsku.json</desc>
+			<desc>platform.json</desc>
 			<v:custProps>
 				<v:cp v:nameU="Cost" v:lbl="Cost" v:prompt="" v:type="7" v:format="@" v:sortKey="" v:invis="false" v:ask="false"
 						v:langID="1033" v:cal="0"/>
@@ -93,7 +93,7 @@
 			<v:textBlock v:margins="rect(2,2,2,2)"/>
 			<v:textRect cx="36" cy="183.5" width="72" height="42"/>
 			<path d="M0 210.5 L0 162.5 L72 162.5 L72 210.5 A30 30 -180 0 0 36 210.5 A30 30 0 0 1 -0 210.5 Z" class="st4"/>
-			<text x="17.81" y="185.9" class="st5" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>hwsku.json</text>		</g>
+			<text x="14.06" y="185.9" class="st5" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>platform.json</text>		</g>
 		<g id="shape1002-8" v:mID="1002" v:groupContext="shape" transform="translate(111.5,-0.25)">
 			<title>Rounded Rectangle.1006</title>
 			<desc>database.service</desc>
