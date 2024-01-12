@@ -10,6 +10,7 @@
 | 0.2 | Nov 17, 2023 | Stephen Sun | Fix internal review comments |
 | 0.3 | Dec 11, 2023 | Stephen Sun | Adjust for multi ASIC platform according to the common pratice in the community |
 | 0.4 | Jan 05, 2023 | Stephen Sun | Address community review comments |
+| 0.5 | Jan 11, 2023 | Stephen Sun | Minor adjustments in CLI |
 
 ### Scope
 
@@ -293,48 +294,42 @@ N/A.
 
 ##### Configure suppress ASIC/SDK health events by severity and category
 
-Command `config asic-sdk-health-event suppress <severity> <category-list>|<none>|<all> [<--namespace|-n> <namespace>]` is introduced for a customer to configure the categories that he/she wants to suppress for a certain severity.
+Command `config asic-sdk-health-event suppress <severity> [<--category-list> <category-list>|<none>|<all>] [<--max-events> <max-events>] [<--namespace|-n> <namespace>]` is introduced for a customer to configure:
+
+- the categories that he/she wants to suppress for a certain severity.
+- the maximum number of ASIC/SDK health events to be stored in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`.
 
 The severity can be one of `fatal`, `warning`, and `notice`.
 
-The category-list is a list whose element is one of `software`, `firmware`, `cpu_hw`, `asic_hw` separated by a comma. The order does not matter.
+The category-list is a list whose elements are one of `software`, `firmware`, `cpu_hw`, `asic_hw` separated by a comma. The order does not matter.
 
-If the category-list is `none`, none category is suppressed and all the categories will be notified for `severity`.
-
-If the category-list is `all`, all the categories are suppressed and none category will be notified for `severity`.
-
-The namespace is an option for multi ASIC platforms only.
-
-The ASIC/SDK health events whose `category` is in `category-list` with the `severity` will not be reported by the vendor SAI once the corresponding SAI attributes are set.
-But the events that were reported after the command is executed but before the SAI attributes are set will be handled by orchagent and pushed into `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` as usual.
-
-Eg. the following command will suppress `notice` events with category `asic_hw` and `cpu_hw`:
-
-`config asic-sdk-health-event suppress notice asic_hw,cpu_hw`
-
-The following error message will be shown if a customer configures it on a platform that does not support it.
-
-`ASIC/SDK health event is not supported on the platform`
-
-The following error message will be shown if a customer suppresses a severity which is not supported on the platform.
-
-`Suppressing ASIC/SDK health {severity} event is not supported on the platform`
-
-##### Configure maximum number of ASIC/SDK health events by severity
-
-Command `config asic-sdk-health-event max-event <severity> <max-events>` is introduced for a customer to configure the maximum number of ASIC/SDK health events to be stored in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`.
-
-The severity can be one of `fatal`, `warning`, and `notice`.
+- If the category-list is `none`, none category is suppressed and all the categories will be notified for `severity` and the field `categories` will be removed.
+- If the category-list is `all`, all the categories are suppressed and none category will be notified for `severity` and the field `catetories` is a list of all categories.
 
 The max-events is a number, which represents the maximum number of events the customer wants to store in the database.
-If the max-events is `0`, all events of that severity will be stored in the database and the field `max-events` will be removed from `CONFIG_DB`.
-The system will remove the oldest events of each severity every 1 hour.
+
+- If the max-events is `0`, all events of that severity will be stored in the database and the field `max_events` will be removed.
+
+If neither `category-list` nor `max-events` exists, the entry will be removed from `CONFIG_DB.SUPPRESS_ASIC_SDK_HEALTH_EVENT`.
 
 The namespace is an option for multi ASIC platforms only.
 
-Eg. the following command configures maximum of `notice` events to 10240.
+If a non-zero `max-events` is configured, the system will remove the oldest events of each severity every 1 hour.
 
-`config asic-sdk-health-event max-event notice 10240`
+If a `category-list` is configured, the ASIC/SDK health events whose `category` is in `category-list` with the `severity` will not be reported by the vendor SAI once the corresponding SAI attributes are set.
+But the events that were reported after the command is executed but before the SAI attributes are set will be handled by orchagent and pushed into `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` as usual.
+
+Eg 1. the following command will suppress `notice` events with category `asic_hw` and `cpu_hw`:
+
+`config asic-sdk-health-event suppress notice --category-list asic_hw,cpu_hw`
+
+After that, the ASIC/SDK health events whose `category` is one of `asic_hw` and `cpu_hw` and `severity` is `notice` will not be reported.
+
+Eg 2. the following command will configure maxinum number of events of `notice` to '10240`:
+
+`config asic-sdk-health-event suppress notice --max-events 10240`
+
+After that, only the most-recently-received 10240 ASIC/SDK health events will be stored in the `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`. All the older entries will be removed.
 
 The following error message will be shown if a customer configures it on a platform that does not support it.
 
@@ -383,7 +378,13 @@ The following error message will be shown if a customer executes the command on 
 
 ##### Display the ASIC/SDK health suppress configuration
 
-Command `show asic-sdk-health-event suppressed-category-list [<--namespace|-n> <namespace>]` is introduced to display the suppressed categories of each severity of ASIC/SDK health events.
+Command `show asic-sdk-health-event suppress-configuration [<--namespace|-n> <namespace>]` is introduced to display the suppressed categories of each severity of ASIC/SDK health events or the maximum events to store in the database.
+
+Only severities that have been configured will be displayed.
+
+- if only category-list is configured, the maximum events will be displayed as `unlimited`
+- if only maximum events is configured, the category-list will be displayed as `none`
+- if neither of above is configured, the severity will not be displayed
 
 An example of the output is as below:
 
@@ -391,22 +392,24 @@ The namespace is an option for multi ASIC platforms only.
 
 ```
 admin@sonic:~$ show asic-sdk-health-event suppressed-category-list
-Severity    Suppressed category-list
-----------  --------------------------
-notice      asic_hw,cpu_hw
+Severity    Suppressed category-list    Max events
+----------  --------------------------  ------------
+fatal       software                    unlimited
+notice      none                        1024
+warning     firmware,asic_hw            10240
 ```
 
 An example of the output on a multi ASIC system:
 ```
 admin@sonic:~$ show asic-sdk-health-event suppressed-category-list
 asic0:
-Severity    Suppressed category-list
-----------  --------------------------
-notice      asic_hw
+Severity    Suppressed category-list    Max events
+----------  --------------------------  ------------
+warning     firmware,asic_hw            10240
 asic1:
-Severity    Suppressed category-list
-----------  --------------------------
-notice      cpu_hw
+Severity    Suppressed category-list    Max events
+----------  --------------------------  ------------
+notice      none                        1024
 ```
 
 The following error message will be shown if a customer executes the command on a platform that does not support it.
@@ -443,7 +446,7 @@ The following YANG model is introduced for the suppress ASIC/SDK health event
                 }
 
                 leaf max_events {
-                    type int32;
+                    type uint32;
                 }
 
                 leaf-list categories {
