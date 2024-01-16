@@ -74,14 +74,14 @@ The implementation as follows
 4. sonic_utilities extended to passkey encyption using the master key/passwd manager.
 5. User has to enter master key/passwd at the time of configuring the passkey, this is mandatory requirement only if "key_encrypt" run time flag is enabled.
 6. The encrypted passkey stored in config_db 
-7. The master key/paswd used for encryption/decryption and will be stored in the same device with root access previleges.
+7. The master key/paswd used for encryption/decryption and will be stored in the same device with root access previleges (/etc/cipher_pass).
 8. HostCfg will use the master key/passwd to decrypt the encrypted passkey and further store it in PAM configuration files. 
 
 #### CLI Changes 
-config tacacs passkey TEST1
-
+config tacacs passkey TEST1 --encrypt
 Password: 
-Note: It will ask for a master key/password only when the 'key_encrypt' flag is set under respective feature table (ex: TACPLUS) in config_db.
+
+Note: It will ask for a master key/password only when '--encrypt' flag is set.
 
 #### Show CLI changes
 Furthermore, aside from encrypting the passkey stored within CONFIG_DB, this infrastructure ensures that the passkey itself remains concealed from any of the displayed CLI outputs. Consequently, the passkey field has been eliminated from the "show tacacs" output, and it will now solely indicate the status whether the passkey is configured or not. For instance,
@@ -95,6 +95,16 @@ Create a new leaf for newly introduced run time flag 'key_encrypt'.
 ### Config DB changes 
 A new run time flag to enable/disable the tacacs passkey encryption feature - "key_encrypt".
 
+### Schema changes 
+```
+"TACPLUS": {
+        "global": {
+            "auth_type": "login",
+            "key_encrypt": "true",
+            "passkey": "<Entrypted_Passkey>"
+        }
+    }
+```
 ### Benefits
 TACACS passkey encryption adds an extra layer of security to safeguard the passkey on each device throughout the network. Furthermore, the implementation of master key/password manager encryption ensures that encrypted passkeys can be reused across network nodes without any complications. Consequently, there are no obstacles when it comes to utilizing the config_db.json file from one device on another. Additionally, the use of a root protected config file effectively reduces the risk of exposing the encryption/decryption master key/passwd since it is only accessible to root users and remains inaccessible to external entities.
 
