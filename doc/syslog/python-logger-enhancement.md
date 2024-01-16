@@ -61,7 +61,7 @@ To set log level to DEBUG:
 swssloglevel -l DEBUG -c <log_identifier>
 ```
 
-There interface of `sonic_py_common.logger.Logger` is completely backward compatible.
+The interface of `sonic_py_common.logger.Logger` is completely backward compatible with its original ones.
 
 ####
 
