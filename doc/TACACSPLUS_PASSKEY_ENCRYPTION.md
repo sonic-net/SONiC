@@ -46,13 +46,13 @@ The revised data handling procedure among the modules is outlined as follows:
 |   | PAM Configuration Files    <------------+       +-----------------+  | AAA Config |     |
 |   +-------------------------+  |            |       |                 |  +------------+     |
 |                                |            |       |                 |                     |
-|         +-------------+        |         +-------------+              |  HostCfg Enforcer   |
-|         |     PAM     |        |         |             |   key-store  +----------^----------+
-|         |  Libraries  |        |    +---->  Master key |     __                  |
-|         +-------------+        |    |    |   Manager   |----|r |                 | Encrypted passkey
-+---------------+----------------+    |    |             |    |o |                 |
-                |                     |    +-------------+    |o |                 |
-           +----v----+                |           |           |t |         +-------+--------+
+|         +-------------+        |         +--------------+             |  HostCfg Enforcer   |
+|         |     PAM     |        |         |              |   key-store +----------^----------+
+|         |  Libraries  |        |    +---->  Master key  |    __                 |
+|         +-------------+        |    |    |   Manager    |---|r |                | Encrypted passkey
++---------------+----------------+    |    |securitycipher|   |o |                |
+                |                     |    +-------------+    |o |                |
+           +----v----+                |           |           |t |         +------+--------+
            |         |                |           |            --          |                |
            |   CLI   +----------------+           +------------------------>    ConfigDB    |
            |         |                                  Encrypted passkey  |                |
