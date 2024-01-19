@@ -75,7 +75,7 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 | ***TACACS NSS Vulnerability*** | The nss library uses popen to execute useradd and usermod commands. Popen executes using a shell (/bin/sh) which is passed the command string with "-c". This means that if untrusted user input is supplied, unexpected shell escapes can occur. To overcome this, we have suggested to use execle instead of popen to avoid shell escape exploits. | [1464](https://github.com/sonic-net/SONiC/issues/1464) | Alpha |
 | ***UMF Infra Enhancement for SONIC-YANG*** | This implements the option to import specific sonic yangs from buildimage sonic-yang-models directory into UMF & CVL enhancement to handle handle singleton tables modeled as a container instead of the usual _LIST syntax | [1397](https://github.com/sonic-net/SONiC/issues/1397) | Alpha |
 | ***UMF Subscription Infra Phase 2*** | This feature implements the  SONiC Telemetry service and Translib infrastructure changes to support gNMI subscriptions and wildcard paths for YANG defined paths. |  [1287](https://github.com/sonic-net/SONiC/pull/1287) | Alpha |
-| ***Upgrade hsflowd and remove dropmon build flags*** | TBD | TBD | TBD |
+| ***Upgrade hsflowd and remove dropmon build flags*** | TBD | [1378](https://github.com/sonic-net/SONiC/issues/1378) | TBD |
 | ***Upgrade to FRR 8.5.1*** | This feature upgrades the FRR 8.5.1 to include latest fixes. | [15965](https://github.com/sonic-net/sonic-buildimage/pull/15965) | Alpha |
 | ***Virtual SONiC Network Helper*** | This feature implements vsnet tool to create network of virtual sonic instances | [8459](https://github.com/sonic-net/sonic-mgmt/pull/8459) | Alpha |
 
