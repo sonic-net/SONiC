@@ -1,4 +1,4 @@
-# BGP Prefix Independent Convergence HLD
+# BGP Prefix Independent Convergence Architecture Document
 
 #### Rev 1.0
 
