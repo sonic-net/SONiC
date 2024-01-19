@@ -176,7 +176,7 @@ Based on the preset `t1-smartswitch` default topology the configuration generate
         }
     },
     "DHCP_SERVER_IPV4": {
-        "bridge_midplane": {
+        "bridge-midplane": {
             "gateway": "169.254.200.254",
             "lease_time": "infinite",
             "mode": "PORT",
@@ -185,12 +185,12 @@ Based on the preset `t1-smartswitch` default topology the configuration generate
         }
     },
     "DHCP_SERVER_IPV4_PORT": {
-        "bridge_midplane|dpu0": {
+        "bridge-midplane|dpu0": {
             "ips": [
                 "169.254.200.1"
             ]
         },
-        "bridge_midplane|dpu1": {
+        "bridge-midplane|dpu1": {
             "ips": [
                 "169.254.200.2"
             ]
@@ -220,8 +220,8 @@ The DHCP_SERVER_IPV4_PORT table includes the following:
 1. Midplane-network.service renders interfaces configuration file /etc/network/interfaces.d/midplane that includes configuration for midplane bridge according to the platform.json.
 
 ```
-auto bridge_midplane
-iface bridge_midplane inet static
+auto bridge-midplane
+iface bridge-midplane inet static
     bridge_ports Dpu0 Dpu1
     address 169.254.200.254
     netmask 255.255.255.0
@@ -238,29 +238,29 @@ iface bridge_midplane inet static
 - (1) sonic-cfggen based on platform.json renders midplane network and DHCP server configuration.
 - (2) sonic-cfggen pushes configuration into the Config DB.
 - (3-4) DHCP server and DHCP relay containers upon start consume configuration from the config DB and start listening for a requests from DHCP clients.
-- (5) DHCP client on the DPU sends a request over the eth0 interfaces. The request comes to the DHCP relay through the midplane bridge. DHCP relay inserts option 82 into the request with the information about the interface from which the request came. DHCP relay forwards the packet to the DHCP server.
+- (5) DHCP client on the DPU sends a request over the eth0-midplane interfaces. The request comes to the DHCP relay through the midplane bridge. DHCP relay inserts option 82 into the request with the information about the interface from which the request came. DHCP relay forwards the packet to the DHCP server.
 - (6) The DHCP server sends a reply with the IP configuration to the DHCP client on the DPU.
 
 ### DPU ###
 
 In the Smart Switch DPU, the PCIe interface should be used as a default management interface for communication with the switch and the outside world.
 
-It is the vendors' responsibility to make sure that the PCIe interface that is connected to the switch has given the `eth0` name.
+It is the vendors' responsibility to make sure that the PCIe interface that is connected to the switch has given the `eth0-midplane` name.
 
-The IP address assignment for the `eth0` management interface in is from the DHCP server of NPU.
+The IP address assignment for the `eth0-midplane` management interface in is from the DHCP server of NPU.
 
 This also ensures that the DPU SONiC image can boot and bring the management interface up automatically with the default configuration.
 
 ![image](./dpu-ip-assignment.svg)
 
-1. Midplane-network.service renders `eth0` interface configuration file /etc/network/interfaces.d/midplane according to the platform.json.
+1. Midplane-network.service renders `eth0-midplane` interface configuration file /etc/network/interfaces.d/midplane according to the platform.json.
 
 ```
-auto eth0
-iface eth0 inet dhcp
+auto eth0-midplane
+iface eth0-midplane inet dhcp
 ```
 
-2. Midplane-network.service needs to wait for the ip address of eth0 be assigned or times out.
+2. Midplane-network.service needs to wait for the ip address of eth0-midplane be assigned or times out.
 3. The database service needs to be started after midplane-network.service.
 
 It is the vendors' responsibility to ensure that the PCIe interfaces on the both switch and DPU sides are initialized with the same speed, duplex, and MTU and can communicate with no additional configuration.
