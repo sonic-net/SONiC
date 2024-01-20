@@ -126,7 +126,7 @@ The PLATFORM configuration shall be extended to provide the information about th
         }
     },
     "midplane_network": {
-        "bridge_name": "midplane_bridge",
+        "bridge_name": "midplane-bridge",
         "bridge_address": "169.254.200.254/24"
     }
 }
