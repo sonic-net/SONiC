@@ -9,7 +9,7 @@
 <!-- omit in toc -->
 ## Table of Content
 - [Goal and Scope](#goal-and-scope)
-  - [BGP PIC at high level](#bgp-pic-at-high-level)
+  - [BGP PIC Edge at high level](#bgp-pic-edge-at-high-level)
   - [Current Linux Kernel Forwarding behavior](#current-linux-kernel-forwarding-behavior)
 - [High Level Design](#high-level-design)
 - [Zebra's Data Structure Modifications](#zebras-data-structure-modifications)
@@ -49,16 +49,18 @@ BGP PIC, as detailed in the RFC available at https://datatracker.ietf.org/doc/dr
 
 The above draft offers two primary enhancements:
 
-- It prevents BGP load balancing updates from being triggered by IGP load balancing updates. This is essentially the recursive VPN route support. This issue, which is discussed in the SONiC Routing Working Group (https://lists.sonicfoundation.dev/g/sonic-wg-routing/files/SRv6%20use%20case%20-%20Routing%20WG.pptx), can be effectively resolved. The recursive routes support would be detailed in a separate HLD.
+- It prevents BGP load balancing updates from being triggered by IGP load balancing updates. This is essentially the recursive VPN route support, a.k.a PIC core case. This issue, which is discussed in the SONiC Routing Working Group (https://lists.sonicfoundation.dev/g/sonic-wg-routing/files/SRv6%20use%20case%20-%20Routing%20WG.pptx), can be effectively resolved. The recursive routes support would be detailed in a separate HLD.
 
 <figure align=center>
     <img src="images/srv6_igp2bgp.jpg" >
     <figcaption>Figure 1. Alibaba issue Underlay routes flap affecting Overlay SRv6 routes <figcaption>
 </figure> 
 
--  We aim to achieve fast convergence in the event of a hardware forwarding failure related to a remote BGP PE becoming unreachable. Convergence in the slow path forwarding mode is not a priority. This is the main benefit for BGP PIC which would be addressed in this HLD.
+-  We aim to achieve fast convergence in the event of a hardware forwarding failure related to a remote BGP PE becoming unreachable. Convergence in the slow path forwarding mode is not a priority. This is the main benefit for BGP PIC edge case which would be addressed in this HLD.
+  
+For detail information about PIC core and PIC edge could be found at SONiC PIC architecture document, https://github.com/sonic-net/SONiC/blob/master/doc/pic/bgp_pic_arch_doc.md 
 
-### BGP PIC at high level
+### BGP PIC Edge at high level
 <figure align=center>
     <img src="images/pic.png" >
     <figcaption>Figure 2. BGP PIC for improving remote BGP PE down event handling <figcaption>
@@ -82,7 +84,7 @@ Current thought is to find a balance way to support both kinds of requirements.
 | Features | Linux Kernel |
 |:---:|:-----------:|
 | MPLS VPN | Flat   | 
-| EVPN     | Flat   |
+| EVPN     | Hierarchy  |
 | SRv6 VPN | No support | 
 
 ## High Level Design
@@ -469,6 +471,7 @@ By incorporating recursive routes support, we can streamline the transition from
 
 ## References
 - https://datatracker.ietf.org/doc/draft-ietf-rtgwg-bgp-pic/
+- https://github.com/sonic-net/SONiC/blob/master/doc/pic/bgp_pic_arch_doc.md
 - https://github.com/opencomputeproject/SAI/blob/master/doc/SAI-IPv6-Segment-Routing-VPN.md
 - https://github.com/sonic-net/SONiC/pull/1425
 
