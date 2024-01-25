@@ -204,15 +204,25 @@ Since support for placing macvlan devices into protodown was not added to Linux 
 
 #### Container
 
-##### VRRP container
+##### BGP container
 
-Add a new VRRP container to host VRRP protocol operations. We control whether the VRRP feature is enabled through the FEATURE table in Config DB, which is disabled by default.
-
-vrrpd: 
+vrrpd:
   - Responsible for all VRRP protocol related calculations. VRRP packets are sent and received in vrrpd and states are updated accordingly.
   - Match VRRP instance tracking interface and recalculate priority.
 
-vrrpmgrd: 
+zebra:
+  - Provide an API for vrrpd to update kernel Macvlan device state.
+  - Listen for kernel interface state change events and notify vrrpd.
+
+vrrpsyncd:
+  - Complete the following tasks:
+    - Listen for kernel Macvlan device state change events, The state of the Macvlan device here determines the Master/Backup state of the VRRP instance, where up r
+epresents Master and down represents Backup.
+    - Update the kernel Macvlan device state to the APPL DB.
+
+##### SWSS container
+
+vrrpmgrd:
   - Listens to VRRP create, delete and parameter change in CONFIG_DB. Complete the following tasks:
     - Add/del Linux Macvlan device to kernel. The Macvlan device name starting with 'Vrrp4-' or 'Vrrp6-'.
     - Config virtual MAC to Macvlan device;
@@ -220,20 +230,7 @@ vrrpmgrd:
     - Update VRRP instance configuration to the APPL DB;
     - Update VRRP instance configuration to vrrpd by using vtysh commands.
 
-vrrpsyncd: 
-  - Complete the following tasks:
-    - Listen for kernel Macvlan device state change events, The state of the Macvlan device here determines the Master/Backup state of the VRRP instance, where up represents Master and down represents Backup.
-    - Update the kernel Macvlan device state to the APPL DB.
-
-##### BGP container
-
-zebra:
-  - Provide an API for vrrpd to update kernel Macvlan device state.
-  - Listen for kernel interface state change events and notify vrrpd.
-
-##### SWSS container
-
-intforch: 
+vrrpforch: 
   - Subscribes to APPL_DB tables, responsible for updating the ASIC DB. Program the VIP and Virtual RIF object via SAI API.
 
 #### CoPP Configurations
@@ -317,46 +314,33 @@ admin@sonic:~$ redis-cli -n 4 HGETALL " VRRP|Vlan10|10"
 
 #### APPL_DB Changes
 
-INTF_TABLE
+VRRP_TABLE
 
 Producer: vrrpmgrd and vrrpsyncd
 
-Consumer: intforch
+Consumer: vrrporch
 
-Description: This is an existing table entry that VRRP will extend.
+Description: This is a new table that contains VRRP state information. This entry will be added to APP_DB for each VIP for every Master VRRP instance. 
 ```
+; New table
 ; holds the VRRP state and VMAC information
 
-key           = INTF_TABLE:Vrrp_intf_name
-                Vrrp_intf_name        ; macvlan device name as a string. The IPv4 format is "Vrrp4-"+"Vrid", while the IPv6 format is "Vrrp6-"+"Vrid"
-
+key = VRRP_TABLE:interface_name:vip:type
+    interface_name        ; interface name as a string. Vlan, Ethernet or PortChannel
+    vip                   ; virtual IP address in a.b.c.d/32 or a::b/128 format
+    type                  ; IPv4 or IPv6 address type string.
+    
 ; field = value
-parent_intf   = interface_name       ; Interface name string. Vlan, Ethernet, PortChannel or sub-interface.
-oper_state    = "up"|"down"          ; The oper state of the Macvlan device in kernel, determines the Master/Backup state of the VRRP instance
+vmac = virtual_mac_address ; Virtual MAC address associated with VRRP instance
 ```
-```
-; holds the VRRP Vip information
 
-key           = INTF_TABLE:Vrrp_intf_name:vip
-                Vrrp_intf_name        ; macvlan device name as a string. The IPv4 format is "Vrrp4-"+"Vrid", while the IPv6 format is "Vrrp6-"+"Vrid"
-                vip                   ; Virtual IP address. IPv4 format is x.x.x.x/32, IPv6 format is xxx::xx/128
+Example:- 
 
-; field = value
-```
-Example:-
-```
-admin@sonic:~$ redis-cli -n 0 HGETALL "INTF_TABLE:Vrrp4-5"
+**Key**: VRRP_TABLE:Vlan1000|40.10.8.101/32
+**Value**: "vmac":"00:00:5e:00:01:08"
 
-1) "parent_intf"
-2) "Ethernet51"
-3) "oper_state"
-4) "up"
-
-admin@sonic:~$ redis-cli -n 0 HGETALL "INTF_TABLE:Vrrp4-5:10.10.10.1/32"
-
-1) "NULL"
-2) "NULL"
-```
+**Key**: VRRP_TABLE:Vlan1001|40::1/128
+**Value**: "vmac":"00:00:5e:00:02:08"
 
 #### ASIC_DB Changes
 
