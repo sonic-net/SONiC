@@ -21,7 +21,6 @@
 | SysFS | Virtual File System provided by the Linux Kernel |
 | CP | Control Plane |
 | DP | Data Plane |
-| SLED | Single Large Extender Device, DPU Card |
 
 ## 1. Introduction
 SmartSwitch offloads the Packet Processors (NPUs) and the host CPUs, freeing up resources for application performance, thereby performing layer four to layer seven functions in a cost effective and space saving way. 
@@ -128,8 +127,8 @@ SmartSwitch PMON block diagram
 #### 3.1.2 ChassisBase class new APIs
 | API | current_usage | switch cpu | dpu | SONiC enhancements | PD plugin change| comments |
 | --- | --- | --- | --- | --- | --- | --- |
-| is_smartswitch(self) | Retrieves whether the sonic instance is part of smartswitch | yes | yes | yes | return True | New API for smartswitch |
-| get_module_dpu_port(self, index) | Retrieves the DPU port (internal ASIC port for DPU) represented by DPU index - 1,8 | yes | na | yes | yes | See section 3.1.3 below |
+| is_smartswitch(self) | Retrieves whether the sonic instance is part of smartswitch | yes | na | yes | return True | New API for smartswitch |
+| get_module_dpu_port(self, index) | Retrieves the DPU port (internal ASIC port for DPU) represented by DPU index - 1,8 | yes | na | yes | see comments | Platforms that require to overwrite the platform.json file will use this API. See section 3.1.3 below |
 
 #### 3.1.3 NPU to DPU port mapping
 platform.json of NPU/switch will show the NPU port to DPU port mapping. This will be used by services early in the system boot for midplane IP assignment. In this example there are 8 DPUs and ach having a 200G interface.
@@ -137,19 +136,19 @@ platform.json of NPU/switch will show the NPU port to DPU port mapping. This wil
 "DPUs" : [
     {
       "DPU0": {
-                "Ethernet224": "Ethernet0"
+                "Ethernet224": "Ethernet0/0"
        }
     },
     {
        "DPU1": {
-                "Ethernet228": "Ethernet0"
+                "Ethernet228": "Ethernet1/0"
         },
     },
     .
     .
     {
        "DPU7": {
-                "Ethernet252": "Ethernet0"
+                "Ethernet252": "Ethernet7/0"
         },
     },
 
@@ -260,9 +259,8 @@ DPU: {
 
     | API | current_usage | switch cpu | dpu | SONiC enhancements | PD plugin change| HW mgmt change | comments |
     | --- | --- | --- | --- | --- | --- | --- | --- |
-    | get_reboot_cause(self) | Retrieves the cause of the previous reboot | yes | yes | yes | yes | yes | Missing in module_base.py |
-    | get_state_info(self) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes |  |
-    | get_health_info(self) | Retrieves the dpu health object | no | yes | yes | yes | yes |  |
+    | get_state_info(self) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes | Fetched from ChassisStateDB |
+    | get_health_info(self) | Retrieves the dpu health object | no | yes | yes | yes | yes | Fetched from DPU |
 
 ### 3.2. Thermal management
 * Platform  initializes all sensors
