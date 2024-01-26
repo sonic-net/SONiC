@@ -259,7 +259,7 @@ DPU: {
 
     | API | current_usage | switch cpu | dpu | SONiC enhancements | PD plugin change| HW mgmt change | comments |
     | --- | --- | --- | --- | --- | --- | --- | --- |
-    | get_state_info(self) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes | Fetched from ChassisStateDB |
+    | get_state_info(self, index) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes | Fetched from ChassisStateDB |
     | get_health_info(self) | Retrieves the dpu health object | no | yes | yes | yes | yes | Fetched from DPU |
 
 ### 3.2. Thermal management
