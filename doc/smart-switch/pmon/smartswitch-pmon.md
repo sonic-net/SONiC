@@ -270,7 +270,7 @@ DPU: {
 * The north bound CLI/Utils/App use DB data to ”show environment”, ”show platform temp” show platform fan”
 
 Thermal management sequence diagram
-<p align="center"><img src="./images/thermal-mgmt-seq.png"></p>
+<p align="center"><img src="./images/thermal-mgmt-seq.svg"></p>
 
 ### 3.2.1 Platform device data collection 
 * thermalctld, led and PSUd post device data to DB periodically
