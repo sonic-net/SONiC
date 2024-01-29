@@ -389,11 +389,11 @@ root@sonic:~#show reboot-cause history
 
 Device      Name                    Cause                       Time                                User    Comment
 
-switch	    2023_10_20_18_52_28  	Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC   	N/A     N/A
-switch	    2023_10_05_18_23_46		reboot                      Wed 05 Oct 2023 06:23:46 PM UTC	    user    N/A
-DPU0		2023_10_04_18_23_46		Power Loss                  Tue 04 Oct 2023 06:23:46 PM UTC	    N/A     N/A
-DPU3		2023_10_03_18_23_46		Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC	    N/A     N/A
-DPU3		2023_10_02_18_23_46		Host Power-cycle            Sun 02 Oct 2023 06:23:46 PM UTC	    N/A     Host lost DPU
+switch      2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
+switch      2023_10_05_18_23_46     reboot                      Wed 05 Oct 2023 06:23:46 PM UTC     user    N/A
+DPU0		2023_10_04_18_23_46		Power Loss                  Tue 04 Oct 2023 06:23:46 PM UTC     N/A     N/A
+DPU3		2023_10_03_18_23_46     Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
+DPU3        2023_10_02_18_23_46		Host Power-cycle            Sun 02 Oct 2023 06:23:46 PM UTC	    N/A     Host lost DPU
 DPU3		2023_10_02_17_23_46		Host Reset DPU              Sun 02 Oct 2023 05:23:46 PM UTC	    N/A     N/A
 DPU2		2023_10_02_17_20_46		reboot                      Sun 02 Oct 2023 05:20:46 PM UTC	    admin   User issued 'reboot'
 
@@ -402,45 +402,45 @@ root@sonic:~#show reboot-cause history dpu3
 
 Device      Name                    Cause                           Time                                User    Comment 
    
-DPU3		2023_10_03_18_23_46		Watchdog: stage 1 expired;      Mon 03 Oct 2023 06:23:46 PM UTC	    N/A     N/A
-DPU3		2023_10_02_18_23_46		Host Power-cycle                Sun 02 Oct 2023 06:23:46 PM UTC	    N/A     Host lost DPU
-DPU3		2023_10_02_17_23_46		Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC	    N/A     N/A
+DPU3        2023_10_03_18_23_46     Watchdog: stage 1 expired;      Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
+DPU3        2023_10_02_18_23_46     Host Power-cycle                Sun 02 Oct 2023 06:23:46 PM UTC     N/A     Host lost DPU
+DPU3        2023_10_02_17_23_46     Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC	    N/A     N/A
 ```
 
 show chassis modules status - will show the dpu status of all DPUs and the Switch supervisor card
 ```
 root@sonic:~#show chassis modules status                                                                                          
-Name        Description     Physical-Slot   Oper-Status	    Admin-Status     Serial
-                         
-DPU0        SS-DPU-0            1           Online         	up		        SN20240105			
-SWITCH		Chassis:		    0		    Online		  	N/A		        FLM27000ER
+Name        Description         Physical-Slot       Oper-Status     Admin-Status    Serial
+
+DPU0        SS-DPU-0            1                   Online          up              SN20240105
+SWITCH      Chassis             0                   Online          N/A             FLM27000ER
 
 
 show chassis modules health-summary <module-name>
 
 root@sonic:~#show chassis modules health-summary dpu0
 
-Name    Description     Physical-Slot   Oper-Status     Detailed-States  Sate-Value     Admin-Status   Serial	                              
-DPU0    SS-DPU-0        1               Online          power 				up			up			SN20240105			
-												        pice-link 			up
-												        host-eth-links      up
-												        firmware            up
-												        sonic               up
-												        control-plane       up
-												        data-plane          up
+Name    Description     Physical-Slot   Oper-Status     Detailed-States     Sate-Value  Admin-Status    Serial
 
+DPU0    SS-DPU-0        1               Online          power               up          up              SN20240105
+                                                        pice-link           up
+                                                        host-eth-links      up
+                                                        firmware            up
+                                                        sonic               up
+                                                        control-plane       up
+                                                        data-plane          up
 
 root@sonic:~#show chassis modules health-events dpu0  -t error
 
 Name    Timestamp           Name                        Count       Severity        Description
 
-DPU0    20230619 05:20:34   single-bit-ecc-err-mem1     3           LEVEL_ERROR		1 bit etc correctable error
-		20230619 04:22:34   int_prp4_read               10          LEVEL_ERROR		Software Error
+DPU0    20230619 05:20:34   single-bit-ecc-err-mem1     3           LEVEL_ERROR     1 bit etc correctable error
+DPU0    20230619 04:22:34   int_prp4_read               10          LEVEL_ERROR     Software Error
 ``` 
 The "health" cli when executed on the DPU itself will be as shown below.
 ```
 root@sonic:~#show chassis health-events -t error
-                                                                                      
+
 Timestamp               Name                        Count   Severity        Description
 
 20230619 05:20:34       single-bit-ecc-err-mem1     3       LEVEL_ERROR     1 bit etc correctable error
