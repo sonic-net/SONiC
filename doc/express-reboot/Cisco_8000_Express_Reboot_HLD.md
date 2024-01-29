@@ -1,15 +1,15 @@
 #
-# Cisco 8000 Sonic Express reboot HLD Spec
+# Sonic Express reboot HLD Spec
 
 ## Overview
 
-The goal of Sonic express reboot is to be able to restart and upgrade SONiC software on Cisco 8000 switch with sub-second data plane interruption. This document covers implementation in Sonic and SAI interface. 
+The goal of Sonic express reboot is to be able to restart and upgrade SONiC software with sub-second data plane interruption. This document covers implementation in Sonic and SAI interface. 
 
 ## fast-reboot script
 
 The existing fast-reboot script ((https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot) that is used to trigger fast-reboot/warm-boot will be enhanced to support express-reboot. Major changes are:
 
-1.	Enforce express-reboot is only applicable to Cisco 8000 platforms.
+1.	Enforce express-reboot is only applicable to Cisco 8000 platforms at the moment.
 2.	During express-reboot shutdown path, syncd_request_shutdown will be called with a new option “-pxe” to inform syncd pre-shutdown for express boot mode. The actual calls will be “docker exec syncd /usr/bin/syncd_request_shutdown –pxe”.
 3.	“SONIC_BOOT_TYPE=express” will be added to reboot cmdline to indicate express-reboot.
 
