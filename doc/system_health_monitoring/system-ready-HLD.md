@@ -102,7 +102,7 @@ This feature will be part of system-health framework.
  - Event based model where the feedback is immediate
  - Know the overall system status through syslog and as well through CLIs
  - It brings in the concept of application readiness to allow each application/service/docker to declare themselves as ready based on different application specific criteria.
- - Combatibility with application extension framework.
+ - Compatibility with application extension framework.
     SONiC package installation process will register new feature in CONFIG DB.
     Third party dockers(signature verified) gets integrated into sonic os and runs similar to the existing dockers accessing db etc.
     Now, once the feature is enabled, it becomes part of either sonic.target or multi-user.target and when it starts, it automatically comes under the system monitor framework watchlist.
