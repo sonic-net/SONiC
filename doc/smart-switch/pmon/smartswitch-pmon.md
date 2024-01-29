@@ -58,7 +58,6 @@ The picture below highlights the PMON vertical and its association with other lo
 * The SmartSwitch host PMON should be able to Power Cycle, Shutdown, Reset, and rest the PCIe link per DPU or the entire system
 * The DPU must provide additional information such as reboot cause, timestamp, etc as explained in the scheme once it boots its OS to DPU_STATE table.
 * When the DPU reboots itself, should log the reboot cause and update the previous-reboot-cause-dpu field in the ChassisStateDB when it boots up again
-* When the SmartSwitch host reboots the DPU, the host should update the previous-reboot-cause-host field in the ChassisStateDB
 * The reboot-cause history should provide a holistic view of the reboot cause of the SmartSwitch host CPU, the reboot-cause of all the DPUs as seen by the Switch and the DPU itself.
 * The DPUs should be uniquely identified and the DPU upon boot may get this ID from the host and identify itself.
 * Implement the required API enhancements and new APIs for DPU management (see details in design section)
@@ -68,25 +67,24 @@ The picture below highlights the PMON vertical and its association with other lo
     * Only cold reboot of DPUs is required, warm boot support is not required.
 ### 2.2. Monitoring and Thermal Management
 * Dpu State
-    * The DPUs should provide their state to the host as the boot progression happens
-    * SmartSwitch should store the dpu state data in the DPU_STATE table in the host ChassisStateDB (explained in DB schema)
+    * The DPUs should provide their state to the host as the boot progression happens by updating the dpu state data in the DPU_STATE table in the host ChassisStateDB (explained in DB schema)
     * DPUs should be able to store the data using a redis call
-    * The DPU must provide additional information on the state once it boots its OS to DPU_STATE table.
-    * The SmartSwitch host PMON should be able to monitor the liveliness of the DPUs and when they go down should be able to take appropriate actions such as updating the state of the DPU in the DB and should try to gracefully recover the DPU when requested by the PMON
+    * The DPU must provide the state information once it boots its OS to DPU_STATE table.
+    * The SmartSwitch host PMON should be able to monitor the liveliness of the DPUs and when they go down should be able to take appropriate actions  and should try to gracefully recover the DPU when requested by the PMON
 
 * Thermal management
-    * Sensor values and fan speeds, status should be read periodically and stored in SmartSwitch StateDB
+    * Sensor values, fan speeds and fan status should be read periodically and stored in SmartSwitch StateDB
     * Platform modules should use the thermal sensor values against the thresholds in the thermal policy and adjust fan speeds depending on the temperature
     * Trigger thermal shut down on critical policy violation
 
 * Show CLIs
     * Extend existing CLIs such as 'show platform fan/temperature' to support the new HW
-    * Extend the modular chassis CLI 'show chassis modules status" to display the DPU status
+    * Extend the modular chassis CLI 'show chassis modules status" to display the DPU state and health. (See CLIs section)
 
 ### 2.3. Detect and Debug
 * Health
     * SmartSwitch DPUs should store their health data in their local StateDB 
-    * DPUs should support a CLI to display the health data “show dpu health”
+    * DPUs should support a CLI to display the health data “show chassis health-events”
     * The host should be able to access this data using a redis call or an api
 * Alarm and Syslog
     * Raise alarms when the temperature thresholds exceed, fans run slow or not present or faulty
@@ -97,8 +95,8 @@ The picture below highlights the PMON vertical and its association with other lo
     * Provide console access to the DPUs through the Host CPU from the front panel management port
     * The modular chassis console utility will be extended to access DPUs in place of LCs
 ### 2.3. RMA
-* The dpu-cards should be displayed as part of inventory
-* Extend the CLI “show platform inventory” to display the dpu-cards and their state
+* The DPUs should be displayed as part of inventory
+* Extend the CLI “show platform inventory” to display the DPUs
 * The system should be powered down for replacement of dpu-card
 
 ## 3.	SmartSwitch PMON Design
@@ -109,9 +107,9 @@ SmartSwitch PMON block diagram
 * SmartSwitch design Extends the existing chassis_base and module_base as described below.
 * Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch
 
-| API | current_usage | switch cpu | dpu | SONiC enhancements | PD plugin change| HW mgmt change | comments |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| class ModuleBase | # Possible module types MODULE_TYPE_SUPERVISOR MODULE_TYPE_LINE MODULE_TYPE_FABRIC | yes | yes | #new module type MODULE_TYPE_DPU MODULE_TYPE_SWITCH  |  |  |  |  |
+| API | current_usage | switch cpu | dpu | SONiC enhancements |
+| --- | --- | --- | --- | --- |
+| class ModuleBase | # Possible module types MODULE_TYPE_SUPERVISOR MODULE_TYPE_LINE MODULE_TYPE_FABRIC | yes | yes | #new module type MODULE_TYPE_DPU MODULE_TYPE_SWITCH |
 
 #### 3.1.1 ChassisBase class API enhancements
 | API | current_usage | switch cpu | dpu | SONiC enhancements | PD plugin change| comments |
@@ -182,7 +180,7 @@ DPU: {
 #### 3.1.5 ModuleBase class new APIs
 
 ##### 3.1.5.1 Need for consistent storage and access of DPU reboot cause, state and health
-1.  get_reboot_cause for the modules is missing in the existing code. The smartswitch needs to know the reboot cause for DPUs.
+1.  The smartswitch needs to know the reboot cause for DPUs.
 
     Table shows the frame work for DPU reboot-cause reporting
 
@@ -224,10 +222,8 @@ DPU: {
             "os_state": "UP",
             "os_state_time": "timestamp",
             "os_reason": ”version x",
-            "previous_reboot_reason_from_dpu": “Software reboot ”,
-            "previous_reboot_time_from_dpu ": “timestamp”,
-            “previous_reboot_reason_from_host”: ”Powered Down DPU - Temperature failure”,
-            "previous_reboot_time_from_host ": “timestamp”,
+            "previous_reboot_reason": “Software reboot ”,
+            "previous_reboot_time": “timestamp”,
             "control_plane_state": ”DOWN",
             "control_plane_time": ”timestamp",
             "control_plane_reason": ”containers restarting",
@@ -236,9 +232,9 @@ DPU: {
             "data_plane_reason": ”Pipeline failure",
     ```
 
-3. Each DPU has to maintain a table for storing the health in its local DB (get_health_info(self))
+3. Each DPU has to store the health either in its local DB or in a sysfs filesystem and should provide the object when requested using the API(get_health_info(self))
 * The DPU is a complex hardware, for debuggability, a consistent way of storing and accessing the health record of the DPUs is critical in a multi vendor scenario even though it is platform specific implementation.
-* Each DPU stores the health information in its local stateDB
+
 * DPU local stateDB Schema for DPU_HEALTH
     ```
     Table: “DPU_HEALTH”
@@ -252,7 +248,7 @@ DPU: {
             "description": "Single bit error Correction", # Event
             "name": "ms.ms.int_prp2_read", 
             "severity": "LEVEL_INFO", # DEBUG, INFO, WARNING, ERROR
-            "timestamp": "20230618 14:56:15" 
+            "timestamp": "20230618 14:56:15"
         } 
     ```
 * ModuleBase class new APIs
@@ -321,29 +317,135 @@ Key: "midplane_interface|dpu0"
 ## 3.4. Debuggability & RMA
 CLI Extensions and Additions
 
-show platform inventory - shows the dpu-cards
-<p align="left"><img src="./images/sh-pl-inv.svg"></p>
+show platform inventory - shows the DPUs on the switch
+```
+root@sonic:~#show platform inventory
 
-show platform temperature - shows the DPU temperature
-<p align="left"><img src="./images/sh-pl-tmp.svg"></p>
+    Name                Product ID      Version         Serial Number   Description
 
-show platform fan - shows the fan speed and status
-<p align="left"><img src="./images/sh-pl-fan.svg"></p>
+Chassis
+    CHASSIS             28FH-DPU-O 	0.10            FLM274802ER     28x400G QSFPDD DPU-Enabled 2RU Smart Switch,Open SW
 
+Route Processors
+    RP0                 28FH-DPU-O 	0.10            FLM274802ER     28x400G QSFPDD DPU-Enabled 2RU Smart Switch,Open SW
+
+DPU Modules
+    DPU0                8K-DPU400-2A    0.10            FLM2750036X     400G DPU 
+    DPU1                8K-DPU400-2A    0.10            FLM2750036S     400G DPU 
+    DPU2                8K-DPU400-2A    0.10            FLM274801EY     400G DPU 
+    DPU3                8K-DPU400-2A    0.10            FLM27500371     400G DPU
+
+Power Supplies                                                                
+    psutray                                                                                                                                                             
+        PSU0            PSUXKW-ACPI     0.0             POG2427K01K     AC Power Module with Port-side Air Intake                                                 
+        PSU1            PSUXKW-ACPI     0.0             POG2427K00Y     AC Power Module with Port-side Air Intake                                                 
+
+Cooling Devices
+    fantray0            FAN-2RU-PI-V3   N/A             N/A             8000 Series 2RU Fan 
+    fantray1            FAN-2RU-PI-V3   N/A             N/A             8000 Series 2RU Fan 
+    fantray2            FAN-2RU-PI-V3   N/A             N/A             8000 Series 2RU Fan 
+    fantray3            FAN-2RU-PI-V3   N/A             N/A             8000 Series 2RU Fan
+
+FPDs
+    RP0/info.0                          0.5.6-253      
+
+```
+
+show platform temperature - shows the DPU temperature on the switch
+```
+root@sonic:~#show platform temperature
+
+         Sensor    Temperature    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
+---------------  -------------  ---------  --------  --------------  -------------  ---------  -----------------
+        DPU_0_T         37.438      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
+        DPU_1_T         37.563      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
+        DPU_2_T           38.5      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
+        DPU_3_T         38.813      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
+     FAN_Sensor         23.201      100.0      -5.0           102.0          -10.0      False  20230728 06:39:18
+ MB_PORT_Sensor         21.813       97.0      -5.0           102.0          -10.0      False  20230728 06:39:18
+MB_TMP421_Local          26.25      135.0      -5.0           140.0          -10.0      False  20230728 06:39:18
+       SSD_Temp           40.0       80.0      -5.0            83.0          -10.0      False  20230728 06:39:18
+   X86_CORE_0_T           37.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
+   X86_CORE_1_T           37.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
+   X86_PKG_TEMP           41.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
+```
+
+show platform fan - shows the fan speed and status on the switch
+```
+root@sonic:~#show platform fan
+
+  Drawer    LED           FAN    Speed    Direction    Presence    Status          Timestamp
+--------  -----  ------------  -------  -----------  ----------  --------  -----------------
+     N/A    N/A     PSU0.fan0      50%          N/A     Present        OK  20230728 06:41:18
+     N/A    N/A     PSU1.fan0      50%          N/A     Present        OK  20230728 06:41:18
+fantray0    N/A  fantray0.fan      55%       intake     Present        OK  20230728 06:41:17
+fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230728 06:41:17
+fantray2    N/A  fantray2.fan      56%       intake     Present        OK  20230728 06:41:17
+fantray3    N/A  fantray3.fan      56%       intake     Present        OK  20230728 06:41:17
+```
+show reboot-cause history on the switch shows the dpu reboot-cause as well.
+```
+root@sonic:~#show reboot-cause history
+
+Device      Name                    Cause                       Time                                User    Comment
+
+switch	    2023_10_20_18_52_28  	Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC   	N/A     N/A
+switch	    2023_10_05_18_23_46		reboot                      Wed 05 Oct 2023 06:23:46 PM UTC	    user    N/A
+DPU0		2023_10_04_18_23_46		Power Loss                  Tue 04 Oct 2023 06:23:46 PM UTC	    N/A     N/A
+DPU3		2023_10_03_18_23_46		Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC	    N/A     N/A
+DPU3		2023_10_02_18_23_46		Host Power-cycle            Sun 02 Oct 2023 06:23:46 PM UTC	    N/A     Host lost DPU
+DPU3		2023_10_02_17_23_46		Host Reset DPU              Sun 02 Oct 2023 05:23:46 PM UTC	    N/A     N/A
+DPU2		2023_10_02_17_20_46		reboot                      Sun 02 Oct 2023 05:20:46 PM UTC	    admin   User issued 'reboot'
+
+"show reboot-cause history <module-name>"  shows the reboot-cause history of the specified module
+root@sonic:~#show reboot-cause history dpu3
+
+Device      Name                    Cause                           Time                                User    Comment 
+   
+DPU3		2023_10_03_18_23_46		Watchdog: stage 1 expired;      Mon 03 Oct 2023 06:23:46 PM UTC	    N/A     N/A
+DPU3		2023_10_02_18_23_46		Host Power-cycle                Sun 02 Oct 2023 06:23:46 PM UTC	    N/A     Host lost DPU
+DPU3		2023_10_02_17_23_46		Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC	    N/A     N/A
+```
 
 show chassis modules status - will show the dpu status of all DPUs and the Switch supervisor card
 ```
-root@sonic:~# show chassis modules status
-Name        Description     Physical-Slot   Oper-Status       Admin-Status      Serial
-----        -----------     -------------   -----------       ------------      ------
-DPU0        DPU-12-XX       1               Online             up               SN20240105
-DPU1        DPU-32-XX       2               Online             up               SN20240106
-DPU7        DPU-32-XX       8               Online             up               SN20240108
-CHASSIS     8102-28FH-DPU-O 0               Online             up               FLM274802ER
-``` 
-show platform dpu health (On DPU) - shows the health info of DPU 
-<p align="left"><img src="./images/sh-pl-dpu-health.svg"></p>
+root@sonic:~#show chassis modules status                                                                                          
+Name        Description     Physical-Slot   Oper-Status	    Admin-Status     Serial
+                         
+DPU0        SS-DPU-0            1           Online         	up		        SN20240105			
+SWITCH		Chassis:		    0		    Online		  	N/A		        FLM27000ER
 
+
+show chassis modules health-summary <module-name>
+
+root@sonic:~#show chassis modules health-summary dpu0
+
+Name    Description     Physical-Slot   Oper-Status     Detailed-States  Sate-Value     Admin-Status   Serial	                              
+DPU0    SS-DPU-0        1               Online          power 				up			up			SN20240105			
+												        pice-link 			up
+												        host-eth-links      up
+												        firmware            up
+												        sonic               up
+												        control-plane       up
+												        data-plane          up
+
+
+root@sonic:~#show chassis modules health-events dpu0  -t error
+
+Name    Timestamp           Name                        Count       Severity        Description
+
+DPU0    20230619 05:20:34   single-bit-ecc-err-mem1     3           LEVEL_ERROR		1 bit etc correctable error
+		20230619 04:22:34   int_prp4_read               10          LEVEL_ERROR		Software Error
+``` 
+The "health" cli when executed on the DPU itself will be as shown below.
+```
+root@sonic:~#show chassis health-events -t error
+                                                                                      
+Timestamp               Name                        Count   Severity        Description
+
+20230619 05:20:34       single-bit-ecc-err-mem1     3       LEVEL_ERROR     1 bit etc correctable error
+20230619 04:22:34       int_prp4_read               10      LEVEL_ERROR     Software Error
+```
 show interface status - will show the NPU-DPU interface status also
 ```
 root@sonic:~# show interfaces status
@@ -378,7 +480,7 @@ Ethernet200  1288,1289,1290,1291,1292,1293,1294,1295     400G   9100    N/A    e
 Ethernet208  1024,1025,1026,1027,1028,1029,1030,1031     400G   9100    N/A    etp26  routed    down       up     N/A         N/A
 Ethernet216  1032,1033,1034,1035,1036,1037,1038,1039     400G   9100    N/A    etp27  routed    down       up     N/A         N/A
 
-### SmartSwitch DPU0-7 ###
+### SmartSwitch DPU0-X ###
 Ethernet224                          780,781,782,783     100G   9100    N/A   etp28a  routed    down       up     N/A         N/A
 Ethernet228                          776,777,778,779     100G   9100    N/A   etp28b  routed    down       up     N/A         N/A
 Ethernet232                          768,769,770,771     100G   9100    N/A   etp29a  routed    down       up     N/A         N/A
