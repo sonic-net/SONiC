@@ -387,15 +387,15 @@ show reboot-cause history on the switch shows the dpu reboot-cause as well.
 ```
 root@sonic:~#show reboot-cause history
 
-Device      Name                    Cause                       Time                                User    Comment
+Device          Name                    Cause                       Time                                User    Comment
 
-switch      2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
-switch      2023_10_05_18_23_46     reboot                      Wed 05 Oct 2023 06:23:46 PM UTC     user    N/A
-DPU0		2023_10_04_18_23_46		Power Loss                  Tue 04 Oct 2023 06:23:46 PM UTC     N/A     N/A
-DPU3		2023_10_03_18_23_46     Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
-DPU3        2023_10_02_18_23_46		Host Power-cycle            Sun 02 Oct 2023 06:23:46 PM UTC	    N/A     Host lost DPU
-DPU3		2023_10_02_17_23_46		Host Reset DPU              Sun 02 Oct 2023 05:23:46 PM UTC	    N/A     N/A
-DPU2		2023_10_02_17_20_46		reboot                      Sun 02 Oct 2023 05:20:46 PM UTC	    admin   User issued 'reboot'
+switch          2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
+switch          2023_10_05_18_23_46     reboot                      Wed 05 Oct 2023 06:23:46 PM UTC     user    N/A
+DPU0            2023_10_04_18_23_46     Power Loss                  Tue 04 Oct 2023 06:23:46 PM UTC     N/A     N/A
+DPU3            2023_10_03_18_23_46     Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
+DPU3            2023_10_02_18_23_46     Host Power-cycle            Sun 02 Oct 2023 06:23:46 PM UTC     N/A     Host lost DPU
+DPU3            2023_10_02_17_23_46     Host Reset DPU              Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
+DPU2            2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
 
 "show reboot-cause history <module-name>"  shows the reboot-cause history of the specified module
 root@sonic:~#show reboot-cause history dpu3
@@ -404,7 +404,7 @@ Device      Name                    Cause                           Time        
    
 DPU3        2023_10_03_18_23_46     Watchdog: stage 1 expired;      Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
 DPU3        2023_10_02_18_23_46     Host Power-cycle                Sun 02 Oct 2023 06:23:46 PM UTC     N/A     Host lost DPU
-DPU3        2023_10_02_17_23_46     Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC	    N/A     N/A
+DPU3        2023_10_02_17_23_46     Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
 ```
 
 show chassis modules status - will show the dpu status of all DPUs and the Switch supervisor card
