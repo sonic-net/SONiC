@@ -114,7 +114,7 @@ LDAP_TABLE:{
 		"bind_dn": {{ (emtpy) }}
 		"bind_password": {{ empty with starts **** }}
 		"bind_timeout": {{ (5 (duration_sec)) }}
-		"ldap_version": {{3}}
+		"version": {{3}}
 		"base_dn": {{ou=users,dc=example,dc=com (string)}}
 		"port": {{389}}
 		"timeout": {{5 (duration_sec)}}
@@ -153,30 +153,10 @@ not relevant
 module sonic-system-ldap {
     yang-version 1.1;
     namespace "http://github.com/Azure/sonic-system-ldap";
-    prefix ssys;
+    prefix ssys-ldap;
 
     import ietf-inet-types {
         prefix inet;
-    }
-
-    import sonic-port {
-        prefix port;
-    }
-
-    import sonic-portchannel {
-        prefix lag;
-    }
-
-    import sonic-loopback-interface {
-        prefix loopback;
-    }
-
-    import sonic-interface {
-        prefix interface;
-    }
-
-    import sonic-mgmt_port {
-        prefix mgmt-port;
     }
 
     description "LDAP YANG Module for SONiC OS";
@@ -190,9 +170,9 @@ module sonic-system-ldap {
         container LDAP_SERVER {
             list LDAP_SERVER_LIST {
                 max-elements 8;
-                key "ipaddress";
+                key "hostname";
 
-                leaf ipaddress {
+                leaf hostname {
                     type inet:host;
                     description
                         "LDAP server's Domain name or IP address (IPv4 or IPv6)";
@@ -227,7 +207,7 @@ module sonic-system-ldap {
                     type string {
                         length "1..65";
                         pattern "[^ #,]*" {
-                            error-message 'TACACS shared secret (Valid chars are ASCII printable except SPACE, "#", and ",")';
+                            error-message 'LDAP shared secret (Valid chars are ASCII printable except SPACE, "#", and ",")';
                         }
                     }
                     description "Shared secret used for encrypting the communication";
@@ -243,7 +223,7 @@ module sonic-system-ldap {
                     description "Ldap bind timeout";
                 }
 
-                leaf ldap_version {
+                leaf version {
                     default 3;
                     type uint16 {
                         range "1..3" {
@@ -260,10 +240,10 @@ module sonic-system-ldap {
                     description "Ldap user base dn";
                 }
 
-                leaf ldap_port {
+                leaf port {
                     type inet:port-number;
                     default 389;
-                    description "TCP port to communite with LDAP server";
+                    description "TCP port to communicate with LDAP server";
                 }
 
                 leaf timeout {
@@ -286,13 +266,12 @@ module sonic-system-ldap {
 ```
 LDAP_TABLE:{
 	global:{
-		"state": {{enabled/disabled}}
 		"bind_dn": {{ (string) }}
 		"bind_password": {{ ******** (string)}}
 		"bind_timeout": {{ (5 (duration_sec)) }}
-		"ldap_version": {{num}}
-		"user_base_dn": {{ou=users,dc=example,dc=com (string)}}
-		"ldap_port": {{num}}
+		"version": {{num}}
+		"base_dn": {{ou=users,dc=example,dc=com (string)}}
+		"port": {{num}}
 		"timeout": {{5 (duration_sec)}}
 	}
 }
@@ -383,7 +362,6 @@ LDAP configuration:
 -	Configure bind-dn
 -	Configure bind-password
 -	Configure ldap server-ip (not necessary a real IP)
--	Configure group-attribute
 -	Configure ldap port (other than default)
 -	Configure scope
 -	Configure timeout
@@ -406,7 +384,6 @@ Check config files after all config are set
 -	Configure bind-dn
 -	Configure bind-password
 -	Configure ldap server-ip
--	Configure group-attribute
 -	Configure ldap port
 -	Configure scope
 -	Configure timeout
@@ -464,7 +441,7 @@ config ldap host <ADDRESS> --prio <1 - 8>
 config ldap bind_dn <TEXT>
 config ldap bind_password <TEXT>
 config ldap bind_timeout <0 – 120>
-config ldap ldap_version <1 - 3>
+config ldap version <1 - 3>
 config ldap base_dn <TEXT>
 config ldap port <1-65535>
 config ldap timeout <1-60>
