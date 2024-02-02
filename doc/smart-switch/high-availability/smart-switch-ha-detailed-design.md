@@ -3,10 +3,11 @@
 | Rev | Date | Author | Change Description |
 | --- | ---- | ------ | ------------------ |
 | 0.1 | 10/14/2023 | Riff Jiang | Initial version |
+| 0.2 | 02/02/2024 | Riff Jiang | Adding more HA mode support |
 
 1. [1. High level data flow](#1-high-level-data-flow)
-   1. [1.1. Upstream policy programming path](#11-upstream-policy-programming-path)
-   2. [1.2. Probe state update path](#12-probe-state-update-path)
+   1. [1.1. Upstream config programming path](#11-upstream-config-programming-path)
+   2. [1.2. State generation and handling path](#12-state-generation-and-handling-path)
 2. [2. Database Schema](#2-database-schema)
    1. [2.1. NPU DB schema](#21-npu-db-schema)
       1. [2.1.1. CONFIG DB](#211-config-db)
@@ -51,14 +52,23 @@
 
 The SmartSwitch HA is built on top of the [Overlay ECMP](../../vxlan/Overlay%20ECMP%20with%20BFD.md) feature for supporting multiple HA modes:
 
-- **DPU-level active-active**: In this case, the traffic routing programming will be set just like regular overlay ECMP programming. 
-  - Traffic will be distributed to all DPUs as ECMP group.
-  - BFD will be the only mechanism for controlling traffic forwarding.
-  - The HA control plane (hamgrd, swbusd) will not be used for HA handling.
-- **DPU-level active-standby**: The profile in overlay ECMP config needs to be set to "dpu_active_standby", which triggers the swss and hamgrd to handle the HA on DPU level.
-- **ENI-level active-standby**: the profile in overlay ECMP config needs to be set to "eni_active_standby", which triggers swss and hamgrd to set up ENI level traffic forwarding rule and handling ENI level HA status.
+* **DPU-level active-active**: In this case, the traffic routing programming will be set just like regular overlay ECMP programming.
+  * Traffic will be distributed to all DPUs as ECMP group.
+  * BFD will be the only mechanism for controlling traffic forwarding.
+  * The HA control plane (hamgrd, swbusd) will not be used for HA handling.
+* **DPU-level active-standby**: The profile in overlay ECMP config needs to be set to "dpu_active_standby", which triggers the swss and hamgrd to handle the HA on DPU level.
+* **ENI-level active-standby**: the profile in overlay ECMP config needs to be set to "eni_active_standby", which triggers swss and hamgrd to set up ENI level traffic forwarding rule and handling ENI level HA status.
 
-### 1.1. Upstream policy programming path
+The high level work flow is shown as below.
+
+Please note that:
+
+1. The DPU DB in the following graphs are actually placed on the NPU side, due to CPU and memory constraints on DPU. Hence, the communication between `hamgrd` and DPU DB is local and doesn't need to go through PCIe bus.
+2. Each DPU has its own hamgrd instance, so they can be updated independently from each other as part of DPU updates.
+
+### 1.1. Upstream config programming path
+
+The graph below shows how HA related config are programmed into the NPU and DPU DBs from our upstream services, then being handled by `hamgrd` and `swss`.
 
 ```mermaid
 flowchart LR
@@ -68,45 +78,26 @@ flowchart LR
    subgraph NPU Components
       NPU_SWSS[swss]
       NPU_HAMGRD[hamgrd]
+      NPU_HAMGRD[hamgrd]
 
       subgraph CONFIG DB
          NPU_DPU[DPU_TABLE]
          NPU_VDPU[VDPU_TABLE]
          NPU_DASH_HA_GLOBAL_CONFIG[DASH_HA_GLOBAL_CONFIG]
-         NPU_VXLAN_TUNNEL[VXLAN_TUNNEL]
-         NPU_VNET[VNET]
       end
 
       subgraph APPL DB
          NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
+         NPU_VXLAN_TUNNEL[VXLAN_TUNNEL]
+         NPU_VNET[VNET]
          NPU_BFD_SESSION[BFD_SESSION_TABLE]
          NPU_ACL_TABLE[ACL_TABLE_TABLE]
          NPU_ACL_RULE[ACL_RULE_TABLE]
       end
 
       subgraph DASH APPL DB
-         NPU_DASH_HA_SET[DASH_HA_SET_TABLE]
          NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
-         NPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
-      end
-
-      subgraph STATE DB
-         NPU_DPU_STATE[DPU_TABLE]
-         NPU_VDPU_STATE[VDPU_TABLE]
-         NPU_BFD_SESSION_STATE[BFD_SESSION_TABLE]
-         NPU_ACL_TABLE_STATE[ACL_TABLE_TABLE]
-         NPU_ACL_RULE_STATE[ACL_RULE_TABLE]
-      end
-
-      subgraph DASH STATE DB
-         NPU_DASH_DPU_HA_STATE[DASH_DPU_HA_STATE_TABLE]
-         NPU_DASH_VDPU_HA_STATE[DASH_VDPU_HA_STATE_TABLE]
-         NPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
-         NPU_DASH_ENI_DP_STATE[DASH_ENI_DP_STATE_TABLE]
-      end
-
-      subgraph DASH COUNTER DB
-         NPU_DASH_COUNTERS[DASH_*_COUNTER_TABLE]
+         NPU_DASH_ENI_FORWARD_CONFIG[DASH_ENI_FORWARD_CONFIG]
       end
    end
 
@@ -114,17 +105,10 @@ flowchart LR
       DPU_SWSS[swss]
 
       subgraph DASH APPL DB
+         DPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
          DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
          DPU_DASH_ENI[DASH_ENI_TABLE]
          DPU_DASH_ENI_HA_BULK_SYNC_SESSION[DASH_ENI_HA_BULK_SYNC_SESSION_TABLE]
-      end
-
-      subgraph DASH STATE DB
-         DPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
-      end
-
-      subgraph DASH COUNTER DB
-         DPU_DASH_COUNTERS[DASH_*_COUNTER_TABLE]
       end
    end
 
@@ -132,54 +116,49 @@ flowchart LR
    NC --> |gNMI| NPU_DPU
    NC --> |gNMI| NPU_VDPU
    NC --> |gNMI| NPU_DASH_HA_GLOBAL_CONFIG
-   SC --> |gNMI| NPU_VXLAN_TUNNEL
-   SC --> |gNMI| NPU_VNET
+   SC --> |gNMI - ProducerStateTable| NPU_VXLAN_TUNNEL
+   SC --> |gNMI - ProducerStateTable| NPU_VNET
 
    %% Upstream services --> NPU appl DB tables:
    SC --> |gNMI - ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
    SC --> |gNMI - zmq| NPU_DASH_ENI_PLACEMENT
-   SC --> |gNMI - zmq| NPU_DASH_ENI_HA_CONFIG
+   SC --> |gNMI - zmq| DPU_DASH_ENI_HA_CONFIG
 
    %% Upstream services --> DPU appl DB tables:
    SC --> |gNMI - zmq| DPU_DASH_ENI
 
    %% NPU tables --> NPU side SWSS:
-   NPU_DPU --> NPU_SWSS
-   NPU_VDPU --> NPU_SWSS
+   NPU_DPU --> |Direct Table Query| NPU_SWSS
+   NPU_VDPU --> |Direct Table Query| NPU_SWSS
    NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
+   NPU_VXLAN_TUNNEL --> |ConsumerStateTable| NPU_SWSS
+   NPU_VNET --> |ConsumerStateTable| NPU_SWSS
    NPU_DASH_ENI_PLACEMENT --> |zmq| NPU_SWSS
+   NPU_DASH_ENI_FORWARD_CONFIG --> |zmq| NPU_SWSS
 
    %% NPU side SWSS --> NPU tables:
    NPU_SWSS --> |ProducerStateTable| NPU_BFD_SESSION
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_TABLE
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_RULE
-   NPU_SWSS --> |ProducerStateTable| NPU_DASH_HA_SET
+   NPU_SWSS --> |zmq| DPU_DASH_HA_SET
 
    %% NPU tables --> hamgrd:
-   NPU_DPU --> NPU_HAMGRD
-   NPU_VDPU --> NPU_HAMGRD
-   NPU_DPU_STATE --> |Direct Table Query| NPU_HAMGRD
-   NPU_VDPU_STATE --> |Direct Table Query| NPU_HAMGRD
-   NPU_DASH_HA_GLOBAL_CONFIG --> NPU_HAMGRD
-   NPU_DASH_HA_SET --> NPU_HAMGRD
-   NPU_DASH_ENI_HA_CONFIG --> NPU_HAMGRD
-   NPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
+   NPU_DASH_HA_GLOBAL_CONFIG --> |SubscribeStateTable| NPU_HAMGRD
+   DPU_DASH_ENI_HA_CONFIG --> |zmq| NPU_HAMGRD
+   DPU_DASH_HA_SET --> |zmq| NPU_HAMGRD
 
-   %% DPU tables --> hamgrd:
-   DPU_DASH_ENI_HA_STATE --> NPU_HAMGRD
-   DPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
+   %% hamgrd --> NPU tables:
+   NPU_HAMGRD --> |zmq| NPU_DASH_ENI_FORWARD_CONFIG
 
    %% hamgrd --> DPU tables:
-   NPU_HAMGRD --> DPU_DASH_HA_SET
    NPU_HAMGRD --> DPU_DASH_ENI_HA_BULK_SYNC_SESSION
 
    %% DPU tables --> DPU SWSS:
    DPU_DASH_ENI --> DPU_SWSS
-   DPU_DASH_HA_SET --> DPU_SWSS
    DPU_DASH_ENI_HA_BULK_SYNC_SESSION --> DPU_SWSS
 ```
 
-### 1.2. Probe state update path
+### 1.2. State generation and handling path
 
 ```mermaid
 flowchart LR
@@ -189,19 +168,9 @@ flowchart LR
    subgraph NPU Components
       NPU_SWSS[swss]
       NPU_HAMGRD[hamgrd]
-
-      subgraph CONFIG DB
-         NPU_DPU[DPU_TABLE]
-         NPU_VDPU[VDPU_TABLE]
-         NPU_DASH_HA_GLOBAL_CONFIG[DASH_HA_GLOBAL_CONFIG]
-         NPU_VXLAN_TUNNEL[VXLAN_TUNNEL]
-         NPU_VNET[VNET]
-      end
+      NPU_PMON[pmon]
 
       subgraph APPL DB
-         NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
-         NPU_BFD_SESSION[BFD_SESSION_TABLE]
-         NPU_ACL_TABLE[ACL_TABLE_TABLE]
          NPU_ACL_RULE[ACL_RULE_TABLE]
       end
 
@@ -212,7 +181,7 @@ flowchart LR
       end
 
       subgraph STATE DB
-         NPU_DPU_STATE[DPU_TABLE]
+         NPU_DPU_STATE[DPU_STATE]
          NPU_VDPU_STATE[VDPU_TABLE]
          NPU_BFD_SESSION_STATE[BFD_SESSION_TABLE]
          NPU_ACL_TABLE_STATE[ACL_TABLE_TABLE]
@@ -249,22 +218,7 @@ flowchart LR
       end
    end
 
-   %% Upstream services --> northbound interfaces:
-   NC --> |gNMI| NPU_DPU
-   NC --> |gNMI| NPU_VDPU
-   NC --> |gNMI| NPU_DASH_HA_GLOBAL_CONFIG
-
-   SC --> |gNMI| NPU_DASH_HA_SET
-   SC --> |gNMI| NPU_DASH_ENI_PLACEMENT
-   SC --> |gNMI| NPU_DASH_ENI_HA_CONFIG
-   SC --> |gNMI| NPU_VXLAN_TUNNEL
-   SC --> |gNMI| NPU_VNET
-   SC --> |gNMI - ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
-   SC --> |gNMI| DPU_DASH_ENI
-
    %% NPU tables --> NPU side SWSS:
-   NPU_DPU --> NPU_SWSS
-   NPU_VDPU --> NPU_SWSS
    NPU_BFD_SESSION --> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_TABLE --> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_RULE --> |ConsumerStateTable| NPU_SWSS
@@ -276,7 +230,6 @@ flowchart LR
    NPU_SWSS --> NPU_BFD_SESSION_STATE
    NPU_SWSS --> NPU_ACL_TABLE_STATE
    NPU_SWSS --> NPU_ACL_RULE_STATE
-   NPU_SWSS --> |Forward BFD Update| NPU_HAMGRD
 
    %% NPU tables --> hamgrd:
    NPU_DPU --> NPU_HAMGRD
@@ -298,9 +251,6 @@ flowchart LR
    NPU_HAMGRD --> NPU_DASH_VDPU_HA_STATE
    NPU_HAMGRD --> NPU_DASH_ENI_HA_STATE
    NPU_HAMGRD --> NPU_DASH_ENI_DP_STATE
-   NPU_HAMGRD --> |ProducerStateTable| NPU_BFD_SESSION
-   NPU_HAMGRD --> |ProducerStateTable| NPU_ACL_TABLE
-   NPU_HAMGRD --> |ProducerStateTable| NPU_ACL_RULE
 
    %% hamgrd --> DPU tables:
    NPU_HAMGRD --> DPU_DASH_HA_SET
