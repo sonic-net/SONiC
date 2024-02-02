@@ -4,52 +4,61 @@
 | --- | ---- | ------ | ------------------ |
 | 0.1 | 10/14/2023 | Riff Jiang | Initial version |
 
-1. [1. Database Schema](#1-database-schema)
-   1. [1.1. High level data flow](#11-high-level-data-flow)
-   2. [1.2. NPU DB schema](#12-npu-db-schema)
-      1. [1.2.1. CONFIG DB](#121-config-db)
-         1. [1.2.1.1. DPU / vDPU definitions](#1211-dpu--vdpu-definitions)
-         2. [1.2.1.2. HA global configurations](#1212-ha-global-configurations)
-      2. [1.2.2. APPL DB](#122-appl-db)
-         1. [1.2.2.1. HA set configurations](#1221-ha-set-configurations)
-         2. [1.2.2.2. ENI placement configurations](#1222-eni-placement-configurations)
-         3. [1.2.2.3. ENI configurations](#1223-eni-configurations)
-      3. [1.2.3. State DB](#123-state-db)
-         1. [1.2.3.1. DPU / vDPU state](#1231-dpu--vdpu-state)
-      4. [1.2.4. DASH State DB](#124-dash-state-db)
-         1. [1.2.4.1. DPU / vDPU HA states](#1241-dpu--vdpu-ha-states)
-         2. [1.2.4.2. ENI state](#1242-eni-state)
-   3. [1.3. DPU DB schema](#13-dpu-db-schema)
-      1. [1.3.1. APPL DB](#131-appl-db)
-         1. [1.3.1.1. HA set configurations](#1311-ha-set-configurations)
-         2. [1.3.1.2. DASH ENI object table](#1312-dash-eni-object-table)
-      2. [1.3.2. State DB](#132-state-db)
-         1. [1.3.2.1. ENI HA state](#1321-eni-ha-state)
-2. [2. Telemetry](#2-telemetry)
-   1. [2.1. HA state](#21-ha-state)
-   2. [2.2. HA operation counters](#22-ha-operation-counters)
-      1. [2.2.1. hamgrd HA operation counters](#221-hamgrd-ha-operation-counters)
-      2. [2.2.2. HA SAI API counters](#222-ha-sai-api-counters)
-   3. [2.3. HA control plane communication channel related](#23-ha-control-plane-communication-channel-related)
-      1. [2.3.1. HA control plane control channel counters](#231-ha-control-plane-control-channel-counters)
-      2. [2.3.2. HA control plane data channel counters](#232-ha-control-plane-data-channel-counters)
-         1. [2.3.2.1. Per bulk sync flow receive server counters](#2321-per-bulk-sync-flow-receive-server-counters)
-         2. [2.3.2.2. Per ENI counters](#2322-per-eni-counters)
-   4. [2.4. NPU-to-DPU tunnel related (NPU side)](#24-npu-to-dpu-tunnel-related-npu-side)
-      1. [2.4.1. NPU-to-DPU probe status](#241-npu-to-dpu-probe-status)
-      2. [2.4.2. NPU-to-DPU data plane state](#242-npu-to-dpu-data-plane-state)
-      3. [2.4.3. NPU-to-DPU tunnel counters](#243-npu-to-dpu-tunnel-counters)
-   5. [2.5. NPU-to-DPU tunnel related (DPU side)](#25-npu-to-dpu-tunnel-related-dpu-side)
-   6. [2.6. DPU-to-DPU data plane channel related](#26-dpu-to-dpu-data-plane-channel-related)
-   7. [2.7. DPU ENI pipeline related](#27-dpu-eni-pipeline-related)
-3. [3. SAI APIs](#3-sai-apis)
-4. [4. CLI commands](#4-cli-commands)
+1. [1. High level data flow](#1-high-level-data-flow)
+   1. [1.1. Upstream policy programming path](#11-upstream-policy-programming-path)
+   2. [1.2. Probe state update path](#12-probe-state-update-path)
+2. [2. Database Schema](#2-database-schema)
+   1. [2.1. NPU DB schema](#21-npu-db-schema)
+      1. [2.1.1. CONFIG DB](#211-config-db)
+         1. [2.1.1.1. DPU / vDPU definitions](#2111-dpu--vdpu-definitions)
+         2. [2.1.1.2. HA global configurations](#2112-ha-global-configurations)
+      2. [2.1.2. APPL DB](#212-appl-db)
+         1. [2.1.2.1. HA set configurations](#2121-ha-set-configurations)
+         2. [2.1.2.2. ENI placement configurations](#2122-eni-placement-configurations)
+         3. [2.1.2.3. ENI configurations](#2123-eni-configurations)
+      3. [2.1.3. State DB](#213-state-db)
+         1. [2.1.3.1. DPU / vDPU state](#2131-dpu--vdpu-state)
+      4. [2.1.4. DASH State DB](#214-dash-state-db)
+         1. [2.1.4.1. DPU / vDPU HA states](#2141-dpu--vdpu-ha-states)
+         2. [2.1.4.2. ENI state](#2142-eni-state)
+   2. [2.2. DPU DB schema](#22-dpu-db-schema)
+      1. [2.2.1. APPL DB](#221-appl-db)
+         1. [2.2.1.1. HA set configurations](#2211-ha-set-configurations)
+         2. [2.2.1.2. DASH ENI object table](#2212-dash-eni-object-table)
+      2. [2.2.2. State DB](#222-state-db)
+         1. [2.2.2.1. ENI HA state](#2221-eni-ha-state)
+3. [3. Telemetry](#3-telemetry)
+   1. [3.1. HA state](#31-ha-state)
+   2. [3.2. HA operation counters](#32-ha-operation-counters)
+      1. [3.2.1. hamgrd HA operation counters](#321-hamgrd-ha-operation-counters)
+      2. [3.2.2. HA SAI API counters](#322-ha-sai-api-counters)
+   3. [3.3. HA control plane communication channel related](#33-ha-control-plane-communication-channel-related)
+      1. [3.3.1. HA control plane control channel counters](#331-ha-control-plane-control-channel-counters)
+      2. [3.3.2. HA control plane data channel counters](#332-ha-control-plane-data-channel-counters)
+         1. [3.3.2.1. Per bulk sync flow receive server counters](#3321-per-bulk-sync-flow-receive-server-counters)
+         2. [3.3.2.2. Per ENI counters](#3322-per-eni-counters)
+   4. [3.4. NPU-to-DPU tunnel related (NPU side)](#34-npu-to-dpu-tunnel-related-npu-side)
+      1. [3.4.1. NPU-to-DPU probe status](#341-npu-to-dpu-probe-status)
+      2. [3.4.2. NPU-to-DPU data plane state](#342-npu-to-dpu-data-plane-state)
+      3. [3.4.3. NPU-to-DPU tunnel counters](#343-npu-to-dpu-tunnel-counters)
+   5. [3.5. NPU-to-DPU tunnel related (DPU side)](#35-npu-to-dpu-tunnel-related-dpu-side)
+   6. [3.6. DPU-to-DPU data plane channel related](#36-dpu-to-dpu-data-plane-channel-related)
+   7. [3.7. DPU ENI pipeline related](#37-dpu-eni-pipeline-related)
+4. [4. SAI APIs](#4-sai-apis)
+5. [5. CLI commands](#5-cli-commands)
 
-## 1. Database Schema
+## 1. High level data flow
 
-NOTE: Only the configuration that is related to HA is listed here and please check [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) to see other fields.
+The SmartSwitch HA is built on top of the [Overlay ECMP](../../vxlan/Overlay%20ECMP%20with%20BFD.md) feature for supporting multiple HA modes:
 
-### 1.1. High level data flow
+- **DPU-level active-active**: In this case, the traffic routing programming will be set just like regular overlay ECMP programming. 
+  - Traffic will be distributed to all DPUs as ECMP group.
+  - BFD will be the only mechanism for controlling traffic forwarding.
+  - The HA control plane (hamgrd, swbusd) will not be used for HA handling.
+- **DPU-level active-standby**: The profile in overlay ECMP config needs to be set to "dpu_active_standby", which triggers the swss and hamgrd to handle the HA on DPU level.
+- **ENI-level active-standby**: the profile in overlay ECMP config needs to be set to "eni_active_standby", which triggers swss and hamgrd to set up ENI level traffic forwarding rule and handling ENI level HA status.
+
+### 1.1. Upstream policy programming path
 
 ```mermaid
 flowchart LR
@@ -64,12 +73,15 @@ flowchart LR
          NPU_DPU[DPU_TABLE]
          NPU_VDPU[VDPU_TABLE]
          NPU_DASH_HA_GLOBAL_CONFIG[DASH_HA_GLOBAL_CONFIG]
+         NPU_VXLAN_TUNNEL[VXLAN_TUNNEL]
+         NPU_VNET[VNET]
       end
 
       subgraph APPL DB
+         NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
          NPU_BFD_SESSION[BFD_SESSION_TABLE]
-         NPU_ACL_TABLE[APP_TABLE_TABLE]
-         NPU_ACL_RULE[APP_RULE_TABLE]
+         NPU_ACL_TABLE[ACL_TABLE_TABLE]
+         NPU_ACL_RULE[ACL_RULE_TABLE]
       end
 
       subgraph DASH APPL DB
@@ -82,8 +94,129 @@ flowchart LR
          NPU_DPU_STATE[DPU_TABLE]
          NPU_VDPU_STATE[VDPU_TABLE]
          NPU_BFD_SESSION_STATE[BFD_SESSION_TABLE]
-         NPU_ACL_TABLE_STATE[APP_TABLE_TABLE]
-         NPU_ACL_RULE_STATE[APP_RULE_TABLE]
+         NPU_ACL_TABLE_STATE[ACL_TABLE_TABLE]
+         NPU_ACL_RULE_STATE[ACL_RULE_TABLE]
+      end
+
+      subgraph DASH STATE DB
+         NPU_DASH_DPU_HA_STATE[DASH_DPU_HA_STATE_TABLE]
+         NPU_DASH_VDPU_HA_STATE[DASH_VDPU_HA_STATE_TABLE]
+         NPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
+         NPU_DASH_ENI_DP_STATE[DASH_ENI_DP_STATE_TABLE]
+      end
+
+      subgraph DASH COUNTER DB
+         NPU_DASH_COUNTERS[DASH_*_COUNTER_TABLE]
+      end
+   end
+
+   subgraph "DPU0 Components (Same for other DPUs)"
+      DPU_SWSS[swss]
+
+      subgraph DASH APPL DB
+         DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
+         DPU_DASH_ENI[DASH_ENI_TABLE]
+         DPU_DASH_ENI_HA_BULK_SYNC_SESSION[DASH_ENI_HA_BULK_SYNC_SESSION_TABLE]
+      end
+
+      subgraph DASH STATE DB
+         DPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
+      end
+
+      subgraph DASH COUNTER DB
+         DPU_DASH_COUNTERS[DASH_*_COUNTER_TABLE]
+      end
+   end
+
+   %% Upstream services --> NPU config DB tables:
+   NC --> |gNMI| NPU_DPU
+   NC --> |gNMI| NPU_VDPU
+   NC --> |gNMI| NPU_DASH_HA_GLOBAL_CONFIG
+   SC --> |gNMI| NPU_VXLAN_TUNNEL
+   SC --> |gNMI| NPU_VNET
+
+   %% Upstream services --> NPU appl DB tables:
+   SC --> |gNMI - ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
+   SC --> |gNMI - zmq| NPU_DASH_ENI_PLACEMENT
+   SC --> |gNMI - zmq| NPU_DASH_ENI_HA_CONFIG
+
+   %% Upstream services --> DPU appl DB tables:
+   SC --> |gNMI - zmq| DPU_DASH_ENI
+
+   %% NPU tables --> NPU side SWSS:
+   NPU_DPU --> NPU_SWSS
+   NPU_VDPU --> NPU_SWSS
+   NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
+   NPU_DASH_ENI_PLACEMENT --> |zmq| NPU_SWSS
+
+   %% NPU side SWSS --> NPU tables:
+   NPU_SWSS --> |ProducerStateTable| NPU_BFD_SESSION
+   NPU_SWSS --> |ProducerStateTable| NPU_ACL_TABLE
+   NPU_SWSS --> |ProducerStateTable| NPU_ACL_RULE
+   NPU_SWSS --> |ProducerStateTable| NPU_DASH_HA_SET
+
+   %% NPU tables --> hamgrd:
+   NPU_DPU --> NPU_HAMGRD
+   NPU_VDPU --> NPU_HAMGRD
+   NPU_DPU_STATE --> |Direct Table Query| NPU_HAMGRD
+   NPU_VDPU_STATE --> |Direct Table Query| NPU_HAMGRD
+   NPU_DASH_HA_GLOBAL_CONFIG --> NPU_HAMGRD
+   NPU_DASH_HA_SET --> NPU_HAMGRD
+   NPU_DASH_ENI_HA_CONFIG --> NPU_HAMGRD
+   NPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
+
+   %% DPU tables --> hamgrd:
+   DPU_DASH_ENI_HA_STATE --> NPU_HAMGRD
+   DPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
+
+   %% hamgrd --> DPU tables:
+   NPU_HAMGRD --> DPU_DASH_HA_SET
+   NPU_HAMGRD --> DPU_DASH_ENI_HA_BULK_SYNC_SESSION
+
+   %% DPU tables --> DPU SWSS:
+   DPU_DASH_ENI --> DPU_SWSS
+   DPU_DASH_HA_SET --> DPU_SWSS
+   DPU_DASH_ENI_HA_BULK_SYNC_SESSION --> DPU_SWSS
+```
+
+### 1.2. Probe state update path
+
+```mermaid
+flowchart LR
+   NC[Network Controllers]
+   SC[SDN Controllers]
+
+   subgraph NPU Components
+      NPU_SWSS[swss]
+      NPU_HAMGRD[hamgrd]
+
+      subgraph CONFIG DB
+         NPU_DPU[DPU_TABLE]
+         NPU_VDPU[VDPU_TABLE]
+         NPU_DASH_HA_GLOBAL_CONFIG[DASH_HA_GLOBAL_CONFIG]
+         NPU_VXLAN_TUNNEL[VXLAN_TUNNEL]
+         NPU_VNET[VNET]
+      end
+
+      subgraph APPL DB
+         NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
+         NPU_BFD_SESSION[BFD_SESSION_TABLE]
+         NPU_ACL_TABLE[ACL_TABLE_TABLE]
+         NPU_ACL_RULE[ACL_RULE_TABLE]
+      end
+
+      subgraph DASH APPL DB
+         NPU_DASH_HA_SET[DASH_HA_SET_TABLE]
+         NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
+         NPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
+      end
+
+      subgraph STATE DB
+         NPU_DPU_STATE[DPU_TABLE]
+         NPU_VDPU_STATE[VDPU_TABLE]
+         NPU_BFD_SESSION_STATE[BFD_SESSION_TABLE]
+         NPU_ACL_TABLE_STATE[ACL_TABLE_TABLE]
+         NPU_ACL_RULE_STATE[ACL_RULE_TABLE]
       end
 
       subgraph DASH STATE DB
@@ -124,6 +257,9 @@ flowchart LR
    SC --> |gNMI| NPU_DASH_HA_SET
    SC --> |gNMI| NPU_DASH_ENI_PLACEMENT
    SC --> |gNMI| NPU_DASH_ENI_HA_CONFIG
+   SC --> |gNMI| NPU_VXLAN_TUNNEL
+   SC --> |gNMI| NPU_VNET
+   SC --> |gNMI - ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
    SC --> |gNMI| DPU_DASH_ENI
 
    %% NPU tables --> NPU side SWSS:
@@ -132,6 +268,7 @@ flowchart LR
    NPU_BFD_SESSION --> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_TABLE --> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_RULE --> |ConsumerStateTable| NPU_SWSS
+   NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
 
    %% NPU side SWSS --> NPU tables:
    NPU_SWSS --> NPU_DPU_STATE
@@ -179,11 +316,15 @@ flowchart LR
    DPU_SWSS --> DPU_DASH_COUNTERS
 ```
 
-### 1.2. NPU DB schema
+## 2. Database Schema
 
-#### 1.2.1. CONFIG DB
+> NOTE: Only the configuration that is related to HA is listed here and please check [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) to see other fields.
 
-##### 1.2.1.1. DPU / vDPU definitions
+### 2.1. NPU DB schema
+
+#### 2.1.1. CONFIG DB
+
+##### 2.1.1.1. DPU / vDPU definitions
 
 * These tables are imported from the SmartSwitch HLD to make the doc more convenient for reading, and we should always use that doc as the source of truth.
 * These tables should be prepopulated before any HA configuration tables below are programmed.
@@ -206,7 +347,7 @@ flowchart LR
 | | | tier | The tier of the vDPU. |
 | | | main_dpu_ids | The IDs of the main physical DPU. |
 
-##### 1.2.1.2. HA global configurations
+##### 2.1.1.2. HA global configurations
 
 * The global configuration is shared by all HA sets, and ENIs and should be programmed on all switches.
 * The global configuration should be programmed before any HA set configurations below are programmed.
@@ -221,9 +362,9 @@ flowchart LR
 | | | dpu_bfd_probe_multiplier | The number of DPU BFD probe failure before probe down. |
 | | | dpu_bfd_probe_interval_in_ms | The interval of DPU BFD probe in milliseconds. |
 
-#### 1.2.2. APPL DB
+#### 2.1.2. APPL DB
 
-##### 1.2.2.1. HA set configurations
+##### 2.1.2.1. HA set configurations
 
 * The HA set table defines which DPUs should be forming the same HA set and how.
 * The HA set table should be programmed on all switches, so we could program the ENI location information and setup the traffic forwarding rules.
@@ -239,7 +380,7 @@ flowchart LR
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), "up" or "down". |
 | | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
 
-##### 1.2.2.2. ENI placement configurations
+##### 2.1.2.2. ENI placement configurations
 
 * The ENI placement table defines which HA set this ENI belongs to, and how to forward the traffic.
 * The ENI placement table should be programmed on all switches.
@@ -254,7 +395,7 @@ flowchart LR
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
 | | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI forwarding rule. "" = Not set. |
 
-##### 1.2.2.3. ENI configurations
+##### 2.1.2.3. ENI configurations
 
 * The ENI HA configuration table contains the ENI-level HA config.
 * The ENI HA configuraiton table only contains the ENIs that is hosted on the local switch.
@@ -268,9 +409,9 @@ flowchart LR
 | | | desired_ha_state | The desired state for this ENI. It can only be "" (none), dead, active or standalone. |
 | | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
 
-#### 1.2.3. State DB
+#### 2.1.3. State DB
 
-##### 1.2.3.1. DPU / vDPU state
+##### 2.1.3.1. DPU / vDPU state
 
 DPU/vDPU state table stores the health states of each DPU/vDPU. These data are collected by `pmon`.
 
@@ -285,9 +426,9 @@ DPU/vDPU state table stores the health states of each DPU/vDPU. These data are c
 | | | health_state | Health state of the vDPU. It can be "healthy", "unhealthy". Only valid when the vDPU is local. |
 | | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
 
-#### 1.2.4. DASH State DB
+#### 2.1.4. DASH State DB
 
-##### 1.2.4.1. DPU / vDPU HA states
+##### 2.1.4.1. DPU / vDPU HA states
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -298,7 +439,7 @@ DPU/vDPU state table stores the health states of each DPU/vDPU. These data are c
 | | \<VDPU_ID\> | | Virtual DPU ID |
 | | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
 
-##### 1.2.4.2. ENI state
+##### 2.1.4.2. ENI state
 
 On NPU side, the ENI state table shows:
 
@@ -341,11 +482,11 @@ On NPU side, the ENI state table shows:
 | | | next_hops_active_states | Is next hop set as active the ENI HA state machine. It can be "unknown", "true", "false". |
 | | | next_hops_final_state | Final state for each next hops, connected by ",". It can be "up", "down". |
 
-### 1.3. DPU DB schema
+### 2.2. DPU DB schema
 
-#### 1.3.1. APPL DB
+#### 2.2.1. APPL DB
 
-##### 1.3.1.1. HA set configurations
+##### 2.2.1.1. HA set configurations
 
 If any HA set configuration is related to local DPU, it will be parsed and being programmed to the DPU side DB, which will be translated to SAI API calls and sent to ASIC by DPU side swss.
 
@@ -362,7 +503,7 @@ If any HA set configuration is related to local DPU, it will be parsed and being
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
 
-##### 1.3.1.2. DASH ENI object table
+##### 2.2.1.2. DASH ENI object table
 
 * The DASH objects will only be programmed on the DPU that is hosting the ENIs.
 
@@ -378,9 +519,9 @@ If any HA set configuration is related to local DPU, it will be parsed and being
 | | | session_id | Bulk sync session id. |
 | | | peer_bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
 
-#### 1.3.2. State DB
+#### 2.2.2. State DB
 
-##### 1.3.2.1. ENI HA state
+##### 2.2.2.1. ENI HA state
 
 * The ENI HA state table contains the ENI-level HA state.
 * The ENI HA state table only contains the ENIs that is hosted on the local DPU.
@@ -396,7 +537,7 @@ If any HA set configuration is related to local DPU, it will be parsed and being
 | | | ongoing_bulk_sync_session_id | Ongoing bulk sync session id. |
 | | | ongoing_bulk_sync_session_start_time_in_ms | Ongoing bulk sync session start time in milliseconds. |
 
-## 2. Telemetry
+## 3. Telemetry
 
 To properly monitor the HA related features, we will need to add telemetry for monitoring it.
 
@@ -407,19 +548,19 @@ The telemetry will cover both state and counters, which can be mapped into `DASH
 
 We will focus on only the HA counters below, which will not include basic counters, such as ENI creation/removal or generic DPU health/critical event counters, even though some of them works closely with HA workflows.
 
-### 2.1. HA state
+### 3.1. HA state
 
 First of all, we need to store the HA states for us to check.
 
 Please refer to the [ENI state](#1242-eni-state) table in NPU DB for detailed DB schema design.
 
-### 2.2. HA operation counters
+### 3.2. HA operation counters
 
 Besides the HA states, we also need to log all the operations that is related to HA.
 
 HA operations are mostly lies in 2 places: `hamgrd` for operations coming from northbound interfaces and syncd for SAI APIs we call or SAI notification we handle related to HA.
 
-#### 2.2.1. hamgrd HA operation counters
+#### 3.2.1. hamgrd HA operation counters
 
 All the HA operation counters will be:
 
@@ -437,7 +578,7 @@ All the HA operation counters will be:
 | shutdown_self_(req/success/failure)_count | Similar as above, but for force shutdown operations. |
 | total_(successful/failed)_shutdown_self_time_in_us | Similar as above, but for force shutdown operations. |
 
-#### 2.2.2. HA SAI API counters
+#### 3.2.2. HA SAI API counters
 
 All the HA SAI API counters will be:
 
@@ -449,9 +590,9 @@ All the HA SAI API counters will be:
 | *_(req/success/failure)_count | Number of SAI APIs we call or notifications we handle, with success and failure counters too. |
 | total_*_(successful/failed)_time_in_us | Total time we used to do the SAI operations in microseconds. Successful and failed operations should be tracked separately, as they will have different patterns. |
 
-### 2.3. HA control plane communication channel related
+### 3.3. HA control plane communication channel related
 
-#### 2.3.1. HA control plane control channel counters
+#### 3.3.1. HA control plane control channel counters
 
 HA control plane control channel is running on NPU side, mainly used for passing the HA control commands.
 
@@ -470,14 +611,14 @@ The counters of this channel will be:
 | channel_connect_failed_count | Number of connect calls that failed because of any reason other than timeout / unreachable. |
 | channel_connect_timeout_count | Number of connect calls that failed due to timeout / unreachable. |
 
-#### 2.3.2. HA control plane data channel counters
+#### 3.3.2. HA control plane data channel counters
 
 HA control plane data channel is composed with 2 parts: SAI flow API calls and `swbusd` for flow forwarding. The first one is already covered by all the SAI API counters above, so we will only focus on the `swbusd` part here. And the counters will be:
 
 * Collected on `swbusd` on NPU side.
 * Saved in NPU side `DASH_COUNTER_DB`.
 
-##### 2.3.2.1. Per bulk sync flow receive server counters
+##### 3.3.2.1. Per bulk sync flow receive server counters
 
 Since the data channel is formed by multiple flow receive servers, the data plane counters needs to be logged per each server: `DASH_HA_CP_DATA_CHANNEL_CONN_STATS|<PEER_FLOW_RECV_SVR_IP_ENDPOINT>`.
 
@@ -493,7 +634,7 @@ Since the data channel is formed by multiple flow receive servers, the data plan
 | bulk_sync_flow_received_from_local | Number of flows received from local DPU |
 | bulk_sync_flow_forwarded_to_peer | Number of flows forwarded to paired DPU |
 
-##### 2.3.2.2. Per ENI counters
+##### 3.3.2.2. Per ENI counters
 
 Besides per flow receive server, the counters should also be tracked on ENI level, so we can have a more aggregated view for each ENI. The key can be: `DASH_HA_CP_DATA_CHANNEL_ENI_STATS|<ENI_ID>`.
 
@@ -506,23 +647,23 @@ Besides per flow receive server, the counters should also be tracked on ENI leve
 
 > NOTE: We didn't add the ENI key in the per flow receive server counters, because multiple ENIs can share the same flow receive server. It is up to each vendor's implementation.
 
-### 2.4. NPU-to-DPU tunnel related (NPU side)
+### 3.4. NPU-to-DPU tunnel related (NPU side)
 
 The second part of the HA is the NPU-to-DPU tunnel. This includes the probe status and traffic information on the tunnel.
 
-#### 2.4.1. NPU-to-DPU probe status
+#### 3.4.1. NPU-to-DPU probe status
 
 Latest probe status is critical for checking how each card and ENI performs, and where the packets should be forwarded to.
 
 Please refer to the [DPU/vDPU HA state](#1241-dpu--vdpu-ha-states) tables in NPU DB for detailed DB schema design.
 
-#### 2.4.2. NPU-to-DPU data plane state
+#### 3.4.2. NPU-to-DPU data plane state
 
 Depending on the probe status and HA state, we will update the next hop for each ENI to forward the traffic. This also needs to be tracked.
 
 Please refer to the [DASH_ENI_DP_STATE_TABLE](#1242-eni-state) table in NPU DB for detailed DB schema design.
 
-#### 2.4.3. NPU-to-DPU tunnel counters
+#### 3.4.3. NPU-to-DPU tunnel counters
 
 On NPU side, we should also have ENI level tunnel traffic counters:
 
@@ -540,7 +681,7 @@ On NPU side, we should also have ENI level tunnel traffic counters:
 
 > NOTE: In implementation, these counters might have a more SAI-friendly name.
 
-### 2.5. NPU-to-DPU tunnel related (DPU side)
+### 3.5. NPU-to-DPU tunnel related (DPU side)
 
 On DPU side, every NPU-to-DPU tunnel traffic needs to be tracked on ENI level as well:
 
@@ -558,7 +699,7 @@ On DPU side, every NPU-to-DPU tunnel traffic needs to be tracked on ENI level as
 
 > NOTE: In implementation, these counters might have a more SAI-friendly name.
 
-### 2.6. DPU-to-DPU data plane channel related
+### 3.6. DPU-to-DPU data plane channel related
 
 The next part is the DPU-to-DPU data plane channel, which is used for inline flow replications.
 
@@ -577,7 +718,7 @@ The next part is the DPU-to-DPU data plane channel, which is used for inline flo
 
 > NOTE: In implementation, these counters might have a more SAI-friendly name.
 
-### 2.7. DPU ENI pipeline related
+### 3.7. DPU ENI pipeline related
 
 The last part is how the DPU ENI pipeline works in terms of HA, which includes flow operations:
 
@@ -600,11 +741,11 @@ Please note that we will also have counters for how many flows are created/updat
 
 > NOTE: In implementation, these counters might have a more SAI-friendly name.
 
-## 3. SAI APIs
+## 4. SAI APIs
 
 Please refer to HA session API and flow API HLD in DASH repo for SAI API designs.
 
-## 4. CLI commands
+## 5. CLI commands
 
 The following commands shall be added in CLI for checking the HA config and states:
 
