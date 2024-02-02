@@ -538,31 +538,29 @@ All requests logs are stored in syslog.
 | 29 | Verify invalid path with SONiC Yang schema in APPL_DB. |
 | 30 | Verify full configuration update with SONIC Yang schema. |
 
+## 4.4 Unit Tests for Incremental Configuration Update
 
+We want to ensure that GNMI can support particular scenarios. Therefore, we will implement the following unit test:
 
+| 1 | Verify incremental configuration update for aaa. |
+| 2 | Verify incremental configuration update for bgp prefix. |
+| 3 | Verify incremental configuration update for bgp speaker. |
+| 4 | Verify incremental configuration update for bgp monitor. |
+| 5 | Verify incremental configuration update for cacl. |
+| 6 | Verify incremental configuration update for dhcp relay. |
+| 7 | Verify incremental configuration update for ecn. |
+| 8 | Verify incremental configuration update for eth interface. |
+| 9 | Verify incremental configuration update for qos. |
+| 10 | Verify incremental configuration update for ipv6. |
+| 11 | Verify incremental configuration update for lo interface. |
+| 12 | Verify incremental configuration update for mmu threshold. |
+| 13 | Verify incremental configuration update for monitor. |
+| 14 | Verify incremental configuration update for ntp. |
+| 15 | Verify incremental configuration update for pfcwd interval. |
+| 16 | Verify incremental configuration update for pfcwd status. |
+| 17 | Verify incremental configuration update for pg headroom. |
+| 18 | Verify incremental configuration update for portchannel interface. |
+| 19 | Verify incremental configuration update for syslog. |
+| 20 | Verify incremental configuration update for vlan interface. |
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Target release is 20240531.
