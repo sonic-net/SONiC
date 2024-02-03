@@ -120,7 +120,7 @@ flowchart LR
    NPU_DPU --> |SubscribeStateTable| NPU_SWSS
    NPU_VDPU --> |SubscribeStateTable| NPU_SWSS
    NPU_DASH_ENI_TUNNEL_TABLE --> |zmq| NPU_SWSS
-   NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTAble| NPU_SWSS
+   NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
    NPU_BFD_SESSION --> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_TABLE --> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_RULE --> |ConsumerStateTable| NPU_SWSS
@@ -154,9 +154,15 @@ flowchart LR
 
 ### 1.2. State generation and handling path
 
+Whenever device or data path state is changed, we will need to handle them and update the HA related setup accordingly.
+
+The workflow below shows the high level data flow for handling the state changes. There are 2 main paths:
+
+1. BFD probe state change path: When the BFD probe state is changed, `swss` will update the route or ACL rules accordingly to point the traffic to the reachable DPU.
+2. DPU state change path: When `pmon` is reporting device issues or we detected data path problem from counters, `hamgrd` will update the HA state machine and the traffic forwarding rules accordingly.
+
 ```mermaid
 flowchart LR
-   NC[Network Controllers]
    SC[SDN Controllers]
 
    subgraph NPU Components
@@ -166,20 +172,17 @@ flowchart LR
 
       subgraph APPL DB
          NPU_ACL_RULE[ACL_RULE_TABLE]
+         NPU_DASH_ENI_TUNNEL_TABLE[DASH_ENI_TUNNEL_TABLE]
+         NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
       end
 
-      subgraph DASH APPL DB
-         NPU_DASH_HA_SET[DASH_HA_SET_TABLE]
-         NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
-         NPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
+      subgraph CHASSIS STATE DB
+         NPU_DPU_STATE[DPU_STATE]
+         NPU_VDPU_STATE[VDPU_TABLE]
       end
 
       subgraph STATE DB
-         NPU_DPU_STATE[DPU_STATE]
-         NPU_VDPU_STATE[VDPU_TABLE]
          NPU_BFD_SESSION_STATE[BFD_SESSION_TABLE]
-         NPU_ACL_TABLE_STATE[ACL_TABLE_TABLE]
-         NPU_ACL_RULE_STATE[ACL_RULE_TABLE]
       end
 
       subgraph DASH STATE DB
@@ -188,20 +191,10 @@ flowchart LR
          NPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
          NPU_DASH_ENI_DP_STATE[DASH_ENI_DP_STATE_TABLE]
       end
-
-      subgraph DASH COUNTER DB
-         NPU_DASH_COUNTERS[DASH_*_COUNTER_TABLE]
-      end
    end
 
    subgraph "DPU0 Components (Same for other DPUs)"
       DPU_SWSS[swss]
-
-      subgraph DASH APPL DB
-         DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
-         DPU_DASH_ENI[DASH_ENI_TABLE]
-         DPU_DASH_ENI_HA_BULK_SYNC_SESSION[DASH_ENI_HA_BULK_SYNC_SESSION_TABLE]
-      end
 
       subgraph DASH STATE DB
          DPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
@@ -212,52 +205,49 @@ flowchart LR
       end
    end
 
+   %% NPU side PMON --> NPU tables:
+   NPU_PMON --> NPU_DPU_STATE
+   NPU_PMON --> NPU_VDPU_STATE
+
+   %% NPU tables --> hamgrd:
+   NPU_DPU_STATE --> |Direct Table Query| NPU_HAMGRD
+   NPU_VDPU_STATE --> |Direct Table Query| NPU_HAMGRD
+
    %% NPU tables --> NPU side SWSS:
-   NPU_BFD_SESSION --> |ConsumerStateTable| NPU_SWSS
-   NPU_ACL_TABLE --> |ConsumerStateTable| NPU_SWSS
+   NPU_BFD_SESSION_STATE --> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_RULE --> |ConsumerStateTable| NPU_SWSS
+   NPU_DASH_ENI_TUNNEL_TABLE --> |zmq| NPU_SWSS
    NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
 
    %% NPU side SWSS --> NPU tables:
-   NPU_SWSS --> NPU_DPU_STATE
-   NPU_SWSS --> NPU_VDPU_STATE
-   NPU_SWSS --> NPU_BFD_SESSION_STATE
-   NPU_SWSS --> NPU_ACL_TABLE_STATE
-   NPU_SWSS --> NPU_ACL_RULE_STATE
-
-   %% NPU tables --> hamgrd:
-   NPU_DPU --> NPU_HAMGRD
-   NPU_VDPU --> NPU_HAMGRD
-   NPU_DPU_STATE --> |Direct Table Query| NPU_HAMGRD
-   NPU_VDPU_STATE --> |Direct Table Query| NPU_HAMGRD
-   NPU_DASH_HA_GLOBAL_CONFIG --> NPU_HAMGRD
-   NPU_DASH_HA_SET --> NPU_HAMGRD
-   NPU_DASH_ENI_PLACEMENT --> NPU_HAMGRD
-   NPU_DASH_ENI_HA_CONFIG --> NPU_HAMGRD
-   NPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
+   NPU_SWSS --> |ProducerStateTable| NPU_BFD_SESSION_STATE
+   NPU_SWSS --> |ProducerStateTable| NPU_ACL_RULE
 
    %% DPU tables --> hamgrd:
    DPU_DASH_ENI_HA_STATE --> NPU_HAMGRD
    DPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
 
    %% hamgrd --> NPU tables:
+   NPU_HAMGRD --> |zmq| NPU_DASH_ENI_TUNNEL_TABLE
+   NPU_HAMGRD --> |ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
    NPU_HAMGRD --> NPU_DASH_DPU_HA_STATE
    NPU_HAMGRD --> NPU_DASH_VDPU_HA_STATE
    NPU_HAMGRD --> NPU_DASH_ENI_HA_STATE
    NPU_HAMGRD --> NPU_DASH_ENI_DP_STATE
 
    %% hamgrd --> DPU tables:
-   NPU_HAMGRD --> DPU_DASH_HA_SET
-   NPU_HAMGRD --> DPU_DASH_ENI_HA_BULK_SYNC_SESSION
 
    %% DPU tables --> DPU SWSS:
-   DPU_DASH_ENI --> DPU_SWSS
-   DPU_DASH_HA_SET --> DPU_SWSS
-   DPU_DASH_ENI_HA_BULK_SYNC_SESSION --> DPU_SWSS
 
    %% DPU swss --> DPU tables:
    DPU_SWSS --> DPU_DASH_ENI_HA_STATE
    DPU_SWSS --> DPU_DASH_COUNTERS
+
+   %% NPU state tables --> Upstream service:
+   NPU_DASH_DPU_HA_STATE --> |gNMI| SC
+   NPU_DASH_VDPU_HA_STATE --> |gNMI| SC
+   NPU_DASH_ENI_HA_STATE --> |gNMI| SC
+   NPU_DASH_ENI_DP_STATE --> |gNMI| SC
 ```
 
 ## 2. Database Schema
