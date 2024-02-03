@@ -50,21 +50,17 @@
 
 ## 1. High level data flow
 
-The SmartSwitch HA is built on top of the [Overlay ECMP](../../vxlan/Overlay%20ECMP%20with%20BFD.md) feature for supporting multiple HA modes:
+On high level, the SmartSwitch HA supporting multiple modes:
 
-* **DPU-level active-active**: In this case, the traffic routing programming will be set just like regular overlay ECMP programming.
-  * Traffic will be distributed to all DPUs as ECMP group.
-  * BFD will be the only mechanism for controlling traffic forwarding.
-  * The HA control plane (hamgrd, swbusd) will not be used for HA handling.
-* **DPU-level active-standby**: The profile in overlay ECMP config needs to be set to "dpu_active_standby", which triggers the swss and hamgrd to handle the HA on DPU level.
-* **ENI-level active-standby**: the profile in overlay ECMP config needs to be set to "eni_active_standby", which triggers swss and hamgrd to set up ENI level traffic forwarding rule and handling ENI level HA status.
+* **DPU-level active-standby**: The HA is handled on DPU level.
+* **ENI-level active-standby**: The traffic forwarding rule and the HA state machine is handled on ENI level.
 
-The high level work flow is shown as below.
+The mode can be set on HA set, and all modes are sharing similar high level work flow shown as below.
 
-Please note that:
-
-1. The DPU DB in the following graphs are actually placed on the NPU side, due to CPU and memory constraints on DPU. Hence, the communication between `hamgrd` and DPU DB is local and doesn't need to go through PCIe bus.
-2. Each DPU has its own hamgrd instance, so they can be updated independently from each other as part of DPU updates.
+> Please note that:
+>
+> 1. The DPU DB in the following graphs are actually placed on the NPU side, due to CPU and memory constraints on DPU. Hence, the communication between `hamgrd` and DPU DB is local and doesn't need to go through PCIe bus.
+> 2. Each DPU has its own hamgrd instance, so they can be updated independently from each other as part of DPU updates.
 
 ### 1.1. Upstream config programming path
 
@@ -78,7 +74,6 @@ flowchart LR
    subgraph NPU Components
       NPU_SWSS[swss]
       NPU_HAMGRD[hamgrd]
-      NPU_HAMGRD[hamgrd]
 
       subgraph CONFIG DB
          NPU_DPU[DPU_TABLE]
@@ -87,75 +82,74 @@ flowchart LR
       end
 
       subgraph APPL DB
-         NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
-         NPU_VXLAN_TUNNEL[VXLAN_TUNNEL]
-         NPU_VNET[VNET]
          NPU_BFD_SESSION[BFD_SESSION_TABLE]
          NPU_ACL_TABLE[ACL_TABLE_TABLE]
          NPU_ACL_RULE[ACL_RULE_TABLE]
-      end
+         NPU_DASH_ENI_TUNNEL_TABLE[DASH_ENI_TUNNEL_TABLE]
+         NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
 
-      subgraph DASH APPL DB
+         NPU_DASH_HA_SET[DASH_HA_SET_TABLE]
          NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
-         NPU_DASH_ENI_FORWARD_CONFIG[DASH_ENI_FORWARD_CONFIG]
       end
    end
 
    subgraph "DPU0 Components (Same for other DPUs)"
       DPU_SWSS[swss]
 
-      subgraph DASH APPL DB
-         DPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
-         DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
+      subgraph DPU APPL DB
          DPU_DASH_ENI[DASH_ENI_TABLE]
+         DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
+         DPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
          DPU_DASH_ENI_HA_BULK_SYNC_SESSION[DASH_ENI_HA_BULK_SYNC_SESSION_TABLE]
       end
    end
 
-   %% Upstream services --> NPU config DB tables:
+   %% Upstream services --> NPU northboard interfaces:
    NC --> |gNMI| NPU_DPU
    NC --> |gNMI| NPU_VDPU
    NC --> |gNMI| NPU_DASH_HA_GLOBAL_CONFIG
-   SC --> |gNMI - ProducerStateTable| NPU_VXLAN_TUNNEL
-   SC --> |gNMI - ProducerStateTable| NPU_VNET
 
-   %% Upstream services --> NPU appl DB tables:
-   SC --> |gNMI - ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
+   SC --> |gNMI - zmq| NPU_DASH_HA_SET
    SC --> |gNMI - zmq| NPU_DASH_ENI_PLACEMENT
-   SC --> |gNMI - zmq| DPU_DASH_ENI_HA_CONFIG
 
-   %% Upstream services --> DPU appl DB tables:
+   %% Upstream services --> DPU northboard interfaces:
+   SC --> |gNMI - zmq| DPU_DASH_ENI_HA_CONFIG
    SC --> |gNMI - zmq| DPU_DASH_ENI
 
    %% NPU tables --> NPU side SWSS:
-   NPU_DPU --> |Direct Table Query| NPU_SWSS
-   NPU_VDPU --> |Direct Table Query| NPU_SWSS
-   NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
-   NPU_VXLAN_TUNNEL --> |ConsumerStateTable| NPU_SWSS
-   NPU_VNET --> |ConsumerStateTable| NPU_SWSS
-   NPU_DASH_ENI_PLACEMENT --> |zmq| NPU_SWSS
-   NPU_DASH_ENI_FORWARD_CONFIG --> |zmq| NPU_SWSS
+   NPU_DPU --> |SubscribeStateTable| NPU_SWSS
+   NPU_VDPU --> |SubscribeStateTable| NPU_SWSS
+   NPU_DASH_ENI_TUNNEL_TABLE --> |zmq| NPU_SWSS
+   NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTAble| NPU_SWSS
+   NPU_BFD_SESSION --> |ConsumerStateTable| NPU_SWSS
+   NPU_ACL_TABLE --> |ConsumerStateTable| NPU_SWSS
+   NPU_ACL_RULE --> |ConsumerStateTable| NPU_SWSS
 
    %% NPU side SWSS --> NPU tables:
    NPU_SWSS --> |ProducerStateTable| NPU_BFD_SESSION
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_TABLE
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_RULE
-   NPU_SWSS --> |zmq| DPU_DASH_HA_SET
 
    %% NPU tables --> hamgrd:
+   NPU_DPU --> |SubscribeStateTable| NPU_HAMGRD
+   NPU_VDPU --> |SubscribeStateTable| NPU_HAMGRD
    NPU_DASH_HA_GLOBAL_CONFIG --> |SubscribeStateTable| NPU_HAMGRD
+   NPU_DASH_HA_SET --> |zmq| NPU_HAMGRD
+   NPU_DASH_ENI_PLACEMENT --> |zmq| NPU_HAMGRD
    DPU_DASH_ENI_HA_CONFIG --> |zmq| NPU_HAMGRD
-   DPU_DASH_HA_SET --> |zmq| NPU_HAMGRD
 
    %% hamgrd --> NPU tables:
-   NPU_HAMGRD --> |zmq| NPU_DASH_ENI_FORWARD_CONFIG
+   NPU_HAMGRD --> |zmq| NPU_DASH_ENI_TUNNEL_TABLE
+   NPU_HAMGRD --> |ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
 
    %% hamgrd --> DPU tables:
-   NPU_HAMGRD --> DPU_DASH_ENI_HA_BULK_SYNC_SESSION
+   NPU_HAMGRD --> |zmq| DPU_DASH_HA_SET
+   NPU_HAMGRD --> |zmq| DPU_DASH_ENI_HA_BULK_SYNC_SESSION
 
    %% DPU tables --> DPU SWSS:
-   DPU_DASH_ENI --> DPU_SWSS
-   DPU_DASH_ENI_HA_BULK_SYNC_SESSION --> DPU_SWSS
+   DPU_DASH_ENI --> |zmq| DPU_SWSS
+   DPU_DASH_HA_SET --> |zmq| DPU_SWSS
+   DPU_DASH_ENI_HA_BULK_SYNC_SESSION --> |zmq| DPU_SWSS
 ```
 
 ### 1.2. State generation and handling path
