@@ -19,7 +19,7 @@
          3. [2.1.2.3. ENI configurations](#2123-eni-configurations)
       3. [2.1.3. State DB](#213-state-db)
          1. [2.1.3.1. DPU / vDPU state](#2131-dpu--vdpu-state)
-      4. [2.1.4. DASH State DB](#214-dash-state-db)
+      4. [2.1.4. DPU State DB](#214-dpu-state-db)
          1. [2.1.4.1. DPU / vDPU HA states](#2141-dpu--vdpu-ha-states)
          2. [2.1.4.2. ENI state](#2142-eni-state)
    2. [2.2. DPU DB schema](#22-dpu-db-schema)
@@ -82,11 +82,13 @@ flowchart LR
       end
 
       subgraph APPL DB
-         NPU_BFD_SESSION[BFD_SESSION_TABLE]
-         NPU_ACL_TABLE[ACL_TABLE_TABLE]
-         NPU_ACL_RULE[ACL_RULE_TABLE]
          NPU_DASH_ENI_TUNNEL_TABLE[DASH_ENI_TUNNEL_TABLE]
          NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
+
+         NPU_BFD_SESSION[BFD_SESSION_TABLE]
+         NPU_ROUTE[ROUTE_TABLE]
+         NPU_ACL_TABLE[ACL_TABLE_TABLE]
+         NPU_ACL_RULE[ACL_RULE_TABLE]
 
          NPU_DASH_HA_SET[DASH_HA_SET_TABLE]
          NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
@@ -122,11 +124,13 @@ flowchart LR
    NPU_DASH_ENI_TUNNEL_TABLE --> |zmq| NPU_SWSS
    NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
    NPU_BFD_SESSION --> |ConsumerStateTable| NPU_SWSS
+   NPU_ROUTE--> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_TABLE --> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_RULE --> |ConsumerStateTable| NPU_SWSS
 
    %% NPU side SWSS --> NPU tables:
    NPU_SWSS --> |ProducerStateTable| NPU_BFD_SESSION
+   NPU_SWSS --> |ProducerStateTable| NPU_ROUTE
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_TABLE
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_RULE
 
@@ -360,7 +364,7 @@ DPU/vDPU state table stores the health states of each DPU/vDPU. These data are c
 | | | health_state | Health state of the vDPU. It can be "healthy", "unhealthy". Only valid when the vDPU is local. |
 | | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
 
-#### 2.1.4. DASH State DB
+#### 2.1.4. DPU State DB
 
 ##### 2.1.4.1. DPU / vDPU HA states
 
