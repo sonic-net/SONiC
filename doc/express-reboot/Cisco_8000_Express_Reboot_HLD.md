@@ -3,7 +3,7 @@
 
 ## Overview
 
-The goal of Sonic express reboot is to be able to restart and upgrade SONiC software with sub-second data plane interruption. This document covers implementation in Sonic and SAI interface. 
+The goal of Sonic express reboot is to be able to restart and upgrade SONiC software with sub-second data plane interruption. This is achieved by not initializing external phys, and only initializing NPU after receiving all configuration updates. This document covers updates needed in Sonic and SAI interface. 
 
 ## fast-reboot script
 
@@ -13,7 +13,9 @@ The existing fast-reboot script ((https://github.com/sonic-net/sonic-utilities/b
 2.	During express-reboot shutdown path, syncd_request_shutdown will be called with a new option “-pxe” to inform syncd pre-shutdown for express boot mode. The actual calls will be “docker exec syncd /usr/bin/syncd_request_shutdown –pxe”.
 3.	“SONIC_BOOT_TYPE=express” will be added to reboot cmdline to indicate express-reboot.
 
-The rest flow is similar to warm-reboot.
+The rest flow is similar to warm-reboot. 
+
+A new express-reboot script will be added as a soft link to fast-reboot script.
 
 ## Syncd 
 
@@ -61,10 +63,10 @@ Major changes in syncd components are:
     } sai_start_type_t;
 ```
 
-3.	During express boot pre-shutdown, syncd sets SAI_SWITCH_ATTR_FAST_API_ENABLE = true in setPreShutdownOnAllSwitches() to notify SDK for proper cleanup.
+3.	During express boot pre-shutdown, syncd sets SAI_SWITCH_ATTR_FAST_API_ENABLE = true in setPreShutdownOnAllSwitches() to notify SDK to prepare for next express boot. This includes not initializing external phys during reboot, and only re-initializing NPU once configuration done notification is received.
 
 ```
-sai_status_t yncd::setPreShutdownOnAllSwitches()
+sai_status_t Syncd::setPreShutdownOnAllSwitches()
 {
 	    if (shutdownType == SYNCD_RESTART_TYPE_EXPRESS) 
       {
@@ -87,11 +89,11 @@ sai_status_t Syncd:: setFastAPIEnableOnAllSwitches()
 
 4.	Initialization
    
-During syncd vendorSai initialization after express boot, SAI_KEY_BOOT_TYPE will be set to SAI_START_TYPE_EXPRESS_BOOT to indicate express boot
+During syncd vendorSai initialization after express boot, SAI_KEY_BOOT_TYPE will be set to SAI_START_TYPE_EXPRESS_BOOT to indicate express boot. OCP SAI SAI_KEY_BOOT_TYPE attribute will be updated to include express boot type.
 
 5.	Config Done notification
 
-SDK needs a notification once all configurations are restored after express boot. We will follow the same logic used in the FASTFAST boot for this. SAI_SWITCH_ATTR_FAST_API_ENABLE will be set after receive SAI_REDIS_NOTIFY_SYNCD_APPLY_VIEW:
+SDK needs a notification once all configurations are restored after express boot. Express boot follows the same logic used in the FASTFAST boot for this. SAI_SWITCH_ATTR_FAST_API_ENABLE will be set after receive SAI_REDIS_NOTIFY_SYNCD_APPLY_VIEW:
 
 ```
 sai_status_t Syncd::processNotifySyncd()
