@@ -11,7 +11,7 @@ This document is intended to provide a high-level design for a Storage monitorin
 
 Solid-State Drives (SSDs) are storage devices that use NAND-flash technology to store data. They offer the end user significant benefits compared to HDDs, some of which include reliability, reduced size, increased energy efficiency and improved IO speeds which translates to faster boot times, quicker computational capabilities and an improved system responsiveness overall. Like all devices, however, they experience performance degradation over time on account of a variety of factors such as overall disk writes, bad-blocks management, lack of free space, sub-optimal operational temperature and good-old wear-and-tear which speaks to the overall health of the SSD. 
 
-The goal of the Storage Monitoring Daemon (stormond) is to provide meaningful metrics for the aforementioned issues and enable streaming telemetry for these attributes so that the required preventative measures are triggered in the eventuality of performance degradation.
+The goal of the Storage Monitoring Daemon (storagemond) is to provide meaningful metrics for the aforementioned issues and enable streaming telemetry for these attributes so that the required preventative measures are triggered in the eventuality of performance degradation.
 
 ## 2. Data Collection
 
@@ -50,15 +50,17 @@ We are intrested in the following characteristics that describe various aspects 
 These fields are self-explanatory.
 
 
-### **2.3 `stormond` Daemon Flow**
+### **2.3 `storagemond` Daemon Flow**
 
-1. `stormond` would be started by the `pmon` docker container
+1. `storagemond` would be started by the `pmon` docker container
 2. The daemon would gather the static info once init-ed, by leveraging the `SsdUtil` class and update the StateDB
 3. It would parse the priority 0 attributes by leveraging `SsdUtil` class and update the StateDB every hour.
 
+**NOTE:** The design requires a concurrent PR wherein SsdUtil class is enhanced to gather IO Read/Write stats and Reserved Blocks information as detailed in section [2.4.1 below](#241-ssdbase-api-additions).
+
 This is detailed in the sequence diagram below:
 
-![image.png](images/stormond_SequenceDiagram.png)
+![image.png](images/storagemond_SequenceDiagram.png)
 
 ### **2.4 Data Collection Logic**
 
@@ -109,7 +111,7 @@ Returns:
 
 The `ssdutil` utility assumes that the disk drive is `/dev/sda` whereas the drive letter could be any label based on the number of SSDs. It could also be a different type of storage device such as eMMC, USB or NVMe.
 
-In order to get a clear picture of the number and type of disks present on a device, we introduce a new class `StorageDevices()` which will accompany the stormond daemon at `sonic-platform-daemons/sonic-stormond/scripts/StorageDevices.py`. This new class provides the following methods:
+In order to get a clear picture of the number and type of disks present on a device, we introduce a new class `StorageDevices()` which will accompany the storagemond daemon at `sonic-platform-daemons/sonic-storagemond/scripts/storagemond`. This new class provides the following methods:
 
 ```
 class StorageDevices():
@@ -127,10 +129,15 @@ Retrieves all the storage disks on the device and adds their names as key to the
 
 def get_storage_device_object(self):
 """
-Instantiates an object of the corresponding storage device class. 
+Instantiates an object of the corresponding storage device class:
+
+'ata'       - SsdUtil   - Full support
+'usb'       - UsbUtil*  - Not currently supported
+'mmcblk'    - EmmcUtil* - Limited Support
+
 Adds the instantiated class object as a value to the corresponding key in the dictionary object.
 
-NOTE: SsdUtil is supported currently. Future support for EmmcUtil, USBUtil and NVMeUtil
+*NOTE: SsdUtil is supported currently. Limited support for EmmcUtil. Future support planned for USBUtil and NVMeUtil
 
 """
 ```
@@ -206,25 +213,36 @@ we would then get static and dynamic information by leveraging the respective me
 We then leverage the following proposed StateDB schema to store and stream information about each of these disks.
 
 
-<sub>**NOTE:** `UsbUtil` and `NVMeUtil` classes are not yet available. `EmmcUtil` class does not currently have IO reads, IO writes and Reserved Blocks support.</sub>
+**NOTE:** <br>
+**Full support** -- monitors all the attributes mentioned in [section 2](#2-data-collection)<br>
+**Limited support** -- Support unavailable for Dynamic fields mentioned in [section 2.1](#21-priority-0-attributes)<br>
+**Not currently supported** -- Class currently unimplemented, no object created. No monitoring currently available.<br>
+
+`UsbUtil` and `NVMeUtil` classes are not yet available. `EmmcUtil` class does not currently have IO reads, IO writes and Reserved Blocks support.</sub>
+
+#### **2.4.2.1 storagemond Class Diagram**
+
+![image.png](images/StoragemonDaemonClassDiagram.png)
 
 ## **3. StateDB Schema**
 ```
 ; Defines information for each Storage Disk in a device
 
-key                 = STORAGE_INFO|<disk_name>          ; This key is for information about a specific storage disk - STORAGE_INFO|SDX
+key                 = STORAGE_INFO|<disk_name>  ; This key is for information about a specific storage disk - STORAGE_INFO|SDX
 
 ; field             = value
 
-temperature_celsius = STRING                            ; Describes the operating temperature of the SSD in Celsius                             (Priority 0, Dynamic)
-io_reads            = STRING                            ; Describes the total number of reads completed successfully from the SSD               (Priority 0, Dynamic)
-io_writes           = STRING                            ; Describes the total number of writes completed on the SSD                             (Priority 0, Dynamic)
-reserved_blocks     = STRING                            ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
-device_model        = STRING                            ; Describes the Vendor information of the SSD                                           (Priority 1, Static)
-serial              = STRING                            ; Describes the Serial number of the SSD                                                (Priority 1, Static)
-firmware            = STRING                            ; Describes the Firmware version of the SSD                                             (Priority 1, Static)
-health              = STRING                            ; Describes the overall health of the SSD as a % value based on several SMART attrs     (Priority 1, Dynamic)
+temperature_celsius = STRING                    ; Describes the operating temperature of the SSD in Celsius                             (Priority 0, Dynamic)
+io_reads            = STRING                    ; Describes the total number of reads completed successfully from the SSD (LBAs read)   (Priority 0, Dynamic)
+io_writes           = STRING                    ; Describes the total number of writes completed on the SSD (LBAs written)              (Priority 0, Dynamic)
+reserved_blocks     = STRING                    ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
+device_model        = STRING                    ; Describes the Vendor information of the SSD                                           (Priority 1, Static)
+serial              = STRING                    ; Describes the Serial number of the SSD                                                (Priority 1, Static)
+firmware            = STRING                    ; Describes the Firmware version of the SSD                                             (Priority 1, Static)
+health              = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs     (Priority 1, Dynamic)
 ```
+
+<sub>NOTE: 'LBA' stands for Logical Block Address. To get the raw value in bytes, multiply by 512B.</sub>
 
 Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
