@@ -547,12 +547,7 @@ vm_vni                   = VM VNI that is used for setting direction. Also used 
 ### 3.2.8 ROUTE LPM TABLE - OUTBOUND
 
 ```
-DASH_ROUTE_IN_TABLE:{{eni}}:
-    "group_id": {{group_id}} 
-```
-
-```
-DASH_ROUTE_OUT_TABLE:{{eni}}:
+DASH_ENI_ROUTE_TABLE:{{eni}}
     "group_id": {{group_id}} 
 ```
 
@@ -594,7 +589,7 @@ metering_class           = class_id                  ; Metering class-id, used i
 ### 3.2.9 ROUTE RULE TABLE - INBOUND
 
 ``` 
-DASH_ROUTE_RULE_TABLE:{{group_id}}:{{vni}}:{{prefix}} 
+DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix}} 
     "action_type": {{routing_type}} 
     "priority": {{priority}}
     "protocol": {{protocol_value}} (OPTIONAL)
@@ -605,7 +600,7 @@ DASH_ROUTE_RULE_TABLE:{{group_id}}:{{vni}}:{{prefix}}
 ```
   
 ```
-key                      = DASH_ROUTE_RULE_TABLE:eni:vni:prefix ; Inbound route group table with VNI and optional SRC PA prefix
+key                      = DASH_ROUTE_RULE_TABLE:eni:vni:prefix ; ENI inbound route table with VNI and optional SRC PA prefix
 ; field                  = value 
 action_type              = routing_type              ; reference to routing type, action can be decap or drop
 priority                 = INT32 value               ; priority of the rule, lower the value, higher the priority
