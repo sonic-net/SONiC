@@ -41,6 +41,7 @@
 |  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th (Scope, Warmboot/Fastboot, CONFIG_DB)                                                                                  |
 |  0.4  | Sep 24, 2023 |               Kentaro Ebisawa (NTT)                | Add feature enable/disable design and CLI. Update test plan.                                                                                                                     |
 |  0.5  | Nov 10, 2023 |               Kanji Nakano (NTT)                   | Update feature enable/disable design and CLI. Update test plan.                                                                                                                     |
+|  0.6  | Feb 09, 2024 |               Nikhil Kelapure (BRCM)                   | Update multipath NHG handling.                                                                                                                     |
 
 ### Scope  
 
@@ -48,7 +49,6 @@ This document details the design and implementation of the "fpmsyncd extension" 
 The goal of this "fpmsyncd extension" is to integrate NextHop Group (NHG) functionality into SONiC by writing NextHop Group entry from `fpmsyncd` to `APPL_DB` for NextHop Group operation in SONiC.
 
 - Scope of this change is to extend `fpmsyncd` to handle `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` messages from FPM.
-- There will be no change to SWSS/Orchagent.
 - This change is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behavior as this feature is disabled by default.
 
 ### Overview 
@@ -76,6 +76,9 @@ See [09072023 Routing WG Meeting minutes](https://lists.sonicfoundation.dev/g/so
 - `fpmsyncd` to handle `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` events from zebra via `dplane_fpm_nl`
 - `fpmsyncd` to SET/DEL routes to `APPL_DB: ROUTE_TABLE` using `nexthop_group`
 - `fpmsyncd` to SET/DEL NextHop Group entry to `APPL_DB: NEXTHOP_GROUP_TABLE`
+
+`Orchagent extension` requires:
+- `orchagent` to handle member updates from `APPL_DB:NEXTHOP_GROUP_TABLE` for multipath NextHop Group
 
 This feature must be disabled by default.
 - When this feature is disabled, behavior will be the same as before introducing this feature.
@@ -230,14 +233,25 @@ admin@sonic:~$ sonic-db-cli APPL_DB HGETALL ROUTE_TABLE:10.1.1.4
   <tr><td>NHA_GROUP</td><td>[{125,1},{126,1}]</td></tr>
   <tr><td rowspan="2">4</td><td rowspan="2">RTM_NEWROUTE</td><td>RTA_DST</td><td>10.1.1.4</td></tr>
   <tr><td>RTA_NH_ID</td><td>ID127</td></tr>
+  <tr><td rowspan="2">5</td><td rowspan="2">RTM_NEWROUTE</td><td>RTA_DST</td><td>10.1.1.5</td></tr>
+  <tr><td>RTA_NH_ID</td><td>ID127</td></tr>
+  <tr><td rowspan="3">6</td><td rowspan="3">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>ID128</td></tr>
+  <tr><td>NHA_GATEWAY</td><td>10.0.0.4</td></tr>
+  <tr><td>NHA_OIF</td><td>22</td></tr>
+  <tr><td rowspan="2">7</td><td rowspan="2">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>ID127</td></tr>
+  <tr><td>NHA_GROUP</td><td>[{125,1},{128,1}]</td></tr>
 </table>
 
 A short description of `fpmsyncd` logic flow:
 
-- When receiving `RTM_NEWNEXTHOP` events on sequence 1, 2 and 3, `fpmsyncd` will save the information in an internal list to be used when necessary.
-- When `fpmsyncd` receive the `RTM_NEWROUTE` on sequence 4, the process will write the NextHop Group with ID 118 to the `NEXTHOP_GROUP_TABLE` using the information of gateway and interface from the NextHop Group events with IDs 116 and 117.
-- Then `fpmsyncd` will create a new route entry to `ROUTE_TABLE` with a `nexthop_group` field with value `ID118`.
-- When `fpmsyncd` receives the last `RTM_NEWROUTE` on sequence 5, the process will create a new route entry (but no NextHop Group entry) in `ROUTE_TABLE` with `nexthop_group` field with value `ID118`. (Note: This NextHop Group entry was created when the `fpmsyncd` received the event sequence 4.)
+- When receiving `RTM_NEWNEXTHOP` events on sequence 1 and 2, `fpmsyncd` will write the information in `NEXTHOP_GROUP_TABLE` with NextHop Group `ID125` and `ID126` and with information of gateway and interface respectively. For sequence 3  multi path NextHop Group `ID127` the information in `NEXTHOP_GROUP_TABLE` will contain the list of IDs 125 and 126
+- When `fpmsyncd` receive the `RTM_NEWROUTE` on sequence 4, the process will create a new route entry to `ROUTE_TABLE` with a `nexthop_group` field with value `ID127`.
+- When `fpmsyncd` receives the next `RTM_NEWROUTE` on sequence 5, the process will create a new route entry (but no NextHop Group entry) in `ROUTE_TABLE` with `nexthop_group` field with value `ID127`. (Note: This NextHop Group entry was created when the `fpmsyncd` received the event sequence 4.)
+- When receiving `RTM_NEWNEXTHOP` events on sequence 6 `fpmsyncd` will write the information in `NEXTHOP_GROUP_TABLE` with NextHop Group `ID128`
+- When receiving `RTM_NEWNEXTHOP` events on sequence 7 `fpmsyncd` will update the information in `NEXTHOP_GROUP_TABLE` with NextHop Group `ID127` and the information will now contain list of IDs 125 and 128
+
+A short description of `Orchagent` changes:
+- After receiving `RTM_NEWNEXTHOP` events on sequence 7  and `fpmsyncd` updating the information in `NEXTHOP_GROUP_TABLE` for NextHop Group `ID127` Orchagent will update this change in `ASIC_DB` accordingly.
 
 #### Example of entries in ASIC_DB
 
