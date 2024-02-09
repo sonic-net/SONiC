@@ -41,7 +41,21 @@ Key system requirements include:
 The system comprises a NPU and multiple DPUs. Each component plays a specific role:
 - **NPU**: Initiates the reboot process and sends gRPC requests to DPUs for graceful shutdowns.
 - **DPU**: Constantly listen for reboot signals and execute shutdown procedures upon request.
+  
+```mermaid
+graph TD;
+    NPU[NPU - gRPC Client] -->|SendRebootSignal| DPU1[DPU - gRPC Server];
+    NPU -->|SendRebootSignal| DPU2[DPU - gRPC Server];
+    NPU -->|SendRebootSignal| DPU3[DPU - gRPC Server];
+    DPU1 -->|Ack| NPU;
+    DPU2 -->|Ack| NPU;
+    DPU3 -->|Ack| NPU;
 
+    classDef npuClass fill:#f9f,stroke:#333,stroke-width:4px;
+    classDef dpuClass fill:#bbf,stroke:#f66,stroke-width:2px,stroke-dasharray: 5, 5;
+    class NPU npuClass;
+    class DPU1,DPU2,DPU3 dpuClass;
+```
 
 ## gRPC Communication Design
 
@@ -105,6 +119,19 @@ The reboot process involves multiple steps and requires coordination between the
 - **Reboot**: System rebooting.
 - **Post-Reboot**: Perform post-reboot initialization before returning to Idle.
 
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> PrepareForReboot: Initiate Reboot
+    PrepareForReboot --> NotifyDPUs: Pre-reboot tasks complete
+    NotifyDPUs --> WaitForAcknowledgments: Sent reboot signals
+    WaitForAcknowledgments --> ProceedWithReboot: Ack received
+    WaitForAcknowledgments --> ErrorLogging: Ack not received, timeout
+    ProceedWithReboot --> Reboot: Reboot command issued
+    Reboot --> PostReboot: System restarting
+    PostReboot --> Idle: Initialization complete
+    ErrorLogging --> Reboot: Log error, proceed with reboot
+```
 ### DPU State Machine
 
 - **Listening**: Default state, listening for the NPU's commands.
@@ -114,6 +141,16 @@ The reboot process involves multiple steps and requires coordination between the
 - **Wait for Restart**: Remain in low-power state until restarted.
 
 Diagrams and further details on each state's transitions and actions will be included to ensure clear understanding and implementation.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Listening: Power on
+    Listening --> ShutdownInitiated: Reboot signal received
+    ShutdownInitiated --> Shutdown: Begin graceful shutdown
+    Shutdown --> ShutdownComplete: Shutdown sequence complete
+    ShutdownComplete --> WaitForRestart: Notify NPU, enter low power
+    WaitForRestart --> Listening: System restarted
+```
 
 ## Error Handling and Logging
 
