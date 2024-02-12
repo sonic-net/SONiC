@@ -313,6 +313,8 @@ flowchart LR
 | DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
+| | | vip_v4 | IPv4 Data path VIP. |
+| | | vip_v6 | IPv4 Data path VIP. |
 | | | vdpu_ids | The ID of the vDPUs. |
 | | | mode | Mode of HA set. It can be "activestandby". |
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), "up" or "down". |
