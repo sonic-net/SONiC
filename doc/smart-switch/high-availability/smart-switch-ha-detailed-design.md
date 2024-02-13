@@ -3,7 +3,7 @@
 | Rev | Date | Author | Change Description |
 | --- | ---- | ------ | ------------------ |
 | 0.1 | 10/14/2023 | Riff Jiang | Initial version |
-| 0.2 | 02/12/2024 | Riff Jiang | Adding more HA mode support; Update DB schema and workflow to match recent PMON design. |
+| 0.2 | 02/12/2024 | Riff Jiang | Adding more HA mode support; Update DB schema and workflow to match recent database and PMON design. |
 
 1. [1. High level data flow](#1-high-level-data-flow)
    1. [1.1. Upstream config programming path](#11-upstream-config-programming-path)
@@ -18,15 +18,15 @@
          2. [2.1.2.2. ENI placement configurations](#2122-eni-placement-configurations)
          3. [2.1.2.3. VNET route / ENI tunnel table](#2123-vnet-route--eni-tunnel-table)
       3. [2.1.3. Chassis State DB](#213-chassis-state-db)
-         1. [2.1.3.1. DPU state](#2131-dpu-state)
+         1. [2.1.3.1. DPU / vDPU state](#2131-dpu--vdpu-state)
       4. [2.1.4. DPU State DB](#214-dpu-state-db)
-         1. [2.1.4.2. ENI state](#2142-eni-state)
+         1. [2.1.4.1. ENI state](#2141-eni-state)
    2. [2.2. Per-DPU databases](#22-per-dpu-databases)
       1. [2.2.1. APPL DB](#221-appl-db)
          1. [2.2.1.1. HA set configurations](#2211-ha-set-configurations)
          2. [2.2.1.2. vDPU HA configurations](#2212-vdpu-ha-configurations)
-         3. [2.2.1.2. ENI HA configurations](#2212-eni-ha-configurations)
-         4. [2.2.1.3. DASH ENI object table](#2213-dash-eni-object-table)
+         3. [2.2.1.3. ENI HA configurations](#2213-eni-ha-configurations)
+         4. [2.2.1.4. DASH ENI object table](#2214-dash-eni-object-table)
       2. [2.2.2. State DB](#222-state-db)
          1. [2.2.2.1. ENI HA state](#2221-eni-ha-state)
 3. [3. Telemetry](#3-telemetry)
@@ -41,8 +41,7 @@
          2. [3.3.2.2. Per ENI counters](#3322-per-eni-counters)
    4. [3.4. NPU-to-DPU tunnel related (NPU side)](#34-npu-to-dpu-tunnel-related-npu-side)
       1. [3.4.1. NPU-to-DPU probe status](#341-npu-to-dpu-probe-status)
-      2. [3.4.2. NPU-to-DPU data plane state](#342-npu-to-dpu-data-plane-state)
-      3. [3.4.3. NPU-to-DPU tunnel counters](#343-npu-to-dpu-tunnel-counters)
+      2. [3.4.2. NPU-to-DPU tunnel counters](#342-npu-to-dpu-tunnel-counters)
    5. [3.5. NPU-to-DPU tunnel related (DPU side)](#35-npu-to-dpu-tunnel-related-dpu-side)
    6. [3.6. DPU-to-DPU data plane channel related](#36-dpu-to-dpu-data-plane-channel-related)
    7. [3.7. DPU ENI pipeline related](#37-dpu-eni-pipeline-related)
@@ -359,7 +358,7 @@ Please refer to the [SONiC Overlay ECMP with BFD HLD](https://github.com/sonic-n
 
 #### 2.1.3. Chassis State DB
 
-##### 2.1.3.1. DPU state
+##### 2.1.3.1. DPU / vDPU state
 
 DPU state table stores the health states of each DPU. These data are collected by `pmon`.
 
@@ -374,7 +373,7 @@ DPU state table stores the health states of each DPU. These data are collected b
 
 #### 2.1.4. DPU State DB
 
-##### 2.1.4.2. ENI state
+##### 2.1.4.1. ENI state
 
 On NPU side, the ENI state table shows:
 
@@ -410,7 +409,7 @@ On NPU side, the ENI state table shows:
 | | | bulk_sync_start_time_in_ms | Bulk sync start time in milliseconds. |
 | DASH_ENI_DP_STATE | | | Data plane state of all known ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | ha_set_mode | HA set mode. See [HA set configurations](#2221-ha-set-configurations) for more details. |
+| | | ha_set_mode | HA set mode. See [HA set configurations](#2121-ha-set-configurations) for more details. |
 | | | next_hops | All possible next hops for this ENI. |
 | | | next_hops_types | Type of each next hops, connected by ",". |
 | | | next_hops_card_level_probe_states | Card level probe state for each next hop, connected by ",". It can be "unknown", "up", "down". |
@@ -456,7 +455,7 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | desired_ha_state | The desired state for this vDPU. It can only be "" (none), `dead`, `active` or `standalone`. |
 | | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
 
-##### 2.2.1.2. ENI HA configurations
+##### 2.2.1.3. ENI HA configurations
 
 * The ENI HA configuration table contains the ENI-level HA config.
 * The ENI HA configuraiton table only contains the ENIs that is hosted on the DPU.
@@ -469,7 +468,7 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | desired_ha_state | The desired state for this ENI. It can only be "" (none), `dead`, `active` or `standalone`. |
 | | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
 
-##### 2.2.1.3. DASH ENI object table
+##### 2.2.1.4. DASH ENI object table
 
 * The DASH objects will only be programmed on the DPU that is hosting the ENIs.
 
@@ -519,7 +518,7 @@ We will focus on only the HA counters below, which will not include basic counte
 
 First of all, we need to store the HA states for us to check.
 
-Please refer to the [ENI state](#1242-eni-state) table in NPU DB for detailed DB schema design.
+Please refer to the [ENI state](#2141-eni-state) table in NPU DB for detailed DB schema design.
 
 ### 3.2. HA operation counters
 
@@ -620,17 +619,9 @@ The second part of the HA is the NPU-to-DPU tunnel. This includes the probe stat
 
 #### 3.4.1. NPU-to-DPU probe status
 
-Latest probe status is critical for checking how each card and ENI performs, and where the packets should be forwarded to.
+This is managed by `swss` via overlay ECMP with BFD. Please refer to its HLD [here](https://github.com/r12f/SONiC/blob/user/r12f/ha/doc/vxlan/Overlay%20ECMP%20with%20BFD.md).
 
-Please refer to the [DPU/vDPU HA state](#1241-dpu--vdpu-ha-states) tables in NPU DB for detailed DB schema design.
-
-#### 3.4.2. NPU-to-DPU data plane state
-
-Depending on the probe status and HA state, we will update the next hop for each ENI to forward the traffic. This also needs to be tracked.
-
-Please refer to the [DASH_ENI_DP_STATE](#1242-eni-state) table in NPU DB for detailed DB schema design.
-
-#### 3.4.3. NPU-to-DPU tunnel counters
+#### 3.4.2. NPU-to-DPU tunnel counters
 
 On NPU side, we should also have ENI level tunnel traffic counters:
 
