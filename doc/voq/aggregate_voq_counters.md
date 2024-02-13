@@ -47,20 +47,22 @@ Figure 2: Aggregation of VOQ stats
 #### CHASSIS_APP_DB Changes
 
 The following new VOQ counters should be available for each VOQ entry in the DB:
-   * COUNTERS|fsi_id|asic_id|intf:VOQ_index
-      * SAI_VOQ_STAT_PACKETS
-      * SAI_VOQ_STAT_BYTES
-      * SAI_VOQ_STAT_DROPPED_PACKETS
-      * SAI_VOQ_STAT_DROPPED_BYTES
+   * `COUNTERS|fsi_id|asic_id|intf@fsi_id|asic_id:VOQ_index`
+      * `SAI_VOQ_STAT_PACKETS`
+      * `SAI_VOQ_STAT_BYTES`
+      * `SAI_VOQ_STAT_DROPPED_PACKETS`
+      * `SAI_VOQ_STAT_DROPPED_BYTES`
+   * The first part of the key ( before @ ) `fsi_id|asic_id|intf` denotes the physical location of the interface.
+   * The second part of the key ( after @ ) `fsi_id|asic_id:VOQ_index` denotes the location of the VOQ and its index.
         
 #### SWSS Changes
 ##### PortsOrch Changes
 PortsOrch will periodically poll the VOQ stats through SAI call `get_queue_stats` and update them into `CHASSIS_APP_DB`
 
 #### Repositories that need to be changed
-   * sonic-swss
-   * sonic-swss-common
-   * sonic-utilities
+   * sonic-swss-common: https://github.com/sonic-net/sonic-swss-common/pull/855
+   * sonic-swss: https://github.com/sonic-net/sonic-swss/pull/3047
+   * sonic-utilities: https://github.com/sonic-net/sonic-utilities/pull/3163
    * sonic-mgmt
 
 ### SAI API 
@@ -68,21 +70,21 @@ No new SAI API is being added. PortsOrch will use the existing SAI API i.e. `get
 
 ### Configuration and management 
 #### CLI
-CLI (VOQstat.py) aggregates the VOQ stats for a VOQ across ASICS and present a consolidated view. No new CLI command is being introduced for this rather the following CLI command is leveraged to provide this output on an SSI.
+CLI (queuestat.py) aggregates the VOQ stats for a VOQ across ASICS and present a consolidated view. No new CLI command is being introduced for this rather the following CLI command is leveraged to provide this output on an SSI.
 
 $ show VOQ counters [interface] --voq
 ```
-admin@cmp217:~$ show VOQ counters Ethernet24 --voq
-      Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
-----------  -----  --------------  ---------------  -----------  ------------
-Ethernet24   VOQ0               4              528            0             0
-Ethernet24   VOQ1               0                0            0             0
-Ethernet24   VOQ2               0                0            0             0
-Ethernet24   VOQ3               0                0            0             0
-Ethernet24   VOQ4               0                0            0             0
-Ethernet24   VOQ5               0                0            0             0
-Ethernet24   VOQ6               0                0            0             0
-Ethernet24   VOQ7               0                0            0             0
+admin@nfc404:~$ show queue counters "nfc404-3|Asic0|Ethernet4" --voq
+                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
+------------------------  -----  --------------  ---------------  -----------  ------------
+nfc404-3|Asic0|Ethernet4   VOQ0              45            12386            0             0
+nfc404-3|Asic0|Ethernet4   VOQ1               1               50            0             0
+nfc404-3|Asic0|Ethernet4   VOQ2             255            12750            0             0
+nfc404-3|Asic0|Ethernet4   VOQ3               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ4              37             1850            0             0
+nfc404-3|Asic0|Ethernet4   VOQ5               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ6             172             8600            0             0
+nfc404-3|Asic0|Ethernet4   VOQ7               0                0            0             0
 ```
 		
 
