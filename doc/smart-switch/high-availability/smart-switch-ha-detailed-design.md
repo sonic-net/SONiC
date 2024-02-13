@@ -3,29 +3,30 @@
 | Rev | Date | Author | Change Description |
 | --- | ---- | ------ | ------------------ |
 | 0.1 | 10/14/2023 | Riff Jiang | Initial version |
-| 0.2 | 02/02/2024 | Riff Jiang | Adding more HA mode support |
+| 0.2 | 02/12/2024 | Riff Jiang | Adding more HA mode support; Update DB schema and workflow to match recent PMON design. |
 
 1. [1. High level data flow](#1-high-level-data-flow)
    1. [1.1. Upstream config programming path](#11-upstream-config-programming-path)
    2. [1.2. State generation and handling path](#12-state-generation-and-handling-path)
 2. [2. Database Schema](#2-database-schema)
-   1. [2.1. NPU DB schema](#21-npu-db-schema)
+   1. [2.1. NPU side databases](#21-npu-side-databases)
       1. [2.1.1. CONFIG DB](#211-config-db)
          1. [2.1.1.1. DPU / vDPU definitions](#2111-dpu--vdpu-definitions)
          2. [2.1.1.2. HA global configurations](#2112-ha-global-configurations)
       2. [2.1.2. APPL DB](#212-appl-db)
          1. [2.1.2.1. HA set configurations](#2121-ha-set-configurations)
          2. [2.1.2.2. ENI placement configurations](#2122-eni-placement-configurations)
-         3. [2.1.2.3. ENI HA configurations](#2123-eni-ha-configurations)
-      3. [2.1.3. State DB](#213-state-db)
-         1. [2.1.3.1. DPU / vDPU state](#2131-dpu--vdpu-state)
+         3. [2.1.2.3. VNET route / ENI tunnel table](#2123-vnet-route--eni-tunnel-table)
+      3. [2.1.3. Chassis State DB](#213-chassis-state-db)
+         1. [2.1.3.1. DPU state](#2131-dpu-state)
       4. [2.1.4. DPU State DB](#214-dpu-state-db)
-         1. [2.1.4.1. DPU / vDPU HA states](#2141-dpu--vdpu-ha-states)
-         2. [2.1.4.2. ENI state](#2142-eni-state)
-   2. [2.2. DPU DB schema](#22-dpu-db-schema)
+         1. [2.1.4.2. ENI state](#2142-eni-state)
+   2. [2.2. Per-DPU databases](#22-per-dpu-databases)
       1. [2.2.1. APPL DB](#221-appl-db)
          1. [2.2.1.1. HA set configurations](#2211-ha-set-configurations)
-         2. [2.2.1.2. DASH ENI object table](#2212-dash-eni-object-table)
+         2. [2.2.1.2. vDPU HA configurations](#2212-vdpu-ha-configurations)
+         3. [2.2.1.2. ENI HA configurations](#2212-eni-ha-configurations)
+         4. [2.2.1.3. DASH ENI object table](#2213-dash-eni-object-table)
       2. [2.2.2. State DB](#222-state-db)
          1. [2.2.2.1. ENI HA state](#2221-eni-ha-state)
 3. [3. Telemetry](#3-telemetry)
@@ -198,10 +199,10 @@ flowchart LR
       end
 
       subgraph DASH STATE DB
-         NPU_DASH_DPU_HA_STATE[DASH_DPU_HA_STATE_TABLE]
-         NPU_DASH_VDPU_HA_STATE[DASH_VDPU_HA_STATE_TABLE]
-         NPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
-         NPU_DASH_ENI_DP_STATE[DASH_ENI_DP_STATE_TABLE]
+         NPU_DASH_DPU_HA_STATE[DASH_DPU_HA_STATE]
+         NPU_DASH_VDPU_HA_STATE[DASH_VDPU_HA_STATE]
+         NPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE]
+         NPU_DASH_ENI_DP_STATE[DASH_ENI_DP_STATE]
       end
    end
 
@@ -210,7 +211,7 @@ flowchart LR
       DPU_SYNCD[syncd]
 
       subgraph DASH STATE DB
-         DPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
+         DPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE]
       end
 
       subgraph DASH COUNTER DB
@@ -269,7 +270,7 @@ flowchart LR
 
 > NOTE: Only the configuration that is related to HA is listed here and please check [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) to see other fields.
 
-### 2.1. NPU DB schema
+### 2.1. NPU side databases
 
 #### 2.1.1. CONFIG DB
 
@@ -308,6 +309,7 @@ flowchart LR
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
+| | | dp_channel_probe_fail_threshold | The number of probe failure needed to consider data plane channel is dead. |
 | | | dpu_bfd_probe_interval_in_ms | The interval of DPU BFD probe in milliseconds. |
 | | | dpu_bfd_probe_multiplier | The number of DPU BFD probe failure before probe down. |
 
@@ -345,51 +347,28 @@ flowchart LR
 | | | version | Config version. |
 | | | eni_mac | ENI mac address. Used to create the NPU side ACL rules to match the incoming packets and forward to the right DPUs. |
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
-| | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI forwarding rule. "" = Not set. |
+| | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI traffic forwarding rule. "" = Not set. |
 
-##### 2.1.2.3. ENI HA configurations
+##### 2.1.2.3. VNET route / ENI tunnel table
 
-* The ENI HA configuration table contains the ENI-level HA config.
-* The ENI HA configuraiton table only contains the ENIs that is hosted on the local switch.
+Please refer to the [SONiC Overlay ECMP with BFD HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Overlay%20ECMP%20with%20BFD.md) for more detailed data base schema.
 
-| Table | Key | Field | Description |
-| --- | --- | --- | --- |
-| DASH_ENI_HA_CONFIG_TABLE | | | ENI HA configuration. |
-| | \<VDPU_ID\> | | vDPU ID. Used to identifying a single vDPU. |
-| | \<ENI_ID\> | | ENI ID. Used for identifying a single ENI. |
-| | | version | Config version. |
-| | | desired_ha_state | The desired state for this ENI. It can only be "" (none), dead, active or standalone. |
-| | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
+#### 2.1.3. Chassis State DB
 
-#### 2.1.3. State DB
+##### 2.1.3.1. DPU state
 
-##### 2.1.3.1. DPU / vDPU state
-
-DPU/vDPU state table stores the health states of each DPU/vDPU. These data are collected by `pmon`.
+DPU state table stores the health states of each DPU. These data are collected by `pmon`.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DPU_TABLE | | | Physical DPU state. |
+| DPU_STATE | | | Physical DPU state. |
 | | \<DPU_ID\> | | Physical DPU ID |
-| | | health_state | Health state of the DPU device. It can be "healthy", "unhealthy". Only valid when the DPU is local. |
-| | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
-| VDPU_TABLE | | | Virtual DPU state. |
-| | \<VDPU_ID\> | | Virtual DPU ID |
-| | | health_state | Health state of the vDPU. It can be "healthy", "unhealthy". Only valid when the vDPU is local. |
-| | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
+| | | ... | see [SmartSwitch PMON HLD](https://github.com/sonic-net/SONiC/pull/1584) for more details. |
+| VDPU_STATE | | | vDPU state. |
+| | \<VDPU_ID\> | | vDPU ID |
+| | | ... | Placeholder for future vDPU usage. It should follow the same PMON design for DPU. |
 
 #### 2.1.4. DPU State DB
-
-##### 2.1.4.1. DPU / vDPU HA states
-
-| Table | Key | Field | Description |
-| --- | --- | --- | --- |
-| DASH_HA_DPU_STATE_TABLE | | | HA related Physical DPU state. |
-| | \<DPU_ID\> | | Physical DPU ID |
-| | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
-| DASH_HA_VDPU_STATE_TABLE | | | HA related Virtual DPU state. |
-| | \<VDPU_ID\> | | Virtual DPU ID |
-| | | card_level_probe_state | Card level probe state. It can be "unknown", "up", "down". |
 
 ##### 2.1.4.2. ENI state
 
@@ -400,7 +379,7 @@ On NPU side, the ENI state table shows:
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_HA_STATE_TABLE | | | Data plane state of each ENI that is hosted on local switch. |
+| DASH_ENI_HA_STATE | | | Data plane state of each ENI that is hosted on local switch. |
 | | \<VDPU_ID\> | | VDPU ID. Used to identifying a single VDPU. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | creation_time_is_ms | ENI creation time in milliseconds. |
@@ -425,37 +404,68 @@ On NPU side, the ENI state table shows:
 | | | ha_operation_start_time_in_ms | The time when operation is created. |
 | | | ha_operation_state_last_update_time_in_ms | The time when operation state is updated last time. |
 | | | bulk_sync_start_time_in_ms | Bulk sync start time in milliseconds. |
-| DASH_ENI_DP_STATE_TABLE | | | Data plane state of all known ENI. |
+| DASH_ENI_DP_STATE | | | Data plane state of all known ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | ha_set_mode | HA set mode. See [HA set configurations](#1221-ha-set-configurations) for more details. |
+| | | ha_set_mode | HA set mode. See [HA set configurations](#2221-ha-set-configurations) for more details. |
 | | | next_hops | All possible next hops for this ENI. |
 | | | next_hops_types | Type of each next hops, connected by ",". |
 | | | next_hops_card_level_probe_states | Card level probe state for each next hop, connected by ",". It can be "unknown", "up", "down". |
 | | | next_hops_active_states | Is next hop set as active the ENI HA state machine. It can be "unknown", "true", "false". |
 | | | next_hops_final_state | Final state for each next hops, connected by ",". It can be "up", "down". |
 
-### 2.2. DPU DB schema
+### 2.2. Per-DPU databases
+
+> NOTE:
+>
+> Please note again, although the per-DPU database is for each DPU, but they are not running on DPU side, but on NPU side. The communication between `hamgrd` and DPU DB is local and doesn't need to go through PCIe bus.
 
 #### 2.2.1. APPL DB
 
 ##### 2.2.1.1. HA set configurations
 
-If any HA set configuration is related to local DPU, it will be parsed and being programmed to the DPU side DB, which will be translated to SAI API calls and sent to ASIC by DPU side swss.
+When a HA set configuration on NPU side contains a local DPU, `hamgrd` will create the HA set configuration and send it to DPU for programming the ASIC by DPU side swss.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
-| | | mode | Mode of HA set. It can be "activestandby". |
-| | | peer_dpu_ipv4 | The IPv4 address of peer DPU. |
-| | | peer_dpu_ipv6 | The IPv6 address of peer DPU. |
+| | | vip_v4 | IPv4 Data path VIP. |
+| | | vip_v6 | IPv6 Data path VIP. |
+| | | mode | Mode of HA set. It can be `dpu_passthru`, `dpu_activestandby`, `eni_activestandby` |
+| | | peer_dpu_ip | The IP address of peer DPU. It can be IPv4 or IPv6. |
 | | | dp_channel_dst_port | The destination port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
+| | | dp_channel_probe_fail_threshold | The number of probe failure needed to consider data plane channel is dead. |
 
-##### 2.2.1.2. DASH ENI object table
+##### 2.2.1.2. vDPU HA configurations
+
+* The vDPU HA configuration table contains the vDPU-level HA config.
+* This HA configuration will be used when the HA mode is set to `dpu_passthru` or `dpu_activestandby`.
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_VDPU_HA_CONFIG_TABLE | | | VDPU HA configuration. |
+| | | version | Config version. |
+| | | desired_ha_state | The desired state for this vDPU. It can only be "" (none), `dead`, `active` or `standalone`. |
+| | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
+
+##### 2.2.1.2. ENI HA configurations
+
+* The ENI HA configuration table contains the ENI-level HA config.
+* The ENI HA configuraiton table only contains the ENIs that is hosted on the DPU.
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_ENI_HA_CONFIG_TABLE | | | ENI HA configuration. |
+| | \<ENI_ID\> | | ENI ID. Used for identifying a single ENI. |
+| | | version | Config version. |
+| | | desired_ha_state | The desired state for this ENI. It can only be "" (none), `dead`, `active` or `standalone`. |
+| | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
+
+##### 2.2.1.3. DASH ENI object table
 
 * The DASH objects will only be programmed on the DPU that is hosting the ENIs.
 
@@ -480,7 +490,7 @@ If any HA set configuration is related to local DPU, it will be parsed and being
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_HA_STATE_TABLE | | | HA state of each ENI that is hosted on local DPU. |
+| DASH_ENI_HA_STATE | | | HA state of each ENI that is hosted on local DPU. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | ha_role | The current HA role confirmed by ASIC. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
 | | | term | The current term confirmed by ASIC. |
@@ -613,7 +623,7 @@ Please refer to the [DPU/vDPU HA state](#1241-dpu--vdpu-ha-states) tables in NPU
 
 Depending on the probe status and HA state, we will update the next hop for each ENI to forward the traffic. This also needs to be tracked.
 
-Please refer to the [DASH_ENI_DP_STATE_TABLE](#1242-eni-state) table in NPU DB for detailed DB schema design.
+Please refer to the [DASH_ENI_DP_STATE](#1242-eni-state) table in NPU DB for detailed DB schema design.
 
 #### 3.4.3. NPU-to-DPU tunnel counters
 
