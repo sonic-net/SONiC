@@ -16,7 +16,7 @@
       2. [2.1.2. APPL DB](#212-appl-db)
          1. [2.1.2.1. HA set configurations](#2121-ha-set-configurations)
          2. [2.1.2.2. ENI placement configurations](#2122-eni-placement-configurations)
-         3. [2.1.2.3. ENI configurations](#2123-eni-configurations)
+         3. [2.1.2.3. ENI HA configurations](#2123-eni-ha-configurations)
       3. [2.1.3. State DB](#213-state-db)
          1. [2.1.3.1. DPU / vDPU state](#2131-dpu--vdpu-state)
       4. [2.1.4. DPU State DB](#214-dpu-state-db)
@@ -52,7 +52,8 @@
 
 On high level, the SmartSwitch HA supporting multiple modes:
 
-* **DPU-level active-standby**: The HA is handled on DPU level.
+* **DPU-level passthru**: The HA is running on DPU level by DPU itself. In this mode, SmartSwitch HA control plane doesn't drive the HA state machine, but passthru the HA operations to DPU and handles the HA role change notification from DPU accordingly for state reporting and help setting up the right traffic forwarding rules when needed.
+* **DPU-level active-standby**: The HA is handled on DPU level. Unlike passthru mode, SmartSwitch HA control plane will drive the HA state machine, and drives all ENIs on the same DPU to the same HA state. The traffic forwarding rule is handled on DPU level.
 * **ENI-level active-standby**: The traffic forwarding rule and the HA state machine is handled on ENI level.
 
 The mode can be set on HA set, and all modes are sharing similar high level work flow shown as below.
@@ -74,6 +75,7 @@ flowchart LR
    subgraph NPU Components
       NPU_SWSS[swss]
       NPU_HAMGRD[hamgrd]
+      NPU_SYNCD[syncd]
 
       subgraph CONFIG DB
          NPU_DPU[DPU_TABLE]
@@ -97,6 +99,7 @@ flowchart LR
 
    subgraph "DPU0 Components (Same for other DPUs)"
       DPU_SWSS[swss]
+      DPU_SYNCD[syncd]
 
       subgraph DPU APPL DB
          DPU_DASH_ENI[DASH_ENI_TABLE]
@@ -133,6 +136,7 @@ flowchart LR
    NPU_SWSS --> |ProducerStateTable| NPU_ROUTE
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_TABLE
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_RULE
+   NPU_SWSS --> NPU_SYNCD
 
    %% NPU tables --> hamgrd:
    NPU_DPU --> |SubscribeStateTable| NPU_HAMGRD
@@ -154,6 +158,9 @@ flowchart LR
    DPU_DASH_ENI --> |zmq| DPU_SWSS
    DPU_DASH_HA_SET --> |zmq| DPU_SWSS
    DPU_DASH_ENI_HA_BULK_SYNC_SESSION --> |zmq| DPU_SWSS
+
+   %% DPU SWSS -> DPU syncd
+   DPU_SWSS --> DPU_SYNCD
 ```
 
 ### 1.2. State generation and handling path
@@ -173,6 +180,7 @@ flowchart LR
       NPU_SWSS[swss]
       NPU_HAMGRD[hamgrd]
       NPU_PMON[pmon]
+      NPU_SYNCD[syncd]
 
       subgraph APPL DB
          NPU_ACL_RULE[ACL_RULE_TABLE]
@@ -199,6 +207,7 @@ flowchart LR
 
    subgraph "DPU0 Components (Same for other DPUs)"
       DPU_SWSS[swss]
+      DPU_SYNCD[syncd]
 
       subgraph DASH STATE DB
          DPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE_TABLE]
@@ -224,6 +233,7 @@ flowchart LR
    NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
 
    %% NPU side SWSS --> NPU tables:
+   NPU_SWSS --> NPU_SYNCD
    NPU_SWSS --> |ProducerStateTable| NPU_BFD_SESSION_STATE
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_RULE
 
@@ -242,6 +252,7 @@ flowchart LR
    %% hamgrd --> DPU tables:
 
    %% DPU tables --> DPU SWSS:
+   DPU_SYNCD --> DPU_SWSS 
 
    %% DPU swss --> DPU tables:
    DPU_SWSS --> DPU_DASH_ENI_HA_STATE
@@ -297,8 +308,8 @@ flowchart LR
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
-| | | dpu_bfd_probe_multiplier | The number of DPU BFD probe failure before probe down. |
 | | | dpu_bfd_probe_interval_in_ms | The interval of DPU BFD probe in milliseconds. |
+| | | dpu_bfd_probe_multiplier | The number of DPU BFD probe failure before probe down. |
 
 #### 2.1.2. APPL DB
 
@@ -314,17 +325,18 @@ flowchart LR
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
 | | | vip_v4 | IPv4 Data path VIP. |
-| | | vip_v6 | IPv4 Data path VIP. |
+| | | vip_v6 | IPv6 Data path VIP. |
+| | | mode | Mode of HA set. It can be `dpu_passthru`, `dpu_activestandby`, `eni_activestandby` |
 | | | vdpu_ids | The ID of the vDPUs. |
-| | | mode | Mode of HA set. It can be "activestandby". |
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), "up" or "down". |
 | | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
 
 ##### 2.1.2.2. ENI placement configurations
 
+* The ENI placement table is used when ENI level HA is enabled (HA set mode is set to `eni_activestandby`).
 * The ENI placement table defines which HA set this ENI belongs to, and how to forward the traffic.
 * The ENI placement table should be programmed on all switches.
-* Once this table is programmed, `hamgrd` will generate the BFD
+* Once this table is programmed, `hamgrd` will generate the routing configurations to `swss` for enable ENI level forwarding.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -335,7 +347,7 @@ flowchart LR
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
 | | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI forwarding rule. "" = Not set. |
 
-##### 2.1.2.3. ENI configurations
+##### 2.1.2.3. ENI HA configurations
 
 * The ENI HA configuration table contains the ENI-level HA config.
 * The ENI HA configuraiton table only contains the ENIs that is hosted on the local switch.
