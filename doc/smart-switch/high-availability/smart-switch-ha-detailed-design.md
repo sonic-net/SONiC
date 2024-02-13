@@ -26,9 +26,10 @@
          1. [2.2.1.1. HA set configurations](#2211-ha-set-configurations)
          2. [2.2.1.2. vDPU HA configurations](#2212-vdpu-ha-configurations)
          3. [2.2.1.3. ENI HA configurations](#2213-eni-ha-configurations)
-         4. [2.2.1.4. DASH ENI object table](#2214-dash-eni-object-table)
+         4. [2.2.1.4. DASH object tables](#2214-dash-object-tables)
       2. [2.2.2. State DB](#222-state-db)
-         1. [2.2.2.1. ENI HA state](#2221-eni-ha-state)
+         1. [2.2.2.1. DPU HA state](#2221-dpu-ha-state)
+         2. [2.2.2.2. ENI HA state](#2222-eni-ha-state)
 3. [3. Telemetry](#3-telemetry)
    1. [3.1. HA state](#31-ha-state)
    2. [3.2. HA operation counters](#32-ha-operation-counters)
@@ -214,6 +215,7 @@ flowchart LR
       DPU_SYNCD[syncd]
 
       subgraph DASH STATE DB
+         DPU_DASH_DPU_HA_STATE[DASH_DPU_HA_STATE]
          DPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE]
       end
 
@@ -242,7 +244,8 @@ flowchart LR
    NPU_SWSS --> |ProducerStateTable| NPU_ACL_RULE
 
    %% DPU tables --> hamgrd:
-   DPU_DASH_ENI_HA_STATE --> NPU_HAMGRD
+   DPU_DASH_DPU_HA_STATE --> |zmq| NPU_HAMGRD
+   DPU_DASH_ENI_HA_STATE --> |zmq| NPU_HAMGRD
    DPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
 
    %% hamgrd --> NPU tables:
@@ -259,7 +262,8 @@ flowchart LR
    DPU_SYNCD --> |SAI events<br/>SAI callbacks| DPU_SWSS 
 
    %% DPU swss --> DPU tables:
-   DPU_SWSS --> DPU_DASH_ENI_HA_STATE
+   DPU_SWSS --> |zmq| DPU_DASH_DPU_HA_STATE
+   DPU_SWSS --> |zmq| DPU_DASH_ENI_HA_STATE
    DPU_SWSS --> DPU_DASH_COUNTERS
 
    %% NPU state tables --> Upstream service:
@@ -468,7 +472,7 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | desired_ha_state | The desired state for this ENI. It can only be "" (none), `dead`, `active` or `standalone`. |
 | | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
 
-##### 2.2.1.4. DASH ENI object table
+##### 2.2.1.4. DASH object tables
 
 * The DASH objects will only be programmed on the DPU that is hosting the ENIs.
 
@@ -487,7 +491,22 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 
 #### 2.2.2. State DB
 
-##### 2.2.2.1. ENI HA state
+##### 2.2.2.1. DPU HA state
+
+* The DPU HA state table contains the DPU-level HA state.
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_DPU_HA_STATE | | | HA state of the DPU. |
+| | | last_update_time | The last update time of this state in milliseconds. |
+| | | ha_role_last_update_time | The time when HA role is last updated in milliseconds. |
+| | | ha_role | The current HA role confirmed by ASIC. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
+| | | term | The current term confirmed by ASIC. |
+| | | bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
+| | | ongoing_bulk_sync_session_id | Ongoing bulk sync session id. |
+| | | ongoing_bulk_sync_session_start_time_in_ms | Ongoing bulk sync session start time in milliseconds. |
+
+##### 2.2.2.2. ENI HA state
 
 * The ENI HA state table contains the ENI-level HA state.
 * The ENI HA state table only contains the ENIs that is hosted on the local DPU.
@@ -496,9 +515,10 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | --- | --- | --- | --- |
 | DASH_ENI_HA_STATE | | | HA state of each ENI that is hosted on local DPU. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
+| | | last_update_time | The last update time of this state in milliseconds. |
+| | | ha_role_last_update_time | The time when HA role is last updated in milliseconds. |
 | | | ha_role | The current HA role confirmed by ASIC. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
 | | | term | The current term confirmed by ASIC. |
-| | | ha_role_last_update_time | The time when HA role is last updated in milliseconds. |
 | | | bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
 | | | ongoing_bulk_sync_session_id | Ongoing bulk sync session id. |
 | | | ongoing_bulk_sync_session_start_time_in_ms | Ongoing bulk sync session start time in milliseconds. |
