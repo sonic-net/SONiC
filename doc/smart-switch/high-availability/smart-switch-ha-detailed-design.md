@@ -93,7 +93,7 @@ flowchart LR
          NPU_ACL_TABLE[ACL_TABLE_TABLE]
          NPU_ACL_RULE[ACL_RULE_TABLE]
 
-         NPU_DASH_HA_SET[DASH_HA_SET_TABLE]
+         NPU_DASH_HA_SET_CONFIG[DASH_HA_SET_CONFIG_TABLE]
          NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
       end
    end
@@ -103,10 +103,12 @@ flowchart LR
       DPU_SYNCD[syncd]
 
       subgraph DPU APPL DB
+         DPU_DASH_VDPU_HA_CONFIG[DASH_VDPU_HA_CONFIG_TABLE]
+         DPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
+
          DPU_DASH_ENI[DASH_ENI_TABLE]
          DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
-         DPU_DASH_ENI_HA_CONFIG[DASH_ENI_HA_CONFIG_TABLE]
-         DPU_DASH_ENI_HA_BULK_SYNC_SESSION[DASH_ENI_HA_BULK_SYNC_SESSION_TABLE]
+         DPU_DASH_ENI_HA_BULK_SYNC_SESSION[DASH_ENI_HA_CONTROL_TABLE]
       end
    end
 
@@ -115,10 +117,11 @@ flowchart LR
    NC --> |gNMI| NPU_VDPU
    NC --> |gNMI| NPU_DASH_HA_GLOBAL_CONFIG
 
-   SC --> |gNMI - zmq| NPU_DASH_HA_SET
+   SC --> |gNMI - zmq| NPU_DASH_HA_SET_CONFIG
    SC --> |gNMI - zmq| NPU_DASH_ENI_PLACEMENT
 
    %% Upstream services --> DPU northboard interfaces:
+   SC --> |gNMI - zmq| DPU_DASH_VDPU_HA_CONFIG
    SC --> |gNMI - zmq| DPU_DASH_ENI_HA_CONFIG
    SC --> |gNMI - zmq| DPU_DASH_ENI
 
@@ -143,8 +146,9 @@ flowchart LR
    NPU_DPU --> |SubscribeStateTable| NPU_HAMGRD
    NPU_VDPU --> |SubscribeStateTable| NPU_HAMGRD
    NPU_DASH_HA_GLOBAL_CONFIG --> |SubscribeStateTable| NPU_HAMGRD
-   NPU_DASH_HA_SET --> |zmq| NPU_HAMGRD
+   NPU_DASH_HA_SET_CONFIG --> |zmq| NPU_HAMGRD
    NPU_DASH_ENI_PLACEMENT --> |zmq| NPU_HAMGRD
+   DPU_DASH_VDPU_HA_CONFIG --> |zmq| NPU_HAMGRD
    DPU_DASH_ENI_HA_CONFIG --> |zmq| NPU_HAMGRD
 
    %% hamgrd --> NPU tables:
@@ -253,7 +257,7 @@ flowchart LR
    %% hamgrd --> DPU tables:
 
    %% DPU tables --> DPU SWSS:
-   DPU_SYNCD --> DPU_SWSS 
+   DPU_SYNCD --> |SAI events<br/>SAI callbacks| DPU_SWSS 
 
    %% DPU swss --> DPU tables:
    DPU_SWSS --> DPU_DASH_ENI_HA_STATE
@@ -323,7 +327,7 @@ flowchart LR
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_HA_SET_TABLE | | | HA set table, which describes the DPUs that forms the HA set. |
+| DASH_HA_SET_CONFIG_TABLE | | | HA set config table, which describes the DPUs that forms the HA set. |
 | | \<HA_SET_ID\> | | HA set ID |
 | | | version | Config version. |
 | | | vip_v4 | IPv4 Data path VIP. |
@@ -473,12 +477,13 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | --- | --- | --- | --- |
 | DASH_ENI_TABLE | | | HA configuration for each ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
+| | | admin_state | Admin state of each DASH ENI. To support control from HA, `STATE_HA_CONTROLLED` is added. |
 | | | ha_set_id | HA set id. |
-| | | ha_role | HA role. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
 | | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
-| DASH_ENI_HA_BULK_SYNC_SESSION_TABLE | | | HA bulk sync session table. |
+| DASH_ENI_HA_CONTROL_TABLE | | | ENI HA control table. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | session_id | Bulk sync session id. |
+| | | ha_role | HA role. It can be `dead`, `active`, `standby`, `standalone`, `switching_to_active` |
+| | | bulk_sync_session_id | Bulk sync session id. |
 | | | peer_bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
 
 #### 2.2.2. State DB
