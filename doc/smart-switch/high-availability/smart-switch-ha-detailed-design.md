@@ -475,12 +475,15 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 ##### 2.2.1.4. DASH object tables
 
 * The DASH objects will only be programmed on the DPU that is hosting the ENIs.
+* In DASH, we don't have a DPU-level HA control table, because
+  * The DPU-level control will be translated into ENI level control and use the same set of SAI APIs.
+  * The passthru mode only needs the DPU state table, since we don't drive the HA state machine using the HA control plane. For simple actions such as shutdown, we can use the admin state directly in passthru mode.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | DASH_ENI_TABLE | | | HA configuration for each ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | admin_state | Admin state of each DASH ENI. To support control from HA, `STATE_HA_CONTROLLED` is added. |
+| | | admin_state | Admin state of each DASH ENI. To support control from HA, `STATE_HA_ENABLED` is added. |
 | | | ha_set_id | HA set id. |
 | | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
 | DASH_ENI_HA_CONTROL_TABLE | | | ENI HA control table. |
