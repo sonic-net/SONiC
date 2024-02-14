@@ -44,7 +44,7 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 # Security Updates
 
 1. Kernel upgraded from 5.10.103-1 to 5.10.136-1 for SONiC release.<br>
-   Change log: https://tracker.debian.org/media/packages/l/linux/changelog-5.10.136-1
+   Change log: https://cdn.kernel.org/pub/linux/kernel/v5.x/ChangeLog-5.10.136
 
 2. Docker upgraded from  24.0.2-debian-stretch to 24.0.7-debian-stretch <br>
    Change log: https://docs.docker.com/engine/release-notes/24.0/#2407
