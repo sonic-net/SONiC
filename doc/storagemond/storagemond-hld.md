@@ -17,20 +17,22 @@ The goal of the Storage Monitoring Daemon (storagemond) is to provide meaningful
 
 We are intrested in the following characteristics that describe various aspects of the SSD:
 
-### **2.1 Priority 0 Attributes** 
+### **2.1 Dynamic Attributes** 
 
-**The following are dynamic fields, offering up-to-date information that describes the current state of the SSD**
+**The following attributes are pdated frequently and describe the current state of the SSD**
 
-    - File System IO Reads
-    - File System IO Writes
-    - Disk IO Reads
-    - Disk IO Writes
-    - Reserved Blocks Count
-    - Temperature
+- File System IO Reads
+- File System IO Writes
+- Disk IO Reads
+- Disk IO Writes
+- Reserved Blocks Count
+- Temperature
+- Firmware
+- Health
 
 **Filesystem IO Reads/Writes** - Parsed from the `/proc/diskstats` file, these values correspond to the number of reads and writes successfully carried out in the partition hosting the SONiC OS. These values would reset upon reboot.
 
-**Disk IO Reads/Writes** - SSDs use wear-leveling algorithms to distribute write and erase cycles evenly across the NAND cells to extend their lifespan. However, write amplification can occur when data is written, rewritten, and erased in a way that creates additional write operations, which can slow down performance. This information accounts for wear-leveling and is persistent across reboots and powercycles.
+**Disk IO Reads/Writes** - These fields account for write-amplification and wear-leveling algorithms, and are persistent across reboots and powercycles.
 
 **Reserved Blocks Count** - Reserved blocks in a Solid State Drive (SSD) serve several critical purposes to enhance the drive's performance, reliability, and longevity. These reserved blocks are managed by the drive's firmware, and their specific allocation and management may vary between SSD manufacturers. The primary purposes of reserved blocks in an SSD are:
 
@@ -39,28 +41,26 @@ We are intrested in the following characteristics that describe various aspects 
 - **Over-Provisioning:** Over-provisioning helps maintain consistent performance and extends the lifespan of the SSD by providing additional resources for wear leveling and bad block management.
 - **Garbage collection:** When files are deleted or modified, the old data needs to be erased and marked as available for new data. Reserved blocks can help facilitate this process by providing a temporary location to move valid data from blocks that need to be erased. 
 
-**Temperature** - Extreme temperatures can affect SSD performance. Excessive heat can lead to throttling to prevent damage, while extreme cold can slow down data access.
+- **Temperature** - Extreme temperatures can affect SSD performance. Excessive heat can lead to throttling to prevent damage, while extreme cold can slow down data access.
+- **Firmware, Health** - These fields are self-explanatory
 
+### **2.2 Static Attributes**
 
-### **2.2 Priority 1 Attributes**
+**These attributes provide informational context about the Storage disk**
 
-**These are a combination of static (S) and dynamic (D) fields, offering secondary information that provides additional context about the SSD**
-
-    - Vendor Model (S)
-    - Serial Number (S)
-    - Firmware (S)
-    - Health (D)
+- Vendor Model
+- Serial Number
 
 These fields are self-explanatory.
 
 
 ### **2.3 `storagemond` Daemon Flow**
 
-1. `storagemond` would be started by the `pmon` docker container
-2. The daemon would gather the static info once init-ed, by leveraging the `SsdUtil` class and update the StateDB
-3. It would parse the priority 0 attributes by leveraging `SsdUtil` class and update the StateDB every hour.
+1. The "storagemond" process will be initiated by the "pmon" Docker container.
+2. Upon initialization, the daemon will gather static information utilizing S.M.A.R.T capabilities through instantiated class objects such as SsdUtil and EmmcUtil. This information will be subsequently updated in the StateDB.
+3. The daemon will parse dynamic attributes also utilizing S.M.A.R.T capabilities via the corresponding class member functions, and update the StateDB on an hourly basis.
 
-**NOTE:** The design requires a concurrent PR wherein SsdUtil class is enhanced to gather IO Read/Write stats and Reserved Blocks information as detailed in section [2.4.1 below](#241-ssdbase-api-additions).
+**NOTE:** The design requires a concurrent PR wherein EmmcUtil, SsdUtil classes are enhanced to gather Disk and FS IO Read/Write stats and Reserved Blocks information as detailed in section [2.4.1 below](#241-ssdbase-api-additions).
 
 This is detailed in the sequence diagram below:
 
@@ -68,16 +68,17 @@ This is detailed in the sequence diagram below:
 
 ### **2.4 Data Collection Logic**
 
-The SONiC OS already contains logic to parse information about SSDs from several vendors by way of the `SsdUtil` class. We leverage this to gather the following information:
+The SONiC OS currently includes logic for parsing storage disk information from various vendors through the `EmmcUtil` and `SsdUtil` classes, facilitated by base class definitions provided by `SsdBase`. We utilize this framework to collect the following details:
 
-- Priority 0: Temperature
-- Priority 1: All aforementioned attributes
+- Static Information: Vendor Model, Serial Number
+- Dynamic Information: Firmware, Temperature, Health
 
-This section will therefore only go into detail about data collection of attributes mentioned in [section 2.1](#21-priority-0-attributes).
+This section will therefore only go into detail about data collection of attributes mentioned in [section 2.1](#21-dynamic-attributes).
+
 
 #### **2.4.1 SsdBase API additions**
 
-In order to collect IO reads/writes and number of reserved blocks, we would need to add the following member methods to the `SsdBase` class in [ssd_base.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_base.py) and provide a generic implementation in [ssd_generic.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_generic.py):
+In order to parse Disk IO reads/writes and Number of Reserved Blocks, we would need to add the following member methods to the `SsdBase` class in [ssd_base.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_base.py) and provide a generic implementation in [ssd_generic.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_generic.py) <sup>READ NOTE</sup>:
 
 
 ```
@@ -111,11 +112,14 @@ Returns:
 
 ```
 
+**NOTE:** Augmentation of the EmmcUtil class for these attributes is reserved for future iterations of the daemon. <br>
+
 #### **2.4.2 Support for Multiple Storage Disks**
 
-The `ssdutil` utility assumes that the disk drive is `/dev/sda` whereas the drive letter could be any label based on the number of SSDs. It could also be a different type of storage device such as eMMC, USB or NVMe.
+The `SsdUtil` utility assumes that the disk drive is `/dev/sda` whereas the drive letter could be any label based on the number of SSDs. 
+Additionally, there could also be a different type of storage device such as eMMC, USB or NVMe upon which the SONiC OS is mounted.
 
-In order to get a clear picture of the number and type of disks present on a device, we introduce a new class `StorageDevices()` which will accompany the storagemond daemon at `sonic-platform-daemons/sonic-storagemond/scripts/storagemond`. This new class provides the following methods:
+In order to get a clear picture of the number and type of disks present on a device, we introduce a new class `StorageDevices()`. This proposed class will reside in the `src/sonic-platform-common/sonic_platform_base/sonic_ssd` directory, within the file named `storage_devices.py`. This new class provides the following methods:
 
 ```
 class StorageDevices():
@@ -226,16 +230,26 @@ We then leverage the following proposed StateDB schema to store and stream infor
 
 #### **2.4.3 Support for common implementations**
 
-Specific data, such as File System Input/Output (FS IO) Reads/Writes, can be uniformly collected regardless of the storage disk type, as it is extracted from files generated by the Linux Kernel. To streamline the process of gathering this information, we propose the implementation of a new parent class, denoted as `StorageCommon()`, from which classes such as SsdUtil, EmmcUtil, USBUtil, and NVMUtil would inherit. This proposed class will reside in the `src/sonic-platform-common/sonic_platform_base/sonic_ssd` directory, within the file named `storage_common.py`. The `StorageCommon()` class will have the following methods:
+Specific data, such as Filesystem Input/Output (FS IO) Reads/Writes, can be uniformly collected regardless of the storage disk type, as it is extracted from files generated by the Linux Kernel. To streamline the process of gathering this information, we propose the implementation of a new parent class `StorageCommon()`, from which classes such as SsdUtil, EmmcUtil, USBUtil, and NVMUtil would inherit in addition to `SsdBase` (to be renamed `StorageBase`). This proposed class will reside in the `src/sonic-platform-common/sonic_platform_base/sonic_ssd` directory, in `storage_common.py`. The `StorageCommon()` class will have the following functions:
 
 ```
-def __set_host_partition(self, diskdev):
+def _parse_fsstats_file(self):
     """
-    internal function to fetch SONiC partition
+    Function to parse a file containing the previous latest FS IO Reads/Writes values from a file (more on this in the subsequent section) and saves it to member variables
+
+    Args: None
     
+    Returns: None
+
+    """
+
+def _update_fsstats_file(self, value, attr):
+    """
+    Function to update the latest FS IO Reads/Writes (fs_reads/writes + corresponding value parsed from /proc/diskstats) to the disk's fsstats file
+
+    Args: value, 'R' or 'W' to indicate which field to update in the file
+
     Returns:
-        The partition containing `/host` mount, or 'N/A' if not found
-    Args:
         N/A
     """
 
@@ -262,65 +276,43 @@ def get_fs_io_writes(self):
     """
 ```
 
-**__set_host_partition() Logic**
+These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to retrieve the total number of disk reads and writes, respectively, by parsing the `/proc/diskstats` file. They utilize similar logic, differing only in the column index used to extract the relevant information.
 
-This Python function, `__set_host_partition`, is designed to fetch the SONiC (Software for Open Networking in the Cloud) partition containing the `/host` mount. The function utilizes different logic depending on whether the `psutil` module is available.
+**Accounting for reboots and uninended powercycles**
 
-Here's the logic of the function:
+The reset of values in `/proc/diskstats` upon device reboot or power cycle presents a challenge for maintaining long-term data integrity. To mitigate this challenge, we propose the following design considerations:
+
+1. Introduction of a bind-mounted directory within the pmon container at `/host/storagemon/` which maps to `/host/pmon/storagemon/` on the host:
+    - This directory hosts a file named `fs-stats-<<DISKNAME>>`, where the latest filesystem Reads/Writes values for that disk are logged by the relevant functions within the `StorageCommon()` class each time they are invoked.
+    - Upon invocation, these functions extract the initial fs_reads and fs_writes values from the corresponding file, parse the corresponding FS IO reads and writes from the `/proc/diskstats` file, aggregate these values, update the file, and return the updated values to the caller.
+
+2. Implementation of a script, tentatively named `parse-fs-stats.py`, to be invoked by SONiC's reboot utility:
+    - This script would live in [sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/scripts) and would be called by the reboot script
+    - This script will be responsible for parsing and storing the most recent FS IO reads and writes from the `/proc/diskstats` file, particularly in planned reboot scenarios.
+    - These values would be stored in the `/host/pmon/storagemon/fs-stats-<<DISKNAME>>` file(s).
+
+**Logic for StorageCommon() fs_io_read and fs_io_write functions:**
 
 1. **Check for `psutil` Module**:
-   - The function first checks if the `psutil` module is available in the current environment by examining the `sys.modules` dictionary.
+   - The functions first check if the `psutil` module is available in the current environment by examining the `sys.modules` dictionary.
+
+2. **Use `psutil` Module (if available)**:
    - If `psutil` is available:
-     - It iterates over each disk partition obtained from `psutil.disk_partitions()`.
-     - For each partition, it checks if the mount point is `/host`.
-     - If a partition with `/host` mount point is found, it returns the base name of the device associated with that partition using `os.path.basename(p.device)`.
-     - If no partition with `/host` mount point is found, it returns `None`.
-   
-2. **Fallback to Parsing Mounts File**:
+     - The functions retrieve disk I/O counters, specifying the disk for which to get the counters.
+     - They then get the read or write count for the specified disk using `read_count` or `write_count` respectively.
+
+3. **Fallback to Parsing Disk Stats File**:
    - If `psutil` is not available:
-     - It reads the contents of a file specified by the `MOUNTS_FILE` attribute (presumably a file containing mount point information).
-     - It then iterates over each line in the file.
-     - For each line, it checks if `/host` is present and if `diskdev` is present.
-     - If both conditions are met, it returns the base name of the mount point using `os.path.basename(mt.split()[0])`.
-     - If no matching line is found, it returns `None`.
+     - The functions open the `/proc/diskstats` file
+     - They read the contents of the file and iterate over each line.
+     - For each line, they check if the name of the storage disk is present.
+     - If the name of the storage disk is found in the line, they return the value at the appropriate zero-based index (3 for reads, 7 for writes).
+     - If no line contains the name of the storage disk, they save the respective values as 0.
 
+4. **Combine the previous Reads/Writes with the new values**:
+     - Then they add the new reads and writes to the fs_reads/fs_writes variables, respectively, to get the latest count
+     - These values are written to the `fs-stats-<<DISK>>` and returned to the caller
 
-**get_fs_io_reads() Logic**
-
-1. **Determine Search Term**:
-   - The function first sets the `searchterm` variable to either `self.partition` or `self.diskdev`, depending on whether `self.partition` is `None`. This is done to ensure flexibility in searching for the desired partition or disk.
-
-2. **Check for `psutil` Module**:
-   - The function checks if the `psutil` module is available in the current environment by examining the `sys.modules` dictionary.
-   - If `psutil` is available:
-     - It retrieves disk I/O counters, specifying `searchterm` as the disk to get the counters for.
-     - It then returns the read count for the specified disk partition.
-
-3. **Fallback to Parsing diskstats File**:
-   - If `psutil` is not available:
-     - It reads the contents of the `/proc/diskstats` file.
-     - It then iterates over each line in the file.
-     - For each line, it checks if `searchterm` is present.
-     - If `searchterm` is found in the line, it returns the value in the fourth column of that line, which represents the total number of reads.
-     - If no line contains `searchterm`, it returns 'N/A' to indicate that the information could not be found.
-
-**get_fs_io_writes() Logic**
-1. **Determine Search Term**:
-   - The function first sets the `searchterm` variable to either `self.partition` or `self.diskdev`, depending on whether `self.partition` is `None`. This is done to ensure flexibility in searching for the desired partition or disk.
-
-2. **Check for `psutil` Module**:
-   - The function checks if the `psutil` module is available in the current environment by examining the `sys.modules` dictionary.
-   - If `psutil` is available:
-     - It retrieves disk I/O counters, specifying `searchterm` as the disk to get the counters for.
-     - It then returns the write count for the specified disk partition.
-
-3. **Fallback to Parsing diskstats File**:
-   - If `psutil` is not available:
-     - It reads the contents of the `/proc/diskstats` file.
-     - It then iterates over each line in the file.
-     - For each line, it checks if `searchterm` is present.
-     - If `searchterm` is found in the line, it returns the value in the eighth column of that line, which represents the total number of writes.
-     - If no line contains `searchterm`, it returns 'N/A' to indicate that the information could not be found.
 
 
 #### **2.4.4 storagemond Class Diagram**
@@ -335,20 +327,19 @@ key                 = STORAGE_INFO|<disk_name>  ; This key is for information ab
 
 ; field             = value
 
-temperature_celsius = STRING                    ; Describes the operating temperature of the SSD in Celsius                             (Priority 0, Dynamic)
-fs_io_reads         = STRING                    ; Describes the total number of reads completed successfully on the SONiC partition     (Priority 0, Dynamic)
-fs_io_writes        = STRING                    ; Describes the total number of writes completed on the SONiC partition                 (Priority 0, Dynamic)
-disk_io_reads       = STRING                    ; Describes the total number of reads completed successfully from the SSD (LBAs read)   (Priority 0, Dynamic)
-disk_io_writes      = STRING                    ; Describes the total number of writes completed on the SSD (LBAs written)              (Priority 0, Dynamic)
-reserved_blocks     = STRING                    ; Describes the reserved blocks count of the SSD                                        (Priority 0, Dynamic)
-device_model        = STRING                    ; Describes the Vendor information of the SSD                                           (Priority 1, Static)
-serial              = STRING                    ; Describes the Serial number of the SSD                                                (Priority 1, Static)
-firmware            = STRING                    ; Describes the Firmware version of the SSD                                             (Priority 1, Static)
-health              = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs     (Priority 1, Dynamic)
+device_model        = STRING                    ; Describes the Vendor information of the SSD                                           (Static)
+serial              = STRING                    ; Describes the Serial number of the SSD                                                (Static)
+temperature_celsius = STRING                    ; Describes the operating temperature of the SSD in Celsius                             (Dynamic)
+fs_io_reads         = STRING                    ; Describes the total number of filesystem reads completed successfully                 (Dynamic)
+fs_io_writes        = STRING                    ; Describes the total number of filesystem writes completed successfully                (Dynamic)
+disk_io_reads       = STRING                    ; Describes the total number of reads completed successfully from the SSD (LBAs read)   (Dynamic)
+disk_io_writes      = STRING                    ; Describes the total number of writes completed on the SSD (LBAs written)              (Dynamic)
+reserved_blocks     = STRING                    ; Describes the reserved blocks count of the SSD                                        (Dynamic)
+firmware            = STRING                    ; Describes the Firmware version of the SSD                                             (Dynamic)
+health              = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs     (Dynamic)
 ```
 
-<sub>NOTE: 'LBA' stands for Logical Block Address. To get the raw value in bytes, multiply by 512B.</sub><br>
-<sub>NOTE: For fs_io_reads/writes, if the SONiC OS is not on any partition on the disk, this would correspond to total number of I/O RW done on the *disk*</sub>
+NOTE: 'LBA' stands for Logical Block Address. To get the raw value in bytes, multiply by 512B.<br>
 
 Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
@@ -385,10 +376,9 @@ root@str2-7050cx3-acs-01:/# redis-cli -n 6
 
 ## Future Work
 
-1. Enhanced support for eMMC
+1. Full support for eMMC
 2. Support for USB and NVMe storage disks
 3. Refactor `ssdutil` [in sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/ssdutil) to cover all storage types, including changing the name of the utility to 'storageutil'
-4. Rename `sonic_ssd` and its constituent scripts (`ssd_generic.py`, `ssd_emmc.py`) to encompass all storage types
 
 <br><br><br>
 <sup>[Back to top](#1-overview)</sup>
