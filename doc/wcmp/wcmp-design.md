@@ -133,8 +133,7 @@ WCMP is applicable in a pure L3 network as well as in a EVPN network.
 
 **This feature will support the following functionality:**
 1. WCMP BGP device global configuration
-2. Next hop weight computation based on the number of multipaths
-3. Warm/Fast reboot
+2. Warm/Fast reboot
 
 ### 1.2.2 Command interface
 
@@ -317,7 +316,7 @@ of DB updates between other handlers based on the table key updated (Redis Keysp
 This class is responsible for:
 1. Processing updates of WCMP
 2. Partial input data validation
-3. Replicating data from Config DB to FRR DB
+3. Replicating data from Config DB to FRR configuration
 4. Caching objects in order to handle updates
 
 WCMP object is stored under `BGP_DEVICE_GLOBAL|STATE` key in Config DB. On `BGP_DEVICE_GLOBAL` update,  
@@ -384,41 +383,30 @@ For this purpose, the next definitions will be used:
 * TO_BGP_PEER_V4
 * TO_BGP_PEER_V6
 
-BGP OA will use `bgpd.wcmp.set.conf.j2` at `sonic-buildimage/dockers/docker-fpm-frr/frr/bgpd/wcmp` to enable WCMP.
+BGP OA will use `bgpd.wcmp.conf.j2` at `sonic-buildimage/dockers/docker-fpm-frr/frr/bgpd/wcmp` to enable/disable WCMP.
 
 **Skeleton code:**
 ```jinja
 !
-! template: bgpd/wcmp/bgpd.wcmp.set.conf.j2
+! template: bgpd/wcmp/bgpd.wcmp.conf.j2
 !
 route-map TO_BGP_PEER_V4 permit 100
+{%- if wcmp_enabled == 'true' %}
   set extcommunity bandwidth num-multipaths
+{%- else %}
+  no set extcommunity bandwidth
+{%- endif %}
 exit
 !
 route-map TO_BGP_PEER_V6 permit 100
+{%- if wcmp_enabled == 'true' %}
   set extcommunity bandwidth num-multipaths
-exit
-!
-! end of template: bgpd/wcmp/bgpd.wcmp.set.conf.j2
-!
-```
-
-BGP OA will use `bgpd.wcmp.unset.conf.j2` at `sonic-buildimage/dockers/docker-fpm-frr/frr/bgpd/wcmp` to disable WCMP.
-
-**Skeleton code:**
-```jinja
-!
-! template: bgpd/wcmp/bgpd.wcmp.unset.conf.j2
-!
-route-map TO_BGP_PEER_V4 permit 100
+{%- else %}
   no set extcommunity bandwidth
+{%- endif %}
 exit
 !
-route-map TO_BGP_PEER_V6 permit 100
-  no set extcommunity bandwidth
-exit
-!
-! end of template: bgpd/wcmp/bgpd.wcmp.unset.conf.j2
+! end of template: bgpd/wcmp/bgpd.wcmp.conf.j2
 !
 ```
 
