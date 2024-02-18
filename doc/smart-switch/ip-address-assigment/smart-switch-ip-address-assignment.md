@@ -255,17 +255,6 @@ Name=dpu0 dpu1
 Bridge=bridge-midplane
 ```
 
-``` text
-# database.service
-
-[Unit]
-...
-Requires=midplane-network.service
-After=midplane-network.service
-
-...
-```
-
 2. systemd-networkd helps to create the bridge-midplane interface and assign the specific IP address according to above configuration. Meanwhile, systemd-networkd will monitor the DPU PCIe interface. Once the PCIe interface is created, it will automatically add it into the bridge-midplane.
 3. midplane-network.service will be used to wait for the midplane bridge configured.
 
@@ -276,6 +265,7 @@ After=midplane-network.service
 Description=Midplane network service
 Requires=systemd-networkd.service
 After=systemd-networkd.service
+Before=database.service
 
 [Service]
 Type=oneshot
@@ -284,17 +274,6 @@ ExecStart=/usr/lib/systemd/systemd-networkd-wait-online -i bridge-midplane
 
 [Install]
 WantedBy=multi-user.target
-```
-
-``` text
-# database.service
-
-[Unit]
-...
-Requires=midplane-network.service
-After=midplane-network.service
-
-...
 ```
 
 #### DPU ####
@@ -317,6 +296,7 @@ DHCP=yes
 Description=Midplane network service
 Requires=systemd-networkd.service
 After=systemd-networkd.service
+Before=database.service
 
 [Service]
 Type=oneshot
