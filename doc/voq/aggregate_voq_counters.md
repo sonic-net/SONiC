@@ -34,7 +34,7 @@ Provide aggregate VOQ counters in a distributed VOQ architecture.
 
 ### Architecture Design 
 
-No new architecture changes are required to SONiC. An instance of SWSS runs on each FSI in a distributed VOQ architecture. SWSS can be used to poll VOQ stats for every ASIC and update CHASSIS_APP_DB which is accessible from every FSI module. 
+No new architecture changes are required to SONiC. An instance of SWSS runs for each ASIC on it's respective FSI instance, in a distributed VOQ architecture. SWSS can be used to poll VOQ stats for every ASIC and update CHASSIS_APP_DB which is accessible from every FSI module. 
 
 ### High-Level Design
 
