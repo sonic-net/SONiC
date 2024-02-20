@@ -231,6 +231,10 @@ Run `ifconfig`.
 On a docker with host network - you'll be able to view all physical interfaces.
 On a docker without host network - we'll see only eth0 and lo.
 
+Note - we are not committing to user defined bridges at this stage.
+Once we manage to stabalize the system without host network and without root privileges on top of the containers we can move to the next step of user defined bridges.
+This will either be an expansion of this HLD or an HLD of its own.
+
 ## 5. SAI API
 
 N/A
