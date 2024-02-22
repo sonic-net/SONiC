@@ -177,7 +177,7 @@ NSF Manager will send freeze notification to all registered components and will 
 *   Syncd will stop listening to link state events from the BCM chip.
 *   Orchagent will stop periodic internal timers.
 *   BGP will stop exchanging packets with the peers.
-*   Teamd will stop exchanging LACP PDUs with the peers.
+*   Teamd will continue exchanging LACP PDUs but stop processing any changes in the peer PDUs.
 
 After all components have been freezed, the switch would eventually reach a state wherein each component stops generating new events and thus the switch becomes quiescent. This is because:
 
@@ -225,7 +225,7 @@ At this point, the DB will be backed up, containers will be shutdown, the platfo
 
 ![alt_text](img/shutdown-optimization.png)
 
-Higher layer applications are generally independent and their shutdown is not dependent on quiescence of other switch stack components. For example, upon receiving a freeze notification Teamd can stop exchanging LACP packets, perform state verification (optional) and checkpoint LACP states i.e. transition from Phase 1 to Phase 3 without waiting for NSF Manager to send further notifications. The design allows applications to transition through these phases independently as long as they continue to update their warmboot state in STATE DB. NSF Manager will monitor these states and will handle the applications’ phase transitions. In such a scenario, applications need to set _freeze = true_ and _checkpoint = false_ and thus the freeze notification will result in the application to transition from Phase 1 to Phase 3. 
+Higher layer applications are generally independent and their shutdown is not dependent on quiescence of other switch stack components. For example, upon receiving a freeze notification P4RT can stop processing controller requests, perform state verification (optional) and checkpoint the P4Info i.e. transition from Phase 1 to Phase 3 without waiting for NSF Manager to send further notifications. The design allows applications to transition through these phases independently as long as they continue to update their warmboot state in STATE DB. NSF Manager will monitor these states and will handle the applications’ phase transitions. In such a scenario, applications need to set _freeze = true_ and _checkpoint = false_ and thus the freeze notification will result in the application to transition from Phase 1 to Phase 3. 
 
 
 #### Reconciliation Monitoring
