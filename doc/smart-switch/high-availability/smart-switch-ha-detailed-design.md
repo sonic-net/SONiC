@@ -335,7 +335,8 @@ flowchart LR
 | | | version | Config version. |
 | | | vip_v4 | IPv4 Data path VIP. |
 | | | vip_v6 | IPv6 Data path VIP. |
-| | | mode | Mode of HA set. It can be `dpu_passthru`, `dpu_activestandby`, `eni_activestandby` |
+| | | owner | Owner of HA state machine. It can be `controller`, `switch`. |
+| | | scope | Mode of HA set. It can be `dpu`, `eni`. |
 | | | vdpu_ids | The ID of the vDPUs. |
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), "up" or "down". |
 | | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
@@ -439,7 +440,8 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | version | Config version. |
 | | | vip_v4 | IPv4 Data path VIP. |
 | | | vip_v6 | IPv6 Data path VIP. |
-| | | mode | Mode of HA set. It can be `dpu_passthru`, `dpu_activestandby`, `eni_activestandby` |
+| | | owner | Owner of HA state machine. It can be `controller`, `switch`. |
+| | | scope | Scope of HA set. It can be `dpu`, `eni`. |
 | | | peer_dpu_ip | The IP address of peer DPU. It can be IPv4 or IPv6. |
 | | | dp_channel_dst_port | The destination port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
@@ -449,8 +451,8 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 
 ##### 2.2.1.2. vDPU HA configurations
 
-* The vDPU HA configuration table contains the vDPU-level HA config.
-* This HA configuration will be used when the HA mode is set to `dpu_passthru` or `dpu_activestandby`.
+* The vDPU HA configuration table is programmed by SDN controller and contains the vDPU-level HA config.
+* This HA configuration will be used when the HA scope is set to `dpu`.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -461,8 +463,9 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 
 ##### 2.2.1.3. ENI HA configurations
 
-* The ENI HA configuration table contains the ENI-level HA config.
-* The ENI HA configuraiton table only contains the ENIs that is hosted on the DPU.
+* The ENI HA configuration table is programmed by the SDN contorller.
+* The ENI HA configuraiton table only contains the HA config for the ENIs that is hosted on the DPU.
+* This HA configuration will be used when the HA scope is set to `eni`.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
