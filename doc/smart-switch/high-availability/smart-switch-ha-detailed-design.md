@@ -442,6 +442,7 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | vip_v6 | IPv6 Data path VIP. |
 | | | owner | Owner of HA state machine. It can be `controller`, `switch`. |
 | | | scope | Scope of HA set. It can be `dpu`, `eni`. |
+| | | local_npu_ip | The IP address of local NPU. It can be IPv4 or IPv6. Used for setting up the BFD session. |
 | | | peer_dpu_ip | The IP address of peer DPU. It can be IPv4 or IPv6. |
 | | | dp_channel_dst_port | The destination port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
