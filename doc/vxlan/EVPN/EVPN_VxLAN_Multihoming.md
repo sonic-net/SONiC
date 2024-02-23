@@ -53,13 +53,10 @@ Rev 0.1
 - [6 Serviceability and Debug](#6-Serviceability-and-Debug)
 - [7 Warm Boot Support](#7-Warm-Boot-Support)
 - [8 Scalability](#8-Scalability)
-- [9 Upgrade and Downgrade](#9-Upgrade-and-Downgrade)
-- [10 Unit Test](#9-Unit-Test)
-  - [10.1 Functional Test Cases](#101-Functional-Test-Cases)
-  - [10.2 Negative Test Cases](#102-Negative-Test-Cases)
-  - [10.3 Warm boot Test Cases](#103-Warm-boot-Test-Cases)
-- [11 Configuration Example](#11-Configuration-Example)
-- [12 Appendix](#12-Appendix)
+- [9 Unit Test](#9-Unit-Test)
+  - [9.1 Functional Test Cases](#101-Functional-Test-Cases)
+  - [9.2 Negative Test Cases](#102-Negative-Test-Cases)
+  - [9.3 Warm boot Test Cases](#103-Warm-boot-Test-Cases)
 
 # List of Tables
 
@@ -117,8 +114,6 @@ The following are functional requirements for EVPN VxLAN Multihoming:
 3. Support following features on EVPN MH:
 
 	- Static Anycast Gateway
-	- Delay-restore
-	- Uplink tracking
 	- BGP over EVPN Multihomed Ethernet-Segment
 	- ARP/ND suppression
 4. Support for Type-0 (Operator configured), Type-1 (LACP based), and Type-3 (System-MAC config based) Ethernet Segment IDs types.
@@ -138,26 +133,19 @@ Special notes:
 
 The following are configuration and management requirements for EVPN VxLAN Multihoming:
 
-1. All of the configurations and show outputs should be available through SONiC yang - REST, gNMI, and KLISH.
+1. All of the configurations and show outputs should be available through SONiC yang - REST, gNMI.
 2. All of the configurations and show outputs should be available through click/FRR-vtysh.
 
 ### 1.1.3 Platform requirements
 Support EVPN Multihoming on platforms having VxLAN capabilities.
 
-### 1.1.4 Package requirements
-Support EVPN Multihoming on Enterprise and Campus packages.
+### 1.1.4 Scalability Requirements
 
-### 1.1.5 Scalability Requirements
-
-The following are scalability requirements for EVPN VxLAN Multihoming:
+The following are targeted scale numbers for EVPN VxLAN Multihoming on platforms providing EVPN Multihoming capability:
 1. Support up to 1K EVPN ESIs in a given PoD/site.
 2. Support up to 128 EVPN ESIs on a given VTEP.
-3. Support up to 512 VxLAN VTEPs in a given PoD/site.
-4. Support maximum scale of MAC, ARP/ND, Routes currently allowed on the platforms.
 
-
-
-### 1.1.6 Convergence Requirements
+### 1.1.5 Convergence Requirements
 
 Achieve sub-second convergence in following failure scenarios:
 1. LAG link down
@@ -165,11 +153,6 @@ Achieve sub-second convergence in following failure scenarios:
 3. VTEP restart
 4. VTEP power off
 5. VTEP power on
-
-
-### 1.1.7 Warm Boot Requirements
-
-Warm-boot for EVPN Multihoming is required to be supported on the platforms that support warm-boot.
 
 
 
@@ -197,23 +180,18 @@ For a given Multihomed Ethernet-Segment, the value of ES-ID should be same on al
 For simplicity, assume Type-3 ESI is configured on the PortChannel interfaces shown in the above diagram. The Vtep-1 and Vtep-4 LAG configuration will look like this:
 
 ```
-interface PortChannel 1
-    evpn ethernet-segment auto-system-mac
-    system-mac 00:00:00:00:11:11
-!
-interface PortChannel 2
-    evpn ethernet-segment auto-system-mac
-    system-mac 00:00:00:00:22:22
-!
+sudo config interface PortChannel1 sys-mac 00:00:00:00:11:11
+sudo config interface PortChannel1 evpn-esi auto-system-mac
+
+sudo config interface PortChannel2 system-mac 00:00:00:00:22:22
+sudo config interface PortChannel2 evpn-esi auto-system-mac
 ```
 
 
 Whereas, on Vtep-2 and Vtep-3 only PortChannel2 config is required since only PortChannel2 is multihomed to these VTEPs.
 ```
-interface PortChannel2
-    evpn ethernet-segment auto-system-mac
-    system-mac 00:00:00:00:22:22
-!
+sudo config interface PortChannel2 system-mac 00:00:00:00:22:22
+sudo config interface PortChannel2 evpn-esi auto-system-mac
 ```
 The Type-3 ESI value will be derived by combining the configured system-mac address on the PortChannel interface, and the PortChannel number. The system-mac is required to be same on all of the VTEPs multihoming a given LAG.
 
@@ -295,7 +273,7 @@ As part of the PortChannel interface going operationally up, new support will be
 
 **Local MAC Handling:** Local MAC addresses will remain unaffected.
 
-##### 1.2.1.3.8  MAC move handling
+##### 1.2.1.3.9  MAC move handling
 Following MAC move scenarios will be supported:
 - **Local to Local MAC move:**  MAC address move between 2 local interfaces is supported. The interface can be of any type including PortChannel configured with ESI. No new changes required for this case.
 - **Local to remote MAC move:** FRR/Fdbsyncd to update the MAC with remote tunnel/L2-NHID or ES associated PortChannel information.  FdbOrch will be extended to move the MAC to program against, VxLAN tunnel/L2-NHID or ES associated PortChannel correspondingly. 
@@ -348,9 +326,9 @@ All of the existing use-cases for ICCPd based MCLAG are applicable for EVPN Mult
 ### 2.2.1.1 EVPN Multihoming Global configuration
 EVPN multihoming global configuration is for configuring MAC/Neighbor holdtime and startup-delay.
 ```
-sonic(config)# evpn esi-multihoming
-sonic(config-evpn-esi-mh)# mac-holdtime (0-86400) 
-sonic(config-evpn-esi-mh)# neigh-holdtime (0-86400)
+sudo config evpn-mh startup-delay (0-3600)
+sudo config evpn-mh mac-holdtime (0-86400)
+sudo config evpn-mh neigh-holdtime (0-86400)
 ```
 
 As described in Sec. 1.2.1.4 (Proxy advertisement of Type-2 routes,) the MAC/Neighbor holdtime is the time after which proxy advertisement is withdrawn and MAC/Neighbor entries are flushed if the MAC/neighbor is not re-learnt.
@@ -362,26 +340,20 @@ EVPN Ethernet-segment configurations for Type-0, Type-1, and Type-3 ES-ID types 
 
 The Type-0 ESI is an administrator configured 10-byte ESI value. Below is an example of configuring Type-0 ESI.
 ```
-sonic(config)# interface PortChannel1
-sonic(config-if-po1)# system-mac 00:00:00:0a:00:01
-sonic(config-if-po1)# evpn ethernet-segment 00:00:00:00:00:00:00:0a:00:01
-sonic(es-id-00:00:00:00:00:00:00:0a:00:01)#
+sudo config interface PortChannel1 sys-mac 00:00:00:0a:00:01
+sudo config interface PortChannel1 evpn-esi 00:00:00:00:00:00:00:0a:00:01
 ```
 
 The Type-1 ESI is automatically generated using LACP partner MAC address and the PortChannel interface number. Below is an example of configuring Type-1 ESI.
 ```
-sonic(config)# interface PortChannel1
-sonic(config-if-po1)# system-mac 00:00:00:0a:00:01
-sonic(config-if-po1)# evpn ethernet-segment auto-lacp
-sonic(es-id-auto-lacp)#
+sudo config interface PortChannel1 sys-mac 00:00:00:0a:00:01
+sudo config interface PortChannel1 evpn-esi auto-lacp
 ```
 
 The Type-3 ESI is generated using System MAC address and the PortChannel interface number. Below is an example of configuring Type-3 ESI.
 ```
-sonic(config)# interface PortChannel1
-sonic(config-if-po1)# system-mac 00:00:00:0a:00:01
-sonic(config-if-po1)# evpn ethernet-segment auto-system-mac
-sonic(es-id-auto-system-mac)#
+sudo config interface PortChannel1 sys-mac 00:00:00:0a:00:01
+sudo config interface PortChannel1 evpn-esi auto-system-mac
 ```
 The 10-byte ESI will be generated by concatenating 6-byte System MAC, 3-byte PortChannel number (i.e. 1 for PortChannel1,) and 1-byte Type=0x03.
 
@@ -428,7 +400,8 @@ Using AD-per-ES routes, FRR constructs list of participating VTEPs for each ESI.
 The Isolation group SAI object used for achieving Local Bias and Split Horizon Filtering in the MCLAG will be reused for EVPN MH. In EVPN MH an Isolation group for every Peer Multihoming VTEP is created as opposed to a single group for MCLAG. The Isolation group members are populated based on the EVPN_SPLIT_HORIZON_TABLE APP-DB entry. Traffic received from the Tunnel towards the peer multihoming VTEP will not be forwarded to the members of the Isolation group.
 
 ### 2.2.4 Linux Kernel support for EVPN Multihoming
-EVPN Multihoming feature requires L2 next-hop group (NHG) support in the Linux kernel. L2 NHG feature was added in v5.3 and Linux kernel upgrade to v5.10 is required in SONiC. EVPN Multihoming feature will not be supported in SONiC releases running 4.x kernel versions.
+EVPN Multihoming feature requires L2 next-hop group (NHG) support in the Linux kernel that is available in v5.10.
+EVPN Multihoming feature will not be supported in SONiC releases running 4.x kernel versions.
 
 #### 2.2.4.1 L2 Next-hop Groups
 Remote MAC addresses received via BGP EVPN Type-2 route updates having non-zero ESI will be installed in the Linux kernel fdb with L2 nhid as show below:
@@ -456,6 +429,9 @@ Linux kernel v5.10 does not have support for split-horizon filtering. Kernel pat
 - SKB ingressing VxLAN netdevices and being flooded to a bridge-port (PortChannel interface), will undergo following checks:
 	+ If source IP address in SKB matches one of the VTEPs on egress bridge-port, the packet will be dropped.
 	+ Otherwise, packet will be forwarded if DF flag is set on the bridge-port.
+
+Note: This section needs to be revisited in purview of below Linux kernel commit:
+https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?h=v6.7.5&id=e180a33cf4636721de9c3e694aaad31e77fcdeb1
 
 #### 2.2.4.3 FDB local and remote activity tracking
 Linux kernel v5.10 has a few enhancements for tracking local activity and remote learning of FDB entries. When the MAC address is learnt locally, as well as the advertisement is received from the EVPN MH peer VTEP, the FDB entry holds extra attributes to identify if the FDB entry has become inactive locally.
@@ -495,89 +471,18 @@ The below steps explain the MAC learning and ageing scenario in the EVPN MH netw
     - (g) FRR advertises Type-2 route with Proxy=0.
     - (h) At step (e) above, if there is no traffic, the MAC will be removed from kernel by FRR after the hold-timer expiry. Fdbsyncd will remove the VXLAN_FDB_TABLE entry and mac will be removed from HW.
 
-
-
-<!--
-The following are mac learning, aging, and move scenarios of concern in the EVPN Multihoming network:
-1. MAC learning on local Multihomed ES
-2. MAC ageing on local Multihomed ES
-3. MAC learning on Multihomed ES on peer VTEP
-4. MAC ageing on Multihomed ES on peer VTEP
-5. MAC move from local Multihomed ES to local Orphan port
-6. MAC move from local Orphan port to local Multihomed ES
-7. MAC move from local Orphan port to Multihomed ES on peer VTEP
-8. MAC move from local Multihomed ES to Orphan port on peer VTEP
-9. MAC move from local Multihomed ES to remote (non-peer) VTEP.
-
-TBD: Hasan
-
-
-##### 2.2.5.1 Local MAC learning on Multihomed ES
-##### 2.2.5.2 Remote MAC learning on Multihomed ES
-##### 2.2.5.3 Local MAC ageing
-##### 2.2.5.4 Local Multihomed ES Link failure
--->
-
 ### 2.2.6 Static Anycast Gateway
 Static Anycast Gateway (SAG) will be the primary and only mechanism for achieving active-active L3 gateway on the EVPN MH enabled VTEPs.
 
 In contrast to MCLAG, SVI interface MAC addresses are not synced between EVPN MH VTEPs. In order to configure same SVI IP address on the EVPN MH VTEPs for active-active L3 gateway, SAG IP addresses are required to be configured. However, if SVI interfaces on the EVPN MH VTEPs are required to have unique IP addresses (e.g. in case of BGP over EVPN MH), configure the unique SVI IP addresses on the EVPN MH VTEPs as usual.
 
-#### 2.2.6.2 Mutual exclusion of MCLAG and EVPN MH configurations
-The *mclag-separate-ip* and *mclag-peer-gateway* configurations will not be allowed if ESI is configured on any of the interfaces, or EVPN multihoming is configured globally.
+### 2.2.7 Mutual exclusion of MCLAG and EVPN MH configurations
+The MCLAG configuration will not be allowed if ESI is configured on one or more interface(s).
 
-Please refer to Static Anycast Gateway HLD for the configuration and operational details.
-
-
-
-### 2.2.7 Uplink tracking
-Uplink tracking feature is helpful in avoiding black-hole of traffic from EVPN MH device in case the VTEP gets isolated from the network. The idea is to forcefully shutdown the Multihomed ES (downlink) interfaces on the VTEP if all of the uplink interfaces of the VTEP go down.
-
-This can be achieved by creating a track group and associating all of the EVPN MH interfaces to the track group:
-```
-sonic(config)# link state track trackGrp
-sonic(config-link-track)# downstream all-evpn-es
-sonic(config-link-track)# timeout 300
-```
-
-Subsequently, associate the specific uplink interfaces to the track group:
-```
-sonic(config)# interface Ethernet0
-sonic(config-if-Ethernet0)# link state track trackGrp upstream
-```
-
-A timeout value can also be specified to wait before bringing up EVPN MH interface(s) after one or more uplink interface(s) come up.
-
-### 2.2.8 Startup delay
-When EVPN MH VTEP is rebooted/reloaded, it might take some time for the BGP adjacencies to be established and underlay and overlay destination routes to arrive and get installed in the forwarding plane. If EVPN MH ES interface becomes operational during this process, the MH device will start load-balancing the traffic to this VTEP, while the VTEP is not ready to forward the traffic. This will result in South-North traffic loss.
-
-In order to avoid the traffic loss during boot-up process, please configure startup-delay appropriate for the given platform.
-
-```
-sonic(config)# evpn esi-multihoming
-sonic(config-evpn-esi-mh)# startup-delay 300
-```
-
-If startup-delay configuration is present, and VTEP is rebooted, the EVPN MH interfaces will be kept in administrative down state until the startup-delay timer expires. This will avoid traffic from MH device to be load balanced to the VTEP until VTEP becomes ready.
-
-The startup delay implementation for EVPN-MH is similar to the delay restore feature implemented as part of LVTEP. 
-
-The startup delay will rely on the uplink interface tracking configuration to determine the Ethernet segment and 
-orphan interfaces to be held down. In other words, uplink interface tracking must be configured in order for the startup delay timer to take effect. 
-
-### 2.2.9 ARP/ND suppression
+### 2.2.8 ARP/ND suppression
 ARP/ND suppression will be supported in EVPN Multihoming scenarios. The VTEP will respond to the ARP/ND requests received on local access ports only for the ARP/ND installed against remote VTEPs. ARP/ND response will not be  generated by the VTEP if ARP/ND is installed on the local Multihomed ES, even though the ARP/ND learning happened on the remote VTEP multihoming a given ES.
 
-
-### 2.2.11 L2G STP
-EVPN MH does not have any provision to synchronize STP states between Multihoming VTEPs. Instead, L2G STP is required for EVPN MH in order to avoid loops introduced due to configuration and/or cabling errors.
-
-Layer2-Gateway (L2G) STP feature allows STP BPDUs to be tunneled over VxLAN and allowing one of the VTEPs to become root bridge. This feature is currently not supported in SONiC.
-
-Users are required to exercise precaution and avoid configuration and cabling errors that result in L2 loops in the network.
-
-
-### 2.2.14 BGP over EVPN MH
+### 2.2.9 BGP over EVPN MH
 BGP sessions can be configured between VTEPs and host/client node over multihomed ES. Following are some of the requirements for the correct operation of BGP over MH:
 1. The BGP session should be in a VLAN that the shared ES should be member of on all of the participating VTEPs and host/client.
 2. The VLAN should be configured with a L2VNI on all of the participating VTEPs.
@@ -656,20 +561,6 @@ neigh_holdtime = 1*5DIGIT
 				; before aging out peer VTEPs ARP/ND entry after
 				; it has been withdrawn. Default=1080.
                                 ; Value 0 means disabled.
-```
-
-
-**INTF_TRACKING**
-
-```
-; Update to existing table for EVPN Multihoming
-; Specifies Link tracking details
-key              = INTF_TRACKING:name            ; name must be unique
-;field           = value
-downstream       = ["all-mclag" | "all-evpn-es" ] 
-						; "all-evpn-es" option is introduced to
-						; treat all EVPN Ethernet-segment configured
-						; interfaces as downstream interfaces.
 ```
 
 
@@ -822,7 +713,7 @@ No impact is anticipated to MCLAG and LAG modules, e.g.
 - mclagsyncd
 
 ### 3.3.1 MCLAG Management-framework transformer
-KLISH and Click handling of MCLAG configurations should now be aware of EVPN Ethernet-Segment configurations and throw appropriate errors in order to achieve mutual-exclusion between EVPN Multihoming and MCLAG features.
+Configuration handling of MCLAG should now be aware of EVPN Ethernet-Segment configurations and throw appropriate errors in order to achieve mutual-exclusion between EVPN Multihoming and MCLAG features.
 OpenConfig evpn yang is imported into SONiC and ethernet-segment URIs are implemented.
 OpenConfig LACP yang already has system-id-mac configuration and it will be implemented.
 OpenConfig evpn yang will be extended for global non-standard parameter configurations (e.g. MAC/ARP hold-timer, etc.)
@@ -885,15 +776,6 @@ A new EvpnMhOrch class will be introduced to perform following activities,
 2. Subscribe to EVPN_ES_INTERFACE config table updates and maintain internal cache.
 3. Provide set of API to check if the given PortChannel is ES associated or not. 
 4. Subscribe to LAG_TABLE oper status changes and trigger MAC update requests to FdbOrch.
-
-
-### 3.3.10 LinkTrackOrch
-LinkTrackOrch is extended to perform following activities. 
-
-1.  Existing linktrack support will be re-tained for Port states updates.
-2. Listen to new config introduced for the EVPN uplink tracking.
-3. Interact with new EVPNMhOrch to process the updates for the ES associated PortChannels. 
-4. Modify the current MLAG dependency and re-organize the code to work for both MLAG and EVPN MH.
 
 ## 3.4 SAI
 
@@ -1090,69 +972,12 @@ typedef enum _sai_l2_ecmp_group_member_attr_t
        
 ## 3.5 CLI
 
-### 3.5.1 IS-CLI Compliance
+### 3.5.1 Configuration Commands
 
-
-### 3.5.2 Data Models
-### 3.5.3 Configuration Commands
-
-#### 3.5.3.1 KLISH commands
-
-#### 3.5.3.1.1 Ethernet-Segment configuration commands
-**Ethernet-segment configuration**
-
-```
-sonic(config)# interface PortChannel1
-sonic(config-if-po1)# [no] evpn ethernet-segment {XX:XX:XX:XX:XX:XX:XX:XX:XX:XX|auto-lacp|auto-system-mac}
-```
-
-**System-mac configuration**
-```
-sonic(config)# interface PortChannel1
-sonic(config-if-po1)# [no] system-mac XX:XX:XX:XX:XX:XX
-```
-
-**DF election preference**
-```
-sonic(config)# interface PortChannel1
-sonic(config-if-po1)# evpn ethernet-segment {XX:XX:XX:XX:XX:XX:XX:XX:XX:XX|auto-lacp|auto-system-mac}
-sonic(es-id-xx)# [no] evpn ethernet-segment df-preference (1-65535)
-```
-
-#### 3.5.3.1.2 EVPN ESI Multihoming Global config commands
-**Startup-delay**
-```
-sonic(config)# evpn esi-multihoming
-sonic(config-evpn-esi-mh)# [no] startup-delay (0-3600)
-```
-
-**MAC hold-time**
-```
-sonic(config)# evpn esi-multihoming
-sonic(config-evpn-esi-mh)# [no] mac-holdtime (0-86400)
-```
-
-**Neighbor hold-time**
-```
-sonic(config)# evpn esi-multihoming  
-sonic(config-evpn-esi-mh)# [no] neigh-holdtime (0-86400)
-```
-
-#### 3.5.3.1.3 BGP EVPN Multihoming config commands
-
-**Disable/Enable AD-per-EVI configuration**
-```
-sonic(config)# router bgp 10
-sonic(config-router-bgp)# address-family l2vpn evpn
-sonic(config-router-bgp-af)# [no] disable-ead-evi-rx
-sonic(config-router-bgp-af)# [no] disable-ead-evi-tx
-```
-
-#### 3.5.3.2 Click commands
 **Ethernet-segment config commands**
 ```
 sudo config interface PortChannel1 sys-mac XX:XX:XX:XX:XX:XX
-sudo config interface PortChannel1 evpn-esi {XX:XX:XX:XX:XX:XX:XX:XX:XX:XX | (1-16777215)}
+sudo config interface PortChannel1 evpn-esi {XX:XX:XX:XX:XX:XX:XX:XX:XX:XX | auto-lacp | auto-system-mac}
 sudo config interface PortChannel1 evpn-df-pref (1-65535)
 ```
 
@@ -1163,16 +988,21 @@ sudo config evpn-mh mac-holdtime (0-86400)
 sudo config evpn-mh neigh-holdtime (0-86400)
 ```
 
+**Disable/Enable AD-per-EVI configuration**
+```
+sonic(config)# router bgp 10
+sonic(config-router-bgp)# address-family l2vpn evpn
+sonic(config-router-bgp-af)# [no] disable-ead-evi-rx
+sonic(config-router-bgp-af)# [no] disable-ead-evi-tx
+```
 
-### 3.5.4 Show Commands
+### 3.5.2 Show Commands
 
-#### 3.5.4.1 KLISH commands
-
-##### 3.5.4.1.1 VxLAN show commands
-**show vxlan remote nexthop-group**
+##### 3.5.2.1 VxLAN show commands
+**show vxlan l2-nexthop-group**
 
 ```
-sonic# show vxlan remote nexthop-group
+admin@sonic$ show vxlan l2-nexthop-group
 NHG    Remote VTEPs   Local Members
 ===    ============   ==============
 22      2.3.4.5         
@@ -1188,10 +1018,10 @@ Description:
 3. Read from the APP_DB
 ```
 
-**show vxlan remote mac**
+**show vxlan remotemac**
 
 ```
-sonic# show vxlan remote mac
+admin@sonic$ show vxlan remotemac
 
 Vlan   MAC               Type      Tunnel   Group       VNI
 ====   ===               ====      ======   =====       ====
@@ -1203,10 +1033,10 @@ Description:
 1. Existing CLI
 2. Changed Tunnel Column to display all the tunnels. 
 3. Read from the APP_DB
-
 ```
 
-##### 3.5.4.1.2 BGP EVPN show commands
+##### 3.5.2.2 BGP EVPN show commands
+List of FRR show commands relevent to EVPN Multihoming.
 
 **show evpn es detail**
 ```
@@ -1490,6 +1320,7 @@ Warm reboot for EVPN Multihoming feature will be supported on the platforms that
 
 
 # 8 Scalability
+Below are the targeted EVPN Multihoming scale numbers on platforms providing EVPN Multihoming capability.
 
 | Metric                     | Scale | 
 |:---------------------------|:-------|
@@ -1499,18 +1330,12 @@ Warm reboot for EVPN Multihoming feature will be supported on the platforms that
 | VNI per ESI                | 4K     |
 
 
-# 9 Upgrade and Downgrade
-
-Upgrade from previous SONiC release not supporting EVPN Multihoming to this release will be supported. The EVPN Multihoming feature will have to be configured afresh after upgrade.
-
-On downgrade to a SONiC version that does not support EVPN Multihoming, the EVPN Multihoming related configurations will be removed by the db_migrator.
 
 
+# 9 Unit Test
 
-# 10 Unit Test
-
-## 10.1 Functional Test Cases
-### 10.1.1 Configuration tests
+## 9.1 Functional Test Cases
+### 9.1.1 Configuration tests
 1. Configure the same system-mac address and Vlan on PortChannel interfaces on two VTEPs and verify multihomed PortChannel interface is up on both of the VTEPs.
 2. Configure Type-0 ESI on PortChannel and verify ES/AD routes are advertised.
 3. Remove Type-0 ESI and configuration from PortChannel. Verify ES/AD routes are withdrawn.
@@ -1525,7 +1350,7 @@ On downgrade to a SONiC version that does not support EVPN Multihoming, the EVPN
 12. Remove VLAN from PortChannel and verify AD-per-EVI route is withdrawn.
 13. Add VLAN to PortChannel and verify AD-per-EVI route is advertised.
 
-### 10.1.2 DF-election tests
+### 9.1.2 DF-election tests
 1. Configure Type-0 ESI on Po1 connected to VTEP1&4, Type-1 ESI on Po2 connected to VTEP3 and VTEP4, and Type-3 ESI on Po3 connected to VTEP1-4.
 2. Verify using APP_DB, kernel, and in hw that only 1 node with the lowest VTEP-IP is elected as DF for each of the ES.
 3. Configure df-preference on the higher IP VTEP and verify the VTEP is elected as DF and rest of the nodes as non-DF.
@@ -1540,7 +1365,7 @@ On downgrade to a SONiC version that does not support EVPN Multihoming, the EVPN
 12. Start traffic from remote SVTEP and verify that duplicate packets are not received on the client tgen port.
 13. Start traffic from Po1 client and verify that duplicate packets are not sent to the Po2 and Po3 clients.
 
-### 10.1.3 Split-horizon tests
+### 9.1.3 Split-horizon tests
 1. Configure Type-0 ESI on Po1 connected to VTEP1&4, Type-1 ESI on Po2 connected to VTEP3 and VTEP4, and Type-3 ESI on Po3 connected to VTEP1-4.
 2. Verify APP_DB, kernel, and hw that split horizon table is correctly populated with the participating VTEP IPs.
 3. Shutdown PortChannel on one of the VTEPS and verify split-horizon table is updated on all of the VTEPs.
@@ -1557,7 +1382,7 @@ On downgrade to a SONiC version that does not support EVPN Multihoming, the EVPN
 14. Remove bgp configuration and verify split-horizon tables are cleaned up on the local VTEP and the same is reflected on remote vteps, and DF table entry is present on the node where BGP config is removed.
 15. Re-configure BGP and verify DF election and split-horizon tables are populated on all of the VTEPs.
 
-### 10.1.4 L2 Unicast tests
+### 9.1.4 L2 Unicast tests
 1. Configure Po1 connected to VTEP1 & 4. and Po3 connected to VTEPs 1-4. Add 2 VLANs on each PortChannels, and advertise mac addresses from Po1 and Po3.
 2. On VTEP5, verify show evpn ES output shows {VTEP1, VTEP4} for ESI-1 and VTEP1-4 for ESI-3.
 3. On VTEP5, verify APP_DB VXLAN_FDB_TABLE and L2_NEXTHOP_GROUP_ID tables that {VTEP1,VTEP4} for H1-MAC and VTEP1-4 for H3-MAC.
@@ -1572,7 +1397,7 @@ On downgrade to a SONiC version that does not support EVPN Multihoming, the EVPN
 12. Re-learn the H1-MAC and wait for MAC ageing, and verify MAC is removed from all of the VTEPs after mac ageing and evpn-mh mac-hold timer expires.
 13. Start traffic from VTEP5 to H1, H2, and H3 MAC. Verify traffic is received on all of the client tgen ports without duplication.
 
-### 10.1.5 ARP/ND tests
+### 9.1.5 ARP/ND tests
 1. Configure hosts on tgen ports connected to client1, client2, client2, and VTEP5. Configure separate IP addresses in the same subnet in default-vrf on the VTEPs of corresponding Po interfaces.
 2. Ping between the tgen hosts. Verify that ping goes through.
 3. Ping from tgen of VTEP5 to the tgen hosts. Verify that ping goes through.
@@ -1581,7 +1406,7 @@ On downgrade to a SONiC version that does not support EVPN Multihoming, the EVPN
 6. Shutdown the client2 Po interface on all of the member VTEPs. Verify arp/nd entries are removed from all of the vteps.
 7. Startup the client2 Po interfaces on all of the member VTEPs. Verify ping between the tgen hosts and arp/nd entries are re-learnt.
 
-### 10.1.6 Static Anycast Gateway tests
+### 9.1.6 Static Anycast Gateway tests
 1. Configure VRF1 and L3VNI and VLAN200 in the VRF. Assign VLAN200 memberships to the ESIs. Configure SAG subnet on the VTEPs on VLAN200 and assign IP addresses on clients. Verify ping between H1, H2, and H3 works fine.
 2. Configure VRF1 and L3VNI on VTEP5. Verify host routes for H2 and H3 IP addresses are installed in routing table and forming ECMP.
 3. Shutdown ESI-1 link on VTEP1. Verify host route for H1-IP still present in routing table with single path to VTEP4.
@@ -1595,7 +1420,7 @@ On downgrade to a SONiC version that does not support EVPN Multihoming, the EVPN
 11. Startup ESI-1 link on VTEP1. Verify ARP output shows only VTEP4.
 12. Ping from H5 to H2/H3. Verify ARP for H2/H3 IP address is present on VTEP5, and the ping is successful.
 
-### 10.1.7 BGP over EVPN Multihoming ES tests
+### 9.1.7 BGP over EVPN Multihoming ES tests
 1. Configure VLAN200 member of VRF1 on VTEP1 & VTEP4 and configure unique IP addresses. Configure VLAN200 on H2 and IP address in the same subnet. Configure BGP sessions between VTEPs and clients. Verify that BGP neighbors are up.
 2. Clear ARP on VTEP1, VTEP4, and H2. Verify that the ping is successful.
 3. Shutdown ES link on VTEP1 and verify ping is successful.
@@ -1606,33 +1431,20 @@ On downgrade to a SONiC version that does not support EVPN Multihoming, the EVPN
 8. Shutdown ES link on VTEP4. Verify ping to loopback address is still successful.
 9. Startup ES link on VTEP4. Verify ping to loopback address is still successful.
 
-### 10.1.8 Uplink tracking tests
-1. Configure uplink tracking all-evpn-es, and track two uplink ports. 
-2. Bring down both of the uplink ports and verify that all of the ethernet-segment Po interfaces are down on the VTEP.
-3. Bring up one of the uplink port and verify that all of the ethernet-segment Po interfaces are up on the VTEP.
-4. Configure downlink on one of the Po and uplink on one of the uplink ports. Shutdown uplink port and verify the downlink Po goes down.
-5. Bring up the uplink port and verify that downlink Po is brought up.
-
-### 10.1.9 Negative tests
+### 9.1.8 Negative tests
 1. Configure MCLAG domain and then configure Type-0 & Type-3 ESI on PortChannel. Verify that ESI configuration on PortChannel is rejected with error.
 2. Configure Type-0 / Type-3 ESI on PortChannel and then configure MCLAG domain. Verify that MCLAG domain configuration is rejected with error.
 3. Configure ESI on PortChannel1 on VTEP1 and VTEP4 and verify PortChannel is up on H2. Remove ESI configuration on PortChannel1 and configure MCLAG and make PortChannel1 member of MCLAG on VTEP1 and VTEP4. Verify that PortChannel is up on H2.
 4. Remove MCLAG domain configuration and configure ESI on PortChannel1 on VTEP1 and VTEP4. Verify PortChannel interface is up on H2.
 5. Ensure Type-2 MAC/MACIP is received without AD-per-ES route and ensure these Type-2 routes are installed pointing to VTEP.
 
-### 10.1.10 Scale tests
-1. Advertise 10K mac addresses PortChannel2 interface and verify that all of the MAC addresses are installed on PortChannel2 on VTEP1-4 and against L2-NHG for ESI-2 on VTEP5.
+### 9.1.9 Scale tests
+1. Advertise 1K mac addresses PortChannel2 interface and verify that all of the MAC addresses are installed on PortChannel2 on VTEP1-4 and against L2-NHG for ESI-2 on VTEP5.
 2. Shutdown ES link on VTEP1. Verify on VTEP1 that MAC addresses are now installed against L2-NHG, and L2-NHG has VTEP2-4 members. Verify on VTEP5 that all of the MAC addresses are installed against L2-NHG for ESI-2.
 3. Startup ES link on VTEP1. Verify on VTEP1 that MAC addresses are now installed against PortChannel interface.
 4. Re-advertise all of the MAC addresses from PortChannel1. Verify that MAC addresses are installed on PortChannel1 on VTEP1 and VTEP4, and against L2-NHG for ESI-1 on rest of the VTEPs.
 5. Wait for the FDB aging timeout and verify that all of the MAC addresses are removed from all of the VTEPs.
 
-
-### 10.1.11 Warm boot tests
-1. Perform System Warm-reboot with L2 Unicast, L2 BUM, and L3VNI symmetric-IRB traffics flowing in the network. Verify that only minimal traffic loss is observed during the whole warm-reboot process.
-2. Perform BGP docker restart with BGP warm-reboot enabled. Verify that only minimal traffic loss is observed during the BGP docker warm-reboot.
-
-### 10.1.12 Convergence tests
+### 9.1.10 Convergence tests
 1. Shutdown ESI-2 link on VTEP2 and VTEP3 while traffic is running. Verify traffic loss stops after small loss.
 2. Startup ESI-2 link on VTEP2 and VTEP3 while traffic is running. Verify traffic converges to use VTEP2 and VTEP3 ESI links.
-3. Configure EVPN esi-multihoming startup-delay. Verify CONFIG_DB has configured value, and FRR vtysh does not have startup-delay config.
