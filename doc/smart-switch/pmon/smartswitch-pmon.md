@@ -57,8 +57,8 @@ The picture below highlights the PMON vertical and its association with other lo
 ### 2.1.    Onboarding
 * The SmartSwitch host PMON should be able to Power Cycle, Shutdown, Reset, and rest the PCIe link per DPU or the entire system
 * The DPU must provide additional information such as reboot cause, timestamp, etc as explained in the scheme once it boots its OS to DPU_STATE table.
-* When the DPU reboots itself, should log the reboot cause and update the previous-reboot-cause-dpu field in the ChassisStateDB when it boots up again
-* The reboot-cause history should provide a holistic view of the reboot cause of the SmartSwitch host CPU, the reboot-cause of all the DPUs as seen by the Switch and the DPU itself.
+* When the DPU reboots itself, should log the reboot cause and update the previous-reboot-cause field in the ChassisStateDB when it boots up again
+* The reboot-cause history should provide a holistic view of the reboot cause of the SmartSwitch host CPU, the reboot-cause of all the DPUs
 * The DPUs should be uniquely identified and the DPU upon boot may get this ID from the host and identify itself.
 * Implement the required API enhancements and new APIs for DPU management (see details in design section)
 * SmartSwitch should use the existing SONiC midplane-interface model in modular chassis design for communication between the DPU and the NPU
@@ -180,7 +180,7 @@ DPU: {
 #### 3.1.5 ModuleBase class new APIs
 
 ##### 3.1.5.1 Need for consistent storage and access of DPU reboot cause, state and health
-1.  The smartswitch needs to know the reboot cause for DPUs.
+1.  The smartswitch needs to know the reboot cause for DPUs. Please refer to the CLI section for the various options and their effects when executed on the switch and DPUs. 
 
     Table shows the frame work for DPU reboot-cause reporting
 
@@ -274,33 +274,8 @@ Thermal management sequence diagram
 * For the variable ones (temperature, voltage, fan speed ....) need to be collected periodically. 
 
 ### 3.3.   Midplane Interface
-A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. The same design has been extended in case of a SmartSwitch. The mnic ethernet interface over PCIe which is the midplane-interface, interconnect the Switch Host and the DPUs.
-
-* When DPU card or the Supervisor boots and as part of its initialization, midplane interface gets initialized.
-* Two solutions were proposed for this purpose.  
-    * Solution 1. uses a dhcp server - client model between the switch host and the dpus to allocate IP address. [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
-    * Solution 2. static ip allocation based on DPU ID. [link](https://github.com/rameshraghupathy/SONiC/blob/origin/ss_pmon_hld/doc/smart-switch/pmon/static-ip-assignment.md)
-* For midplane-interface IP address allocation we will follow the procedure in solution.1 [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
-
-### 3.3.1.    MAC address distribution
-
-* Mac allocation for the Switch Host
-    * port X 16 =  512  
-        * Example: 28 external ports + 4 internal host-dpu ports
-    * default = 8
-        * Example: management port, dockers, loopback, midplane-bridge, plus some spare
-    * midplane DPU interface host end point X DPUs  = 8
-        * Example: 1 per dpu interface
-
-* Mac allocation per DPU
-    * default = 8
-        * Example: management port, dockers, loopback, 1 for midplane-interface dpu end point, plus some spare
-    * application extension = 8
-        * Note: 8 mac addresses for future application expansion
- 
-* Total mac for SmartSwich = (512 + 8 + 8) + ((8 + 8) * 8) =   656 mac addresses
-
-* The MAC address for each host endpoint and the corresponding DPU endpoint will be read from the hardware and updated into the MID_PLANE_IP_MAC table in the ChassisStateDB as shown below. The IP address will also be stored here for convenience.
+A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. When DPU card or the Switch boots and as part of its initialization, midplane interface gets initialized.
+* Please refer to this link for IP address assignment between the switch host and the DPUs. [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
 
 ### 3.3.2.  ChassisStateDB Schema for MID_PLANE_IP_MAC
 ```
@@ -317,7 +292,8 @@ Key: "midplane_interface|dpu0"
 ## 3.4. Debuggability & RMA
 CLI Extensions and Additions
 
-show platform inventory - shows the DPUs on the switch
+show platform inventory - shows the DPUs on the switch <span style="color:red; margin-left: 20%;">Executed on the switch</span>
+
 ```
 root@sonic:~#show platform inventory
 
@@ -351,7 +327,7 @@ FPDs
 
 ```
 
-show platform temperature - shows the DPU temperature on the switch
+show platform temperature - shows the DPU temperature on the switch <span style="color:red; margin-left: 20%;">Executed on the switch</span>
 ```
 root@sonic:~#show platform temperature
 
@@ -370,7 +346,7 @@ MB_TMP421_Local          26.25      135.0      -5.0           140.0          -10
    X86_PKG_TEMP           41.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
 ```
 
-show platform fan - shows the fan speed and status on the switch
+show platform fan - shows the fan speed and status on the switch<span style="color:red; margin-left: 20%;">Executed on the switch</span>
 ```
 root@sonic:~#show platform fan
 
@@ -383,8 +359,40 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 fantray2    N/A  fantray2.fan      56%       intake     Present        OK  20230728 06:41:17
 fantray3    N/A  fantray3.fan      56%       intake     Present        OK  20230728 06:41:17
 ```
-show reboot-cause history on the switch shows the dpu reboot-cause as well.
+### 3.4.1 Reboot Cause
+* There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
+* The DPU_STATE DB holds the most recent reboot cause only.  The "show reboot-cause" CLI uses this information to determine the most recent reboot cause.
+* The switch will fetch the reboot-cause history from each of the DPUs as needed when the "show reboot-cause history" CLI is issued on the switch.
+### 3.4.2 Reboot Cause CLIs on the DPUs<span style="color:red; margin-left: 20%;">Executed on the DPU</span>
+* The "show reboot-cause" shows the most recent reboot-cause of th
+* The "show reboot-cause history" shows the reboot-cause history
 ```
+root@sonic:~#show reboot-cause
+
+Name                    Cause                       Time                                User    Comment
+
+2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
+
+root@sonic:~#show reboot-cause history
+
+Name                    Cause                       Time                                User    Comment
+
+2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
+2023_10_02_18_10_00     reboot                      Sun 02 Oct 2023 06:10:00 PM UTC     admin   User issued 'reboot'
+```
+### 3.4.2 Reboot Cause CLIs on the Switch<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+* The "show reboot-cause" CLI on the switch shows the most recent rebooted device, time and the cause. The could be the NPU or any DPU
+* The "show reboot-cause history" CLI on the switch shows the history of the Switch and all DPUs
+* The "show reboot-cause history module-name" CLI on the switch shows the history of the specified module
+
+"show reboot-cause history" <span style="color:red; margin-left: 20%;">Executed on the switch</span>
+```
+root@sonic:~#show reboot-cause
+
+Device          Name                    Cause                       Time                                User    Comment
+
+switch          2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
+
 root@sonic:~#show reboot-cause history
 
 Device          Name                    Cause                       Time                                User    Comment
@@ -397,7 +405,8 @@ DPU3            2023_10_02_18_23_46     Host Power-cycle            Sun 02 Oct
 DPU3            2023_10_02_17_23_46     Host Reset DPU              Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
 DPU2            2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
 
-"show reboot-cause history <module-name>"  shows the reboot-cause history of the specified module
+"show reboot-cause history <module-name>"
+
 root@sonic:~#show reboot-cause history dpu3
 
 Device      Name                    Cause                           Time                                User    Comment 
@@ -407,7 +416,7 @@ DPU3        2023_10_02_18_23_46     Host Power-cycle                Sun 02 Oct
 DPU3        2023_10_02_17_23_46     Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
 ```
 
-show chassis modules status - will show the dpu status of all DPUs and the Switch supervisor card
+show chassis modules status - will show the dpu status of all DPUs and the Switch supervisor card<span style="color:red; margin-left: 20%;">Executed on the switch</span>
 ```
 root@sonic:~#show chassis modules status                                                                                          
 Name        Description         Physical-Slot       Oper-Status     Admin-Status    Serial
