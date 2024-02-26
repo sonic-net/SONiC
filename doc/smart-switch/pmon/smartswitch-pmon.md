@@ -107,46 +107,108 @@ SmartSwitch PMON block diagram
 * SmartSwitch design Extends the existing chassis_base and module_base as described below.
 * Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch
 
-| API | current_usage | switch cpu | dpu | SONiC enhancements |
-| --- | --- | --- | --- | --- |
-| class ModuleBase | # Possible module types MODULE_TYPE_SUPERVISOR MODULE_TYPE_LINE MODULE_TYPE_FABRIC | yes | yes | #new module type MODULE_TYPE_DPU MODULE_TYPE_SWITCH |
-
 #### 3.1.1 ChassisBase class API enhancements
-| API | current_usage | switch cpu | dpu | SONiC enhancements | PD plugin change| comments |
-| --- | --- | --- | --- | --- | --- | --- |
-| get_supervisor_slot(self) | Retrieves the physical-slot of the supervisor-module in the modular chassis. On the supervisor or line-card modules, it will return the physical-slot of the supervisor-module. | na | na | no  | return 0  | chassisd does not like MODULE_INVALID_SLOT smart switch as chassis, where slot is used as follows 0 - switch, 1 - DPU1, 2 - DPU2, .. 8 - DPU8 |
-| get_my_slot(self) | Retrieves the physical-slot of this module in the modular chassis. | na | na | no | return 0/1-8 | 0 - switch, 1 - DPU1, 2 - DPU2, ... 8 - DPU8 |
-| is_modular_chassis(self) | Retrieves whether the sonic instance is part of modular chassis | yes | na | no | return False | smartswitch chassis is fixed, we are extending the modular chassis class to support DPU modules |
-| get_num_modules(self) | Retrieves the number of modules available on this chassis | yes | yes | no | yes | include DPUs |
-| get_all_modules(self) | Retrieves all modules available on this chassis | yes | yes | no | yes | include DPUs |
-| get_module(self, index) | Retrieves module represented by (0-based) index <index> | yes | yes | no | yes | include DPU |
-| get_module_index(self, module_name) | Retrieves module index from the module name | yes | yes | new module name: DPU, SWITCH | yes |  |
+get_supervisor_slot(self):
 
+get_my_slot(self):
+```
+    Retrieves the slot number
+    Returns:
+      0 : on switch
+      1 : on DPU1
+      2 : on DPU2 and so on
+```
+
+is_modular_chassis(self):
+```
+    Retrieves whether the sonic instance is part of modular chassis. Smartswitch
+    chassis is fixed, the modular chassis class is extended to support DPUs
+
+    Returns:
+      False
+```
+
+get_num_modules(self):
+```
+    Retrieves the number of modules available on this chassis including DPUs
+
+    Returns:
+        An integer, the number of modules available on this chassis
+```
+
+get_all_modules(self):
+```
+    Retrieves all modules available on this chassis including DPUs
+
+    Returns:
+        A list of objects derived from ModuleBase representing all modules
+        available on this chassis
+```
+
+get_module(self, index):
+```
+    Retrieves module represented by index <index> switch:0, DPU1:1 and so on
+
+    Args:
+        index: An integer, the index of the module to retrieve
+
+    Returns:
+        An object derived from ModuleBase representing the specified module
+```
+
+get_module_index(self, module_name):
+```
+    Retrieves module index from the module name
+
+    Args:
+        module_name: A string, Ex. SWITCH, DPU1, DPU2 ... DPUX
+
+    Returns:
+        An integer, the index of the ModuleBase object in the module_list
+```
 #### 3.1.2 ChassisBase class new APIs
-| API | current_usage | switch cpu | dpu | SONiC enhancements | PD plugin change| comments |
-| --- | --- | --- | --- | --- | --- | --- |
-| is_smartswitch(self) | Retrieves whether the sonic instance is part of smartswitch | yes | na | yes | return True | New API for smartswitch |
-| get_module_dpu_port(self, index) | Retrieves the DPU port (internal ASIC port for DPU) represented by DPU index - 1,8 | yes | na | yes | see comments | Platforms that require to overwrite the platform.json file will use this API. See section 3.1.3 below |
+is_smartswitch(self):
+```
+    Retrieves whether the sonic instance is part of smartswitch
 
+    Returns:
+      True
+```
+
+get_module_dpu_port(self, index):
+```
+    Retrieves the DPU port - internal ASIC port for DPU represented by
+    DPU index. Platforms that require to overwrite the platform.json file
+    will use this API
+
+    This valid only on the Switch and not on DPUs
+
+    Args:
+        index: An integer, the index of the module to retrieve
+
+    Returns:
+        DPU Port: A string Ex: For index:0 "dpu0", index:1 "dpu1"
+        See the NPU to DPU port mapping
+```
 #### 3.1.3 NPU to DPU port mapping
 platform.json of NPU/switch will show the NPU port to DPU port mapping. This will be used by services early in the system boot for midplane IP assignment. In this example there are 8 DPUs and ach having a 200G interface.
 ```
 "DPUs" : [
     {
-      "DPU0": {
-                "Ethernet224": "Ethernet0/0"
+      "dpu0": {
+                "midplane_interface":  "dpu0"
        }
     },
     {
-       "DPU1": {
-                "Ethernet228": "Ethernet1/0"
+       "dpu1": {
+                "midplane_interface":  "dpu1"
         },
     },
     .
     .
     {
-       "DPU7": {
-                "Ethernet252": "Ethernet7/0"
+       "dpuX": {
+                "midplane_interface":  "dpux"
         },
     },
 
@@ -161,21 +223,141 @@ DPU: {
 }
 ```
 #### 3.1.4 ModuleBase class API enhancements
-| API | current_usage | switch cpu | dpu | SONiC enhancements | PD plugin change| HW mgmt change | comments |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| get_base_mac(self) | Retrieves the base MAC address for the module | yes | yes | no | yes | yes |  |
-| get_system_eeprom_info(self) | Retrieves the full content of system EEPROM information for the module | yes | yes | no | yes | yes |  |
-| get_name(self) | Retrieves the name of the module prefixed by SUPERVISOR, LINE-CARD, FABRIC-CARD | yes | yes | new module: SWITCH,DPU | yes | yes |  |
-| get_description(self) | Retrieves the platform vendor's product description of the module | yes | yes | no | yes | yes |  |
-| get_slot(self) | Retrieves the platform vendor's slot number of the module | na | na | no | return 0/1-8 | yes | 0 - switch, 1 - DPU1, 2 - DPU2, ... 8 - DPU8|
-| get_type(self) | Retrieves the type of the module | yes | yes | no | yes | yes | return type: MODULE_TYPE_DPU MODULE_TYPE_SWITCH |
-| get_oper_status(self) | Retrieves the operational status of the module | yes | yes | no | yes | yes | This information is not sufficient for debugging complex DPU failures. So, couple of new CLIs will be introduced. |
-| reboot(self, reboot_type) | Request to reboot the module | yes | yes | no | yes | yes |  |
-| set_admin_state(self, up) | Request to keep the card/DPU in administratively up/down state. | yes | yes | no | yes | no |  |
-| get_maximum_consumed_power(self) | Retrieves the maximum power drawn by this module | yes | yes | no | yes | yes |  |
-| get_midplane_ip(self) | Retrieves the midplane IP-address of the module in a modular chassis. When called from the Supervisor, the module could represent the line-card and return the midplane IP-address of the line-card. When called from the line-card, the module will represent the Supervisor and return its midplane IP-address. | yes | yes | new module Switch, DPU | yes | no | IP address for PCIe interface for DPU |
-| is_midplane_reachable(self) | Retrieves the reachability status of the module from the Supervisor or of the Supervisor from the module via the midplane of the modular chassis | yes | yes | no | yes | no |  |
-| get_all_asics(self) | Retrieves the list of all ASICs on the module that are visible in PCI domain. When called from the Supervisor of modular system, the module could be fabric card, and the function returns all fabric ASICs on this module that appear in PCI domain of the Supervisor. | na | na | no | na | na | For smartswitch this is NA |
+get_base_mac(self):
+```
+    Retrieves the base MAC address for the module
+
+    Returns:
+        A string containing the MAC address in the format 'XX:XX:XX:XX:XX:XX'
+```
+
+get_system_eeprom_info(self):
+```
+    Retrieves the full content of system EEPROM information for the DPU module
+
+    Returns:
+        A dictionary where keys are the type code defined in
+        OCP ONIE TlvInfo EEPROM format and values are their corresponding values
+        Ex. { ‘0x21’:’AG9064’, ‘0x22’:’V1.0’, ‘0x23’:’AG9064-0109867821’,
+              ‘0x24’:’001c0f000fcd0a’, ‘0x25’:’02/03/2018 16:22:00’,
+              ‘0x26’:’01’, ‘0x27’:’REV01’, ‘0x28’:’AG9064-C2358-16G’}
+```
+
+get_name(self):
+```
+    Retrieves the name of the device
+
+    Returns:
+        string: The name of the device. Ex; SWITCH, DPU0, DPUX
+```
+
+get_description(self):
+```
+    Retrieves the platform vendor's product description of the module
+
+    Returns:
+        A string, providing the vendor's product description of the module.
+```
+
+get_slot(self):
+```
+    Retrieves the platform vendor's slot number of the module
+
+    Returns:
+        An integer, indicating the slot number Ex: 0:SWITCH, 1:DPU1, X:DPUX
+```
+
+get_type(self):
+```
+    Retrieves the type of the module.
+
+    Returns:
+        A string, the module-type from one of the predefined types:
+        MODULE_TYPE_SWITCH, MODULE_TYPE_DPU
+```
+
+get_oper_status(self):
+```
+    Retrieves the operational status of the module
+    This information is not sufficient for debugging complex DPU failures.
+    So, couple of new CLIs will be introduced.
+
+    Returns:
+        A string, the operational status of the module from one of the
+        predefined status values: MODULE_STATUS_EMPTY, MODULE_STATUS_OFFLINE,
+        MODULE_STATUS_FAULT, MODULE_STATUS_PRESENT or MODULE_STATUS_ONLINE
+```
+
+reboot(self, reboot_type):
+```
+    Request to reboot the module
+
+    Args:
+        reboot_type: A string, the type of reboot requested from one of the
+        predefined reboot types: MODULE_REBOOT_DEFAULT,
+        MODULE_REBOOT_CPU_COMPLEX, or MODULE_REBOOT_FPGA_COMPLEX
+
+    Returns:
+        bool: True if the request has been issued successfully, False if not
+```
+
+set_admin_state(self, up):
+```
+    Request to keep the card/DPU in administratively up/down state.
+    Default state is down.
+```
+
+get_maximum_consumed_power(self):
+```
+    Retrieves the maximum power drawn by this module
+
+    Returns:
+        A float, with value of the maximum consumable power of the
+        module.
+```
+
+get_midplane_ip(self):
+```
+    Retrieves the midplane IP-address of the module
+    When called from the DPU, returns the midplane IP-address of the dpu-card.
+    When called from the Switch returns the midplane IP-address of Switch.
+
+    Returns:
+        A string, the IP-address of the module reachable over the midplane
+```
+
+is_midplane_reachable(self):
+```
+    Retrieves the reachability status of the module from the Supervisor or
+    of the Supervisor from the module via the midplane of the modular chassis
+
+    Returns:
+        A bool value, should return True if module is reachable via midplane
+```
+
+get_all_asics(self):
+```
+    Retrieves the list of all ASICs on the module that are visible in PCI domain.
+    When called from the Switch, the module could be dpu card, and the function
+    returns all DPU ASICs on this module that appear in PCI domain.
+
+    Returns:
+        A list of ASICs. Index of an ASIC in the list is the index of the ASIC
+        on the module. Index is 0 based.
+
+        An item in the list is a tuple that includes:
+          - ASIC instance number (indexed globally across all modules of
+            he chassis). This number is used to find settings for the ASIC
+            from /usr/share/sonic/device/platform/hwsku/asic_instance_number/.
+          - ASIC PCI address: It is used by syncd to attach the correct ASIC.
+
+        For example: [('4', '0000:05:00.0'), ('5', '0000:07:00.0')]
+          In this example, from the output, we know the module has 2 ASICs.
+          Item ('4', '0000:05:00.0') describes information about the first ASIC
+          in the module. '4' means it is asic4 in the chassis. Settings for this
+          ASIC is at /usr/share/sonic/device/platform/hwsku/4/.
+          And '0000:05:00.0' is its PCI address.
+```
 
 #### 3.1.5 ModuleBase class new APIs
 
@@ -251,12 +433,26 @@ DPU: {
             "timestamp": "20230618 14:56:15"
         } 
     ```
-* ModuleBase class new APIs
+##### 3.1.5.2 ModuleBase class new APIs
+get_state_info(self, index):
+```
+    Retrieves the dpu state object having the detailed dpu state progression.
+    Fetched from ChassisStateDB.
 
-    | API | current_usage | switch cpu | dpu | SONiC enhancements | PD plugin change| HW mgmt change | comments |
-    | --- | --- | --- | --- | --- | --- | --- | --- |
-    | get_state_info(self, index) | Retrieves the dpu state object having the detailed dpu state progression | yes | no | yes | yes | yes | Fetched from ChassisStateDB |
-    | get_health_info(self) | Retrieves the dpu health object | no | yes | yes | yes | yes | Fetched from DPU |
+    Returns:
+        An object instance of the DPU_STATE (see DB schema)
+        Returns None when the index is 0 (switch)
+```
+
+get_health_info(self, index):
+```
+    Retrieves the dpu health object having the detailed dpu health
+    Fetched from the DPUs
+
+    Returns:
+        An object instance of the dpu health
+        Returns None when the index is 0 (switch)
+```
 
 ### 3.2. Thermal management
 * Platform  initializes all sensors
@@ -416,9 +612,9 @@ DPU3        2023_10_02_18_23_46     Host Power-cycle                Sun 02 Oct
 DPU3        2023_10_02_17_23_46     Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
 ```
 
-show chassis modules status - will show the dpu status of all DPUs and the Switch supervisor card<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show chassis modules status - shows the dpu status of all DPUs and the Switch supervisor<span style="color:red; margin-left: 20%;">Executed on the switch</span>
 ```
-root@sonic:~#show chassis modules status                                                                                          
+root@sonic:~#show chassis modules status                                                                                      
 Name        Description         Physical-Slot       Oper-Status     Admin-Status    Serial
 
 DPU0        SS-DPU-0            1                   Online          up              SN20240105
