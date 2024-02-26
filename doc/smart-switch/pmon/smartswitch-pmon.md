@@ -455,7 +455,7 @@ get_health_info(self, index):
         Returns None when the index is 0 (switch)
 ```
 
-### 3.2. Thermal management
+### 3.2 Thermal management
 * Platform  initializes all sensors
 * Thermalctld fetch CPU temperature, DPU temperature, fan speed, monitor and update the DB
 * Thermal manager reads all thermal sensor data, run thermal policy and take policy action Ex. Set fan speed, set alarm, set syslog, set LEDs 
@@ -465,28 +465,16 @@ get_health_info(self, index):
 Thermal management sequence diagram
 <p align="center"><img src="./images/thermal-mgmt-seq.svg"></p>
 
-### 3.2.1 Platform device data collection 
+#### 3.2.1 Platform device data collection 
 * thermalctld, led and PSUd post device data to DB periodically
 * during the boot up of the daemons, it will collect the constant data like serial number, manufacture name, etc.
 * For the variable ones (temperature, voltage, fan speed ....) need to be collected periodically. 
 
-### 3.3.   Midplane Interface
+### 3.3   Midplane Interface
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. When DPU card or the Switch boots and as part of its initialization, midplane interface gets initialized.
 * Please refer to this link for IP address assignment between the switch host and the DPUs. [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
 
-### 3.3.2.  ChassisStateDB Schema for MID_PLANE_IP_MAC
-```
-Table: “MID_PLANE_IP_MAC”
-
-Key: "midplane_interface|dpu0"
-            "id”: “1”,
-            "host_ip": “169.254.1.2”,
-            “host_mac”: “BA:CE:AD:D0:C0:01”, # mac is an example
-            "dpu_ip": “169.254.1.1”,
-            “dpu_mac”: “BA:CE:AD:D0:D0:01”  # will be updated by the DPU
-```
-
-## 3.4. Debuggability & RMA
+### 3.4 Debuggability & RMA
 CLI Extensions and Additions
 
 show platform inventory - shows the DPUs on the switch <span style="color:red; margin-left: 20%;">Executed on the switch</span>
@@ -556,11 +544,11 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 fantray2    N/A  fantray2.fan      56%       intake     Present        OK  20230728 06:41:17
 fantray3    N/A  fantray3.fan      56%       intake     Present        OK  20230728 06:41:17
 ```
-### 3.4.1 Reboot Cause
+#### 3.4.1 Reboot Cause
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
 * The DPU_STATE DB holds the most recent reboot cause only.  The "show reboot-cause" CLI uses this information to determine the most recent reboot cause.
 * The switch will fetch the reboot-cause history from each of the DPUs as needed when the "show reboot-cause history" CLI is issued on the switch.
-### 3.4.2 Reboot Cause CLIs on the DPUs<span style="color:red; margin-left: 20%;">Executed on the DPU</span>
+#### 3.4.2 Reboot Cause CLIs on the DPUs<span style="color:red; margin-left: 20%;">Executed on the DPU</span>
 * The "show reboot-cause" shows the most recent reboot-cause of th
 * The "show reboot-cause history" shows the reboot-cause history
 ```
@@ -577,7 +565,7 @@ Name                    Cause                       Time                        
 2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
 2023_10_02_18_10_00     reboot                      Sun 02 Oct 2023 06:10:00 PM UTC     admin   User issued 'reboot'
 ```
-### 3.4.2 Reboot Cause CLIs on the Switch<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+#### 3.4.3 Reboot Cause CLIs on the Switch<span style="color:red; margin-left: 20%;">Executed on the switch</span>
 * The "show reboot-cause" CLI on the switch shows the most recent rebooted device, time and the cause. The could be the NPU or any DPU
 * The "show reboot-cause history" CLI on the switch shows the history of the Switch and all DPUs
 * The "show reboot-cause history module-name" CLI on the switch shows the history of the specified module
