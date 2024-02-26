@@ -4,6 +4,7 @@
 | --- | ---- | ------ | ------------------ |
 | 0.1 | 12/02/2023 | Ramesh Raghupathy | Initial version|
 | 0.2 | 01/08/2024 | Ramesh Raghupathy | Updated API, CPI sections and addressed review comments |
+| 0.3 | 02/26/2024 | Ramesh Raghupathy | Addressed review comments |
 
 ## Definitions / Abbreviations
 
@@ -619,39 +620,160 @@ Name        Description         Physical-Slot       Oper-Status     Admin-Status
 
 DPU0        SS-DPU-0            1                   Online          up              SN20240105
 SWITCH      Chassis             0                   Online          N/A             FLM27000ER
-
-
-show chassis modules health-summary <module-name>
-
-root@sonic:~#show chassis modules health-summary dpu0
-
-Name    Description     Physical-Slot   Oper-Status     Detailed-States     Sate-Value  Admin-Status    Serial
-
-DPU0    SS-DPU-0        1               Online          power               up          up              SN20240105
-                                                        pice-link           up
-                                                        host-eth-links      up
-                                                        firmware            up
-                                                        sonic               up
-                                                        control-plane       up
-                                                        data-plane          up
-
-root@sonic:~#show chassis modules health-events dpu0  -t error
-
-Name    Timestamp           Name                        Count       Severity        Description
-
-DPU0    20230619 05:20:34   single-bit-ecc-err-mem1     3           LEVEL_ERROR     1 bit etc correctable error
-DPU0    20230619 04:22:34   int_prp4_read               10          LEVEL_ERROR     Software Error
-``` 
-The "health" cli when executed on the DPU itself will be as shown below.
 ```
-root@sonic:~#show chassis health-events -t error
+* The system health summary on NPU should include the DPU status. If one or more DPUs are not ok it should be highlighted in the command output
+* This will allow to reuse of the existing infrastructure that allows to signal the user about the issue on the system and change the system status LED to red.
 
-Timestamp               Name                        Count   Severity        Description
-
-20230619 05:20:34       single-bit-ecc-err-mem1     3       LEVEL_ERROR     1 bit etc correctable error
-20230619 04:22:34       int_prp4_read               10      LEVEL_ERROR     Software Error
+show system-health summary<span style="color:red; margin-left: 20%;">Executed on the switch</span>
 ```
-show interface status - will show the NPU-DPU interface status also
+System status summary
+
+  System status LED  red
+  Services:
+    Status: Not OK
+    Not Running: dpu:dpu0, dpu:dpu1
+  Hardware:
+    Status: OK
+ ```
+ * Detailed output from the switch can be obtained with the following CLI
+ * The system health monitor list command should include the status of the DPU. If one or more DPUs are not ok it should be highlighted in the command output
+ * The switch will fetch the DPU information stored in the DPU's STATE_DB as needed
+
+show system-health monitor-list<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+```
+System services and devices monitor list
+
+Name                   Status    Type
+---------------------  --------  ----------
+…
+swss:coppmgrd          OK        Process
+swss:tunnelmgrd        OK        Process
+eventd:eventd          OK        Process
+lldp:lldpd             OK        Process
+lldp:lldp-syncd        OK        Process
+lldp:lldpmgrd          OK        Process
+gnmi:gnmi-native       OK        Process
+ASIC                   OK        ASIC
+fan1                   OK        Fan
+fan2                   OK        Fan
+fan3                   OK        Fan
+fan4                   OK        Fan
+psu1_fan1              OK        Fan
+psu2_fan1              OK        Fan
+PSU 1                  OK        PSU
+PSU 2                  OK        PSU
+DPU0                   Not OK    DPU
+DPU1                   Not OK    DPU
+DPU2                   OK        DPU
+DPU3                   OK        DPU
+ ```
+ * The previous two CLIs are further extended to show the detail information about the DPU status as show in the next two CLIs
+
+show system-health monitor-list module <DPU NAME><span style="color:red; margin-left: 20%;">Executed on the switch</span>
+```
+System services and devices monitor list
+
+Name                       Status    Type
+-------------------------  --------  ----------
+Hostname                   OK        System
+rsyslog                    OK        Process
+root-overlay               OK        Filesystem
+var-log                    OK        Filesystem
+routeCheck                 OK        Program
+dualtorNeighborCheck       OK        Program
+diskCheck                  OK        Program
+container_checker          OK        Program
+vnetRouteCheck             OK        Program
+memory_check               OK        Program
+container_memory_snmp      OK        Program
+container_memory_gnmi      OK        Program
+container_eventd           OK        Program
+eventd:eventd              OK        Process
+database:redis             OK        Process
+swss:coppmgrd              OK        Process
+swss:tunnelmgrd            OK        Process
+gnmi:gnmi-native           OK        Process
+bgp:zebra                  OK        Process
+bgp:staticd                OK        Process
+bgp:bgpd                   Not OK    Process
+bgp:fpmsyncd               OK        Process
+bgp:bgpcfgd                OK        Process
+CPU                        OK        UserDefine
+DDR                        OK        UserDefine
+ ```
+ #### System health details
+ * Consolidated information about statuses of all subsystems can be obtained as shown
+
+show system-health detail<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+```
+System status summary
+
+  System status LED  red
+  Services:
+    Status: Not OK
+    Not Running: snmp:snmpd, snmp:snmp-subagent
+  Hardware:
+    Status: OK
+
+System services and devices monitor list
+
+Name                   Status    Type
+---------------------  --------  ----------
+snmp:snmpd             Not OK    Process
+snmp:snmp-subagent     Not OK    Process
+mtvr-leopard-01        OK        System
+rsyslog                OK        Process
+root-overlay           OK        Filesystem
+var-log                OK        Filesystem
+routeCheck             OK        Program
+dualtorNeighborCheck   OK        Program
+…
+System services and devices ignore list
+
+Name    Status    Type
+------  --------  ------
+…
+
+DPU0 system services and devices monitor list
+
+Name                       Status    Type
+-------------------------  --------  ----------
+mtvr-r740-04-bf3-sonic-01  OK        System
+rsyslog                    OK        Process
+…
+
+DPU1 system services and devices monitor list
+
+Name                       Status    Type
+-------------------------  --------  ----------
+mtvr-r740-04-bf3-sonic-01  OK        System
+rsyslog                    OK        Process
+…
+
+DPUX system services and devices monitor list
+
+Name                       Status    Type
+-------------------------  --------  ----------
+mtvr-r740-04-bf3-sonic-01  OK        System
+rsyslog                    OK        Process
+…
+ ```
+ #### Vendor specific health checkers
+ * If the vendor wants to add additional information specific to the platform it can be done using the user-defined checkers:
+
+show system-health monitor-list<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+```
+System services and devices monitor list
+
+Name                       Status    Type
+-------------------------  --------  ----------
+…
+bgp:bgpcfgd                OK        Process
+CPU                        OK        UserDefine
+DDR                        OK        UserDefine
+ ```
+
+show interface status - will show the NPU-DPU interface status also<span style="color:red; margin-left: 20%;">Executed on the switch</span>
 ```
 root@sonic:~# show interfaces status
   Interface                                    Lanes    Speed    MTU    FEC    Alias    Vlan    Oper    Admin    Type    Asym PFC
