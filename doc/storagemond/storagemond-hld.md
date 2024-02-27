@@ -9,17 +9,17 @@
 
 This document is intended to provide a high-level design for a Storage monitoring daemon.
 
-Solid-State Drives (SSDs) are storage devices that use NAND-flash technology to store data. They offer the end user significant benefits compared to HDDs, some of which include reliability, reduced size, increased energy efficiency and improved IO speeds which translates to faster boot times, quicker computational capabilities and an improved system responsiveness overall. Like all devices, however, they experience performance degradation over time on account of a variety of factors such as overall disk writes, bad-blocks management, lack of free space, sub-optimal operational temperature and good-old wear-and-tear which speaks to the overall health of the SSD. 
+Solid-State storage devices that use NAND-flash technology to store data offer the end user significant benefits compared to HDDs. Some advantages are reliability, reduced size, increased energy efficiency and improved IO speeds which translates to faster boot times, quicker computational capabilities and an improved system responsiveness overall. Like all devices, however, they experience performance degradation over time on account of a variety of factors such as overall disk writes, bad-blocks management, lack of free space, sub-optimal operational temperature and good-old wear-and-tear which speaks to the overall health of the disk. 
 
-The goal of the Storage Monitoring Daemon (storagemond) is to provide meaningful metrics for the aforementioned issues and enable streaming telemetry for these attributes so that the required preventative measures are triggered in the eventuality of performance degradation.
+The goal of the Storage Monitoring Daemon (storagemond) is to provide meaningful metrics for the aforementioned issues and enable streaming telemetry for these attributes so that preventative measures may be triggered in the eventuality of performance degradation.
 
 ## 2. Data Collection
 
-We are intrested in the following characteristics that describe various aspects of the SSD:
+We are intrested in the following characteristics that describe various aspects of the disk:
 
 ### **2.1 Dynamic Attributes** 
 
-**The following attributes are pdated frequently and describe the current state of the SSD**
+**The following attributes are updated frequently and describe the current state of the disk**
 
 - File System IO Reads
 - File System IO Writes
@@ -30,26 +30,25 @@ We are intrested in the following characteristics that describe various aspects 
 - Firmware
 - Health
 
-**Filesystem IO Reads/Writes** - Parsed from the `/proc/diskstats` file, these values correspond to the number of reads and writes successfully carried out in the partition hosting the SONiC OS. These values would reset upon reboot.
+**Filesystem IO Reads/Writes** - Parsed from the `/proc/diskstats` file, these values correspond to the number of reads and writes successfully carried out in the disk. These values would reset upon reboot.
 
 **Disk IO Reads/Writes** - These fields account for write-amplification and wear-leveling algorithms, and are persistent across reboots and powercycles.
 
-**Reserved Blocks Count** - Reserved blocks in a Solid State Drive (SSD) serve several critical purposes to enhance the drive's performance, reliability, and longevity. These reserved blocks are managed by the drive's firmware, and their specific allocation and management may vary between SSD manufacturers. The primary purposes of reserved blocks in an SSD are:
+**Reserved Blocks Count** - Reserved blocks are managed by the drive's firmware, and their specific allocation and management may vary between disk manufacturers. The primary purposes of reserved blocks in a disk are:
 
 - **Bad-block replacement:** When the firmware detects a bad block, it can map it to a reserved block and continue using the drive without data loss.
 - **Wear Leveling:** Reserved blocks are used to replace or relocate data from cells that have been heavily used, ensuring that all cells are used evenly. 
-- **Over-Provisioning:** Over-provisioning helps maintain consistent performance and extends the lifespan of the SSD by providing additional resources for wear leveling and bad block management.
+- **Over-Provisioning:** Over-provisioning helps maintain consistent performance and extends the lifespan of the disk by providing additional resources for wear leveling and bad block management.
 - **Garbage collection:** When files are deleted or modified, the old data needs to be erased and marked as available for new data. Reserved blocks can help facilitate this process by providing a temporary location to move valid data from blocks that need to be erased. 
 
-- **Temperature** - Extreme temperatures can affect SSD performance. Excessive heat can lead to throttling to prevent damage, while extreme cold can slow down data access.
-- **Firmware, Health** - These fields are self-explanatory
+- **Temperature, Firmware, Health** - These fields are self-explanatory
 
 ### **2.2 Static Attributes**
 
 **These attributes provide informational context about the Storage disk**
 
-- Vendor Model
-- Serial Number
+- **Vendor Model**
+- **Serial Number**
 
 These fields are self-explanatory.
 
@@ -70,15 +69,15 @@ This is detailed in the sequence diagram below:
 
 The SONiC OS currently includes logic for parsing storage disk information from various vendors through the `EmmcUtil` and `SsdUtil` classes, facilitated by base class definitions provided by `SsdBase`. We utilize this framework to collect the following details:
 
-- Static Information: Vendor Model, Serial Number
-- Dynamic Information: Firmware, Temperature, Health
+- **Static Information**: Vendor Model, Serial Number
+- **Dynamic Information**: Firmware, Temperature, Health
 
-This section will therefore only go into detail about data collection of attributes mentioned in [section 2.1](#21-dynamic-attributes).
+The following section will therefore only go into detail about data collection of attributes mentioned in [section 2.1](#21-dynamic-attributes).
 
 
 #### **2.4.1 SsdBase API additions**
 
-In order to parse Disk IO reads/writes and Number of Reserved Blocks, we would need to add the following member methods to the `SsdBase` class in [ssd_base.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_base.py) and provide a generic implementation in [ssd_generic.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_generic.py) <sup>READ NOTE</sup>:
+In order to parse Disk IO reads/writes and Number of Reserved Blocks, we would need to add the following member methods to the `SsdBase` class in [ssd_base.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_base.py) and provide a generic implementation in [ssd_generic.py](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_ssd/ssd_generic.py):
 
 
 ```
@@ -86,7 +85,7 @@ class SsdBase(object):
 
 ...
 
-def get_io_reads(self):
+def get_disk_io_reads(self):
 """
 Retrieves the total number of Input/Output (I/O) reads done on an SSD
 
@@ -94,7 +93,7 @@ Returns:
     An integer value of the total number of I/O reads
 """
 
-def get_io_writes(self):
+def get_disk_io_writes(self):
 """
 Retrieves the total number of Input/Output (I/O) writes done on an SSD
 
@@ -112,14 +111,9 @@ Returns:
 
 ```
 
-**NOTE:** Augmentation of the EmmcUtil class for these attributes is reserved for future iterations of the daemon. <br>
-
 #### **2.4.2 Support for Multiple Storage Disks**
 
-The `SsdUtil` utility assumes that the disk drive is `/dev/sda` whereas the drive letter could be any label based on the number of SSDs. 
-Additionally, there could also be a different type of storage device such as eMMC, USB or NVMe upon which the SONiC OS is mounted.
-
-In order to get a clear picture of the number and type of disks present on a device, we introduce a new class `StorageDevices()`. This proposed class will reside in the `src/sonic-platform-common/sonic_platform_base/sonic_ssd` directory, within the file named `storage_devices.py`. This new class provides the following methods:
+In order to get a clear picture of the number of disks and type of each disk present on a device, we introduce a new class `StorageDevices()`. This proposed class will reside in the `src/sonic-platform-common/sonic_platform_base/sonic_ssd` directory, within the file named `storage_devices.py`. This new class provides the following methods:
 
 ```
 class StorageDevices():
@@ -226,7 +220,7 @@ We then leverage the following proposed StateDB schema to store and stream infor
 **Limited support** -- Support unavailable for Dynamic fields mentioned in [section 2.1](#21-priority-0-attributes)<br>
 **Not currently supported** -- Class currently unimplemented, no object created. No monitoring currently available.<br>
 
-`UsbUtil` and `NVMeUtil` classes are not yet available. `EmmcUtil` class does not currently have IO reads, IO writes and Reserved Blocks support.</sub>
+<sub>UsbUtil and NVMeUtil classes are not yet available. EmmcUtil class does not currently support disk IO reads, disk IO writes and Reserved Blocks.</sub>
 
 #### **2.4.3 Support for common implementations**
 
@@ -255,10 +249,10 @@ def _update_fsstats_file(self, value, attr):
 
 def get_fs_io_reads(self):
     """
-    Function to get the total number of reads on the 'SONiC' partition by parsing the /proc/diskstats file
+    Function to get the total number of reads on each disk by parsing the /proc/diskstats file
 
     Returns:
-        The total number of partition reads OR disk reads if storage device does not host the SONiC OS
+        The total number of FSIO reads
     
     Args:
         N/A
@@ -266,18 +260,15 @@ def get_fs_io_reads(self):
 
 def get_fs_io_writes(self):
     """
-    Function to get the total number of writes on the 'SONiC' partition by parsing the /proc/diskstats file
+    Function to get the total number of writes on each disk by parsing the /proc/diskstats file
 
     Returns:
-        The total number of partition writes OR disk writes if storage device does not host the SONiC OS
+        The total number of FSIO writes
     
     Args:
         N/A
     """
 ```
-
-These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to retrieve the total number of disk reads and writes, respectively, by parsing the `/proc/diskstats` file. They utilize similar logic, differing only in the column index used to extract the relevant information.
-
 **Accounting for reboots and uninended powercycles**
 
 The reset of values in `/proc/diskstats` upon device reboot or power cycle presents a challenge for maintaining long-term data integrity. To mitigate this challenge, we propose the following design considerations:
@@ -291,7 +282,10 @@ The reset of values in `/proc/diskstats` upon device reboot or power cycle prese
     - This script will be responsible for parsing and storing the most recent FS IO reads and writes from the `/proc/diskstats` file, particularly in planned reboot scenarios.
     - These values would be stored in the `/host/pmon/storagemon/fs-stats-<<DISKNAME>>` file(s).
 
-**Logic for StorageCommon() fs_io_read and fs_io_write functions:**
+
+**Logic for StorageCommon() get_fs_io_reads and get_fs_io_writes functions:**
+
+These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to retrieve the total number of disk reads and writes, respectively, by parsing the `/proc/diskstats` file. They utilize similar logic, differing only in the column index used to extract the relevant information.
 
 1. **Check for `psutil` Module**:
    - The functions first check if the `psutil` module is available in the current environment by examining the `sys.modules` dictionary.
@@ -314,7 +308,6 @@ The reset of values in `/proc/diskstats` upon device reboot or power cycle prese
      - These values are written to the `fs-stats-<<DISK>>` and returned to the caller
 
 
-
 #### **2.4.4 storagemond Class Diagram**
 
 ![image.png](images/StoragemonDaemonClassDiagram.png)
@@ -327,19 +320,19 @@ key                 = STORAGE_INFO|<disk_name>  ; This key is for information ab
 
 ; field             = value
 
-device_model        = STRING                    ; Describes the Vendor information of the SSD                                           (Static)
-serial              = STRING                    ; Describes the Serial number of the SSD                                                (Static)
-temperature_celsius = STRING                    ; Describes the operating temperature of the SSD in Celsius                             (Dynamic)
-fs_io_reads         = STRING                    ; Describes the total number of filesystem reads completed successfully                 (Dynamic)
-fs_io_writes        = STRING                    ; Describes the total number of filesystem writes completed successfully                (Dynamic)
-disk_io_reads       = STRING                    ; Describes the total number of reads completed successfully from the SSD (LBAs read)   (Dynamic)
-disk_io_writes      = STRING                    ; Describes the total number of writes completed on the SSD (LBAs written)              (Dynamic)
-reserved_blocks     = STRING                    ; Describes the reserved blocks count of the SSD                                        (Dynamic)
-firmware            = STRING                    ; Describes the Firmware version of the SSD                                             (Dynamic)
-health              = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs     (Dynamic)
+device_model        = STRING                    ; Describes the Vendor information of the disk                                           (Static)
+serial              = STRING                    ; Describes the Serial number of the disk                                                (Static)
+temperature_celsius = STRING                    ; Describes the operating temperature of the disk in Celsius                             (Dynamic)
+fs_io_reads         = STRING                    ; Describes the total number of filesystem reads completed successfully                  (Dynamic)
+fs_io_writes        = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
+disk_io_reads       = STRING                    ; Describes the total number of reads completed successfully from the SSD (LBAs read)    (Dynamic)
+disk_io_writes      = STRING                    ; Describes the total number of writes completed on the SSD (LBAs written)               (Dynamic)
+reserved_blocks     = STRING                    ; Describes the reserved blocks count of the SSD                                         (Dynamic)
+firmware            = STRING                    ; Describes the Firmware version of the SSD                                              (Dynamic)
+health              = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs      (Dynamic)
 ```
 
-NOTE: 'LBA' stands for Logical Block Address. To get the raw value in bytes, multiply by 512B.<br>
+NOTE: 'LBA' stands for Logical Block Address. To get the raw value in bytes, multiply by the disk's logical block address sze (typically 512 bytes).<br>
 
 Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
