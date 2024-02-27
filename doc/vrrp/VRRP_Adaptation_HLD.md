@@ -52,7 +52,6 @@
 |  Rev  |  Date            |  Author        | Change Description |
 | :---  | :--------------- | :------------- | :----------------  |
 |  0.1  |  Aug-16-2023     | Philo-micas    | Initial version    |
-| :---  | :--------------- | :------------- | :----------------  |
 |  0.2  |  Sept-27-2024    | Vijay-Broadcom | Second version     |
 
 
