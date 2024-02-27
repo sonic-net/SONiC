@@ -49,9 +49,12 @@
     - [Open/Action items](#openaction-items)
  
 ### Revision  
-|  Rev  |  Date           |  Author     | Change Description |
-| :---  | :-------------- | :---------- | :----------------  |
-|  0.1  |  Aug-16-2023    | Philo-micas | Initial version    |
+|  Rev  |  Date            |  Author        | Change Description |
+| :---  | :--------------- | :------------- | :----------------  |
+|  0.1  |  Aug-16-2023     | Philo-micas    | Initial version    |
+| :---  | :--------------- | :------------- | :----------------  |
+|  0.2  |  Sept-27-2024    | Vijay-Broadcom | Second version     |
+
 
 ### Scope  
 
@@ -215,10 +218,9 @@ zebra:
   - Listen for kernel interface state change events and notify vrrpd.
 
 vrrpsyncd:
-  - Complete the following tasks:
-    - Listen for kernel Macvlan device state change events, The state of the Macvlan device here determines the Master/Backup state of the VRRP instance, where up r
-epresents Master and down represents Backup.
-    - Update the kernel Macvlan device state to the APPL DB.
+  - Listens to MACVLAN interfaces that are added by vrrp, programming in kernel. Vrrpmgrd would add the MACVLAN interface in the kernel with interface name starting with 'vrrp'. Here the status of MACVLAN interface determines Master/Backup state of VRRP instances. VRRP_Table in APPL_DB will be programmed with interface name and VIP for Master instances.
+    - For every IP add to MACVLAN interface, adds interface name and Virtual IP in APPL_DB in VRRP_Table.
+    - For every IP delete from MACVLAN interface, deletes interface name and Virtual IP in APPL_DB from VRRP_Table.
 
 ##### SWSS container
 
@@ -230,8 +232,8 @@ vrrpmgrd:
     - Update VRRP instance configuration to the APPL DB;
     - Update VRRP instance configuration to vrrpd by using vtysh commands.
 
-vrrpforch: 
-  - Subscribes to APPL_DB tables, responsible for updating the ASIC DB. Program the VIP and Virtual RIF object via SAI API.
+vrrporch: 
+  - Listens to VRRP_Table in APPL_DB and for entry in VRRP_TABLE, program the VIP as my IP and the VMAC as my MAC(virtual RIF) in ASIC_DB.
 
 #### CoPP Configurations
 
@@ -259,58 +261,83 @@ CoPP will be extended as follows for trapping VRRPs. Whether to install it depen
 
 ##### CONFIG_DB changes
 
-VRRP
+VRRP_TABLE
 
 Producer: config manager
 
 Consumer: vrrpmgrd
 
 Description: New table that stores VRRP configuration for per interface + VRID.
+
+Schema:
+
 ```
 ;New table
 ;holds the VRRP configuration per interface and VRID
-key             = VRRP:interface_name:vrid
-                                                ; Interface name string. Vlan, Ethernet, sub-interfaces or PortChannel
-                                                ; vrid is an integer
+
+key = VRRP_type:interface_name:vrid
+                          ; VRRP_type can be VRRP or VRRP6 to distinguish vrrpv4 or vrrpv6
+                          ; Interface name string like Vlan1 or PortChannel002 or Ethernet4
+                          ; vrid is an integer
 ; field = value
-vip                   = ip_address                    ; Virtual IP address. This is a list of IP addresses
-priority              = 3DIGIT                        ; Priority of VRRP instance
-adv_interval          = 5DIGIT                        ; Advertisement interval for VRRP. Default = 1000ms
-admin_status          = "up" | "down"                 ; String denoting the state of VRRP instance admin status. Default is up.
-version               = vrrp_version                  ; VRRP version. Value is 2 or 3. Default is 3
-preempt               = "enabled"/"disabled"          ; VRRP pre-emption is enabled? Default is enabled
-track_interface       = interface_name                ; This is a list of configured tracking interfaces
-priority_decrement    = 2DIGIT                        ; Specifies how much to decrement the priority of the VRRP instance if the tracking interface goes down, Default is 20
+vrid     = 1*3DIGIT       ; VRRP Instance Identifier
+vip      = ip_address     ; Virtual IP address. This is a list of IP addresses
+priority = vrrp_priority  ; Priority of VRRP instance
+adv_interval = 1*3DIGITS  ; Advertisement interval for VRRP. Default = 1sec
+version  = vrrp_version   ; VRRP version. Value will always be 2 for this release
+pre_empt = "true"/"false" ; VRRP pre-emption is enabled? Default is True
+track_interface = track_interface ; List of interfaces tracked by a VRRP instance
+  <Interface_Name>|weight|<weight>; This is repeated for the configured tracking interfaces 
 ```
+
 Example:-
-```
+
 admin@sonic:~$ redis-cli -n 4 keys VRRP*
 
-"VRRP|Ethernet8|8"
-"VRRP|Ethernet1|1"
-"VRRP|Vlan10|10"
-"VRRP|Ethernet2|2"
-"VRRP|Vlan4|4"
+1.	"VRRP|Vlan8|8"
+2.	"VRRP|Vlan1|1"
+3.	"VRRP|Vlan10|10"
+4.	"VRRP|Vlan2|2"
+5.	"VRRP|Vlan4|4"
+6.	"VRRP|Vlan5|5"
+7.	"VRRP6|Vlan3|3"
+8.	"VRRP6|Vlan7|7"
+9.	"VRRP6|Vlan6|6"
+10.	"VRRP6|Vlan9|9"
 
-admin@sonic:~$ redis-cli -n 4 HGETALL " VRRP|Vlan10|10"
+admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP|Vlan1|1"
 
-1) "vip"
-2) "4.1.1.100/24,4.1.1.200/24,2000::50/64"
-3) "priority"
-4) "100"
-5) "adv_interval"
-6) "1000"
-7) "admin_status"
-8) "up"
-9) "version"
-10)"3"
-11)"preempt"
-12)"enabled"
-13)"track_interface"
-14)"Ethernet5, Ethernet9"
-15)"priority_decrement"
-16)"20"
-```
+1.	"vrid"
+2.	"1"
+3.	"vip"
+4.	"4.1.1.100"
+5.	"priority"
+6.	"80"
+7.	"adv_interval"
+8.	"1"
+9.	"version"
+10.	"2"
+11.	"pre_empt"
+12.	"True"
+13.	"track_interface"
+14.	"Ethernet7|weight|10,PortChannel001|weight|10"
+
+Example:- Entery with multiple virtual IPs
+
+admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP6|Vlan1|1"
+
+1.	"vrid"
+2.	"1"
+3.	"vip"
+4.	"4::100,4::200,4::201"
+5.	"priority"
+6.	"80"
+7.	"adv_interval"
+8.	"1"
+9.	"pre_empt"
+10.	"True"
+11.	"track_interface"
+12.	"Ethernet7|weight|10,PortChannel001|weight|10"
 
 #### APPL_DB Changes
 
@@ -320,7 +347,10 @@ Producer: vrrpmgrd and vrrpsyncd
 
 Consumer: vrrporch
 
-Description: This is a new table that contains VRRP state information. This entry will be added to APP_DB for each VIP for every Master VRRP instance. 
+Description: This is a new table that contains VRRP state information. This entry will be added to APP_DB for each VIP for every Master VRRP instance.
+
+Schema:
+
 ```
 ; New table
 ; holds the VRRP state and VMAC information
@@ -334,13 +364,11 @@ key = VRRP_TABLE:interface_name:vip:type
 vmac = virtual_mac_address ; Virtual MAC address associated with VRRP instance
 ```
 
-Example:- 
+Example:-
 
-**Key**: VRRP_TABLE:Vlan1000|40.10.8.101/32
-**Value**: "vmac":"00:00:5e:00:01:08"
+Key: VRRP_TABLE:Vlan1000|40.10.8.101/32 Value: "vmac":"00:00:5e:00:01:08"
 
-**Key**: VRRP_TABLE:Vlan1001|40::1/128
-**Value**: "vmac":"00:00:5e:00:02:08"
+Key: VRRP_TABLE:Vlan1001|40::1/128 Value: "vmac":"00:00:5e:00:02:08"
 
 #### ASIC_DB Changes
 
@@ -436,145 +464,10 @@ N/A
 
 ##### SONiC VRRP YANG MODEL
 
-```yang
-module sonic-vrrp {
+VRRP configuration database scheme is as defined in below yang
 
-    namespace "http://github.com/Azure/sonic-vrrp";
-    prefix vrrp;
+https://github.com/sonic-net/SONiC/blob/a58bacebb3362f611818cd3a15042f09366bb5d5/doc/vrrp/sonic-vrrp.yang
 
-    import ietf-inet-types {
-        prefix inet;
-    }
-
-    import sonic-port {
-        prefix port;
-    }
-
-    import sonic-interface {
-        prefix intf;
-    }
-
-    import sonic-vlan {
-        prefix vlan;
-    }
-
-    import sonic-portchannel {
-        prefix lag;
-    }
-
-    organization
-        "SONiC";
-
-    contact
-        "SONiC";
-
-    description "VRRP yang Module for SONiC OS";
-
-    revision 2023-08-10 {
-        description "add sonic-vrrp.yang";
-    }
-
-    container sonic-vrrp {
-
-        container VRRP {
-
-            description "VRRP part of configdb.json"
-
-            list VRRP_LIST {
-
-                key "interface_name vrid";
-
-                leaf interface_name {
-                    type union {
-                        leafref {
-                            path /intf:sonic-interface/intf:INTERFACE/intf:INTERFACE_IPPREFIX_LIST/intf:name;
-                        }
-                        leafref {
-                            path /vlan:sonic-vlan/vlan:VLAN_INTERFACE/vlan:VLAN_INTERFACE_IPPREFIX_LIST/vlan:name;
-                        }
-                        leafref {
-                            path /lag:sonic-portchannel/lag:PORTCHANNEL_INTERFACE/lag:PORTCHANNEL_INTERFACE_IPPREFIX_LIST/lag:name;
-                        }
-                    } 
-                }
-
-                leaf vrid {
-                    type uint8 {
-                        range 1..255;
-                    }
-                }
-
-                leaf-list vip {
-                    type union {
-                        type inet:ipv4-prefix;
-                        type inet:ipv6-prefix;
-                    }
-                    max-elements 4;
-                    must "../version = '3' or (../version = '2' and not(contains(vip, ':')))";
-                    /* when version is 2 , vip can't be ipv6 address*/
-                }
-
-                leaf priority {
-                    mandatory true;
-                    type uint8 {
-                        range 1..254;
-                    }
-                    default 100;
-                }
-
-                leaf adv_interval {
-                    type uint16 {
-                        range 10..40950;
-                    }
-                    default 1000;
-                }
-
-                leaf admin_status {
-                    type enumeration {
-                        enum up;
-                        enum down;
-                    }
-                    default up;
-                }
-
-                leaf version {
-                    type enumeration {
-                        enum 2;
-                        enum 3;
-                    }
-                    default 3；
-                }
-
-                leaf preempt {
-                    type enumeration {
-                        enum enabled;
-                        enum disabled;
-                    }
-                    default enabled;
-                }
-
-                leaf-list track_interface {
-                    type leafref {
-                        path /port:sonic-port/port:PORT/port:PORT_LIST/port:ifname;
-                    }
-                    max-elements 8;
-                }
-
-                leaf priority_decrement {
-                    type uint8 {
-                        range 10..50;
-                    }
-                    default 20;
-                }
-
-            } /* end of list VRRP  */
-
-        } /* end of container VRRP */
-
-    } /* end of container sonic-vrrp */
-
-} /* end of module sonic-vrrp */
-```
 ##### CLI
 
 SONIC Click based configuration and monitoring CLIs have been introduced in SONIC for VRRP
