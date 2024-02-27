@@ -477,7 +477,7 @@ A typical modular chassis includes a midplane-interface to interconnect the Supe
 ### 3.4 Debuggability & RMA
 CLI Extensions and Additions
 
-show platform inventory - shows the DPUs on the switch <span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show platform inventory - shows the DPUs on the switch          <font>**`Executed on the switch`**</font></p>
 
 ```
 root@sonic:~#show platform inventory
@@ -512,7 +512,7 @@ FPDs
 
 ```
 
-show platform temperature - shows the DPU temperature on the switch <span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show platform temperature - shows the DPU temperature on the switch        <font>**`Executed on the switch`**</font></p>
 ```
 root@sonic:~#show platform temperature
 
@@ -531,7 +531,7 @@ MB_TMP421_Local          26.25      135.0      -5.0           140.0          -10
    X86_PKG_TEMP           41.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
 ```
 
-show platform fan - shows the fan speed and status on the switch<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show platform fan - shows the fan speed and status on the switch       <font>**`Executed on the switch`**</font></p>
 ```
 root@sonic:~#show platform fan
 
@@ -548,7 +548,7 @@ fantray3    N/A  fantray3.fan      56%       intake     Present        OK  20230
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
 * The DPU_STATE DB holds the most recent reboot cause only.  The "show reboot-cause" CLI uses this information to determine the most recent reboot cause.
 * The switch will fetch the reboot-cause history from each of the DPUs as needed when the "show reboot-cause history" CLI is issued on the switch.
-#### 3.4.2 Reboot Cause CLIs on the DPUs<span style="color:red; margin-left: 20%;">Executed on the DPU</span>
+#### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the switch`**</font></p>
 * The "show reboot-cause" shows the most recent reboot-cause of th
 * The "show reboot-cause history" shows the reboot-cause history
 ```
@@ -565,12 +565,12 @@ Name                    Cause                       Time                        
 2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
 2023_10_02_18_10_00     reboot                      Sun 02 Oct 2023 06:10:00 PM UTC     admin   User issued 'reboot'
 ```
-#### 3.4.3 Reboot Cause CLIs on the Switch<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+#### 3.4.3 Reboot Cause CLIs on the Switch      <font>**`Executed on the switch`**</font></p>
 * The "show reboot-cause" CLI on the switch shows the most recent rebooted device, time and the cause. The could be the NPU or any DPU
 * The "show reboot-cause history" CLI on the switch shows the history of the Switch and all DPUs
 * The "show reboot-cause history module-name" CLI on the switch shows the history of the specified module
 
-"show reboot-cause history" <span style="color:red; margin-left: 20%;">Executed on the switch</span>
+"show reboot-cause history"      <font>**`Executed on the switch`**</font></p>
 ```
 root@sonic:~#show reboot-cause
 
@@ -601,7 +601,7 @@ DPU3        2023_10_02_18_23_46     Host Power-cycle                Sun 02 Oct
 DPU3        2023_10_02_17_23_46     Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
 ```
 
-show chassis modules status - shows the dpu status of all DPUs and the Switch supervisor<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show chassis modules status - shows the dpu status of all DPUs and the Switch supervisor     <font>**`Executed on the switch`**</font></p>
 ```
 root@sonic:~#show chassis modules status                                                                                      
 Name        Description         Physical-Slot       Oper-Status     Admin-Status    Serial
@@ -612,7 +612,7 @@ SWITCH      Chassis             0                   Online          N/A         
 * The system health summary on NPU should include the DPU status. If one or more DPUs are not ok it should be highlighted in the command output
 * This will allow to reuse of the existing infrastructure that allows to signal the user about the issue on the system and change the system status LED to red.
 
-show system-health summary<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show system-health summary      <font>**`Executed on the switch`**</font></p>
 ```
 System status summary
 
@@ -627,7 +627,7 @@ System status summary
  * The system health monitor list command should include the status of the DPU. If one or more DPUs are not ok it should be highlighted in the command output
  * The switch will fetch the DPU information stored in the DPU's STATE_DB as needed
 
-show system-health monitor-list<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show system-health monitor-list      <font>**`Executed on the switch`**</font></p>
 ```
 System services and devices monitor list
 
@@ -657,7 +657,7 @@ DPU3                   OK        DPU
  ```
  * The previous two CLIs are further extended to show the detail information about the DPU status as show in the next two CLIs
 
-show system-health monitor-list module <DPU NAME><span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show system-health monitor-list module <DPU NAME>     <font>**`Executed on the switch`**</font></p>
 ```
 System services and devices monitor list
 
@@ -692,7 +692,7 @@ DDR                        OK        UserDefine
  #### System health details
  * Consolidated information about statuses of all subsystems can be obtained as shown
 
-show system-health detail<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show system-health detail       <font>**`Executed on the switch`**</font></p>
 ```
 System status summary
 
@@ -749,7 +749,7 @@ rsyslog                    OK        Process
  #### Vendor specific health checkers
  * If the vendor wants to add additional information specific to the platform it can be done using the user-defined checkers:
 
-show system-health monitor-list<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show system-health monitor-list      <font>**`Executed on the switch`**</font></p>
 ```
 System services and devices monitor list
 
@@ -761,7 +761,7 @@ CPU                        OK        UserDefine
 DDR                        OK        UserDefine
  ```
 
-show interface status - will show the NPU-DPU interface status also<span style="color:red; margin-left: 20%;">Executed on the switch</span>
+show interface status - will show the NPU-DPU interface status also      <font>**`Executed on the switch`**</font></p>
 ```
 root@sonic:~# show interfaces status
   Interface                                    Lanes    Speed    MTU    FEC    Alias    Vlan    Oper    Admin    Type    Asym PFC
