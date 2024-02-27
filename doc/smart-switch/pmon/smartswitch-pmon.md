@@ -237,11 +237,7 @@ get_system_eeprom_info(self):
     Retrieves the full content of system EEPROM information for the DPU module
 
     Returns:
-        A dictionary where keys are the type code defined in
-        OCP ONIE TlvInfo EEPROM format and values are their corresponding values
-        Ex. { ‘0x21’:’AG9064’, ‘0x22’:’V1.0’, ‘0x23’:’AG9064-0109867821’,
-              ‘0x24’:’001c0f000fcd0a’, ‘0x25’:’02/03/2018 16:22:00’,
-              ‘0x26’:’01’, ‘0x27’:’REV01’, ‘0x28’:’AG9064-C2358-16G’}
+        DPU modules return a dictionary with key value pairs of IDPROM 
 ```
 
 get_name(self):
