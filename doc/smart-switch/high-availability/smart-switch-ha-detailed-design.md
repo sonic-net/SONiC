@@ -335,7 +335,7 @@ flowchart LR
 | | | version | Config version. |
 | | | vip_v4 | IPv4 Data path VIP. |
 | | | vip_v6 | IPv6 Data path VIP. |
-| | | owner | Owner of HA state machine. It can be `controller`, `switch`. |
+| | | owner | Owner/Driver of HA state machine. It can be `dpu`, `switch`. |
 | | | scope | Mode of HA set. It can be `dpu`, `eni`. |
 | | | vdpu_ids | The ID of the vDPUs. |
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), "up" or "down". |
