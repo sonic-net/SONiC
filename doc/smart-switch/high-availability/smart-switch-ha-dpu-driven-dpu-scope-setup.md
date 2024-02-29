@@ -16,12 +16,12 @@
    2. [6.2. DPU-to-DPU liveness probe](#62-dpu-to-dpu-liveness-probe)
 7. [7. HA state machine management](#7-ha-state-machine-management)
    1. [7.1. HA state](#71-ha-state)
-8. [8. Planned events and operations](#8-planned-events-and-operations)
-   1. [8.1. Launch](#81-launch)
+8. [8. Planned operations](#8-planned-operations)
+   1. [8.1. HA set creation](#81-ha-set-creation)
    2. [8.2. Planned switchover](#82-planned-switchover)
    3. [8.3. Planned shutdown](#83-planned-shutdown)
    4. [8.4. ENI migrawtion](#84-eni-migrawtion)
-9. [9. Unplanned events and operations](#9-unplanned-events-and-operations)
+9. [9. Unplanned operations](#9-unplanned-operations)
    1. [9.1. Unplanned failover](#91-unplanned-failover)
 10. [10. Flow tracking and replication](#10-flow-tracking-and-replication)
     1. [10.1. Inline flow tracking](#101-inline-flow-tracking)
@@ -103,7 +103,10 @@ In `DPU-Driven-DPU-Scope` setup, `hamgrd` will not drive the HA state machine an
 
 ### 6.1. Card level NPU-to-DPU liveness probe
 
-In `DPU-Driven-DPU-Scope` setup, the BFD probe will still be used for controlling the traffic forwarding behavior from NPU to DPU, and won't be used as the health signal for triggering any failover inside DPU.
+In `DPU-Driven-DPU-Scope` setup, same as ENI-level HA setup, the BFD probe will:
+
+- Setup and probe both DPUs, and both DPUs will be responding the BFD probes.
+- Still only be used for controlling the traffic forwarding behavior from NPU to DPU, and won't be used as the health signal for triggering any failover inside DPU.
 
 Unlike the ENI-level HA setup, BFD probe can work alone to make the traffic forwarding decision without ENI level info. To achieve this, the SDN controller will program the HA set to NPU with the preferred DPU as active/standby setting.
 
@@ -138,9 +141,38 @@ With this setup, all HA states we defined for the ENI-level HA setup can be used
 
 For details on the states and the expected behavior, please refer to the [HA states defined in main HA design doc](./smart-switch-ha-hld.md#71-ha-state-definition-and-behavior).
 
-## 8. Planned events and operations
+## 8. Planned operations
 
-### 8.1. Launch
+Since DPU will be driving the HA state machine, `hamgrd` will only be used for passing through the configurations and report the states and telemetry.
+
+Here are how the workflows look like for the typical planned operations:
+
+### 8.1. HA set creation
+
+```mermaid
+sequenceDiagram
+   autonumber
+
+   participant S0N as Switch 0 NPU
+   participant S0D as Switch 0 DPU<br>(Desired Active)
+   participant S1D as Switch 1 DPU<br>(Desired Standby)
+   participant S1N as Switch 1 NPU
+   participant SA as All Switches
+   
+   SA->>SA: Start BFD probe to all DPUs
+   S0N->>S0D: Create HA set
+   S1N->>S1D: Create HA set
+
+   S0D->>S1D: Connect to peer and<br>start pairing
+   S1D->>S0D: Connect to peer and<br>start pairing
+
+   S0D->>S0N: Reporting HA state changes
+   S1D->>S1N: Reporting HA state changes
+   Note over S0N,S1N: Switch 0 DPU becomes active<br>inline sync channel is established
+
+   SA->>SA: BFD to both DPUs will be up,<br>but only DPU0 will be set as next hop
+   Note over S0N,SA: From now on, traffic for all ENI in this HA set will be forwarded from all NPUs to DPU0
+```
 
 ### 8.2. Planned switchover
 
@@ -148,7 +180,7 @@ For details on the states and the expected behavior, please refer to the [HA sta
 
 ### 8.4. ENI migrawtion
 
-## 9. Unplanned events and operations
+## 9. Unplanned operations
 
 ### 9.1. Unplanned failover
 
