@@ -111,6 +111,8 @@ However, unlike the ENI-level HA setup, upon DPU-to-DPU probe failure, DPU will 
 
 ## 7. HA state machine management
 
+In `DPU-Driven-DPU-Scope` setup, the HA state machine will be managed by DPU itself, and `hamgrd` will not drive the HA state machine, but only be used for generating the configurations for NPU and DPU, as well as collecting the telemetry and report in the context of HA whenever is needed.
+
 ## 8. Planned events and operations
 
 ## 9. Unplanned events and operations
