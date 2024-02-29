@@ -166,8 +166,8 @@ sequenceDiagram
    S0D->>S1D: Connect to peer and<br>start pairing
    S1D->>S0D: Connect to peer and<br>start pairing
 
-   S0D->>S0N: Reporting HA state changes
-   S1D->>S1N: Reporting HA state changes
+   S0D->>S0N: Report HA state changes
+   S1D->>S1N: Report HA state changes
    Note over S0N,S1N: Switch 0 DPU becomes active<br>inline sync channel is established
 
    SA->>SA: BFD to both DPUs will be up,<br>but only DPU0 will be set as next hop
