@@ -15,7 +15,7 @@
    1. [6.1. Card level NPU-to-DPU liveness probe](#61-card-level-npu-to-dpu-liveness-probe)
    2. [6.2. DPU-to-DPU liveness probe](#62-dpu-to-dpu-liveness-probe)
 7. [7. HA state machine management](#7-ha-state-machine-management)
-   1. [7.1. DPU HA state](#71-dpu-ha-state)
+   1. [7.1. HA state](#71-ha-state)
 8. [8. Planned events and operations](#8-planned-events-and-operations)
    1. [8.1. Launch](#81-launch)
    2. [8.2. Planned switchover](#82-planned-switchover)
@@ -126,7 +126,13 @@ However, unlike the ENI-level HA setup, upon DPU-to-DPU probe failure, DPU will 
 
 In `DPU-Driven-DPU-Scope` setup, the HA state machine will be managed by DPU itself, and `hamgrd` will not drive the HA state machine, but only be used for generating the configurations for NPU and DPU, as well as collecting the telemetry and report in the context of HA whenever is needed.
 
-### 7.1. DPU HA state
+### 7.1. HA state
+
+Although DPU will be driving the HA state machine transition, any HA state change will still needs to be reported.
+
+With this setup, all HA states we defined for the ENI-level HA setup can be used to map the undering states, not only `Dead`, `Active`, `Standby` and `Standalone`.
+
+For details on the states and the expected behavior, please refer to the [HA states defined in main HA design doc](./smart-switch-ha-hld.md#71-ha-state-definition-and-behavior).
 
 ## 8. Planned events and operations
 
