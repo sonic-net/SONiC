@@ -338,7 +338,8 @@ flowchart LR
 | | | owner | Owner/Driver of HA state machine. It can be `dpu`, `switch`. |
 | | | scope | Mode of HA set. It can be `dpu`, `eni`. |
 | | | vdpu_ids | The ID of the vDPUs. |
-| | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), "up" or "down". |
+| | | desired_vdpu_state | The desired state for each vDPU. It can only be "" (none), `dead`, `active`. |
+| | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), `up` or `down`. |
 | | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
 
 ##### 2.1.2.2. ENI placement configurations
@@ -401,9 +402,13 @@ On NPU side, the ENI state table shows:
 | | | local_acked_asic_ha_state | The HA state that ASIC acked. |
 | | | local_target_term | The current target term of the HA state machine. |
 | | | local_acked_term | The current term that acked by ASIC. |
+| | | local_raw_ha_state | The raw HA state from the ASIC. |
+| | | local_raw_ha_error | The raw error code about HA from the ASIC. |
 | | | local_bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
 | | | peer_ip | The IP of peer DPU. |
 | | | peer_ha_state | The state of the HA state machine in peer DPU. |
+| | | peer_raw_ha_state | The raw HA state from the ASIC. |
+| | | peer_raw_ha_error | The raw error code about HA from the ASIC. |
 | | | peer_term | The current term in peer DPU. |
 | | | peer_bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
 | | | ha_operation_type | HA operation type, e.g., "switchover". |
@@ -509,6 +514,8 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | ha_role_last_update_time | The time when HA role is last updated in milliseconds. |
 | | | ha_role | The current HA role confirmed by ASIC. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
 | | | term | The current term confirmed by ASIC. |
+| | | raw_ha_state | The raw HA state from the ASIC. |
+| | | raw_ha_error | The raw error code about HA from the ASIC. |
 | | | bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
 | | | ongoing_bulk_sync_session_id | Ongoing bulk sync session id. |
 | | | ongoing_bulk_sync_session_start_time_in_ms | Ongoing bulk sync session start time in milliseconds. |
@@ -526,6 +533,8 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | ha_role_last_update_time | The time when HA role is last updated in milliseconds. |
 | | | ha_role | The current HA role confirmed by ASIC. It can be "dead", "active", "standby", "standalone", "switching_to_active" |
 | | | term | The current term confirmed by ASIC. |
+| | | raw_ha_state | The raw HA state from the ASIC. |
+| | | raw_ha_error | The raw error code about HA from the ASIC. |
 | | | bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
 | | | ongoing_bulk_sync_session_id | Ongoing bulk sync session id. |
 | | | ongoing_bulk_sync_session_start_time_in_ms | Ongoing bulk sync session start time in milliseconds. |
