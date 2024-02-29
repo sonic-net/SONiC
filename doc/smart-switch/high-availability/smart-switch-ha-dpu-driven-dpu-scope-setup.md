@@ -25,6 +25,11 @@
 
 | Term | Explanation |
 | ---- | ----------- |
+| HA | High Availability. |
+| NPU | Network Processing Unit. |
+| DPU | Data Processing Unit. |
+| ENI | Elastic Network Interface. |
+| SDN | Software Defined Network. |
 | VIP | Virtual IP address. |
 
 ## 2. Background
@@ -114,6 +119,8 @@ However, unlike the ENI-level HA setup, upon DPU-to-DPU probe failure, DPU will 
 In `DPU-Driven-DPU-Scope` setup, the HA state machine will be managed by DPU itself, and `hamgrd` will not drive the HA state machine, but only be used for generating the configurations for NPU and DPU, as well as collecting the telemetry and report in the context of HA whenever is needed.
 
 ## 8. Planned events and operations
+
+
 
 ## 9. Unplanned events and operations
 
