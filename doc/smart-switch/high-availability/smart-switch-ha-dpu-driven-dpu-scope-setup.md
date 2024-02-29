@@ -15,9 +15,17 @@
    1. [6.1. Card level NPU-to-DPU liveness probe](#61-card-level-npu-to-dpu-liveness-probe)
    2. [6.2. DPU-to-DPU liveness probe](#62-dpu-to-dpu-liveness-probe)
 7. [7. HA state machine management](#7-ha-state-machine-management)
+   1. [7.1. DPU HA state](#71-dpu-ha-state)
 8. [8. Planned events and operations](#8-planned-events-and-operations)
+   1. [8.1. Launch](#81-launch)
+   2. [8.2. Planned switchover](#82-planned-switchover)
+   3. [8.3. Planned shutdown](#83-planned-shutdown)
+   4. [8.4. ENI migrawtion](#84-eni-migrawtion)
 9. [9. Unplanned events and operations](#9-unplanned-events-and-operations)
+   1. [9.1. Unplanned failover](#91-unplanned-failover)
 10. [10. Flow tracking and replication](#10-flow-tracking-and-replication)
+    1. [10.1. Inline flow tracking](#101-inline-flow-tracking)
+    2. [10.2. Bulk sync](#102-bulk-sync)
 11. [11. Detailed design](#11-detailed-design)
 12. [12. Test Plan](#12-test-plan)
 
@@ -118,13 +126,27 @@ However, unlike the ENI-level HA setup, upon DPU-to-DPU probe failure, DPU will 
 
 In `DPU-Driven-DPU-Scope` setup, the HA state machine will be managed by DPU itself, and `hamgrd` will not drive the HA state machine, but only be used for generating the configurations for NPU and DPU, as well as collecting the telemetry and report in the context of HA whenever is needed.
 
+### 7.1. DPU HA state
+
 ## 8. Planned events and operations
 
+### 8.1. Launch
 
+### 8.2. Planned switchover
+
+### 8.3. Planned shutdown
+
+### 8.4. ENI migrawtion
 
 ## 9. Unplanned events and operations
 
+### 9.1. Unplanned failover
+
 ## 10. Flow tracking and replication
+
+### 10.1. Inline flow tracking
+
+### 10.2. Bulk sync
 
 ## 11. Detailed design
 
