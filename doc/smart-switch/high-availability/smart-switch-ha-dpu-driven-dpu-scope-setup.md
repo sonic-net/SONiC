@@ -66,7 +66,7 @@ From these characteristics, here is the main differences between `DPU-Driven-DPU
 
 ## 4. Network Physical Topology
 
-The network physical topology for `DPU-Driven-DPU-Scope` setup will be the same as the ENI-level HA setup, e.g. where the NPU/DPU is placed and wired. The  main difference being the HA scope on DPU-level.
+The network physical topology for `DPU-Driven-DPU-Scope` setup will be the same as the ENI-level HA setup, e.g. where the NPU/DPU is placed and wired. The main difference being the HA scope on DPU-level.
 
 This results in the following differences in the network physical topology and the figure below captures the essence of the differences:
 
@@ -116,11 +116,15 @@ Here is the how the probe works in details (with the DPU0 as preferred DPU):
 | Up | Down | DPU0 | DPU0 | NPU will forward all traffic to DPU0, since DPU0 is preferred and reachable. |
 | Up | Up | DPU0 | DPU0 | If both DPU is up, then we respect the preferred DPU. |
 
+The data path and packet format of the BFD probe will be the same as the one defined in the main HA design doc. Please refer to the [Card level NPU-to-DPU liveness probe design](./smart-switch-ha-hld.md#61-card-level-npu-to-dpu-liveness-probe).
+
 ### 6.2. DPU-to-DPU liveness probe
 
 In `DPU-Driven-DPU-Scope` setup, the DPU-to-DPU liveness probe will still be used as health signal for triggering DPU failover.
 
 However, unlike the ENI-level HA setup, upon DPU-to-DPU probe failure, DPU will drive the HA state machine and failover by itself, without the help of `hamgrd`.
+
+The data path and packet format of the DPU-to-DPU probe will be the same as the one defined in the main HA design doc. Please refer to the [DPU-to-DPU data plane channel design](./smart-switch-ha-hld.md#4352-dpu-to-dpu-data-plane-channel).
 
 ## 7. HA state machine management
 
