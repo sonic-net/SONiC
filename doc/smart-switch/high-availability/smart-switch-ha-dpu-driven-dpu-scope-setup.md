@@ -168,7 +168,7 @@ sequenceDiagram
 
    S0D->>S0N: Report HA state changes
    S1D->>S1N: Report HA state changes
-   Note over S0N,S1N: Switch 0 DPU becomes active<br>inline sync channel is established
+   Note over S0N,S1N: Switch 0 DPU becomes active.<br>Inline sync channel is established.
 
    SA->>SA: BFD to both DPUs will be up,<br>but only DPU0 will be set as next hop
    Note over S0N,SA: From now on, traffic for all ENI in this HA set will be forwarded from all NPUs to DPU0
