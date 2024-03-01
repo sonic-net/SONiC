@@ -56,7 +56,15 @@ The picture below highlights the PMON vertical and its association with other lo
 
 ## 2.	Requirements and Assumptions
 ### 2.1.    Onboarding
-* The SmartSwitch host PMON should be able to Power Cycle, Shutdown, Reset, and rest the PCIe link per DPU or the entire system
+* The SmartSwitch host PMON should be able to Power Cycle, Shutdown, Reset, and rest the PCIe link per DPU or the entire system. The DPU_MODULE will behave like the LINE_CARD_MODULE with respect to these functions. 
+    #### SmartSwitch Expected PowerUp sequence:
+    * When the smartswitch device is booted, the host will boot first and leave the DPUs in power-down state by default.
+    * The user will powerup/boot the DPUs as needed.
+
+    #### SmartSwitch Expected PowerDown sequence:
+    * When the smartswitch device is completely shutdown, it will try to gracefully shutdown all the DPUs first. In the event of failure to graceful shutdown will force shutdown.
+    * Then the switch will power down itself gracefully (NPU/Chassis)
+
 * The DPU must provide additional information such as reboot cause, timestamp, etc as explained in the scheme once it boots its OS to DPU_STATE table.
 * When the DPU reboots itself, should log the reboot cause and update the previous-reboot-cause field in the ChassisStateDB when it boots up again
 * The reboot-cause history should provide a holistic view of the reboot cause of the SmartSwitch host CPU, the reboot-cause of all the DPUs
@@ -74,6 +82,7 @@ The picture below highlights the PMON vertical and its association with other lo
     * The SmartSwitch host PMON should be able to monitor the liveliness of the DPUs and when they go down should be able to take appropriate actions  and should try to gracefully recover the DPU when requested by the PMON
 
 * Thermal management
+    * Besides additional DPU specific sensors, cooling device changes the logic remains the same.
     * Sensor values, fan speeds and fan status should be read periodically and stored in SmartSwitch StateDB
     * Platform modules should use the thermal sensor values against the thresholds in the thermal policy and adjust fan speeds depending on the temperature
     * Trigger thermal shut down on critical policy violation
@@ -113,7 +122,7 @@ get_supervisor_slot(self):
 
 get_my_slot(self):
 ```
-    Retrieves the slot number
+    Retrieves the DPU ID in case of smartswitch
     Returns:
       0 : on switch
       1 : on DPU1
@@ -258,7 +267,7 @@ get_description(self):
 
 get_slot(self):
 ```
-    Retrieves the platform vendor's slot number of the module
+    Retrieves the DPU ID in case of smartswitch
 
     Returns:
         An integer, indicating the slot number Ex: 0:SWITCH, 1:DPU1, X:DPUX
@@ -331,31 +340,6 @@ is_midplane_reachable(self):
     Returns:
         A bool value, should return True if module is reachable via midplane
 ```
-
-get_all_asics(self):
-```
-    Retrieves the list of all ASICs on the module that are visible in PCI domain.
-    When called from the Switch, the module could be dpu card, and the function
-    returns all DPU ASICs on this module that appear in PCI domain.
-
-    Returns:
-        A list of ASICs. Index of an ASIC in the list is the index of the ASIC
-        on the module. Index is 0 based.
-
-        An item in the list is a tuple that includes:
-          - ASIC instance number (indexed globally across all modules of
-            he chassis). This number is used to find settings for the ASIC
-            from /usr/share/sonic/device/platform/hwsku/asic_instance_number/.
-          - ASIC PCI address: It is used by syncd to attach the correct ASIC.
-
-        For example: [('4', '0000:05:00.0'), ('5', '0000:07:00.0')]
-          In this example, from the output, we know the module has 2 ASICs.
-          Item ('4', '0000:05:00.0') describes information about the first ASIC
-          in the module. '4' means it is asic4 in the chassis. Settings for this
-          ASIC is at /usr/share/sonic/device/platform/hwsku/4/.
-          And '0000:05:00.0' is its PCI address.
-```
-
 #### 3.1.5 ModuleBase class new APIs
 
 ##### 3.1.5.1 Need for consistent storage and access of DPU reboot cause, state and health
@@ -602,7 +586,7 @@ show chassis modules status - shows the dpu status of all DPUs and the Switch su
 root@sonic:~#show chassis modules status                                                                                      
 Name        Description         Physical-Slot       Oper-Status     Admin-Status    Serial
 
-DPU0        SS-DPU-0            1                   Online          up              SN20240105
+DPU0        SS-DPU0            1                   Online          up              SN20240105
 SWITCH      Chassis             0                   Online          N/A             FLM27000ER
 ```
 * The system health summary on NPU should include the DPU status. If one or more DPUs are not ok it should be highlighted in the command output
@@ -791,7 +775,7 @@ Ethernet200  1288,1289,1290,1291,1292,1293,1294,1295     400G   9100    N/A    e
 Ethernet208  1024,1025,1026,1027,1028,1029,1030,1031     400G   9100    N/A    etp26  routed    down       up     N/A         N/A
 Ethernet216  1032,1033,1034,1035,1036,1037,1038,1039     400G   9100    N/A    etp27  routed    down       up     N/A         N/A
 
-### SmartSwitch DPU0-X ###
+### These are internal DPU ports ###
 Ethernet224                          780,781,782,783     100G   9100    N/A   etp28a  routed    down       up     N/A         N/A
 Ethernet228                          776,777,778,779     100G   9100    N/A   etp28b  routed    down       up     N/A         N/A
 Ethernet232                          768,769,770,771     100G   9100    N/A   etp29a  routed    down       up     N/A         N/A
