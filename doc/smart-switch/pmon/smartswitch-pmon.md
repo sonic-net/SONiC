@@ -191,7 +191,7 @@ get_module_dpu_port(self, index):
     DPU index. Platforms that require to overwrite the platform.json file
     will use this API
 
-    This valid only on the Switch and not on DPUs
+    This is valid only on the Switch and not on DPUs
 
     Args:
         index: An integer, the index of the module to retrieve
@@ -201,7 +201,7 @@ get_module_dpu_port(self, index):
         See the NPU to DPU port mapping
 ```
 #### 3.1.3 NPU to DPU port mapping
-platform.json of NPU/switch will show the NPU port to DPU port mapping. This will be used by services early in the system boot for midplane IP assignment. In this example there are 8 DPUs and ach having a 200G interface.
+platform.json of NPU/switch will show the NPU port to DPU port mapping. This will be used by services early in the system boot for midplane IP assignment. 
 ```
 "DPUs" : [
     {
@@ -369,30 +369,28 @@ is_midplane_reachable(self):
 
     SCHEMA
     key:  dpu_state:1
-    
-    HMSET dpu_state:1
-            "id": "1",    		#Key itself can be used?
-            "powered": "ON",
-            "pcie_link_state": "UP",
-            "pcie_link_time": "timestamp",
-            "pcie_link_reason": "up_down_related string",
-            "host_eth_link_state": "UP",
-            "host_eth_link_time": " timestamp ",
-            "host_eth_link_reason": "up_down_related string",
-            "firmware_state": "UP",
-            "firmware_time": " timestamp ",
-            "firmware_reason": ”gold boot a, ONIE version x",
-            "os_state": "UP",
-            "os_state_time": "timestamp",
-            "os_reason": ”version x",
-            "previous_reboot_reason": “Software reboot ”,
-            "previous_reboot_time": “timestamp”,
-            "control_plane_state": ”DOWN",
-            "control_plane_time": ”timestamp",
-            "control_plane_reason": ”containers restarting",
-            "data_plane_state": ”DOWN",
-            "data_plane_time": ”timestamp",
-            "data_plane_reason": ”Pipeline failure",
+        "id": "1",    		#Key itself can be used?
+        "powered": "ON",
+        "pcie_link_state": "UP",
+        "pcie_link_time": "timestamp",
+        "pcie_link_reason": "up_down_related string",
+        "host_eth_link_state": "UP",
+        "host_eth_link_time": " timestamp ",
+        "host_eth_link_reason": "up_down_related string",
+        "firmware_state": "UP",
+        "firmware_time": " timestamp ",
+        "firmware_reason": ”gold boot a, ONIE version x",
+        "os_state": "UP",
+        "os_state_time": "timestamp",
+        "os_reason": ”version x",
+        "previous_reboot_reason": “Software reboot ”,
+        "previous_reboot_time": “timestamp”,
+        "control_plane_state": ”DOWN",
+        "control_plane_time": ”timestamp",
+        "control_plane_reason": ”containers restarting",
+        "data_plane_state": ”DOWN",
+        "data_plane_time": ”timestamp",
+        "data_plane_reason": ”Pipeline failure",
     ```
 
 3. Each DPU has to store the health either in its local DB or in a sysfs filesystem and should provide the object when requested using the API(get_health_info(self))
@@ -404,8 +402,6 @@ is_midplane_reachable(self):
 
     SCHEMA
     key:  dpu_health
-    
-    HMSET dpu_health 
         "value": { 
             "count": "1",  # number of occurrence of event 
             "description": "Single bit error Correction", # Event
@@ -457,7 +453,11 @@ A typical modular chassis includes a midplane-interface to interconnect the Supe
 ### 3.4 Debuggability & RMA
 CLI Extensions and Additions
 
-show platform inventory - shows the DPUs on the switch          <font>**`Executed on the switch`**</font></p>
+#### Platform CLIs
+* Platform CLIs remain the same but include DPU, and changes in sensors and FRUs
+
+show platform inventory 
+* shows the DPUs on the switch          <font>**`Executed on the switch. This CLI is not available on the DPU`**</font>
 
 ```
 root@sonic:~#show platform inventory
@@ -484,15 +484,13 @@ Power Supplies                                �
 Cooling Devices
     fantray0            FAN-2RU-PI-V3   N/A             N/A             8000 Series 2RU Fan 
     fantray1            FAN-2RU-PI-V3   N/A             N/A             8000 Series 2RU Fan 
-    fantray2            FAN-2RU-PI-V3   N/A             N/A             8000 Series 2RU Fan 
-    fantray3            FAN-2RU-PI-V3   N/A             N/A             8000 Series 2RU Fan
 
 FPDs
     RP0/info.0                          0.5.6-253      
 
 ```
 
-show platform temperature - shows the DPU temperature on the switch        <font>**`Executed on the switch`**</font></p>
+show platform temperature - shows the DPU temperature on the switch        <font>**`Executed on the switch`**</font>
 ```
 root@sonic:~#show platform temperature
 
@@ -507,11 +505,15 @@ root@sonic:~#show platform temperature
 MB_TMP421_Local          26.25      135.0      -5.0           140.0          -10.0      False  20230728 06:39:18
        SSD_Temp           40.0       80.0      -5.0            83.0          -10.0      False  20230728 06:39:18
    X86_CORE_0_T           37.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
-   X86_CORE_1_T           37.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
    X86_PKG_TEMP           41.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
 ```
+show platform temperature - There are no thermal sensors accessible on DPU        <font>**`Executed on the DPU`**</font>
+```
+root@sonic:/home/admin# show platform temperature
+Thermal Not detected
+```
 
-show platform fan - shows the fan speed and status on the switch       <font>**`Executed on the switch`**</font></p>
+show platform fan - shows the fan speed and status on the switch       <font>**`Executed on the switch. This CLI is not available on the DPU`**</font>
 ```
 root@sonic:~#show platform fan
 
@@ -521,14 +523,14 @@ root@sonic:~#show platform fan
      N/A    N/A     PSU1.fan0      50%          N/A     Present        OK  20230728 06:41:18
 fantray0    N/A  fantray0.fan      55%       intake     Present        OK  20230728 06:41:17
 fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230728 06:41:17
-fantray2    N/A  fantray2.fan      56%       intake     Present        OK  20230728 06:41:17
-fantray3    N/A  fantray3.fan      56%       intake     Present        OK  20230728 06:41:17
 ```
+
 #### 3.4.1 Reboot Cause
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
 * The DPU_STATE DB holds the most recent reboot cause only.  The "show reboot-cause" CLI uses this information to determine the most recent reboot cause.
 * The switch will fetch the reboot-cause history from each of the DPUs as needed when the "show reboot-cause history" CLI is issued on the switch.
-#### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the switch`**</font></p>
+
+#### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause of th
 * The "show reboot-cause history" shows the reboot-cause history
 ```
@@ -545,12 +547,12 @@ Name                    Cause                       Time                        
 2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
 2023_10_02_18_10_00     reboot                      Sun 02 Oct 2023 06:10:00 PM UTC     admin   User issued 'reboot'
 ```
-#### 3.4.3 Reboot Cause CLIs on the Switch      <font>**`Executed on the switch`**</font></p>
+#### 3.4.3 Reboot Cause CLIs on the Switch      <font>**`Executed on the switch`**</font>
 * The "show reboot-cause" CLI on the switch shows the most recent rebooted device, time and the cause. The could be the NPU or any DPU
 * The "show reboot-cause history" CLI on the switch shows the history of the Switch and all DPUs
 * The "show reboot-cause history module-name" CLI on the switch shows the history of the specified module
 
-"show reboot-cause history"      <font>**`Executed on the switch`**</font></p>
+"show reboot-cause history"      <font>**`Executed on the switch`**</font>
 ```
 root@sonic:~#show reboot-cause
 
@@ -580,19 +582,60 @@ DPU3        2023_10_03_18_23_46     Watchdog: stage 1 expired;      Mon 03 O
 DPU3        2023_10_02_18_23_46     Host Power-cycle                Sun 02 Oct 2023 06:23:46 PM UTC     N/A     Host lost DPU
 DPU3        2023_10_02_17_23_46     Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
 ```
-
-show chassis modules status - shows the dpu status of all DPUs and the Switch supervisor     <font>**`Executed on the switch`**</font></p>
+#### Chassis Module Status
+* The "show chassis modules status" is an existing CLI but extended to include the status of all DPUs and switch. <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
 ```
 root@sonic:~#show chassis modules status                                                                                      
-Name        Description         Physical-Slot       Oper-Status     Admin-Status    Serial
+Name        Description         ID         Oper-Status     Admin-Status     Serial
 
-DPU0        SS-DPU0            1                   Online          up              SN20240105
-SWITCH      Chassis             0                   Online          N/A             FLM27000ER
+DPU0        SS-DPU0             1           Online          up              SN20240105
+DPU1        SS-DPU1             2           Online          up              SN20240102
+...
+SWITCH      Chassis             0           Online          N/A             FLM27000ER
 ```
+* The "show chassis modules status" is extended to include the DPU_STATE detail.
+show chassis modules status detail <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
+```
+root@sonic:~#show chassis modules status detail                                                                                    
+Name        Description      ID      Oper-Status  State-Detail     State-Value     Admin-Status     Serial
+
+DPU0        SS-DPU0          1       Online       Power             up                   up         SN20240105
+                                                  PCIe-link         up
+                                                  Host-Eth_links    up
+                                                  Firmware          up
+                                                  SONiC             up
+                                                  ControlPlane      up
+                                                  DataPlane         up
+
+DPU1        SS-DPU1          2       Online       Power             up                   up         SN20240235
+                                                  PCIe-link         up
+                                                  Host-Eth_links    up
+                                                  Firmware          up
+                                                  SONiC             up
+                                                  ControlPlane      up
+                                                  DataPlane         down
+...
+SWITCH      Chassis          0       Online       NA                NA                  NA          FLM27000ER
+```
+* show chassis modules status detail module-name <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
+```
+root@sonic:~#show chassis modules status detail  DPU0                                                                                 
+Name        Description      ID      Oper-Status  State-Detail     State-Value     Admin-Status     Serial
+
+DPU0        SS-DPU0          1       Online       Power             up                   up         SN20240105
+                                                  PCIe-link         up
+                                                  Host-Eth_links    up
+                                                  Firmware          up
+                                                  SONiC             up
+                                                  ControlPlane      up
+                                                  DataPlane         up
+
+```
+#### System health details
 * The system health summary on NPU should include the DPU status. If one or more DPUs are not ok it should be highlighted in the command output
 * This will allow to reuse of the existing infrastructure that allows to signal the user about the issue on the system and change the system status LED to red.
 
-show system-health summary      <font>**`Executed on the switch`**</font></p>
+show system-health summary      <font>**`Executed on the switch or DPU`**</font>
 ```
 System status summary
 
@@ -607,7 +650,7 @@ System status summary
  * The system health monitor list command should include the status of the DPU. If one or more DPUs are not ok it should be highlighted in the command output
  * The switch will fetch the DPU information stored in the DPU's STATE_DB as needed
 
-show system-health monitor-list      <font>**`Executed on the switch`**</font></p>
+show system-health monitor-list       <font>**`Executed on the switch`**</font>
 ```
 System services and devices monitor list
 
@@ -635,44 +678,73 @@ DPU1                   Not OK    DPU
 DPU2                   OK        DPU
 DPU3                   OK        DPU
  ```
- * The previous two CLIs are further extended to show the detail information about the DPU status as show in the next two CLIs
-
-show system-health monitor-list module <DPU NAME>     <font>**`Executed on the switch`**</font></p>
+ Following is the output of "show system-health monitor-list" on DPU.  <font>**`Executed on the DPU`**</font>
 ```
 System services and devices monitor list
 
-Name                       Status    Type
--------------------------  --------  ----------
-Hostname                   OK        System
-rsyslog                    OK        Process
-root-overlay               OK        Filesystem
-var-log                    OK        Filesystem
-routeCheck                 OK        Program
-dualtorNeighborCheck       OK        Program
-diskCheck                  OK        Program
-container_checker          OK        Program
-vnetRouteCheck             OK        Program
-memory_check               OK        Program
-container_memory_snmp      OK        Program
-container_memory_gnmi      OK        Program
-container_eventd           OK        Program
-eventd:eventd              OK        Process
-database:redis             OK        Process
-swss:coppmgrd              OK        Process
-swss:tunnelmgrd            OK        Process
-gnmi:gnmi-native           OK        Process
-bgp:zebra                  OK        Process
-bgp:staticd                OK        Process
-bgp:bgpd                   Not OK    Process
-bgp:fpmsyncd               OK        Process
-bgp:bgpcfgd                OK        Process
-CPU                        OK        UserDefine
-DDR                        OK        UserDefine
- ```
- #### System health details
- * Consolidated information about statuses of all subsystems can be obtained as shown
+Name                      Status    Type
+------------------------  --------  ----------
+container_checker         Not OK    Program
+lldp                      Not OK    Service
+sonic                     OK        System
+rsyslog                   OK        Process
+root-overlay              OK        Filesystem
+var-log                   OK        Filesystem
+routeCheck                OK        Program
+dualtorNeighborCheck      OK        Program
+diskCheck                 OK        Program
+vnetRouteCheck            OK        Program
+memory_check              OK        Program
+container_memory_snmp     OK        Program
+container_memory_gnmi     OK        Program
+container_eventd          OK        Program
+database:redis            OK        Process
+syncd:syncd               OK        Process
+swss:orchagent            OK        Process
+swss:vrfmgrd              OK        Process
+swss:nbrmgrd              OK        Process
+bgp:fpmsyncd              OK        Process
+bgp:bgpcfgd               OK        Process
+dpu-pdsagent              OK        UserDefine
+dpu-pciemgrd              OK        UserDefine
+dpu-eth_Uplink1/1_status  OK        UserDefine
+dpu-pcie_link             OK        UserDefine
+```
+ * The previous two CLIs are further extended to show the detail information about the DPU status as shown in the next two CLIs
 
-show system-health detail       <font>**`Executed on the switch`**</font></p>
+show system-health monitor-list module DPU_NAME    <font>**`Executed on the switch`**</font>
+```
+Name                      Status    Type
+------------------------  --------  ----------
+container_checker         Not OK    Program
+lldp                      Not OK    Service
+sonic                     OK        System
+rsyslog                   OK        Process
+root-overlay              OK        Filesystem
+var-log                   OK        Filesystem
+routeCheck                OK        Program
+dualtorNeighborCheck      OK        Program
+diskCheck                 OK        Program
+vnetRouteCheck            OK        Program
+memory_check              OK        Program
+container_memory_snmp     OK        Program
+container_memory_gnmi     OK        Program
+container_eventd          OK        Program
+database:redis            OK        Process
+syncd:syncd               OK        Process
+swss:orchagent            OK        Process
+swss:vrfmgrd              OK        Process
+swss:nbrmgrd              OK        Process
+bgp:fpmsyncd              OK        Process
+bgp:bgpcfgd               OK        Process
+dpu-pdsagent              OK        UserDefine
+dpu-pciemgrd              OK        UserDefine
+dpu-eth_Uplink1/1_status  OK        UserDefine
+dpu-pcie_link             OK        UserDefine
+```
+* Consolidated information about statuses of all subsystems can be obtained as shown
+
+show system-health detail        <font>**`Executed on the switch`**</font>
 ```
 System status summary
 
@@ -725,11 +797,61 @@ Name                       Status    Type
 mtvr-r740-04-bf3-sonic-01  OK        System
 rsyslog                    OK        Process
 …
- ```
- #### Vendor specific health checkers
- * If the vendor wants to add additional information specific to the platform it can be done using the user-defined checkers:
+```
+show system-health detail        <font>**`Executed on the DPU`**</font>
+```
+System status summary
 
-show system-health monitor-list      <font>**`Executed on the switch`**</font></p>
+  System status LED  green
+  Services:
+    Status: Not OK
+    Not Running: container_checker, lldp
+  Hardware:
+    Status: OK
+
+System services and devices monitor list
+
+Name                      Status    Type
+------------------------  --------  ----------
+container_checker         Not OK    Program
+lldp                      Not OK    Service
+sonic                     OK        System
+rsyslog                   OK        Process
+root-overlay              OK        Filesystem
+var-log                   OK        Filesystem
+routeCheck                OK        Program
+dualtorNeighborCheck      OK        Program
+diskCheck                 OK        Program
+vnetRouteCheck            OK        Program
+memory_check              OK        Program
+container_memory_snmp     OK        Program
+container_memory_gnmi     OK        Program
+container_eventd          OK        Program
+database:redis            OK        Process
+syncd:syncd               OK        Process
+swss:orchagent            OK        Process
+swss:portsyncd            OK        Process
+swss:coppmgrd             OK        Process
+swss:tunnelmgrd           OK        Process
+bgp:zebra                 OK        Process
+bgp:staticd               OK        Process
+dpu-pdsagent              OK        UserDefine
+dpu-pciemgrd              OK        UserDefine
+dpu-eth_Uplink1/1_status  OK        UserDefine
+dpu-pcie_link             OK        UserDefine
+
+System services and devices ignore list
+
+Name    Status    Type
+------  --------  ------
+fan     Ignored   Device
+psu     Ignored   Device
+```
+ #### Vendor specific health checkers
+* If the vendor wants to add additional information specific to the platform it can be done using the user-defined checkers:
+* The DPU specific interrupt events can be part of this.
+
+show system-health monitor-list       <font>**`Executed on the switch`**</font>
 ```
 System services and devices monitor list
 
@@ -739,9 +861,9 @@ Name                       Status    Type
 bgp:bgpcfgd                OK        Process
 CPU                        OK        UserDefine
 DDR                        OK        UserDefine
- ```
+```
 
-show interface status - will show the NPU-DPU interface status also      <font>**`Executed on the switch`**</font></p>
+show interface status - will show the NPU-DPU interface status also      <font>**`Executed on the switch`**</font>
 ```
 root@sonic:~# show interfaces status
   Interface                                    Lanes    Speed    MTU    FEC    Alias    Vlan    Oper    Admin    Type    Asym PFC
@@ -752,39 +874,25 @@ root@sonic:~# show interfaces status
  Ethernet24  2048,2049,2050,2051,2052,2053,2054,2055     400G   9100    N/A     etp3  routed    down       up     N/A         N/A
  Ethernet32  1792,1793,1794,1795,1796,1797,1798,1799     400G   9100    N/A     etp4  routed    down       up     N/A         N/A
  Ethernet40  1800,1801,1802,1803,1804,1805,1806,1807     400G   9100    N/A     etp5  routed    down       up     N/A         N/A
- Ethernet48  1536,1537,1538,1539,1540,1541,1542,1543     400G   9100    N/A     etp6  routed    down       up     N/A         N/A
- Ethernet56  1544,1545,1546,1547,1548,1549,1550,1551     400G   9100    N/A     etp7  routed    down       up     N/A         N/A
- Ethernet64  2304,2305,2306,2307,2308,2309,2310,2311     400G   9100    N/A     etp8  routed    down       up     N/A         N/A
- Ethernet72  2312,2313,2314,2315,2316,2317,2318,2319     400G   9100    N/A     etp9  routed    down       up     N/A         N/A
- Ethernet80  2568,2569,2570,2571,2572,2573,2574,2575     400G   9100    N/A    etp10  routed    down       up     N/A         N/A
- Ethernet88  2576,2577,2578,2579,2580,2581,2582,2583     400G   9100    N/A    etp11  routed    down       up     N/A         N/A
- Ethernet96  2832,2833,2834,2835,2836,2837,2838,2839     400G   9100    N/A    etp12  routed    down       up     N/A         N/A
-Ethernet104  2560,2561,2562,2563,2564,2565,2566,2567     400G   9100    N/A    etp13  routed    down       up     N/A         N/A
-Ethernet112  2320,2321,2322,2323,2324,2325,2326,2327     400G   9100    N/A    etp14  routed    down       up     N/A         N/A
-Ethernet120  1552,1553,1554,1555,1556,1557,1558,1559     400G   9100    N/A    etp15  routed    down       up     N/A         N/A
-Ethernet128          528,529,530,531,532,533,534,535     400G   9100    N/A    etp16  routed    down       up     N/A         N/A
-Ethernet136  1296,1297,1298,1299,1300,1301,1302,1303     400G   9100    N/A    etp17  routed    down       up     N/A         N/A
-Ethernet144          512,513,514,515,516,517,518,519     400G   9100    N/A    etp18  routed    down       up     N/A         N/A
-Ethernet152          520,521,522,523,524,525,526,527     400G   9100    N/A    etp19  routed    down       up     N/A         N/A
-Ethernet160          272,273,274,275,276,277,278,279     400G   9100    N/A    etp20  routed    down       up     N/A         N/A
-Ethernet168          264,265,266,267,268,269,270,271     400G   9100    N/A    etp21  routed    down       up     N/A         N/A
-Ethernet176                  16,17,18,19,20,21,22,23     400G   9100    N/A    etp22  routed    down       up     N/A         N/A
-Ethernet184          256,257,258,259,260,261,262,263     400G   9100    N/A    etp23  routed    down       up     N/A         N/A
-Ethernet192  1280,1281,1282,1283,1284,1285,1286,1287     400G   9100    N/A    etp24  routed    down       up     N/A         N/A
-Ethernet200  1288,1289,1290,1291,1292,1293,1294,1295     400G   9100    N/A    etp25  routed    down       up     N/A         N/A
-Ethernet208  1024,1025,1026,1027,1028,1029,1030,1031     400G   9100    N/A    etp26  routed    down       up     N/A         N/A
-Ethernet216  1032,1033,1034,1035,1036,1037,1038,1039     400G   9100    N/A    etp27  routed    down       up     N/A         N/A
+ ...
+ ...
 
 ### These are internal DPU ports ###
-Ethernet224                          780,781,782,783     100G   9100    N/A   etp28a  routed    down       up     N/A         N/A
-Ethernet228                          776,777,778,779     100G   9100    N/A   etp28b  routed    down       up     N/A         N/A
-Ethernet232                          768,769,770,771     100G   9100    N/A   etp29a  routed    down       up     N/A         N/A
-Ethernet236                          772,773,774,775     100G   9100    N/A   etp29b  routed    down       up     N/A         N/A
+...
+...
 Ethernet240                                  4,5,6,7     100G   9100    N/A   etp30a  routed    down       up     N/A         N/A
 Ethernet244                                  0,1,2,3     100G   9100    N/A   etp30b  routed    down       up     N/A         N/A
 Ethernet248                                8,9,10,11     100G   9100    N/A   etp31a  routed    down       up     N/A         N/A
 Ethernet252                              12,13,14,15     100G   9100    N/A   etp31b  routed    down       up     N/A         N/A
-
 ```
+
+show interface status     <font>**`Executed on the DPU`**</font>
+```
+root@sonic:/home/admin# show interfaces status
+  Interface    Lanes    Speed    MTU    FEC        Alias    Vlan    Oper    Admin    Type    Asym PFC
+-----------  -------  -------  -----  -----  -----------  ------  ------  -------  ------  ----------
+  Ethernet0  0,1,2,3     200G   9100    N/A  Ethernet1/1  routed      up       up     N/A         N/A
+```
+
 ## 4.   Test Plan
 Provide the Link here
