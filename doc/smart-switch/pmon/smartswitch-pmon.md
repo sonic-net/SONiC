@@ -62,7 +62,7 @@ The picture below highlights the PMON vertical and its association with other lo
     * The user will powerup/boot the DPUs as needed.
 
     #### SmartSwitch Expected PowerDown sequence:
-    * When the smartswitch device is completely shutdown, it will try to gracefully shutdown all the DPUs first. In the event of failure to graceful shutdown will force shutdown.
+    * When the smartswitch device is completely shutdown, it will try to gracefully shutdown all the DPUs first. In the event of a graceful shutdown failure, will do a force shutdown.
     * Then the switch will power down itself gracefully (NPU/Chassis)
 
 * The DPU must provide additional information such as reboot cause, timestamp, etc as explained in the scheme once it boots its OS to DPU_STATE table.
@@ -89,13 +89,13 @@ The picture below highlights the PMON vertical and its association with other lo
 
 * Show CLIs
     * Extend existing CLIs such as 'show platform fan/temperature' to support the new HW
-    * Extend the modular chassis CLI 'show chassis modules status" to display the DPU state and health. (See CLIs section)
+    * Extend the modular chassis CLI 'show chassis modules status" to display the DPU state. (See CLIs section)
 
 ### 2.3. Detect and Debug
 * Health
     * SmartSwitch DPUs should store their health data in their local StateDB 
-    * DPUs should support a CLI to display the health data “show chassis health-events”
-    * The host should be able to access this data using a redis call or an api
+    * DPUs should support a CLI to display the health data “show system-health ...” (See CLIs section)
+    * The host should be able to access this data using a an api or the host pmon can access it via gRPC, but it is implementation specific.
 * Alarm and Syslog
     * Raise alarms when the temperature thresholds exceed, fans run slow or not present or faulty
     * Drive LEDs accordingly
