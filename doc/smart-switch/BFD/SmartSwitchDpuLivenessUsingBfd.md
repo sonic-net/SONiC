@@ -3,7 +3,6 @@
 
 - [About this Manual](#about-this-manual)
 - [Definitions/Abbreviation](#definitionsabbreviation)
-          - [Table 1: Abbreviations](#table-1-abbreviations)
 - [1. Requirements Overview](#1-requirements-overview)
   - [1.1 Functional Requirements](#11-functional-requirements)
   - [1.2 Scale Requirements](#12-scale-requirements)
@@ -26,7 +25,8 @@
 This document provides general information about the NPU-DPU liveness detection using BFD probes between NPU and DPU.
 
 # Definitions/Abbreviation
-###### Table 1: Abbreviations
+
+**Table 1: Abbreviations**
 
 |                          |                                          |
 |--------------------------|------------------------------------------|
