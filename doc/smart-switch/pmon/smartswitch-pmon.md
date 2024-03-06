@@ -55,31 +55,81 @@ The picture below highlights the PMON vertical and its association with other lo
 <p align="center"><img src="./images/pmon-vertical.svg"></p>
 
 ## 2.	Requirements and Assumptions
+
 ### 2.1.    Onboarding
-* The SmartSwitch host PMON should be able to Power Cycle, Shutdown, Reset, and rest the PCIe link per DPU or the entire system. The DPU_MODULE will behave like the LINE_CARD_MODULE with respect to these functions. 
-    #### SmartSwitch Expected PowerUp sequence:
-    * When the smartswitch device is booted, the host will boot first and leave the DPUs in power-down state by default.
-    * The user will powerup/boot the DPUs as needed.
+* The SmartSwitch host PMON should be able to Power Cycle, Shutdown, Reset, and reset the PCIe link per DPU or the entire system. The DPU_MODULE will behave like the LINE_CARD_MODULE with respect to these functions.
 
-    #### SmartSwitch Expected PowerDown sequence:
-    * When the smartswitch device is completely shutdown, it will try to gracefully shutdown all the DPUs first. In the event of a graceful shutdown failure, will do a force shutdown.
-    * Then the switch will power down itself gracefully (NPU/Chassis)
+#### SmartSwitch PowerUp sequence:
+* When the smartswitch device is booted, the host will boot first and leave the DPUs in powered up state by default.
+* The DPUs can be powered down by configuring the admin_status as shown.
+* The corresponding switch stateDB table is also shown
 
-* The DPU must provide additional information such as reboot cause, timestamp, etc as explained in the scheme once it boots its OS to DPU_STATE table.
+#### config_db.json
+CHASSIS_MODULE table holds the list and configuration of DPU modules in a smartswitch chassis. It allows user to administratively bring down a DPU
+```
+{
+    "CHASSIS_MODULE": {
+        "DPU0": {
+            "admin_status": "up"
+        },
+        "DPU1": {
+            "admin_status": "up"
+        }
+    }
+}
+```
+#### switch stateDB
+```
+    Key: "CHASSIS_MODULE_TABLE|DPU0"
+    "CHASSIS_MODULE_TABLE|DPU0":{
+        "value": {
+            "admin_status":"up",
+        }
+    }
+```
+#### Chassis/DPU power on sequence
+* The chassis is powered up and the host is booting up.
+* PMON gets DB notification and invokes ModuleClass API set_admin_state(self, up)
+* The host powers up the DPU (TBD: GNOI). GNOI - NPU-DPU reboot workflow will be captured in another document
+* DPU boots up and attaches itself to the midplane.
+* Once SONiC is up the state progression is updated for every state transition on the DPU_STATE table in the chassisStateDB
+* DPU power on sequence diagram.
+<p align="center"><img src="./images/dpu-pwr-on-seq.svg"></p>
+
+#### DPU/Chassis power off sequence
+* The module "admin_status" is configured "down", which invokes PMON ModuleClass API set_admin_state(self, down)
+* Host sends a message to DPU (TBD: GNOI) to prepare for a graceful power down and triggers a timeout.
+* DPU follows the SONiC shutdown sequence.
+* The host upon ack or timeout removes the DPU port from the midplane bridge.
+* When the smartswitch is completely shutdown, it will shutdown all the DPUs first during the pre-shutdown phase of the switch. Then shutdown the switch
+*  DPU power off sequence diagram
+<p align="center"><img src="./images/dpu-pwr-off-seq.svg"></p>
+
+#### DPU reboot sequence - reboot command issued on the DPU console
+*  The DPU reboot sequence is similar to the above and the the sequence diagram is self explanatory.
+<p align="center"><img src="./images/dpu-reboot-seq.svg"></p>
+
+#### Switch reboot sequence - reboot command issued on the switch console
+* The switch reboot sequence is similar as shown in the sequence diagram.
+<p align="center"><img src="./images/switch-reboot-seq.svg"></p>
+
+#### Onboarding requirements
+* The DPU must provide additional information such as reboot cause, timestamp, etc as explained in the DPU_STATE schema once it boots its OS to DPU_STATE table.
 * When the DPU reboots itself, should log the reboot cause and update the previous-reboot-cause field in the ChassisStateDB when it boots up again
 * The reboot-cause history should provide a holistic view of the reboot cause of the SmartSwitch host CPU, the reboot-cause of all the DPUs
 * The DPUs should be uniquely identified and the DPU upon boot may get this ID from the host and identify itself.
 * Implement the required API enhancements and new APIs for DPU management (see details in design section)
-* SmartSwitch should use the existing SONiC midplane-interface model in modular chassis design for communication between the DPU and the NPU
+* SmartSwitch should use the existing SONiC midplane-interface model in modular chassis design for communication between the DPU and the NPU/Switch
 * SmartSwitch should extend the SONiC modular chassis design and treat the dpu-cards just like line-cards in existing design
 * Reboot
     * Only cold reboot of DPUs is required, warm boot support is not required.
+
 ### 2.2. Monitoring and Thermal Management
 * Dpu State
     * The DPUs should provide their state to the host as the boot progression happens by updating the dpu state data in the DPU_STATE table in the host ChassisStateDB (explained in DB schema)
     * DPUs should be able to store the data using a redis call
     * The DPU must provide the state information once it boots its OS to DPU_STATE table.
-    * The SmartSwitch host PMON should be able to monitor the liveliness of the DPUs and when they go down should be able to take appropriate actions  and should try to gracefully recover the DPU when requested by the PMON
+    * The SmartSwitch host PMON should be able to monitor the state changes of the DPUs and when they go down should be able to take appropriate actions  and should try to gracefully recover the DPU when requested by the PMON
 
 * Thermal management
     * Besides additional DPU specific sensors, cooling device changes the logic remains the same.
@@ -89,13 +139,16 @@ The picture below highlights the PMON vertical and its association with other lo
 
 * Show CLIs
     * Extend existing CLIs such as 'show platform fan/temperature' to support the new HW
-    * Extend the modular chassis CLI 'show chassis modules status" to display the DPU state. (See CLIs section)
+    * Extend the modular chassis CLI 'show chassis modules status" to display the detailed DPU states. (See CLIs section)
 
 ### 2.3. Detect and Debug
 * Health
-    * SmartSwitch DPUs should store their health data in their local StateDB 
+    * SmartSwitch DPUs should store their health data locally
     * DPUs should support a CLI to display the health data “show system-health ...” (See CLIs section)
-    * The host should be able to access this data using a an api or the host pmon can access it via gRPC, but it is implementation specific.
+    * The host pmon should be able to access this data via gRPC or a similar mechanism, but it is implementation specific.
+    * The DPU module health data will be stored in the host stateDB.
+    * Vendor specific data such as interrupt events can also be placed in user defined fields under this DB
+    * This table already exists and the DPUs will use this just like a linecard.
 * Alarm and Syslog
     * Raise alarms when the temperature thresholds exceed, fans run slow or not present or faulty
     * Drive LEDs accordingly
@@ -115,20 +168,9 @@ SmartSwitch PMON block diagram
 
 ### 3.1. Platform monitoring and management
 * SmartSwitch design Extends the existing chassis_base and module_base as described below.
-* Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch
+* Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch  (TBD: remove MODULE_TYPE_SWITCH ?)
 
 #### 3.1.1 ChassisBase class API enhancements
-get_supervisor_slot(self):
-
-get_my_slot(self):
-```
-    Retrieves the DPU ID in case of smartswitch
-    Returns:
-      0 : on switch
-      1 : on DPU1
-      2 : on DPU2 and so on
-```
-
 is_modular_chassis(self):
 ```
     Retrieves whether the sonic instance is part of modular chassis. Smartswitch
@@ -140,7 +182,8 @@ is_modular_chassis(self):
 
 get_num_modules(self):
 ```
-    Retrieves the number of modules available on this chassis including DPUs
+    Retrieves the number of modules available on this chassis including DPUs.
+    This is an existing API.
 
     Returns:
         An integer, the number of modules available on this chassis
@@ -177,6 +220,16 @@ get_module_index(self, module_name):
         An integer, the index of the ModuleBase object in the module_list
 ```
 #### 3.1.2 ChassisBase class new APIs
+The DPU ID is used only for indexing purpose.
+
+get_dpu_id(self, name):
+```
+    Retrieves the DPU ID for the given dpu-module name. Returns None for non-smartswitch chassis.
+
+    Returns:
+        An integer, indicating the DPU ID Ex: name:DPU0 return value 1, name:DPU1 return value 2, name:DPUX return value X+1
+```
+
 is_smartswitch(self):
 ```
     Retrieves whether the sonic instance is part of smartswitch
@@ -263,14 +316,6 @@ get_description(self):
 
     Returns:
         A string, providing the vendor's product description of the module.
-```
-
-get_slot(self):
-```
-    Retrieves the DPU ID in case of smartswitch
-
-    Returns:
-        An integer, indicating the slot number Ex: 0:SWITCH, 1:DPU1, X:DPUX
 ```
 
 get_type(self):
@@ -368,9 +413,9 @@ is_midplane_reachable(self):
     Table: “DPU_STATE”
 
     SCHEMA
-    key:  dpu_state:1
-        "id": "1",    		#Key itself can be used?
-        "powered": "ON",
+    key:  DPU_STATE|DPU0
+        "id": "1",
+        "admin_state": "UP",
         "pcie_link_state": "UP",
         "pcie_link_time": "timestamp",
         "pcie_link_reason": "up_down_related string",
@@ -393,24 +438,25 @@ is_midplane_reachable(self):
         "data_plane_reason": ”Pipeline failure",
     ```
 
-3. Each DPU has to store the health either in its local DB or in a sysfs filesystem and should provide the object when requested using the API(get_health_info(self))
+3. Each DPU has to store the health data in its local DB and should provide it to the switch PMON when requested (gRPC).
+* When the "show system-health ..." CLI is executed on the switch, it will fetch the corresponding information for the DPUs and provide a consolidated view of the system-health.
 * The DPU is a complex hardware, for debuggability, a consistent way of storing and accessing the health record of the DPUs is critical in a multi vendor scenario even though it is platform specific implementation.
+* Both switch and the DPUs will follow to the [SONiC system health monitor HLD](https://github.com/sonic-net/SONiC/blob/ce313db92a694e007a6c5332ce3267ac158290f6/doc/system_health_monitoring/system-health-HLD.md)
+* Refer to section 3.4.5 for "show system-health .." CLIs
 
-* DPU local stateDB Schema for DPU_HEALTH
-    ```
-    Table: “DPU_HEALTH”
-
-    SCHEMA
-    key:  dpu_health
-        "value": { 
-            "count": "1",  # number of occurrence of event 
-            "description": "Single bit error Correction", # Event
-            "name": "ms.ms.int_prp2_read", 
-            "severity": "LEVEL_INFO", # DEBUG, INFO, WARNING, ERROR
-            "timestamp": "20230618 14:56:15"
-        } 
-    ```
 ##### 3.1.5.2 ModuleBase class new APIs
+The DPU ID is used only for indexing purpose.
+
+get_dpu_id(self):
+```
+    Retrieves the DPU ID. Returns None for non-smartswitch chassis.
+
+    Returns:
+        An integer, indicating the DPU ID. DPU0 returns 1, DPUX returns X-1
+```
+#### DPU_STATE Use Case
+* High Availability, Load Balancing, Debug, error recovery (reset, power cycle) and fault management logics will use this API
+
 get_state_info(self, index):
 ```
     Retrieves the dpu state object having the detailed dpu state progression.
@@ -420,6 +466,9 @@ get_state_info(self, index):
         An object instance of the DPU_STATE (see DB schema)
         Returns None when the index is 0 (switch)
 ```
+
+#### DPU_STATE Use Case
+* The major consumer of this data could be fault management, debug, error recovery (TBD)
 
 get_health_info(self, index):
 ```
@@ -448,9 +497,9 @@ Thermal management sequence diagram
 
 ### 3.3   Midplane Interface
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. When DPU card or the Switch boots and as part of its initialization, midplane interface gets initialized.
-* Please refer to this link for IP address assignment between the switch host and the DPUs. [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md)
+* Please refer to this [link](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) for IP address assignment between the switch host and the DPUs.
 
-### 3.4 Debuggability & RMA
+### 3.4 Debug & RMA
 CLI Extensions and Additions
 
 #### Platform CLIs
@@ -582,7 +631,7 @@ DPU3        2023_10_03_18_23_46     Watchdog: stage 1 expired;      Mon 03 O
 DPU3        2023_10_02_18_23_46     Host Power-cycle                Sun 02 Oct 2023 06:23:46 PM UTC     N/A     Host lost DPU
 DPU3        2023_10_02_17_23_46     Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
 ```
-#### Chassis Module Status
+#### 3.4.4 Chassis Module Status
 * The "show chassis modules status" is an existing CLI but extended to include the status of all DPUs and switch. <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
 ```
 root@sonic:~#show chassis modules status                                                                                      
@@ -631,7 +680,7 @@ DPU0        SS-DPU0          1       Online       Power             up          
                                                   DataPlane         up
 
 ```
-#### System health details
+#### 3.4.5  System health details
 * The system health summary on NPU should include the DPU status. If one or more DPUs are not ok it should be highlighted in the command output
 * This will allow to reuse of the existing infrastructure that allows to signal the user about the issue on the system and change the system status LED to red.
 
@@ -648,7 +697,7 @@ System status summary
  ```
  * Detailed output from the switch can be obtained with the following CLI
  * The system health monitor list command should include the status of the DPU. If one or more DPUs are not ok it should be highlighted in the command output
- * The switch will fetch the DPU information stored in the DPU's STATE_DB as needed
+ * The switch will fetch the DPU information stored in the DPU's STATE_DB as needed using a gRPC client running on the switch PMON.
 
 show system-health monitor-list       <font>**`Executed on the switch`**</font>
 ```
@@ -847,7 +896,7 @@ Name    Status    Type
 fan     Ignored   Device
 psu     Ignored   Device
 ```
- #### Vendor specific health checkers
+#### Vendor specific health checkers
 * If the vendor wants to add additional information specific to the platform it can be done using the user-defined checkers:
 * The DPU specific interrupt events can be part of this.
 
@@ -895,4 +944,4 @@ root@sonic:/home/admin# show interfaces status
 ```
 
 ## 4.   Test Plan
-Provide the Link here
+In Progress
