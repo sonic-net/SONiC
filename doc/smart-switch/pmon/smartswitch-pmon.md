@@ -127,7 +127,7 @@ CHASSIS_MODULE table holds the list and configuration of DPU modules in a smarts
 ### 2.2. Monitoring and Thermal Management
 * Dpu State
     * The DPUs should provide their state to the host as the boot progression happens by updating the dpu state data in the DPU_STATE table in the host ChassisStateDB (explained in DB schema)
-    * DPUs should be able to store the data using a redis call
+    * DPUs should be able to store the data using a redis call directly on to the switch chassisStateDB
     * The DPU must provide the state information once it boots its OS to DPU_STATE table.
     * The SmartSwitch host PMON should be able to monitor the state changes of the DPUs and when they go down should be able to take appropriate actions  and should try to gracefully recover the DPU when requested by the PMON
 
