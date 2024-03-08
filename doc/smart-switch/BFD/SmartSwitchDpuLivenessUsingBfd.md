@@ -27,6 +27,7 @@
 This document provides general information about the NPU-DPU liveness detection using BFD probes between NPU and DPU.
 
 # Definitions/Abbreviation
+**Table 1: Abbreviations**
 
 |                          |                                          |
 |--------------------------|------------------------------------------|
