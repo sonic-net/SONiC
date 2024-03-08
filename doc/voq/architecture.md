@@ -30,7 +30,7 @@
 | 1.0 | June-26 2020 | Kartik Chandran (Arista Networks) | Final set of review comments from public review |
 | 2.0 | Aug-5 2020 | Kartik Chandran (Arista Networks)   | Revisions after further community review including description of global DB structure, removing sections on system ports, testing and future work to be covered in other documents |
 | 2.1 | Sep-17 2020 | Kartik Chandran (Arista Networks)  | Rename Global DB to Chassis DB  |
-| 3.0 | Jan-21 2024 | Venkat Garigipati (Cisco Systems)  | Disaggregated VOQ Model |
+| 3.0 | Jan-21 2024 | Venkat Garigipati, Thushar Gowda, Manas Kumar Mandal, Tapraj Singh, Praveen Bhagwatula (Cisco Systems)  | Disaggregated VOQ Model |
 
 # About this Manual
 
