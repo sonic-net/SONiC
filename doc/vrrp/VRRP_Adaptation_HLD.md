@@ -272,77 +272,142 @@ Schema:
 
 ```
 ;New table
-;holds the VRRP configuration per interface and VRID
+;holds the VRRP configuration per interface and VRID for IPv4 instances
 
-key = VRRP_type:interface_name:vrid
-                          ; VRRP_type can be VRRP or VRRP6 to distinguish vrrpv4 or vrrpv6
+key = VRRP|interface_name|vrid
                           ; Interface name string like Vlan1 or PortChannel002 or Ethernet4
                           ; vrid is an integer
 ; field = value
 vrid     = 1*3DIGIT       ; VRRP Instance Identifier
-vip      = ip_address     ; Virtual IP address. This is a list of IP addresses
+vip      = ip_address     ; Virtual IPv4 address. This is a list of IPv4 addresses
 priority = vrrp_priority  ; Priority of VRRP instance
 adv_interval = 1*3DIGITS  ; Advertisement interval for VRRP. Default = 1sec
-version  = vrrp_version   ; VRRP version. Value will always be 2 for this release
+version  = vrrp_version   ; VRRP version. Values can be version 2 or 3.
 pre_empt = "true"/"false" ; VRRP pre-emption is enabled? Default is True
-track_interface = track_interface ; List of interfaces tracked by a VRRP instance
-  <Interface_Name>|weight|<weight>; This is repeated for the configured tracking interfaces 
+```
+
+```
+;New table
+;holds the VRRP configuration per interface and VRID for IPv6 instances
+
+key = VRRP6|interface_name|vrid
+                          ; Interface name string like Vlan1 or PortChannel002 or Ethernet4
+                          ; vrid is an integer
+; field = value
+vrid     = 1*3DIGIT       ; VRRP Instance Identifier
+vip      = ip_address     ; Virtual IPv6 address. This is a list of IPv6 addresses
+priority = vrrp_priority  ; Priority of VRRP instance
+adv_interval = 1*3DIGITS  ; Advertisement interval for VRRP. Default = 1sec
+pre_empt = "true"/"false" ; VRRP pre-emption is enabled? Default is True
+
+```
+
+```
+;New table
+;holds the track interface information for VRRP IPv4 instance
+
+key = VRRP_TRACK|interface_name|vrid|track_interface
+                          ; Interface name string like Vlan1 or PortChannel002 or Ethernet4
+                          ; vrid is an integer
+; field = value
+priority_increment = 1*3DIGITS; Priority increase for the tracked interface
+```
+
+```
+;New table
+;holds the track interface information for VRRP IPv6 instance
+
+key = VRRP6_TRACK|interface_name|vrid|track_interface
+                          ; Interface name string like Vlan1 or PortChannel002 or Ethernet4
+                          ; vrid is an integer
+; field = value
+priority_increment = 1*3DIGITS; Priority increase for the tracked interface
 ```
 
 Example:-
 
-admin@sonic:~$ redis-cli -n 4 keys VRRP*
+**admin@sonic:~$ redis-cli -n 4 keys VRRP\***
+ 1) "VRRP|Vlan8|8"
+ 2) "VRRP|Vlan1|1"
+ 3) "VRRP|Vlan10|10"
+ 4) "VRRP|Vlan2|2"
+ 5) "VRRP|Vlan4|4"
+ 6) "VRRP|Vlan5|5"
+ 7) "VRRP6|Vlan3|3"
+ 8) "VRRP6|Vlan7|7"
+ 9) "VRRP6|Vlan6|6"
+10) "VRRP6|Vlan9|9"
 
-1.	"VRRP|Vlan8|8"
-2.	"VRRP|Vlan1|1"
-3.	"VRRP|Vlan10|10"
-4.	"VRRP|Vlan2|2"
-5.	"VRRP|Vlan4|4"
-6.	"VRRP|Vlan5|5"
-7.	"VRRP6|Vlan3|3"
-8.	"VRRP6|Vlan7|7"
-9.	"VRRP6|Vlan6|6"
-10.	"VRRP6|Vlan9|9"
+**admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP|Vlan1|1"**
+ 1) "vrid"
+ 2) "1"
+ 3) "vip"
+ 4) "4.1.1.100"
+ 5) "priority"
+ 6) "80"
+ 7) "adv_interval"
+ 8) "1"
+ 9) "version"
+10) "2"
+11) "pre_empt"
+12) "True"
+
+**Example:- Entery with multiple virtual IPs**
 
 admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP|Vlan1|1"
+ 1) "vrid"
+ 2) "1"
+ 3) "vip"
+ 4) "4.1.1.100,4.1.1.200,4.1.1.50,4.1.1.150"
+ 5) "priority"
+ 6) "80"
+ 7) "adv_interval"
+ 8) "1"
+ 9) "version"
+10) "2"
+11) "pre_empt"
+12) "True"
 
-1.	"vrid"
-2.	"1"
-3.	"vip"
-4.	"4.1.1.100"
-5.	"priority"
-6.	"80"
-7.	"adv_interval"
-8.	"1"
-9.	"version"
-10.	"2"
-11.	"pre_empt"
-12.	"True"
-13.	"track_interface"
-14.	"Ethernet7|weight|10,PortChannel001|weight|10"
+**Example:- Entery with multiple virtual IPs**
 
-Example:- Entery with multiple virtual IPs
+admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP6|Vlan3|3"
+ 1) "vrid"
+ 2) "1"
+ 3) "vip"
+ 4) "4::100,4::200,4::50"
+ 5) "priority"
+ 6) "80"
+ 7) "adv_interval"
+ 8) "1"
+ 9) "pre_empt"
+10) "True"
 
-admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP6|Vlan1|1"
+**Example:- Entery with multiple track interfaces for VRRP IPv4**
 
-1.	"vrid"
-2.	"1"
-3.	"vip"
-4.	"4::100,4::200,4::201"
-5.	"priority"
-6.	"80"
-7.	"adv_interval"
-8.	"1"
-9.	"pre_empt"
-10.	"True"
-11.	"track_interface"
-12.	"Ethernet7|weight|10,PortChannel001|weight|10"
+admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP_TRACK|Vlan1|1|Vlan200"
+1) "priority_increment"
+2) "10"
+
+admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP_TRACK|Vlan1|1|Ethernet64"
+1) "priority_increment"
+2) "20"
+
+**Example:- Entery with multiple track interfaces for VRRP IPv6**
+
+admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP6_TRACK|Vlan9|9|Vlan200"
+1) "priority_increment"
+2) "30"
+
+admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP6_TRACK|Vlan9|9|Ethernet64"
+1) "priority_increment"
+2) "40"
+
 
 #### APPL_DB Changes
 
 VRRP_TABLE
 
-Producer: vrrpmgrd and vrrpsyncd
+Producer: vrrpsyncd
 
 Consumer: vrrporch
 
