@@ -57,7 +57,7 @@ The picture below highlights the PMON vertical and its association with other lo
 ## 2.	Requirements and Assumptions
 
 ### 2.1.    Onboarding
-* The SmartSwitch host PMON should be able to Power Cycle, Shutdown, Reset, and reset the PCIe link per DPU or the entire system. The DPU_MODULE will behave like the LINE_CARD_MODULE with respect to these functions.
+* The SmartSwitch host PMON should be able to Power Cycle, Shutdown, Reset, and reset the PCIe link per DPU or the entire system. The DPU_MODULE will behave like the LINE_CARD_MODULE of a modular chassis with respect to these functions.
 
 #### SmartSwitch PowerUp sequence:
 * When the smartswitch device is booted, the host will boot first and leave the DPUs in powered up state by default.
@@ -90,7 +90,7 @@ CHASSIS_MODULE table holds the list and configuration of DPU modules in a smarts
 #### Chassis/DPU power on sequence
 * The chassis is powered up and the host is booting up.
 * PMON gets DB notification and invokes ModuleClass API set_admin_state(self, up)
-* The host powers up the DPU (TBD: GNOI). GNOI - NPU-DPU reboot workflow will be captured in another document
+* The host powers up the DPU (TBD: GNOI). NPU-DPU (GNOI) reboot workflow will be captured in another document
 * DPU boots up and attaches itself to the midplane.
 * Once SONiC is up the state progression is updated for every state transition on the DPU_STATE table in the chassisStateDB
 * DPU power on sequence diagram.
@@ -116,7 +116,7 @@ CHASSIS_MODULE table holds the list and configuration of DPU modules in a smarts
 #### Onboarding requirements
 * The DPU must provide additional information such as reboot cause, timestamp, etc as explained in the DPU_STATE schema once it boots its OS to DPU_STATE table.
 * When the DPU reboots itself, should log the reboot cause and update the previous-reboot-cause field in the ChassisStateDB when it boots up again
-* The reboot-cause history should provide a holistic view of the reboot cause of the SmartSwitch host CPU, the reboot-cause of all the DPUs
+* The reboot-cause history on the switch should provide a holistic view of the reboot cause of the SmartSwitch host CPU, the reboot-cause of all the DPUs
 * The DPUs should be uniquely identified and the DPU upon boot may get this ID from the host and identify itself.
 * Implement the required API enhancements and new APIs for DPU management (see details in design section)
 * SmartSwitch should use the existing SONiC midplane-interface model in modular chassis design for communication between the DPU and the NPU/Switch
@@ -126,10 +126,10 @@ CHASSIS_MODULE table holds the list and configuration of DPU modules in a smarts
 
 ### 2.2. Monitoring and Thermal Management
 * Dpu State
-    * The DPUs should provide their state to the host as the boot progression happens by updating the dpu state data in the DPU_STATE table in the host ChassisStateDB (explained in DB schema)
+    * The DPUs should provide their state to the host by updating the dpu state data in the DPU_STATE table in the host ChassisStateDB (explained in DB schema). This holds the minimal, viable set of low latency dpu state data and can be consumed by HA, LB, FaultManagement logics.
     * DPUs should be able to store the data using a redis call directly on to the switch chassisStateDB
     * The DPU must provide the state information once it boots its OS to DPU_STATE table.
-    * The SmartSwitch host PMON should be able to monitor the state changes of the DPUs and when they go down should be able to take appropriate actions  and should try to gracefully recover the DPU when requested by the PMON
+    * The SmartSwitch host PMON should be able to monitor the state changes of the DPUs and when they go down should be able to take appropriate actions and should try to gracefully recover the DPU when requested by the PMON
 
 * Thermal management
     * Besides additional DPU specific sensors, cooling device changes the logic remains the same.
@@ -148,7 +148,7 @@ CHASSIS_MODULE table holds the list and configuration of DPU modules in a smarts
     * The host pmon should be able to access this data via gRPC or a similar mechanism, but it is implementation specific.
     * The DPU module health data will be stored in the host stateDB.
     * Vendor specific data such as interrupt events can also be placed in user defined fields under this DB
-    * This table already exists and the DPUs will use this just like a linecard.
+    * This table already exists and the DPUs will use this just like a line card.
 * Alarm and Syslog
     * Raise alarms when the temperature thresholds exceed, fans run slow or not present or faulty
     * Drive LEDs accordingly
@@ -168,8 +168,7 @@ SmartSwitch PMON block diagram
 
 ### 3.1. Platform monitoring and management
 * SmartSwitch design Extends the existing chassis_base and module_base as described below.
-* Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch  (TBD: remove MODULE_TYPE_SWITCH ?)
-
+* Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch
 #### 3.1.1 ChassisBase class API enhancements
 is_modular_chassis(self):
 ```
@@ -253,25 +252,25 @@ get_module_dpu_port(self, index):
         DPU Port: A string Ex: For index:0 "dpu0", index:1 "dpu1"
         See the NPU to DPU port mapping
 ```
-#### 3.1.3 NPU to DPU port mapping
-platform.json of NPU/switch will show the NPU port to DPU port mapping. This will be used by services early in the system boot for midplane IP assignment. 
+#### 3.1.3 NPU to DPU data port mapping
+platform.json of NPU/switch will show the NPU to DPU data port mapping. This will be used by services early in the system boot. 
 ```
 "DPUs" : [
     {
       "dpu0": {
-                "midplane_interface":  "dpu0"
+                "Ethernet-BP0":  "Ethernet0"
        }
     },
     {
        "dpu1": {
-                "midplane_interface":  "dpu1"
+                "Ethernet-BP1":  "Ethernet0"
         },
     },
     .
     .
     {
        "dpuX": {
-                "midplane_interface":  "dpux"
+                "Ethernet-BPX":  "Ethernet0"
         },
     },
 
@@ -390,7 +389,7 @@ is_midplane_reachable(self):
 ##### 3.1.5.1 Need for consistent storage and access of DPU reboot cause, state and health
 1.  The smartswitch needs to know the reboot cause for DPUs. Please refer to the CLI section for the various options and their effects when executed on the switch and DPUs. 
 
-    Table shows the frame work for DPU reboot-cause reporting
+    Table shows the frame work for DPU reboot-cause reporting. This will be added to existing list of "Possible reboot causes" under "ChassisBase Class".
 
     | DPU Reboot Cause | HW/SW | End_User_Message_in_DPU_STATE |
     | --- | --- | --- |
@@ -415,7 +414,8 @@ is_midplane_reachable(self):
     SCHEMA
     key:  DPU_STATE|DPU0
         "id": "1",
-        "admin_state": "UP",
+        "admin_state": "UP", 
+        "admin_state_time": "timestamp",
         "pcie_link_state": "UP",
         "pcie_link_time": "timestamp",
         "pcie_link_reason": "up_down_related string",
@@ -503,7 +503,7 @@ A typical modular chassis includes a midplane-interface to interconnect the Supe
 CLI Extensions and Additions
 
 #### Platform CLIs
-* Platform CLIs remain the same but include DPU, and changes in sensors and FRUs
+* Platform CLIs remain the same but include DPU, and changes in sensors and FRUs. The "show platform inventory" is an example to display the DPU modules.
 
 show platform inventory 
 * shows the DPUs on the switch          <font>**`Executed on the switch. This CLI is not available on the DPU`**</font>
@@ -539,7 +539,7 @@ FPDs
 
 ```
 
-show platform temperature - shows the DPU temperature on the switch        <font>**`Executed on the switch`**</font>
+show platform temperature - shows the DPU temperature on the switch        <font>**`Executed on the switch. This CLI is not available on the DPU`**</font>
 ```
 root@sonic:~#show platform temperature
 
@@ -556,13 +556,7 @@ MB_TMP421_Local          26.25      135.0      -5.0           140.0          -10
    X86_CORE_0_T           37.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
    X86_PKG_TEMP           41.0      100.0      -5.0           105.0          -10.0      False  20230728 06:39:18
 ```
-show platform temperature - There are no thermal sensors accessible on DPU        <font>**`Executed on the DPU`**</font>
-```
-root@sonic:/home/admin# show platform temperature
-Thermal Not detected
-```
-
-show platform fan - shows the fan speed and status on the switch       <font>**`Executed on the switch. This CLI is not available on the DPU`**</font>
+show platform fan - shows the fan speed and status on the switch. <font>**`Executed on the switch. This CLI is not available on the DPU`**</font>
 ```
 root@sonic:~#show platform fan
 
@@ -929,10 +923,10 @@ root@sonic:~# show interfaces status
 ### These are internal DPU ports ###
 ...
 ...
-Ethernet240                                  4,5,6,7     100G   9100    N/A   etp30a  routed    down       up     N/A         N/A
-Ethernet244                                  0,1,2,3     100G   9100    N/A   etp30b  routed    down       up     N/A         N/A
-Ethernet248                                8,9,10,11     100G   9100    N/A   etp31a  routed    down       up     N/A         N/A
-Ethernet252                              12,13,14,15     100G   9100    N/A   etp31b  routed    down       up     N/A         N/A
+Ethernet-BP0                                  4,5,6,7     200G   9100    N/A   dpu-0  routed    down       up     N/A         N/A
+Ethernet-BP1                                  0,1,2,3     200G   9100    N/A   dpu-1  routed    down       up     N/A         N/A
+Ethernet-BP2                                8,9,10,11     200G   9100    N/A   dpu-2  routed    down       up     N/A         N/A
+Ethernet-BP3                              12,13,14,15     200G   9100    N/A   dpu-3  routed    down       up     N/A         N/A
 ```
 
 show interface status     <font>**`Executed on the DPU`**</font>
