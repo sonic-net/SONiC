@@ -9,25 +9,24 @@
   - [1.3 Default values](#13-default-values)
 - [2. Modules Design](#2-modules-design)
   - [2.1 SmartSwitch NPU-DPU BFD sessions](#21-smartswitch-npu-dpu-bfd-sessions)
-  - [2.2 APPL\_DB changes](#22-appl_db-changes)
-  - [2.3 BFD Active-Passive mode](#23-bfd-active-passive-mode)
-  - [2.4 DPU FRR Changes](#24-dpu-frr-changes)
-  - [2.5 DPU Linux IPTables](#25-dpu-linux-iptables)
-  - [2.6 NPU BFD session and VNET\_ROUTE\_TUNNEL](#26-npu-bfd-session-and-vnet_route_tunnel)
-  - [2.7 NPU-DPU midplane state change and BFD session update](#27-npu-dpu-midplane-state-change-and-bfd-session-update)
-  - [2.8 VNET Route and BFD session updates](#28-vnet-route-and-bfd-session-updates)
+  - [2.2 BFD Active-Passive mode](#22-bfd-active-passive-mode)
+  - [2.3 DPU FRR Changes](#23-dpu-frr-changes)
+  - [2.4 DPU Linux IPTables](#24-dpu-linux-iptables)
+  - [2.5 NPU BFD session and VNET\_ROUTE\_TUNNEL](#25-npu-bfd-session-and-vnet_route_tunnel)
+  - [2.6 NPU-DPU midplane state change and BFD session update](#26-npu-dpu-midplane-state-change-and-bfd-session-update)
+  - [2.7 VNET Route and BFD session updates](#27-vnet-route-and-bfd-session-updates)
 
 ###### Revision
 
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
-| 0.1 |  03/01/2024  |     Kumaresh Perumal  | Initial version                  |
+| 0.1 |  03/01/2024 |     Kumaresh Perumal  | Initial version                  |
+| 0.2 |  03/12/2024 | Kumaresh Perumal | Update review comments                |
 
 # About this Manual
 This document provides general information about the NPU-DPU liveness detection using BFD probes between NPU and DPU.
 
 # Definitions/Abbreviation
-**Table 1: Abbreviations**
 
 |                          |                                          |
 |--------------------------|------------------------------------------|
@@ -81,45 +80,11 @@ Multihop BFD sessions are created between NPU and a remote DPU.
 
 <img src="images/NPU_DPU_BFD_sessions.png">
 
-## 2.2 APPL_DB changes
-
-```
-DASH_BFD_SESSION: {{vrf}}:{{ifname}}:{{ipaddr}}
-
-    "tx_interval": {{interval}} (OPTIONAL)
-
-    "rx_interval": {{interval}} (OPTIONAL)
-
-    "multiplier": {{detection multiplier}} (OPTIONAL)
-
-    "shutdown": {{false}}
-
-    "multihop": {{false}}
-
-    "local_addr": {{ipv4/v6}}
-
-    "type": {{string}} (active/passive..)
-
-; Defines APP DB schema to initiate BFD session.
-
-'vrf' is mandatory key and if not intended, provide name as 'default'
-
-'ifname' is mandatory key and if not intended by user (e.g: multihop session), provide the name as 'default'
-
-'ipaddr' is mandatory key and user must provide the specific ipaddr value (IPv4 or IPv6). It will be NPU IPv4/IPv6 address.
-
-'multihop' is set to True for BFD sessions with remote NPU.
-
-'type' is set to 'async_passive' for all DPU BFD sessions.
-
-```
-
-## 2.3 BFD Active-Passive mode
+## 2.2 BFD Active-Passive mode
 
 HA manager in NPU creates VNET_ROUTE_TUNNEL_TABLE which in turn creates BFD Active session with local and peer information. NPU supports BFD hardware offload, so hardware starts
-generating BFD packets to the peer. HA module also creates
-DASH_BFD_SESSION table in DPU with local DPU PA and peer NPU PAs. BgpCfgd checks
-for the entries in the APPL_DB and configures BFD passive sessions in
+generating BFD packets to the peer. HA manager also creates
+BFD_SESSION table in DPU with local DPU PA and peer NPU PAs. BfdOrch checks for SAI object platform capability for h/w offload. In DPU, if h/w offload is not supported, FRR is configured to trigger BFD sessions. BfdOrchagent creates BFD_SESSION entry in STATE_DB with 'passive' mode and BgpCfgd checks for the entries in the STATE_DB and configures BFD passive sessions in
 FRR stack with local and peer information.
 
 Trigger for HA manager to create BFD sessions will be detailed in HA HLD.
@@ -135,8 +100,7 @@ action is taken.
 
 <img src="images/NPU_DPU_BFD_Exchange.png">
 
-
-## 2.4 DPU FRR Changes
+## 2.3 DPU FRR Changes
 
 By default BFD Daemon is not enabled in FRR. FRR supervisor config file
 has to be updated to start BFDD during FRR initialization.
@@ -170,17 +134,19 @@ profile passive
 exit
 ```
 
-## 2.5 DPU Linux IPTables
+## 2.4 DPU Linux IPTables
 
 New rules need to be added in the kernel to allow BFD packets to be
 processed by the kernel and FRR stack. All packets matching BFD UDP(3784
-and 4784)
+and 4784).
 
 ***sudo iptables \--insert INPUT 5 -p udp \--dport 4784 -j ACCEPT***
 
 ***sudo iptables \--insert INPUT 5 -p udp \--dport 3784 -j ACCEPT***
 
-## 2.6 NPU BFD session and VNET_ROUTE_TUNNEL
+These rules can be added as part of caclmgrd script during initialization by checking the DEVICE_METADATA object and attribute "switch_type: DPU" in CONFIG_DB.
+
+## 2.5 NPU BFD session and VNET_ROUTE_TUNNEL
 
 Overlay ECMP HLD describes how BFD session UP/Down changes the route to
 VIP of a SDN appliance. In Overlay ECMP feature, all the nexthops are
@@ -193,13 +159,13 @@ When HA manager receives HA config update, it will create VNET Route tunnel tabl
 
 <img src="images/DB_And_Notification.png">
 
-## 2.7 NPU-DPU midplane state change and BFD session update
+## 2.6 NPU-DPU midplane state change and BFD session update
 
-When NPU-DPU PCIe interface goes down due to some trigger or platform changes, local DPU BFD sessions on NPU are brought down. This will trigger route changes to the local DPU. NPU BFD sessions are updated because NPU cannot communicate to DPU APP_DB when Pcie is down. VnetRouteOrch subscribes to ChassisStateDB Table DPU_STATE. When pcie_link_state attribute changes in DPU_STATE, VnetRouteOrch updates the corresponding NPU's BFD session config to 'shutdown' state. This will bring down the NPU-DPU BFD session down trigerring the VIP route update.
+When NPU-DPU midplane interface goes down due to some trigger or platform changes, PMON module updates the midplane NetDev interface state in DPU_STATE DB. HA manager listens to NetDev interface state in DPU_STATE DB and updates the NPU-DPU dataplane interface corresponding to that DPU. This will bring down the local and remote BFD sessions between NPU and DPU.
 
 <img src="images/DPU_State_BFD_Changes.png">
 
-## 2.8 VNET Route and BFD session updates
+## 2.7 VNET Route and BFD session updates
 Some of the scenarios when VIP is pointing to Local and Remote nexthops
 and the BFD session state changes between NPU and DPU. In the below
 scenarios, local NH is the IP nexthop to local DPU and Remote NH is the
