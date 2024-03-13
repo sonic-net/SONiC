@@ -391,7 +391,7 @@ On NPU side, the ENI state table shows:
 | DASH_ENI_HA_STATE | | | Data plane state of each ENI that is hosted on local switch. |
 | | \<VDPU_ID\> | | VDPU ID. Used to identifying a single VDPU. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | creation_time_is_ms | ENI creation time in milliseconds. |
+| | | creation_time_in_ms | ENI creation time in milliseconds. |
 | | | last_heartbeat_time_in_ms | ENI last heartbeat time in milliseconds. Heartbeat time happens once per minute and will not change the last state updated time. |
 | | | last_state_updated_time_in_ms | ENI state last updated time in milliseconds. |
 | | | data_path_vip | Data path VIP of the ENI. |

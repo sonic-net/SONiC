@@ -105,7 +105,8 @@ In `DPU-Scope-DPU-Driven` setup, `hamgrd` will not drive the HA state machine an
 
 In `DPU-Scope-DPU-Driven` setup, same as ENI-level HA setup, the BFD probe will:
 
-- Setup and probe both DPUs, and both DPUs will be responding the BFD probes.
+- Setup on all NPUs for both IPv4 and IPv6 and probe both DPUs.
+- Both DPUs will respond the BFD probes, no matter it is active or standby.
 - Still only be used for controlling the traffic forwarding behavior from NPU to DPU, and won't be used as the health signal for triggering any failover inside DPU.
 
 Unlike the ENI-level HA setup, BFD probe can work alone to make the traffic forwarding decision without ENI level info. To achieve this, the SDN controller will program the HA set to NPU with the preferred DPU as active/standby setting.
@@ -119,7 +120,10 @@ Here is the how the probe works in details (with the DPU0 as preferred DPU):
 | Up | Down | DPU0 | DPU0 | NPU will forward all traffic to DPU0, since DPU0 is preferred and reachable. |
 | Up | Up | DPU0 | DPU0 | If both DPU is up, then we respect the preferred DPU. |
 
-The data path and packet format of the BFD probe will be the same as the one defined in the main HA design doc. Please refer to the [Card level NPU-to-DPU liveness probe design](./smart-switch-ha-hld.md#61-card-level-npu-to-dpu-liveness-probe).
+For more details on NPU-to-DPU probes,
+
+- The data path and packet format of the BFD probe will be the same as the one defined in the main HA design doc. Please refer to the [Card level NPU-to-DPU liveness probe design](./smart-switch-ha-hld.md#61-card-level-npu-to-dpu-liveness-probe).
+- For the detailed design of BFD probe in SmartSwitch, please refer to SmartSwitch BFD detailed design doc.
 
 ### 6.2. DPU-to-DPU liveness probe
 
@@ -185,6 +189,8 @@ sequenceDiagram
 
 ### 8.2. Planned switchover
 
+Here are the key highlights when DPU is driving the state machine:
+
 ```mermaid
 sequenceDiagram
    autonumber
@@ -202,16 +208,21 @@ sequenceDiagram
    SA->>SA: As active side is changed,<br>DPU1 will be set as next hop.
    Note over S0N,SA: From now on, traffic for all ENIs in this HA set starts to be forwarded to DPU1.
 
+   Note over S0N,SA: Depending on switchover trigger setting, NPU sends the HA set update to DPU accordingly.<br>Here the switchover trigger is set to be standby, hence only standby role update is requested.
    S0N->>S0D: Update HA set<br>with standby role
-   S1N->>S1D: Update HA set<br>with active role
    Note over S0D,S1D: DPU starts to drives internal<br>HA states for switchover.
 
    SA->>SA: During switchover, BFD state could change<br>depending on what DPU is doing internally.
-   S0D->>S0N: Enter standby state
-   S1D->>S1N: Enter active state
-   Note over S0D,S1D: At this moment, inline sync<br>channel should be established<br>again.
+   S0D->>S0N: Enter switching to standby<br>or destroying state
+   S1D->>S1N: Enter switching to active<br>or switching to standalone<br>state to drain the flow syncs
+   S1D->>S1D: Draining the flow syncs
+   S0D->>S0N: Enter standby/dead state
+   S1D->>S1N: Enter active/standalone state
 
-   SA->>SA: BFD to both DPUs will be up,<br>but only DPU1 will be set as next hop
+   S1D->>S1N: Send flow resimulation required<br>notification
+   S1N->>SC: Send flow resimulation required notification via gNMI
+   SC->>S1N: Request full flow resimulation
+   S1N->>S1D: Start full flow resimulation
 ```
 
 ### 8.3. Planned HA shutdown
@@ -287,6 +298,8 @@ sequenceDiagram
 ```
 
 ## 10. Flow tracking and replication
+
+`DPU-Scope-DPU-Driven` setup will not change the flow lifetime is managed and how the inline flow replication works, since they are currently managed by DPU under the SAI APIs already. However, it will change how bulk sync works, as DPU will directly do the bulk sync without going through HA control plane sync channel.
 
 ## 11. Detailed design
 
