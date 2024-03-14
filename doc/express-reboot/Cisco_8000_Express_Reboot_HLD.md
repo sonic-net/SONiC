@@ -113,6 +113,15 @@ sai_status_t Syncd::processNotifySyncd()
 }
 ```
 
+
+It can be seen that SAI_SWITCH_ATTR_FAST_API_ENABLE, which was originally introduced for fastfast boot, is being leveraged for express boot. The table below shows its settings and meanings for both express and fastfast boot cases.
+
+| SAI_SWITCH_ATTR_FAST_API_ENABLE | Express boot | Fastfast boot | Meaning |
+|--------------------------------|--------------|---------------|---------|
+| TRUE | Pre-shut | Not used | Pre-shutdown indication for express boot  |
+| FALSE | Post-boot | Post-boot | Signals SAI to begin the bulk programming post-boot|
+
+
 ## Build infra
 
 docker_image_ctl.j2 will be updated to include express boot type so that {service}.sh files will be able to handle express boot 
