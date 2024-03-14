@@ -515,7 +515,7 @@ Sample of CONFIG DB snippet given below:
         }
     },
 ```
-#### APP DB Enhancements  
+#### APPL DB Enhancements  
 
 This feature adds a new NEXT_HOP_GROUP_TABLE, to store next hop group information to be used by one or more routes. Recursive/ecmp routes are represented by referencing a list of nexthop group ids in the nexthop_group field. When this field is used, other fields will not be present.
 
