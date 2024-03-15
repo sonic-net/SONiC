@@ -277,6 +277,11 @@ flowchart LR
 
 > NOTE: Only the configuration that is related to HA is listed here and please check [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) to see other fields.
 
+Since multiple HA modes are provided in SmartSwitch, to show the database schema in a more clear way, we will separate the database schema into a few parts:
+
+1. The common tables that are shared by all HA modes.
+2. The dedicated tables or changes that we added for each HA mode.
+
 ### 2.1. NPU side databases
 
 #### 2.1.1. CONFIG DB
@@ -324,9 +329,9 @@ flowchart LR
 
 ##### 2.1.2.1. HA set configurations
 
-* The HA set table defines which DPUs should be forming the same HA set and how.
-* The HA set table should be programmed on all switches, so we could program the ENI location information and setup the traffic forwarding rules.
-* If the HA set contains local vDPU, it will be copied to DPU side DB by `hamgrd` as well.
+* The HA set table defines the vDPUs are used in this HA set and its mode, such as HA owner and scope.
+* The HA set table should be programmed on all switches, so we can use it to create the traffic forwarding rules on the NPU side.
+* If any vDPU in the HA set is local, `hamgrd` will send the HA set information to DPU, so DPU can start pairing with its peer DPU and set up the data plane channel.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -336,15 +341,25 @@ flowchart LR
 | | | vip_v4 | IPv4 Data path VIP. |
 | | | vip_v6 | IPv6 Data path VIP. |
 | | | owner | Owner/Driver of HA state machine. It can be `dpu`, `switch`. |
-| | | scope | Mode of HA set. It can be `dpu`, `eni`. |
+| | | scope | HA scope. It can be `dpu`, `eni`. |
 | | | vdpu_ids | The ID of the vDPUs. |
-| | | desired_vdpu_state | The desired state for each vDPU. It can only be "" (none), `dead`, `active`. |
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), `up` or `down`. |
+
+When HA scope is set to `dpu`, the following additional fields will be used:
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| | | desired_vdpu_state | The desired state for each vDPU. It can only be "" (none), `dead`, `active`. In active-standby setup, there can only be 1 active, others will be set to standby. |
+
+When HA scope is set to `eni`, the following additional fields will be used:
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
 | | | preferred_standalone_vdpu_index | Preferred vDPU index to be standalone when entering into standalone setup. |
 
 ##### 2.1.2.2. ENI placement configurations
 
-* The ENI placement table is used when ENI level HA is enabled (HA set mode is set to `eni_activestandby`).
+* The ENI placement table is used when HA scope is set to `eni`.
 * The ENI placement table defines which HA set this ENI belongs to, and how to forward the traffic.
 * The ENI placement table should be programmed on all switches.
 * Once this table is programmed, `hamgrd` will generate the routing configurations to `swss` for enable ENI level forwarding.
@@ -360,7 +375,7 @@ flowchart LR
 
 ##### 2.1.2.3. VNET route / ENI tunnel table
 
-Please refer to the [SONiC Overlay ECMP with BFD HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Overlay%20ECMP%20with%20BFD.md) for more detailed data base schema.
+Please refer to the [SONiC Overlay ECMP with BFD HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Overlay%20ECMP%20with%20BFD.md) for more detailed database schema.
 
 #### 2.1.3. Chassis State DB
 
@@ -541,9 +556,9 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 
 ## 3. Telemetry
 
-To properly monitor the HA related features, we will need to add telemetry for monitoring it.
+To properly monitor the HA related features, we provides the following telemetry for monitoring it.
 
-The telemetry will cover both state and counters, which can be mapped into `DASH_STATE_DB` or `DASH_COUNTER_DB`.
+The telemetry will cover both state and counters, which can be mapped into `DPU_STATE_DB` or `DPU_COUNTER_DB`.
 
 * For ENI level states and counters in NPU DB, we will have `VDPU_ID` in the key as well as the `ENI_ID` to make each counter unique, because ENI migration from one DPU to another on the same switch.
 * For ENI level states and counters in DPU DB, we don’t need to have `VDPU_ID` in the key, because they are tied to a specific DPU, and we should know which DPU it is during logging.
