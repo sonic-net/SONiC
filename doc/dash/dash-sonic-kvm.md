@@ -11,7 +11,8 @@
   - [3.2 Dataplane APP](#32-dataplane-app)
   - [3.3 SAIRedis](#33-sairedis)
   - [3.4 SWSS](#34-swss)
-  - [3.5 Other SONiC Services](#35-other-sonic-services)
+  - [3.5 GNMI/APP DB](#35-gnmiapp-db)
+  - [3.6 Other SONiC Services](#36-other-sonic-services)
 - [4 Dataflow](#4-dataflow)
   - [4.1 Data plane](#41-data-plane)
   - [4.2 Control plane](#42-control-plane)
@@ -49,7 +50,11 @@ In the original virtual SONiC, SAIRedis will load the saivs. However, in the new
 
 The SWSS on this virtual DPU is almost the same as the one used in the physical DPU. We don't need to make any special changes to it.
 
-## 3.5 Other SONiC Services
+## 3.5 GNMI/APP DB
+
+The GNMI and APP DB are identical to the physical device. However, in this virtual image, we support two modes: DPU mode and single device mode. The details of these two modes will be described in the following section.
+
+## 3.6 Other SONiC Services
 
 We plan to keep the other services, such as BGP, LLDP, and others. these services will be kept, so the KVM runs the same way as how SONiC runs on the real DPU.
 
