@@ -62,7 +62,7 @@ The picture below highlights the PMON vertical and its association with other lo
 #### SmartSwitch PowerUp sequence:
 * When the smartswitch device is booted, the host will boot first and leave the DPUs in powered up state by default.
 * The DPUs can be powered down by configuring the admin_status as shown.
-* The corresponding switch stateDB table is also shown
+* The corresponding switch configDB table is also shown
 
 #### config_db.json
 CHASSIS_MODULE table holds the list and configuration of DPU modules in a smartswitch chassis. It allows user to administratively bring down a DPU
@@ -70,35 +70,37 @@ CHASSIS_MODULE table holds the list and configuration of DPU modules in a smarts
 {
     "CHASSIS_MODULE": {
         "DPU0": {
-            "admin_status": "up"
+            "admin_status": "down"
         },
         "DPU1": {
-            "admin_status": "up"
+            "admin_status": "down"
         }
     }
 }
 ```
-#### switch stateDB
+#### switch configDB
 ```
-    Key: "CHASSIS_MODULE_TABLE|DPU0"
-    "CHASSIS_MODULE_TABLE|DPU0":{
+Key: "CHASSIS_MODULE|DPU0"
+    "CHASSIS_MODULE|DPU0": {
         "value": {
-            "admin_status":"up",
+            "admin_status":"down"
         }
     }
 ```
 #### Chassis/DPU power on sequence
 * The chassis is powered up and the host is booting up.
+* The host sends a GNOI signal to gracefully shutdown the DPU.  Upon successful ack or timeout the host will trigger the switch PMON. NPU-DPU (GNOI) reboot workflow will be captured in another document.
 * PMON gets DB notification and invokes ModuleClass API set_admin_state(self, up)
-* The host powers up the DPU (TBD: GNOI). NPU-DPU (GNOI) reboot workflow will be captured in another document
+* The host powers up the DPU.
 * DPU boots up and attaches itself to the midplane.
-* Once SONiC is up the state progression is updated for every state transition on the DPU_STATE table in the chassisStateDB
+* Once SONiC is up, the state progression is updated for every state transition on the DPU_STATE table in the chassisStateDB
 * DPU power on sequence diagram.
 <p align="center"><img src="./images/dpu-pwr-on-seq.svg"></p>
 
 #### DPU/Chassis power off sequence
-* The module "admin_status" is configured "down", which invokes PMON ModuleClass API set_admin_state(self, down)
-* Host sends a message to DPU (TBD: GNOI) to prepare for a graceful power down and triggers a timeout.
+* The module "admin_status" is configured "down". 
+* The host sends a GNOI signal to gracefully shutdown the DPU.
+* Upon ack or timeout the host invokes PMON ModuleClass API set_admin_state(self, down)
 * DPU follows the SONiC shutdown sequence.
 * The host upon ack or timeout removes the DPU port from the midplane bridge.
 * When the smartswitch is completely shutdown, it will shutdown all the DPUs first during the pre-shutdown phase of the switch. Then shutdown the switch
