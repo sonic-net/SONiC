@@ -4,7 +4,7 @@
 ## Revision
 | Rev |     Date    |           Author             | Change Description                |
 |:---:|:-----------:|:----------------------------:|-----------------------------------|
-| 0.1 | Oct    2023 |  Lingyu Zhang / Yongxin Cao  | Initial Draft                     |
+| 0.1 | Oct    2023 |  Lingyu Zhang  Alibaba / Yongxin Cao Accton  | Initial Draft                     |
 
 <!-- omit in toc -->
 ## Table of Content
@@ -20,7 +20,8 @@
   - [Nexthop Fixup Handling](#nexthop-fixup-handling)
     - [NHG ID](#nhg-id)
     - [zebra\_rnh\_fixup\_depends()](#zebra_rnh_fixup_depends)
-    - [Step by step illustrations](#step-by-step-illustrations)
+    - [Underlay NHG handling](#underlay-nhg-handling)
+    - [Overlay NHG handling](#overlay-nhg-handling)
     - [Throttle protocol client's route update events](#throttle-protocol-clients-route-update-events)
   - [FPM and Orchagent Changes](#fpm-and-orchagent-changes)
 - [Unit Test](#unit-test)
@@ -170,7 +171,7 @@ To streamline the discussion and ensure generality, we employ the following recu
 If one of the paths (path 10.1.0.28) for prefix 200.0.0.0/24 is removed, Zebra will actively update two routes during the recursive convergence handling, facilitated by the BGP client. One route update pertains to 200.0.0.0/24, while the other update concerns 2.2.2.2/32. In this scenario, route 200.0.0.0/24 experiences the removal of one path, while the reachability of route 2.2.2.2/32 remains unaffected. To minimize the traffic loss window, it's essential to promptly address the affected nexthops in the dataplane before zebra completes its route convergence process.
 
 <figure align=center>
-    <img src="images_recursive/path_remove_pic.png" >
+    <img src="images_recursive/path_remove.png" >
     <figcaption>Figure 3. The starting point for a path removal<figcaption>
 </figure>
 
@@ -273,7 +274,7 @@ The main work flow for zebra_rnh_fixup_depends() is the following
 
 Note: this function would only walk one level up to NHG. The further level if any would be triggered via protocol clients' further route updates.
 
-#### Step by step illustrations
+#### Underlay NHG handling
 
 Assuming the initial state of EVPN underlay routes is the following
 
@@ -313,9 +314,28 @@ After zebra_rnh_fixup_depends() is done, Zebra continues its original processing
 BGP triggers 2.2.2.2 and other routes updates which are via 200.0.0.1. During 2.2.2.2's Zebra route handling, zebra would walk 2.2.2.2's rnh list if it is not empty.
 
 Notes: 
-1. Although this illustrations are on IGP remote link/node failure case, the similar work flow could be applied to local link failure and remote PE failure case as well.
+1. Although this illustrations are on IGP remote link/node failure case, the similar work flow could be applied to local link failure as well.
 2. The same logic and work flow could be applied to add paths to NHG, a.k.a zebra_rnh_fixup_depends() is a generic logic.
-3. For SRV6 and EVPN type routing, their next hops store corresponding information such as vpn-sid and vni/label. This information, along with the changing routing address, together form the key for the nhg (Next Hop Group). We refer to this type of next hop as an overlay next hop. To address the issue where we cannot find the overlay NHE (Next Hop Entry) solely based on the route address, we create a separate additional pic nexthop for the next hops of SRV6 and EVPN type routes. This pic_nh will only contain the specific next hop address, and we establish dependents relationships for the pic_nh similar to those for other recursive type next hops. At the same time, we create an association between the pic_nh and the original overlay nh. Then at this point, we try to find the pic_nh based on the route address, and then quickly fix up according to the overlay nh pointed to by the pic_nh, ensuring fast traffic switching.
+
+#### Overlay NHG handling
+For SRV6 and EVPN type routes, their next hops store corresponding VPN context such as vpn-sid and vni/label. These VPN context along with the nexthop addresses, together form the key for the nhg (Next Hop Group). We refer to this type of next hop as an overlay next hop group. 
+
+
+One issue from previous underlay NHG handling is that we cannot find the overlay NHE (Next Hop Entry) solely based on the route address. To fix this issue, we always create a separate additional pic nexthop for the next hops of SRV6 and EVPN type routes. This pic_nh will only contain the specific next hop address, and we establish dependents relationships for the pic_nh similar to those for other underlay recursive type next hops. On the meanwhile, we create an association between the pic_nh and the original overlay nh ( a.k.a PIC CONTEXT NHG). Any underlay change's backwalk would find pic_nh if it is in the dependent list, then quickly fix up according to the overlay nhg pointed to by the pic_nh, ensuring fast traffic switching.
+
+The new forwarding chain would be illustrated in the following graph.
+<figure align=center>
+    <img src="images_recursive/path_remove_pic.png" >
+    <figcaption>Figure 3-new. The forwarding chain with overlay NHG<figcaption>
+</figure>
+
+No matter PIC edge or PIC core case, we will always trigger NHG update for both pic_nh and corresponding NHGs. Different NHG objects would be handed differently. 
+
+| Cases |     SRv6 VPN  |       EVPN       | 
+|:------|:-----------|:----------------------|
+| PIC_NHG | Trigger dataplane update. This update would stop overlay SRv6 VPN traffic loss. |  Trigger dataplane update. It would only stop traffic loss for underlay routes if any |
+| PIC_CONTEXT_NHG | Ignore the changes in fpm, no update needed. | Trigger dataplane update. This update would stop overlay EVPN traffic loss. |
+
 
 #### Throttle protocol client's route update events
 Zebra will always inform protocol clients that nexthop is changed. Protocol client could decide if it needs to throttle the corresponding routes update events if there is no changes in reachability and metrics. For SONiC, we will only consider BGP's handling. 
