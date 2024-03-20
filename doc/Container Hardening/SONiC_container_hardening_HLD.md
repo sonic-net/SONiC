@@ -105,20 +105,20 @@ Removing the `--privileged` flag is done by editing the docker_image_ctl.j2 file
 docker_image_ctl.j2 file
 
 	docker create {{docker_image_run_opt}} \ # *Need to modify this parameter "docker_image_run_opt" to not contain the --privileged flag*
-	{%- if docker_container_name != "database" %}
+	{/%- if docker_container_name != "database" /%}
 		--net=$NET \
 		--uts=host \{# W/A: this should be set per-docker, for those dockers which really need host's UTS namespace #}
-	{%- endif %}
-	{%- if docker_container_name == "database" %}
+	{/%- endif /%}
+	{/%- if docker_container_name == "database" /%}
 		-p 6379:6379 \
-	{%- endif %}
+	{/%- endif /%}
 		-e RUNTIME_OWNER=local \
-	{%- if install_debug_image == "y" %}
+	{/%- if install_debug_image == "y" /%}
 		-v /src:/src:ro -v /debug:/debug:rw \
-	{%- endif %}
-	{%- if '--log-driver=json-file' in docker_image_run_opt or '--log-driver' not in docker_image_run_opt %}
+	{/%- endif /%}
+	{/%- if '--log-driver=json-file' in docker_image_run_opt or '--log-driver' not in docker_image_run_opt /%}
 		--log-opt max-size=2M --log-opt max-file=5 \
-	{%- endif %}
+	{/%- endif /%}
 
 This will cause the docker file to be altered in the following manner:
 
@@ -216,12 +216,12 @@ To create a docker with the flags above it is required to set the "new" flag in 
 and replace the `–--net=$NET`.
 docker flag generation
 
-	{%- if docker_container_name != "database" %}
+	{/%- if docker_container_name != "database" /%}
 					--net=$NET \
-	{%- endif %}
-	{%- if docker_container_name == "database" %}
+	{/%- endif /%}
+	{/%- if docker_container_name == "database" /%}
 					-p 6379:6379 \
-	{%- endif %}
+	{/%- endif /%}
 
 #### How to check?
 
