@@ -178,7 +178,8 @@ If one of the paths (path 10.1.0.28) for prefix 200.0.0.0/24 is removed, Zebra w
 For achieving this quick fixup, we need the following changes. 
 1. Change NHG ID hash method
 2. Add a new function zebra_rnh_fixup_depends() to make a quick fixup on involved NHGs in dataplanes.
-3. Throttle protocol client's route update events if needed
+3. Use pic_nh for backwalking from underlay events to overlay NHGs
+4. Throttle protocol client's route update events if needed
 
 We will describe each change in detail in the following sections. 
 
@@ -318,18 +319,20 @@ Notes:
 2. The same logic and work flow could be applied to add paths to NHG, a.k.a zebra_rnh_fixup_depends() is a generic logic.
 
 #### Overlay NHG handling
-For SRV6 and EVPN type routes, their next hops store corresponding VPN context such as vpn-sid and vni/label. These VPN context along with the nexthop addresses, together form the key for the nhg (Next Hop Group). We refer to this type of next hop as an overlay next hop group. 
+For SRV6 and EVPN routes, their next hops store specific VPN context information, such as vpn-sid and vni/label. These VPN contexts, combined with the next hop addresses, collectively compose the key for the nhg (Next Hop Group). This type of next hop is referred to as an overlay next hop group.
+
+One issue encountered with previous handling of underlay NHGs is the inability to locate the overlay NHE solely based on the route address. To address this issue, a separate additional PIC nexthop is now always created for the next hops of SRV6 and EVPN route types. This pic_nh exclusively contains the specific next hop address, with dependent relationships established for it similar to those for other underlay recursive-type next hops. Concurrently, an association is established between the pic_nh and the original overlay nh (referred to as PIC CONTEXT NHG). 
 
 
-One issue from previous underlay NHG handling is that we cannot find the overlay NHE (Next Hop Entry) solely based on the route address. To fix this issue, we always create a separate additional pic nexthop for the next hops of SRV6 and EVPN type routes. This pic_nh will only contain the specific next hop address, and we establish dependents relationships for the pic_nh similar to those for other underlay recursive type next hops. On the meanwhile, we create an association between the pic_nh and the original overlay nh ( a.k.a PIC CONTEXT NHG). Any underlay change's backwalk would find pic_nh if it is in the dependent list, then quickly fix up according to the overlay nhg pointed to by the pic_nh, ensuring fast traffic switching.
+By employing this approach, we can utilize the same zebra_rnh_fixup_depends() function to promptly rectify overlay NHGs when underlay events affect the reachability of overlay nexthops.
 
-The new forwarding chain would be illustrated in the following graph.
+The new forwarding chain is depicted in the following graph.
 <figure align=center>
     <img src="images_recursive/path_remove_pic.png" >
-    <figcaption>Figure 3-new. The forwarding chain with overlay NHG<figcaption>
+    <figcaption>Figure 11. The forwarding chain with overlay NHG<figcaption>
 </figure>
 
-No matter PIC edge or PIC core case, we will always trigger NHG update for both pic_nh and corresponding NHGs. Different NHG objects would be handed differently. 
+Regardless of whether it's a PIC edge or PIC core scenario, NHG updates will always be initiated for PIC_NHGs first, then their corresponding PIC_CONTEXT_NHGs. Different NHG objects will be managed distinctively, as outlined in the table below.
 
 | Cases |     SRv6 VPN  |       EVPN       | 
 |:------|:-----------|:----------------------|
