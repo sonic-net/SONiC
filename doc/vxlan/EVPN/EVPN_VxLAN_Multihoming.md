@@ -2,7 +2,7 @@
 
 # High Level Design Document
 
-Rev 0.1
+Rev 0.2
 
 # Table of Contents
 
@@ -18,9 +18,7 @@ Rev 0.1
   - [1.1 Requirements](#11-Requirements)
     - [1.1.1 Functional Requirements](#111-Functional-Requirements)
     - [1.1.2 Configuration and Management Requirements](#112-Configuration-and-Management-Requirements)
-    - [1.1.3 Scalability Requirements](#113-Scalability-Requirements)
-    - [1.1.4 Convergence Requirements](#114-Convergence-Requirements)
-    - [1.1.5 Warm Boot Requirements](#115-Warm-Boot-Requirements)
+    - [1.1.3 Platform Requirements](#113-Platform-Requirements)
   - [1.2 Design Overview](#12-Design-Overview)
     - [1.2.1 Basic Approach](#121-Basic-Approach)
     - [1.2.2 Container](#122-Container)
@@ -52,11 +50,6 @@ Rev 0.1
 - [5 Error Handling](#5-Error-Handling)
 - [6 Serviceability and Debug](#6-Serviceability-and-Debug)
 - [7 Warm Boot Support](#7-Warm-Boot-Support)
-- [8 Scalability](#8-Scalability)
-- [9 Unit Test](#9-Unit-Test)
-  - [9.1 Functional Test Cases](#101-Functional-Test-Cases)
-  - [9.2 Negative Test Cases](#102-Negative-Test-Cases)
-  - [9.3 Warm boot Test Cases](#103-Warm-boot-Test-Cases)
 
 # List of Tables
 
@@ -67,6 +60,7 @@ Rev 0.1
 | Rev  | Date      | Author                                           | Change Description |
 | ---- | --------- | ------------------------------------------------ | ------------------ |
 | 0.1  | 2/22/2024 | Syed Hasan Naqvi, Rajesh Sankaran, Kishore Kunal, Praveen Elagala | Initial version    |
+| 0.2  | 3/21/2024 | Syed Hasan Naqvi                                 | Addressed review comments, updated SAI section |
 
 # About this Manual
 
@@ -138,21 +132,6 @@ The following are configuration and management requirements for EVPN VxLAN Multi
 
 ### 1.1.3 Platform requirements
 Support EVPN Multihoming on platforms having VxLAN capabilities.
-
-### 1.1.4 Scalability Requirements
-
-The following are targeted scale numbers for EVPN VxLAN Multihoming on platforms providing EVPN Multihoming capability:
-1. Support up to 1K EVPN ESIs in a given PoD/site.
-2. Support up to 128 EVPN ESIs on a given VTEP.
-
-### 1.1.5 Convergence Requirements
-
-Achieve sub-second convergence in following failure scenarios:
-1. LAG link down
-2. LAG link up
-3. VTEP restart
-4. VTEP power off
-5. VTEP power on
 
 
 
@@ -450,8 +429,8 @@ The below steps explain the MAC learning and ageing scenario in the EVPN MH netw
 	- (c) FRR advertises MAC in Type-2 update with Proxy = 0.
 2. Type-2 update is received on Vtep-4:
 	- (a) FRR installs MAC in kernel with dev=PortChannel1 and state=NUD_NOARP.
-	- (b) Fdbsyncd listens to the above update from kernel and installs VXLAN_FDB_TABLE with type=dynamic, ifname=PortChannel1, and state=remote.
-	- (c) Fdborch installs the MAC in HW with mesh-bit set to avoid ageing.
+	- (b) Fdbsyncd listens to the above update from kernel and installs VXLAN_FDB_TABLE with type=dynamic, ifname=PortChannel1.
+	- (c) Fdborch installs the MAC in HW as static with SAI_FDB_ENTRY_ATTR_ALLOW_MAC_MOVE flag to avoid ageing and allow move.
 	- (d) FRR advertises Type-2 route with Proxy=1.
 3. Type-2 proxy update is received on Vtep-1:
     - (a) Type-2 update from Vtep-4 is processed and FRR converts the FDB entry in kernel from NUD_REACHABLE to NUD_NOARP with NFEA_ACTIVITY_NOTIFY set.
@@ -459,17 +438,19 @@ The below steps explain the MAC learning and ageing scenario in the EVPN MH netw
     - (c) Fdborch observes that STATE_FDB_TABLE entry is already present. It updates the bitmap in the FDB cache as Local + Remote. And entry in the HW is not updated and remains as dynamic.
 4. MAC ages out on Vtep-1:
     - (a) L2 table delete event from SAI is processed in Fdborch.
-    - (b) Fdborch removes STATE_FBD_TABLE entry, and resets Local flag in FDB cache. It observes that Remote flag is set in FDB cache, so it installs MAC back into the HW with mesh bit set.
+    - (b) Fdborch removes STATE_FBD_TABLE entry, and resets Local flag in FDB cache. It observes that Remote flag is set in FDB cache, so it installs MAC back into the HW as static with ALLOW_MAC_MOVE flag.
     - (c) Fdbsyncd receives STATE_FDB_TABLE delete event. It removes FDB entry from the kernel (or resets activity bit, if possible.)
-    - (d) FRR receives FDB notification with inactive_bit set. BGP withdraws Type-2 update.
+    - (d) FRR receives delete FDB notification (or with inactive_bit set.) BGP withdraws Type-2 update.
 5. Type-2 withdrawal is received on Vtep-4:
     - (a) FRR updates the kernel FDB entry with IN_TIMER flag and starts hold-timer.
-    - (c) Fdbsyncd receives notification from kernel with IN_TIMER flag set, and it replaces the VXLAN_FDB_TABLE entry with ageing=enabled.
-    - (d) Fdborch removes the mesh bit from the FDB entry in HW.
-    - (e) MAC learn event is received from SAI if the traffic hits after mesh bit is removed.
-    - (f) Fdborch populates STATE_FDB_TABLE table and Fdbsyncd installs local FDB entry into the kernel.
-    - (g) FRR advertises Type-2 route with Proxy=0.
-    - (h) At step (e) above, if there is no traffic, the MAC will be removed from kernel by FRR after the hold-timer expiry. Fdbsyncd will remove the VXLAN_FDB_TABLE entry and mac will be removed from HW.
+    - (c) FRR should remove the FDB entry from the kernel for MAC to be learnt locally.
+    - (d) Fdborch receives the FDB delete event from the kernel and removes MAC from VXLAN_FDB_TABLE.
+6. MAC hold-timer expires on Vtep-4:
+    - (a) If there is no traffic hitting neither Vtep-1 nor Vtep-4, the MAC hold-timer will expire on Vtep-4.
+    - (b) FRR withdraws MAC advertisement with Proxy=1.
+    - (c) Vtep-1 receives MAC withdrawal and removes MAC from the kernel.
+    - (d) Fdbsyncd receives FDB delete event from the kernel and removes MAC from VXLAN_FDB_TABLE.
+    - (e) MAC is removed from HW on Vtep-1.
 
 ### 2.2.6 Static Anycast Gateway
 Static Anycast Gateway (SAG) will be the primary and only mechanism for achieving active-active L3 gateway on the EVPN MH enabled VTEPs.
@@ -638,13 +619,10 @@ nexthop_group = L2_NEXTHOP_GROUP_TABLE:key (new field)
 				; 
 				used instead of remote_vtep field
 vni           = 1*8DIGIT                    (existing field)
-group         = "external"/"internal"       (existing field)
 ifname        = STRING                      (new field)
 				; Local (PortChannel) interface name in case
 				; mac is received with local ESI.
 type          = "dynamic"/"static"          (existing field)
-ageing        = "enabled"
-                ; by default ageing is disabled for dynamic or static entries.
 ```
 
 
@@ -672,10 +650,6 @@ nexthop_group = L2_NEXTHOP_GROUP_TABLE:key
 				; by "," used for recursive/ECMP routes.
 				; ( When this field is present, other fields will
 				; not be present)
-ifname        = "PortChannel"po_id
-				; Optionally set.
-blackhole     = "true"/"false"
-                ; Optionally set.
 ```
 
 
@@ -780,117 +754,78 @@ A new EvpnMhOrch class will be introduced to perform following activities,
 ## 3.4 SAI
 
 ### 3.4.1 New SAI Objects 
-
-- **L2_ECMP_GROUP**
-  - Holds a set of remote VTEPs.
-  - Bridgeport objects of type L2_ECMP_GROUP will be associated with this object. 
-  - Known unicast traffic with Destination MACs pointing to the above bridgeport type will be load balanced among the remote VTEPs. 
-
-```
-typedef enum _sai_l2_ecmp_group_attr_t
-{
-    /**
-     * @brief Start of attributes
-     */
-    SAI_L2_ECMP_GROUP_ATTR_START,
-
-    /**
-     * @brief Number of L2 ECMP GROUP members in the group
-     *
-     * @type sai_uint32_t
-     * @flags READ_ONLY
-     */
-    SAI_L2_ECMP_GROUP_ATTR_MEMBER_COUNT = SAI_L2_ECMP_GROUP_ATTR_START,
-
-    /**
-     * @brief L2 ECMP GROUP member list
-     *
-     * @type sai_object_list_t
-     * @flags READ_ONLY
-     * @objects SAI_OBJECT_TYPE_L2_ECMP_GROUP_MEMBER
-     */
-    SAI_L2_ECMP_GROUP_ATTR_MEMBER_LIST,
-
-    /**
-     * @brief Attach a counter
-     *
-     * When it is empty, then packet hits won't be counted
-     *
-     * @type sai_object_id_t
-     * @flags CREATE_AND_SET
-     * @objects SAI_OBJECT_TYPE_COUNTER
-     * @allownull true
-     * @default SAI_NULL_OBJECT_ID
-     */
-    SAI_L2_ECMP_GROUP_ATTR_COUNTER_ID,
-
-    /**
-     * @brief End of attributes
-     */
-    SAI_L2_ECMP_GROUP_ATTR_END,
-
-    /** Custom range base value */
-    SAI_L2_ECMP_GROUP_ATTR_CUSTOM_RANGE_START = 0x10000000,
-
-    /** End of custom range base */
-    SAI_L2_ECMP_GROUP_ATTR_CUSTOM_RANGE_END
-
-} sai_l2_ecmp_group_attr_t;
-
-```
-
-- **L2_ECMP_GROUP_MEMBER**
-  - Represents a remote VTEP.
-  - Is associated with an L2 ECMP GROUP.
-
-```
-typedef enum _sai_l2_ecmp_group_member_attr_t
-{
-    /**
-     * @brief Start of attributes
-     */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_START,
-
-    /**
-     * @brief L2 ECMP GROUP id
-     *
-     * @type sai_object_id_t
-     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
-     * @objects SAI_OBJECT_TYPE_L2_ECMP_GROUP
-     */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_L2_ECMP_GROUP_ID = SAI_L2_ECMP_GROUP_MEMBER_ATTR_START,
-
-    /**
-     * @brief P2P Tunnel oid
-     *
-     * @type sai_object_id_t
-     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
-     * @objects SAI_OBJECT_TYPE_TUNNEL
-     */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_TUNNEL_ID,
-
-    /**
-     * @brief End of attributes
-     */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_END,
-
-    /** Custom range base value */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_CUSTOM_RANGE_START = 0x10000000,
-
-    /** End of custom range base */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_CUSTOM_RANGE_END
-
-} sai_l2_ecmp_group_member_attr_t;
-
-```
-
-- Capabilities corresponding to the above new SAI objects to be implemented.
+No new SAI objects are introduced as part of this design.
 
 
 ### 3.4.2 Changes to Existing SAI Objects
 
+- **NEXT_HOP_TYPE_L2**
+  - The nexthop type LAYER_2 is to be used for L2 ECMP nexthop group members.
+```
+/**
+ * @brief Next hop type
+ */
+typedef enum _sai_next_hop_type_t
+{
+   ...
+    /** Next hop group is for layer 2 bridging */
+    SAI_NEXT_HOP_TYPE_LAYER_2,
+} sai_next_hop_type_t;
+```
+
+- **NEXT_HOP_GROUP_TYPE_L2**
+  - The nexthop group type LAYER_2 is to be used for MAC/FDB entries pointing to L2 ECMP nexthop group.
+```
+/**
+ * @brief Next hop group type
+ */
+typedef enum _sai_next_hop_group_type_t
+{
+...
+    /** Next hop group is for bridge port */
+    SAI_NEXT_HOP_GROUP_TYPE_LAYER_2,
+
+    /* Other types of next hop group to be defined in the future, e.g., WCMP */
+} sai_next_hop_group_type_t;
+```
+
+
 - **BRIDGEPORT**
-  - A new bridge-port type of type L2_ECMP_GROUP
+  - A new bridge-port type of type L2_NEXT_HOP_GROUP is to be used for installing MAC/FDB entries pointing to L2 ECMP group nexthop.
+ 
+```
+/**
+ * @brief Attribute data for #SAI_BRIDGE_PORT_ATTR_TYPE
+ */
+typedef enum _sai_bridge_port_type_t
+{
+...
+    /** Bridge layer 2 next hop group port */
+    SAI_BRIDGE_PORT_TYPE_L2_NEXT_HOP_GROUP,
+
+} sai_bridge_port_type_t; 
+```
+
+- L2 NHID attribute for bridge ports of type L2_NEXT_HOP_GROUP
+    
+```
+/**
+ * @brief SAI attributes for Bridge Port
+ */
+typedef enum _sai_bridge_port_attr_t
+{
+...
+    /**
+     * @brief Associated layer 2 nexthop group id
+     *
+     * @type sai_object_id_t
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @objects SAI_OBJECT_TYPE_NEXT_HOP_GROUP
+     * @condition SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_L2_NEXT_HOP_GROUP
+     */
+    SAI_BRIDGE_PORT_ATTR_L2_NEXT_HOP_GROUP_ID,
+```
+
   - A new attribute NON_DF to drop BUM traffic .
     - Applicable to bridgeport type PORT.
     - When set, egress BUM traffic on this bridge port will be dropped.
@@ -920,13 +855,14 @@ typedef enum _sai_l2_ecmp_group_member_attr_t
 
 #### 3.4.3.1 Known MAC Handling 
 - Refer to Sec 1.2.1.2.
-- At VTEP5 the following objects will be created. 
-  - tnl_oid_1-tnl_oid_4 corresponding to tunnels created to VTEP1-VTEP4.
-  - l2_ecmp_grp_oid_1 and l2_ecmp_group_oid_2 NHID-ESI-1 and NHID-ESI-2
-  - l2_ecmp_grp_mbr_oid_11 and l2_ecmp_grp_mbr_oid_14 corresponding to l2_ecmp_grp_oid_1 and tnl_oid_1 and 4 respectively.
-  - l2_ecmp_grp_mbr_oid_21-24 corresponding to l2_ecmp_grp_oid_2 and tnl_oid_1-4 respectively.
-  - bridgeport_oid_1 and bridgeport_oid_2 corresponding to l2_ecmp_grp_oid_1 and l2_ecmp_grp_oid_2.
-  - fdb_entry_oid_H2 pointing to bridgeport_oid_1 and fdb_entry_oid_H3 pointing to bridgeport_oid_2.
+- At VTEP5 the following objects will be created.
+  1. create l2 nexthop objects (tunnel id will be used to create these l2 nexthop objects) (input: tunnel object id, type layer 2; output: nexthop object id)
+  2. create nexthop group members  (input: nexthop object id output: nexthop group member object id)
+  3. create nexthop group (input: type layer 2; output nexthop group object id)
+  4. create a bridgeport for l2 nexthop group (input; type layer 2, nexthop group object id; output: bridgeport object id of subtype layer 2 nexthop group)
+  5. add/remove nexthop group members to nexthop group (as many as required)
+  6. fdb will be created and point to the l2 nexthop group bridgeport id (created in step 4)
+
 
 #### 3.4.3.2 BUM handling 
 - Refer to Sec 1.2.1.1
@@ -1003,37 +939,45 @@ sonic(config-router-bgp-af)# [no] disable-ead-evi-tx
 
 ```
 admin@sonic$ show vxlan l2-nexthop-group
-NHG    Remote VTEPs   Local Members
-===    ============   ==============
-22      2.3.4.5         
-        3.4.5.6
-
-23      1.1.1.2        PortChannel5
-        1.1.1.3
++-----+--------------+-----------------+
+| NHG | Remote VTEPs | Local Members   |
++=====+==============+=================+
+| 22  | 2.3.4.5      |                 |
+|     | 3.4.5.6      |                 |
++-----+--------------+-----------------+
+| 23  | 1.1.1.2      | PortChannel5    |
+|     | 1.1.1.3      |                 |
++-----+--------------+-----------------+
+```
 
 Description:
 
 1. New CLI
 2. Displays all the remote NHG discovered. 
 3. Read from the APP_DB
-```
+
 
 **show vxlan remotemac**
 
 ```
 admin@sonic$ show vxlan remotemac
 
-Vlan   MAC               Type      Tunnel   Group       VNI
-====   ===               ====      ======   =====       ====
-10    00:00:00:11:22:33  Dynamic   2.3.4.5  Internal    100
-                                   3.4.5.6
+   +---------+-------------------+--------------+-------+---------+
+   | VLAN    | MAC               | RemoteVTEP   |   VNI | Type    |
+   +=========+===================+==============+=======+=========+
+   | Vlan10  | 00:00:00:00:00:01 | 2.3.4.5      |  1001 | dynamic |
+   |         |                   | 3.4.5.6      |       |         |
+   +---------+-------------------+--------------+-------+---------+
+   | Vlan10  | 00:00:00:00:00:02 | 2.3.4.5      |  1001 | dynamic |
+   +---------+-------------------+--------------+-------+---------+
+```
 
 Description:
 
 1. Existing CLI
-2. Changed Tunnel Column to display all the tunnels. 
+2. Changed RemoteVTEP Column to display all the tunnels. 
 3. Read from the APP_DB
-```
+
 
 ##### 3.5.2.2 BGP EVPN show commands
 List of FRR show commands relevent to EVPN Multihoming.
@@ -1319,132 +1263,3 @@ Warm reboot for EVPN Multihoming feature will be supported on the platforms that
 
 
 
-# 8 Scalability
-Below are the targeted EVPN Multihoming scale numbers on platforms providing EVPN Multihoming capability.
-
-| Metric                     | Scale | 
-|:---------------------------|:-------|
-| EVPN MH ES VTEP membership | 4      | 
-| ESIs in a site/PoD         | 1K     | 
-| ESIs on a VTEP             | 128    |
-| VNI per ESI                | 4K     |
-
-
-
-
-# 9 Unit Test
-
-## 9.1 Functional Test Cases
-### 9.1.1 Configuration tests
-1. Configure the same system-mac address and Vlan on PortChannel interfaces on two VTEPs and verify multihomed PortChannel interface is up on both of the VTEPs.
-2. Configure Type-0 ESI on PortChannel and verify ES/AD routes are advertised.
-3. Remove Type-0 ESI and configuration from PortChannel. Verify ES/AD routes are withdrawn.
-4. Configure Type-3 ES-ID on PortChannel and verify ES/AD routes are advertised.
-5. Remove system-mac on the PortChannel. Verify PortChannel mac address is set to default, interface is down on the VTEP where system-mac config is removed, and interface still up on the remote multihomed VTEP(s). Verify ES/AD routes are withdrawn locally.
-6. Reconfigure system-mac on the PortChannel. Verify Portchannel interface is up on the multihomed VTEPs. Verify ES/AD routes are advertised.
-7. Remove Type-3 ES configuration from PortChannel. Verify ES/AD routes are withdrawn.
-8. Configure Type-1 ESI on PortChannel and verify ES/AD routes are advertised.
-9. Configure system-mac on client node and verify ES/AD routes are advertised with updated Type-1 ESI value.
-10. Unconfigure system-mac on client node, and verify ES/AD routes are advertised with previous ESI value.
-11. Configure Type-0 ESI on PortChannel on the VTEP and verify ES/AD routes are advertised with Type-0 ESI value.
-12. Remove VLAN from PortChannel and verify AD-per-EVI route is withdrawn.
-13. Add VLAN to PortChannel and verify AD-per-EVI route is advertised.
-
-### 9.1.2 DF-election tests
-1. Configure Type-0 ESI on Po1 connected to VTEP1&4, Type-1 ESI on Po2 connected to VTEP3 and VTEP4, and Type-3 ESI on Po3 connected to VTEP1-4.
-2. Verify using APP_DB, kernel, and in hw that only 1 node with the lowest VTEP-IP is elected as DF for each of the ES.
-3. Configure df-preference on the higher IP VTEP and verify the VTEP is elected as DF and rest of the nodes as non-DF.
-4. Configure same df-preference on all of the nodes and verify the VTEP with lowest VTEP-IP is selected as DF and rest of the nodes are not DF.
-5. Shutdown PortChannel interface on the lowest IP VTEP, and verify lowest IP VTEP is DF and rest of them are non-DF.
-6. Startup PortChannel interface and verify the lowest IP VTEP is selected as DF, and rest of them are non-DF.
-7. Unconfigure ESI configuration and verify that next lowest IP VTEP is selected as DF and rest of them as non-DF.
-8. Re-configure ESI configuration and verify the lowest IP VTEP is selected as DF, and rest of them are non-DF
-9. Configure incremental df-preference on the VTEPs and shutdown portchannel interface on the VTEPs in reverse order. Verify DF election at each step.
-10. Startup portchannel interfaces in the same reverse order and verify DF election at each step.
-11. Unconfigure DF preference configuration from all of the interfaces and nodes. Verify lowest IP vtep is the DF.
-12. Start traffic from remote SVTEP and verify that duplicate packets are not received on the client tgen port.
-13. Start traffic from Po1 client and verify that duplicate packets are not sent to the Po2 and Po3 clients.
-
-### 9.1.3 Split-horizon tests
-1. Configure Type-0 ESI on Po1 connected to VTEP1&4, Type-1 ESI on Po2 connected to VTEP3 and VTEP4, and Type-3 ESI on Po3 connected to VTEP1-4.
-2. Verify APP_DB, kernel, and hw that split horizon table is correctly populated with the participating VTEP IPs.
-3. Shutdown PortChannel on one of the VTEPS and verify split-horizon table is updated on all of the VTEPs.
-4. Startup PortChannel on the VTEP and verify split-horizon table is updated on all of the VTEPs.
-5. Unconfigure ESI on one of the VTEPs and verify split-horizon table is updated on all of the VTEPs.
-6. Re-configure ESI on the VTEP and verify split-horizon table is updated on all of the VTEPs
-7. Start traffic from Po1 client, and verify that Po1 client does not receive back the traffic.
-8. Shutdown Po3 on VTEP1, and start traffic from Po1 client. Verify Po3 client receive the same amount of traffic.
-9. Startup Po3 on VTEP1, and start the traffic from Po1 client. Verify Po3 client receives the same amount of traffic.
-10. Configure Vlan 100 on Po1, 200 on Po2, and 100,200 on Po3 on the corresponding participating VTEPs.
-11. Send traffic from Po3 client on Vlan200. Verify Po1 client does not receive the traffic, and Po2 client receives the traffic.
-12. Shutdown all of the spine links, and verify that DF election and split-horizon tables are cleaned up on local node. And the same reflected on the remote VTEPs.
-13. Startup spine links and verify that DF election and split-horizon tables are populated correctly on all of the VTEPs.
-14. Remove bgp configuration and verify split-horizon tables are cleaned up on the local VTEP and the same is reflected on remote vteps, and DF table entry is present on the node where BGP config is removed.
-15. Re-configure BGP and verify DF election and split-horizon tables are populated on all of the VTEPs.
-
-### 9.1.4 L2 Unicast tests
-1. Configure Po1 connected to VTEP1 & 4. and Po3 connected to VTEPs 1-4. Add 2 VLANs on each PortChannels, and advertise mac addresses from Po1 and Po3.
-2. On VTEP5, verify show evpn ES output shows {VTEP1, VTEP4} for ESI-1 and VTEP1-4 for ESI-3.
-3. On VTEP5, verify APP_DB VXLAN_FDB_TABLE and L2_NEXTHOP_GROUP_ID tables that {VTEP1,VTEP4} for H1-MAC and VTEP1-4 for H3-MAC.
-4. Move MAC from Po1 to orphan port of VTEP1. Verify MAC is pointing to remote VTEP instead of NHG on other VTEPs.
-5. Move MAC back from orphan port of VTEP1 to Po1. Verify MAC is pointing to NHG on SVTEP, and pointing to local Po on ES member VTEPs.
-6. Move MAC from Po1 to Po2 on VTEP2. Verify MAC on SVTEP is pointing to NHG, and to local Po on participating VTEPs.
-7. Move MAC from Po2 to Po3 on VTEP2. Verify MAC on SVTEP is pointing to NHG, and to local Po on participating VTEPs.
-8. Wait for MAC ageing interval and verify MAC is removed from all of the VTEPs.
-9. Learn H1-MAC on ES-1. Verify H1-MAC pointing to ES members on SVTEP. Shutdown ESI-1 link on VTEP1. On VTEP5, verify ES and FDB outputs show only VTEP4. On VTEP1, verify H1-MAC is pointing to VTEP4.
-10. Startup ESI-1 link on VTEP1. On VTEP5, Verify ES and FDB outputs show VTEP1 & VTEP4. On VTEP1, verify H1-MAC is pointing to local interface.
-11. Shutdown ESI-1 on VTEP1 and VTEP4. Verify MAC is removed from all of the VTEPs after mac holdtimer value.
-12. Re-learn the H1-MAC and wait for MAC ageing, and verify MAC is removed from all of the VTEPs after mac ageing and evpn-mh mac-hold timer expires.
-13. Start traffic from VTEP5 to H1, H2, and H3 MAC. Verify traffic is received on all of the client tgen ports without duplication.
-
-### 9.1.5 ARP/ND tests
-1. Configure hosts on tgen ports connected to client1, client2, client2, and VTEP5. Configure separate IP addresses in the same subnet in default-vrf on the VTEPs of corresponding Po interfaces.
-2. Ping between the tgen hosts. Verify that ping goes through.
-3. Ping from tgen of VTEP5 to the tgen hosts. Verify that ping goes through.
-4. Move host IP from client1 to client2 tgen port. Verify ping between the tgen hosts.
-5. Shutdown the client2 Po interface on one of the member VTEPs. Verify arp/nd entries are still present and ping successful from tgen hosts.
-6. Shutdown the client2 Po interface on all of the member VTEPs. Verify arp/nd entries are removed from all of the vteps.
-7. Startup the client2 Po interfaces on all of the member VTEPs. Verify ping between the tgen hosts and arp/nd entries are re-learnt.
-
-### 9.1.6 Static Anycast Gateway tests
-1. Configure VRF1 and L3VNI and VLAN200 in the VRF. Assign VLAN200 memberships to the ESIs. Configure SAG subnet on the VTEPs on VLAN200 and assign IP addresses on clients. Verify ping between H1, H2, and H3 works fine.
-2. Configure VRF1 and L3VNI on VTEP5. Verify host routes for H2 and H3 IP addresses are installed in routing table and forming ECMP.
-3. Shutdown ESI-1 link on VTEP1. Verify host route for H1-IP still present in routing table with single path to VTEP4.
-4. Startup ESI-1 link on VTEP1. Verify host route for H1-IP still present and forming ECMP with VTEP1 and VTEP4.
-5. Shutdown Po interfaces on ES clients. Verify host route for the client IP address are removed from SVTEP.
-6. Startup Po interfaces on ES clients. Verify host route for the client IP address are removed from SVTEP.
-7. Clear ARP on VTEP1-4 and ping between the clients and verify host routes for H2 and H3 IP addresses are learnt again on SVTEP.
-8. Configure Vlan100 in default VRF on VTEPs and clients. Configure ip address on Vlan100 on clients, and SAG on the VTEPs. Ping between the clients to verify the reachability.
-9. Verify ARP output shows VTEP1,4 and VTEP1-4 for H2 and H3 IP addresses respectively.
-10. Shutdown ESI-1 link on VTEP1. Verify ARP output shows only VTEP4.
-11. Startup ESI-1 link on VTEP1. Verify ARP output shows only VTEP4.
-12. Ping from H5 to H2/H3. Verify ARP for H2/H3 IP address is present on VTEP5, and the ping is successful.
-
-### 9.1.7 BGP over EVPN Multihoming ES tests
-1. Configure VLAN200 member of VRF1 on VTEP1 & VTEP4 and configure unique IP addresses. Configure VLAN200 on H2 and IP address in the same subnet. Configure BGP sessions between VTEPs and clients. Verify that BGP neighbors are up.
-2. Clear ARP on VTEP1, VTEP4, and H2. Verify that the ping is successful.
-3. Shutdown ES link on VTEP1 and verify ping is successful.
-4. Shutdown ES link on VTEP4 and verify ping is not successful.
-5. Startup ES link on VTEP1 and VTEP4. Verify ping is successful.
-6. Configure Loopback IP address on H2. Configure L3VNI on VTEP1 and VTEP4 and enable redistribution. Verify /32 route is present on VTEP5 for H2's Loopback IP address and forming ECMP with VTEP1 and VTEP4.
-7. Ping from VTEP5 to H2's Loopback IP address and verify ping is successful.
-8. Shutdown ES link on VTEP4. Verify ping to loopback address is still successful.
-9. Startup ES link on VTEP4. Verify ping to loopback address is still successful.
-
-### 9.1.8 Negative tests
-1. Configure MCLAG domain and then configure Type-0 & Type-3 ESI on PortChannel. Verify that ESI configuration on PortChannel is rejected with error.
-2. Configure Type-0 / Type-3 ESI on PortChannel and then configure MCLAG domain. Verify that MCLAG domain configuration is rejected with error.
-3. Configure ESI on PortChannel1 on VTEP1 and VTEP4 and verify PortChannel is up on H2. Remove ESI configuration on PortChannel1 and configure MCLAG and make PortChannel1 member of MCLAG on VTEP1 and VTEP4. Verify that PortChannel is up on H2.
-4. Remove MCLAG domain configuration and configure ESI on PortChannel1 on VTEP1 and VTEP4. Verify PortChannel interface is up on H2.
-5. Ensure Type-2 MAC/MACIP is received without AD-per-ES route and ensure these Type-2 routes are installed pointing to VTEP.
-
-### 9.1.9 Scale tests
-1. Advertise 1K mac addresses PortChannel2 interface and verify that all of the MAC addresses are installed on PortChannel2 on VTEP1-4 and against L2-NHG for ESI-2 on VTEP5.
-2. Shutdown ES link on VTEP1. Verify on VTEP1 that MAC addresses are now installed against L2-NHG, and L2-NHG has VTEP2-4 members. Verify on VTEP5 that all of the MAC addresses are installed against L2-NHG for ESI-2.
-3. Startup ES link on VTEP1. Verify on VTEP1 that MAC addresses are now installed against PortChannel interface.
-4. Re-advertise all of the MAC addresses from PortChannel1. Verify that MAC addresses are installed on PortChannel1 on VTEP1 and VTEP4, and against L2-NHG for ESI-1 on rest of the VTEPs.
-5. Wait for the FDB aging timeout and verify that all of the MAC addresses are removed from all of the VTEPs.
-
-### 9.1.10 Convergence tests
-1. Shutdown ESI-2 link on VTEP2 and VTEP3 while traffic is running. Verify traffic loss stops after small loss.
-2. Startup ESI-2 link on VTEP2 and VTEP3 while traffic is running. Verify traffic converges to use VTEP2 and VTEP3 ESI links.
