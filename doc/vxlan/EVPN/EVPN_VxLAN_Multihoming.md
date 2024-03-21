@@ -40,12 +40,10 @@ Rev 0.2
     - [3.4.2 Changes to Existing SAI Objects](#342-changes-to-existing-sai-objects)
     - [3.4.3 SAI Object Usage](#343-sai-object-usage)
   - [3.5 CLI](#35-CLI)
-    - [3.5.1 IS-CLI Compliance](#351-IS-CLI-Compliance)
-    - [3.5.2 Data Models](#352-Data-Models)
-    - [3.5.3 Configuration Commands](#353-Configuration-Commands)
-    - [3.5.4 Show Commands](#354-Show-Commands)
-    - [3.5.5 Debug Commands](#355-Debug-Commands)
-    - [3.5.6 REST API Support](#356-REST-API-Support)
+    - [3.5.1 Configuration Commands](#351-Configuration-Commands)
+    - [3.5.2 Show Commands](#352-Show-Commands)
+    - [3.5.3 Debug Commands](#353-Debug-Commands)
+    - [3.5.4 REST API Support](#354-REST-API-Support)
 - [4 Flow Diagrams](#4-Flow-Diagrams)
 - [5 Error Handling](#5-Error-Handling)
 - [6 Serviceability and Debug](#6-Serviceability-and-Debug)
@@ -60,7 +58,7 @@ Rev 0.2
 | Rev  | Date      | Author                                           | Change Description |
 | ---- | --------- | ------------------------------------------------ | ------------------ |
 | 0.1  | 2/22/2024 | Syed Hasan Naqvi, Rajesh Sankaran, Kishore Kunal, Praveen Elagala | Initial version    |
-| 0.2  | 3/21/2024 | Syed Hasan Naqvi                                 | Addressed review comments, updated SAI section |
+| 0.2  | 3/21/2024 | Syed Hasan Naqvi                                 | Addressed review comments, updated SAI, kernel, and other sections |
 
 # About this Manual
 
@@ -110,7 +108,7 @@ The following are functional requirements for EVPN VxLAN Multihoming:
 	- Static Anycast Gateway
 	- BGP over EVPN Multihomed Ethernet-Segment
 	- ARP/ND suppression
-4. Support for Type-0 (Operator configured), Type-1 (LACP based), and Type-3 (System-MAC config based) Ethernet Segment IDs types.
+4. Support for Type-0 (Operator configured) and Type-3 (System-MAC config based) Ethernet Segment IDs types.
 
 The following are non-goals for the EVPN Multihoming feature:
 
@@ -151,7 +149,6 @@ The devices H1, H4, and H5 are SH devices and connected to Vtep-1, Vtep-4, and V
 
 In order to configure EVPN Multihoming for the LAGs connecting multihomed devices, Type-0, Type-1, or Type-3 ESI is required to be configured on the LAG interfaces:
 *Type-0: Operator configured ESI*
-*Type-1: ESI automatically derived from LACP partner MAC*
 *Type-3: ESI automatically derived from configured LAG system-mac address*
 
 For a given Multihomed Ethernet-Segment, the value of ES-ID should be same on all of the participating VTEPs.
@@ -285,9 +282,6 @@ The L2nhgorch is a submodule within Orchagent responsible for reading L2 ECMP ta
 
 
 ### 1.2.3 SAI Overview
-Following new objects are added:
-- L2 ECMP group for Known MAC. 
-
 New attributes are added to existing objects to associate with the above objects.
 
 
@@ -321,12 +315,6 @@ The Type-0 ESI is an administrator configured 10-byte ESI value. Below is an exa
 ```
 sudo config interface PortChannel1 sys-mac 00:00:00:0a:00:01
 sudo config interface PortChannel1 evpn-esi 00:00:00:00:00:00:00:0a:00:01
-```
-
-The Type-1 ESI is automatically generated using LACP partner MAC address and the PortChannel interface number. Below is an example of configuring Type-1 ESI.
-```
-sudo config interface PortChannel1 sys-mac 00:00:00:0a:00:01
-sudo config interface PortChannel1 evpn-esi auto-lacp
 ```
 
 The Type-3 ESI is generated using System MAC address and the PortChannel interface number. Below is an example of configuring Type-3 ESI.
@@ -401,16 +389,14 @@ In the example output, L2 NHID group 536870913 has two member nexthops - 2684354
 
 
 #### 2.2.4.2 BUM traffic handling
-Linux kernel v5.10 does not have support for split-horizon filtering. Kernel patches will be required in Linux bridge driver to achieve following:
+Linux kernel v5.10 does not have support for split-horizon filtering and designated forwarder.
+Support for Split-horizon filtering and filtering of BUM packets on a non-DF node came in kernel from versions 6.3 - 6.6.
 
-- Each bridge-port in bridge driver will keep up to 4 VTEP addresses.
-- Each bridge-port in bridge driver will have flag to indicate it is DF.
-- SKB ingressing VxLAN netdevices and being flooded to a bridge-port (PortChannel interface), will undergo following checks:
-	+ If source IP address in SKB matches one of the VTEPs on egress bridge-port, the packet will be dropped.
-	+ Otherwise, packet will be forwarded if DF flag is set on the bridge-port.
-
-Note: This section needs to be revisited in purview of below Linux kernel commit:
 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?h=v6.7.5&id=e180a33cf4636721de9c3e694aaad31e77fcdeb1
+
+SONiC is currently at Linux kernel v5.10. Specific kernel and iproute2 patches will be required in SONiC for slow path handling of of split-horizon and DF role.
+
+
 
 #### 2.2.4.3 FDB local and remote activity tracking
 Linux kernel v5.10 has a few enhancements for tracking local activity and remote learning of FDB entries. When the MAC address is learnt locally, as well as the advertisement is received from the EVPN MH peer VTEP, the FDB entry holds extra attributes to identify if the FDB entry has become inactive locally.
@@ -419,6 +405,12 @@ Changes in activity of the FDB entry is notified using netlink extended attribut
 
 Similarly, when installing the mac address received from EVPN MH peer, *NFEA_DONT_REFRESH* attribute is set by the application (FRR) to not reset aging timer (refresh) for the existing FDB entry in the kernel.
 
+#### 2.2.4.4 Bridge port backup nexthop 
+Backup nexthop for Bridge port is a useful feature to avoid traffic loss during local ES link down scenarios.
+
+https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?h=v6.7.5&id=29cfb2aaa4425a608651a05b9b875bc445394443
+
+The above patch was added in kernel v6.6. 
 
 ### 2.2.5 MAC learning, aging, and move handling
 
@@ -463,17 +455,21 @@ The MCLAG configuration will not be allowed if ESI is configured on one or more 
 ### 2.2.8 ARP/ND suppression
 ARP/ND suppression will be supported in EVPN Multihoming scenarios. The VTEP will respond to the ARP/ND requests received on local access ports only for the ARP/ND installed against remote VTEPs. ARP/ND response will not be  generated by the VTEP if ARP/ND is installed on the local Multihomed ES, even though the ARP/ND learning happened on the remote VTEP multihoming a given ES.
 
-### 2.2.9 BGP over EVPN MH
-BGP sessions can be configured between VTEPs and host/client node over multihomed ES. Following are some of the requirements for the correct operation of BGP over MH:
-1. The BGP session should be in a VLAN that the shared ES should be member of on all of the participating VTEPs and host/client.
-2. The VLAN should be configured with a L2VNI on all of the participating VTEPs.
-3. The VLAN should have unique IPv4/IPv6 address(es) on all of the participating VTEPs and the host/client.
-4. The ebgp-multihop with value of at least 2 should be configured on all of the participating VTEPs and the host/client.
-5. MTU of the SVIs on which BGP session is established should be adjusted to account for VxLAN encapsulation overheads. For the default MTU 9100 on SONiC switches, it is recommended to configure MTU 9000 on the corresponding SVIs on all of the participating VTEPs and the host/client.
-
 # 3 Design
 
 ## 3.1 Overview
+
+The diagram below shows the flow of various EVPN MH specific events and messages between the components in SONiC subsystem.
+![image](https://github.com/hasan-brcm/SONiC/assets/56742004/3ae593a7-f3a9-4350-869b-dd7ad76b1ccb)
+
+
+- The below diagram summarizes the BUM traffic handling for a given ES:
+  
+![image](https://github.com/hasan-brcm/SONiC/assets/56742004/eb1eaff2-b991-42b1-b998-ff7aefc5604b)
+
+o EVPN_SPLIT_HORIZON_TABLE specifies the list of VTEPs for a given ES.
+
+o EVPN_DF_TABLE specifies the DF role for a given ES.
 
 
 ## 3.2 DB Changes
@@ -496,7 +492,6 @@ esi        = "AUTO"  or es_id
 type       = esi_type
                 ; esi_type should be string with one of the below values:
                 ; "TYPE_0_OPERATOR_CONFIGURED" for Type-0 ESI
-                ; "TYPE_1_LACP_BASED" for Type-1 ESI
                 ; "TYPE_3_MAC_BASED" for Type-3 ESI
 ifname     = "PortChannel"po_id
                 ; po_id is port-channel identifier. Same value as in the key.
@@ -673,20 +668,19 @@ No Changes
 
 The following components will undergo changes to support EVPN Multihoming:
 
-- TeamMgrd
 - Zebra
 - Fpmsyncd
 - Fdbsyncd
 - Fdborch
 - VxlanOrch
-- LinkTrackOrch
+- TeamMgrd
 
 No impact is anticipated to MCLAG and LAG modules, e.g.
 
 - ICCPd
 - mclagsyncd
 
-### 3.3.1 MCLAG Management-framework transformer
+### 3.3.1 Management-framework transformer
 Configuration handling of MCLAG should now be aware of EVPN Ethernet-Segment configurations and throw appropriate errors in order to achieve mutual-exclusion between EVPN Multihoming and MCLAG features.
 OpenConfig evpn yang is imported into SONiC and ethernet-segment URIs are implemented.
 OpenConfig LACP yang already has system-id-mac configuration and it will be implemented.
@@ -702,15 +696,21 @@ Existing TeamMgr will be extended to perform following activites
 ### 3.3.3 Zebra changes
 Zebra changes are required to send ES membership and DF election information to Fpmsyncd. Existing socket for zebra-Fpmsyncd communication is leveraged. For sending split-horizon and DF information to Fpmsyncd, NEXTHOP update messages will be used. Fpmsyncd will process raw netlink messages instead of using libnl3 APIs for decoding these messages.
 
+Zebra changes will also be required to drive Linux kernel states for following:
+
+- TC filter for split-horizon
+- TC filter for non-DF
+- Backup nexthop for local ES
+
+
 ### 3.3.4 Fpmsyncd changes
-Fpmsyncd changes are required to handle ES membership and DF election information from zebra and write EVPN_SPLIT_HORIZON_TABLE and EVPN_DF_TABLE APP-DB entries.
+Fpmsyncd changes are required to handle ES membership and DF election information from zebra and write EVPN_SPLIT_HORIZON_TABLE, EVPN_DF_TABLE, and EVPN_ES_BACKUP_NHG_TABLE APP-DB entries.
 
 ### 3.3.5 Fdbsyncd changes
 Fdbsyncd changes are required to handle the following:
 1. Handling of L2-NHG netlink notifications and dump from kernel.
 2. Programming of L2_NEXTHOP_GROUP_TABLE APP-DB entries based on kernel L2-NHG events.
 3. Programming of VXLAN_FDB_TABLE APP-DB entries with L2-NHID.
-4. Warm-reboot reconciliation of L2_NEXTHOP_GROUP_TABLE and VXLAN_FDB_TABLE similar to ROUTE_TABLE/NEXTHOP_GROUP_TABLE reconciliation in Fpmsyncd.
 
 ### 3.3.6 Vxlanorch changes
 - Changes required to maintain refcnt to a dip per L2 NHG.
@@ -718,28 +718,16 @@ Fdbsyncd changes are required to handle the following:
 ### 3.3.7 Fdborch changes
 - FdbOrch is enhanced to process EVPN MH remote MAC updates via existing VXLAN_FDB_TABLE.
 - FdbOrch is extended to process new field "ifname" from VXLAN_FDB_TABLE entries.
-- FdbOrch is extended to process new field "type" for possible local/remote from VXLAN_FDB_TABLE entries.
-- FdbOrch is store and update MAC entries per ES associated PortChannel. This is to update the MAC entries when the associated PortChannel interface is going up/down. 
-- FdbOrch is interact with EvpnMhOrch to check if the given PortChanenl is associated with ES or not, fetch the L2-NHID associated with PortChannel, etc.
-- FdbOrch is extended to process FDB entries on local po down and program then pointing to backup nexthop group using EVPN_ES_BACKUP_NHG_TABLE.
-
-Fdborch to process the local po down and up in a similar fashion as for MCLAG. 
+- FdbOrch is extended to maintain MAC entries per ESI enabled interface. This is required to update the MAC entries when the associated ES is going up/down. 
+- FdbOrch is extended to interact with EvpnMhOrch to check if the given PortChanenl is associated with ES or not, fetch the L2-NHID associated with PortChannel, etc.
+- FdbOrch is extended to process FDB entries on local ES down and re-program FDB entries pointing to backup nexthop group using EVPN_ES_BACKUP_NHG_TABLE.
 
 ### 3.3.8 L2nhgorch changes
 - New Orchagent class being introduced.
-- Subscription to different tables
-  - APP DB - L2_NEXTHOP_GROUP, L2_NEXTHOP_GROUP_MEMBER
-  - CONFIG DB - EVPN_ES_INTERFACE.
 - Subscription to L2_NEXTHOP_GROUP
   - Creates/deletes the L2_ECMP_GROUP ASIC DB table. 
   - Interacts with PortsOrch to create a bridge-port object of type L2_ECMP_GROUP.
-- Subscription to L2_NEXTHOP_GROUP_MEMBER
-  - Creates/deletes the L2_ECMP_GROUP_MEMBER ASIC DB tables entries on the L2_NEXTHOP_GROUP APP DB table updates.
   - Interacts with VxlanOrch to update the refcnt per remote VTEP.
-- Subscription to EVPN_ESI CONFIG_DB table 
-  - Informs Fdborch of the ESI to PortChannel mapping.
-  - Maintain a local cache of the mapping.
-- Subscription to LAG oper-status updates from PortsOrch
 - API 
   - L2 NHID to Bridgeport mapping.
 
@@ -913,7 +901,7 @@ typedef enum _sai_bridge_port_attr_t
 **Ethernet-segment config commands**
 ```
 sudo config interface PortChannel1 sys-mac XX:XX:XX:XX:XX:XX
-sudo config interface PortChannel1 evpn-esi {XX:XX:XX:XX:XX:XX:XX:XX:XX:XX | auto-lacp | auto-system-mac}
+sudo config interface PortChannel1 evpn-esi {XX:XX:XX:XX:XX:XX:XX:XX:XX:XX | auto-system-mac}
 sudo config interface PortChannel1 evpn-df-pref (1-65535)
 ```
 
@@ -1093,8 +1081,6 @@ EVPN MH:
   mac-holdtime: 1080s, neigh-holdtime: 1080s
   startup-delay: 180s, start-delay-timer: --:--:--
   uplink-cfg-cnt: 0, uplink-active-cnt: 0
-IPv4 Neigh Kernel threshold: 48000
-IPv6 Neigh Kernel threshold: 48000
 Total IPv4 neighbors: 2
 Total IPv6 neighbors: 3
 ```
@@ -1203,7 +1189,7 @@ BLUE            10.10.10.2      44:38:39:22:01:af 2          10.1.30.0/24
 ```
 
 
-### 3.5.5 Debug Commands
+### 3.5.3 Debug Commands
 
 Following FRR debug commands are available for EVPN VxLAN and Mulithoming debugging:
 
@@ -1227,7 +1213,7 @@ sonic(config)# debug zebra fpm
 
 ```
 
-### 3.5.6 REST API Support
+### 3.5.4 REST API Support
 
 ** Ethernet-segment configuration **
 ```
@@ -1259,7 +1245,16 @@ Existing serviceability and debug applicable to this feature. No new debugging c
 
 
 # 7 Warm Boot Support
-Warm reboot for EVPN Multihoming feature will be supported on the platforms that support warm-boot. All of the newly added components and functionalities support warm-reboot processing.
+Warm reboot is not part of this design due to below dependencies at present:
 
+- FRR currently does not support BGP GR for EVPN address-family
+- NHID (L3) WB reconciliation currently does not exist
+
+Once above dependencies are resolved, WB reconcilation of below objects will be required:
+
+- L2 Nexthop groups
+  Since there is no ESI-to-NHID mapping in the Linux kernel, the ESI-to-NHID mapping is required to be passed to fpmsyncd, preserved in APPL_DB, and passed back to zebra for the reconciliation.
+- Split Horizon and Designated Forwarder data
+  Fpmsyncd can indepedently reconcile these similar to ROUTE_TABLE reconciliation.
 
 
