@@ -437,8 +437,8 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | | | local_ha_state | The state of the HA state machine. This is the state in NPU hamgrd. |
-| | | local_ha_state_last_update_time_in_ms | The time when local target HA state is set. |
-| | | local_ha_state_last_update_reason | The reason of the last HA state change. |
+| | | local_ha_state_last_updated_time_in_ms | The time when local target HA state is set. |
+| | | local_ha_state_last_updated_reason | The reason of the last HA state change. |
 | | | local_target_asic_ha_state | The target HA state in ASIC. This is the state that hamgrd generates and asking DPU to move to. |
 | | | local_acked_asic_ha_state | The HA state that ASIC acked. |
 | | | local_target_term | The current target term of the HA state machine. |
@@ -530,7 +530,7 @@ DPU state table stores the health states of each DPU. These data are collected b
 | --- | --- | --- | --- |
 | DASH_HA_SET_STATE | | | State of each HA set. |
 | | \<HA_SET_ID\> | | HA set ID |
-| | | last_update_time | The last update time of this state in milliseconds. |
+| | | last_updated_time | The last update time of this state in milliseconds. |
 | | | dp_channel_is_alive | Data plane channel is alive or not. |
 
 ##### 2.3.3.2. HA scope state
@@ -543,7 +543,7 @@ DPU state table stores the health states of each DPU. These data are collected b
 | --- | --- | --- | --- |
 | DASH_HA_SCOPE_STATE | | | State of each HA scope. |
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set ID or ENI ID, depending on the which HA mode is used. |
-| | | last_update_time | The last update time of this state in milliseconds. |
+| | | last_updated_time | The last update time of this state in milliseconds. |
 | | | ha_role | The current HA role confirmed by ASIC. Please refer to the HA states defined in HA HLD. |
 | | | ha_role_start_time | The time when HA role is moved into current one in milliseconds. |
 | | | ha_term | The current term confirmed by ASIC. |
