@@ -123,7 +123,7 @@ Here is the how the probe works in details (with the DPU0 as preferred DPU):
 For more details on NPU-to-DPU probes,
 
 - The data path and packet format of the BFD probe will be the same as the one defined in the main HA design doc. Please refer to the [Card level NPU-to-DPU liveness probe design](./smart-switch-ha-hld.md#61-card-level-npu-to-dpu-liveness-probe).
-- For the detailed design of BFD probe in SmartSwitch, please refer to SmartSwitch BFD detailed design doc.
+- For the detailed design of BFD probe in SmartSwitch, please refer to [SmartSwitch BFD detailed design doc](https://github.com/sonic-net/SONiC/pull/1635).
 
 ### 6.2. DPU-to-DPU liveness probe
 

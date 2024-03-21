@@ -38,7 +38,7 @@
          2. [2.3.3.2. HA scope state](#2332-ha-scope-state)
          3. [2.3.3.3. Flow sync session states](#2333-flow-sync-session-states)
 3. [3. Telemetry](#3-telemetry)
-   1. [3.1. HA state](#31-ha-state)
+   1. [3.1. HA state and related health signals](#31-ha-state-and-related-health-signals)
    2. [3.2. HA operation counters](#32-ha-operation-counters)
       1. [3.2.1. hamgrd HA operation counters](#321-hamgrd-ha-operation-counters)
       2. [3.2.2. HA SAI API counters](#322-ha-sai-api-counters)
@@ -571,11 +571,11 @@ The telemetry will cover both state and counters, which can be mapped into `DPU_
 
 We will focus on only the HA counters below, which will not include basic counters, such as ENI creation/removal or generic DPU health/critical event counters, even though some of them works closely with HA workflows.
 
-### 3.1. HA state
+### 3.1. HA state and related health signals
 
-First of all, we need to store the HA states for us to check.
+To help simplify checking the HA states, `hamgrd` will aggregate the HA states and related health signals and store them in the HA scope state table.
 
-Please refer to the [ENI state](#2141-eni-state) table in NPU DB for detailed DB schema design.
+Please refer to the [HA scope state](#2211-ha-scope-state) table in NPU DB for detailed DB schema design.
 
 ### 3.2. HA operation counters
 
