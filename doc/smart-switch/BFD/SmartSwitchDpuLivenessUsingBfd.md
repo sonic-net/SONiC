@@ -23,6 +23,7 @@
 | 0.1 |  03/01/2024 |     Kumaresh Perumal  | Initial version                  |
 | 0.2 |  03/12/2024 | Kumaresh Perumal | Update review comments                |
 | 0.3 | 03/13/2024 | Kumaresh Perumal | Update BFD table in STATE_DB           |
+| 0.4| 03/20/2024 | Kumaresh Perumal | Update ACL usage |
 
 # About this Manual
 This document provides general information about the NPU-DPU liveness detection using BFD probes between NPU and DPU.
@@ -164,8 +165,9 @@ When HA manager receives HA config update, it will create VNET Route tunnel tabl
 
 ## 2.6 NPU-DPU midplane state change and BFD session update
 
-When NPU-DPU midplane interface goes down due to some trigger or platform changes, PMON module updates the midplane NetDev interface state in DPU_STATE DB. HA manager listens to NetDev interface state in DPU_STATE DB and updates the NPU-DPU dataplane interface corresponding to that DPU. This will bring down the local and remote BFD sessions between NPU and DPU. 
-Note: This is out of scope of this document, Smartswitch HA HLD will have more details as HA manager listens to all FSM changes from the controller.
+When NPU-DPU midplane interface goes down due to some trigger or platform changes, PMON module updates the midplane NetDev interface state in DPU_STATE DB and trigger a notification for link state change. HA manager listens to these updates and bring down the BFD by applying ACL or updating NPU->DPU links. This will bring down the local and remote BFD sessions between NPU and DPU. ACL can be attached to NPU-DPU interconnect interface to drop BFD packets from DPU.
+
+Note: This is out of scope of this document, Smartswitch HA HLD will have more details as HA manager listens to all FSM changes from the controller and PMON changes.
 
 
 ## 2.7 VNET Route and BFD session updates
