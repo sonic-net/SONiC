@@ -21,17 +21,22 @@
          1. [2.1.3.1. DASH object tables](#2131-dash-object-tables)
    2. [2.2. External facing state tables](#22-external-facing-state-tables)
       1. [2.2.1. STATE\_DB (per-NPU)](#221-state_db-per-npu)
-         1. [2.2.1.1. ENI state](#2211-eni-state)
+         1. [2.2.1.1. HA scope state](#2211-ha-scope-state)
+            1. [2.2.1.1.1. Table key](#22111-table-key)
+            2. [2.2.1.1.1. Basic information](#22111-basic-information)
+            3. [2.2.1.1.2. HA related states](#22112-ha-related-states)
+            4. [2.2.1.1.3. Aggregated health signals for this HA scope](#22113-aggregated-health-signals-for-this-ha-scope)
+            5. [2.2.1.1.4. Ongoing HA operation state](#22114-ongoing-ha-operation-state)
    3. [2.3. Tables used by HA internally](#23-tables-used-by-ha-internally)
       1. [2.3.1. DPU\_APPL\_DB (per-DPU)](#231-dpu_appl_db-per-dpu)
          1. [2.3.1.1. HA set configurations](#2311-ha-set-configurations)
+         2. [2.3.1.2. Flow sync sessions](#2312-flow-sync-sessions)
       2. [2.3.2. CHASSIS\_STATE\_DB (per-NPU)](#232-chassis_state_db-per-npu)
          1. [2.3.2.1. DPU / vDPU state](#2321-dpu--vdpu-state)
       3. [2.3.3. DPU\_STATE\_DB (per-DPU)](#233-dpu_state_db-per-dpu)
          1. [2.3.3.1. HA set state](#2331-ha-set-state)
          2. [2.3.3.2. HA scope state](#2332-ha-scope-state)
-         3. [2.3.3.3. HA flow table state?](#2333-ha-flow-table-state)
-         4. [2.3.3.4. DASH object tables](#2334-dash-object-tables)
+         3. [2.3.3.3. Flow sync session states](#2333-flow-sync-session-states)
 3. [3. Telemetry](#3-telemetry)
    1. [3.1. HA state](#31-ha-state)
    2. [3.2. HA operation counters](#32-ha-operation-counters)
@@ -81,9 +86,11 @@ flowchart LR
       NPU_SYNCD[syncd]
 
       subgraph CONFIG DB
-         NPU_DPU[DPU]
-         NPU_VDPU[VDPU]
-         NPU_DASH_HA_GLOBAL_CONFIG[DASH_HA_GLOBAL_CONFIG]
+         subgraph All NPUs
+            NPU_DPU[DPU]
+            NPU_VDPU[VDPU]
+            NPU_DASH_HA_GLOBAL_CONFIG[DASH_HA_GLOBAL_CONFIG]
+         end
       end
 
       subgraph APPL DB
@@ -95,9 +102,14 @@ flowchart LR
          NPU_ACL_TABLE[ACL_TABLE_TABLE]
          NPU_ACL_RULE[ACL_RULE_TABLE]
 
-         NPU_DASH_HA_SET_CONFIG[DASH_HA_SET_CONFIG_TABLE]
-         NPU_DASH_HA_SCOPE_CONFIG[DASH_HA_SCOPE_CONFIG_TABLE]
-         NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
+         subgraph All NPUs
+            NPU_DASH_HA_SET_CONFIG[DASH_HA_SET_CONFIG_TABLE]
+            NPU_DASH_ENI_PLACEMENT[DASH_ENI_PLACEMENT_TABLE]
+         end
+
+         subgraph Owning NPU
+            NPU_DASH_HA_SCOPE_CONFIG[DASH_HA_SCOPE_CONFIG_TABLE]
+         end
       end
    end
 
@@ -106,10 +118,11 @@ flowchart LR
       DPU_SYNCD[syncd]
 
       subgraph DPU APPL DB
-
          DPU_DASH_ENI[DASH_ENI_TABLE]
          DPU_DASH_HA_SET[DASH_HA_SET_TABLE]
          DPU_DASH_HA_SCOPE_TABLE[DASH_HA_SCOPE_TABLE]
+         DPU_DASH_FLOW_SYNC_SESSION_TABLE[DASH_FLOW_SYNC_SESSION_TABLE]
+         DPU_BFD_SESSION_TABLE[BFD_SESSION_TABLE]
       end
    end
 
@@ -157,11 +170,15 @@ flowchart LR
    %% hamgrd --> DPU tables:
    NPU_HAMGRD --> |zmq| DPU_DASH_HA_SET
    NPU_HAMGRD --> |zmq| DPU_DASH_HA_SCOPE_TABLE
+   NPU_HAMGRD --> |zmq| DPU_DASH_FLOW_SYNC_SESSION_TABLE
+   NPU_HAMGRD --> |zmq| DPU_BFD_SESSION_TABLE
 
    %% DPU tables --> DPU SWSS:
    DPU_DASH_ENI --> |zmq| DPU_SWSS
    DPU_DASH_HA_SET --> |zmq| DPU_SWSS
    DPU_DASH_HA_SCOPE_TABLE --> |zmq| DPU_SWSS
+   DPU_DASH_FLOW_SYNC_SESSION_TABLE --> |zmq| DPU_SWSS
+   DPU_BFD_SESSION_TABLE --> |zmq| DPU_SWSS
 
    %% DPU SWSS -> DPU syncd
    DPU_SWSS --> DPU_SYNCD
@@ -202,10 +219,7 @@ flowchart LR
       end
 
       subgraph DASH STATE DB
-         NPU_DASH_DPU_HA_STATE[DASH_DPU_HA_STATE]
-         NPU_DASH_VDPU_HA_STATE[DASH_VDPU_HA_STATE]
-         NPU_DASH_ENI_HA_STATE[DASH_ENI_HA_STATE]
-         NPU_DASH_ENI_DP_STATE[DASH_ENI_DP_STATE]
+         NPU_DASH_HA_SCOPE_STATE[DASH_HA_SCOPE_STATE]
       end
    end
 
@@ -216,6 +230,7 @@ flowchart LR
       subgraph DASH STATE DB
          DPU_DASH_HA_SET_STATE[DASH_HA_SET_STATE]
          DPU_DASH_HA_SCOPE_STATE[DASH_HA_SCOPE_STATE]
+         DPU_DASH_FLOW_SYNC_SESSION_STATE[DASH_FLOW_SYNC_SESSION_STATE]
       end
 
       subgraph DASH COUNTER DB
@@ -245,15 +260,13 @@ flowchart LR
    %% DPU tables --> hamgrd:
    DPU_DASH_HA_SET_STATE --> |zmq| NPU_HAMGRD
    DPU_DASH_HA_SCOPE_STATE --> |zmq| NPU_HAMGRD
+   DPU_DASH_FLOW_SYNC_SESSION_STATE --> |zmq| NPU_HAMGRD
    DPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
 
    %% hamgrd --> NPU tables:
    NPU_HAMGRD --> |zmq| NPU_DASH_ENI_TUNNEL_TABLE
    NPU_HAMGRD --> |ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
-   NPU_HAMGRD --> NPU_DASH_DPU_HA_STATE
-   NPU_HAMGRD --> NPU_DASH_VDPU_HA_STATE
-   NPU_HAMGRD --> NPU_DASH_ENI_HA_STATE
-   NPU_HAMGRD --> NPU_DASH_ENI_DP_STATE
+   NPU_HAMGRD --> NPU_DASH_HA_SCOPE_STATE
 
    %% hamgrd --> DPU tables:
 
@@ -263,13 +276,11 @@ flowchart LR
    %% DPU swss --> DPU tables:
    DPU_SWSS --> |zmq| DPU_DASH_HA_SET_STATE
    DPU_SWSS --> |zmq| DPU_DASH_HA_SCOPE_STATE
+   DPU_SWSS --> |zmq| DPU_DASH_FLOW_SYNC_SESSION_STATE
    DPU_SWSS --> DPU_DASH_COUNTERS
 
    %% NPU state tables --> Upstream service:
-   NPU_DASH_DPU_HA_STATE --> |gNMI| SC
-   NPU_DASH_VDPU_HA_STATE --> |gNMI| SC
-   NPU_DASH_ENI_HA_STATE --> |gNMI| SC
-   NPU_DASH_ENI_DP_STATE --> |gNMI| SC
+   NPU_DASH_HA_SCOPE_STATE --> |gNMI| SC
 ```
 
 ## 2. Database Schema
@@ -316,9 +327,10 @@ The following tables will be programmed either by SDN controller or by the netwo
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | DASH_HA_GLOBAL_CONFIG | N/A | | HA global configurations. |
-| | | dp_channel_dst_port | The destination port used when tunneling packetse via DPU-to-DPU data plane channel. |
-| | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
-| | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
+| | | cp_data_channel_port | The port of control plane data channel, used for bulk sync. |
+| | | dp_channel_dst_port | The destination port used when tunneling packets via DPU-to-DPU data plane channel. |
+| | | dp_channel_src_port_min | The min source port used when tunneling packets via DPU-to-DPU data plane channel. |
+| | | dp_channel_src_port_max | The max source port used when tunneling packets via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
 | | | dp_channel_probe_fail_threshold | The number of probe failure needed to consider data plane channel is dead. |
 | | | dpu_bfd_probe_interval_in_ms | The interval of DPU BFD probe in milliseconds. |
@@ -343,7 +355,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | | scope | HA scope. It can be `dpu`, `eni`. |
 | | | vdpu_ids | The ID of the vDPUs. |
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), `up` or `down`. |
-| | | desired_vdpu_state | (scope = `dpu` only)<br><br>The desired state for each vDPU. It can only be "" (none), `dead`, `active`. In active-standby setup, there can only be 1 active, others will be set to standby. |
+| | | preferred_vdpu_id | When preferred vDPU ID is set, the traffic will be forwarded to this vDPU when both BFD probes are up. |
 | | | preferred_standalone_vdpu_index | (scope = `eni` only)<br><br>Preferred vDPU index to be standalone when entering into standalone setup. |
 
 ##### 2.1.2.2. ENI placement table (scope = `eni` only)
@@ -364,7 +376,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 
 ##### 2.1.2.3. HA scope configurations (owner = `switch` only)
 
-* The HA scope configuration table is programmed by SDN controller and contains the HA config for each HA scope that only lands on this specific switch.
+* The HA scope configuration table is programmed by SDN controller and contains the HA config for each HA scope (DPU or ENI) that only lands on this specific switch.
 * When HA scope is set to `dpu` in HA set, SmartSwitch HA will use the HA set id as the HA scope id, otherwise, HA scope id will be the ENI id.
 
 | Table | Key | Field | Description |
@@ -381,43 +393,49 @@ The following tables will be programmed either by SDN controller or by the netwo
 ##### 2.1.3.1. DASH object tables
 
 * The DASH objects will only be programmed on the DPU that is hosting the ENIs.
-* In DASH, we don't have a DPU-level HA control table, because
-  * The DPU-level control will be translated into ENI level control and use the same set of SAI APIs.
-  * The passthru mode only needs the DPU state table, since we don't drive the HA state machine using the HA control plane. For simple actions such as shutdown, we can use the admin state directly in passthru mode.
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | DASH_ENI_TABLE | | | HA configuration for each ENI. |
 | | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
 | | | admin_state | Admin state of each DASH ENI. To support control from HA, `STATE_HA_ENABLED` is added. |
-| | | ha_scope_id | HA scope id. |
+| | | ha_scope_id | HA scope id. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 | | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
-| DASH_ENI_HA_CONTROL_TABLE | | | ENI HA control table. |
-| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | ha_role | HA role. It can be `dead`, `active`, `standby`, `standalone`, `switching_to_active` |
-| | | bulk_sync_session_id | Bulk sync session id. |
-| | | peer_bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
 
 ### 2.2. External facing state tables
 
 #### 2.2.1. STATE_DB (per-NPU)
 
-##### 2.2.1.1. ENI state
+##### 2.2.1.1. HA scope state
 
-On NPU side, the ENI state table shows:
+To show the current state of HA, the states will be aggregated by `hamgrd` and store in the HA scope table as below.
 
-* The HA state of each local ENI.
-* The traffic forwarding state of all known ENIs.
+> Because this state table is relatively large, the fields are splited into a few sections below.
+
+###### 2.2.1.1.1. Table key
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_HA_STATE | | | Data plane state of each ENI that is hosted on local switch. |
+| DASH_HA_SCOPE_STATE | | | The state of each HA scope (vDPU or ENI) that is hosted on local switch. |
 | | \<VDPU_ID\> | | VDPU ID. Used to identifying a single VDPU. |
-| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | creation_time_in_ms | ENI creation time in milliseconds. |
-| | | last_heartbeat_time_in_ms | ENI last heartbeat time in milliseconds. Heartbeat time happens once per minute and will not change the last state updated time. |
-| | | last_state_updated_time_in_ms | ENI state last updated time in milliseconds. |
-| | | data_path_vip | Data path VIP of the ENI. |
+| | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
+
+###### 2.2.1.1.1. Basic information
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| | | creation_time_in_ms | HA scope creation time in milliseconds. |
+| | | last_updated_time_in_ms | Last updated time in milliseconds. |
+| | | last_heartbeat_time_in_ms | Last heartbeat time in milliseconds. This is used for leak detection. Heartbeat time happens once per minute and will not change the last state updated time. |
+| | | vip_v4 | Data path VIP of the DPU or ENI. |
+| | | vip_v6 | Data path VIP of the DPU or ENI. |
+| | | local_ip | The IP of local DPU. |
+| | | peer_ip | The IP of peer DPU. |
+
+###### 2.2.1.1.2. HA related states
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
 | | | local_ha_state | The state of the HA state machine. This is the state in NPU hamgrd. |
 | | | local_ha_state_last_update_time_in_ms | The time when local target HA state is set. |
 | | | local_ha_state_last_update_reason | The reason of the last HA state change. |
@@ -425,29 +443,30 @@ On NPU side, the ENI state table shows:
 | | | local_acked_asic_ha_state | The HA state that ASIC acked. |
 | | | local_target_term | The current target term of the HA state machine. |
 | | | local_acked_term | The current term that acked by ASIC. |
-| | | local_raw_ha_state | The raw HA state from the ASIC. |
-| | | local_raw_ha_error | The raw error code about HA from the ASIC. |
-| | | local_bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
-| | | peer_ip | The IP of peer DPU. |
 | | | peer_ha_state | The state of the HA state machine in peer DPU. |
-| | | peer_raw_ha_state | The raw HA state from the ASIC. |
-| | | peer_raw_ha_error | The raw error code about HA from the ASIC. |
 | | | peer_term | The current term in peer DPU. |
-| | | peer_bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
+
+###### 2.2.1.1.3. Aggregated health signals for this HA scope
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| | | local_vdpu_midplane_state | The state of local vDPU midplane. The value can be "unknown", "up", "down". |
+| | | local_vdpu_control_plane_state | The state of local vDPU control plane, which includes DPU OS and certain required firmware. The value can be "unknown", "up", "down". |
+| | | local_vdpu_data_plane_state | The state of local vDPU data plane, which includes DPU hardware / ASIC and certain required firmware. The value can be "unknown", "up", "down". |
+
+###### 2.2.1.1.4. Ongoing HA operation state
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
 | | | ha_operation_type | HA operation type, e.g., "switchover". |
 | | | ha_operation_id | HA operation ID (GUID). |
-| | | ha_operation_state | HA operation state. It can be "created", "pendingapproval", "approved", "inprogress" |
+| | | ha_operation_state | HA operation state. It can be "created", "pendingapproval", "approved", "inprogress", "completed" |
 | | | ha_operation_start_time_in_ms | The time when operation is created. |
-| | | ha_operation_state_last_update_time_in_ms | The time when operation state is updated last time. |
-| | | bulk_sync_start_time_in_ms | Bulk sync start time in milliseconds. |
-| DASH_ENI_DP_STATE | | | Data plane state of all known ENI. |
-| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | ha_set_mode | HA set mode. See [HA set configurations](#2121-ha-set-configurations) for more details. |
-| | | next_hops | All possible next hops for this ENI. |
-| | | next_hops_types | Type of each next hops, connected by ",". |
-| | | next_hops_card_level_probe_states | Card level probe state for each next hop, connected by ",". It can be "unknown", "up", "down". |
-| | | next_hops_active_states | Is next hop set as active the ENI HA state machine. It can be "unknown", "true", "false". |
-| | | next_hops_final_state | Final state for each next hops, connected by ",". It can be "up", "down". |
+| | | ha_operation_state_last_updated_time_in_ms | The time when operation state is updated last time. |
+| | | flow_sync_session_id | Flow sync session ID. |
+| | | flow_sync_session_state | Flow sync session state. It can be "created", "inprogress", "completed" |
+| | | flow_sync_session_start_time_in_ms | Flow sync start time in milliseconds. |
+| | | flow_sync_session_target_server | The IP endpoint of the server that flow records are sent to. |
 
 ### 2.3. Tables used by HA internally
 
@@ -469,11 +488,22 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | local_npu_ip | The IP address of local NPU. It can be IPv4 or IPv6. Used for setting up the BFD session. |
 | | | local_ip | The IP address of local DPU. It can be IPv4 or IPv6. |
 | | | peer_ip | The IP address of peer DPU. It can be IPv4 or IPv6. |
+| | | cp_data_channel_port | The port of control plane data channel, used for bulk sync. |
 | | | dp_channel_dst_port | The destination port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_min | The min source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_max | The max source port used when tunneling packetse via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
 | | | dp_channel_probe_fail_threshold | The number of probe failure needed to consider data plane channel is dead. |
+
+##### 2.3.1.2. Flow sync sessions
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_FLOW_SYNC_SESSION_TABLE | | |  |
+| | \<SESSION_ID\> | | Flow sync session id. |
+| | | ha_set_id | HA set id. |
+| | | target_server_ip | The IP of the server that used to receive flow records. |
+| | | target_server_port | The port of the server that used to receive flow records. |
 
 #### 2.3.2. CHASSIS_STATE_DB (per-NPU)
 
@@ -520,27 +550,15 @@ DPU state table stores the health states of each DPU. These data are collected b
 | | | raw_ha_state | The raw HA state from the ASIC. |
 | | | raw_ha_error | The raw error code about HA from the ASIC. |
 
-##### 2.3.3.3. HA flow table state?
-
-> TODO:
-> | | | bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
-> | | | ongoing_bulk_sync_session_id | Ongoing bulk sync session id. |
-> | | | ongoing_bulk_sync_session_start_time_in_ms | Ongoing bulk sync session start time in milliseconds. |
-
-##### 2.3.3.4. DASH object tables
-
-* The DASH objects will only be programmed on the DPU that is hosting the ENIs.
-* In DASH, we don't have a DPU-level HA control table, because
-  * The DPU-level control will be translated into ENI level control and use the same set of SAI APIs.
-  * The passthru mode only needs the DPU state table, since we don't drive the HA state machine using the HA control plane. For simple actions such as shutdown, we can use the admin state directly in passthru mode.
+##### 2.3.3.3. Flow sync session states
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_ENI_HA_CONTROL_TABLE | | | ENI HA control table. |
-| | \<ENI_ID\> | | ENI ID. Used to identifying a single ENI. |
-| | | ha_role | HA role. It can be `dead`, `active`, `standby`, `standalone`, `switching_to_active` |
-| | | bulk_sync_session_id | Bulk sync session id. |
-| | | peer_bulk_sync_recv_server_endpoints | The IP endpoints that used to receive flow records during bulk sync, connected by ",". |
+| DASH_FLOW_SYNC_SESSION_STATE | | |  |
+| | \<SESSION_ID\> | | Flow sync session id. |
+| | | state | Flow sync session state. It can be "created", "inprogress", "completed", "failed". |
+| | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
+| | | last_state_start_time_in_ms | Flow sync session last state start time in milliseconds. |
 
 ## 3. Telemetry
 
