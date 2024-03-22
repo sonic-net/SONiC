@@ -147,7 +147,7 @@ The diagram below shows a typical EVPN Multihoming network with Multihomed (MH) 
 
 The devices H1, H4, and H5 are SH devices and connected to Vtep-1, Vtep-4, and Vtep-5 respectively. The devices H2 & H3 are multihomed and connected to to EVPN VxLAN network with active-active redundancy using LAG. Device H2 is multihomed to Vtep-1 and Vtep-4. Whereas device H3 is multihomed to Vtep-1, Vtep-2, Vtep-3, and Vtep-4.
 
-In order to configure EVPN Multihoming for the LAGs connecting multihomed devices, Type-0, Type-1, or Type-3 ESI is required to be configured on the LAG interfaces:
+In order to configure EVPN Multihoming for the LAGs connecting multihomed devices, Type-0 or Type-3 ESI is required to be configured on the LAG interfaces:
 *Type-0: Operator configured ESI*
 *Type-3: ESI automatically derived from configured LAG system-mac address*
 
@@ -156,18 +156,18 @@ For a given Multihomed Ethernet-Segment, the value of ES-ID should be same on al
 For simplicity, assume Type-3 ESI is configured on the PortChannel interfaces shown in the above diagram. The Vtep-1 and Vtep-4 LAG configuration will look like this:
 
 ```
-sudo config interface PortChannel1 sys-mac 00:00:00:00:11:11
-sudo config interface PortChannel1 evpn-esi auto-system-mac
+sudo config interface sys-mac PortChannel1 00:00:00:00:11:11
+sudo config interface evpn-esi PortChannel1 auto-system-mac
 
-sudo config interface PortChannel2 system-mac 00:00:00:00:22:22
-sudo config interface PortChannel2 evpn-esi auto-system-mac
+sudo config interface sys-mac PortChannel2 00:00:00:00:22:22
+sudo config interface evpn-esi PortChannel2 auto-system-mac
 ```
 
 
 Whereas, on Vtep-2 and Vtep-3 only PortChannel2 config is required since only PortChannel2 is multihomed to these VTEPs.
 ```
-sudo config interface PortChannel2 system-mac 00:00:00:00:22:22
-sudo config interface PortChannel2 evpn-esi auto-system-mac
+sudo config interface sys-mac PortChannel2 00:00:00:00:22:22
+sudo config interface evpn-esi PortChannel2 auto-system-mac
 ```
 The Type-3 ESI value will be derived by combining the configured system-mac address on the PortChannel interface, and the PortChannel number. The system-mac is required to be same on all of the VTEPs multihoming a given LAG.
 
@@ -206,7 +206,8 @@ Each VTEP advertises EVPN Type-1 (AD-per-ES) route to advertise its association 
 
 The L2 NHG serves two purposes. First, it allows load-balancing of L2 unicast flows among the participating VTEPs multihoming the ES. Second, it helps in faster-convergence of traffic in case of ES failure on one of the participating VTEPs.
 
-![](images/evpn_mh_unicast_forwarding.PNG)
+![image](https://github.com/hasan-brcm/SONiC/assets/56742004/4bd442a9-5275-4fb1-8ccf-a46083c57bf9)
+
 
 In the diagram above, H2 host mac address H2-MAC is advertised by Vtep-1 and/or Vtep-4 in a EVPN Type-2 route that also carries Ethernet-Segment identifier (ES-ID) of PortChannel1. On Vtep-5, the H2-MAC processing undergoes special handling since the Type-2 route has ES-ID. And H2-MAC is installed against L2 NHG corresponding to the ES-ID. Even if Type-2 route for H2-MAC is received only from either Vtep-1 or Vtep-4, the traffic towards H2 will still be load-balanced between Vtep-1 and Vtep-4. Later, if PortChannel1 interface goes down, on say Vtep-1, Vtep-1 will withdraw the Type-1 (AD-per-ES) route and this will result in Vtep-5 updating L2 NHG for the ES-ID. This re-balance of traffic will not wait for the individual MAC route updates to arrived and get processed. This update of L2 NHG on Multihomed ES link failures is referred as "Fast Convergence" in RFC 7432.
 
@@ -239,7 +240,7 @@ As part of the PortChannel interface going operationally down, FdbOrch to get no
 As part of the PortChannel interface going operationally up, new support will be added in the Orchagent to move the MAC from L2 NHID to the corresponding PortChannel which is associated with the ES. MAC addresses are programmed with aging disabled. 
 
 ##### 1.2.1.3.7  Configure PortChannel as ES member
-**Remote MAC Handling:** When a PortChannel interface is configured with an ESI, FRR to update all of the MAC addresses associated with the ES in the VXLAN_FDB_TABLE with the "ifname" of corresponding PortChannel interface. FdbOrch will be extended to reprogram the MAC addresses pointing to the PortChannel interface.
+**Remote MAC Handling:** When a PortChannel interface is configured with an ESI, FRR/Fdbsyncd to update all of the MAC addresses associated with the ES in the VXLAN_FDB_TABLE with the "ifname" of corresponding PortChannel interface. FdbOrch will be extended to reprogram the MAC addresses pointing to the PortChannel interface.
 
 **Local MAC handling:** No changes to existing Local MAC addresses as part of PortChannel being configured with ESI. 
 
@@ -309,18 +310,18 @@ As described in Sec. 1.2.1.4 (Proxy advertisement of Type-2 routes,) the MAC/Nei
 Please note that MCLAG and EVPN MH global configurations are mutually exclusive. If MCLAG is configured, above configuration will not be successful. Similarly, if EVPN MH global configuration is present, MCLAG configuration will not be allowed.
 
 ### 2.2.1.2 EVPN Multihoming Ethernet Segment configuration
-EVPN Ethernet-segment configurations for Type-0, Type-1, and Type-3 ES-ID types (please refer to RFC 7432) are supported.
+EVPN Ethernet-segment configurations for Type-0 and Type-3 ES-ID types (please refer to RFC 7432) are supported.
 
 The Type-0 ESI is an administrator configured 10-byte ESI value. Below is an example of configuring Type-0 ESI.
 ```
-sudo config interface PortChannel1 sys-mac 00:00:00:0a:00:01
-sudo config interface PortChannel1 evpn-esi 00:00:00:00:00:00:00:0a:00:01
+sudo config interface sys-mac PortChannel1 00:00:00:0a:00:01
+sudo config interface evpn-esi PortChannel1 00:00:00:00:00:00:00:0a:00:01
 ```
 
 The Type-3 ESI is generated using System MAC address and the PortChannel interface number. Below is an example of configuring Type-3 ESI.
 ```
-sudo config interface PortChannel1 sys-mac 00:00:00:0a:00:01
-sudo config interface PortChannel1 evpn-esi auto-system-mac
+sudo config interface sys-mac PortChannel1 00:00:00:0a:00:01
+sudo config interface evpn-esi PortChannel1 auto-system-mac
 ```
 The 10-byte ESI will be generated by concatenating 6-byte System MAC, 3-byte PortChannel number (i.e. 1 for PortChannel1,) and 1-byte Type=0x03.
 
@@ -420,12 +421,12 @@ The below steps explain the MAC learning and ageing scenario in the EVPN MH netw
 	- (b) Fdbsyncd installs MAC address into the kernel with state=NUD_REACHABLE, dev=PortChannel1.
 	- (c) FRR advertises MAC in Type-2 update with Proxy = 0.
 2. Type-2 update is received on Vtep-4:
-	- (a) FRR installs MAC in kernel with dev=PortChannel1 and state=NUD_NOARP.
+	- (a) FRR installs MAC in kernel with dev=PortChannel1 and state=NUD_NOARP(static).
 	- (b) Fdbsyncd listens to the above update from kernel and installs VXLAN_FDB_TABLE with type=dynamic, ifname=PortChannel1.
 	- (c) Fdborch installs the MAC in HW as static with SAI_FDB_ENTRY_ATTR_ALLOW_MAC_MOVE flag to avoid ageing and allow move.
 	- (d) FRR advertises Type-2 route with Proxy=1.
 3. Type-2 proxy update is received on Vtep-1:
-    - (a) Type-2 update from Vtep-4 is processed and FRR converts the FDB entry in kernel from NUD_REACHABLE to NUD_NOARP with NFEA_ACTIVITY_NOTIFY set.
+    - (a) Type-2 update from Vtep-4 is processed and FRR converts the FDB entry in kernel from NUD_REACHABLE to NUD_NOARP(static) with NFEA_ACTIVITY_NOTIFY set.
     - (b) Fdbsyncd receives the state change event from kernel and populates VXLAN_FDB_TABLE with ifname=PortChannel1, type=dynamic.
     - (c) Fdborch observes that STATE_FDB_TABLE entry is already present. It updates the bitmap in the FDB cache as Local + Remote. And entry in the HW is not updated and remains as dynamic.
 4. MAC ages out on Vtep-1:
@@ -900,9 +901,9 @@ typedef enum _sai_bridge_port_attr_t
 
 **Ethernet-segment config commands**
 ```
-sudo config interface PortChannel1 sys-mac XX:XX:XX:XX:XX:XX
-sudo config interface PortChannel1 evpn-esi {XX:XX:XX:XX:XX:XX:XX:XX:XX:XX | auto-system-mac}
-sudo config interface PortChannel1 evpn-df-pref (1-65535)
+sudo config interface sys-mac PortChannel1 XX:XX:XX:XX:XX:XX
+sudo config interface evpn-esi PortChannel1 {XX:XX:XX:XX:XX:XX:XX:XX:XX:XX | auto-system-mac}
+sudo config interface evpn-df-pref PortChannel1 (1-65535)
 ```
 
 **EVPN Multihoming global commands**
