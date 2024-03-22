@@ -3,7 +3,13 @@
 
 ## Overview
 
-The goal of Sonic express reboot is to be able to restart and upgrade SONiC software with sub-second data plane interruption. This is achieved by not initializing external phys, and only initializing NPU after receiving all configuration updates. This document covers updates needed in Sonic and SAI interface. 
+The goal of Sonic express reboot is to be able to restart and upgrade SONiC software with sub-second data plane interruption. This is achieved by not initializing external phys, and only initializing NPU after receiving all configuration updates. Figure 1 below illustrates how V1 and V2 version of sonic/SDK/NPU interacts as express boot progresses.
+
+<p align=center>
+<img src="img/express-boot_flow.png" alt="Figure 1. Express boot flow">
+</p>
+
+This document covers updates needed in Sonic and SAI interface. 
 
 ## fast-reboot script
 
