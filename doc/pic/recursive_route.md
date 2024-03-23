@@ -63,7 +63,7 @@ struct nhg_hash_entry {
 	afi_t afi;
 	vrf_id_t vrf_id;
 
-    ...
+	...
 
 	/* Dependency trees for other entries.
 	 * For instance a group with two
@@ -153,22 +153,30 @@ Here are a list of trigger events which we want to take care via recursive route
 ### Nexthop Fixup Handling
 To streamline the discussion and ensure generality, we employ the following recursive routes as an illustration to demonstrate the workflow of the new fixup and its potential to reduce the traffic loss window.
 
-    B>  2.2.2.2/32 [200/0] via 100.0.0.1 (recursive), weight 1, 00:11:50
-      *                      via 10.1.0.16, Ethernet1, weight 1, 00:11:50
-      *                      via 10.1.0.17, Ethernet1, weight 1, 00:11:50
-      *                      via 10.1.0.18, Ethernet1, weight 1, 00:11:50
-                           via 200.0.0.1 (recursive), weight 1, 00:11:50
-      *                      via 10.1.0.26, Ethernet1, weight 1, 00:11:50
-      *                      via 10.1.0.27, Ethernet1, weight 1, 00:11:50
-      *                      via 10.1.0.28, Ethernet1, weight 1, 00:11:50
-    B>* 100.0.0.0/24 [200/0] via 10.1.0.16, Ethernet1, weight 1, 00:11:57
-      *                      via 10.1.0.17, Ethernet1, weight 1, 00:11:57
-      *                      via 10.1.0.18, Ethernet1, weight 1, 00:11:57
-    B>* 200.0.0.0/24 [200/0] via 10.1.0.26, Ethernet1, weight 1, 00:11:50
-      *                      via 10.1.0.27, Ethernet1, weight 1, 00:11:50
-      *                      via 10.1.0.28, Ethernet1, weight 1, 00:11:50
+    B>  2.2.2.2/32 [200/0] (70) via 100.0.0.1 (recursive), weight 1, 00:11:28
+      *                           via 10.1.1.11, Ethernet1, weight 1, 00:11:28
+      *                           via 10.2.2.11, Ethernet2, weight 1, 00:11:28
+      *                           via 10.3.3.11, Ethernet3, weight 1, 00:11:28
+                                via 200.0.0.1 (recursive), weight 1, 00:11:28
+      *                           via 10.4.4.12, Ethernet4, weight 1, 00:11:28
+      *                           via 10.5.5.12, Ethernet5, weight 1, 00:11:28
+      *                           via 10.6.6.12, Ethernet6, weight 1, 00:11:28
+    B>  3.3.3.3/32 [200/0] (70) via 100.0.0.1 (recursive), weight 1, 00:11:28
+      *                           via 10.1.1.11, Ethernet1, weight 1, 00:11:28
+      *                           via 10.2.2.11, Ethernet2, weight 1, 00:11:28
+      *                           via 10.3.3.11, Ethernet3, weight 1, 00:11:28
+                                via 200.0.0.1 (recursive), weight 1, 00:11:28
+      *                           via 10.4.4.12, Ethernet4, weight 1, 00:11:28
+      *                           via 10.5.5.12, Ethernet5, weight 1, 00:11:28
+      *                           via 10.6.6.12, Ethernet6, weight 1, 00:11:28
+    B>* 100.0.0.0/24 [200/0] (51) via 10.1.1.11, Ethernet1, weight 1, 00:11:28
+      *                           via 10.2.2.11, Ethernet2, weight 1, 00:11:28
+      *                           via 10.3.3.11, Ethernet3, weight 1, 00:11:28
+    B>* 200.0.0.0/24 [200/0] (61) via 10.4.4.12, Ethernet4, weight 1, 00:11:28
+      *                           via 10.5.5.12, Ethernet5, weight 1, 00:11:28
+      *                           via 10.6.6.12, Ethernet6, weight 1, 00:11:28
 
-If one of the paths (path 10.1.0.28) for prefix 200.0.0.0/24 is removed, Zebra will actively update two routes during the recursive convergence handling, facilitated by the BGP client. One route update pertains to 200.0.0.0/24, while the other update concerns 2.2.2.2/32. In this scenario, route 200.0.0.0/24 experiences the removal of one path, while the reachability of route 2.2.2.2/32 remains unaffected. To minimize the traffic loss window, it's essential to promptly address the affected nexthops in the dataplane before zebra completes its route convergence process.
+If one of the paths (path 10.6.6.12) for prefix 200.0.0.0/24 is removed, Zebra will actively update two routes during the recursive convergence handling, facilitated by the BGP client. One route update pertains to 200.0.0.0/24, while the other update concerns 2.2.2.2/32 and 3.3.3.3/32. In this scenario, route 200.0.0.0/24 experiences the removal of one path, while the reachability of route 2.2.2.2/32 or 3.3.3.3/32 remains unaffected. To minimize the traffic loss window, it's essential to promptly address the affected nexthops in the dataplane before zebra completes its route convergence process.
 
 <figure align=center>
     <img src="images_recursive/path_remove.png" >
@@ -284,14 +292,14 @@ Assuming the initial state of EVPN underlay routes is the following
     <figcaption>Figure 6. initial state of the routes<figcaption>
 </figure>
 
-After BGP learns 200.0.0.0/24's path 10.0.1.28 is withdrew, BGP would send a route update for 200.0.0.0/24 to zebra with two remaining paths. After zebra updates this route, it reaches the state shown in Figure 7.
+After BGP learns 200.0.0.0/24's path 10.6.6.12 is withdrew, BGP would send a route update for 200.0.0.0/24 to zebra with two remaining paths. After zebra updates this route, it reaches the state shown in Figure 7.
 
 <figure align=center>
     <img src="images_recursive/nhg_removed_state.png" >
     <figcaption>Figure 7. one path is removed for route 200.0.0.0/24<figcaption>
 </figure>
 
-Zebra updates the route with new NHG 90 which has two paths, zebra sends the route update to dataplanes. This is the current approach, which would recover all traffic via route 200.0.0.0/24.
+Zebra updates the route with new NHG 242 which has two paths, zebra sends the route update to dataplanes. This is the current approach, which would recover all traffic via route 200.0.0.0/24.
 
 <figure align=center>
     <img src="images_recursive/nhg_for_dataplane.png" >
@@ -304,7 +312,7 @@ Then zebra walks through nht list of the route entry 200.0.0.0/24 and handle eac
     <figcaption>Figure 9<figcaption>
 </figure>
 
-zebra_rnh_fixup_depends() would be triggered by zebra_rnh_eval_nexthop_entry() if rnh's state is changed. This function would use 200.0.0.1 to find out its corresponding nhg_hash_entry (NHG 74 in this example). From NHG 74, we back walk to all its dependent NHGs via NHG 74's *nhg_dependents list. At each dependent NHG (NHG 73 in this example), zebra performs a quick fixup to dataplanes. In this example, since rnh is resolved via 200.0.0.0/24 which has been updated to NHG 90, NHG 73 would update dataplanes with five paths. This quick fixup would help to stop traffic loss via these dependent NHGs and be independent from the number of routes pointing to them. 
+zebra_rnh_fixup_depends() would be triggered by zebra_rnh_eval_nexthop_entry() if rnh's state is changed. This function would use 200.0.0.1 to find out its corresponding nhg_hash_entry (NHG 71 in this example). From NHG 71, we back walk to all its dependent NHGs via NHG 71's *nhg_dependents list. At each dependent NHG (NHG 70 in this example), zebra performs a quick fixup to dataplanes. In this example, since rnh is resolved via 200.0.0.0/24 which has been updated to NHG 242, NHG 70 would update dataplanes with five paths. This quick fixup would help to stop traffic loss via these dependent NHGs and be independent from the number of routes pointing to them. 
 
 <figure align=center>
     <img src="images_recursive/nhg_depend_update.png" >
