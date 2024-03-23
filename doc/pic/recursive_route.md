@@ -119,7 +119,7 @@ struct rnh {
 #define ZEBRA_NHT_DELETED 0x2
 #define ZEBRA_NHT_RESOLVE_VIA_DEFAULT 0x4
 
-    ...
+	...
 
 	struct route_entry *state;
 	struct prefix resolved_route;
