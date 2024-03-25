@@ -59,7 +59,7 @@ The picture below highlights the PMON vertical and its association with other lo
 ### 2.1.    Onboarding
 * The SmartSwitch host PMON should be able to Startup, Shutdown, Restart, and Soft Reboot the entire system or the individual DPUs. The DPU_MODULE will behave like the LINE_CARD_MODULE of a modular chassis with respect to these functions.
 
-#### SmartSwitch PowerUp sequence:
+### SmartSwitch Power up/down sequence:
 * When the smartswitch device is booted, the host will boot first and leave the DPUs either up or down depending on the configuration. The DPUs will be up by default.
 * This section describes the cold startup, shutdown, restart and soft reboot. 
 
