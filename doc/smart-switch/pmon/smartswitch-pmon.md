@@ -680,7 +680,7 @@ SWITCH      Chassis             0           Online          N/A             FLM2
 * The "show chassis modules status" is extended to include the DPU_STATE detail.
 show chassis modules status all <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
 ```
-root@sonic:~#show chassis modules status all                                                                                    
+root@sonic:~#show chassis modules status detail all                                                                                    
 Name        Description      ID      Oper-Status  State-Detail          State-Value     Admin-Status     Serial
 
 DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up                up         SN20240105
@@ -697,7 +697,7 @@ SWITCH      Chassis          0       Online       NA                        NA  
 ```
 * show chassis modules status detail module-name <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
 ```
-root@sonic:~#show chassis modules status  DPU0                                                                                 
+root@sonic:~#show chassis modules status detail DPU0                                                                                 
 Name        Description      ID      Oper-Status  State-Detail             State-Value     Admin-Status     Serial
 
 DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up                   up         SN20240105
@@ -707,26 +707,42 @@ DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up  
 
 ```
 #### 3.4.5  System health details
-* The system health summary on NPU should include the DPU health. If one or more DPUs are not ok it should be highlighted in the command output
-* This will allow to reuse the existing infrastructure that allows to signal the user about the issue on the system and change the system status LED to red.
+* The system health summary on NPU should include the DPU health. Extend the existing infrastructure.
 
-show system-health summary      <font>**`Executed on the switch or DPU`**</font>
+show system-health summary  <module-name>    <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
 ```
+When module-name is "all" the CLI output shows both SWITCH and DPUs
+
+Device: SWITCH
 System status summary
 
   System status LED  red
   Services:
     Status: Not OK
-    Not Running: dpu:dpu0, dpu:dpu1
+    Not Running: snmp:snmpd
   Hardware:
     Status: OK
+
+Device: DPU0
+System status summary
+
+  System status LED  red
+  Services:
+    Status: Not OK
+    Not Running: snmp:snmpd
+  Hardware:
+    Status: OK
+
  ```
  * Detailed output from the switch can be obtained with the following CLI
- * The system health monitor list command should include the status of the DPU. If one or more DPUs are not ok it should be highlighted in the command output
- * The switch will fetch the DPU information stored in the DPU's STATE_DB as needed using a gRPC client running on the switch PMON.
+ * The system-health monitor-list command should include the status of the DPU. If one or more DPUs are not ok it should be highlighted in the command output
+ * The switch will fetch the DPU information from the DPUs
 
-show system-health monitor-list       <font>**`Executed on the switch`**</font>
+show system-health monitor-list <module-name>  <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
 ```
+When module-name is "all" the CLI output shows both SWITCH and DPUs
+
+Device: SWITCH
 System services and devices monitor list
 
 Name                   Status    Type
@@ -748,79 +764,34 @@ psu1_fan1              OK        Fan
 psu2_fan1              OK        Fan
 PSU 1                  OK        PSU
 PSU 2                  OK        PSU
-DPU0                   Not OK    DPU
-DPU1                   Not OK    DPU
-DPU2                   OK        DPU
-DPU3                   OK        DPU
- ```
- Following is the output of "show system-health monitor-list" on DPU.  <font>**`Executed on the DPU`**</font>
-```
+
+Device: DPU0
 System services and devices monitor list
 
-Name                      Status    Type
-------------------------  --------  ----------
-container_checker         Not OK    Program
-lldp                      Not OK    Service
-sonic                     OK        System
-rsyslog                   OK        Process
-root-overlay              OK        Filesystem
-var-log                   OK        Filesystem
-routeCheck                OK        Program
-dualtorNeighborCheck      OK        Program
-diskCheck                 OK        Program
-vnetRouteCheck            OK        Program
-memory_check              OK        Program
-container_memory_snmp     OK        Program
-container_memory_gnmi     OK        Program
-container_eventd          OK        Program
-database:redis            OK        Process
-syncd:syncd               OK        Process
-swss:orchagent            OK        Process
-swss:vrfmgrd              OK        Process
-swss:nbrmgrd              OK        Process
-bgp:fpmsyncd              OK        Process
-bgp:bgpcfgd               OK        Process
-dpu-pdsagent              OK        UserDefine
-dpu-pciemgrd              OK        UserDefine
-dpu-eth_Uplink1/1_status  OK        UserDefine
-dpu-pcie_link             OK        UserDefine
-```
- * The previous two CLIs are further extended to show the detail information about the DPU status as shown in the next two CLIs
+Name                   Status    Type
+---------------------  --------  ----------
+container_checker      Not OK    Program
+lldp                   Not OK    Service
+sonic                  OK        System
+rsyslog                OK        Process
+swss:coppmgrd          OK        Process
+swss:tunnelmgrd        OK        Process
+eventd:eventd          OK        Process
+lldp:lldpd             OK        Process
+lldp:lldp-syncd        OK        Process
+lldp:lldpmgrd          OK        Process
+gnmi:gnmi-native       OK        Process
+dpu-pdsagent           OK        UserDefine
+dpu-pciemgrd           OK        UserDefine
+ ```
 
-show system-health monitor-list module DPU_NAME    <font>**`Executed on the switch`**</font>
-```
-Name                      Status    Type
-------------------------  --------  ----------
-container_checker         Not OK    Program
-lldp                      Not OK    Service
-sonic                     OK        System
-rsyslog                   OK        Process
-root-overlay              OK        Filesystem
-var-log                   OK        Filesystem
-routeCheck                OK        Program
-dualtorNeighborCheck      OK        Program
-diskCheck                 OK        Program
-vnetRouteCheck            OK        Program
-memory_check              OK        Program
-container_memory_snmp     OK        Program
-container_memory_gnmi     OK        Program
-container_eventd          OK        Program
-database:redis            OK        Process
-syncd:syncd               OK        Process
-swss:orchagent            OK        Process
-swss:vrfmgrd              OK        Process
-swss:nbrmgrd              OK        Process
-bgp:fpmsyncd              OK        Process
-bgp:bgpcfgd               OK        Process
-dpu-pdsagent              OK        UserDefine
-dpu-pciemgrd              OK        UserDefine
-dpu-eth_Uplink1/1_status  OK        UserDefine
-dpu-pcie_link             OK        UserDefine
-```
-* Consolidated information about statuses of all subsystems can be obtained as shown
+* Detail status of all subsystems can be obtained as shown
 
-show system-health detail        <font>**`Executed on the switch`**</font>
+show system-health detail <module-name>      <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
 ```
+Example output of : "show system-health detail all"
+
+Device: SWITCH
 System status summary
 
   System status LED  red
@@ -842,39 +813,9 @@ root-overlay           OK        Filesystem
 var-log                OK        Filesystem
 routeCheck             OK        Program
 dualtorNeighborCheck   OK        Program
-…
-System services and devices ignore list
 
-Name    Status    Type
-------  --------  ------
-…
+Device: DPU0
 
-DPU0 system services and devices monitor list
-
-Name                       Status    Type
--------------------------  --------  ----------
-mtvr-r740-04-bf3-sonic-01  OK        System
-rsyslog                    OK        Process
-…
-
-DPU1 system services and devices monitor list
-
-Name                       Status    Type
--------------------------  --------  ----------
-mtvr-r740-04-bf3-sonic-01  OK        System
-rsyslog                    OK        Process
-…
-
-DPUX system services and devices monitor list
-
-Name                       Status    Type
--------------------------  --------  ----------
-mtvr-r740-04-bf3-sonic-01  OK        System
-rsyslog                    OK        Process
-…
-```
-show system-health detail        <font>**`Executed on the DPU`**</font>
-```
 System status summary
 
   System status LED  green
@@ -884,36 +825,12 @@ System status summary
   Hardware:
     Status: OK
 
-System services and devices monitor list
+system services and devices monitor list
 
-Name                      Status    Type
-------------------------  --------  ----------
-container_checker         Not OK    Program
-lldp                      Not OK    Service
-sonic                     OK        System
-rsyslog                   OK        Process
-root-overlay              OK        Filesystem
-var-log                   OK        Filesystem
-routeCheck                OK        Program
-dualtorNeighborCheck      OK        Program
-diskCheck                 OK        Program
-vnetRouteCheck            OK        Program
-memory_check              OK        Program
-container_memory_snmp     OK        Program
-container_memory_gnmi     OK        Program
-container_eventd          OK        Program
-database:redis            OK        Process
-syncd:syncd               OK        Process
-swss:orchagent            OK        Process
-swss:portsyncd            OK        Process
-swss:coppmgrd             OK        Process
-swss:tunnelmgrd           OK        Process
-bgp:zebra                 OK        Process
-bgp:staticd               OK        Process
-dpu-pdsagent              OK        UserDefine
-dpu-pciemgrd              OK        UserDefine
-dpu-eth_Uplink1/1_status  OK        UserDefine
-dpu-pcie_link             OK        UserDefine
+Name                       Status    Type
+-------------------------  --------  ----------
+mtvr-r740-04-bf3-sonic-01  OK        System
+rsyslog                    OK        Process
 
 System services and devices ignore list
 
@@ -921,13 +838,15 @@ Name    Status    Type
 ------  --------  ------
 fan     Ignored   Device
 psu     Ignored   Device
+
 ```
+
 #### Vendor specific health checkers
 * If the vendor wants to add additional information specific to the platform it can be done using the user-defined checkers:
 * The DPU specific interrupt events can be part of this.
-
-show system-health monitor-list       <font>**`Executed on the switch`**</font>
 ```
+show system-health monitor-list <module-name>
+
 System services and devices monitor list
 
 Name                       Status    Type
