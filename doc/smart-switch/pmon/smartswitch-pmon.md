@@ -656,7 +656,7 @@ DPU3            2023_10_02_18_23_46     Host Power-cycle            Sun 02 Oct
 DPU3            2023_10_02_17_23_46     Host Reset DPU              Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
 DPU2            2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
 
-"show reboot-cause history <module-name>"
+"show reboot-cause history module-name"
 
 root@sonic:~#show reboot-cause history dpu3
 
@@ -695,7 +695,7 @@ DPU1        SS-DPU1          2       Online       host-dpu-midplane         up  
 ...
 SWITCH      Chassis          0       Online       NA                        NA                NA          FLM27000ER
 ```
-* show chassis modules status detail module-name <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
+* show chassis modules status detail \<module-name\> <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
 ```
 root@sonic:~#show chassis modules status detail DPU0                                                                                 
 Name        Description      ID      Oper-Status  State-Detail             State-Value     Admin-Status     Serial
@@ -709,7 +709,7 @@ DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up  
 #### 3.4.5  System health details
 * The system health summary on NPU should include the DPU health. Extend the existing infrastructure.
 
-show system-health summary  <module-name>    <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
+show system-health summary \<module-name\>   <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
 ```
 When module-name is "all" the CLI output shows both SWITCH and DPUs
 
@@ -738,7 +738,7 @@ System status summary
  * The system-health monitor-list command should include the status of the DPU. If one or more DPUs are not ok it should be highlighted in the command output
  * The switch will fetch the DPU information from the DPUs
 
-show system-health monitor-list <module-name>  <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
+show system-health monitor-list \<module-name\>  <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
 ```
 When module-name is "all" the CLI output shows both SWITCH and DPUs
 
@@ -787,7 +787,7 @@ dpu-pciemgrd           OK        UserDefine
 
 * Detail status of all subsystems can be obtained as shown
 
-show system-health detail <module-name>      <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
+show system-health detail \<module-name\>      <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
 ```
 Example output of : "show system-health detail all"
 
@@ -845,7 +845,7 @@ psu     Ignored   Device
 * If the vendor wants to add additional information specific to the platform it can be done using the user-defined checkers:
 * The DPU specific interrupt events can be part of this.
 ```
-show system-health monitor-list <module-name>
+show system-health monitor-list \<module-name\>
 
 System services and devices monitor list
 
