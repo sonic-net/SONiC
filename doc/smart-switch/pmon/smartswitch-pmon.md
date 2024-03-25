@@ -697,7 +697,7 @@ SWITCH      Chassis          0       Online       NA                        NA  
 ```
 * show chassis modules status detail module-name <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
 ```
-root@sonic:~#show chassis modules status detail  DPU0                                                                                 
+root@sonic:~#show chassis modules status  DPU0                                                                                 
 Name        Description      ID      Oper-Status  State-Detail             State-Value     Admin-Status     Serial
 
 DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up                   up         SN20240105
