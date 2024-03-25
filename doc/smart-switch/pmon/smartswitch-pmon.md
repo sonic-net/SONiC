@@ -485,45 +485,40 @@ get_dpu_id(self):
     Retrieves the DPU ID. Returns None for non-smartswitch chassis.
 
     Returns:
-        An integer, indicating the DPU ID. DPU0 returns 1, DPUX returns X-1
+        An integer, indicating the DPU ID. DPU0 returns 1, DPUX returns X+1
+        Returns '0' on switch module
 ```
 #### Get DPU reboot cause
-def get_reboot_cause(self, index):
-        """
-        Retrieves the cause of the previous reboot
+def get_reboot_cause(self):
+```
+        Retrieves the cause of the previous reboot of the DPU module
 
         Returns:
-            A tuple (string, string) where the first element is a string
-            containing the cause of the previous reboot. This string must be
-            one of the predefined strings in this class. If the first string
-            is "REBOOT_CAUSE_HARDWARE_OTHER", the second string can be used
-            to pass a description of the reboot cause.
-        """
+            A tuple (string, string) where the first element is a string containing the cause of the previous reboot. This string must be one of the predefined strings in this class. If the first string is "REBOOT_CAUSE_HARDWARE_OTHER", the second string can be used to pass a description of the reboot cause.
+```
 
 #### DPU_STATE Use Case
 * High Availability, Load Balancing, Debug, error recovery (reset, power cycle) and fault management logics will use this API
 
-get_state_info(self, index):
+get_state_info(self):
 ```
-    Retrieves the dpu state object having the detailed dpu state progression.
-    Fetched from ChassisStateDB.
+    Retrieves the dpu state object having the detailed dpu state progression. Fetched from ChassisStateDB.
 
     Returns:
         An object instance of the DPU_STATE (see DB schema)
-        Returns None when the index is 0 (switch)
+        Returns None on switch module
 ```
 
 #### DPU_HEALTH Use Case
 * The major consumer of this data could be fault management, debug, error recovery 
 
-get_health_info(self, index):
+get_health_info(self):
 ```
-    Retrieves the dpu health object having the detailed dpu health
-    Fetched from the DPUs
+    Retrieves the dpu health object having the detailed dpu health Fetched from the DPUs
 
     Returns:
         An object instance of the dpu health
-        Returns None when the index is 0 (switch)
+        Returns None on switch module
 ```
 
 ### 3.2 Thermal management
