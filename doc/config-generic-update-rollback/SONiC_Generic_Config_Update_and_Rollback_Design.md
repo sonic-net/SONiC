@@ -936,7 +936,7 @@ N/A
 | 5         | Updating monitor configs (EverflowAlaysOn). |
 | 6         | [Updating BGP speaker configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgp_speaker.py) |
 | 7         | [Updating BGP listener configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgpl.py) |
-| 8         | Updating Bounce back routing configs. |
+| 8         | [Updating Bounce back routing configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/bgp/test_bgp_bbr.py) |
 | 9         | [Updating control-plane ACLs (NTP, SNMP, SSH) configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_cacl.py) |
 | 10        | [Updating Ethernet interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_eth_interface.py) |
 | 11        | [Updating VLAN interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_vlan_interface.py) |
