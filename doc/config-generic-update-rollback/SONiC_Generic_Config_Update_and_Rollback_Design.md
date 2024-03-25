@@ -88,6 +88,7 @@
       - [3.2.2.1 Configuration Commands](#3221-configuration-commands)
       - [3.2.2.2 Show Commands](#3222-show-commands)
       - [3.2.2.3 Debug Commands](#3223-debug-commands)
+    + [3.2.3 Multi ASIC support](#323-multi-asics-support)
 - [4 Flow Diagrams](#4-flow-diagrams)
 - [5 Error Handling](#5-error-handling)
 - [6 Serviceability and Debug](#6-serviceability-and-debug)
@@ -438,7 +439,7 @@ Here is a summary explaining the `apply-change` contract, Check [3.1.1.4 Change 
 |aspect      |item                   |description
 |------------|-----------------------|-----------
 |inputs      |JsonChange             | It represents the changes that needs to applied to the device running config, described in [3.1.1.4.1 JsonChange](#31141-jsonchange).
-|outputs     |None                   | 
+|outputs     |None                   |
 |errors      |malformedChangeError   | Will be raised if the input JsonChange is not valid according to [3.1.1.4.1 JsonChange](#31141-jsonchange).
 |            |other errors           | Check [3.1.1.4.1 apply-change](#31141-apply-change) for exact list of errors to expect.
 |side-effects|updating running-config| This operation will cause changes to the running-config according to the input JsonChange.
@@ -660,7 +661,7 @@ void apply-change(JsonChange jsonChange)
 |aspect      |item                     |description
 |------------|-------------------------|-----------
 |inputs      |JsonChange               | It represents the changes that needs to applied to the device running config, described in [3.1.1.4.1 JsonChange](#31141-jsonchange).
-|outputs     |None                     | 
+|outputs     |None                     |
 |errors      |malformedChangeError     | Will be raised if the input JsonChange is not valid according to [3.1.1.4.1 JsonChange](#31141-jsonchange).
 |            |resourceNotFoundError    | Will be raised if running config failed to be read or in case any other external resource is not found nor available.
 |            |unprocessableRequestError| Will be raised if the change is valid, all the resources are found but when applying the change it causes an error in the system.
@@ -728,7 +729,7 @@ Same as [3.1.2.5 File system](#3125-file-system)
 #### 3.1.4.5 ConfigDB
 same as [3.1.1.5 ConfigDB](#3115-configdb)
 
-### 3.2 User Interface
+## 3.2 User Interface
 
 ### 3.2.1 Data Models
 
@@ -870,6 +871,62 @@ show rollback log [exec | verify | status]
 #### 3.2.2.3 Debug Commands
 
 Use the *verbose* option to view additional details while executing the different commands.
+
+### 3.2.3 Multi ASICs Support
+
+The initial design of the SONiC Generic Configuration Update and Rollback feature primarily focuses on single-ASIC platforms. To cater to the needs of Multi-ASIC platforms, this section introduces enhancements to support configuration updates and rollbacks across multiple ASICs and the host namespace.
+
+#### 3.2.3.1 Overview
+
+In Multi-ASIC SONiC platforms, configurations can be applied either globally, affecting all ASICs, or individually, targeting a specific ASIC or the host. The configuration management tools must, therefore, be capable of identifying and applying configurations based on their intended scope.
+
+#### 3.2.3.2 Namespace-aware Configuration Management
+
+The SONiC utilities for configuration management (apply-patch, checkpoint, and rollback) will be enhanced to become namespace-aware. These utilities will determine the target namespace for each operation from the configuration patch itself or from user input for operations that involve checkpoints and rollbacks.
+
+#### 3.2.3.3 JSON Patch Format Extension
+
+The JSON Patch format will be extended to include the namespace identifier for each operation. Operations that target the host namespace will be marked with a "localhost" identifier, while those intended for a specific ASIC will include an "asicN" identifier, where N denotes the ASIC number.
+
+```json
+
+{
+  "asic0": [
+    {"op": "remove", "path": "/DSCP_TO_TC_MAP"},
+    {"op": "add", "path": "/POLICER", "value": { /* Policer configuration */ }}
+  ],
+  "localhost": [
+    {"op": "add", "path": "/SYSLOG_SERVER", "value": { /* Syslog server configuration */ }}
+  ]
+}
+```
+
+#### 3.2.3.4 Applying Configuration Changes
+
+When applying a configuration patch, the system will:
+
+    Parse the extended JSON Patch to identify the target namespaces.
+    Apply the operations intended for the host namespace directly to the host's configuration database.
+    Apply ASIC-specific operations to the respective ASIC's configuration database.
+
+#### 3.2.3.5 Checkpoints and Rollbacks
+
+Checkpoint and rollback operations will be enhanced to support Multi-ASIC platforms by:
+
+    Capturing the configuration state of all ASICs and the host namespace when creating a checkpoint.
+    Allowing rollbacks to restore the configuration state of all ASICs and the host namespace to a specific checkpoint.
+
+#### 3.2.3.6 Implementation Details
+
+    Namespace-aware Utilities: Update the SONiC configuration utilities to handle namespace identifiers in the configuration patches and command-line options for specifying target namespaces for checkpoints and rollbacks.
+
+    Validation and Verification: Extend the configuration validation and verification mechanisms to cover Multi-ASIC scenarios, ensuring that configurations are valid and consistent across all ASICs and the host.
+
+    CLI Enhancements: Introduce new CLI options to specify target namespaces for configuration operations, and to manage checkpoints and rollbacks in a Multi-ASIC environment.
+
+    Testing: Develop comprehensive test cases to cover Multi-ASIC configuration updates, including scenarios that involve simultaneous updates to multiple ASICs and the host.
+
+The extension of the SONiC Generic Configuration Update and Rollback feature to support Multi-ASIC platforms enhances the flexibility and manageability of SONiC deployments in complex environments. By introducing namespace-aware configuration management, SONiC can efficiently handle the intricacies of Multi-ASIC platforms, ensuring smooth and reliable operation.
 
 # 4 Flow Diagrams
 
