@@ -282,11 +282,9 @@ is_smartswitch(self):
       True
 ```
 
-get_module_dpu_port(self, index):
+get_module_dpu_data_port(self, index):
 ```
-    Retrieves the DPU port - internal ASIC port for DPU represented by
-    DPU index. Platforms that require to overwrite the platform.json file
-    will use this API
+    Retrieves the DPU data port NPU-DPU association represented for the DPU index. Platforms that need to overwrite the platform.json file will use this API
 
     This is valid only on the Switch and not on DPUs
 
@@ -294,8 +292,7 @@ get_module_dpu_port(self, index):
         index: An integer, the index of the module to retrieve
 
     Returns:
-        DPU Port: A string Ex: For index:0 "dpu0", index:1 "dpu1"
-        See the NPU to DPU port mapping
+        NPU-DPU port association: A string Ex: For index: 1 will return the dup0 port association which is "Ethernet-BP0: Ethernet0" where the string left of ":" (Ethernet-BP0) is the NPU port and the string right of ":" (Ethernet0) is the DPU port.
 ```
 #### 3.1.3 NPU to DPU data port mapping
 platform.json of NPU/switch will show the NPU to DPU data port mapping. This will be used by services early in the system boot. 
