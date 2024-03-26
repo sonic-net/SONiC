@@ -50,7 +50,7 @@
 |  1.7  | 02/20/2024 |    Prince Sunny     | Introduce Route Group Table               |
 
 # About this Manual
-This document provides more detailed design of DASH APIs, DASH orchestration agent, Config and APP DB Schemas and other SONiC buildimage changes required to bring up SONiC image on an appliance card. General DASH HLD can be found at [dash_hld](./dash-high-level-design.md).
+This document provides more detailed design of DASH APIs, DASH orchestration agent, Config and APP DB Schemas and other SONiC buildimage changes required to bring up SONiC image on an appliance card. General DASH HLD can be found at [dash_hld](https://github.com/sonic-net/DASH/tree/main/documentation/general/dash-high-level-design.md).
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
@@ -266,7 +266,7 @@ It is possible that a given packet can get a hit in route table and/or mapping t
 - If the route table entry has the metering policy lookup disabled then the metering policy lookup is skipped and the route table entry metering class is picked. If subsequent mapping lookup also gives a metering class then the mapping metering class takes precedence ONLY if the override flag is set on the mapping entry.
 
 
-  ![dash-outbound-meter](./images/dash-hld-outbound-meter-pipeline.png)
+  ![dash-outbound-meter](../../images/dash/dash-hld-outbound-meter-pipeline.png)
 
 ## 2.5 FastPath
 
@@ -818,7 +818,7 @@ message AclRule {
 
 A high-level module interaction is captured in the following diagram.
 
-  ![dash-high-level-diagram](../../images/dash/hld/dash-high-level-design.svg)
+  ![dash-high-level-diagram](../../images/dash/dash-high-level-design.svg)
 
 
 ### 3.3.1 DASH Schema Relationships
@@ -829,7 +829,7 @@ The [figure below](#schema_relationships) illustrates the various schema and the
 * [SAI](https://github.com/sonic-net/DASH/tree/main/SAI) table and attribute objects
 
 #### Canonical Test Data and schema transformations
-For testing purposes, it is convenient to express test configurations in a single canonical format, and use this to drive the different API layers to verify correct behavior. A tentative JSON format for representing DASH service configurations is described in [Reference configuration example (JSON)](../gnmi/dash-reference-config-example.md). Test drivers can accept this input, transform it into different schemas and drive the associated interfaces. For example, a JSON representation of an ACL rule can be transformed into gNMI API calls, SAI-redis calls, SAI-thrift calls, etc.
+For testing purposes, it is convenient to express test configurations in a single canonical format, and use this to drive the different API layers to verify correct behavior. A tentative JSON format for representing DASH service configurations is described in [Reference configuration example (JSON)](https://github.com/sonic-net/DASH/blob/main/documentation/gnmi/dash-reference-config-example.md). Test drivers can accept this input, transform it into different schemas and drive the associated interfaces. For example, a JSON representation of an ACL rule can be transformed into gNMI API calls, SAI-redis calls, SAI-thrift calls, etc.
 
 ### Figure - Schema Relationships
 
