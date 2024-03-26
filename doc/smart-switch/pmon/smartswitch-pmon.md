@@ -147,9 +147,10 @@ Key: "CHASSIS_MODULE|DPU0"
 * Switch: Maintenance
 * DPU: Maintenance, Service migration
 
-### Soft Reboot
+### Soft Reboot 
+#### NPU-DPU (GNOI) soft reboot workflow will be captured in another document “SmartSwitch-Reboot-Design.md”.  Referred here for the sake of completeness.
 #### Definition
-* Gracefully restart SONiC without turning off the power. This is covered in “SmartSwitch-Reboot-Design.md” and mentioned here for the sake of completeness.
+* Gracefully restart SONiC without turning off the power. 
 * Switch: Gracefully restart SONiC on switch and the DPUs that are up
 * DPU: Gracefully restart SONiC on DPU
 #### Trigger
@@ -158,7 +159,6 @@ Key: "CHASSIS_MODULE|DPU0"
 #### Use case
 * Switch: Fault recovery, Maintenance, debug
 * DPU: Fault recover, Maintenance, debug, Service provisioning
-##### NPU-DPU (GNOI) soft reboot workflow will be captured in another document.
 
 #### Onboarding requirements
 * The DPU must provide additional control-plane and data-plane state information, timestamp, etc to DPU_STATE table as explained in the DPU_STATE schema once booted up.
