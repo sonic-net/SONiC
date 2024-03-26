@@ -399,6 +399,8 @@ In the current implementation, in normal operation, a port isolation filter is a
 
 In this enhancement, acknowledgements are added to interface state notifications in ICCP, and these are used to ensure that the remote filter is applied before enabling traffic on the upcoming MCLAG member interface(s), thereby eliminating the possibility of loops and duplicates.
 
+By default LACP use slow rate, in this case keep alive messages send every 30 seconds and linkdown will be detected in 60-90 seconds, so traffic can be lost during this time. LACP also has fast rate, in this case keep alive messages send every 1 second and linkdown will be detected in 2-3 seconds, so it can significantly reduce downtime. LACP rate can be configured on [portchannel](https://github.com/novikauanton/sonic-utilities/blob/feature/add-lacp-rate-to-portchannel/doc/Command-Reference.md#portchannel-config-commands). 
+
 ### 3.3.2 MCLAG configuration change handling
 ICCP is extended to dynamically handle changes in MCLAG configurations. In the current implementation, MCLAG config attributes local ip, peer ip, peer interface and MCLAG interface configuration has to be done prior to bringing up ICCP docker. To handle configuration changes, MclagSyncd subscribes to CONFIG_DB MCLAG changes, saves configuration data in internal cache and notifies ICCPd. In this enhancement, Pre-provisioning support for MCLAG interfaces and peer interfaces is added.
 

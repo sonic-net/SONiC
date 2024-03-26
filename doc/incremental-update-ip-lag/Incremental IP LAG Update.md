@@ -96,6 +96,7 @@ PORTCHANNEL|{{port_channel_name}}
   "mtu": {{mtu_value}}
   "min_links": {{min_links_value}}
   "fall_back": {{true|false}}
+  "fast_rate": {{true|false}}
 ```
 #### 2.1.4 PORTCHANNEL_INTERFACE Table
 ```
