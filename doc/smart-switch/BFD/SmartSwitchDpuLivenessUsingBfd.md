@@ -8,13 +8,15 @@
   - [1.2 Scale Requirements](#12-scale-requirements)
   - [1.3 Default values](#13-default-values)
 - [2. Modules Design](#2-modules-design)
-  - [2.1 SmartSwitch NPU-DPU BFD sessions](#21-smartswitch-npu-dpu-bfd-sessions)
-  - [2.2 BFD Active-Passive mode](#22-bfd-active-passive-mode)
-  - [2.3 DPU FRR Changes](#23-dpu-frr-changes)
-  - [2.4 DPU Linux IPTables](#24-dpu-linux-iptables)
-  - [2.5 NPU BFD session and VNET\_ROUTE\_TUNNEL](#25-npu-bfd-session-and-vnet_route_tunnel)
-  - [2.6 NPU-DPU midplane state change and BFD session update](#26-npu-dpu-midplane-state-change-and-bfd-session-update)
-  - [2.7 VNET Route and BFD session updates](#27-vnet-route-and-bfd-session-updates)
+  - [2.1 APP\_DB changes](#21-app_db-changes)
+  - [2.2 SmartSwitch NPU-DPU BFD sessions](#22-smartswitch-npu-dpu-bfd-sessions)
+  - [2.3 BFD Active-Passive mode](#23-bfd-active-passive-mode)
+  - [2.4 DPU FRR Changes](#24-dpu-frr-changes)
+  - [2.5 DPU Linux IPTables](#25-dpu-linux-iptables)
+  - [2.6 NPU BFD session and VNET\_ROUTE\_TUNNEL](#26-npu-bfd-session-and-vnet_route_tunnel)
+  - [2.7 NPU-DPU midplane state change and BFD session update](#27-npu-dpu-midplane-state-change-and-bfd-session-update)
+  - [2.8 DPU BFD Host trap entries](#28-dpu-bfd-host-trap-entries)
+  - [2.9 VNET Route and BFD session updates](#29-vnet-route-and-bfd-session-updates)
 
 ###### Revision
 
@@ -24,6 +26,7 @@
 | 0.2 |  03/12/2024 | Kumaresh Perumal | Update review comments                |
 | 0.3 | 03/13/2024 | Kumaresh Perumal | Update BFD table in STATE_DB           |
 | 0.4| 03/20/2024 | Kumaresh Perumal | Update ACL usage |
+| 1.0| 03/26/2024| Kumaresh Perumal| Update with BFD Trap, Rx/Tx timers in APP_DB|
 
 # About this Manual
 This document provides general information about the NPU-DPU liveness detection using BFD probes between NPU and DPU.
@@ -69,8 +72,34 @@ Note: Scale requirements will  double when BFD sessions need to be created for b
 - BFD mode: Multihop mode for sessions between NPU and remote DPU
 
 # 2. Modules Design
+## 2.1 APP_DB changes
+Existing VNET_ROUTE_TUNNEL_TABLE is updated to include BFD Rx and Tx timers. Overlay ECMP feature uses the default of one second and Smartswitch can have aggressive timers due to less number of BFD sessions.
 
-## 2.1 SmartSwitch NPU-DPU BFD sessions
+Existing
+```
+VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}  
+    "endpoint": {{ip_address1},{ip_address2},...} 
+    "endpoint_monitor": {{ip_address1},{ip_address2},...} (OPTIONAL) 
+    "mac_address":{{mac_address1},{mac_address2},...} (OPTIONAL)  
+    "vni": {{vni1},{vni2},...} (OPTIONAL) 
+    "weight": {{w1},{w2},...} (OPTIONAL) 
+    “profile”: {{profile_name}} (OPTIONAL) 
+```
+
+Proposed changes
+```
+VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}  
+    "endpoint": {{ip_address1},{ip_address2},...} 
+    "endpoint_monitor": {{ip_address1},{ip_address2},...} (OPTIONAL) 
+    "mac_address":{{mac_address1},{mac_address2},...} (OPTIONAL)  
+    "vni": {{vni1},{vni2},...} (OPTIONAL) 
+    "weight": {{w1},{w2},...} (OPTIONAL) 
+    “profile”: {{profile_name}} (OPTIONAL) 
+    "rx_monitor_timer": {time in milliseconds}
+    "tx_monitor_timer": {time in milliseconds}
+```
+
+## 2.2 SmartSwitch NPU-DPU BFD sessions
 
 In a Smartswitch deployment, BFD sessions are created between NPU and
 DPUs. Each T1 cluster has 8 T1s and 8 DPUs in each T1. To detect the
@@ -82,7 +111,7 @@ Multihop BFD sessions are created between NPU and a remote DPU.
 
 <img src="images/NPU_DPU_BFD_sessions.png">
 
-## 2.2 BFD Active-Passive mode
+## 2.3 BFD Active-Passive mode
 
 HA manager in NPU creates VNET_ROUTE_TUNNEL_TABLE which will trigger bfdOrch to create BFD Active session with local and peer information. NPU supports BFD hardware offload, so hardware starts
 generating BFD packets to the peer. HA manager also creates another
@@ -104,7 +133,7 @@ action is taken.
 
 <img src="images/NPU_DPU_BFD_Exchange.png">
 
-## 2.3 DPU FRR Changes
+## 2.4 DPU FRR Changes
 
 By default BFD Daemon is not enabled in FRR. FRR supervisor config file
 has to be updated to start BFDD during FRR initialization.
@@ -138,7 +167,7 @@ profile passive
 exit
 ```
 
-## 2.4 DPU Linux IPTables
+## 2.5 DPU Linux IPTables
 
 New rules need to be added in the kernel to allow BFD packets to be
 processed by the kernel and FRR stack. All packets matching BFD UDP(3784
@@ -150,7 +179,7 @@ and 4784).
 
 These rules can be added as part of caclmgrd script during initialization by checking the DEVICE_METADATA object and attribute "switch_type: DPU" in CONFIG_DB.
 
-## 2.5 NPU BFD session and VNET_ROUTE_TUNNEL
+## 2.6 NPU BFD session and VNET_ROUTE_TUNNEL
 
 Overlay ECMP HLD describes how BFD session UP/Down changes the route to
 VIP of a SDN appliance. In Overlay ECMP feature, all the nexthops are
@@ -163,14 +192,18 @@ When HA manager receives HA config update, it will create VNET Route tunnel tabl
 
 <img src="images/DB_And_Notification.png">
 
-## 2.6 NPU-DPU midplane state change and BFD session update
+## 2.7 NPU-DPU midplane state change and BFD session update
 
-When NPU-DPU midplane interface goes down due to some trigger or platform changes, PMON module updates the midplane NetDev interface state in DPU_STATE DB and trigger a notification for link state change. HA manager listens to these updates and bring down the BFD by applying ACL or updating NPU->DPU links. This will bring down the local and remote BFD sessions between NPU and DPU. ACL can be attached to NPU-DPU interconnect interface to drop BFD packets from DPU.
+When NPU-DPU midplane interface goes down due to some trigger or platform changes, PMON module updates the midplane NetDev interface state in DPU_STATE DB and trigger a notification for link state change. HA manager listens to these updates and bring down the BFD by applying ingress ACL rules or updating NPU->DPU links. This will bring down the local and remote BFD sessions between NPU and DPU. ACL can be attached to NPU-DPU interconnect interface to drop BFD packets from DPU.
 
 Note: This is out of scope of this document, Smartswitch HA HLD will have more details as HA manager listens to all FSM changes from the controller and PMON changes.
 
+## 2.8 DPU BFD Host trap entries
+To avoid BFD packets getting delayed or congested with other data traffic, BFD host_trap entries are created to redirect BFD control packets to a separate queue. This can be done during system initialization like other COPP rules generated for BGP, LLDP etc.,
 
-## 2.7 VNET Route and BFD session updates
+Hostif trap SAI attribute for BFD is SAI_HOSTIF_TRAP_TYPE_BFD and SAI_HOSTIF_TRAP_TYPE_BFDV6. This covers both single-hop and multi-hop BFD packets.
+
+## 2.9 VNET Route and BFD session updates
 Some of the scenarios when VIP is pointing to Local and Remote nexthops
 and the BFD session state changes between NPU and DPU. In the below
 scenarios, local NH is the IP nexthop to local DPU and Remote NH is the
