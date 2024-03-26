@@ -448,9 +448,18 @@ is_midplane_reachable(self):
     * get_state_info(self) will return an object with the ChassisStateDB data
     * Potential consumers: HA, LB, Switch CLIs, Utils (install/repair images), Life Cycle Manager 
     * Use cases: HA, Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state
+#### DPU_STATE definition
+npu-dpu-idplane: up refers to the pcie link between the NPU and DPU is operational. This will be updated by the switch pcied.
 
-* ChassisStateDB Schema for DPU_STATE
-    ```
+dpu-booted: up refers to SONiC booted on DPU
+
+dpu-controlplane: up  refers to all the containers are up and the interfaces are up and dpu is ready to take SDN policy update
+
+dpu-dataplane: up  refers to configuration downloaded the pipeline stages are up and DPU hardware (port/ASIC) is ready to take traffic
+
+```
+    ChassisStateDB Schema for DPU_STATE
+
     Table: “DPU_STATE”
 
     SCHEMA
@@ -469,7 +478,7 @@ is_midplane_reachable(self):
         ”dpu_data_plane": ”DOWN",
         ”dpu_data_plane_time": ”timestamp",
         ”dpu_data_plane_reason": ”Pipeline failure",
-    ```
+```
 
 3. Each DPU has to store the health data in its local DB and should provide it to the switch PMON when requested (gRPC).
 * When the "show system-health ..." CLI is executed on the switch, it will fetch the corresponding information for the DPUs and provide a consolidated view of the system-health.
