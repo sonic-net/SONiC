@@ -35,6 +35,7 @@ _Rev v0.1_
 | Rev  | Rev Date   | Author(s)          | Change Description |
 |------|------------|--------------------|--------------------|
 | v0.1 | 02/22/2021 | Tomek Madejski (Google), Ryan Lucus (Google)  | Initial version |
+| v0.2 | 03/26/2024 | Ryan Lucus (Google) | Update to use Sonic Service Client |
 
 ### Scope
 
@@ -51,7 +52,7 @@ Having configuration be persistant across switch reboot is a useful feature that
 
 The required behaviour is to save the configuration to a file that is used to populate the configuration database during the startup process every time the gNMI.Set() RPC call is performed.
 
-Due to SONiC architecture the UMF container cannot perform this action completely by itself and a dedicated support is needed on the ‘host’ side.
+Due to SONiC architecture the UMF container cannot perform this action completely by itself and a dedicated support is needed on the ‘host’ side. This is accomplished by sending a call through DBUS to a sonic host service module.
 
 Currently there are a number of devices that are ‘out in the wild’ that use the current implementation of the UMF and therefore do not persist configuration across reboots and their behavior cannot be changed without changing the configuration tools that interact with them.
 For this reason and for more versatility the save-on-set behavior should be able to be toggled by a command-line parameter to the telemetry executable.
@@ -72,13 +73,12 @@ This feature does not change the SONiC Architecture
   - gNMI Server
 - What are the repositories that would be changed?
   - [sonic-gnmi](https://github.com/sonic-net/sonic-gnmi)
-  - [sonic-mgmt-common](https://github.com/sonic-net/sonic-mgmt-common)
 - Module/sub-module interfaces and dependencies.
   - Adds a flag to the gNMI module.
 - SWSS and Syncd changes in detail
   - N/A
 - DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB)
-  - Adds an entry to the CONFIG_DB to determine if the feature is enabled.
+  - N/A
 - Sequence diagram if required.
 ![Flow Char](images/save_on_set.png)
 - Linux dependencies and interface
@@ -122,38 +122,6 @@ var (
 
 if *withSaveOnSet {
   gnmi.SaveOnSet = gnmi.SaveOnSetEnabled
-}
-```
-
-##### Call to Save ConfigDB
-
-A function to initialize the backup located in the sonic-mgmt-framework.
-
-```go
-// SaveConfig initiates the operation of saving the current content of
-// the ConfigDB to a file that is then used to populate the database during the
-// startup.
-func SaveConfig() error {
-    r := HostQuery("cfg_mgmt.save", []string{})
-    if r.Err != nil{
-        return errors.New("internal SONiC Hostservice failure: " + r.Err.Error())
-    }
-    if len(r.Body) < 2 {
-        return errors.New(
-            "internal SONiC Hostservice failure: the response is too short.")
-    }
-    if _, ok := r.Body[0].(int32); !ok {
-        return errors.New(
-            "internal SONiC Hostservice failure: first element is not int32.")
-    }
-if_, ok := r.Body[1].(string); !ok {
-        return errors.New(
-            "internal SONiC Hostservice failure: second element is not string.")
-    }
-    if r.Body[0].(int32) != 0 {
-        return errors.New(r.Body[1].(string))
-    }
-    return nil
 }
 ```
 
