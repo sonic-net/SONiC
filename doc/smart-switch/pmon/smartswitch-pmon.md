@@ -686,35 +686,6 @@ DPU1        SS-DPU1             2           Online          up              SN20
 ...
 SWITCH      Chassis             0           Online          N/A             FLM27000ER
 ```
-* The "show chassis modules status" is extended to include the DPU_STATE detail.
-show chassis modules status all <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
-```
-root@sonic:~#show chassis modules status detail all                                                                                    
-Name        Description      ID      Oper-Status  State-Detail          State-Value     Admin-Status     Serial
-
-DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up                up         SN20240105
-                                                  dpu-booted                up
-                                                  dpu-controlplane          up
-                                                  dpu-dataplane             up
-
-DPU1        SS-DPU1          2       Online       host-dpu-midplane         up                up         SN20240235
-                                                  dpu-booted                up
-                                                  dpu-ControlPlane          up
-                                                  dpu-DataPlane             down
-...
-SWITCH      Chassis          0       Online       NA                        NA                NA          FLM27000ER
-```
-* show chassis modules status detail \<module-name\> <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
-```
-root@sonic:~#show chassis modules status detail DPU0                                                                                 
-Name        Description      ID      Oper-Status  State-Detail             State-Value     Admin-Status     Serial
-
-DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up                   up         SN20240105
-                                                  host-booted               up
-                                                  dpu-ControlPlane          up
-                                                  dpu-DataPlane             up
-
-```
 #### 3.4.5  System health details
 * The system health summary on NPU should include the DPU health. Extend the existing infrastructure.
 
@@ -743,6 +714,36 @@ System status summary
     Status: OK
 
  ```
+* The "show system-health ..." is extended to include the DPU_STATE detail.
+show system-health DPU \<dpu-index\>  <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
+```
+When the idex is "all" shows the detailed state of all DPUs
+
+root@sonic:~#show system-health DPU all              
+
+Name        Description      ID      Oper-Status  State-Detail          State-Value     Admin-Status     Serial
+
+DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up                up         SN20240105
+                                                  dpu-booted                up
+                                                  dpu-controlplane          up
+                                                  dpu-dataplane             up
+
+DPU1        SS-DPU1          2       Online       host-dpu-midplane         up                up         SN20240235
+                                                  dpu-booted                up
+                                                  dpu-ControlPlane          up
+                                                  dpu-DataPlane             down
+
+root@sonic:~#show system-health DPU 0
+ 
+Name        Description      ID      Oper-Status  State-Detail             State-Value     Admin-Status     Serial
+
+DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up                   up         SN20240105
+                                                  host-booted               up
+                                                  dpu-ControlPlane          up
+                                                  dpu-DataPlane             up
+
+```
+#### System health cli extended further as shown
  * Detailed output from the switch can be obtained with the following CLI
  * The system-health monitor-list command should include the status of the DPU. If one or more DPUs are not ok it should be highlighted in the command output
  * The switch will fetch the DPU information from the DPUs
