@@ -323,7 +323,7 @@ MSTP standard does not support uplink fast so uplink fast functionality will be 
 #  Sequence Diagrams
 ## MSTP global enable
 
-Only the VLANs that are currently present will be mapped to IST instance. A VLAN cannot be mapped to an instance if it has not been created yet.
+Pre-Configuring VLAN-to-instance will be mapped to IST instance before actually creating VLAN to avoid convergence churn.
 
 ![MSTP Global Enable](images/MSTP_global_enable.png)
 
