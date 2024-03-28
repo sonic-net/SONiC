@@ -45,15 +45,11 @@
    3. [3.3. DPU traffic handling related](#33-dpu-traffic-handling-related)
       1. [3.3.1. DPU level counters (Per-DPU)](#331-dpu-level-counters-per-dpu)
       2. [3.3.2. ENI-level traffic counters (Per-ENI)](#332-eni-level-traffic-counters-per-eni)
+      3. [3.3.3. ENI-level flow operation counters (Per-ENI)](#333-eni-level-flow-operation-counters-per-eni)
    4. [3.4. Flow sync counters](#34-flow-sync-counters)
       1. [3.4.1. Data plane channel probing (Per-HA Set)](#341-data-plane-channel-probing-per-ha-set)
       2. [3.4.2. Inline flow sync (Per-ENI)](#342-inline-flow-sync-per-eni)
-      3. [3.4.3. Bulk sync channel status related (Per-HA Set)](#343-bulk-sync-channel-status-related-per-ha-set)
-      4. [3.4.4. HA control plane data channel counters](#344-ha-control-plane-data-channel-counters)
-         1. [3.4.4.1. Per bulk sync flow receive server counters](#3441-per-bulk-sync-flow-receive-server-counters)
-         2. [3.4.4.2. Per ENI counters](#3442-per-eni-counters)
-   5. [3.5. HA service QoS counters](#35-ha-service-qos-counters)
-      1. [3.5.1. hamgrd HA operation counters](#351-hamgrd-ha-operation-counters)
+      3. [3.4.3. Bulk sync related counters (Per-HA Set)](#343-bulk-sync-related-counters-per-ha-set)
 4. [4. SAI APIs](#4-sai-apis)
 5. [5. CLI commands](#5-cli-commands)
 
@@ -624,6 +620,11 @@ Once the packet lands on an ENI, we should have the following counters to monito
 | SAI_ENI_STAT_(/OUTBOUND_/INBOUND_)RX_PACKETS | Total number of packets received on ENI (overall/outbound/inbound) pipeline. |
 | SAI_ENI_STAT_(/OUTBOUND_/INBOUND_)TX_BYTES | Total bytes sent by ENI (overall/outbound/inbound) pipeline. |
 | SAI_ENI_STAT_(/OUTBOUND_/INBOUND_)TX_PACKETS | Total number of packets sent by ENI (overall/outbound/inbound) pipeline. |
+
+#### 3.3.3. ENI-level flow operation counters (Per-ENI)
+
+| Name | Description |
+| -------------- | ----------- |
 | SAI_ENI_STAT_FLOW_CREATED | Total flow created on ENI. |
 | SAI_ENI_STAT_FLOW_CREATE_FAILED | Total flow failed to create on ENI. |
 | SAI_ENI_STAT_FLOW_UPDATED | Total flow updated on ENI. |
@@ -638,7 +639,7 @@ Flow HA has 2 ways to sync the flows from active to standby side: inline sync an
 
 #### 3.4.1. Data plane channel probing (Per-HA Set)
 
-| SAI stats name | Description |
+| Name | Description |
 | -------------- | ----------- |
 | SAI_HA_SET_STAT_DP_PROBE_(REQ/ACK)_RX_BYTES | The bytes of data plane probes that this HA set received. |
 | SAI_HA_SET_STAT_DP_PROBE_(REQ/ACK)_RX_PACKETS | The number of packets of data plane probes that this HA set received. |
@@ -662,7 +663,7 @@ Besides the packet level counters, we should also have flow operation level coun
   * Failed means it is unexpected to receive packet, and we failed to process it.
   * Ignored means packet is expected be received, but we should ignore the flow operation inside and move on without dropping the packet. E.g., more packet arrives before flow sync is ack'ed.
 
-| SAI stats name | Description |
+| Name | Description |
 | -------------- | ----------- |
 | SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_REQ_SENT | The number of inline/timed flow create/update/delete request that the ENI sent. |
 | SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_REQ_RECV | The number of inline/timed flow create/update/delete request that the ENI received. |
@@ -672,79 +673,29 @@ Besides the packet level counters, we should also have flow operation level coun
 | SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_ACK_FAILED | The number of inline/timed flow create/update/delete ack that the ENI is received but failed to process. |
 | SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_ACK_IGNORED | The number of inline/timed flow create/update/delete ack that the ENI is received but its flow operation is processed as ignored. |
 
-#### 3.4.3. Bulk sync channel status related (Per-HA Set)
+#### 3.4.3. Bulk sync related counters (Per-HA Set)
 
-The bulk sync will be using a different channel from the inline flow sync. It is done by a HA set level communitication channel that is implemented using gRPC.
+The control plane data channel will be used for bulk sync. It is implemented using a gRPC server on each DPU.
 
-To monitor how the flow sync gRPC server works, we should have the following counters:
-
-| Name | Description |
-| --- | --- |
-| is_alive | Is the channel alive for use. 0 = dead, 1 = alive. |
-| channel_connect_count | Number of connect calls for establishing the data channel. |
-| channel_connect_succeeded_count | Number of connect calls that succeeded. |
-| channel_connect_failed_count | Number of connect calls that failed because of any reason other than timeout / unreachable. |
-| channel_connect_timeout_count | Number of connect calls that failed due to timeout / unreachable. |
-
-#### 3.4.4. HA control plane data channel counters
-
-HA control plane data channel is composed with 2 parts: SAI flow API calls and `swbusd` for flow forwarding. The first one is already covered by all the SAI API counters above, so we will only focus on the `swbusd` part here. And the counters will be:
-
-* Collected on `swbusd` on NPU side.
-* Saved in NPU side `DPU_COUNTERS_DB`.
-
-##### 3.4.4.1. Per bulk sync flow receive server counters
-
-Since the data channel is formed by multiple flow receive servers, the data plane counters needs to be logged per each server: `DASH_HA_CP_DATA_CHANNEL_CONN_STATS|<PEER_FLOW_RECV_SVR_IP_ENDPOINT>`.
+To monitor how it works, we should have the following counters on HA set level:
 
 | Name | Description |
 | --- | --- |
-| is_alive | Is the channel alive for use. 0 = dead, 1 = alive. |
-| channel_connect_count | Number of connect calls for establishing the data channel. |
-| channel_connect_succeeded_count | Number of connect calls that succeeded. |
-| channel_connect_failed_count | Number of connect calls that failed because of any reason other than timeout / unreachable. |
-| channel_connect_timeout_count | Number of connect calls that failed due to timeout / unreachable. |
-| bulk_sync_message_sent/received | Number of messages we send or receive for bulk sync via data channel. |
-| bulk_sync_message_size_sent/received | The total size of messages we send or receive for bulk sync via data channel. |
-| bulk_sync_flow_received_from_local | Number of flows received from local DPU |
-| bulk_sync_flow_forwarded_to_peer | Number of flows forwarded to paired DPU |
+| SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_ATTEMPTED | Number of connect calls for establishing the data channel. |
+| SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_RECEIVED | Number of connect calls received to estabilish the data channel. |
+| SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_SUCCEEDED | Number of connect calls that succeeded. |
+| SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_FAILED | Number of connect calls that failed because of any reason other than timeout / unreachable. |
+| SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_REJECTED | Number of connect calls that rejected due to certs and etc. |
+| SAI_HA_SET_STAT_CP_DATA_CHANNEL_TIMEOUT_COUNT | Number of connect calls that failed due to timeout / unreachable. |
 
-##### 3.4.4.2. Per ENI counters
-
-Besides per flow receive server, the counters should also be tracked on ENI level, so we can have a more aggregated view for each ENI. The key can be: `DASH_HA_CP_DATA_CHANNEL_ENI_STATS|<ENI_ID>`.
+Besides the channel status, we should also have the following counters for the bulk sync messages:
 
 | Name | Description |
 | --- | --- |
-| bulk_sync_message_sent/received | Number of messages we send or receive for bulk sync via data channel. |
-| bulk_sync_message_size_sent/received | The total size of messages we send or receive for bulk sync via data channel. |
-| bulk_sync_flow_received_from_local | Number of flows received from local DPU |
-| bulk_sync_flow_forwarded_to_peer | Number of flows forwarded to paired DPU |
-
-> NOTE: We didn't add the ENI key in the per flow receive server counters, because multiple ENIs can share the same flow receive server. It is up to each vendor's implementation.
-
-### 3.5. HA service QoS counters
-
-Besides the HA states, we also need to log all the operations that is related to HA.
-
-HA operations are mostly in 2 places: `hamgrd` for operations coming from northbound interfaces and syncd for SAI APIs we call or SAI notification we handle related to HA.
-
-#### 3.5.1. hamgrd HA operation counters
-
-All the HA operation counters will be:
-
-* Saved in NPU side `COUNTERS_DB`, since the `hamgrd` is running on NPU side.
-* Partitioned with ENI level key: `DASH_HA_OP_STATS|<VDPU_ID>|<ENI_ID>`.
-
-| Name | Description |
-| --- | --- |
-| *\_state_enter_(req/success/failure)_count | Number of state transitions we have done (Request/Succeeded Request/Failed request). |
-| total_(successful/failed)_*_state_enter_time_in_us | The total time we used to transit to specific state in microseconds. Successful and failed transitions need to be tracked separately, as they will have different patterns. |
-| switchover_(req/success/failure)_count | Similar as above, but for switchover operations. |
-| total_(successful/failed)_switchover_time_in_us | Similar as above, but for switchover operations. |
-| shutdown_standby_(req/success/failure)_count | Similar as above, but for shutdown standby operations. |
-| total_(successful/failed)_shutdown_standby_time_in_us | Similar as above, but for shutdown standby operations. |
-| shutdown_self_(req/success/failure)_count | Similar as above, but for force shutdown operations. |
-| total_(successful/failed)_shutdown_self_time_in_us | Similar as above, but for force shutdown operations. |
+| SAI_HA_SET_STAT_BULK_SYNC_MESSAGE_RECV | Number of messages we received for bulk sync via data channel. |
+| SAI_HA_SET_STAT_BULK_SYNC_MESSAGE_SENT | Number of messages we sent for bulk sync via data channel. |
+| SAI_HA_SET_STAT_BULK_SYNC_FLOW_RECV | Number of flows received from bulk sync message. A single bulk sync message can contain many flow records. |
+| SAI_HA_SET_STAT_BULK_SYNC_FLOW_SENT | Number of flows sent via bulk sync message. A single bulk sync message can contain many flow records. |
 
 ## 4. SAI APIs
 
