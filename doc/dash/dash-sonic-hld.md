@@ -1007,7 +1007,7 @@ Refer DASH documentation for the test plan.
         "DASH_VNET_TABLE:Vnet1": {
             "vni": "45654",
             "guid": "559c6ce8-26ab-4193-b946-ccc6e8f930b2",
-            "peer_list": "Vnet200"
+            "peer_list": ["Vnet200"]
         },
         "OP": "SET"
     },
