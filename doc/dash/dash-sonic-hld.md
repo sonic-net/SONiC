@@ -1006,7 +1006,8 @@ Refer DASH documentation for the test plan.
     {
         "DASH_VNET_TABLE:Vnet1": {
             "vni": "45654",
-            "guid": "559c6ce8-26ab-4193-b946-ccc6e8f930b2"
+            "guid": "559c6ce8-26ab-4193-b946-ccc6e8f930b2",
+            "peer_list": "Vnet200"
         },
         "OP": "SET"
     },
@@ -1065,6 +1066,14 @@ Refer DASH documentation for the test plan.
         "OP": "SET"
     },
     {
+        "DASH_ROUTE_TABLE:group_id_1:200.1.0.0/16": {
+	    "prefix":"200.1.0.0/16",
+            "action_type":"vnet",
+            "vnet":"Vnet200"
+        },
+        "OP": "SET"
+    },
+    {
         "DASH_ROUTE_TABLE:group_id_1:10.1.0.0/24": {
             "action_type":"vnet_direct",
             "vnet":"Vnet1",
@@ -1097,8 +1106,8 @@ Refer DASH documentation for the test plan.
     {
         "DASH_VNET_MAPPING_TABLE:Vnet1:10.0.0.6": {
                 "routing_type":"vnet_encap",
-                "underlay_ip":"2601:12:7a:1::1234",
-                "mac_address":"F9-22-83-99-22-A2"
+                "underlay_ip":"100.1.2.2",
+                "mac_address":"A9-22-83-99-22-A2"
                 "metering_class":"1002"
         },
         "OP": "SET"
@@ -1107,16 +1116,24 @@ Refer DASH documentation for the test plan.
         "DASH_VNET_MAPPING_TABLE:Vnet1:10.0.0.5": {
             "routing_type":"vnet_encap",
             "underlay_ip":"100.1.2.3",
-            "mac_address":"F9-22-83-99-22-A2"
+            "mac_address":"B9-22-83-99-22-A2"
         },
         "OP": "SET"
     },
     {
         "DASH_VNET_MAPPING_TABLE:Vnet1:10.1.1.1": {
             "routing_type":"vnet_encap",
-            "underlay_ip":"101.1.2.3",
-            "mac_address":"F9-22-83-99-22-A2",
+            "underlay_ip":"101.1.2.4",
+            "mac_address":"C9-22-83-99-22-A2",
 	    "metering_class":"1001"
+        },
+        "OP": "SET"
+    },
+    {
+        "DASH_VNET_MAPPING_TABLE:Vnet2:200.1.0.6": {
+                "routing_type":"vnet_encap",
+                "underlay_ip":"2601:12:7a:1::1234",
+                "mac_address":"20-10-83-99-22-A2"
         },
         "OP": "SET"
     },
