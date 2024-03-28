@@ -705,7 +705,9 @@ Please refer to HA session API and flow API HLD in DASH repo for SAI API designs
 
 The following commands shall be added in CLI for checking the HA config and states:
 
-* `show dash ha config`: Shows HA global configuration.
-* `show dash eni ha config`: Show the ENI level HA configuration.
-* `show dash eni ha status`: Show the ENI level HA status.
-* `show dash eni ha dp-status`: Show the ENI level data path status.
+* `show dash ha global-config`: Shows HA global configuration.
+* `show dash ha set status`: Show the HA set status.
+* `show dash ha set counters`: Show the HA set counters.
+* `show dash ha scope status [ha-scope-id]`: Show the HA scope status.
+* `show dash ha scope counters [ha-scope-id]`: Show the HA scope counters.
+* `show dash ha flow-sync-session counters [flow-sync-session-id]`: Show the HA flow sync session counters.
