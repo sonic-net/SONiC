@@ -23,10 +23,10 @@
       1. [2.2.1. STATE\_DB (per-NPU)](#221-state_db-per-npu)
          1. [2.2.1.1. HA scope state](#2211-ha-scope-state)
             1. [2.2.1.1.1. Table key](#22111-table-key)
-            2. [2.2.1.1.1. Basic information](#22111-basic-information)
-            3. [2.2.1.1.2. HA related states](#22112-ha-related-states)
-            4. [2.2.1.1.3. Aggregated health signals for this HA scope](#22113-aggregated-health-signals-for-this-ha-scope)
-            5. [2.2.1.1.4. Ongoing HA operation state](#22114-ongoing-ha-operation-state)
+            2. [2.2.1.1.2. Basic information](#22112-basic-information)
+            3. [2.2.1.1.3. HA related states](#22113-ha-related-states)
+            4. [2.2.1.1.4. Aggregated health signals for this HA scope](#22114-aggregated-health-signals-for-this-ha-scope)
+            5. [2.2.1.1.5. Ongoing HA operation state](#22115-ongoing-ha-operation-state)
    3. [2.3. Tables used by HA internally](#23-tables-used-by-ha-internally)
       1. [2.3.1. DPU\_APPL\_DB (per-DPU)](#231-dpu_appl_db-per-dpu)
          1. [2.3.1.1. HA set configurations](#2311-ha-set-configurations)
@@ -39,20 +39,21 @@
          3. [2.3.3.3. Flow sync session states](#2333-flow-sync-session-states)
 3. [3. Telemetry](#3-telemetry)
    1. [3.1. HA state and related health signals](#31-ha-state-and-related-health-signals)
-   2. [3.2. HA operation counters](#32-ha-operation-counters)
-      1. [3.2.1. hamgrd HA operation counters](#321-hamgrd-ha-operation-counters)
-      2. [3.2.2. HA SAI API counters](#322-ha-sai-api-counters)
-   3. [3.3. HA control plane communication channel related](#33-ha-control-plane-communication-channel-related)
-      1. [3.3.1. HA control plane control channel counters](#331-ha-control-plane-control-channel-counters)
-      2. [3.3.2. HA control plane data channel counters](#332-ha-control-plane-data-channel-counters)
-         1. [3.3.2.1. Per bulk sync flow receive server counters](#3321-per-bulk-sync-flow-receive-server-counters)
-         2. [3.3.2.2. Per ENI counters](#3322-per-eni-counters)
-   4. [3.4. NPU-to-DPU tunnel related (NPU side)](#34-npu-to-dpu-tunnel-related-npu-side)
-      1. [3.4.1. NPU-to-DPU probe status](#341-npu-to-dpu-probe-status)
-      2. [3.4.2. NPU-to-DPU tunnel counters](#342-npu-to-dpu-tunnel-counters)
-   5. [3.5. NPU-to-DPU tunnel related (DPU side)](#35-npu-to-dpu-tunnel-related-dpu-side)
-   6. [3.6. DPU-to-DPU data plane channel related](#36-dpu-to-dpu-data-plane-channel-related)
-   7. [3.7. DPU ENI pipeline related](#37-dpu-eni-pipeline-related)
+   2. [3.2. Traffic forwarding related](#32-traffic-forwarding-related)
+      1. [3.2.1. NPU-to-DPU probe status (Per-HA Scope)](#321-npu-to-dpu-probe-status-per-ha-scope)
+      2. [3.2.2. NPU-to-DPU tunnel counters (Per-HA Scope)](#322-npu-to-dpu-tunnel-counters-per-ha-scope)
+   3. [3.3. DPU traffic handling related](#33-dpu-traffic-handling-related)
+      1. [3.3.1. DPU level counters (Per-DPU)](#331-dpu-level-counters-per-dpu)
+      2. [3.3.2. ENI-level traffic counters (Per-ENI)](#332-eni-level-traffic-counters-per-eni)
+   4. [3.4. Flow sync counters](#34-flow-sync-counters)
+      1. [3.4.1. Data plane channel probing (Per-HA Set)](#341-data-plane-channel-probing-per-ha-set)
+      2. [3.4.2. Inline flow sync (Per-ENI)](#342-inline-flow-sync-per-eni)
+      3. [3.4.3. Bulk sync channel status related (Per-HA Set)](#343-bulk-sync-channel-status-related-per-ha-set)
+      4. [3.4.4. HA control plane data channel counters](#344-ha-control-plane-data-channel-counters)
+         1. [3.4.4.1. Per bulk sync flow receive server counters](#3441-per-bulk-sync-flow-receive-server-counters)
+         2. [3.4.4.2. Per ENI counters](#3442-per-eni-counters)
+   5. [3.5. HA service QoS counters](#35-ha-service-qos-counters)
+      1. [3.5.1. hamgrd HA operation counters](#351-hamgrd-ha-operation-counters)
 4. [4. SAI APIs](#4-sai-apis)
 5. [5. CLI commands](#5-cli-commands)
 
@@ -420,7 +421,7 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | | \<VDPU_ID\> | | VDPU ID. Used to identifying a single VDPU. |
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 
-###### 2.2.1.1.1. Basic information
+###### 2.2.1.1.2. Basic information
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -432,7 +433,7 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | | | local_ip | The IP of local DPU. |
 | | | peer_ip | The IP of peer DPU. |
 
-###### 2.2.1.1.2. HA related states
+###### 2.2.1.1.3. HA related states
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -446,7 +447,7 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | | | peer_ha_state | The state of the HA state machine in peer DPU. |
 | | | peer_term | The current term in peer DPU. |
 
-###### 2.2.1.1.3. Aggregated health signals for this HA scope
+###### 2.2.1.1.4. Aggregated health signals for this HA scope
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -454,7 +455,7 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | | | local_vdpu_control_plane_state | The state of local vDPU control plane, which includes DPU OS and certain required firmware. The value can be "unknown", "up", "down". |
 | | | local_vdpu_data_plane_state | The state of local vDPU data plane, which includes DPU hardware / ASIC and certain required firmware. The value can be "unknown", "up", "down". |
 
-###### 2.2.1.1.4. Ongoing HA operation state
+###### 2.2.1.1.5. Ongoing HA operation state
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -564,10 +565,7 @@ DPU state table stores the health states of each DPU. These data are collected b
 
 To properly monitor the HA related features, we provides the following telemetry for monitoring it.
 
-The telemetry will cover both state and counters, which can be mapped into `DPU_STATE_DB` or `DPU_COUNTER_DB`.
-
-* For ENI level states and counters in NPU DB, we will have `VDPU_ID` in the key as well as the `ENI_ID` to make each counter unique, because ENI migration from one DPU to another on the same switch.
-* For ENI level states and counters in DPU DB, we don’t need to have `VDPU_ID` in the key, because they are tied to a specific DPU, and we should know which DPU it is during logging.
+The telemetry will cover both state and counters, which can be mapped into `DPU_STATE_DB` or `DPU_COUNTERS_DB`.
 
 We will focus on only the HA counters below, which will not include basic counters, such as ENI creation/removal or generic DPU health/critical event counters, even though some of them works closely with HA workflows.
 
@@ -577,54 +575,108 @@ To help simplify checking the HA states, `hamgrd` will aggregate the HA states a
 
 Please refer to the [HA scope state](#2211-ha-scope-state) table in NPU DB for detailed DB schema design.
 
-### 3.2. HA operation counters
+### 3.2. Traffic forwarding related
 
-Besides the HA states, we also need to log all the operations that is related to HA.
+The following states and counters will help us monitor the NPU-to-DPU tunnel for traffic forwarding.
 
-HA operations are mostly lies in 2 places: `hamgrd` for operations coming from northbound interfaces and syncd for SAI APIs we call or SAI notification we handle related to HA.
+#### 3.2.1. NPU-to-DPU probe status (Per-HA Scope)
 
-#### 3.2.1. hamgrd HA operation counters
+This is managed by `swss` via overlay ECMP with BFD. Please refer to its HLD [here](https://github.com/r12f/SONiC/blob/user/r12f/ha/doc/vxlan/Overlay%20ECMP%20with%20BFD.md).
 
-All the HA operation counters will be:
+#### 3.2.2. NPU-to-DPU tunnel counters (Per-HA Scope)
 
-* Saved in NPU side `COUNTER_DB`, since the `hamgrd` is running on NPU side.
-* Partitioned with ENI level key: `DASH_HA_OP_STATS|<VDPU_ID>|<ENI_ID>`.
-
-| Name | Description |
-| --- | --- |
-| **state_enter*(req/success/failure)_count | Number of state transitions we have done (Request/Succeeded Request/Failed request). |
-| total_(successful/failed)_*_state_enter_time_in_us | The total time we used to transit to specific state in microseconds. Successful and failed transitions need to be tracked separately, as they will have different patterns. |
-| switchover_(req/success/failure)_count | Similar as above, but for switchover operations. |
-| total_(successful/failed)_switchover_time_in_us | Similar as above, but for switchover operations. |
-| shutdown_standby_(req/success/failure)_count | Similar as above, but for shutdown standby operations. |
-| total_(successful/failed)_shutdown_standby_time_in_us | Similar as above, but for shutdown standby operations. |
-| shutdown_self_(req/success/failure)_count | Similar as above, but for force shutdown operations. |
-| total_(successful/failed)_shutdown_self_time_in_us | Similar as above, but for force shutdown operations. |
-
-#### 3.2.2. HA SAI API counters
-
-All the HA SAI API counters will be:
-
-* Saved in DPU side `DASH_COUNTER_DB`, as SAI APIs are called in DPU side syncd.
-* Partitioned with ENI level key: `DASH_SAI_CALL_STATS|<ENI_ID>`.
+On NPU side, we should have following counters to monitor how the NPU-to-DPU tunnel is working:
 
 | Name | Description |
 | --- | --- |
-| *_(req/success/failure)_count | Number of SAI APIs we call or notifications we handle, with success and failure counters too. |
-| total_*_(successful/failed)_time_in_us | Total time we used to do the SAI operations in microseconds. Successful and failed operations should be tracked separately, as they will have different patterns. |
+| packets_forwarded | Number of packets hitting the traffic forwarding rule. |
+| bytes_forwarded | Number of bytes hitting the traffic forwarding rule. |
 
-### 3.3. HA control plane communication channel related
+> TODO: Can we have counters for discards, error and oversize?
 
-#### 3.3.1. HA control plane control channel counters
+### 3.3. DPU traffic handling related
 
-HA control plane control channel is running on NPU side, mainly used for passing the HA control commands.
+On DPU side, we should have following counters to monitor how the DPU is handling the traffic.
 
-The counters of this channel will be:
+#### 3.3.1. DPU level counters (Per-DPU)
 
-* Collected by `hamgrd` on NPU side.
-* Saved in NPU side `DASH_COUNTER_DB`.
-* Stored with key: `DASH_HA_CP_CONTROL_CHANNEL_STATS|<REMOTE_NPU_IP>`.
-  * This counter doesn’t need to be partitioned on a single switch, because it is shared for all ENIs.
+Although majority of the counters will be tracked on ENI level, but before the packet is landed on an ENI, it might fail in other places, such as incorrect packet format and so on. These counters will be tracked separately and will be stored per port basis in the port counters.
+
+Here are some examples of port counters we have:
+
+| Name | Description |
+| --- | --- |
+| SAI_PORT_STAT_IF_IN/OUT_UCAST_PKTS | Number of packets received / sent. |
+| SAI_PORT_STAT_IF_IN/OUT_OCTETS | Total bytes received / sent. |
+| SAI_PORT_STAT_IF_IN/OUT_DISCARDS| Number of incoming/outgoing packets get discarded. |
+| SAI_PORT_STAT_IF_IN/OUT_ERRORS| Number of incoming/outgoing packets have errors like CRC error. |
+| SAI_PORT_STAT_ETHER_RX/TX_OVERSIZE_PKTS | Number of incoming/outgoing packets exceeds the MTU. |
+
+For the full list of port counters, please refer to the `sai_port_stat_t` structure in [SAI header file](https://github.com/opencomputeproject/SAI/blob/master/inc/saiport.h).
+
+#### 3.3.2. ENI-level traffic counters (Per-ENI)
+
+Once the packet lands on an ENI, we should have the following counters to monitor how much traffic is handled by each ENI:
+
+| Name | Description |
+| -------------- | ----------- |
+| SAI_ENI_STAT_(/OUTBOUND_/INBOUND_)RX_BYTES | Total bytes received on ENI (overall/outbound/inbound) pipeline. |
+| SAI_ENI_STAT_(/OUTBOUND_/INBOUND_)RX_PACKETS | Total number of packets received on ENI (overall/outbound/inbound) pipeline. |
+| SAI_ENI_STAT_(/OUTBOUND_/INBOUND_)TX_BYTES | Total bytes sent by ENI (overall/outbound/inbound) pipeline. |
+| SAI_ENI_STAT_(/OUTBOUND_/INBOUND_)TX_PACKETS | Total number of packets sent by ENI (overall/outbound/inbound) pipeline. |
+| SAI_ENI_STAT_FLOW_CREATED | Total flow created on ENI. |
+| SAI_ENI_STAT_FLOW_CREATE_FAILED | Total flow failed to create on ENI. |
+| SAI_ENI_STAT_FLOW_UPDATED | Total flow updated on ENI. |
+| SAI_ENI_STAT_FLOW_UPDATE_FAILED | Total flow failed to update on ENI. |
+| SAI_ENI_STAT_FLOW_DELETED | Total flow deleted on ENI. |
+| SAI_ENI_STAT_FLOW_DELETE_FAILED | Total flow failed to delete on ENI. |
+| SAI_ENI_STAT_FLOW_AGED | Total flow aged out on ENI. A flow is aged out doesn't mean the flow entry is deleted. It could be marked as pending deletion and get deleted later. |
+
+### 3.4. Flow sync counters
+
+Flow HA has 2 ways to sync the flows from active to standby side: inline sync and bulk sync. And below are the counters that added for monitoring them.
+
+#### 3.4.1. Data plane channel probing (Per-HA Set)
+
+| SAI stats name | Description |
+| -------------- | ----------- |
+| SAI_HA_SET_STAT_DP_PROBE_(REQ/ACK)_RX_BYTES | The bytes of data plane probes that this HA set received. |
+| SAI_HA_SET_STAT_DP_PROBE_(REQ/ACK)_RX_PACKETS | The number of packets of data plane probes that this HA set received. |
+| SAI_HA_SET_STAT_DP_PROBE_(REQ/ACK)_TX_BYTES | The bytes of data plane probes that this HA set sent. |
+| SAI_HA_SET_STAT_DP_PROBE_(REQ/ACK)_TX_PACKETS | The number of packets of data plane probes that this HA set sent. |
+| SAI_HA_SET_STAT_DP_PROBE_FAILED | The number of probes that failed. The failure rate = the number of failed probes / the number of tx packets. |
+
+#### 3.4.2. Inline flow sync (Per-ENI)
+
+| Name | Description |
+| -------------- | ----------- |
+| SAI_ENI_STAT_(INLINE/TIMED)_FLOW_SYNC_PACKET_RX_BYTES | The bytes of inline/timed flow sync packet received by the ENI. |
+| SAI_ENI_STAT_(INLINE/TIMED)_FLOW_SYNC_PACKET_RX_PACKETS | The number of inline/timed flow sync packets received by the ENI. |
+| SAI_ENI_STAT_(INLINE/TIMED)_FLOW_SYNC_PACKET_TX_BYTES | The bytes of inline/timed flow sync packet that this ENI sent. |
+| SAI_ENI_STAT_(INLINE/TIMED)_FLOW_SYNC_PACKET_TX_PACKETS | The number of inline/timed flow sync packets that this ENI sent. |
+
+Besides the packet level counters, we should also have flow operation level counters:
+
+* The number of flow operations can be different from the number of flow sync packets. Depending on implementation, a single flow sync packet can carry multiple flow operations.
+* The flow operation could fail or be ignored by ENI.
+  * Failed means it is unexpected to receive packet, and we failed to process it.
+  * Ignored means packet is expected be received, but we should ignore the flow operation inside and move on without dropping the packet. E.g., more packet arrives before flow sync is ack'ed.
+
+| SAI stats name | Description |
+| -------------- | ----------- |
+| SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_REQ_SENT | The number of inline/timed flow create/update/delete request that the ENI sent. |
+| SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_REQ_RECV | The number of inline/timed flow create/update/delete request that the ENI received. |
+| SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_REQ_FAILED | The number of inline/timed flow create/update/delete request that the ENI received but failed to process. |
+| SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_REQ_IGNORED | The number of inline/timed flow create/update/delete request that the ENI received but its flow operation is processed as ignored. |
+| SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_ACK_RECV | The number of inline/timed flow create/update/delete ack that the ENI is received. |
+| SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_ACK_FAILED | The number of inline/timed flow create/update/delete ack that the ENI is received but failed to process. |
+| SAI_ENI_STAT_(INLINE/TIMED)\_FLOW\_(CREATE/UPDATE/DELETE)_ACK_IGNORED | The number of inline/timed flow create/update/delete ack that the ENI is received but its flow operation is processed as ignored. |
+
+#### 3.4.3. Bulk sync channel status related (Per-HA Set)
+
+The bulk sync will be using a different channel from the inline flow sync. It is done by a HA set level communitication channel that is implemented using gRPC.
+
+To monitor how the flow sync gRPC server works, we should have the following counters:
 
 | Name | Description |
 | --- | --- |
@@ -634,14 +686,14 @@ The counters of this channel will be:
 | channel_connect_failed_count | Number of connect calls that failed because of any reason other than timeout / unreachable. |
 | channel_connect_timeout_count | Number of connect calls that failed due to timeout / unreachable. |
 
-#### 3.3.2. HA control plane data channel counters
+#### 3.4.4. HA control plane data channel counters
 
 HA control plane data channel is composed with 2 parts: SAI flow API calls and `swbusd` for flow forwarding. The first one is already covered by all the SAI API counters above, so we will only focus on the `swbusd` part here. And the counters will be:
 
 * Collected on `swbusd` on NPU side.
-* Saved in NPU side `DASH_COUNTER_DB`.
+* Saved in NPU side `DPU_COUNTERS_DB`.
 
-##### 3.3.2.1. Per bulk sync flow receive server counters
+##### 3.4.4.1. Per bulk sync flow receive server counters
 
 Since the data channel is formed by multiple flow receive servers, the data plane counters needs to be logged per each server: `DASH_HA_CP_DATA_CHANNEL_CONN_STATS|<PEER_FLOW_RECV_SVR_IP_ENDPOINT>`.
 
@@ -657,7 +709,7 @@ Since the data channel is formed by multiple flow receive servers, the data plan
 | bulk_sync_flow_received_from_local | Number of flows received from local DPU |
 | bulk_sync_flow_forwarded_to_peer | Number of flows forwarded to paired DPU |
 
-##### 3.3.2.2. Per ENI counters
+##### 3.4.4.2. Per ENI counters
 
 Besides per flow receive server, the counters should also be tracked on ENI level, so we can have a more aggregated view for each ENI. The key can be: `DASH_HA_CP_DATA_CHANNEL_ENI_STATS|<ENI_ID>`.
 
@@ -670,91 +722,29 @@ Besides per flow receive server, the counters should also be tracked on ENI leve
 
 > NOTE: We didn't add the ENI key in the per flow receive server counters, because multiple ENIs can share the same flow receive server. It is up to each vendor's implementation.
 
-### 3.4. NPU-to-DPU tunnel related (NPU side)
+### 3.5. HA service QoS counters
 
-The second part of the HA is the NPU-to-DPU tunnel. This includes the probe status and traffic information on the tunnel.
+Besides the HA states, we also need to log all the operations that is related to HA.
 
-#### 3.4.1. NPU-to-DPU probe status
+HA operations are mostly in 2 places: `hamgrd` for operations coming from northbound interfaces and syncd for SAI APIs we call or SAI notification we handle related to HA.
 
-This is managed by `swss` via overlay ECMP with BFD. Please refer to its HLD [here](https://github.com/r12f/SONiC/blob/user/r12f/ha/doc/vxlan/Overlay%20ECMP%20with%20BFD.md).
+#### 3.5.1. hamgrd HA operation counters
 
-#### 3.4.2. NPU-to-DPU tunnel counters
+All the HA operation counters will be:
 
-On NPU side, we should also have ENI level tunnel traffic counters:
-
-* Collected on the NPU side via SAI.
-* Saved in the NPU side `COUNTER_DB`.
-* Partitioned into ENI level with key: `DASH_HA_NPU_TO_ENI_TUNNEL_STATS|<ENI_ID>`.
+* Saved in NPU side `COUNTERS_DB`, since the `hamgrd` is running on NPU side.
+* Partitioned with ENI level key: `DASH_HA_OP_STATS|<VDPU_ID>|<ENI_ID>`.
 
 | Name | Description |
 | --- | --- |
-| packets_in/out | Number of packets received / sent. |
-| bytes_in/out | Total bytes received / sent. |
-| packets_discards_in/out | Number of incoming/outgoing packets get discarded. |
-| packets_error_in/out | Number of incoming/outgoing packets have errors like CRC error. |
-| packets_oversize_in/out | Number of incoming/outgoing packets exceeds the MTU. |
-
-> NOTE: In implementation, these counters might have a more SAI-friendly name.
-
-### 3.5. NPU-to-DPU tunnel related (DPU side)
-
-On DPU side, every NPU-to-DPU tunnel traffic needs to be tracked on ENI level as well:
-
-* Collected on the DPU side via SAI.
-* Saved in DPU side `COUNTER_DB`.
-* Partitioned into ENI level with key: `DASH_HA_NPU_TO_ENI_TUNNEL_STATS|<ENI_ID>`.
-
-| Name | Description |
-| --- | --- |
-| packets_in/out | Number of packets received / sent. |
-| bytes_in/out | Total bytes received / sent. |
-| packets_discards_in/out | Number of incoming/outgoing packets get discarded. |
-| packets_error_in/out | Number of incoming/outgoing packets have errors like CRC error. |
-| packets_oversize_in/out | Number of incoming/outgoing packets exceeds the MTU. |
-
-> NOTE: In implementation, these counters might have a more SAI-friendly name.
-
-### 3.6. DPU-to-DPU data plane channel related
-
-The next part is the DPU-to-DPU data plane channel, which is used for inline flow replications.
-
-* Collected on the DPU side via SAI.
-* Saved in DPU side `COUNTER_DB`.
-* Partitioned into ENI level with key: `DASH_HA_DPU_DATA_PLANE_STATS|<ENI_ID>`.
-
-| Name | Description |
-| --- | --- |
-| inline_sync_packet_in/out | Number of inline sync packet received / sent. |
-| inline_sync_ack_packet_in/out | Number of inline sync ack packet received / sent. |
-| meta_sync_packet_in/out | Number of metadata sync packet (generated by DPU) received / sent. This is for flow sync packets of flow aging, etc. |
-| meta_sync_ack_packet_in/out | Number of metadata sync ack packet received / sent. This is for flow sync packets of flow aging, etc. |
-| probe_packet_in/out | Number of probe packet received from or sent to the paired ENI on the other DPU. This data is for DPU-to-DPU data plane liveness probe. |
-| probe_packet_ack_in/out | Number of probe ack packet received from or sent to the paired ENI on the other DPU. This data is for DPU-to-DPU data plane liveness probe. |
-
-> NOTE: In implementation, these counters might have a more SAI-friendly name.
-
-### 3.7. DPU ENI pipeline related
-
-The last part is how the DPU ENI pipeline works in terms of HA, which includes flow operations:
-
-* Collected on the DPU side via SAI.
-* Saved in DPU side `COUNTER_DB`.
-* Partitioned into ENI level with key: `DASH_HA_DPU_PIPELINE_STATS|<ENI_ID>`.
-
-| Name | Description |
-| --- | --- |
-| flow_(creation/update/deletion)_count | Number of inline flow creation/update/delete request that failed for any reason. E.g. not enough memory, update non-existing flow, delete non-existing flow.  |
-| inline_flow_(creation/update/deletion)_req_sent | Number of inline flow creation/update/deletion request that sent from active node. Flow resimulation will be covered in flow update requests. |
-| inline_flow_(creation/update/deletion)_req_received | Number of inline flow creation update/deletion request that received on standby node. |
-| inline_flow_(creation/update/deletion)_req_succeeded | Number of inline flow creation update/deletion request that succeeded (ack received). |
-| flow_creation_conflict_count | Number of inline replicated flow that is conflicting with existing flows (flow already exists and action is different). |
-| flow_aging_req_sent | Number of flows that aged out in active and being replicated to standby. |
-| flow_aging_req_received | Number of flow aging requests received from active side. Request can be batched, but in this counter 1 request = 1 flow. |
-| flow_aging_req_succeeded | Number of flow aging requests that succeeded (ack received). |
-
-Please note that we will also have counters for how many flows are created/updated/deleted (succeeded or failed), aged out or resimulated, but this is not in the scope of HA, hence omitted here.
-
-> NOTE: In implementation, these counters might have a more SAI-friendly name.
+| *\_state_enter_(req/success/failure)_count | Number of state transitions we have done (Request/Succeeded Request/Failed request). |
+| total_(successful/failed)_*_state_enter_time_in_us | The total time we used to transit to specific state in microseconds. Successful and failed transitions need to be tracked separately, as they will have different patterns. |
+| switchover_(req/success/failure)_count | Similar as above, but for switchover operations. |
+| total_(successful/failed)_switchover_time_in_us | Similar as above, but for switchover operations. |
+| shutdown_standby_(req/success/failure)_count | Similar as above, but for shutdown standby operations. |
+| total_(successful/failed)_shutdown_standby_time_in_us | Similar as above, but for shutdown standby operations. |
+| shutdown_self_(req/success/failure)_count | Similar as above, but for force shutdown operations. |
+| total_(successful/failed)_shutdown_self_time_in_us | Similar as above, but for force shutdown operations. |
 
 ## 4. SAI APIs
 
