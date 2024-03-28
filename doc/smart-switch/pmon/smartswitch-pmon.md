@@ -888,24 +888,24 @@ DDR                        OK        UserDefine
 show interface status - will show the NPU-DPU interface status also      <font>**`Executed on the switch`**</font>
 ```
 root@sonic:~# show interfaces status
-  Interface                                    Lanes    Speed    MTU    FEC    Alias    Vlan    Oper    Admin    Type    Asym PFC
------------  ---------------------------------------  -------  -----  -----  -------  ------  ------  -------  ------  ----------
-  Ethernet0  2816,2817,2818,2819,2820,2821,2822,2823     400G   9100    N/A     etp0  routed    down       up     N/A         N/A
-  Ethernet8  2824,2825,2826,2827,2828,2829,2830,2831     400G   9100    N/A     etp1  routed    down       up     N/A         N/A
- Ethernet16  2056,2057,2058,2059,2060,2061,2062,2063     400G   9100    N/A     etp2  routed    down       up     N/A         N/A
- Ethernet24  2048,2049,2050,2051,2052,2053,2054,2055     400G   9100    N/A     etp3  routed    down       up     N/A         N/A
- Ethernet32  1792,1793,1794,1795,1796,1797,1798,1799     400G   9100    N/A     etp4  routed    down       up     N/A         N/A
- Ethernet40  1800,1801,1802,1803,1804,1805,1806,1807     400G   9100    N/A     etp5  routed    down       up     N/A         N/A
+  Interface                                    Lanes    Speed    MTU    FEC    Alias    Vlan    Oper    Admin    Type       Asym PFC
+-----------  ---------------------------------------  -------  -----  -----  -------  ------  ------  -------  ------       ----------
+  Ethernet0  2816,2817,2818,2819,2820,2821,2822,2823     400G   9100    N/A     etp0  routed    down       up     N/A           N/A
+  Ethernet8  2824,2825,2826,2827,2828,2829,2830,2831     400G   9100    N/A     etp1  routed    down       up     N/A           N/A
+ Ethernet16  2056,2057,2058,2059,2060,2061,2062,2063     400G   9100    N/A     etp2  routed    down       up     N/A           N/A
+ Ethernet24  2048,2049,2050,2051,2052,2053,2054,2055     400G   9100    N/A     etp3  routed    down       up     N/A           N/A
+ Ethernet32  1792,1793,1794,1795,1796,1797,1798,1799     400G   9100    N/A     etp4  routed    down       up     N/A           N/A
+ Ethernet40  1800,1801,1802,1803,1804,1805,1806,1807     400G   9100    N/A     etp5  routed    down       up     N/A           N/A
  ...
  ...
 
 ### These are internal DPU ports ###
 ...
 ...
-Ethernet-BP0                                  4,5,6,7     200G   9100    N/A   dpu-0  routed    down       up     N/A         N/A
-Ethernet-BP1                                  0,1,2,3     200G   9100    N/A   dpu-1  routed    down       up     N/A         N/A
-Ethernet-BP2                                8,9,10,11     200G   9100    N/A   dpu-2  routed    down       up     N/A         N/A
-Ethernet-BP3                              12,13,14,15     200G   9100    N/A   dpu-3  routed    down       up     N/A         N/A
+Ethernet-BP0                                  4,5,6,7     200G   9100    N/A   dpu-0  routed    down       up     Internal-DPU  N/A
+Ethernet-BP1                                  0,1,2,3     200G   9100    N/A   dpu-1  routed    down       up     Internal-DPU  N/A
+Ethernet-BP2                                8,9,10,11     200G   9100    N/A   dpu-2  routed    down       up     Internal-DPU  N/A
+Ethernet-BP3                              12,13,14,15     200G   9100    N/A   dpu-3  routed    down       up     Internal-DPU  N/A
 ```
 
 show interface status     <font>**`Executed on the DPU`**</font>
