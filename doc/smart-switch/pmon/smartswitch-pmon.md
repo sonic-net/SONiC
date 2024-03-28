@@ -86,7 +86,7 @@ The picture below highlights the PMON vertical and its association with other lo
 ### DPU startup sequence diagram
 <p align="center"><img src="./images/dpu-startup-seq.svg"></p>
 
-#### Configuring startup and shutdown
+### Configuring startup and shutdown
 * The DPUs can be powered down by configuring the admin_status as shown.
 * The corresponding switch configDB table is also shown
 
@@ -214,6 +214,7 @@ SmartSwitch PMON block diagram
 ### 3.1. Platform monitoring and management
 * SmartSwitch design Extends the existing chassis_base and module_base as described below.
 * Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch
+
 #### 3.1.1 ChassisBase class API enhancements
 is_modular_chassis(self):
 ```
@@ -441,6 +442,22 @@ is_midplane_reachable(self):
     | REBOOT_CAUSE_SW_THERMAL |	SW | Switch software Powered Down DPU due to DPU temperature failure |
     | REBOOT_CAUSE_DPU_SELF_REBOOT | SW | DPU Software reboots the DPU |
 
+Every time a DPU is powered up, platform can fetch this information from the DPU during chassisd module init via gRPC and update the Switch (NPU) side STATE_DB. The schema for it is an extension of the existing schema as shown.  The CLIs will use the "device" filed to identify the device.
+#### Schema for REBOOT_CAUSE - switch stateDB
+```
+  Key: "REBOOT_CAUSE|2023_06_18_14_56_12"
+
+  "REBOOT_CAUSE|2023_06_18_14_56_12": {
+    "value": {
+      "cause": "REBOOT_CAUSE_HOST_RESET_DPU",
+      "comment": "N/A",
+      "device": "DPU5",
+      "time": "2023_06_18_14_56_12",
+      "user": "N/A"
+    }
+  },
+
+```
 2. Though the get_oper_status(self) can get the operational status of the DPU Modules, the current implementation only has limited capabilities.
     * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progression the DPU failed. This is critical in fault isolation, DPU switchover decision, resiliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistent way of storing and accessing the information.
@@ -547,8 +564,9 @@ Thermal management sequence diagram
 
 ### 3.3   Midplane Interface
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. When DPU card or the Switch boots and as part of its initialization, midplane interface gets initialized.
-* By default smartswitch midplane IP address assignment will be done using internal DHCP. Please refer to the [ip-address-assignment](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) for IP address assignment between the switch host and the DPUs.
-* The second option is the static IP address assignment. This will be described in another document.
+* By default smartswitch midplane IP address assignment will be done using internal DHCP.
+* The second option is the static IP address assignment.
+* Please refer to the [ip-address-assignment document](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) for IP address assignment between the switch host and the DPUs.
 
 ### 3.4 Debug & RMA
 CLI Extensions and Additions
@@ -624,7 +642,7 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 * The switch will fetch the reboot-cause history from each of the DPUs as needed when the CLI is issued on the switch.
 
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
-* The "show reboot-cause" shows the most recent reboot-cause of th
+* The "show reboot-cause" shows the most recent reboot-cause
 * The "show reboot-cause history" shows the reboot-cause history
 ```
 root@sonic:~#show reboot-cause
