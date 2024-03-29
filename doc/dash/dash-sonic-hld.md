@@ -318,6 +318,7 @@ DASH_VNET_TABLE:{{vnet_name}}
     "vni": {{vni}} 
     "guid": {{"string"}}
     "address_spaces": {{[list of addresses]}} (OPTIONAL)
+    "peer_list": {{vnet_name_list}} (OPTIONAL)
 ```
 
 ### 3.2.2 QOS
@@ -666,6 +667,7 @@ addresses                = list of addresses used for validating underlay source
 |                       |              | vni             | SAI_VNET_ATTR_VNI                               |                                               |
 |                       |              | guid            |                                                 | Not relevant                                  |
 |                       |              | address_spaces  |                                                 |                                               |
+|                       |              | peer_list       |                                                 |                                               |
 | DASH_QOS_TABLE        |              |                 |                                                 |                                               |
 |                       | qos_name     |                 |                                                 |                                               |
 |                       |              | qos_id          |                                                 |                                               |
