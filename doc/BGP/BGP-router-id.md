@@ -1,4 +1,4 @@
-# BGP Router ID Customized
+# BGP Router ID Explicitly Configured
 
 - [Revision](#revision)
 - [Definitions/Abbreviations](#definitionsabbreviations)
@@ -20,43 +20,56 @@
 | Definitions/Abbreviation | Description |
 | ------------------------ | ----------- |
 | FRR | A free and open source Internet routing protocol suite for Linux and Unix platforms |
-| Router ID | 32-bit value that uniquely identifies a BGP device |
-| Lo | Loopback |
+| BGP Router ID | 32-bit value that uniquely identifies a BGP device |
+| Lo | Loopback interface in SONiC |
+| AS | Autonomous System |
 
 ### Scope
 
-This document describes a mechanism that to use customized router id when Lo IPv4 address is not configured.
+This document describes a mechanism to allow user explicitly configure BGP router id.
 
 ### Overview
 
-Currently, there is BGP hard coding in SONiC depends on Lo IPv4 address:
-1. Use Lo IPv4 address as router id. If router id not configured, FRR would choose an IP address on device to be router id, which cannot be guranteed that is unique in network.
-2. Do not add BGP peer when there is not Lo IPv4 exists. It would cause BGP cannot establish.
+Currently, there are some BGP hard codings in SONiC:
+1. BGP router id was defined as a 32-bit value that uniquely identifies a BGP device. SONiC uses Lo IPv4 address as BGP router id. This coupling prevents users from using customized router id. And FRR would choose an IP address in device to be BGP router id if Lo IPv4 address doesn't exist. If the router id choosen by FRR is not unique in AS, it would be considered an error.
+2. SONiC wouldn't add BGP peer when there is not Lo IPv4 exists. It would cause BGP cannot establish.
 
-Below is sequence diagram about BGP, only includes contents related to Lo.
+Below is current workflow about BGP and router id, only includes contents related to Lo.
+
+1. After bgp container started, configuration file `/etc/frr/bgpd.conf` for bgpd would be rendered. It will use Lo IPv4 address as BGP router id, if it doesn't exist, the BGP router id wouldn't be specified.
+2. bgpd start with configuration rendered before. If BGP router id is not specified, it would choose an IP address in device to be BGP router id.
+3. After bgpcfgd started, it will add bgp peer depends on whether Lo IPv4 exist.
+
 <p align=center>
 <img src="img/origin_bgp_seq.png" alt="Figure 1. Origin bgp seq" width=700>
 </p>
 
 ### Requirements
 
-Add support to customize BGP router id.
+Add support to allow user explicitly configure BGP router id.
 
 ### High Level Design
+
+2 aspects enhancement:
+
+1. Add a field `bgp_router_id` in `CONFIG_DB["DEVICE_METADATA"]["localhost"]` to support explicitly configure BGP router id. If `CONFIG_DB["DEVICE_METADATA"]["localhost"]["bgp_router_id"]` configured, always use it as BGP router id no matter whether Lo IPv4 exist.
+2. Remove strong dependencies on Lo IPv4 address when adding BGP peer. Currently, Lo IPv4 address only used in adding monitor type BGP peer, it shouldn't block other types of BGP peer.
+
+Below is new workflow, the main changes are in `1.` and `3.`.
+
+1. After bgp container started, configuration file `/etc/frr/bgpd.conf` for bgpd is would be rendered.
+   * If CONFIG_DB`["DEVICE_METADATA"]["localhost"]["bgp_router_id"]` exist, use it as BGP router id.
+   * Else if Lo IPv4 address exists, use it as BGP router id.
+   * Else, BGP router id wouldn't be specified.
+2. bgpd start with configuration rendered before. If router id is not specified, it would choose an IP address in device to be router id, which would cause BGP cannot work if the router id is not unique in network.
+3. After bgpcfgd started, it will start BGP peer based on configuration.
+   * If peer type is not monitor, continue to add peer.
+   * Else if Lo IPv4 address exists, continue to add monitor peer.
+   * Else, do nothing.
 
 <p align=center>
 <img src="img/new_bgp_seq.png" alt="Figure 2. New bgp seq" width=700>
 </p>
-
-1. Add field `bgp_router_id` into `CONFIG_DB["DEVICE_METADATA"]["localhost"]["bgp_router_id"]`
-2. In [bgp.main.conf.j2](https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-fpm-frr/frr/bgpd/bgpd.main.conf.j2#L91) to always respect bgp_router_id in CONFIG_DB if configured
-```jinja
-{% if "bgp_router_id" in DEVICE_METADATA["localhost"] %}
-    bgp router-id DEVICE_METADATA["localhost"]["bgp_router_id"]
-{% else %}
-    bgp router-id {{ get_ipv4_loopback_address(LOOPBACK_INTERFACE, "Loopback0") | ip }}
-{% endif %}
-```
 
 ### Config DB Enhancement
 
