@@ -47,7 +47,7 @@ Currently, most SONiC operation and configuration management requires directly u
 # Scope
 This document describes the high level design of SONiC gNOI Server Interface. 
 
-GNOI support comes as a natural extension to preexisting gNMI support. GNOI RPCs are exposed on the same port as the gNMI server. For more information regarding gNMI, please refer to the [gNMI HLD](https://github.com/ganglyu/SONiC/blob/012afe049a707da87ac258c8aca5c501172d0f33/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md).
+GNOI support comes as a natural extension to preexisting gNMI support. GNOI RPCs are exposed on the same server/port as the gNMI server. For more information regarding gNMI, please refer to the [gNMI HLD](https://github.com/ganglyu/SONiC/blob/012afe049a707da87ac258c8aca5c501172d0f33/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md).
 
 ## 1 Project Goal Summary
 Network engineers (NE) currently rely on command line interfaces (CLI) to operate SONiC devices. We plan to replace CLI by GNOI API, which will help minimize network engineers’ manual touches on SONiC devices.
@@ -519,11 +519,6 @@ GNMI already supports three authentication mechanisms that are naturally extende
 * Certificate - A valid client certificate is used with the username embedded in the certificate CN field. This allows the requests to be authenticaed against the CA certificate and the username can be used for authorization.
 
 A GNOI/GNMI server needs to validate the user role before executing any operation. Depending on the user role, the server may allow or deny different types of operations. For example, some users can only run read-only operations, such as get or subscribe, while some users can run read-write operations, such as set or reboot. 
-
-We plan to use CNAME in client certificates to determine user roles. The benefit of this is that there's no dependency on an external service, and GNOI client does not need to provide username and password.
-* CNAME is ro.gnmi.sonic.gbl for read-only user
-* CNAME is rw.gnmi.sonic.gbl for read-write user.
-
 
 ### 4.3. Parallel Operations
 The GNOI/GNMI server accepts concurrent requests. Parallel reads and sequential writes are permitted. 
