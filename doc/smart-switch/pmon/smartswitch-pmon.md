@@ -737,28 +737,28 @@ show system-health DPU \<dpu-index\>  <font>**`Executed on the switch. This CLI 
 ```
 When the idex is "all" shows the detailed state of all DPUs
 
-root@sonic:~#show system-health DPU all              
+root@sonic:~#show system-health DPU all  
+            
+Name       ID    Oper-Status          State-Detail                   State-Value     Time                               Reason                        
+DPU0       1     Partial Online       dpu_npu_midplane_link          up              Wed 20 Oct 2023 06:52:28 PM UTC                    
+                                      dpu_booted                     up              Wed 20 Oct 2023 06:52:28 PM UTC                    
+                                      dpu_control_plane              up              Wed 20 Oct 2023 06:52:28 PM UTC            
+                                      dpu_data_plane                 down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure              
 
-Name        Description      ID      Oper-Status  State-Detail          State-Value     Admin-Status     Serial
 
-DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up                up         SN20240105
-                                                  dpu-booted                up
-                                                  dpu-controlplane          up
-                                                  dpu-dataplane             up
+DPU1       2     Partial Online       dpu_npu_midplane_link          up              Wed 20 Oct 2023 06:52:28 PM UTC                    
+                                      dpu_booted                     up              Wed 20 Oct 2023 06:52:28 PM UTC                    
+                                      dpu_control_plane              up              Wed 20 Oct 2023 06:52:28 PM UTC            
+                                      dpu_data_plane                 down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure              
 
-DPU1        SS-DPU1          2       Online       host-dpu-midplane         up                up         SN20240235
-                                                  dpu-booted                up
-                                                  dpu-ControlPlane          up
-                                                  dpu-DataPlane             down
 
 root@sonic:~#show system-health DPU 0
  
-Name        Description      ID      Oper-Status  State-Detail             State-Value     Admin-Status     Serial
-
-DPU0        SS-DPU0          1       Online       host-dpu-midplane-link    up                   up         SN20240105
-                                                  host-booted               up
-                                                  dpu-ControlPlane          up
-                                                  dpu-DataPlane             up
+Name       ID    Oper-Status          State-Detail                   State-Value     Time                               Reason
+DPU0       1     Partial Online       dpu_npu_midplane_link          up              Wed 20 Oct 2023 06:52:28 PM UTC                    
+                                      dpu_booted                     up              Wed 20 Oct 2023 06:52:28 PM UTC                    
+                                      dpu_control_plane              up              Wed 20 Oct 2023 06:52:28 PM UTC            
+                                      dpu_data_plane                 down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure              
 
 ```
 #### System health cli extended further as shown
@@ -873,7 +873,7 @@ psu     Ignored   Device
 * If the vendor wants to add additional information specific to the platform it can be done using the user-defined checkers:
 * The DPU specific interrupt events can be part of this.
 ```
-show system-health monitor-list \<module-name\>
+show system-health monitor-list <module-name>
 
 System services and devices monitor list
 
