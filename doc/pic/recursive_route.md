@@ -45,11 +45,9 @@ Due to the Linux kernel lacks support for recursive routes, FRR zebra flattens t
 
 <figure align=center>
     <img src="images_recursive/srv6_igp2bgp.png" >
-    <figcaption>Figure 1. Alibaba issue Underlay routes flap affecting Overlay SRv6 routes <figcaption>
+    <figcaption>Figure 1. Alibaba issue Underlay routes flap affecting Overlay SRv6 routes <br><br><figcaption>
 </figure>
-```
 
-```
 To solve this issue, we need to introduce Prefix Independent Convergence (PIC) to FRR/SONiC. PIC concept is described in IEFT https://datatracker.ietf.org/doc/draft-ietf-rtgwg-bgp-pic/. It is not a BGP feature, but a RIB/FIB feature on the device. PIC has two basic concepts, PIC core and PIC edge. We use the following two HLD for achieving PIC supports in FRR/SONiC.
 
 1. The following HLD focuses on PIC edge's enhancement https://github.com/eddieruan-alibaba/SONiC/blob/eruan-pic/doc/pic/bgp_pic_edge.md. 
@@ -138,12 +136,9 @@ The following diagram provides a brief description of zebra's current recursive 
 
 <figure align=center>
     <img src="images_recursive/route_converge_original.png" >
-    <figcaption>Figure 2. FRR current route convergence processing work flow<figcaption>
+    <figcaption>Figure 2. FRR current route convergence processing work flow <br><br><figcaption>
 </figure>
 
-```
-
-```
 The handling of recursive routes occurs within the process of managing route updates. The function zebra_rib_evaluate_rn_nexthops() serves as the starting point for this process. Zebra begins by retrieving the NHT list from the targeted route entry. Subsequently, it iterates through each nexthop in the NHT list and calls zebra_evaluate_rnh() to assess the reachability of the nexthop. If the state of the nexthop changes, zebra utilizes zebra_rnh_notify_protocol_clients() to notify all clients to reissue corresponding routes to zebra. This results in a period of traffic loss until the routes are rebound with updated Next Hop Groups (NHGs). The duration of the traffic loss window increases proportionally with the number of routes.
 
 ## High Level Design
@@ -189,11 +184,9 @@ If one of the paths (path 10.6.6.12) for prefix 200.0.0.0/24 is removed, zebra w
 
 <figure align=center>
     <img src="images_recursive/path_remove.png" >
-    <figcaption>Figure 3. The starting point for a path removal<figcaption>
+    <figcaption>Figure 3. The starting point for a path removal<br><br><figcaption>
 </figure>
-```
 
-```
 For achieving this quick fixup, we need the following changes. 
 1. Change NHG ID hash method
 2. Add a new function zebra_rnh_fixup_depends() to make a quick fixup on involved NHGs in dataplanes.
@@ -244,11 +237,9 @@ This newly added function is inserted into the existing route convergence work f
 
 <figure align=center>
     <img src="images_recursive/zebra_rnh_fixup_depends.png" >
-    <figcaption>Figure 5. zebra_rnh_fixup_depends()<figcaption>
+    <figcaption>Figure 4. zebra_rnh_fixup_depends()<br><br><figcaption>
 </figure>
-```
 
-```
 The function marked in blue serves the quick fixup purpose. It gets triggered before the protocol clients get notified for routes updating. zebra_rnh_fixup_depends() is called from zebra_rnh_eval_nexthop_entry() after zebra decides that rnh's state is changed. 
 
 ``` c
@@ -290,7 +281,7 @@ static void zebra_rnh_eval_nexthop_entry(struct zebra_vrf *zvrf, afi_t afi,
     }
 }
 ```
-The main work flow for zebra_rnh_fixup_depends() is the following
+The main work flow for **zebra_rnh_fixup_depends()** is the following
 1. Find the nexthop hash entry for this rnh
 2. Walk through this nexthop hash entry's nhg_dependents list and update each NHG involved in dataplane
 
@@ -302,52 +293,42 @@ Assuming the initial state of EVPN underlay routes is the following
 
 <figure align=center>
     <img src="images_recursive/nhg_initial_state.png" >
-    <figcaption>Figure 6. initial state of the routes<figcaption>
+    <figcaption>Figure 5. initial state of the routes <br><br><figcaption>
 </figure>
-```
 
-```
-After BGP learns 200.0.0.0/24's path 10.6.6.12 is withdrew, BGP would send a route update for 200.0.0.0/24 to zebra with two remaining paths. After zebra updates this route, it reaches the state shown in Figure 7.
+After BGP learns 200.0.0.0/24's path 10.6.6.12 is withdrew, a.k.a  case 2: IGP remote link/node failure, BGP would send a route update for 200.0.0.0/24 to zebra with two remaining paths. After zebra updates this route, it reaches the state shown in Figure 6.
 
 <figure align=center>
     <img src="images_recursive/nhg_removed_state.png" >
-    <figcaption>Figure 7. one path is removed for route 200.0.0.0/24<figcaption>
+    <figcaption>Figure 6. one path is removed for route 200.0.0.0/24<br><br><figcaption>
 </figure>
-```
 
-```
-Zebra updates the route with new NHG 242 which has two paths, zebra sends the route update to dataplanes. This is the current approach, which would recover all traffic via route 200.0.0.0/24.
+Zebra updates the route with new NHG 242 which has two paths, zebra sends the route update to dataplanes. This is the current approach, which would recover all traffic via route 200.0.0.0/24, which is shown in Figure 7.
 
 <figure align=center>
     <img src="images_recursive/nhg_for_dataplane.png" >
-    <figcaption>Figure 8<figcaption>
+    <figcaption>Figure 7 Zebra updates the route with new NHG 242 which has two paths<br><br><figcaption>
 </figure>
-```
 
-```
 Then zebra walks through nht list of the route entry 200.0.0.0/24 and handle each rnh in the list via zebra_rnh_eval_nexthop_entry().
 <figure align=center>
     <img src="images_recursive/find_nhg_by_rnh.png" >
-    <figcaption>Figure 9<figcaption>
+    <figcaption>Figure 8 zebra walks through nht list of the route entry 200.0.0.0/24 <br><br><figcaption>
 </figure>
-```
 
-```
-zebra_rnh_fixup_depends() would be triggered by zebra_rnh_eval_nexthop_entry() if rnh's state is changed. This function would use 200.0.0.1 to find out its corresponding nhg_hash_entry (NHG 71 in this example). From NHG 71, we back walk to all its dependent NHGs via NHG 71's *nhg_dependents list. At each dependent NHG (NHG 70 in this example), zebra performs a quick fixup to dataplanes. In this example, since rnh is resolved via 200.0.0.0/24 which has been updated to NHG 242, NHG 70 would update dataplanes with five paths. This quick fixup would help to stop traffic loss via these dependent NHGs and be independent from the number of routes pointing to them. 
+zebra_rnh_fixup_depends() would be triggered by zebra_rnh_eval_nexthop_entry() if rnh's state is changed. This function would use 200.0.0.1 to find out its corresponding nhg_hash_entry (NHG 71 in this example). From NHG 71, we back walk to all its dependent NHGs via NHG 71's *nhg_dependents list. At each dependent NHG (NHG 70 in this example), zebra performs a quick fixup to dataplanes via **zebra_rnh_fixup_depends(rnh);**. In this example, since rnh is resolved via 200.0.0.0/24 which has been updated to NHG 242, NHG 70 would update dataplanes with five paths. This quick fixup would help to stop traffic loss via these dependent NHGs and be independent from the number of routes pointing to them. 
 
 <figure align=center>
     <img src="images_recursive/nhg_depend_update.png" >
-    <figcaption>Figure 10<figcaption>
+    <figcaption>Figure 9 zebra performs a quick fixup to dataplanes<br><br><figcaption>
 </figure>
-```
 
-```
-After zebra_rnh_fixup_depends() is done, zebra continues its original processing，calling zebra_rnh_notify_protocol_clients() to inform BGP that 200.0.0.1 as nexthop is changed.
+After **zebra_rnh_fixup_depends()** is done, zebra continues its original processing，calling zebra_rnh_notify_protocol_clients() to inform BGP that 200.0.0.1 as nexthop is changed.
 BGP triggers 2.2.2.2 and other routes updates which are via 200.0.0.1. During 2.2.2.2's zebra route handling, zebra would walk 2.2.2.2's rnh list if it is not empty.
 
 Notes: 
 1. Although this illustrations are on IGP remote link/node failure case, the similar work flow could be applied to local link failure as well.
-2. The same logic and work flow could be applied to add paths to NHG, a.k.a zebra_rnh_fixup_depends() is a generic logic.
+2. The same logic and work flow could be applied to add paths to NHG, a.k.a **zebra_rnh_fixup_depends()** is a generic logic.
 
 #### Overlay NHG handling
 For SRV6 and EVPN routes, their next hops store specific VPN context information, such as vpn-sid and vni/label. These VPN contexts, combined with the next hop addresses, collectively compose the key for the nhg (Next Hop Group). This type of next hop is referred to as an overlay next hop group.
@@ -360,11 +341,9 @@ By employing this approach, we can utilize the same zebra_rnh_fixup_depends() fu
 The new forwarding chain is depicted in the following graph.
 <figure align=center>
     <img src="images_recursive/path_remove_pic.png" >
-    <figcaption>Figure 11. The forwarding chain with overlay NHG<figcaption>
+    <figcaption>Figure 10. The forwarding chain with overlay NHG<br><br><figcaption>
 </figure>
-```
 
-```
 Regardless of whether it's a PIC edge or PIC core scenario, NHG updates will always be initiated for PIC_NHGs first, then their corresponding PIC_CONTEXT_NHGs. Different NHG objects will be managed distinctively, as outlined in the table below.
 
 | Cases |     SRv6 VPN  |       EVPN       | 
@@ -380,7 +359,7 @@ Zebra will always inform protocol clients that nexthop is changed. Protocol clie
 |:---|:-----------|:----------------------|
 | Nexthop and routes are in the same global table | BGP will always reissue routes download | It could trigger fixup handling if there are recursive layers further |
 | Nexthop and routes are in the different table, and nexthops' reachabilities are changed. | BGP will always reissue routes download. | This is PIC edge case for updating VPN context properly. |
-| Nexthop and routes are in the different table. Nexthops' reachabilities are not changed and there is no metric change as well. |  BGP will skip reissue routes download. | This is the PIC core case which we could throttle routes updating. |
+| Nexthop and routes are in the different table. Nexthops' reachabilities are not changed and there is no metric change as well. |  **BGP will skip reissue routes download.** | This is the PIC core case which we could throttle routes updating. |
 | Other cases | BGP will always reissue routes download. | safe net |
 
 
@@ -394,34 +373,34 @@ This approach relies on the following two changes for updating NHG in dataplane.
 ### Test Case 1: local link failure
 <figure align=center>
     <img src="images_recursive/testcase1.png" >
-    <figcaption>Figure 11.local link failure <figcaption>
+    <figcaption>Figure 11.local link failure <br><br><figcaption>
 </figure>
 
 ### Test Case 2: IGP remote link/node failure
 <figure align=center>
     <img src="images_recursive/testcase2.png" >
-    <figcaption>Figure 12. IGP remote link/node failure
+    <figcaption>Figure 12. IGP remote link/node failure<br><br>
  <figcaption>
 </figure>
 
 ### Test Case 3: IGP remote PE failure
 <figure align=center>
     <img src="images_recursive/testcase3.png" >
-    <figcaption>Figure 13. IGP remote PE failure
+    <figcaption>Figure 13. IGP remote PE failure<br><br>
  <figcaption>
 </figure>
 
 ### Test Case 4: BGP remote PE node failure
 <figure align=center>
     <img src="images_recursive/testcase4.png" >
-    <figcaption>Figure 14. BGP remote PE node failure
+    <figcaption>Figure 14. BGP remote PE node failure<br><br>
  <figcaption>
 </figure>
 
 ### Test Case 5: Remote PE-CE link failure
 <figure align=center>
     <img src="images_recursive/testcase5.png" >
-    <figcaption>Figure 15. Remote PE-CE link failure
+    <figcaption>Figure 15. Remote PE-CE link failure<br><br>
  <figcaption>
 </figure>
 
