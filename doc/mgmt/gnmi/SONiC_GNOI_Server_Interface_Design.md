@@ -44,8 +44,10 @@ Software for Open Networking in the Cloud (SONiC) is an open source network oper
 
 Currently, most SONiC operation and configuration management requires directly using CLI on the device. This document proposes the addition of gNOI API to SONiC to modernize SONiC operation management. 
 
+GNOI (gRPC network operations interface) is supported through OpenConfig. All gNOI services and documentation are available on the [OpenConfig page](https://github.com/openconfig/gnoi). OpenConfig defines and implements a common, vendor-independent software layer for managing network devices.
+
 # Scope
-This document describes the high level design of SONiC gNOI Server Interface. 
+This document describes the high level design of SONiC gNOI Server Interface, as well as the gNOI APIs necessary for SONiC operation management. 
 
 GNOI support comes as a natural extension to preexisting gNMI support. GNOI RPCs are exposed on the same server/port as the gNMI server. For more information regarding gNMI, please refer to the [gNMI HLD](https://github.com/ganglyu/SONiC/blob/012afe049a707da87ac258c8aca5c501172d0f33/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md).
 
@@ -81,66 +83,16 @@ The GNOI/GNMI server uses [DBUS](https://github.com/sonic-net/SONiC/blob/master/
 
 ## 4 High Level Design
 
+GNOI is composed of services, each of which is organized into related RPCs. We plan to add support for the following services: 
+* File - provides an interface for file operations on the target, including file transfer to and from the target node.
+* FactoryReset - provides an interface for factory resetting the target node.
+* CertificateManagement - provides an interface to install certificates on the target node.
+* System - provides an interface for the management system-related operations on the target node. 
+* Containerz - provides an interface to perform container operations on a network device. 
+
 ### 4.1. GNOI RPC API
 We need to implement these GNOI APIs to support SONiC operations. 
 
-#### OS.Activate
-We can use this API to select the image which will be used after reboot.
-
-Arguments: OS version string to be activated after reboot, Boolean flag to determine whether the reboot process should be initiated immediately after changing the OS version string
-```
-rpc Activate(ActivateRequest) returns (ActivateResponse);
-
-message ActivateRequest {
-  // The version that is required to be activated and optionally immediattely
-  // booted.
-  string version = 1;
-  // For dual Supervisors setting this flag instructs the Target to perform the
-  // action on the Standby Supervisor.
-  bool standby_supervisor = 2;
-  // If set to 'False' the Target will initiate the reboot process immediatelly
-  // after changing the next bootable OS version.
-  // If set to 'True' a separate action to reboot the Target and start using
-  // the activated OS version is required. This action CAN be executing
-  // the gNOI.system.Reboot() RPC.
-  bool no_reboot = 3;
-}
-
-message ActivateResponse {
-  oneof response {
-    ActivateOK activate_ok = 1;
-    ActivateError activate_error = 2;
-  }
-}
-
-```
-#### OS.Verify
-We can use this API to verify the running OS version.
-
-Arguments: None
-```
-rpc Verify(VerifyRequest) returns (VerifyResponse);
-
-message VerifyRequest {
-}
-
-message VerifyResponse {
-  // The OS version currently running.  This string should match OC path 
-  // /system/state/software-version
-  string version = 1;
-  // Informational message describing fail details of the last boot. This MUST
-  // be set when a newly transferred OS fails to boot and the system falls back
-  // to the previously running OS version. It MUST be cleared whenever the
-  // systems successfully boots the activated OS version.
-  string activation_fail_message = 2;
-
-  VerifyStandby verify_standby = 3;
-  // Dual Supervisor Targets that require the Install/Activate/Verify process 
-  // executed once per supervisor reply with individual_supervisor_install set 
-  // to true
-  bool individual_supervisor_install = 4;
-}
-```
 
 #### File.Get
 We can use this API to get a file from SONiC device.
@@ -535,14 +487,13 @@ The solution is to add host services for `config apply-patch` and `config reload
 
 ## 5 Typical Scenarios
 ### 5.1. Upgrade DPU Firmware
-
-<img src="images/update_dpu_firmware.svg" alt="upgrade-dpu-firmware" width="800px"/>
+<img src="images/dpu_firmware_apis_hld.svg" alt="upgrade-dpu-firmware" width="800px"/>
 We need the below steps to upgrade DPU firmware:
 
 * GNMI Get
 Read current DPU firmware. If it's not golden firmware, we need to ugprade.
 * GNOI System.SetPackage
-The SetPackage API downloads DPU firmware from remote host to local filesystem. Filename is used to specify DPU firmware and DPU id, and firmware is not activated by default. The below chart shows possible firmware types and proposed filenames that will be supported by System.SetPackage. This example is for SONiC image running on DPU; the relevant row is the second row, marked with filename SONiC/DPU0/default. 
+The SetPackage API downloads DPU firmware from remote host to local filesystem. Filename is used to specify DPU firmware and DPU id. The below chart shows possible firmware types and proposed filenames that will be supported by System.SetPackage. This example is for SONiC image running on DPU; the relevant row is the second row, marked with filename SONiC/DPU0/default. 
 
 | Filename                | Version    | Activate | Firmware type              | Proposed file location                               |
 |-------------------------|------------|----------|----------------------------|-----------------------------------------------------|
@@ -561,8 +512,7 @@ GNOI API will use the below rules for Filename in System.SetPackage. Each part o
 
 <img src="images/filename_gnoi.svg" alt="filename-gnoi" width="800px"/>
 
-* GNOI System.SetPackage
-We will use the same GNOI API to activate existing DPU firmware and reboot DPU, activate is True and remote_download is empty for activate operation.
+We will use the same GNOI API call to activate existing DPU firmware and reboot DPU by setting activate to True.
 
 ```
 // Package defines a single package file to be placed on the target.
@@ -620,6 +570,8 @@ message PathElem {
   map<string, string> key = 2;        // Map of key (attribute) name to value.
 }
 ```
+* GNMI Get
+Read current DPU firmware. If it's equal to target version, then upgrade was successful. 
 
 ### 5.2. Upgrade Cable Firmware
 We need the below steps to upgrade cable firmware:
