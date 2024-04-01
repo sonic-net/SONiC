@@ -8,8 +8,11 @@
 - [Overview](#overview)
 - [Requirements](#requirements)
 - [Architecture Design](#architecture-design)
+  - [PoE interaction](#poe-interaction)
+  - [SWSS changes](#swss-changes)
   - [PoE SYNCD](#poe-syncd)
   - [PoE Manager](#poe-manager)
+  - [LLDP Manager](#lldp-manager-modified)
 - [High-Level Design](#high-level-design)
   - [PoE flows](#poe-flows)
     - [PoE data collection](#poe-data-collection)
@@ -28,7 +31,8 @@
 
  | Rev | Date |     Author     | Change Description |
  |:---:|:----:|:--------------:|--------------------|
- | 0.1 |      | Volodymyr Mytnyk |  Initial version   |
+ | 0.1 | 03-26-2024 | Volodymyr Mytnyk |  Initial version |
+ | 0.2 | 04-01-2024 | Volodymyr Mytnyk |  Add SWSS cahnges, include LLDP interaction, add example PoE config, mention about warm reboot requirements |
 
 ### Scope  
 
@@ -50,7 +54,8 @@ Ethernet switch (e.g. campus specific platforms) today often comes with Power ov
 - PoE feature can be enabled via compile option (disabled by default);
 - PoE config persistence during SONiC reboot;
 - Support CLI configurations as mentioned in [config section](#config-commands) and [show section](#show-commands);
-- Warm boot (future);
+- LLDP support (PoE power reporting only, future releases);
+- Warm boot;
 
 ### Architecture Design 
 
@@ -69,6 +74,13 @@ The following diagram explains the changes needed in existing SONiC architecture
 This section describes the detail interaction of PoE componnents, DB and PoE hardware (controller) in SONiC subsytem.
 
 ![poe-interaction](images/poe_interaction.png)
+
+#### SWSS changes
+
+In case to support external and separate PoE SAI, and following SONiC architecture design, SWSS container needs to be extended
+with PoE orch deamon that will handle all PoE ASIC DB requests and does PoE initialization.
+
+![swss-changes](images/poe_swss_poesyncd.png)
 
 #### PoE SYNCD
 
@@ -94,6 +106,46 @@ PoE manager consists of a daemon that implements the following functionality:
   - PSE information;
 - apply PoE controller configuration;
 - track changes in config, appl DB;
+
+##### Configuration
+
+Below is a example of PoE configuration used by PoE manager on start up. The mapping between PoE port and ASIC port is done via front panel id.
+```
+{
+  "hw_info": "integrated_mcu",
+  "pse_list": [
+    {
+      "pse_index": 0
+    },
+    {
+      "pse_index": 1
+    },
+    ...
+  ],
+  "port_mapping_list": [
+    {
+      "Ethernet0": 
+      {
+          "front_panel_index": 1
+      },
+      ...
+      "Ethernet47": 
+      {
+          "front_panel_index": 48
+      }
+    }
+  ]
+}
+```
+
+#### LLDP manager (modified)
+
+To exchange the PoE information with peer about power supply capability, the LLDP protocol is used. In case to support
+that, LLDP manager is required to be modified as following:
+
+- LLDP manager gets PoE information (from application PoE database).
+- LLDP manager adds LLDP TLV with PoE information into LLDP packet.
+- LLDP negotiation (future versions).
 
 ### High-Level Design 
 
@@ -192,7 +244,7 @@ The PoE Manager uses a new SAI PoE library that implements the PoE Abstraction I
 #### Manifest (if the feature is an Application Extension)
 Feature is not an Application Extension
 
-#### CLI/YANG model Enhancements 
+#### CLI
 
 ##### Show commands
 - show poe status
@@ -234,6 +286,10 @@ $ config poe interface power_limit Ethernet0 20.4
 ```
 
 **TODO**: update CLI reference https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md
+
+#### YANG model Enhancements
+
+TBD
 
 #### Config DB Enhancements  
 
@@ -287,7 +343,8 @@ In SONiC all the peripheral devices data (information relared to PoE) will be st
 
 
 ### Warmboot and Fastboot Design Impact  
-Future
+
+In scope of current desgin, the PoE functionality should continue to work across warm boot. The PoE configuration is present in the ASIC database and therefore should be compatible with existing SYNCD and its warm boot capabilities.
 
 ### Memory Consumption
 This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration. 
@@ -308,7 +365,6 @@ System testing can be done only on systems with PoE hardware support.
 
 TBD
 
-### Open/Action items - if any 
-None
+### Open/Action items
 
-NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
+- SONiC Yang models needs to be provided as a part of this design.
