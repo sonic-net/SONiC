@@ -45,20 +45,21 @@ Software for Open Networking in the Cloud (SONiC) is an open source network oper
 Currently, most SONiC operation and configuration management requires directly using CLI on the device. This document proposes the addition of gNOI API to SONiC to modernize SONiC operation management. 
 
 # Scope
-This document describes the high level design of SONiC GNOI Server Interface. 
+This document describes the high level design of SONiC gNOI Server Interface. 
+
+GNOI support comes as a natural extension to preexisting gNMI support. GNOI RPCs are exposed on the same port as the gNMI server. For more information regarding gNMI, please refer to the [gNMI HLD](https://github.com/ganglyu/SONiC/blob/012afe049a707da87ac258c8aca5c501172d0f33/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md).
 
 ## 1 Project Goal Summary
 Network engineers (NE) currently rely on command line interfaces (CLI) to operate SONiC devices. We plan to replace CLI by GNOI API, which will help minimize network engineers’ manual touches on SONiC devices.
 
-## 2 Requirements
 We plan to use GNOI API to replace the most common NE CLI used for SONiC operation management. These APIs can sit behind a website frontend that NEs interact with directly, which enables NEs to execute common tasks with a simple webpage interaction. This saves time and reduces errors.
+
+## 2 Requirements
 
 Support for commonly used SONiC operation management CLI
 * sudo sonic_installer install
 * sudo reboot
 * sudo systemctl restart <service>
-* sudo config bgp shutdown all
-* sudo config bgp startup all
 
 Support for commonly used Linux system management CLI
 * mv
@@ -68,15 +69,15 @@ Support for commonly used Linux system management CLI
 Support for other commonly used SONiC operations
 * cert installation
 * firmware upgrade
-* Traffic shift away (TSA), traffic shift back (TSB)
 
 ## 3 Architecture Design
 
-The GNOI/GNMI server uses DBUS to communicate with the SONiC host services, which are responsible for executing various commands on the device. Some of these commands are "config reload", "reboot", "sonic-installer install", "cp", "mv", and "rm".
+All the introduced features are part of the sonic-telemetry package installed in sonic-telemetry container.
 
-All the introduced features will be part of the sonic-telemetry package installed in sonic-telemetry container.
+The GNOI/GNMI server uses [DBUS](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md) to communicate with the SONiC host services, which are responsible for executing various commands on the device. Some of these commands are "config reload", "reboot", "sonic-installer install", "cp", "mv", and "rm". 
 
-<img src="images/gnoi_gnmi_overview.svg" alt="gnmi-server" width="1000px"/>
+
+<img src="images/gnoi_gnmi_overview.svg" alt="gnmi-server" width="1200px"/>
 
 ## 4 High Level Design
 
@@ -162,7 +163,6 @@ message GetResponse {
 
 #### File.Put
 We can use this API to put a file to SONiC device. Since File API is verify powerful, we will check client role. Only read-write clients can upload files.
-Arguments: absolute path string on target where file should be written, file permissions, contents to be written to target 
 
 Arguments: absolute path string on target where file should be written, file permissions, contents to be written to target 
 
@@ -510,26 +510,31 @@ service SonicService {
 We plan to add support for ShowTechsupport. We also plan to add APIs to support additional use cases:
 * #### Start Process
 GNOI System.proto defines only KillProcess, which can optionally restart a process. There is not yet an API specific to starting a process.
-* #### TSA, TSB
-GNOI bgp API is related, but does not meet our requirements. We need to add an API which supports modifying route-map
 
 ### 4.2. Authentication
 
+GNMI already supports three authentication mechanisms that are naturally extended to gNOI:
+* Basic Authentication - Requires passing of username and password in the gRPC metadata via the username and password keys.
+* JSON Web Tokens (JWT) - Requires initial authentication via either basic or certificate authentication using the gNOI Authenticate RPC, afterwhich a token is recieved that can be used with future requests to avoid further authentication. The JWT token is sent in the metadata of the gRPC requests with the access_token key.
+* Certificate - A valid client certificate is used with the username embedded in the certificate CN field. This allows the requests to be authenticaed against the CA certificate and the username can be used for authorization.
+
 A GNOI/GNMI server needs to validate the user role before executing any operation. Depending on the user role, the server may allow or deny different types of operations. For example, some users can only run read-only operations, such as get or subscribe, while some users can run read-write operations, such as set or reboot. 
 
-We plan to use CNAME in client certificates to determine user roles.
-For example, CNAME is ro.gnmi.sonic.gbl for read-only user, and CNAME is rw.gnmi.sonic.gbl for read-write user.
-#### PROS:
-There’s no dependency on an external service, and GNOI client does not need to provide username and password.
+We plan to use CNAME in client certificates to determine user roles. The benefit of this is that there's no dependency on an external service, and GNOI client does not need to provide username and password.
+* CNAME is ro.gnmi.sonic.gbl for read-only user
+* CNAME is rw.gnmi.sonic.gbl for read-write user.
+
 
 ### 4.3. Parallel Operations
-SONiC GNOI/GNMI server does not support parallel write operations. We will put the GNOI/GNMI write requests in a queue and serve them with a single worker.
+The GNOI/GNMI server accepts concurrent requests. Parallel reads and sequential writes are permitted. 
+
+The GNOI/GNMI server does not support parallel write operations. GNOI/GNMI write requests are placed in a queue and served with a single worker.
 <img src="images/gnoi_write_threads.svg" alt="gnoi-write-threads" width="800px"/>
 
 ### 4.4. Docker to Host Communication
-Some commands are desired to run on the host, such as `systemctl restart <service>`, `config apply-patch` and `config reload`. For several reasons, it is difficult to support these operations in a container:
-1. These commands will update redis database and restart container, when they restart gnmi, bgp, syncd and swss, the ongoing gNOI operation will be broken.
-2. 'config reload' will stop service at first, run some other operations, and then restart service. If we run this command in a container, it will be broken at the stop service step.
+Some commands are designed to run on the host, such as `systemctl restart <service>`, `config apply-patch` and `config reload`. For several reasons, it is difficult to support these operations in a container:
+1. These commands update redis database and may restart a container. When they restart gnmi, bgp, syncd, or swss, the ongoing gNOI operation will be broken.
+2. 'config reload' will stop services, run some other operations, and then restart services. If we run this command in a container, it will break at the stop service step.
 3. These commands will execute some host scripts and use systemctl to restart service, so it would be dangerous to support these operations in a container.
 The solution is to add host services for `config apply-patch` and `config reload` on the host. GNOI/GNMI server can then use dbus method to invoke these host services.
 
@@ -542,7 +547,7 @@ We need the below steps to upgrade DPU firmware:
 * GNMI Get
 Read current DPU firmware. If it's not golden firmware, we need to ugprade.
 * GNOI System.SetPackage
-The SetPackage API downloads DPU firmware from remote host to local filesystem. Filename is used to specify DPU firmware and DPU id, and firmware is not activated by default. The below chart shows possible firmware types and proposed file paths that will be supported by System.SetPackage. This example is for SONiC image running on DPU; the relevant row is marked with Filename SONiC/DPU0/default. 
+The SetPackage API downloads DPU firmware from remote host to local filesystem. Filename is used to specify DPU firmware and DPU id, and firmware is not activated by default. The below chart shows possible firmware types and proposed filenames that will be supported by System.SetPackage. This example is for SONiC image running on DPU; the relevant row is the second row, marked with filename SONiC/DPU0/default. 
 
 | Filename                | Version    | Activate | Firmware type              | Proposed file location                               |
 |-------------------------|------------|----------|----------------------------|-----------------------------------------------------|
@@ -599,7 +604,6 @@ Note: The OS.Activate API is not suitable for our use case, because it does not 
 
 * GNOI System.Reboot
 We can use System.Reboot API to reboot one or more DPU, and the RebootRequest has a subcomponents field that allows us to specify which DPU we want to reboot.
-We will use the same rule as GNOI System.SetPackage to determine device.
 ```
 message RebootRequest {
   RebootMethod method = 1;
@@ -621,6 +625,7 @@ message PathElem {
   map<string, string> key = 2;        // Map of key (attribute) name to value.
 }
 ```
+
 ### 5.2. Upgrade Cable Firmware
 We need the below steps to upgrade cable firmware:
 * GNMI Get
@@ -632,12 +637,49 @@ Download cable firmware from remote to host file system, file name is used to sp
 * GNOI System.SetPackage
 We will use the same GNOI API to activate existing cable firmware, activate is True and remote_download is empty for activate operation.
 
-### 5.3. Isolate SONiC Device
-Use new GNOI API to support TSA and TSB
 
 ## 6 Testing
 (WIP, detailed list pending)
 ### 6.1. Unit Testing
-Unit tests will be added for each new supported gNOI API
+| Test Case | Description |
+| ---- | ---- |
+| 1 | UT for OS.Activate |
+| 2 | UT for OS.Verify |
+| 3 | UT for File.Get |
+| 4 | UT for File.Put |
+| 5 | UT for File.Stat |
+| 6 | UT for File.Remove |
+| 7 | UT for FactoryReset.Start |
+| 8 | UT for CertificateManagement.Install |
+| 9 | UT for System.SetPackage |
+| 10 | UT for System.Reboot |
+| 11 | UT for Containerz.StartContainer |
+| 12 | UT for Containerz.StopContainer |
+| 13 | UT for Containerz.Deploy |
+| 14 | UT for Containerz.RemoveContainer |
+| 15 | UT for System.KillProcess |
+| 16 | UT for dbus client initialization |
+| 17 | UT for dbus config reload API call |
+| 18 | UT for dbus service restart API call |
+
+
 ### 6.2. E2E Testing
-E2E tests will be added to [sonic-mgmt](https://github.com/sonic-net/sonic-mgmt.git) for each new supported gNOI API
+E2E tests will be added to [sonic-mgmt](https://github.com/sonic-net/sonic-mgmt.git)
+| Test Case | Description |
+| ---- | ---- |
+| 1 | E2E test for OS.Activate |
+| 2 | E2E test for OS.Verify |
+| 3 | E2E test for File.Get |
+| 4 | E2E test for File.Put |
+| 5 | E2E test for File.Stat |
+| 6 | E2E test for File.Remove |
+| 7 | E2E test for FactoryReset.Start |
+| 8 | E2E test for CertificateManagement.Install |
+| 9 | E2E test for System.SetPackage |
+| 10 | E2E test for System.Reboot |
+| 11 | E2E test for Containerz.StartContainer |
+| 12 | E2E test for Containerz.StopContainer |
+| 13 | E2E test for Containerz.Deploy |
+| 14 | E2E test for Containerz.RemoveContainer |
+| 15 | E2E test for System.KillProcess |
+| 16 | E2E test to verify that required gNOI/gNMI parameters are in ConfigDB (certs, port) |
