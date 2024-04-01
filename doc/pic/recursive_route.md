@@ -16,7 +16,7 @@
     - [NHT List from Route Entry](#nht-list-from-route-entry)
   - [Exiting Recursive Route Handling](#exiting-recursive-route-handling)
 - [High Level Design](#high-level-design)
-  - [Triggers Events for Recursive Handling](#triggers-events-for-recursive-handling)
+  - [Network Outage Events for Recursive Handling](#network-outage-events-for-recursive-handling)
   - [Nexthop Fixup Handling](#nexthop-fixup-handling)
     - [NHG ID](#nhg-id)
     - [zebra\_rnh\_fixup\_depends()](#zebra_rnh_fixup_depends)
@@ -34,20 +34,26 @@
 - [References](#references)
 
 ## Objective
-The objective of this document is to minimize packet loss windows on SONiC devices during network outages. Since SONiC doesn't have MPLS VPN support in master, the testing focus would be on EVPN and SRv6 VPN only. 
+The objective of this document is to minimize traffic loss windows on SONiC devices during network outages. Since SONiC doesn't have MPLS VPN support in master, the testing focus would be on EVPN and SRv6 VPN only. 
+
+We follow the following design principals.  
+1. Reuse existing FRR routes' convergence logic and make minimal changes for optimizations.
+2. Based on existing zebra information to make quick fixups to minimize traffic loss windows. 
 
 ## Requirements Overview
-Due to the Linux kernel lacks support for recursive routes, FRR Zebra flattens the nexthop information when transferring recursive nexthop group information to dataplanes. Presently, when a path becomes unavailable, Zebra notifies corresponding protocol processes, allowing them to reissue route update events, which in turn update the forwarding chain of routes in the dataplane. This method contributes to the issue under discussion within the SONiC Routing Working Group.
+Due to the Linux kernel lacks support for recursive routes, FRR zebra flattens the nexthop information when transferring recursive nexthop group information to dataplanes. Presently, when a path becomes unavailable, zebra notifies corresponding protocol processes, and let them to reissue route update events, which in turn update the forwarding chain of routes in the dataplane. This method contributes to the issue under discussion within the SONiC Routing Working Group.
 
 <figure align=center>
     <img src="images_recursive/srv6_igp2bgp.png" >
     <figcaption>Figure 1. Alibaba issue Underlay routes flap affecting Overlay SRv6 routes <figcaption>
 </figure>
+```
 
+```
 To solve this issue, we need to introduce Prefix Independent Convergence (PIC) to FRR/SONiC. PIC concept is described in IEFT https://datatracker.ietf.org/doc/draft-ietf-rtgwg-bgp-pic/. It is not a BGP feature, but a RIB/FIB feature on the device. PIC has two basic concepts, PIC core and PIC edge. We use the following two HLD for achieving PIC supports in FRR/SONiC.
 
 1. The following HLD focuses on PIC edge's enhancement https://github.com/eddieruan-alibaba/SONiC/blob/eruan-pic/doc/pic/bgp_pic_edge.md. 
-2. This HLD outlines an approach which could minimize packet loss windows on SONiC devices during network outages, a.k.a PIC core approach for the recursive VPN route supports.
+2. This HLD outlines an approach which could minimize traffic loss windows on SONiC devices during network outages, a.k.a PIC core approach for the recursive VPN route supports.
 
 ## Zebra Current Approach for Recursive Routes
 ### Data Structure for Recursive Handling
@@ -128,24 +134,27 @@ struct rnh {
 
 
 ### Exiting Recursive Route Handling
-The following diagram provides a brief description of Zebra's current recursive convergence process.
+The following diagram provides a brief description of zebra's current recursive convergence process.
 
 <figure align=center>
     <img src="images_recursive/route_converge_original.png" >
-    <figcaption>Figure 2. route convergence process<figcaption>
+    <figcaption>Figure 2. FRR current route convergence processing work flow<figcaption>
 </figure>
 
-The handling of recursive routes occurs within the process of managing route updates. The function zebra_rib_evaluate_rn_nexthops() serves as the starting point for this process. Zebra begins by retrieving the NHT list from the targeted route entry. Subsequently, it iterates through each nexthop in the NHT list and calls zebra_evaluate_rnh() to assess the reachability of the nexthop. If the state of the nexthop changes, Zebra utilizes zebra_rnh_notify_protocol_clients() to notify all clients to reissue corresponding routes to Zebra. This results in a period of traffic loss until the routes are rebound with updated Next Hop Groups (NHGs). The duration of the traffic loss window increases proportionally with the number of routes.
+```
+
+```
+The handling of recursive routes occurs within the process of managing route updates. The function zebra_rib_evaluate_rn_nexthops() serves as the starting point for this process. Zebra begins by retrieving the NHT list from the targeted route entry. Subsequently, it iterates through each nexthop in the NHT list and calls zebra_evaluate_rnh() to assess the reachability of the nexthop. If the state of the nexthop changes, zebra utilizes zebra_rnh_notify_protocol_clients() to notify all clients to reissue corresponding routes to zebra. This results in a period of traffic loss until the routes are rebound with updated Next Hop Groups (NHGs). The duration of the traffic loss window increases proportionally with the number of routes.
 
 ## High Level Design
 
-### Triggers Events for Recursive Handling
-Here are a list of trigger events which we want to take care via recursive route handling. The goals are to minimize traffic loss window for these cases.
+### Network Outage Events for Recursive Handling
+Here are a list of network outage events which we want to take care via recursive route handling. The goals are to minimize traffic loss window for these cases.
 
-| Trigger Types |     Events    |       Possible handling          | 
+|  Types |   Network Outage Events    |       Possible handling          | 
 |:---|:-----------|:----------------------|
-| Case 1: IGP local failure | A local link goes down | Currently Orchagent handles local link down event and triggers a quick fixup which removes the failed path in HW ECMP. Zebra will be triggered from connected_down() handling. BGP may be informed to install a backup path if needed. This is a special PIC core case, a.k.a PIC local |
-| Case 2: IGP remote link/node failture  | A remote link goes down, IGP leaf's reachability is not changed, only IGP paths are updated. | IGP gets route withdraw events from IGP peer. It would inform zebra with updated paths.THere are two possilbe triggers. One is that zebra would be triggered from zread_route_add() with updated path list. The other is that zebra would be informed via zread_route_del(). In the second case, the impacted nexthop could be able to resolve its corresponding RNH via a less specific prefix. It is the PIC core handling case. |
+| Case 1: IGP local failure | A local link goes down | Currently Orchagent handles local link down event and triggers a quick fixup which removes the failed path in HW ECMP. Later zebra will be triggered from connected_down() handling. BGP may be informed to install a backup path if needed. This is a special PIC core case, a.k.a PIC local |
+| Case 2: IGP remote link/node failure  | A remote link/node goes down, IGP leaf's reachability is not changed on the given PE, only IGP paths are updated. | IGP gets route withdraw events from IGP peer. Protocol client would inform zebra with updated paths.There are two possible triggers. One is that zebra would be triggered from zread_route_add() with updated path list. The other is that zebra would be informed via zread_route_del(). In the second case, the impacted nexthop could be able to resolve its corresponding RNH via a less specific prefix. It is the PIC core handling case. |
 | Case 3: IGP remote PE failure  | A remote PE node is unreachable in IGP domain. | IGP triggers IGP leaf delete event. Zebra will be triggered via zread_route_del() and zebra can't resolve its corresponding BGP NH via less specific prefix. It is the PIC edge handling case |
 | Case 4: BGP remote PE node failure  | BGP remote node down | It should be detected by IGP remote node down first before BGP reacts, a.k.a the same as the above step. This is the PIC edge handling case.|
 | Case 5: Remote PE-CE link failure | This is remote PE's PIC local case.  | Remote PE will trigger PIC local handling for quick traffic fix up. Local PE will be updated after BGP gets informed. |
@@ -176,13 +185,15 @@ To streamline the discussion and ensure generality, we employ the following recu
       *                           via 10.5.5.12, Ethernet5, weight 1, 00:11:28
       *                           via 10.6.6.12, Ethernet6, weight 1, 00:11:28
 
-If one of the paths (path 10.6.6.12) for prefix 200.0.0.0/24 is removed, Zebra will actively update two routes during the recursive convergence handling, facilitated by the BGP client. One route update pertains to 200.0.0.0/24, while the other update concerns 2.2.2.2/32 and 3.3.3.3/32. In this scenario, route 200.0.0.0/24 experiences the removal of one path, while the reachability of route 2.2.2.2/32 or 3.3.3.3/32 remains unaffected. To minimize the traffic loss window, it's essential to promptly address the affected nexthops in the dataplane before zebra completes its route convergence process.
+If one of the paths (path 10.6.6.12) for prefix 200.0.0.0/24 is removed, zebra will actively update two routes during the recursive convergence handling, facilitated by the BGP client. One route update pertains to 200.0.0.0/24, while the other update concerns 2.2.2.2/32 and 3.3.3.3/32. In this scenario, route 200.0.0.0/24 experiences the removal of one path, while the reachability of route 2.2.2.2/32 or 3.3.3.3/32 remains unaffected. To minimize the traffic loss window, it's essential to promptly address the affected nexthops in the dataplane before zebra completes its route convergence process.
 
 <figure align=center>
     <img src="images_recursive/path_remove.png" >
     <figcaption>Figure 3. The starting point for a path removal<figcaption>
 </figure>
+```
 
+```
 For achieving this quick fixup, we need the following changes. 
 1. Change NHG ID hash method
 2. Add a new function zebra_rnh_fixup_depends() to make a quick fixup on involved NHGs in dataplanes.
@@ -208,7 +219,7 @@ uint32_t nexthop_group_hash(const struct nexthop_group *nhg)
 }
 ```
 
-We want to extend the hash function below to all NHGs. This change allows us to reuse recursive NHG when the recursive nexthops are not changed. One benefit from this change is that protocol client could decides not to reissue all routes and recursive NHG could be reused. 
+We want to extend the hash function below to all NHGs. This change allows us to reuse recursive NHG when the recursive nexthops are not changed. One benefit from this change is that protocol client could decide not to reissue all routes and recursive NHG could be reused. 
 
 ``` c
 uint32_t nexthop_group_hash_no_recurse(const struct nexthop_group *nhg)
@@ -235,7 +246,9 @@ This newly added function is inserted into the existing route convergence work f
     <img src="images_recursive/zebra_rnh_fixup_depends.png" >
     <figcaption>Figure 5. zebra_rnh_fixup_depends()<figcaption>
 </figure>
+```
 
+```
 The function marked in blue serves the quick fixup purpose. It gets triggered before the protocol clients get notified for routes updating. zebra_rnh_fixup_depends() is called from zebra_rnh_eval_nexthop_entry() after zebra decides that rnh's state is changed. 
 
 ``` c
@@ -291,36 +304,46 @@ Assuming the initial state of EVPN underlay routes is the following
     <img src="images_recursive/nhg_initial_state.png" >
     <figcaption>Figure 6. initial state of the routes<figcaption>
 </figure>
+```
 
+```
 After BGP learns 200.0.0.0/24's path 10.6.6.12 is withdrew, BGP would send a route update for 200.0.0.0/24 to zebra with two remaining paths. After zebra updates this route, it reaches the state shown in Figure 7.
 
 <figure align=center>
     <img src="images_recursive/nhg_removed_state.png" >
     <figcaption>Figure 7. one path is removed for route 200.0.0.0/24<figcaption>
 </figure>
+```
 
+```
 Zebra updates the route with new NHG 242 which has two paths, zebra sends the route update to dataplanes. This is the current approach, which would recover all traffic via route 200.0.0.0/24.
 
 <figure align=center>
     <img src="images_recursive/nhg_for_dataplane.png" >
     <figcaption>Figure 8<figcaption>
 </figure>
+```
 
+```
 Then zebra walks through nht list of the route entry 200.0.0.0/24 and handle each rnh in the list via zebra_rnh_eval_nexthop_entry().
 <figure align=center>
     <img src="images_recursive/find_nhg_by_rnh.png" >
     <figcaption>Figure 9<figcaption>
 </figure>
+```
 
+```
 zebra_rnh_fixup_depends() would be triggered by zebra_rnh_eval_nexthop_entry() if rnh's state is changed. This function would use 200.0.0.1 to find out its corresponding nhg_hash_entry (NHG 71 in this example). From NHG 71, we back walk to all its dependent NHGs via NHG 71's *nhg_dependents list. At each dependent NHG (NHG 70 in this example), zebra performs a quick fixup to dataplanes. In this example, since rnh is resolved via 200.0.0.0/24 which has been updated to NHG 242, NHG 70 would update dataplanes with five paths. This quick fixup would help to stop traffic loss via these dependent NHGs and be independent from the number of routes pointing to them. 
 
 <figure align=center>
     <img src="images_recursive/nhg_depend_update.png" >
     <figcaption>Figure 10<figcaption>
 </figure>
+```
 
-After zebra_rnh_fixup_depends() is done, Zebra continues its original processing，calling zebra_rnh_notify_protocol_clients() to inform BGP that 200.0.0.1 as nexthop is changed.
-BGP triggers 2.2.2.2 and other routes updates which are via 200.0.0.1. During 2.2.2.2's Zebra route handling, zebra would walk 2.2.2.2's rnh list if it is not empty.
+```
+After zebra_rnh_fixup_depends() is done, zebra continues its original processing，calling zebra_rnh_notify_protocol_clients() to inform BGP that 200.0.0.1 as nexthop is changed.
+BGP triggers 2.2.2.2 and other routes updates which are via 200.0.0.1. During 2.2.2.2's zebra route handling, zebra would walk 2.2.2.2's rnh list if it is not empty.
 
 Notes: 
 1. Although this illustrations are on IGP remote link/node failure case, the similar work flow could be applied to local link failure as well.
@@ -339,7 +362,9 @@ The new forwarding chain is depicted in the following graph.
     <img src="images_recursive/path_remove_pic.png" >
     <figcaption>Figure 11. The forwarding chain with overlay NHG<figcaption>
 </figure>
+```
 
+```
 Regardless of whether it's a PIC edge or PIC core scenario, NHG updates will always be initiated for PIC_NHGs first, then their corresponding PIC_CONTEXT_NHGs. Different NHG objects will be managed distinctively, as outlined in the table below.
 
 | Cases |     SRv6 VPN  |       EVPN       | 
@@ -360,7 +385,7 @@ Zebra will always inform protocol clients that nexthop is changed. Protocol clie
 
 
 ### FPM and Orchagent Changes
-THis approach relies on the following two changes for updating NHG in dataplane.
+This approach relies on the following two changes for updating NHG in dataplane.
 1. Fpm needs to add a new schema to take each member as nexthop group ID and update APP DB. (Rely on BRCM and NTT's changes)
 2. Orchagent picks up event from APP DB and trigger nexthop group programming. Neighorch needs to handle this new schema without change too much on existing codes. (Rely on BRCM and NTT's changes)
 
