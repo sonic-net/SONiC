@@ -515,7 +515,7 @@
 		</g>
 		<g id="shape70-198" v:mID="70" v:groupContext="shape" v:layerMember="1" transform="translate(58.5965,-224.097)">
 			<title>Message.498</title>
-			<desc>GNOI os.reboot Reboot SONiC</desc>
+			<desc>GNOI system.reboot Reboot SONiC</desc>
 			<v:userDefs>
 				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
 				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):5"/>
@@ -523,10 +523,10 @@
 				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
-			<v:textRect cx="71.0552" cy="543.643" width="60.61" height="27.2035"/>
+			<v:textRect cx="71.0552" cy="543.643" width="76.19" height="27.2035"/>
 			<path d="M0 544.37 L133.63 543" class="st11"/>
-			<rect v:rectContext="textBkgnd" x="45.6608" y="534.043" width="50.789" height="19.1997" class="st12"/>
-			<text x="45.66" y="541.24" class="st13" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>GNOI os.reboot<v:newlineChar/><tspan
+			<rect v:rectContext="textBkgnd" x="37.87" y="534.043" width="66.3706" height="19.1997" class="st12"/>
+			<text x="37.87" y="541.24" class="st13" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>GNOI system.reboot<v:newlineChar/><tspan
 						x="47.31" dy="1.2em" class="st10"> </tspan>Reboot SONiC</text>		</g>
 		<g id="shape71-206" v:mID="71" v:groupContext="shape" transform="translate(-343.165,355.957) rotate(-90.4374)">
 			<title>Activation.500</title>
@@ -618,7 +618,7 @@
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="120.159" cy="561.643" width="54.11" height="17.6036"/>
 			<path d="M0 561.31 L231.84 561.95" class="st11"/>
-			<rect v:rectContext="textBkgnd" x="98.0154" y="556.843" width="44.2884" height="9.59985" class="st14"/>
+			<rect v:rectContext="textBkgnd" x="98.0154" y="556.843" width="44.2884" height="9.59985" class="st12"/>
 			<text x="98.02" y="564.04" class="st13" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Read StateDB</text>		</g>
 		<g id="shape80-248" v:mID="80" v:groupContext="shape" v:layerMember="1" transform="translate(449.4,-101.517)">
 			<title>Return Message.514</title>
