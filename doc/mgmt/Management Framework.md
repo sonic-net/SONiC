@@ -735,7 +735,7 @@ Supported RPC Operations:
 
 Example Client Operations:
 --------------------------
-Using opensource clients, these are example client operations. The .json test payload files are available here: https://github.com/project-arlo/sonic-mgmt-common/tree/master/src/Translib/test
+Using opensource clients, these are example client operations. The .json test payload files are available here: https://github.com/sonic-net/sonic-mgmt-common/tree/master/translib/test
 
 Get:
 ----
