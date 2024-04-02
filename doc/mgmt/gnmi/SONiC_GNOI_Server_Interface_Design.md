@@ -535,7 +535,9 @@ As described in the [gNMI HLD](https://github.com/sonic-net/SONiC/blob/master/do
 ### Upgrade SONiC image
 <img src="images/install_sonic_image_apis_flow.svg" alt="upgrade-dpu-firmware" width="800px"/>
 We need the below steps to upgrade DPU firmware:
+
 * GNMI Get
+
 Read current SONiC image version. If it's not golden version, we need to ugprade.
 
 * GNOI System.SetPackage
@@ -576,6 +578,7 @@ message SetPackageResponse {
 Note: The OS.Activate API is not suitable for our use case, because it does not have a field to specify the subcomponent that we want to activate.
 
 * GNOI System.Reboot
+
 We will use System.Reboot API to reboot the device.
 ```
 message RebootRequest {
@@ -599,6 +602,7 @@ message PathElem {
 }
 ```
 * GNMI Get
+
 Read current SONiC image version. If it's equal to target version, then upgrade was successful. 
 
 
