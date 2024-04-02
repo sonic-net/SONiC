@@ -15,7 +15,7 @@
 - [2 Requirements](#2-requirements)
 - [3 Architecture Design](#3-architecture-design)
 - [4 High Level Design](#4-high-level-design)
-- [5 Typical Scenarios](#5-typical-scenarios)
+- [5 Sample Scenario](#5-sample-scenario)
 - [6 Testing](#6-testing)
 
 
@@ -49,7 +49,7 @@ GNOI (gRPC network operations interface) is supported through OpenConfig. All gN
 # Scope
 This document describes the high level design of SONiC gNOI Server Interface, as well as the gNOI APIs necessary for SONiC operation management. 
 
-GNOI support comes as a natural extension to preexisting gNMI support. GNOI RPCs are exposed on the same server/port as the gNMI server. For more information regarding gNMI, please refer to the [gNMI HLD](https://github.com/ganglyu/SONiC/blob/012afe049a707da87ac258c8aca5c501172d0f33/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md).
+GNOI support comes as a natural extension to preexisting gNMI support. GNOI RPCs are exposed on the same server/port as the gNMI server. For more information regarding gNMI, please refer to the [gNMI HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md).
 
 ## 1 Project Goal Summary
 Network engineers (NE) currently rely on command line interfaces (CLI) to operate SONiC devices. We plan to replace CLI by GNOI API, which will help minimize network engineers’ manual touches on SONiC devices.
@@ -59,14 +59,14 @@ We plan to use GNOI API to replace the most common NE CLI used for SONiC operati
 ## 2 Requirements
 
 Support for commonly used SONiC operation management CLI
-* sudo sonic_installer install
-* sudo reboot
-* sudo systemctl restart <service>
+* `sudo sonic_installer install`
+* `sudo reboot`
+* `sudo systemctl restart <service>`
 
 Support for commonly used Linux system management CLI
-* mv
-* cp
-* rm
+* `mv`
+* `cp`
+* `rm`
 
 Support for other commonly used SONiC operations
 * cert installation
@@ -74,12 +74,12 @@ Support for other commonly used SONiC operations
 
 ## 3 Architecture Design
 
-All the introduced features are part of the sonic-telemetry package installed in sonic-telemetry container.
+All the introduced features are part of the sonic-gnmi package installed in the sonic-gnmi container.
 
 The GNOI/GNMI server uses [DBUS](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md) to communicate with the SONiC host services, which are responsible for executing various commands on the device. Some of these commands are "config reload", "reboot", "sonic-installer install", "cp", "mv", and "rm". 
 
 
-<img src="images/gnoi_gnmi_overview.svg" alt="gnmi-server" width="1200px"/>
+<img src="images/gnoi_gnmi_arch.svg" alt="gnmi-server" width="1200px"/>
 
 ## 4 High Level Design
 
@@ -95,7 +95,7 @@ We need to implement these GNOI APIs to support SONiC operations.
 
 
 #### File.Get
-We can use this API to get a file from SONiC device.
+We can use this API to get a file from a SONiC device.
 
 Arguments: absolute path string to an existing remote file
 ```
@@ -142,18 +142,39 @@ message PutResponse {
 ```
 
 #### File.Stat
-We can use this API to get file size, permission etc.
+We can use this API to get metadata about a file including size, permission etc.
 
 Arguments: path string for which we want to retrieve file(s) info
 ```
 rpc Stat(StatRequest) returns (StatResponse) {}
 
+// StatRequest will list files at the provided path.
 message StatRequest {
   string path = 1;
 }
 
+// StatResponse contains list of stat info of the provided path.
 message StatResponse {
   repeated StatInfo stats = 1;
+}
+
+// StatInfo provides a file system information about a particular path.
+message StatInfo {
+  string path = 1;
+  uint64 last_modified = 2; // Nanoseconds since epoch.
+  // Permissions are represented as the octal format of standard UNIX
+  // file permissions.
+  // ex. 775: user read/write/execute, group read/write/execute,
+  // global read/execute.
+  // The value returned in this field should be the octal number. No base
+  // conversion should be required to read the value. For example, 0755
+  // should result in the permissions field holding the value 755, 4644
+  // results in the permissions field being 4644, and so on.
+  uint32 permissions = 3;
+  uint64 size = 4;
+  // Default file creation mask. Represented as the octal format of
+  // standard UNIX mask.
+  uint32 umask = 5;
 }
 ```
 
@@ -228,9 +249,9 @@ message InstallCertificateResponse {
 ```
 
 #### System.SetPackage
-We can use this API to download an image or package from remote and install this image or package, and we can also use this API to send image from GNOI client to SONiC device.
+We can use this API to download an image or package from remote (or passed directly in client request) and install this image or package.
 
-Arguments: destination path and filename of the package, version of the package, Boolean to indicate whether the package should be made active after receipt on the device, package contents, hash of file contents
+Arguments: filename of the package, version of the package, Boolean to indicate whether the package should be made active after receipt on the device, package contents, hash of file contents
 ```
 rpc SetPackage(stream SetPackageRequest) returns (SetPackageResponse) {}
 
@@ -242,12 +263,46 @@ message SetPackageRequest {
   }
 }
 
+// Package defines a single package file to be placed on the target.
+message Package  {
+  // filename of the package.
+  string filename = 1;
+  // Version of the package. (vendor internal name)
+  string version = 4;
+  // Indicates that the package should be made active after receipt on
+  // the device. For system image packages, the new image is expected to
+  // be active after a reboot.
+  bool activate = 5;
+  // Details for the device to download the package from a remote location.
+  common.RemoteDownload remote_download = 6;
+}
+
 message SetPackageResponse {
 }
 ```
 
+The SetPackage API downloads an image or package from a remote host to the local filesystem. Because multiple targets are possible (SONiC image, cable firmware, etc.), filename in the `SetPackageRequest` is used to identify the target. The below table demonstrates how the target is specified through filename. Additionally, through SetPackage API implementation logic, the filename is then translated to a proposed file location. If filename is not in the expected format, the client's request is rejected. This process ensures that client-requested firmware upgrade files are in the expected path. 
+
+| Filename                | Version    | Activate | Firmware type              | Proposed file location                               |
+|-------------------------|------------|----------|----------------------------|-----------------------------------------------------|
+| SONiC/localhost/default | 20230531.10| False    | SONiC image                | /tmp/sonic-20230531.10.bin                |
+| SONiC/DPU0/default      | 20230531.10| False    | SONiC image to run on DPU0 | /usr/share/sonic/dpu/dpu-sonic-20230531.10.bin     |
+| DPU/DPU0/default        | 20230531.10| False    | DPU firmware for DPU0      | /usr/share/sonic/dpu/dpu-20230531.10.bin           |
+| CABLE/Ethernet0/default | 1.1        | False    | Cable firmware for Ethernet0| /usr/share/sonic/firmware/cable-1.1.bin            |
+| ASIC/ASIC0/default      | 1.0        | False    | ASIC firmware for ASIC0    | /usr/share/sonic/asic/asic-1.0.bin                  |
+| CPLD/localhost/default  | 1.0        | False    | CPLD firmware for localhost| /usr/share/sonic/cpld/cpld-1.0.bin                 |
+| CPLD/DPU0/default       | 1.0        | False    | CPLD firmware for DPU0     | /usr/share/sonic/dpu/cpld/cpld-1.0.bin             |
+
+GNOI API will use the below rules for Filename in System.SetPackage. Each part of filename is split by slash.
+1.	The first part is type. This may be SONIC, DPU, CABLE, CPLD or ASIC.
+2.	The second part is device name. This may be DPU0 for DPU, or Ethernet0 for cable. It’s possible to have embedded device name, for example, DPU0/Ethernet0.
+3.	The last part is default for now, we will use this part for future extension.
+
+<img src="images/filename_gnoi.svg" alt="filename-gnoi" width="800px"/>
+
+
 #### System.Reboot
-We can use this API to support warm reboot and cold reboot, and restart individual services.
+We can use this API to support various reboot methods. 
 
 Arguments: type of reboot (cold, warm, etc.), delay before issuing reboot, string describing reason for reboot, option to force reboot if sanity checks fail
 ```
@@ -269,8 +324,11 @@ message RebootResponse {
 }
 ```
 For SONiC cold reboot, we can use COLD method.
+
 For SONiC warm reboot, we can use WARM method.
+
 For SONiC fast reboot, we can use NSF method.
+
 For SONiC config reload, we can use reserved method.
 
 #### System.KillProcess
@@ -453,66 +511,40 @@ Additionally, some [private SONiC APIs](https://github.com/sonic-net/sonic-gnmi/
 ```
 service SonicService {
   rpc ShowTechsupport (TechsupportRequest) returns (TechsupportResponse) {}
-  rpc CopyConfig(CopyConfigRequest) returns (CopyConfigResponse) {}
-  rpc ImageInstall(ImageInstallRequest) returns (ImageInstallResponse) {}
-  rpc ImageRemove(ImageRemoveRequest) returns (ImageRemoveResponse) {}
-  rpc ImageDefault(ImageDefaultRequest) returns (ImageDefaultResponse) {}
 }
 ```
-We plan to add support for ShowTechsupport. We also plan to add APIs to support additional use cases:
+We plan to add support for ShowTechsupport. We also plan to an additional API not yet included in OpenConfig gNOI:
 * #### Start Process
-GNOI System.proto defines only KillProcess, which can optionally restart a process. There is not yet an API specific to starting a process.
+GNOI System.proto defines only KillProcess, which can optionally restart a process. There is no API specific to starting a process.
 
 ### 4.2. Authentication
 
-GNMI already supports three authentication mechanisms that are naturally extended to gNOI:
-* Basic Authentication - Requires passing of username and password in the gRPC metadata via the username and password keys.
-* JSON Web Tokens (JWT) - Requires initial authentication via either basic or certificate authentication using the gNOI Authenticate RPC, afterwhich a token is recieved that can be used with future requests to avoid further authentication. The JWT token is sent in the metadata of the gRPC requests with the access_token key.
-* Certificate - A valid client certificate is used with the username embedded in the certificate CN field. This allows the requests to be authenticaed against the CA certificate and the username can be used for authorization.
-
-A GNOI/GNMI server needs to validate the user role before executing any operation. Depending on the user role, the server may allow or deny different types of operations. For example, some users can only run read-only operations, such as get or subscribe, while some users can run read-write operations, such as set or reboot. 
+GNOI shares the same authentication methods as GNMI, as described in the [GNMI HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md#1218-authentication).
 
 ### 4.3. Parallel Operations
 The GNOI/GNMI server accepts concurrent requests. Parallel reads and sequential writes are permitted. 
 
-The GNOI/GNMI server does not support parallel write operations. GNOI/GNMI write requests are placed in a queue and served with a single worker.
-<img src="images/gnoi_write_threads.svg" alt="gnoi-write-threads" width="800px"/>
+The GNOI server does not support parallel write operations. GNOI write requests are placed in a queue and served with a single worker.
+
 
 ### 4.4. Docker to Host Communication
 Some commands are designed to run on the host, such as `systemctl restart <service>`, `config apply-patch` and `config reload`. For several reasons, it is difficult to support these operations in a container:
-1. These commands update redis database and may restart a container. When they restart gnmi, bgp, syncd, or swss, the ongoing gNOI operation will be broken.
+1. These command may involve restarting a container. When they restart gnmi, bgp, syncd, or swss, the ongoing gNOI operation will be broken.
 2. 'config reload' will stop services, run some other operations, and then restart services. If we run this command in a container, it will break at the stop service step.
 3. These commands will execute some host scripts and use systemctl to restart service, so it would be dangerous to support these operations in a container.
 The solution is to add host services for `config apply-patch` and `config reload` on the host. GNOI/GNMI server can then use dbus method to invoke these host services.
 
-## 5 Typical Scenarios
-### 5.1. Upgrade DPU Firmware
-<img src="images/dpu_firmware_apis_hld.svg" alt="upgrade-dpu-firmware" width="800px"/>
+## 5 Sample Scenario
+
+### Upgrade SONiC image
+<img src="images/install_sonic_image_apis_flow.svg" alt="upgrade-dpu-firmware" width="800px"/>
 We need the below steps to upgrade DPU firmware:
-
 * GNMI Get
-Read current DPU firmware. If it's not golden firmware, we need to ugprade.
+Read current SONiC image version. If it's not golden version, we need to ugprade.
+
 * GNOI System.SetPackage
-The SetPackage API downloads DPU firmware from remote host to local filesystem. Filename is used to specify DPU firmware and DPU id. The below chart shows possible firmware types and proposed filenames that will be supported by System.SetPackage. This example is for SONiC image running on DPU; the relevant row is the second row, marked with filename SONiC/DPU0/default. 
 
-| Filename                | Version    | Activate | Firmware type              | Proposed file location                               |
-|-------------------------|------------|----------|----------------------------|-----------------------------------------------------|
-| SONiC/localhost/default | 20230531.10| False    | SONiC image                | /tmp/sonic-20230531.10.bin                          |
-| SONiC/DPU0/default      | 20230531.10| False    | SONiC image to run on DPU0 | /usr/share/sonic/dpu/dpu-sonic-20230531.10.bin     |
-| DPU/DPU0/default        | 20230531.10| False    | DPU firmware for DPU0      | /usr/share/sonic/dpu/dpu-20230531.10.bin           |
-| CABLE/Ethernet0/default | 1.1        | False    | Cable firmware for Ethernet0| /usr/share/sonic/firmware/cable-1.1.bin            |
-| ASIC/ASIC0/default      | 1.0        | False    | ASIC firmware for ASIC0    | /usr/share/sonic/asic/asic-1.0.bin                  |
-| CPLD/localhost/default  | 1.0        | False    | CPLD firmware for localhost| /usr/share/sonic/cpld/cpld-1.0.bin                 |
-| CPLD/DPU0/default       | 1.0        | False    | CPLD firmware for DPU0     | /usr/share/sonic/dpu/cpld/cpld-1.0.bin             |
-
-GNOI API will use the below rules for Filename in System.SetPackage. Each part of filename is split by slash.
-1.	The first part is type, it can be SONIC, DPU, CABLE, CPLD and ASIC, we might support other types like CPU microcode.
-2.	The second part is device name, it can be DPU0 for DPU, and it can be Ethernet0 or ASIC0-Ethernet1 for cable. It’s possible to have embedded device name, for example, DPU0/Ethernet0.
-3.	The last part is default for now, we will use this part for future extension.
-
-<img src="images/filename_gnoi.svg" alt="filename-gnoi" width="800px"/>
-
-We will use the same GNOI API call to activate existing DPU firmware and reboot DPU by setting activate to True.
+We will use the SetPackage API to install and activate the new SONiC image.
 
 ```
 // Package defines a single package file to be placed on the target.
@@ -548,7 +580,7 @@ message SetPackageResponse {
 Note: The OS.Activate API is not suitable for our use case, because it does not have a field to specify the subcomponent that we want to activate.
 
 * GNOI System.Reboot
-We can use System.Reboot API to reboot one or more DPU, and the RebootRequest has a subcomponents field that allows us to specify which DPU we want to reboot.
+We will use System.Reboot API to reboot the device.
 ```
 message RebootRequest {
   RebootMethod method = 1;
@@ -571,22 +603,11 @@ message PathElem {
 }
 ```
 * GNMI Get
-Read current DPU firmware. If it's equal to target version, then upgrade was successful. 
+Read current SONiC image version. If it's equal to target version, then upgrade was successful. 
 
-### 5.2. Upgrade Cable Firmware
-We need the below steps to upgrade cable firmware:
-* GNMI Get
-Read current cable firmware for port from StateDB. If not golden firmware, we need to upgrade.
-
-* GNOI System.SetPackage
-Download cable firmware from remote to host file system, file name is used to specify cable firmware and port, and firmware is not activated by default
-
-* GNOI System.SetPackage
-We will use the same GNOI API to activate existing cable firmware, activate is True and remote_download is empty for activate operation.
 
 
 ## 6 Testing
-(WIP, detailed list pending)
 ### 6.1. Unit Testing
 | Test Case | Description |
 | ---- | ---- |
