@@ -139,7 +139,7 @@ In `DPU-Scope-DPU-Driven` setup, the HA state machine will be managed by DPU its
 
 ### 7.1. HA state
 
-Although DPU will be driving the HA state machine transition, any HA state change will still needs to be reported.
+Since DPU will be driving the HA state machine transition, any HA state change will needs to be reported, otherwise the SDN controller will not be able to know the current HA state of the DPU.
 
 With this setup, all HA states we defined for the ENI-level HA setup can be used to map the undering states, not only `Dead`, `Active`, `Standby` and `Standalone`.
 
