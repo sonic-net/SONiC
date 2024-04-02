@@ -9,6 +9,12 @@ The goal of Sonic express reboot is to be able to restart and upgrade SONiC soft
 <img src="img/express-boot_flow.png" alt="Figure 1. Express boot flow">
 </p>
 
+Figure 2 below compares major steps taken in warm boot and express boot from both SONiC and SDK point of view. 
+
+<p align=center>
+<img src="img/warm_vs_express.png" alt="Figure 2. Express boot vs Warm boot">
+</p>
+
 This document covers updates needed in Sonic and SAI interface. 
 
 ## fast-reboot script
