@@ -1,9 +1,13 @@
 # DHCP DoS Mitigation in SONiC #
+
+[© xFlow Research Inc](https://xflowresearch.com/) 
+
 ## Revision History
 
 |Revision No. | Change Description | Author                        | Date           |
 |--------------|--------------------|-------------------------------|----------------|
 | 0.1          | Initial Version    | Muhammad Ali Hussnain, Asad Raza | 11 April 2024 |
+
 
 ## Table of Content 
 
@@ -64,7 +68,7 @@ In a DHCP DoS (Denial of Service) attack, an attacker floods the DHCP server wit
 
 In a DHCP starvation attack, the attacker floods the DHCP server with a large number of DHCP request messages and accepts the DHCP server’s offers, exhausting the pool of available IP addresses that the DHCP server can assign. As a result, legitimate devices are unable to obtain IP addresses from the DHCP server, causing network connectivity issues for those devices.  DHCP Starvation mitigation is out of scope of this HLD.  
 
-### Use Cases
+### Use Cases for DHCP DOS 
 
 
 A flood of DHCP discover packets affects the DHCP relay agent. DHCP relay agent forwards DHCP messages between clients and servers across different VLANs. With  large number of DHCP discover packets the relay agent becomes overwhelmed, leading to various issues:
@@ -72,30 +76,28 @@ A flood of DHCP discover packets affects the DHCP relay agent. DHCP relay agent 
 #### Resource Exhaustion 
 The DHCP relay agent has finite resources such as CPU, memory, and network bandwidth. A flood of DHCP discover packets consumes these resources, causing the relay agent to become overloaded and unable to process legitimate DHCP requests effectively.
 
-#### Service Degradation: 
+#### Service Degradation
 The flood of DHCP discover packets causes service degradation for other clients served by the DHCP relay agent. Legitimate DHCP requests experiences delays or timeouts as the relay agent struggles to handle the excessive volume of traffic.
 
-#### Packet Loss:
+#### Packet Loss
  The DHCP relay agent experiences packet loss due to the overwhelming volume of DHCP discover packets. This can result in dropped DHCP requests from legitimate clients, leading to connectivity issues and network downtime.
 
-#### Impact on Network Performance: 
+#### Impact on Network Performance
 The flood of DHCP discover packets impacts the performance of the network infrastructure, including switches, routers, and other devices involved in forwarding DHCP traffic. Congestion caused by the flood can degrade overall network performance and affect the operation of other network services.
-
 
 
 ### Behavior of DHCP DoS Attack
 
 
-
-![topo.png](topo.png)
+![image](../../images/dhcp_mitigation_hld/topo.png)
 
 
 The above figure shows 2 different VLANs configured with 4 hosts. Attacker and Host-1 are in Vlan-20 and DHCP-SERVER and Host-2 reside in Vlan-10.  
 
-As shown in the topology diagram, the attacker launches an attack on the DHCP server/relay with a flood of DHCP DISCOVER packets. The attacker generates a large number of DHCP DISCOVER packets with spoofed MAC addresses and sends these packets to the DHCP relay. The DHCP relay forwards these packets to the DHCP server. The attack is shown in the following diagram (captured from wireshark during instance of attack).  
+As shown in the diagram, the attacker launches an attack on the DHCP server/relay with a flood of DHCP DISCOVER packets. The attacker generates a large number of DHCP DISCOVER packets with spoofed MAC addresses and sends these packets to the DHCP relay. The DHCP relay forwards these packets to the DHCP server. The attack is shown in the following diagram (captured from wireshark during instance of attack).  
 
 
-![Discover.png](Discover.png)
+![image](../../images/dhcp_mitigation_hld/Discover.png)
 
 
 Due to the huge number of DHCP DISCOVER packets, the server is busy in dealing the DHCP DISCOVER packets and unable to respond to other clients on the same VLAN as the attacker, showing a successful DoS Attack. This demonstrates a DOS Attack which overwhelms the DHCP server.
@@ -103,7 +105,7 @@ Due to the huge number of DHCP DISCOVER packets, the server is busy in dealing t
 It can be seen in the screenshot below that a legitimate client (PC1) is unable to be serviced by the DHCP server. After the continuous bombardment of DHCP DISCOVER packets, the DORA process fails to complete, indicating a potential Denial of Service (DoS) situation.
 
 
-![DORA.png](DORA.png)
+![image](../../images/dhcp_mitigation_hld/DORA.png)
 
 
 ### DHCP DoS Mitigation
@@ -153,14 +155,15 @@ This proposed design aims to modify the Sonic build image, or in the Sonic CLI, 
 
 ### Sequence Diagram to Add Rate-limit
 
-![add-seq.png](add-seq.png)
+
+![image](../../images/dhcp_mitigation_hld/add-seq.png)
 
 
 ### Sequence Diagram to Del rate-limit 
 
 
-![del-seq.png](del-seq.png)
 
+![image](../../images/dhcp_mitigation_hld/del-seq.png)
 
 
 ### SAI API 
