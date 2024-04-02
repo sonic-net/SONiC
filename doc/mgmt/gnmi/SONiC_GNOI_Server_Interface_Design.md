@@ -83,6 +83,7 @@ The GNOI/GNMI server uses [DBUS](https://github.com/sonic-net/SONiC/blob/master/
 
 ## 4 High Level Design
 
+### 4.1. GNOI RPC APIs
 GNOI is composed of services, each of which is organized into related RPCs. We plan to add support for the following services: 
 * File - provides an interface for file operations on the target, including file transfer to and from the target node.
 * FactoryReset - provides an interface for factory resetting the target node.
@@ -90,7 +91,6 @@ GNOI is composed of services, each of which is organized into related RPCs. We p
 * System - provides an interface for the management system-related operations on the target node. 
 * Containerz - provides an interface to perform container operations on a network device. 
 
-### 4.1. GNOI RPC API
 We need to implement these GNOI APIs to support SONiC operations. 
 
 
