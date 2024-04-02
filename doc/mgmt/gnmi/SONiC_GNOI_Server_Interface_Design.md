@@ -79,7 +79,7 @@ All the introduced features are part of the sonic-gnmi package installed in the 
 The GNOI/GNMI server uses [DBUS](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md) to communicate with the SONiC host services, which are responsible for executing various commands on the device. Some of these commands are "config reload", "reboot", "sonic-installer install", "cp", "mv", and "rm". 
 
 
-<img src="images/gnoi_gnmi_arch.svg" alt="gnmi-server" width="1200px"/>
+<img src="images/gnoi_gnmi_arch.svg" viewBox="0 0 width height" alt="gnmi-server" width="1200px"/>
 
 ## 4 High Level Design
 
@@ -519,7 +519,7 @@ GNOI System.proto defines only KillProcess, which can optionally restart a proce
 
 ### 4.2. Authentication
 
-GNOI shares the same authentication methods as GNMI, as described in the [GNMI HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md#1218-authentication).
+GNOI shares the same authentication methods as GNMI, as described in the [gNMI HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md#1218-authentication).
 
 ### 4.3. Parallel Operations
 The GNOI/GNMI server accepts concurrent requests. Parallel reads and sequential writes are permitted. 
@@ -528,11 +528,7 @@ The GNOI server does not support parallel write operations. GNOI write requests 
 
 
 ### 4.4. Docker to Host Communication
-Some commands are designed to run on the host, such as `systemctl restart <service>`, `config apply-patch` and `config reload`. For several reasons, it is difficult to support these operations in a container:
-1. These command may involve restarting a container. When they restart gnmi, bgp, syncd, or swss, the ongoing gNOI operation will be broken.
-2. 'config reload' will stop services, run some other operations, and then restart services. If we run this command in a container, it will break at the stop service step.
-3. These commands will execute some host scripts and use systemctl to restart service, so it would be dangerous to support these operations in a container.
-The solution is to add host services for `config apply-patch` and `config reload` on the host. GNOI/GNMI server can then use dbus method to invoke these host services.
+As described in the [gNMI HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md#1218-authentication), we utilize dbus to execute some commands designed to run on the host, such as `systemctl restart <service>`, `config apply-patch` and `config reload`.
 
 ## 5 Sample Scenario
 
