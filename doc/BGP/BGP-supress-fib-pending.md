@@ -111,7 +111,7 @@ High level requirements:
 Restrictions/Limitations:
 
 - MPLS, VNET routes are out of scope of this document
-- Directly connected and static routes are announced by BGP regardless of their offload status
+- Directly connected and kernel routes are announced by BGP regardless of their offload status
 
 ### 5. Architecture Design
 
@@ -722,7 +722,7 @@ Due to additional response publishing in orchagent there might be a slight delay
 ### 10. Restrictions/Limitations
 
 - MPLS, VNET routes are out of scope of this document
-- Directly connected and static routes are announced by BGP regardless of their offload status
+- Directly connected and kernel routes are announced by BGP regardless of their offload status
 
 ### 11. Testing Requirements/Design
 

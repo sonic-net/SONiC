@@ -57,6 +57,7 @@ This section should list the SAI APIs/objects used by the design so that silicon
 
 ### Configuration and management 
 This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
+If there is breaking change which may impact existing platforms, please call out in the design and get platform vendors reviewed. 
 
 #### Manifest (if the feature is an Application Extension)
 
