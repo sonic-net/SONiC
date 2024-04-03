@@ -2,7 +2,7 @@
 
 # EVPN VXLAN - Multihoming HLD
 
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
 <!-- MarkdownTOC autoanchor="true" autolink="true" -->
@@ -57,39 +57,40 @@
     - [3.1.2 Scalability Requirements](#312-scalability-requirements)
   - [3.2 Functional Description](#32-functional-description)
     - [3.2.1 SAI Overview](#321-sai-overview)
-- [4 - ARP/ND/FDB Table Syncronization](#4---arpndfdb-table-syncronization)
-- [5 - DF Election Failure and Recovery Procedures](#5---df-election-failure-and-recovery-procedures)
-- [6 - Support of Remote Multi-homed Hosts](#6---support-of-remote-multi-homed-hosts)
-  - [6.1 Feature Requirements](#61-feature-requirements)
-    - [6.1.1 Configuration and Management Requirements](#611-configuration-and-management-requirements)
-    - [6.1.2 Scalability Requirements](#612-scalability-requirements)
-  - [6.2 Functional Description](#62-functional-description)
-  - [6.3 Feature Design](#63-feature-design)
-    - [6.3.1 Design Overview](#631-design-overview)
-    - [6.3.2 Containers](#632-containers)
-    - [6.3.3 SAI Overview](#633-sai-overview)
-  - [6.4 Database Changes](#64-database-changes)
-    - [6.4.1 CONFIG\_DB Changes](#641-config_db-changes)
-    - [6.4.2 APPL\_DB Changes](#642-appl_db-changes)
-      - [6.4.2.1 VXLAN\_FDB\_TABLE](#6421-vxlan_fdb_table)
-  - [6.5 Module Design and Flows](#65-module-design-and-flows)
-  - [6.6 Linux Kernel](#66-linux-kernel)
-  - [6.7 CLI](#67-cli)
-    - [6.7.1 Configuration](#671-configuration)
-    - [6.7.2 Show Commands](#672-show-commands)
-      - [6.7.2.1 "show evpn es"](#6721-show-evpn-es)
-      - [6.7.2.2 "show vxlan remotemac"](#6722-show-vxlan-remotemac)
-    - [6.7.3 FRR (VTYSH) CLI](#673-frr-vtysh-cli)
-  - [6.8 Database Examples](#68-database-examples)
-    - [6.8.1 CONFIG\_DB Examples](#681-config_db-examples)
-    - [6.8.2 APPL\_DB Examples](#682-appl_db-examples)
-  - [6.9 Serviceability and Debug](#69-serviceability-and-debug)
-  - [6.10 Limitations](#610-limitations)
-  - [6.11 Unit Test Cases](#611-unit-test-cases)
-    - [6.11.1 FRR/Kernel Testing](#6111-frrkernel-testing)
-    - [6.11.2 fpmsyncd](#6112-fpmsyncd)
-    - [6.11.3 fdbsyncd](#6113-fdbsyncd)
-    - [6.11.4 SAI/SDK](#6114-saisdk)
+- [4 - Host Routing](#4---host-routing)
+  - [4.1 Configuration Requirements](#41-configuration-requirements)
+  - [4.2 Functional Description](#42-functional-description)
+- [5 - Support of Remote Multi-homed Hosts](#5---support-of-remote-multi-homed-hosts)
+  - [5.1 Feature Requirements](#51-feature-requirements)
+    - [5.1.1 Configuration and Management Requirements](#511-configuration-and-management-requirements)
+    - [5.1.2 Scalability Requirements](#512-scalability-requirements)
+  - [5.2 Functional Description](#52-functional-description)
+  - [5.3 Feature Design](#53-feature-design)
+    - [5.3.1 Design Overview](#531-design-overview)
+    - [5.3.2 Containers](#532-containers)
+    - [5.3.3 SAI Overview](#533-sai-overview)
+  - [5.4 Database Changes](#54-database-changes)
+    - [5.4.1 CONFIG\_DB Changes](#541-config_db-changes)
+    - [5.4.2 APPL\_DB Changes](#542-appl_db-changes)
+      - [5.4.2.1 VXLAN\_FDB\_TABLE](#5421-vxlan_fdb_table)
+  - [5.5 Module Design and Flows](#55-module-design-and-flows)
+  - [5.6 Linux Kernel](#56-linux-kernel)
+  - [5.7 CLI](#57-cli)
+    - [5.7.1 Configuration](#571-configuration)
+    - [5.7.2 Show Commands](#572-show-commands)
+      - [5.7.2.1 "show evpn es"](#5721-show-evpn-es)
+      - [5.7.2.2 "show vxlan remotemac"](#5722-show-vxlan-remotemac)
+    - [5.7.3 FRR (VTYSH) CLI](#573-frr-vtysh-cli)
+  - [5.8 Database Examples](#58-database-examples)
+    - [5.8.1 CONFIG\_DB Examples](#581-config_db-examples)
+    - [5.8.2 APPL\_DB Examples](#582-appl_db-examples)
+  - [5.9 Serviceability and Debug](#59-serviceability-and-debug)
+  - [5.10 Limitations](#510-limitations)
+  - [5.11 Unit Test Cases](#511-unit-test-cases)
+    - [5.11.1 FRR/Kernel Testing](#5111-frrkernel-testing)
+    - [5.11.2 fpmsyncd](#5112-fpmsyncd)
+    - [5.11.3 fdbsyncd](#5113-fdbsyncd)
+    - [5.11.4 SAI/SDK](#5114-saisdk)
 
 <!-- /MarkdownTOC -->
 
@@ -103,6 +104,7 @@
 # Revision
 | Rev  |    Date    |       Author        | Change Description                                           |
 |:--:|:--------:|:-----------------:|:------------------------------------------------------------:|
+| 0.2  | April 2024 |   Mike Mallin, Patrice Brissette, Naveen Gamini   | Add details on host routing                                              |
 | 0.1  | February 2024 |   Mike Mallin, Patrice Brissette, Naveen Gamini   | Initial version                                              |
 
 <a id="definitionabbreviation"></a>
@@ -642,19 +644,120 @@ DF election methods that are not currently supported by FRR are out-of-scope.
 
 Add a new attribute "SAI_VLAN_MEMBER_ATTR_DF_BLOCK" in sai_vlan_member_attr_t to indicate that the bridge port is blocked to forward any BUM traffic received from the Tunnel. more details will be given in SAI spec PR. https://github.com/opencomputeproject/SAI/pull/1965
 
-<a id="4---arpndfdb-table-synchronization"></a>
-# 4 - ARP/ND/FDB Table Syncronization
+<a id="4---Host Routing"></a>
+# 4 - Host Routing
 
-FRR currently handles ARP/ND/FDB table synchronization based on host information learned via the linux kernel.
+Host routing provides the capability to advertise a host address in BGP. Host routes are represented by the next biggest coherent summary which may lead to a full host route, i.e., /32 (IPv4) or by a /128 (IPv6).
 
-<a id="5---df-election-failure-and-recovery-procedures"></a>
-# 5 - DF Election Failure and Recovery Procedures
-TBD
+Host Routing enables important multi-homing capabilities:
 
-<a id="6---support-of-remote-multi-homed-hosts"></a>
-# 6 - Support of Remote Multi-homed Hosts
-<a id="61-feature-requirements"></a>
-## 6.1 Feature Requirements
+1. ARP / ND table synchronization: L2 multi-homing with single bundle-Ethernet interface at the host requires proper MAC, ARP & ND table synchronization between peering TORs. When host advertises itself (via GARP for example), the bundle-Ethernet interface load-balances the packet towards a single TOR. The peering TOR is not aware of the host yet. If a remote TOR happens to send traffic destined to the host via the peering TOR, that router won’t know where to forward and what adjacency to use. Under such conditions, the router installs a GLEAN adjacency and traffic is dropped until that adjacency is resolved which may never happen. A GLEAN adjacency is a temporary entry in the forwarding database allowing the router to probe towards the access for a certain host IP address. The objective is to receive a message from that unknown host with its adjacency information so the TOR can start transmitting traffic to the host with proper encapsulation.
+Remember, any traffic sent by the host may end up on the other homing TOR based on the bundle-Ethernet interface hashing. This is where MAC, ARP and ND table synchronization come to play. All learned entries (local adjacencies) on a TOR are synchronized to all other peering TORs.
+
+2. Inter-subnet communication: Host routing enables the inter-subnet / routing capability of a local host with remote host which are in a different subnet. By advertising a more specific prefix than usual gateway address (SVI-IP), remote TORs know exactly where a host resides on the network. Optimial forwarding can always be achieved.
+
+FRR has the capability to synchronize MAC FDB and SVI-IP adjacency between peering PEs. However, it does not provide completely the host routing functionality. Missing pieces are:
+1. Host Routing enablement configuration knob
+2. EVPN RT-2 advertisement carrying both L2 and L3 host information.
+3. ARP/ND adjacency prefix programming in RIB/FIB on remote TOR
+
+<a id="41-configuration-requirements"></a>
+## 4.1 Configuration Requirements
+
+This feature supports CLI and other management interfaces supported in SONiC. This feature exposes the following FRR configuration via SONiC:
+
+```
+interface <name>
+  evpn host-routing    # Enable host routing functionality
+```
+Host-routing functionality is enable per interface under the "evpn" submode. Internally, it may be extended to enable the cli only under access interfaces. For instance, host-routing does not have proper meaning under vxlan interfaces. In the case of EVPN multi-homing, host routing is enable under the SVI interface. In this case here, it is represented by a bridge interface in the linux kernel.
+
+<a id="42-functional-description"></a>
+## 4.2 Functional Description
+
+Host routing functionality allows for connected host to be advertised in BGP. 
+
+EVPN route type-2 is used to carry host information. As per RFC7432,
+a MAC/IP Advertisement route type specific EVPN NLRI consists of the following:
+```
+                +---------------------------------------+
+                |  RD (8 octets)                        |
+                +---------------------------------------+
+                |Ethernet Segment Identifier (10 octets)|
+                +---------------------------------------+
+                |  Ethernet Tag ID (4 octets)           |
+                +---------------------------------------+
+                |  MAC Address Length (1 octet)         |
+                +---------------------------------------+
+                |  MAC Address (6 octets)               |
+                +---------------------------------------+
+                |  IP Address Length (1 octet)          |
+                +---------------------------------------+
+                |  IP Address (0, 4, or 16 octets)      |
+                +---------------------------------------+
+                |  MPLS Label1 (3 octets)               |
+                +---------------------------------------+
+                |  MPLS Label2 (0 or 3 octets)          |
+                +---------------------------------------+
+```
+When host routes are advertised, all fields are used to provide L2 and L3 service reachability.
+For instance, the MAC and IP addresses are from the learned host. The label1 corresponds to the L2VNI enabling the L2 service reachbility to that host. The label2 is set to the L3VNI of the SVI VRF on which the host is learned against. The RT-2 comes with
+L2 route-targets matching the L2VNI as well as with L3 route-targets matching the VRF. Finally, RT-2 comes with the BGP remote nexthop; that is the originator source VTEP IP address of that route.
+
+From FRR point-of-view, host entries in Zebra are given to BGPd only when "evpn host-routing" cli is applied.
+
+On remote TOR, upon receiving an EVPN RT-2 (host route), BGP installs received route in Zebra to program forwarding chains as follow:
+1. IP address is programmed in corresponding VRF table (matching L3RTs) where the IP prefix is pointing to remote VTEP + L3VNI.
+2. MAC address is programmed in proper MAC-FDB table (matching L2RTs) where the MAC address is pointing to remote VTEP + L2VNI.
+
+On peering TOR when incoming RT-2 ESI field is matching a local ESI, the following is done:
+1. MAC address is programmed in proper MAC-FDB table where the MAC address is pointing to local interface matching the RT-2 ESI. The backup path is added enabling L2FRR capability for convergence purpose.
+2. Local ARP/ND table is programmed with RT-2 MAC + IP address pointing to corresponding local SVI interface.
+
+When a host is learned locally, forwarding tables should also be programmed by default. MAC FDB table is already populated due to local MAC learning mechanism. 
+
+
+<a id="43-design-overview"></a>
+## 4.3 Design Overview
+
+The host routing feature is mainly affecting FRR. The following tables is affected:
+
+```
+struct zebra_if {
+       ...
+       ...
+       /* is host routing enable? */
+       bool zebra_evpn_hr_enable;
+       ...
+       ...
+       }
+```
+
+A new boolean is added to the zebra interface structure indicting the enablement of host routing for a specific interface. There are many code paths in Zebra to update for providing host routes information to BGPd when the feature is enable. Each time specific configuration changes, FRR walks all local neighbors under the specify interface and give them to BGPd. That is the case for interface, SVI, bridge, VNI, VRF, etc. configuration.
+
+The show interface command is updated to indicate host routing enablement.
+
+```
+Interface br1000 is up, line protocol is up
+  Link ups:       0    last: (never)
+  Link downs:     0    last: (never)
+  vrf: vrf500
+  index 6 metric 0 mtu 65575 speed 0 
+  flags: <UP,RUNNING,NOARP>
+  Ignore all v6 routes with linkdown
+  Type: Ethernet
+  HWaddr: ce:db:ba:47:fa:64
+  inet6 fe80::ccdb:baff:fe47:fa64/64
+  Interface Type VRF
+  Interface Slave Type None
+  Host Routing Disable               <----- NEW LINE
+  protodown: off 
+```
+
+<a id="5---support-of-remote-multi-homed-hosts"></a>
+# 5 - Support of Remote Multi-homed Hosts
+<a id="51-feature-requirements"></a>
+## 5.1 Feature Requirements
 
 The following requirements are addressed:
 
@@ -663,8 +766,8 @@ The following requirements are addressed:
 3. Support for Multi-homed L3 Hosts
 4. Support for Multi-homed IP Prefixes (subnets)
 
-<a id="611-configuration-and-management-requirements"></a>
-### 6.1.1 Configuration and Management Requirements
+<a id="511-configuration-and-management-requirements"></a>
+### 5.1.1 Configuration and Management Requirements
 
 This feature will support CLI and other management interfaces supported in SONiC. This feature will expose the following FRR configuration via SONiC:
 
@@ -675,8 +778,8 @@ router bgp 65002
   disable-ead-evi-tx            # Don't advertise EAD-EVI for local ESs
 ```
 
-<a id="612-scalability-requirements"></a>
-### 6.1.2 Scalability Requirements
+<a id="512-scalability-requirements"></a>
+### 5.1.2 Scalability Requirements
 
 1. Total Number of Next Hop Groups - 20.
     - This is based on the number of remote ESIs seen in a given datacenter
@@ -686,8 +789,8 @@ router bgp 65002
 3. Total Number of FDB entries - ~4000.
     - No change to the total number of FDB entries is expected.
 
-<a id="62-functional-description"></a>
-## 6.2 Functional Description
+<a id="52-functional-description"></a>
+## 5.2 Functional Description
 
 EVPN VXLAN Multihoming enables switch-level redundancy to provide access to hosts while enabling efficient use of core bandwidth via flow-based load balancing over an ECMP set towards a given Ethernet-Segment.
 
@@ -695,11 +798,11 @@ Expanding on regular VXLAN forwarding, unicast traffic is forwarded using both t
 
 Forwarding for unicast traffic received from a VXLAN tunnel remains unchanged.
 
-<a id="63-feature-design"></a>
-## 6.3 Feature Design
+<a id="53-feature-design"></a>
+## 5.3 Feature Design
 
-<a id="631-design-overview"></a>
-### 6.3.1 Design Overview
+<a id="531-design-overview"></a>
+### 5.3.1 Design Overview
 
 Support for multihomed hosts builds upon the existing building blocks supported by both FRR and the Linux Kernel. The changes are focused around passing data that already exists in the Linux Kernel further southbound into SONiC and towards the hardware forwarding path.
 
@@ -719,31 +822,31 @@ id 268435459 via 10.200.200.202 scope link fdb
 
 To enable multihoming with SONiC, extensions to fpmsyncd, fdbsyncd, APPL_DB, fdborch, ASIC_DB and SAI are required.
 
-<a id="632-containers"></a>
-### 6.3.2 Containers
+<a id="532-containers"></a>
+### 5.3.2 Containers
 
 The changes are added to existing containers such as FRR, SwSS and Syncd. The details of the changes will be discussed in the Design section below.
 
-<a id="633-sai-overview"></a>
-### 6.3.3 SAI Overview
+<a id="533-sai-overview"></a>
+### 5.3.3 SAI Overview
 
 The following SAI changes are introduced to support forwarding to remote multihomed hosts:
 
 Currently FDB entry has SAI attribute "SAI_FDB_ENTRY_ATTR_ENDPOINT_IP" for MAC entry. As FRR/Zebra is creating a NHGROUP, new MAC attribute "SAI_FDB_ENTRY_ATTR_L2_ECMP_GROUP" needs to be added. L2_ECMP_GROUP is new SAI object which contains members as Tunnel endpoints.
 
-<a id="664-database-changes"></a>
-## 6.4 Database Changes
+<a id="564-database-changes"></a>
+## 5.4 Database Changes
 
-<a id="641-config_db-changes"></a>
-### 6.4.1 CONFIG_DB Changes
+<a id="541-config_db-changes"></a>
+### 5.4.1 CONFIG_DB Changes
 
 TBD
 
-<a id="642-appl_db-changes"></a>
-### 6.4.2 APPL_DB Changes
+<a id="542-appl_db-changes"></a>
+### 5.4.2 APPL_DB Changes
 
-<a id="6421-vxlan_fdb_table"></a>
-#### 6.4.2.1 VXLAN_FDB_TABLE
+<a id="5421-vxlan_fdb_table"></a>
+#### 5.4.2.1 VXLAN_FDB_TABLE
 
 Producer: fdbsyncd
 
@@ -766,8 +869,8 @@ type           = "static" / "dynamic"     ; type of the entry.
 vni            = 1*8DIGIT                 ; vni to be used for this VLAN when sending traffic to the remote VTEP
 ```
 
-<a id="65-module-design-and-flows"></a>
-## 6.5 Module Design and Flows
+<a id="55-module-design-and-flows"></a>
+## 5.5 Module Design and Flows
 
 FRR as EVPN control plane is assumed in this document. However, any BGP EVPN implementation can be used as control plane as long as it complies with the EVPN design proposed in this document.
 
@@ -878,26 +981,26 @@ sequenceDiagram
 ```
 __Figure XX: Remote Multihomed MAC Withdraw__
 
-<a id="66-linux-kernel"></a>
-## 6.6 Linux Kernel
+<a id="56-linux-kernel"></a>
+## 5.6 Linux Kernel
 
 No changes are required to support this feature from the Linux Kernel.
 
-<a id="67-cli"></a>
-## 6.7 CLI
+<a id="57-cli"></a>
+## 5.7 CLI
 
-<a id="671-configuration"></a>
-### 6.7.1 Configuration
+<a id="571-configuration"></a>
+### 5.7.1 Configuration
 
 No configuration CLIs are being introduced to support this feature.
 
-<a id="672-show-commands"></a>
-### 6.7.2 Show Commands
+<a id="572-show-commands"></a>
+### 5.7.2 Show Commands
 
 The following show commands will be extended to support this feature:
 
-<a id="6721-show-evpn-es"></a>
-#### 6.7.2.1 "show evpn es"
+<a id="5721-show-evpn-es"></a>
+#### 5.7.2.1 "show evpn es"
 
 The command `show evpn es` will be introduced to display information about both local and remote Ethernet-Segments. In this feature, only support for remote Ethernet-Segments is required. This information will be gathered from the FRR vtysh command `show evpn es`.
 
@@ -914,8 +1017,8 @@ Type: L local, R remote, N non-DF
 +-------------------------------+--------+----------------+----------+---------+
 ```
 
-<a id="6722-show-vxlan-remotemac"></a>
-#### 6.7.2.2 "show vxlan remotemac"
+<a id="5722-show-vxlan-remotemac"></a>
+#### 5.7.2.2 "show vxlan remotemac"
 
 The existing command `show vxlan remotemac` will be extended to display the ESI (when applicable) for remote MACs.
 
@@ -940,15 +1043,15 @@ admin@LEAF01:~$ show vxlan remote_mac all
 Total count : 4
 ```
 
-<a id="68-database-examples"></a>
-## 6.8 Database Examples
+<a id="58-database-examples"></a>
+## 5.8 Database Examples
 
-<a id="681-config_db-examples"></a>
-### 6.8.1 CONFIG_DB Examples
+<a id="581-config_db-examples"></a>
+### 5.8.1 CONFIG_DB Examples
 TBD
 
-<a id="682-appl_db-examples"></a>
-### 6.8.2 APPL_DB Examples
+<a id="582-appl_db-examples"></a>
+### 5.8.2 APPL_DB Examples
 
 ```
 "VXLAN_FDB_TABLE:Vlan5:00:00:00:00:00:03": {
@@ -959,21 +1062,21 @@ TBD
 }
 ```
 
-<a id="69-serviceability-and-debug"></a>
-## 6.9 Serviceability and Debug
+<a id="59-serviceability-and-debug"></a>
+## 5.9 Serviceability and Debug
 
 The existing logging and debug mechanisms will be used. No new facilities will be added.
 
-<a id="610-limitations"></a>
-## 6.10 Limitations
+<a id="510-limitations"></a>
+## 5.10 Limitations
 
 Unchanged from EVPN_VXLAN_HLD.
 
-<a id="611-unit-test-cases"></a>
-## 6.11 Unit Test Cases
+<a id="511-unit-test-cases"></a>
+## 5.11 Unit Test Cases
 
-<a id="6111-frrkernel-testing"></a>
-### 6.11.1 FRR/Kernel Testing
+<a id="5111-frrkernel-testing"></a>
+### 5.11.1 FRR/Kernel Testing
 1. Verify a host received without an ESI still uses the VTEP IP for forwarding
 2. Verify route resolution with the following permutations of EAD and MAC routes for a given ESI:
 
@@ -1012,8 +1115,8 @@ Unchanged from EVPN_VXLAN_HLD.
 4. Bring up a remote interface and verify that the NHG IS is unchanged when going from 1 path to 2 paths
   - This should be a hitless operation
 
-<a id="6112-fpmsyncd"></a>
-### 6.11.2 fpmsyncd
+<a id="5112-fpmsyncd"></a>
+### 5.11.2 fpmsyncd
 1. Add remote multihomed hosts
   - Verify NHG is programmed in APPL_DB
 2. Modify remote path list for multihomed host
@@ -1025,8 +1128,8 @@ Unchanged from EVPN_VXLAN_HLD.
 5. Remove all remote hosts pointing to a given NHG
   - Verify the NHG is removed from APPL_DB
 
-<a id="6113-fdbsyncd"></a>
-### 6.11.3 fdbsyncd
+<a id="5113-fdbsyncd"></a>
+### 5.11.3 fdbsyncd
 1. Trigger a remote single-homed host learn
   - Verify it is still created with the correct remote_vtep in APPL_DB
 2. Trigger a remote multi-homed host learn
