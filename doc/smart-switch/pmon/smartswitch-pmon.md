@@ -466,13 +466,13 @@ Every time a DPU is powered up, platform can fetch this information from the DPU
     * Potential consumers: HA, LB, Switch CLIs, Utils (install/repair images), Life Cycle Manager 
     * Use cases: HA, Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state
 #### DPU_STATE definition
-npu-dpu-idplane: up refers to the pcie link between the NPU and DPU is operational. This will be updated by the switch pcied.
+npu_midplane_link_state: up refers to the pcie link between the NPU and DPU is operational. This will be updated by the switch pcied.
 
-dpu-booted: up refers to SONiC booted on DPU
+dpu_booted_state: up refers to SONiC booted on DPU
 
-dpu-controlplane: up  refers to all the containers are up and the interfaces are up and dpu is ready to take SDN policy update
+dpu_control_plane_state: up  refers to all the containers are up and the interfaces are up and dpu is ready to take SDN policy update
 
-dpu-dataplane: up  refers to configuration downloaded the pipeline stages are up and DPU hardware (port/ASIC) is ready to take traffic
+dpu_data_plane_state: up  refers to configuration downloaded the pipeline stages are up and DPU hardware (port/ASIC) is ready to take traffic
 
 ```
     ChassisStateDB Schema for DPU_STATE
@@ -483,16 +483,16 @@ dpu-dataplane: up  refers to configuration downloaded the pipeline stages are up
     key:  DPU_STATE|DPU0
 
         "id": "1",
-        ”npu_dpu_midplane_link”: up        
-        “npu_dpu_midplane_link_time": "timestamp",
-        " npu_dpu_midplane_link_reason": "up_down_related string",
-        ”dpu_booted": "UP",
-        "dpu_booted _time": " timestamp ",
-        "dpu_booted _reason": "up_down_related string",
-        ”dpu_control_plane": up
+        ”npu_midplane_link_state”: "up"
+        “npu_midplane_link_time": "timestamp",
+        "npu_midplane_link_reason": "up_down_related string",
+        ”dpu_booted_state": "up",
+        "dpu_booted_time": "timestamp",
+        "dpu_booted_reason": "up_down_related string",
+        ”dpu_control_plane_state": "up"
         ”dpu_control_plane_time": ”timestamp",
         ”dpu_control_plane_reason": ”containers restarting",
-        ”dpu_data_plane": ”DOWN",
+        ”dpu_data_plane_state": ”down",
         ”dpu_data_plane_time": ”timestamp",
         ”dpu_data_plane_reason": ”Pipeline failure",
 ```
