@@ -196,7 +196,7 @@ The DPU employs a DHCP server hosted on the NPU, ensuring each DPU fetches a pre
             "unix_socket_path": "/var/run/redis/redis.sock",
             "persistence_for_warm_boot": "yes"
         },
-        "remote-redis": {
+        "remote_redis": {
             "hostname": "169.254.200.254",
             "port": 6381,
         }
@@ -275,23 +275,23 @@ The DPU employs a DHCP server hosted on the NPU, ensuring each DPU fetches a pre
         "DPU_APPL_DB": {
             "id": 15,
             "separator": ":",
-            "instance": "remote-redis",
+            "instance": "remote_redis",
             "format": "proto"
         },
         "DPU_APPL_STATE_DB": {
             "id": 16,
             "separator": "|",
-            "instance": "remote-redis"
+            "instance": "remote_redis"
         },
         "DPU_STATE_DB": {
             "id": 17,
             "separator": "|",
-            "instance": "remote-redis"
+            "instance": "remote_redis"
         },
         "DPU_COUNTERS_DB": {
             "id": 18,
             "separator": ":",
-            "instance": "remote-redis"
+            "instance": "remote_redis"
         }
     },
     "VERSION": "1.0"
