@@ -329,8 +329,6 @@ For SONiC warm reboot, we can use WARM method.
 
 For SONiC fast reboot, we can use NSF method.
 
-For SONiC config reload, we can use reserved method.
-
 #### System.KillProcess
 We can use this API to kill an OS process, and optionally restart.
 
@@ -513,9 +511,12 @@ service SonicService {
   rpc ShowTechsupport (TechsupportRequest) returns (TechsupportResponse) {}
 }
 ```
-We plan to add support for ShowTechsupport. We also plan to an additional API not yet included in OpenConfig gNOI:
+We plan to add support for ShowTechsupport. We also plan to add additional APIs not currently supported by OpenConfig gNOI:
 * #### Start Process
 GNOI System.proto defines only KillProcess, which can optionally restart a process. There is no API specific to starting a process.
+* #### Config Reload
+GNOI System.reboot has the option for config reload supported through "WARM" reboot method. However, SONiC warm reboot is its own reboot type. Thus, we need separate, specific support for the SONiC config reload use case
+
 
 ### 4.2. Authentication
 
