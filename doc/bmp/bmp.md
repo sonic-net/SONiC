@@ -82,7 +82,7 @@ The following are the architecture changes.
 As above context mentioned, we need to bring up new container as bmp on SONiC, after change the relevant component architecture is as below:
 <img src="images/architecture_diagram.png" alt="Architecture Diagram" width="800">  
 
-- Add new bmp container, which has limited resource control. 
+- Add new bmp container, it has two daemons: bmpcfgd to monitor config db change and control corresponding table that openbmpd populates; openbmpd to accept connection from FRR and do bgp related table specific population.
 
 - Update existing frr/bgpd daemon and enable bmp feature to collect bgp data.
 
@@ -101,15 +101,15 @@ Current BGP container in SONiC uses an implementation [sonic-frr](#https://githu
 Below section needs to be added into /etc/frr/bgpd.conf, so that FRR could be able to find assigned collector endpoint and report bgp data via bmp channel.
 
 ```
-! 
-  bmp mirror buffer-limit 4294967214 
-! 
-  bmp targets test 
-    bmp stats interval 1000 
-    bmp monitor ipv4 unicast pre-policy 
-    bmp monitor ipv6 unicast pre-policy 
-    bmp connect 127.0.0.1 port 5000 min-retry 1000 max-retry 2000
-! 
+!
+  bmp mirror buffer-limit 4294967214
+!
+  bmp targets sonic-bmp
+  bmp stats interval 1000
+  bmp monitor ipv4 unicast pre-policy
+  bmp monitor ipv6 unicast pre-policy
+  bmp connect 127.0.0.1 port 5000 min-retry 1000 max-retry 2000
+!
 ```
 
 ### Daemon parameter
@@ -121,14 +121,15 @@ From version frr/7.2, bgpd daemon supports parameter to enable bmp functionality
 
 ## 2.4 Database Design
 
-BMP will continually populate existing redis table STATE_DB, just with different keys defined to cover the data so that functional requirement could be supported.
+BMP will create new redis instance and populate new table as BMP_STATE_DB, so that existing database population will not be impacted by BMP redis I/O operation, in some cases rib table will be large potentially.
 
 Like below, please note that multiple ASIC will also be supported in this feature. since multiple ASIC uses multiple database instances according to ASIC index, the same logic is still applied in this project.
-There will be multiple BMP instance according to BGP container instance, and populate the BGP data received from its paired BGP container.
+There will be multiple BMP container instance according to BGP container instance, and populate the BGP data received from its paired BGP container.
+
 
 |DB name    |   DB No. |     Description|
 |  ----     |:----:| ----|
-|STATE_DB    |  specific ASIC indexed DB per BGP neighbor |   Application running data |
+|BMP_STATE_DB    |  specific ASIC indexed DB per BGP container |   BMP neighbor running data |
 
 <img src="images/bmp_multiAsic.png" alt="BMP brief sequence diagram" width="500">  
 
@@ -137,85 +138,78 @@ There will be multiple BMP instance according to BGP container instance, and pop
 This table will capture BGP Neighbor attributes supported on BGP neighbor, including capability it support.
 
 ```
-admin@str-7050qx-32s-acs-04:~$ redis-cli -n 0 HGETALL BGP_NEIGHBOR_TABLE:10.0.0.61
- 1) "peer-ip"
- 2) "10.0.0.61"
- 3) "local-ip"
- 4) "10.1.0.32"
- 5) "local-asn"
- 6) "65100"
- 7) "peer-asn"
- 8) "64915"
- 9) "adv-supports-mpbgp"
-10) "1"
-11) "adv-route-refresh-old"
-12) "1"
-13) "adv-route-refresh"
-14) "1"
-15) "adv-route-refresh-enhanced"
-16) "1"
-17) "adv-support-fqdn"
-18) "1"
-19) "adv-supports-graceful-restart"
-20) "1"
-21) "adv-support-long-live-graceful-restart"
-22) "1"
-23) "recv-supports-mpbgp"
-24) "1"
-25) "recv-route-refresh-old"
-26) "1"
-27) "recv-route-refresh"
-28) "1"
-29) "recv-route-refresh-enhanced"
-30) "1"
-31) "recv-support-fqdn"
-32) "1"
-33) "recv-supports-graceful-restart"
-34) "1"
-35) "recv-support-long-live-graceful-restart"
-36) "1"
+admin@bjw-can-3800-1:~$ redis-cli -n 20 -p 6400 HGETALL "BGP_NEIGHBOR_TABLE|10.0.0.23"
+ 1) "sent_cap"
+ 2) "MPBGP (1) : afi=1 safi=1 : Unicast IPv4, Route Refresh Old (128), Route Refresh (2), Route Refresh Enhanced (70), 4 Octet ASN (65), 6, ADD Path (69) : afi=1 safi=1 send/receive=1 : Unicast IPv4 Receive, 73, Graceful Restart (64), 71"
+ 3) "local_asn"
+ 4) "65100"
+ 5) "peer_addr"
+ 6) "10.0.0.23"
+ 7) "recv_cap"
+ 8) "MPBGP (1) : afi=1 safi=1 : Unicast IPv4, Route Refresh (2), Graceful Restart (64), 4 Octet ASN (65), ADD Path (69) : afi=1 safi=1 send/receive=1 : Unicast IPv4 Receive"
+ 9) "local_ip"
+10) "10.0.0.22"
+11) "remote_port"
+12) "179"
+13) "peer_asn"
+14) "65200"
+15) "peer_rd"
+16) "0:0"
+17) "local_port"
+18) "40760"
 ```
 
 ### Rib table schema
 Rib table will capture all BGP rib-in and rib-out data per neighbor and per nlri.
 
-BGP rib-in data for neighbor 10.0.0.57 and nlri 20c0:ef50::/64
+BGP rib-in data for neighbor 10.0.0.13 and nlri 192.172.80.128/25
 ```
-admin@str2-7050cx3-acs-13:~$ redis-cli -n 0 HGETALL BGP_RIB_IN_TABLE:20c0:ef50::/64:BGP_NEIGHBOR:10.0.0.57
- 1) "next_hop"
- 2) "fc00::7e"
- 3) "aggregator"
- 4) ""
- 5) "local_addr"
- 6) "fc00::79"
- 7) "origin"
- 8) "igp"
- 9) "peer_asn"
-10) "64915"
+admin@bjw-can-3800-1:~$ redis-cli -n 20 -p 6400 HGETALL "BGP_RIB_IN_TABLE|192.172.80.128/25|10.0.0.13"
+ 1) "origin"
+ 2) "igp"
+ 3) "as_path"
+ 4) "65100 64600 65534"
+ 5) "as_path_count"
+ 6) "3"
+ 7) "origin_as"
+ 8) "65534"
+ 9) "next_hop"
+10) ""
 11) "local_pref"
 12) "0"
-13) "as_path"
-14) " 65100 64600 65534 64742 65510"
-15) "originator_id"
+13) "community_list"
+14) ""
+15) "ext_community_list"
 16) ""
-
+17) "large_community_list"
+18) ""
+19) "originator_id"
+20) ""
 ```
 
-BGP rib-out data for neighbor 10.0.0.59 and nlri 192.181.168.0/25
+BGP rib-out data for neighbor 10.0.0.13 and nlri 192.172.80.128/25
 ```
-admin@str-7050qx-32s-acs-04:/var/log$ redis-cli -n 0 HGETALL BGP_RIB_OUT_TABLE:192.181.168.0/25:BGP_NEIGHBOR:10.0.0.59
- 1) "next_hop"
- 2) "10.0.0.63"
- 3) "local_pref"
- 4) "0"
- 5) "aggregator"
- 6) ""
- 7) "originator_id"
- 8) ""
- 9) "origin"
-10) "igp"
-11) "as_path"
-12) " 65100 64600 65534 64627 65505"
+admin@bjw-can-3800-1:~$ redis-cli -n 20 -p 6400 HGETALL "BGP_RIB_OUT_TABLE|192.172.80.128/25|10.0.0.13"
+ 1) "origin"
+ 2) "igp"
+ 3) "as_path"
+ 4) "65100 64600 65534"
+ 5) "as_path_count"
+ 6) "3"
+ 7) "origin_as"
+ 8) "65534"
+ 9) "next_hop"
+10) ""
+11) "local_pref"
+12) "0"
+13) "community_list"
+14) ""
+15) "ext_community_list"
+16) ""
+17) "large_community_list"
+18) ""
+19) "originator_id"
+20) ""
 ```
 
 
@@ -255,21 +249,20 @@ This ensures data consistency and minimizes unnecessary table flapping.
 Create new config db table as below to contain config list for bmp.
 
 ```
-   127.0.0.1:6379[4]> keys FEATURE|bmp*
-   1) "FEATURE|bmp"
-
+   127.0.0.1:6379[4]> keys BMP*
+   1) "BMP|table"
 ```
 
 Create below config items list for enabling and disabling different table.
 
 ```
    127.0.0.1:6379[4]> HGETALL FEATURE|bmp
-   1) "bgp_neighbor_table"
+   1) "bgp_rib_in_table"
    2) "true"
-   3) "bgp_rib_in_table"
-   4) "false"
+   3) "bgp_neighbor_table"
+   4) "true"
    5) "bgp_rib_out_table"
-   6) "false"
+   6) "true"
 
 ```
 
@@ -329,17 +322,9 @@ bmp will support below show CLIs to query specific table in runtime:
    - Description: Show BGP routes received table for all neighbors.  
    - Result: Query BGP_RIB_IN_TABLE table and show all session data
 
-4. Command: `show bmp table status`  
+4. Command: `show bmp tables`  
    - Description: Show all table status like enable or disable so that user could operate correctly.  
    - Result: Query and show config db status for all table enablement
-
-5. Command: `show bmp out prefix count`
-   - Description: Show BGP prefixes advertised total count 
-   - Result: Query BGP_RIB_OUT_TABLE table and show calculated result in human readable format.
-
-6. Command: `show bmp in prefix count`
-   - Description: Show BGP prefixes received total count.  
-   - Result: Query BGP_RIB_IN_TABLE table and show calculated result in human readable format.
 
 ```
 

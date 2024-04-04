@@ -8,6 +8,7 @@
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 1.0 | 22 Aug 2019 | Praveen Chaudhary  | Initial version                   |
  | 1.0 | 11 Sep 2019 | Partha Dutta       | Adding additional steps for SONiC YANG  |
+ | 1.1 | 15 Dec 2023 | Jingwen Xie        | Added rules for List Keys |
 
 ## References
 | References 		    |     Date/Version    |   		    Link     	 	|
@@ -44,7 +45,7 @@ sonic-vlan.yang
 
 Example :
 ####  YANG
-```
+```yang
 module sonic-acl {
 	container sonic-acl {
 		.....
@@ -57,7 +58,7 @@ module sonic-acl {
 
 Example :
 ####  YANG
-```
+```yang
 module sonic-acl {
 	namespace "http://github.com/Azure/sonic-acl";
 	.....
@@ -70,7 +71,7 @@ module sonic-acl {
 Example :
 
 #### YANG
-```
+```yang
 module sonic-acl {
 	revision 2019-09-02 {
 		description
@@ -92,7 +93,7 @@ Example: Table VLAN will translate to container VLAN.
 
 #### ABNF
 
-```
+```yang
 "VLAN": {
         "Vlan100": {
              "vlanid": "100"
@@ -103,7 +104,7 @@ will translate to:
 
 ####  YANG
 --
-```
+```yang
 container VLAN {  //"VLAN" mapped to a container
  list VLAN_LIST {
    key name;
@@ -132,7 +133,7 @@ Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY, which are defined in AB
 ```
 
 ####  YANG
-```
+```yang
             leaf PACKET_ACTION {
                 .....
             }
@@ -148,7 +149,7 @@ Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY, which are defined in AB
 Example:
 
 #### YANG
-```
+```yang
 	leaf SRC_IP {
 		type inet:ipv4-prefix; <<<<
 	}
@@ -182,7 +183,7 @@ For Example:
 ```
 ####  YANG
 In YANG, "Family" of VLAN_INTERFACE and "IP_TYPE" of ACL_RULE is at same level.
-```
+```yang
 container VLAN_INTERFACE {
         description "VLAN_INTERFACE part of config_db.json";
         list VLAN_INTERFACE_LIST {
@@ -222,7 +223,7 @@ Example: VLAN_MEMBER dictionary in ABNF.json has both vlan-id and ifname part of
 key                 = VLAN_MEMBER_TABLE:"Vlan"vlanid:ifname ;
 
 #### YANG
-```
+```yang
 container VLAN_MEMBER {
     description "VLAN_MEMBER part of config_db.json";
         list ..... {
@@ -242,7 +243,7 @@ key: ACL_RULE_TABLE:table_name:rule_name
 .....
 ```
 #### YANG
-```
+```yang
 .....
 container ACL_TABLE {
 	list ACL_TABLE_LIST {
@@ -289,7 +290,7 @@ queue  = 1*DIGIT; queue index
 ```
 
 #### YANG
-```
+```yang
 	container TC_TO_QUEUE_MAP {
 		list TC_TO_QUEUE_MAP_LIST {
 			key "name";
@@ -336,7 +337,7 @@ wred_profile = ref_hash_key_reference; reference to wred profile key
 ```
 
 #### YANG
-```
+```yang
 container sonic-queue {
 	container QUEUE {
 		list QUEUE_LIST {
@@ -361,7 +362,7 @@ container sonic-queue {
 Example:
 
 #### YANG
-```
+```yang
 	must "(/sonic-ext:operation/sonic-ext:operation != 'DELETE') or " +
 		"count(../../ACL_TABLE[aclname=current()]/ports) = 0" {
 			error-message "Ports are already bound to this rule.";
@@ -373,7 +374,7 @@ Example:
 Example:
 
 #### YANG
-```
+```yang
 module sonic-vlan {
 	....
 	....
@@ -422,7 +423,7 @@ Example of When Statement: Orchagent of SONiC will have unknown behavior if belo
 
 ```
 #### YANG:
-```
+```yang
 choice ip_prefix {
                 case ip4_prefix {
                     when "boolean(IP_TYPE[.='ANY' or .='IP' or .='IPV4' or .='IPV4ANY' or .='ARP'])";
@@ -456,7 +457,7 @@ leaf L4_DST_PORT_RANGE {
 Example:
 
 #### YANG
-```
+```yang
 leaf family {
                 /* family leaf needed for backward compatibility
                    Both ip4 and ip6 address are string in IETF RFC 6020,
@@ -485,7 +486,7 @@ For Example: Below entries in PORTCHANNEL_INTERFACE Table must be part of List O
 ```
 
 #### YANG
-```
+```yang
 container PORTCHANNEL_INTERFACE {
 
         description "PORTCHANNEL_INTERFACE part of config_db.json";
@@ -497,9 +498,9 @@ container PORTCHANNEL_INTERFACE {
 }
 ```
 
-### 18. In some cases it may be required to split an ABNF table into multiple YANG lists based on the data stored in the ABNF table. 
+### 18. In some cases it may be required to split an ABNF table into multiple YANG lists based on the data stored in the ABNF table. In this case it is crucial to ensure that the List keys are non-overlapping, unique, and unambiguous.
 
-Example : "INTERFACE" table stores VRF names to which an interface belongs, also it stores IP address of each interface. Hence it is needed to split them into two different YANG lists.
+**Strategies for Ensuring Unique and Unambiguous Keys**: Utilize composite keys that have a different number of key elements to distinguish lists. Need to mention that different key names do not count as unambiguous model.
 
 #### ABNF
 ```
@@ -511,51 +512,206 @@ Example : "INTERFACE" table stores VRF names to which an interface belongs, also
 	}
 }
 ```
-#### YANG
-```
-......
-container sonic-interface {
-	container INTERFACE {
-		list INTERFACE_LIST {  // 1st list
-    			key ifname;
-			
-			leaf ifname {
-				type leafref { 
-				......
-				}
-			}
-			leaf vrf-name {
-				type leafref { 
-				......
-				}
-			}
-    			......
-		}
+#### Example 1: Key with different number of elements(composite keys - Allowed case)
 
-		list INTERFACE_IPADDR_LIST { //2nd list
-   			key ifname, ip_addr;
-			
-  			leaf ifname {
-				type leafref { 
-				......
-				}
-			}
-  			leaf ip_addr {
-      				  type inet:ipv4-prefix;
-  			}
+`INTERFACE` table stores VRF names to which an interface belongs, also it stores IP address of each interface. Hence it is needed to split them into two different YANG lists.
+
+```yang
+......
+container INTERFACE {
+	list INTERFACE_LIST {  // 1st list
+		key ifname;
+
+		leaf ifname {
+			type leafref {
 			......
+			}
 		}
-	} 
+		leaf vrf-name {
+			type leafref {
+			......
+			}
+		}
+		......
+	}
+
+	list INTERFACE_IPADDR_LIST { //2nd list
+		key "ifname ip_addr"
+
+		leaf ifname {
+			type leafref {
+			......
+			}
+		}
+		leaf ip_addr {
+			  type inet:ipv4-prefix;
+		}
+		......
+	}
+}
+......
+```
+In the example above if the config DB contains an INTERFACE table with single key element then it will be associted with the INTERFACE_LIST and if contains 2 key elements then it will be associated with INTERFACE_IPADDR_LIST
+
+#### Example 2: Keys with same number of elements of same type (NOT Allowed case 1)
+
+```yang
+......
+container NOT_SUPPORTED_INTERFACE {
+	list NOT_SUPPORTED_INTERFACE_LIST {  // 1st list
+		key ifname;
+		leaf ifname {
+			type string;
+		}
+		// ...
+	}
+
+	list NOT_SUPPORTED_INTERFACE_ANOTHER_LIST { // Negative case
+		key ifname;
+		leaf ifname {
+			type string;
+		}
+		// ...
+	}
 } 
 ......
 ```
+
+In the example above if the config DB contains an NOT_SUPPORTED_INTERFACE table with key Ethernet1 then it would match with both the list, this is an overlapping scenario
+
+#### Example 3: Keys with same number of elements of same type (NOT Allowed case 2)
+
+```yang
+......
+container NOT_SUPPORTED_TELEMETRY_CLIENT {
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST {  // 1st list
+        key "prefix name";
+
+        leaf prefix {
+            type string {
+                pattern "DestinationGroup_" + ".*";
+            }
+        }
+
+        leaf name {
+            type string;
+        }
+
+        leaf dst_addr {
+            type ipv4-port;
+        }
+    }
+
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST { // Negative case
+        key "prefix name";
+
+        leaf prefix {
+            type string {
+                pattern "Subscription_" + ".*";
+            }
+        }
+
+        leaf name {
+            type string;
+        }
+
+        leaf dst_group {
+            must "(contains(../../TELEMETRY_CLIENT_DS_LIST/prefix, current()))";
+            type string;
+        }
+    }
+}
+......
+```
+In the example above if the config DB contains an NOT_SUPPORTED_TELEMETRY_CLIENT table with key "DestinationGroup|HS", then it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario
+
+#### Example 4: keys with same number of elements and different type(NOT Allowed case 3)
+
+In the given example, if the configuration database has an NOT_SUPPORTED_TELEMETRY_CLIENT table with the key "1234", it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario
+
+```yang
+......
+container NOT_SUPPORTED_TELEMETRY_CLIENT {
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST {  // 1st list
+        key "prefix";
+
+        leaf prefix {
+            type string {
+                pattern ".*";
+            }
+        }
+
+        leaf dst_addr {
+            type ipv4-port;
+        }
+    }
+
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST { // Negative case
+        key "id";
+
+        leaf id {
+            type int32;
+        }
+
+        leaf dst_group {
+            must "(contains(../../TELEMETRY_CLIENT_DS_LIST/prefix, current()))";
+            type int32;
+        }
+    }
+}
+......
+```
+
+#### Example 5: keys with same number of elements and different type(NOT Allowed case 4)
+
+In the given example, if the configuration database has an NOT_SUPPORTED_TELEMETRY_CLIENT table with the key "1234|1234", it would correspond to the NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST and NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST, this is an overlapping scenario
+
+```yang
+......
+container NOT_SUPPORTED_TELEMETRY_CLIENT {
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_DS_LIST {  // 1st list
+        key "prefix name";
+
+        leaf prefix {
+            type string;
+        }
+
+        leaf name {
+            type string;
+        }
+
+        leaf dst_addr {
+            type ipv4-port;
+        }
+    }
+
+    list NOT_SUPPORTED_TELEMETRY_CLIENT_SUB_LIST { // Negative case
+        key "id name";
+
+        leaf id {
+            type int32;
+        }
+
+        leaf name {
+            type int32;
+        }
+
+        leaf dst_group {
+            must "(contains(../../TELEMETRY_CLIENT_DS_LIST/prefix, current()))";
+            type int32;
+        }
+    }
+}
+......
+```
+
 
 ### 19. Add read-only nodes for state data using 'config false' statement. Define a separate top level container for state data. If state data is defined in other DB than CONFIG_DB, use extension 'sonic-ext:db-name' for defining the table present in other Redis DB. The default separator used in table key  is "|", if it is different, use 'sonic-ext:key-delim {separator};' YANG extension. This step applies when SONiC YANG is used as Northbound YANG.
 
 Example:
 
 #### YANG
-```
+```yang
 container ACL_RULE {
 	list  ACL_RULE_LIST {
 	....
@@ -584,7 +740,7 @@ container ACL_RULE {
 Example:
 
 #### YANG
-```
+```yang
 container sonic-acl {
 	....
 	....
@@ -607,7 +763,7 @@ container sonic-acl {
 Example:
 
 #### YANG
-```
+```yang
 module sonic-port {
 	....
 	....
@@ -621,17 +777,11 @@ module sonic-port {
 }
 ```
 
-
-
-
-
-
-
 ## APPENDIX
 
 ### Sample SONiC ACL YANG
 
-```
+```yang
 module sonic-acl {
 	namespace "http://github.com/Azure/sonic-acl";
 	prefix sacl;

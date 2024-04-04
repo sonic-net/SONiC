@@ -40,26 +40,36 @@
 - [8 Unit Test Cases ](#8-unit-test-cases)
 - [9 References ](#9-references)
 
+# List of Figures
+
+- [Figure 1: System ready system chart](#figure-1-system-ready-system-chart)
+- [Figure 2: System ready use-cause diagrams](#figure-2-system-ready-use-cause-diagram)
+- [Figure 3: System status OK sequence diagram](#figure-3-system-status-ok-sequence-diagram)
+- [Figure 4: System status DOWN sequence diagram](#figure-4-system-status-down-sequence-diagram)
+- [Figure 5: System ready feature disabled flow](#figure-5-system-ready-feature-disabled-flow)
+
 # List of Tables
 
-[Table 1: Abbreviations](#table-1-abbreviations)
+- [Table 1: Abbreviations](#table-1-abbreviations)
 
 # Revision
-| Rev  |    Date    |       Author        | Change Description                                           |
-|:--:|:--------:|:-----------------:|:------------------------------------------------------------:|
-| 0.1  |  | Senthil Kumar Guruswamy   | Initial version                                              |
-| 0.2  |  | Senthil Kumar Guruswamy   | Update as per review comments                                              |
-| 0.3  |  | Senthil Kumar Guruswamy   | Integrate systemready to system-health                                              |
+| Rev | Date             | Author                  | Change Description                                           |
+|:---:|:----------------:|:-----------------------:|:------------------------------------------------------------:|
+| 0.1 |                  | Senthil Kumar Guruswamy | Initial version                                              |
+| 0.2 |                  | Senthil Kumar Guruswamy | Update as per review comments                                |
+| 0.3 |                  | Senthil Kumar Guruswamy | Integrate systemready to system-health                       |
+| 0.4 | 16 June 2023     | Yevhen Fastiuk 🇺🇦       | Report host daemons status. System status permanent. System ready admin state |
 
 
 # Definition/Abbreviation
 
 ### Table 1: Abbreviations
 
-| **Term** | **Meaning**                               |
-| -------- | ----------------------------------------- |
-| FEATURE  | Docker/Service                            |
-| App      | Docker/Service                            |
+| **Term**    | **Meaning**                                   |
+| ----------- | --------------------------------------------- |
+| FEATURE     | Docker/Service                                |
+| App         | Docker/Service                                |
+| Host daemon | The demonized application running on the host |
 
 
 # About this Manual
@@ -79,6 +89,8 @@ A new python based System monitor tool is introduced to monitor all the essentia
 This framework gives provision for docker apps to notify its closest up status.
 CLIs are provided to fetch the current system status and also service running status and its app ready status along with failure reason if any.
 This feature will be part of system-health framework.
+![System chart](diagrams/system-chart.png "Figure 1: System ready system chart")
+###### Figure 1: System ready system chart
 
 ## 1.1 Limitation of Existing tools:
  - Monit tool is a poll based approach which monitors the configured services for every 1 minute.
@@ -90,7 +102,7 @@ This feature will be part of system-health framework.
  - Event based model where the feedback is immediate
  - Know the overall system status through syslog and as well through CLIs
  - It brings in the concept of application readiness to allow each application/service/docker to declare themselves as ready based on different application specific criteria.
- - Combatibility with application extension framework.
+ - Compatibility with application extension framework.
     SONiC package installation process will register new feature in CONFIG DB.
     Third party dockers(signature verified) gets integrated into sonic os and runs similar to the existing dockers accessing db etc.
     Now, once the feature is enabled, it becomes part of either sonic.target or multi-user.target and when it starts, it automatically comes under the system monitor framework watchlist.
@@ -106,15 +118,22 @@ Following requirements are addressed by the design presented in this document:
 1. Identify the list of sonic services to be monitored.
 2. system-health to include the sysmon framework to check system status of all the service units and receive service state change notifications to declare the system ready status.
 3. Provision for apps to notify its closest up status in STATE DB. This should internally cover Port ready status. Also support application extension framework.
-4. Appropriate system ready syslogs to be raised.
-5. New CLI to be introduced to know the current system status all services.
+4. Allow host daemons to report their app's ready status
+5. Appropriate system ready syslogs to be raised.
+6. New CLI to be introduced to know the current system status all services.
    - "show system-health sysready-status" covers the overall system status.
-6. During the techsupport data collection, the new CLI to be included for debugging.
+7. During the techsupport data collection, the new CLI to be included for debugging.
+8. The feature should have enable/disable configuration.
+   - By default it is enabled, so it preserves all the behavior described in this document.
+   - In disabled state it will still report system ready status, but it will wait for only one event - `PortInitDone`
+9. The feature should respect multi-asic according to [this design](https://github.com/sonic-net/SONiC/blob/master/doc/multi_asic/SONiC_multi_asic_hld.md#2421-systemd-services). If service is configured to be ignored or system ready feature should wait for it's app status - wait for all instances of that service.
+![System ready use-case diagram](diagrams/system-use-case.png "Figure 2: System ready use-cause diagram")
+###### Figure 2: System ready use-cause diagram
 
 
 ## 2.2 Configuration and Management Requirements
 
-This feature will support CLI and no configuration command is provided for any congiruations.
+This feature will support CLI and one configuration command is supported.
 
 
 ## 2.3 Scalability Requirements
@@ -131,8 +150,8 @@ warmboot-finalizer sonic service to be monitored as part of all services.
 This feature provides framework to determine the current system status to declare the system is (almost) ready for network traffic.
 
 System ready is arrived at considering the following factors.
-1. All sonic docker services and its UP status(including Portready status)
-2. All sonic host services
+1. Configured sonic docker services and its UP status (including Portready status)
+2. Configured sonic host services
 
 
 # 4 Feature Design
@@ -142,6 +161,18 @@ System ready is arrived at considering the following factors.
 - When sysmonitor daemon boots up, it polls for the service list status once and maintains the operational data in STATE_DB and publishes the system ready status in form of syslog and as well as in STATE_DB.
 - Subsequently, when any service state changes, sysmonitor gets the event notification for that service to be checked for its status and update the STATE_DB promptly.
 - Hence the system status is always up-to-date to be notifed to user in the form of syslog, STATE_DB update and as well as could be fetched by appropriate CLIs.
+- Once system declare the status (any of it, `UP`, `DOWN`, or `FAILED`) the applications which were waiting for it can continue execution and take actions according to received status.
+  - `UP` system status should be concidered as healthy system status
+  - `DOWN` system status means that required daemon/s didn't notify its ready status during timeout period.
+  - `FAILED` system status means that some daemon was failed during it's execution or SONiC application reported `false` `up_status`.
+
+System status OK flow: 
+![System status OK sequence diagram](diagrams/system-ready-ok-flow.png "Figure 3: System status OK sequence diagram")
+###### Figure 3: System status OK sequence diagram
+
+System status DOWN (by timeout):
+![System status WODN sequence diagram](diagrams/system-ready-timeout-flow.png "Figure 4: System status DOWN sequence diagram")
+###### Figure 4: System status DOWN sequence diagram
 
 
 ## 4.2 Sysmonitor 
@@ -153,10 +184,14 @@ Sysmonitor is the subtask of system-health service which does the job of checkin
 1. subscribe to system dbus
    - With the dbus subscription, any systemd events gets notified to this task and it puts the event in the multiprocessing queue.
 
-2. subscribe to the new FEATURE table in STATE_DB of Redis database
+1. subscribe to the new FEATURE table in STATE_DB of Redis database
    - With the STATE_DB feature table subscription, any input to the FEATURE table gets notified to this task and it puts the event in the queue.
 
-3. Main task
+1. Timeout task
+   - Timeout can be configured trought the platform's `system_health_monitoring_config.json` file by the `timeout` field.
+   System will be declared DOWN once timeout reached.
+
+1. Main task
    - Runs through the polling of all service status check once and listen for events in queue populated by dbus task and statedb task to take appropriate action of checking the specific event unit status 
      and updating system status in the STATE_DB.
 
@@ -165,8 +200,12 @@ Sysmonitor is the subtask of system-health service which does the job of checkin
 ## 4.3 Service Identification
 
 - It covers the enabled services from FEATURE table of CONFIG_DB.
-- Also, since the idea is to cover only the sonic services but not the general system services, sysmonitor tracks services under "multi-user.target" and "sonic.target"
+- Also, since the idea is to cover only the sonic services but not the general system services, sysmonitor tracks services under "multi-user.target" and "sonic.target". It also inportant to track all "generated" systemd services from `/run/systemd/generator/` folder, such as `ntp-config`, `interfaces-config`, etc.
 - This covers all the sonic docker services and most of the sonic host services.
+- Additionaly, in `system_health_monitoring_config.json` we introduce a new fields: `services_to_wait` and `services_to_report_app_status`.
+   - `services_to_wait` - holds explicit list of services we would like to wait for in order to declare system ready state. This list shouldn't include the SONiC applications, because it is up to them to specify the effect on system ready by paramerizing FEATURE table.
+   - `services_to_report_app_status` - some daemon may want to notify the readiness to systemd earlier that functional readiness.
+   That parameter will hold all services that should notify app ready state by itself using the same mechanism as SONiC application.
 
 
 ## 4.4 System ready Framework logic
@@ -177,14 +216,21 @@ but align the services within framework to flag the status as "Down" if the serv
 - For services:
     - Loaded, enabled/enabled-runtime/static, active & running, active & exited state services are considered 'OK'.
     - For active and running services, up_status marked by docker app should be True to be considered 'OK'.
-    - Failed state services are considered 'Down'.
+    - Failed state services are considered 'Failed'.
     - Activating state services are considered as 'Starting'.
     - Deactivating state services are considered as 'Stopping'.
     - Inactive state services category:
         - oneshot services are considered as 'OK'.
         - Special services with condition pathexists check failure are considered as 'OK'.
         - Other services in inactive state are considered to be 'Down'.
+        - Services exited with error code concidered 'Failed'.
     - Any service type other than oneshot if by default goes to inactive state, RemainAfterExit=yes entry needs to be added to their service unit file to be inline with the framework.
+    - Host daemons marked their status via `up_status` field in STATE_DB as `true` considered 'OK'.
+    - Host daemons marked their status via `up_status` field in STATE_DB as `false` considered 'Failed'.
+
+System ready feature disabled flow:
+![System ready feature disabled flow](diagrams/system-ready-disabled-flow.png "Figure 5: System ready feature disabled flow")
+###### Figure 5: System ready feature disabled flow
 
 
 ## 4.5 Provision for apps to mark closest UP status
@@ -197,6 +243,7 @@ In simple, each app is responsible in marking its closest up status in STATE_DB.
 Docker apps marking their UP status in STATE_DB will input an entry in FEATURE table of CONFIG_DB with check_up_status flag set to true through /etc/sonic/init_cfg.json file change.
 Sysmonitor checks for the check_up_status flag in CONFIG_DB before reading the app ready status from STATE_DB. 
 If the flag does not exist or if set to False, then sysmonitor will not read the app ready status but just checks the running status of the service.
+Docker applications can mark `irrel_for_sysready` field in `FEATURE` table to instruct sysmonitor to ignore the application's status.
 
 For application extension package support,
 a new manifest variable is introduced to control whether "check_up_status" should be up true or false which will also be an indication whether docker implements marking the up_status flag in STATE_DB.
@@ -210,11 +257,40 @@ a new manifest variable is introduced to control whether "check_up_status" shoul
                  "<dockername>": {
                      ...
                      "state": "enabled",
-                     "check_up_status": "true"
+                     "check_up_status": "true",
+                     "irrel_for_sysready": "true"
                  }
               }
             }
 ```
+
+The feature configuration is controlled by `sysready_state` field of `DEVICE_METADATA` table.
+```yang
+module sonic-device_metadata {
+    ...
+
+    container sonic-device_metadata {
+
+        container DEVICE_METADATA {
+
+            description "DEVICE_METADATA part of config_db.json";
+
+            container localhost {
+                ...
+
+                leaf sysready_state {
+                    type stypes:state;
+                }
+            }
+            /* end of container localhost */
+        }
+        /* end of container DEVICE_METADATA */
+    }
+    /* end of top level container */
+}
+/* end of module sonic-device_metadata */
+```
+
 
 ### 4.5.2 STATE_DB Changes
 - Docker apps which rely on config, can mark 'up_status' to true in STATE_DB  when they are ready to receive configs from CONFIG_DB and/or some extra dependencies are met.
@@ -222,7 +298,7 @@ a new manifest variable is introduced to control whether "check_up_status" shoul
 - Any docker app which has multiple independent daemons can maintain a separate intermediate key-value in the redis-db for each of the daemons and the startup script that invokes each of these daemons can determine the status from the redis entries by each daemon and finally update the STATE_DB up_status.
 - Along with up_status, docker apps should update the fail_reason field with appropriate reason in case of failure or empty string in case of success.
 - Also, update_time field to be fed in as well in the format of epoch time.
-
+- Deamon's application mentioned in `services_to_report_app_status` must report their status in `up_status` field in `SERVICE_APP` table of `STATE_DB`.
 
 For instances,
 - swss docker app can wait for port init done and wait for Vrfmgr, Intfmgr and Vxlanmgr to be ready before marking its up status.
@@ -232,14 +308,16 @@ For instances,
 
 
 STATE_DB:
+- For SONiC application the `<table>` is `FEATURE`
+- For daemon's applications mentioned in `services_to_report_app_status` the `<table>` is `SERVICE_APP`
 ```
-- sonic-db-cli STATE_DB HSET "FEATURE|<dockername>" up_status true
-- sonic-db-cli STATE_DB HSET "FEATURE|<dockername>" fail_reason "<some reason in string format>" / ""
-- sonic-db-cli STATE_DB HSET "FEATURE|<dockername>" update_time "<epoch time format >"
+- sonic-db-cli STATE_DB HSET "<table>|<dockername>" up_status true
+- sonic-db-cli STATE_DB HSET "<table>|<dockername>" fail_reason "<some reason in string format>" / ""
+- sonic-db-cli STATE_DB HSET "<table>|<dockername>" update_time "<epoch time format >"
 
 - Schema in STATE_DB
   sonic-db-dump -n STATE_DB output
-          "FEATURE|<dockername>": {
+          "<table>|<dockername>": {
             "type": "hash",
             "value": {
               "up_status": "true",
@@ -250,7 +328,7 @@ STATE_DB:
            },
 
 - Example:
-  "FEATURE|bgp": {
+  "<table>|bgp": {
     "type": "hash",
     "value": {
       "fail_reason": "",
@@ -268,12 +346,36 @@ In addition to this, sysmonitor posts the system status to SYSTEM_READY table in
   "SYSTEM_READY|SYSTEM_STATE": {
     "type": "hash",
     "value": {
-      "status": "up"
+      "Status": "UP"
     }
   }
 ```
 
-### 4.5.3 Feature yang Changes
+### 4.5.3 Health configuration file changes
+As it was mentioned before that feature will use `system_health_monitoring_config.json` file as configuration.
+The example of that file is here:
+```json
+{
+    "services_to_ignore": ["rsyslog", "syncd", "redis", "orchagent", "portsyncd", "portmgrd", "pmon"],
+    "services_to_wait": ["ntp-config", "interfaces-config", "hostcfgd"],
+    "services_to_report_app_status": ["hostcfgd"],
+    "timeout": 10,
+    "devices_to_ignore": [],
+    "user_defined_checkers": [],
+    "polling_interval": 3,
+    "led_color": {
+        "fault": "orange",
+        "normal": "green",
+        "booting": "orange_blink"
+    }
+}
+```
+- `services_to_ignore` - is used to filter services we don't want to wait for
+- `services_to_wait` - is explicit list of services we would like to wait for
+- `services_to_report_app_status` - the list of services which must report their status in order to declare system ready
+- `timeout` - the timeout after which sysmonitor will consider the system is `DOWN`
+
+### 4.5.4 Feature yang Changes
 
 Following field is added to the sonic-feature.yang file.
 
