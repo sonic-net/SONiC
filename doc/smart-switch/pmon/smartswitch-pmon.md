@@ -70,7 +70,7 @@ The picture below highlights the PMON vertical and its association with other lo
 * DPU: Turning on the power to the DPU will boot and be ready for traffic
 #### Trigger
 * Switch: Power on switch.
-* DPU: Configuration or CLI using platform API
+* DPU: Bootup configuration
 #### Use case
 * Switch: Day0 setup, Maintenance, RMA
 * DPU: Day0, Day1-N Provisioning, Maintenance, RMA
@@ -120,8 +120,8 @@ Key: "CHASSIS_MODULE|DPU0"
 * Switch: Gracefully shutdown all DPU SONiC turn off DPU power. Gracefully shutdown Switch SONiC and tun off the power to the switch
 * DPU: Gracefully shutdown SONiC and turn off power
 #### Trigger
-* Switch: Configuration or CLI using platform API
-* DPU: Configuration or CLI using platform API
+* Switch: Turn off the power to the switch
+* DPU: Configuration or CLI
 #### Use case
 * Switch: Maintenance, Critical alarm, RMA
 * DPU: Maintenance, Critical alarm, Service migration, RMA
@@ -212,7 +212,7 @@ SmartSwitch PMON block diagram
 <p align="center"><img src="./images/pmon-blk-dgm.svg"></p>
 
 ### 3.1. Platform monitoring and management
-* SmartSwitch design Extends the existing chassis_base and module_base as described below.
+* SmartSwitch design Extends the existing chassis_base class and module_base class as described below.
 * Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch
 
 #### 3.1.1 ChassisBase class API enhancements
@@ -397,7 +397,7 @@ reboot(self, reboot_type):
 set_admin_state(self, up):
 ```
     Request to keep the card/DPU in administratively up/down state.
-    Default state is down.
+    Default state is up.
 ```
 
 get_maximum_consumed_power(self):
@@ -461,18 +461,18 @@ Every time a DPU is powered up, platform can fetch this information from the DPU
 2. Though the get_oper_status(self) can get the operational status of the DPU Modules, the current implementation only has limited capabilities.
     * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progression the DPU failed. This is critical in fault isolation, DPU switchover decision, resiliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistent way of storing and accessing the information.
-    * Store the state progression (dpu-npu-midplane-link, dpu-booted, dpu-controlplane, dpu-dataplane) on the host ChassisStateDB.
+    * Store the state progression (dpu_midplane_link_state, dpu_booted_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB.
     * get_state_info(self) will return an object with the ChassisStateDB data
     * Potential consumers: HA, LB, Switch CLIs, Utils (install/repair images), Life Cycle Manager 
     * Use cases: HA, Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state
 #### DPU_STATE definition
-npu_midplane_link_state: up refers to the pcie link between the NPU and DPU is operational. This will be updated by the switch pcied.
+dpu_midplane_link_state: up refers to the pcie link between the NPU and DPU is operational. This will be updated by the switch pcied.
 
 dpu_booted_state: up refers to SONiC booted on DPU
 
 dpu_control_plane_state: up  refers to all the containers are up and the interfaces are up and dpu is ready to take SDN policy update
 
-dpu_data_plane_state: up  refers to configuration downloaded the pipeline stages are up and DPU hardware (port/ASIC) is ready to take traffic
+dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stages are up and DPU hardware (port/ASIC) is ready to take traffic
 
 ```
     ChassisStateDB Schema for DPU_STATE
@@ -483,9 +483,9 @@ dpu_data_plane_state: up  refers to configuration downloaded the pipeline stages
     key:  DPU_STATE|DPU0
 
         "id": "1",
-        ”npu_midplane_link_state”: "up"
-        “npu_midplane_link_time": "timestamp",
-        "npu_midplane_link_reason": "up_down_related string",
+        ”dpu_midplane_link_state”: "up"
+        “dpu_midplane_link_time": "timestamp",
+        "dpu_midplane_link_reason": "up_down_related string",
         ”dpu_booted_state": "up",
         "dpu_booted_time": "timestamp",
         "dpu_booted_reason": "up_down_related string",
@@ -670,6 +670,8 @@ root@sonic:~#show reboot-cause
 Device          Name                    Cause                       Time                                User    Comment
 
 switch          2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
+DPU3            2023_10_03_18_23_46     Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
+DPU2            2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
 
 root@sonic:~#show reboot-cause history
 
@@ -677,7 +679,6 @@ Device          Name                    Cause                       Time        
 
 switch          2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
 switch          2023_10_05_18_23_46     reboot                      Wed 05 Oct 2023 06:23:46 PM UTC     user    N/A
-DPU0            2023_10_04_18_23_46     Power Loss                  Tue 04 Oct 2023 06:23:46 PM UTC     N/A     N/A
 DPU3            2023_10_03_18_23_46     Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
 DPU3            2023_10_02_18_23_46     Host Power-cycle            Sun 02 Oct 2023 06:23:46 PM UTC     N/A     Host lost DPU
 DPU3            2023_10_02_17_23_46     Host Reset DPU              Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
@@ -736,29 +737,32 @@ System status summary
 show system-health DPU \<dpu-index\>  <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
 ```
 When the idex is "all" shows the detailed state of all DPUs
+Oper-Status definition: 
+Online : All states are up
+Offline: dpu_midplane_link_state or dpu_booted_state is down
+Partial Online: dpu_midplane_link_state is up and dpu_booted_state is up and dpu_control_plane_state or dpu_data_plane_state is down
 
 root@sonic:~#show system-health DPU all  
             
 Name       ID    Oper-Status          State-Detail                   State-Value     Time                               Reason                        
-DPU0       1     Partial Online       dpu_npu_midplane_link          up              Wed 20 Oct 2023 06:52:28 PM UTC                    
-                                      dpu_booted                     up              Wed 20 Oct 2023 06:52:28 PM UTC                    
-                                      dpu_control_plane              up              Wed 20 Oct 2023 06:52:28 PM UTC            
-                                      dpu_data_plane                 down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure              
+DPU0       1     Partial Online       dpu_midplane_link_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_booted_state               up              Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_control_plane_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_data_plane_state           down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure
 
 
-DPU1       2     Partial Online       dpu_npu_midplane_link          up              Wed 20 Oct 2023 06:52:28 PM UTC                    
-                                      dpu_booted                     up              Wed 20 Oct 2023 06:52:28 PM UTC                    
-                                      dpu_control_plane              up              Wed 20 Oct 2023 06:52:28 PM UTC            
-                                      dpu_data_plane                 down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure              
-
+DPU1       2     Partial Online       dpu_midplane_link_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_booted_state               up              Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_control_plane_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_data_plane_state           down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure
 
 root@sonic:~#show system-health DPU 0
  
 Name       ID    Oper-Status          State-Detail                   State-Value     Time                               Reason
-DPU0       1     Partial Online       dpu_npu_midplane_link          up              Wed 20 Oct 2023 06:52:28 PM UTC                    
-                                      dpu_booted                     up              Wed 20 Oct 2023 06:52:28 PM UTC                    
-                                      dpu_control_plane              up              Wed 20 Oct 2023 06:52:28 PM UTC            
-                                      dpu_data_plane                 down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure              
+DPU0       1     Partial Online       dpu_midplane_link_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_booted_state               up              Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_control_plane_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_data_plane_state           down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure
 
 ```
 #### System health cli extended further as shown
