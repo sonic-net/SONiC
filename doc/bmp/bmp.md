@@ -126,6 +126,7 @@ BMP will continually populate existing redis table STATE_DB, just with different
 Like below, please note that multiple ASIC will also be supported in this feature. since multiple ASIC uses multiple database instances according to ASIC index, the same logic is still applied in this project.
 There will be multiple BMP instance according to BGP container instance, and populate the BGP data received from its paired BGP container.
 
+
 |DB name    |   DB No. |     Description|
 |  ----     |:----:| ----|
 |STATE_DB    |  specific ASIC indexed DB per BGP neighbor |   Application running data |
