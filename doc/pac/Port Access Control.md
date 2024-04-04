@@ -1,4 +1,4 @@
-
+﻿
 # Port Access Control in SONiC
 
 # Table of Contents
@@ -67,7 +67,9 @@
 # Revision
 | Rev  | Date       | Author                                   | Change Description |
 | ---- | ---------- | ---------------------------------------- | ------------------ |
-| 0.1  | 04/05/2023 | Amitabha Sen, Vijaya Abbaraju, Shirisha Dasari, Anil Kumar Pandey | Initial version    |
+| 0.1  | 04/05/2023 | Amitabha Sen, Vijaya Abbaraju, Shirisha Dasari, Anil Kumar Pandey | Initial version 
+   | 0.2  | 04/02/2024 | Vijaya Abbaraju | Updated the CLI config, show and clear commands. 
+|
 
 
 # About this Manual
@@ -706,111 +708,115 @@ The following commands are used to configure PAC.
 
 | CLI Command                              | Description                              |
 | :--------------------------------------- | :--------------------------------------- |
-| config authentication port-control interface <auto \| force-authorized \| force-unauthorized \>  <interface\> | This command configures the authentication mode to use on the specified interface. Default is force-authorized. |
-| config dot1x pae interface  <authenticator \| none\> <interface\> | This command sets the PAC role on the port. Default is none. Role authenticator enables PAC on the port. |
-| config authentication host-mode interface <multi-auth \|  multi-host \| single-host \> <interface\> | This command configures the host mode on the specified interface. Default is multi-host. |
+| config interface authentication port-control  <interface\> <auto \| force-authorized \| force-unauthorized \>   | This command configures the authentication mode to use on the specified interface. Default is force-authorized. |
+| config interface dot1x pae <interface\> <authenticator \| none\>  | This command sets the PAC role on the port. Default is none. Role authenticator enables PAC on the port. |
+| config interface authentication host-mode <interface\> <multi-auth \|  multi-host \| single-host \>  | This command configures the host mode on the specified interface. Default is multi-host. |
 | config dot1x system-auth-control <enable\|disable\> | This command configures 802.1x globally. Default is disabled. |
-| config authentication max-users interface <max-users\> <interface\> | This command configures max users on the specified interface. The count is applicable only in the multiple authentication host mode. Default is 16. |
-| config mab interface <enable\|disable\> <interface\> \[ auth-type <pap \| eap-md5 \| chap \>\] | This command configures MAB on the specified interface with the specified MAB authentication type. MAB is disabled by default. Default auth-type is eap-md5. |
-| config authentication periodic interface <enable\|disable> <interface\> | This command enables periodic reauthentication of the supplicants on the specified interface. Default is disabled. |
-| config authentication timer reauthenticate interface <seconds \| server\> <interface\> | This command configures the reauthentication period of supplicants on the specified interface. The 'server' option is used to fetch this period from the RADIUS server. The 'seconds' option is used to configure the period locally. Default is 'server'. |
-| config authentication order interface <dot1x \[ mab \] \| mab \[ dot1x \]> <interface\> | This command is used to set the order of authentication methods used on a port. Default order is 802.1x,mab. |
-| config authentication priority interface <dot1x \[ mab \] \| mab \[ dot1x \]> <interface\> | This command is used to set the priority of authentication methods used on a port. Default priority is 802.1x,mab. |
+| config interface authentication max-users <interface\> <max-users\> | This command configures max users on the specified interface. The count is applicable only in the multiple authentication host mode. Default is 16. |
+| config interface mab  <interface\> <enable\|disable\> \[ auth-type <pap \| eap-md5 \| chap \>\] | This command configures MAB on the specified interface with the specified MAB authentication type. MAB is disabled by default. Default auth-type is eap-md5. |
+| config interface authentication periodic <interface\> <enable\|disable> | This command enables periodic reauthentication of the supplicants on the specified interface. Default is disabled. |
+| config interface authentication reauth-period <interface\> <seconds \| server\> | This command configures the reauthentication period of supplicants on the specified interface. The 'server' option is used to fetch this period from the RADIUS server. The 'seconds' option is used to configure the period locally. Default is 'server'. |
+| config interface authentication order <interface\> <dot1x \[ mab \] \| mab \[ dot1x \]> | This command is used to set the order of authentication methods used on a port. Default order is 802.1x,mab. |
+| config interface authentication priority <interface\> <dot1x \[ mab \] \| mab \[ dot1x \]> | This command is used to set the priority of authentication methods used on a port. Default priority is 802.1x,mab. |
 
 
 
 ### 3.7.3 Show Commands
 
-**show authentication interface** **<all| interface\>**
+**show authentication interface** 
 
-This command displays the authentication manager information for the interface
+This command displays the authentication manager information for the enabled interfaces
 
-| Field                      | Description                              |
-| -------------------------- | ---------------------------------------- |
-| Interface                  | The interface for which authentication configuration information is being displayed. |
-| Port Control Mode          | The configured control mode for this port. Possible values are force-unauthorized |
-| Host Mode                  | The authentication host mode configured on the interface. |
-| Configured method order    | The order of authentication methods used on the interface. |
-| Enabled method order       | The order of authentication methods used on the interface. |
-| Configured method priority | The priority for the authentication methods used on the interface. |
-| Enabled method priority    | The priority for the authentication methods used on the interface. |
-| Reauthentication Period    | The period after which all clients on the interface will be reauthenticated. |
-| Reauthentication Enabled   | Indicates whether reauthentication is enabled on the interface. |
-| Maximum Users              | The maximum number of clients that can be authenticated on the interface if the interface is configured as multi-auth host mode. |
-| PAE role                   | Indicates the configured PAE role as authenticator or none. |
+root@sonic:/home/admin# 
+root@sonic:/home/admin# show authentication interface 
 
+Interface    Port-Control    Host-Mode    Pae-Role         Max-Users  Reauth      Reauth-Period  Reauth-from-Serer    config-methods    config-priority    enabled-methods    enabled-priority
+-----------  --------------  -----------  -------------  -----------  --------  ---------------  -------------------  ----------------  -----------------  -----------------  ------------------
+Ethernet0    auto            multi-auth   authenticator           16  disabled               60  False                dot1x             dot1x,mab          dot1x,undefined    dot1x,undefined
+root@sonic:/home/admin# 
 
+**show authentication interface -i Ethernet0** 
 
-**show authentication**
+This command displays the authentication manager information for the specified interface
+```
+root@sonic:/home/admin# show authentication interface -i Ethernet0
 
-This command displays the number of authenticated clients.
-
-| Field                           | Description                              |
-| ------------------------------- | ---------------------------------------- |
-| Number of Authenticated clients | The total number of clients authenticated on the switch |
-
-
-
-**show authentication clients <all | interface <interface\> \>**
+Interface    Port-Control    Host-Mode    Pae-Role       Max-Users    Reauth      Reauth-Period  Reauth-from-Serer    config-methods    config-priority    enabled-methods    enabled-priority
+-----------  --------------  -----------  -------------  -----------  --------  ---------------  -------------------  ----------------  -----------------  -----------------  ------------------
+Ethernet0    auto            multi-auth   authenticator           16  disabled               60  False                dot1x             dot1x,mab          dot1x,undefined    dot1x,undefined
+root@sonic:/home/admin# 
+```
+**show authentication interface -i Ethernet0** 
 
 This command displays the details authenticated clients.
+```
+root@sonic:/home/admin# show authentication clients 
+Authenticated Clients : 1
 
+Interface       mac-addr        user-name     vlan
+-----------  ----------------- -----------   ------
+Ethernet0    00:11:01:00:00:01  usr1          20
+root@sonic:/home/admin# 
+```
+**show authentication interface -i Ethernet0** 
 
-| Field                                    | Description                              |
-| ---------------------------------------- | ---------------------------------------- |
-| Interface                                | The interface for which authentication configuration information is being displayed. |
-| Mac Address                              | The MAC address of the client.           |
-| User Name                                | The user name associated with the client. |
-| VLAN                                     | The VLAN associated with the client.     |
-| Host Mode                                | The authentication host mode configured on the interface. The possible values are multi-auth, multi-host and single-host. |
-| Method                                   | The method used to authenticate the client on the interface. The possible values are dot1x or MAB. |
-| Session Time                             | The amount of time the client session has been active. |
-| Session Timeout                          | This value indicates the time for which the given session is valid. The time period in seconds is returned by the RADIUS server on authentication of the port. |
-| Time left for Session Termination Action | This value indicates the time left for the session termination action to occur. This field is valid only when the “authentication periodic” is configured. |
-| Session Termination Action               | This value indicates the action to be taken once the session timeout expires. Possible values are Default and Radius-Request. If the value is Default, the session is terminated and client details are cleared. If the value is Radius-Request, then a reauthentication of the client is performed. |
+This command displays the details authenticated clients on specified interface.
+```
+root@sonic:/home/admin# show authentication clients -i Ethernet0
+Authenticated Clients : 1
 
-
-
+Interface    mac-addr           user-name      vlan
+-----------  -----------------  -----------  ------
+Ethernet0    00:11:01:00:00:01  usr1          20
+root@sonic:/home/admin# 
+```
 **show mab <cr | interface\>**
 
-This command is used to show a summary of the global mab configuration and summary information of the mab configuration for all ports. This command also provides the detailed mab configuration for a specified port
+This command is used to show a summary of the global mab configuration and summary information of the mab configuration for all ports. 
+```
+root@sonic:/home/admin# show mab interface
 
-| Field         | Description                              |
-| ------------- | ---------------------------------------- |
-| Interface     | Given interface                          |
-| Admin Mode    | MAB admin mode on the given interface    |
-| MAB auth type | MAB authentication type (EAP_MD5, PAP, CHAP) |
-
-
-
+Interface    MAB Enabled    auth-type
+-----------  -------------  -----------
+Ethernet1    True           pap
+root@sonic:/home/admin# 
+```
+**show mab <cr | interface\> -i Ethernet1**
+This command also provides the detailed mab configuration for a specified port
+root@sonic:/home/admin# show mab interface -i Ethernet1
+```
+Interface    MAB Enabled    auth-type
+-----------  -------------  -----------
+Ethernet1    True           pap
+root@sonic:/home/admin# 
+```
 **show dot1x**
 
 This command is used to show a summary of the global 802.1x configuration.
-
-| Field               | Description                              |
-| ------------------- | ---------------------------------------- |
-| Administrative Mode | Indicates whether 802.1x is enabled or disabled. |
-
-
-
-
-show dot1x detail <all | interface\>
-
-This command is used to show details of 802.1x configuration on an interface.
-
-| Field            | Description                              |
-| ---------------- | ---------------------------------------- |
-| Interface        | Given Interface                          |
-| PAE Capabilities | The Port Access entity (PAE) functionality of this port. Possible values are Authenticator or None |
-
-
-
+```
+root@sonic:/home/admin# show dot1x
+802.1X admin mode : Enabled
+root@sonic:/home/admin# 
+```
 ### 3.7.4 Clear Commands
 
-**sonic-clear authentication sessions <interface <all | interface | mac \>\>**
+**sonic-clear authenticaton sessions**
 
 This command clears information for all Auth Manager sessions. All the authenticated clients are re-initialized and forced to authenticate again.
+```
+root@sonic:/home/admin# sonic-clear authentication sessions
+```
+**sonic-clear authenticaton sessions -i \<interface\>**
+This command clears information for all Auth Manager sessions on the specified interface.
+```
+root@sonic:/home/admin# sonic-clear authentication sessions -i Ethernet0
+```
 
+**sonic-clear authenticaton sessions -m \<mac-addr\>**
+This command clears information for specified client.
+```
+root@sonic:/home/admin# sonic-clear authentication sessions -m 00:00:00:11:22:33
+```
 
 
 # 4 Scalability
@@ -827,15 +833,22 @@ The following scale is supported:
 # 5 Appendix: Sample configuration
 
 ```
-config vlan add 100
-config authentication port contol interface auto Ethernet10
-config authentication dot1x pae interface authenticator Ethernet10
-config authentication host-mode interface multi-auth Ethernet10
-config authentication interface max-users 10 Ethernet10
-config mab interface enable pap
+config interface startup Ethernet0
+config vlan add 10
+config vlan member add 10 Ethernet0 -u
+config radius add 10.10.10.1
+config radius passkey mypasskey
 config dot1x system-auth-control enable
-config authentication periodic interface Ethernet10
-config authentication timer reauthenticate interface 600 Ethernet10
+config interface authentication port-control Ethernet0 auto
+config interface authentication host-mode Ethernet0 multi-auth
+config interface authentication order Ethernet0 dot1x
+config interface authentication priority Ethernet0 dot1x
+config interface dot1x pae Ethernet0 authenticator
+config interface authentication periodic Ethernet1 enable
+config interface authentication reauth-period Ethernet1 120
+config interface authentication max-users Ethernet1 6
+config interface mab Ethernet1 enable -a pap
+
 ```
 
 
