@@ -67,7 +67,8 @@ FRR upgrade and patch cadence is largely on need basis in the current SONiC rele
 	-   Apply the old patches into new FRR version, and generate new patch files. Keep original credentials
 	-   If the changes are already present in new FRR version, discard the old patch file
 	-   If the patch does not apply, manually merge the changes and resolve any conflicts
-    -   Build and verify
+    -    Review the existing FRR commands in SONiC techsupport. Add, Remove or modify the FRR commands in the generate_dump script based on the new FRR version. https://github.com/sonic-net/sonic-utilities/blob/master/scripts/generate_dump
+    -    Build and verify
 	    -   Use PTF on local server, – or –
 	    -   Manually verify BGP, VRF, IPv4, IPv6 (on sonic-vs.)
     -   Create PR with the following template
