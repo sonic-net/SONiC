@@ -15,8 +15,8 @@
          2. [2.1.1.2. HA global configurations](#2112-ha-global-configurations)
       2. [2.1.2. APPL\_DB (per-NPU)](#212-appl_db-per-npu)
          1. [2.1.2.1. HA set configurations](#2121-ha-set-configurations)
-         2. [2.1.2.2. ENI placement table (scope = `eni` only)](#2122-eni-placement-table-scope--eni-only)
-         3. [2.1.2.3. HA scope configurations (owner = `switch` only)](#2123-ha-scope-configurations-owner--switch-only)
+         2. [2.1.2.2. HA scope configurations](#2122-ha-scope-configurations)
+         3. [2.1.2.3. ENI placement table (scope = `eni` only)](#2123-eni-placement-table-scope--eni-only)
       3. [2.1.3. DPU\_APPL\_DB (per-DPU)](#213-dpu_appl_db-per-dpu)
          1. [2.1.3.1. DASH object tables](#2131-dash-object-tables)
    2. [2.2. External facing state tables](#22-external-facing-state-tables)
@@ -355,7 +355,21 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | | preferred_vdpu_id | When preferred vDPU ID is set, the traffic will be forwarded to this vDPU when both BFD probes are up. |
 | | | preferred_standalone_vdpu_index | (scope = `eni` only)<br><br>Preferred vDPU index to be standalone when entering into standalone setup. |
 
-##### 2.1.2.2. ENI placement table (scope = `eni` only)
+##### 2.1.2.2. HA scope configurations
+
+* The HA scope configuration table is programmed by SDN controller and contains the HA config for each HA scope (DPU or ENI) that only lands on this specific switch.
+* When HA scope is set to `dpu` in HA set, SmartSwitch HA will use the HA set id as the HA scope id, otherwise, HA scope id will be the ENI id.
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_HA_SCOPE_CONFIG_TABLE | | | HA scope configuration. |
+| | \<VDPU_ID\> | | VDPU ID. |
+| | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
+| | | version | Config version. |
+| | | desired_ha_state | The desired state for this vDPU. It can only be "" (none), `dead`, `active` or `standalone`. |
+| | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
+
+##### 2.1.2.3. ENI placement table (scope = `eni` only)
 
 * The ENI placement table is used when HA scope is set to `eni`.
 * The ENI placement table defines which HA set this ENI belongs to, and how to forward the traffic.
@@ -370,20 +384,6 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | | eni_mac | ENI mac address. Used to create the NPU side ACL rules to match the incoming packets and forward to the right DPUs. |
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
 | | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI traffic forwarding rule. "" = Not set. |
-
-##### 2.1.2.3. HA scope configurations (owner = `switch` only)
-
-* The HA scope configuration table is programmed by SDN controller and contains the HA config for each HA scope (DPU or ENI) that only lands on this specific switch.
-* When HA scope is set to `dpu` in HA set, SmartSwitch HA will use the HA set id as the HA scope id, otherwise, HA scope id will be the ENI id.
-
-| Table | Key | Field | Description |
-| --- | --- | --- | --- |
-| DASH_HA_SCOPE_CONFIG_TABLE | | | HA scope configuration. |
-| | \<VDPU_ID\> | | VDPU ID. |
-| | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
-| | | version | Config version. |
-| | | desired_ha_state | The desired state for this vDPU. It can only be "" (none), `dead`, `active` or `standalone`. |
-| | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
 
 #### 2.1.3. DPU_APPL_DB (per-DPU)
 

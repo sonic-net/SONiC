@@ -18,10 +18,10 @@
    1. [7.1. HA state](#71-ha-state)
 8. [8. Planned operations](#8-planned-operations)
    1. [8.1. HA set creation](#81-ha-set-creation)
-   2. [8.2. Planned switchover](#82-planned-switchover)
-   3. [8.3. Planned HA shutdown](#83-planned-ha-shutdown)
-      1. [8.3.1. Shutdown HA on standby DPU](#831-shutdown-ha-on-standby-dpu)
-      2. [8.3.2. Shutdown HA on active DPU](#832-shutdown-ha-on-active-dpu)
+   2. [8.2. Planned shutdown](#82-planned-shutdown)
+      1. [8.2.1. Shutdown standby DPU](#821-shutdown-standby-dpu)
+      2. [8.2.2. Shutdown active DPU](#822-shutdown-active-dpu)
+   3. [8.3. Planned switchover](#83-planned-switchover)
    4. [8.4. ENI migration / HA re-pair](#84-eni-migration--ha-re-pair)
 9. [9. Unplanned operations](#9-unplanned-operations)
    1. [9.1. Unplanned failover](#91-unplanned-failover)
@@ -168,10 +168,14 @@ sequenceDiagram
    participant S1D as Switch 1 DPU<br>(Desired Standby)
    participant S1N as Switch 1 NPU
    participant SA as All Switches<br><br>(Includes Switch 0/1)
+   participant SDN as SDN Controller
 
    SDN->>SA: SDN controller programs HA set<br>with primary info to all switches.
-   
    SA->>SA: Start BFD probe to all DPUs.<br>Both BFD will be be down.
+   
+   SDN->>S0N: SDN controller programs HA scope with non-dead admin state for DPU0.
+   SDN->>S1N: SDN controller programs HA scope with non-dead admin state for DPU1.
+
    S0N->>S0D: Create HA set<br>with active role
    S1N->>S1D: Create HA set<br>with standby role
 
@@ -187,47 +191,11 @@ sequenceDiagram
    Note over S0N,SA: From now on, traffic for all ENIs in this HA set will be forwarded to DPU0.
 ```
 
-### 8.2. Planned switchover
+### 8.2. Planned shutdown
 
-Here are the key highlights when DPU is driving the state machine:
+With DPU-driven setup, the shutdown request will be directly forwarded to DPU. `hamgrd` will ***not*** work with each other to make sure the shutdown is done in a safe way.
 
-```mermaid
-sequenceDiagram
-   autonumber
-
-   participant S0N as Switch 0 NPU
-   participant S0D as Switch 0 DPU<br>(Active -> Standby)
-   participant S1D as Switch 1 DPU<br>(Standby -> Active)
-   participant S1N as Switch 1 NPU
-   participant SA as All Switches<br><br>(Includes Switch 0/1)
-   participant SDN as SDN Controller
-
-   Note over S0N,SA: Initially, traffic for all ENIs in this HA set will be forwarded to DPU0.
-   SDN->>SA: SDN controller update HA set<br>with new primary info to all switches.
-
-   SA->>SA: As active side is changed,<br>DPU1 will be set as next hop.
-   Note over S0N,SA: From now on, traffic for all ENIs in this HA set starts to be forwarded to DPU1.
-
-   Note over S0N,SA: Depending on switchover trigger setting, NPU sends the HA set update to DPU accordingly.<br>Here the switchover trigger is set to be standby, hence only standby role update is requested.
-   S0N->>S0D: Update HA set<br>with standby role
-   Note over S0D,S1D: DPU starts to drives internal<br>HA states for switchover.
-
-   SA->>SA: During switchover, BFD state could change<br>depending on what DPU is doing internally.
-   S0D->>S0N: Enter switching to standby<br>or destroying state
-   S1D->>S1N: Enter switching to active<br>or switching to standalone<br>state to drain the flow syncs
-   S1D->>S1D: Draining the flow syncs
-   S0D->>S0N: Enter standby/dead state
-   S1D->>S1N: Enter active/standalone state
-
-   S1D->>S1N: Send flow resimulation required<br>notification
-   S1N->>SC: Send flow resimulation required notification via gNMI
-   SC->>S1N: Request full flow resimulation
-   S1N->>S1D: Start full flow resimulation
-```
-
-### 8.3. Planned HA shutdown
-
-#### 8.3.1. Shutdown HA on standby DPU
+#### 8.2.1. Shutdown standby DPU
 
 ```mermaid
 sequenceDiagram
@@ -235,18 +203,16 @@ sequenceDiagram
 
    participant S0N as Switch 0 NPU
    participant S0D as Switch 0 DPU<br>(Active)
-   participant S1D as Switch 1 DPU<br>(Standby)
+   participant S1D as Switch 1 DPU<br>(Standby->Dead)
    participant S1N as Switch 1 NPU
    participant SA as All Switches<br><br>(Includes Switch 0/1)
    participant SDN as SDN Controller
 
    Note over S0N,SA: Initially, traffic for all ENIs in this HA set will be forwarded to DPU0.
 
-   SDN->>SA: SDN controller updates HA set<br>with DPU1 state set as dead.
-   SA->>SA: Active side is not changed,<br>so DPU0 will still be set as next hop.
-   Note over S0N,SA: Traffic for all ENIs in this HA set will still be forwarded to DPU0.
+   SDN->>S1N: Programs HA scope with dead desired state for DPU1.
+   S1N->>S1D: Update HA scope with dead state,<br>which essentially shutdown HA on this DPU.
 
-   S1N->>S1D: Update HA set with dead state,<br>which essentially shutdown HA on this DPU.
    Note over S0D,S1D: DPU starts to drive internal<br>HA states to remove the peer.
    S1D->>S1D: Stop responding BFD.
    Note over S0D,S1D: Inline sync channel<br>should be stopped.
@@ -258,12 +224,48 @@ sequenceDiagram
    Note over S0N,SA: Traffic for all ENIs in this HA set will still be forwarded to DPU0.
 ```
 
-#### 8.3.2. Shutdown HA on active DPU
+#### 8.2.2. Shutdown active DPU
 
-Directly shutdown the active DPU could cause impact, depending on underlying implementation. Hence, we should not consider this as planned event. If we would like to do it, please:
+Shutdown active DPU is very similar to shutdown standby DPU. But after the standby DPU becomes the new active, it will trigger a flow reconcile process which ensures the existing flows on the new active DPU will not go back and use the staled SDN policies.
 
-1. [Planned switchover](#82-planned-switchover) the active DPU to its peer.
-2. [Shutdown HA on standby DPU](#831-shutdown-ha-on-standby-dpu) after swtichover is done.
+```mermaid
+sequenceDiagram
+   autonumber
+
+   participant S0N as Switch 0 NPU
+   participant S0D as Switch 0 DPU<br>(Active->Dead)
+   participant S1D as Switch 1 DPU<br>(Standby->Active)
+   participant S1N as Switch 1 NPU
+   participant SA as All Switches<br><br>(Includes Switch 0/1)
+   participant SDN as SDN Controller
+
+   Note over S0N,SA: Initially, traffic for all ENIs in this HA set will be forwarded to DPU0.
+
+   SDN->>S0N: Programs HA scope with dead desired state for DPU0.
+   S0N->>S0D: Update HA scope with dead state,<br>which essentially shutdown HA on this DPU.
+
+   Note over S0D,S1D: DPU starts to drive internal<br>HA states to remove the peer.
+   S0D->>S0D: Stop responding BFD.
+   Note over S0D,S1D: Inline sync channel<br>should be stopped.
+
+   S0D->>S0N: Enter dead state
+   S1D->>S1N: Enter standalone state
+   Note over S0D,S1D: DPU1 starts to ignores all flow<br>resimulation requests
+
+   SA->>SA: Set DPU0 as next hop for traffic forwarding.
+   Note over S0N,SA: Traffic for all ENIs in this HA set will be forwarded to DPU1.
+
+   S1D->>S1N: Send flow reconcile needed notification
+   S1N->>SDN: Send flow reconcile needed notification
+   SDN->>S1N: Ensure the latest policy is programmed
+   SDN->>S1N: Request flow reconcile
+   S1N->>S1D: Request flow reconcile
+   Note over S0D,S1D: DPU1 resumes handling all flow<br>resimulation requests
+```
+
+### 8.3. Planned switchover
+
+In DPU-driven setup, switchover is done via shutdown one side of the DPU, and DPUs pair need to be able to handle the switchover internally.
 
 ### 8.4. ENI migration / HA re-pair
 
