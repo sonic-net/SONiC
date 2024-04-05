@@ -269,6 +269,14 @@ In DPU-driven setup, switchover is done via shutdown one side of the DPU, and DP
 
 ### 8.4. ENI migration / HA re-pair
 
+To support things like upgrade, we need to update the HA set to pair with another DPU. In this case, the following steps needs to be performed step by step:
+
+1. Trigger [Planned shutdown](#82-planned-shutdown) on the DPU that needs to be removed from the HA set.
+2. Update HA set information on all switches.
+   - This will cause the tables and objects related to old HA set to be removed and new HA set to be created.
+   - Once new HA set is programmed, [HA set creation](#81-ha-set-creation) workflow will be triggered and form the new HA set.
+3. Program all ENIs on the new DPU.
+
 ## 9. Unplanned operations
 
 ### 9.1. Unplanned failover
