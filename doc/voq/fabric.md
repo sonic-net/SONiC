@@ -276,7 +276,7 @@ When the fabric link monitoring feature is enabled, fabric links may not be oper
 #### 2.8.2.1 Cli command
 
 ```
-> config fabric monitor capacity threshold <50-100>
+> config fabric monitor capacity threshold <5-100>
 ```
 The above command is used to configure a capacity threshold to trigger alerts when total fabric link capacity goes below it.
 
