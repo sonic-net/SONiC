@@ -33,6 +33,7 @@
 | 3 | Jun-3 2022 | Cheryl Sanchez, Jie Feng (Arista Networks) | Update on fabric link monitoring |
 | 3.1 | Mar-30 2023 | Jie Feng (Arista Networks) | Update Overview, SAI API and Configuration and management section |
 | 3.2 | May-01 2023 | Jie Feng (Arista Networks) | Update Counter tables information |
+| 3.3 | Apr-05 2024 | Jie Feng (Arista Networks) | Update CLI |
 
 # Scope
 
@@ -249,8 +250,24 @@ The above command sets the number of consecutive polls in which no error is dete
 > config fabric port unisolate [port_id]
 ```
 
-Besides the fabric link monitoring algorithm, the above two commands are added. The commands can be used to manually isolate and unisolate a fabric link ( i.e. take the link out of service and put the link back into service ). The two commands can help us debug on the system as well as force isolate a fabric link. 
+```
+> config fabric port unisolate [port_id] --force
+```
 
+Besides the fabric link monitoring algorithm, the above two commands are added. The commands can be used to manually isolate and unisolate a fabric link ( i.e. take the link out of service and put the link back into service ). The two commands can help us debug on the system as well as a force option to unisolate a fabric link.
+
+An additional show command is also added to show the fabric link isolation status of a system.
+
+```
+> show fabric isolation
+asic0
+  Local Link    Auto Isolated    Manual Isolated    Isolated
+------------  ---------------  -----------------  ----------
+           0                0                  1           1
+           1                0                  0           0
+           2                1                  0           1
+....
+```
 
 ### 2.8.2 Monitor Fabric Capacity
 
