@@ -692,9 +692,10 @@ Besides the channel status, we should also have the following counters for the b
 
 | Name | Description |
 | --- | --- |
-| SAI_HA_SET_STAT_BULK_SYNC_MESSAGE_RECV | Number of messages we received for bulk sync via data channel. |
+| SAI_HA_SET_STAT_BULK_SYNC_MESSAGE_RECEIVED | Number of messages we received for bulk sync via data channel. |
 | SAI_HA_SET_STAT_BULK_SYNC_MESSAGE_SENT | Number of messages we sent for bulk sync via data channel. |
-| SAI_HA_SET_STAT_BULK_SYNC_FLOW_RECV | Number of flows received from bulk sync message. A single bulk sync message can contain many flow records. |
+| SAI_HA_SET_STAT_BULK_SYNC_MESSAGE_SEND_FAILED | Number of messages we failed to sent for bulk sync via data channel. |
+| SAI_HA_SET_STAT_BULK_SYNC_FLOW_RECEIVED | Number of flows received from bulk sync message. A single bulk sync message can contain many flow records. |
 | SAI_HA_SET_STAT_BULK_SYNC_FLOW_SENT | Number of flows sent via bulk sync message. A single bulk sync message can contain many flow records. |
 
 ## 4. SAI APIs
