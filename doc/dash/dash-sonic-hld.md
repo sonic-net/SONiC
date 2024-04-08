@@ -366,7 +366,7 @@ admin_state              = Enabled after all configurations are applied.
 vnet                     = Vnet that ENI belongs to
 pl_sip_encoding          = Private Link encoding for IPv6 SIP transpositions; Format "field_value/full_mask" where both field_value and `full_mask` must be given as IPv6 addresses. field_value must be used as a replacement to the
 			   first (128-len(full_mask)) bits of pl_sip. Last 32 bits are reserved for the IPv4 CA. Logic: ((pl_sip & !full_mask) | field_value).
-pl_underlay_sip          = Underlay SIP (ST GW VIP) to be used for all private link transformation for this ENI - Obsoleted - Will use from svc rewrite info in mapping tables
+pl_underlay_sip          = Underlay SIP (ST GW VIP) to be used for all private link transformation for this ENI - (Obsoleted - Will use overlay transpositions from mapping tables)
 v4_meter_policy_id	     = IPv4 meter policy ID
 v6_meter_policy_id	     = IPv6 meter policy ID
 disable_fast_path_icmp_flow_redirection     = Disable handling fast path ICMP flow redirection packets
@@ -580,7 +580,6 @@ DASH_VNET_MAPPING_TABLE:{{vnet}}:{{ip_address}}
     "underlay_ip":{{ip_address}}
     "mac_address":{{mac_address}} (OPTIONAL) 
     "metering_class_or": {{uint32}} (OPTIONAL)
-    "override_meter": {{bool}} (OPTIONAL)
     "use_dst_vni": {{bool}} (OPTIONAL)
     "use_pl_sip_eni": {{bool}} (OPTIONAL)
     "overlay_sip_prefix":{{ip_prefix}} (OPTIONAL)
@@ -595,7 +594,6 @@ action_type              = routing_type              ; reference to routing type
 underlay_ip              = ip_address                ; PA address for the CA
 mac_address              = MAC address as string     ; Inner dst mac
 metering_class_or        = uint32                    ; metering class 'or' bits
-override_meter           = bool                      ; override the metering class-id coming from the route table
 use_dst_vni              = bool                      ; if true, use the destination VNET VNI for encap. If false or not specified, use source VNET's VNI
 overlay_sip_prefix       = ip_prefix                 ; overlay src ip prefix if routing_type is {privatelink}, transform last 32 bits from packet if mask is 96
 overlay_dip_prefix       = ip_prefix                 ; overlay dst ip prefix if routing_type is {privatelink} 
