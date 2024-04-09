@@ -209,8 +209,11 @@ The value should contain a JSON serialized as a string.
 | /processes | list   | no        | A list defining processes running inside the container.                                          |
 | /cli       | object | no        | CLI plugin information. *NOTE*: Later will deprecated and replaced with a YANG module file path. |
 | /cli/mandatory         | boolean| no        | Wether CLI is a mandatory functionality for the package. Default: False. |
-| /cli/show-cli-plugin   | string | no        | A path to a plugin for sonic-utilities show CLI command.        |
-| /cli/config-cli-plugin | string | no        | A path to a plugin for sonic-utilities config CLI command.      |
-| /cli/clear-cli-plugin  | string | no        | A path to a plugin for sonic-utilities sonic-clear CLI command. |
-
+| /cli/show-cli-plugin   | list of strings | no        | List of paths to plugins for sonic-utilities show CLI command.        |
+| /cli/config-cli-plugin | list of strings | no        | List of paths to plugins for sonic-utilities config CLI command.      |
+| /cli/clear-cli-plugin  | list of strings | no        | List of paths to plugins for sonic-utilities sonic-clear CLI command. |
+| /cli/auto-generate-config  | boolean| yes       | ON/OFF triger for auto-generation of CLI command *config*. Default: false | 
+| /cli/auto-generate-show    | boolean| yes       | ON/OFF triger for auto-generation of CLI command *show*. Default: false   |
+| /cli/auto-generate-config-source-yang-modules  | list of strings | no       | If set, config CLI auto-generation will only apply to specified YANG modules. The YANG module is referenced by the name recorded in labels (which should match the name of the module) | 
+| /cli/auto-generate-show-source-yang-modules    | list of strings | no       | If set, config CLI auto-generation will only apply to specified YANG modules. The YANG module is referenced by the name recorded in labels (which should match the name of the module) |
 

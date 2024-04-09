@@ -10,6 +10,7 @@ This document captures the new features added and enhancements done on existing 
  * [Dependency Version](#dependency-version)
  * [Security Updates](#security-updates)
  * [Feature List](#feature-list)
+ * [Known Issues](#Known-Issues)
  * [SAI APIs](#sai-apis)
  * [Contributors](#contributors)
 
@@ -327,6 +328,11 @@ This enchaces all the SFP platform API classes which needed to use SFP refactori
 Refer below mentioned PR's for more details. 
 <br>  **Pull Requests** : [10047](https://github.com/sonic-net/sonic-buildimage/pull/10047)
 
+
+# Known Issues 
+On the 202205 release image, a difference of 0.2 - 0.3 sec is observed (for slower CPU's) when running show cli's. This is reflected in most of the show cli's since many of them import device_info which is still using swsssdk in 202205 release. This is a known observation of this 202205 image.
+
+This known issue, has been fixed in 202211 release through the [PR#10099](https://github.com/sonic-net/sonic-buildimage/pull/10099). As mentioned in the other [PR#16595](https://github.com/sonic-net/sonic-buildimage/issues/16595), the fix is not backported to 202205 branch and hence the issue will continue to exit in 202205 image.
 
 # SAI APIs
 
