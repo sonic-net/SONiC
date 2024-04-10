@@ -365,8 +365,8 @@ underlay_ip              = PA address for Inbound encapsulation to VM
 admin_state              = Enabled after all configurations are applied. 
 vnet                     = Vnet that ENI belongs to
 pl_sip_encoding          = Private Link encoding for IPv6 SIP transpositions; Format "field_value/full_mask" where both field_value and `full_mask` must be given as IPv6 addresses. field_value must be used as a replacement to the
-			   first (128-len(full_mask)) bits of pl_sip. Last 32 bits are reserved for the IPv4 CA. Logic: ((pl_sip & !full_mask) | field_value).
-pl_underlay_sip          = Underlay SIP (ST GW VIP) to be used for all private link transformation for this ENI - (Obsoleted - Will use overlay transpositions from mapping tables)
+			   first (128-len(full_mask)) bits of pl_sip. Last 32 bits are reserved for the IPv4 CA. Logic: ((pl_sip & !full_mask) | field_value). (Obsoleted - Will use overlay transpositions from mapping tables)
+pl_underlay_sip          = Underlay SIP (ST GW VIP) to be used for all private link transformation for this ENI
 v4_meter_policy_id	     = IPv4 meter policy ID
 v6_meter_policy_id	     = IPv6 meter policy ID
 disable_fast_path_icmp_flow_redirection     = Disable handling fast path ICMP flow redirection packets
@@ -520,8 +520,8 @@ DASH_ROUTE_TABLE:{{group_id}}:{{prefix}}
     "vnet":{{vnet_name}} (OPTIONAL)
     "appliance":{{appliance_id}} (OPTIONAL)
     "overlay_ip":{{ip_address}} (OPTIONAL)
-    "overlay_sip":{{ip_address}} (OPTIONAL)
-    "overlay_dip":{{ip_address}} (OPTIONAL)
+    "overlay_sip_prefix":{{ip_prefix}} (OPTIONAL)
+    "overlay_dip_prefix":{{ip_prefix}} (OPTIONAL)
     "underlay_sip":{{ip_address}} (OPTIONAL)
     "underlay_dip":{{ip_address}} (OPTIONAL)
     "metering_policy_en": {{bool}} (OPTIONAL)  (OBSOLETED)
@@ -536,8 +536,8 @@ action_type              = routing_type              ; reference to routing type
 vnet                     = vnet name                 ; destination vnet name if routing_type is {vnet, vnet_direct}, a vnet other than eni's vnet means vnet peering
 appliance                = appliance id              ; appliance id if routing_type is {appliance} 
 overlay_ip               = ip_address                ; overly_ip to lookup if routing_type is {vnet_direct}, use dst ip from packet if not specified
-overlay_sip              = ip_address                ; overlay ipv6 src ip if routing_type is {servicetunnel}, transform last 32 bits from packet (src ip)
-overlay_dip              = ip_address                ; overlay ipv6 dst ip if routing_type is {servicetunnel}, transform last 32 bits from packet (dst ip) 
+overlay_sip_prefix       = ip_prefix                 ; overlay ipv6 src ip if routing_type is {servicetunnel}, transform last 32 bits from packet (src ip)
+overlay_dip_prefix       = ip_prefix                 ; overlay ipv6 dst ip if routing_type is {servicetunnel}, transform last 32 bits from packet (dst ip) 
 underlay_sip             = ip_address                ; underlay ipv4 src ip if routing_type is {servicetunnel,privatelink}; this is the ST GW VIP (for ST traffic) or custom VIP. If specified, overrides pl_underlay_sip from DASH_ENI_TABLE
 underlay_dip             = ip_address                ; underlay ipv4 dst ip to override if routing_type is {servicetunnel}, use dst ip from packet if not specified
 metering_policy_en	 = bool                      ; Metering policy lookup enable (optional), default = false  (OBSOLETED). If aggregated or/and bits is 0, metering policy is applied
@@ -595,8 +595,8 @@ underlay_ip              = ip_address                ; PA address for the CA
 mac_address              = MAC address as string     ; Inner dst mac
 metering_class_or        = uint32                    ; metering class 'or' bits
 use_dst_vni              = bool                      ; if true, use the destination VNET VNI for encap. If false or not specified, use source VNET's VNI
-overlay_sip_prefix       = ip_prefix                 ; overlay src ip prefix if routing_type is {privatelink, servicetunnel}, transform last 32 bits from packet if mask is 96
-overlay_dip_prefix       = ip_prefix                 ; overlay dst ip prefix if routing_type is {privatelink, servicetunnel} 
+overlay_sip_prefix       = ip_prefix                 ; overlay src ip prefix if routing_type is {privatelink}, transform last 32 bits from packet if mask is 96
+overlay_dip_prefix       = ip_prefix                 ; overlay dst ip prefix if routing_type is {privatelink} 
 routing_appliance_id     = uint32                    ; ID of routing appliance to use if routing_type is {privatelinknsg} (OBSOLETED)
 tunnel                   = string                    ; Nexthop tunnel for privatelink nsg for additional encapsulation. 
 ```
@@ -1334,8 +1334,8 @@ For the inbound direction, after Route/ACL lookup, pipeline shall use the "under
     {
         "DASH_ROUTE_TABLE:group_id_2:70.1.2.0/24": {
             "action_type":"servicetunnel",
-            "overlay_sip":"fd00:108:0:d204:0:200::0/96",
-            "overlay_dip":"2603:10e1:100:2::4601:203/128",
+            "overlay_sip_prefix":"fd00:108:0:d204:0:200::0/96",
+            "overlay_dip_prefix":"2603:10e1:100:2::4601:203/128",
             "underlay_sip":"34.1.2.1"
         },
         "OP": "SET"
