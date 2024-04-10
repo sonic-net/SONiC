@@ -595,8 +595,8 @@ underlay_ip              = ip_address                ; PA address for the CA
 mac_address              = MAC address as string     ; Inner dst mac
 metering_class_or        = uint32                    ; metering class 'or' bits
 use_dst_vni              = bool                      ; if true, use the destination VNET VNI for encap. If false or not specified, use source VNET's VNI
-overlay_sip_prefix       = ip_prefix                 ; overlay src ip prefix if routing_type is {privatelink}, transform last 32 bits from packet if mask is 96
-overlay_dip_prefix       = ip_prefix                 ; overlay dst ip prefix if routing_type is {privatelink} 
+overlay_sip_prefix       = ip_prefix                 ; overlay src ip prefix if routing_type is {privatelink, servicetunnel}, transform last 32 bits from packet if mask is 96
+overlay_dip_prefix       = ip_prefix                 ; overlay dst ip prefix if routing_type is {privatelink, servicetunnel} 
 routing_appliance_id     = uint32                    ; ID of routing appliance to use if routing_type is {privatelinknsg} (OBSOLETED)
 tunnel                   = string                    ; Nexthop tunnel for privatelink nsg for additional encapsulation. 
 ```
@@ -1313,8 +1313,8 @@ For the inbound direction, after Route/ACL lookup, pipeline shall use the "under
     {
         "DASH_ROUTE_TABLE:group_id_2:50.1.2.0/24": {
             "action_type":"servicetunnel",
-            "overlay_sip":"fd00:108:0:d204:0:200::0",
-            "overlay_dip":"2603:10e1:100:2::0",
+            "overlay_sip_prefix":"fd00:108:0:d204:0:200::0/96",
+            "overlay_dip_prefix":"2603:10e1:100:2::0/96",
             "underlay_sip":"40.1.2.1",
             "metering_policy_en":"false",
             "metering_class":"50000"
@@ -1324,8 +1324,8 @@ For the inbound direction, after Route/ACL lookup, pipeline shall use the "under
     {
         "DASH_ROUTE_TABLE:group_id_2:60.1.2.1/32": {
             "action_type":"servicetunnel",
-            "overlay_sip":"fd00:108:0:d204:0:200::0",
-            "overlay_dip":"2603:10e1:100:2::0",
+            "overlay_sip_prefix":"fd00:108:0:d204:0:200::0/96",
+            "overlay_dip_prefix":"2603:10e1:100:2::0/96",
             "underlay_sip":"30.1.2.1",
             "underlay_dip":"25.1.2.1"
         },
@@ -1334,8 +1334,8 @@ For the inbound direction, after Route/ACL lookup, pipeline shall use the "under
     {
         "DASH_ROUTE_TABLE:group_id_2:70.1.2.0/24": {
             "action_type":"servicetunnel",
-            "overlay_sip":"fd00:108:0:d204:0:200::0",
-            "overlay_dip":"2603:10e1:100:2::4601:203",
+            "overlay_sip":"fd00:108:0:d204:0:200::0/96",
+            "overlay_dip":"2603:10e1:100:2::4601:203/128",
             "underlay_sip":"34.1.2.1"
         },
         "OP": "SET"
@@ -1482,8 +1482,8 @@ For the example configuration above, the following is a brief explanation of loo
             "routing_type":"privatelink",
             "mac_address":"F9-22-83-99-22-A2",
             "underlay_ip":"50.2.2.6",
-            "overlay_sip_prefix":"fd41:108:20:d204::200::0",
-            "overlay_dip_prefix":"2603:10e1:100:2::3402:206",
+            "overlay_sip_prefix":"fd41:108:20:d204::200::0/96",
+            "overlay_dip_prefix":"2603:10e1:100:2::3402:206/128",
             "tunnel":"nsg_tunnel_1"
         },
         "OP": "SET"
