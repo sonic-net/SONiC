@@ -69,6 +69,7 @@
 | ---- | ---------- | ---------------------------------------- | ------------------ |
 | 0.1  | 04/05/2023 | Amitabha Sen, Vijaya Abbaraju, Shirisha Dasari, Anil Kumar Pandey | Initial version 
    | 0.2  | 04/02/2024 | Vijaya Abbaraju | Updated the CLI config, show and clear commands. 
+   0.3  | 04/10/2024 | Vijaya Abbaraju | Updated  the docker used for PAC and code PRs. 
 |
 
 
@@ -185,7 +186,7 @@ List of configuration shall include the following:
 ## 1.3 Design Overview
 
 ### 1.3.1 Container
-The existing "macsec" docker holds all the port security applications. Code changes are also made to the SWSS docker.
+The "pac" docker holds all the port security applications. Code changes are also made to the SWSS docker.
 
 ### 1.3.2 SAI Support
 No changes to SAI spec for supporting PAC.
@@ -207,7 +208,7 @@ PAC uses authentication methods 802.1x and MAB for client authentication. These 
 
 ### 2.2.1 802.1x
 
-PAC leverages the IEEE 802.1X-2004 for 802.1x standard as available in the "hostapd" implementation in the "macsec" docker. It is an IEEE Standard for Port Access Control that provides an authentication mechanism to devices wishing to attach to a LAN. The standard defines Extensible Authentication Protocol over LAN (EAPoL), which is an encapsulation technique to carry EAP packets between the Supplicant and the Authenticator. The standard describes an architectural framework within which authentication and consequent actions take place. It also establishes the requirements for a protocol between the Authenticator and the Supplicant, as well as between the Authenticator and the Authentication server. 
+PAC leverages the IEEE 802.1X-2004 for 802.1x standard as available in the "hostapd" implementation in the sonic-wpa-supplicant folder. It is an IEEE Standard for Port Access Control that provides an authentication mechanism to devices wishing to attach to a LAN. The standard defines Extensible Authentication Protocol over LAN (EAPoL), which is an encapsulation technique to carry EAP packets between the Supplicant and the Authenticator. The standard describes an architectural framework within which authentication and consequent actions take place. It also establishes the requirements for a protocol between the Authenticator and the Supplicant, as well as between the Authenticator and the Authentication server. 
 
 ### 2.2.2 MAC Authentication Bypass
 
@@ -265,13 +266,13 @@ After a Warm Boot, the authenticated client sessions are torn down and they need
 
 ## 3.1 Overview
 
-[Figure 2](#configuration-flow) shows the high level design overview of PAC services in SONiC. The existing "macsec" docker is leveraged. 
+[Figure 2](#configuration-flow) shows the high level design overview of PAC services in SONiC. The "pac" docker is used for this functionality. 
 
 PAC is composed of multiple sub-modules. 
 
 1. pacd: PAC daemon is the main module that controls client authentication. It is the central repository of PAC clients. It makes use of hostapd and mabd daemons to authenticate clients via 802.1x and MAB respectively.
 
-2. hostapd: This 802.1x module is an opensource Linux application that is available in the SONiC "macsec" docker. It uses hostapd.conf as its config file. 
+2. hostapd: This 802.1x module is an opensource Linux application that is available in the SONiC sonic-wpa-supplicant folder. It uses hostapd.conf as its config file. 
 
 3. mabd: This is the MAB authentication module.
 
@@ -859,6 +860,53 @@ config interface mab Ethernet1 enable -a pap
 2. Add support for fallback VLANs like Guest, Unauth etc. VLAN. These are used to authorize clients if they fail authentication under various circumstances.
 3. Add support for RADIUS Authorization attributes like ACLs.
 4. Add support for multiple RADIUS servers.
+
+# 7 Code PRs
+
+sonic-wpa-supplicant
+  https://github.com/sonic-net/sonic-wpa-supplicant/pull/88
+  https://github.com/sonic-net/sonic-wpa-supplicant/pull/89
+  https://github.com/sonic-net/sonic-wpa-supplicant/pull/90
+  https://github.com/sonic-net/sonic-wpa-supplicant/pull/91
+
+sonic-utilities
+https://github.com/sonic-net/sonic-utilities/pull/3265
+
+sonic-swss-common
+ https://github.com/sonic-net/sonic-swss-common/pull/871
+
+sonic-build-image
+https://github.com/sonic-net/sonic-buildimage/pull/18616
+https://github.com/sonic-net/sonic-buildimage/pull/18618
+https://github.com/sonic-net/sonic-buildimage/pull/18619
+https://github.com/sonic-net/sonic-buildimage/pull/18620
+https://github.com/sonic-net/sonic-buildimage/pull/18621
+https://github.com/sonic-net/sonic-buildimage/pull/18622
+https://github.com/sonic-net/sonic-buildimage/pull/18623
+https://github.com/sonic-net/sonic-buildimage/pull/18624
+https://github.com/sonic-net/sonic-buildimage/pull/18625
+https://github.com/sonic-net/sonic-buildimage/pull/18626
+https://github.com/sonic-net/sonic-buildimage/pull/18627
+https://github.com/sonic-net/sonic-buildimage/pull/18628
+https://github.com/sonic-net/sonic-buildimage/pull/18629
+https://github.com/sonic-net/sonic-buildimage/pull/18630
+https://github.com/sonic-net/sonic-buildimage/pull/18631
+https://github.com/sonic-net/sonic-buildimage/pull/18632
+https://github.com/sonic-net/sonic-buildimage/pull/18633
+https://github.com/sonic-net/sonic-buildimage/pull/18634
+https://github.com/sonic-net/sonic-buildimage/pull/18635
+https://github.com/sonic-net/sonic-buildimage/pull/18636
+https://github.com/sonic-net/sonic-buildimage/pull/18637
+https://github.com/sonic-net/sonic-buildimage/pull/18638
+https://github.com/sonic-net/sonic-buildimage/pull/18639
+https://github.com/sonic-net/sonic-buildimage/pull/18640
+https://github.com/sonic-net/sonic-buildimage/pull/18641
+https://github.com/sonic-net/sonic-buildimage/pull/18642
+https://github.com/sonic-net/sonic-buildimage/pull/18643
+https://github.com/sonic-net/sonic-buildimage/pull/18644
+https://github.com/sonic-net/sonic-buildimage/pull/18645
+https://github.com/sonic-net/sonic-buildimage/pull/18646
+  
 
 ```
 
