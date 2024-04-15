@@ -124,7 +124,7 @@ To prevent a potential DHCP DoS attack on an interface, incoming traffic at the 
 
 ### Proposed Mitigation
 
-DHCP traffic can be filtered and rate-limited by dropping all packets that exceed a user-specified rate, allowing legitimate users to be serviced by the DHCP server despite an ongoing attack. The design  provides a mechanism for DHCP rate-limiting on a specified interface.  Applying DHCPrate limit on a specific interface required two parameters:
+DHCP traffic can be filtered and rate-limited by dropping all packets that exceed a user-specified rate, allowing legitimate users to be serviced by the DHCP server despite an ongoing attack. The design  provides a mechanism for DHCP rate-limiting on a specified interface.  Applying DHCP rate limit on a specific interface required two parameters:
 
 -   ##### Interface
     The interface on which the DHCP rate limit is to be applied.
@@ -135,13 +135,6 @@ DHCP traffic can be filtered and rate-limited by dropping all packets that excee
 
 Upon running this command, an ingress queuing discipline is created on the specified interface via traffic control(TC). Next, a traffic control(TC) filter is added to filter DHCP discover packets on protocol 17 (UDP) and destination port 67 (port used by DHCP), and a dropping action is applied to an incoming traffic rate. Incoming DHCP discover packets that exceed the rate are dropped to stop the attack from overwhelming the DHCP server.
 
-
-Implementing DoS attack mitigation using rate limiting in SONiC can be applied with two possible ways:
-
-    1. On DHCP-relay 
-    2. On the Interface.
-
-
 ### Requirements
 
 - Support for Linux traffic control (tc) for implementing the rate-limiting mechanism 
@@ -150,7 +143,6 @@ Implementing DoS attack mitigation using rate limiting in SONiC can be applied w
 ### Architecture Design
 The overall SONiC architecture will remain the same and no new sub-modules will be introduced. Changes are made only in SONiC CLI where rate-limiting commands will be added that employ the Linux traffic control utility.
 
-This proposed design aims to modify the Sonic build image, or in the Sonic CLI, the suggested changes will be implemented
 
 
 ### Sequence Diagram to Add Rate-limit
@@ -175,12 +167,7 @@ This proposed design aims to modify the Sonic build image, or in the Sonic CLI, 
 
 ##### CLI  Configuration Commands
 
-Proposed SONiC CLI commands (OPTION 1 - sonic-buildimage)
-- config dhcp_relay mitigation-rate add [interface] [number of packets]
-- config dhcp_relay mitigation-rate delete [interface] [number of packets]
-- show dhcp_relay mitigation-rate
-
-Proposed SONiC CLI commands (OPTION 2 - sonic-utilities)
+Proposed SONiC CLI commands (sonic-utilities)
 -   config interface dhcp-mitigation-rate add [interface] [number of packets]
 -   config interface dhcp-mitigation-rate delete [interface] [number of packets]
 -   show interface dhcp-mitigation-rate
