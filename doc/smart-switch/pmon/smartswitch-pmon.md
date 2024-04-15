@@ -126,12 +126,15 @@ Key: "CHASSIS_MODULE|DPU0"
 * Switch: Maintenance, Critical alarm, RMA
 * DPU: Maintenance, Critical alarm, Service migration, RMA
 #### DPU shutdown sequence
-* There could be two possible sources for DPU shutdown. 1. A configuration change to DPU "admin_status: down" 2. The GNOI logic can trigger it when it fails to communicate with the DPU.
-* The host sends a GNOI signal to gracefully shutdown the DPU.  Upon timeout the host may trigger the switch PMON to shutdown the DPU. NPU-DPU (GNOI) soft reboot workflow will be captured in another document.
+* There could be two possible sources for DPU shutdown. 1. A configuration change to DPU "admin_status: down" 2. The GNOI logic can trigger it.
+* The GNOI server runs on the DPU even after the DPU is shutdown.
+* The host sends a GNOI signal to shutdown the DPU. The DPU does a pre-shutdown and sends an ack back to the host. The pre-shutdown is vendor specific.
+* Upon receiving the ack or on a timeout the host may trigger the switch PMON to shutdown the DPU.
+* NPU-DPU (GNOI) soft reboot workflow will be captured in another document.
 * In the first option the "admin_status: down" configDB status change event will send a message to the switch PMON.
-* The switch PMON will invoke the platform API to shutdown the DPU
-* The DPU upon receiving the shutdown message will do a graceful shutdown and send an ack back.
-* The switch upon receiving the ack or timeout will remove the DPU from the bridge and PCIe tree.
+* The switch PMON will invoke the platform API to gracefully shutdown the DPU.  
+* The DPU upon receiving the shutdown message will do a graceful shutdown and send an ack back. The DPU graceful shutdown is vendor specific.
+* The switch upon receiving the ack or on a timeout will remove the DPU from the bridge and PCIe tree.
 ### DPU shutdown sequence diagram
 <p align="center"><img src="./images/dpu-shutdown-seq.svg"></p>
 
@@ -186,6 +189,7 @@ Key: "CHASSIS_MODULE|DPU0"
 * Show CLIs
     * Extend existing CLIs such as 'show platform fan/temperature' to support the new HW
     * Extend the modular chassis CLI 'show chassis modules status" to display the detailed DPU states. (See CLIs section)
+    * The data for the CLIs come either from the DBs or through the platform APIs. Example: The reboot-cause history is stored in the switch stateDB and the platform inventory is stored in the ChassisStateDB and the CLIs access them from the DB, whereas all the system health data may not be available on the DB however they all can be accessed using the platform API "get_health_info".
 
 ### 2.3. Detect and Debug
 * Health
@@ -205,6 +209,7 @@ Key: "CHASSIS_MODULE|DPU0"
 ### 2.3. RMA
 * The DPUs should be displayed as part of inventory
 * Extend the platform specific CLIs such as “show platform inventory” to display the DPUs
+* The inventory data comes from the chassisStateDB.
 * The system should be powered down for replacement of dpu-card
 
 ## 3.	SmartSwitch PMON Design
@@ -218,8 +223,8 @@ SmartSwitch PMON block diagram
 #### 3.1.1 ChassisBase class API enhancements
 is_modular_chassis(self):
 ```
-    Retrieves whether the sonic instance is part of modular chassis. Smartswitch
-    chassis is fixed, the modular chassis class is extended to support DPUs
+    Retrieves whether the sonic instance is part of modular chassis. For SmartSwitch platforms this should return True even if they are
+    fixed-platforms, as they are treated like a modular chassis as the DPU cards are treated like line-cards of a modular-chassis.
 
     Returns:
       False
@@ -245,7 +250,9 @@ get_all_modules(self):
 
 get_module(self, index):
 ```
-    Retrieves module represented by index <index> switch:0, DPU1:1 and so on
+    Retrieves module represented by (0-based) index <index>
+    On a SmartSwitch index:0 will fetch switch, index:1 will fetch
+    DPU0 and so on
 
     Args:
         index: An integer, the index of the module to retrieve
@@ -265,7 +272,7 @@ get_module_index(self, module_name):
         An integer, the index of the ModuleBase object in the module_list
 ```
 #### 3.1.2 ChassisBase class new APIs
-The DPU ID is used only for indexing purpose.
+The DPU ID is used only for indexing purpose and is internal to platform.  There is a dpu_id to dpu_name conversion API and the dpu_name is the one that is used externally in all CLIs.
 
 get_dpu_id(self, name):
 ```
@@ -379,6 +386,11 @@ get_oper_status(self):
         A string, the operational status of the module from one of the
         predefined status values: MODULE_STATUS_EMPTY, MODULE_STATUS_OFFLINE,
         MODULE_STATUS_FAULT, MODULE_STATUS_PRESENT or MODULE_STATUS_ONLINE
+
+        The SmartSwitch pltforms will have these additional status
+        MODULE_STATUS_MIDPLANE_OFFLINE, MODULE_STATUS_MIDPLANE_ONLINE,
+        MODULE_STATUS_CONTROLPLANE_OFFLINE, MODULE_STATUS_CONTROLPLANE_ONLINE,
+        MODULE_STATUS_DATAPLANE_OFFLINE, MODULE_STATUS_DATAPLANE_ONLINE
 ```
 
 reboot(self, reboot_type):
@@ -521,6 +533,12 @@ def get_reboot_cause(self):
 
         Returns:
             A tuple (string, string) where the first element is a string containing the cause of the previous reboot. This string must be one of the predefined strings in this class. If the first string is "REBOOT_CAUSE_HARDWARE_OTHER", the second string can be used to pass a description of the reboot cause.
+
+            Some more causes are appended to the existing list to handle other
+            modules such as DPUs.
+            Ex: REBOOT_CAUSE_POWER_LOSS, REBOOT_CAUSE_HOST_RESET_DPU,
+            REBOOT_CAUSE_HOST_POWERCYCLE_DPU, REBOOT_CAUSE_SW_THERMAL,
+            REBOOT_CAUSE_DPU_SELF_REBOOT
 ```
 
 #### DPU_STATE Use Case
@@ -543,7 +561,7 @@ get_health_info(self):
     Retrieves the dpu health object having the detailed dpu health Fetched from the DPUs
 
     Returns:
-        An object instance of the dpu health
+        An object instance of the dpu health. An object instance of the dpu health. Should consist of two lists "summary and monitorlist" See system_health.py for usage
         Returns None on switch module
 ```
 
