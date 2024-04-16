@@ -863,51 +863,41 @@ config interface mab Ethernet1 enable -a pap
 
 # 7 Code PRs
 
-sonic-wpa-supplicant
-  https://github.com/sonic-net/sonic-wpa-supplicant/pull/88
-  https://github.com/sonic-net/sonic-wpa-supplicant/pull/89
-  https://github.com/sonic-net/sonic-wpa-supplicant/pull/90
-  https://github.com/sonic-net/sonic-wpa-supplicant/pull/91
+| Repo | Title |    PR   |
+|--|--|   --|
+| sonic-wpa-supplicant |sonic-wpasupplicant changes for PAC  | https://github.com/sonic-net/sonic-wpa-supplicant/pull/88   |
+| sonic-wpa-supplicant |Changes to support PAC and 802.1X interaction | https://github.com/sonic-net/sonic-wpa-supplicant/pull/89  |
+| sonic-wpa-supplicant |Changes in HOSTAPD to Support PAC | https://github.com/sonic-net/sonic-wpa-supplicant/pull/90   |
+| sonic-wpa-supplicant |HOSTPAD driver changes for PAC | https://github.com/sonic-net/sonic-wpa-supplicant/pull/91   |
+| sonic-utilities |CLI support for PAC | https://github.com/sonic-net/sonic-utilities/pull/3265   |
+| sonic-buildimage |Docker and Makefile changes for PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18616   |
+| sonic-buildimage |Changes to handle PAC operational info |  https://github.com/sonic-net/sonic-buildimage/pull/18618  |
+| sonic-buildimage |Changes to Handle PAC Mgr updates |  https://github.com/sonic-net/sonic-buildimage/pull/18619 |
+| sonic-buildimage |PAC changes to receive config updates |  https://github.com/sonic-net/sonic-buildimage/pull/18620 |
+| sonic-buildimage |Hostapd mgr changes for PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18621 |
+| sonic-buildimage |JSON lib changes to support PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18622 |
+| sonic-buildimage |MAB mgr changes for PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18623 |
+| sonic-buildimage |Makefile changes for PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18624 |
+| sonic-buildimage |MAB makefile and common header files |  https://github.com/sonic-net/sonic-buildimage/pull/18625 |
+| sonic-buildimage |MAB common header files |  https://github.com/sonic-net/sonic-buildimage/pull/18626 |
+| sonic-buildimage |MAB generic files |  https://github.com/sonic-net/sonic-buildimage/pull/18627 |
+| sonic-buildimage |MAB control function changes |  https://github.com/sonic-net/sonic-buildimage/pull/18628 |
+| sonic-buildimage |MAB protocol related header files |  https://github.com/sonic-net/sonic-buildimage/pull/18629 |
+| sonic-buildimage |MAB protocol related changes |  https://github.com/sonic-net/sonic-buildimage/pull/18630 |
+| sonic-buildimage |Auth mgr Makefile and common header files |  https://github.com/sonic-net/sonic-buildimage/pull/18631 |
+| sonic-buildimage |Auth mgr generic header files |  https://github.com/sonic-net/sonic-buildimage/pull/18632 |
+| sonic-buildimage |Authmgr event handling and other functionality|  https://github.com/sonic-net/sonic-buildimage/pull/18633 |
+| sonic-buildimage |Auth mgr API interface functions|  https://github.com/sonic-net/sonic-buildimage/pull/18634 |
+| sonic-buildimage |Authmgr include files for authentication functionality |  https://github.com/sonic-net/sonic-buildimage/pull/18635 |
+| sonic-buildimage |Auth mgr functionality changes |  https://github.com/sonic-net/sonic-buildimage/pull/18636 |
+| sonic-buildimage |PAC infra Makefile changes |  https://github.com/sonic-net/sonic-buildimage/pull/18637 |
+| sonic-buildimage |PAC infra sonic interface files |  https://github.com/sonic-net/sonic-buildimage/pull/18638 |
+| sonic-buildimage |PAC infra header files|  https://github.com/sonic-net/sonic-buildimage/pull/18639 |
+| sonic-buildimage |PAC infra files|  https://github.com/sonic-net/sonic-buildimage/pull/18640 |
+| sonic-buildimage |PAC infra util changes for logging|  https://github.com/sonic-net/sonic-buildimage/pull/18641 |
+| sonic-buildimage |PAC infra utils changes for sim|  https://github.com/sonic-net/sonic-buildimage/pull/18642 |
+| sonic-buildimage |PAC infra utilities|  https://github.com/sonic-net/sonic-buildimage/pull/18643 |
+| sonic-buildimage |PAC libinfra tool|  https://github.com/sonic-net/sonic-buildimage/pull/18644 |
+| sonic-buildimage |PAC Infra OS abstraction files|  https://github.com/sonic-net/sonic-buildimage/pull/18645 |
+| sonic-buildimage |PAC Infra sysapi files|  https://github.com/sonic-net/sonic-buildimage/pull/18646 |
 
-sonic-utilities
-https://github.com/sonic-net/sonic-utilities/pull/3265
-
-sonic-swss-common
- https://github.com/sonic-net/sonic-swss-common/pull/871
-
-sonic-build-image
-https://github.com/sonic-net/sonic-buildimage/pull/18616
-https://github.com/sonic-net/sonic-buildimage/pull/18618
-https://github.com/sonic-net/sonic-buildimage/pull/18619
-https://github.com/sonic-net/sonic-buildimage/pull/18620
-https://github.com/sonic-net/sonic-buildimage/pull/18621
-https://github.com/sonic-net/sonic-buildimage/pull/18622
-https://github.com/sonic-net/sonic-buildimage/pull/18623
-https://github.com/sonic-net/sonic-buildimage/pull/18624
-https://github.com/sonic-net/sonic-buildimage/pull/18625
-https://github.com/sonic-net/sonic-buildimage/pull/18626
-https://github.com/sonic-net/sonic-buildimage/pull/18627
-https://github.com/sonic-net/sonic-buildimage/pull/18628
-https://github.com/sonic-net/sonic-buildimage/pull/18629
-https://github.com/sonic-net/sonic-buildimage/pull/18630
-https://github.com/sonic-net/sonic-buildimage/pull/18631
-https://github.com/sonic-net/sonic-buildimage/pull/18632
-https://github.com/sonic-net/sonic-buildimage/pull/18633
-https://github.com/sonic-net/sonic-buildimage/pull/18634
-https://github.com/sonic-net/sonic-buildimage/pull/18635
-https://github.com/sonic-net/sonic-buildimage/pull/18636
-https://github.com/sonic-net/sonic-buildimage/pull/18637
-https://github.com/sonic-net/sonic-buildimage/pull/18638
-https://github.com/sonic-net/sonic-buildimage/pull/18639
-https://github.com/sonic-net/sonic-buildimage/pull/18640
-https://github.com/sonic-net/sonic-buildimage/pull/18641
-https://github.com/sonic-net/sonic-buildimage/pull/18642
-https://github.com/sonic-net/sonic-buildimage/pull/18643
-https://github.com/sonic-net/sonic-buildimage/pull/18644
-https://github.com/sonic-net/sonic-buildimage/pull/18645
-https://github.com/sonic-net/sonic-buildimage/pull/18646
-  
-
-```
-
-```
