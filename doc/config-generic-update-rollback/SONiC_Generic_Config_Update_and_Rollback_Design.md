@@ -943,7 +943,7 @@ N/A
 | 12        | [Updating port-channel interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_portchannel_interface.py) |
 | 13        | [Updating loopback interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_lo_interface.py) |
 | 14        | [Updating Kubernetes configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_kubernetes_config.py) |
-| 15        | Updating BGP prefix hijack configs. |
+| 15        | [Updating BGP prefix hijack configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgp_prefix.py) |
 | 16        | [Updating QoS headroom pool and buffer pool size.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_incremental_qos.py) |
 | 17        | [Updating ECN tuning.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_ecn_config_update.py) |
 | 18        | [Updating dynamic threshold tuning.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_mmu_dynamic_threshold_config_update.py) |
