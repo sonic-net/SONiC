@@ -15,7 +15,7 @@ The goal of the Storage Monitoring Daemon (storagemond) is to provide meaningful
 
 ## 2. Data Collection
 
-We are intrested in the following characteristics that describe various aspects of the disk:
+We are interested in the following characteristics that describe various aspects of the disk:
 
 ### **2.1 Dynamic Attributes** 
 
@@ -56,8 +56,12 @@ These fields are self-explanatory.
 ### **2.3 `storagemond` Daemon Flow**
 
 1. The "storagemond" process will be initiated by the "pmon" Docker container.
-2. Upon initialization, the daemon will gather static information utilizing S.M.A.R.T capabilities through instantiated class objects such as SsdUtil and EmmcUtil. This information will be subsequently updated in the StateDB.
-3. The daemon will parse dynamic attributes also utilizing S.M.A.R.T capabilities via the corresponding class member functions, and update the StateDB on an hourly basis.
+
+2. As part of initialization process, the daemon will query the Config DB for an entry called `polling_interval` within a newly proposed table `STORAGEMOND_CONFIG` and use the value to set the looping frequency for getting dynamic informaton. In the absense of this table or entry, we would default to 3600 seconds.
+
+3. After initialization, the daemon will gather static information utilizing S.M.A.R.T capabilities through instantiated class objects such as SsdUtil and EmmcUtil. This information will be subsequently updated in the StateDB.
+
+4. The daemon will parse dynamic attributes also utilizing S.M.A.R.T capabilities via the corresponding class member functions, and update the StateDB per the preset frequency.
 
 **NOTE:** The design requires a concurrent PR wherein EmmcUtil, SsdUtil classes are enhanced to gather Disk and FS IO Read/Write stats and Reserved Blocks information as detailed in section [2.4.1 below](#241-ssdbase-api-additions).
 
@@ -152,7 +156,7 @@ This class is a helper to the Storage Daemon class.
     - If the fd does not have `boot` or `loop`, add it as a key to the `devices` dictionary with a temporary value of `NoneType`
     ```
     Example:
-    admin@str2-7050cx3-acs-01:/sys/block$ ls | grep -v -e "boot" -e "loop"
+    admin@sonic:/sys/block$ ls | grep -v -e "boot" -e "loop"
     mmcblk0
     sda
     ```
@@ -188,7 +192,7 @@ devices = {
     - Instantiate an object<sup>READ NOTE</sup> of type `EmmcUtil` and add this object as value of the key
     ```
     Example:
-    root@str2-7050cx3-acs-01:/sys/block$ ls | grep -i "mmcblk" | grep -v "boot" | grep -v "loop"
+    root@sonic:/sys/block$ ls | grep -i "mmcblk" | grep -v "boot" | grep -v "loop"
     mmcblk0
     ```
 
@@ -235,18 +239,6 @@ def _parse_fsstats_file(self):
     
     Returns: None
 
-    """
-
-def _update_fsstats_file(self, value, attr):
-    """
-    Function to update the latest FS IO Reads/Writes (fs_reads/writes + corresponding value parsed from /proc/diskstats) to the disk's fsstats file
-
-    Args: value, 'R' or 'W' to indicate which field to update in the file
-
-    Returns:
-        N/A
-    """
-
 def get_fs_io_reads(self):
     """
     Function to get the total number of reads on each disk by parsing the /proc/diskstats file
@@ -269,19 +261,36 @@ def get_fs_io_writes(self):
         N/A
     """
 ```
-**Accounting for reboots and uninended powercycles**
+**Accounting for reboots and unintended powercycles**
 
 The reset of values in `/proc/diskstats` upon device reboot or power cycle presents a challenge for maintaining long-term data integrity. To mitigate this challenge, we propose the following design considerations:
 
-1. Introduction of a bind-mounted directory within the pmon container at `/host/storagemon/` which maps to `/host/pmon/storagemon/` on the host:
-    - This directory hosts a file named `fs-stats-<<DISKNAME>>`, where the latest filesystem Reads/Writes values for that disk are logged by the relevant functions within the `StorageCommon()` class each time they are invoked.
-    - Upon invocation, these functions extract the initial fs_reads and fs_writes values from the corresponding file, parse the corresponding FS IO reads and writes from the `/proc/diskstats` file, aggregate these values, update the file, and return the updated values to the caller.
+1. Introduction of a bind-mounted directory within the pmon container at `/usr/share/storagemon/` which maps to `/host/pmon/storagemon/` on the host:
+    - This directory hosts a file named `fsio-rw-stats.json`, where the latest filesystem Reads/Writes values are saved.
+    - This file would be read by the daemon on initialization after a planned reboot of the system, or in a graceful `stormond` restart scenario.
 
-2. Implementation of a script, tentatively named `parse-fs-stats.py`, to be invoked by SONiC's reboot utility:
+2. Implementation of a script, tentatively named `parse-fsio-rw-stats.py`, to be invoked by SONiC's reboot utility:
     - This script would live in [sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/scripts) and would be called by the reboot script
-    - This script will be responsible for parsing and storing the most recent FS IO reads and writes from the `/proc/diskstats` file, particularly in planned reboot scenarios.
-    - These values would be stored in the `/host/pmon/storagemon/fs-stats-<<DISKNAME>>` file(s).
+    - This script will be responsible for parsing and storing the most recent FS IO reads and writes from the `fs-rw-stats.json` file.
+    - These values would be stored in the `/host/pmon/storagemon/fsio-rw-stats.json` file(s).
 
+
+**Daemon Restart / Reboot / Unintended Powercycle Scenario Behaviors**
+
+1. **Planned cold, fast and warm reboot scenario**
+    - Just before OS level reboot is called, we save the latest FSIO Reads and Writes from `/proc/diskstats` file to the `fsio-rw-stats.json` file by calling the `parse-fsio-rw-stats.py` script from the corresponding cold/fast/warm-reboot script.
+    - On reboot, the number of reads/writes as parsed from the `fsio-rw-stats.json` file would be greater than the latest value from `/proc/diskstats`. In this scenario, we consider the RW values from `fsio-rw-stats.json` as initial values and would add the latest RW values from `/proc/diskstats` file to them each time before writing to the database.
+
+2. **stormond graceful restart and crash scenario**
+    - A **pidfile** created by stormond upon initialization in the `/var/tmp` directory would help determine if `stormond` crashed or was gracefully shutdown.
+    - In either scenario, since the system did **not** reboot, the filesystem reads/writes would not be reset in the `/proc/diskstats` file. 
+    - Therefore, when `stormond` restarts, we simply overwrite the pidlfile with the new PID of the daemon and carry on with normal functionality.
+
+3. **System unintended powercycle scenario**
+    - In this scenario, reads and writes counts in `/proc/diskstats` file is reset.
+    - Secondly, we would not have had a chance to save the latest RW counts to the `fsio-rw-stats.json` file.
+    - Thirdly, the pidfile would also be cleared and there would truly be no way to tell if this was a planned or unplanned powercycle.
+    - Therefore, this is the only scenario where there exists a possibility of drift between the measured FSIO RW and actual RW. This is a concession we are willing to make.
 
 **Logic for StorageCommon() get_fs_io_reads and get_fs_io_writes functions:**
 
@@ -303,16 +312,20 @@ These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to r
      - If the name of the storage disk is found in the line, they return the value at the appropriate zero-based index (3 for reads, 7 for writes).
      - If no line contains the name of the storage disk, they save the respective values as 0.
 
-4. **Combine the previous Reads/Writes with the new values**:
-     - Then they add the new reads and writes to the fs_reads/fs_writes variables, respectively, to get the latest count
-     - These values are written to the `fs-stats-<<DISK>>` and returned to the caller
+4. **Combine the initial Reads/Writes with the current values as needed**:
+     - First they determine whether there is a need to combine the current RW values with the initial RW values.
+     - In a planned reboot or graceful restart scenario, they add the current and new reads and writes, respectively, to get the latest count
+     - In an unplanned `stormond` crash scenario, they do NOT add the initial RW values with the newly parsed values.
+     - These values are then returned to the caller to be written to `STATE_DB`.
 
 
 #### **2.4.4 storagemond Class Diagram**
 
 ![image.png](images/StoragemonDaemonClassDiagram.png)
 
-## **3. StateDB Schema**
+## **3. Schema Changes**
+
+### **3.1 StateDB Schema**
 ```
 ; Defines information for each Storage Disk in a device
 
@@ -325,20 +338,21 @@ serial              = STRING                    ; Describes the Serial number of
 temperature_celsius = STRING                    ; Describes the operating temperature of the disk in Celsius                             (Dynamic)
 fs_io_reads         = STRING                    ; Describes the total number of filesystem reads completed successfully                  (Dynamic)
 fs_io_writes        = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
-disk_io_reads       = STRING                    ; Describes the total number of reads completed successfully from the SSD (LBAs read)    (Dynamic)
-disk_io_writes      = STRING                    ; Describes the total number of writes completed on the SSD (LBAs written)               (Dynamic)
+disk_io_reads       = STRING                    ; Describes the total number of reads completed successfully from the SSD (Bytes)        (Dynamic)
+disk_io_writes      = STRING                    ; Describes the total number of writes completed on the SSD (Bytes)                      (Dynamic)
 reserved_blocks     = STRING                    ; Describes the reserved blocks count of the SSD                                         (Dynamic)
 firmware            = STRING                    ; Describes the Firmware version of the SSD                                              (Dynamic)
 health              = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs      (Dynamic)
 ```
 
-NOTE: 'LBA' stands for Logical Block Address. To get the raw value in bytes, multiply by the disk's logical block address sze (typically 512 bytes).<br>
+NOTE: disk_io_reads and disk_io_writes return total LBAs read/written. 'LBA' stands for Logical Block Address. 
+To get the raw value in bytes, we multiply thr num. LBAs by the disk's logical block address size (typically 512 bytes).<br>
 
 Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
 ```
-root@str2-7050cx3-acs-01:~# docker exec -it database bash
-root@str2-7050cx3-acs-01:/# redis-cli -n 6
+root@sonic:~# docker exec -it database bash
+root@sonic:/# redis-cli -n 6
 127.0.0.1:6379[6]> keys STORAGE*
 1) "STORAGE_INFO|mmcblk0"
 2) "STORAGE_INFO|sda"
@@ -365,6 +379,17 @@ root@str2-7050cx3-acs-01:/# redis-cli -n 6
 19) "reserved_blocks"
 20) "32"
 
+```
+
+### **3.2 ConfigDB Schema**
+```
+; Defines information for each Storage Disk in a device
+
+key                 = STORAGEMOND_CONFIG|  ; This key is for information about a specific storage disk - STORAGE_INFO|SDX
+
+; field             = value
+
+polling_interval    = STRING               ; The polling frequency for reading dynamic information
 ```
 
 ## Future Work
