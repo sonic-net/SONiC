@@ -71,7 +71,7 @@ In a DHCP starvation attack, the attacker floods the DHCP server with a large nu
 ### Use Cases for DHCP DOS 
 
 
-A flood of DHCP discover packets affects the DHCP relay agent. DHCP relay agent forwards DHCP messages between clients and servers across different VLANs. With  large number of DHCP discover packets the relay agent becomes overwhelmed, leading to various issues:
+A flood of DHCP DISCOVER packets affects the DHCP relay agent. DHCP relay agent forwards DHCP messages between clients and servers across different VLANs. With  large number of DHCP DISCOVER packets the relay agent becomes overwhelmed, leading to various issues:
 
 #### Resource Exhaustion 
 The DHCP relay agent has finite resources such as CPU, memory, and network bandwidth. A flood of DHCP discover packets consumes these resources, causing the relay agent to become overloaded and unable to process legitimate DHCP requests effectively.
@@ -80,10 +80,10 @@ The DHCP relay agent has finite resources such as CPU, memory, and network bandw
 The flood of DHCP discover packets causes service degradation for other clients served by the DHCP relay agent. Legitimate DHCP requests experiences delays or timeouts as the relay agent struggles to handle the excessive volume of traffic.
 
 #### Packet Loss
- The DHCP relay agent experiences packet loss due to the overwhelming volume of DHCP discover packets. This can result in dropped DHCP requests from legitimate clients, leading to connectivity issues and network downtime.
+ The DHCP relay agent experiences packet loss due to the overwhelming volume of DHCP DISCOVER packets. This can result in dropped DHCP requests from legitimate clients, leading to connectivity issues and network downtime.
 
 #### Impact on Network Performance
-The flood of DHCP discover packets impacts the performance of the network infrastructure, including switches, routers, and other devices involved in forwarding DHCP traffic. Congestion caused by the flood can degrade overall network performance and affect the operation of other network services.
+The flood of DHCP DISCOVER packets impacts the performance of the network infrastructure, including switches, routers, and other devices involved in forwarding DHCP traffic. Congestion caused by the flood can degrade overall network performance and affect the operation of other network services.
 
 
 ### Behavior of DHCP DoS Attack
@@ -113,7 +113,7 @@ It can be seen in the screenshot below that a legitimate client (PC1) is unable 
 
 To prevent possible DHCP DoS attacks in SONiC, we suggest using rate-limiting with Linux Traffic Control (TC). 
 
-In SONiC, Traffic Control is important for handling data moves through the network. By setting limits on how many DHCP requests can come through, we can protect against attacks. This helps keep the network running smoothly and securely.
+In SONiC, Traffic Control is important for handling data moves through the network. By setting limits on how many DHCP requests can be forwarded, we can protect against attacks. This helps keep the network running smoothly and securely.
 Following are few use cases of Traffic Control :
 -   It can filter packets on the basis of its properties (eg. IP protocols, source/destination ports and IP addresses, etc.) and drop them based on its behavior (ingress, egress, rate, etc.)
 -   It can also change or modify the data if needed. Traffic control(TC) uses queuing disciplines (qdiscs) to help organize and manage the transmission of traffic through a network interface. A qdisc performs two main functions:
