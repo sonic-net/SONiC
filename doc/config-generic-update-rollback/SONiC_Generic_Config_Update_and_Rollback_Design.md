@@ -98,6 +98,7 @@
   * [9.2 Unit Tests for Checkpoint](#92-unit-tests-for-checkpoint)
   * [9.3 Unit Tests for Rollback](#93-unit-tests-for-rollback)
   * [9.4 Unit Tests for Replace](#94-unit-tests-for-replace)
+- [10 E2E Tests](#10-e2e-tests)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
@@ -908,22 +909,6 @@ N/A
 | 14        | Dynamic port breakout as described [here](https://github.com/sonic-net/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
 | 15        | Remove an item that has a default value. |
 | 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
-| 17        | [Updating Syslog configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_syslog.py) |
-| 18        | [Updating AAA configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_aaa.py) |
-| 19        | [Updating DHCP configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_dhcp_relay.py) |
-| 20        | Updating IPv6 configs. |
-| 21        | Updating monitor configs (EverflowAlaysOn). |
-| 22        | Updating BGP speaker configs. |
-| 23        | [Updating BGP listener configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgpl.py) |
-| 24        | ~~Updating Bounce Back Routing configs.~~ |
-| 25        | [Updating control-plane ACLs (NTP, SNMP, SSH) configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_cacl.py) |
-| 26        | Updating Ethernet interfaces configs. |
-| 27        | [Updating VLAN interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_vlan_interface.py) |
-| 28        | [Updating port-channel interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_portchannel_interface.py) |
-| 29        | [Updating loopback interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_lo_interface.py) |
-| 30        | Updating BGP prefix hijack configs. |
-| 31        | Updating QoS headroom pool and buffer pool size. |
-| 32        | Add/Remove Rack. |
 
 ## 9.2 Unit Tests for Checkpoint
 | Test Case | Description |
@@ -940,3 +925,29 @@ N/A
 | Test Case | Description |
 | --------- | ----------- |
 | 1 ..*     | Use replace instead of apply-patch for unit-tests specified in [9.1 Unit Tests for Apply-Patch](#91-unit-tests-for-apply-patch). |
+
+# 10 E2E Tests
+| Test Case | Description |
+| --------- | ----------- |
+| 1         | [Updating Syslog configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_syslog.py) |
+| 2         | [Updating AAA configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_aaa.py) |
+| 3         | [Updating DHCP configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_dhcp_relay.py) |
+| 4         | [Updating IPv6 configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_ipv6.py) |
+| 5         | Updating monitor configs (EverflowAlwaysOn). |
+| 6         | [Updating BGP speaker configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgp_speaker.py) |
+| 7         | [Updating BGP listener configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgpl.py) |
+| 8         | [Updating Bounce back routing configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/bgp/test_bgp_bbr.py) |
+| 9         | [Updating control-plane ACLs (NTP, SNMP, SSH) configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_cacl.py) |
+| 10        | [Updating Ethernet interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_eth_interface.py) |
+| 11        | [Updating VLAN interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_vlan_interface.py) |
+| 12        | [Updating port-channel interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_portchannel_interface.py) |
+| 13        | [Updating loopback interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_lo_interface.py) |
+| 14        | [Updating Kubernetes configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_kubernetes_config.py) |
+| 15        | [Updating BGP prefix hijack configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgp_prefix.py) |
+| 16        | [Updating QoS headroom pool and buffer pool size.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_incremental_qos.py) |
+| 17        | [Updating ECN tuning.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_ecn_config_update.py) |
+| 18        | [Updating dynamic threshold tuning.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_mmu_dynamic_threshold_config_update.py) |
+| 19        | [Disable/enable PFC_WD.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_pfcwd_status.py) |
+| 20        | [Updating PFC_WD poll interval.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_pfcwd_interval.py) |
+| 21        | [Updating PG headroom configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_pg_headroom_update.py) |
+| 22        | [Add/Remove Rack.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/configlet/test_add_rack.py) |
