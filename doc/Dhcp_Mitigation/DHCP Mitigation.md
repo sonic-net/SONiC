@@ -71,7 +71,7 @@ In a DHCP starvation attack, the attacker floods the DHCP server with a large nu
 ### Use Cases for DHCP DOS 
 
 
-A flood of DHCP DISCOVER packets affects the DHCP relay agent. DHCP relay agent forwards DHCP messages between clients and servers across different VLANs. With  large number of DHCP DISCOVER packets the relay agent becomes overwhelmed, leading to various issues:
+DHCP relay agent forwards DHCP messages between clients and servers across different VLANs. A flood of DHCP DISCOVER packets affects the DHCP relay agent. With  large number of DHCP DISCOVER packets the relay agent becomes overwhelmed, leading to various issues:
 
 #### Resource Exhaustion 
 The DHCP relay agent has finite resources such as CPU, memory, and network bandwidth. A flood of DHCP discover packets consumes these resources, causing the relay agent to become overloaded and unable to process legitimate DHCP requests effectively.
