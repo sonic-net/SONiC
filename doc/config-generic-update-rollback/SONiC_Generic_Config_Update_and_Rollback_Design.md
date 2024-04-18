@@ -886,19 +886,31 @@ The SONiC utilities for configuration management (apply-patch, checkpoint, and r
 
 #### 3.2.3.3 JSON Patch Format Extension
 
-The JSON Patch format will be extended to include the namespace identifier for each operation. Operations that target the host namespace will be marked with a "localhost" identifier, while those intended for a specific ASIC will include an "asicN" identifier, where N denotes the ASIC number.
+The JSON Patch format will be extended to include the namespace identifier for each operation's path. Path that operations the host namespace will be marked with a "localhost" identifier, while those intended for a specific ASIC will include an "asicN" identifier, where N denotes the ASIC number.
 
 ```json
-
-{
-  "asic0": [
-    {"op": "remove", "path": "/DSCP_TO_TC_MAP"},
-    {"op": "add", "path": "/POLICER", "value": { /* Policer configuration */ }}
-  ],
-  "localhost": [
-    {"op": "add", "path": "/SYSLOG_SERVER", "value": { /* Syslog server configuration */ }}
-  ]
-}
+[
+    {
+        "op": "add",
+        "path": "/asic0/PORTCHANNEL/PortChannel102/admin_status",
+        "value": "down"
+    },
+    {
+        "op": "replace",
+        "path": "/localhost/BGP_DEVICE_GLOBAL/STATE/tsa_enabled",
+        "value": "true"
+    },
+    {
+        "op": "replace",
+        "path": "/asic0/BGP_DEVICE_GLOBAL/STATE/tsa_enabled",
+        "value": "true"
+    },
+    {
+        "op": "replace",
+        "path": "/asic1/BGP_DEVICE_GLOBAL/STATE/tsa_enabled",
+        "value": "true"
+    }
+]
 ```
 
 #### 3.2.3.4 Applying Configuration Changes
@@ -918,6 +930,8 @@ Checkpoint and rollback operations will be enhanced to support Multi-ASIC platfo
 
 #### 3.2.3.6 Implementation Details
 
+The extension of the SONiC Generic Configuration Update and Rollback feature to support Multi-ASIC platforms enhances the flexibility and manageability of SONiC deployments in complex environments. By introducing namespace-aware configuration management, SONiC can efficiently handle the intricacies of Multi-ASIC platforms, ensuring smooth and reliable operation.
+
     Namespace-aware Utilities: Update the SONiC configuration utilities to handle namespace identifiers in the configuration patches and command-line options for specifying target namespaces for checkpoints and rollbacks.
 
     Validation and Verification: Extend the configuration validation and verification mechanisms to cover Multi-ASIC scenarios, ensuring that configurations are valid and consistent across all ASICs and the host.
@@ -926,7 +940,69 @@ Checkpoint and rollback operations will be enhanced to support Multi-ASIC platfo
 
     Testing: Develop comprehensive test cases to cover Multi-ASIC configuration updates, including scenarios that involve simultaneous updates to multiple ASICs and the host.
 
-The extension of the SONiC Generic Configuration Update and Rollback feature to support Multi-ASIC platforms enhances the flexibility and manageability of SONiC deployments in complex environments. By introducing namespace-aware configuration management, SONiC can efficiently handle the intricacies of Multi-ASIC platforms, ensuring smooth and reliable operation.
+| Pull Request | Description |
+| --------- | ----------- |
+|[Add Multi ASIC support for apply-patch](https://github.com/sonic-net/sonic-utilities/pull/3249)|1. Categorize configuration as JSON patch format per ASIC.<br>2. Apply patch per ASIC, including localhost. |
+|[Add Multi ASIC support for Checkpoint and Rollback](https://github.com/sonic-net/sonic-utilities)|To be implemented|
+
+#### 3.2.3.7 Enhancement
+
+Given that applying patches or performing other actions on multiple ASICs can be time-consuming, we are introducing the -p option to expedite the process. This option operates under the assumption that each ASIC functions independently.
+
+| Pull Request | Description |
+| --------- | ----------- |
+|[Add Multi ASIC support for parallel option](https://github.com/sonic-net/sonic-utilities)|To be implemented|
+
+1. apply-patch
+    ```python
+    @config.command('apply-patch')
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='applying the change to all ASICs parallelly')
+    ...
+    def apply_patch(ctx, patch_file_path, format, dry_run, parallel, ignore_non_yang_tables, ignore_path, verbose):
+        ...
+    ```
+2. checkpoint
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='taking the checkpoints to all ASICs parallelly')
+    ...
+    def checkpoint(ctx, checkpoint_name, verbose):
+    ```
+3. replace
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='replacing the change to all ASICs parallelly')
+    ...
+    def replace(ctx, target_file_path, format, dry_run, ignore_non_yang_tables, ignore_path, verbose):
+        ...
+    ```
+4. rollback
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='rolling back the change to all ASICs parallelly')
+    ...
+    def rollback(ctx, checkpoint_name, dry_run, ignore_non_yang_tables, ignore_path, verbose):
+    ```
+5. list_checkpoints
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='listing the change to all ASICs parallelly')
+    ...
+    def list_checkpoints(ctx, checkpoint_name, dry_run, ignore_non_yang_tables, ignore_path, verbose):
+    ```
+6. delete_checkpoint
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='listing the change to all ASICs parallelly')
+    ...
+    def delete_checkpoint(ctx, checkpoint_name, dry_run, ignore_non_yang_tables, ignore_path, verbose):
+    ```
 
 # 4 Flow Diagrams
 
