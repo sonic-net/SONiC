@@ -261,36 +261,6 @@ def get_fs_io_writes(self):
         N/A
     """
 ```
-**Accounting for reboots and unintended powercycles**
-
-The reset of values in `/proc/diskstats` upon device reboot or power cycle presents a challenge for maintaining long-term data integrity. To mitigate this challenge, we propose the following design considerations:
-
-1. Introduction of a bind-mounted directory within the pmon container at `/usr/share/storagemon/` which maps to `/host/pmon/storagemon/` on the host:
-    - This directory hosts a file named `fsio-rw-stats.json`, where the latest filesystem Reads/Writes values are saved.
-    - This file would be read by the daemon on initialization after a planned reboot of the system, or in a graceful `stormond` restart scenario.
-
-2. Implementation of a script, tentatively named `parse-fsio-rw-stats.py`, to be invoked by SONiC's reboot utility:
-    - This script would live in [sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/scripts) and would be called by the reboot script
-    - This script will be responsible for parsing and storing the most recent FS IO reads and writes from the `fs-rw-stats.json` file.
-    - These values would be stored in the `/host/pmon/storagemon/fsio-rw-stats.json` file(s).
-
-
-**Daemon Restart / Reboot / Unintended Powercycle Scenario Behaviors**
-
-1. **Planned cold, fast and warm reboot scenario**
-    - Just before OS level reboot is called, we save the latest FSIO Reads and Writes from `/proc/diskstats` file to the `fsio-rw-stats.json` file by calling the `parse-fsio-rw-stats.py` script from the corresponding cold/fast/warm-reboot script.
-    - On reboot, the number of reads/writes as parsed from the `fsio-rw-stats.json` file would be greater than the latest value from `/proc/diskstats`. In this scenario, we consider the RW values from `fsio-rw-stats.json` as initial values and would add the latest RW values from `/proc/diskstats` file to them each time before writing to the database.
-
-2. **stormond graceful restart and crash scenario**
-    - A **pidfile** created by stormond upon initialization in the `/var/tmp` directory would help determine if `stormond` crashed or was gracefully shutdown.
-    - In either scenario, since the system did **not** reboot, the filesystem reads/writes would not be reset in the `/proc/diskstats` file. 
-    - Therefore, when `stormond` restarts, we simply overwrite the pidlfile with the new PID of the daemon and carry on with normal functionality.
-
-3. **System unintended powercycle scenario**
-    - In this scenario, reads and writes counts in `/proc/diskstats` file is reset.
-    - Secondly, we would not have had a chance to save the latest RW counts to the `fsio-rw-stats.json` file.
-    - Thirdly, the pidfile would also be cleared and there would truly be no way to tell if this was a planned or unplanned powercycle.
-    - Therefore, this is the only scenario where there exists a possibility of drift between the measured FSIO RW and actual RW. This is a concession we are willing to make.
 
 **Logic for StorageCommon() get_fs_io_reads and get_fs_io_writes functions:**
 
@@ -318,6 +288,43 @@ These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to r
      - In an unplanned `stormond` crash scenario, they do NOT add the initial RW values with the newly parsed values.
      - These values are then returned to the caller to be written to `STATE_DB`.
 
+#### **2.4.4 Accounting for reboots and unintended powercycles**
+
+The reset of values in `/proc/diskstats` upon device reboot or power cycle presents a challenge for maintaining long-term data integrity. To mitigate this challenge, we propose the following design considerations:
+
+1. Introduction of a bind-mounted directory within the pmon container at `/usr/share/storagemon/` which maps to `/host/pmon/storagemon/` on the host:
+    - This directory hosts a file named `fsio-rw-stats.json`, where the latest filesystem Reads/Writes values are saved.
+    - This file would be read by the daemon on initialization after a planned reboot of the system, or in a graceful `stormond` restart scenario.
+
+2. Implementation of a script, tentatively named `fsio-rw-sync`, to be invoked by SONiC's reboot utility:
+    - This script would be called by the reboot script and would be responsible for parsing and storing the **most recent** FS IO reads and writes from the `fs-rw-stats.json` file.
+    - These values would be stored in the `/host/pmon/storagemon/fsio-rw-stats.json` file.
+
+3. A service provisionally named `fsio-sync.service` to enhance resilience against unintentional powerloss.
+
+    - This service would call a script that would independently execute the `fsio-rw-sync` script at predefined intervals. This interval can be configured via the `STORAGEMOND_CONFIG` table within the `CONFIG_DB`.
+
+    - The script is designed to log the most recent successful synchronization timestamp. This data will be recorded in a newly established table, provisionally titled `FSSTATS_SYNC`, which will reside within the `STATE_DB`.
+
+**Daemon Restart / Reboot / Unintended Powercycle Scenario Behaviors**
+
+1. **`stormond` or `pmon` graceful restart and crash scenario**
+
+    - In both scenarios, as the host does not undergo a reboot, the file system read/write counters within the `/proc/diskstats` file remain unaltered.
+    - Parsing the `fs-rw-stats.json` file reveals that the read and write metrics from this file are consistently equal to or less than those extracted - from `/proc/diskstats`.
+    - This conclusively demonstrates that the device has not experienced a reboot.
+    - Consequently, upon a restart of stormond, operations resume as per standard protocols.
+
+2. **Planned cold, fast, and warm reboot scenario**
+    - Prior to invoking an OS-level reboot, the latest FSIO Read and Write metrics are captured from the `/proc/diskstats` file and stored into the `fsio-rw-stats.json` by executing the `fsio-rw-sync` script from the respective reboot script (cold, fast, or warm).
+    - Post-reboot, the read/write metrics as parsed from the `fsio-rw-stats.json` file will exceed the current values in `/proc/diskstats`.
+    - Under these conditions, the RW values from `fsio-rw-stats.json` are treated as baseline metrics, and subsequent RW values from `/proc/diskstats` are added to this baseline before database insertion.
+
+3. **System unintended powercycle scenario**
+    - This scenario results in a reset of the read/write counts within the `/proc/diskstats` file.
+    - Additionally, there is typically no opportunity to record the latest RW counts into the `fsio-rw-stats.json` file.
+    - Hence, this is the sole scenario where a discrepancy might arise between the documented FSIO RW counts and the actual RW counts.
+    - This potential discrepancy is acknowledged and accepted within the system's operational parameters.
 
 #### **2.4.4 storagemond Class Diagram**
 
@@ -325,7 +332,7 @@ These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to r
 
 ## **3. Schema Changes**
 
-### **3.1 StateDB Schema**
+### **3.1 Storage Info StateDB Schema**
 ```
 ; Defines information for each Storage Disk in a device
 
@@ -381,15 +388,28 @@ root@sonic:/# redis-cli -n 6
 
 ```
 
-### **3.2 ConfigDB Schema**
+### **3.2 FS Stats Sync StateDB Schema**
 ```
-; Defines information for each Storage Disk in a device
+; Defines information for FS Stats synchronization
 
-key                 = STORAGEMOND_CONFIG|  ; This key is for information about a specific storage disk - STORAGE_INFO|SDX
+key                     = FSSTATS_SYNC    ; This key is for information pertaining to synchronization of FSIO Reads/Writes
 
-; field             = value
+; field                 = value
 
-polling_interval    = STRING               ; The polling frequency for reading dynamic information
+successful_sync_time    = STRING           ; The latest successful sync time of FSIO reads and writes to file in '+%Y-%m-%d::%H:%M:%S' format
+
+```
+
+### **3.3 ConfigDB Schema**
+```
+; Defines information for stormon config
+
+key                        = STORAGEMOND_CONFIG  ; This key is for information about a stormon daemon configuration
+
+; field                    = value
+
+daemon_polling_interval    = STRING               ; The polling frequency for reading dynamic information
+fsstats_sync_interval      = STRING               ; The frequency of FSIO Reads/Writes synchronization to location on disk
 ```
 
 ## Future Work
