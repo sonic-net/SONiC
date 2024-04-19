@@ -1057,6 +1057,16 @@ N/A
 | 30        | Updating BGP prefix hijack configs. |
 | 31        | Updating QoS headroom pool and buffer pool size. |
 | 32        | Add/Remove Rack. |
+| 33        | Add a new ASIC config subtree. |
+| 34        | Add a new ASIC with empty config. |
+| 35        | Independent Patch Application: Apply configuration patches independently to each ASIC without any coordination between them. Verify that each ASIC updates according to its patch and that there are no discrepancies in configurations that might affect system operations.|
+| 36        | Simultaneous Patch Application:Apply configuration patches to all ASICs simultaneously to ensure that simultaneous updates do not cause conflicts or failures. This test checks the system’s ability to handle concurrent configuration changes across multiple independent units.|
+| 37        | Sequential Patch Application: Apply configuration patches to ASICs in a controlled sequence, one after the other. This test aims to check if the order of patch application affects the final system configuration, especially when configurations might not directly interact but could have cumulative effects.|
+| 38        |Patch Rollback Capability: After applying patches, initiate a rollback to previous configurations for each ASIC independently. Verify that each ASIC can revert to its previous state accurately and that the rollback process does not introduce new issues.|
+| 39        | Conditional Patch Application: Apply patches based on conditional checks within each ASIC’s configuration (e.g., only apply a patch if the current firmware version is below a certain level). This test ensures that conditions within patches are evaluated correctly and that the patch is applied only when the conditions are met.|
+| 40        | Cross-ASIC Dependency Verification: While each ASIC operates independently, this test involves applying patches that could potentially have indirect impacts on other ASICs through shared resources or network topology changes. Validate that changes in one ASIC do not adversely affect others.|
+| 41        | Patch Compatibility and Conflict Resolution: Apply patches that introduce changes conflicting with existing configurations across ASICs. This test examines how the system identifies and resolves conflicts, ensuring that the most critical settings are preserved and that any issues are clearly reported.|
+| 42        | Performance Impact Assessment: Measure system performance before and after patch application to determine the impact of configuration changes. This includes monitoring processing speed, memory usage, and network latency to ensure that performance remains within acceptable parameters.|
 
 ## 9.2 Unit Tests for Checkpoint
 | Test Case | Description |
