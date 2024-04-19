@@ -97,12 +97,6 @@ The high level workflow also follows the main HA design doc, more specifically:
 
 For more details on the contract and design, please refer to the detailed design section.
 
-### 5.1 ENI ConfigOwner
-
-ConfigOwner determines which DPU in the HA-Set is allowed to create new flows for a given ENI.
-
-In the DPU-driven setup, the DPUs could be capable of Active-Active forwarding in the datapath with both DPUs capable of forwarding traffic once the flow is setup and synced. But since each DPU in the HA pair is independently configured by the SDN controller, there is no guarantee that their configurations are identical at any given point of time. So in order to ensure configuration consistency when creating flows, one of the DPUs is designated as the ConfigOwner for each ENI by the SDN controller, and only this DPU is allowed to setup flows for the ENI. It follows from this that any configuration changes on a DPU will trigger flow resimulation only for those flows for which this DPU is designated as ConfigOwner.
-
 ## 6. DPU liveness detection
 
 In `DPU-Scope-DPU-Driven` setup, `hamgrd` will not drive the HA state machine and DPU will drive the HA at DPU level, hence we don't have the ENI-level traffic control, but the [Card level NPU-to-DPU liveness probe based on BFD](./smart-switch-ha-hld.md#61-card-level-npu-to-dpu-liveness-probe) and [DPU-to-DPU liveness probe](./smart-switch-ha-hld.md#63-dpu-to-dpu-liveness-probe) will still be used.
@@ -143,23 +137,23 @@ The data path and packet format of the DPU-to-DPU probe will be the same as the 
 
 In `DPU-Scope-DPU-Driven` setup, the HA state machine will be managed by DPU itself, and `hamgrd` will not drive the HA state machine, but only be used for generating the configurations for NPU and DPU, as well as collecting the telemetry and report in the context of HA whenever is needed.
 
-### 7.1. HA workflow and states
+### 7.1. HA states
 
 Since DPU will be driving the HA state machine transition, any HA state change will needs to be reported, otherwise the SDN controller will not be able to know the current HA state of the DPU.
 
-The DPU driven state machine will be in one of the following operational HA states at any given point based on the above workflow
+The DPU driven state machine will be in one of the following operational HA states at any given point
 
  | State |    Description                       |
  | ----- | ------------------------------------ |
- | DEAD | Initial state not participating in HA |
- | CONNECTING | Trying to connect to its HA pair |
- | SYNCING | Connection successful, bulk sync in progress |
- | DORMANT_STANDALONE | Could not connect to pair, waiting for Activation |
- | DORMANT_ACTIVE | Bulk sync successful, waiting for Activation |
- | STANDALONE | Activation done, forwarding traffic |
- | ACTIVE |  Activation done, forwarding traffic and syncing flows to pair |
- | SHUTTING_DOWN | Going down for a planned shutdown |
- | SWITCHING_TO_STANDALONE | Gracefully transitioning from paired state to standalone |
+ | Dead | Initial state not participating in HA |
+ | Connecting | Trying to connect to its HA pair |
+ | Connected | Connection successful, bulk sync in progress |
+ | InitializingToStandalone | Could not connect to pair, waiting for Activation to go to Standalone |
+ | InitializingToActive | Bulk sync successful, waiting for Activation to Active |
+ | Standalone | Activation done, forwarding traffic |
+ | Active |  Activation done, forwarding traffic and syncing flows to pair |
+ | Destroying | Going down for a planned shutdown |
+ | SwitchingToStandalone | Gracefully transitioning from paired state to standalone |
 
 ## 8. Planned operations
 
@@ -176,15 +170,16 @@ Here are how the workflows look like for the typical planned operations:
 ### 8.1. HA set creation
 
 The HA bring-up workflow is described below -
-  - The DPU starts out with it's initial HA state as DEAD.
-  - After pushing all the other configurations including the HA-Set and HA-scope, the SDN controller pushes HA-Start-Pairing trigger.
-  - DPU transitions to CONNECTING state and tries to connect to its pair specified in the HA-Set. It starts a timer and gives up if its unable to connect within this time.
-  - If the connection attempts were unsuccessful then the HA state transitions to DORMANT_STANDALOME.
-  - If the connection was successful then the DPU HA state transitions to SYNCING state and starts bulk-sync to synchronize existing flows from the other DPU in the pair in case it is already active.
-  - In parallel it also receives inline flow sync from the other DPU for any new flows created after the bulk sync is started.
-  - At the end of the bulk sync the HA state transitions to DORMANT_ACTIVE. At this point the DPU is fully synchronized with the pair and is ready to receive any traffic. But the DPU has not enabled its BFD session to the NPUs, so it will not recieve any data traffic yet.
-  - Whenever the SDN controller decides this DPU is ready to be online, it pushes Activate-Role trigger.
-  - DPU enables BFD to all the NPUs and the HA state transitions to STANDALONE or ACTIVE depending on whether it was able to connect to the paired DPU.
+  - The DPU starts out with it's initial HA state as Dead.
+  - First the SDN controller pushes all configurations including the HASet and the HAScope with role set to Dead.
+  - Then the SDN controller starts the HA state-machine on the DPU by updating the HAScope role to a non Dead role.
+  - DPU HA state transitions to Connecting and attempts to connect to its pair specified in the HASet.
+  - If the connection attempt is unsuccessful it moves to the InitializingToStandalone statei and waits for trigger from SDN controller.
+  - If the connection was successful then the DPU HA state transitions to Connected state and performs bulk sync to synchronize existing flows from the other DPU in the pair in case it is already Active.
+  - At the end of the bulk sync the HA state transitions to InitializingToActive and waits for trigger from SDN controller.
+  - At this point the DPU is fully synchronized with the pair and is ready to receive any traffic. But the DPU has not enabled its BFD session to the NPUs, so it will not recieve any data traffic yet.
+  - Whenever the SDN controller decides this DPU is ready to be online, it pushes the Activate-Role trigger.
+  - DPU enables BFD to all the NPUs and the HA state transitions to Standalone or Active depending on whether it was able to connect to the paired DPU.
 
 ```mermaid
 sequenceDiagram
@@ -224,14 +219,11 @@ With DPU-driven setup, the shutdown request will be directly forwarded to DPU. `
 
 The workflow for planned shutdown is as follows -
 
-   - Taking the case where DPUs 0 and 1 are already in ACTIVE state in the HA-Set. SDN controller triggers DPU 0 to gracefully unpair from HA.
-   - DPU 0 transitions to SHUTTING_DOWN state and brings down its BFD session to all NPUs. This causes all NPUs to select DPU 1 as Active and send all traffic to DPU 1.
-   - DPU 0 starts a configurable timer to wait for the network to switchover all traffic destined to it. At the end of this timer ideally no data traffic should land on DPU 0.
-   - At the end of this timer, DPU 0 and DPU 1 communicate to transition DPU 1 to SWITCHING_TO_STANDALONE state in order to gracefully switchover.
-   - Once DPU 1 completes the transition to STANDALONE, DPU 0 shuts down.
-   - The DPU 1 still tracks Owner as peer for all flows originally synced from DPU 0. Hence any config change on DPU 1 does not trigger flow resimulation for these synced flows.
-   - SDN controller pushes FlowReconcile trigger to DPU 1, when iti determines DPU 1's config has caught up to DPU 0.
-   - At this point, DPU 1 marks itself as owner of all the flows originally synced from DPU 0. Henceforth any change in config in DPU 1 will trigger flow resimulation of synced flows as well.
+   - Taking the case where DPUs 0 and 1 are already in Active state in the HASet. SDN controller triggers DPU 0 to gracefully unpair from HA.
+   - DPU 0 HA state transitions to Destroying and brings down its BFD session to all NPUs. This causes all NPUs to select DPU 1 as Active and send all traffic to DPU 1.
+   - DPU 1 HA state transitions to SwitchingToStandalone as it prepares to become Standalone.
+   - DPU 0 starts a configurable timer to wait for the network to switchover and at the end of it shuts down HA.
+   - DPU 1 will not resimulate any flows synced from DPU 0 until the SDN controller pushes FlowReconcile trigger. This is to ensure that the synced flows are not disturbed by mistake in case DPU 1 is still catching up to DPU 0's final config state.
 
 #### 8.2.1. Shutdown standby DPU
 
@@ -311,12 +303,9 @@ To support things like upgrade, we need to update the HA set to pair with anothe
 1. Trigger [Planned shutdown](#82-planned-shutdown) on the DPU that needs to be removed from the HA set.
 2. Update HA set information on all switches and the corresponding DPUs.
    - This will cause the tables and objects related to old HA set to be removed and new HA set to be created.
-   - This is only allowed when the existing DPU in the pair is in STANDALONE state.
-   - The new DPU joining the HA pair will be in DEAD state at this point.
+   - The new DPU joining the HA pair will be in Dead state at this point.
 3. Program all ENIs on the new DPU.
-4. Once all configurations are done, SDN controller starts bring-up nworkflow by pushing HA-Start-Pairing trigger to both DPUs.
-5. The DPU that was already up and running directly moves to ACTIVE state once it connects with the pair.
-6. The new DPU will move to DORMANT_ACTIVE and continue with the bring-up workflow.
+4. Once all configurations are done, SDN controller starts bring-up workflow by updating HAScope role on new DPU.
 
 ## 9. Unplanned operations
 
@@ -348,15 +337,15 @@ sequenceDiagram
    Note over S0N,SA: Traffic for all ENIs in this HA set will be forwarded to DPU1.
 ```
 
-## 10. Split-brain and re-pair
+## 9.2. Split-brain and re-pair
 
-When the DPU-DPU communication channel breaks down while both DPUs in the HA pair are still up, then we enter split-brain scenario. Depending on which NPU-DPU liveness is still up, data traffic may land on any of the DPUs in the HA-Set and not get flow-synced. It is the responsibility of the SDN Controller to stop HA on one of the DPUs to break from this. Once we have split-brain, even if the DPU-DPU connectivity gets restored back before SDN controller intervenes, the DPU HA state-machine will refuse to re-pair automatically since the split-brain operation would have introduced conflicts. The SDN controller needs to restart HA on one of the DPUs for them to repair. The DPUs will raise an event to indicate HA Restart is required.
+When the DPU-DPU communication channel breaks down while both DPUs in the HA pair are still up, then both DPUs transition to Standalone state and we enter split-brain scenario. Depending on which of the NPU-DPU connections are still up, data traffic may land on any of the DPUs in the HA-Set and not get flow-synced. It is the responsibility of the SDN Controller to stop HA on one of the DPUs to break this by pushing HAScope AdminState to Down on one of the DPUs. Once we have split-brain, even if the DPU-DPU connectivity gets restored back before SDN controller intervenes, the DPU HA state-machine will refuse to re-pair automatically since the split-brain operation would have introduced conflicts. The SDN controller needs to restart HA on one of the DPUs by setting HAScope AdminState to DOWN and then UP on one of the DPUs. The DPUs will raise an event to indicate HA Restart is required.
 
-## 11. Flow tracking and replication
+## 10. Flow tracking and replication
 
 `DPU-Scope-DPU-Driven` setup will not change the flow lifetime is managed and how the inline flow replication works, since they are currently managed by DPU under the SAI APIs already. However, it will change how bulk sync works, as DPU will directly do the bulk sync without going through HA control plane sync channel.
 
-## 12. Detailed design
+## 11. Detailed design
 
 Please refer to the [detailed design doc](./smart-switch-ha-detailed-design.md) for DB schema, telemetry, SAI API and CLI design.
 
