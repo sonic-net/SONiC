@@ -66,7 +66,7 @@ From these characteristics, here is the main differences between `DPU-Scope-DPU-
 
 ## 4. Network Physical Topology
 
-The network physical topology for `DPU-Scope-DPU-Driven` setup will be the same as the ENI-level HA setup, e.g. where the NPU/DPU is placed and wired. The main difference being the HA scope on the level of a group of ENIs rather than a single ENI.
+The network physical topology for `DPU-Scope-DPU-Driven` setup will be the same as the ENI-level HA setup, e.g. where the NPU/DPU is placed and wired. The main difference is that the HA scope is on the level of all ENIs or a group of ENIs rather than a single ENI. The current deployment will use only 1 HA scope per DPU, so all ENIs on the DPU are mapped to the same HA scope.
 
 This results in the following differences in the network physical topology and the figure below captures the essence of the differences:
 
@@ -74,7 +74,7 @@ This results in the following differences in the network physical topology and t
 
 ### 4.1. DPU-level HA scope
 
-The simplest case involves having a single HA scope per DPU. In Active-Standby deployment, this means that the NPUs will direct traffic for all ENIs only to the Active DPU.
+In the current deployment with a single HA scope per DPU, Active-Standby deployment, means that the NPUs will direct traffic for all ENIs only to the Active DPU.
 
 ### 4.2. DPU-level NPU to DPU traffic forwarding
 
@@ -148,10 +148,12 @@ The DPU driven state machine will be in one of the following operational HA stat
  | Dead | Initial state not participating in HA |
  | Connecting | Trying to connect to its HA pair |
  | Connected | Connection successful, bulk sync in progress |
- | InitializingToStandalone | Could not connect to pair, waiting for Activation to go to Standalone |
- | InitializingToActive | Bulk sync successful, waiting for Activation to Active |
+ | InitializingToStandalone | Could not connect to pair, waiting for Activation from SDN controller to go to Standalone. Dormant state since BFD disabled hence no traffic. |
+ | InitializingToActive | Bulk sync successful, waiting for Activation from SDN controller to go to Active. Dormant state since BFD disabled hence no traffic. |
+ | InitializingToStandby | Bulk sync successful, waiting for Activation from SDN controller to go to Standby. Dormant state since BFD disabled hence no traffic. |
  | Standalone | Activation done, forwarding traffic |
  | Active |  Activation done, forwarding traffic and syncing flows to pair |
+ | Standby |  Activation done, forwarding traffic and syncing flows from pair |
  | Destroying | Going down for a planned shutdown |
  | SwitchingToStandalone | Gracefully transitioning from paired state to standalone |
 
@@ -170,10 +172,10 @@ Here are how the workflows look like for the typical planned operations:
 ### 8.1. HA set creation
 
 The HA bring-up workflow is described below -
-  - The DPU starts out with it's initial HA state as Dead.
-  - First the SDN controller pushes all configurations including the HASet and the HAScope with role set to Dead.
-  - Then the SDN controller starts the HA state-machine on the DPU by updating the HAScope role to a non Dead role.
-  - DPU HA state transitions to Connecting and attempts to connect to its pair specified in the HASet.
+  - The DPU starts out with it's initial HA scope Role as Dead.
+  - First the SDN controller pushes all configurations including the HA set and the HA scope with role set to Active but AdminState set to Disabled.
+  - Then the SDN controller starts the HA state-machine on the DPU by updating the HA scope AdminState to Enabled.
+  - DPU HA state transitions to Connecting and attempts to connect to its pair specified in the HA set.
   - If the connection attempt is unsuccessful it moves to the InitializingToStandalone statei and waits for trigger from SDN controller.
   - If the connection was successful then the DPU HA state transitions to Connected state and performs bulk sync to synchronize existing flows from the other DPU in the pair in case it is already Active.
   - At the end of the bulk sync the HA state transitions to InitializingToActive and waits for trigger from SDN controller.
@@ -219,7 +221,7 @@ With DPU-driven setup, the shutdown request will be directly forwarded to DPU. `
 
 The workflow for planned shutdown is as follows -
 
-   - Taking the case where DPUs 0 and 1 are already in Active state in the HASet. SDN controller triggers DPU 0 to gracefully unpair from HA.
+   - Taking the case where DPUs 0 and 1 are already in Active state in the HA set. SDN controller triggers DPU 0 to gracefully unpair from HA by updating its HA role to Dead.
    - DPU 0 HA state transitions to Destroying and brings down its BFD session to all NPUs. This causes all NPUs to select DPU 1 as Active and send all traffic to DPU 1.
    - DPU 1 HA state transitions to SwitchingToStandalone as it prepares to become Standalone.
    - DPU 0 starts a configurable timer to wait for the network to switchover and at the end of it shuts down HA.
@@ -305,7 +307,7 @@ To support things like upgrade, we need to update the HA set to pair with anothe
    - This will cause the tables and objects related to old HA set to be removed and new HA set to be created.
    - The new DPU joining the HA pair will be in Dead state at this point.
 3. Program all ENIs on the new DPU.
-4. Once all configurations are done, SDN controller starts bring-up workflow by updating HAScope role on new DPU.
+4. Once all configurations are done, SDN controller starts bring-up workflow by updating HA scope role on new DPU.
 
 ## 9. Unplanned operations
 
@@ -339,7 +341,7 @@ sequenceDiagram
 
 ## 9.2. Split-brain and re-pair
 
-When the DPU-DPU communication channel breaks down while both DPUs in the HA pair are still up, then both DPUs transition to Standalone state and we enter split-brain scenario. Depending on which of the NPU-DPU connections are still up, data traffic may land on any of the DPUs in the HA-Set and not get flow-synced. It is the responsibility of the SDN Controller to stop HA on one of the DPUs to break this by pushing HAScope AdminState to Down on one of the DPUs. Once we have split-brain, even if the DPU-DPU connectivity gets restored back before SDN controller intervenes, the DPU HA state-machine will refuse to re-pair automatically since the split-brain operation would have introduced conflicts. The SDN controller needs to restart HA on one of the DPUs by setting HAScope AdminState to DOWN and then UP on one of the DPUs. The DPUs will raise an event to indicate HA Restart is required.
+When the DPU-DPU communication channel breaks down while both DPUs in the HA pair are still up, then both DPUs transition to Standalone state and we enter split-brain scenario. Depending on which of the NPU-DPU connections are still up, data traffic may land on any of the DPUs in the HA-Set and not get flow-synced. It is the responsibility of the SDN Controller to stop HA on one of the DPUs to break this by pushing HA scope AdminState to Down on one of the DPUs. Once we have split-brain, even if the DPU-DPU connectivity gets restored back before SDN controller intervenes, the DPU HA state-machine will refuse to re-pair automatically since the split-brain operation would have introduced conflicts. The DPUs will raise an event to indicate HA Restart is required. The SDN controller needs to restart HA on one of the DPUs by setting HA scope AdminState to DOWN and then UP on one of the DPUs.
 
 ## 10. Flow tracking and replication
 
