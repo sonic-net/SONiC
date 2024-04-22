@@ -1042,32 +1042,16 @@ N/A
 | 14        | Dynamic port breakout as described [here](https://github.com/sonic-net/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
 | 15        | Remove an item that has a default value. |
 | 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
-| 17        | [Updating Syslog configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_syslog.py) |
-| 18        | [Updating AAA configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_aaa.py) |
-| 19        | [Updating DHCP configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_dhcp_relay.py) |
-| 20        | Updating IPv6 configs. |
-| 21        | Updating monitor configs (EverflowAlaysOn). |
-| 22        | Updating BGP speaker configs. |
-| 23        | [Updating BGP listener configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgpl.py) |
-| 24        | ~~Updating Bounce Back Routing configs.~~ |
-| 25        | [Updating control-plane ACLs (NTP, SNMP, SSH) configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_cacl.py) |
-| 26        | Updating Ethernet interfaces configs. |
-| 27        | [Updating VLAN interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_vlan_interface.py) |
-| 28        | [Updating port-channel interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_portchannel_interface.py) |
-| 29        | [Updating loopback interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_lo_interface.py) |
-| 30        | Updating BGP prefix hijack configs. |
-| 31        | Updating QoS headroom pool and buffer pool size. |
-| 32        | Add/Remove Rack. |
-| 33        | Add a new ASIC config subtree. |
-| 34        | Add a new ASIC with empty config. |
-| 35        | Independent Patch Application: Apply configuration patches independently to each ASIC without any coordination between them. Verify that each ASIC updates according to its patch and that there are no discrepancies in configurations that might affect system operations.|
-| 36        | Simultaneous Patch Application:Apply configuration patches to all ASICs simultaneously to ensure that simultaneous updates do not cause conflicts or failures. This test checks the system’s ability to handle concurrent configuration changes across multiple independent units.|
-| 37        | Sequential Patch Application: Apply configuration patches to ASICs in a controlled sequence, one after the other. This test aims to check if the order of patch application affects the final system configuration, especially when configurations might not directly interact but could have cumulative effects.|
-| 38        |Patch Rollback Capability: After applying patches, initiate a rollback to previous configurations for each ASIC independently. Verify that each ASIC can revert to its previous state accurately and that the rollback process does not introduce new issues.|
-| 39        | Conditional Patch Application: Apply patches based on conditional checks within each ASIC’s configuration (e.g., only apply a patch if the current firmware version is below a certain level). This test ensures that conditions within patches are evaluated correctly and that the patch is applied only when the conditions are met.|
-| 40        | Cross-ASIC Dependency Verification: While each ASIC operates independently, this test involves applying patches that could potentially have indirect impacts on other ASICs through shared resources or network topology changes. Validate that changes in one ASIC do not adversely affect others.|
-| 41        | Patch Compatibility and Conflict Resolution: Apply patches that introduce changes conflicting with existing configurations across ASICs. This test examines how the system identifies and resolves conflicts, ensuring that the most critical settings are preserved and that any issues are clearly reported.|
-| 42        | Performance Impact Assessment: Measure system performance before and after patch application to determine the impact of configuration changes. This includes monitoring processing speed, memory usage, and network latency to ensure that performance remains within acceptable parameters.|
+| 17        | Add a new ASIC config subtree. |
+| 18        | Add a new ASIC with empty config. |
+| 19        | Independent Patch Application: Apply configuration patches independently to each ASIC without any coordination between them. Verify that each ASIC updates according to its patch and that there are no discrepancies in configurations that might affect system operations.|
+| 20        | Simultaneous Patch Application:Apply configuration patches to all ASICs simultaneously to ensure that simultaneous updates do not cause conflicts or failures. This test checks the system’s ability to handle concurrent configuration changes across multiple independent units.|
+| 21        | Sequential Patch Application: Apply configuration patches to ASICs in a controlled sequence, one after the other. This test aims to check if the order of patch application affects the final system configuration, especially when configurations might not directly interact but could have cumulative effects.|
+| 22        |Patch Rollback Capability: After applying patches, initiate a rollback to previous configurations for each ASIC independently. Verify that each ASIC can revert to its previous state accurately and that the rollback process does not introduce new issues.|
+| 23        | Conditional Patch Application: Apply patches based on conditional checks within each ASIC’s configuration (e.g., only apply a patch if the current firmware version is below a certain level). This test ensures that conditions within patches are evaluated correctly and that the patch is applied only when the conditions are met.|
+| 24        | Cross-ASIC Dependency Verification: While each ASIC operates independently, this test involves applying patches that could potentially have indirect impacts on other ASICs through shared resources or network topology changes. Validate that changes in one ASIC do not adversely affect others.|
+| 25        | Patch Compatibility and Conflict Resolution: Apply patches that introduce changes conflicting with existing configurations across ASICs. This test examines how the system identifies and resolves conflicts, ensuring that the most critical settings are preserved and that any issues are clearly reported.|
+| 26        | Performance Impact Assessment: Measure system performance before and after patch application to determine the impact of configuration changes. This includes monitoring processing speed, memory usage, and network latency to ensure that performance remains within acceptable parameters.|
 
 ## 9.2 Unit Tests for Checkpoint
 | Test Case | Description |
