@@ -87,10 +87,10 @@ Add support to allow user explicitly configure BGP router id.
 
 Below is new workflow for single-asic, the main changes are in `1.` and `3.`.
 
-1. After bgp0 container started, configuration file `/etc/frr/bgpd.conf` for bgpd is would be rendered.
+1. After bgp container started, configuration file `/etc/frr/bgpd.conf` for bgpd is would be rendered.
    * If CONFIG_DB`["DEVICE_METADATA"]["localhost"]["bgp_router_id"]` exists, use it as BGP router id.
    * Else if Loopback0 IPv4 address exists, use it as BGP router id.
-   * Else, BGP router id wouldn't be specified.
+   * Else, BGP router id wouldn't be specified. To be clarified that this scenario is out of scope for current HLD, behavior in the scenario that router-id isn't specified is totally same as previous.
 2. bgpd start with configuration rendered before. If router id is not specified, it would choose an IP address in device to be router id, which would cause BGP cannot work if the router id is not unique in network.
 3. After bgpcfgd started, it will start BGP peer based on configuration.
    * If Loopback0 IPv4 address exists, continue to add BGP peer.
@@ -108,7 +108,7 @@ Below is new workflow for multi-asic, the main changes are in `1.` and `3.`. To 
 1. After bgp0 container started, configuration file `/etc/frr/bgpd.conf` for bgpd is would be rendered.
    * If CONFIG_DB`["DEVICE_METADATA"]["localhost"]["bgp_router_id"]` exists, use it as BGP router id.
    * Else if Loopback4096 IPv4 address exists, use it as BGP router id.
-   * Else, BGP router id wouldn't be specified.
+   * Else, BGP router id wouldn't be specified. To be clarified that this scenario is out of scope for current HLD, behavior in the scenario that router-id isn't specified is totally same as previous.
 2. bgpd start with configuration rendered before. If router id is not specified, it would choose an IP address in device to be router id, which would cause BGP cannot work if the router id is not unique in network.
 3. After bgpcfgd started, it will start BGP peer based on configuration.
    * If current asic is FrontEnd
