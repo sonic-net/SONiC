@@ -887,6 +887,7 @@ On the SONiC VS, SAI calls would map to the tc_sample commands on the switchport
 ## 11 **Restrictions**
 * /etc/hsflowd.conf should not be modified manually. While it should be possible to change /etc/hsflowd.conf manually and restart the sflow container, it is not recommended.
 * configuration updates will necessitate hsflowd service restart
+* hsflowd daemon will initialize only after receiving the SYSTEM_READY|SYSTEM_STATE Status=Up from SONiC. The system ready state however depends on all the monitored daemons to be ready. Failure on any of these, will result in system state to be down. In such scenarios, sflow will wait until 180 seconds and if system ready is not up will proceed with initialization. For system ready feature please visit https://github.com/sonic-net/SONiC/blob/master/doc/system_health_monitoring/system-ready-HLD.md
 
 ## 12 **Unit Test cases**
 Unit test case one-liners are given below:
