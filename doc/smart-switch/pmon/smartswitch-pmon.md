@@ -438,7 +438,7 @@ is_midplane_reachable(self):
 
 * Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The recent reboot-cause can be derived from that list of reboot-causes.
 * The get_reboot_cause will return the current reboot-cause of the module.
-* Use the existing mechanism for storing the reboot-cause and reboot-caue-history on the host
+* For persistent storage of the DPU reboot-cause and reboot-caue-history files use the existing host storage path and mechanism.
 
 #### Schema for REBOOT_CAUSE - switch stateDB
 ```
@@ -542,6 +542,33 @@ get_health_info(self):
     Returns:
         An object instance of the dpu health. 
         Returns None when the module is SWITCH
+    
+    Example:
+    {
+      "led_status": "green",
+
+      "monitoredlists": {
+          "Program": [
+              {"Name": "routeCheck", "Status": "Not OK", "Type": "Program"},
+              // Add more program items here
+          ],
+          "Service": [
+              {"Name": "mgmt-framework", "Status": "Not OK", "Type": "Service"},
+              // Add more service items here
+          ],
+          "Fan": [
+              {"Name": "Fan", "Status": "Not OK", "Type": "Fan"}
+          ],
+          "UserDefined": [
+              // Add user-defined items here
+          ]
+      },
+
+      "ignore_list": [
+          {"Name": "example1", "Status": "OK", "Type": "Type1"},
+          // Add more items to ignore list
+      ]
+    }
 ```
 
 ### 3.2 Thermal management
