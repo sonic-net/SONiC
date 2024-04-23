@@ -39,7 +39,7 @@ Below is current workflow about BGP and router id in single-asic, only includes 
 
 1. After bgp container started, configuration file `/etc/frr/bgpd.conf` for bgpd would be rendered. It will use Loopback0 IPv4 address as BGP router id, if it doesn't exist, the BGP router id wouldn't be specified.
 2. bgpd start with configuration rendered before. If BGP router id is not specified, it would choose an IP address in device to be BGP router id.
-3. After bgpcfgd started, it will add bgp peer depends on whether Loopback0 IPv4 exist.
+3. After bgpcfgd started, it will add bgp peer depends on whether Loopback0 IPv4 exist. If Loopback0 IPv4 doesn't exist, stop to process neighbors adding and return with False signal.
 
 <p align=center>
 <img src="img/origin_bgp_seq.png" alt="Origin bgp seq" width=700>
@@ -50,9 +50,9 @@ Below is current workflow about BGP and router id in multi-asic, only includes c
 1. After bgp container of each asic started, configuration file `/etc/frr/bgpd.conf` for bgpd would be rendered. It will use Loopback4096 IPv4 address configured in correspond config_db as BGP router id, if it doesn't exist, the BGP router id wouldn't be specified.
 2. bgpd start with configuration rendered before. If BGP router id is not specified, it would choose an IP address in device to be BGP router id.
 3. After bgpcfgd started, it will add bgp peer depends on whether Loopback0 and Loopback4096 IPv4 exist:
-   1. If Loopback0 IPv4 doesn't exist, won't add any BGP peer.
+   1. If Loopback0 IPv4 doesn't exist, stop to process BGP neighbors adding and return with False signal.
    2. Else
-      1. If IPv4 address of Loopback4096 exists, add iBGP peer
+      1. If IPv4 address of Loopback4096 exists, add iBGP peer; else process iBGP neighbors adding and exit with False signal.
       2. If current asic is FrontEnd, add eBGP peer.
 
 <p align=center>
@@ -95,7 +95,7 @@ Below is new workflow for single-asic, the main changes are in `1.` and `3.`.
 3. After bgpcfgd started, it will start BGP peer based on configuration.
    * If Loopback0 IPv4 address exists, continue to add BGP peer.
    * Else if CONFIG_DB`["DEVICE_METADATA"]["localhost"]["bgp_router_id"]` exists, continue to add BGP peer.
-   * Else, do nothing.
+   * Else, stop to process neighbors adding and return with False signal.
 
 <p align=center>
 <img src="img/new_bgp_seq.png" alt="New bgp seq" width=750>
@@ -115,9 +115,12 @@ Below is new workflow for multi-asic, the main changes are in `1.` and `3.`. To 
      * If Loopback0 IPv4 address exists or bgp_router_id configured
        * Add eBGP peer.
        * If Loopback4096 IPv4 address exists, add iBGP peer.
+     * Else, stop to process neighbors adding and return with False signal.
    * Else if current asic is BackEnd
      * If Loopback0 IPv4 address exists or bgp_router_id configured
        * If Loopback4096 IPv4 address exists, add iBGP peer
+       * Else, stop to process iBGP neighbors adding and return with False signal.
+     * Else, stop to process neighbors adding and return with False signal.
 
 <p align=center>
 <img src="img/new_bgp_seq_multi_asic.png" alt="New bgp seq multi asic" width=750>
