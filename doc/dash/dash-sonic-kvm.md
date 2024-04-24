@@ -16,6 +16,12 @@
 - [4 Dataflow](#4-dataflow)
   - [4.1 Data plane](#41-data-plane)
   - [4.2 Control plane](#42-control-plane)
+- [5 KVM topology](#5-kvm-topology)
+  - [5.1 Single device mode testbed](#51-single-device-mode-testbed)
+  - [5.1.1 Create DPU testbed](#511-create-dpu-testbed)
+  - [5.1.2 Connect to the DPU](#512-connect-to-the-dpu)
+  - [5.1.3 gnmi client access](#513-gnmi-client-access)
+  - [5.2 DPU with VPP NPU testbed](#52-dpu-with-vpp-npu-testbed)
 
 # 1 Motivation
 
@@ -87,3 +93,57 @@ graph TD
 
 In the physical SmartSwitch, configuration is forwarded via GNMI in the NPU. So, in the virtual SONiC environment, the SWSS module is capable of receiving configuration from an external GNMI service through the management port, eth-midplane. However, in the single device mode, the GNMI service can also be run within the KVM and directly forward the configuration to the local SWSS module.
 
+# 5 KVM topology
+
+This section describes the steps to setup a virtual DPU testbed, please check a [pre-learning document](https://github.com/sonic-net/sonic-mgmt/blob/master/docs/testbed/README.testbed.VsSetup.md) to setup your environment and download the EOS container. Beginning the following steps, I assume you have got the cEOS image with the specific version(https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/group_vars/all/ceos.yml) and sonic-mgmt containers.
+
+
+- The normal SONiC KVM image without DPU dataplane can be downloaded from: https://sonic-build.azurewebsites.net/api/sonic/artifacts?branchName=master&platform=vs&target=target/sonic-vs.img.gz
+- The DPU SONiC KVM image with dataplane will be released at the next stage
+
+## 5.1 Single device mode testbed
+
+## 5.1.1 Create DPU testbed
+
+```shell
+
+# Login to your sonic-mgmt container
+ssh -i ~/.ssh/id_rsa_docker_sonic_mgmt zegan@172.17.0.2
+
+# CD to the ansible directory
+cd /data/sonic-mgmt/ansible
+
+# Build the DPU testbed
+./testbed-cli.sh -t vtestbed.yaml -m veos_vtb  add-topo vms-kvm-dpu password.txt
+./testbed-cli.sh -t vtestbed.yaml -m veos_vtb deploy-mg vms-kvm-dpu veos_vtb password.txt
+
+```
+
+If you are lucky, your testbed should pass all testcases via following commands
+
+``` shell
+# Login to your sonic-mgmt container
+ssh -i ~/.ssh/id_rsa_docker_sonic_mgmt zegan@172.17.0.2
+
+# CD to the tests directory
+cd /data/sonic-mgmt/tests
+
+# Run testcases
+./run_tests.sh -u -n vms-kvm-dpu -d vlab-01 -m individual -e --skip_sanity -e --disable_loganalyzer  -c dash/test_dash_vnet.py -f vtestbed.yaml -i ../ansible/veos_vtb -e "--skip_dataplane_checking"
+```
+
+## 5.1.2 Connect to the DPU
+
+``` shell
+# Login to the DPU, the default password is `password` and the default mgmt IP address is `10.250.0.101`
+sshpass -p 'password' ssh -o TCPKeepAlive=yes -o ServerAliveInterval=30 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no  admin@10.250.0.101
+
+```
+
+## 5.1.3 gnmi client access
+
+TBD
+
+## 5.2 DPU with VPP NPU testbed
+
+TBD
