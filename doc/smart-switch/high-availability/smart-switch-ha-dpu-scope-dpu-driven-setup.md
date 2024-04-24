@@ -148,14 +148,18 @@ The DPU driven state machine will be in one of the following operational HA stat
  | Dead | Initial state not participating in HA |
  | Connecting | Trying to connect to its HA pair |
  | Connected | Connection successful, bulk sync in progress |
- | InitializingToStandalone | Could not connect to pair, waiting for Activation from SDN controller to go to Standalone. Dormant state since BFD disabled hence no traffic. |
- | InitializingToActive | Bulk sync successful, waiting for Activation from SDN controller to go to Active. Dormant state since BFD disabled hence no traffic. |
- | InitializingToStandby | Bulk sync successful, waiting for Activation from SDN controller to go to Standby. Dormant state since BFD disabled hence no traffic. |
- | Standalone | Activation done, forwarding traffic |
- | Active |  Activation done, forwarding traffic and syncing flows to pair |
- | Standby |  Activation done, forwarding traffic and syncing flows from pair |
+ | InitializingToStandalone | Could not connect to pair, waiting for Activate-Role trigger from SDN controller to go to Standalone. Dormant state since BFD disabled hence no traffic. |
+ | InitializingToActive | Bulk sync successful, waiting for Activate-Role trigger from SDN controller to go to Active. Dormant state since BFD disabled hence no traffic. |
+ | InitializingToStandby | Bulk sync successful, waiting for Activate-Role trigger from SDN controller to go to Standby. Dormant state since BFD disabled hence no traffic. |
+ | Standalone | Activate-Role triggered, BFD enabled, forwarding traffic |
+ | Active |  Activate-Role triggered, BFD enabled, forwarding traffic and syncing flows to pair |
+ | Standby |  Activate-Role triggered, BFD enabled, syncing flows from pair |
  | Destroying | Going down for a planned shutdown |
  | SwitchingToStandalone | Gracefully transitioning from paired state to standalone |
+
+### 7.2 Activate-Role trigger from SDN controller
+
+When a new DPU is added to a HA set it is required to wait for a trigger from the SDN controller before enabling BFD and starting to participate in data forwarding irrespective of the HA role configured. Before this trigger, the new DPU will wait in one of the InitializingToXXX states where its flow state is completely in sync with its HA pair and it is ready to take up traffic. The SDN controller uses Activate-Role to trigger the DPU HA to enable BFD towards the NPUs and start actively participating in data forwarding.
 
 ## 8. Planned operations
 
@@ -171,17 +175,17 @@ Here are how the workflows look like for the typical planned operations:
 
 ### 8.1. HA set creation
 
-The HA bring-up workflow is described below -
-  - The DPU starts out with it's initial HA scope Role as Dead.
-  - First the SDN controller pushes all configurations including the HA set and the HA scope with role set to Active but AdminState set to Disabled.
-  - Then the SDN controller starts the HA state-machine on the DPU by updating the HA scope AdminState to Enabled.
-  - DPU HA state transitions to Connecting and attempts to connect to its pair specified in the HA set.
-  - If the connection attempt is unsuccessful it moves to the InitializingToStandalone statei and waits for trigger from SDN controller.
-  - If the connection was successful then the DPU HA state transitions to Connected state and performs bulk sync to synchronize existing flows from the other DPU in the pair in case it is already Active.
-  - At the end of the bulk sync the HA state transitions to InitializingToActive and waits for trigger from SDN controller.
-  - At this point the DPU is fully synchronized with the pair and is ready to receive any traffic. But the DPU has not enabled its BFD session to the NPUs, so it will not recieve any data traffic yet.
-  - Whenever the SDN controller decides this DPU is ready to be online, it pushes the Activate-Role trigger.
-  - DPU enables BFD to all the NPUs and the HA state transitions to Standalone or Active depending on whether it was able to connect to the paired DPU.
+The HA bring-up workflow is described below:
+- The DPU starts out with it's initial HA scope Role as Dead.
+- First the SDN controller pushes all configurations including the HA set and the HA scope with role set to Active/Standby but AdminState set to Disabled.
+- Then the SDN controller starts the HA state-machine on the DPU by updating the HA scope AdminState to Enabled.
+- DPU HA state transitions to Connecting and attempts to connect to its pair specified in the HA set.
+- If the connection attempt is unsuccessful it moves to the InitializingToStandalone state and waits for Activate-Role trigger from SDN controller.
+- If the connection was successful then the DPU HA state transitions to Connected state and performs bulk sync to synchronize existing flows from the other DPU in the pair in case it is already Active.
+- At the end of the bulk sync the HA state transitions to InitializingToActive and waits for Activate-Role trigger from SDN controller.
+- At this point the DPU is fully synchronized with the pair and is ready to receive any traffic. But the DPU has not enabled its BFD session to the NPUs, so it will not recieve any data traffic yet.
+- Whenever the SDN controller decides this DPU is ready to be online, it pushes the Activate-Role trigger.
+- DPU enables BFD to all the NPUs and the HA state transitions to Standalone or Active/Standby depending on whether it was able to connect to the paired DPU.
 
 ```mermaid
 sequenceDiagram
@@ -219,13 +223,13 @@ sequenceDiagram
 
 With DPU-driven setup, the shutdown request will be directly forwarded to DPU. `hamgrd` will ***not*** work with each other to make sure the shutdown is done in a safe way.
 
-The workflow for planned shutdown is as follows -
+The workflow for planned shutdown is as follows:
 
-   - Taking the case where DPUs 0 and 1 are already in Active state in the HA set. SDN controller triggers DPU 0 to gracefully unpair from HA by updating its HA role to Dead.
-   - DPU 0 HA state transitions to Destroying and brings down its BFD session to all NPUs. This causes all NPUs to select DPU 1 as Active and send all traffic to DPU 1.
-   - DPU 1 HA state transitions to SwitchingToStandalone as it prepares to become Standalone.
-   - DPU 0 starts a configurable timer to wait for the network to switchover and at the end of it shuts down HA.
-   - DPU 1 will not resimulate any flows synced from DPU 0 until the SDN controller pushes FlowReconcile trigger. This is to ensure that the synced flows are not disturbed by mistake in case DPU 1 is still catching up to DPU 0's final config state.
+- Taking the case where DPUs 0 and 1 are already in Active state in the HA set. SDN controller triggers DPU 0 to gracefully unpair from HA by updating its HA role to Dead.
+- DPU 0 HA state transitions to Destroying and brings down its BFD session to all NPUs. This causes all NPUs to select DPU 1 as Active and send all traffic to DPU 1.
+- DPU 1 HA state transitions to SwitchingToStandalone as it prepares to become Standalone.
+- DPU 0 starts a configurable timer to wait for the network to switchover and at the end of it shuts down HA.
+- DPU 1 will not resimulate any flows synced from DPU 0 until the SDN controller pushes FlowReconcile trigger. This is to ensure that the synced flows are not disturbed by mistake in case DPU 1 is still catching up to DPU 0's final config state.
 
 #### 8.2.1. Shutdown standby DPU
 
@@ -297,6 +301,7 @@ sequenceDiagram
 
 ### 8.3. Planned switchover
 
+In DPU-driven setup, switchover is done via shutdown one side of the DPU, and DPUs pair need to be able to handle the switchover internally.
 
 ### 8.4. ENI migration / HA re-pair
 
@@ -307,7 +312,7 @@ To support things like upgrade, we need to update the HA set to pair with anothe
    - This will cause the tables and objects related to old HA set to be removed and new HA set to be created.
    - The new DPU joining the HA pair will be in Dead state at this point.
 3. Program all ENIs on the new DPU.
-4. Once all configurations are done, SDN controller starts bring-up workflow by updating HA scope role on new DPU.
+4. Once all configurations are done, SDN controller updates the HA admin state to Enabled to start the [HA set creation](#81-ha-set-creation) workflow.
 
 ## 9. Unplanned operations
 
