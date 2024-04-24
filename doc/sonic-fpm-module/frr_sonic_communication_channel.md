@@ -1,5 +1,5 @@
 <!-- omit from toc -->
-# FRR-SONiC Communication Channel Enhancements #
+# New FRR-SONiC Communication Channel #
 
 <!-- omit from toc -->
 ## Table of Content 
@@ -21,7 +21,7 @@
 	- [5.4. Leveraging the new FPM SONiC module to Program SRv6 SIDs](#54-leveraging-the-new-fpm-sonic-module-to-program-srv6-sids)
 		- [5.4.1. Extending the FPM SONiC module](#541-extending-the-fpm-sonic-module)
 		- [5.4.2. Extending the SONiC's fpmsyncd](#542-extending-the-sonics-fpmsyncd)
-- [Links to Code PRs](#links-to-code-prs)
+- [6. Links to Code PRs](#6-links-to-code-prs)
 
 <!-- /TOC -->
 
@@ -143,7 +143,7 @@ We extend the new FPM SONiC module to push a Netlink message containing all the 
 
 fpmsyncd is extended to process and parse the new Netlink message types: `RTM_NEWSRV6LOCALSID` and `RTM_DELSRV6LOCALSID`. When fpmsyncd receives a Netlink message from the FPM SONiC module, it checks the Netlink message type. If the Netlink message is a `RTM_NEWSRV6LOCALSID` message or a `RTM_DELSRV6LOCALSID` message, it is passed to the `onSrv6LocalSidMsg()` callback. This callback extracts all the SRv6 SID attributes from the Netlink message and write a SID entry to the `SRV6_MY_SID_TABLE` of `APPL DB`.
 
-## Links to Code PRs
+## 6. Links to Code PRs
 
 * https://github.com/sonic-net/sonic-buildimage/pull/18715
 * https://github.com/sonic-net/sonic-swss/pull/3123
