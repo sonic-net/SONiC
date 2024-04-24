@@ -18,7 +18,7 @@
 	- [5.1. New FPM SONiC module](#51-new-fpm-sonic-module)
 	- [5.2. Build FRR with the FPM SONiC module](#52-build-frr-with-the-fpm-sonic-module)
 	- [5.3. Load the FPM module on zebra startup](#53-load-the-fpm-module-on-zebra-startup)
-	- [5.4. Example: Extending FPM SONiC module to Program SRv6 SIDs](#54-example-extending-fpm-sonic-module-to-program-srv6-sids)
+	- [5.4. Leveraging the new FPM SONiC module to Program SRv6 SIDs](#54-leveraging-the-new-fpm-sonic-module-to-program-srv6-sids)
 		- [5.4.1. Extending the FPM SONiC module](#541-extending-the-fpm-sonic-module)
 		- [5.4.2. Extending the SONiC's fpmsyncd](#542-extending-the-sonics-fpmsyncd)
 
@@ -34,20 +34,16 @@
 
 | Definitions/Abbreviation | Description                               |
 | ------------------------ | ----------------------------------------- |
-| ASIC                     | Application specific integrated circuit   |
 | BGP                      | Border Gateway Protocol                   |
-| FIB                      | Forwarding Information Base               |
 | FRR                      | Free Range Routing                        |
 | FPM                      | Forwarding Plane Manager                  |
-| Protobuf                 | Protocol Buffers                          |
-| RIB                      | Routing Information Base                  |
 | SRv6                     | Segment Routing over IPv6                 |
 | SID                      | Segment Identifier                        |
 | SONiC                    | Software for Open Networking in the Cloud |
 
 ## 3. Scope  
 
-Extending the FPM communication channel between FRR and SONiC to support the programming of features that cannot be programmed by the current FPM.
+Introduce a SONiC-specific communication channel between FRR and SONiC.
 
 ## 4. Overview
 
@@ -71,22 +67,22 @@ As an example, let's consider a scenario where FRR needs to program an SRv6 SID 
 ![FRR-SONiC Communication Channel Overview](images/example-srv6-sid.png)	
 *Figure 2: Example: Netlink cannot be used to program an SRv6 SID in SONiC*
 
-As shown in Figure 2, the SONiC data model includes attributes (block_len, node_len, func_len, arg_len) that are not present in the kernel data model.
+As shown in Figure 2, the SONiC data model includes attributes (`block_len`, `node_len`, `func_len`, `arg_len`) that are not present in the kernel data model.
 
-In order to program the SID in SONiC, FPM generates a Netlink message that only contains the information required by the kernel (sid_value, action, vrf_table). Since some mandatory attributes are missing (block_len, node_len, func_len, arg_len), this Netlink message cannot be used to program the SID in SONiC and results in an error when FPM attempts to do so.
+In order to program the SID in SONiC, FPM generates a Netlink message that only contains the information required by the kernel (`sid_value`, `action`, `vrf_table`). Since some mandatory attributes are missing (`block_len`, `node_len`, `func_len`, `arg_len`), this Netlink message cannot be used to program the SID in SONiC and results in an error when FPM attempts to do so.
 
 *Note: SRv6 is merely one example, but this issue is general and exists for other features as well.*
 
 #### 4.1.2. Solution
 
-To overcome these limitations, a new module called FPM SONiC (`dplane_fpm_sonic`) will be added. This module will be specifically designed to program the SONiC data plane. It will be hosted under the SONiC repository and maintained by the SONiC community. The new FPM SONiC module will enable the SONiC community to develop the features they require without the need to modify FRR. The FPM SONiC module will encode the routing information provided by FRR in a SONiC-specific Netlink message. The format of this message will be tailored to the SONiC data model and will include all information required to program the feature in SONiC.
+To overcome these limitations, we introduce a new module called FPM SONiC (`dplane_fpm_sonic`). This module is specifically designed to program the SONiC data plane. It is hosted under the SONiC repository and maintained by the SONiC community. The new FPM SONiC module enables the SONiC community to develop the features they require without the need to modify FRR. It encodes the routing information provided by FRR in a SONiC-specific Netlink message. The format of this message is tailored to the SONiC data model and includes all information required to program the feature in SONiC.
 
 
 ## 5. High-Level Design
 
 ### 5.1. New FPM SONiC module
 
-A new FPM module called FPM SONiC (`dplane_fpm_sonic`) will be created. Initially, the new FPM SONiC module will be a copy of the current FPM module. This ensures backward compatibility with the current FPM module: the new FPM SONiC module will support all the functionalities and all Netlink messages supported by the current FPM module.
+We introduce a new FPM module called FPM SONiC (`dplane_fpm_sonic`). Initially, this new FPM SONiC module is a copy of the current FPM module. It supports all functionalities and Netlink messages supported by the current FPM module. This guarantees backward compatibility and ensures a smooth transition to the new module without any loss of functionality.
 
 Over the time, the SONiC community can extend the new FPM SONiC module by adding SONiC-specific Netlink TLVs to support any use case in SONiC.
 
@@ -95,7 +91,7 @@ The following figure shows the changes to the SONiC architecture:
 ![FRR-SONiC New Communication Channel](images/fpm-channel-new.png)	
 *Figure 3: FRR-SONiC New Communication Channel*
 
-The new module will be hosted under the `sonic-buildimage` repository and maintained by the SONiC community. 
+The new module is hosted under the `sonic-buildimage` repository and maintained by the SONiC community.
 
 ```
 .
@@ -109,39 +105,39 @@ The new module will be hosted under the `sonic-buildimage` repository and mainta
 
 ### 5.2. Build FRR with the FPM SONiC module
 
-In order to compile FRR with the new FPM SONiC module, a new patch file `build-dplane-fpm-sonic-module.patch` will be added under the directory `sonic-buildimage/sonic-frr/patch`.
+In order to compile FRR with the new FPM SONiC module, we add a new patch file `build-dplane-fpm-sonic-module.patch` under the `sonic-buildimage/sonic-frr/patch` directory.
 
 This patch file has two objectives:
 
-* Modify the FRR zebra Makefile to compile the FPM SONiC module `dplane_fpm_sonic.c` into a `dplane_fpm_sonic.so` library
-* Install the `dplane_fpm_sonic.so` library in the FRR modules directory.
+* modify the FRR zebra Makefile to compile the FPM SONiC module `dplane_fpm_sonic.c` into a `dplane_fpm_sonic.so` library
+* install the `dplane_fpm_sonic.so` library in the FRR modules directory.
 
 ### 5.3. Load the FPM module on zebra startup
 
-The startup options of the FRR zebra daemon specified in the template file `supervisor.conf.j2` will be modified to replace the command-line option `-M dplane_fpm_nl` with `-M dplane_fpm_sonic`.
+We modify the startup options of the FRR zebra daemon specified in the `supervisor.conf.j2` template file to replace the `-M dplane_fpm_nl` command-line option with `-M dplane_fpm_sonic`.
 
-After this change, the file `supervisor.conf.j2` will appear as follows:
+After this change, the file `supervisor.conf.j2` appears as follows:
 
 ```jinja2
 [program:zebra]
 command=/usr/lib/frr/zebra -A 127.0.0.1 -s 90000000 -M dplane_fpm_sonic -M snmp --asic-offload=notify_on_offload
 ```
 
-This modification will ensure that FRR uses the new FPM SONiC module to send information to SONiC instead of using the current FPM module.
+This modification ensures that FRR uses the new FPM SONiC module to send information to SONiC, rather than relying on the current FPM module.
 
-### 5.4. Example: Extending FPM SONiC module to Program SRv6 SIDs
+### 5.4. Leveraging the new FPM SONiC module to Program SRv6 SIDs
 
-This section shows an example of how the new FPM SONiC module can be easily extended to support a new TLV for programming an SRv6 SID.
+In this section, we explain how the new FPM SONiC module is extended to support a new TLV for programming an SRv6 SID.
 
-At a high level, two modifications are required:
+We make two modifications:
 
-1. The new FPM SONiC module needs to be extended to push a Netlink message containing all the necessary information to program an SRv6 SID in SONiC.
-2. SONiC's fpmsyncd must be extended to receive and process the Netlink message sent by FPM SONiC and write the SRv6 SID into the SONiC database.
+1. we extend the new FPM SONiC module to push a Netlink message containing all the necessary information to program an SRv6 SID in SONiC.
+2. we extend SONiC's fpmsyncd to process the Netlink message received from the FPM SONiC module and write the SRv6 SID into the SONiC database.
 
 #### 5.4.1. Extending the FPM SONiC module
 
-The new FPM SONiC module needs to be extended to push a Netlink message containing all the necessary information to program an SRv6 SID in SONiC. Two new Netlink message types `RTM_NEWSRV6LOCALSID` and `RTM_DELSRV6LOCALSID` are defined to support programming and uninstalling a SID in SONiC, respectively. When FRR provides an SRv6 SID to FPM SONiC, FPM SONiC encodes the SID into a `RTM_NEWSRV6LOCALSID` Netlink message and sends this message to SONiC. This Netlink message contains all the information required to program the SID in SONiC.
+We extend the new FPM SONiC module to push a Netlink message containing all the necessary information to program an SRv6 SID in SONiC. In particular, we introduce two new Netlink message types to support programming and uninstalling a SID in SONiC: `RTM_NEWSRV6LOCALSID` and `RTM_DELSRV6LOCALSID`. When FRR provides an SRv6 SID to the FPM SONiC module, FPM SONiC encodes the SID into a `RTM_NEWSRV6LOCALSID` Netlink message and sends this message to SONiC. This Netlink message contains all the information required to program the SID in SONiC.
 
 #### 5.4.2. Extending the SONiC's fpmsyncd
 
-fpmsyncd is extended to process and parse the new Netlink message types: `RTM_NEWSRV6LOCALSID` and `RTM_DELSRV6LOCALSID`. When fpmsyncd receives a Netlink message from FPM SONiC, it checks the Netlink message type. If the Netlink message is a `RTM_NEWSRV6LOCALSID` message or a `RTM_DELSRV6LOCALSID` message, it is passed to the `onSrv6LocalSidMsg()` callback. This callback extracts all the SRv6 SID attributes from the Netlink message and write a SID entry to the SRV6_MY_SID_TABLE of APPL DB.
+fpmsyncd is extended to process and parse the new Netlink message types: `RTM_NEWSRV6LOCALSID` and `RTM_DELSRV6LOCALSID`. When fpmsyncd receives a Netlink message from the FPM SONiC module, it checks the Netlink message type. If the Netlink message is a `RTM_NEWSRV6LOCALSID` message or a `RTM_DELSRV6LOCALSID` message, it is passed to the `onSrv6LocalSidMsg()` callback. This callback extracts all the SRv6 SID attributes from the Netlink message and write a SID entry to the `SRV6_MY_SID_TABLE` of `APPL DB`.
