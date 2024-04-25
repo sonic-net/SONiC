@@ -101,7 +101,8 @@ The new module is hosted under the `sonic-buildimage` repository and maintained 
         ├── Makefile
         ├── frr
         ├── patch
-        └── dplane_fpm_sonic.c       <-- new FPM SONiC module
+        └── dplane_fpm_sonic
+            └── dplane_fpm_sonic.c       <-- new FPM SONiC module
 ```
 
 ### 5.2. Build FRR with the FPM SONiC module
