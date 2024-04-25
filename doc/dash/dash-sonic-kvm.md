@@ -142,7 +142,40 @@ sshpass -p 'password' ssh -o TCPKeepAlive=yes -o ServerAliveInterval=30 -o UserK
 
 ## 5.1.3 gnmi client access
 
-TBD
+Once dash test cases are completed, we can find required certificates in sonic-mgmt container.
+
+```
+# The certificates are in /tmp directory
+user@mgmt:~$ ls -l /tmp/e55648be-5a9c-49da-bcf7-645b1a926fb6
+total 40
+-rw-r--r-- 1 user user   99 Apr 12 05:52 extfile.cnf
+-rw------- 1 user user 1675 Apr 12 05:52 gnmiCA.key
+-rw-r--r-- 1 user user 1131 Apr 12 05:52 gnmiCA.pem
+-rw-r--r-- 1 user user   41 Apr 12 05:52 gnmiCA.srl
+-rw-r--r-- 1 user user 1017 Apr 12 05:52 gnmiclient.crt
+-rw-r--r-- 1 user user  907 Apr 12 05:52 gnmiclient.csr
+-rw------- 1 user user 1679 Apr 12 05:52 gnmiclient.key
+-rw-r--r-- 1 user user 1070 Apr 12 05:52 gnmiserver.crt
+-rw-r--r-- 1 user user  907 Apr 12 05:52 gnmiserver.csr
+-rw------- 1 user user 1675 Apr 12 05:52 gnmiserver.key
+```
+
+Please install gnmi_cli_py from https://github.com/lguohan/gnxi/tree/master/gnmi_cli_py.
+
+Restart GNMI server with server certificates:
+
+```
+# Run below commands on DUT
+docker exec gnmi supervisorctl stop gnmi-native
+docker exec gnmi bash -c "/usr/bin/nohup /usr/sbin/telemetry -logtostderr --port 50052 --server_crt /etc/sonic/telemetry/gnmiserver.crt --server_key /etc/sonic/telemetry/gnmiserver.key --ca_crt /etc/sonic/telemetry/gnmiCA.pem -gnmi_native_write=true -v=10 >/root/gnmi.log 2>&1 &"
+```
+
+Follow below example to run GNMI client:
+
+```
+# /root/update1 and /root/update2 are protobuf value for DASH table
+python2 /root/gnxi/gnmi_cli_py/py_gnmicli.py --timeout 30 -t 10.0.0.88 -p 50052 -xo sonic-db -rcert /root/gnmiCA.pem -pkey /root/gnmiclient.key -cchain /root/gnmiclient.crt -m set-update --xpath  /APPL_DB/localhost/DASH_APPLIANCE_TABLE[key=123] /APPL_DB/localhost/DASH_VNET_TABLE[key=Vnet1] --value  $/root/update1 $/root/update2
+```
 
 ## 5.2 DPU with VPP NPU testbed
 
