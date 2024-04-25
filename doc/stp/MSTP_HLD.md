@@ -153,14 +153,7 @@ Updates SAI via following APIs:
 
 There are no changes in PortOrch.
 
-## CoPP Configurations
-MSTP facilitates the exchange of control packets, known as Bridge Protocol Data Units (BPDUs), among switches to establish and maintain loop-free paths in a network. In order to trap these BPDUs, Control Plane Policing (CoPP) will be extended as follows:
-```
-"stp": {
-    "trap_ids"  : "stp,pvrst,mstp",
-    "trap_group": "queue1_group1"
-}
-```
+
 
 # Database Changes
 MSTP design introduces some new tables for configuration along with slight modification in existing STP tables. Following are details of each individual table:
