@@ -21,8 +21,10 @@ We are interested in the following characteristics that describe various aspects
 
 **The following attributes are updated frequently and describe the current state of the disk**
 
-- File System IO Reads
-- File System IO Writes
+- Current File System IO Reads
+- Current File System IO Writes
+- Total File System IO Reads
+- Total File System IO Writes
 - Disk IO Reads
 - Disk IO Writes
 - Reserved Blocks Count
@@ -30,18 +32,20 @@ We are interested in the following characteristics that describe various aspects
 - Firmware
 - Health
 
-**Filesystem IO Reads/Writes** - Parsed from the `/proc/diskstats` file, these values correspond to the number of reads and writes successfully carried out in the disk. These values would reset upon reboot.
+**Current procfs Reads/Writes** - Parsed from the `/proc/diskstats` file, these values correspond to the number of reads and writes successfully carried out in the disk. These values would reset upon reboot.
+
+**Total procfs Reads/Writes** - A count of all reads/writes parsed from the `/proc/diskstats` file, these values correspond to the number of reads and writes successfully carried out in the disk across reboots and daemon crashes. These values are cumulative and would therefore not reset upon reboot.
 
 **Disk IO Reads/Writes** - These fields account for write-amplification and wear-leveling algorithms, and are persistent across reboots and powercycles.
 
 **Reserved Blocks Count** - Reserved blocks are managed by the drive's firmware, and their specific allocation and management may vary between disk manufacturers. The primary purposes of reserved blocks in a disk are:
 
-- **Bad-block replacement:** When the firmware detects a bad block, it can map it to a reserved block and continue using the drive without data loss.
-- **Wear Leveling:** Reserved blocks are used to replace or relocate data from cells that have been heavily used, ensuring that all cells are used evenly. 
-- **Over-Provisioning:** Over-provisioning helps maintain consistent performance and extends the lifespan of the disk by providing additional resources for wear leveling and bad block management.
-- **Garbage collection:** When files are deleted or modified, the old data needs to be erased and marked as available for new data. Reserved blocks can help facilitate this process by providing a temporary location to move valid data from blocks that need to be erased. 
+    - **Bad-block replacement:** When the firmware detects a bad block, it can map it to a reserved block and continue using the drive without data loss.
+    - **Wear Leveling:** Reserved blocks are used to replace or relocate data from cells that have been heavily used, ensuring that all cells are used evenly. 
+    - **Over-Provisioning:** Over-provisioning helps maintain consistent performance and extends the lifespan of the disk by providing additional resources for wear leveling and bad block management.
+    - **Garbage collection:** When files are deleted or modified, the old data needs to be erased and marked as available for new data. Reserved blocks can help facilitate this process by providing a temporary location to move valid data from blocks that need to be erased. 
 
-- **Temperature, Firmware, Health** - These fields are self-explanatory
+**Temperature, Firmware, Health** - These fields are self-explanatory
 
 ### **2.2 Static Attributes**
 
@@ -59,11 +63,13 @@ These fields are self-explanatory.
 
 2. As part of initialization process, the daemon will query the Config DB for an entry called `polling_interval` within a newly proposed table `STORAGEMOND_CONFIG` and use the value to set the looping frequency for getting dynamic informaton. In the absense of this table or entry, we would default to 3600 seconds.
 
-3. After initialization, the daemon will gather static information utilizing S.M.A.R.T capabilities through instantiated class objects such as SsdUtil and EmmcUtil. This information will be subsequently updated in the StateDB.
+3. Also as part of init, the daemon would reconcile the `STATE_DB`, a JSON file on disk and the current parsed information to calculate the cumulative values of fields that are subject to reset upon reboot. More on this is detailed in section [2.4.4](#244-accounting-for-reboots-and-unintended-powercycles) below.
 
-4. The daemon will parse dynamic attributes also utilizing S.M.A.R.T capabilities via the corresponding class member functions, and update the StateDB per the preset frequency.
+4. After initialization, the daemon will gather static information utilizing S.M.A.R.T capabilities through instantiated class objects such as SsdUtil and EmmcUtil. This information will be subsequently updated in the `STATE_DB`.
 
-**NOTE:** The design requires a concurrent PR wherein EmmcUtil, SsdUtil classes are enhanced to gather Disk and FS IO Read/Write stats and Reserved Blocks information as detailed in section [2.4.1 below](#241-ssdbase-api-additions).
+5. The daemon would parse dynamic attributes also utilizing S.M.A.R.T capabilities via the corresponding class member functions, and update the `STATE_DB` per the preset frequency.
+
+**NOTE:** The design requires a concurrent PR where EmmcUtil, SsdUtil classes are enhanced to gather Disk and FS IO Read/Write stats and Reserved Blocks information as detailed in section [2.4.1 below](#241-ssdbase-api-additions).
 
 This is detailed in the sequence diagram below:
 
@@ -216,7 +222,7 @@ We would instantiate an object of the StorageDevices() class
 ```
 
 we would then get static and dynamic information by leveraging the respective member function implementations of `SsdUtil` and `EmmcUtil`, as they both derive from `SsdBase`.
-We then leverage the following proposed StateDB schema to store and stream information about each of these disks.
+We then leverage the following proposed `STATE_DB` schema to store and stream information about each of these disks.
 
 
 **NOTE:** <br>
@@ -231,17 +237,9 @@ We then leverage the following proposed StateDB schema to store and stream infor
 Specific data, such as Filesystem Input/Output (FS IO) Reads/Writes, can be uniformly collected regardless of the storage disk type, as it is extracted from files generated by the Linux Kernel. To streamline the process of gathering this information, we propose the implementation of a new parent class `StorageCommon()`, from which classes such as SsdUtil, EmmcUtil, USBUtil, and NVMUtil would inherit in addition to `SsdBase` (to be renamed `StorageBase`). This proposed class will reside in the `src/sonic-platform-common/sonic_platform_base/sonic_ssd` directory, in `storage_common.py`. The `StorageCommon()` class will have the following functions:
 
 ```
-def _parse_fsstats_file(self):
-    """
-    Function to parse a file containing the previous latest FS IO Reads/Writes values from a file (more on this in the subsequent section) and saves it to member variables
-
-    Args: None
-    
-    Returns: None
-
 def get_fs_io_reads(self):
     """
-    Function to get the total number of reads on each disk by parsing the /proc/diskstats file
+    Function to get the latest reads on each disk by parsing the /proc/diskstats file
 
     Returns:
         The total number of FSIO reads
@@ -252,7 +250,7 @@ def get_fs_io_reads(self):
 
 def get_fs_io_writes(self):
     """
-    Function to get the total number of writes on each disk by parsing the /proc/diskstats file
+    Function to get the latest writes on each disk by parsing the /proc/diskstats file
 
     Returns:
         The total number of FSIO writes
@@ -264,7 +262,7 @@ def get_fs_io_writes(self):
 
 **Logic for StorageCommon() get_fs_io_reads and get_fs_io_writes functions:**
 
-These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to retrieve the total number of disk reads and writes, respectively, by parsing the `/proc/diskstats` file. They utilize similar logic, differing only in the column index used to extract the relevant information.
+These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to retrieve the latest disk reads and writes, respectively, by parsing the `/proc/diskstats` file. They utilize similar logic, differing only in the column index used to extract the relevant information.
 
 1. **Check for `psutil` Module**:
    - The functions first check if the `psutil` module is available in the current environment by examining the `sys.modules` dictionary.
@@ -282,49 +280,62 @@ These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to r
      - If the name of the storage disk is found in the line, they return the value at the appropriate zero-based index (3 for reads, 7 for writes).
      - If no line contains the name of the storage disk, they save the respective values as 0.
 
-4. **Combine the initial Reads/Writes with the current values as needed**:
-     - First they determine whether there is a need to combine the current RW values with the initial RW values.
-     - In a planned reboot or graceful restart scenario, they add the current and new reads and writes, respectively, to get the latest count
-     - In an unplanned `stormond` crash scenario, they do NOT add the initial RW values with the newly parsed values.
-     - These values are then returned to the caller to be written to `STATE_DB`.
+4. **Return to caller**:
+     - These values are then returned to the caller to subsequently be written to `STATE_DB`.
+     - These values are also used to determine the total number of procfs reads and writes as explained in the following section
+
 
 #### **2.4.4 Accounting for reboots and unintended powercycles**
 
 The reset of values in `/proc/diskstats` upon device reboot or power cycle presents a challenge for maintaining long-term data integrity. To mitigate this challenge, we propose the following design considerations:
 
 1. Introduction of a bind-mounted directory within the pmon container at `/usr/share/storagemon/` which maps to `/host/pmon/storagemon/` on the host:
-    - This directory hosts a file named `fsio-rw-stats.json`, where the latest filesystem Reads/Writes values are saved.
+    - This directory hosts a file named `fsio-rw-stats.json`, where the following values are stored:
+        - **most recent** Total reads and writes from the `STATE_DB`.
+        - **most recent** procfs reads and writes from the `STATE_DB`.
+
     - This file would be read by the daemon on initialization after a planned reboot of the system, or in a graceful `stormond` restart scenario.
 
 2. Implementation of a script, tentatively named `fsio-rw-sync`, to be invoked by SONiC's reboot utility:
-    - This script would be called by the reboot script and would be responsible for parsing and storing the **most recent** FS IO reads and writes from the `fs-rw-stats.json` file.
-    - These values would be stored in the `/host/pmon/storagemon/fsio-rw-stats.json` file.
+    - This script would be called by the several reboot scripts and would be responsible for parsing and storing the aforementioned paramenters just before OS-level reboot.
+    - This script provides a mechanism to sync the evanescent procFS reads and writes values from the `STATE_DB` before they are reset by the reboot.
 
-3. A service provisionally named `fsio-sync.service` to enhance resilience against unintentional powerloss.
+##### **2.4.4.1 Daemon Restart / Reboot / Unintended Powercycle Scenario Behaviors**
 
-    - This service would call a script that would independently execute the `fsio-rw-sync` script at predefined intervals. This interval can be configured via the `STORAGEMOND_CONFIG` table within the `CONFIG_DB`.
+1. **Planned cold, fast, and warm reboot scenario**
 
-    - The script is designed to log the most recent successful synchronization timestamp. This data will be recorded in a newly established table, provisionally titled `FSSTATS_SYNC`, which will reside within the `STATE_DB`.
-
-**Daemon Restart / Reboot / Unintended Powercycle Scenario Behaviors**
-
-1. **`stormond` or `pmon` graceful restart and crash scenario**
-
-    - In both scenarios, as the host does not undergo a reboot, the file system read/write counters within the `/proc/diskstats` file remain unaltered.
-    - Parsing the `fs-rw-stats.json` file reveals that the read and write metrics from this file are consistently equal to or less than those extracted - from `/proc/diskstats`.
-    - This conclusively demonstrates that the device has not experienced a reboot.
-    - Consequently, upon a restart of stormond, operations resume as per standard protocols.
-
-2. **Planned cold, fast, and warm reboot scenario**
-    - Prior to invoking an OS-level reboot, the latest FSIO Read and Write metrics are captured from the `/proc/diskstats` file and stored into the `fsio-rw-stats.json` by executing the `fsio-rw-sync` script from the respective reboot script (cold, fast, or warm).
-    - Post-reboot, the read/write metrics as parsed from the `fsio-rw-stats.json` file will exceed the current values in `/proc/diskstats`.
+    - Prior to invoking an OS-level reboot, the latest FSIO Read and Write metrics are captured from the `/proc/diskstats` file and stored into the `fsio-rw-stats.json` by executing the `fsio-rw-sync` script from the respective reboot script (cold, soft, or warm).
+    - Post-reboot, the read/write metrics as parsed from the `fsio-rw-stats.json` file will exceed the current values in `STATE_DB`.
     - Under these conditions, the RW values from `fsio-rw-stats.json` are treated as baseline metrics, and subsequent RW values from `/proc/diskstats` are added to this baseline before database insertion.
 
+
+2. **Daemon (`stormond` or `pmon`) Crash Handling Scenario**
+
+    - In the event of a daemon crash, the daemon ensures continuity by maintaining critical data points regarding filesystem I/O operations:
+
+        - **Real-Time `/proc/diskstats` Values**: Directly parsed and stored temporarily, providing a snapshot of the most current filesystem activity.
+        - **Persisted `/proc/diskstats` Values in `STATE_DB`**: The last known values of procfs reads/writes before the crash, providing a baseline for comparison post-recovery.
+        - **Accumulated I/O Metrics in `STATE_DB`**: Represent the comprehensive record of disk read and write operations up to the last successful update before the crash.
+
+    - The reconciliation of these data points post-crash allows for the calculation of interim disk operations:
+
+        ```
+        (latest_procfs - last_posted_statedb_procfs) = addnl_procfs_rw
+
+        new total_procs_rw (to be posted to `STATE_DB`) = current_statedb_procfs_rw + addnl_procfs_rw
+        ```
+
+    - This computed value represents the adjusted total of read/write operations that should be recorded in the `STATE_DB` once the daemon is back online. 
+    - The subsequent update to the `fsio-rw-stats.json` file ensures that these recalibrated values persist, thereby safeguarding against data loss due to daemon or container failures and facilitating seamless data continuity and accuracy.
+
+
 3. **System unintended powercycle scenario**
+
     - This scenario results in a reset of the read/write counts within the `/proc/diskstats` file.
     - Additionally, there is typically no opportunity to record the latest RW counts into the `fsio-rw-stats.json` file.
     - Hence, this is the sole scenario where a discrepancy might arise between the documented FSIO RW counts and the actual RW counts.
     - This potential discrepancy is acknowledged and accepted within the system's operational parameters.
+
 
 #### **2.4.4 storagemond Class Diagram**
 
@@ -332,7 +343,7 @@ The reset of values in `/proc/diskstats` upon device reboot or power cycle prese
 
 ## **3. Schema Changes**
 
-### **3.1 Storage Info StateDB Schema**
+### **3.1 Storage Info `STATE_DB` Schema**
 ```
 ; Defines information for each Storage Disk in a device
 
@@ -340,16 +351,19 @@ key                 = STORAGE_INFO|<disk_name>  ; This key is for information ab
 
 ; field             = value
 
-device_model        = STRING                    ; Describes the Vendor information of the disk                                           (Static)
-serial              = STRING                    ; Describes the Serial number of the disk                                                (Static)
-temperature_celsius = STRING                    ; Describes the operating temperature of the disk in Celsius                             (Dynamic)
-fs_io_reads         = STRING                    ; Describes the total number of filesystem reads completed successfully                  (Dynamic)
-fs_io_writes        = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
-disk_io_reads       = STRING                    ; Describes the total number of reads completed successfully from the SSD (Bytes)        (Dynamic)
-disk_io_writes      = STRING                    ; Describes the total number of writes completed on the SSD (Bytes)                      (Dynamic)
-reserved_blocks     = STRING                    ; Describes the reserved blocks count of the SSD                                         (Dynamic)
-firmware            = STRING                    ; Describes the Firmware version of the SSD                                              (Dynamic)
-health              = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs      (Dynamic)
+device_model            = STRING                    ; Describes the Vendor information of the disk                                           (Static)
+serial                  = STRING                    ; Describes the Serial number of the disk                                                (Static)
+temperature_celsius     = STRING                    ; Describes the operating temperature of the disk in Celsius                             (Dynamic)
+fs_io_reads             = STRING                    ; Describes the total number of filesystem reads completed successfully                  (Dynamic)
+fs_io_writes            = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
+current_fs_io_reads     = STRING                    ; Describes the latest filesystem reads completed successfully                           (Dynamic)
+current_fs_io_writes    = STRING                    ; Describes the latest filesystem writes completed successfully                          (Dynamic)
+fs_io_writes            = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
+disk_io_reads           = STRING                    ; Describes the total number of reads completed successfully from the SSD (Bytes)        (Dynamic)
+disk_io_writes          = STRING                    ; Describes the total number of writes completed on the SSD (Bytes)                      (Dynamic)
+reserved_blocks         = STRING                    ; Describes the reserved blocks count of the SSD                                         (Dynamic)
+firmware                = STRING                    ; Describes the Firmware version of the SSD                                              (Dynamic)
+health                  = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs      (Dynamic)
 ```
 
 NOTE: disk_io_reads and disk_io_writes return total LBAs read/written. 'LBA' stands for Logical Block Address. 
@@ -388,15 +402,15 @@ root@sonic:/# redis-cli -n 6
 
 ```
 
-### **3.2 FS Stats Sync StateDB Schema**
+### **3.2 FS Stats Sync `STATE_DB` Schema**
 ```
 ; Defines information for FS Stats synchronization
 
-key                     = FSSTATS_SYNC    ; This key is for information pertaining to synchronization of FSIO Reads/Writes
+key                     = STORAGE_INFO|FSSTATS_SYNC     ; This key is for information pertaining to synchronization of FSIO Reads/Writes
 
 ; field                 = value
 
-successful_sync_time    = STRING           ; The latest successful sync time of FSIO reads and writes to file in '+%Y-%m-%d::%H:%M:%S' format
+successful_sync_time    = STRING                        ; The latest successful sync time of FSIO reads and writes to file in '+%Y-%m-%d::%H:%M:%S' format
 
 ```
 
@@ -404,7 +418,7 @@ successful_sync_time    = STRING           ; The latest successful sync time of 
 ```
 ; Defines information for stormon config
 
-key                        = STORAGEMOND_CONFIG  ; This key is for information about a stormon daemon configuration
+key                        = STORAGEMOND_CONFIG   ; This key is for information about a stormon daemon configuration
 
 ; field                    = value
 
@@ -412,11 +426,27 @@ daemon_polling_interval    = STRING               ; The polling frequency for re
 fsstats_sync_interval      = STRING               ; The frequency of FSIO Reads/Writes synchronization to location on disk
 ```
 
+## **4. Test Plan**
+
+The following is the `sonic-mgmt` test plan for the daemon. The first column represents various testing scenarios. The other columns represent the intended status of various components of the daemon.
+
+| **Event**              | **State_DB** | **JSON**  |  **PROCFS STATUS**      | **JSON SYNCED WITH `STATE_DB`?** | **STORMON RESTARTED** |
+| ---------------------- | ------------ | --------- | ----------------------- | ----------------------------- | --------------------- |
+|                        |              |           |                         |                               |                       |
+| Init                   | CLEARED      | CLEARED   | CLEARED, Initial Values | YES                           | YES                   |
+| Planned Cold Reboot    | CLEARED      | NOT RESET | CLEARED, Initial Values | YES                           | YES                   |
+| Planned Soft Reboot    | CLEARED      | NOT RESET | CLEARED, Initial Values | YES                           | YES                   |
+| Planned Warm Reboot    | NOT RESET    | NOT RESET | CLEARED, Initial Values | YES                           | YES                   |
+| Unplanned daemon crash | NOT RESET    | NOT RESET | NOT RESET               | UNSURE                        | YES                   |
+| Unplanned system crash | CLEARED      | NOT RESET | CLEARED, Initial Values | UNSURE                        | YES                   |
+
+
 ## Future Work
 
-1. Full support for eMMC
-2. Support for USB and NVMe storage disks
-3. Refactor `ssdutil` [in sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/ssdutil) to cover all storage types, including changing the name of the utility to 'storageutil'
+1. Fulfill the sonic-mgmt test plan
+2. Full support for eMMC
+3. Support for USB and NVMe storage disks
+4. Refactor `ssdutil` [in sonic-utilities](https://github.com/sonic-net/sonic-utilities/tree/master/ssdutil) to cover all storage types, including changing the name of the utility to 'storageutil'
 
 <br><br><br>
 <sup>[Back to top](#1-overview)</sup>
