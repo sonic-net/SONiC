@@ -21,8 +21,9 @@
 - [Effects of DHCP DoS Attacks](#effects-of-dhcp-dos-attacks)
 - [Behavior of DHCP DoS Attack](#behavior-of-dhcp-dos-attack)
 - [DHCP DoS Mitigation](#dhcp-dos-mitigation)
-- [Proposed Solution](#proposed-solution)
-
+- [Current Behavior](#current-behavior)
+- [Proposed Behavior](#proposed-behavior)
+- [Design Changes](#design-changes)
 - [Requirements](#requirements)
 - [Architecture Design](#architecture-design)
 - [Sequence Diagram to Add Rate-limit](#sequence-diagram-to-add-rate-limit)
@@ -116,35 +117,37 @@ It can be seen in the screenshot below that a legitimate client (PC-1) is unable
     <figcaption>Figure 3: Incomplete DORA process during DoS attack</figcaption>
 </figure>
 
-### DHCP DoS Mitigation
 
+### Current Behavior
+Currently in SONiC, a default system-wide DHCP rate limit of 300 packets per second is implemented through CoPP. Since this limit is system-wide, in the event of a DHCP DoS attack where the attacker sends packets at a rate greater than 300 packets per second, it will result in CoPP dropping most legal packets as there are a lot more illegal packets coming into the system.
 
-To prevent possible DHCP DoS attacks in SONiC, we suggest using rate-limiting with Linux Traffic Control (TC). 
+### Proposed Behavior
+To ensure the availability of a DHCP server for legal clients across a network, rate-limiting must be implemented at a port level so the effects of an attacker stay limited to the port it is connected to.
+This can be achieved by removing the system-wide DHCP rate limit of 300 packets per second implemented through CoPP and replacing it with port-level rate limits implemented in the kernel via Linux Traffic Control (TC). This means CoPP won't restrict DHCP traffic anymore, allowing potentially harmful packets to reach the kernel where TC will be able to rate-limit ingress traffic according to rates defined for each port. This will effectively isolate the effects of a DHCP DoS attack to remain solely on the attacked port, successfully protecting clients connected to all other ports of the switch.
 
-SONiC has Traffic Control Utility available. This is used for handling data movement through the network. 
-By setting limits on the number of DHCP requests that can be forwarded, we can protect against attacks. This helps keep the network running smoothly and securely.
-Following are some use cases of Traffic Control :
--   It can filter packets on the basis of their properties (eg. IP protocols, source/destination ports and IP addresses, etc.) and drop them based on their behavior (ingress, egress, rate, etc.)
--   It can also change or modify the data if needed.
+### Design Changes
+
+To achieve this, a new entry “dhcp_rate_limit” will be added in the “PORT_TABLE” of config_db with a default value of 300 packets per second to ensure backward compatibility. CLI commands will be written to use this attribute in config_db. “Portmgrd” in the SwSS container will be modified to configure config_db rate-limits inside the kernel via TC commands.
+
+Following are a few use cases of Traffic Control :
+- Filter packets on the basis of their properties (eg. IP protocols, source/destination ports and IP addresses, etc.) and drop them based on their behavior (ingress, egress, rate, etc.)
+- Change or modify the data if needed
 
 Traffic control(TC) uses queuing disciplines (qdiscs) to help organize and manage the transmission of traffic through a network interface. A qdisc performs two main functions:
 - Enqueuing requests to place packets in a queue for later transmission
 - Dequeuing requests to select a packet from the queue for immediate transmission
 
-To prevent a potential DHCP DoS attack on an interface, incoming traffic at the interface is rate-limited using traffic control(TC).
+When the user adds the "dhcp_rate_limit" entry in the “PORT_TABLE” of the config database, that limit is then enforced on the specified interface it corresponds to.
+DHCP traffic can be filtered and rate-limited by dropping all packets that exceed a user-defined rate, allowing legitimate clients to be serviced by a DHCP server despite an ongoing attack. This design provides a mechanism for DHCP rate-limiting on a specified port. Applying DHCP rate limit on a specific port requires two parameters:
 
-#### Proposed Solution
+- port
+  The port on which the DHCP rate limit is to be applied.
+- rate
+ (packets per second)An integer specifying a DHCP packet rate in packets per second. 
 
-DHCP traffic can be filtered and rate-limited by dropping all packets that exceed a user-specified rate, allowing legitimate users to be serviced by the DHCP server despite an ongoing attack. The design  provides a mechanism for DHCP rate-limiting on a specified interface.  Applying a DHCP rate-limit on a specific interface requires two parameters:
+Since traffic control(TC) only supports rates in the form of bytes per second, this value is multiplied by 406 (number of bytes that make up a DHCP discover packet).
+Upon running this command, an ingress queuing discipline is created on the specified port via traffic control(TC). Next, a traffic control(TC) filter is added to filter DHCP discover packets on protocol 17 (UDP) and destination port 67 (port used by DHCP) and a dropping action is applied to filtered incoming traffic. Incoming DHCP discover packets that exceed the rate are dropped to stop the attack from overwhelming the DHCP server.
 
--   ##### Interface
-    The interface on which the DHCP rate limit is to be applied
-
-
--   ##### rate (packets per second)
-    An integer specifying a DHCP packet rate in packets per second - since traffic control(TC) only supports rates in the form of bytes per second, this value is multiplied by 406 (number of bytes that make up a DHCP discover packet)
-
-Upon running this command, an ingress queuing discipline is created on the specified interface via traffic control(TC). Next, a traffic control(TC) filter is added to filter DHCP discover packets on protocol 17 (UDP) and destination port 67 (port used by DHCP), and a dropping action is applied to the filtered incoming traffic. Incoming DHCP discover packets that exceed the rate are dropped to stop the attack from overwhelming the DHCP server.
 
 ### Requirements
 
@@ -152,25 +155,44 @@ Upon running this command, an ingress queuing discipline is created on the speci
 - Support for CLI commands for configuring DHCP rate-limiting
 
 ### Architecture Design
-The overall SONiC architecture will remain the same and no new sub-modules will be introduced. Changes are made only in SONiC CLI where rate-limiting commands will be added that employ the Linux traffic control utility.
+The overall SONiC architecture will remain the same. Changes are made only in the SONiC Utilities container, SwSS container, and Config_DB.
 
-
-
-### Sequence Diagram to Add Rate-limit
+### Sequence Diagram to add rate-limit
 
 <figure style="text-align:center;">
-    <img src="../../images/dhcp_mitigation_hld/add-seq2.drawio.png" width="80%"/>
-    <figcaption>Figure 4: Sequence diagram illustrating the process of adding rate-limit for DHCP DoS mitigation</figcaption>
+    <img src="../../images/dhcp_mitigation_hld/sequence_diagram_add5.drawio (1).png" width="80%"/>
+    <figcaption>Figure 5: Sequence diagram illustrating the process of deleting rate-limit for DHCP DoS mitigation</figcaption>
 </figure>
 
 
 ### Sequence Diagram to Del rate-limit 
 
 <figure style="text-align:center;">
-    <img src="../../images/dhcp_mitigation_hld/Delete.drawio.png" width="80%"/>
+    <img src="../../images/dhcp_mitigation_hld/deleting_sequence.drawio.png" width="80%"/>
     <figcaption>Figure 5: Sequence diagram illustrating the process of deleting rate-limit for DHCP DoS mitigation</figcaption>
 </figure>
 
+### Configuration &  Management
+#### CONFIG_DB 
+
+New attribute “dhcp_rate_limit” will be added to “PORT_TABLE” to support DHCP mitigation rate.
+
+ 
+      { "PORT":{
+       "Ethernet0": 
+       {
+      "admin_status": "up",
+    	"alias": "Ethernet1/1",
+    	"asic_port_name": "Eth0-ASIC0",
+    	"description": "ARISTA01T2:Ethernet3/1/1",
+    	"lanes": "33,34,35,36",
+    	"mtu": "9100",
+    	"pfc_asym": "off",
+    	"role": "Ext",
+    	"speed": "40000",
+      "dhcp_rate_limit" : "300"    
+         }
+      }}
 
 ### SAI API 
 
@@ -182,8 +204,8 @@ No SAI API change or addition is needed for this HLD.
 ##### CLI  Configuration Commands
 
 Proposed SONiC CLI commands (sonic-utilities)
--   config interface dhcp-mitigation-rate add [interface] [packet-rate]
--   config interface dhcp-mitigation-rate delete [interface] [packet-rate]
+-   config interface dhcp-mitigation-rate add [port] [packet-rate]
+-   config interface dhcp-mitigation-rate delete [port] [packet-rate]
 -   show interface dhcp-mitigation-rate
 
 Background Linux TC commands
@@ -192,21 +214,29 @@ Background Linux TC commands
 
 
 ##### YANG Model
-No new YANG Model proposed for this HLD.
+
+New leaf “dhcp_rate_limit” will be added to support DHCP mitigation rate.
+
+     leaf dhcp_rate_limit {
+   	        description: "dhcp rate limit ;
+   				  type uint32 {
+   					   range 1..8000;
+   				 }
+   			 }
 
 
 ### Testing Requirements/Design  
 
 #### Unit Test cases
 
--   Verify CLI to add DHCP rate on interface
--   Verify CLI to delete DHCP rate on interface
--   Verify CLI to display DHCP rates on all interfaces
+-   Verify CLI to add DHCP rate on port
+-   Verify CLI to delete DHCP rate on port
+-   Verify CLI to display DHCP rates on all port
 -   Verify CLI to check valid DHCP rate (rate must be greater than 0 packets per second)
 -   Verify CLI to check validity of port/portchannel on add and delete commands
--   Verify CLI to restrict one DHCP rate per interface 
-*(previous rate must be removed before adding a new rate on an interface)
--   Verify CLI to ensure rate limit exists on interface before deleting
+-   Verify CLI to restrict one DHCP rate per port 
+*(previous rate must be removed before adding a new rate on an port)
+-   Verify CLI to ensure rate limit exists on port before deleting
 
 
 ### Warmboot and Fastboot Design Impact  
