@@ -216,13 +216,6 @@ zebra:
   - Provide an API for vrrpd to update kernel Macvlan device state.
   - Listen for kernel interface state change events and notify vrrpd.
 
-vrrpsyncd:
-  - Listens to MACVLAN interfaces that are added by vrrp, programming in kernel. Vrrpmgrd would add the MACVLAN interface in the kernel with interface name starting with 'vrrp'. Here the status of MACVLAN interface determines Master/Backup state of VRRP instances. VRRP_Table in APPL_DB will be programmed with interface name and VIP for Master instances.
-    - For every IP add to MACVLAN interface, adds interface name and Virtual IP in APPL_DB in VRRP_Table.
-    - For every IP delete from MACVLAN interface, deletes interface name and Virtual IP in APPL_DB from VRRP_Table.
-
-##### SWSS container
-
 vrrpmgrd:
   - Listens to VRRP create, delete and parameter change in CONFIG_DB. Complete the following tasks:
     - Add/del Linux Macvlan device to kernel. The Macvlan device name starting with 'Vrrp4-' or 'Vrrp6-'.
@@ -231,12 +224,19 @@ vrrpmgrd:
     - Update VRRP instance configuration to the APPL DB;
     - Update VRRP instance configuration to vrrpd by using vtysh commands.
 
+##### SWSS container
+
+vrrpsyncd:
+  - Listens to MACVLAN interfaces that are added by vrrp, programming in kernel. Vrrpmgrd would add the MACVLAN interface in the kernel with interface name starting with 'vrrp'. Here the status of MACVLAN interface determines Master/Backup state of VRRP instances. VRRP_Table in APPL_DB will be programmed with interface name and VIP for Master instances.
+    - For every IP add to MACVLAN interface, adds interface name and Virtual IP in APPL_DB in VRRP_Table.
+    - For every IP delete from MACVLAN interface, deletes interface name and Virtual IP in APPL_DB from VRRP_Table.
+
 vrrporch: 
   - Listens to VRRP_Table in APPL_DB and for entry in VRRP_TABLE, program the VIP as my IP and the VMAC as my MAC(virtual RIF) in ASIC_DB.
 
 #### CoPP Configurations
 
-CoPP will be extended as follows for trapping VRRPs. Whether to install it depends on the FEATURE|vrrp table in Config DB. If the VRRP state is enabled, it will be installed; otherwise, it will not be installed.
+CoPP will be extended as follows for trapping VRRPs. 
 ```
   "trap.group.vrrp": {
     "cir":"300",
@@ -252,7 +252,8 @@ CoPP will be extended as follows for trapping VRRPs. Whether to install it depen
   ...
   "vrrp": {
     "trap_ids": "vrrp", "vrrpv6",
-    "trap_group": "trap.group.vrrp"
+    "trap_group": "trap.group.vrrp",
+    "always_enabled": "true"
   },
 ```
 
@@ -542,11 +543,6 @@ SONIC Click based configuration and monitoring CLIs have been introduced in SONI
     - This command adds/ removes a VRRP instance on an interface.
     - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
-- config interface vrrp backup_forward <interface_name> <vrrp_id> enabled|disabled
-    - This command configures  enables/disables the VRRP instance to forward service traffic even if the VRRP instance in the backup state
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
-    - vrrp_id:VRRP instance identifier.
-    - backup_forward: VRRP instance forwarding traffic in the backup state，can be enabled or disabeld. default is disabled.
 - config interface vrrp vip add/remove <interface_name> <vrrp_id> <virtual_ip_address>
     - This command adds a virtual IP address for a VRRP instance on an interface.
     - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
@@ -561,77 +557,67 @@ SONIC Click based configuration and monitoring CLIs have been introduced in SONI
     - This command configures VRRP periodic advertisement interval for a VRRP instance
     - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
-    - Interval: VRRP instance packet sending interval, range from 10 to 40950, unit: ms, default is 1000
+    - interval: VRRP instance packet sending interval, range from 10 to 40950, unit: ms, default is 1000
+- config interface vrrp version <interface_name> <vrrp_id> <version>
+    - This command configures VRRP periodic advertisement interval for a VRRP instance
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
+    - vrrp_id:VRRP instance identifier.
+    - version: VRRP protocol version, 2 or 3, default is 3
 - config interface vrrp pre_empt enable/disable <interface_name> <vrrp_id>
     - This command enables pre-emption of a Master when a higher priority VRRP router arrives
     - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
-- config interface vrrp track_interface add/remove <interface_name> <vrrp_id> <track_interface>
+- config interface vrrp track_interface add/remove <interface_name> <vrrp_id> <track_interface> <priority_increment>
     - This command adds a track interface to a VRRP Instance.
     - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
     - track_interface: Interface to track. Interface can be Ethernet/Vlan/PortChannel
-- config interface vrrp priority_decrement <interface_name> <vrrp_id> <decrement_value>
-    - This command configures priority_decrement for a VRRP instance
-    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
-    - vrrp_id:VRRP instance identifier.
-    - decrement_value: decrement the priority of the VRRP instance if the tracking interface goes down. range from 10 to 50, default is 20
+    - priority_increment: decrement the priority of the VRRP instance if the tracking interface goes down. range from 10 to 50, default is 20
 - config interface vrrp shutdown/startup <interface_name> <vrrp_id>
     - This command control up/down status of VRRP instance.
     - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
 
+- config interface vrrp6 add/remove <interface_name> <vrrp_id>
+    - This command adds/ removes a VRRPv6 instance on an interface.
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
+    - vrrp_id:VRRPv6 instance identifier.
+- config interface vrrp6  ipv6 add/remove <interface_name> <vrrp_id> <virtual_ip_address>
+    - This command adds a virtual IP address for a VRRPv6 instance on an interface.
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
+    - vrrp_id:VRRPv6 instance identifier.
+    - virtual_ip_address: VIP is an IPv6 address, represented in hexadecimal.
+- config interface vrrp6 priority <interface_name> <vrrp_id> <priority>
+    - This command configures priority for a VRRPv6 instance
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
+    - vrrp_id:VRRPv6 instance identifier.
+    - priority: VRRPv6 instance priority, range from 1 to 254, default is 100
+- config interface vrrp6 adv_interval <interface_name> <vrrp_id> <interval>
+    - This command configures VRRPv6 periodic advertisement interval for a VRRPv6 instance
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
+    - vrrp_id:VRRPv6 instance identifier.
+    - interval: VRRPv6 instance packet sending interval, range from 10 to 40950, unit: ms, default is 1000
+- config interface vrrp6 pre_empt enable/disable <interface_name> <vrrp_id>
+    - This command enables pre-emption of a Master when a higher priority VRRPv6 router arrives
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
+    - vrrp_id:VRRPv6 instance identifier.
+- config interface vrrp6 track_interface add/remove <interface_name> <vrrp_id> <track_interface> <priority_increment>
+    - This command adds a track interface to a VRRPv6 Instance.
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
+    - vrrp_id:VRRPv6 instance identifier.
+    - track_interface: Interface to track. Interface can be Ethernet/Vlan/PortChannel
+    - priority_increment: decrement the priority of the VRRPv6 instance if the tracking interface goes down. range from 10 to 50, default is 20
+- config interface vrrp6 shutdown/startup <interface_name> <vrrp_id>
+    - This command control up/down status of VRRPv6 instance.
+    - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
+    - vrrp_id:VRRPv6 instance identifier.
+
 ###### Show commands
 - show vrrp {interface <interface_name> } | <vrrp_id>
 - show vrrp summary
 
-```
-admin@sonic:~$ show vrrp interface Ethernet50
-
- Virtual Router ID                    5                   
- Protocol Version                     3                   
- Autoconfigured                       No                  
- Shutdown                             No                  
- Interface                            Ethernet50          
- VRRP interface (v4)                  Vrrp4-5             
- VRRP interface (v6)                  None                
- Primary IP (v4)                      10.0.0.98           
- Primary IP (v6)                      ::                  
- Virtual MAC (v4)                     00:00:5e:00:01:05   
- Virtual MAC (v6)                     00:00:5e:00:02:05   
- Status (v4)                          Master              
- Status (v6)                          Initialize          
- Priority                             100                 
- Effective Priority (v4)              100                 
- Effective Priority (v6)              100                 
- Preempt Mode                         Yes                 
- Accept Mode                          Yes                 
- Advertisement Interval               1000 ms             
- Master Advertisement Interval (v4)   1000 ms             
- Master Advertisement Interval (v6)   0 ms                
- Advertisements Tx (v4)               95                  
- Advertisements Tx (v6)               0                   
- Advertisements Rx (v4)               0                   
- Advertisements Rx (v6)               0                   
- Gratuitous ARP Tx (v4)               1                   
- Neigh. Adverts Tx (v6)               0                   
- State transitions (v4)               2                   
- State transitions (v6)               0                   
- Skew Time (v4)                       600 ms              
- Skew Time (v6)                       0 ms                
- Master Down Interval (v4)            3600 ms             
- Master Down Interval (v6)            0 ms                
- IPv4 Addresses                       1                   
- ..................................   10.10.10.10         
- IPv6 Addresses                       0       
-
-admin@sonic:~$ show vrrp summary 
-
- Interface    VRID   Priority   IPv4   IPv6   State (v4)   State (v6)   
- -----------------------------------------------------------------------
- Ethernet48   6      100        1      0      Backup       Backup       
- Ethernet50   5      100        1      0      Master       Backup    
-```
+- show vrrp6 {interface <interface_name> } | <vrrp_id>
+- show vrrp6 summary
 
 ### Warmboot and Fastboot Design Impact  
 
