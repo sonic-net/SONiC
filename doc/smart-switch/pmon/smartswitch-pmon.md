@@ -128,7 +128,7 @@ Key: "CHASSIS_MODULE|DPU0"
 #### DPU shutdown sequence
 * There could be two possible sources for DPU shutdown. 1. A configuration change to DPU "admin_status: down" 2. The GNOI logic can trigger it.
 * The GNOI server runs on the DPU even after the DPU is shutdown.
-* The host sends a GNOI signal to shutdown the DPU. The DPU does a pre-shutdown and sends an ack back to the host. The pre-shutdown is vendor specific.
+* The host sends a GNOI signal to shutdown the DPU. The DPU does a pre-shutdown and sends an ack back to the host.
 * Upon receiving the ack or on a timeout the host may trigger the switch PMON to shutdown the DPU.
 * NPU-DPU (GNOI) soft reboot workflow will be captured in another document.
 * In the first option the "admin_status: down" configDB status change event will send a message to the switch PMON.
@@ -295,35 +295,37 @@ get_module_dpu_data_port(self, index):
 ```
     Retrieves the DPU data port NPU-DPU association represented for the DPU index. Platforms that need to overwrite the platform.json file will use this API
 
-    This is valid only on the Switch and not on DPUs
+    This is valid only on the Switch and not on DPUs. On the DPUs this can return None
 
     Args:
         index: An integer, the index of the module to retrieve
 
     Returns:
-        NPU-DPU port association: A string Ex: For index: 1 will return the dup0 port association which is "Ethernet-BP0: Ethernet0" where the string left of ":" (Ethernet-BP0) is the NPU port and the string right of ":" (Ethernet0) is the DPU port.
+        NPU-DPU port association: A string Ex: For index: 1 will return the dup0 port association which is "Ethernet224: Ethernet0" where the string left of ":" (Ethernet224) is the NPU port and the string right of ":" (Ethernet0) is the DPU port.
 ```
 #### 3.1.3 NPU to DPU data port mapping
 platform.json of NPU/switch will show the NPU to DPU data port mapping. This will be used by services early in the system boot. 
 ```
 {
-    "DPUS": {
+    "DPUS" : [
+        {
         "dpu0": {
-            "Ethernet192":  "Ethernet0"
-        },
-        "dpu1": {
-            "Ethernet200":  "Ethernet0"
+                    "interface": {"Ethernet224": "Ethernet0"}
         }
-    }
-}
-
-```
-On the DPU's platform.json, we can have 
-```
-{
-    "DPUS": {
-        // Anything specific to DPU, else remain empty
-    }
+        },
+        {
+        "dpu1": {
+                    "interface": {"Ethernet232": "Ethernet0"}
+            },
+        },
+        .
+        .
+        {
+        "dpuX": {
+                    "interface": {"EthernetX": "EthernetY"}
+            }
+        }
+    ]
 }
 ```
 #### 3.1.4 ModuleBase class API enhancements
@@ -379,7 +381,7 @@ get_oper_status(self):
         predefined status values: MODULE_STATUS_EMPTY, MODULE_STATUS_OFFLINE,
         MODULE_STATUS_FAULT, MODULE_STATUS_PRESENT or MODULE_STATUS_ONLINE
 
-        The SmartSwitch pltforms will have these additional status
+        The SmartSwitch platforms will have these additional status
         MODULE_STATUS_MIDPLANE_OFFLINE, MODULE_STATUS_MIDPLANE_ONLINE,
         MODULE_STATUS_CONTROLPLANE_OFFLINE, MODULE_STATUS_CONTROLPLANE_ONLINE,
         MODULE_STATUS_DATAPLANE_OFFLINE, MODULE_STATUS_DATAPLANE_ONLINE
@@ -521,15 +523,15 @@ def get_reboot_cause(self):
 ```
 
 #### DPU_STATE Use Case
-* High Availability, Load Balancing, Debug, error recovery (reset, power cycle) and fault management logics will use this API
+* This API can be be used by High Availability, Load Balancing, Debug, error recovery (reset, power cycle) and fault management logics. The exact HA use case will be updated in the HA document.
 
 get_state_info(self):
 ```
-    Retrieves the dpu state object having the detailed dpu state progression. Fetched from ChassisStateDB.
+    Retrieves the DPU_STATE table from the switch ChassisStateDB
 
     Returns:
         An object instance of the DPU_STATE (see DB schema)
-        Returns None on switch module
+        Returns None on DPU module
 ```
 
 #### DPU_HEALTH Use Case
@@ -577,7 +579,25 @@ get_health_info(self):
 * Thermal manager reads all thermal sensor data, run thermal policy and take policy action Ex. Set fan speed, set alarm, set syslog, set LEDs 
 * Platform collects fan related data such as presence, failure and then applies fan algorithm to set the new fan speed
 * The north bound CLI/Utils/App use DB data to ”show environment”, ”show platform temp” show platform fan”
-
+* The switch PMON will be responsible for updating any new additional thermal sensors which are part of DPUs into the switch StateDB. The implementation is platform specific.
+* The existing "TEMPERATURE_INFO" schema will be used to store the values and is shown below for convenience.
+#### TEMPERATURE_INFO schema in StateDB
+```
+  "TEMPERATURE_INFO|DPU_0_T": {
+    "value": {
+      "critical_high_threshold": "105.0",
+      "critical_low_threshold": "-10.0",
+      "high_threshold": "100.0",
+      "is_replaceable": "False",
+      "low_threshold": "-5.0",
+      "maximum_temperature": "38.938",
+      "minimum_temperature": "18.188",
+      "temperature": "33.375",
+      "timestamp": "20230624 15:50:15",
+      "warning_status": "False"
+    }
+  }
+```
 Thermal management sequence diagram
 <p align="center"><img src="./images/thermal-mgmt-seq.svg"></p>
 
@@ -589,8 +609,8 @@ Thermal management sequence diagram
 ### 3.3   Midplane Interface
 A typical modular chassis includes a midplane-interface to interconnect the Supervisor & line-cards. When DPU card or the Switch boots and as part of its initialization, midplane interface gets initialized.
 * By default smartswitch midplane IP address assignment will be done using internal DHCP.
-* The second option is the static IP address assignment.
 * Please refer to the [ip-address-assignment document](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) for IP address assignment between the switch host and the DPUs.
+* The second option is the static IP address assignment.
 
 ### 3.4 Debug & RMA
 CLI Extensions and Additions
@@ -663,8 +683,24 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 
 #### 3.4.1 Reboot Cause
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
-* The switch will fetch the reboot-cause history from each of the DPUs as needed when the CLI is issued on the switch.
+* Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The recent reboot-cause can be derived from that list of reboot-causes.
+* The switch side PMON will copy this into the stateDB so that the existing workflow will not be affected.
+* The get_reboot_cause API will return the current reboot-cause of the module.
 
+#### REBOOT_CAUSE DB schema
+```
+Key: "REBOOT_CAUSE|2023_06_18_14_56_12"
+
+"REBOOT_CAUSE|2023_06_18_14_56_12": {
+    "value": {
+        "cause": "REBOOT_CAUSE_HOST_RESET_DPU",
+        "comment": "N/A",
+        "device": "DPU5",
+        "time": "2023_06_18_14_56_12",
+        "user": "N/A"
+    }
+}
+```
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause
 * The "show reboot-cause history" shows the reboot-cause history
@@ -945,6 +981,55 @@ root@sonic:/home/admin# show interfaces status
   Interface    Lanes    Speed    MTU    FEC        Alias    Vlan    Oper    Admin    Type    Asym PFC
 -----------  -------  -------  -----  -----  -----------  ------  ------  -------  ------  ----------
   Ethernet0  0,1,2,3     200G   9100    N/A  Ethernet1/1  routed      up       up     N/A         N/A
+```
+### 3.5 Console Management
+The console access to smartswitch needs to support DPU access in addition to the switch.
+* By default the management port should be connected to the switch CPU console
+* Provide a toggle option to access the BMC console in order to recover the CPU in case of a failure
+* Once inside the switch, the DPUs should be accesssible from it with an utility. Platforms can use this utility to warp the underlying generic utilitites such as picocom or rconsole.
+    * Ex: xconsole -b <baud-rate> -m <module-name>
+* The default baud rate should be 9600
+
+### 3.6 Firmware Upgrade
+* Should support the following commands
+    * show: display FW versions
+    * install: manual FW installation
+    * update: automatic FW installation
+```
+Example:
+
+|--- show
+|    |--- version
+|    |--- status
+|    |--- updates -i|--image=<current|next>
+|    |--- updates -z|--fw-image=<fw_package.tar.gz>
+|    |--- update status
+|
+|--- install
+|    |--- chassis
+|    |    |--- component <component_name>
+|    |         |--- fw -y|--yes <fw_path>
+|    |
+|    |--- module <module_name>
+|         |--- component <component_name>
+|              |--- fw -y|--yes <fw_path>
+|
+|--- update
+     |--- chassis
+     |    |--- component <component_name>
+     |         |--- fw -y|--yes -f|--force -i|--image=<current|next>
+     |
+     |--- module <module_name>
+     |    |--- component <component_name>
+     |         |--- fw -y|--yes -f|--force -i|--image=<current|next>
+     |--- all
+          |--- fw -i|--image=<current|next> --b|--boot=<none|fast|warm|cold>
+          |--- fw -z|--fw-image=<fw_package.tar.gz> --b|--boot=<none|fast|warm|cold>
+
+Note:
+    <fw_path> can be absolute path or URL
+    --image and --fw-image cannot be supported at the same time
+    Progress of FPD operation and any failures would be displayed on the console with appropriate levels of severity
 ```
 
 ## 4.   Test Plan
