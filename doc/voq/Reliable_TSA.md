@@ -49,10 +49,11 @@ This sections describes the requirements for the TSA on the Supervisor and the L
 4. Changes to Supervisor config should also be reflected into the CHASSIS_APP_DB. The asic instances of all Line Cards subscribe to the tsa_enabled attribute of the CHASSIS_APP_DB.
 5. The net operational TSA state of BGP on the asics of a LC is a function of the TSA configuration of the Supervisor and the LC
 6. If Supervisor tsa_enabled == TRUE, operational state is TSA(TRUE). In this configuration -
-   A. After the Line card reboots - the operational state will be TSA when the Line card comes back up
+   A. After the Line card reboots - the operational state will be TSA when the Line card comes back up. The "startup_tsa_tsb" service will still set the local CONFIG_DB attribute and start a timer. If the timer expires while Supervisor is still "tsa_enabled", the operational state will still be TSA.
    B. After "Config reload" - the operational state will be TSA.
    C. After any of the dockers get restarted (crash, service restart etc..) - the operational state will be TSA.
-7. If Supervisor tsa_enabled == FALSE, operational TSA state is controlled by LC tsa_enabled config
+   D. The Line Card "startup_tsa_tsb" service will still kick-in after a LC reboot After a Line Card 
+7. If Supervisor tsa_enabled == FALSE, operational TSA state is controlled by LC tsa_enabled config (including the startup_tsa_tsb service if the LC reboots)
 8. If Supervisor config changes from tsa_enabled == TRUE to tsa_enabled == FALSE : Operational state should be changed only if LC tsa_enabled == FALSE
 9. Should support saving Supervisor TSA configuration host config_db.json file (on the Supervisor)
 10. Supervisor reboot or config reload should restore state from the host config_db.json file of the Supervisor.
@@ -60,12 +61,18 @@ This sections describes the requirements for the TSA on the Supervisor and the L
 # 2 Design Details
 The following changes are planned.
 1. Add a new tsa_enabled attribute to CHASSIS_APP_DB
-2. TSA/TSB command scripts are modified such that on the Supervisor card of a VOQ Chassis - they update the tsa_enabled attribute of CHASSIS_APP_DB
-3. Modify bgpcfgd to subscribe to updates to the tsa_enabled attribute of CHASSIS_APP_DB
-4. Modify bgpcfgd to take into account the values of tsa_enabled attributes of both the CHASSIS_APP_DB and the local CONFIG_DB when determining whether BGP should be in TSA or TSB state. This should be done in a manner that complies with the requirements set above.
+2. Uppdate the "tsa_enabled" attribute in Supervisor (CONFIG_DB) when TSA/TSB commands are issued on Supervisor (also on bootup if Supervior config_db.json files has tsa_enabled set)
+3. TSA/TSB command scripts are modified such that on the Supervisor card of a VOQ Chassis - they update the tsa_enabled attribute of CHASSIS_APP_DB
+4. Modify bgpcfgd to subscribe to updates to the tsa_enabled attribute of CHASSIS_APP_DB
+5. Modify bgpcfgd to take into account the values of tsa_enabled attributes of both the CHASSIS_APP_DB and the local CONFIG_DB when determining whether BGP should be in TSA or TSB state. This should be done in a manner that complies with the requirements set above.
 
 ## 2.1 CHASSIS-APP-DB
-TBD - Add details of chnages to CHASSIS_APP_DB.
+The following is added to CHASSIS-APP-DB for Supervisor TSA  
+  "BGP_DEVICE_GLOBAL|STATE": {
+    {
+      "tsa_enabled": {"true" | "false"}
+    }
+  }
 
 # 3 Test Considerations
 TBD - Add unit test details
