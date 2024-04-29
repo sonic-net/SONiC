@@ -307,7 +307,7 @@ get_module_dpu_data_port(self, index):
 platform.json of NPU/switch will show the NPU to DPU data port mapping. This will be used by services early in the system boot. 
 ```
 {
-    "DPUS" : [
+    "DPUs" : [
         {
         "dpu0": {
                     "interface": {"Ethernet224": "Ethernet0"}
