@@ -460,16 +460,14 @@ is_midplane_reachable(self):
 2. Though the get_oper_status(self) can get the operational status of the DPU Modules, the current implementation only has limited capabilities.
     * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progression the DPU failed. This is critical in fault isolation, DPU switchover decision, resiliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistent way of storing and accessing the information.
-    * Store the state progression (dpu_midplane_link_state, dpu_booted_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB.
+    * Store the state progression (dpu_midplane_link_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB.
     * get_state_info(self) will return an object with the ChassisStateDB data
     * Potential consumers: HA, LB, Switch CLIs, Utils (install/repair images), Life Cycle Manager 
     * Use cases: HA, Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state
 #### DPU_STATE definition
 dpu_midplane_link_state: up refers to the pcie link between the NPU and DPU is operational. This will be updated by the switch pcied.
 
-dpu_booted_state: up refers to SONiC booted on DPU
-
-dpu_control_plane_state: up  refers to all the containers are up and the interfaces are up and dpu is ready to take SDN policy update
+dpu_control_plane_state: up  refers to DPU SONIC booted up, all the containers are up, the interfaces are up and dpu is ready to take SDN policy update
 
 dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stages are up and DPU hardware (port/ASIC) is ready to take traffic
 
@@ -485,9 +483,6 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
         ”dpu_midplane_link_state”: "up"
         “dpu_midplane_link_time": "timestamp",
         "dpu_midplane_link_reason": "up_down_related string",
-        ”dpu_booted_state": "up",
-        "dpu_booted_time": "timestamp",
-        "dpu_booted_reason": "up_down_related string",
         ”dpu_control_plane_state": "up"
         ”dpu_control_plane_time": ”timestamp",
         ”dpu_control_plane_reason": ”containers restarting",
@@ -497,7 +492,7 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
 ```
 
 3. Each DPU has to store the health data in its local DB and should provide it to the switch.
-* When the "show system-health ..." CLI is executed on the switch, the "UserDefinedChecker" class will collect the data and feed it to the CLI. It is up to the platform on how this is done.  However, for faster access store it in the switch chasisStateDB.
+* When the "show system-health ..." CLI is executed on the switch, the "UserDefinedChecker" class will collect the data and feed it to the CLI. It is up to the platform on how this is done.  However, for faster access store it in the switch ChassisStateDB.
 * The DPU is a complex hardware, to facilitate debug, a consistent way of storing and accessing the health record of the DPUs is critical in a multi vendor scenario even though it is a platform specific implementation.
 * Both switch and the DPUs will follow to the [SONiC system health monitor HLD](https://github.com/sonic-net/SONiC/blob/ce313db92a694e007a6c5332ce3267ac158290f6/doc/system_health_monitoring/system-health-HLD.md)
 * Refer to section 3.4.5 for "show system-health .." CLIs
@@ -579,7 +574,7 @@ get_health_info(self):
 * Thermal manager reads all thermal sensor data, run thermal policy and take policy action Ex. Set fan speed, set alarm, set syslog, set LEDs 
 * Platform collects fan related data such as presence, failure and then applies fan algorithm to set the new fan speed
 * The north bound CLI/Utils/App use DB data to ”show environment”, ”show platform temp” show platform fan”
-* The switch PMON will be responsible for updating any new additional thermal sensors which are part of DPUs into the switch StateDB. The implementation is platform specific.
+* The DPUs will update the ChassisStateDB "TEMPERATURE_INFO" tables through redis client call which in turn will be pushed into the switch StateDB.
 * The existing "TEMPERATURE_INFO" schema will be used to store the values and is shown below for convenience.
 #### TEMPERATURE_INFO schema in StateDB
 ```
@@ -800,32 +795,28 @@ When the idex is "all" shows the detailed state of all DPUs
 
 Oper-Status definition: 
 Online : All states are up
-Offline: dpu_midplane_link_state or dpu_booted_state is down
-Partial Online: dpu_midplane_link_state is up and dpu_booted_state is up and dpu_control_plane_state or dpu_data_plane_state is down
+Offline: dpu_midplane_link_state is down
+Partial Online: dpu_midplane_link_state is up and dpu_control_plane_state or dpu_data_plane_state is down
 
 There are two parts to the state detail. 1. The midplane state 2. the dpu states (booted, control plane state, data plane state). The midplane state has to be updated by the switch side pcied. The dpu states will be updated by the DPU (redis client update) on the switch ChassisStateDB. The get_state_info() API in the moduleBase class will fetch the contents from the DB. The show CLI reads the redis table and displays the data.
 root@sonic:~#show system-health DPU all  
             
 Name       ID    Oper-Status          State-Detail                   State-Value     Time                               Reason                        
 DPU0       1     Partial Online       dpu_midplane_link_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
-                                      dpu_booted_state               up              Wed 20 Oct 2023 06:52:28 PM UTC
                                       dpu_control_plane_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
                                       dpu_data_plane_state           down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure
 
 
 DPU1       2     Online               dpu_midplane_link_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
-                                      dpu_booted_state               up              Wed 20 Oct 2023 06:52:28 PM UTC
                                       dpu_control_plane_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
                                       dpu_data_plane_state           up              Wed 20 Oct 2023 06:52:28 PM UTC
 
 root@sonic:~#show system-health DPU 0
  
 Name       ID    Oper-Status          State-Detail                   State-Value     Time                               Reason
-DPU0       1     Partial Online       dpu_midplane_link_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
-                                      dpu_booted_state               up              Wed 20 Oct 2023 06:52:28 PM UTC
-                                      dpu_control_plane_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
-                                      dpu_data_plane_state           down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure
-
+DPU0       1     Offline              dpu_midplane_link_state        down            Wed 20 Oct 2023 06:52:28 PM UTC    PCIe link is down
+                                      dpu_control_plane_state        down            Wed 20 Oct 2023 06:52:28 PM UTC
+                                      dpu_data_plane_state           down            Wed 20 Oct 2023 06:52:28 PM UTC
 ```
 #### System health cli extended further as shown
  * Detailed output from the switch can be obtained with the following CLI
@@ -986,11 +977,11 @@ root@sonic:/home/admin# show interfaces status
 The console access to smartswitch needs to support DPU access in addition to the switch.
 * By default the management port should be connected to the switch CPU console
 * Provide a toggle option to access the BMC console in order to recover the CPU in case of a failure
-* Once inside the switch, the DPUs should be accesssible from it with an utility. Platforms can use this utility to warp the underlying generic utilitites such as picocom or rconsole.
-    * Ex: xconsole -b \<baud-rate\> -m \<module-name\>
+* Once inside the switch, the DPUs should be accesssible from it. The design workflow for this will be covered in another document.
 * The default baud rate should be 9600
 
 ### 3.6 Firmware Upgrade
+* The existing fwutil will be extended to the DPUs
 * Should support the following commands
     * show: display FW versions
     * install: manual FW installation
