@@ -298,7 +298,7 @@ The reset of values in `/proc/diskstats` upon device reboot or power cycle prese
 
 2. Implementation of a script, tentatively named `fsio-rw-sync`, to be invoked by SONiC's reboot utility:
     - This script would be called by the several reboot scripts and would be responsible for parsing and storing the aforementioned paramenters just before OS-level reboot.
-    - This script provides a mechanism to sync the evanescent procFS reads and writes values from the `STATE_DB` before they are reset by the reboot.
+    - This script provides a mechanism to sync the procFS reads and writes values from the `STATE_DB` before they are reset by the reboot.
 
 ##### **2.4.4.1 Daemon Restart / Reboot / Unintended Powercycle Scenario Behaviors**
 
@@ -410,7 +410,7 @@ key                     = STORAGE_INFO|FSSTATS_SYNC     ; This key is for inform
 
 ; field                 = value
 
-successful_sync_time    = STRING                        ; The latest successful sync time of FSIO reads and writes to file in '+%Y-%m-%d::%H:%M:%S' format
+successful_sync_time    = STRING                        ; The latest successful sync time of FSIO reads and writes to file in UNIX timestamp format
 
 ```
 
