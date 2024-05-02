@@ -58,7 +58,7 @@ Orchagent already integrated with ZMQ:
 <img src="./OrchagenZmq.png" style="zoom:100%;" />
 
 Pros:
-1. 200+ times faster than redis based table, ZMQ table can transfer 800K route entry per-second, redis table can only transfer 3.7K route entry per-second.
+1. 200+ times faster than redis based table, ZMQ table can transfer 100K route entry per-second, redis table can only transfer 3.7K route entry per-second.
 2. Fully compatible with ProducerStateTable/ConsumerStateTable.
 3. Asynchronous update redis DB with background thread.
 
