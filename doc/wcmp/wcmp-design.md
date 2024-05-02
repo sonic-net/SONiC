@@ -24,10 +24,11 @@
     - [2.2 FRR WCMP configuration](#22-frr-wcmp-configuration)
         - [2.2.1 L3 network](#221-l3-network)
         - [2.2.2 EVPN network](#222-evpn-network)
-    - [2.3 Orchestration agent](#23-orchestration-agent)
+    - [2.3 Configuration daemon](#23-configuration-daemon)
         - [2.3.1 Overview](#231-overview)
-        - [2.3.2 BGP OA](#232-bgp-oa)
-        - [2.3.3 FRR configuration templates](#233-frr-configuration-templates)
+        - [2.3.2 SWSS OA](#232-swss-oa)
+        - [2.3.3 BGP daemon](#233-bgp-daemon)
+        - [2.3.4 FRR configuration templates](#234-frr-configuration-templates)
     - [2.4 DB schema](#24-db-schema)
         - [2.4.1 Config DB](#241-config-db)
         - [2.4.2 Data sample](#242-data-sample)
@@ -102,7 +103,7 @@ This document describes the high level design of WCMP feature in SONiC
 ## List of figures
 
 [Figure 1: WCMP design](#figure-1-wcmp-design)  
-[Figure 2: WCMP OA design](#figure-2-wcmp-oa-design)  
+[Figure 2: WCMP daemon design](#figure-2-wcmp-daemon-design)  
 [Figure 3: WCMP update flow](#figure-3-wcmp-update-flow)  
 [Figure 4: WCMP show flow](#figure-4-wcmp-show-flow)
 
@@ -153,8 +154,6 @@ WCMP is applicable in a pure L3 network as well as in a EVPN network.
 
 **This feature will provide error handling for the next situations:**
 1. Invalid parameter value
-2. Parameter removal
-3. Configuration removal
 
 ### 1.2.4 Event logging
 
@@ -183,8 +182,8 @@ WCMP is applicable in a pure L3 network as well as in a EVPN network.
 | Event                         | Severity |
 |:------------------------------|:---------|
 | Invalid parameter value       | ERROR    |
-| Parameter removal             | ERROR    |
-| Configuration removal         | ERROR    |
+| Parameter removal             | NOTICE   |
+| Configuration removal         | NOTICE   |
 | Configuration update: success | NOTICE   |
 | Configuration update: error   | ERROR    |
 
@@ -241,6 +240,8 @@ For the use case of providing weighted load balancing for an anycast service, th
 need to be applied at the ToR or Leaf router that is connected to servers which provide the anycast service  
 and the bandwidth would be based on the number of multipaths for the destination.
 
+**Note:** FRR documentation at [FRR BGP manual](https://docs.frrouting.org/en/latest/bgp.html)
+
 ### 2.2.1 L3 network
 
 **Skeleton code:**
@@ -291,22 +292,27 @@ end
 
 **Note:** EVPN configuration is only relevant when `docker_routing_config_mode` is either `split` or `split-unified`
 
-## 2.3 Orchestration agent
+## 2.3 Configuration daemon
 
 ### 2.3.1 Overview
 
-![WCMP OA design](images/wcmp_bgp_design.svg "Figure 2: WCMP OA design")
+![WCMP daemon design](images/wcmp_bgp_design.svg "Figure 2: WCMP daemon design")
 
-###### Figure 2: WCMP OA design
+###### Figure 2: WCMP daemon design
 
 The existing `DeviceGlobalCfgMgr` class will be extended with a new APIs to implement WCMP feature.  
-OA will be extended with a new WCMP Config DB schema and set/unset template support.  
-WCMP updates will be processed by OA based on Config DB changes.  
+Configuration daemon will be extended with a new WCMP Config DB schema and set/unset template support.  
+WCMP updates will be processed by configuration daemon based on Config DB changes.  
 Some updates will be handled and some will be considered as invalid.
 
-**Note:** NHG member weight support is already part of SWSS
+### 2.3.2 SWSS OA
 
-### 2.3.2 BGP OA
+NHG member weight support is already part of SWSS.  
+No further modifications are required.
+
+**Note:** HLD link is [WCMP SWSS HLD](https://github.com/sonic-net/SONiC/pull/738)
+
+### 2.3.3 BGP daemon
 
 Class `DeviceGlobalCfgMgr` holds a set of methods matching generic `Manager` class pattern to handle  
 Config DB updates. For that purpose a `SubscriberStateTable` mechanism (implemented in `sonic-swss-common`)  
@@ -335,47 +341,46 @@ class DeviceGlobalCfgMgr(Manager):
         :param db: name of the db
         :param table: name of the table in the db
         """
-
         ...
 
-        self.wcmp_templates = {
-            "set":   common_objs['tf'].from_file("bgpd/wcmp/bgpd.wcmp.set.conf.j2"),
-            "unset": common_objs['tf'].from_file("bgpd/wcmp/bgpd.wcmp.unset.conf.j2"),
-        }
+        self.wcmp_template = common_objs['tf'].from_file("bgpd/wcmp/bgpd.wcmp.conf.j2")
 
     def set_handler(self, key, data):
         """ Handle device TSA/WCMP state change """
-
         ...
 
-        status = False
+        self.configure_tsa(data)
+        self.configure_wcmp(data)
 
-        if "wcmp_enabled" in data:
-            if self.is_update_required("wcmp_enabled", data["wcmp_enabled"]):
-                self.set_wcmp(data["wcmp_enabled"])
-                self.directory.put(self.db_name, self.table_name, "wcmp_enabled", data["wcmp_enabled"])
-                status = True
-
-        return status
+        return True
 
     def del_handler(self, key):
         """ Handle device TSA/WCMP state remove """
         ...
 
+        self.configure_tsa()
+        self.configure_wcmp()
+
+        return True
+
     def is_update_required(self, key, value):
         """ API to check if configuration update required """
         ...
 
-    def set_wcmp(self, wcmp_status):
-        """ API to set/unset WCMP """
+    def configure_tsa(self, data=None):
+        """ Configure TSA feature"""
+        ...
+
+    def configure_wcmp(self, data=None):
+        """ Configure WCMP feature"""
         ...
 ```
 
 **Note:** WCMP BGP configuration via FRR management framework is not considered
 
-### 2.3.3 FRR configuration templates
+### 2.3.4 FRR configuration templates
 
-BGP OA uses `policies.conf.j2` at `sonic-buildimage/dockers/docker-fpm-frr/frr/bgpd/templates/general`  
+BGP daemon uses `policies.conf.j2` at `sonic-buildimage/dockers/docker-fpm-frr/frr/bgpd/templates/general`  
 in order to generate relevant route-map infrastructure.
 
 WCMP BGP requires using an outbound route-map to inject the link bandwidth extended community.  
@@ -383,7 +388,7 @@ For this purpose, the next definitions will be used:
 * TO_BGP_PEER_V4
 * TO_BGP_PEER_V6
 
-BGP OA will use `bgpd.wcmp.conf.j2` at `sonic-buildimage/dockers/docker-fpm-frr/frr/bgpd/wcmp` to enable/disable WCMP.
+BGP daemon will use `bgpd.wcmp.conf.j2` at `sonic-buildimage/dockers/docker-fpm-frr/frr/bgpd/wcmp` to enable/disable WCMP.
 
 **Skeleton code:**
 ```jinja
