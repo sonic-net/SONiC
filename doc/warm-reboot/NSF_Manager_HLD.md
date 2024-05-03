@@ -13,13 +13,22 @@
 - [High-Level Design](#high-level-design)
   * [NSF Details Registration](#nsf-details-registration)
   * [Shutdown Orchestration](#shutdown-orchestration)
-    + [Phase 1: Freeze Components & Wait for Switch Quiescence](#phase-1--freeze-components---wait-for-switch-quiescence)
-    + [Phase 2: State Verification (Optional)](#phase-2--state-verification--optional-)
+    + [Phase 1: Sanity Checks](#phase-1--sanity-checks)
+      - [Hotplugging Shutdown Fixes](#hotplugging-shutdown-fixes)
+    + [Phase 2: Freeze Components And Wait for Switch Quiescence](#phase-2--freeze-components-and-wait-for-switch-quiescence)
+      - [Unfreeze on Failure](#unfreeze-on-failure)
     + [Phase 3: Trigger Checkpointing](#phase-3--trigger-checkpointing)
     + [Phase 4: Prepare and Perform Reboot](#phase-4--prepare-and-perform-reboot)
+      - [Removing Container Shutdown Ordering Dependency](#removing-container-shutdown-ordering-dependency)
     + [Application Shutdown Optimization](#application-shutdown-optimization)
   * [Reconciliation Monitoring](#reconciliation-monitoring)
   * [Component Warmboot States](#component-warmboot-states)
+- [Critical Container Design Changes](#critical-container-design-changes)
+  * [Orchagent](#orchagent)
+  * [Syncd](#syncd)
+  * [Teamd](#teamd)
+  * [Transceiver Daemon](#transceiver-daemon)
+  * [Database](#database)
 - [Backward Compatibility](#backward-compatibility)
 - [SAI API](#sai-api)
 - [Configuration and management](#configuration-and-management)
@@ -167,7 +176,7 @@ During warm reboot, NSF Manager will orchestrate switch shutdown in a multi-phas
 ##### Phase 1: Sanity Checks
 
 
-![alt_text](img/sanity-check1.png)
+![alt_text](img/sanity-checks.png)
 
 NSF Manager will start warm-boot orchestration by performing sanity checks that are similar to the current [fast-reboot prechecks](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot#L383-L426). These include:
 
