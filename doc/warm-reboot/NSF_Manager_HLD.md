@@ -92,22 +92,25 @@ This document captures the high-level design for NSF Manager - a new daemon that
 
 ### Overview
 
-SONiC uses [fast-reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot) and [finalize\_warmboot.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/warmboot-finalizer/finalize-warmboot.sh) scripts for warm reboot reconciliation. The former script is responsible for preparing the platform and database for reboot and orchestrating switch shutdown. The latter script is responsible for monitoring the reconciliation status of a fixed set of switch stack components and eventually removing the warm-boot flag from Redis DB. There are multiple drawbacks of using a bash script:
+SONiC uses [fast-reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot) and [finalize\_warmboot.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/warmboot-finalizer/finalize-warmboot.sh) scripts for warm reboot reconciliation. The former script is responsible for preparing the platform and database for reboot and orchestrating switch shutdown. The latter script is responsible for monitoring the reconciliation status of a fixed set of switch stack components and eventually removing the warm-boot flag from Redis DB. There are a few areas of improvement in the current warm-boot orchestration framework:
 
 
 
-*   Separate binaries need to be developed for each component to send shutdown related notifications.
-*   The rich set of Redis DB features provided by swss-common library cannot be utilized.
-*  Cannot develop an efficient framework that sends notifications to components and monitors their warm-boot states.
+*   Eliminating sysctl shutdown dependencies: The current shutdown algorithm relies on the container shutdown ordering. It shuts down each container sequentially in a pre-defined order and each container shutdown might invoke warm shutdown logic for the applications inside that container. This slows down the warm shutdown performance.
+*   Unified shutdown notifications: The current warm shutdown algorithm sends custom warm shutdown related notifications to different components. For example:
+    + Orchagent uses _freeze_ notification and notifies its ready status via notification channel. 
+    + Syncd uses _pre-shutdown_ and _shutdown_ notifications and notifies its status via Redis DB.
+    + Some components rely on the container shutdown script or Linux signals (SIGTERM, SIGUSR1 etc.) to perform shutdown related tasks.
 
-Additionally, the current SONiC warm shutdown algorithm has custom shutdown related notifications for different components that triggers their warm shutdown logic. For example, Orchagent uses _freeze_ notification and notifies its ready status via notification channel. Syncd uses _pre-shutdown_ and _shutdown_ notifications and notifies its status via Redis DB.
 
-The proposal is to introduce a new component called NSF Manager that will be responsible for both shutdown orchestration and reconciliation monitoring during warm reboot. It will leverage Redis DB features provided by swss-common to create a common framework for warm-boot orchestration. As a result, there will be a unified framework for warm-boot orchestration for all switch stack components. NSF Manager will be an alternative to the existing SONiC warm-boot orchestation scripts and thus both these orchestration frameworks will co-exist in SONiC. More details about this are described in the [Backward Compatibility](#backward-compatibility) section.
+
+
+The proposal is to introduce a new component called NSF Manager that will be responsible for both shutdown orchestration and reconciliation monitoring during warm reboot. It will leverage Redis DB features provided by swss-common to create a common framework for warm-boot orchestration. As a result, there will be a unified framework for warm-boot orchestration for all switch stack components. The new warm-boot orchestration will eliminate the container shutdown ordering dependencies, thereby improving warm reboot performance. NSF Manager will be an alternative to the existing SONiC warm-boot orchestation scripts and thus both these orchestration frameworks will co-exist in SONiC. More details about this are described in the [Backward Compatibility](#backward-compatibility) section.
 
 
 ### Requirements
 
-The current design covers warm reboot orchestration daemon along with the warm shutdown and bootup sequence. It also covers the additional warmboot states introduced due to the warm shutdown sequence. It does not cover fast reboot.
+The current design covers warm reboot orchestration daemon that mainly impacts the **warm shutdown sequence** of the switch stack components; there is no impact to their warm-bootup sequence. It also covers the additional warmboot states introduced due to the warm shutdown sequence. It does not cover fast reboot.
 
 
 ### Architecture Design
@@ -129,7 +132,7 @@ NSF Manager will run as a part of the Reboot Backend daemon inside a new _Framew
 
 
 
-NSF Manager will be an alternative to the existing [fast-reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot) and [finalize\_warmboot.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/warmboot-finalizer/finalize-warmboot.sh) scripts to perform shutdown orchestration and reconciliation monitoring during warm reboot. It will use a registration based mechanism to determine the switch stack components that need to perform an orchestrated shutdown and bootup. This ensures that the NSF Manager design is generic, flexible and also avoids any hardcoding of component information in NSF Manager.
+NSF Manager will be an alternative to the existing [fast-reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot) and [finalize\_warmboot.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/warmboot-finalizer/finalize-warmboot.sh) scripts to perform shutdown orchestration and reconciliation monitoring during warm reboot. It will mainly impact the warm shutdown sequence of the switch stack components and will have no impact their warm bootup sequence. It will use a registration based mechanism to determine the switch stack components that need to perform an orchestrated shutdown and bootup. This ensures that the NSF Manager design is generic, flexible and also avoids any hardcoding of component information in NSF Manager.
 
 
 #### NSF Details Registration
@@ -144,9 +147,9 @@ Reconciliation = <True>/<False>
 ```
 
 
-Components that want to participate in warm-boot orchestration need to register the above details with NSF Manager. NSF Manager will use these registration details to determine the components that are going to participate in the orchestrated shutdown sequence and monitor reconciliation statuses during bootup. If a component doesn’t register with the NSF Manager then it will continue to operate normally until it is shutdown in [Phase 4](#phase-4-prepare-and-perform-reboot). Components that modify the switch state should register with NSF Manager because they can change the state of other components such as Orchagent, Syncd etc. that participate in the warm reboot orchestration and thus they can impact the warm reboot process.
+Components that want to participate in warm-boot orchestration need to register the above details with NSF Manager. NSF Manager will use these registration details to determine the components that are going to participate in the orchestrated shutdown sequence and monitor reconciliation statuses during bootup. If a component doesn’t register with the NSF Manager then it will continue to operate normally until it is shutdown in [Phase 4](#phase-4-prepare-and-perform-reboot). Components that modify the switch state should register with NSF Manager because they can change the state of other components (such as Orchagent, Syncd etc.) that participate in the warm reboot orchestration and thus they can impact the warm reboot process.
 
-Components that want to participate in an orchestrated shutdown during warm reboot need to set _freeze = true_. NSF Manager will wait for the quiescence of all components that have _freeze = true_ in their registration. If _checkpoint = True_ only then will NSF Manager wait for the component to complete checkpointing. Components that want NSF Manager to monitor their reconciliation status need to set _reconciliation = true_.
+Components that want to participate in an orchestrated shutdown during warm reboot need to set _freeze = true_. NSF Manager will wait for the quiescence (more details [here](#phase-2-freeze-components-and-wait-for-switch-quiescence)) of all components that have _freeze = true_ in their registration. If _checkpoint = True_ only then will NSF Manager wait for the component to complete checkpointing. Components that want NSF Manager to monitor their reconciliation status need to set _reconciliation = true_.
 
 
 #### Shutdown Orchestration
@@ -155,13 +158,44 @@ During warm reboot, NSF Manager will orchestrate switch shutdown in a multi-phas
 
 
 
-*   Phase 1: Freeze components & wait for switch quiescence
-*   Phase 2: Perform state verification (optional)
+*   Phase 1: Sanity Checks
+*   Phase 2: Freeze components & wait for switch quiescence
 *   Phase 3: Trigger checkpointing
 *   Phase 4: Prepare and perform reboot
 
 
-##### Phase 1: Freeze Components & Wait for Switch Quiescence
+##### Phase 1: Sanity Checks
+
+
+![alt_text](img/sanity-check1.png)
+
+NSF Manager will start warm-boot orchestration by performing sanity checks that are similar to the current [fast-reboot prechecks](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot#L383-L426). These include:
+
+
+* Critical containers are running
+* File system is readable
+* Check DB integrity
+* Filesystem has sufficient space for warm reboot related files
+* Verify next image by sonic-installer
+* ASIC configuration hasn't changed between images
+
+The existing fast-reboot script will be enhanced such that individual methods defined in this script can be triggered using SONiC host service via DBUS.
+
+![alt_text](img/state-verification.png)
+
+
+In addition these sanity checks, it will optionally trigger state verification to ensure that the switch is in a consistent state. Reconciling from an inconsistent state might cause traffic loss and thus it is important to ensure that the switch is in a consistent state before warm rebooting. An additional flag will be added in Redis DB which will be used NSF Manager to determine whether state verification should be triggered or not during this phase. NSF Manager will abort warm reboot operation if any of the sanity checks fail.
+
+###### Hotplugging Shutdown Fixes
+
+
+
+![alt_text](img/ad-hoc-fixes.png)
+
+
+NSF Manager will be provide a plugin via SONiC host service that can be used to hotplug fixes during warm shutdown. The host service will call a bash script in which ad-hoc fixes can be added during warm shutdown. This script can be updated before iniating warm reboot and will be called by NSF Manager after performing the sanity checks. Currently, such fixes are added in the fast-reboot script which is then updated on the switch. This framework enables NSF Manager to allow hotplugging fixes during warm shutdown before switch stack components start their warm shutdown routines.
+
+##### Phase 2: Freeze Components And Wait for Switch Quiescence
 
 
 
@@ -179,7 +213,7 @@ NSF Manager will send freeze notification to all registered components and will 
 *   BGP will stop exchanging packets with the peers.
 *   Teamd will continue exchanging LACP PDUs but stop processing any changes in the peer PDUs.
 
-After all components have been freezed, the switch would eventually reach a state wherein each component stops generating new events and thus the switch becomes quiescent. This is because:
+However, all components will continue to process requests received by them from other switch stack components. This connotes that each component will stop generating events for which it is the source, but will continue to process request from other components. After all components have been freezed, the switch would eventually reach a state wherein each component stops generating new events and thus the switch becomes quiescent. This is because:
 
 
 
@@ -187,18 +221,13 @@ After all components have been freezed, the switch would eventually reach a stat
 *   All timers that generate new events have been stopped.
 *   All components have completed processing their pending requests and thus there are no in-flight messages.
 
-After receiving the freeze notification, the components will update their quiescent state in STATE DB when they receive a new request (i.e. they are no longer quiescent) and when they complete processing their current request queue (i.e. they become quiescent). NSF Manager will monitor the quiescent state of all components in STATE DB to determine that the switch has become quiescent and thus further state changes won’t occur in the switch. If all components are in quiescent state then NSF Manager will declare that the switch has become quiescent and thus the switch has attained its final state. NSF Manager will wait for a period of time for the switch to become quiescent after which it will determine that warm reboot failed and abort the warm reboot operation.
+After receiving the freeze notification, the components will update their quiescent state in STATE DB when they receive a new request (i.e. they are no longer quiescent) and when they complete processing their current request queue (i.e. they become quiescent). NSF Manager will monitor the quiescent state of all components in STATE DB to determine that the switch has become quiescent and thus further state changes won’t occur in the switch. If all components are in quiescent state then NSF Manager will declare that the switch has become quiescent and thus the switch has attained its final state. 
 
 
-##### Phase 2: State Verification (Optional)
+###### Unfreeze on Failure
 
 
-
-![alt_text](img/state-verification.png)
-
-Since the switch is in quiescent state, this will be the final state of the switch before reboot. NSF Manager will trigger state verification to ensure that the switch is in a consistent state. Reconciling from an inconsistent state might cause traffic loss and thus it is important to ensure that the switch is in a consistent state before warm rebooting. NSF Manager will abort warm reboot operation if state verification fails.
-
-An additional flag will be added in Redis DB which will be used NSF Manager to determine whether this phase is required during warm-boot orchestration.
+NSF Manager will wait for a period of time for the switch to become quiescent after which it will determine that this phase failed and abort the warm reboot operation. Additionally, it will unfreeze the switch stack on such failures by sending unfreeze notification to all the registered components. As a result, all components will resume their normal operations and start generating new external and internal events. This ensures that the switch continues to operate normally as it did before the start of the warm reboot operation.
 
 
 ##### Phase 3: Trigger Checkpointing
@@ -207,16 +236,23 @@ An additional flag will be added in Redis DB which will be used NSF Manager to d
 
 ![alt_text](img/checkpoint.png)
 
-NSF Manager will send checkpoint notification to all registered components and wait for only to those components that set _checkpoint = true_ to trigger checkpointing i.e. save internal states to either the DB or persistent file system. Checkpointing after state verification is successful ensures that the switch is reconciling from a consistent state. NSF Manager will wait for a period of time for the components to update STATE DB with their checkpointing status after which it will abort the warm reboot operation.
+NSF Manager will send checkpoint notification to all registered components and wait for only to those components that set _checkpoint = true_ to trigger checkpointing i.e. save internal states to either the DB or persistent file system. NSF Manager will wait for a period of time for the components to update STATE DB with their checkpointing status. All registered components should ignore any requests after completing checkpointing because they aren't expected to receive new requests since the switch is quiescent.
+
+This phase is the point of no return. This is because some components such as Syncd will gracefully disconnect from the ASIC and exit after completing checkpointing. There is no way to recover from this stage unless the switch stack is rebooted.
 
 
 ##### Phase 4: Prepare and Perform Reboot
 
 
 
-![alt_text](img/phase-4-shutdown.png)
+![alt_text](img/phase-4-prepare-and-perform-reboot.png)
 
-At this point, the DB will be backed up, containers will be shutdown, the platform will be prepared for reboot and the switch will be rebooted.
+When this phase is reached, the switch stack components have stopped generating new requests and have saved their internal states. At this point, the DB will be backed up, the platform will be prepared for reboot and the switch will be rebooted. The platform preparation for reboot will be similar to the current fast-reboot script [operations](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot#L791-L839) that are performed after the DB is backed-up. Since these steps will be executed using SONiC host service via DBUS, any platform-specific preparation steps and reboot method can be added to this host service.
+
+
+###### Removing Container Shutdown Ordering Dependency
+
+[Phase 2](#phase-2-freeze-components-and-wait-for-switch-quiescence) ensures that switch stack components stop generating new events for which they are the source, but they continue to process requests received from other components. For example, Syncd will stop generating link events but will continue to process requests from Orchagent. The switch becomes quiescent after a period of time since all components stop generating events. At this point, all containers are running in an idle state since they are quiescent. [Phase 3](#phase-3-trigger-checkpointing) ensures that these quiescent components save their internal states. Therefore, there is no longer a requirement to shutdown the containers in a particular order since they are idle and not interacting with each other. As a result, the switch can directly be shutdown using _kexec_, thereby eliminating the need to perform container shutdown and improving the warm shutdown performance. Thus, this warm-boot orchestration framework removes one of the big performance bottlenecks during warm shutdown.
 
 
 ##### Application Shutdown Optimization
@@ -225,7 +261,7 @@ At this point, the DB will be backed up, containers will be shutdown, the platfo
 
 ![alt_text](img/shutdown-optimization.png)
 
-Higher layer applications are generally independent and their shutdown is not dependent on quiescence of other switch stack components. For example, upon receiving a freeze notification P4RT can stop processing controller requests, perform state verification (optional) and checkpoint the P4Info i.e. transition from Phase 1 to Phase 3 without waiting for NSF Manager to send further notifications. The design allows applications to transition through these phases independently as long as they continue to update their warmboot state in STATE DB. NSF Manager will monitor these states and will handle the applications’ phase transitions. In such a scenario, applications need to set _freeze = true_ and _checkpoint = false_ and thus the freeze notification will result in the application to transition from Phase 1 to Phase 3. 
+Higher layer applications are generally independent and their shutdown is not dependent on quiescence of other switch stack components. For example, upon receiving a freeze notification P4RT can stop processing controller requests and checkpoint the P4Info i.e. transition from Phase 2 to Phase 3 without waiting for NSF Manager to send further notifications. The design allows applications to transition through these phases independently as long as they continue to update their warmboot state in STATE DB. NSF Manager will monitor these states and will handle the applications’ phase transitions. In such a scenario, applications need to set _freeze = true_ and _checkpoint = false_ and thus the freeze notification will result in the application to transition from Phase 2 to Phase 3. 
 
 
 #### Reconciliation Monitoring
@@ -258,6 +294,85 @@ Upon receiving a freeze notification, a component will transition to _frozen_ st
 After warm reboot, a component will transition to _initialized_ state after it has completed its initialization routine. It will transition to _reconciled_ state after it has completed reconciliation. It will transition to _failed_ state if its initialization or reconciliation fails.
 
 Components will update their state in STATE DB using [setWarmStartState()](https://github.com/sonic-net/sonic-swss-common/blob/master/common/warm_restart.cpp#L223) API during the different warm reboot stages. NSF Manager will monitor these NSF states in STATE DB to determine whether it needs to proceed with the next phase of the warm-boot orchestration or not.
+
+### Critical Container Design Changes
+
+This section describes the design changes that need to be made in critical containers for this warm-boot orchestration framework.
+
+#### Orchagent
+
+Orchagent will register the following details with NSF Manager:
+
+```
+Component = orchagent
+Docker = swss
+Freeze = True
+Checkpoint = True
+Reconciliation = True
+```
+
+Upon receiving the freeze notification, Orchagent will stop the periodic timers in all the Orchs since those are the events that are originated from Orchagent. It will update its warm-boot state to _frozen_ when it receives a new request from other switch stack components and update the warm-boot state to _quiescent_ when the request queues for all the Orchs are empty.
+
+Upon receiving the checkpoint notification, Orchagent will save some internal state to STATE DB such as label to key mapping (used by P4Orch) and update its warm-boot state to _checkpointed_. Subsequently, it will ignore any new request if received from other switch stack components.
+
+#### Syncd
+
+Syncd will register the following details with NSF Manager:
+
+```
+Component = syncd
+Docker = syncd
+Freeze = True
+Checkpoint = True
+Reconciliation = True
+```
+
+Upon receiving the freeze notification, Syncd will stop listening to port link events since those are the events that are originated from Syncd. Subsequently, Syncd will not generate any events from the ASIC that can alter the state of other components. It will update its warm-boot state to _frozen_ when it receives a new request from other switch stack components and update the warm-boot state to _quiescent_ when its request queue is empty.
+
+Upon receiving the checkpoint notification, Syncd will take the following actions:
+
+* Set [pre-shutdown](https://github.com/opencomputeproject/SAI/blob/master/inc/saiswitch.h#L2233) and enable [warm-start](https://github.com/opencomputeproject/SAI/blob/master/inc/saiswitch.h#L1292) in SAI.
+* Save Syncd/SAI/SDK internal states in the DB and filesystem.
+* Stop all SAI/SDK threads.
+* Gracefully disconnect from the ASIC.
+
+After completing the above checkpointing operations, Syncd will update its warm-boot state to _checkpointed_ and exit.
+
+#### Teamd
+
+Teamd will register the following details with NSF Manager:
+
+```
+Component = teamd
+Docker = teamd
+Freeze = True
+Checkpoint = True
+Reconciliation = True
+```
+
+Upon receiving the freeze notification, Teamd will stop processing peer LACP PDUs but will continue sending LACP PDUs to the peer. This ensures that there are no state changes in the system due to LACP PDU exchanges and LACP PDUs are continuously sent to the peer until the switch is rebooted. Therefore, the peer only stops receiving LACP PDUs when the CPU is rebooted, thereby improving the odds of meeting the 90 seconds LACP timeout during warm reboot. It will update its warm-boot state to _frozen_ when it receives a new request from other switch stack components and update the warm-boot state to _quiescent_ when its request queue is empty.
+
+Upon receiving the checkpoint notification, Teamd will save the internal LACP states in the filesystem and update its warm-boot state to _checkpointed_. Subsequently, it will ignore any new request if received from other switch stack components.
+
+#### Transceiver Daemon
+
+xcvrd will register the following details with NSF Manager:
+
+```
+Component = xcvrd
+Docker = pmon
+Freeze = True
+Checkpoint = False
+Reconciliation = True
+```
+
+Upon receiving the freeze notification, xcvrd will stop listenining to module insertion and deletion events since those are the events that are originated from xcvrd. It will update its warm-boot state to _frozen_ when it receives a new request from other switch stack components and update the warm-boot state to _quiescent_ when its request queues are empty.
+
+xcvrd will ignore checkpoint notifications since it doesn't need to save any internal states for reconciliation. The information in the restored Redis DB will be sufficient for xcvrd to reconcile after warm reboot.
+
+#### Database
+
+There are no design changes in the database container. NSF Manager will take similar actions as the ones defined in [backup_database()](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/fast-reboot#L243-L273) method in fast-reboot script.
 
 
 ### Backward Compatibility
