@@ -102,7 +102,7 @@ For multipath route, the `RTM_NEWROUTE` is sent with a list of gateway and inter
 
 This `Fpmsyncd extension` will modify `fpmsyncd` to handle  `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` as below.
 
-This featured introduces new orchagent `NhgOrch` to handle `RTM_NEWNEXTHOP` events and update `NEXTHOP_GROUP_TABLE` entries accordingly
+This feature enhances orchagent `NhgOrch` to handle `RTM_NEWNEXTHOP` events and update `NEXTHOP_GROUP_TABLE` entries accordingly
 
 <!-- omit in toc -->
 ##### Figure: Fpmsyncd NHG High Level Architecture
@@ -264,7 +264,7 @@ Therefore, even after this enhancement, table entries will be created for `ROUTE
 
 #### Orchestration Agent Changes to handle NEXTHOP_GROUP
 
-A new orchestration agent `NhgOrch` will be written to handle the new NEXTHOP_GROUP_TABLE in APP_DB. For adding or updating an entry in the NEXTHOP_GROUP_TABLE, programming will depend on whether the group is configured with one or multiple next hops or is a recursive nexthop group i.e. it contains one or more nexthop group.
+Orchestration agent `NhgOrch` will be enhanced to handle the new NEXTHOP_GROUP_TABLE in APP_DB. For adding or updating an entry in the NEXTHOP_GROUP_TABLE, programming will depend on whether the group is configured with one or multiple next hops or is a recursive nexthop group i.e. it contains one or more nexthop group.
 
  - NhgOrch treats an NEXTHOP_GROUP as "recursive" if it has "nexthop_group" as the only field. This field contains "member" NEXTHOP_GROUP. The parent NEXTHOP_GROUP key is constructed by combining keys of the member NEXTHOP_GROUPs. Such an NEXTHOP_GROUP always uses a "NEXT_HOP_GOUP" object-id to represent the group
  - Singleton (non-recursive) NEXTHOP_GROUP contain various fields e.g. Inexthop, alias etc. Such NEXTHOP_GROUP form a key by combining these fields and query the NeighOrch with the "key" to get the corresponding SAI ID. So singleton (non-recursive) NEXTHOP_GROUP do not own the SAI ID rather they just reuse the SAI IDs owned by NeighOrch module.
@@ -538,21 +538,21 @@ This feature adds a new NEXT_HOP_GROUP_TABLE, to store next hop group informatio
                     is present, other fields will not be present)
 
 ```
-The ROUTE_TABLE is then extended to allow a reference to the next hop group to be specified, instead of the current nexthop and intf fields.
+The ROUTE_TABLE is then extended to allow a reference to the nexthop_group to be specified, instead of the current nexthop and ifname fields.
 ```
 ### ROUTE_TABLE
     ;Stores a list of routes
     ;Status: Mandatory
     key           = ROUTE_TABLE:prefix
     nexthop       = *prefix, ;IP addresses separated “,” (empty
-                     indicates no gateway)
+                     indicates no gateway) (existing)
     ifname        = *PORT_TABLE.key,   ; zero or more separated 
-                    by “,” (zero indicates no interface)
+                    by “,” (zero indicates no interface) (existing)
     blackhole     = BIT ; Set to 1 if this route is a blackhole
-                   (or null0)
+                   (or null0) 
     nexthop_group = NEXT_HOP_GROUP_TABLE:key ; index within the
                     NEXT_HOP_GROUP_TABLE, optionally used instead
-                    of nexthop and intf fields
+                    of nexthop and intf fields (new field)
 ```
 
 
@@ -564,6 +564,7 @@ Mention whether this feature/enhancement has got any requirements/dependencies/i
 
 - When the feature is disabled, there should be no impact to Warmboot and Fastboot.
 - When the feature is enabled, there will be no warmboot nor fastboot support.
+- Nexthop group ID reconciliation as part of the warm-boot is not currently supported
 
 When the feature is enabled, NHG ID will be managed by FRR which will change after FRR related process or BGP container restart.
 We need a way to either let FRR preserve the ID or a way to correlate the NHGs, IDs and it's members before and after the restart.
