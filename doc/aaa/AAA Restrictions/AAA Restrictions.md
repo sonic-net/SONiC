@@ -103,17 +103,16 @@ TBD
 
 AAA:{
     	Authentication:{
-                      Restrictions:
+                      	Restrictions:{
                                     lockout-state: {{“True”}}
                                     lockout-reattempt: {{ (5 (duration_sec)) }}
                                     lockout-attempts: {{  (5 (num>2))  }}
                                     fail-delay: {{ (0 (duration_sec)) }}
-
+				    }
 			Failthought: {{“True”}}
 			Login :{{“local, ldap”}}
 			}
 	}
-}
 ```
 
 ### Warmboot and Fastboot Design Impact  
