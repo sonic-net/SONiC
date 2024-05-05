@@ -111,6 +111,7 @@ AAA:{
 
 			Failthought: {{“True”}}
 			Login :{{“local, ldap”}}
+			}
 	}
 }
 ```
