@@ -100,7 +100,7 @@ not relevant
 TBD
 
 #### Config DB Enhancements
-'''
+```
 AAA:{
     	Authentication:{
                       	Restrictions:{
@@ -113,7 +113,7 @@ AAA:{
 			Login :{{“local, ldap”}}
 			}
 	}
-'''
+```
 
 ### Warmboot and Fastboot Design Impact  
 not relevant
@@ -132,7 +132,7 @@ We introduce and use more complex deny and permit to allow restrictions on the a
 auth    required        pam_faillock.so preauth audit silent deny={{ attempts }} unlock_time={{ unlock_time }}
 auth    [default=die]                       pam_faillock.so authfail audit deny={{ attempts }} unlock_time={{ unlock_time }}
 auth    sufficient                       pam_faillock.so authsucc audit deny={{ attempts }} unlock_time={{ unlock_time }}
-
+```
 ### Flows
 The flows are aaa sonic-based flows.
 
