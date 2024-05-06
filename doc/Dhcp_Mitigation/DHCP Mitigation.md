@@ -157,6 +157,11 @@ Upon running this command, an ingress queuing discipline is created on the speci
 ### Architecture Design
 The overall SONiC architecture will remain the same. Changes are made only in the SONiC Utilities container, SwSS container, and Config_DB.
 
+<figure style="text-align:center;">
+    <img src="../../images/dhcp_mitigation_hld/design_image.png" width="80%"/>
+    <figcaption>Figure 4: Feature Design</figcaption>
+</figure>
+
 ### Sequence Diagram to add rate-limit
 
 <figure style="text-align:center;">
@@ -169,7 +174,7 @@ The overall SONiC architecture will remain the same. Changes are made only in th
 
 <figure style="text-align:center;">
     <img src="../../images/dhcp_mitigation_hld/deleting_sequence.drawio.png" width="80%"/>
-    <figcaption>Figure 5: Sequence diagram illustrating the process of deleting rate-limit for DHCP DoS mitigation</figcaption>
+    <figcaption>Figure 6: Sequence diagram illustrating the process of deleting rate-limit for DHCP DoS mitigation</figcaption>
 </figure>
 
 ### Configuration &  Management
