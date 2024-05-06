@@ -225,7 +225,7 @@ New leaf “dhcp_rate_limit” will be added to support DHCP mitigation rate.
      leaf dhcp_rate_limit {
    	        description: "dhcp rate limit ;
    				  type uint32 {
-   					   range 1..8000;
+   					   range 0..8000;
    				 }
    			 }
 
