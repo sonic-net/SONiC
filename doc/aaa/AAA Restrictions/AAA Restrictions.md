@@ -96,22 +96,70 @@ not relevant
 not relevant
 
 #### CLI/YANG model Enhancements 
+```yang
+//filename: sonic-system-aaa.yang
+module sonic-system-aaa {
+...
+    container sonic-system-aaa {
+        container AAA {
+            list AAA_LIST {
+                key "type";
 
-TBD
+                leaf type {
+                    type enumeration {
+                        enum authentication;
+			**enum restrictions;**
+**
+                leaf lockout_state {
+                    type stypes:boolean_type;
+                    description "Enable or disable lockout of a user in case of failed authentication attempts. A user with restricted access remains so until successful login or admin clearance";
+                    default True;
+
+                leaf fail-delay {
+                    default 0;
+                    type uint32 {
+                        range "1..999" {
+                            error-message "Error: Valid range is 0 - 999";
+                        }
+                    }
+                    description "Configure the added delay (seconds) for each failed authentication attempt";
+                }
+
+                leaf lockout-attempts {
+                    default 5;
+                    type uint32 {
+                        range "3..999" {
+                            error-message "Error: Valid range is 3 - 999";
+                        }
+                    }
+                    description "Configure the maximum permitted consecutive auth failures before user lockout";
+                }
+
+                leaf lockout-reattempt {
+                    default 15;
+                    type uint32 {
+                        range "0..99999" {
+                            error-message "Error: Valid range is 0 - 99999";
+                        }
+                    }
+                    description "Configure wait time (seconds) for a locked user's retry. '0' is blacklisted, but not blocked";
+                }
+**
+```
 
 #### Config DB Enhancements
 ```
 AAA:{
     	Authentication:{
-                      	Restrictions:{
-                                    lockout-state: {{“True”}}
-                                    lockout-reattempt: {{ (5 (duration_sec)) }}
-                                    lockout-attempts: {{  (5 (num>2))  }}
-                                    fail-delay: {{ (0 (duration_sec)) }}
-				    }
-			Failthought: {{“True”}}
-			Login :{{“local, ldap”}}
+			...
 			}
+	Restrictions:{
+			    lockout-state: {{“True”}}
+			    lockout-reattempt: {{ (5 (duration_sec)) }}
+			    lockout-attempts: {{  (5 (num>2))  }}
+			    fail-delay: {{ (0 (duration_sec)) }}
+			    }
+
 	}
 ```
 
