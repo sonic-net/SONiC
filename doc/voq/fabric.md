@@ -33,7 +33,7 @@
 | 3 | Jun-3 2022 | Cheryl Sanchez, Jie Feng (Arista Networks) | Update on fabric link monitoring |
 | 3.1 | Mar-30 2023 | Jie Feng (Arista Networks) | Update Overview, SAI API and Configuration and management section |
 | 3.2 | May-01 2023 | Jie Feng (Arista Networks) | Update Counter tables information |
-| 3.3 | Apr-05 2024 | Jie Feng (Arista Networks) | Update CLI |
+| 3.3 | May-05 2024 | Jie Feng (Arista Networks) | Update CLI |
 
 # Scope
 
@@ -307,15 +307,14 @@ Monitoring traffic on fabric links is another important tool to diagnose fabric 
 The following proposed CLI is used to show the traffic among fabric links on both fabric ASICs and forwarding ASICs.
 
 ```
-> show fabric counters rate mbps
+> show fabric counters rate
 
- Asic     Link    RX         TX
-          ID
- –------  -----   ---------  ----------
- 0         1      0          36113
- ....
- 0        19      0          36107  
- 0        20      0          36110
+  ASIC    Link ID    Rx Data Mbps    Tx Data Mbps
+------  ---------  --------------  --------------
+ asic0          0               0            19.8
+ asic0          1               0            19.8
+ asic0          2               0            39.8
+ asic0          3               0            39.8
  ....
 ```
 
