@@ -978,10 +978,9 @@ The console access to smartswitch needs to support DPU access in addition to the
 * By default the management port should be connected to the switch CPU console
 * Provide a toggle option to access the BMC console in order to recover the CPU in case of a failure
 * Once inside the switch, the DPUs should be accesssible from it. The design workflow for this will be covered in another document.
-* The default baud rate should be 9600
 
 ### 3.6 Firmware Upgrade
-* The existing fwutil will be extended to the DPUs
+* The fwutility should remain unchanged, but the vendor plugin should be extended to support the DPU FW upgrade.
 * Should support the following commands
     * show: display FW versions
     * install: manual FW installation
