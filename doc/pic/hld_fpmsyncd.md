@@ -517,7 +517,7 @@ Sample of CONFIG DB snippet given below:
 ```
 #### APPL DB Enhancements  
 
-This feature adds a new NEXT_HOP_GROUP_TABLE, to store next hop group information to be used by one or more routes. Recursive/ecmp routes are represented by referencing a list of nexthop group ids in the nexthop_group field. When this field is used, other fields will not be present.
+This feature extends the existing NEXT_HOP_GROUP_TABLE, to store next hop group information to be used by one or more routes. Recursive/ecmp routes are represented by referencing a list of nexthop group ids in the nexthop_group field. When this field is used, other fields will not be present.
 
 
 ```
@@ -534,7 +534,7 @@ This feature adds a new NEXT_HOP_GROUP_TABLE, to store next hop group informatio
                      by “,” (zero indicates no interface)
     nexthop_group = NEXT_HOP_GROUP_TABLE:key, ; index within the
                     NEXT_HOP_GROUP_TABLE seperated by "," used 
-                    for recursice/ecmp routes. ( When this field 
+                    for recursice/ecmp routes. (New field. When this field 
                     is present, other fields will not be present)
 
 ```
@@ -563,7 +563,8 @@ Mention whether this feature/enhancement has got any requirements/dependencies/i
 -->
 
 - When the feature is disabled, there should be no impact to Warmboot and Fastboot.
-- When the feature is enabled, there will be no warmboot nor fastboot support.
+- When the feature is enabled, there will be no impact to Fastboot support
+- When the feature is enabled, there will be no warmboot support.
 - Nexthop group ID reconciliation as part of the warm-boot is not currently supported
 
 When the feature is enabled, NHG ID will be managed by FRR which will change after FRR related process or BGP container restart.
