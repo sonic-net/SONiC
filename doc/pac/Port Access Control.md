@@ -1,4 +1,4 @@
-
+﻿
 # Port Access Control in SONiC
 
 # Table of Contents
@@ -67,7 +67,10 @@
 # Revision
 | Rev  | Date       | Author                                   | Change Description |
 | ---- | ---------- | ---------------------------------------- | ------------------ |
-| 0.1  | 04/05/2023 | Amitabha Sen, Vijaya Abbaraju, Shirisha Dasari, Anil Kumar Pandey | Initial version    |
+| 0.1  | 04/05/2023 | Amitabha Sen, Vijaya Abbaraju, Shirisha Dasari, Anil Kumar Pandey | Initial version 
+   | 0.2  | 04/02/2024 | Vijaya Abbaraju | Updated the CLI config, show and clear commands. 
+   0.3  | 04/10/2024 | Vijaya Abbaraju | Updated  the docker used for PAC and code PRs. 
+|
 
 
 # About this Manual
@@ -183,7 +186,7 @@ List of configuration shall include the following:
 ## 1.3 Design Overview
 
 ### 1.3.1 Container
-The existing "macsec" docker holds all the port security applications. Code changes are also made to the SWSS docker.
+The "pac" docker holds all the port security applications. Code changes are also made to the SWSS docker.
 
 ### 1.3.2 SAI Support
 No changes to SAI spec for supporting PAC.
@@ -205,7 +208,7 @@ PAC uses authentication methods 802.1x and MAB for client authentication. These 
 
 ### 2.2.1 802.1x
 
-PAC leverages the IEEE 802.1X-2004 for 802.1x standard as available in the "hostapd" implementation in the "macsec" docker. It is an IEEE Standard for Port Access Control that provides an authentication mechanism to devices wishing to attach to a LAN. The standard defines Extensible Authentication Protocol over LAN (EAPoL), which is an encapsulation technique to carry EAP packets between the Supplicant and the Authenticator. The standard describes an architectural framework within which authentication and consequent actions take place. It also establishes the requirements for a protocol between the Authenticator and the Supplicant, as well as between the Authenticator and the Authentication server. 
+PAC leverages the IEEE 802.1X-2004 for 802.1x standard as available in the "hostapd" implementation in the sonic-wpa-supplicant folder. It is an IEEE Standard for Port Access Control that provides an authentication mechanism to devices wishing to attach to a LAN. The standard defines Extensible Authentication Protocol over LAN (EAPoL), which is an encapsulation technique to carry EAP packets between the Supplicant and the Authenticator. The standard describes an architectural framework within which authentication and consequent actions take place. It also establishes the requirements for a protocol between the Authenticator and the Supplicant, as well as between the Authenticator and the Authentication server. 
 
 ### 2.2.2 MAC Authentication Bypass
 
@@ -263,13 +266,13 @@ After a Warm Boot, the authenticated client sessions are torn down and they need
 
 ## 3.1 Overview
 
-[Figure 2](#configuration-flow) shows the high level design overview of PAC services in SONiC. The existing "macsec" docker is leveraged. 
+[Figure 2](#configuration-flow) shows the high level design overview of PAC services in SONiC. The "pac" docker is used for this functionality. 
 
 PAC is composed of multiple sub-modules. 
 
 1. pacd: PAC daemon is the main module that controls client authentication. It is the central repository of PAC clients. It makes use of hostapd and mabd daemons to authenticate clients via 802.1x and MAB respectively.
 
-2. hostapd: This 802.1x module is an opensource Linux application that is available in the SONiC "macsec" docker. It uses hostapd.conf as its config file. 
+2. hostapd: This 802.1x module is an opensource Linux application that is available in the SONiC sonic-wpa-supplicant folder. It uses hostapd.conf as its config file. 
 
 3. mabd: This is the MAB authentication module.
 
@@ -706,111 +709,115 @@ The following commands are used to configure PAC.
 
 | CLI Command                              | Description                              |
 | :--------------------------------------- | :--------------------------------------- |
-| config authentication port-control interface <auto \| force-authorized \| force-unauthorized \>  <interface\> | This command configures the authentication mode to use on the specified interface. Default is force-authorized. |
-| config dot1x pae interface  <authenticator \| none\> <interface\> | This command sets the PAC role on the port. Default is none. Role authenticator enables PAC on the port. |
-| config authentication host-mode interface <multi-auth \|  multi-host \| single-host \> <interface\> | This command configures the host mode on the specified interface. Default is multi-host. |
+| config interface authentication port-control  <interface\> <auto \| force-authorized \| force-unauthorized \>   | This command configures the authentication mode to use on the specified interface. Default is force-authorized. |
+| config interface dot1x pae <interface\> <authenticator \| none\>  | This command sets the PAC role on the port. Default is none. Role authenticator enables PAC on the port. |
+| config interface authentication host-mode <interface\> <multi-auth \|  multi-host \| single-host \>  | This command configures the host mode on the specified interface. Default is multi-host. |
 | config dot1x system-auth-control <enable\|disable\> | This command configures 802.1x globally. Default is disabled. |
-| config authentication max-users interface <max-users\> <interface\> | This command configures max users on the specified interface. The count is applicable only in the multiple authentication host mode. Default is 16. |
-| config mab interface <enable\|disable\> <interface\> \[ auth-type <pap \| eap-md5 \| chap \>\] | This command configures MAB on the specified interface with the specified MAB authentication type. MAB is disabled by default. Default auth-type is eap-md5. |
-| config authentication periodic interface <enable\|disable> <interface\> | This command enables periodic reauthentication of the supplicants on the specified interface. Default is disabled. |
-| config authentication timer reauthenticate interface <seconds \| server\> <interface\> | This command configures the reauthentication period of supplicants on the specified interface. The 'server' option is used to fetch this period from the RADIUS server. The 'seconds' option is used to configure the period locally. Default is 'server'. |
-| config authentication order interface <dot1x \[ mab \] \| mab \[ dot1x \]> <interface\> | This command is used to set the order of authentication methods used on a port. Default order is 802.1x,mab. |
-| config authentication priority interface <dot1x \[ mab \] \| mab \[ dot1x \]> <interface\> | This command is used to set the priority of authentication methods used on a port. Default priority is 802.1x,mab. |
+| config interface authentication max-users <interface\> <max-users\> | This command configures max users on the specified interface. The count is applicable only in the multiple authentication host mode. Default is 16. |
+| config interface mab  <interface\> <enable\|disable\> \[ auth-type <pap \| eap-md5 \| chap \>\] | This command configures MAB on the specified interface with the specified MAB authentication type. MAB is disabled by default. Default auth-type is eap-md5. |
+| config interface authentication periodic <interface\> <enable\|disable> | This command enables periodic reauthentication of the supplicants on the specified interface. Default is disabled. |
+| config interface authentication reauth-period <interface\> <seconds \| server\> | This command configures the reauthentication period of supplicants on the specified interface. The 'server' option is used to fetch this period from the RADIUS server. The 'seconds' option is used to configure the period locally. Default is 'server'. |
+| config interface authentication order <interface\> <dot1x \[ mab \] \| mab \[ dot1x \]> | This command is used to set the order of authentication methods used on a port. Default order is 802.1x,mab. |
+| config interface authentication priority <interface\> <dot1x \[ mab \] \| mab \[ dot1x \]> | This command is used to set the priority of authentication methods used on a port. Default priority is 802.1x,mab. |
 
 
 
 ### 3.7.3 Show Commands
 
-**show authentication interface** **<all| interface\>**
+**show authentication interface** 
 
-This command displays the authentication manager information for the interface
+This command displays the authentication manager information for the enabled interfaces
 
-| Field                      | Description                              |
-| -------------------------- | ---------------------------------------- |
-| Interface                  | The interface for which authentication configuration information is being displayed. |
-| Port Control Mode          | The configured control mode for this port. Possible values are force-unauthorized |
-| Host Mode                  | The authentication host mode configured on the interface. |
-| Configured method order    | The order of authentication methods used on the interface. |
-| Enabled method order       | The order of authentication methods used on the interface. |
-| Configured method priority | The priority for the authentication methods used on the interface. |
-| Enabled method priority    | The priority for the authentication methods used on the interface. |
-| Reauthentication Period    | The period after which all clients on the interface will be reauthenticated. |
-| Reauthentication Enabled   | Indicates whether reauthentication is enabled on the interface. |
-| Maximum Users              | The maximum number of clients that can be authenticated on the interface if the interface is configured as multi-auth host mode. |
-| PAE role                   | Indicates the configured PAE role as authenticator or none. |
+root@sonic:/home/admin# 
+root@sonic:/home/admin# show authentication interface 
 
+Interface    Port-Control    Host-Mode    Pae-Role         Max-Users  Reauth      Reauth-Period  Reauth-from-Serer    config-methods    config-priority    enabled-methods    enabled-priority
+-----------  --------------  -----------  -------------  -----------  --------  ---------------  -------------------  ----------------  -----------------  -----------------  ------------------
+Ethernet0    auto            multi-auth   authenticator           16  disabled               60  False                dot1x             dot1x,mab          dot1x,undefined    dot1x,undefined
+root@sonic:/home/admin# 
 
+**show authentication interface -i Ethernet0** 
 
-**show authentication**
+This command displays the authentication manager information for the specified interface
+```
+root@sonic:/home/admin# show authentication interface -i Ethernet0
 
-This command displays the number of authenticated clients.
-
-| Field                           | Description                              |
-| ------------------------------- | ---------------------------------------- |
-| Number of Authenticated clients | The total number of clients authenticated on the switch |
-
-
-
-**show authentication clients <all | interface <interface\> \>**
+Interface    Port-Control    Host-Mode    Pae-Role       Max-Users    Reauth      Reauth-Period  Reauth-from-Serer    config-methods    config-priority    enabled-methods    enabled-priority
+-----------  --------------  -----------  -------------  -----------  --------  ---------------  -------------------  ----------------  -----------------  -----------------  ------------------
+Ethernet0    auto            multi-auth   authenticator           16  disabled               60  False                dot1x             dot1x,mab          dot1x,undefined    dot1x,undefined
+root@sonic:/home/admin# 
+```
+**show authentication interface -i Ethernet0** 
 
 This command displays the details authenticated clients.
+```
+root@sonic:/home/admin# show authentication clients 
+Authenticated Clients : 1
 
+Interface       mac-addr        user-name     vlan
+-----------  ----------------- -----------   ------
+Ethernet0    00:11:01:00:00:01  usr1          20
+root@sonic:/home/admin# 
+```
+**show authentication interface -i Ethernet0** 
 
-| Field                                    | Description                              |
-| ---------------------------------------- | ---------------------------------------- |
-| Interface                                | The interface for which authentication configuration information is being displayed. |
-| Mac Address                              | The MAC address of the client.           |
-| User Name                                | The user name associated with the client. |
-| VLAN                                     | The VLAN associated with the client.     |
-| Host Mode                                | The authentication host mode configured on the interface. The possible values are multi-auth, multi-host and single-host. |
-| Method                                   | The method used to authenticate the client on the interface. The possible values are dot1x or MAB. |
-| Session Time                             | The amount of time the client session has been active. |
-| Session Timeout                          | This value indicates the time for which the given session is valid. The time period in seconds is returned by the RADIUS server on authentication of the port. |
-| Time left for Session Termination Action | This value indicates the time left for the session termination action to occur. This field is valid only when the “authentication periodic” is configured. |
-| Session Termination Action               | This value indicates the action to be taken once the session timeout expires. Possible values are Default and Radius-Request. If the value is Default, the session is terminated and client details are cleared. If the value is Radius-Request, then a reauthentication of the client is performed. |
+This command displays the details authenticated clients on specified interface.
+```
+root@sonic:/home/admin# show authentication clients -i Ethernet0
+Authenticated Clients : 1
 
-
-
+Interface    mac-addr           user-name      vlan
+-----------  -----------------  -----------  ------
+Ethernet0    00:11:01:00:00:01  usr1          20
+root@sonic:/home/admin# 
+```
 **show mab <cr | interface\>**
 
-This command is used to show a summary of the global mab configuration and summary information of the mab configuration for all ports. This command also provides the detailed mab configuration for a specified port
+This command is used to show a summary of the global mab configuration and summary information of the mab configuration for all ports. 
+```
+root@sonic:/home/admin# show mab interface
 
-| Field         | Description                              |
-| ------------- | ---------------------------------------- |
-| Interface     | Given interface                          |
-| Admin Mode    | MAB admin mode on the given interface    |
-| MAB auth type | MAB authentication type (EAP_MD5, PAP, CHAP) |
-
-
-
+Interface    MAB Enabled    auth-type
+-----------  -------------  -----------
+Ethernet1    True           pap
+root@sonic:/home/admin# 
+```
+**show mab <cr | interface\> -i Ethernet1**
+This command also provides the detailed mab configuration for a specified port
+root@sonic:/home/admin# show mab interface -i Ethernet1
+```
+Interface    MAB Enabled    auth-type
+-----------  -------------  -----------
+Ethernet1    True           pap
+root@sonic:/home/admin# 
+```
 **show dot1x**
 
 This command is used to show a summary of the global 802.1x configuration.
-
-| Field               | Description                              |
-| ------------------- | ---------------------------------------- |
-| Administrative Mode | Indicates whether 802.1x is enabled or disabled. |
-
-
-
-
-show dot1x detail <all | interface\>
-
-This command is used to show details of 802.1x configuration on an interface.
-
-| Field            | Description                              |
-| ---------------- | ---------------------------------------- |
-| Interface        | Given Interface                          |
-| PAE Capabilities | The Port Access entity (PAE) functionality of this port. Possible values are Authenticator or None |
-
-
-
+```
+root@sonic:/home/admin# show dot1x
+802.1X admin mode : Enabled
+root@sonic:/home/admin# 
+```
 ### 3.7.4 Clear Commands
 
-**sonic-clear authentication sessions <interface <all | interface | mac \>\>**
+**sonic-clear authenticaton sessions**
 
 This command clears information for all Auth Manager sessions. All the authenticated clients are re-initialized and forced to authenticate again.
+```
+root@sonic:/home/admin# sonic-clear authentication sessions
+```
+**sonic-clear authenticaton sessions -i \<interface\>**
+This command clears information for all Auth Manager sessions on the specified interface.
+```
+root@sonic:/home/admin# sonic-clear authentication sessions -i Ethernet0
+```
 
+**sonic-clear authenticaton sessions -m \<mac-addr\>**
+This command clears information for specified client.
+```
+root@sonic:/home/admin# sonic-clear authentication sessions -m 00:00:00:11:22:33
+```
 
 
 # 4 Scalability
@@ -827,15 +834,22 @@ The following scale is supported:
 # 5 Appendix: Sample configuration
 
 ```
-config vlan add 100
-config authentication port contol interface auto Ethernet10
-config authentication dot1x pae interface authenticator Ethernet10
-config authentication host-mode interface multi-auth Ethernet10
-config authentication interface max-users 10 Ethernet10
-config mab interface enable pap
+config interface startup Ethernet0
+config vlan add 10
+config vlan member add 10 Ethernet0 -u
+config radius add 10.10.10.1
+config radius passkey mypasskey
 config dot1x system-auth-control enable
-config authentication periodic interface Ethernet10
-config authentication timer reauthenticate interface 600 Ethernet10
+config interface authentication port-control Ethernet0 auto
+config interface authentication host-mode Ethernet0 multi-auth
+config interface authentication order Ethernet0 dot1x
+config interface authentication priority Ethernet0 dot1x
+config interface dot1x pae Ethernet0 authenticator
+config interface authentication periodic Ethernet1 enable
+config interface authentication reauth-period Ethernet1 120
+config interface authentication max-users Ethernet1 6
+config interface mab Ethernet1 enable -a pap
+
 ```
 
 
@@ -847,6 +861,43 @@ config authentication timer reauthenticate interface 600 Ethernet10
 3. Add support for RADIUS Authorization attributes like ACLs.
 4. Add support for multiple RADIUS servers.
 
-```
+# 7 Code PRs
 
-```
+| Repo | Title |    PR   |
+|--|--|   --|
+| sonic-wpa-supplicant |sonic-wpasupplicant changes for PAC  | https://github.com/sonic-net/sonic-wpa-supplicant/pull/88   |
+| sonic-wpa-supplicant |Changes to support PAC and 802.1X interaction | https://github.com/sonic-net/sonic-wpa-supplicant/pull/89  |
+| sonic-wpa-supplicant |Changes in HOSTAPD to Support PAC | https://github.com/sonic-net/sonic-wpa-supplicant/pull/90   |
+| sonic-wpa-supplicant |HOSTPAD driver changes for PAC | https://github.com/sonic-net/sonic-wpa-supplicant/pull/91   |
+| sonic-utilities |CLI support for PAC | https://github.com/sonic-net/sonic-utilities/pull/3265   |
+| sonic-buildimage |Docker and Makefile changes for PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18616   |
+| sonic-buildimage |Changes to handle PAC operational info |  https://github.com/sonic-net/sonic-buildimage/pull/18618  |
+| sonic-buildimage |Changes to Handle PAC Mgr updates |  https://github.com/sonic-net/sonic-buildimage/pull/18619 |
+| sonic-buildimage |PAC changes to receive config updates |  https://github.com/sonic-net/sonic-buildimage/pull/18620 |
+| sonic-buildimage |Hostapd mgr changes for PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18621 |
+| sonic-buildimage |JSON lib changes to support PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18622 |
+| sonic-buildimage |MAB mgr changes for PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18623 |
+| sonic-buildimage |Makefile changes for PAC |  https://github.com/sonic-net/sonic-buildimage/pull/18624 |
+| sonic-buildimage |MAB makefile and common header files |  https://github.com/sonic-net/sonic-buildimage/pull/18625 |
+| sonic-buildimage |MAB common header files |  https://github.com/sonic-net/sonic-buildimage/pull/18626 |
+| sonic-buildimage |MAB generic files |  https://github.com/sonic-net/sonic-buildimage/pull/18627 |
+| sonic-buildimage |MAB control function changes |  https://github.com/sonic-net/sonic-buildimage/pull/18628 |
+| sonic-buildimage |MAB protocol related header files |  https://github.com/sonic-net/sonic-buildimage/pull/18629 |
+| sonic-buildimage |MAB protocol related changes |  https://github.com/sonic-net/sonic-buildimage/pull/18630 |
+| sonic-buildimage |Auth mgr Makefile and common header files |  https://github.com/sonic-net/sonic-buildimage/pull/18631 |
+| sonic-buildimage |Auth mgr generic header files |  https://github.com/sonic-net/sonic-buildimage/pull/18632 |
+| sonic-buildimage |Authmgr event handling and other functionality|  https://github.com/sonic-net/sonic-buildimage/pull/18633 |
+| sonic-buildimage |Auth mgr API interface functions|  https://github.com/sonic-net/sonic-buildimage/pull/18634 |
+| sonic-buildimage |Authmgr include files for authentication functionality |  https://github.com/sonic-net/sonic-buildimage/pull/18635 |
+| sonic-buildimage |Auth mgr functionality changes |  https://github.com/sonic-net/sonic-buildimage/pull/18636 |
+| sonic-buildimage |PAC infra Makefile changes |  https://github.com/sonic-net/sonic-buildimage/pull/18637 |
+| sonic-buildimage |PAC infra sonic interface files |  https://github.com/sonic-net/sonic-buildimage/pull/18638 |
+| sonic-buildimage |PAC infra header files|  https://github.com/sonic-net/sonic-buildimage/pull/18639 |
+| sonic-buildimage |PAC infra files|  https://github.com/sonic-net/sonic-buildimage/pull/18640 |
+| sonic-buildimage |PAC infra util changes for logging|  https://github.com/sonic-net/sonic-buildimage/pull/18641 |
+| sonic-buildimage |PAC infra utils changes for sim|  https://github.com/sonic-net/sonic-buildimage/pull/18642 |
+| sonic-buildimage |PAC infra utilities|  https://github.com/sonic-net/sonic-buildimage/pull/18643 |
+| sonic-buildimage |PAC libinfra tool|  https://github.com/sonic-net/sonic-buildimage/pull/18644 |
+| sonic-buildimage |PAC Infra OS abstraction files|  https://github.com/sonic-net/sonic-buildimage/pull/18645 |
+| sonic-buildimage |PAC Infra sysapi files|  https://github.com/sonic-net/sonic-buildimage/pull/18646 |
+
