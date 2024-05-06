@@ -167,35 +167,53 @@ Following existing table of CONFIG_DB will be modified for MSTP implementation:
 A new value of `mstp` for `mode` column and a new column for holding `max-hops`
 ```
 mode 		  = "pvst" / "mstp"                  ; a new option for mstp
-max_hops	  = 1*3DIGIT		             ; max hops (1 to 255, DEF: 20)
 ```
-Other fields of this table i.e rootguard_timeout, forward_delay, hello_time, max_age, priority will also be used to hold the configurations received from CLI.
+Other fields of this table are not applicable for "mstp" mode.
 
 ### New Tables
 Following new tables will be added to CONFIG_DB:
 
-#### MSTP_REGION_TABLE
+#### MSTP_MST
 ```
-;Stores the MSTP Regional operational details
-key               = MSTP|REGION 	  ; MSTP REGION key
-region_name 	  = 1*32CHAR	          ; region name (DEF: mac-address of switch)
-revision	  = 1*5DIGIT 	          ; region revision number(0 to 65535, DEF: 0)
-```
-
-#### MSTP_INSTANCE_TABLE
-```
-;Stores the MSTP instance operational details
-key           = MSTP_INSTANCE|"Instance"instanceid	  ; instance id with MSTP_INSTANCE as a prefix
-priority      = 1*5DIGIT 			          ; bridge priority (0 to 61440, DEF:32768)
-vlanids	      = vlan_id-or-range[,vlan_id-or-range]       ; list of VLAN IDs mapped to instance
+;Stores MSTP Global configuration
+key                    = STP_MST|GLOBAL	; Global MSTP table key
+name                   = 1*32CHAR		; MSTP region name(DEF:mac address of switch)
+revision               = 5*DIGIT		; MSTP revision number (0 to 65535, DEF:0)
+max_hop                = 2*DIGIT		; maximum hops (1 to 40, DEF:20)
+max_age                = 2*DIGIT		; max age time in secs(6 to 40 sec, DEF:20sec)
+hello_time             = 2*DIGIT		; hello time in secs(1 to 10 sec, DEF:2sec)
+forward_delay          = 2*DIGIT		; forward delay in secs(4 to 30 sec, DEF:15 sec)
 ```
 
-#### MSTP_INSTANCE_PORT_TABLE
+#### STP_MST_INST
 ```
-;Stores STP interface details per Instance
-key        = MSTP_INSTANCE_PORT|"Instance"instanceid|ifname   ; instanceid|ifname with prefix MSTP_INSTANCE_PORT, ifname can be physical or portchannel name
-priority   = 1*3DIGIT                                         ; port priority (0 to 240, DEF:128)
-path_cost  = 1*9DIGIT                                         ; port path cost (1 to 200000000)
+;Stores STP configuration per MSTI
+key           	= STP_MST|"MST_INSTANCE"id	; MST with prefix "STP_MST"
+bridge_priority = 5*DIGIT			; bridge priority (0 to 61440, DEF:32768)
+vlan_list       = "Vlans"			; List of VLANs assigned to the MST instance 
+```
+
+#### STP_MST_PORT
+```
+;Stores STP interface details per MSTI
+key       = STP_MST_PORT|"MST_INSTANCE"id|ifname; MSTI+Intf with prefix "STP_MST_PORT"
+path_cost = 9*DIGIT                             ; port path cost (1 to 200000000) 
+priority  = 3*DIGIT                             ; port priority (0 to 240, DEF:128)
+```
+
+#### STP_PORT
+```
+;Stores STP interface details
+key                   	= STP_PORT|ifname ; ifname with prefix STP_PORT
+edge_port             	= BIT             ; enabled or disabled
+link_type             	= "type"          ; type can be of auto, point-to-point or shared
+enabled	    		= BIT             ; enabled or disabled
+bpdu_guard		= BIT             ; enabled or disabled
+bpdu_guard_do_disable 	= BIT             ; enabled or disabled
+enabled    		= BIT             ; enabled or disabled
+root_guard    		= BIT             ; enabled or disabled
+path_cost    		= 9*DIGIT         ; port path cost (1 to 200000000) 
+priority    		= 3*DIGIT         ; port priority (0 to 240, DEF:128)
 ```
 
 ## APP DB
@@ -203,62 +221,58 @@ path_cost  = 1*9DIGIT                                         ; port path cost (
 ### New Tables
 Following new tables are introduced as part of MSTP Feature:
 
-#### MSTP_REGION_TABLE
+#### STP_MST_INST_TABLE
 ```
-;Stores the MSTP regional operational details
-key                     = MSTP:REGION	      ; MSTP REGION key
-region_name 	        = 1*32CHAR            ; region name (DEF: mac-address of switch)
-revision	        = 1*5DIGIT            ; region revision (0 to 65535, DEF: 0)
-bridge_id	        = 16HEX	              ; bridge id
-cist_root_bridge_id	= 16HEX	              ; CIST root’s bridge id
-external_path_cost	= 1*9DIGIT	      ; path cost to CIST root bridge
-root_port               = ifName	      ; root port name
-root_max_age            = 1*2DIGIT	      ; max age as per CIST root bridge
-root_hello_time         = 1*2DIGIT	      ; hello time as per CIST root bridge
-root_forward_delay      = 1*2DIGIT	      ; forward delay as per CIST root bridge
-root_max_hops		= 1*3DIGIT	      ; max hops as per CIST root bridge
-max_age                 = 1*2DIGIT            ; maximum age time in secs (6 to 40, DEF: 20)
-hello_time              = 1*2DIGIT            ; hello time in secs (1 to 10, DEF: 2)
-forward_delay           = 1*2DIGIT            ; forward delay in secs (4 to 30, DEF: 15)
-max_hops	        = 1*3DIGIT	      ; max hops (1 to 255; DEF:20)   
-last_topology_change    = 1*10DIGIT           ; time in secs since last topology change occured
-topology_change_count   = 1*10DIGIT           ; number of times topology change occured
-instances_configured    = 1*2DIGIT            ; total number of instances configured (DEF: 1)
+;Stores the STP per MSTI operational details
+key                  	= _STP_MST_INST_TABLE:"MST"id
+vlan_list            	= vlan_id-or-range[,vlan_id-or-range]; List of VLANs assigned to the MST instance
+bridge_address       	= 16HEXDIG	; bridge id
+regional_root_address 	= 16HEXDIG	; regional root bridge id
+root_address		= 16HEXDIG	; root bridge id
+root_path_cost		= 1*9DIGIT	; root path cost
+regional_root_cost	= 1*9DIGIT	; regional root path cost
+root_max_age          	= 1*2DIGIT	; Max age of root bridge(6 to 40 sec, DEF:20sec)
+root_hello_time      	= 1*2DIGIT	; Hello time of root bridge(1 to 10 sec, DEF:2sec)
+root_forward_delay   	= 1*2DIGIT	; forward delay of root bridge(4 to 30 sec, DEF:15 sec)
+remaining_hops       	= 1*2DIGIT	; Ramining Max-hops
+root_port            	= ifName	; Root port name
 ```
 
-#### MSTP_INSTANCE_TABLE
+#### STP_MST_PORT_TABLE
 ```
-;Stores the STP instance operational details
-key                       = MSTP_INSTANCE:"Instance"instanceid    ; instance id with MSTP_INSTANCE as a prefix
-vlanids	                  = vlan_id-or-range[,vlan_id-or-range]   ; list of VLAN IDs
-oper_status	          = "active" / "inactive"                 ; instance is active in mstp
-bridge_id                 = 16HEXDIG                              ; bridge id
-regional_root_bridge_id   = 16HEXDIG                              ; regional root’s bridge id
-internal_root_path_cost   = 1*9DIGIT	                          ; port path cost to regional root
-root_port                 = ifName	                          ; root port name
-last_topology_change      = 1*10DIGIT                             ; time in sec since last topology change occured 
-topology_change_count     = 1*10DIGIT                             ; number of times topology change occured
+;Stores STP MST instance interface details 
+key		= _STP_MST_PORT_TABLE:"MST"id:ifname ; MSTI+Intf with prefix "STP_MST_PORT_TABLE"
+port_number     = 1*3DIGIT       ; port number of bridge port
+path_cost       = 1*9DIGIT       ; port path cost (1 to 200000000)
+priority	= 3*DIGIT        ; port priority (0 to 240, DEF:128)
+port_state	= "state"        ; DISABLED/DISCARDING/LISTENING/LEARNING/FORWARDING
+role		= "role"         ; DESIGNATED/ROOT/ALTERNATE/MASTER            
+desig_cost	= 1*9DIGIT       ; designated cost
+external_cost	= 1*9DIGIT       ; designated cost
+desig_root	= 16HEXDIG       ; designated root
+desig_reg_root	= 16HEXDIG       ; designated root
+desig_bridge	= 16HEXDIG       ; designated bridge
+desig_port	= 1*3DIGIT       ; designated port
+fwd_transitions	= 1*5DIGIT       ; number of forward transitions
+bpdu_sent	= 1*10DIGIT      ; bpdu transmitted
+bpdu_received	= 1*10DIGIT      ; bpdu received
 ```
 
-#### MSTP_INSTANCE_PORT_TABLE
+#### STP_PORT_TABLE
 ```
-;Stores STP interface details per Instance
-key                 = MSTP_INSTANCE_PORT:"Instance"instanceid:ifname    ; instanceid|ifname with prefix MSTP_INSTANCE_PORT
-port_num            = 1*3DIGIT                                          ; port number of bridge port
-path_cost           = 1*9DIGIT                                          ; port path cost (1 to 200000000)
-priority            = 1*3DIGIT                                          ; port priority (0 to 240, DEF:128)
-port_state          = "state"                                           ; STP state - disabled, block, listen, learn, forward
-port_role           = "role"                                            ; STP port role - root, designated, blocking, alternate, master
-desig_root    	    = 16HEXDIG                                          ; designated root
-desig_cost   	    = 1*9DIGIT                                          ; designated cost
-desig_bridge  	    = 16HEXDIG                                          ; designated bridge
-desig_port    	    = 1*3DIGIT                                          ; designated port
-fwd_transitions     = 1*5DIGIT                                          ; number of forward transitions
-bpdu_sent           = 1*10DIGIT                                         ; bpdu transmitted
-bpdu_received       = 1*10DIGIT                                         ; bpdu received
-tcn_sent            = 1*10DIGIT                                         ; tcn transmitted
-tcn_received        = 1*10DIGIT                                         ; tcn received
-root_guard_timer    = 1*3DIGIT                                          ; root guard current timer value
+;Stores STP interface details
+key			= _STP_PORT_TABLE:ifname; ifname with prefix STP_INTF
+edge_port		= BIT            	; edge port enabled or disabled
+link_type		= "type"           	; point-to-point or shared link type
+mst_boundary		= BIT            	; enabled or disabled
+mst_boundary_proto	= BIT                   ; enabled or disabled
+```
+
+#### STP_INST_PORT_FLUSH_TABLE
+```
+;Defines instance and port for which FDB flush needs to be performed
+key        = _STP_INST_PORT_FLUSH_TABLE:instance:ifName ; FDB flush instance id and port name
+state      = "true"  
 ```
 
 ### Existing Tables
@@ -551,6 +565,32 @@ module sonic-stp {
         description "First Revision";
     }
 
+    grouping interfaceAttr {
+        leaf path_cost {
+            type uint64 {
+                range "1..200000000" {
+                    error-message "Invalid Port Path Cost value.";
+                }
+            }
+            default 200;
+            description
+                "The port's contribution, when it is the Root Port,
+                to the Root Path Cost for the Bridge";
+        }
+
+        leaf priority {
+            type uint8 {
+                range "0..240" {
+                    error-message "Invalid Port Priority value.";
+                }
+            }
+            default 128;
+            description
+                "The manageable component of the Port Identifier,
+                also known as the Port Priority";
+        }
+    }
+
     container sonic-stp {
 
         container STP_GLOBAL {
@@ -565,6 +605,10 @@ module sonic-stp {
             }
 
             leaf forward_delay {
+		must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode!='mst'" {
+			error-message "Configuration not allowed in MST mode";
+			error-app-tag stp-invalid;
+		}
                 type uint8 {
                     range "4..30" {
                         error-message "forward_delay value out of range";
@@ -575,6 +619,10 @@ module sonic-stp {
             }
 
             leaf hello_time {
+		must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode!='mst'" {
+			error-message "Configuration not allowed in MST mode";
+			error-app-tag stp-invalid;
+		}
                 type uint8 {
                     range "1..10" {
                         error-message "hello_time value out of range";
@@ -585,6 +633,10 @@ module sonic-stp {
             }
 
             leaf max_age {
+		must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode!='mst'" {
+			error-message "Configuration not allowed in MST mode";
+			error-app-tag stp-invalid;
+		}
                 type uint8 {
                     range "6..40" {
                         error-message "max_age value out of range";
@@ -595,6 +647,10 @@ module sonic-stp {
             }
 
             leaf rootguard_timeout {
+		must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode!='mst'" {
+			error-message "Configuration not allowed in MST mode";
+			error-app-tag stp-invalid;
+		}
                 type uint16 {
                     range "5..600" {
                         error-message "rootguard_timeout value out of range";
@@ -605,6 +661,10 @@ module sonic-stp {
             }
 
             leaf priority {
+		must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode!='mst'" {
+			error-message "Configuration not allowed in MST mode";
+			error-app-tag stp-invalid;
+		}
                 must ". mod 4096 = 0" {
                     error-message "bridge priority must be a multiple of 4096";
                 }      
@@ -617,119 +677,211 @@ module sonic-stp {
                 default 32768;
                 description "Bridge priority";
             }
-
-            leaf max_hops {
-                type uint8 {
-                    range "1..255" {
-                        error-message "max-hops value out of range";
-                    }
-                }
-                default 20;
-                description "Max hops";
-            }
         }
 
-        container MSTP_REGION {
-            description "MSTP Regional operational details";
+	container STP_MST {
+	     	max-elements 1;
+		key "keyleaf";
+                sonic-ext:dependent-on "STP_LIST";
 
-            leaf region_name {
-                type string {
-                    length "1..32";
+                leaf keyleaf {
+                    type enumeration {
+                        enum GLOBAL;
+                    }
+                    description
+                        "Key node identifier. It's value is always GLOBAL";
                 }
-                default "device_metadata:sonic-device_metadata/device_metadata:DEVICE_METADATA/device_metadata:localhost/device_metadata:mac";
-                description "Region name";
-            }
 
-            leaf revision {
-                type uint16 {
+                leaf name {
+                    must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode='mst'" {
+                        error-message "Configuration allowed in MST mode";
+                        error-app-tag stp-invalid;
+                    }
+                    type string {
+			length "1..32";
+		    }
+                    description
+                        "MST Region name";
+                }
+
+                leaf revision {
+                    must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode='mst'" {
+                        error-message "Configuration allowed in MST mode";
+                        error-app-tag stp-invalid;
+                    }
+                    type uint16 {
                     range "0..65535" {
                         error-message "revision value out of range";
                     }
                 }
-                default 0;
-                description "Region revision";
-            }
-        }
-
-        container MSTP_INSTANCE {
-            description "MSTP instance operational details";
-
-            list MSTP_INSTANCE_LIST {
-                key "name";
-
-                leaf name {
-                    type string {
-                        pattern 'Instance([0-9]|[1-5][0-9]|[6][0-3])';
-                    }
+                    description
+                        "MST Revision number";
                 }
 
-                leaf priority {
-                    must ". mod 4096 = 0" {
-                        error-message "bridge priority must be a multiple of 4096";
+                leaf max_hops {
+                    must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode='mst'" {
+                        error-message "Configuration allowed in MST mode";
+                        error-app-tag stp-invalid;
                     }
+                    type uint8 {
+                    	range "1..255" {
+                        	error-message "max-hops value out of range";
+                    	}
+		    }
+                    default 20;
+                    description
+                        "MST Max hops";
+                }
 
+                leaf hello_time {
+                    must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode='mst'" {
+                        error-message "Configuration allowed in MST mode";
+                        error-app-tag stp-invalid;
+                    }
+                    type uint8 {
+                    	range "1..10" {
+                        	error-message "hello_time value out of range";
+                    	}
+		    }
+		    default 2;
+                    description
+                        "MST hello time";
+                }
+
+                leaf max_age {
+                    must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode='mst'" {
+                        error-message "Configuration allowed in MST mode";
+                        error-app-tag stp-invalid;
+                    }
+                     type uint8 {
+                    	range "6..40" {
+                        	error-message "max_age value out of range";
+                    	}
+	            }
+                    default 20;
+                    description
+                        "MST max age";
+                }
+
+                leaf forward_delay {
+                    must "../../../STP/STP_LIST[keyleaf='GLOBAL']/mode='mst'" {
+                        error-message "Configuration allowed in MST mode";
+                        error-app-tag stp-invalid;
+                    }
+	            type uint8 {
+                    	range "4..30" {
+                        	error-message "forward_delay value out of range";
+			}
+                    }
+                    default 15;
+                    description
+                        "MST forward delay";
+                }
+	 }
+	 container STP_MST_INST {
+            list STP_MST_INST_LIST {
+                key "instance";
+
+                leaf instance {
+                    type uint16;
+                    description
+                        "Instance identifier";
+                }
+
+                leaf-list vlan {
+                    type string;
+                    description
+                        "Vlan list";
+                }
+
+                leaf bridge_priority {
                     type uint16 {
                         range "0..61440" {
-                            error-message "priority value out of range";
+                            error-message "Invalid Bridge Priority value.";
                         }
                     }
                     default 32768;
-                    description "Bridge priority";
+                    description
+                        "The manageable component of the Bridge Identifier";
                 }
-
-                leaf-list vlanids {
-					must "(current() = /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name)" {
-                        error-message "Must condition not satisfied, Try adding Vlan<vlanid>: {}, Example: 'Vlan2': {}";
-                    }
-
-                    type leafref {
-                        path "/vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name";
-                    }
-				}
             }
         }
 
-        container MSTP_INSTANCE_PORT {
-            description "STP port details per Instance";
+        container STP_MST_PORT {
+            list STP_MST_PORT_LIST {
+                key "inst_id ifname";
 
-            list MSTP_INSTANCE_PORT_LIST {
-                key "instance port";
-
-                leaf instance {
-                    must "(current() = ../../../MSTP_INSTANCE/MSTP_INSTANCE_LIST[name=current()]/name)" {
-                        error-message "Must condition not satisfied, Try adding Instance<instanceid>: {}, Example: 'Instance2': {}";
-                    }
-
+                leaf inst_id {
                     type leafref {
-                        path "/stp:sonic-stp/stp:MSTP_INSTANCE/stp:MSTP_INSTANCE_LIST/stp:name";
+                        path "../../../STP_MST_INST/STP_MST_INST_LIST/instance";
                     }
+                    description
+                        "Reference to MST Instance";
                 }
 
-                leaf port {
-                    type union {
-                        type leafref {
-                            path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
-                        }
-                        type leafref {
-                            path "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name";
-                        }
+                leaf ifname {
+                    type leafref {
+                        path "../../../STP_PORT/STP_PORT_LIST/ifname";
                     }
+                    description
+                        "Reference to Ethernet interface or PortChannel";
                 }
+                uses interfaceAttr;
+            }
+        }
 
-                leaf priority {
-                    type uint8 {
-                        range "0..240" {
-                            error-message "priority value out of range";
-                        }
-                    }
-                    default 128;
-                    description "Port priority";
-                }
+	list _STP_MST_INST_TABLE_LIST {
+            sonic-ext:db-name "APPL_DB";
+            key "inst_id";
 
-                leaf path_cost {
-                    type uint32;
-                    description "Port path cost";
+            leaf inst_id {
+                type leafref {
+                     path "../../../STP_MST_INST/STP_MST_INST_LIST/instance";
                 }
+                description
+                     "Reference to MST Instance";
+            }
+
+            leaf-list vlan {
+                type string;
+                description
+                     "Vlan list";
+            }
+
+            leaf bridge_priority {
+                type uint16;
+                description
+                      "The manageable component of the Bridge Identifier";
+            }
+
+            leaf root_priority {
+                 type string;
+                 description
+                        "The manageable component of the Port Identifier";
+            }
+
+            leaf root_address {
+                type string;
+                description
+                        "";
+            }
+
+            leaf root_cost {
+                type string;
+                description
+                        "";
+            }
+
+            leaf root_port {
+                type string;
+                description
+                        "";
+            }
+
+            leaf bridge_address {
+                type string;
+                description
+                        "";
             }
         }
     }
