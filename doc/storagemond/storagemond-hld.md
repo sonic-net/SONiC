@@ -308,6 +308,18 @@ The reset of values in `/proc/diskstats` upon device reboot or power cycle prese
     - Post-reboot, the read/write metrics as parsed from the `fsio-rw-stats.json` file will exceed the current values in `STATE_DB`.
     - Under these conditions, the RW values from `fsio-rw-stats.json` are treated as baseline metrics, and subsequent RW values from `/proc/diskstats` are added to this baseline before database insertion.
 
+    ```
+    # Prior to reboot
+    capture_fsio_rw_metrics():
+        execute(fsio-rw-sync)  # Execute the fsio-rw-sync script to capture FSIO Read and Write metrics
+        parse_and_store_metrics()  # Parse metrics from /proc/diskstats and store in fsio-rw-stats.json
+
+    # Post-reboot
+    baseline_metrics = read_baseline_metrics_from_json()  # Read baseline reads and writes from fsio-rw-stats.json
+    current_metrics = read_current_metrics_from_procfs()  # Read current reads and writes from /proc/diskstats
+    updated_metrics = calculate_updated_metrics(baseline_metrics, current_metrics)  # Calculate updated metrics as updated_metrics = baseline_metrics + current_metrics
+    insert_into_database(updated_metrics)  # Insert updated metrics into database
+    ```
 
 2. **Daemon (`stormond` or `pmon`) Crash Handling Scenario**
 
@@ -319,15 +331,30 @@ The reset of values in `/proc/diskstats` upon device reboot or power cycle prese
 
     - The reconciliation of these data points post-crash allows for the calculation of interim disk operations:
 
-        ```
-        (latest_procfs - last_posted_statedb_procfs) = addnl_procfs_rw
-
-        new total_procs_rw (to be posted to `STATE_DB`) = current_statedb_procfs_rw + addnl_procfs_rw
-        ```
+    ```
+    addnl_procfs_rw = (latest_procfs - last_posted_statedb_procfs)
+    new total_procs_rw (to be posted to `STATE_DB`) = current_statedb_procfs_rw + addnl_procfs_rw
+    ```
 
     - This computed value represents the adjusted total of read/write operations that should be recorded in the `STATE_DB` once the daemon is back online. 
     - The subsequent update to the `fsio-rw-stats.json` file ensures that these recalibrated values persist, thereby safeguarding against data loss due to daemon or container failures and facilitating seamless data continuity and accuracy.
 
+    ```
+    # In the event of a daemon crash
+
+    # Reconciliation post-crash
+    compute_interim_disk_operations():
+        statedb_accumulated_procfs_rw = Hitherto accumulated procfs reads and writes from the STATE_DB
+        statedb_latest_procfs_rw = Last parsed procfs reads and writes in STATE_DB
+        current_procfs_rw = Current FSIO reads and writes from /proc/diskstats
+        addnl_procfs_rw = current_procfs_rw - statedb_latest_procfs_rw
+        new_total_procs_rw = statedb_accumulated_procfs_rw + addnl_procfs_rw
+        update_db_with_new_metrics(new_total_procs_rw, current_procfs_rw)  # Update STATE_DB with recalibrated values
+
+    # Subsequent update to fsio-rw-stats.json
+    update_fsio_rw_stats_file():
+        write_updated_metrics_to_json(new_total_procs_rw)  # Write recalibrated values to fsio-rw-stats.json
+    ```
 
 3. **System unintended powercycle scenario**
 
@@ -347,9 +374,9 @@ The reset of values in `/proc/diskstats` upon device reboot or power cycle prese
 ```
 ; Defines information for each Storage Disk in a device
 
-key                 = STORAGE_INFO|<disk_name>  ; This key is for information about a specific storage disk - STORAGE_INFO|SDX
+key                     = STORAGE_INFO|<disk_name>  ; This key is for information about a specific storage disk - STORAGE_INFO|SDX
 
-; field             = value
+; field                 = value
 
 device_model            = STRING                    ; Describes the Vendor information of the disk                                           (Static)
 serial                  = STRING                    ; Describes the Serial number of the disk                                                (Static)
@@ -414,7 +441,10 @@ successful_sync_time    = STRING                        ; The latest successful 
 
 ```
 
-### **3.3 ConfigDB Schema**
+### **3.3 ConfigDB Schema and YANG model**
+
+**Schema**
+
 ```
 ; Defines information for stormon config
 
@@ -424,6 +454,38 @@ key                        = STORAGEMOND_CONFIG   ; This key is for information 
 
 daemon_polling_interval    = STRING               ; The polling frequency for reading dynamic information
 fsstats_sync_interval      = STRING               ; The frequency of FSIO Reads/Writes synchronization to location on disk
+```
+
+**YANG Model**
+
+```
+container sonic-stormond-config {
+
+        container STORMOND_CONFIG {
+
+            description "stormond_config table in config_db.json";
+
+            list STORMOND_CONFIG_LIST {
+
+                key "daemon_polling_interval";
+
+                leaf daemon_polling_interval {
+                    description "Polling inerval for Storage Monitoring Daemon in STORMOND_CONFIG table";
+                    type string {
+                        length 1..32;
+                    }
+                }
+
+                leaf fsstats_sync_interval {
+                    description "FSSTATS JSON file syncing interval for the Storage Monitoring Daemon in STORMOND_CONFIG table";
+                    type string {
+                        length 1..32;
+                    }
+                }
+
+            }
+        }
+    }
 ```
 
 ## **4. Test Plan**
