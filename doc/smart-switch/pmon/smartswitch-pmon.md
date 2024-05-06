@@ -976,7 +976,6 @@ root@sonic:/home/admin# show interfaces status
 ### 3.5 Console Management
 The console access to smartswitch needs to support DPU access in addition to the switch.
 * By default the management port should be connected to the switch CPU console
-* Provide a toggle option to access the BMC console in order to recover the CPU in case of a failure
 * Once inside the switch, the DPUs should be accesssible from it. The design workflow for this will be covered in another document.
 
 ### 3.6 Firmware Upgrade
