@@ -465,24 +465,18 @@ container sonic-stormond-config {
 
             description "stormond_config table in config_db.json";
 
-            list STORMOND_CONFIG_LIST {
-
-                key "daemon_polling_interval";
-
-                leaf daemon_polling_interval {
-                    description "Polling inerval for Storage Monitoring Daemon in STORMOND_CONFIG table";
-                    type string {
-                        length 1..32;
-                    }
+            leaf daemon_polling_interval {
+                description "Polling inerval for Storage Monitoring Daemon in STORMOND_CONFIG table";
+                type string {
+                    length 1..32;
                 }
+            }
 
-                leaf fsstats_sync_interval {
-                    description "FSSTATS JSON file syncing interval for the Storage Monitoring Daemon in STORMOND_CONFIG table";
-                    type string {
-                        length 1..32;
-                    }
+            leaf fsstats_sync_interval {
+                description "FSSTATS JSON file syncing interval for the Storage Monitoring Daemon in STORMOND_CONFIG table";
+                type string {
+                    length 1..32;
                 }
-
             }
         }
     }
