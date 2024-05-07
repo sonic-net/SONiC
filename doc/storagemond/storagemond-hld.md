@@ -448,12 +448,26 @@ successful_sync_time    = STRING                        ; The latest successful 
 ```
 ; Defines information for stormon config
 
-key                        = STORAGEMOND_CONFIG   ; This key is for information about a stormon daemon configuration
+key                        = STORMOND_CONFIG|INTERVALS   ; This key is for information about stormon daemon polling interval configurations
 
 ; field                    = value
 
 daemon_polling_interval    = STRING               ; The polling frequency for reading dynamic information
 fsstats_sync_interval      = STRING               ; The frequency of FSIO Reads/Writes synchronization to location on disk
+```
+
+Example: `stormond` configured with daemon polling interval of 60s and the JSON file sync interval as 360 seconds:
+
+```
+127.0.0.1:6379[4]> KEYS STORMOND*
+1) "STORMOND_CONFIG|INTERVALS"
+127.0.0.1:6379[4]> HGETALL "STORMOND_CONFIG|INTERVALS"
+1) "daemon_polling_interval"
+2) "60"
+3) "fsstats_sync_interval"
+4) "360"
+127.0.0.1:6379[4]>
+
 ```
 
 **YANG Model**
@@ -465,17 +479,20 @@ container sonic-stormond-config {
 
             description "stormond_config table in config_db.json";
 
-            leaf daemon_polling_interval {
-                description "Polling inerval for Storage Monitoring Daemon in STORMOND_CONFIG table";
-                type string {
-                    length 1..32;
-                }
-            }
+            container INTERVALS {
 
-            leaf fsstats_sync_interval {
-                description "FSSTATS JSON file syncing interval for the Storage Monitoring Daemon in STORMOND_CONFIG table";
-                type string {
-                    length 1..32;
+                leaf daemon_polling_interval {
+                    description "Polling inerval for Storage Monitoring Daemon in STORMOND_CONFIG table";
+                    type string {
+                        length 1..32;
+                    }
+                }
+
+                leaf fsstats_sync_interval {
+                    description "FSSTATS JSON file syncing interval for the Storage Monitoring Daemon in STORMOND_CONFIG table";
+                    type string {
+                        length 1..32;
+                    }
                 }
             }
         }
