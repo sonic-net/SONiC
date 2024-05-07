@@ -8,7 +8,7 @@
 |  0.1  | 04/2024 | Vladi Tarnavsky  |       Draft        |
 
 ### Scope  
-The scope includes the design and implementation details for AAA restrictions, focusing on authentication sequences, session management, and user activity accounting in switches SONIC OS based.
+The scope includes the design and implementation details for AAA restrictions, focusing on authentication sequences, session management, and user activity accounting in SONIC switches.
 
 ### Definitions/Abbreviations 
 - **API**: Application Programmable Interface
@@ -29,14 +29,13 @@ The scope includes the design and implementation details for AAA restrictions, f
 ### Overview 
 AAA (Authentication, Authorization, and Accounting) in Sonic establishes a robust framework for access control, policy enforcement, usage auditing, and service billing, supporting standard protocols such as RADIUS, TACACS+, and LDAP for user authentication.
 
-This HLD emphasizes enhancing the security of aaa by introducing "restrictions" on the number and frequency of login attempts. The focus is on augmenting the system's security by preventing brute force attacks and ensuring that user authentication attempts are both monitored and controlled effectively.
+This HLD aims to boost aaa security by limiting the number and frequency of login attempts. The goal is to strengthen the system's defenses against brute-force attacks and enhance overall security.
 
 ### Requirements
 
 -      Limit Login Attempts: Specify the maximum number of unsuccessful login attempts allowed before a user account is temporarily locked. This prevents continuous guessing of credentials.
 -      Control Login Speed: Introduce delays between consecutive login attempts to slow down any automated login attempts, significantly reducing the risk of brute force attacks.
 -      Define Unlock Time: Establish a configurable unlock time that specifies how long a user account remains locked before allowing another login attempt. This control helps manage the access of users who have shown suspicious login behaviors.
--      TODO: SONIC rest API/nginx?
 
 ### Architecture Design 
 
@@ -76,9 +75,9 @@ AAA: {
 No new pkg are added in the build time.
 
 #### Feature Default
-Restrictions are enabled by default.
+Restrictions are disabled by default.
 In addition, this affects the common-auth-sonic file switching to a duplicative branch to use pam_faildelay.so and pam_faillock.so
-      lockout-state: "True"
+      lockout-state: "False"
       lockout-reattempt: (15 sec)
       lockout-attempts: (5 attempts)
       fail-delay: (0 sec)
