@@ -451,6 +451,8 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | | | local_vdpu_midplane_state | The state of local vDPU midplane. The value can be "unknown", "up", "down". |
 | | | local_vdpu_control_plane_state | The state of local vDPU control plane, which includes DPU OS and certain required firmware. The value can be "unknown", "up", "down". |
 | | | local_vdpu_data_plane_state | The state of local vDPU data plane, which includes DPU hardware / ASIC and certain required firmware. The value can be "unknown", "up", "down". |
+| | | local_vdpu_up_bfd_sessions_v4 | The list of IPv4 peer IPs (NPU IP) of the BFD sessions in up state. |
+| | | local_vdpu_up_bfd_sessions_v6 | The list of IPv6 peer IPs (NPU IP) of the BFD sessions in up state. |
 
 ###### 2.2.1.1.5. Ongoing HA operation state
 
