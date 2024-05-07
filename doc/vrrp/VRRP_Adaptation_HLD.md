@@ -343,7 +343,7 @@ Example:-
  1) "vrid"
  2) "1"
  3) "vip"
- 4) "4.1.1.100"
+ 4) "4.1.1.100/24"
  5) "priority"
  6) "80"
  7) "adv_interval"
@@ -359,7 +359,7 @@ admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP|Vlan1|1"
  1) "vrid"
  2) "1"
  3) "vip"
- 4) "4.1.1.100,4.1.1.200,4.1.1.50,4.1.1.150"
+ 4) "4.1.1.100/24,4.1.1.200/24,4.1.1.50/24,4.1.1.150/24"
  5) "priority"
  6) "80"
  7) "adv_interval"
@@ -375,7 +375,7 @@ admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP6|Vlan3|3"
  1) "vrid"
  2) "1"
  3) "vip"
- 4) "4::100,4::200,4::50"
+ 4) "4::100/64,4::200/64,4::50/64"
  5) "priority"
  6) "80"
  7) "adv_interval"
@@ -547,7 +547,7 @@ SONIC Click based configuration and monitoring CLIs have been introduced in SONI
     - This command adds a virtual IP address for a VRRP instance on an interface.
     - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).
     - vrrp_id:VRRP instance identifier.
-    - virtual_ip_address: VIP address in dotted decimal IPv4 or IPv6 address
+    - virtual_ip_address: VIP address in dotted decimal IPv4 address
 - config interface vrrp priority <interface_name> <vrrp_id> <priority>
     - This command configures priority for a VRRP instance
     - interface_name:name of interface (Ethernet/Vlan/PortChannel/sub-interface).

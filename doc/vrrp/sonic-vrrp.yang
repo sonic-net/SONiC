@@ -126,7 +126,7 @@ module sonic-vrrp {
 
                 leaf-list vip {
                     max-elements 4;
-                    type inet:ipv4-address;
+                    type inet:ipv4-prefix;
                     sonic-ext:custom-validation ValidateVipSubnet;
                 }
             }
@@ -246,7 +246,7 @@ module sonic-vrrp {
 
                 leaf-list vip {
                     max-elements 4;
-                    type inet:ipv6-address;
+                    type inet:ipv6-prefix;
                     sonic-ext:custom-validation ValidateVipSubnet;
                 }
             }
