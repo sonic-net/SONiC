@@ -1462,7 +1462,7 @@ Once the HA pair starts to run as standalone setup, the inline sync will stop wo
 
 1. New flows can be created on one side, but not the other.
 2. Existing flows can be terminated on one side, but not the other.
-3. Existing flows can be aged out on one side, but not the other, depending on how we manage the lifetime of the lows.
+3. Existing flows can be aged out on one side, but not the other, depending on how we manage the lifetime of the flows.
 4. Due to policy updates, the same flow might get different packet transformations now, e.g., flow resimulation or flow recreation after policy update.
 
 And during recovery, we need to merge these 2 sets of flows back to one using "[bulk sync](#115-bulk-sync)".

@@ -45,7 +45,8 @@
    3. [3.3. DPU traffic handling related](#33-dpu-traffic-handling-related)
       1. [3.3.1. DPU level counters (Per-DPU)](#331-dpu-level-counters-per-dpu)
       2. [3.3.2. ENI-level traffic counters (Per-ENI)](#332-eni-level-traffic-counters-per-eni)
-      3. [3.3.3. ENI-level flow operation counters (Per-ENI)](#333-eni-level-flow-operation-counters-per-eni)
+      3. [3.3.3. ENI-level pipeline drop counters (Per-ENI)](#333-eni-level-pipeline-drop-counters-per-eni)
+      4. [3.3.4. ENI-level flow operation counters (Per-ENI)](#334-eni-level-flow-operation-counters-per-eni)
    4. [3.4. Flow sync counters](#34-flow-sync-counters)
       1. [3.4.1. Data plane channel probing (Per-HA Set)](#341-data-plane-channel-probing-per-ha-set)
       2. [3.4.2. Inline flow sync (Per-ENI)](#342-inline-flow-sync-per-eni)
@@ -610,6 +611,13 @@ Here are some examples of port counters we have:
 
 For the full list of port counters, please refer to the `sai_port_stat_t` structure in [SAI header file](https://github.com/opencomputeproject/SAI/blob/master/inc/saiport.h).
 
+Besides the standard SAI stats provided by each port, we also have the following counters extended in DASH:
+
+| Name | Description |
+| --- | --- |
+| SAI_PORT_STAT_ENI_MISS_DROP_PKTS | Number of packets that are dropped due to ENI not found. |
+| SAI_PORT_STAT_VIP_MISS_DROP_PKTS | Number of packets that are dropped due to VIP not found. |
+
 #### 3.3.2. ENI-level traffic counters (Per-ENI)
 
 Once the packet lands on an ENI, we should have the following counters to monitor how much traffic is handled by each ENI:
@@ -621,7 +629,18 @@ Once the packet lands on an ENI, we should have the following counters to monito
 | SAI_ENI_STAT_(/OUTBOUND_/INBOUND_)TX_BYTES | Total bytes sent by ENI (overall/outbound/inbound) pipeline. |
 | SAI_ENI_STAT_(/OUTBOUND_/INBOUND_)TX_PACKETS | Total number of packets sent by ENI (overall/outbound/inbound) pipeline. |
 
-#### 3.3.3. ENI-level flow operation counters (Per-ENI)
+#### 3.3.3. ENI-level pipeline drop counters (Per-ENI)
+
+When the packet is landed on the ENI going throught each match stages, it might be dropped due to no entries can be matched, such as routing or CA-PA mapping. In order to show these drops, we should have the following counters:
+
+| Name | Description |
+| -------------- | ----------- |
+| SAI_ENI_STAT_OUTBOUND_ROUTING_ENTRY_MISS_DROP_PKTS | Number of packets that are dropped due to outbound routing entry not found. |
+| SAI_ENI_STAT_OUTBOUND_CA_PA_ENTRY_MISS_DROP_PKTS | Number of packets that are dropped due to outbound routing entry not found. |
+| SAI_ENI_STAT_TUNNEL_MISS_DROP_PKTS | Number of packets that are dropped due to outbound routing entry not found. |
+| SAI_ENI_STAT_INBOUND_ROUTING_MISS_DROP_PKTS | Number of packets that are dropped due to outbound routing entry not found. |
+
+#### 3.3.4. ENI-level flow operation counters (Per-ENI)
 
 | Name | Description |
 | -------------- | ----------- |
