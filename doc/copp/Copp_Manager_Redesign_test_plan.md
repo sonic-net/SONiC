@@ -79,12 +79,14 @@ The test will be supported on ptf32, ptf64, t1 and t2.
 
 ## Test cases
 ### Test cases #1 -  Verify 4 traps'default configuration
-1. Verify the 4 traps(arp, lacp, udld, ip2me) are installed  by sending traffic with the default config
+1. Verify the 4 traps(arp, lacp, udld, ip2me) are installed by sending traffic with the default config
    (For traffic validation, please see the Notes)
 
 ### Test cases #2 - Add a new trap
 #### Pre-condition: The tested trap should be uninstalled on dut.
-#### Remove ip2me because bgp traffic can fall back to ip2me trap then interfere following traffic tests
+#### Since different vendor's ASIC might have some different invisible default traps will cause traffic to be trapped,
+#### we also need to remove them.
+#### For example: Remove ip2me because bgp traffic can fall back to ip2me trap then interfere following traffic tests
 1. Set always_enabled of bgp to true with following cmds:
    
   + generate copp config file
@@ -106,7 +108,9 @@ The test will be supported on ptf32, ptf64, t1 and t2.
    
 ### Test cases #3 - Remove a trap by removing entry from feature table
 #### Pre-condition: The tested trap has been installed on dut,  with always_enable true and the corresponding entry enabled.
-#### Remove ip2me because bgp traffic can fall back to ip2me trap then interfere following traffic tests
+#### Since different vendor's ASIC might have some different invisible default traps will cause traffic to be trapped,
+#### we also need to remove them.
+#### For example: Remove ip2me because bgp traffic can fall back to ip2me trap then interfere following traffic tests
 Take bgp trap as example:
 1. Set always_enabled of bgp to false (refer to test #2)
 2. Remove bgp entry from feature table with CMD
@@ -116,7 +120,9 @@ Take bgp trap as example:
 
 
 ### Test cases #4 - Remove a trap by disabling feature table
-#### Pre-condition: Remove ip2me because bgp traffic can fall back to ip2me trap then interfere following traffic tests
+#### Since different vendor's ASIC might have some different invisible default traps will cause traffic to be trapped,
+#### we also need to remove them.
+#### For example: Remove ip2me because bgp traffic can fall back to ip2me trap then interfere following traffic tests
 Take bgp trap as an example:
 1. Set always_enabled of bgp to false (refer to test #2)
 2. Enable bgp in feature table: config feature state bgp enabled    
