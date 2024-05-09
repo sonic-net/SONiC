@@ -304,7 +304,7 @@ The reset of values in `/proc/diskstats` upon device reboot or power cycle prese
 
 1. **Planned cold, fast, and warm reboot scenario**
 
-    - Prior to invoking an OS-level reboot, the latest FSIO Read and Write metrics are captured from the `/proc/diskstats` file and stored into the `fsio-rw-stats.json` by executing the `fsio-rw-sync` script from the respective reboot script (cold, soft, or warm).
+    - Prior to invoking an OS-level reboot, the latest FSIO Read and Write metrics are captured from the `/proc/diskstats` file and stored into the `fsio-rw-stats.json` by executing the `fsio-rw-sync` script from the systemd service script that stops the database container.
     - Post-reboot, the read/write metrics as parsed from the `fsio-rw-stats.json` file will exceed the current values in `STATE_DB`.
     - Under these conditions, the RW values from `fsio-rw-stats.json` are treated as baseline metrics, and subsequent RW values from `/proc/diskstats` are added to this baseline before database insertion.
 
@@ -383,8 +383,8 @@ serial                  = STRING                    ; Describes the Serial numbe
 temperature_celsius     = STRING                    ; Describes the operating temperature of the disk in Celsius                             (Dynamic)
 fs_io_reads             = STRING                    ; Describes the total number of filesystem reads completed successfully                  (Dynamic)
 fs_io_writes            = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
-current_fs_io_reads     = STRING                    ; Describes the latest filesystem reads completed successfully                           (Dynamic)
-current_fs_io_writes    = STRING                    ; Describes the latest filesystem writes completed successfully                          (Dynamic)
+latest_fs_io_reads      = STRING                    ; Describes the latest number of filesystem reads completed successfully                 (Dynamic)
+latest_fs_io_writes     = STRING                    ; Describes the latest number of filesystem writes completed successfully                (Dynamic)
 fs_io_writes            = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
 disk_io_reads           = STRING                    ; Describes the total number of reads completed successfully from the SSD (Bytes)        (Dynamic)
 disk_io_writes          = STRING                    ; Describes the total number of writes completed on the SSD (Bytes)                      (Dynamic)
@@ -452,8 +452,8 @@ key                        = STORMOND_CONFIG|INTERVALS   ; This key is for infor
 
 ; field                    = value
 
-daemon_polling_interval    = STRING               ; The polling frequency for reading dynamic information
-fsstats_sync_interval      = STRING               ; The frequency of FSIO Reads/Writes synchronization to location on disk
+daemon_polling_interval    = UINT32               ; The polling frequency for reading dynamic information
+fsstats_sync_interval      = UINT32               ; The frequency of FSIO Reads/Writes synchronization to location on disk
 ```
 
 Example: `stormond` configured with daemon polling interval of 60s and the JSON file sync interval as 360 seconds:
@@ -483,15 +483,15 @@ container sonic-stormond-config {
 
                 leaf daemon_polling_interval {
                     description "Polling inerval for Storage Monitoring Daemon in STORMOND_CONFIG table";
-                    type string {
-                        length 1..32;
+                    type uint32 {
+                        range "1..4294967295";
                     }
                 }
 
                 leaf fsstats_sync_interval {
                     description "FSSTATS JSON file syncing interval for the Storage Monitoring Daemon in STORMOND_CONFIG table";
-                    type string {
-                        length 1..32;
+                    type uint32 {
+                        range "1..4294967295";
                     }
                 }
             }
