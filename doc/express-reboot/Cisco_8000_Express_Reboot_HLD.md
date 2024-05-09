@@ -9,6 +9,8 @@ The goal of Sonic express reboot is to be able to restart and upgrade SONiC soft
 <img src="img/express-boot_flow.png" alt="Figure 1. Express boot flow">
 </p>
 
+To keep express boot stateless, which is one of the cornerstone of express boot design, it is best to avoid punt-header-v1 reaching SDK-v2. This is why express boot design calls for disabling punt-inject from t1 to t3.
+
 Figure 2 below compares major steps taken in warm boot and express boot from both SONiC and SDK point of view. 
 
 <p align=center>
