@@ -217,7 +217,7 @@ NSF Manager will send freeze notification to all registered components and will 
 *   UMF will stop listening to new gRPC requests from the controller.
 *   P4RT will stop listening to new gRPC requests from the controller and stop packet I/O.
 *   xcvrd will stop listening to transceiver updates such as module presence.
-*   Syncd will stop listening to link state events from the BCM chip.
+*   Syncd will stop listening to link state events from the vendor chip.
 *   Orchagent will stop periodic internal timers.
 *   BGP will stop exchanging packets with the peers.
 *   Teamd will continue exchanging LACP PDUs but stop processing any changes in the peer PDUs.
