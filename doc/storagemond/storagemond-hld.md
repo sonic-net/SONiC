@@ -381,11 +381,10 @@ key                     = STORAGE_INFO|<disk_name>  ; This key is for informatio
 device_model            = STRING                    ; Describes the Vendor information of the disk                                           (Static)
 serial                  = STRING                    ; Describes the Serial number of the disk                                                (Static)
 temperature_celsius     = STRING                    ; Describes the operating temperature of the disk in Celsius                             (Dynamic)
-fs_io_reads             = STRING                    ; Describes the total number of filesystem reads completed successfully                  (Dynamic)
-fs_io_writes            = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
-latest_fs_io_reads      = STRING                    ; Describes the latest number of filesystem reads completed successfully                 (Dynamic)
-latest_fs_io_writes     = STRING                    ; Describes the latest number of filesystem writes completed successfully                (Dynamic)
-fs_io_writes            = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
+total_fsio_reads        = STRING                    ; Describes the total number of filesystem reads completed successfully                  (Dynamic)
+total_fsio_writes       = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
+latest_fsio_reads       = STRING                    ; Describes the latest number of filesystem reads completed successfully                 (Dynamic)
+latest_fsio_writes      = STRING                    ; Describes the latest number of filesystem writes completed successfully                (Dynamic)
 disk_io_reads           = STRING                    ; Describes the total number of reads completed successfully from the SSD (Bytes)        (Dynamic)
 disk_io_writes          = STRING                    ; Describes the total number of writes completed on the SSD (Bytes)                      (Dynamic)
 reserved_blocks         = STRING                    ; Describes the reserved blocks count of the SSD                                         (Dynamic)
@@ -401,31 +400,32 @@ Example: For an SSD with name 'sda', the STATE_DB entry would be:
 ```
 root@sonic:~# docker exec -it database bash
 root@sonic:/# redis-cli -n 6
-127.0.0.1:6379[6]> keys STORAGE*
-1) "STORAGE_INFO|mmcblk0"
-2) "STORAGE_INFO|sda"
-127.0.0.1:6379[6]>
-127.0.0.1:6379[6]> hgetall STORAGE_INFO|sda
+127.0.0.1:6379[6]> hgetall "STORAGE_INFO|sda"
  1) "device_model"
- 2) "SATA SSD"
+ 2) "InnoDisk Corp. - mSATA 3IE4"
  3) "serial"
- 4) "SPG2043056Z"
+ 4) "BCA11803120900005"
  5) "firmware"
- 6) "FW1241"
+ 6) "S0000000"
  7) "health"
- 8) "N/A"
+ 8) "37.500"
  9) "temperature"
-10) "30"
-11) "fs_io_reads"
-12) "28753"
-13) "fs_io_writes"
-14) "92603"
-15) "disk_io_reads"
-16) "15388141951"
-17) "disk_io_writes"
-18) "46070618960"
-19) "reserved_blocks"
-20) "32"
+10) "37"
+11) "latest_fsio_reads"
+12) "93437"
+13) "latest_fsio_writes"
+14) "58743"
+15) "total_fsio_reads"
+16) "93437"
+17) "total_fsio_writes"
+18) "58743"
+19) "disk_io_reads"
+20) "5515433"
+21) "disk_io_writes"
+22) "863698"
+23) "reserved_blocks"
+24) "135"
+
 
 ```
 
