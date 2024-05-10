@@ -399,7 +399,10 @@ Example: For an SSD with name 'sda', the STATE_DB entry would be:
 
 ```
 root@sonic:~# docker exec -it database bash
-root@sonic:/# redis-cli -n 6
+admin@str2-dx010-acs-7:~$ redis-cli -n 6
+127.0.0.1:6379[6]> keys STORAGE*
+1) "STORAGE_INFO|sda"
+127.0.0.1:6379[6]>
 127.0.0.1:6379[6]> hgetall "STORAGE_INFO|sda"
  1) "device_model"
  2) "InnoDisk Corp. - mSATA 3IE4"
@@ -410,21 +413,22 @@ root@sonic:/# redis-cli -n 6
  7) "health"
  8) "37.500"
  9) "temperature"
-10) "37"
+10) "38"
 11) "latest_fsio_reads"
-12) "93437"
+12) "15507"
 13) "latest_fsio_writes"
-14) "58743"
+14) "3775"
 15) "total_fsio_reads"
-16) "93437"
+16) "353083"
 17) "total_fsio_writes"
-18) "58743"
+18) "70146"
 19) "disk_io_reads"
-20) "5515433"
+20) "5515700"
 21) "disk_io_writes"
-22) "863698"
+22) "863702"
 23) "reserved_blocks"
 24) "135"
+
 
 
 ```
