@@ -10,6 +10,7 @@
 |Revision No.|Description|Author|Date|
 | :- | :- | :- | :- |
 |0.1|Intial Design|[Hamna Rauf](https://github.com/hamnarauf), [Muhammad Danish](https://github.com/mdanish-kh), [Rida Hanif](github.com/ridahanif96), [Hafiz Mati ur Rehman](https://github.com/Mati86)  & [Arsalan Ahmad](https://github.com/ahmadarsalan/)|March 20, 2023|
+|0.2|Modified Design| [Divya Kumaran Chandralekha](https://github.com/divyachandralekha) , [Rida Hanif](github.com/ridahanif96)|May 10, 2024|
 
 # Table of Contents
 
@@ -72,10 +73,8 @@ PVST HLD: https://github.com/sonic-net/SONiC/pull/386
 |CST|Common Spanning Tree|
 |IST|Internal Spanning Tree|
 |BPDU|Bridge Protocol Data Unit|
-|RSTP|Rapid Spanning Tree Protocol|
 |VID|VLAN identifier|
 |MSTID|Multiple Spanning Tree Identifier|
-|CoPP|Control Plane Policing|
 
 # Overview
 Multiple Spanning Tree Protocol (MSTP) enhances the Spanning Tree Protocol (STP) by enabling the creation of multiple spanning tree instances within a network. It provides a mechanism to map VLANs to specific spanning tree instances which offers network segmentation and improved control over traffic flow.
@@ -363,20 +362,32 @@ Update port-state, topology change and instance-interface events remain the same
 # Configuration Commands
 Following configuration commands will be provided for configuration of MSTP:
 ## Global Level
-- **config spanning_tree {enable|disable} {mstp|pvst}**
+- **config spanning_tree {enable|disable} {mst}**
   - Enables or disables mstp at global level on all ports of the switch.
   - Only one mode of STP can be enabled at a time.
-- **config spanning_tree max_hops \<max-hops-value\>**
+- **config spanning_tree mst max_hops \<max-hops-value\>**
   - Specify the number of maximum hops before the BPDU is discarded inside a region.
   - max-hops-value: Default: 20, range: 1-255
+- **config spanning_tree mst hello \<hello-value\>**
+  - Specify configuring hello interval in sec for transmission of BPDUs. 
+  Default: 2,  range 1-10
+- **config spanning_tree mst max_age \<max_age-value\>**
+  - Specify configuring maximum time to listen for root bridge in seconds.
+  Default: 2,  range 6-40
+- **config spanning_tree mst port_priority \<port_priority-value\>**
+  - Specify configuring the port level priority for root bridge in seconds.
+  Default: 128,  range 0-240 
+- **config spanning_tree mst cost \<cost-value\>**
+  - Specify configuring the port level priority for root bridge in seconds.
+  Default: 0,  range 1-200000000 
 
 ## Region Level
 Below commands allow configuring on region basis:
 
-- **config spanning_tree region name \<region-name\>**
+- **config spanning_tree mst region name \<region-name\>**
   - Edit the name of region
   - region-name: Case sensitive, characters should be less than or equal to 32, default: mac-address of bridge
-- **config spanning-tree region revision \<revision-number\>**
+- **config spanning-tree mst revision \<revision-number\>**
   - Revision number is used to track changes in the configuration and to synchronize the configuration across the switches in the same region.
   - revision-number: Default: 0, range: 0-65535
 
@@ -384,15 +395,11 @@ Below commands allow configuring on region basis:
 
 Below commands allow configuration of an instance:
 
-- **config spanning_tree instance (add|del) \<instance-id\>**
-  - Creation or deletion of an instance.
-  - instance-id: Default: 0, range: 1-63
-  - Instance can not be deleted if VLAN(s) are associated with it. 
-- **config spanning_tree instance priority \<instance-id\> \<priority-value\>** 
+- **config spanning_tree mst instance \<instance-id\> priority \<priority-value\>** 
   - Configure priority of bridge for an instance.
   - instance-id: id of the instance for which bridge priority is to be defined. If the provided instance id is not created yet, an error message is displayed.
   - priority-value: Default: 32768, range: 0-61440 (should be multiple of 4096)
-- **config spanning_tree instance vlan (add|del) \<instance-id\> \<vlan-id\>**
+- **config spanning_tree mst instance \<instance-id\> vlan (add|del)  \<vlan-id\>**
   - VLAN to instance mapping.
   - instance-id: id of the instance to which VLAN is to be mapped. If the provided instance id is not created yet, an error message is displayed.
   - vlan-id: Range: 1-4094. If the provided VLAN is not created yet, an error message is displayed.
@@ -401,29 +408,63 @@ Below commands allow configuration of an instance:
 ## Instance, Interface Level
 Following commands are used for spanning-tree configurations on per instance, per interface basis:
 
-- **config spanning_tree instance interface priority \<instance-id\> \<ifname\> \<priority-value\>**
+- **config spanning_tree mst instance \<instance-id\> interface \<ifname\> priority \<priority-value\>**
   - Configure priority of an interface for an instance.
   - priority-value: Default: 128, range: 0-240
-- **config spanning_tree instance interface cost \<instance-id\> \<ifname\> \<cost-value\>**
+- **config spanning_tree mst instance \<instance-id\> interface <ifname\> cost \<cost-value\>**
   - Configure path cost of an interface for an instance.
   - cost-value: Range: 1-200000000
 
 ## Interface Level
 Following new command will be added:
 
-- **config spanning_tree interface edgeport {enable|disable} \<ifname\>**
+- **config spanning_tree mst interface\<ifname\> {enable|disable}**
+  - Configure an interface for MSTP.
+- **config spanning_tree mst interface edgeport {enable|disable} \<ifname\>**
   - Configure an interface as an edge port.
+  
+- **config spanning_tree interface \<ifname\> root_guard {enable|disable}**
+  - Configure an interface as a root_guard.
+
+- **config spanning_tree mst interface \<ifname\> bpdu_guard {enable|disable}**
+  - Configure an interface as a bpdu_guard. 
+
+- **config spanning_tree mst interface \<ifname\> guard {root|bpdu}**
+  - Configure an interface as a bpdu_guard. 
 
 Interface level CLI configurations of root guard, BPDU guard will also be supported for spanning-tree mode `mstp`.
 
 ## Show Commands
-- show spanning_tree
+- show spanning_tree mst
 
     The output of this command will be as follows for `mstp`:
 ```
 Spanning-tree Mode: MSTP
+#######  MST0        Vlans mapped : 1, 4-8, 202-4094
+Bridge               Address 8000.80a2.3526.0c5e
+Root                 Address 8000.80a2.3526.0c5e
+                     Port     Root                  Path cost 0 
+Regional Root        Address  8000.80a2.3526.0c5e
+                     Internal cost 0                Rem hops 20 
+Operational          Hello Time  2, Forward Delay 15, Max Age 20, Txholdcount 6
+Configured           Hello Time  2, Forward Delay 15, Max Age 20, Max Hops 20
 
-MSTP Region Parameters:
+Interface           Role        State           Cost       Prio.Nbr    Type
+---------------    --------     ----------      -------    ---------   -----------
+Ethernet20         DESIGNATED   FORWARDING     2000        128.25       P2P
+Ethernet46         DESIGNATED   FORWARDING     800         128.86       P2P
+PortChannel1001    DESIGNATED   FORWARDING     1000        128.45       P2P
+
+#######  MST1       Vlans mapped : 2, 300, 400
+Bridge               Address 8000.80a2.3526.0c5e
+Root                 Address 8000.80a2.3526.0c5e
+                     Port    Root            Path cost 0    Rem Hops 20
+
+Interface           Role        State           Cost       Prio.Nbr     Type
+---------------    --------     ----------      -------    ---------    -----------
+Ethernet46         DESIGNATED   FORWARDING      800         128.86       P2P
+PortChannel1001    DESIGNATED   FORWARDING      1000        128.45       P2P
+
 Region Name                     : regionA
 Revision                        : 0
 CIST Bridge Identifier          : 32768002438eefbc3
@@ -434,49 +475,104 @@ Last Topology Change            : 0s
 Number of Topology Changes      : 0
 Bridge Timers                   : MaxAge 20s Hello 2s FwdDly 15s MaxHops 20
 CIST Root Timers                : MaxAge 20s Hello 2s FwdDly 15s MaxHops 20
-
-MSTP instance 0 - VLANs 10, 20, 30
--------------------------------------------------------------------------------------------------
-
-Bridge              Regional Bridge     RootPath  RootPort    LastTopology  Topology
-Identifier          Identifier          Cost      Identifier  Change        Change
-hex                 hex                                       sec           cnt
-32768002438eefbc3   32768002438eefbc3   0         128.13      0             0
-
-MSTP Port Parameters:
-
-Port        Prio Path Edge State      Role  Designated  Designated          Designated
-Num         rity Cost Port                  Cost        Root                Bridge
-Ethernet13  128  4    N    FORWARDING Root  0           32768002438eefbc3   32768002438eefbc3 
-```
-- show spanning_tree region
-
-```
-Region Name                     : regionA
-Revision                        : 0
-CIST Bridge Identifier          : 32768002438eefbc3
-CIST Root Identifier            : 32768002438eefbc3
-CIST External Path Cost         : 0
-Instances configured            : 1
-Last Topology Change            : 0s
-Number of Topology Changes      : 0
-Bridge Timers                   : MaxAge 20s Hello 2s FwdDly 15s MaxHops 20
-CIST Root Timers                : MaxAge 20s Hello 2s FwdDly 15s MaxHops 20
 ```
 
-- show spanning_tree instance \<instance-id\>
+- show spanning_tree  mst detail 
 
 ```
-MSTP instance 0 - VLANs 10, 20, 30
--------------------------------------------------------------------------------------------------
 
-Bridge              Regional Bridge     RootPath  RootPort    LastTopology  Topology
-Identifier          Identifier          Cost      Identifier  Change        Change
-hex                 hex                                       sec           cnt
-32768002438eefbc3   32768002438eefbc3   0         128.13      0             0
+#######  MST0        Vlans mapped : 1, 4-8, 202-4094
+Bridge               Address 8000.80a2.3526.0c5e
+ Root                 Address 8000.80a2.3526.0c5e
+                     Port    Root            Path cost 0    Rem Hops 20
+
+Ethernet20 is DESIGNATED FORWARDING
+Port info              port id 86 priority 128          cost 800
+Designated             Address 8000.80a2.3526.0c5e      cost 0
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 86
+Timers:  forward transitions 0
+Bpdu send 80, received 0
+
+Ethernet46 is DESIGNATED FORWARDING
+Port info              port id 25 priority 128          cost 1000
+Designated             Address 8000.80a2.3526.0c5e      cost 0
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
+Timers:  forward transitions 0
+Bpdu send 80, received 0
+
+PortChannel1001 is DESIGNATED FORWARDING
+Port info              port id 25 priority 128          cost 2000
+Designated             Address 8000.80a2.3526.0c5e      cost 0
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
+Timers:  forward transitions 0
+Bpdu send 80, received 0
+
+#######  MST1        Vlans mapped : 2, 300, 400
+Bridge               Address 8000.80a2.3526.0c5e
+ Root                 Address 8000.80a2.3526.0c5e
+                     Port    Root            Path cost 0    Rem Hops 20
+
+Ethernet46 is DESIGNATED FORWARDING
+Port info              port id 85 priority 128          cost 2000
+Designated             Address 8000.80a2.3526.0c5e      cost 0
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
+Timers:  forward transitions 0
+Bpdu send 80, received 0
+
+
+PortChannel1001 is DESIGNATED FORWARDING
+Port info              port id 25 priority 128          cost 2000
+Designated             Address 8000.80a2.3526.0c5e      cost 0
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
+Timers:  forward transitions 0
+Bpdu send 80, received 0
+
 ```
 
-- show spanning_tree instance interface \<instance-id\> \<ifname\>
+- show spanning_tree  mst instance <instance-id>
+
+```
+show spanning_tree mst instance 0
+#######  MST0        Vlans mapped : 1, 4-8, 202-4094
+Bridge               Address 8000.80a2.3526.0c5e
+Root                 Address 8000.80a2.3526.0c5e
+                     Port     Root            Path cost 0 
+Regional Root        Address  8000.80a2.3526.0c5e
+                     Internal cost 0         Rem hops 20 
+Operational          Hello Time  2, Forward Delay 15, Max Age 20, Txholdcount 6
+Configured           Hello Time  2, Forward Delay 15, Max Age 20, Max Hops 20
+
+Interface           Role        State           Cost       Prio.Nbr    Type
+---------------    --------     ----------      -------    ---------   -----------
+Ethernet20         DESIGNATED   FORWARDING     2000        128.25       P2P
+Ethernet46         DESIGNATED   FORWARDING     800         128.86       P2P
+PortChannel1001    DESIGNATED   FORWARDING     1000        128.45       P2P
+```
+
+- show spanning_tree  mst interface 
+
+```
+show spanning_tree mst interface  Ethernet46
+Link Type: P2P        Bpdu filter: False
+Boundary : internal   Bpdu guard:  False
+
+Instance           Role        State           Cost       Prio.Nbr     Vlans 
+---------------    --------     ----------      -------    ---------    -----------
+0                  DESIGNATED   FORWARDING      800         128.86       1, 4-8, 202-4094
+1                  DESIGNATED   FORWARDING      1000        128.45       2, 300, 400
+```
+
+
+- show spanning_tree mst bpdu_guard
+
+```
+PortNum               Shutdown Configured             Port Shut due to BPDU Guard
+---------             --------------------           -----------------------------
+Ethernet45             Yes                            Yes             
+PortChannel1001        No                             NA
+```
+
+- show spanning_tree  mst instance \<instance-id\> interface \<ifname\>
 
 ```
 Port        Prio Path Edge State      Role  Designated  Designated          Designated
@@ -484,8 +580,9 @@ Num         rity Cost Port                  Cost        Root                Brid
 Ethernet13  128  4    N    FORWARDING Root  0           32768002438eefbc3   32768002438eefbc3
 ```
 
+
 ### Statistics Commands
-- show spanning_tree statistics instance \<instance-id\>
+- show spanning_tree mst statistics instance \<instance-id\>
 ```
 MSTP instance 0 - VLANs 10, 20, 30
 --------------------------------------------------------------------
@@ -495,37 +592,35 @@ PortChannel15     20	      6           4          1
 ```
 
 ## Clear Commands
-- sonic-clear spanning_tree statistics instance \<instance-id\>
-- sonic-clear spanning_tree statistics instance interface \<instance-id\> \<ifname\>
+
+- sonic-clear spanning_tree mst statistics 
+- sonic-clear spanning_tree mst statistics instance \<instance-id\>
+
 
 ## Debug Commands
 Following debug commands will be supported for enabling additional logging which can be viewed in /var/log/stpd.log, orchagent related logs can be viewed in /var/log/syslog.
 
-- debug spanning_tree region
-- debug spanning_tree instance \<instance-id\>
+- debug spanning_tree mst instance \<instance-id\>
+- debug spanning_tree mst bpdu [tx|rx]
+- debug spanning_tree mst event
+- debug spanning_tree mst verbose
+- debug spanning_tree mst interface \<ifname>\
 
 Following debug commands will be supported for displaying internal data structures
 
-- debug spanning_tree dump region
-- debug spanning_tree dump instance \<instance-id\>
-- debug spanning_tree dump instance interface \<instance-id\> \<ifname\>
+- debug spanning_tree mst dump instance \<instance-id\>
+
 
 ## Disabled Commands
 Following commands are used to configure parameters at VLAN level and these commands are disabled if spanning-tree mode is `mstp`:
 
-- config spanning_tree vlan (enable|disable) \<vlan\>
-- config spanning_tree vlan forward_delay \<vlan\> \<fwd-delay-value\>
-- config spanning_tree vlan hello \<vlan\> \<hello-value\>
-- config spanning_tree vlan max_age \<vlan\> \<max-age-value\>
-- config spanning_tree vlan priority \<vlan\> \<priority-value\>
-- config spanning_tree vlan interface cost \<vlan\> \<ifname\> \<value\>
-- config spanning_tree vlan interface priority \<vlan\> \<ifname\> \<value\>
-
-Following command is used to configure portfast feature. This command is disbaled if spanning-tree mode is `mstp` because an equivalent command of edge port is provided:
-
-- config spanning_tree interface portfast {enable|disable} <ifname>
-
-Also, Region level, Instance level & Edge port configuation commands will be disabled if spanning-tree mode is `pvst`.
+- config spanning_tree mst vlan (enable|disable) \<vlan\>
+- config spanning_tree mst vlan forward_delay \<vlan\> \<fwd-delay-value\>
+- config spanning_tree mst vlan hello \<vlan\> \<hello-value\>
+- config spanning_tree mst vlan max_age \<vlan\> \<max-age-value\>
+- config spanning_tree mst vlan priority \<vlan\> \<priority-value\>
+- config spanning_tree mst vlan interface cost \<vlan\> \<ifname\> \<value\>
+- config spanning_tree mst vlan interface priority \<vlan\> \<ifname\> \<value\>
 
 
 # YANG Model
