@@ -148,6 +148,7 @@ DHCP traffic can be filtered and rate-limited by dropping all packets that excee
 Since traffic control(TC) only supports rates in the form of bytes per second, this value is multiplied by 406 (number of bytes that make up a DHCP discover packet).
 Upon running this command, an ingress queuing discipline is created on the specified port via traffic control(TC). Next, a traffic control(TC) filter is added to filter DHCP discover packets on protocol 17 (UDP) and destination port 67 (port used by DHCP) and a dropping action is applied to filtered incoming traffic. Incoming DHCP discover packets that exceed the rate are dropped to stop the attack from overwhelming the DHCP server.
 
+A custom program (daemon) has been developed to monitor network traffic. This daemon continuously checks all network ports (tc qdisc) for signs of packet drops. If it detects increase in dropped packets on a specific port, it logs a message to a designated file. This log message serves as an alert for the user, notifying them about potential congestion and packet loss issues on the affected port.
 
 ### Requirements
 
@@ -158,14 +159,14 @@ Upon running this command, an ingress queuing discipline is created on the speci
 The overall SONiC architecture will remain the same. Changes are made only in the SONiC Utilities container, SwSS container, and Config_DB.
 
 <figure style="text-align:center;">
-    <img src="../../images/dhcp_mitigation_hld/design_image.png" width="80%"/>
+    <img src="../.." width="80%"/>
     <figcaption>Figure 4: Feature Design</figcaption>
 </figure>
 
 ### Sequence Diagram to add rate-limit
 
 <figure style="text-align:center;">
-    <img src="../../images/dhcp_mitigation_hld/sequence_diagram_add5.drawio (1).png" width="80%"/>
+    <img src="../../images/dhcp_mitigation_hld/DHCP_13May2.drawio.png" width="80%"/>
     <figcaption>Figure 5: Sequence diagram illustrating the process of deleting rate-limit for DHCP DoS mitigation</figcaption>
 </figure>
 
@@ -178,26 +179,60 @@ The overall SONiC architecture will remain the same. Changes are made only in th
 </figure>
 
 ### Configuration &  Management
-#### CONFIG_DB 
+
+#### CONFIG_DB Enhancements
 
 New attribute “dhcp_rate_limit” will be added to “PORT_TABLE” to support DHCP mitigation rate.
 
+    "PORT":
+      {
+        "Ethernet0": {
+            "admin_status": "up",
+            "alias": "fortyGigE0/0",
+            "index": "0",
+            "lanes": "25,26,27,28",
+            "mtu": "9100",
+            "speed": "40000",
+            "dhcp_rate_limit" : "300"
+        }
+      }
+
+
+
+#### DB Migrator Enhancements
+
+As there is a change in the schema for PORT in config DB. We have added a new "dhcp_rate_limit" field in db_migrator.py in order to support backward compatibility.
+
+Existing Before Migration PORT TABLE Schema in Config_DB
+
+    "PORT": 
+    {
+        "Ethernet0": {
+            "admin_status": "up",
+            "alias": "fortyGigE0/0",
+            "index": "0",
+            "lanes": "25,26,27,28",
+            "mtu": "9100",
+            "speed": "40000"
+        }
+    }
+
+After Migration PORT TABLE Schema in Config_DB
  
-      { "PORT":{
-       "Ethernet0": 
-       {
-      "admin_status": "up",
-    	"alias": "Ethernet1/1",
-    	"asic_port_name": "Eth0-ASIC0",
-    	"description": "ARISTA01T2:Ethernet3/1/1",
-    	"lanes": "33,34,35,36",
-    	"mtu": "9100",
-    	"pfc_asym": "off",
-    	"role": "Ext",
-    	"speed": "40000",
-      "dhcp_rate_limit" : "300"    
-         }
-      }}
+
+
+    "PORT": 
+    {
+        "Ethernet0": {
+            "admin_status": "up",
+            "alias": "fortyGigE0/0",
+            "index": "0",
+            "lanes": "25,26,27,28",
+            "mtu": "9100",
+            "speed": "40000",
+            "dhcp_rate_limit" : "300"
+        }
+    }
 
 ### SAI API 
 
@@ -216,6 +251,7 @@ Proposed SONiC CLI commands (sonic-utilities)
 Background Linux TC commands
 -   sudo tc qdisc add dev [interface] handle ffff: ingress
 -   sudo tc filter add dev [interface] protocol ip parent ffff: prio 1 u32 match ip protocol 17 0xff match ip dport 67 0xffff police rate [byte-rate] burst [byte-rate] conform-exceed drop
+-  sudo  tc  -s  qdisc show dev [port] handle ffff:
 
 
 ##### YANG Model
@@ -225,7 +261,7 @@ New leaf “dhcp_rate_limit” will be added to support DHCP mitigation rate.
      leaf dhcp_rate_limit {
    	        description: "dhcp rate limit ;
    				  type uint32 {
-   					   range 1..8000;
+   					   range 0..8000;
    				 }
    			 }
 
@@ -242,6 +278,14 @@ New leaf “dhcp_rate_limit” will be added to support DHCP mitigation rate.
 -   Verify CLI to restrict one DHCP rate per port 
 *(previous rate must be removed before adding a new rate on an port)
 -   Verify CLI to ensure rate limit exists on port before deleting
+
+
+#### Functional Test cases
+
+-   Verify DHCP rate has been said on interface
+-   Simulate Excessive DHCP Traffic on interface
+-   Verify DHCP packets has been dropped as per rate limit
+
 
 
 ### Warmboot and Fastboot Design Impact  
