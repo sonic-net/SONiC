@@ -159,14 +159,14 @@ A custom program (daemon) has been developed to monitor network traffic. This da
 The overall SONiC architecture will remain the same. Changes are made only in the SONiC Utilities container, SwSS container, and Config_DB.
 
 <figure style="text-align:center;">
-    <img src="../.." width="80%"/>
+    <img src="../../images/dhcp_mitigation_hld/DHCP_13May2.drawio.png" width="80%"/>
     <figcaption>Figure 4: Feature Design</figcaption>
 </figure>
 
 ### Sequence Diagram to add rate-limit
 
 <figure style="text-align:center;">
-    <img src="../../images/dhcp_mitigation_hld/DHCP_13May2.drawio.png" width="80%"/>
+    <img src="../../images/dhcp_mitigation_hld/sequence_diagram_add5.drawio (1).png" width="80%"/>
     <figcaption>Figure 5: Sequence diagram illustrating the process of deleting rate-limit for DHCP DoS mitigation</figcaption>
 </figure>
 
