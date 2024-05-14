@@ -262,11 +262,15 @@ Therefore, even after this enhancement, table entries will be created for `ROUTE
 ##### Figure: Example of ASIC_DB entry
 ![fig3](images_fpmsyncd/fig3.svg)
 
+After processing the NHG update the `ASIC_DB` entry will be updated to point to the new member `NEXT_HOP`
+##### Figure: Example of ASIC_DB entry after NHG update
+![fig3](images_fpmsyncd/asic2.png)
+
 #### Orchestration Agent Changes to handle NEXTHOP_GROUP
 
 Orchestration agent `NhgOrch` will be enhanced to handle the new NEXTHOP_GROUP_TABLE in APP_DB. For adding or updating an entry in the NEXTHOP_GROUP_TABLE, programming will depend on whether the group is configured with one or multiple next hops or is a recursive nexthop group i.e. it contains one or more nexthop group.
 
- - NhgOrch treats an NEXTHOP_GROUP as "recursive" if it has "nexthop_group" as the only field. This field contains "member" NEXTHOP_GROUP. The parent NEXTHOP_GROUP key is constructed by combining keys of the member NEXTHOP_GROUPs. Such an NEXTHOP_GROUP always uses a "NEXT_HOP_GOUP" object-id to represent the group
+ - NhgOrch treats an NEXTHOP_GROUP as "recursive" if it has "nexthop_group" as the only field. This field contains "member" NEXTHOP_GROUP. The parent NEXTHOP_GROUP key is constructed by combining keys of the member NEXTHOP_GROUPs. Such an NEXTHOP_GROUP always uses a "NEXT_HOP_GROUP" object-id to represent the group
  - Singleton (non-recursive) NEXTHOP_GROUP contain various fields e.g. Inexthop, alias etc. Such NEXTHOP_GROUP form a key by combining these fields and query the NeighOrch with the "key" to get the corresponding SAI ID. So singleton (non-recursive) NEXTHOP_GROUP do not own the SAI ID rather they just reuse the SAI IDs owned by NeighOrch module.
  - If one or more members of a "recursive" NEXTHOP_GROUP are not available, then the "NEXTHOP_GROUP" object is created with just the available members as long as there is one. The msg is retained in NhgOrch's mToSync queue so that it keeps checking for the availability of all the member NEXTHOP_GROUP. As and when the member NEXTHOP_GROUP are available, the "NEXTHOP_GROUP" object is updated with the new members. The "recursive" NEXTHOP_GROUP allow for members to be updated without having to update the referring routes. Since the SAI ID remains unchanged, update is transparent to the RouteOrch modules.
  - When a port-down event is received from Syncd, the corresponding nexthops are removed from all the nexthop groups they're part of.
