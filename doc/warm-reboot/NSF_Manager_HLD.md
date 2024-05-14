@@ -17,13 +17,15 @@
       - [Hotplugging Shutdown Fixes](#hotplugging-shutdown-fixes)
     + [Phase 2: Freeze Components And Wait for Switch Quiescence](#phase-2--freeze-components-and-wait-for-switch-quiescence)
       - [Unfreeze on Failure](#unfreeze-on-failure)
+      - [Quiescence Timer](#quiescence-timer)
     + [Phase 3: Trigger Checkpointing](#phase-3--trigger-checkpointing)
     + [Phase 4: Prepare and Perform Reboot](#phase-4--prepare-and-perform-reboot)
       - [Removing Container Shutdown Ordering Dependency](#removing-container-shutdown-ordering-dependency)
     + [Application Shutdown Optimization](#application-shutdown-optimization)
   * [Reconciliation Monitoring](#reconciliation-monitoring)
   * [Component Warmboot States](#component-warmboot-states)
-- [Critical Container Design Changes](#critical-container-design-changes)
+  * [Handling Race Conditions](#handling-race-conditions)
+- [Reference Design Changes in Critical Containers](#reference-design-changes-in-critical-containers)
   * [Orchagent](#orchagent)
   * [Syncd](#syncd)
   * [Teamd](#teamd)
@@ -202,7 +204,7 @@ In addition these sanity checks, it will optionally trigger state verification t
 ![alt_text](img/ad-hoc-fixes.png)
 
 
-NSF Manager will be provide a plugin via SONiC host service that can be used to hotplug fixes during warm shutdown. The host service will call a bash script in which ad-hoc fixes can be added during warm shutdown. This script can be updated before iniating warm reboot and will be called by NSF Manager after performing the sanity checks. Currently, such fixes are added in the fast-reboot script which is then updated on the switch. This framework enables NSF Manager to allow hotplugging fixes during warm shutdown before switch stack components start their warm shutdown routines.
+NSF Manager will be provide a plugin via SONiC host service that can be used to hotplug fixes during warm shutdown. The host service will call a bash script in which ad-hoc fixes can be added during warm shutdown. This script can be updated before iniating warm reboot and will be called by NSF Manager after performing the sanity checks. Currently, such fixes are added in the fast-reboot script which is then updated on the switch. This framework enables NSF Manager to allow hotplugging fixes during warm shutdown before switch stack components start their warm shutdown routines. Additionally, fixes can be hotplugged in [Phase 4](#phase-4-prepare-and-perform-reboot) after the components have completed their warm shutdown routines. This is because [Phase 4](#phase-4-prepare-and-perform-reboot) also uses SONiC host service to prepare the switch for reboot and perform the reboot operation, and thus fixes can be added to that host service.
 
 ##### Phase 2: Freeze Components And Wait for Switch Quiescence
 
@@ -210,8 +212,7 @@ NSF Manager will be provide a plugin via SONiC host service that can be used to 
 
 ![alt_text](img/freeze.png)
 
-NSF Manager will send freeze notification to all registered components and will wait for the quiescence of only those components that have set _freeze = true_. Upon receiving the freeze notification, the component will complete processing the current request queue and stop generating new intents. Stopping new intents from being generated means that boundary components should stop processing requests from external components (external events) and all components should stop their periodic timers that generate new requests (internal events). For example:
-
+NSF Manager will send freeze notification to all registered components and will wait for the quiescence of only those components that have set _freeze = true_. Upon receiving the freeze notification, the component will complete processing the current request queue and stop generating new self-sourced intents. This connotes that boundary components should stop processing requests from external components (external events) and all components should stop triggers that generate new requests (internal events) such as stop periodic timers/threads etc. The goal is to stop generating events that might break quiescence of other switch stack components. For example:
 
 
 *   UMF will stop listening to new gRPC requests from the controller.
@@ -219,24 +220,29 @@ NSF Manager will send freeze notification to all registered components and will 
 *   xcvrd will stop listening to transceiver updates such as module presence.
 *   Syncd will stop listening to link state events from the vendor chip.
 *   Orchagent will stop periodic internal timers.
-*   BGP will stop exchanging packets with the peers.
-*   Teamd will continue exchanging LACP PDUs but stop processing any changes in the peer PDUs.
+*   Teamd will stop processing any changes in the peer PDUs but continue exchanging LACP PDUs.
 
 However, all components will continue to process requests received by them from other switch stack components. This connotes that each component will stop generating events for which it is the source, but will continue to process request from other components. After all components have been freezed, the switch would eventually reach a state wherein each component stops generating new events and thus the switch becomes quiescent. This is because:
 
-
-
 *   Switch boundaries that generate new events have been stopped.
-*   All timers that generate new events have been stopped.
+*   All timers/threads that generate new events have been stopped.
 *   All components have completed processing their pending requests and thus there are no in-flight messages.
 
 After receiving the freeze notification, the components will update their quiescent state in STATE DB when they receive a new request (i.e. they are no longer quiescent) and when they complete processing their current request queue (i.e. they become quiescent). NSF Manager will monitor the quiescent state of all components in STATE DB to determine that the switch has become quiescent and thus further state changes won’t occur in the switch. If all components are in quiescent state then NSF Manager will declare that the switch has become quiescent and thus the switch has attained its final state. 
-
 
 ###### Unfreeze on Failure
 
 
 NSF Manager will wait for a period of time for the switch to become quiescent after which it will determine that this phase failed and abort the warm reboot operation. Additionally, it will unfreeze the switch stack on such failures by sending unfreeze notification to all the registered components. As a result, all components will resume their normal operations and start generating new external and internal events. This ensures that the switch continues to operate normally as it did before the start of the warm reboot operation.
+
+###### Quiescence Timer
+
+As indicated in the above sections, NSF Manager consists of 2 timers in this phase:
+
+* Quiescence Time: Amount of time that NSF Manager will wait after all components are quiescent to determine that the switch is quiescent.
+* Overall Phase Timeout: Amount of time for the switch to become quiescent after which NSF Manager will determine that this phase failed.
+
+These timers might be platform dependent since some platforms might take more time than others due to software/hardware constraints. Therefore, these timers will be configurable via CONFIG DB to allow setting appropriate timeouts for different platforms.
 
 
 ##### Phase 3: Trigger Checkpointing
@@ -302,11 +308,16 @@ Upon receiving a freeze notification, a component will transition to _frozen_ st
 
 After warm reboot, a component will transition to _initialized_ state after it has completed its initialization routine. It will transition to _reconciled_ state after it has completed reconciliation. It will transition to _failed_ state if its initialization or reconciliation fails.
 
-Components will update their state in STATE DB using [setWarmStartState()](https://github.com/sonic-net/sonic-swss-common/blob/master/common/warm_restart.cpp#L223) API during the different warm reboot stages. NSF Manager will monitor these NSF states in STATE DB to determine whether it needs to proceed with the next phase of the warm-boot orchestration or not.
+Components will update their state in STATE DB using [setWarmStartState()](https://github.com/sonic-net/sonic-swss-common/blob/master/common/warm_restart.cpp#L223) API during the different warm reboot stages. NSF Manager will monitor these warm-boot states in STATE DB to determine whether it needs to proceed with the next phase of the warm-boot orchestration or not.
 
-### Critical Container Design Changes
+#### Handling Race Conditions
 
-This section describes the design changes that need to be made in critical containers for this warm-boot orchestration framework.
+[Phase 2](#phase-2-freeze-components-and-wait-for-switch-quiescence) ensures that switch stack components stop generating new events for which they are the source, but they continue to process requests received from other components. The components update their warm-boot state to _frozen_ if they are processing a request and update it to _quiescent_ if their request queue is empty. Therefore, if there are any in-flight requests then at least one component will not be in _quiescent_ state. Eventually, all components will be in _quiescent_ state when there are no in-flight requests and there would be no in-flight requests after a period of time since all components stop generating new events. NSF Manager will wait for all components to be in _quiescent_ state for a period of time (configurable timer) before proceeding to the next phase. As a result, this design handles race conditions that may occur due to requests that are in-flight during warm shutdown.
+
+
+### Reference Design Changes in Critical Containers
+
+This section provides a reference for the design changes in critical containers due to this warm-boot orchestration framework. The actual design change details are out of scope of this document.
 
 #### Orchagent
 
@@ -407,7 +418,7 @@ _NA_
 
 NSF Manager will have unit and component tests to verify shutdown orchestration and reconciliation monitoring functionality. Unit/Component tests will be added to all switch stack components that will register with NSF Manager to ensure that they process notifications from NSF Manager and update STATE DB correctly.
 
-Integration tests will be added to verify the end-to-end functionality of this new warm-boot orchestration framework. At a high-level, the integration test will trigger warm reboot using NSF Manager and will verify that the switch warm reboots with 0 packet loss.
+Integration tests will be added to verify the end-to-end functionality of this new warm-boot orchestration framework. At a high-level, the integration test will trigger warm reboot using NSF Manager and will verify that the switch warm reboots with 0 packet loss. The detailed test plan is out of scope of this design and will be shared separately.
 
 NSF Manager is independent of the underlying forwarding ASIC and thus it will support all NPU types. The above integration test can be used to verify warm-boot orchestration on the different NPU types.
 
