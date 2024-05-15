@@ -267,20 +267,11 @@ These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to r
 1. **Check for `psutil` Module**:
    - The functions first check if the `psutil` module is available in the current environment by examining the `sys.modules` dictionary.
 
-2. **Use `psutil` Module (if available)**:
-   - If `psutil` is available:
-     - The functions retrieve disk I/O counters, specifying the disk for which to get the counters.
-     - They then get the read or write count for the specified disk using `read_count` or `write_count` respectively.
+2. **Use `psutil` Module to**:
+     - Retrieve disk I/O counters, specifying the disk for which to get the counters.
+     - Get the read or write count for the specified disk using `read_count` or `write_count` respectively.
 
-3. **Fallback to Parsing Disk Stats File**:
-   - If `psutil` is not available:
-     - The functions open the `/proc/diskstats` file
-     - They read the contents of the file and iterate over each line.
-     - For each line, they check if the name of the storage disk is present.
-     - If the name of the storage disk is found in the line, they return the value at the appropriate zero-based index (3 for reads, 7 for writes).
-     - If no line contains the name of the storage disk, they save the respective values as 0.
-
-4. **Return to caller**:
+3. **Return to caller**:
      - These values are then returned to the caller to subsequently be written to `STATE_DB`.
      - These values are also used to determine the total number of procfs reads and writes as explained in the following section
 
@@ -304,7 +295,7 @@ The reset of values in `/proc/diskstats` upon device reboot or power cycle prese
 
 1. **Planned cold, fast, and warm reboot scenario**
 
-    - Prior to invoking an OS-level reboot, the latest FSIO Read and Write metrics are captured from the `/proc/diskstats` file and stored into the `fsio-rw-stats.json` by executing the `fsio-rw-sync` script from the systemd service script that stops the database container.
+    - Prior to invoking an OS-level reboot, the latest FSIO Read and Write metrics are captured from the `/proc/diskstats` file and stored into the `fsio-rw-stats.json` by invoking the `fsio-rw-sync` script from the respective `/usr/local/bin/*reboot` script.
     - Post-reboot, the read/write metrics as parsed from the `fsio-rw-stats.json` file will exceed the current values in `STATE_DB`.
     - Under these conditions, the RW values from `fsio-rw-stats.json` are treated as baseline metrics, and subsequent RW values from `/proc/diskstats` are added to this baseline before database insertion.
 
