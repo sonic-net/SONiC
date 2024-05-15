@@ -534,7 +534,7 @@ This feature extends the existing NEXT_HOP_GROUP_TABLE, to store next hop group 
                     application.
     nexthop       = *prefix,           ; IP addresses separated
                      “,” (empty indicates no gateway)
-    ifname        = *PORT_TABLE.key,   ; zero or more separated 
+    ifname        = *INTF_TABLE.key,   ; zero or more separated 
                      by “,” (zero indicates no interface)
     nexthop_group = NEXT_HOP_GROUP_TABLE:key, ; index within the
                     NEXT_HOP_GROUP_TABLE seperated by "," used 
