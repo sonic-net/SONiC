@@ -101,7 +101,7 @@ This `Fpmsyncd extension` will modify `fpmsyncd` to handle  `RTM_NEWNEXTHOP` and
 
 <!-- omit in toc -->
 ##### Figure: Fpmsyncd NHG High Level Architecture
-![fig: fpmsyncd nhg architecture](diagram/fpmsyncd-nhg-architecture.png)
+![fig: fpmsyncd nhg architecture](images_fpmsyncd/fpmsyncd-nhg-architecture.png)
 
 - FRR configuration
   - (1) config zebra to use `dplane_fpm_nl` instead of `fpm` module (this is default since 202305 release)
@@ -157,7 +157,7 @@ The flow below shows how `zebra`, `fpmsyncd` and `redis-server` interacts when u
 
 <!-- omit in toc -->
 ##### Figure: Flow diagram without NextHop Group
-![fig1](diagram/fig1.svg)  
+![fig1](images_fpmsyncd/fig1.svg)  
 
 #### Proposed fpmsyncd processing flow using NextHop Group
 
@@ -168,7 +168,7 @@ The flow for the new NextHop Group feature is shown below:
 
 <!-- omit in toc -->
 ##### Figure: Flow diagram new nexthop group feature
-![fig2](diagram/fig2.svg)
+![fig2](images_fpmsyncd/fig2.svg)
 
 
 #### Value SET/DEL to APPL_DB
@@ -246,7 +246,7 @@ Therefore, even after this enhancement, table entries will be created for `ROUTE
 
 <!-- omit in toc -->
 ##### Figure: Example of ASIC_DB entry
-![fig3](diagram/fig3.svg)
+![fig3](images_fpmsyncd/fig3.svg)
 
 
 ### SAI API 
@@ -281,7 +281,7 @@ Diagram shows how `zebra.conf` is genereated from CONFIG_DB data.
 
 <!-- omit in toc -->
 ##### Figure: Configuration data flow
-![fig4](diagram/fig4-config.svg)
+![fig4](images_fpmsyncd/fig4-config.svg)
 
 - CONFIG_DB entry is created via CLI or data stored in `config_db.json` file
 - `sonic-cfggen` will generate `zebra.conf` based on template file named `zebra.conf.j2`
