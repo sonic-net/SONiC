@@ -18,13 +18,15 @@
     - [NPU platform.json](#npu-platformjson)
     - [GNOI API implementation](#gnoi-api-implementation)
     - [reboot.py script modifications](#rebootpy-script-modifications)
+    - [Error handling and exception scenarios](#error-handling-and-exception-scenarios)
   - [Test plan](#test-plan)
 
 ## Revision ##
 
-| Rev | Date | Author | Change Description |
-| --- | ---- | ------ | ------------------ |
-| 0.1 | 05/16/2024 | Vasundhara Volam | Initial version |
+| Rev | Date       | Author           | Change Description |
+| --- | ---------- | ---------------- | ------------------ |
+| 0.1 | 05/16/2024 | Vasundhara Volam | Initial version    |
+| 0.2 | 05/29/2024 | Vasundhara Volam | Update images and APIs |
 
 ## Glossory ##
 
@@ -98,8 +100,8 @@ The following outlines the reboot procedure for the entire Smart Switch:
 
 * When the NPU receives a reboot command via the CLI to restart the SmartSwitch, it initiates the reboot sequence.
 
-* The NPU sends a GNOI Reboot API signal to all connected DPUs. This signal instructs the DPUs to gracefully terminate all services, excluding the GNMI
-server, in preparation for the reboot.
+* The NPU sends a GNOI Reboot API signal to all connected DPUs in parallel using multiple threads. This signal instructs the DPUs to gracefully terminate all
+services, excluding the GNMI server, in preparation for the reboot.
 
 * Upon dispatching the Reboot API, the NPU issues the RebootStatus API to monitor whether the DPU has terminated all services except GNMI and database
 service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS.
@@ -111,7 +113,7 @@ for each DPU.
 
 * With the DPUs prepared for reboot, the NPU triggers a platform vendor API to initiate the reboot process for the DPUs.
 
-* After initiating the reboot process for the DPUs, the NPU proceeds to reboot itself to complete the overall reboot procedure.
+* After receiving the response from the DPUs, the NPU proceeds to reboot itself to complete the overall reboot procedure.
 
 * Upon successful reboot, the NPU resumes operation. As part of the post-reboot process, the NPU may choose to rescan the PCI devices. This rescan operation,
 performed either by invoking vendor API or by echoing '1' to the /sys/bus/pci/devices/XXXX:XX:XX.X/rescan file, ensures that all PCI devices are properly
@@ -126,19 +128,37 @@ reboot(self, reboot_type):
 Define new reboot_type as MODULE_REBOOT_DPU for DPU only reboot and MODULE_REBOOT_SMARTSWITCH for entire switch reboot.
 ```
 
+This API is defined in [smartswitch-pmon.md](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/pmon/smartswitch-pmon.md#:~:text=reboot(self%2C%20reboot_type)%3A)
+
 ### ModuleBase Class new APIs ###
 
-detach_dpu(self):
+pci_detach_dpu(self):
+```
+Detaches the DPU PCI device from the NPU. In the case of non-smart-switch chassis, no action is taken.
 
-Detach the DPU midplane.
+Returns:
+    True
+```
 
-reattach_dpu(self):
+pci_reattach_dpu(self):
+```
+Rescans the PCI bus and attach the DPU back to NPU. In the case of non-smart-switch chassis, no action is taken.
 
-Rescan the midplane and attach it back.
+Returns:
+    True
+```
+
+get_dpu_bus_info(self, dpu_id):
+```
+For a given DPU id, retrieve the PCI bus information. In the case of non-smart-switch chassis, no action is taken.
+
+Returns:
+    Returns the PCI bus information in BDF format like "[DDDD:]:BB:SS.F"
+```
 
 ### NPU platform.json ###
 
-Introduce a new parameter, 'dpu_killservices_timeout', to specify the duration(in secs) for waiting for the DPU to terminate all services, as defined by
+Introduce a new parameter, <span style="color:blue">'dpu_halt_services_timeout'</span>, to specify the duration(in secs) for waiting for the DPU to terminate all services, as defined by
 the platform vendor. If the DPU fails to respond within this timeout, the NPU will proceed with the reboot sequence. If no timeout is explicitly
 defined, a default timeout will be used.
 
@@ -146,7 +166,27 @@ defined, a default timeout will be used.
 {
     .
     .
-    "dpu_killservices_timeout" : ""
+    "dpu_halt_services_timeout" : "TBD"
+
+    "DPUs" : [
+        {
+            "dpu0": {
+                "bus_info" : "[DDDD:]BB:SS.F"
+            }
+        },
+        {
+            "dpu1": {
+                "bus_info" : "[DDDD:]BB:SS.F"
+            }
+        },
+        .
+        .
+        {
+            "dpuX": {
+                "bus_info" : "[DDDD:]BB:SS.F"
+            }
+        }
+    ]
     .
     .
 }
@@ -222,6 +262,23 @@ message RebootStatus {
 }
 ```
 
+### reboot CLI modifications ###
+
+Introduce a new parameter <span style="color:blue">'-d'</span> to the reboot command for specifying the DPU ID requiring a reboot. If the chassis is
+not a smart switch, this action will have no effect. If the reboot command is executed without specifying any '-d' option, the entire switch will
+be rebooted.
+
+```
+Usage /usr/local/bin/reboot [options]
+    Request rebooting the device. Invoke platform-specific tool when available.
+    This script will shutdown syncd before rebooting.
+
+    Available options:
+        -h, -? : getting this help
+        -f     : execute reboot force
+        -d     : DPU ID
+```
+
 ### reboot.py script modifications ###
 
 * Within the reboot() function, incorporate a verification step to invoke is_smartswitch(). Should is_smartswitch() yield false, proceed with the current
@@ -232,6 +289,28 @@ a complete switch reboot or targeting a specific DPU.
 
 * Add a new reboot_smartswitch() function to reboot either the entire switch or a particular DPU, which takes DPU ID as an argument that
 needs a reboot.
+
+```
+def reboot_smartswitch(duthost, localhost, reboot_type='cold', reboot_dpu='false', dpu_id='0')
+    """
+    reboots SmartSwitch or a DPU
+    :param duthost: DUT host object
+    :param localhost:  local host object
+    :param reboot_type: reboot type (cold)
+    :param reboot_dpu: reboot dpu or switch (true, false)
+    :param dpu_id: reboot the dpu with id, valid only if reboot_dpu is true.
+```
+
+### Error handling and exception scenarios ###
+
+* If the GNMI service is not operational on the DPU or DPU is unreachable for any reason, detach the PCI, and proceed with the reboot after a timeout
+upon receiving an acknowledgment.
+
+* After the DPU reboots, if the DPU PCI fails to reconnect for any reason, an error-handling mechanism should be in place to restore the DPU.
+
+* If a DPU fails to reboot during a switch reboot, the NPU should attempt to recover the DPU and log any errors that occur.
+
+* In the event of power failure, a power-cycle due to a kernel panic, or any other unknown reason, both the DPU and NPU will undergo an ungraceful reboot.
 
 ## Test plan ##
 
@@ -249,3 +328,7 @@ Presented below is the test plan within the ```sonic-mgmt``` framework for the s
 | Unplanned Smart Switch power failure      | Ungraceful reboot   | Ungraceful reboot   |
 | Unplanned Smart Switch System Crash       | Ungraceful reboot   | Ungraceful reboot   |
 | Unplanned DPU System Crash                | -                   | Ungraceful reboot   |
+
+### Test case details ###
+
+In progress
