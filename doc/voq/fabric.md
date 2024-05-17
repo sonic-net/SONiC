@@ -34,6 +34,7 @@
 | 3.1 | Mar-30 2023 | Jie Feng (Arista Networks) | Update Overview, SAI API and Configuration and management section |
 | 3.2 | May-01 2023 | Jie Feng (Arista Networks) | Update Counter tables information |
 | 3.3 | Oct-31 2023 | Jie Feng (Arista Networks) | Update clear fabric counter commands |
+| 3.4 | May-05 2024 | Jie Feng (Arista Networks) | Update CLI |
 
 # Scope
 
@@ -250,8 +251,26 @@ The above command sets the number of consecutive polls in which no error is dete
 > config fabric port unisolate [port_id]
 ```
 
-Besides the fabric link monitoring algorithm, the above two commands are added. The commands can be used to manually isolate and unisolate a fabric link ( i.e. take the link out of service and put the link back into service ). The two commands can help us debug on the system as well as force isolate a fabric link.
 
+```
+> config fabric port unisolate [port_id] --force
+```
+
+Besides the fabric link monitoring algorithm, the above two commands are added. The commands can be used to manually isolate and unisolate a fabric link ( i.e. take the link out of service and put the link back into service ). The two commands can help us debug on the system as well as a force option to unisolate a fabric link.
+
+
+An additional show command is also added to show the fabric link isolation status of a system.
+
+```
+> show fabric isolation
+asic0
+  Local Link    Auto Isolated    Manual Isolated    Isolated
+------------  ---------------  -----------------  ----------
+           0                0                  1           1
+           1                0                  0           0
+           2                1                  0           1
+....
+```
 
 ### 2.8.2 Monitor Fabric Capacity
 
@@ -260,7 +279,7 @@ When the fabric link monitoring feature is enabled, fabric links may not be oper
 #### 2.8.2.1 Cli command
 
 ```
-> config fabric monitor capacity threshold <50-100>
+> config fabric monitor capacity threshold <5-100>
 ```
 The above command is used to configure a capacity threshold to trigger alerts when total fabric link capacity goes below it.
 
@@ -291,15 +310,14 @@ Monitoring traffic on fabric links is another important tool to diagnose fabric 
 The following proposed CLI is used to show the traffic among fabric links on both fabric ASICs and forwarding ASICs.
 
 ```
-> show fabric counters rate mbps
+> show fabric counters rate
 
- Asic     Link    RX         TX
-          ID
- –------  -----   ---------  ----------
- 0         1      0          36113
- ....
- 0        19      0          36107
- 0        20      0          36110
+  ASIC    Link ID    Rx Data Mbps    Tx Data Mbps
+------  ---------  --------------  --------------
+ asic0          0               0            19.8
+ asic0          1               0            19.8
+ asic0          2               0            39.8
+ asic0          3               0            39.8
  ....
 ```
 
