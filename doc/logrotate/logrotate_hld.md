@@ -178,7 +178,7 @@ New YANG model `sonic-logging.yang` will be added to provide support for log rot
 
 **Skeleton code:**
 ```
- module sonic-logging {
+module sonic-logging {
 
     yang-version 1.1;
 
@@ -187,7 +187,7 @@ New YANG model `sonic-logging.yang` will be added to provide support for log rot
 
     description "LOGGING YANG Module for SONiC-based OS";
 
-    revision 2024-02-02 {
+    revision 2022-08-27 {
         description "First Revision";
     }
 
@@ -203,27 +203,32 @@ New YANG model `sonic-logging.yang` will be added to provide support for log rot
 
                 leaf name {
                     type string {
-                        length 1..255;
+                        pattern "debug|syslog";
                     }
+                    description "Log file to set logrotate configuration for";
                 }
 
                 leaf disk_percentage {
                     type decimal64 {
                         fraction-digits 3;
-                        range 0.001..100.0;
+                        range 0.001..100;
                     }
+                    description "Rotate logs when they surpass a specified
+                                 percentage of disk";
                 }
 
                 leaf frequency {
                     type string {
                         pattern "daily|weekly|monthly|yearly";
                     }
+                    description "Log files rotation frequency";
                 }
 
                 leaf max_number {
                     type int32 {
                         range "0..999999";
                     }
+                    description "Max number of log files to keep";
                 }
 
                 leaf size {
@@ -231,9 +236,15 @@ New YANG model `sonic-logging.yang` will be added to provide support for log rot
                         fraction-digits 3;
                         range 0.001..3500.0;
                     }
+                    description "Rotate logs if they grow bigger than size in
+                                 Mebibytes";
                 }
-            } /* end of list LOG_FILES_LIST */
-        } /* end of container LOGGING */
-    } /* end of top level container */
-} /* end of module sonic-logging */
+            }
+            /* end of list LOG_FILES_LIST */
+        }
+        /* end of container LOGGING */
+    }
+    /* end of top level container */
+}
+/* end of module sonic-logging */
 ```
