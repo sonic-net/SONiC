@@ -278,18 +278,17 @@ These two functions, `get_fs_io_reads` and `get_fs_io_writes`, are designed to r
 
 #### **2.4.4 Accounting for reboots and unintended powercycles**
 
-The reset of values in `/proc/diskstats` upon device reboot or power cycle presents a challenge for maintaining long-term data integrity. To mitigate this challenge, we propose the following design considerations:
+The reset of values in `/proc/diskstats` upon device reboot or power cycle presents a challenge for maintaining long-term data integrity. To mitigate this challenge, we propose the following design consideration:
 
-1. Introduction of a bind-mounted directory within the pmon container at `/usr/share/stormond/` which maps to `/host/pmon/stormond/` on the host:
+Introduction of a bind-mounted directory within the pmon container at `/usr/share/stormond/` which maps to `/host/pmon/stormond/` on the host:
     - This directory hosts a file named `fsio-rw-stats.json`, where the following values are stored:
         - **most recent** Total reads and writes from the `STATE_DB`.
         - **most recent** procfs reads and writes from the `STATE_DB`.
 
     - This file would be read by the daemon on initialization after a planned reboot of the system, or in a graceful `stormond` restart scenario.
+    - In a soft or cold reboot scenario, the reboot utility sends a SIGTERM to `stormond` via the PMON container, which is caught by the daemon. At this point, the FSIO reads and writes are synced to JSON file just before exit. 
 
-2. Implementation of a script, tentatively named `fsio-rw-sync`, to be invoked by SONiC's reboot utility:
-    - This script would be called by the several reboot scripts and would be responsible for parsing and storing the aforementioned paramenters just before OS-level reboot.
-    - This script provides a mechanism to sync the procFS reads and writes values from the `STATE_DB` before they are reset by the reboot.
+2. Changes to
 
 ##### **2.4.4.1 Daemon Restart / Reboot / Unintended Powercycle Scenario Behaviors**
 
