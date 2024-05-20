@@ -22,11 +22,11 @@
 # Revision
 | Rev | Date       | Author              | Description     |
 |:---:|:----------:|:-------------------:|:----------------|
-| 0.1 | 02/01/2024 | Yevhen Fastiuk      | Initial version |
+| 0.1 | 02/01/2024 | Yevhen Fastiuk 🇺🇦    | Initial version |
 
 
 # About this manual
-This document provides a high-level information for the SONiC log rotate feature and log rotate CLI.
+This document provides high-level information for the SONiC log rotate feature and log rotate CLI.
 It describes high-level behavior, internal definition, design of the commands, syntax, and output definition.
 
 # Scope
@@ -55,13 +55,13 @@ The document covers the next CLI:
 
 ## 1.1 Feature overview
 This feature performs log rotation separately for syslog and debug files.
-The SONiC log rotate feature mantain several configuration parameter:
+The SONiC log rotate feature maintain several configuration parameters:
 |  Param            |  Description                                                 |
 | :---------------: | :----------------------------------------------------------: |
-|  disc-presentage  | Rotate logs when they surpass a specified percentage of disk |
+|  disk-percentage  | Rotate logs when they surpass a specified percentage of disk |
 |  frequency        | Log files rotation frequency                                 |
 |  max-number       | Max number of log files to keep                              |
-|  size             | Rotate logs if they grow bigger then size in Mebibytes       |
+|  size             | Rotate logs if they grow bigger than size in Mebibytes       |
 
 
 ## 1.2 Requirements
@@ -69,7 +69,7 @@ The SONiC log rotate feature mantain several configuration parameter:
 **This feature will support the following functionality:**
 1. Show log rotate configuration
 2. Configure log rotate
-    1. Disc-persentage
+    1. Disk-percentage
     2. Frequency
     3. Max-number
     4. Size
@@ -85,7 +85,7 @@ Here is the representation of SONiC platform using logrotate feature:
 <!-- omit in toc -->
 ###### Figure 1: Log rotate system chart diagram
 
-This feature require access to SONiC DB. All log rotate related configuration (disc persentage, frequency and size, etc...) saved into the SONiC config database.
+This feature requires access to SONiC DB. All log rotate related configuration (disk percentage, frequency and size, etc...) saved into the SONiC config database.
 Hostcfgd will listen for the configuration changes in corresponding tables and restart logrotate-config service. Log rotate config service - it is simple SystemD service.
 It reads log rotate configuration from database and apply it to log rotate config files.
 
@@ -124,7 +124,7 @@ It reads log rotate configuration from database and apply it to log rotate confi
 ```
 config
 \-- logrotate
-    |-- disk-percentage <syslog|debug> <disk-persentage>
+    |-- disk-percentage <syslog|debug> <disk-percentage>
     |-- frequency <syslog|debug> <freqency>
     |-- max-number <syslog|debug> <max-number>
     |-- size <syslog|debug> <size>
@@ -136,16 +136,16 @@ show
 **Options:**
 
 General:
-1. `<disk-presentage>` - Rotate logs when they surpass a specified percentage of disk: `float`
+1. `<disk-precentage>` - Rotate logs when they surpass a specified percentage of disk: `float`
 2. `<freqency>`        - Log files rotation frequency: `(enum:daily, weekly, monthly, yearly | string)`
 3. `<max-number>`      - Max number of log files to keep: `integer`
-4. `<size>`            - Rotate logs if they grow bigger then size in Mebibytes: `float`
+4. `<size>`            - Rotate logs if they grow bigger than size in Mebibytes: `float`
 
 
 #### 2.3.1 Config command group
-**The following command set log rotate disc persentage:**
+**The following command set log rotate disc percentage:**
 ```bash
-config logrotate disk-percentage <syslog|debug> <disk-persentage>
+config logrotate disk-percentage <syslog|debug> <disk-percentage>
 ```
 
 **The following command set log rotate frequency:**
