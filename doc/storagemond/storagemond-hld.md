@@ -502,12 +502,12 @@ The following is the `sonic-mgmt` test plan for the daemon. The first column rep
 | **Event**              | **State_DB** | **JSON**  |  **PROCFS STATUS**      | **JSON SYNCED WITH `STATE_DB`?** | **STORMON RESTARTED** |
 | ---------------------- | ------------ | --------- | ----------------------- | ----------------------------- | --------------------- |
 |                        |              |           |                         |                               |                       |
-| Init                   | CLEARED      | CLEARED   | CLEARED, Initial Values | YES                           | YES                   |
-| Planned Cold Reboot    | CLEARED      | NOT RESET | CLEARED, Initial Values | YES                           | YES                   |
-| Planned Soft Reboot    | CLEARED      | NOT RESET | CLEARED, Initial Values | YES                           | YES                   |
-| Planned Warm Reboot    | NOT RESET    | NOT RESET | CLEARED, Initial Values | YES                           | YES                   |
-| Unplanned daemon crash | NOT RESET    | NOT RESET | NOT RESET               | UNSURE                        | YES                   |
-| Unplanned system crash | CLEARED      | NOT RESET | CLEARED, Initial Values | UNSURE                        | YES                   |
+| System First Boot      | EMPTY        | EMPTY     |          Initial Values | YES                           | YES                   |
+| Planned Cold Reboot    | CLEARED      | PERSISTED |   RESET, Initial Values | YES                           | YES                   |
+| Planned Soft Reboot    | CLEARED      | PERSISTED |   RESET, Initial Values | YES                           | YES                   |
+| Planned Warm Reboot    | PERSISTED    | PERSISTED |   RESET, Initial Values | YES                           | YES                   |
+| Unplanned daemon crash | PERSISTED    | PERSISTED |   PERSISTED             | UNSURE                        | YES                   |
+| Unplanned system crash | CLEARED      | PERSISTED |   RESET, Initial Values | UNSURE                        | YES                   |
 
 
 ## Future Work
