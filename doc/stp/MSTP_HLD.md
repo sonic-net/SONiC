@@ -23,7 +23,6 @@
 * [Architecture Design](#architecture-design)
   - [STP Container](#stp-container)
   - [SWSS Container](#swss-container)
-  - [CoPP Configurations](#copp-configurations)
 * [Database Changes](#database-changes)
   - [CONFIG DB](#config-db)
   - [APP DB](#app-db)
@@ -151,8 +150,6 @@ Updates SAI via following APIs:
 4. Flushing FDB entries via SAI FDB API.
 
 There are no changes in PortOrch.
-
-
 
 # Database Changes
 MSTP design introduces some new tables for configuration along with slight modification in existing STP tables. Following are details of each individual table:
@@ -362,12 +359,12 @@ Update port-state, topology change and instance-interface events remain the same
 # Configuration Commands
 Following configuration commands will be provided for configuration of MSTP:
 ## Global Level
-- **config spanning_tree {enable|disable} {mst}**
+- **config spanning_tree {mst} {enable|disable}**
   - Enables or disables mstp at global level on all ports of the switch.
   - Only one mode of STP can be enabled at a time.
 - **config spanning_tree mst max_hops \<max-hops-value\>**
   - Specify the number of maximum hops before the BPDU is discarded inside a region.
-  - max-hops-value: Default: 20, range: 1-255
+  - max-hops-value: Default: 20, range: 1-40
 - **config spanning_tree mst hello \<hello-value\>**
   - Specify configuring hello interval in sec for transmission of BPDUs. 
   Default: 2,  range 1-10
@@ -418,24 +415,24 @@ Following commands are used for spanning-tree configurations on per instance, pe
 ## Interface Level
 Following new command will be added:
 
-- **config spanning_tree mst interface\<ifname\> {enable|disable}**
+- **config spanning_tree interface\<ifname\> {enable|disable}**
   - Configure an interface for MSTP.
-- **config spanning_tree mst interface edgeport {enable|disable} \<ifname\>**
+- **config spanning_tree interface edgeport {enable|disable} \<ifname\>**
   - Configure an interface as an edge port.
   
 - **config spanning_tree interface \<ifname\> root_guard {enable|disable}**
   - Configure an interface as a root_guard.
 
-- **config spanning_tree mst interface \<ifname\> bpdu_guard {enable|disable}**
+- **config spanning_tree interface \<ifname\> bpdu_guard {enable|disable}**
   - Configure an interface as a bpdu_guard. 
 
-- **config spanning_tree mst interface \<ifname\> guard {root|bpdu}**
-  - Configure an interface as a bpdu_guard. 
+- **config spanning_tree interface \<ifname\> guard {root|bpdu}**
+  - Configure an interface as a root or bpdu guard. 
 
 Interface level CLI configurations of root guard, BPDU guard will also be supported for spanning-tree mode `mstp`.
 
 ## Show Commands
-- show spanning_tree mst
+- show spanning_tree
 
     The output of this command will be as follows for `mstp`:
 ```
@@ -487,21 +484,21 @@ Bridge               Address 8000.80a2.3526.0c5e
                      Port    Root            Path cost 0    Rem Hops 20
 
 Ethernet20 is DESIGNATED FORWARDING
-Port info              port id 86 priority 128          cost 800
+Port info              port id 86 priority 128          cost 2000
+Designated             Address 8000.80a2.3526.0c5e      cost 0
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 25
+Timers:  forward transitions 0
+Bpdu send 80, received 0
+
+Ethernet46 is DESIGNATED FORWARDING
+Port info              port id 25 priority 128          cost 800
 Designated             Address 8000.80a2.3526.0c5e      cost 0
 Designated bridge      Address 8000.80a2.3526.0c5e      port id 86
 Timers:  forward transitions 0
 Bpdu send 80, received 0
 
-Ethernet46 is DESIGNATED FORWARDING
-Port info              port id 25 priority 128          cost 1000
-Designated             Address 8000.80a2.3526.0c5e      cost 0
-Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
-Timers:  forward transitions 0
-Bpdu send 80, received 0
-
 PortChannel1001 is DESIGNATED FORWARDING
-Port info              port id 25 priority 128          cost 2000
+Port info              port id 25 priority 128          cost 1000
 Designated             Address 8000.80a2.3526.0c5e      cost 0
 Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
 Timers:  forward transitions 0
@@ -513,15 +510,15 @@ Bridge               Address 8000.80a2.3526.0c5e
                      Port    Root            Path cost 0    Rem Hops 20
 
 Ethernet46 is DESIGNATED FORWARDING
-Port info              port id 85 priority 128          cost 2000
+Port info              port id 85 priority 128          cost 800
 Designated             Address 8000.80a2.3526.0c5e      cost 0
-Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 86
 Timers:  forward transitions 0
 Bpdu send 80, received 0
 
 
 PortChannel1001 is DESIGNATED FORWARDING
-Port info              port id 25 priority 128          cost 2000
+Port info              port id 25 priority 128          cost 1000
 Designated             Address 8000.80a2.3526.0c5e      cost 0
 Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
 Timers:  forward transitions 0
@@ -614,13 +611,13 @@ Following debug commands will be supported for displaying internal data structur
 ## Disabled Commands
 Following commands are used to configure parameters at VLAN level and these commands are disabled if spanning-tree mode is `mstp`:
 
-- config spanning_tree mst vlan (enable|disable) \<vlan\>
-- config spanning_tree mst vlan forward_delay \<vlan\> \<fwd-delay-value\>
-- config spanning_tree mst vlan hello \<vlan\> \<hello-value\>
-- config spanning_tree mst vlan max_age \<vlan\> \<max-age-value\>
-- config spanning_tree mst vlan priority \<vlan\> \<priority-value\>
-- config spanning_tree mst vlan interface cost \<vlan\> \<ifname\> \<value\>
-- config spanning_tree mst vlan interface priority \<vlan\> \<ifname\> \<value\>
+- config spanning_tree mst vlan \<vlan-id\> (enable|disable) 
+- config spanning_tree mst vlan \<vlan-id\> forward_delay  \<fwd-delay-value\>
+- config spanning_tree mst vlan \<vlan-id\> hello \<hello-value\>
+- config spanning_tree mst vlan \<vlan-id\> max_age \<max-age-value\>
+- config spanning_tree mst vlan \<vlan-id\>priority  \<priority-value\>
+- config spanning_tree mst vlan \<vlan-id\> interface \<ifname\> cost \<value\>
+- config spanning_tree mst vlan \<vlan-id\> interface \<ifname\> priority \<value\>
 
 
 # YANG Model
