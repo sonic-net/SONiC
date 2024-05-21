@@ -124,10 +124,11 @@ It reads log rotate configuration from database and apply it to log rotate confi
 ```
 config
 \-- logrotate
-    |-- disk-percentage <syslog|debug> <disk-percentage>
-    |-- frequency <syslog|debug> <freqency>
-    |-- max-number <syslog|debug> <max-number>
-    |-- size <syslog|debug> <size>
+    \-- <syslog|debug>
+        |-- disk-percentage <disk-percentage>
+        |-- frequency <freqency>
+        |-- max-number <max-number>
+        |-- size <size>
 
 show
 \-- logrotate
@@ -145,22 +146,22 @@ General:
 #### 2.3.1 Config command group
 **The following command set log rotate disc percentage:**
 ```bash
-config logrotate disk-percentage <syslog|debug> <disk-percentage>
+config logrotate <syslog|debug> disk-percentage <disk-percentage>
 ```
 
 **The following command set log rotate frequency:**
 ```bash
-config logrotate frequency <syslog|debug> <freqency>
+config logrotate <syslog|debug> frequency <freqency>
 ```
 
 **The following command set log rotate max-number:**
 ```bash
-config logrotate max-number <syslog|debug> <max-number>
+config logrotate <syslog|debug> max-number <max-number>
 ```
 
 **The following command set log rotate size:**
 ```bash
-config logrotate size <syslog|debug> <size>
+config logrotate <syslog|debug> size <size>
 ```
 
 #### 2.3.2 Show command
