@@ -139,6 +139,7 @@
 | 0.17 | 04/08/2020 | Mohammed Faraaz         | OpenAPI 3.0 enhancements |
 | 0.18 | 04/09/2020 | Kwangsuk Kim            | Updated CLI and Transformer enhancement |
 | 0.19 | 04/15/2020 | Mohammed Faraaz         | Generic REST client for CLI |
+| 0.20 | 05/21/2024 | Gandhi Sevagan          | Multiple DB extensions |
 
 ## About this Manual
 
@@ -216,8 +217,8 @@ Management framework makes use of the translation library (Translib) written in 
 #### 1.2.2 Container
 
 The management framework is designed to run in a single container named “sonic-mgmt-framework”. The container includes the REST server linked with Translib, and CLI process.
-The gNMI support requires the gNMI server which is provided as a part of sonic-telemetry container. We would like to rename this container as the sonic-gnmi container as now it can perform configurations as well through the gNMI server.
-Will introduce a new container sonic-mgmt-common to host the common code that is used both in the mgmt-framework and sonic-telemetry container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-telemetry repo can be compiled without the mgmt-framework being present in the code base.
+The gNMI support requires the gNMI server which is provided as a part of sonic-gnmi container.
+A new container sonic-mgmt-common to host the common code that is used both in the mgmt-framework and sonic-gnmi container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-gnmi repo can be compiled without the mgmt-framework being present in the code base.
 
 ## 2 Functionality
 
@@ -710,7 +711,7 @@ Client applications can use OpenAPI generated client SDK or any other REST clien
 
 ##### 3.2.2.3 gNMI Client
 
-SONiC Telemetry service provides the gNMI server, while the client must be provided by the user. gNMI is typically used as a programmatic interface and therefore it is typically called directly from programming language environments using their respective gRPC libraries (https://github.com/grpc/grpc). For testing and scripting purposes, several CLI programs are provided as well.
+SONiC GNMI service provides the gNMI server, while the client must be provided by the user. gNMI is typically used as a programmatic interface and therefore it is typically called directly from programming language environments using their respective gRPC libraries (https://github.com/grpc/grpc). For testing and scripting purposes, several CLI programs are provided as well.
 
 GNMI clients developed by google and modified by JipanYANG.(github.com/jipanYANG/gnxi/gnmi_get, github.com/jipanYANG/gnxi/gnmi_set)
 was taken and further modified to support new features. gnmi_cli from openconfig (https://github.com/openconfig/gnmi/tree/master/cmd/gnmi_cli) is also taken for testing subscribe and capabilities operations. Finally, a new client was developed gnoi_client, for test gNOI RPC operations.
@@ -1053,7 +1054,7 @@ definition files (both YANG generated and manual) along with link to open Swagge
 
 ##### 3.2.2.5 gNMI server
 
-1. gNMI server is part of the telemetry process that supports telemtry as well as gNMI.
+1. gNMI server is part of the sonic-gnmi process that supports telemtry as well as gNMI.
 2. The gRPC server opens a TCP port and allows only valid mutually authenticated TLS connections, which requires valid Client, server and CA Certificates be installed as well a properly configured DNS. Multiple simultaneous connections are allowed to gNMI server.
 3. The gNMI Agent uses the db client, as well as the non-db client to access and modify data directly in the Redis DB.
 4. The Translib client is used to provide alternative models of access such as Openconfig models as opposed to the native Redis schema, as long as the Translib supports these models. Translib offers bidirectional translation between the native Redis model and the desired north bound model, as well as notifications/updates on these model objects to support telemetry and asynchronous updates, alarms and events. Translib should also provide information about what models it supports so that information can be returned in gNMI Capabilities response.
@@ -1808,6 +1809,7 @@ type yangXpathInfo  struct {
     validateFunc   string
     rpcFunc        string
     xfmrKey        string
+    namespaceFunc  string
     keyName        *string
     dbIndex        db.DBNum
     keyLevel       int
@@ -1823,6 +1825,7 @@ Transformer has a built-in default transformer method to perform static, simple 
 
 Additionally, for more complex translations of non-ABNF YANG models, i.e. OpenConfig models, Transformer also allows developers to overload the default method by specifying a callback fucntion in YANG extensions, to perform translations with developer-supplied translation codes as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer callback must be defined to support two-way translation, i.e, YangToDb_<transformer_callback> and DbToYang_<transformer_callback>, which are invoked by Transformer core.
 
+Transformer also has callback funtion in YANG extensions to get namespace associated with the uri path. This will be mainly useful in case of Multi ASIC platform with multiple Redis DBs. The namespace callback function will be specific to every YANG model defined with its annotations. Translib/transformer shall use "HOST" DB as default for YANG models without namespace extension defined.
 ###### 3.2.2.7.3 Process
 
 CRUD requests (configuration) are processed via the following steps:
@@ -1922,7 +1925,87 @@ The table-transformer is inherited to all descendant nodes unless another one is
 11. `sonic-ext:get-validate [function]`: 
 A special hook to validate YANG nodes, to populate data read from database, allows developers to instruct Transformer to choose a YANG node among multiple nodes, while constructing the response payload. 
 Typically used to check the “when” condition to validate YANG node among multiple nodes to choose only valid nodes from sibling nodes.
+12. `sonic-ext:get-namespace [function]`:
+Multiple DB extension, populates associated namespaces with the YANG path
+Used by Translib service to get all DB's associated with the YANG path. In case of single DB, this extension shall not be used.
+Namespace yang extension shall allow override capability to allow product specific customizations 
+```Sample annotation
+get-namespace annotation sample for openconfig-optical-amplifier yang support: 
 
+Annotation YANG File:
+sonic-mgmt-common/models/yang/annotations/openconfig-optical-amplifier-annot.yang
+module openconfig-optical-amplifier-annot {
+  .....
+    deviation /oc-opt-amp:optical-amplifier/oc-opt-amp:amplifiers/oc-opt-amp:amplifier {
+      deviate add {
+        sonic-ext:key-transformer "oc_name_key_xfmr";
+        sonic-ext:get-namespace "oc_name_get_namespace_xfmr";
+      }
+    }
+  .....
+    deviation /oc-opt-amp:optical-amplifier/oc-opt-amp:amplifiers/oc-opt-amp:amplifier/oc-opt-amp:state {
+      deviate add {
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:table-name "AMPLIFIER";
+        sonic-ext:key-transformer "oc_name_key_xfmr";
+        sonic-ext:get-namespace "oc_name_get_namespace_xfmr";
+      }
+    }
+  .....
+    deviation /oc-opt-amp:optical-amplifier/oc-opt-amp:supervisory-channels/oc-opt-amp:supervisory-channel {
+      deviate add {
+        sonic-ext:key-transformer "osc_key_xfmr";
+        sonic-ext:get-namespace "oc_name_get_namespace_xfmr";
+      }
+    }
+  .....
+    deviation /oc-opt-amp:optical-amplifier/oc-opt-amp:supervisory-channels/oc-opt-amp:supervisory-channel/oc-opt-amp:state {
+      deviate add {
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:table-name "OSC";
+        sonic-ext:key-transformer "osc_key_xfmr";
+        sonic-ext:get-namespace "oc_name_get_namespace_xfmr";
+      }
+    }
+   .....
+}
+
+Annotation implementation function
+sonic-mgmt-common/translib/transformer/xfmr_oa.go
+
+func init () {
+ .....
+    XlateFuncBind("oc_name_get_namespace_xfmr", oc_name_get_namespace_xfmr)
+}
+
+var oc_name_get_namespace_xfmr GetNamespaceFunc = func(inParams XfmrParams) ([]string, error) {
+        var response []string
+        var err error
+        var ockey string
+
+        pathInfo := NewPathInfo(inParams.uri)
+
+        if strings.Contains(inParams.uri, "/amplifier") {
+                ockey = pathInfo.Var("name")
+
+        } else if strings.Contains(inParams.uri, "/supervisory-channel") {
+                ockey = pathInfo.Var("interface")
+        }
+
+        // If Key is present in the xpath add the associated namespace and return
+        if ockey != "" {
+		        //db.GetMDBNameFromEntity converts the slot number in the key to namespace
+                dbName := db.GetMDBNameFromEntity(ockey) 
+                response = append(response,  dbName)
+
+        } else {
+        // If Key is not present in the xpath return "*", 
+		// all DB's will be looked in translib
+                response = append(response,  "*")
+        }
+        return response, err
+}
+```
 ----------
 
 
@@ -1942,12 +2025,14 @@ Here is the general guide you can check to find which extensions can be annotate
 
 ###### 3.2.2.7.6 Public Functions
 
-`XlateToDb()` and `GetAndXlateFromDb` are used by the common app to request translations.
+`XlateToDb()`, `GetAndXlateFromDb` and `GetNameSpace` are used by the common app to request translations.
 
 ```go
 func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interface{}) (map[string]map[string]db.Value, error) {}
 
 func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
+
+func GetNameSpace(path string) ([]string, error) {}
 ```
 
 ###### 3.2.2.7.7 Overloaded Methods
@@ -2040,6 +2125,12 @@ type PostXfmrFunc func (inParams XfmrParams) (map[string]map[string]db.Value, er
  * Return: List of table names, error
  **/
 type TableXfmrFunc func (inParams XfmrParams) ([]string, error)
+/**
+ * NamespaceFunc type is defined to retrieve namespace associated with the uri path.
+ * Param: XfmrParams structure having operation, uri
+ * Return: List of namespace names, error
+ **/
+type NamespaceFunc func (inParams XfmrParams) ([]string, error)
 
 ```
 
@@ -2369,7 +2460,7 @@ mechanism for the app specific configuration.
 
 ### 4.1 REST SET flow
 
-![REST SET flow](images/write.jpg)
+![REST SET flow](images/write_mdb.jpg)
 
 1. REST client can send any of the write commands such as POST, PUT, PATCH or DELETE and it will be handled by the REST Gateway.
 2. All handlers in the REST gateway will invoke a command request handler.
@@ -2378,54 +2469,68 @@ mechanism for the app specific configuration.
 5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation
 6. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
 7. Translib infra gets the App module corresponding to the incoming URI.
-8. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
-9. App module caches the incoming data into the app structure.
-10. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
-11. App module returns the list of keys that it wants to keep a watch on along with the status.
-12. Translib infra invokes the start transaction request exposed by the DB access layer.
-13. DB access layer performs a WATCH of all the keys in the Redis DB. If any of these keys are modified externally then the EXEC call in step 26 will fail.
-14. Status being returned from Redis.
-15. Status being returned from DB access layer.
-16. Translib then invokes the processWrite API on the App module.
-17. App modules perform writes of the translated data to the DB access layer.
-18. DB access layer validates the writes using CVL and then caches them.
-19. Status being returned from DB access layer.
-20. Status being returned from App module.
-21. Translib infra invokes the commit transaction on the DB access layer.
-22. DB access layer first invokes MULTI request on the Redis DB indicating there are multiple writes coming in, so commit everything together. All writes succeed or nothing succeeds.
-23. Status returned from Redis.
-24. Pipeline of all the cached writes are executed from the DB access layer.
-25. Status retuned from Redis.
-26. EXEC call is made to the Redis DB. Here if the call fails, it indicates that one of the keys that we watched has changed and none of the writes will go into the Redis DB.
-27. Status returned from Redis DB.
-28. Status returned from DB access layer.
-29. Write lock acquired in Step 6 is released.
-30. Status returned from the Translib infra.
-31. REST Status returned from the Request handler.
-32. REST response is sent by the REST gateway to the REST client.
+8. Translib infra invoke App module getNamespace API to get namespace associated with the uri
+9. App module invokes transformer service getNamespaceMapping to retrieve namespace based on Yang model
+10. Transformer invokes Yang model based exception to retrieve the namespace associated with uri
+11. Transformer returns namespace associated with th uri
+12. Appmodule returns namespace
+13. Translib infra gets all DBs and selects DB for the namespace associated with the uri  
+14. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
+15. App module caches the incoming data into the app structure.
+16. App module returns after initializing local data
+17. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+18. App module returns the list of keys that it wants to keep a watch on along with the status.
+19. Translib infra invokes the start transaction request exposed by the DB access layer.
+20. DB access layer performs a WATCH of all the keys in the Redis DB. If any of these keys are modified externally then the EXEC call in step 26 will fail.
+21. Status being returned from Redis.
+22. Status being returned from DB access layer.
+23. Translib then invokes the processWrite API on the App module.
+24. App modules perform writes of the translated data to the DB access layer.
+25. DB access layer validates the writes using CVL and then caches them.
+26. Status being returned from DB access layer.
+27. Status being returned from App module.
+28. Translib infra invokes the commit transaction on the DB access layer.
+29. DB access layer first invokes MULTI request on the Redis DB indicating there are multiple writes coming in, so commit everything together. All writes succeed or nothing succeeds.
+30. Status returned from Redis.
+31. Pipeline of all the cached writes are executed from the DB access layer.
+32. Status retuned from Redis.
+33. EXEC call is made to the Redis DB. Here if the call fails, it indicates that one of the keys that we watched has changed and none of the writes will go into the Redis DB.
+34. Status returned from Redis DB.
+35. Status returned from DB access layer.
+36. Write lock acquired in Step 6 is released.
+37. Status returned from the Translib infra.
+38. REST Status returned from the Request handler.
+39. REST response is sent by the REST gateway to the REST client.
 
 ### 4.2 REST GET flow
 
-![REST GET flow](images/read.jpg)
+![REST GET flow](images/read_mdb.jpg)
 
 1. REST GET request from the REST client is sent to the REST Gateway.
 2. REST Gateway invokes a common request handler.
 3. Authentication of the incoming request is performed.
 4. Request handler calls the Translib exposed GET API with the uri of the request.
 5. Translib infra gets the App module corresponding to the incoming uri.
-6. Translib infra calls the initialize function of the App module with the YGOT structures and path. App module caches them.
-7. Status retuned from App module.
-8. App module queries Transformer to translate the path to the Redis keys that need to be queried.
-9. Status returned from App module.
-10. Translib infra calls the processGet function on the App module
-11. App modules calls read APIs exposed by the DB access layer to read data from the Redis DB.
-12. Data is read from the Redis DB is returned to the App module
-13. App module fills the YGOT structure with the data from the Redis DB and validated the filled YGOT structure for the syntax.
-14. App module converts the YGOT structures to JSON format.
-15. IETF JSON payload is returned to the Translib infra.
-16. IETF JSON payload is returned to the request handler.
-17. Response is returned to REST gateway.
-18. REST response is returned to the REST client from the REST gateway.
+6. Translib infra calls the getNamespace function of the App module with the uri path, to get all DB namespace associated with the uri path
+7. App module queries Transformer to get all namespace associated with the uri path
+8. Transformer shall use Yang specific "Transformer Spec" to get all namespace associated with uri path
+9. Transformer return namespace associated with the uri path
+10. App module return namespace retrived by the transformer layer
+11. Translib infra gets all the namespaces available in the platform, loops through each of the namespace associated with the uri path as recieved in earlier step
+12. Translib infra calls the initialize function of the App module with the YGOT structures and path. App module caches them.
+13. Status retuned from App module.
+14. App module queries Transformer to translate the path to the Redis keys that need to be queried.
+15. Status returned from App module.
+16. Translib infra calls the processGet function on the App module
+17. App modules calls read APIs exposed by the DB access layer to read data from the Redis DB.
+18. Data is read from the Redis DB is returned to the App module
+19. App module fills the YGOT structure with the data from the Redis DB and validated the filled YGOT structure for the syntax.
+20. App module converts the YGOT structures to JSON format.
+21. IETF JSON payload is returned to the Translib infra.
+22. Translib infra aggregates all the responses from app module with different namesapce DB associated with uri path
+23. IETF JSON payload is returned to the request handler.
+24. Response is returned to REST gateway.
+25. REST response is returned to the REST client from the REST gateway.
 
 ### 4.3 Translib Initialization flow
 
@@ -2451,7 +2556,7 @@ This way multiple app modules initialize with the Translib infra during boot up.
 
 ### 4.5 CVL flow
 
-![CVL flow](images/CVL_flow.jpg)
+![CVL flow](images/CVL_flow_mdb.jpg)
 
 Above is the sequence diagram explaining the CVL steps. Note that interaction between DB Access layer and Redis including transactions is not shown here for brevity.
 
@@ -2459,28 +2564,36 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 2. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation.
 3. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
 4. Translib infra gets the App module corresponding to the incoming uri.
-5. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
-6. App module calls Transformer to translate the request from cached YGOT structure into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
-7. App modules returns the list of keys that it wants to keep a watch on along with the status.
-8. Translib infra invokes the start transaction request exposed by the DB access layer.
-9. Status being returned from DB access layer.
-10. Translib then invokes the processWrite API on the App module.
-11. App modules perform writes of the translated data to the DB access layer.
-12. DB access layer calls validateWrite for CREATE/UPDATE/DELETE operation. It is called with keys and Redis/ABNF payload.
-13. validateSyntax() feeds Redis data to translator internally which produces YANG XML. This is fed to libyang for validating the syntax.
-14. If it is successful, control goes to next step, else error is returned to DB access layer. The next step is to ensure that keys are present in Redis DB for Update/Delete operation. But keys should not be present for Create operation.
-15. Status is returned after checking keys.
-16. CVL gets dependent data from  incoming Redis payload. For example if ACL_TABLE and ACL_RULE is getting created in a single request.
-17. Otherwise dependent should be present in Redis DB, query is sent to Redis to fetch it.
-18. Redis returns response to the query.
-19. Finally request data and dependent is merged and validateSemantics() is called.
-20. If above step is successful, success is returned or else failure is returned with error details.
-21. DB Access layer forwards the status response to App mpdule.
-22. App module forwards the status response to Translib infra.
-23. Translib infra invokes the commit transaction on the DB access layer.
-24. Status is returned from DB access layer after performing commit operation.
-25. Write lock acquired in Step 3 is released.
-26. Final response is returned from the Translib infra to REST/GNMI.
+5. Translib infra invokes getNameSpace API of the App module
+6. App module invokes getNameSpaceMapping Transformer API
+7. Transformer invokes Yang model specific getNameSpace annotation function
+8. Transformer returns the namespace associated with the uri path
+9. App module returns namespace associated with the uri path
+10. Translib infra get the namespace associated DB 
+11. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
+12. App module calls Transformer to translate the request from cached YGOT structure into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+13. App modules returns the list of keys that it wants to keep a watch on along with the status.
+14. Translib infra invokes the start transaction request exposed by the DB access layer.
+15. Status being returned from DB access layer.
+16. Translib infra invokes the start transaction request exposed by the DB access layer.
+17. DB access layer performs a WATCH of all the keys in the Redis DB.
+18. Translib then invokes the processWrite API on the App module.
+19. App modules perform writes of the translated data to the DB access layer.
+20. DB access layer calls validateWrite for CREATE/UPDATE/DELETE operation. It is called with keys and Redis/ABNF payload.
+21. validateSyntax() feeds Redis data to translator internally which produces YANG XML. This is fed to libyang for validating the syntax.
+22. If it is successful, control goes to next step, else error is returned to DB access layer. The next step is to ensure that keys are present in Redis DB for Update/Delete operation. But keys should not be present for Create operation.
+23. Status is returned after checking keys.
+24. CVL gets dependent data from  incoming Redis payload. For example if ACL_TABLE and ACL_RULE is getting created in a single request.
+25. Otherwise dependent should be present in Redis DB, query is sent to Redis to fetch it.
+26. Redis returns response to the query.
+27. Finally request data and dependent is merged and validateSemantics() is called.
+28. If above step is successful, success is returned or else failure is returned with error details.
+29. DB Access layer forwards the status response to App mpdule.
+30. App module forwards the status response to Translib infra.
+31. Translib infra invokes the commit transaction on the DB access layer.
+32. Status is returned from DB access layer after performing commit operation.
+33. Write lock acquired in Step 3 is released.
+34. Final response is returned from the Translib infra to REST/GNMI.
 
 ## 5 Developer Work flow
 Developer work flow differs for standard YANG (IETF/OpenConfig) vs proprietary YANG used for a feature. When a standards-based YANG model is chosen for a new feature, the associated Redis DB design should take the design of this model into account - the closer the mapping between these, then the less translation logic is required in the Management path. This simplifies the work flow as translation intelligence can be avoided as both Redis schema and NB YANG schema are aligned.
