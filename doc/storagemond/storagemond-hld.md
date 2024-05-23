@@ -61,7 +61,7 @@ These fields are self-explanatory.
 
 1. The "storagemond" process will be initiated by the "pmon" Docker container.
 
-2. As part of initialization process, the daemon will query the Config DB for fields called `daemon_polling_interval` and `fsstats_sync_interval` within a newly proposed table `STORMOND_CONFIG|INTERVALS` and use the value to set the looping frequency for getting dynamic informaton and syncing this information to disk, respectively. In the absense of this table/field, we would default to 3600 seconds for the polling interval and 86400 seconds for sync interval.
+2. Shortly succeeding the initialization process, the daemon will query the Config DB for fields called `daemon_polling_interval` and `fsstats_sync_interval` within a newly proposed table `STORMOND_CONFIG|INTERVALS` and use the value to set the looping frequency for getting dynamic informaton and syncing this information to disk, respectively<sup>NOTE</sup>. In the absense of this table/field, we would default to 3600 seconds for the polling interval and 86400 seconds for sync interval.
 
 3. Also as part of init, the daemon would reconcile the `STATE_DB`, a JSON file on disk and the current parsed information to calculate the cumulative values of fields that are subject to reset upon reboot. More on this is detailed in section [2.4.4](#244-accounting-for-reboots-and-unintended-powercycles) below.
 
@@ -69,7 +69,9 @@ These fields are self-explanatory.
 
 5. The daemon would parse dynamic attributes also utilizing S.M.A.R.T capabilities via the corresponding class member functions, and update the `STATE_DB` per the preset frequency.
 
-**NOTE:** The design requires a concurrent PR where EmmcUtil, SsdUtil classes are enhanced to gather Disk and FS IO Read/Write stats and Reserved Blocks information as detailed in section [2.4.1 below](#241-ssdbase-api-additions).
+**NOTE:** 
+ - The design requires a concurrent PR where EmmcUtil, SsdUtil classes are enhanced to gather Disk and FS IO Read/Write stats and Reserved Blocks information as detailed in section [2.4.1 below](#241-ssdbase-api-additions).
+ -  Modifying the configuration intervals will only be applied in the subsequent cycle. Should immediate implementation be desired by the user, a configuration reload and daemon restart would be necessary.
 
 This is detailed in the sequence diagram below:
 
