@@ -71,7 +71,7 @@ These fields are self-explanatory.
 
 **NOTE:** 
  - The design requires a concurrent PR where EmmcUtil, SsdUtil classes are enhanced to gather Disk and FS IO Read/Write stats and Reserved Blocks information as detailed in section [2.4.1 below](#241-ssdbase-api-additions).
- -  Modifying the configuration intervals will only be applied in the subsequent cycle. Should immediate implementation be desired by the user, a configuration reload or daemon restart would be necessary.
+ -  Modifying the configuration intervals will only be applied in the subsequent cycle. Should immediate implementation be desired by the user, a configuration reload and daemon restart would be necessary.
 
 This is detailed in the sequence diagram below:
 
