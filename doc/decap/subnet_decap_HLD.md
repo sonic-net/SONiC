@@ -51,7 +51,7 @@ This document describes the subnet decapsulation feature on T0 SONiC that allows
 
 ## 4 Overview
 
-In Azure, Netscan probes the network paths/devices by sending IPinIP traffic. The IPinIP packet crafted by the Netscan sender has the outer DIP equals the destination device Loopback address, and the inner DIP equals the IP address of the Netscan sender. When the IPinIP packet is routed to/received by the destination device, they will be decapsulated and the inner packet will be routed back to the Netscan sender.
+In Azure, Netscan probes the network paths/devices by sending IPinIP traffic. The IPinIP packet crafted by the Netscan sender has the outer DIP equals the destination device Loopback address, and the inner DIP equals the IP address of the Netscan sender. When the IPinIP packet is routed to/received by the destination device, they will be decapsulated and the inner packet will be routed back to the Netscan sender. With this probing, the Netscan sender has the awareness of any network link/device issues in the probe path by checking the receivement of the inner packets.
 As of today, Netscan uses this IP-decap based probing to detect route blackholes in the Azure network. The limitation is that Netscan is only able to probe the networking switches without the capability to detect any route blackholes for host nodes, especially VLAN subnet IPs. Due to the fact that the host nodes don’t have native IP-decap functionality, it is more appropriate to implement the IP-decap functionality on T0 SONiC as SONiC supports IPinIP decapsulation, and T0 SONiC will respond to the Netscan probes on behalf of the host nodes to decapsulate the Netscan IPinIP probe packets with DIP as any VLAN subnet IPs.
 In this design, subnet decap is introduced to enhance SONiC with the capability to generate the decap rules for the VLAN subnet so IPinIP packets from Netscan with DIP as either VLAN subnet IPs could be decapsulated and forwarded back to the Netscan sender to allow Netscan to have the awareness of any possible route blackholes to those destinations.
 
@@ -78,13 +78,13 @@ In this design, we propose the subnet decap feature that has workflow to enable 
 ### 6.1 Tunnel Specification
 
 The tunnels in this design will be generated with the following attributes:
-| Attribute       | Value                         | Note                             |
-| --------------- | ----------------------------- | -------------------------------- |
-| name            | IPINIP_VLAN or IPINIP_V6_VLAN | One IPv4 tunnel, one IPv6 tunnel |
-| tunnel type     | IPinIP                        |                                  |
-| decap ECN mode  | copy_from_outer or standard   |                                  |
-| decap TTL mode  | pipe                          |                                  |
-| decap DSCP mode | uniform                       |                                  |
+| Attribute       | Value                             | Note                             |
+| --------------- | --------------------------------- | -------------------------------- |
+| name            | IPINIP_SUBNET or IPINIP_V6_SUBNET | One IPv4 tunnel, one IPv6 tunnel |
+| tunnel type     | IPinIP                            |                                  |
+| decap ECN mode  | copy_from_outer or standard       |                                  |
+| decap TTL mode  | pipe                              |                                  |
+| decap DSCP mode | uniform                           |                                  |
 
 The decapsulation termination entry will be created with the following attributes:
 | Attribute       | Value                               | Note                                                                                                                     |
@@ -102,10 +102,14 @@ The decapsulation termination entry will be created with the following attribute
 ```
 ### SUBNET_DECAP
     ; Stores subnet based decapsulation configurations
-    key                 = SUBNET_DECAP|subnet_type                      ; SUBNET_DECAP|vlan
+    key                 = SUBNET_DECAP|config_name
     status              = "enable"/"disable"                            ; status of subnet based decapsulation
-    src_ip              = source IP prefix                              ; source IP prefix used for decap terms of IPv4 tunnel
-    src_ip_v6           = source IP prefix                              ; source IPv6 prefix used for decap terms of IPv6 tunnel
+    src_ip              = source IP prefix                              ; source IP prefix used for tunnel
+    src_ip_v6           = source IP prefix                              ; source IPv6 prefix used for tunnel_v6
+    vlan                = list of enable VLAN                           ; comma separated list of VLANs to enable
+                                                                        ; subnet decap, if status is enable and this
+                                                                        ; list is empty, subnet decap will apply to
+                                                                        ; all VLANs
 ```
 
 #### 6.2.2 APPL_DB
@@ -123,8 +127,11 @@ The decapsulation termination entry will be created with the following attribute
 ### TUNNEL_DECAP_TERM_TABLE
     ; Stores a list of decap terms.
     key                 = TUNNEL_DECAP_TERM_TABLE:tunnel_name:dst_ip    ; tunnel name:dst IP prefix as key
-    term_type           = "P2P"/"P2MP"/"MP2MP"                          ; tunnel decap term type
-    src_ip              = source IP prefix
+    term_type   	      = "P2P"/"P2MP"/"MP2MP"                          ; tunnel decap term type
+    src_ip              = source IP prefix                              ; for decap terms of subnet decap, the
+                                                                        ; source IP is omitted
+    subnet_type         = "vlan"/"vip"                                  ; the subnet type of the dst IP prefix, present
+                                                                        ; if this is a subnet decap term
 ```
 
 #### 6.2.3 STATE_DB
@@ -144,6 +151,8 @@ The decapsulation termination entry will be created with the following attribute
     key                 = TUNNEL_DECAP_TERM_TABLE:tunnel_name:dst_ip    ; tunnel name:dst IP prefix as key
     term_type           = "P2P"/"P2MP"/"MP2MP"                          ; tunnel decap term type
     src_ip              = source IP prefix
+    subnet_type         = "vlan"/"vip"                                  ; the subnet type of the dst IP prefix, present
+                                                                        ; if this is a subnet decap term
 ```
 
 ### 6.3 Orchestration Agent
@@ -183,12 +192,31 @@ The following picture describes the workflow:
 
 ### 6.6 CLI
 
-TBD
+* `show tunnel brief`: lists out the tunnels created.
+
+```
+# show tunnel
+Tunnel Name       Type    Dscp Mode    ECN Mode         TTL Mode
+----------------  ------  -----------  ---------------  ----------
+IPINIP_TUNNEL     IPINIP  uniform      copy_from_outer  pipe
+IPINIP_V6_TUNNEL  IPINIP  uniform      copy_from_outer  pipe
+IPINIP_SUBNET     IPINIP  uniform      copy_from_outer  pipe
+IPINIP_V6_SUBNET  IPINIP  uniform      copy_from_outer  pipe
+```
+
+* `show tunnel decap`: lists out the tunnel decap terms created.
+
+```
+Dst IP         Src IP         Tunnel Name    Decap Term Type
+-------------  -------------  -------------  -----------------
+192.168.0.1    N/A            IPINIP_TUNNEL  P2MP
+10.10.10.0/24  20.20.20.0/24  IPINIP_SUBNET  MP2MP
+```
 
 ## 7 Warm Reboot Support
 
-TBD
+Currently, SONiC doesn’t load `ipinip.json` after warm-reboot. As two new subnet decap tunnels (`IPINIP_SUBNET` and `IPINIP_V6_SUBNET`) are introduced by this design, `swssconfig.sh` shall be enhanced to write only those two extra tunnel entries from `ipinip.json` to APPL_DB TUNNEL_DECAP_TABLE without making duplicated writes to existing tunnels after warm-reboot.
 
 ## 8 Test Plan
 
-TBD
+The test plan will be added later based on the requirement.
