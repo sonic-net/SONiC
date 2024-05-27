@@ -92,7 +92,7 @@ For example, an administrator may create a time range to run every weekday from 
 
 The Scheduled Configurations feature enhances the existing SONiC architecture by introducing two new managers within the swss container, alongside the established `cron` utility. This approach not only ensures seamless integration with the current system but also maintains flexibility for future adaptations, as `cron` can be substituted with other scheduling utilities if more advanced or different functionality is required.
 
-![Architecture Design](Images/scheduled-configuration-architecture-no-connections.png)
+![Architecture Design](images/scheduled-configuration-architecture-no-connections.png)
 
 ### New Components
 
@@ -119,7 +119,7 @@ In order to fully integrate with the new scheduled configurations feature, all s
 
 The following diagram shows the connections between the different compoenent:
 
-![Architecture Design](Images/scheduled-configuration-architecture.png)
+![Architecture Design](images/scheduled-configuration-architecture.png)
 
 ### Flow Diagrams
 
@@ -127,14 +127,14 @@ The following diagrams illustrate the interactions between the databases and app
 
 #### Set
 
-![time range flow -- set](Images/time-range-flow-set.png)
+![time range flow -- set](images/time-range-flow-set.png)
 
 1. Apply time range confiuguration to `TIME_RANGE` in `CONFIG_DB` through sonic-cfggen or other management tool
 2. Changes to the `TIME_RANGE` table will cause a subscription notification to be sent to `timerangemgrd`
 3. `timerangemgrd` will create a new entry in the `TIME_RANGE_STATUS_TABLE` table found in the `STATE_DB` defaulting to *active* or *inactive* stratus based on the current time
 4. `timerangemgrd` will then create the crontab files used by the `cron` application to activate, or deactivate the status of the `TIME_RANGE_STATUS_TABLE`
 
-![scheduled configuration flow -- set](Images/scheduled-configuration-flow-set.png)
+![scheduled configuration flow -- set](images/scheduled-configuration-flow-set.png)
 
 1. Apply scheduled configurations to the `SCHEDULED_CONFIGURATIONS` table in `CONFIG_DB`
 2. Changes to `SCHEDULED_CONFIGURATIONS` will cause a subscription notification to `scheduledconfigmgrd`
@@ -143,7 +143,7 @@ The following diagrams illustrate the interactions between the databases and app
 
 #### Delete
 
-![time range flow -- delete](Images/time-range-flow-del.png)
+![time range flow -- delete](images/time-range-flow-del.png)
 
 1. A time range is deleted from the `TIME_RANGE` table in `CONFIG_DB`
 2. A subscription notification is sent to `timerangemgrd` with the op *delete*
@@ -153,7 +153,7 @@ The following diagrams illustrate the interactions between the databases and app
 6. `scheduledconfigmgrd` checks if the time range is active, if yes then it will deactivate the configurations bound to this time range by deleting the configurations from the `APPL_DB`
 7. Finally, `scheduledconfigmgrd` deletes the time range internally, and the scheduled configurations will be unbound
 
-![scheduled configuration flow -- delete](Images/scheduled-configuration-flow-del.png)
+![scheduled configuration flow -- delete](images/scheduled-configuration-flow-del.png)
 
 1. A scheduled configuration is deleted form the `SCHEDULED_CONFIGURATIONS` table in `CONFIG_DB`
 2. A subscription notification is sent to `scheduledconfigmgrd` with the op *delete*
@@ -162,7 +162,7 @@ The following diagrams illustrate the interactions between the databases and app
 
 #### Events
 
-![scheduled configuration flow -- events](Images/scheduled-configuration-flow-events.png)
+![scheduled configuration flow -- events](images/scheduled-configuration-flow-events.png)
 
 1. During the scheduled activation time, `cron` updates the **status** field in the `TIME_RANGE_STATUS_TABLE` found in the `STATE_DB` to *active*
 2. A subscription notification is sent to `scheduledconfigmgrd`
