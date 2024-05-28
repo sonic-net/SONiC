@@ -10,10 +10,13 @@
   * [2.1 Using the existing CLI command "sudo config chassis module shutdown/startup <module_name>" by modifying/enhancing the chassis_module.py](#21-using-the-existing-cli-command--sudo-config-chassis-module-shutdown-startup--module-name---by-modifying-enhancing-the-chassis-modulepy)
   * [2.2 Modify the vendor specified set_admin_state() in the module.py](#22-modify-the-vendor-specified-set-admin-state---in-the-modulepy)
   * [2.3 Modify the ModuleUpdater in chassisd.](#23-modify-the-moduleupdater-in-chassisd)
-- [3 Test Considerations](#3-test-considerations)
+- [3 Impact and Test Considerations](#3-impact-and-test-considerations)
+  * [3.1 Impact of the PCIed and Thermal sensors](#31-impact-of-the-pcied-and-thermal-sensors)
+  * [3.2 Test](#32-test)
 - [4 References](#4-references)
 
 <small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
 ###### Revision
 | Rev |     Date    |       Author                                                                       | Change Description                |
 |:---:|:-----------:|:----------------------------------------------------------------------------------:|-----------------------------------|
@@ -58,8 +61,14 @@ Modify the ModuleUpdater class in chassisd to keep a SFM module in the down stat
 1. Create and add a new function get_module_admin_status() to get the admin_status from CHASSIS_CONFIG_TABLE in CONFIG_DB
 2. Modify the module_db_update() to call get_module_admin_status() to check the config module. If the module_cfg_status is not set to down, then populate the CH-TBDASSIS_FABRIC_ASIC_TABLE. Otherwise, just ignore it even the SFM module is present. This mechanism prevents the event is triggered in the swss.sh when admin_status is set to down state.
 
-# 3 Test Considerations
-UTs are also added to simulate the Fabric shutdown and startup 
+
+# 3 Impact and Test Considerations
+## 3.1 Impact of the PCIed and Thermal sensors
+For PCIed, based on the investigation, the current design of the Fabric module shutdown has NO impact on the PCIed.  The PCIed current checks the basic PCI components. For the Fabric slot which is shutdown, if platform supports PCI on the Fabric card, it should check if its power is on that particular card before it is added to the PCIe check. That is how is handled in the Arista vendor code.
+For the thermal sensors of the Fabric card, this should be handled by the vendor's specified code. If module is shutdown, the vendor sonic-platform thermal query should not return any entry for that particular slot. 
+
+## 3.2 Test
+UTs are also added to simulate the Fabric shutdown and startup
 
 # 4 References
 -TBD
