@@ -14,9 +14,10 @@
   - [2.4 DPU FRR Changes](#24-dpu-frr-changes)
   - [2.5 DPU Linux IPTables](#25-dpu-linux-iptables)
   - [2.6 NPU BFD session and VNET\_ROUTE\_TUNNEL](#26-npu-bfd-session-and-vnet_route_tunnel)
-  - [2.7 NPU-DPU midplane state change and BFD session update](#27-npu-dpu-midplane-state-change-and-bfd-session-update)
-  - [2.8 DPU BFD Host trap entries](#28-dpu-bfd-host-trap-entries)
-  - [2.9 VNET Route and BFD session updates](#29-vnet-route-and-bfd-session-updates)
+  - [2.7 DPU BFD session state Updates](#27-dpu-bfd-session-state-updates)
+  - [2.8 NPU-DPU midplane state change and BFD session update](#28-npu-dpu-midplane-state-change-and-bfd-session-update)
+  - [2.9 DPU BFD Host trap entries](#29-dpu-bfd-host-trap-entries)
+  - [2.10 VNET Route and BFD session updates](#210-vnet-route-and-bfd-session-updates)
 
 ###### Revision
 
@@ -27,6 +28,7 @@
 | 0.3 | 03/13/2024 | Kumaresh Perumal | Update BFD table in STATE_DB           |
 | 0.4| 03/20/2024 | Kumaresh Perumal | Update ACL usage |
 | 1.0| 03/26/2024| Kumaresh Perumal| Update with BFD Trap, Rx/Tx timers in APP_DB|
+|1.1| 05/28/2024 | Kumaresh Perumal | BFD session state updates to HA Scope state DB|
 
 # About this Manual
 This document provides general information about the NPU-DPU liveness detection using BFD probes between NPU and DPU.
@@ -113,9 +115,9 @@ Multihop BFD sessions are created between NPU and a remote DPU.
 
 ## 2.3 BFD Active-Passive mode
 
-HA manager in NPU creates VNET_ROUTE_TUNNEL_TABLE which will trigger bfdOrch to create BFD Active session with local and peer information. NPU supports BFD hardware offload, so hardware starts
+HA manager(hamgrd) in NPU creates DPU routing rules for DPU-level HA using VNET_ROUTE_TUNNEL_TABLE which will trigger bfdOrch to create BFD Active session with local and peer information. NPU supports BFD hardware offload, so hardware starts
 generating BFD packets to the peer. HA manager also creates another
-BFD_SESSION table in DPU with local DPU PA and peer NPU PAs. BfdOrch checks for SAI object platform capability for h/w offload. In DPU, if h/w offload is not supported, FRR is configured to trigger BFD sessions. BfdOrch creates SOFTWARE_BFD_SESSION_TABLE entry in STATE_DB with 'passive' mode and BgpCfgd checks for the entries in the STATE_DB and configures BFD passive sessions in
+BFD passive session in DPU using BFD_SESSION table with local DPU PA and peer NPU PAs. BfdOrch checks for SAI object platform capability for h/w offload. In DPU, if h/w offload is not supported, FRR is configured to trigger BFD sessions. BfdOrch creates SOFTWARE_BFD_SESSION_TABLE entry in STATE_DB with 'passive' mode and BgpCfgd checks for the entries in the STATE_DB and configures BFD passive sessions in
 FRR stack with local and peer information.
 
 SOFTWARE_BFD_SESSION_TABLE entry in STATE_DB has all the key fields and values from BFD_SESSION_TABLE.
@@ -192,18 +194,23 @@ When HA manager receives HA config update, it will create VNET Route tunnel tabl
 
 <img src="images/DB_And_Notification.png">
 
-## 2.7 NPU-DPU midplane state change and BFD session update
+## 2.7 DPU BFD session state Updates
+HA Manager maintains an external facing state table in NPU to publish all the required state information per VDPU that can be queried by the controller. To provide state of BFD sessions established between the local DPU and NPUs, DPU updates the DASH_HA_SCOPE_STATE table with all the BFD sessions that are up.
+
+New python timer routine created within BGPCfgd queries all BFD 'UP' sessions in FRR and updates the DASH_HA_SCOPE_STATE table with all the peer NPU IPs in 'local_vdpu_up_bfd_sessions_v4' and 'local_vdpu_up_bfd_sessions_v6' fields. For more details about the HA state table and the fields, please refer to [Smartswitch HA HLD](https://github.com/r12f/SONiC/blob/user/r12f/ha2/doc/smart-switch/high-availability/smart-switch-ha-detailed-design.md)
+
+## 2.8 NPU-DPU midplane state change and BFD session update
 
 When NPU-DPU midplane interface goes down due to some trigger or platform changes, PMON module updates the midplane NetDev interface state in DPU_STATE DB and trigger a notification for link state change. HA manager listens to these updates and bring down the BFD by applying ingress ACL rules or updating NPU->DPU links. This will bring down the local and remote BFD sessions between NPU and DPU. ACL can be attached to NPU-DPU interconnect interface to drop BFD packets from DPU.
 
-Note: This is out of scope of this document, Smartswitch HA HLD will have more details as HA manager listens to all FSM changes from the controller and PMON changes.
+Note: This is out of scope of this document, Smartswitch HA HLD will have more details as HA manager listens to all FSM changes from the controller and PMON changes. For more details, please refere to Unplanned Events section in SmartSwitch HA HLD.
 
-## 2.8 DPU BFD Host trap entries
+## 2.9 DPU BFD Host trap entries
 To avoid BFD packets getting delayed or congested with other data traffic, BFD host_trap entries are created to redirect BFD control packets to a separate queue. This can be done during system initialization like other COPP rules generated for BGP, LLDP etc.,
 
 Hostif trap SAI attribute for BFD is SAI_HOSTIF_TRAP_TYPE_BFD and SAI_HOSTIF_TRAP_TYPE_BFDV6. This covers both single-hop and multi-hop BFD packets.
 
-## 2.9 VNET Route and BFD session updates
+## 2.10 VNET Route and BFD session updates
 Some of the scenarios when VIP is pointing to Local and Remote nexthops
 and the BFD session state changes between NPU and DPU. In the below
 scenarios, local NH is the IP nexthop to local DPU and Remote NH is the
