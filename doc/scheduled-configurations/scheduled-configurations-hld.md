@@ -55,7 +55,7 @@ Revision 1.1
 
 ## Scope
 
-The scope of this document is to outline the High-Level Design (HLD) for the *Scheduled Configurations* feature in SONiC. This feature aims to enable and disable SONiC configurations based on a schedule defined by the user. It includes the ability to schedule configurations for one-time events as well as recurring time intervals.
+The scope of this document is to outline the High-Level Design (HLD) for the *Scheduled Configurations* feature in SONiC. This feature aims to enable and disable SONiC configurations based on a schedule defined by the user. It includes the ability to schedule configurations for absolute-time events as well as recurring time intervals.
 
 ## Definitions/Abbreviations
 
@@ -81,7 +81,7 @@ The *Scheduled Configurations* feature will allow administrators to schedule spe
 
 ### Functional Requirements
 
-- **Scheduling**: The system must be able to handle both one-time and recurring events.
+- **Scheduling**: The system must be able to handle both absolute and recurring events.
 - **State Tracking**: The system should keep track of active configurations and their current states.
 
 ## Architecture Design
@@ -175,7 +175,7 @@ The following diagrams illustrate the interactions between the databases and app
 
 - This feature will be a built-in part of SONiC, specifically inside the SWSS container.
 - The feature will impact `CONFIG_DB` and `STATE_DB`, and `APPL_DB`.
-- **TODO** warmboot, fastboot, docker changes? Needs to be tested.
+- No impact on warmboot and fastboot functionality.
 - No hardware platform-specific dependencies are expected.
 - Dependandant on cron open-source linux utility.
 - The feature is designed to be managed through SONiC's existing management interfaces.
@@ -196,6 +196,8 @@ key           = TIME_RANGE|name                       ; Unique identifier for ea
 ;field        = value
 start         = cron-expr                             ; Start time in cron expression format.
 end           = cron-expr                             ; End time in cron expression format.
+start_year    = integer                               ; Year to begin the time interval. Optional.
+end_year      = integer                               ; Year to end the time interval. Optional.
 
 ;value annotations
 cron-expr     = 1*128VCHAR                            ; Cron compatible expression. Ex. "0 9 * * 1-5" -- Every weekday at 9AM
@@ -237,7 +239,8 @@ status-str     = "active"/"inactive"      ; String representing the current stat
         "<TIME_RANGE_NAME>": {
             "start": "<CRON_SCHEDULING_EXPRESSION>",
             "end": "<CRON_SCHEDULING_EXPRESSION>",
-            "runOnce": "<BOOLEAN>" // optional field
+            "start_year": "<YEAR>", // optional field
+            "end_year": "<YEAR>" // optional field
         }
     }
 }
@@ -245,6 +248,8 @@ status-str     = "active"/"inactive"      ; String representing the current stat
 
 - `<TIME_RANGE_NAME>`: A unique identifier for the time range.
 - `<CRON_SCHEDULING_EXPRESSION>`: Specifies recurring schedule for both the start and end of the time range.
+- `<YEAR>`: An integer representing the year this time range should be enabled. This allows for absolute time configuration.
+
 
 ##### Example
 
@@ -256,9 +261,10 @@ status-str     = "active"/"inactive"      ; String representing the current stat
              "end": "0 0 * * MON-FRI"
         },
         "MaintenanceWindow": {
-            "start": "30 6 * * *",
-            "end": "0 8 * * *",
-            "runOnce": "true"
+            "start": "30 6 25 DEC *",
+            "end": "0 8 2 JAN *",
+            "start_year": "2024",
+            "end_year": "2025"
         }
     }
 }
@@ -291,7 +297,7 @@ status-str     = "active"/"inactive"      ; String representing the current stat
         "NightTime_ACL": {
             "time_range": "NightlyBackup",
             "configuration": {
-                "ACL_TABLE_TABLE": {
+                "ACL_TABLE": {
                     "ACL_TABLE_NAME": {
                     "policy_desc": "Night Time Access Control",
                     "type": "L3",
@@ -303,6 +309,8 @@ status-str     = "active"/"inactive"      ; String representing the current stat
     }
 }
 ```
+
+***NOTE**: ACL tables are already supported in APPL_DB with the table name "ACL_TABLE_TABLE", but it is recommended to create a new subscription using the same table name as found in CONFIG_DB
 
 ### YANG Model Enhancements
 
@@ -347,16 +355,21 @@ module sonic-timerange {
                 }
 
                 leaf end {
+                    mandatory true;
                     type string {
                         length "1..255";
                     }
                     description "End time for time range";
                 }
 
-                leaf runOnce {
-                    type boolean;
-                    default "false";
-                    description "Indicates whether the time range should trigger only once.";
+                leaf start_year {
+                    type integer;
+                    description "Indicates what year this time range will begin running";
+                }
+
+                leaf end_year {
+                    type integer;
+                    description "Indicates what year this time range will end";
                 }
             } /* end of list TIME_RANGE_LIST */
             
@@ -435,13 +448,16 @@ show time range configurations [time_range_name]
 ```
 
 ```bash
-Time Range       Status    Start Schedule      End Schedule        Configurations
------------      ------    --------------      ------------        --------------
-Nightly Backup   Active    "0 23 * * *"        "0 5 * * *"          - NightTime_ACL
-                                                                    - DataBackup
-                                                                    - ServerMaintenance
-Weekend Sync     Inactive  "0 0 * * SAT,SUN"   "0 0 * * MON"        - WeekendRatesUpdate
-Holiday Hours    Active    "0 0 1 JAN,DEC *"   "0 0 2 JAN,DEC *"    - HolidaySpecials
+Time Range           Status  Start Schedule  End Schedule   Years      Configurations
+---------------  --------  --------------  -------------  ---------  ---------------
+Nightly Backup   Active    "0 23 * * MON"  "0 0 * * MON"  N/A        - NightTime_ACL
+                                                                     - DataBackup
+                                                                     - ServerMaintenance
+Weekend Sync     Inactive  "0 0 * * SAT"   "0 0 * * MON"  N/A        - WeekendRatesUpdate
+Holiday Hours    Active    "0 0 25 DEC *"  "0 0 26 DEC *" 2024       - HolidaySpecials
+MaintenanceWi... Active    "30 6 * DEC *"  "0 8 * JAN *"  2024-2025  - MaintenanceTasks
+
+
 ```
 
 #### Show Scheduled Configurations
@@ -487,7 +503,8 @@ There are no SAI API changes.
 
 ## Warmboot and Fastboot Design Impact
 
-**TODO** change to warmboot/fastboot?
+No impact to warmboot/fastboot.
+Crontab files remain persistant, STATE_DB and other DB entries are restored, and the manager daemons continue their functionality post-boot.
 
 ## Restrictions/Limitations
 
