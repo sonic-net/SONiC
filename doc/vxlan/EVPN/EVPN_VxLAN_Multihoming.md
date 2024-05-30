@@ -80,12 +80,9 @@ Rev 1.0
 
 # Revision
 
-
-| Rev  | Date       | Authors                                          | Change Description |
-| ---- | ---------  | ------------------------------------------------ | ------------------ |
-| 0.x  | Feb-2024   | Mike Mallin, Patrice Brissette, Naveen Gamini  | Cisco initial draft  |
-| 0.x  | Feb-2024   | Syed Hasan Naqvi, Rajesh Sankaran, Kishore Kunal, Praveen Elagala  | Broadcom initial draft  |
-| 1.0  | May-2024   | Syed Hasan Naqvi (Broadcom), Patrice Brissette (Cisco), Praveen Elagala (Broadcom), Rajesh Sankaran (Broadcom), Mike Mallin (Cisco), Kishore Kunal (Broadcom), Naveen Gamini (Cisco), Tapraj Singh (Cisco)   | Merged version   |
+| Rev  | Date      | Author                                           | Change Description |
+| ---- | --------- | ------------------------------------------------ | ------------------ |
+| 1.0  | 2/22/2024 | Cisco: Patrice Brissette, Mike Mallin, Naveen Gamini, Tapraj Singh <br>Broadcom: Syed Hasan Naqvi, Rajesh Sankaran, Kishore Kunal, Praveen Elagala  | Merged version    |
 
 <a id="About-this-Manual"></a>
 # About this Manual
@@ -184,6 +181,8 @@ The diagram below shows a typical EVPN Multihoming network with Multihomed (MH) 
 
 ![](images/evpn_mh_diagram.PNG)
 
+__Figure 1: Typical EVPN Multihoming network__
+
 The devices H1, H4, and H5 are SH devices and connected to Vtep-1, Vtep-4, and Vtep-5 respectively. The devices H2 & H3 are multihomed and connected to EVPN VxLAN network with active-active redundancy using LAG. Device H2 is multihomed to Vtep-1 and Vtep-4 whereas device H3 is multihomed to Vtep-1, Vtep-2, Vtep-3, and Vtep-4.
 
 In order to configure EVPN Multihoming for the LAGs connecting multihomed devices, Type-0, Type-1, or Type-3 ESI is required to be configured on the LAG interfaces:
@@ -222,6 +221,8 @@ Local-bias procedure is described in EVPN VxLAN Overlay [RFC 8365](https://datat
 
 ![Local bias procedure in EVPN Multihoming](images/evpn_mh_local_bias.PNG)
 
+__Figure 2: Local Bias__
+
 BUM traffic is originated from SHD H1 attached to Vtep-1. Due to local-bias, Vtep-1 floods this traffic to PortChannel1, PortChannel2, and to the remote VTEPs.
 
 Once this traffic arrives on remote VTEP, say Vtep-4, it has to know that BUM traffic was originated at Vtep-1 and PortChannel1 & PortChannel2 are attached to Vtep-1 sharing a common EVPN Ethernet-Segment. Therefore, there is no need to forward BUM traffic to PortChannel1 and PortChannel2. However, Vtep-4 should forward this traffic to SHD H4. This filtering of BUM traffic by looking at the source VTEP of the VxLAN frame and the list of Multihomed egress interface sharing a common Ethernet-Segment is referred as split-horizon filtering.
@@ -230,6 +231,8 @@ Once this traffic arrives on remote VTEP, say Vtep-4, it has to know that BUM tr
 The designated forwarder (DF) election is described in [RFC 7432](https://datatracker.ietf.org/doc/html/rfc7432), and is implemented to avoid BUM traffic duplication towards multi-homed  devices connected to the EVPN network. The purpose of DF election is to elect one of the VTEPs among the participating VTEPs for a given Multihomed Ethernet-segment that is responsible for forwarding the BUM traffic to the multihomed device. And rest of the participating VTEPs do not forward the BUM traffic to the multihomed device.
 
 ![](images/evpn_mh_df_forwarding.PNG)
+
+__Figure 3: Designated Forwarder__
 
 The above diagram depicts a typical working of BUM forwarding by the elected DF. Assume that Vtep-1 is the elected DF for PortChannel1 (ES-ID 1), and Vtep-4 is the elected DF for PortChannel2 (ES-ID 2). The BUM traffic is originated at Vtep-5 and is replicated to all of the VxLAN tunnels member of the VLAN. In this case, all of the Vtep-1 to Vtep-4 receive the BUM traffic.
 Each of these VTEPs attempt to flood the traffic on local access ports. However, for the multihomed ESs, only the DF forwards the BUM traffic and rest of the VTEPs refrain from forwarding.
@@ -241,6 +244,8 @@ Each VTEP advertises EVPN Type-1 (per ES/EAD) route per local Ethernet-Segment. 
 
 The L2 NHG serves two purposes. First, it allows load-balancing of L2 unicast flows among the participating VTEPs multihoming the ES. Second, it helps in faster-convergence of traffic in case of Ethernet-Segment failure on one of the participating VTEPs where EVPN Type-1 (ES/EAD) route is withdrawn; the L2 NHG is refreshed with the removal of the affected VTEP.
 ![](images/evpn_mh_unicast_forwarding.PNG)
+
+__Figure 4: Unicast Forwarding__
 
 In the diagram above, H2 host mac address H2-MAC is advertised by Vtep-1 and/or Vtep-4 in a EVPN Type-2 route that also carries Ethernet-Segment identifier (ES-ID) of PortChannel1. On Vtep-5, the H2-MAC processing undergoes special handling since the Type-2 route has an ES-ID. H2-MAC is installed against L2 NHG corresponding to that ES-ID. Even if Type-2 route for H2-MAC is received only from either Vtep-1 or Vtep-4, the traffic towards H2 will still be load-balanced between Vtep-1 and Vtep-4 (due to aliasing). Later, if PortChannel1 interface goes down, on say Vtep-1, Vtep-1 will withdraw the EVPN Type-1 (per ES/EAD) route. This results in Vtep-5 updating L2 NHG for the ES-ID. This re-balance of traffic will not wait for the individual MAC route updates to arrived and get processed. This update of L2 NHG on Multihomed ES link failures is referred as "Fast Convergence" using the mass-withdraw mechanism described in [RFC 7432](https://datatracker.ietf.org/doc/html/rfc7432).
 
@@ -295,6 +300,9 @@ IETF draft [ip-mac-proxy-adv](https://datatracker.ietf.org/doc/html/draft-rbickh
 
 The proxy advertisement is explained using the simplified topology below.
 ![](images/evpn_mh_proxy_advertisement.PNG)
+
+__Figure 5: Proxy Advertisement__
+
 In this picture, only Vtep-1 learns the MAC address of H2 and advertises Type-2 route with Proxy=0. When Vtep-4 receives this update, it installs the MAC against Po1 but also advertises Type-2 route for the same MAC with Proxy=1.
 
 This proxy advertisement avoids unnecessary MAC address flap in the network in case the original VTEP that had locally learnt the MAC address observes a fault (e.g. Multihomed ES link goes down, VTEP gets disconnected from spine, VTEP reboots, etc.) When the original router withdraws the Type-2 route, the other VTEPs do not remove the MAC and keep advertising the proxy Type-2 route. During this time, if the MAC is learnt locally, the proxy flag is reset in the route updates. Otherwise, the MAC address is flushed after a (configurable) hold timeout and Type-2 route is withdrawn. Similar approach is taken for the ARP/ND neigbhbor entries.
@@ -746,7 +754,7 @@ Existing TeamMgr will be extended to perform following activites
 
 <a id="333-Zebra"></a>
 ### 3.3.3 Zebra
-Zebra changes are required to send ES membership and DF election information to Fpmsyncd. Existing socket for zebra-Fpmsyncd communication is leveraged. For sending split-horizon and DF information to Fpmsyncd, NEXTHOP update messages will be used. Fpmsyncd will process raw netlink messages instead of using libnl3 APIs for decoding these messages.
+Zebra changes are required to send ES membership and DF election information to Fpmsyncd. Existing socket for zebra-Fpmsyncd communication is leveraged. For sending split-horizon and DF information to Fpmsyncd, Trafic Control (TC) update messages will be used. Fpmsyncd will process raw netlink messages instead of using libnl3 APIs for decoding these messages.
 
 <a id="334-Fpmsyncd"></a>
 ### 3.3.4 Fpmsyncd
@@ -1039,17 +1047,17 @@ sonic(config-router-bgp-af)# [no] disable-ead-evi-tx
 <a id="352-Show-Commands"></a>
 ### 3.5.2 Show Commands
 
-##### 3.5.2.1 VxLAN show commands
-**show vxlan l2-nexthop-group**
+##### 3.5.2.1 EVPN show commands
+**show evpn l2-nexthop-group**
 
 ```
-admin@sonic$ show vxlan l2-nexthop-group
-NHG    Remote VTEPs   Local Members
-===    ============   ==============
+admin@sonic$ show evpn l2-nexthop-group
+NHG     Tunnel        Local Members
+===    =========      ==============
 22      2.3.4.5
         3.4.5.6
 
-23      1.1.1.2        PortChannel5
+23      1.1.1.2       PortChannel5
         1.1.1.3
 
 Description:
@@ -1059,7 +1067,7 @@ Description:
 3. Read from the APP_DB
 ```
 
-**show vxlan remotemac**
+**show evpn remotemac**
 
 ```
 admin@sonic$ show vxlan remotemac
@@ -1374,7 +1382,7 @@ sequenceDiagram
   APPL_DB ->> l2nhgorch: Listen for NEXT_HOP_GROUP_TABLE updates
   l2nhgorch ->> ASIC_DB: Push NHG updates into ASIC_DB
 ```
-__Figure XX: Remote Multihomed MAC handling__
+__Figure 6: Remote Multihomed MAC handling__
 
 For remote multi-homed MACs, fdborch will program the FDB entry with *SAI_FDB_ENTRY_ATTR_NEXT_HOP_GROUP_ID* instead of SAI_FDB_ENTRY_ATTR_ENDPOINT_IP. All other attributes will be programmed the same.
 
@@ -1401,7 +1409,7 @@ sequenceDiagram
   APPL_DB ->> l2nhgorch: Listen for NEXT_HOP_GROUP_TABLE updates
   l2nhgorch ->> ASIC_DB: Push NHG updates into ASIC_DB
 ```
-__Figure XX: Remote Multihomed MAC Resolution__
+__Figure 7: Remote Multihomed MAC Resolution__
 
 The downgrade of the number of paths may happens under two conditions: from ES/EAD route withdraw and/or from MAC withdraw.
 The following diagram shows the flow for ES/EAD route withdraw. 
@@ -1423,7 +1431,7 @@ sequenceDiagram
   APPL_DB ->> l2nhgorch: Listen for NEXT_HOP_GROUP_TABLE updates
   l2nhgorch ->> ASIC_DB: Push NHG updates into ASIC_DB
 ```
-__Figure XX: Remote Multihomed ES/EAD Withdraw__
+__Figure 8: Remote Multihomed ES/EAD Withdraw__
 
 Similarly, in the following diagram, the MAC withdraw was received prior to the ES/EAD withdraw; otherwise the operation is considered as a noop.
 ```mermaid
@@ -1443,7 +1451,7 @@ sequenceDiagram
   APPL_DB ->> l2nhgorch: Listen for NEXT_HOP_GROUP_TABLE updates
   l2nhgorch ->> ASIC_DB: Push NHG updates into ASIC_DB
 ```
-__Figure XX: Remote Multihomed MAC Withdraw__
+__Figure 9: Remote Multihomed MAC Withdraw__
 
 Regarding the programming of Split Horizon List, Zebra captures the list of VTEPs participating to specific Ethernet Segment. Once the EVPN peering timer expires, that list is provided to SONIC components:
 
@@ -1464,7 +1472,7 @@ sequenceDiagram
   APPL_DB ->> shlorch: Listen for EVPN_SPLIT_HORIZON_TABLE updates
   shlorch ->> ASIC_DB: Push vtep_list updates into ASIC_DB
 ```
-__Figure XX: Split Horizon Group Programming__
+__Figure 10: Split Horizon Group Programming__
 
 The Designated Forwarder assignment and programming works similarly.
 ```mermaid
@@ -1484,7 +1492,7 @@ sequenceDiagram
   APPL_DB ->> evpnmHorch: Listen for EVPN_DF_TABLE updates
   evpnmHorch ->> ASIC_DB: Push vtep_list updates into ASIC_DB
 ```
-__Figure XX: Designated Forwarder Programming__
+__Figure 11: Designated Forwarder Programming__
 
 <a id="5-Error-Handling"></a>
 # 5 Error Handling
