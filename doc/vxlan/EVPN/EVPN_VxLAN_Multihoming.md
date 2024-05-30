@@ -80,9 +80,11 @@ Rev 1.0
 
 # Revision
 
-| Rev  | Date      | Author                                           | Change Description |
-| ---- | --------- | ------------------------------------------------ | ------------------ |
-| 1.0  | 2/22/2024 | Cisco: Patrice Brissette, Mike Mallin, Naveen Gamini, Tapraj Singh <br>Broadcom: Syed Hasan Naqvi, Rajesh Sankaran, Kishore Kunal, Praveen Elagala  | Merged version    |
+| Rev  | Date       | Authors                                          | Change Description |
+| ---- | ---------  | ------------------------------------------------ | ------------------ |
+| 0.x  | Feb-2024   | Mike Mallin, Patrice Brissette, Naveen Gamini  | Cisco initial draft  |
+| 0.x  | Feb-2024   | Syed Hasan Naqvi, Rajesh Sankaran, Kishore Kunal, Praveen Elagala  | Broadcom initial draft  |
+| 1.0  | May-2024   | Syed Hasan Naqvi (Broadcom), Patrice Brissette (Cisco), Praveen Elagala (Broadcom), Rajesh Sankaran (Broadcom), Mike Mallin (Cisco), Kishore Kunal (Broadcom), Naveen Gamini (Cisco), Tapraj Singh (Cisco)   | Merged version   |
 
 <a id="About-this-Manual"></a>
 # About this Manual
