@@ -329,6 +329,5 @@ Presented below is the test plan within the ```sonic-mgmt``` framework for the s
 | Unplanned Smart Switch System Crash       | Ungraceful reboot   | Ungraceful reboot   |
 | Unplanned DPU System Crash                | -                   | Ungraceful reboot   |
 
-### Test case details ###
-
-In progress
+The test scenarios above ensure that both the NPU and all DPUs are fully operational following any type of reboot. Furthermore, the tests verify the
+functionality of PCI communication between NPU and DPUs.
