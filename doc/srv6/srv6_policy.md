@@ -15,25 +15,26 @@
     - [FRR Sample Configuration](#frr-sample-configuration)
   - [SONiC Policy Configuration](#sonic-policy-configuration)
     - [SRV6\_POLICY's CONFIGDB schema](#srv6_policys-configdb-schema)
-    - [RV6\_SID\_LIST's CONFIGDB schema](#rv6_sid_lists-configdb-schema)
+    - [SRV6\_SID\_LIST's CONFIGDB schema](#srv6_sid_lists-configdb-schema)
 - [SRv6 Policy Related APPDB Schemas](#srv6-policy-related-appdb-schemas)
   - [Route Schema](#route-schema)
   - [PIC Contexts schema](#pic-contexts-schema)
   - [Forwarding information NHG's schema](#forwarding-information-nhgs-schema)
   - [SID LIST Schema](#sid-list-schema)
 - [Candidate-path management](#candidate-path-management)
-  - [SID\_LIST paths from pathd to oarchagent](#sid_list-paths-from-pathd-to-oarchagent)
 - [SRv6 Policy Handling Work Flows in Zebra](#srv6-policy-handling-work-flows-in-zebra)
+  - [SID\_LIST handling work flow](#sid_list-handling-work-flow)
   - [SRv6 Policy Configuration Handling Work Flow](#srv6-policy-configuration-handling-work-flow)
     - [zread\_srv6\_policy\_set](#zread_srv6_policy_set)
     - [zread\_srv6\_policy\_delete](#zread_srv6_policy_delete)
-  - [Policy NH register work flow](#policy-nh-register-work-flow)
+  - [Policy Nexthop registering work flow](#policy-nexthop-registering-work-flow)
     - [Remote PE Announce routes with color](#remote-pe-announce-routes-with-color)
-    - [local PE register RNH](#local-pe-register-rnh)
+    - [Local PE register RNH](#local-pe-register-rnh)
   - [BGP resolve routes via SRv6 Policies](#bgp-resolve-routes-via-srv6-policies)
+    - [Policy Resolving](#policy-resolving)
     - [PIC Context](#pic-context)
     - [Policy NHG](#policy-nhg)
-    - [zebra sends SRv6 Policy to fpm](#zebra-sends-srv6-policy-to-fpm)
+    - [Zebra sends SRv6 Policy to fpm](#zebra-sends-srv6-policy-to-fpm)
 - [Orchagent changes for SRv6 Policy](#orchagent-changes-for-srv6-policy)
 - [Unit Test](#unit-test)
 
@@ -59,31 +60,34 @@ SRv6 Policy requires the following features / enhancements in SONiC deployments.
 FRR has existing traffic engineering policy configurations in segment-routing configuration block. We extend current policy infrastructure to fit SRv6 Policy's requirements. There are three main enhancements from existing TE configurations.
 1. Add "ipv6-address" as segment type for segment list for SRv6. Currently, it only has "mpls" and "nai" as segment type.
 2. Add BFD protection to each segment list in policy. 
-3. As shown in the above diagram, allow multiple candidate-paths to have the same preference within one policy. Current FRR assumes only one candidate-path at each preference within one policy.
+3. Add weight for each candidate path.
+4. As shown in the above diagram, allow multiple candidate-paths to have the same preference within one policy. Current FRR assumes only one candidate-path at each preference within one policy.
 
 ### FRR Sample Configuration
 ```
 segment-routing
  traffic-eng
-  segment-list a
-   index 1 ipv6-address fd00:205:205:fff5:55::
+  segment-list slist_a
+   index 10 ipv6-address fd00:205:205:fff5:55::
   exit
-  segment-list b
-   index 2 ipv6-address fd00:206:206:fff6:66::
+  segment-list slist_b
+   index 10 ipv6-address fd00:206:206:fff6:66::
   exit
-  segment-list c
-   index 3 ipv6-address fd00:207:207:fff7:77::
+  segment-list slist_c
+   index 10 ipv6-address fd00:205:205:fff5:55::
+   index 20 ipv6-address fd00:207:207:fff7:77::
   exit
-  segment-list d
-   index 4 ipv6-address fd00:204:204:fff4:44::
+  segment-list slist_d
+   index 10 ipv6-address fd00:206:206:fff6:66::
+   index 20 ipv6-address fd00:204:204:fff4:44::
   exit
   policy color 1 endpoint 2064:100::1d
-   candidate-path preference 1 name a explicit segment-list a weight 1 bfd-name test3
-   candidate-path preference 1 name b explicit segment-list b weight 1 bfd-name test4
+   candidate-path preference 1 name cpath_a explicit segment-list slist_a weight 1 bfd-name test3
+   candidate-path preference 1 name cpath_b explicit segment-list slist_b weight 1 bfd-name test4
   exit
   policy color 3 endpoint 2064:100::1e
-   candidate-path preference 1 name c explicit segment-list c weight 1 bfd-name test2
-   candidate-path preference 1 name d explicit segment-list d weight 1 bfd-name test1
+   candidate-path preference 1 name cpath_c explicit segment-list slist_c weight 1 bfd-name test2
+   candidate-path preference 2 name cpath_d explicit segment-list slist_d weight 1 bfd-name test1
   exit
  exit
  srv6
@@ -91,39 +95,43 @@ exit
 end
 ```
 ## SONiC Policy Configuration
-We want to introduce two new configurations in SONiC, SRV6_POLICY and SRV6_SID_LIST.
+We want to enhance SRV6_POLICY and SRV6_SID_LIST listed in https://github.com/eddieruan-alibaba/SONiC/blob/eruan-srv6p/doc/srv6/srv6_hld.md with the following modified schema. 
 
 ### SRV6_POLICY's CONFIGDB schema
+Instead of only segment name, we want to specify preference, weight and BFD session for the give candidate path. The candidate paths with higher preference would be selected first. If multiple candidate paths have the same preference, they would form WCMP paths based on the given weights. 
+
 ```
-; New table
+; Modify table
 ; holds SRv6 policy
 
 key = SRV6_POLICY|<color>|<v6_address>
 
 ; field = value
-cpaths = 4-tuples,   ; List of 4 tuples
+cpaths = 5-tuples,   ; List of 5 tuples
 
-4-tuples = <preference>|<cpath name>|<sid list name>|<weight>
+5-tuples = <preference>|<cpath name>|<sid list name>|<weight>|<BFD session name>
 
 For example:
 
     "SRV6_POLICY": {
         "1|2064:100::1d":{
             "cpath":[
-                "1|a|a|1",
-                "1|b|b|1"
+                "1|cpath_a|slist_a|1|test3",
+                "2|cpath_b|slist_b|1|test4"
             ]
         },
         "3|2064:100::1e":{
             "cpath":[
-                "1|c|c|1",
-                "1|d|d|1"
+                "1|cpath_c|slist_c|1|test2",
+                "1|cpath_d|slist_d|2|test1"
             ]
         }
     },
 ```
 
-### RV6_SID_LIST's CONFIGDB schema
+### SRV6_SID_LIST's CONFIGDB schema
+We add sid list index from initial proposal to aligh SONiC's SID LIST configuraiton with FRR's SID LIST configurations. 
+
 ```
 ; New table
 ; holds SRV6_SID_LIST
@@ -131,28 +139,30 @@ For example:
 key = SRV6_SID_LIST|<sid_list_name>
 
 ; field = value
-<sid list name> = ip address,   ; List of segment addresses
+<sid list index> = ip address,   ; List of segment addresses
 
 For example:
 
     "SRV6_SID_LIST": {
-        "a": {
-            "1": "fd00:205:205:fff5:55::"
+        "slist_a": {
+            "10": "fd00:205:205:fff5:55::"
         },
-        "b": {
-            "2": "fd00:206:206:fff6:66::"
+        "slist_b": {
+            "10": "fd00:206:206:fff4:44::"
         },
-        "c": {
-            "3": "fd00:207:207:fff7:77::"
+        "slist_c": {
+            "10": "fd00:205:205:fff5:55::",
+            "20": "fd00:207:207:fff7:77::"
         },
-        "d": {
-            "4": "fd00:204:204:fff4:44::"
+        "slist_d": {
+            "10": "fd00:206:206:fff6:66::",
+            "20": "fd00:204:204:fff4:44::"
         }
     },
 ```
 
 # SRv6 Policy Related APPDB Schemas
-The following is an example of VPNv4 route going via two SRv6 policies, one policy is color 1 via remote PE 2064:100::1d and the other policy is coloar 3 via remote PE 2064:100::1e.
+The following piece is an example of VPNv4 route going via two SRv6 policies. One policy is for color 1 and the remote PE 2064:100::1d, the other policy is for color 3 and the remote PE 2064:100::1e.
 
 ```
 show ip route vrf PUBLIC-TC11 192.100.1.9/32 nexthop-group  
@@ -166,7 +176,7 @@ Routing entry for 192.100.1.9/32
 ```
 
 ## Route Schema
-VPN Route uses the existing route netlink format with pic_context_id is added in TLV. In the example above, VPNv4 route points NHG with id  8661 for forwarding information and 8657 for PIC context, a.k.a VPN SID information.
+VPN Route uses the existing route netlink format with pic_context_id added in TLV to pass route's information from zebra to fpmsyncd. Fpmsyncd would write this route in APPDB. In the example above, VPNv4 route points NHG with id  8661 for forwarding information and 8657 for PIC context, a.k.a VPN SID information.
 ```
 127.0.0.1:6380> hgetall "ROUTE_TABLE:Vrf10000:192.100.1.9/32"
  1) "nexthop_group"
@@ -178,19 +188,20 @@ VPN Route uses the existing route netlink format with pic_context_id is added in
  7) "ifname"
  8) "na"
  9) "vni_label"
-1)  "na"
-2)  "vpn_sid"
-3)  "na"
-4)  "segment"
-5)  "na"
-6)  "seg_src"
-7)  "na"
-8)  "blackhole"
-9)  "false"
+10) "na"
+11) "vpn_sid"
+12) "na"
+13) "segment"
+14) "na"
+15) "seg_src"
+16) "na"
+17) "blackhole"
+18) "false"
+127.0.0.1:6380> 
 ```
 
 ## PIC Contexts schema
-PIC context is mapped from a NHG in zebra by fpmsyncd during NHG handling. The main purpose for this NHG is for provide VPN sid needed after reaching remote PE. 
+PIC context is mapped from a NHG in zebra by fpmsyncd during NHG handling. The main purpose for this NHG is to provide VPN sid.
 ```
 ARISTA03T1# show nexthop-group rib  8657    
 ID: 8657 (zebra 0x562eba98bb00)
@@ -206,7 +217,7 @@ ID: 8657 (zebra 0x562eba98bb00)
      pic nhe:8661 
 ```
 
-This PIC NHG would create an entry in APPDB's PIC_CONTEXT_TABLE. The schema is the similar to current NEXTHOP_GROUP_TABLE's schema.
+This PIC context would be stored in APPDB's PIC_CONTEXT_TABLE. The schema is the similar to current NEXTHOP_GROUP_TABLE's schema.
 ```
 127.0.0.1:6380> hgetall "PIC_CONTEXT_TABLE:8657"
 1) "nexthop"
@@ -233,14 +244,14 @@ ID: 8661 (zebra 0x562eba5d0610)
      This is a pic nhe.
      SegDepends: (8584) (8659)
         via 2064:100::1d segment-list  color 1 (vrf Default) (recursive), weight 1
-           via 2064:100::1d segment-list a color 1 (vrf Default), weight 1
-           via 2064:100::1d segment-list b color 1 (vrf Default), weight 1
+           via 2064:100::1d segment-list slist_a color 1 (vrf Default), weight 1
+           via 2064:100::1d segment-list slist_b color 1 (vrf Default), weight 1
         via 2064:100::1e segment-list  color 3 (vrf Default) (recursive), weight 1
-           via 2064:100::1e segment-list d color 3 (vrf Default), weight 1
+           via 2064:100::1e segment-list slist_d color 3 (vrf Default), weight 1
 
 ```
 
-Zebra collapses these two levels into one level which would be described below. The NHG inforamtion would be stored in NEXTHOP_GROUP_TABLE in appdb. Two new fields are added, segment's names and weights. Segment name would be used to find out SID_LIST created from pathd, which would build up SRv6 NH with SID LIST binding in SAI layer. 
+Zebra collapses these two levels into one level which would be described below. With NHG ID support, we will have NHG contains a set of NH IDs, which point to candidate paths' nexthop IDs. This part is the same as normal NHG ID handling. One new field weight would be added for each path of NHG. This weight is used for forming WCMP. 
 
 ```
 ; Modify table
@@ -249,33 +260,27 @@ Zebra collapses these two levels into one level which would be described below. 
 key = NEXTHOP_GROUP_TABLE|<nhgid>
 
 ; field = value
-segment =  <seg name>,   ; List of segment names
-weight =  <weight>,   ; List of segment weights
+weight =  <weight>,   ; 
+```
+
+A new field, segment name,  would be added in nexthop structure. This field is used in candidate path's nexthop for finding out sid list.
+
+```
+; Modify table
+; holds NEXTHOP_TABLE
+
+key = NEXTHOP_TABLE|<nhgid>
+
+; field = value
+segment =  <seg name>,   ; 
 
 
-For example:
-
-127.0.0.1:6380> hgetall "NEXTHOP_GROUP_TABLE:8661"
- 1) "nexthop"
- 2) "2064:100::1d,2064:100::1d,2064:100::1e"
- 3) "ifname"
- 4) "unknown,unknown,unknown"
- 5) "vni_label"
- 6) "na,na,na"
- 7) "vpn_sid"
- 8) "::,::,::"
- 9) "seg_src"
-1)  "2064:100::1f,2064:100::1f,2064:100::1f"
-2)  "segment"
-3)  "a,b,d"
-4)  "weight"
-5)  "1,1,1"
 ```
 
 ## SID LIST Schema
 SID LIST would be populated from pathd. This schema provides detail path information for each candidate path, a.k.a SID LIST.
 
-Here is a sample example for SID_LIST in appdb. The schema is defined in the previous section. 
+Here is an example for SID_LIST in appdb. 
 ```
 ; New table
 ; holds SRV6_SID_LIST_TABLE
@@ -288,38 +293,48 @@ path= ip addresses,   ; List of segment addresses, seperated via ,
 For example:
 
 127.0.0.1:6380> keys *SID_LIST*
-1) "SRV6_SID_LIST_TABLE:b"
-2) "SRV6_SID_LIST_TABLE:d"
-3) "SRV6_SID_LIST_TABLE:a"
-4) "SRV6_SID_LIST_TABLE:c"
-127.0.0.1:6380> hgetall "SRV6_SID_LIST_TABLE:a"
+1) "SRV6_SID_LIST_TABLE:slist_b"
+2) "SRV6_SID_LIST_TABLE:slist_d"
+3) "SRV6_SID_LIST_TABLE:slist_a"
+4) "SRV6_SID_LIST_TABLE:slist_c"
+127.0.0.1:6380> hgetall "SRV6_SID_LIST_TABLE:slist_a"
 1) "path"
 2) "fd00:205:205:fff5:55::"
 127.0.0.1:6380> 
 ```
 
 # Candidate-path management
-Similar to MPLS SR case, Pathd is responsible to maintain each candidate path's status. BFD protection for candidate paths would be discussed in a separate HLD.  From zebra point of view, it would get ZEBRA_SRV6_POLICY_SET message from pathd whenever a new policy is applied or some policy information is updated and it would get ZEBRA_SRV6_POLICY_DELETE message from pathd whenever there is a policy is deleted.
-
-## SID_LIST paths from pathd to oarchagent
-The overall workflow is the following
-1. Pathd loads new sonic fpm lib and use TLV to pass SID_LIST to fpmsyncd. 
-2. fpmsyncd picks message from fpm socket and  store sid list in SRV6_SID_LIST_TABLE in appdb. 
-3. Orchagent picks SID_LIST data from appdb. SID list would be programmed to SIDLIST table via SAI api directly. When NH with segment name comes in orchagent, orchagent will retrieve SIDLIST's OID and set it in NH's SAI object. 
+Similar to MPLS SR case, Pathd is responsible to maintain each candidate path's status. BFD protection for candidate paths would be discussed in a separate HLD.  From zebra point of view, it would get ZEBRA_SRV6_POLICY_SET message from pathd whenever a new policy is applied or some policy information is updated. Zebra would get ZEBRA_SRV6_POLICY_DELETE message from pathd whenever there is a policy is deleted. Policy message carries all used SID LISTs. 
 
 # SRv6 Policy Handling Work Flows in Zebra
 Zebra has the following SRv6 Policy related work flows, which are shown in the following diagram. 
 
-1. SRv6 Policy Configuration handling Work Flow
-2. Policy NH register work flow
-3. Roues handling work flow
+1. SID LIST handling work flow
+2. SRv6 Policy Configuration handling Work Flow
+3. Policy nexthop registering work flow
+4. Routes handling work flow
 
 <figure align=center>
     <img src="images/srv6_policy_workflows.jpg " width="600" height="400"  >
     <figcaption>Figure 2. SRv6 Policy related work flows <br><br><figcaption>
 </figure>
 
-The following subsections would describe the changes needed for each work flow.
+The following subsections describe the changes needed for each work flow.
+
+## SID_LIST handling work flow
+The workflow for SID LIST handling is the following.
+
+1. Pathd send sid lists via policy messages's zapi_sr_policy structure to zebra.
+2. If a sid list is up and is used by a policy, zebra will use sonic fpm module to pass this list to fpmsyncd.
+3. fpmsycnd picks up SID_LIST message and update SRV6_SID_LIST_TABLE in APPDB.
+4. Orchagent gets events from SRV6_SID_LIST_TABLE, and triggers SAI api to update this list in ASICDB. 
+
+<figure align=center>
+    <img src="images/srv6_policy_sid_list_workflow.jpg " width="600" height="400"  >
+    <figcaption>Figure 3. SID LIST handling work flow <br><br><figcaption>
+</figure>
+
+The difference between MPLS SR TE and SRv6 Policy is that for MPLS SR, each policy has only 1 sid list, while SRv6 policy could have multiple sid list at the same preference.  
 
 ## SRv6 Policy Configuration Handling Work Flow
 MPLS segment Policy is handled via the following two handlers in zapi_msg.c
@@ -333,34 +348,40 @@ We would like to add the following two more handlers in zapi_msg.c for SRv6 Poli
 	[ZEBRA_SRV6_POLICY_DELETE] = zread_srv6_policy_delete,
 ```
 
-zread_srv6_policy_set() and zread_srv6_policy_delete() would be responsible for handling SRv6 policy create, update or delete events. These events could be triggered by pathd's messages based on polices, which includes cpath UP, DOWN events, cpath sid list update events. 
+zread_srv6_policy_set() and zread_srv6_policy_delete() would be responsible for handling SRv6 policy create, update or delete events. These events could be triggered by pathd's messages based on polices, which includes candidate path UP, DOWN events, and sid list updating events. 
 
 ### zread_srv6_policy_set
-The policy set handling work flow is shown in the following diagram. The overall logic for zread_srv6_policy_set() is similar to MPLS SR's zread_sr_policy_set()'s handling.
+The policy set handler's workflow is shown in the following diagram. The overall logic for zread_srv6_policy_set() is similar to MPLS SR's zread_sr_policy_set()'s handling at high level. We also need to add the following supports to the existing policy handling logic.
+
+1. Allow candidate paths to be added, updated or removed for a policy. 
+2. We want to organize NHG in favor of PIC supporting.
+3. We allow color only policy support.
+
+These requirements lead to some code enhancements from existing policy handling. The targeted work flow is the following. 
 
 <figure align=center>
     <img src="images/srv6_policy_set_workflow.jpg" width="600" height="600" >
-    <figcaption>Figure 3. SRv6 Policy Set work flow <br><br><figcaption>
+    <figcaption>Figure 4. SRv6 Policy Set work flow <br><br><figcaption>
 </figure>
 
 1. zread_srv6_policy_set parses the following structure from the incoming message. The message format reuses struct zapi_sr_policy with new SRv6 policy specific fields included. 
 
-2.  Then it reuses the following api struct zebra_sr_policy *zebra_sr_policy_add_by_prefix(struct prefix *p, uint32_t color, char *name) to create struct zebra_sr_policy and store it in srte_table_hash hash table which uses color and prefix as the hash key. This is a common part which reuses existing srte_hash_table infra.
+2.  It uses the following api "struct zebra_sr_policy *zebra_sr_policy_add_by_prefix(struct prefix *p, uint32_t color, char *name)" to create struct zebra_sr_policy and store it in srte_table_hash hash table, which uses color and prefix as the hash key. 
+   
+3. zebra_srv6_policy_validate(). If it is a new policy, it would trigger zebra_srte_evaluate_rn_nexthops(), which is listed below. Otherwise it would trigger zebra_nhe_seg_update() to update all NHGs using this policy. zebra_nhe_seg_update() would trigger related NHGs getting updated in data plane. Since we always have two levels NHG created, routes would point to the first level of NHG. Any policy update would lead to first level NHG update in data plane. There is no need to flush routes if the policy state is not changed. 
 
-3. zebra_srv6_policy_validate() : If it is a new policy, it would trigger zebra_srte_evaluate_rn_nexthops(), otherwise it would trigger zebra_nhe_seg_update() to update all NHGs using this this policy. zebra_nhe_seg_update() wouldate trigger related NHGs getting updates in data plane.
+4. zebra_srte_evaluate_rn_nexthops(). This following steps are for a new policy only. It updates rnh, which is associated with the policy. RNH could be registered before policy is created. When it happens, the rnh would be registered with a route node which is resolved to. In most cases, this route node is ::/0. zebra_srte_evaluate_rn_nexthops()  would backwalk through route node tree and check the rnhs associated with route node and pick up the rnh belonging to the given policy.
 
-4. zebra_srte_evaluate_rn_nexthops() : trigger update rnh which is associated with policies. RNH could be registered before policy is created. When that happens, the RNH would be registered with rn node which could cover it. Normally this rn node is for ::/0. zebra_srte_evaluate_rn_nexthops()  would walk through rn nodes and pick up these rnhs belong to the given policy.
+5. zebra_evaluate_rnh_by_srte(). a wrapper function for zebra_rnh_eval_nexthop_entry_srte()
 
-5. zebra_evaluate_rnh_by_srte(): a wrapper function for zebra_rnh_eval_nexthop_entry_srte()
+6. zebra_rnh_eval_nexthop_entry_srte(). This function checks if the policy state via the given rnh is updated. If so, it would use zebra_rnh_store_in_srte_table() to update policy's rnh list. 
 
-6. zebra_rnh_eval_nexthop_entry_srte() : This function checks if the policy state via the given rnh is updated. If so, it would use zebra_rnh_store_in_srte_table() to update policy's rnh list. 
-
-7. zebra_sr_policy_notify_update() : This is an existing function in FRR, which would be responsible to inform corresponding zebra client on updating policy's rnh event. 
+7. zebra_sr_policy_notify_update(). This function is responsible to inform corresponding zebra client on updating policy's rnh event if the policy state is updated. 
 
 ### zread_srv6_policy_delete
-If policy is still in UP state, the poligy would be deactive first. Then the created policy structures would be cleaned up. 
+If a policy is still in UP state, this policy would be deactive first. After that, the created policy structures would be cleaned up. The overall logic is similar to MPLS TE's handling. 
 
-## Policy NH register work flow
+## Policy Nexthop registering work flow
 ### Remote PE Announce routes with color
 Remote PE could announce VPN routes with color, which could be used as a service indication. In the following sample configuration, all vrf PUBLIC-TC11's v4 routes would be marked with color 1 via export route-map sr1. These color marking codes are existing FRR codes, there is no specific changes for SRv6 policy.
 
@@ -397,19 +418,42 @@ exit
 
 ```
 
-### local PE register RNH
-After BGP receives routes from the remote peer, bgpd will receive bgp path information and register needed NH information with zebra via ZEBRA_NEXTHOP_REGISTER message. This message would carry color in addtional to nexthop information. NEXTHOP_REGISTER_TYPE_COLOR is used as type for carrying color in user data. This part is a common piece. 
+### Local PE register RNH
+After BGP receives routes from the remote peer, bgpd will receive bgp path information and register needed nexthop information with zebra via ZEBRA_NEXTHOP_REGISTER message. This message would carry color in addtional to nexthop information. NEXTHOP_REGISTER_TYPE_COLOR is used as type for carrying color in user data. This part is a common piece. If zebra would use color and nexthop address to find a policy, the rnh would be created and associated with this policy. Otherwise, it would be associated with a route node which it could be resolved to. Later, a policy is created, it would use zebra_srte_evaluate_rn_nexthops() to move created targeted rnh to associate with this policy.
 
 ## BGP resolve routes via SRv6 Policies
-THe nexthops provided with BGP routes contains both colors and nexthop addresses when policy is in use. Each pair of color and nexthop address could be used to identify a specific policy. This set of policies forms a NHG, which each NH in this NHG represents a policy. The policy would also be resolved via a set of NHs, which each NH represents a candidate path, a.k.a sid list. 
+THe nexthops provided with BGP routes contains both colors and nexthop addresses when polices are in use. Each pair of color and nexthop address could be used to identify a specific policy. This set of policies forms a NHG, which each NH in this NHG represents a policy. The policy would also be resolved via a set of NHs, which each NH represents a candidate path, a.k.a sid list. 
+
+### Policy Resolving
+During nexthop_active_check(), if the nexthop is via a SRv6 Policy and that policy is up, we could walk though all candidate paths, and set candidate path's nexthop to policy nexthop's resolved list. Candidate path's nexthop has a newe field sidlist_name to store candidate path's sid list name. Since we have BFD to protect the SRv6 Policy, zebra relies on candidate path state to indicate the nexthop is active. This idea is similar to normal p2p interfaces. 
+
+```
+		policy = zebra_sr_policy_match_by_nexthop(nexthop, &prn);
+		if (policy && policy->status == ZEBRA_SR_POLICY_UP) {
+
+			resolved = 0;
+			SET_FLAG(nhe->flags, NEXTHOP_GROUP_SEGMENTLIST);
+
+			for (path_num = 0; path_num < policy->srv6_segment_list.path_num; path_num++) {
+				SET_FLAG(nexthop->flags,
+						NEXTHOP_FLAG_RECURSIVE);
+				nexthop_seg_set_resolved(afi, nexthop,
+								nexthop, policy, path_num);
+				resolved = 1;
+			}
+
+			if (resolved)
+				return 1;
+		}
+```
 
 ### PIC Context
-PIC context contains vpn SID only. Candidate path's NH is referred via forwarding NHG only. The real SID LIST is not part of NH. We only need a segment name as a reference in NH. From the high level, PIC's handling is independent to SRv6 policy.
+PIC context contains VPN SID only. Candidate path's nexthop is referred by forwarding NHG only. The real SID LIST is not part of NH. We only need a segment name as a reference in NH. Therefore, from the high level, PIC's handling is independent to SRv6 policy.
 
 ### Policy NHG
-Each policy would be mapped to a NHG, with each NH for SIDLIST. We will introduce a new util function to convert a policy to a NHG. During ROUTE_ADD event, zebra will base on the incoming routes' next hop information to form a recursive NHG over mulitple policy NHGs.
+Each policy would be mapped to a NHG, with each NH for SIDLIST. We introduce a new util function to convert a policy to a NHG. During ROUTE_ADD event, zebra will base on the incoming routes' next hop information and routes' color attributes to form a recursive NHG over one or mulitple policy NHGs. The first level NHG is always created even with single policy case. This way, we could maintain first level NHG unchanged, when adding a new policy later. 
    
-### zebra sends SRv6 Policy to fpm
+### Zebra sends SRv6 Policy to fpm
 Since there are two levels NHGs, we would like to collapse them to be one level before sending to fpm.  For this purpose, we create a util function with the following signiture in the API. This util function coverts a NHG for a list of SRv6 policies to a list nhg structure. 
 
 ```
@@ -429,13 +473,15 @@ struct nh_grp {
 segment name would be used to represent each path's out going information.
 
 # Orchagent changes for SRv6 Policy
-Orchagent add new codes for SID_LIST add, modify and delete event. We have segment list and weight list in NHG event. Orchagent would be responsible to look up for created SID_LIST OID based on segment names.
+Orchagent add new codes for SID_LIST add, modify and delete event. We have segment list and weight list in NHG event. Orchagent would be responsible to look up for created SID_LIST OID based on segment names. This part is reuse existing orchagent changes which specified via https://github.com/eddieruan-alibaba/SONiC/blob/eruan-srv6p/doc/srv6/srv6_hld.md. 
+
+Note: We always create NHG even we have only one candidate path. This could help to handle policy modify event when adding new candidate paths, or new policies. This would not impact underlay NHG's scale since we know it is for SRv6 tunnel NH. 
 
 # Unit Test
 The unit test would be carried in the 7 nodes test topology and would be committed to sonic-mgmt repro. The detail test plan would be created in a separate testing HLD.
 <figure align=center>
     <img src="images/ptf_7node_testbed.jpg" width="600" height="400" >
-    <figcaption>Figure 3. SRv6 Policy Set work flow <br><br><figcaption>
+    <figcaption>Figure 5. SRv6 Policy Set work flow <br><br><figcaption>
 </figure>
 
 
