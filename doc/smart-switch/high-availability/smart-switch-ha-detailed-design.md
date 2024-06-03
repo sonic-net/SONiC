@@ -3,7 +3,10 @@
 | Rev | Date | Author | Change Description |
 | --- | ---- | ------ | ------------------ |
 | 0.1 | 10/14/2023 | Riff Jiang | Initial version |
-| 0.2 | 02/12/2024 | Riff Jiang | Adding more HA mode support; Update DB schema and workflow to match recent database and PMON design. |
+| 0.2 | 02/12/2024 | Riff Jiang | Added more HA mode support; Updated DB schema and workflow to match recent database and PMON design. |
+| 0.3 | 03/28/2024 | Riff Jiang | Updated telemetry. |
+| 0.4 | 05/06/2024 | Riff Jiang | Added drop counters for pipeline monitoring. |
+| 0.5 | 06/03/2024 | Riff Jiang | Added DASH BFP probe state update workflow and DB schema. |
 
 1. [1. High level data flow](#1-high-level-data-flow)
    1. [1.1. Upstream config programming path](#11-upstream-config-programming-path)
@@ -37,6 +40,7 @@
          1. [2.3.3.1. HA set state](#2331-ha-set-state)
          2. [2.3.3.2. HA scope state](#2332-ha-scope-state)
          3. [2.3.3.3. Flow sync session states](#2333-flow-sync-session-states)
+         4. [2.3.3.4. DASH BFD probe state](#2334-dash-bfd-probe-state)
 3. [3. Telemetry](#3-telemetry)
    1. [3.1. HA state and related health signals](#31-ha-state-and-related-health-signals)
    2. [3.2. Traffic forwarding related](#32-traffic-forwarding-related)
@@ -229,6 +233,7 @@ flowchart LR
          DPU_DASH_HA_SET_STATE[DASH_HA_SET_STATE]
          DPU_DASH_HA_SCOPE_STATE[DASH_HA_SCOPE_STATE]
          DPU_DASH_FLOW_SYNC_SESSION_STATE[DASH_FLOW_SYNC_SESSION_STATE]
+         DPU_DASH_BFD_PROBE_STATE[DASH_BFD_PROBE_STATE]
       end
 
       subgraph DASH COUNTER DB
@@ -259,6 +264,7 @@ flowchart LR
    DPU_DASH_HA_SET_STATE --> |zmq| NPU_HAMGRD
    DPU_DASH_HA_SCOPE_STATE --> |zmq| NPU_HAMGRD
    DPU_DASH_FLOW_SYNC_SESSION_STATE --> |zmq| NPU_HAMGRD
+   DPU_DASH_BFD_PROBE_STATE --> |SubscribeStateTable| NPU_HAMGRD
    DPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
 
    %% hamgrd --> NPU tables:
@@ -275,6 +281,7 @@ flowchart LR
    DPU_SWSS --> |zmq| DPU_DASH_HA_SET_STATE
    DPU_SWSS --> |zmq| DPU_DASH_HA_SCOPE_STATE
    DPU_SWSS --> |zmq| DPU_DASH_FLOW_SYNC_SESSION_STATE
+   DPU_SWSS --> |Direct Write| DPU_DASH_BFD_PROBE_STATE
    DPU_SWSS --> DPU_DASH_COUNTERS
 
    %% NPU state tables --> Upstream service:
@@ -559,6 +566,10 @@ DPU state table stores the health states of each DPU. These data are collected b
 | | | state | Flow sync session state. It can be "created", "inprogress", "completed", "failed". |
 | | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
 | | | last_state_start_time_in_ms | Flow sync session last state start time in milliseconds. |
+
+##### 2.3.3.4. DASH BFD probe state
+
+The schema of `DASH_BFD_PROBE_STATE` table is defined in the [SmartSwitch BFD HLD](https://github.com/sonic-net/SONiC/pull/1635). Please refer to it for detailed definition.
 
 ## 3. Telemetry
 
