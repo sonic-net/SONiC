@@ -195,9 +195,19 @@ When HA manager receives HA config update, it will create VNET Route tunnel tabl
 <img src="images/DB_And_Notification.png">
 
 ## 2.7 DPU BFD session state Updates
-HA Manager maintains an external facing state table in NPU to publish all the required state information per VDPU that can be queried by the controller. To provide state of BFD sessions established between the local DPU and NPUs, DPU updates the DASH_HA_SCOPE_STATE table with all the BFD sessions that are up.
 
-New python timer routine created within BGPCfgd queries all BFD 'UP' sessions in FRR and updates the DASH_HA_SCOPE_STATE table with all the peer NPU IPs in 'local_vdpu_up_bfd_sessions_v4' and 'local_vdpu_up_bfd_sessions_v6' fields. For more details about the HA state table and the fields, please refer to [Smartswitch HA HLD](https://github.com/r12f/SONiC/blob/user/r12f/ha2/doc/smart-switch/high-availability/smart-switch-ha-detailed-design.md)
+
+| Table                 | Key   | Field              | Description |
+| :-------------------: | :---: | :----------------: |:-----------:
+| DASH_BFD_PROBE_STATE  |       |                    | Per-DPU state DB Table                |
+|                       | DPU_ID| v4_bfd_up_sessions | List of V4 BFD session IPs in UP state|
+|                       |       | v6_bfd_up_sessions | List of V6 BFD session IPs in UP state|
+
+This per-DPU state_db table stores all the V4 and V6 BFD sessions that are in up state. New python timer routine created within BGPCfgd queries all BFD 'UP' sessions in FRR and updates the DASH_BFD_PROBE_STATE table with all the peer NPU IPs in 'v4_bfd_up_sessions' and 'v6_bfd_up_sessions' fields.
+
+HA Manager maintains an external facing state table(DASH_HA_SCOPE_STATE) in NPU to publish all the required state information per VDPU that can be queried by the controller. To provide state of BFD sessions established between the local DPU and NPUs, HA manager queries DASH_BFD_PROBE_STATE table per-DPU and updates DASH_HA_SCOPE_STATE fields(local_vdpu_up_bfd_sessions_v4 and local_vdpu_up_bfd_sessions_v6)
+
+For more details about the HA state table and the fields, please refer to [Smartswitch HA HLD](https://github.com/r12f/SONiC/blob/user/r12f/ha2/doc/smart-switch/high-availability/smart-switch-ha-detailed-design.md)
 
 ## 2.8 NPU-DPU midplane state change and BFD session update
 
