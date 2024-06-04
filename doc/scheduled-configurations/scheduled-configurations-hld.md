@@ -67,7 +67,6 @@ The scope of this document is to outline the High-Level Design (HLD) for the *Sc
 | *SWSS*      | SONiC SWitch State service                                                           |
 | *cron*      | time-based job scheduler linux application                                           |
 
-
 ## Overview
 
 The *Scheduled Configurations* feature will allow administrators to schedule specific network configurations to be applied and later removed at predefined times without manual intervention. This capability is particularly useful for network scenarios where policies need to change dynamically at certain times of the day or week, such as different ACL rules that should be active only during business hours. The scheduled configuration feature easily integrates within the existing infrastructure of SONiC by following established practices and utilizing widely adopted tools like `cron`. `cron` is a time-based job scheduler in Unix-like operating systems, used to automate the execution of scripts and commands at specified times. This approach not only minimizes the learning curve associated with the adoption of new features but also leverages the proven reliability and efficiency of an open-source utility.
@@ -450,14 +449,13 @@ show time range configurations [time_range_name]
 ```bash
 Time Range           Status  Start Schedule  End Schedule   Years      Configurations
 ---------------  --------  --------------  -------------  ---------  ---------------
-Nightly Backup   Active    "0 23 * * MON"  "0 0 * * MON"  N/A        - NightTime_ACL
-                                                                     - DataBackup
-                                                                     - ServerMaintenance
-Weekend Sync     Inactive  "0 0 * * SAT"   "0 0 * * MON"  N/A        - WeekendRatesUpdate
-Holiday Hours    Active    "0 0 25 DEC *"  "0 0 26 DEC *" 2024       - HolidaySpecials
-MaintenanceWi... Active    "30 6 * DEC *"  "0 8 * JAN *"  2024-2025  - MaintenanceTasks
-
-
+Nightly Backup   Active    "0 23 * * MON"  "0 0 * * MON"  N/A        NightTime_ACL
+                                                                     DataBackup
+                                                                     ServerMaintenance
+Weekend Sync     Inactive  "0 0 * * SAT"   "0 0 * * MON"  N/A        WeekendRatesUpdate
+MaintenanceWind  Active    "30 6 * DEC *"  "0 8 * JAN *"  2024-2025  MaintenanceTasks
+ow
+Holiday Hours    Active    "0 0 25 DEC *"  "0 0 26 DEC *" 2024       HolidaySpecials
 ```
 
 #### Show Scheduled Configurations
@@ -509,7 +507,6 @@ Crontab files remain persistant, STATE_DB and other DB entries are restored, and
 ## Restrictions/Limitations
 
 - **Reliable System Clock**: Cron (and therefore *scheduled configurations*) relies heavily on the system clock to operate. Misconfiguration, or issues with time synchronization protocols (like NTP), can lead to configurations being applied at incorrect times, configurations not being removed, or not at being applied at all.
-- **Editing of Configurations**: There is no support for editing a scheduling configuration. If user wants to edit a configuration, the user must delete and create a new scheduled configuration.
 
 ## Testing Requirements/Design
 
