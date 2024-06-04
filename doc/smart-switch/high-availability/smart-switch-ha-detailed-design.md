@@ -375,7 +375,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 | | | version | Config version. |
 | | | desired_ha_state | The desired state for this vDPU. It can only be "" (none), `dead`, `active` or `standalone`. |
-| | | approved_pending_operation_request_id | Approved pending approval operation ID, e.g. switchover operation. |
+| | | approved_pending_operation_ids | Approved pending HA operation id list, connected by "," |
 
 ##### 2.1.2.3. ENI placement table (scope = `eni` only)
 
@@ -430,7 +430,6 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | | | creation_time_in_ms | HA scope creation time in milliseconds. |
-| | | last_updated_time_in_ms | Last updated time in milliseconds. |
 | | | last_heartbeat_time_in_ms | Last heartbeat time in milliseconds. This is used for leak detection. Heartbeat time happens once per minute and will not change the last state updated time. |
 | | | vip_v4 | Data path VIP of the DPU or ENI. |
 | | | vip_v6 | Data path VIP of the DPU or ENI. |
@@ -456,22 +455,30 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | | | local_vdpu_midplane_state | The state of local vDPU midplane. The value can be "unknown", "up", "down". |
+| | | local_vdpu_midplane_state_last_updated_time_in_ms | Local vDPU midplane state last updated time in milliseconds. |
 | | | local_vdpu_control_plane_state | The state of local vDPU control plane, which includes DPU OS and certain required firmware. The value can be "unknown", "up", "down". |
+| | | local_vdpu_control_plane_state_last_updated_time_in_ms | Local vDPU control plane state last updated time in milliseconds. |
 | | | local_vdpu_data_plane_state | The state of local vDPU data plane, which includes DPU hardware / ASIC and certain required firmware. The value can be "unknown", "up", "down". |
+| | | local_vdpu_data_plane_state_last_updated_time_in_ms | Local vDPU data plane state last updated time in milliseconds. |
 | | | local_vdpu_up_bfd_sessions_v4 | The list of IPv4 peer IPs (NPU IP) of the BFD sessions in up state. |
+| | | local_vdpu_up_bfd_sessions_v4_update_time_in_ms | Local vDPU BFD sessions v4 last updated time in milliseconds. |
 | | | local_vdpu_up_bfd_sessions_v6 | The list of IPv6 peer IPs (NPU IP) of the BFD sessions in up state. |
+| | | local_vdpu_up_bfd_sessions_v6_update_time_in_ms | Local vDPU BFD sessions v6 last updated time in milliseconds. |
 
 ###### 2.2.1.1.5. Ongoing HA operation state
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| | | ha_operation_type | HA operation type, e.g., "switchover". |
-| | | ha_operation_id | HA operation ID (GUID). |
-| | | ha_operation_state | HA operation state. It can be "created", "pendingapproval", "approved", "inprogress", "completed" |
-| | | ha_operation_start_time_in_ms | The time when operation is created. |
-| | | ha_operation_state_last_updated_time_in_ms | The time when operation state is updated last time. |
+| | | pending_operation_ids | GUIDs of pending operation IDs, connected by "," |
+| | | pending_operation_types | Type of pending operations, e.g. "switchover", "activate_role", "flow_reconcile", "brainsplit_recover". Connected by "," |
+| | | pending_operation_list_last_updated_time | Last updated time of the pending operation list. |
+| | | switchover_id | Switchover ID (GUID). |
+| | | switchover_state | Switchover state. It can be "pendingapproval", "approved", "inprogress", "completed", "failed" |
+| | | switchover_start_time_in_ms | The time when operation is created. |
+| | | switchover_end_time_in_ms | The time when operation is ended. |
+| | | switchover_approved_time_in_ms | The time when operation is approved. |
 | | | flow_sync_session_id | Flow sync session ID. |
-| | | flow_sync_session_state | Flow sync session state. It can be "created", "inprogress", "completed" |
+| | | flow_sync_session_state | Flow sync session state. It can be  "inprogress", "completed", "failed" |
 | | | flow_sync_session_start_time_in_ms | Flow sync start time in milliseconds. |
 | | | flow_sync_session_target_server | The IP endpoint of the server that flow records are sent to. |
 
@@ -554,8 +561,9 @@ DPU state table stores the health states of each DPU. These data are collected b
 | | | ha_role | The current HA role confirmed by ASIC. Please refer to the HA states defined in HA HLD. |
 | | | ha_role_start_time | The time when HA role is moved into current one in milliseconds. |
 | | | ha_term | The current term confirmed by ASIC. |
-| | | raw_ha_state | The raw HA state from the ASIC. |
-| | | raw_ha_error | The raw error code about HA from the ASIC. |
+| | | activate_role_pending | DPU is pending on role activation. |
+| | | flow_reconcile_pending | Flow reconcile is requested and pending approval. |
+| | | brainsplit_recover_pending | Brainsplit is detected, and DPU is pending on recovery. |
 
 ##### 2.3.3.3. Flow sync session states
 
