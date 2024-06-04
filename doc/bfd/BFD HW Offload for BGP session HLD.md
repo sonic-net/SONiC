@@ -37,9 +37,7 @@
 
 
 # About this Manual
-This document describes a design to use HW offload BFD to monitor BGP peer reachability.  The system can be configured to use BFD to monitor BGP neighbor. When BFD detect that the neighbor is not reachable, the bfd session state goes down, then BFD notifies BGP about this event. BGP reset its state to IDLE after get BFD DOWN event.
-
-HW offloaded BFD can provide a faster failure detection and supports more BFD sessions, comparing to software BFD.
+This document describes a design to use HW offload BFD to monitor BGP neighbor reachability.  The system can be configured to use BFD to monitor BGP neighbor. When BFD detect that the neighbor is not reachable, the bfd session state goes down, then BFD notifies BGP about this event. Usually, BGP resets its state to IDLE after receiving a BFD DOWN event, but the BGP behavior following a BFD state change is outside the scope of this document. HW offloaded BFD can provide a faster failure detection and supports more BFD sessions, comparing to software BFD.
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
@@ -479,6 +477,8 @@ run bfdd with option dplaneaddr inside bgp container, it connects to default bfd
 sonic@sonic:$ docker exec -it bgp bash
 root@sonic# /usr/lib/frr/bfdd --dplaneaddr ipv4c:127.0.0.1
 ```
+The logic for starting frr/bfdd with different parameters is outside the scope of this document.
+
 ## 3.3 create bfd session from vtysh cli
 ```
 sonic@sonic:/var/tmp$ docker exec -it bgp bash
