@@ -195,8 +195,8 @@ key           = TIME_RANGE|name                       ; Unique identifier for ea
 ;field        = value
 start         = cron-expr                             ; Start time in cron expression format.
 end           = cron-expr                             ; End time in cron expression format.
-start_year    = integer                               ; Year to begin the time interval. Optional.
-end_year      = integer                               ; Year to end the time interval. Optional.
+start_year    = string                                ; Year to begin the time interval. Optional.
+end_year      = string                                ; Year to end the time interval. Optional.
 
 ;value annotations
 cron-expr     = 1*128VCHAR                            ; Cron compatible expression. Ex. "0 9 * * 1-5" -- Every weekday at 9AM
@@ -436,43 +436,54 @@ module sonic-scheduled-configurations {
 
 #### Show Time Range
 
-A new CLI command `show time range configurations` will be implemented to show all the time range confiugrations currently managed by the **scheduledconfigmgrd**, grouped by time-ranges, and showing the status of each time range.
+A new CLI command `show time-range-configurations` will be implemented to show all the time range confiugrations currently managed by the **scheduledconfigmgrd**, grouped by time-ranges, and showing the status of each time range.
 
 If you also include the name of a specific time range, only that time range's details will be shown.
 
 The following is the syntax:
 
 ```bash
-show time range configurations [time_range_name]
+show time-range-configurations [time_range_name]
 ```
 
 ```bash
 Time Range           Status  Start Schedule  End Schedule   Years      Configurations
----------------  --------  --------------  -------------  ---------  ---------------
-Nightly Backup   Active    "0 23 * * MON"  "0 0 * * MON"  N/A        NightTime_ACL
-                                                                     DataBackup
-                                                                     ServerMaintenance
-Weekend Sync     Inactive  "0 0 * * SAT"   "0 0 * * MON"  N/A        WeekendRatesUpdate
-MaintenanceWind  Active    "30 6 * DEC *"  "0 8 * JAN *"  2024-2025  MaintenanceTasks
-ow
-Holiday Hours    Active    "0 0 25 DEC *"  "0 0 26 DEC *" 2024       HolidaySpecials
+-----------------  --------  --------------  -------------  ---------  ---------------
+Nightly Backup     Active    "0 23 * * MON"  "0 0 * * MON"  N/A        NightTime_ACL
+                                                                       DataBackup
+                                                                       ServerMaintenance
+Weekend Sync       Inactive  "0 0 * * SAT"   "0 0 * * MON"  N/A        WeekendRatesUpdate
+MaintenanceWindow  Active    "30 6 * DEC *"  "0 8 * JAN *"  2024-2025  MaintenanceTasks
+Holiday Hours      Active    "0 0 25 DEC *"  "0 0 26 DEC *" 2024-      HolidaySpecials
+```
+
+The following is an example of using a specific time range name:
+
+```bash
+Time Range: ActiveTimeRange
+Status: active
+Start Schedule: 0 6 * * *
+End Schedule: 0 22 * * *
+Years: N/A
+Configurations:
+    Second_ACL
 ```
 
 #### Show Scheduled Configurations
 
-A new CLI show command `show scheduled configurations` will be implemented to show all the scheduled configurations currently managed by **scheduledconfigmgrd**. It will be listed in alphabetical order, showing if it is currently active and the time range that it is bound to.
+A new CLI show command `show scheduled-configurations` will be implemented to show all the scheduled configurations currently managed by **scheduledconfigmgrd**. It will be listed in alphabetical order, showing if it is currently active and the time range that it is bound to.
 
 Specifying a configuration by name will show only that configuration, but with the added detail of the full json configuration that is being applied.
 
 ```bash
-show scheduled configurations [configuration_name]
+show scheduled-configurations [scheduled_configuration_name]
 ```
 
 ```bash
 Configuration Name        Status      Time Range
-------------------        ------      ----------
+------------------        -------     --------------
 DataBackup                Active      Nightly Backup
-HolidaySpecials           Active      Holiday Hours
+HolidaySpecials           Unbound     Holiday Hours
 NightTime_ACL             Active      Nightly Backup
 WeekendRatesUpdate        Inactive    Weekend Sync
 ```
@@ -507,6 +518,7 @@ Crontab files remain persistant, STATE_DB and other DB entries are restored, and
 ## Restrictions/Limitations
 
 - **Reliable System Clock**: Cron (and therefore *scheduled configurations*) relies heavily on the system clock to operate. Misconfiguration, or issues with time synchronization protocols (like NTP), can lead to configurations being applied at incorrect times, configurations not being removed, or not at being applied at all.
+- **Valid Cron Ranges**: When configuring time ranges, ensure that the start and end expressions define a valid sequence. For example, a start time of "0 23 * * MON-WED" and an end time of "0 5 * * TUE-THU" is invalid. This configuration would result in multiple starts occurring before an end event, and multiple end events occurring in sequence, leading to undefined behavior. Users must ensure that each start is followed by a corresponding end before the next start occurs.
 
 ## Testing Requirements/Design
 
