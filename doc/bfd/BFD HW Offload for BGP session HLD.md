@@ -20,8 +20,9 @@
     - [BfdOrch](#bfdorch)
   - [2.5 BFD state\_db format example](#25-bfd-state_db-format-example)
   - [2.6 Local Discriminator handling](#26-local-discriminator-handling)
-  - [2.7 Control plane BFD](#27-control-plane-bfd)
-  - [2.8 CLI](#28-cli)
+  - [2.7 IPv6 link local address support](#27-ipv6-link-local-address-support)
+  - [2.8 Control plane BFD](#28-control-plane-bfd)
+  - [2.9 CLI](#29-cli)
 - [3 start the daemons](#3-start-the-daemons)
   - [3.1 start bfdsyncd](#31-start-bfdsyncd)
   - [3.2 start bfdd](#32-start-bfdd)
@@ -32,12 +33,13 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1|  02/04/2024  |     Baorong Liu    | Initial proposal                   |
+| 0.2|  06/03/2024  |     Baorong Liu    | Add IPv6 link local address support |
 
 
 # About this Manual
-This document describes a design to use HW offload BFD to monitor BGP session.  The system can be configured to use BFD to monitor BGP neighbor. When BFD state goes down, it asks BGP to shutdown the connection with its neighbor and, when it goes back up, notify BGP to try to connect to it.
+This document describes a design to use HW offload BFD to monitor BGP peer reachability.  The system can be configured to use BFD to monitor BGP neighbor. When BFD detect that the neighbor is not reachable, the bfd session state goes down, then BFD notifies BGP about this event. BGP reset its state to IDLE after get BFD DOWN event.
 
-HW offloaded BFD can provide a faster failure detection and more BFD sessions, compare to existing SW BFD.
+HW offloaded BFD can provide a faster failure detection and supports more BFD sessions, comparing to software BFD.
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
@@ -63,24 +65,24 @@ At a high level the following should be supported:
 ## 1.2 CLI requirements
 - using existing sonic CLI to show the BFD session and the corresponding status
 - use existing frr BFD CLI to show bfd peer 
-- bfddp_request_counters/bfddp_session_counters are not supported for the first phase
+- bfddp_request_counters/bfddp_session_counters are not supported 
 
 
 ## 1.3 Scalability and Default Values
 
 The BGP BFD HW offload session shares a total number of **4000** with all other features in the SONiC system.
 
-if any BFD session configuration not provided, will rely on bfdorch default value when create BFD session.
+if any BFD session configuration not provided, will rely on frr/bfdd default value when create BFD session.
 The default values for BFD configs if not specified explicitly is:
 
 |  Attribute               |  Value                         |
 |--------------------------|--------------------------------|
-| BFD_SESSION_DEFAULT_TX_INTERVAL | 1 Sec  |
-| BFD_SESSION_DEFAULT_RX_INTERVAL | 1 Sec |
+| BFD_SESSION_DEFAULT_TX_INTERVAL | 300 millisecond  |
+| BFD_SESSION_DEFAULT_RX_INTERVAL | 300 millisecond  |
 | BFD_SESSION_DEFAULT_DETECT_MULTIPLIER | 3 |
 
 ## 1.4 Warm Restart requirements
-No special handling for Warm restart support.
+No special handling for Warm restart support for first phase.
 
 # 2 Modules Design
 
@@ -92,10 +94,10 @@ The bfdd daemon provides a software based BFD service, it also provides an inter
 
 A new component bfdsyncd will do the synchronization between bfdd and BfdOrch through bfd dataplane message and redis appl_db, to support BFD hardware offload for BGP sessions.
 
-The bfdsyncd listens the socket for the BFD session creation/deletion message (from bfdd), and converts the message to BFD transaction, write 
+The bfdsyncd listens the socket for the BFD session creation/deletion message from bfdd, and converts the message to BFD transaction, write 
 the BFD transaction to redis appl_db to notify orchagent(bfdorch) to create/delete a HW offload BFD session.
 
-The bfdsyncd monitors BFD session state change from redis state_db, sends the BFD state change back to bfdd using bfd dataplane message. The BFD session state will be sent to BGP eventually. If BFD state is down, BGP shutdown the connection with its neighbor. If BFD state becomes UP, BGP will try to connect to its neighbor.
+The bfdsyncd monitors BFD session state change from redis state_db, sends the BFD state change back to bfdd using bfd dataplane message. The BFD session state will be sent to BGP eventually. If BFD state becomes DOWN, BGP reset it's state to IDLE.
 
 ![Alt text](images/bfdsyncd.png)
 
@@ -160,6 +162,41 @@ struct bfddp_message {
         struct bfddp_session_counters session_counters;
     } data;
 };
+
+/**
+ * `DP_ADD_SESSION`/`DP_DELETE_SESSION` data payload.
+ *
+ * `lid` is unique in BFD daemon so it might be used as key for data
+ * structures lookup.
+ */
+struct bfddp_session {
+	/** Important session flags. \see bfddp_session_flag. */
+	uint32_t flags;
+	struct in6_addr src;
+	struct in6_addr dst;
+
+	/** Local discriminator. */
+	uint32_t lid;
+	uint32_t min_tx;
+	uint32_t min_rx;
+	uint32_t min_echo_tx;
+	uint32_t min_echo_rx;
+	/** Amount of milliseconds to wait before starting the session */
+	uint32_t hold_time;
+
+	/** Minimum TTL. */
+	uint8_t ttl;
+	/** Detection multiplier. */
+	uint8_t detect_mult;
+	/** Reserved / zeroed. */
+	uint16_t zero;
+
+	/** Interface index (set to `0` when unavailable). */
+	uint32_t ifindex;
+	/** Interface name (empty when unavailable). */
+	char ifname[64];
+};
+
 ```
 ## 2.3 bfddp state change format
 
@@ -199,38 +236,7 @@ The frr 'show bfd peers' CLI needs to show BFD peer information for hardware off
   - remote receive interval
   - remote transmission interval
 
-```
-root@sonic:/# vtysh
-
-Hello, this is FRRouting (version 8.2.2).
-Copyright 1996-2005 Kunihiro Ishiguro, et al.
-...
-sonic# show bfd peers
-BFD Peers:
-	peer 192.168.1.29 multihop local-address 192.168.1.24 vrf default
-		ID: 1230045420
-		Remote ID: 0
-		Active mode
-		Minimum TTL: 254
-		Status: up
-		Uptime: 11 second(s)
-		Diagnostics: ok
-		Remote diagnostics: ok
-		Peer Type: configured
-		Local timers:
-			Detect-multiplier: 3
-			Receive interval: 300ms
-			Transmission interval: 300ms
-			Echo receive interval: 50ms
-			Echo transmission interval: disabled
-		Remote timers:
-			Detect-multiplier: 0
-			Receive interval: 0ms
-			Transmission interval: 0ms
-			Echo receive interval: disabled
-```
-
-The above information is missing in SONiC database today, it might be available in SDK or hardware side. So need to add the following attributes support in SAI attribute get API to get the information for 'show bfd peers' CLI.
+The above information is missing in SONiC database today, it might be available in SDK or hardware side. If SDK support the following attributes, better to add the following attributes in SAI API to get the information for 'show bfd peers' CLI.
 
   - SAI_BFD_SESSION_ATTR_REMOTE_DISCRIMINATOR
   - SAI_BFD_SESSION_ATTR_REMOTE_MULTIPLIER
@@ -244,6 +250,99 @@ The get_bfd_session_attribute API need bfd session id, which is available only i
 In the case of SDK or hardware does not support the above attribute, BfdOrch should not crash when the error returned from the above get attribute SAI API call 
 
 If the above values are not written into BFD session state DB, bfdsyncd will use value 0 when send the information to bfdd.
+
+Examples:
+```
+sonic@sonic:~$ vtysh
+
+Hello, this is FRRouting (version 8.5.1).
+Copyright 1996-2005 Kunihiro Ishiguro, et al.
+...
+sonic(config-router)#         neighbor FOO peer-group
+sonic(config-router)#         neighbor FOO remote-as external
+sonic(config-router)#         neighbor FOO disable-connected-check
+sonic(config-router)#         neighbor FOO ebgp-multihop 255
+sonic(config-router)#         neighbor FOO update-source Loopback27
+sonic(config-router)#         neighbor FOO bfd
+sonic(config-router)#         neighbor 10.200.200.201 peer-group FOO
+...
+sonic# show bfd peer
+BFD Peers:
+	peer 10.200.200.201 multihop local-address 10.200.200.200 vrf default
+		ID: 300650336
+		Remote ID: 1
+		Active mode
+		Minimum TTL: 1
+		Status: up
+		Uptime: 51 second(s)
+		Diagnostics: ok
+		Remote diagnostics: ok
+		Peer Type: dynamic
+		RTT min/avg/max: 0/0/0 usec
+		Local timers:
+			Detect-multiplier: 3
+			Receive interval: 300ms
+			Transmission interval: 300ms
+			Echo receive interval: 50ms
+			Echo transmission interval: disabled
+		Remote timers:
+			Detect-multiplier: 3
+			Receive interval: 300ms
+			Transmission interval: 300ms
+			Echo receive interval: disabled
+
+sonic# exit
+sonic@sonic:/var/tmp$ show bfd sum
+Total number of BFD sessions: 1
+Peer Addr       Interface    Vrf      State    Type          Local Addr        TX Interval    RX Interval    Multiplier  Multihop      Local Discriminator
+--------------  -----------  -------  -------  ------------  --------------  -------------  -------------  ------------  ----------  ---------------------
+10.200.200.201  default      default  Up       async_active  10.200.200.200            300            300             3  true                            1
+sonic@sonic:/var/tmp$ 
+
+from peer system:
+sonic(config-router)#         neighbor FOO peer-group
+sonic(config-router)#         neighbor FOO remote-as external
+sonic(config-router)#         neighbor FOO disable-connected-check
+sonic(config-router)#         neighbor FOO ebgp-multihop 255
+sonic(config-router)#         neighbor FOO update-source Loopback27
+sonic(config-router)#         neighbor FOO bfd
+sonic(config-router)#         neighbor 10.200.200.200 peer-group FOO
+...
+sonic# show bfd peer
+BFD Peers:
+	peer 10.200.200.200 multihop local-address 10.200.200.201 vrf default
+		ID: 2538789519
+		Remote ID: 1
+		Active mode
+		Minimum TTL: 1
+		Status: up
+		Uptime: 5 second(s)
+		Diagnostics: ok
+		Remote diagnostics: ok
+		Peer Type: dynamic
+		RTT min/avg/max: 0/0/0 usec
+		Local timers:
+			Detect-multiplier: 3
+			Receive interval: 300ms
+			Transmission interval: 300ms
+			Echo receive interval: 50ms
+			Echo transmission interval: disabled
+		Remote timers:
+			Detect-multiplier: 3
+			Receive interval: 300ms
+			Transmission interval: 300ms
+			Echo receive interval: disabled
+
+sonic# exit
+sonic@sonic:/var/tmp$ show bfd sum
+Total number of BFD sessions: 1
+Peer Addr       Interface    Vrf      State    Type          Local Addr        TX Interval    RX Interval    Multiplier  Multihop      Local Discriminator
+--------------  -----------  -------  -------  ------------  --------------  -------------  -------------  ------------  ----------  ---------------------
+10.200.200.200  default      default  Up       async_active  10.200.200.201            300            300             3  true                            1
+sonic@sonic:/var/tmp$ 
+
+
+```
 
 ## 2.5 BFD state_db format example
 ```
@@ -299,11 +398,70 @@ struct bfd_session *bs_registrate(struct bfd_session *bfd)
 so bfdsyncd need to do local discriminator mapping between bfdd and BfdOrch, map the bfd session key to bfdd local discriminator. When bfdsyncd get bfd session state update, so it can lookup the bfdd local discriminator using bfd session key. bfdd use its local discriminator to update the information to correct bfd session.
 
 
-## 2.7 Control plane BFD
+## 2.7 IPv6 link local address support
+
+It needs special handling to use link local address for bgp bfd hardware offload.
+
+When bgp use link local address to peer with remote system, it needs to specify interface index (and interface name) when create the bfd session. 
+
+because link local address is not a routable ip address, so bfdsyncd has to provide source mac and destination mac address to let bfdorch create a bfd session with inject-down mode (construct layer 2 packet).
+
+SONiC does not set source mac address for a port with link local address only. But the source mac address can be found at /sys/class/net/'interface_name'/address
+
+One way to get destination mac address is to read neighbor table, for example, using cmd ip -6 neighbor.
+```
+sonic@sonic:/var/tmp$ ip -6 neighbor get fe80::7a6b:17ff:fe5a:7000 dev Ethernet0
+fe80::7a6b:17ff:fe5a:7000 dev Ethernet0 lladdr 78:6b:17:5a:70:00 router REACHABLE
+sonic@sonic:/var/tmp$ 
+```
+
+To make sure the the destination mac address is available before bgp creating bfd session, do not use this bgp configuration: "neighbor xxx disable-connected-check", let bgp check connection first before it try to create bfd session. so peer system mac address will be available if bfdsyncd issue a PING before try to read the neighbor table.
+
+example for bfd session with link local address:
+```
+bgp configuration:
+sonic(config-router)#         neighbor FOO peer-group
+sonic(config-router)#         neighbor FOO remote-as external
+sonic(config-router)#         neighbor FOO ebgp-multihop 1
+sonic(config-router)#         neighbor FOO bfd
+sonic(config-router)#         neighbor Ethernet0 interface peer-group FOO
+
+sonic@sonic:/var/tmp$ show bfd sum
+Total number of BFD sessions: 1
+Peer Addr                  Interface    Vrf      State    Type          Local Addr                   TX Interval    RX Interval    Multiplier  Multihop      Local Discriminator
+-------------------------  -----------  -------  -------  ------------  -------------------------  -------------  -------------  ------------  ----------  ---------------------
+fe80::7a6b:17ff:fe5a:7000  Ethernet0    default  Up       async_active  fe80::7a3e:86ff:fe14:8400            300            300             3  false                           2
+sonic@sonic:/var/tmp$ vtysh -c "show bfd peer"
+BFD Peers:
+	peer fe80::7a6b:17ff:fe5a:7000 local-address fe80::7a3e:86ff:fe14:8400 vrf default interface Ethernet0
+		ID: 2602968139
+		Remote ID: 1
+		Active mode
+		Status: up
+		Uptime: 26 second(s)
+		Diagnostics: ok
+		Remote diagnostics: ok
+		Peer Type: dynamic
+		RTT min/avg/max: 0/0/0 usec
+		Local timers:
+			Detect-multiplier: 3
+			Receive interval: 300ms
+			Transmission interval: 300ms
+			Echo receive interval: 50ms
+			Echo transmission interval: disabled
+		Remote timers:
+			Detect-multiplier: 3
+			Receive interval: 300ms
+			Transmission interval: 300ms
+			Echo receive interval: disabled
+
+```
+
+## 2.8 Control plane BFD
 
 A control plane BFD approach is to use FRR SW BFD. If use HW offload BFD for FRR, it is expected that all FRR BFD sessions are offloaded to HW, with a global flag to switch when start bfdd. 
 
-## 2.8 CLI
+## 2.9 CLI
 
 no new CLI introduced for this feature
 
