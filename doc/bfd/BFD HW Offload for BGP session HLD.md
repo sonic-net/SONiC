@@ -18,6 +18,8 @@
   - [2.3 bfddp state change format](#23-bfddp-state-change-format)
   - [2.4 Orchestration Agent](#24-orchestration-agent)
     - [BfdOrch](#bfdorch)
+      - [Source mac address handling](#source-mac-address-handling)
+      - [Remote discriminator and timer handling for frr show bfd peer command](#remote-discriminator-and-timer-handling-for-frr-show-bfd-peer-command)
   - [2.5 BFD state\_db format example](#25-bfd-state_db-format-example)
   - [2.6 Local Discriminator handling](#26-local-discriminator-handling)
   - [2.7 IPv6 link local address support](#27-ipv6-link-local-address-support)
@@ -228,6 +230,17 @@ struct bfddp_state_change {
 
 ### BfdOrch
 
+#### Source mac address handling
+If specify interface when creating BFD session (see section 2.7, link local address case), source mac address and destination mac address need to be provided.
+Current bfdorch gets source mac address from the port:
+
+        attr.id = SAI_BFD_SESSION_ATTR_SRC_MAC_ADDRESS;
+        memcpy(attr.value.mac, port.m_mac.getMac(), sizeof(sai_mac_t));
+        attrs.emplace_back(attr);
+
+But in the link local address case, the mac address of the port is empty. So the design here need to be modified, let application provide source mac address.
+
+#### Remote discriminator and timer handling for frr show bfd peer command
 The frr 'show bfd peers' CLI needs to show BFD peer information for hardware offloaded BFD sessions:
   - remote discriminator 
   - remote detect multiplier 
@@ -338,9 +351,9 @@ Peer Addr       Interface    Vrf      State    Type          Local Addr        T
 --------------  -----------  -------  -------  ------------  --------------  -------------  -------------  ------------  ----------  ---------------------
 10.200.200.200  default      default  Up       async_active  10.200.200.201            300            300             3  true                            1
 sonic@sonic:/var/tmp$ 
-
-
 ```
+
+
 
 ## 2.5 BFD state_db format example
 ```
