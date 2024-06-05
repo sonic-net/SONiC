@@ -15,7 +15,8 @@
    1. [6.1. Card level NPU-to-DPU liveness probe](#61-card-level-npu-to-dpu-liveness-probe)
    2. [6.2. DPU-to-DPU liveness probe](#62-dpu-to-dpu-liveness-probe)
 7. [7. HA state machine management](#7-ha-state-machine-management)
-   1. [7.1. HA state](#71-ha-state)
+   1. [7.1. HA states](#71-ha-states)
+   2. [7.2. HA role activation in DPU-driven mode](#72-ha-role-activation-in-dpu-driven-mode)
 8. [8. Planned operations](#8-planned-operations)
    1. [8.1. HA set creation](#81-ha-set-creation)
    2. [8.2. Planned shutdown](#82-planned-shutdown)
@@ -25,9 +26,10 @@
    4. [8.4. ENI migration / HA re-pair](#84-eni-migration--ha-re-pair)
 9. [9. Unplanned operations](#9-unplanned-operations)
    1. [9.1. Unplanned failover](#91-unplanned-failover)
-10. [10. Flow tracking and replication](#10-flow-tracking-and-replication)
-11. [11. Detailed design](#11-detailed-design)
-12. [12. Test Plan](#12-test-plan)
+10. [10. Split-brain and re-pair](#10-split-brain-and-re-pair)
+11. [11. Flow tracking and replication](#11-flow-tracking-and-replication)
+12. [12. Detailed design](#12-detailed-design)
+13. [13. Test Plan](#13-test-plan)
 
 ## 1. Terminology
 
@@ -74,11 +76,11 @@ This results in the following differences in the network physical topology and t
 
 ### 4.1. DPU-level HA scope
 
-In the current deployment with a single HA scope per DPU, Active-Standby deployment, means that the NPUs will direct traffic for all ENIs only to the Active DPU.
+With DPU-level HA scope, the HA state is controlled at the DPU level. This means, in active-standby mode, all ENIs on a DPU will be set to active or standby together.
 
 ### 4.2. DPU-level NPU to DPU traffic forwarding
 
-With the DPU-level HA scope, the traffic forwarding from NPU to DPU will be done on DPU level:
+Due to the essense of the DPU-level HA scope, the traffic forwarding from NPU to DPU will be done on DPU level:
 
 - Each DPU pair will use a dedicated VIP per HA scope for traffic forwarding from NPU to DPU.
 - All VIPs for all DPUs in the SmartSwitch will be pre-programmed into the NPU and advertised to the network as a single VIP range (or subnet).
@@ -103,7 +105,7 @@ In `DPU-Scope-DPU-Driven` setup, `hamgrd` will not drive the HA state machine an
 
 ### 6.1. Card level NPU-to-DPU liveness probe
 
-In `DPU-Scope-DPU-Driven` setup, same as ENI-level HA setup, the BFD probe will:
+Same as ENI-level HA setup, in `DPU-Scope-DPU-Driven` setup, the BFD probe will:
 
 - Setup on all NPUs for both IPv4 and IPv6 and probe both DPUs.
 - Both DPUs will respond the BFD probes, no matter it is active or standby.
@@ -145,21 +147,29 @@ The DPU driven state machine will be in one of the following operational HA stat
 
  | State |    Description                       |
  | ----- | ------------------------------------ |
- | Dead | Initial state not participating in HA |
+ | Dead | Initial state. Not participating in HA |
  | Connecting | Trying to connect to its HA pair |
- | Connected | Connection successful, bulk sync in progress |
- | InitializingToStandalone | Could not connect to pair, waiting for Activate-Role trigger from SDN controller to go to Standalone. Dormant state since BFD disabled hence no traffic. |
- | InitializingToActive | Bulk sync successful, waiting for Activate-Role trigger from SDN controller to go to Active. Dormant state since BFD disabled hence no traffic. |
- | InitializingToStandby | Bulk sync successful, waiting for Activate-Role trigger from SDN controller to go to Standby. Dormant state since BFD disabled hence no traffic. |
- | Standalone | Activate-Role triggered, BFD enabled, forwarding traffic |
- | Active |  Activate-Role triggered, BFD enabled, forwarding traffic and syncing flows to pair |
- | Standby |  Activate-Role triggered, BFD enabled, syncing flows from pair |
+ | Connected | Connection successful and starting active / standby selection. |
+ | InitializingToActive | Bulk sync in progress. After bulk sync, this DPU will become active after activation. |
+ | InitializingToStandby | Bulk sync in progress. After bulk sync, this DPU will become standby after activation. |
+ | PendingActiveActivation | Bulk sync successful, waiting for role activation from SDN controller to go to Active. Dormant state since BFD disabled hence no traffic. |
+ | PendingStandbyActivation | Bulk sync successful, waiting for role activation from SDN controller to go to Standby. Dormant state since BFD disabled hence no traffic. |
+ | PendingStandaloneActivation | Could not connect to pair, waiting for role activation from SDN controller to go to Standalone. Dormant state since BFD disabled hence no traffic. |
+ | Standalone | Standalone role is activated. Responding BFD and forwarding traffic |
+ | Active | Active role is activated. Responding BFD, forwarding traffic and syncing flow to its pair |
+ | Standby | Standby role is activated. Responding BFD and receive flow sync from its pair |
  | Destroying | Going down for a planned shutdown |
  | SwitchingToStandalone | Gracefully transitioning from paired state to standalone |
 
-### 7.2 Activate-Role trigger from SDN controller
+ > NOTE: Some DPUs might support traffic forwarding in the standby state for existing flow as well. However the flow decision can still only be made on the active side, which matches the concepts in the HA design. Hence, this is an implementation detail and not a requirement of the HA design at this moment.
 
-When a new DPU is added to a HA set it is required to wait for a trigger from the SDN controller before enabling BFD and starting to participate in data forwarding irrespective of the HA role configured. Before this trigger, the new DPU will wait in one of the InitializingToXXX states where its flow state is completely in sync with its HA pair and it is ready to take up traffic. The SDN controller uses Activate-Role to trigger the DPU HA to enable BFD towards the NPUs and start actively participating in data forwarding.
+### 7.2. HA role activation in DPU-driven mode
+
+> Riff: What if not? What is the impact? What is the underneath reason for this call? I still don't get it.
+
+When a new DPU is added to a HA set, it is required to wait for a trigger from the SDN controller before enabling BFD and starting to participate in data forwarding irrespective of the HA role configured. Before this trigger, the new DPU will wait in one of the InitializingToXXX states where its flow state is completely in sync with its HA pair and it is ready to take up traffic. The SDN controller uses Activate-Role to trigger the DPU HA to enable BFD towards the NPUs and start actively participating in data forwarding.
+
+> Riff: Also, to do, the SAI event callback.
 
 ## 8. Planned operations
 
@@ -176,11 +186,12 @@ Here are how the workflows look like for the typical planned operations:
 ### 8.1. HA set creation
 
 The HA bring-up workflow is described below:
-- The DPU starts out with it's initial HA scope Role as Dead.
-- First the SDN controller pushes all configurations including the HA set and the HA scope with role set to Active/Standby but AdminState set to Disabled.
-- Then the SDN controller starts the HA state-machine on the DPU by updating the HA scope AdminState to Enabled.
-- DPU HA state transitions to Connecting and attempts to connect to its pair specified in the HA set.
-- If the connection attempt is unsuccessful it moves to the InitializingToStandalone state and waits for Activate-Role trigger from SDN controller.
+
+- The DPU starts out with its initial HA role as `Dead`.
+- First, the SDN controller pushes all configurations including the HA set and the HA scope with role set to `Active` or `Standby`, but `AdminState` set to `Disabled`.
+- Then, the SDN controller starts the HA state-machine on the DPU by updating the HA scope `AdminState` to `Enabled`.
+- DPU HA state transitions to `Connecting` and attempts to connect to its pair specified in the HA set.
+- If the connection attempt is unsuccessful it moves to the PendingStandaloneActivation state and waits for Activate-Role trigger from SDN controller.
 - If the connection was successful then the DPU HA state transitions to Connected state and performs bulk sync to synchronize existing flows from the other DPU in the pair in case it is already Active.
 - At the end of the bulk sync the HA state transitions to InitializingToActive and waits for Activate-Role trigger from SDN controller.
 - At this point the DPU is fully synchronized with the pair and is ready to receive any traffic. But the DPU has not enabled its BFD session to the NPUs, so it will not recieve any data traffic yet.
@@ -344,18 +355,18 @@ sequenceDiagram
    Note over S0N,SA: Traffic for all ENIs in this HA set will be forwarded to DPU1.
 ```
 
-## 9.2. Split-brain and re-pair
+## 10. Split-brain and re-pair
 
 When the DPU-DPU communication channel breaks down while both DPUs in the HA pair are still up, then both DPUs transition to Standalone state and we enter split-brain scenario. Depending on which of the NPU-DPU connections are still up, data traffic may land on any of the DPUs in the HA-Set and not get flow-synced. It is the responsibility of the SDN Controller to stop HA on one of the DPUs to break this by pushing HA scope AdminState to Down on one of the DPUs. Once we have split-brain, even if the DPU-DPU connectivity gets restored back before SDN controller intervenes, the DPU HA state-machine will refuse to re-pair automatically since the split-brain operation would have introduced conflicts. The DPUs will raise an event to indicate HA Restart is required. The SDN controller needs to restart HA on one of the DPUs by setting HA scope AdminState to DOWN and then UP on one of the DPUs.
 
-## 10. Flow tracking and replication
+## 11. Flow tracking and replication
 
 `DPU-Scope-DPU-Driven` setup will not change the flow lifetime is managed and how the inline flow replication works, since they are currently managed by DPU under the SAI APIs already. However, it will change how bulk sync works, as DPU will directly do the bulk sync without going through HA control plane sync channel.
 
-## 11. Detailed design
+## 12. Detailed design
 
 Please refer to the [detailed design doc](./smart-switch-ha-detailed-design.md) for DB schema, telemetry, SAI API and CLI design.
 
-## 12. Test Plan
+## 13. Test Plan
 
 Please refer to HA test docs for detailed test bed setup and test case design.
