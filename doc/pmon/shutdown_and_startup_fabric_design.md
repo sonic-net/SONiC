@@ -64,7 +64,8 @@ Modify the ModuleUpdater class in chassisd to keep a SFM module in the down stat
 
 # 3 Impact and Test Considerations
 ## 3.1 Impact of the PCIed and Thermal sensors
-For PCIed, based on the investigation, the current design of the Fabric module shutdown has NO impact on the PCIed.  The PCIed current checks the basic PCI components. For the Fabric slot which is shutdown, if platform supports PCI on the Fabric card, it should check if its power is on that particular card before it is added to the PCIe check. That is how is handled in the Arista vendor code.
+For PCIed, based on the investigation, the current design of the Fabric module shutdown has NO impact on the checking of the basic PCI components. But it may impact the checking on the Fabric module which has been shut down.  For the Fabric module which has been shut down, PCIed checking should skip that slot. Fabric module should only be added to the checking list when it's power is on. This should be handled/done in the vendor specified code. If the list of PCI components is built during system startup, it requires to remove or rebuild to exclude Fabric module checking when it is shut down. Or dynamically skip that slot during checking. 
+
 For the thermal sensors of the Fabric card, this should be handled by the vendor's specified code. If module is shutdown, the vendor sonic-platform thermal query should not return any entry for that particular slot. 
 
 ## 3.2 Test
