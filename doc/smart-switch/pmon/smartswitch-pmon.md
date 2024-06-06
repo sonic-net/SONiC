@@ -5,6 +5,7 @@
 | 0.1 | 12/02/2023 | Ramesh Raghupathy | Initial version|
 | 0.2 | 01/08/2024 | Ramesh Raghupathy | Updated API, CPI sections and addressed review comments |
 | 0.3 | 02/26/2024 | Ramesh Raghupathy | Addressed review comments |
+| 0.4 | 06/06/2024 | Ramesh Raghupathy | Added schema for DPU health-info and added key suffix to module reboot-cause to avoid key conflicts |
 
 ## Definitions / Abbreviations
 
@@ -195,7 +196,9 @@ Key: "CHASSIS_MODULE|DPU0"
 * Health
     * SmartSwitch DPUs should store their health data locally and also provide it to the host for a consolidated view of the CLIs
     * DPUs should support a CLI to display the health data “show system-health ...” (See CLIs section)
-    * The host pmon should use this data to support the host side CLIs. Though accessing this data from DPUs and storing them on the switch is implementation specific it is recommended to use redis call and store them on the switch chassisStateDB for faster access. use "UserDefinedChecker" class to provide this data to the CLIs.
+    * The host pmon should use this data to support the host side CLIs. Though accessing this data from DPUs and storing them on the switch is implementation specific it is recommended to use redis call and store them on the switch chassisStateDB for faster access.
+    * Please refer to section:3.1.5.1 for the HEALTH_INFO schema
+    * use "UserDefinedChecker" class to provide this data to the CLIs.
     * Vendor specific data such as interrupt events can also be placed in user defined fields under this DB
     * This table already exists in modular chassis design and the DPUs will use this just like a line card.
 * Alarm and Syslog
@@ -442,16 +445,30 @@ is_midplane_reachable(self):
 * The get_reboot_cause will return the current reboot-cause of the module.
 * For persistent storage of the DPU reboot-cause and reboot-caue-history files use the existing host storage path and mechanism.
 
-#### Schema for REBOOT_CAUSE - switch stateDB
+#### Schema for REBOOT_CAUSE of SWITCH on switch stateDB
 ```
   Key: "REBOOT_CAUSE|2023_06_18_14_56_12"
 
   "REBOOT_CAUSE|2023_06_18_14_56_12": {
     "value": {
-      "cause": "REBOOT_CAUSE_HOST_RESET_DPU",
+      "cause": "Unknown",
       "comment": "N/A",
-      "device": "DPU5",
       "time": "2023_06_18_14_56_12",
+      "user": "N/A"
+    }
+  },
+
+```
+#### Schema for REBOOT_CAUSE of DPUs on switch ChassisStateDB
+```
+  Key: "REBOOT_CAUSE|2024_06_06_09_31_18|DPU0"
+
+  "REBOOT_CAUSE|2024_06_06_09_31_18|DPU0": {
+    "value": {
+      "cause": "Software causes (Reboot)",
+      "comment": "User issued 'reboot' command [User: admin, Time: Thu Jun  6 09:46:43 AM UTC 2024]",
+      "device": "DPU0",
+      "time": "N/A",
       "user": "N/A"
     }
   },
@@ -492,11 +509,46 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
 ```
 
 3. Each DPU has to store the health data in its local DB and should provide it to the switch.
-* When the "show system-health ..." CLI is executed on the switch, the "UserDefinedChecker" class will collect the data and feed it to the CLI. It is up to the platform on how this is done.  However, for faster access store it in the switch ChassisStateDB.
+* When the "show system-health ..." CLI is executed on the switch. For faster access store it in the switch ChassisStateDB.
 * The DPU is a complex hardware, to facilitate debug, a consistent way of storing and accessing the health record of the DPUs is critical in a multi vendor scenario even though it is a platform specific implementation.
-* Both switch and the DPUs will follow to the [SONiC system health monitor HLD](https://github.com/sonic-net/SONiC/blob/ce313db92a694e007a6c5332ce3267ac158290f6/doc/system_health_monitoring/system-health-HLD.md)
+* Both switch and the DPUs will follow the [SONiC system health monitor HLD](https://github.com/sonic-net/SONiC/blob/ce313db92a694e007a6c5332ce3267ac158290f6/doc/system_health_monitoring/system-health-HLD.md)
 * Refer to section 3.4.5 for "show system-health .." CLIs
 
+#### Schema for HEALTH_INFO of DPUs on switch ChassisStateDB
+```
+  Key: "SYSTEM_HEALTH_INFO|DPU0"
+
+  "SYSTEM_HEALTH_INFO|DPU0": {
+    "value": {
+      "ignore_stat": "{\"psu\": {\"type\": \"Device\", \"message\": \"\", \"status\": \"Ignored\"},
+                       \"fan\": {\"type\": \"Device\", \"message\": \"\", \"status\": \"Ignored\"}}",
+
+      "stat": "{
+        \"Services\": {
+            \"sonic\": {\"type\": \"System\", \"message\": \"\", \"status\": \"OK\"},
+            \"rsyslog\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+            \"root-overlay\": {\"type\": \"Filesystem\", \"message\": \"\", \"status\": \"OK\"},
+            \"memory_check\": {\"type\": \"Program\", \"message\": \"\", \"status\": \"OK\"},
+            \"bgp:bgpd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+            \"swss:portmgrd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+            \"swss:coppmgrd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+            \"swss:tunnelmgrd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+            \"eventd:eventd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"}
+        },
+         \"Hardware\": {},
+         \"DPU Category\": {
+            \"dpu-pdsagent\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"},
+            \"dpu-pciemgrd\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"},
+            \"dpu-eth_Uplink1/1_status\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"},
+            \"dpu-pcie_link\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"}
+            }
+        }",
+
+      "system_status_LED": "green"
+    }
+  },
+
+```
 ##### 3.1.5.2 ModuleBase class new APIs
 The DPU ID is used only for indexing purpose.
 
@@ -537,35 +589,9 @@ get_health_info(self):
     Retrieves the dpu health object having the detailed dpu health Fetched from the DPUs
 
     Returns:
-        An object instance of the dpu health. 
+        An object instance of the dpu health as shown in the schema
         Returns None when the module is SWITCH
-    
-    Example:
-    {
-      "led_status": "green",
 
-      "monitoredlists": {
-          "Program": [
-              {"Name": "routeCheck", "Status": "Not OK", "Type": "Program"},
-              // Add more program items here
-          ],
-          "Service": [
-              {"Name": "mgmt-framework", "Status": "Not OK", "Type": "Service"},
-              // Add more service items here
-          ],
-          "Fan": [
-              {"Name": "Fan", "Status": "Not OK", "Type": "Fan"}
-          ],
-          "UserDefined": [
-              // Add user-defined items here
-          ]
-      },
-
-      "ignore_list": [
-          {"Name": "example1", "Status": "OK", "Type": "Type1"},
-          // Add more items to ignore list
-      ]
-    }
 ```
 
 ### 3.2 Thermal management
@@ -676,26 +702,10 @@ fantray0    N/A  fantray0.fan      55%       intake     Present        OK  20230
 fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230728 06:41:17
 ```
 
-#### 3.4.1 Reboot Cause
+#### 3.4.1 Reboot Cause CLIs
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
 * Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The recent reboot-cause can be derived from that list of reboot-causes.
-* The switch side PMON will copy this into the stateDB so that the existing workflow will not be affected.
-* The get_reboot_cause API will return the current reboot-cause of the module.
 
-#### REBOOT_CAUSE DB schema
-```
-Key: "REBOOT_CAUSE|2023_06_18_14_56_12"
-
-"REBOOT_CAUSE|2023_06_18_14_56_12": {
-    "value": {
-        "cause": "REBOOT_CAUSE_HOST_RESET_DPU",
-        "comment": "N/A",
-        "device": "DPU5",
-        "time": "2023_06_18_14_56_12",
-        "user": "N/A"
-    }
-}
-```
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause
 * The "show reboot-cause history" shows the reboot-cause history
