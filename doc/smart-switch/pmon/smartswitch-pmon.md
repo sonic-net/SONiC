@@ -520,31 +520,33 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
 
   "SYSTEM_HEALTH_INFO|DPU0": {
     "value": {
-      "ignore_stat": "{\"psu\": {\"type\": \"Device\", \"message\": \"\", \"status\": \"Ignored\"},
-                       \"fan\": {\"type\": \"Device\", \"message\": \"\", \"status\": \"Ignored\"}}",
+        "ignore_stat": "{
+            \"psu\": {\"type\": \"Device\", \"message\": \"\", \"status\": \"Ignored\"},
+            \"fan\": {\"type\": \"Device\", \"message\": \"\", \"status\": \"Ignored\"}
+        }",
 
-      "stat": "{
-        \"Services\": {
-            \"sonic\": {\"type\": \"System\", \"message\": \"\", \"status\": \"OK\"},
-            \"rsyslog\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
-            \"root-overlay\": {\"type\": \"Filesystem\", \"message\": \"\", \"status\": \"OK\"},
-            \"memory_check\": {\"type\": \"Program\", \"message\": \"\", \"status\": \"OK\"},
-            \"bgp:bgpd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
-            \"swss:portmgrd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
-            \"swss:coppmgrd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
-            \"swss:tunnelmgrd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
-            \"eventd:eventd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"}
-        },
-         \"Hardware\": {},
-         \"DPU Category\": {
-            \"dpu-pdsagent\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"},
-            \"dpu-pciemgrd\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"},
-            \"dpu-eth_Uplink1/1_status\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"},
-            \"dpu-pcie_link\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"}
+        "stat": "{
+            \"Services\": {
+                \"sonic\": {\"type\": \"System\", \"message\": \"\", \"status\": \"OK\"},
+                \"rsyslog\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+                \"root-overlay\": {\"type\": \"Filesystem\", \"message\": \"\", \"status\": \"OK\"},
+                \"memory_check\": {\"type\": \"Program\", \"message\": \"\", \"status\": \"OK\"},
+                \"bgp:bgpd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+                \"swss:portmgrd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+                \"swss:coppmgrd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+                \"swss:tunnelmgrd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"},
+                \"eventd:eventd\": {\"type\": \"Process\", \"message\": \"\", \"status\": \"OK\"}
+            },
+            \"Hardware\": {},
+            \"DPU Category\": {
+                \"dpu-pdsagent\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"},
+                \"dpu-pciemgrd\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"},
+                \"dpu-eth_Uplink1/1_status\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"},
+                \"dpu-pcie_link\": {\"type\": \"UserDefine\", \"message\": \"\", \"status\": \"OK\"}
             }
         }",
 
-      "system_status_LED": "green"
+        "system_status_LED": "green"
     }
   },
 
