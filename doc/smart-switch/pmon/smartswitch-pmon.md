@@ -456,7 +456,7 @@ is_midplane_reachable(self):
       "time": "2023_06_18_14_56_12",
       "user": "N/A"
     }
-  },
+  }
 
 ```
 #### Schema for REBOOT_CAUSE of DPUs on switch ChassisStateDB
@@ -471,7 +471,7 @@ is_midplane_reachable(self):
       "time": "N/A",
       "user": "N/A"
     }
-  },
+  }
 
 ```
 2. Though the get_oper_status(self) can get the operational status of the DPU Modules, the current implementation only has limited capabilities.
@@ -548,7 +548,7 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
 
         "system_status_LED": "green"
     }
-  },
+  }
 
 ```
 ##### 3.1.5.2 ModuleBase class new APIs
