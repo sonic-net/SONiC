@@ -1034,4 +1034,4 @@ Note:
 ```
 
 ## 4.   Test Plan
-In Progress
+[Test Plan](https://github.com/rameshraghupathy/sonic-mgmt/blob/master/docs/testplan/SmartSwitch-PMON-testplan.md)
