@@ -30,6 +30,10 @@
 	- [4.1 start bfdsyncd](#41-start-bfdsyncd)
 	- [4.2 start bfdd](#42-start-bfdd)
 	- [4.3 create bfd session from vtysh cli](#43-create-bfd-session-from-vtysh-cli)
+- [5, limitations](#5-limitations)
+	- [5.1 unsupported commands:](#51-unsupported-commands)
+	- [5.2 unsupported bfd dataplane message](#52-unsupported-bfd-dataplane-message)
+	- [5.3 unsupported bfd dataplane message](#53-unsupported-bfd-dataplane-message)
 
 ###### Revision
 
@@ -585,3 +589,20 @@ Peer Addr     Interface    Vrf      State    Type          Local Addr      TX In
 192.168.1.29  default      default  Down     async_active  192.168.1.24            300            300             3  false                           1
 sonic@sonic:/var/tmp$ 
 ```
+
+# 5, limitations
+## 5.1 unsupported commands:
+show bfd peers counters 
+   not able to read hardware bfd counter value and show it with this command.
+   Zero value will be returned if use issue this command.
+
+## 5.2 unsupported bfd dataplane message
+    ECHO_REQUEST
+    ECHO_REPLY
+    DP_REQUEST_SESSION_COUNTERS
+    BFD_SESSION_COUNTERS
+
+## 5.3 unsupported bfd dataplane message
+    DP_ADD_SESSION
+    DP_DELETE_SESSION
+    BFD_STATE_CHANGE
