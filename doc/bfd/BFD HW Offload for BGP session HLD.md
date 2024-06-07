@@ -3,32 +3,33 @@
 # Table of Content
 - [BFD HW Offload for BGP session](#bfd-hw-offload-for-bgp-session)
 - [Table of Content](#table-of-content)
-          - [Revision](#revision)
+					- [Revision](#revision)
 - [About this Manual](#about-this-manual)
 - [Definitions/Abbreviation](#definitionsabbreviation)
-          - [Table 1: Abbreviations](#table-1-abbreviations)
+					- [Table 1: Abbreviations](#table-1-abbreviations)
 - [1 Requirements Overview](#1-requirements-overview)
-  - [1.1 Functional requirements](#11-functional-requirements)
-  - [1.2 CLI requirements](#12-cli-requirements)
-  - [1.3 Scalability and Default Values](#13-scalability-and-default-values)
-  - [1.4 Warm Restart requirements](#14-warm-restart-requirements)
+	- [1.1 Functional requirements](#11-functional-requirements)
+	- [1.2 CLI requirements](#12-cli-requirements)
+	- [1.3 Scalability and Default Values](#13-scalability-and-default-values)
+	- [1.4 Warm Restart requirements](#14-warm-restart-requirements)
 - [2 Modules Design](#2-modules-design)
-  - [2.1 bfdsyncd](#21-bfdsyncd)
-  - [2.2 BFD DP message format](#22-bfd-dp-message-format)
-  - [2.3 bfddp state change format](#23-bfddp-state-change-format)
-  - [2.4 Orchestration Agent](#24-orchestration-agent)
-    - [BfdOrch](#bfdorch)
-      - [Source mac address handling](#source-mac-address-handling)
-      - [Remote discriminator and timer handling for frr show bfd peer command](#remote-discriminator-and-timer-handling-for-frr-show-bfd-peer-command)
-  - [2.5 BFD state\_db format example](#25-bfd-state_db-format-example)
-  - [2.6 Local Discriminator handling](#26-local-discriminator-handling)
-  - [2.7 IPv6 link local address support](#27-ipv6-link-local-address-support)
-  - [2.8 Control plane BFD](#28-control-plane-bfd)
-  - [2.9 CLI](#29-cli)
-- [3 start the daemons](#3-start-the-daemons)
-  - [3.1 start bfdsyncd](#31-start-bfdsyncd)
-  - [3.2 start bfdd](#32-start-bfdd)
-  - [3.3 create bfd session from vtysh cli](#33-create-bfd-session-from-vtysh-cli)
+	- [2.1 bfdsyncd](#21-bfdsyncd)
+	- [2.2 BFD DP message format](#22-bfd-dp-message-format)
+	- [2.3 bfddp state change format](#23-bfddp-state-change-format)
+	- [2.4 Orchestration Agent](#24-orchestration-agent)
+		- [BfdOrch](#bfdorch)
+			- [Source mac address handling](#source-mac-address-handling)
+			- [Remote discriminator and timer handling for frr show bfd peer command](#remote-discriminator-and-timer-handling-for-frr-show-bfd-peer-command)
+	- [2.5 BFD state\_db format example](#25-bfd-state_db-format-example)
+	- [2.6 Local Discriminator handling](#26-local-discriminator-handling)
+	- [2.7 IPv6 link local address support](#27-ipv6-link-local-address-support)
+	- [2.8 Control plane BFD](#28-control-plane-bfd)
+	- [2.9 CLI](#29-cli)
+- [3 Configuration](#3-configuration)
+- [4 mannual testing](#4-mannual-testing)
+	- [4.1 start bfdsyncd](#41-start-bfdsyncd)
+	- [4.2 start bfdd](#42-start-bfdd)
+	- [4.3 create bfd session from vtysh cli](#43-create-bfd-session-from-vtysh-cli)
 
 ###### Revision
 
@@ -476,23 +477,84 @@ A control plane BFD approach is to use FRR SW BFD. If use HW offload BFD for FRR
 
 no new CLI introduced for this feature
 
-# 3 start the daemons
+# 3 Configuration
+To support hardware bfd offload for bgp,need to run two daemons inside bgp container:
+ bfdd --dplaneaddr ipv4c:127.0.0.1
+ bfdsyncd
+But the logic to launch is outside of the scope of this document. 
+Here is an example to configure it in config_db:
 
-## 3.1 start bfdsyncd
+/etc/sonic/config_db.json
+```
+    "FEATURE": {
+        "bgp": {
+            "bfd_hw_offload": "true",
+```
+dockers/docker-fpm-frr/frr/supervisord/supervisord.conf.j2
+```
+{% if FEATURE.bgp.bfd_hw_offload is defined and FEATURE.bgp.bfd_hw_offload == "true" %}
+[program:bfdsyncd]
+command=bfdsyncd -d
+priority=6
+autostart=false
+autorestart=false
+startsecs=0
+stdout_logfile=syslog
+stderr_logfile=syslog
+dependent_startup=true
+dependent_startup_wait_for=bgpd:running
+{% endif %}
+
+{% if FEATURE.bgp.bfd_hw_offload is defined and FEATURE.bgp.bfd_hw_offload == "true" %}
+[program:bfdd]
+command=/usr/lib/frr/bfdd --dplaneaddr ipv4c:127.0.0.1
+priority=4
+stopsignal=KILL
+autostart=false
+autorestart=false
+startsecs=0
+stdout_logfile=syslog
+stderr_logfile=syslog
+dependent_startup=true
+dependent_startup_wait_for=bfdsyncd:running
+{% else %}
+[program:bfdd]
+command=/usr/lib/frr/bfdd -A 127.0.0.1
+priority=4
+stopsignal=KILL
+autostart=false
+autorestart=false
+startsecs=0
+stdout_logfile=syslog
+stderr_logfile=syslog
+dependent_startup=true
+dependent_startup_wait_for=zebra:running
+{% endif %}
+```
+```
+inside bgp container:
+root@sonic:/# ps -ef
+UID          PID    PPID  C STIME TTY          TIME CMD
+root          58       1  0 16:44 pts/0    00:00:00 bfdsyncd -d
+frr           69       1  0 16:44 pts/0    00:00:00 /usr/lib/frr/bfdd --dplaneaddr ipv4c:127.0.0.1
+```
+
+# 4 mannual testing
+
+## 4.1 start bfdsyncd
 run bfdsyncd inside bgp container, default port number for bfd is 50700
 ```
 sonic@sonic:$ docker exec -it bgp bash
 root@sonic# bfdsyncd &
 ```
-## 3.2 start bfdd
+## 4.2 start bfdd
 run bfdd with option dplaneaddr inside bgp container, it connects to default bfd port.
 ```
 sonic@sonic:$ docker exec -it bgp bash
 root@sonic# /usr/lib/frr/bfdd --dplaneaddr ipv4c:127.0.0.1
 ```
-The logic for starting frr/bfdd with different parameters is outside the scope of this document.
 
-## 3.3 create bfd session from vtysh cli
+## 4.3 create bfd session from vtysh cli
 ```
 sonic@sonic:/var/tmp$ docker exec -it bgp bash
 root@sonic:/# bfdsyncd&
