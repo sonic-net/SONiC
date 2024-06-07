@@ -33,7 +33,7 @@
 - [5, limitations](#5-limitations)
 	- [5.1 unsupported commands:](#51-unsupported-commands)
 	- [5.2 unsupported bfd dataplane message](#52-unsupported-bfd-dataplane-message)
-	- [5.3 unsupported bfd dataplane message](#53-unsupported-bfd-dataplane-message)
+	- [5.3 supported bfd dataplane message](#53-supported-bfd-dataplane-message)
 
 ###### Revision
 
@@ -602,7 +602,7 @@ show bfd peers counters
     DP_REQUEST_SESSION_COUNTERS
     BFD_SESSION_COUNTERS
 
-## 5.3 unsupported bfd dataplane message
+## 5.3 supported bfd dataplane message
     DP_ADD_SESSION
     DP_DELETE_SESSION
     BFD_STATE_CHANGE
