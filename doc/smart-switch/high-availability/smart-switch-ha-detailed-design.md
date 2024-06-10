@@ -6,7 +6,7 @@
 | 0.2 | 02/12/2024 | Riff Jiang | Added more HA mode support; Updated DB schema and workflow to match recent database and PMON design. |
 | 0.3 | 03/28/2024 | Riff Jiang | Updated telemetry. |
 | 0.4 | 05/06/2024 | Riff Jiang | Added drop counters for pipeline monitoring. |
-| 0.5 | 06/03/2024 | Riff Jiang | Added DASH BFP probe state update workflow and DB schema. |
+| 0.5 | 06/03/2024 | Riff Jiang | Added DASH BFD probe state update workflow and DB schema. |
 
 1. [1. High level data flow](#1-high-level-data-flow)
    1. [1.1. Upstream config programming path](#11-upstream-config-programming-path)
