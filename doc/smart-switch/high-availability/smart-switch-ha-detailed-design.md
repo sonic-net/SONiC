@@ -374,6 +374,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | \<VDPU_ID\> | | VDPU ID. |
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 | | | version | Config version. |
+| | | disabled | If true, disable this vDPU. It can only be `false` or `true`. |
 | | | desired_ha_state | The desired state for this vDPU. It can only be "" (none), `dead`, `active` or `standalone`. |
 | | | approved_pending_operation_ids | Approved pending HA operation id list, connected by "," |
 
