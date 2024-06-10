@@ -13,10 +13,11 @@
   - [DPU reboot sequence](#dpu-reboot-sequence)
   - [Switch reboot sequence](#switch-reboot-sequence)
   - [High Level Design](#high-level-design)
-    - [ModuleBase Class API enhancement](#modulebase-class-api)
+    - [ModuleBase Class API](#modulebase-class-api)
     - [ModuleBase Class new APIs](#modulebase-class-new-apis)
     - [NPU platform.json](#npu-platformjson)
     - [GNOI API implementation](#gnoi-api-implementation)
+    - [reboot CLI modifications](#reboot-cli-modifications)
     - [reboot.py script modifications](#rebootpy-script-modifications)
     - [Error handling and exception scenarios](#error-handling-and-exception-scenarios)
   - [Test plan](#test-plan)
@@ -27,6 +28,7 @@
 | --- | ---------- | ---------------- | ------------------ |
 | 0.1 | 05/16/2024 | Vasundhara Volam | Initial version    |
 | 0.2 | 05/29/2024 | Vasundhara Volam | Update images and APIs |
+| 0.3 | 06/10/2024 | Vasundhara Volam | Minor changes based on discussion with the community |
 
 ## Glossory ##
 
@@ -69,7 +71,7 @@ The switch or DPU can be rebooted using either the CLI or during an image upgrad
 1. Performing a complete SmartSwitch reboot, which restarts the NPU and all DPUs.
 2. Rebooting a specific DPU by specifying its ID.
 
-In addition to the aforementioned causes of graceful reboots, a switch or DPU could be rebooted due to events such as power failures, kernel panics, etc.
+In addition to the previously mentioned causes of graceful reboots, a switch or DPU may also reboot due to events such as power failures during DPU power-up, kernel panics, and other similar incidents.
 
 ## DPU reboot sequence ##
 
@@ -84,13 +86,13 @@ the DPU to terminate all services.
 service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS.
 Until the services are terminated gracefully, DPU response RebootStatusResponse with STATUS_RETRIABLE_FAILURE status.
 
-* Subsequently, the NPU detaches the DPU PCI. Detachment can be achieved either by a vendor specific API or via sysfs
+* Subsequently, the NPU detaches the DPU PCI with a vendor defined API. If a vendor specific API is not defined, detachment is done via sysfs
 (echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove).
 
-* Next, the NPU triggers a platform vendor API to initiate the reboot process for the DPU.
+* Next, the NPU triggers a platform vendor reboot API to initiate the reboot process for the DPU.
 
-* The NPU either immediately rescans the PCI upon return or after a timeout period. Rescan of the PCI could be achieved either by calling vendor specific
-API or via sysfs (echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/rescan).
+* The NPU either immediately rescans the PCI upon return or after a timeout period. Rescan of the PCI is achieved by vendor defined API. If vendor specific API
+is not defined, then rescan is done via sysfs (echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/rescan).
 
 ## Switch reboot sequence ##
 
@@ -111,9 +113,9 @@ Until the services are terminated gracefully, DPU response RebootStatusResponse 
 vendor specific API or by issuing a command through the sysfs interface, specifically by echoing '1' to the /sys/bus/pci/devices/XXXX:XX:XX.X/remove file
 for each DPU.
 
-* With the DPUs prepared for reboot, the NPU triggers a platform vendor API to initiate the reboot process for the DPUs.
+* With the DPUs prepared for reboot, the NPU triggers a platform vendor API to initiate the reboot process for the DPUs. Vendor API reboots a single DPU, but the NPU spawns multiple threads to reboot DPUs in parallel.
 
-* After receiving the response from the DPUs, the NPU proceeds to reboot itself to complete the overall reboot procedure.
+* DPUs will send an acknowledgment to the NPU and then undergo a reboot. After receiving the acknowledgment from the DPUs, the NPU will proceed to reboot itself to complete the overall reboot procedure. The vendor-specific reboot API should include an error handling mechanism to manage DPU reboot failures. Additionally log all the failures. DPUs will be in DPU_READY state, if the reboot happened successfully.
 
 * Upon successful reboot, the NPU resumes operation. As part of the post-reboot process, the NPU may choose to rescan the PCI devices. This rescan operation,
 performed either by invoking vendor API or by echoing '1' to the /sys/bus/pci/devices/XXXX:XX:XX.X/rescan file, ensures that all PCI devices are properly
@@ -148,9 +150,9 @@ Returns:
     True
 ```
 
-get_dpu_bus_info(self, dpu_id):
+get_dpu_bus_info(self, dpu_module_name):
 ```
-For a given DPU id, retrieve the PCI bus information. In the case of non-smart-switch chassis, no action is taken.
+For a given DPU module name, retrieve the PCI bus information. In the case of non-smart-switch chassis, no action is taken.
 
 Returns:
     Returns the PCI bus information in BDF format like "[DDDD:]:BB:SS.F"
@@ -264,7 +266,7 @@ message RebootStatus {
 
 ### reboot CLI modifications ###
 
-Introduce a new parameter <span style="color:blue">'-d'</span> to the reboot command for specifying the DPU ID requiring a reboot. If the chassis is
+Introduce a new parameter <span style="color:blue">'-d'</span> to the reboot command for specifying the DPU module name requiring a reboot. If the chassis is
 not a smart switch, this action will have no effect. If the reboot command is executed without specifying any '-d' option, the entire switch will
 be rebooted.
 
@@ -276,7 +278,7 @@ Usage /usr/local/bin/reboot [options]
     Available options:
         -h, -? : getting this help
         -f     : execute reboot force
-        -d     : DPU ID
+        -d     : DPU module name
 ```
 
 ### reboot.py script modifications ###
@@ -302,6 +304,8 @@ def reboot_smartswitch(duthost, localhost, reboot_type='cold', reboot_dpu='false
 ```
 
 ### Error handling and exception scenarios ###
+
+The following are specific error scenarios where the DPU state will not be DPU_READY.
 
 * If the GNMI service is not operational on the DPU or DPU is unreachable for any reason, detach the PCI, and proceed with the reboot after a timeout
 upon receiving an acknowledgment.
