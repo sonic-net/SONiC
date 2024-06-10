@@ -33,7 +33,8 @@
    3. [2.3. Tables used by HA internally](#23-tables-used-by-ha-internally)
       1. [2.3.1. DPU\_APPL\_DB (per-DPU)](#231-dpu_appl_db-per-dpu)
          1. [2.3.1.1. HA set configurations](#2311-ha-set-configurations)
-         2. [2.3.1.2. Flow sync sessions](#2312-flow-sync-sessions)
+         2. [2.3.1.2. HA scope configurations](#2312-ha-scope-configurations)
+         3. [2.3.1.3. Flow sync sessions](#2313-flow-sync-sessions)
       2. [2.3.2. CHASSIS\_STATE\_DB (per-NPU)](#232-chassis_state_db-per-npu)
          1. [2.3.2.1. DPU / vDPU state](#2321-dpu--vdpu-state)
       3. [2.3.3. DPU\_STATE\_DB (per-DPU)](#233-dpu_state_db-per-dpu)
@@ -510,7 +511,19 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
 | | | dp_channel_probe_fail_threshold | The number of probe failure needed to consider data plane channel is dead. |
 
-##### 2.3.1.2. Flow sync sessions
+##### 2.3.1.2. HA scope configurations
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_HA_SCOPE_TABLE | | | HA scope configuration. |
+| | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
+| | | version | Config version. |
+| | | disabled | If true, disable this vDPU. It can only be `false` or `true`. |
+| | | ha_role | The HA role for this scope. It can only be `dead`, `active`, `standby`, `standalone`, `switching_to_active`. |
+| | | flow_reconcile_requested | If true, flow reconcile will be initiated. (Message Only. Not saved in DB.) |
+| | | activate_role_requested | If true, HA role will be activated. (Message Only. Not saved in DB.) |
+
+##### 2.3.1.3. Flow sync sessions
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
