@@ -5,7 +5,7 @@
 - [Smart Switch Reboot Design](#smart-switch-reboot-design)
   - [Table of Contents](#table-of-contents)
   - [Revision](#revision)
-  - [Glossory](#glossary)
+  - [Glossary](#glossary)
   - [Overview](#overview)
   - [Assumptions](#assumptions)
   - [Requirements](#requirements)
@@ -36,8 +36,8 @@
 | ----- | ----------------------------------------- |
 | ASIC  | Application-Specific Integrated Circuit   |
 | DPU   | Data Processing Unit                      |
-| GNMI  | gRPC Network Management Interface         |
-| GNOI  | gRPC Network Operations Interface         |
+| gNMI  | gRPC Network Management Interface         |
+| gNOI  | gRPC Network Operations Interface         |
 | NPU   | Network Processing Unit                   |
 | PCI-E | Peripheral Component Interconnect Express |
 
@@ -60,8 +60,8 @@ Smart Switch supports only cold-reboot and does not support warm-reboot as of to
 
 ## Requirements ##
 
-1. NPU host is running GNMI service to communicate with DPU.
-2. DPU host is running GNMI server to listen to GNOI client requests.
+1. NPU host is running gNMI/gNOI server to communicate with DPU.
+2. DPU host is running gNOI server to listen to gNOI client requests.
 3. Each DPU is assigned an IP address to communicate from NPU.
 
 ## Methods of Switch and DPU Reboot ##
@@ -79,10 +79,10 @@ In addition to the previously mentioned causes of graceful reboots, a switch or 
 
 DPUs are internally connected to the NPU via PCI-E bridge. Below is the reboot sequence for rebooting a specific DPU:
 
-* Upon receiving a reboot CLI command to restart a particular DPU, the NPU transmits a GNOI Reboot API signal with reboot method set to ‘HALT’, instructing
+* Upon receiving a reboot CLI command to restart a particular DPU, the NPU transmits a gNOI Reboot API signal with reboot method set to ‘HALT’, instructing
 the DPU to terminate all services.
 
-* Upon dispatching the Reboot API, the NPU issues the RebootStatus API to monitor whether the DPU has terminated all services except GNMI and database
+* Upon dispatching the Reboot API, the NPU issues the RebootStatus API to monitor whether the DPU has terminated all services except gNOI and database
 service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS.
 Until the services are terminated gracefully, DPU response RebootStatusResponse with STATUS_RETRIABLE_FAILURE status.
 
@@ -102,8 +102,8 @@ The following outlines the reboot procedure for the entire Smart Switch:
 
 * When the NPU receives a reboot command via the CLI to restart the SmartSwitch, it initiates the reboot sequence.
 
-* The NPU sends a GNOI Reboot API signal to all connected DPUs in parallel using multiple threads. This signal instructs the DPUs to gracefully terminate all
-services, excluding the GNMI server, in preparation for the reboot.
+* The NPU sends a gNOI Reboot API signal to all connected DPUs in parallel using multiple threads. This signal instructs the DPUs to gracefully terminate all
+services, excluding the gNOI server and also database, in preparation for the reboot.
 
 * Upon dispatching the Reboot API, the NPU issues the RebootStatus API to monitor whether the DPU has terminated all services except GNMI and database
 service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS.
@@ -307,7 +307,7 @@ def reboot_smartswitch(duthost, localhost, reboot_type='cold', reboot_dpu='false
 
 The following are specific error scenarios where the DPU state will not be DPU_READY.
 
-* If the GNMI service is not operational on the DPU or DPU is unreachable for any reason, detach the PCI, and proceed with the reboot after a timeout
+* If the gNOI service is not operational on the DPU or DPU is unreachable for any reason, detach the PCI, and proceed with the reboot after a timeout
 upon receiving an acknowledgment.
 
 * After the DPU reboots, if the DPU PCI fails to reconnect for any reason, an error-handling mechanism should be in place to restore the DPU.
