@@ -116,7 +116,7 @@ The Scheduled Configurations feature enhances the existing SONiC architecture by
 
 In order to fully integrate with the new scheduled configurations feature, all switch components desiring to utilize this functionality must subscribe to the `APPL_DB`. The table schema will be the same as the schema used in `CONFIG_DB` to apply new configurations, all that is needed is to add the new subscription to the orchagent subcomponents. This is done in order to distinguish between administrator configurations, and configurations applied due to an application (ie. *Scheduled Configurations*).
 
-The following diagram shows the connections between the different compoenent:
+The following diagram shows the connections between the different components:
 
 ![Architecture Design](images/scheduled-configuration-architecture.png)
 
@@ -128,9 +128,9 @@ The following diagrams illustrate the interactions between the databases and app
 
 ![time range flow -- set](images/time-range-flow-set.png)
 
-1. Apply time range confiuguration to `TIME_RANGE` in `CONFIG_DB` through sonic-cfggen or other management tool
+1. Apply time range configuration to `TIME_RANGE` in `CONFIG_DB` through sonic-cfggen or other management tool
 2. Changes to the `TIME_RANGE` table will cause a subscription notification to be sent to `timerangemgrd`
-3. `timerangemgrd` will create a new entry in the `TIME_RANGE_STATUS_TABLE` table found in the `STATE_DB` defaulting to *active* or *inactive* stratus based on the current time
+3. `timerangemgrd` will create a new entry in the `TIME_RANGE_STATUS_TABLE` table found in the `STATE_DB` defaulting to *active* or *inactive* status based on the current time
 4. `timerangemgrd` will then create the crontab files used by the `cron` application to activate, or deactivate the status of the `TIME_RANGE_STATUS_TABLE`
 
 ![scheduled configuration flow -- set](images/scheduled-configuration-flow-set.png)
@@ -178,7 +178,7 @@ The following diagrams illustrate the interactions between the databases and app
 - No hardware platform-specific dependencies are expected.
 - Dependandant on cron open-source linux utility.
 - The feature is designed to be managed through SONiC's existing management interfaces.
-- New show commands will be added to see the current scheduled confiugrations and set time ranges.
+- New show commands will be added to see the current scheduled configurations.
 
 ## Configuration and Management
 
