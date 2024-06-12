@@ -222,7 +222,7 @@ SmartSwitch PMON block diagram
 
 ### 3.1. Platform monitoring and management
 * SmartSwitch design Extends the existing chassis_base class and module_base class as described below.
-* Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch
+* Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU to support SmartSwitch
 
 #### 3.1.1 ChassisBase class API enhancements
 is_modular_chassis(self):
@@ -370,7 +370,7 @@ get_type(self):
 
     Returns:
         A string, the module-type from one of the predefined types:
-        MODULE_TYPE_SWITCH, MODULE_TYPE_DPU
+        MODULE_TYPE_DPU
 ```
 
 get_oper_status(self):
@@ -461,9 +461,9 @@ is_midplane_reachable(self):
 ```
 #### Schema for REBOOT_CAUSE of DPUs on switch ChassisStateDB
 ```
-  Key: "REBOOT_CAUSE|2024_06_06_09_31_18|DPU0"
+  Key: "REBOOT_CAUSE|DPU0|2024_06_06_09_31_18"
 
-  "REBOOT_CAUSE|2024_06_06_09_31_18|DPU0": {
+  "REBOOT_CAUSE|DPU0|2024_06_06_09_31_18": {
     "value": {
       "cause": "Software causes (Reboot)",
       "comment": "User issued 'reboot' command [User: admin, Time: Thu Jun  6 09:46:43 AM UTC 2024]",
@@ -516,40 +516,28 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
 
 #### Schema for HEALTH_INFO of DPUs on switch ChassisStateDB
 ```
-  Key: "SYSTEM_HEALTH_INFO|DPU0"
+; Defines information for a system health
+key                     = SYSTEM_HEALTH_INFO|DPUx        ; health information for DPUx
+; field                 = value
+summary                 = STRING                         ; summary status for the DPU
+<item_name>             = STRING                         ; an entry for a service or device
 
-  "SYSTEM_HEALTH_INFO|DPU0": {
-    "value": {
-        "ignore_stat": "{
-            "psu": {"type": "Device", "message": "", "status": "Ignored"},
-            "fan": {"type": "Device", "message": "", "status": "Ignored"}
-        }",
-
-        "stat": "{
-            "Services": {
-                "sonic": {"type": "System", "message": "", "status": "OK"},
-                "rsyslog": {"type": "Process", "message": "", "status": "OK"},
-                "root-overlay": {"type": "Filesystem", "message": "", "status": "OK"},
-                "memory_check": {"type": "Program", "message": "", "status": "OK"},
-                "bgp:bgpd": {"type": "Process", "message": "", "status": "OK"},
-                "swss:portmgrd": {"type": "Process", "message": "", "status": "OK"},
-                "swss:coppmgrd": {"type": "Process", "message": "", "status": "OK"},
-                "swss:tunnelmgrd": {"type": "Process", "message": "", "status": "OK"},
-                "eventd:eventd": {"type": "Process", "message": "", "status": "OK"}
-            },
-            "Hardware": {},
-            "DPU Category": {
-                "dpu-pdsagent": {"type": "UserDefine", "message": "", "status": "OK"},
-                "dpu-pciemgrd": {"type": "UserDefine", "message": "", "status": "OK"},
-                "dpu-eth_Uplink1/1_status": {"type": "UserDefine", "message": "", "status": "OK"},
-                "dpu-pcie_link": {"type": "UserDefine", "message": "", "status": "OK"}
-            }
-        }",
-
-        "system_status_LED": "green"
-    }
-  }
-
+```
+We store items to db only if it is abnormal. Here is an example:
+```
+admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
+ 1) "fan1"
+ 2) "fan1 speed is out of range, speed=21.0, range=[24.0,36.0]"
+ 3) "fan3"
+ 4) "fan3 speed is out of range, speed=21.0, range=[24.0,36.0]"
+ 5) "summary"
+ 6) "Not OK"
+```
+If the system status is good, the data in redis is like:
+```
+admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
+ 1) "summary"
+ 2) "OK"
 ```
 ##### 3.1.5.2 ModuleBase class new APIs
 The DPU ID is used only for indexing purpose.
@@ -634,6 +622,8 @@ A typical modular chassis includes a midplane-interface to interconnect the Supe
 * By default smartswitch midplane IP address assignment will be done using internal DHCP.
 * Please refer to the [ip-address-assignment document](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) for IP address assignment between the switch host and the DPUs.
 * The second option is the static IP address assignment.
+* A midplane state change handler will be implemented to monitor PCIe link state change events and DPU control-plane and data-plane state transitions mainly for HA.
+* There will be a separate hld for the midplane state change handler.
 
 ### 3.4 Debug & RMA
 CLI Extensions and Additions
@@ -706,7 +696,7 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 
 #### 3.4.1 Reboot Cause CLIs
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
-* Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The recent reboot-cause can be derived from that list of reboot-causes.
+* Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The DPUs will limit the number of history entries to a maximum of ten. The recent reboot-cause can be derived from that list of reboot-causes. Platforms which are not capable of populating the ChasissStateDB can use the "get_reboot_cause" API to fetch the data from the DPUs. The trigger to activate the API will eventually come from the midplane state change handler.
 
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause
@@ -810,7 +800,7 @@ Online : All states are up
 Offline: dpu_midplane_link_state is down
 Partial Online: dpu_midplane_link_state is up and dpu_control_plane_state or dpu_data_plane_state is down
 
-There are two parts to the state detail. 1. The midplane state 2. the dpu states (booted, control plane state, data plane state). The midplane state has to be updated by the switch side pcied. The dpu states will be updated by the DPU (redis client update) on the switch ChassisStateDB. The get_state_info() API in the moduleBase class will fetch the contents from the DB. The show CLI reads the redis table and displays the data.
+There are two parts to the state detail. 1. The midplane state 2. the dpu states (control plane state, data plane state). The midplane state has to be updated by the switch side pcied. The dpu states will be updated by the DPU (redis client update) on the switch ChassisStateDB. The get_state_info() API in the moduleBase class will fetch the contents from the DB. The show CLI reads the redis table and displays the data.
 root@sonic:~#show system-health DPU all  
             
 Name       ID    Oper-Status          State-Detail                   State-Value     Time                               Reason                        
