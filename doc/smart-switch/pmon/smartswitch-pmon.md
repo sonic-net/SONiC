@@ -526,12 +526,10 @@ summary                 = STRING                         ; summary status for th
 We store items to db only if it is abnormal. Here is an example:
 ```
 admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
- 1) "fan1"
- 2) "fan1 speed is out of range, speed=21.0, range=[24.0,36.0]"
- 3) "fan3"
- 4) "fan3 speed is out of range, speed=21.0, range=[24.0,36.0]"
- 5) "summary"
- 6) "Not OK"
+1) "lldp:lldpmgrd"
+2) "Process 'lldpmgrd' in container 'lldp' is not running"
+3) "summary"
+4) "Not OK"
 ```
 If the system status is good, the data in redis is like:
 ```
