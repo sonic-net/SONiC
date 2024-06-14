@@ -45,17 +45,16 @@ Add the option for enabling the SONiC gNMI implementation to save its in-memory 
 ### Definitions/Abbreviations
 
 - [gNMI](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md) - Google Network Management Interface
-- UMF - Unified Management Framework
 
 ### Overview
 
-Having configuration be persistant across switch reboot is a useful feature that is not currently implemented by UMF.
+Having configuration be persistant across switch reboot is a useful feature that is not currently implemented by Sonic-Telemetry.
 
 The required behaviour is to save the configuration to a file that is used to populate the configuration database during the startup process every time the gNMI.Set() RPC call is performed.
 
-Due to SONiC architecture the UMF container cannot perform this action completely by itself and a dedicated support is needed on the ‘host’ side. This is accomplished by sending a call through DBUS to a sonic host service module.
+Due to SONiC architecture the Sonic-Telemetry container cannot perform this action completely by itself and a dedicated support is needed on the ‘host’ side. This is accomplished by sending a call through DBUS to a sonic host service module.
 
-Currently there are a number of devices that are ‘out in the wild’ that use the current implementation of the UMF and therefore do not persist configuration across reboots and their behavior cannot be changed without changing the configuration tools that interact with them.
+Currently there are a number of devices that are ‘out in the wild’ that use the current implementation of Sonic-Telemetry and therefore do not persist configuration across reboots and their behavior cannot be changed without changing the configuration tools that interact with them.
 For this reason and for more versatility the save-on-set behavior should be able to be toggled by a command-line parameter to the telemetry executable.
 
 ### Requirements
