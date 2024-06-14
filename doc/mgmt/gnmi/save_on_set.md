@@ -36,6 +36,7 @@ _Rev v0.1_
 |------|------------|--------------------|--------------------|
 | v0.1 | 02/22/2021 | Tomek Madejski (Google), Ryan Lucus (Google)  | Initial version |
 | v0.2 | 03/26/2024 | Ryan Lucus (Google) | Update to use Sonic Service Client |
+| v0.3 | 06/13/2024 | Ryan Lucus (Google) | Add error check to call |
 
 ### Scope
 
@@ -146,7 +147,9 @@ func (s *Server) Set(ctx context.Context, req *gnmipb.SetRequest) (*gnmipb.SetRe
 
   // ...
 
-  SaveOnSet()
+  if err == nil {
+    SaveOnSet()
+  }
   return resp, err
 }
 ```
