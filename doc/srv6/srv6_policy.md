@@ -22,7 +22,12 @@
   - [Forwarding information NHG's schema](#forwarding-information-nhgs-schema)
   - [SID LIST Schema](#sid-list-schema)
 - [Color Only Policy use case](#color-only-policy-use-case)
-- [Candidate-path management](#candidate-path-management)
+- [Candidate-path management in pathd](#candidate-path-management-in-pathd)
+  - [Candidate path's state machine](#candidate-paths-state-machine)
+  - [Candidate path without bfd configuration](#candidate-path-without-bfd-configuration)
+  - [Candidate path with bfd configuration](#candidate-path-with-bfd-configuration)
+    - [Policy with endpoint](#policy-with-endpoint)
+    - [Policy without endpoint, a.ka. Color Only Policy](#policy-without-endpoint-aka-color-only-policy)
 - [SRv6 Policy Handling Workflows in Zebra](#srv6-policy-handling-workflows-in-zebra)
   - [SID\_LIST handling workflow](#sid_list-handling-workflow)
   - [SRv6 Policy Configuration Handling Workflow](#srv6-policy-configuration-handling-workflow)
@@ -306,8 +311,22 @@ For example:
 # Color Only Policy use case
 The policy is determined by color only. Implicitly it means the endpoint address is ::/0. This kind of policy's UP/DOWN state is determined by candidate paths' BFD. Routes would use color attribute only to resolve to this policy. This kind of policy is servered as a default route for the given color. 
 
-# Candidate-path management
+# Candidate-path management in pathd
 Similar to MPLS SR cases, Pathd is responsible to maintain each candidate path's status. BFD protection on candidate paths would be discussed in a separate HLD.  From zebra point of view, it would get ZEBRA_SRV6_POLICY_SET message from pathd whenever a new policy is applied or some policy information is updated. Zebra would get ZEBRA_SRV6_POLICY_DELETE message from pathd whenever a policy is deleted. Policy message carries all used SID LISTs. 
+
+## Candidate path's state machine
+## Candidate path without bfd configuration
+In this case, the candidate path's default state is UP. Pathd would not be able to manage cpath's state. It would be external controller's job to manage cpath's state.
+
+## Candidate path with bfd configuration
+In this case, the default state is DOWN. bfd notification would be used to update cpaths' state. 
+
+### Policy with endpoint
+bfd packet would be constructed with SRv6 header which would go via both specified cpath and engpoint. The protection path would be via specified SID notes and the end point node. This protection would not cover link if the SID list is not hop by hop. 
+
+### Policy without endpoint, a.ka. Color Only Policy
+
+bfd packet would be constructed with SRv6 header which would go via the specified cpath. 
 
 # SRv6 Policy Handling Workflows in Zebra
 Zebra has the following SRv6 Policy related workflows, which are shown in the following diagram. 
