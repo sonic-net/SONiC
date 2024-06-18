@@ -1049,18 +1049,43 @@ sonic(config-router-bgp-af)# [no] disable-ead-evi-tx
 <a id="352-Show-Commands"></a>
 ### 3.5.2 Show Commands
 
-##### 3.5.2.1 EVPN show commands
-**show evpn l2-nexthop-group**
+##### 3.5.2.1 VxLAN show commands
+
+**show vxlan ethernet-segment**
+```
+admin@sonic$ show vxlan ethernet-segment
++--------------+----------+-----+---------+-----+
+| Interface    | VLAN     | DF  | Peers   | NHG |
++==============+==========+=====+=========+=====+
+| PortChannel5 | Vlan200  | NDF | 2.2.2.2 | 10  |
+|              |          |     | 4.5.6.7 |     |
++--------------+----------+-----+---------+-----+
+| PortChannel0 | Vlan300  | DF  | 1.1.1.1 | 20  |
+|              |          |     | 3.3.3.3 |     |
++--------------+----------+-----+---------+-----+
+
+Description:
+
+1. New CLI
+2. Displays entries from the DF table, list of VTEPs and backup NH discovered.
+3. Read from the APP_DB
 
 ```
-admin@sonic$ show evpn l2-nexthop-group
-NHG     Tunnel        Local Members
-===    =========      ==============
-22      2.3.4.5
-        3.4.5.6
 
-23      1.1.1.2       PortChannel5
-        1.1.1.3
+**show vxlan l2-nexthop-group**
+```
+admin@sonic$ show vxlan l2-nexthop-group
++-------+-----------+----------------+
+|   NHG | Tunnels   | LocalMembers   |
++=======+===========+================+
+|    10 |           | 20,30,40       |
++-------+-----------+----------------+
+|    20 | 2.3.4.5   | PortChannel5   |
++-------+-----------+----------------+
+|    30 | 2.3.4.6   | PortChannel6   |
++-------+-----------+----------------+
+|    40 | 2.3.4.7   | PortChannel7   |
++-------+-----------+----------------+
 
 Description:
 
@@ -1069,15 +1094,22 @@ Description:
 3. Read from the APP_DB
 ```
 
-**show evpn remotemac**
+**show vxlan remotemac**
 
 ```
 admin@sonic$ show vxlan remotemac
-
-Vlan   MAC               Type      Tunnel   Group       VNI
-====   ===               ====      ======   =====       ====
-10    00:00:00:11:22:33  Dynamic   2.3.4.5  Internal    100
-                                   3.4.5.6
++---------+-------------------+----------------+-------+---------+
+| VLAN    | MAC               | RemoteTunnel   |   VNI | Type    |
++=========+===================+================+=======+=========+
+| Vlan100 | 00:02:00:00:47:ab | 2.3.4.5        |  1000 | dynamic |
+|         |                   | 2.3.4.6        |       |         |
+|         |                   | 2.3.4.7        |       |         |
++---------+-------------------+----------------+-------+---------+
+| Vlan200 | 00:02:00:00:47:e2 | 2.2.2.2        |   200 | dynamic |
++---------+-------------------+----------------+-------+---------+
+| Vlan200 | 00:02:00:00:47:e3 | 2.2.2.3        |   200 | dynamic |
++---------+-------------------+----------------+-------+---------+
+Total count : 3
 
 Description:
 
