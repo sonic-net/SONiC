@@ -5,16 +5,15 @@
 [Table of Content](#table-of-content)
 * [Revision](#revision)
 * [Scope](#scope)
-* [Definitions/Abbreviations](#definitions-abbreviations)
+* [Definitions/Abbreviations](#definitionsabbreviations)
 * [Overview](#overview)
 * [Requirements](#requirements)
 * [High-Level Design](#high-level-design)
-  + [BufferOrch](#BufferOrch)
-  + [QosOrch](#QosOrch)
-  + [Centralized Mapper](#centralized-mapper)
-  + [KeyGenerator](#keygenerator)
-  + [P4Orch Interaction With Existing Orchagents](#p4orch-interaction-with-existing-orchagents)
-  + [P4Orch To Application Response Path](#p4orch-to-application-response-path)
+  + [BufferOrch](#bufferorch)
+  + [QosOrch](#qosorch)
+      + [Scheduler Bulk Request Handler](#scheduler-bulk-request-handler)
+      + [Port QoS Map Bulk Request Handler](#port-qos-map-bulk-request-handler)
+      + [Queue Bulk Request Handler](#queue-bulk-request-handler)
 * [SAI API](#sai-api)
 * [Configuration and management](#configuration-and-management)
 * [Config DB Enhancements](#config-db-enhancements)
@@ -34,7 +33,9 @@ v0.1 | 6/21/2024 | Yilan Ji | Initial version
 
 This documents describes the high-level design of aggregating buffer ans qos APPL/CONFIG DB requests to use bulk SAI API in bufferorch and qosorch for performance improvement on configuration convergence time. 
 
-## Definitions/Abbreviations
+### Definitions/Abbreviations
+
+N/A
 
 ### Overview 
 
@@ -76,7 +77,7 @@ The processing of aggregated APPL/CONFIG DB requests involves several stages:
     * Record need_retry or failure task status if a prerequisite is not met.
     * Otherwise, prepare the cache required for post-SAI call processing and organize SAI attribute lists based on SAI object and operation type, including `remove_<object>s`, `set_<object>s_attribute`, and `create_<object>s`.
 * Bulk SAI Call Execution:
-    * `m_toSync` is a multimap where the same entry key can have one or two entries (SET or DEL only) or (DEL then SET)[[code](https://github.com/sonic-net/sonic-swss/blob/master/orchagent/orch.cpp#L63-L144)]. DEL requests' SAI attribute lists (typically remove_<object>s) are processed before SET requests (create_<object>s or set_<object>_attrs) to maintain logical order.
+    * `m_toSync` is a multimap where the same entry key can have one or two entries (SET or DEL only) or (DEL then SET)[[code](https://github.com/sonic-net/sonic-swss/blob/master/orchagent/orch.cpp#L63-L144)]. DEL requests' SAI attribute lists (typically `remove_<object>s`) are processed before SET requests (`create_<object>s` or `set_<object>s_attributes`) to maintain logical order.
     * SAI bulk operations are processed in `SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR` mode, as requests are orthogonal, and retries are permitted for Buffer/QoS requests.
     * SAI call statuses are mapped to task status lists. If an APPL/CONFIG DB request has multiple SAI call requests, the first failure task status is recorded to maintain consistency with non-bulking request handlers.
 * Cache Management and Post SAI Call Process:
@@ -101,7 +102,7 @@ BUFFER_QUEUE_TABLE:Ethernet1/21/1:0|SET|profile:staggered_8queue.default_egress.
 s|SAI_OBJECT_TYPE_QUEUE:oid:0x15000000000055|SAI_QUEUE_ATTR_BUFFER_PROFILE_ID=oid:0x1900000000089b
 ```
 
-*Process Steps*
+**Process Steps**
 When bulk API is enabled, drain m_toSync requests for buffer queues using SAI bulk API:
 
 * Prerequisite Checks:
@@ -110,7 +111,7 @@ When bulk API is enabled, drain m_toSync requests for buffer queues using SAI bu
 * SAI Call Analysis:
     * Determine if a SAI call is required. If yes, save the index of the APPL DB request in the m_toSync queue and push it to the sai_attrs list during preparation.
     * For DEL requests on the BUFFER_QUEUE table, set the `SAI_QUEUE_ATTR_BUFFER_PROFILE_ID` attribute to NULL oid.
-    * Since the order of requests for the same table key is guaranteed in m_toSync, all buffer queue requests can be saved to a single SAI attribute list for the set_queue_attributes SAI call.
+    * Since the order of requests for the same table key is guaranteed in m_toSync, all buffer queue requests can be saved to a single SAI attribute list for the set_queues_attribute SAI call.
 * SAI Call Invocation:
     * Trigger the `sai_queue_api->set_queues_attribute()` call in `SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR` mode.
     * Add SAI statuses back to the task statuses list by APPL DB request indexes.
@@ -162,7 +163,7 @@ c|SAI_OBJECT_TYPE_SCHEDULER:oid:0x1600000000091a|SAI_SCHEDULER_ATTR_METER_TYPE=S
 `SCHEDULER` table operations allow creation, modification, and deletion of scheduler objects. When sending multiple requests, it's important to indicate whether SET requests are for creating or updating.
 As detailed in the High-Level Design session, step 2 specifies that DEL requests should be handled before SET requests. For SET requests, create and set SAI bulk calls can be made in any order. This is because the SET request will be merged into a single SET operation in consumer.m_toSync when creating or updating the same table entry. Therefore, the processing order of SET requests in the queue is not crucial.
 
-*Process Steps*
+**Process Steps**
 - Check if prerequisites are met or not. If not add retry or failure status in task statuses list, otherwise prepare SAI attributes lists.
 - Check the type of SAI call: create scheduler objects, set scheduler attributes or remove scheduler objects. Group the SAI calls by type and save the index of entry and push it to the sai_attrs list per type during preparation.
 - Trigger `sai_scheduler_api->set_schedulers_attribute()` OR  `sai_scheduler_api->create_schedulers()`  OR  `sai_scheduler_api->remove_schedulers()` call by type in `SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR mode`, save SAI status list by type.
@@ -181,7 +182,7 @@ s|SAI_OBJECT_TYPE_PORT:oid:0x1000000000053|SAI_PORT_ATTR_QOS_DSCP_TO_TC_MAP=oid:
 s|SAI_OBJECT_TYPE_PORT:oid:0x1000000000053|SAI_PORT_ATTR_QOS_TC_TO_QUEUE_MAP=oid:0x14000000000973
 ```
 
-*Process Steps*
+**Process Steps**
 - Check if prerequisites are met or not. If not add retry or failure status in task statuses list, otherwise prepare SAI attributes lists.
 - DEL request on `PORT_QOS_MAP` table is to set a list of SAI_PORT attributes in `qos_to_attr_map` to NULL oid. And the order of request for the same table key is guaranteed in m_toSync, all port qos map requests can be saved to the single SAI attribute list for `set_ports_attributes` SAI call. Extra information for SET or DEL requests are saved to be processed after SAI bulk call.
 - Trigger `sai_port_api->set_ports_attribute()` in `SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR` mode, save SAI status list. Map sai statuses back to task statuses list by CONFIG DB request  indexes.
@@ -236,7 +237,7 @@ When applying config to scheduler groups, the scheduler group oids need to be qu
 
 The above SAI calls have dependencies, thus the bulk SAI calls need to be done by steps as well. The scheduler group oids are saved to cache m_scheduler_group_port_info after query. Currently QosOrch only query and cache scheduler group info when scheduler group configuration request comes in CONFIG DB.
 
-*Process Steps*
+**Process Steps**
 - Check if prerequisites are met or not: ports readiness and are unlocked, wred profiles and schedulers creation. If not add retry or failure status in task statuses list, otherwise prepare SAI attributes lists.
 - DEL request on `QUEUE` table is to set a list of SAI_SCHEDULER_GROUP/SAI_QUEUE attributes to NULL oid. Thus the requests can be queued together for bulk SAI calls. For scheduler group knob type, bulk SAI calls to query port attributes and scheduler groups in order and save the scheduler groups per group in cache. Then trigger `sai_scheduler_group_api->set_scheduler_groups_attribute()` and  `sai_queue_api->set_queues_attribute()` in `SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR` mode, save SAI status list per type.
 - Add sai statuses back to task statuses list by need sai call entry indexes.
