@@ -41,6 +41,7 @@
 |  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th (Scope, Warmboot/Fastboot, CONFIG_DB)                                                                                  |
 |  0.4  | Sep 24, 2023 |               Kentaro Ebisawa (NTT)                | Add feature enable/disable design and CLI. Update test plan.                                                                                                                     |
 |  0.5  | Nov 10, 2023 |               Kanji Nakano (NTT)                   | Update feature enable/disable design and CLI. Update test plan.                                                                                                                     |
+|  0.6  | Feb 09, 2024 |               Nikhil Kelapure (BRCM)                   | Update multipath NHG handling.                                                                                                                     |
 
 ### Scope  
 
@@ -48,7 +49,6 @@ This document details the design and implementation of the "fpmsyncd extension" 
 The goal of this "fpmsyncd extension" is to integrate NextHop Group (NHG) functionality into SONiC by writing NextHop Group entry from `fpmsyncd` to `APPL_DB` for NextHop Group operation in SONiC.
 
 - Scope of this change is to extend `fpmsyncd` to handle `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` messages from FPM.
-- There will be no change to SWSS/Orchagent.
 - This change is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behavior as this feature is disabled by default.
 
 ### Overview 
@@ -77,6 +77,9 @@ See [09072023 Routing WG Meeting minutes](https://lists.sonicfoundation.dev/g/so
 - `fpmsyncd` to SET/DEL routes to `APPL_DB: ROUTE_TABLE` using `nexthop_group`
 - `fpmsyncd` to SET/DEL NextHop Group entry to `APPL_DB: NEXTHOP_GROUP_TABLE`
 
+`Orchagent extension` requires:
+- `orchagent` to handle member updates from `APPL_DB:NEXTHOP_GROUP_TABLE` for multipath NextHop Group
+
 This feature must be disabled by default.
 - When this feature is disabled, behavior will be the same as before introducing this feature.
   - i.e. `NEXTHOP_GROUP_TABLE` entry will not be created and `nexthop_group` will not be used in `ROUTE_TABLE` entry in `APPL_DB`.
@@ -98,6 +101,8 @@ When zebra process is initialized using the old fpm module, the `RTM_NEWROUTE` i
 For multipath route, the `RTM_NEWROUTE` is sent with a list of gateway and interface id.
 
 This `Fpmsyncd extension` will modify `fpmsyncd` to handle  `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP` as below.
+
+This feature enhances orchagent `NhgOrch` to handle `RTM_NEWNEXTHOP` events and update `NEXTHOP_GROUP_TABLE` entries accordingly
 
 <!-- omit in toc -->
 ##### Figure: Fpmsyncd NHG High Level Architecture
@@ -230,14 +235,23 @@ admin@sonic:~$ sonic-db-cli APPL_DB HGETALL ROUTE_TABLE:10.1.1.4
   <tr><td>NHA_GROUP</td><td>[{125,1},{126,1}]</td></tr>
   <tr><td rowspan="2">4</td><td rowspan="2">RTM_NEWROUTE</td><td>RTA_DST</td><td>10.1.1.4</td></tr>
   <tr><td>RTA_NH_ID</td><td>ID127</td></tr>
+  <tr><td rowspan="2">5</td><td rowspan="2">RTM_NEWROUTE</td><td>RTA_DST</td><td>10.1.1.5</td></tr>
+  <tr><td>RTA_NH_ID</td><td>ID127</td></tr>
+  <tr><td rowspan="3">6</td><td rowspan="3">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>ID128</td></tr>
+  <tr><td>NHA_GATEWAY</td><td>10.0.0.4</td></tr>
+  <tr><td>NHA_OIF</td><td>22</td></tr>
+  <tr><td rowspan="2">7</td><td rowspan="2">RTM_NEWNEXTHOP</td><td>NHA_ID</td><td>ID127</td></tr>
+  <tr><td>NHA_GROUP</td><td>[{125,1},{128,1}]</td></tr>
 </table>
 
 A short description of `fpmsyncd` logic flow:
 
-- When receiving `RTM_NEWNEXTHOP` events on sequence 1, 2 and 3, `fpmsyncd` will save the information in an internal list to be used when necessary.
-- When `fpmsyncd` receive the `RTM_NEWROUTE` on sequence 4, the process will write the NextHop Group with ID 118 to the `NEXTHOP_GROUP_TABLE` using the information of gateway and interface from the NextHop Group events with IDs 116 and 117.
-- Then `fpmsyncd` will create a new route entry to `ROUTE_TABLE` with a `nexthop_group` field with value `ID118`.
-- When `fpmsyncd` receives the last `RTM_NEWROUTE` on sequence 5, the process will create a new route entry (but no NextHop Group entry) in `ROUTE_TABLE` with `nexthop_group` field with value `ID118`. (Note: This NextHop Group entry was created when the `fpmsyncd` received the event sequence 4.)
+- When receiving `RTM_NEWNEXTHOP` events on sequence 1 and 2, `fpmsyncd` will write the information in `NEXTHOP_GROUP_TABLE` with NextHop Group `ID125` and `ID126` and with information of gateway and interface respectively. For sequence 3  multi path NextHop Group `ID127` the information in `NEXTHOP_GROUP_TABLE` will contain the list of IDs 125 and 126
+- When `fpmsyncd` receive the `RTM_NEWROUTE` on sequence 4, the process will create a new route entry to `ROUTE_TABLE` with a `nexthop_group` field with value `ID127`.
+- When `fpmsyncd` receives the next `RTM_NEWROUTE` on sequence 5, the process will create a new route entry (but no NextHop Group entry) in `ROUTE_TABLE` with `nexthop_group` field with value `ID127`. (Note: This NextHop Group entry was created when the `fpmsyncd` received the event sequence 4.)
+- When receiving `RTM_NEWNEXTHOP` events on sequence 6 `fpmsyncd` will write the information in `NEXTHOP_GROUP_TABLE` with NextHop Group `ID128`
+- When receiving `RTM_NEWNEXTHOP` events on sequence 7 `fpmsyncd` will update the information in `NEXTHOP_GROUP_TABLE` with NextHop Group `ID127` and the information will now contain list of IDs 125 and 128
+
 
 #### Example of entries in ASIC_DB
 
@@ -248,6 +262,36 @@ Therefore, even after this enhancement, table entries will be created for `ROUTE
 ##### Figure: Example of ASIC_DB entry
 ![fig3](images_fpmsyncd/fig3.svg)
 
+After processing the NHG update the `ASIC_DB` entry will be updated to point to the new member `NEXT_HOP`
+##### Figure: Example of ASIC_DB entry after NHG update
+![fig3](images_fpmsyncd/asic2.png)
+
+#### Orchestration Agent Changes to handle NEXTHOP_GROUP
+
+Orchestration agent `NhgOrch` will be enhanced to handle the new NEXTHOP_GROUP_TABLE in APP_DB. For adding or updating an entry in the NEXTHOP_GROUP_TABLE, programming will depend on whether the group is configured with one or multiple next hops or is a recursive nexthop group i.e. it contains one or more nexthop group.
+
+ - NhgOrch treats an NEXTHOP_GROUP as "recursive" if it has "nexthop_group" as the only field. This field contains "member" NEXTHOP_GROUP. The parent NEXTHOP_GROUP key is constructed by combining keys of the member NEXTHOP_GROUPs. Such an NEXTHOP_GROUP always uses a "NEXT_HOP_GROUP" object-id to represent the group
+ - Singleton (non-recursive) NEXTHOP_GROUP contain various fields e.g. Inexthop, alias etc. Such NEXTHOP_GROUP form a key by combining these fields and query the NeighOrch with the "key" to get the corresponding SAI ID. So singleton (non-recursive) NEXTHOP_GROUP do not own the SAI ID rather they just reuse the SAI IDs owned by NeighOrch module.
+ - If one or more members of a "recursive" NEXTHOP_GROUP are not available, then the "NEXTHOP_GROUP" object is created with just the available members as long as there is one. The msg is retained in NhgOrch's mToSync queue so that it keeps checking for the availability of all the member NEXTHOP_GROUP. As and when the member NEXTHOP_GROUP are available, the "NEXTHOP_GROUP" object is updated with the new members. The "recursive" NEXTHOP_GROUP allow for members to be updated without having to update the referring routes. Since the SAI ID remains unchanged, update is transparent to the RouteOrch modules.
+ - When a port-down event is received from Syncd, the corresponding nexthops are removed from all the nexthop groups they're part of.
+
+Dummy code for this logic:
+```
+if (nexthop_group NOT present)
+	sai_id = sai ID of the next hop
+else
+	create next hop group
+	add next hop group member for each next hop
+	sai_id = sai ID of the next hop group
+```
+
+The handling of whether a next hop group member can be programmed or not, interfaces going up and down, etc. will match the same handling done by next hop groups managed by the route orchagent.
+
+When the next hop group is deleted, the next hop group orchagent will remove the next hop group from the ASIC_DB if required, and remove the association between the group identifier from APP_DB and the SAI identifier from ASIC_DB.  This will only happen once the next hop group is no longer referenced by any routes - and so the next hop group will maintain a reference count within orchagent to ensure this.
+
+The route orchagent will parse the new nexthop_group field, and call into the next hop group orchagent to find the corresponding SAI object ID to program as the next hop attribute.  If the next hop group does not exist, the route will remain on the list of routes to sync, and will be retried on future runs of the route orchagent.
+
+If a next hop group cannot be programmed because the data plane limit has been reached, one next hop will be picked to be temporarily used for that group.  When a route is then programmed using that next hop group, it will be informed that a temporary form of the next hop group is in use, and so the route will remain on the pending list and will retry until the correct next hop group is programmed.  This mirrors the current behaviour in the route orchagent when the next hop group limit is reached. The APP_DB entries remain unchanged.
 
 ### SAI API 
 
@@ -475,6 +519,46 @@ Sample of CONFIG DB snippet given below:
         }
     },
 ```
+#### APPL DB Enhancements  
+
+This feature extends the existing NEXT_HOP_GROUP_TABLE, to store next hop group information to be used by one or more routes. Recursive/ecmp routes are represented by referencing a list of nexthop group ids in the nexthop_group field. When this field is used, other fields will not be present.
+
+
+```
+### NEXT_HOP_GROUP_TABLE
+  Stores a list of groups of one or more next hops
+  Status: Mandatory
+    key           = NEXT_HOP_GROUP_TABLE:string ; 
+                    arbitrary string identifying the next hop 
+                    group, as determined by the programming 
+                    application.
+    nexthop       = *prefix,           ; IP addresses separated
+                     “,” (empty indicates no gateway)
+    ifname        = *INTF_TABLE.key,   ; zero or more separated 
+                     by “,” (zero indicates no interface)
+    nexthop_group = NEXT_HOP_GROUP_TABLE:key, ; index within the
+                    NEXT_HOP_GROUP_TABLE seperated by "," used 
+                    for recursice/ecmp routes. (New field. When this field 
+                    is present, other fields will not be present)
+
+```
+The ROUTE_TABLE is then extended to allow a reference to the nexthop_group to be specified, instead of the current nexthop and ifname fields.
+```
+### ROUTE_TABLE
+    ;Stores a list of routes
+    ;Status: Mandatory
+    key           = ROUTE_TABLE:prefix
+    nexthop       = *prefix, ;IP addresses separated “,” (empty
+                     indicates no gateway) (existing)
+    ifname        = *PORT_TABLE.key,   ; zero or more separated 
+                    by “,” (zero indicates no interface) (existing)
+    blackhole     = BIT ; Set to 1 if this route is a blackhole
+                   (or null0) 
+    nexthop_group = NEXT_HOP_GROUP_TABLE:key ; index within the
+                    NEXT_HOP_GROUP_TABLE, optionally used instead
+                    of nexthop and intf fields (new field)
+```
+
 
 ### Warmboot and Fastboot Design Impact  
 
@@ -483,7 +567,9 @@ Mention whether this feature/enhancement has got any requirements/dependencies/i
 -->
 
 - When the feature is disabled, there should be no impact to Warmboot and Fastboot.
-- When the feature is enabled, there will be no warmboot nor fastboot support.
+- When the feature is enabled, there will be no impact to Fastboot support
+- When the feature is enabled, there will be no warmboot support.
+- Nexthop group ID reconciliation as part of the warm-boot is not currently supported
 
 When the feature is enabled, NHG ID will be managed by FRR which will change after FRR related process or BGP container restart.
 We need a way to either let FRR preserve the ID or a way to correlate the NHGs, IDs and it's members before and after the restart.
