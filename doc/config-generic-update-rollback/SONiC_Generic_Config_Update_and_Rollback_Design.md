@@ -88,6 +88,7 @@
       - [3.2.2.1 Configuration Commands](#3221-configuration-commands)
       - [3.2.2.2 Show Commands](#3222-show-commands)
       - [3.2.2.3 Debug Commands](#3223-debug-commands)
+    + [3.2.3 Multi ASIC support](#323-multi-asics-support)
 - [4 Flow Diagrams](#4-flow-diagrams)
 - [5 Error Handling](#5-error-handling)
 - [6 Serviceability and Debug](#6-serviceability-and-debug)
@@ -98,6 +99,7 @@
   * [9.2 Unit Tests for Checkpoint](#92-unit-tests-for-checkpoint)
   * [9.3 Unit Tests for Rollback](#93-unit-tests-for-rollback)
   * [9.4 Unit Tests for Replace](#94-unit-tests-for-replace)
+- [10 E2E Tests](#10-e2e-tests)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
@@ -871,6 +873,138 @@ show rollback log [exec | verify | status]
 
 Use the *verbose* option to view additional details while executing the different commands.
 
+### 3.2.3 Multi ASICs Support
+
+The initial design of the SONiC Generic Configuration Update and Rollback feature primarily focuses on single-ASIC platforms. To cater to the needs of Multi-ASIC platforms, this section introduces enhancements to support configuration updates and rollbacks across multiple ASICs and the host namespace.
+
+#### 3.2.3.1 Overview
+
+In Multi-ASIC SONiC platforms, configurations can be applied either globally, affecting all ASICs, or individually, targeting a specific ASIC or the host. The configuration management tools must, therefore, be capable of identifying and applying configurations based on their intended scope.
+
+#### 3.2.3.2 Namespace-aware Configuration Management
+
+The SONiC utilities for configuration management (apply-patch, checkpoint, and rollback) will be enhanced to become namespace-aware. These utilities will determine the target namespace for each operation from the configuration patch itself or from user input for operations that involve checkpoints and rollbacks.
+
+#### 3.2.3.3 JSON Patch Format Extension
+
+The JSON Patch format will be extended to include the namespace identifier for each operation's path. Path that operations the host namespace will be marked with a "localhost" identifier, while those intended for a specific ASIC will include an "asicN" identifier, where N denotes the ASIC number.
+
+```json
+[
+    {
+        "op": "add",
+        "path": "/asic0/PORTCHANNEL/PortChannel102/admin_status",
+        "value": "down"
+    },
+    {
+        "op": "replace",
+        "path": "/localhost/BGP_DEVICE_GLOBAL/STATE/tsa_enabled",
+        "value": "true"
+    },
+    {
+        "op": "replace",
+        "path": "/asic0/BGP_DEVICE_GLOBAL/STATE/tsa_enabled",
+        "value": "true"
+    },
+    {
+        "op": "replace",
+        "path": "/asic1/BGP_DEVICE_GLOBAL/STATE/tsa_enabled",
+        "value": "true"
+    }
+]
+```
+
+#### 3.2.3.4 Applying Configuration Changes
+
+When applying a configuration patch, the system will:
+
+    Parse the extended JSON Patch to identify the target namespaces.
+    Apply the operations intended for the host namespace directly to the host's configuration database.
+    Apply ASIC-specific operations to the respective ASIC's configuration database.
+
+#### 3.2.3.5 Checkpoints and Rollbacks
+
+Checkpoint and rollback operations will be enhanced to support Multi-ASIC platforms by:
+
+    Capturing the configuration state of all ASICs and the host namespace when creating a checkpoint.
+    Allowing rollbacks to restore the configuration state of all ASICs and the host namespace to a specific checkpoint.
+
+#### 3.2.3.6 Implementation Details
+
+The extension of the SONiC Generic Configuration Update and Rollback feature to support Multi-ASIC platforms enhances the flexibility and manageability of SONiC deployments in complex environments. By introducing namespace-aware configuration management, SONiC can efficiently handle the intricacies of Multi-ASIC platforms, ensuring smooth and reliable operation.
+
+    Namespace-aware Utilities: Update the SONiC configuration utilities to handle namespace identifiers in the configuration patches and command-line options for specifying target namespaces for checkpoints and rollbacks.
+
+    Validation and Verification: Extend the configuration validation and verification mechanisms to cover Multi-ASIC scenarios, ensuring that configurations are valid and consistent across all ASICs and the host.
+
+    CLI Enhancements: Introduce new CLI options to specify target namespaces for configuration operations, and to manage checkpoints and rollbacks in a Multi-ASIC environment.
+
+    Testing: Develop comprehensive test cases to cover Multi-ASIC configuration updates, including scenarios that involve simultaneous updates to multiple ASICs and the host.
+
+| Pull Request | Description |
+| --------- | ----------- |
+|[Add Multi ASIC support for apply-patch](https://github.com/sonic-net/sonic-utilities/pull/3249)|1. Categorize configuration as JSON patch format per ASIC.<br>2. Apply patch per ASIC, including localhost. |
+|[Add Multi ASIC support for Checkpoint and Rollback](https://github.com/sonic-net/sonic-utilities)|To be implemented|
+
+#### 3.2.3.7 Enhancement
+
+Given that applying patches or performing other actions on multiple ASICs can be time-consuming, we are introducing the -p option to expedite the process. This option operates under the assumption that each ASIC functions independently.
+
+| Pull Request | Description |
+| --------- | ----------- |
+|[Add Multi ASIC support for parallel option](https://github.com/sonic-net/sonic-utilities)|To be implemented|
+
+1. apply-patch
+    ```python
+    @config.command('apply-patch')
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='applying the change to all ASICs parallelly')
+    ...
+    def apply_patch(ctx, patch_file_path, format, dry_run, parallel, ignore_non_yang_tables, ignore_path, verbose):
+        ...
+    ```
+2. checkpoint
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='taking the checkpoints to all ASICs parallelly')
+    ...
+    def checkpoint(ctx, checkpoint_name, verbose):
+    ```
+3. replace
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='replacing the change to all ASICs parallelly')
+    ...
+    def replace(ctx, target_file_path, format, dry_run, ignore_non_yang_tables, ignore_path, verbose):
+        ...
+    ```
+4. rollback
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='rolling back the change to all ASICs parallelly')
+    ...
+    def rollback(ctx, checkpoint_name, dry_run, ignore_non_yang_tables, ignore_path, verbose):
+    ```
+5. list_checkpoints
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='listing the change to all ASICs parallelly')
+    ...
+    def list_checkpoints(ctx, checkpoint_name, dry_run, ignore_non_yang_tables, ignore_path, verbose):
+    ```
+6. delete_checkpoint
+    ```python
+    @config.command()
+    ...
+    @click.option('-p', '--parallel', is_flag=True, default=False, help='listing the change to all ASICs parallelly')
+    ...
+    def delete_checkpoint(ctx, checkpoint_name, dry_run, ignore_non_yang_tables, ignore_path, verbose):
+    ```
+
 # 4 Flow Diagrams
 
 # 5 Error Handling
@@ -908,22 +1042,16 @@ N/A
 | 14        | Dynamic port breakout as described [here](https://github.com/sonic-net/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
 | 15        | Remove an item that has a default value. |
 | 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
-| 17        | [Updating Syslog configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_syslog.py) |
-| 18        | [Updating AAA configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_aaa.py) |
-| 19        | [Updating DHCP configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_dhcp_relay.py) |
-| 20        | Updating IPv6 configs. |
-| 21        | Updating monitor configs (EverflowAlaysOn). |
-| 22        | Updating BGP speaker configs. |
-| 23        | [Updating BGP listener configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgpl.py) |
-| 24        | ~~Updating Bounce Back Routing configs.~~ |
-| 25        | [Updating control-plane ACLs (NTP, SNMP, SSH) configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_cacl.py) |
-| 26        | Updating Ethernet interfaces configs. |
-| 27        | [Updating VLAN interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_vlan_interface.py) |
-| 28        | [Updating port-channel interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_portchannel_interface.py) |
-| 29        | [Updating loopback interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_lo_interface.py) |
-| 30        | Updating BGP prefix hijack configs. |
-| 31        | Updating QoS headroom pool and buffer pool size. |
-| 32        | Add/Remove Rack. |
+| 17        | Add a new ASIC config subtree. |
+| 18        | Add a new ASIC with empty config. |
+| 19        | Independent Patch Application: Apply configuration patches independently to each ASIC without any coordination between them. Verify that each ASIC updates according to its patch and that there are no discrepancies in configurations that might affect system operations.|
+| 20        | Simultaneous Patch Application:Apply configuration patches to all ASICs simultaneously to ensure that simultaneous updates do not cause conflicts or failures. This test checks the system’s ability to handle concurrent configuration changes across multiple independent units.|
+| 21        | Sequential Patch Application: Apply configuration patches to ASICs in a controlled sequence, one after the other. This test aims to check if the order of patch application affects the final system configuration, especially when configurations might not directly interact but could have cumulative effects.|
+| 22        |Patch Rollback Capability: After applying patches, initiate a rollback to previous configurations for each ASIC independently. Verify that each ASIC can revert to its previous state accurately and that the rollback process does not introduce new issues.|
+| 23        | Conditional Patch Application: Apply patches based on conditional checks within each ASIC’s configuration (e.g., only apply a patch if the current firmware version is below a certain level). This test ensures that conditions within patches are evaluated correctly and that the patch is applied only when the conditions are met.|
+| 24        | Cross-ASIC Dependency Verification: While each ASIC operates independently, this test involves applying patches that could potentially have indirect impacts on other ASICs through shared resources or network topology changes. Validate that changes in one ASIC do not adversely affect others.|
+| 25        | Patch Compatibility and Conflict Resolution: Apply patches that introduce changes conflicting with existing configurations across ASICs. This test examines how the system identifies and resolves conflicts, ensuring that the most critical settings are preserved and that any issues are clearly reported.|
+| 26        | Performance Impact Assessment: Measure system performance before and after patch application to determine the impact of configuration changes. This includes monitoring processing speed, memory usage, and network latency to ensure that performance remains within acceptable parameters.|
 
 ## 9.2 Unit Tests for Checkpoint
 | Test Case | Description |
@@ -940,3 +1068,29 @@ N/A
 | Test Case | Description |
 | --------- | ----------- |
 | 1 ..*     | Use replace instead of apply-patch for unit-tests specified in [9.1 Unit Tests for Apply-Patch](#91-unit-tests-for-apply-patch). |
+
+# 10 E2E Tests
+| Test Case | Description |
+| --------- | ----------- |
+| 1         | [Updating Syslog configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_syslog.py) |
+| 2         | [Updating AAA configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_aaa.py) |
+| 3         | [Updating DHCP configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_dhcp_relay.py) |
+| 4         | [Updating IPv6 configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_ipv6.py) |
+| 5         | Updating monitor configs (EverflowAlwaysOn). |
+| 6         | [Updating BGP speaker configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgp_speaker.py) |
+| 7         | [Updating BGP listener configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgpl.py) |
+| 8         | [Updating Bounce back routing configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/bgp/test_bgp_bbr.py) |
+| 9         | [Updating control-plane ACLs (NTP, SNMP, SSH) configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_cacl.py) |
+| 10        | [Updating Ethernet interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_eth_interface.py) |
+| 11        | [Updating VLAN interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_vlan_interface.py) |
+| 12        | [Updating port-channel interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_portchannel_interface.py) |
+| 13        | [Updating loopback interfaces configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_lo_interface.py) |
+| 14        | [Updating Kubernetes configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_kubernetes_config.py) |
+| 15        | [Updating BGP prefix hijack configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgp_prefix.py) |
+| 16        | [Updating QoS headroom pool and buffer pool size.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_incremental_qos.py) |
+| 17        | [Updating ECN tuning.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_ecn_config_update.py) |
+| 18        | [Updating dynamic threshold tuning.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_mmu_dynamic_threshold_config_update.py) |
+| 19        | [Disable/enable PFC_WD.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_pfcwd_status.py) |
+| 20        | [Updating PFC_WD poll interval.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_pfcwd_interval.py) |
+| 21        | [Updating PG headroom configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_pg_headroom_update.py) |
+| 22        | [Add/Remove Rack.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/configlet/test_add_rack.py) |
