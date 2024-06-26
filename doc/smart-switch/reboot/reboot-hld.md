@@ -92,7 +92,7 @@ Until the services are terminated gracefully, DPU response RebootStatusResponse 
 * Next, the NPU triggers a platform vendor reboot API to initiate the reboot process for the DPU.
 
 * The NPU either immediately rescans the PCI upon return or after a timeout period. Rescan of the PCI is achieved by vendor defined API. If vendor specific API
-is not defined, then rescan is done via sysfs (echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/rescan).
+is not defined, then rescan is done via sysfs (echo 1 > /sys/bus/pci/rescan).
 
 ## Switch reboot sequence ##
 
@@ -118,7 +118,7 @@ for each DPU.
 * DPUs will send an acknowledgment to the NPU and then undergo a reboot. After receiving the acknowledgment from the DPUs, the NPU will proceed to reboot itself to complete the overall reboot procedure. The vendor-specific reboot API should include an error handling mechanism to manage DPU reboot failures. Additionally log all the failures. DPUs will be in DPU_READY state, if the reboot happened successfully.
 
 * Upon successful reboot, the NPU resumes operation. As part of the post-reboot process, the NPU may choose to rescan the PCI devices. This rescan operation,
-performed either by invoking vendor API or by echoing '1' to the /sys/bus/pci/devices/XXXX:XX:XX.X/rescan file, ensures that all PCI devices are properly
+performed either by invoking vendor API or by echoing '1' to the /sys/bus/pci/rescan file, ensures that all PCI devices are properly
 recognized and initialized.
 
 ## High-Level Design ##
