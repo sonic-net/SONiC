@@ -5,6 +5,7 @@
 | 0.1 | 12/02/2023 | Ramesh Raghupathy | Initial version|
 | 0.2 | 01/08/2024 | Ramesh Raghupathy | Updated API, CPI sections and addressed review comments |
 | 0.3 | 02/26/2024 | Ramesh Raghupathy | Addressed review comments |
+| 0.4 | 06/06/2024 | Ramesh Raghupathy | Added schema for DPU health-info and added key suffix to module reboot-cause to avoid key conflicts |
 
 ## Definitions / Abbreviations
 
@@ -195,7 +196,9 @@ Key: "CHASSIS_MODULE|DPU0"
 * Health
     * SmartSwitch DPUs should store their health data locally and also provide it to the host for a consolidated view of the CLIs
     * DPUs should support a CLI to display the health data “show system-health ...” (See CLIs section)
-    * The host pmon should use this data to support the host side CLIs. Though accessing this data from DPUs and storing them on the switch is implementation specific it is recommended to use redis call and store them on the switch chassisStateDB for faster access. use "UserDefinedChecker" class to provide this data to the CLIs.
+    * The host pmon should use this data to support the host side CLIs. Though accessing this data from DPUs and storing them on the switch is implementation specific it is recommended to use redis call and store them on the switch chassisStateDB for faster access.
+    * Please refer to section:3.1.5.1 for the HEALTH_INFO schema
+    * use "UserDefinedChecker" class to provide this data to the CLIs.
     * Vendor specific data such as interrupt events can also be placed in user defined fields under this DB
     * This table already exists in modular chassis design and the DPUs will use this just like a line card.
 * Alarm and Syslog
@@ -219,7 +222,7 @@ SmartSwitch PMON block diagram
 
 ### 3.1. Platform monitoring and management
 * SmartSwitch design Extends the existing chassis_base class and module_base class as described below.
-* Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU and MODULE_TYPE_SWITCH to support SmartSwitch
+* Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU to support SmartSwitch
 
 #### 3.1.1 ChassisBase class API enhancements
 is_modular_chassis(self):
@@ -367,7 +370,7 @@ get_type(self):
 
     Returns:
         A string, the module-type from one of the predefined types:
-        MODULE_TYPE_SWITCH, MODULE_TYPE_DPU
+        MODULE_TYPE_DPU
 ```
 
 get_oper_status(self):
@@ -442,19 +445,33 @@ is_midplane_reachable(self):
 * The get_reboot_cause will return the current reboot-cause of the module.
 * For persistent storage of the DPU reboot-cause and reboot-caue-history files use the existing host storage path and mechanism.
 
-#### Schema for REBOOT_CAUSE - switch stateDB
+#### Schema for REBOOT_CAUSE of SWITCH on switch stateDB
 ```
   Key: "REBOOT_CAUSE|2023_06_18_14_56_12"
 
   "REBOOT_CAUSE|2023_06_18_14_56_12": {
     "value": {
-      "cause": "REBOOT_CAUSE_HOST_RESET_DPU",
+      "cause": "Unknown",
       "comment": "N/A",
-      "device": "DPU5",
       "time": "2023_06_18_14_56_12",
       "user": "N/A"
     }
-  },
+  }
+
+```
+#### Schema for REBOOT_CAUSE of DPUs on switch ChassisStateDB
+```
+  Key: "REBOOT_CAUSE|DPU0|2024_06_06_09_31_18"
+
+  "REBOOT_CAUSE|DPU0|2024_06_06_09_31_18": {
+    "value": {
+      "cause": "Software causes (Reboot)",
+      "comment": "User issued 'reboot' command [User: admin, Time: Thu Jun  6 09:46:43 AM UTC 2024]",
+      "device": "DPU0",
+      "time": "N/A",
+      "user": "N/A"
+    }
+  }
 
 ```
 2. Though the get_oper_status(self) can get the operational status of the DPU Modules, the current implementation only has limited capabilities.
@@ -492,11 +509,34 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
 ```
 
 3. Each DPU has to store the health data in its local DB and should provide it to the switch.
-* When the "show system-health ..." CLI is executed on the switch, the "UserDefinedChecker" class will collect the data and feed it to the CLI. It is up to the platform on how this is done.  However, for faster access store it in the switch ChassisStateDB.
+* When the "show system-health ..." CLI is executed on the switch. For faster access store it in the switch ChassisStateDB.
 * The DPU is a complex hardware, to facilitate debug, a consistent way of storing and accessing the health record of the DPUs is critical in a multi vendor scenario even though it is a platform specific implementation.
-* Both switch and the DPUs will follow to the [SONiC system health monitor HLD](https://github.com/sonic-net/SONiC/blob/ce313db92a694e007a6c5332ce3267ac158290f6/doc/system_health_monitoring/system-health-HLD.md)
+* Both switch and the DPUs will follow the [SONiC system health monitor HLD](https://github.com/sonic-net/SONiC/blob/ce313db92a694e007a6c5332ce3267ac158290f6/doc/system_health_monitoring/system-health-HLD.md)
 * Refer to section 3.4.5 for "show system-health .." CLIs
 
+#### Schema for HEALTH_INFO of DPUs on switch ChassisStateDB
+```
+; Defines information for a system health
+key                     = SYSTEM_HEALTH_INFO|DPUx        ; health information for DPUx
+; field                 = value
+summary                 = STRING                         ; summary status for the DPU
+<item_name>             = STRING                         ; an entry for a service or device
+
+```
+We store items to db only if it is abnormal. Here is an example:
+```
+admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
+1) "lldp:lldpmgrd"
+2) "Process 'lldpmgrd' in container 'lldp' is not running"
+3) "summary"
+4) "Not OK"
+```
+If the system status is good, the data in redis is like:
+```
+admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
+ 1) "summary"
+ 2) "OK"
+```
 ##### 3.1.5.2 ModuleBase class new APIs
 The DPU ID is used only for indexing purpose.
 
@@ -537,35 +577,9 @@ get_health_info(self):
     Retrieves the dpu health object having the detailed dpu health Fetched from the DPUs
 
     Returns:
-        An object instance of the dpu health. 
+        An object instance of the dpu health as shown in the schema
         Returns None when the module is SWITCH
-    
-    Example:
-    {
-      "led_status": "green",
 
-      "monitoredlists": {
-          "Program": [
-              {"Name": "routeCheck", "Status": "Not OK", "Type": "Program"},
-              // Add more program items here
-          ],
-          "Service": [
-              {"Name": "mgmt-framework", "Status": "Not OK", "Type": "Service"},
-              // Add more service items here
-          ],
-          "Fan": [
-              {"Name": "Fan", "Status": "Not OK", "Type": "Fan"}
-          ],
-          "UserDefined": [
-              // Add user-defined items here
-          ]
-      },
-
-      "ignore_list": [
-          {"Name": "example1", "Status": "OK", "Type": "Type1"},
-          // Add more items to ignore list
-      ]
-    }
 ```
 
 ### 3.2 Thermal management
@@ -606,6 +620,8 @@ A typical modular chassis includes a midplane-interface to interconnect the Supe
 * By default smartswitch midplane IP address assignment will be done using internal DHCP.
 * Please refer to the [ip-address-assignment document](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) for IP address assignment between the switch host and the DPUs.
 * The second option is the static IP address assignment.
+* A midplane state change handler will be implemented to monitor PCIe link state change events and DPU control-plane and data-plane state transitions mainly for HA.
+* There will be a separate hld for the midplane state change handler.
 
 ### 3.4 Debug & RMA
 CLI Extensions and Additions
@@ -676,26 +692,10 @@ fantray0    N/A  fantray0.fan      55%       intake     Present        OK  20230
 fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230728 06:41:17
 ```
 
-#### 3.4.1 Reboot Cause
+#### 3.4.1 Reboot Cause CLIs
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
-* Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The recent reboot-cause can be derived from that list of reboot-causes.
-* The switch side PMON will copy this into the stateDB so that the existing workflow will not be affected.
-* The get_reboot_cause API will return the current reboot-cause of the module.
+* Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The DPUs will limit the number of history entries to a maximum of ten. The recent reboot-cause can be derived from that list of reboot-causes. Platforms which are not capable of populating the ChasissStateDB can use the "get_reboot_cause" API to fetch the data from the DPUs. The trigger to activate the API will eventually come from the midplane state change handler.
 
-#### REBOOT_CAUSE DB schema
-```
-Key: "REBOOT_CAUSE|2023_06_18_14_56_12"
-
-"REBOOT_CAUSE|2023_06_18_14_56_12": {
-    "value": {
-        "cause": "REBOOT_CAUSE_HOST_RESET_DPU",
-        "comment": "N/A",
-        "device": "DPU5",
-        "time": "2023_06_18_14_56_12",
-        "user": "N/A"
-    }
-}
-```
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause
 * The "show reboot-cause history" shows the reboot-cause history
@@ -798,7 +798,7 @@ Online : All states are up
 Offline: dpu_midplane_link_state is down
 Partial Online: dpu_midplane_link_state is up and dpu_control_plane_state or dpu_data_plane_state is down
 
-There are two parts to the state detail. 1. The midplane state 2. the dpu states (booted, control plane state, data plane state). The midplane state has to be updated by the switch side pcied. The dpu states will be updated by the DPU (redis client update) on the switch ChassisStateDB. The get_state_info() API in the moduleBase class will fetch the contents from the DB. The show CLI reads the redis table and displays the data.
+There are two parts to the state detail. 1. The midplane state 2. the dpu states (control plane state, data plane state). The midplane state has to be updated by the switch side pcied. The dpu states will be updated by the DPU (redis client update) on the switch ChassisStateDB. The get_state_info() API in the moduleBase class will fetch the contents from the DB. The show CLI reads the redis table and displays the data.
 root@sonic:~#show system-health DPU all  
             
 Name       ID    Oper-Status          State-Detail                   State-Value     Time                               Reason                        
@@ -1022,4 +1022,4 @@ Note:
 ```
 
 ## 4.   Test Plan
-In Progress
+[Test Plan](https://github.com/rameshraghupathy/sonic-mgmt/blob/master/docs/testplan/SmartSwitch-PMON-testplan.md)
