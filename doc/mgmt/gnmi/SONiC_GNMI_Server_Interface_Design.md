@@ -184,9 +184,13 @@ At stage 2, we will support SONiC Yang schema.
 * If origin is ‘sonic_yang’ and target is ‘APPL_DB’, request will use SONiC Yang models schema, and special_config_updater will be invoked.
 * If origin is ‘sonic_yang’ and target is 'CONFIG_DB' or NULL, request will use SONiC Yang models schema, and sonic_config_engine or generic_config_engine will be invoked.
 
-<img src="images/data_flow.svg" alt="set-flow" width="800px"/>
+<img src="images/data_flow.svg" alt="set-flow" width="1000px"/>
 
-<img src="images/data_flow_get.svg" alt="get-flow" width="800px"/>
+Empty target is used to support sonic management framework and new GNMI config interface at the same time. Therefore, we use origin field to identify different request:
+"sonic_db" and "sonic_yang" are used for new GNMI config interface.
+All other values stand for sonic management framework.
+
+<img src="images/data_flow_get.svg" alt="get-flow" width="1000px"/>
 
 Assume running-config to be:
 
@@ -453,28 +457,6 @@ For full configuration, there’re 2 possible solutions:
 The full configuration request will be overwritten by subsequent full configuration request or incremental configuration request.
 
 <img src="images/mixed requests.svg" alt="overwritten-config" width="800px"/>
-
-#### 1.2.1.12 Backward Compatibility
-
-SONiC telemetry is using prefix target to identify target database, and we will add a new target to support mixed schema.
-
-    enum Target {
-      option allow_alias = true;
-      APPL_DB         = 0;
-      ASIC_DB         = 1;
-      COUNTERS_DB     = 2;
-      LOGLEVEL_DB     = 3;
-      CONFIG_DB       = 4;
-      // PFC_WD_DB shares the the same db number with FLEX_COUNTER_DB
-      PFC_WD_DB       = 5;
-      FLEX_COUNTER_DB = 5;
-      STATE_DB        = 6;
-      // For none-DB data
-      OTHERS          = 100;
-      // For mixed schema
-      MIXED_SCHEMA    = 101;
-    }
-
 
 ### 1.2.2 Container
 
