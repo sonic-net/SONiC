@@ -27,15 +27,15 @@ Image  : https://sonic-build.azurewebsites.net/ui/sonic/pipelines  (Example - Im
 | SAI   version             | SAI v1.14.0    |
 | FRR                       | 8.5.4   |
 | LLDPD                     | 1.0.16-1+deb12u1 |
-| TeamD                     | 1.30-1    |
-| SNMPD                     | 5.9+dfsg-4+deb11u1    |
+| TeamD                     | 1.31-1    |
+| SNMPD                     | 5.9.3+dfsg-2 |
 | Python                    | 3.11.2-6    |
 | syncd                     | 1.0.0    |
 | swss                      | 1.0.0    |
-| radvd                     | 2.18-3    |
+| radvd                     | 2.19-1+b1 |
 | isc-dhcp                  | 4.4.3-P1-2  |
 | sonic-telemetry           | 1.1    |
-| redis-server/ redis-tools | 5.0.3-3~bpo9+2    |
+| redis-server/ redis-tools | 7.0.15-1~deb12u1   |
 | Debian version			| Migrated to Bookworm (Debian version 12)	|
 
 Note : The kernel version is migrated to the version that is mentioned in the first row in the above 'Dependency Version' table.
@@ -43,11 +43,11 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 
 # Security Updates
 
-1. Kernel upgraded from 5.10.136-1 to 6.1.38-4 for SONiC release.<br>
+1. Kernel upgraded from 5.10.179-3 to 6.1.38-4 for SONiC release.<br>
    Change log: https://cdn.kernel.org/pub/linux/kernel/v6.x/ChangeLog-6.1.38
 
-2. Docker upgraded from  24.0.7-debian-stretch to 27.0.1-debian-stretch <br>
-   Change log: https://docs.docker.com/engine/release-notes/27.0/#2701
+2. Docker is with 24.0.2-debian-stretch  <br>
+   Change log: https://docs.docker.com/engine/release-notes/24.0/#2402
 
 
 # Feature List
@@ -62,7 +62,7 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 | ***Add LDAP HLD*** | This ldap features describes the requirements, architecture and configuration details of ldap feature in switches for SONiC OS build image.  | [1487](https://github.com/sonic-net/SONiC/pull/1487) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
 | ***Add SRv6 SID L3Adj*** | This feature describes the extensions of SRv6Orch required to support the programming of the L3Adj associated with SRv6 uA, End.X, uDX4, uDX6, End.DX4, and End.DX6 behaviors.     |  [1472](https://github.com/sonic-net/SONiC/pull/1472)     | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
 | ***Base OS upgrade to Bookworm*** | This feature upgrades SONiC's base image from Debian Bullseye to Debian Bookworm with the notable changes. | [17234](https://github.com/sonic-net/sonic-buildimage/pull/17234)  | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
-| ***Bookworm Upgrade LLDP, SNMP subagent, ICCPD, PDE*** | This feature implements the bookworm upgrade for LLDP, SNMP subagent, ICCPD, PDE |  [1677](https://github.com/sonic-net/SONiC/issues/1677)     | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
+| ***Bookworm Upgrade LLDP, SNMP subagent, ICCPD, PDE, FRR*** | This feature implements the bookworm upgrade for LLDP, SNMP subagent, ICCPD, PDE, FRR |  [1677](https://github.com/sonic-net/SONiC/issues/1677)     | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
 | ***CVL dynamic table field support*** | This implements the CVL relying on 2-key list, to determine the mapping instead it should rely on one key and one non-key leaf. | [1682](https://github.com/sonic-net/SONiC/issues/1682) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
 | ***CVL Infra Enhancement*** | This implements the enhancement, fix and optimisation of CVL infra. |  [1680](https://github.com/sonic-net/SONiC/issues/1680) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
 | ***CVL singleton table and multi-list table support*** | When dependent target TABLE has multiple lists, if there exists a partial dependency, the loosely hanging LIST was causing sorting issue. This feature implements the fix as retained the last LIST entry instead of first & injected dependency on all target LISTs of the TABLE. | [1681](https://github.com/sonic-net/SONiC/issues/1681)      | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
