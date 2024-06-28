@@ -193,8 +193,8 @@ The HA bring-up workflow is described below:
 
 1. The DPU starts out with its initial HA role as `Dead`.
 2. SDN controller pushes all DASH configurations to DPU including the HA set and the HA scope:
-   1. Controller sets HA scope `Role` to `Active` or `Standby`, `AdminState` to `Disabled`.
-3. Once all configurations have been pushed, SDN controller starts the HA state-machine on the DPU by updating the HA scope `AdminState` to `Enabled`.
+   1. The SDN controller sets HA scope `Role` to `Active` or `Standby`, `AdminState` to `Disabled`.
+3. Once all configurations have been pushed, SDN controller starts the HA state machine on the DPU by updating the HA scope `AdminState` to `Enabled`.
 4. DPU moves to `Connecting` state and attempts to connect to its pair specified in the HA set.
 4. If the DPU fails to connect to it peer:
    1. It needs to first move to `PendingStandaloneActivation` state and send role activation request to SDN controller.
@@ -209,50 +209,50 @@ The HA bring-up workflow is described below:
 sequenceDiagram
    autonumber
 
-   participant S0 as Switch 0
+   participant S0N as Switch 0 NPU
    participant S0D as Switch 0 DPU<br>(Desired Active)
    participant S1D as Switch 1 DPU<br>(Desired Standby)
-   participant S1 as Switch 1
+   participant S1N as Switch 1 NPU
    participant SA as All Switches<br>(Includes Switch 0/1)
    participant SDN as SDN Controller
 
    SDN->>SA: Create HA set and HA scope<br>on all switches with<br>desired Active/Standby roles.
    SA->>SA: Start BFD probe to all DPUs<br>but DPUs do not respond yet.<br>
-   SDN->>S0: Push all DASH configuration objects to DPU0. This includes the HA set and HA scope with<br>desired Active/Standby roles but Admin state set to disabled.
-   SDN->>S1: Push all DASH configuration objects to DPU1.<br>This includes the HA set and HA scope with<br>desired Active/Standby roles but<br>Admin state set to disabled.
-   S0->>S0D: Create all DASH objects<br>including HA set and HA scope<br>with admin state to Disabled.
-   S1->>S1D: Create all DASH objects<br>including HA set and HA scope<br>with admin state to Disabled.
+   SDN->>S0N: Push all DASH configuration objects to DPU0. This includes the HA set and HA scope with<br>desired Active/Standby roles but Admin state set to disabled.
+   SDN->>S1N: Push all DASH configuration objects to DPU1.<br>This includes the HA set and HA scope with<br>desired Active/Standby roles but<br>Admin state set to disabled.
+   S0N->>S0D: Create all DASH objects<br>including HA set and HA scope<br>with admin state to Disabled.
+   S1N->>S1D: Create all DASH objects<br>including HA set and HA scope<br>with admin state to Disabled.
 
-   SDN->>S0: Set DPU0 HA scope<br>admin state to Enabled
-   SDN->>S1: Set DPU1 HA scope<br>admin state to Enabled
-   S0->>S0D: Set HA scope<br>admin state to Enabled
-   S1->>S1D: Set HA scope<br>admin state to Enabled
+   SDN->>S0N: Set DPU0 HA scope<br>admin state to Enabled
+   SDN->>S1N: Set DPU1 HA scope<br>admin state to Enabled
+   S0N->>S0D: Set HA scope<br>admin state to Enabled
+   S1N->>S1D: Set HA scope<br>admin state to Enabled
 
    S0D->>S1D: Connect to peer and<br>start pairing
    S1D->>S0D: Connect to peer and<br>start pairing
    Note over S0D,S1D: Bulk sync can happen at<br>this stage if needed.
 
-   S0D->>S0: Request role activation
-   S1D->>S1: Request role activation
-   S0->>SDN: Request role activation for DPU0
-   S1->>SDN: Request role activation for DPU1
+   S0D->>S0N: Request role activation
+   S1D->>S1N: Request role activation
+   S0N->>SDN: Request role activation for DPU0
+   S1N->>SDN: Request role activation for DPU1
    Note over S0D,S1D: The DPUs will wait for activation<br>from SDN controller before<br>moving to active/standby state.
    Note over S0D,S1D: Inline sync channel can be<br>established at this stage.
 
-   SDN->>S0: Approve role activation for DPU0
-   SDN->>S1: Approve role activation for DPU1
-   S0->>S0D: Approve role activation
-   S1->>S1D: Approve role activation
+   SDN->>S0N: Approve role activation for DPU0
+   SDN->>S1N: Approve role activation for DPU1
+   S0N->>S0D: Approve role activation
+   S1N->>S1D: Approve role activation
 
-   S0D->>S0: Enter active state
-   S0->>S0D: Request to start responding to all BFD probes
-   S1D->>S1: Enter standby state
-   S1->>S1D: Request to start responding to all BFD probes
+   S0D->>S0N: Enter active state
+   S0N->>S0D: Request to start responding to all BFD probes
+   S1D->>S1N: Enter standby state
+   S1N->>S1D: Request to start responding to all BFD probes
    S0D->>S0D: Start responding to all BFD probes
    S1D->>S1D: Start responding to all BFD probes
 
    SA->>SA: BFD to both DPUs will be up,<br>but only DPU0 will be set as next hop
-   Note over S0,SA: From now on, traffic for all ENIs in this HA scope will be forwarded to DPU0.
+   Note over S0N,SA: From now on, traffic for all ENIs in this HA scope will be forwarded to DPU0.
 ```
 
 ### 8.2. Planned shutdown
@@ -261,18 +261,18 @@ With `DPU-driven` mode, the shutdown request will be directly forwarded to DPU. 
 
 Let's say, DPUs 0 and 1 are in steady state (Active/Standby) in the HA set and we are trying to shutdown DPU 0. The workflow of planned shutdown will be as follows:
 
-1. SDN controller programs the DPU 0 HA scope desired HA state to dead.
-2. hamgrd and DPU side swss will:
+1. SDN controller programs the DPU 0 HA scope desired HA state to `dead`.
+2. `hamgrd` and DPU side `swss` will:
    1.  Shutdown the BFD responder on DPU side, which moves all traffic to DPU 1.
-   2.  Update the DPU 0 HA role to Dead.
-3. DPU 0 moves itself to Destroying state.
+   2.  Update the DPU 0 HA role to `Dead`.
+3. DPU 0 moves itself to `Destroying` state.
    1. At this stage, traffic can initially land on both DPUs and until it fully shifts to DPU 1.
-   2. DPU 0 needs to gracefully shutdown and help DPU 1 move to Standalone state while continuing to sync flows.
+   2. DPU 0 needs to gracefully shutdown and help DPU 1 move to `Standalone` state while continuing to sync flows.
    3. DPU 0 will start a configurable timer to wait for the network to converge and traffic to fully switchover to DPU 1.
    4. Once this timer expires, no traffic should land on DPU 0. DPU 0 stops forwarding traffic and starts shutting down.
 4. At the same time that DPU 0 is shutting down, DPU 1 will:
-   1. Move to SwitchingToStandalone to drain all the in-flight messages between the DPUs and then finally Standalone state when DPU 0 is fully shutdown.
-   2. If DPU 1 was in Standby state, it needs to pause flow resimulation for all connections synced from old Active and send flow reconcile request to SDN controller.
+   1. Move to `SwitchingToStandalone` to drain all the in-flight messages between the DPUs and then finally `Standalone` state when DPU 0 is fully shutdown.
+   2. If DPU 1 was in `Standby` state, it needs to pause flow resimulation for all connections synced from old Active and send flow reconcile request to SDN controller.
    3. Only after flow reconcile is received from SDN controller, the flow resimulation will be resumed for these connections. This is to ensure the flow resimulation won't accidentally picking up old SDN policy.
 
 The above DPU state transitions remain same irrespective of which DPU is shutdown. The only difference is if standby DPU 1 was being shutdown instead of DPU 0, then the switch NPUs would continue to forward to DPU 0 without any need to shift traffic.
@@ -282,39 +282,39 @@ The above DPU state transitions remain same irrespective of which DPU is shutdow
 sequenceDiagram
    autonumber
 
-   participant S0 as Switch 0
+   participant S0N as Switch 0 NPU
    participant S0D as Switch 0 DPU<br>(Active->Dead)
    participant S1D as Switch 1 DPU<br>(Standby->Active)
-   participant S1 as Switch 1
+   participant S1N as Switch 1 NPU
    participant SA as All Switches<br>(Includes Switch 0/1)
    participant SDN as SDN Controller
 
    Note over SA: Initially, traffic for all ENIs in<br>this HA scope will be forwarded to DPU0.
 
-   SDN->>S0: Programs HA scope with dead desired state for DPU0.
-   S0->>S0D: Request to stop responding to BFD.
+   SDN->>S0N: Programs HA scope with dead desired state for DPU0.
+   S0N->>S0D: Request to stop responding to BFD.
 
    S0D->>S0D: Stop responding BFD.
    SA->>SA: Set DPU1 as next hop for traffic forwarding.
    Note over SA: Traffic for all ENIs in this HA scope<br>will start transitioning if required.
 
-   S0->>S0D: Update HA scope with dead state.
-   S0D->>S0: Enter Destroying state
+   S0N->>S0D: Update HA scope with dead state.
+   S0D->>S0N: Enter Destroying state
    Note over S0D,S1D: DPU starts to drive internal<br>HA states to gracefully<br>remove the peer.
    Note over S0D,S1D: DPU waits for<br>network convergence timer.
 
-   S1D->>S1: Enter SwitchingToStandalone state
+   S1D->>S1N: Enter SwitchingToStandalone state
    Note over S0D,S1D: Inline sync channel<br>should be stopped.
 
-   S0D->>S0: Enter dead state
-   S1D->>S1: Enter standalone state
+   S0D->>S0N: Enter dead state
+   S1D->>S1N: Enter standalone state
    Note over S0D,S1D: DPU1 ignores all flow<br>resimulation requests<br>for synced connecctions
 
-   S1D->>S1: Send flow reconcile needed notification
-   S1->>SDN: Send flow reconcile needed notification
-   SDN->>S1: Ensure the latest policy is programmed
-   SDN->>S1: Request flow reconcile
-   S1->>S1D: Request flow reconcile
+   S1D->>S1N: Send flow reconcile needed notification
+   S1N->>SDN: Send flow reconcile needed notification
+   SDN->>S1N: Ensure the latest policy is programmed
+   SDN->>S1N: Request flow reconcile
+   S1N->>S1D: Request flow reconcile
    Note over S0D,S1D: DPU1 resumes handling all flow<br>resimulation requests
 ```
 
@@ -341,17 +341,17 @@ To support things like upgrade, we need to update the HA set to pair with anothe
 sequenceDiagram
    autonumber
 
-   participant S0 as Switch 0
+   participant S0N as Switch 0 NPU
    participant S0D as Switch 0 DPU<br>(Active->Dead)
    participant S1D as Switch 1 DPU<br>(Standby->Standalone)
-   participant S1 as Switch 1
+   participant S1N as Switch 1 NPU
    participant SA as All Switches<br>(Includes Switch 0/1)
    participant SDN as SDN Controller
 
-   Note over S0,SA: Initially, traffic for all ENIs in<br>this HA scope will be forwarded to DPU0.
+   Note over S0N,SA: Initially, traffic for all ENIs in<br>this HA scope will be forwarded to DPU0.
    destroy S0D
    S0D-XS0D: DPU0 went dead
-   S0->>S0: PMON detects DPU failure<br>and update DPU state to dead.
+   S0N->>S0N: PMON detects DPU failure<br>and update DPU state to dead.
 
    SA->>SA: BFD to DPU0 start to fail.
    Note over SA: Traffic for all ENIs in this HA scope<br>starts to shift to DPU1.
@@ -359,14 +359,14 @@ sequenceDiagram
    S1D->>S1D: DPU-to-DPU probe starts to fail.
    Note over S1D: DPU starts to drive internal<br>HA states to failover.
 
-   S1D->>S1: Enter standalone state
+   S1D->>S1N: Enter standalone state
    Note over S1D: DPU1 starts to ignore all flow<br>resimulation requests<br>for synced connections
 
-   S1D->>S1: Send flow reconcile needed notification
-   S1->>SDN: Send flow reconcile needed notification
-   SDN->>S1: Ensure the latest policy is programmed
-   SDN->>S1: Request flow reconcile
-   S1->>S1D: Request flow reconcile
+   S1D->>S1N: Send flow reconcile needed notification
+   S1N->>SDN: Send flow reconcile needed notification
+   SDN->>S1N: Ensure the latest policy is programmed
+   SDN->>S1N: Request flow reconcile
+   S1N->>S1D: Request flow reconcile
 ```
 
 ## 10. Split-brain and re-pair
