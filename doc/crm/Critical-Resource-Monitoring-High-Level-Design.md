@@ -44,9 +44,11 @@
   - [3.3 CRM CLI show](#33-crm-cli-show)
 - [4 Testing Requirements/Design](#4-testing-requirementsdesign)
   - [4.1 Unit Test cases](#41-unit-test-cases)
-    - [4.1.2 sonic-utilities](#412-sonic-utilities)
-    - [4.1.3 VS tests](#413-vs-tests)
-    - [4.1.3.1 DASH VS tests](#4131-dash-vs-tests)
+    - [4.1.2 DASH sonic-utilities](#412-dash-sonic-utilities)
+    - [4.1.3 DRAM sonic-utilities](#413-dram-sonic-utilities)
+    - [4.1.4 VS tests](#414-vs-tests)
+    - [4.1.4.1 DASH VS tests](#4141-dash-vs-tests)
+    - [4.1.4.2 DRAM VS tests](#4142-dram-vs-tests)
   - [4.2 System Test cases](#42-system-test-cases)
   - [4.2.1 DASH System Test Cases](#421-dash-system-test-cases)
 - [5 Open Questions](#5-open-questions)
@@ -61,6 +63,7 @@
 | :---: | :---: | :----------------: | ------------------------------- |
 |  0.1  |       | Volodymyr Samotiy  | Initial version                 |
 |  0.2  |       | Oleksandr Ivantsiv | Add DASH resources and counters |
+|  0.3  |       | Yakiv Huryk        | Add DRAM monitoring             |
 
 # About this Manual
 This document provides general information about the Critical Resource Monitoring feature implementation in SONiC.
@@ -75,6 +78,8 @@ This document describes the high level design of the Critical Resource Monitorin
 | SAI                      | Switch Abstraction Interface       |
 | VNET                     | Virtual Network                    |
 | ENI                      | Elastic Network Interface          |
+| DRAM                     | Dynamic Random Access Memory       |
+
 # 1 Subsystem Requirements Overview
 ## 1.1 Functional requirements
 Detailed description of the Critical Resource Monitoring feature requirements is here: [CRM Requirements](https://github.com/sonic-net/SONiC/blob/gh-pages/doc/crm/CRM_requirements.md).
@@ -117,6 +122,8 @@ At a high level the following should be supported:
 	- IPV6 ACL Groups
 	- IPv4 ACL Rules
 	- IPv6 ACL Rules
+12. **DRAM:** query currently used and available DRAM in Kbytes
+
 ## 1.2 Monitoring process requirements
 Monitoring process should periodically poll SAI counters for all required resources, then it should  check whether retrieved values exceed defined thresholds and log appropriate SYSLOG message.
 
@@ -182,6 +189,7 @@ dash_ipv4_acl_group_threshold_type         = "percentage" / "used" / "free"    ;
 dash_ipv6_acl_group_threshold_type         = "percentage" / "used" / "free"    ; CRM threshold type for 'dash ipv4 acl group' resource
 dash_ipv4_acl_rule_threshold_type          = "percentage" / "used" / "free"    ; CRM threshold type for 'dash acl ipv4 rule' resource
 dash_ipv6_acl_rule_threshold_type          = "percentage" / "used" / "free"    ; CRM threshold type for 'dash acl ipv6 rule' resource
+dram_threshold_type                        = "percentage" / "used" / "free"    ; CRM threshold type for 'dram' resource
 ipv4_route_low_threshold                   = 1*4DIGIT                          ; CRM low threshold for 'ipv4 route' resource
 ipv6_route_low_threshold                   = 1*4DIGIT                          ; CRM low threshold for 'ipv6 route' resource
 ipv4_nexthop_low_threshold                 = 1*4DIGIT                          ; CRM low threshold for 'ipv4 next-hop' resource
@@ -210,6 +218,7 @@ dash_ipv4_acl_group_low_threshold          = 1*4DIGIT                          ;
 dash_ipv6_acl_group_low_threshold          = 1*4DIGIT                          ; CRM low threshold for 'dash ipv6 acl group' resource
 dash_ipv4_acl_rule_low_threshold           = 1*4DIGIT                          ; CRM low threshold for 'dash ipv4 acl rule' resource
 dash_ipv6_acl_rule_low_threshold           = 1*4DIGIT                          ; CRM low threshold for 'dash ipv6 acl rule' resource
+dram_low_threshold                         = 1*4DIGIT                          ; CRM low threshold for 'dram' resource
 ipv4_route_high_threshold                  = 1*4DIGIT                          ; CRM high threshold for 'ipv4 route' resource
 ipv6_route_high_threshold                  = 1*4DIGIT                          ; CRM high threshold for 'ipv6 route' resource
 ipv4_nexthop_high_threshold                = 1*4DIGIT                          ; CRM high threshold for 'ipv4 next-hop' resource
@@ -238,6 +247,7 @@ dash_ipv4_acl_group_high_threshold         = 1*4DIGIT                          ;
 dash_ipv6_acl_group_high_threshold         = 1*4DIGIT                          ; CRM high threshold for 'dash ipv6 acl group' resource
 dash_ipv4_acl_rule_high_threshold          = 1*4DIGIT                          ; CRM high threshold for 'dash ipv4 acl rule' resource
 dash_ipv6_acl_rule_high_threshold          = 1*4DIGIT                          ; CRM high threshold for 'dash ipv6 acl rule' resource
+dram_high_threshold                        = 1*4DIGIT                          ; CRM high threshold for 'dram' resource
 ```
 ## 2.2 Counters DB
 Two new tables should be added to the CountersDB in order to represent currently used and available entries for the CRM resources.
@@ -295,6 +305,8 @@ CRM_STATS_DASH_IPV4_ACL_GROUP_AVAILABLE          = 1*20DIGIT       ; number of a
 CRM_STATS_DASH_IPV4_ACL_GROUP_USED               = 1*20DIGIT       ; number of used entries for 'ipv4 acl group' resource
 CRM_STATS_DASH_IPV6_ACL_GROUP_AVAILABLE          = 1*20DIGIT       ; number of available entries for 'ipv6 acl group' resource
 CRM_STATS_DASH_IPV6_ACL_GROUP_USED               = 1*20DIGIT       ; number of used entries for 'ipv6 acl group' resource
+CRM_STATS_DRAM_USED                              = 1*20DIGIT       ; number of used Kbytes for 'dram' resource
+CRM_STATS_DRAM_AVAILABLE                         = 1*20DIGIT       ; number of available Kbytes for 'dram' resource
 ```
 ### 2.2.2 CRM_ACL_GROUP_STATS
 This table should store all "per ACL group" CRM stats .
@@ -384,6 +396,7 @@ Commands:
 * ```thresholds acl group [entry|counter] [low|high] <value>```
 * ```thresholds fdb type [percentage|used|count]```
 * ```thresholds fdb [low|high] <value>```
+* ```thresholds dram [low|high] <value>```
 
 #### 2.7.1.2 CRM utility show syntax
 * ```summary```
@@ -393,6 +406,7 @@ Commands:
 * ```[resources|thresholds] acl [table|group]```
 * ```[resources|thresholds] acl group [entry|counter]```
 * ```[resources|thresholds] fdb```
+* ```[resources|thresholds] dram```
 #### 2.7.1.3 CRM utility DASH syntax
 
 DASH CRM commands will be available for the user only if SONiC is running on the DPU.
@@ -531,10 +545,53 @@ container sonic-crm {
 ## 3.3 CRM CLI show
 ![](https://github.com/sonic-net/SONiC/blob/gh-pages/images/crm_hld/crm_cli_show_flow.png)
 
+## 3.4 CRM DRAM monitoring
+The DRAM resource is different than other CRM resources in the way its usage is monitored. SONiC doesn't explicitly increase the usage counter (via _CrmOrch->incCrmResUsedCounter()_ API). Instead, the resource information is queried directly from Linux via _/proc/meminfo_ file.
+
+The entries from _/proc/meminfo_ that are being used are the following:
+* MemTotal - represents the total amount of RAM available on the system. It's used to calculate the _usedCounter_ CRM value.
+* MemFree - the amount of free memory on the system. It's used to calculate the _availableCounter_ CRM value.
+* Hugetlb - represents the total amount of memory consumed by huge pages. SONiC may run an application that uses huge pages (e.g. DASH pipeline) which impacts the memory calculation. Since the memory reserved as huge pages cannot be used by SONiC, its size is excluded from the CRM DRAM.
+
+The formulas for the CRM DRAM:
+
+DRAM.availableCounter = MemFree
+
+DRAM.usedCounter = MemTotal - Hugetlb - MemFree
+
+
+Example:
+
+```
+MemTotal = 10485760 # 10G
+MemFree  = 2097152 # 2G
+Hugetlb  = 5242880 # 5G
+
+DRAM.availableCounter = 2097152 kB # 2G
+DRAM.usedCounter = 10485760 - 5242880 - 2097152 = 3145728 kB # 3G
+
+utilization% = (usedCounter * 100) / (availableCounter + usedCounter) = 60%
+
+```
+
+Note, that if we ignore the huge pages, the calculation ends up misleading:
+```
+MemTotal = 10485760 # 10G
+MemFree  = 2097152 # 2G
+Hugetlb  = 5242880 # ignored
+
+DRAM.availableCounter = 2097152 kB # 2G
+DRAM.usedCounter = 10485760 - 2097152 = 8388608 kB # 8G (!)
+
+utilization% = (usedCounter * 100) / (availableCounter + usedCounter) = 80% (!)
+
+```
+
+
 # 4 Testing Requirements/Design  
 
 ## 4.1 Unit Test cases
-### 4.1.2 sonic-utilities
+### 4.1.2 DASH sonic-utilities
 The existing unit tests should be extended to cover DASH resources. The same test cases should be reused.
 
 For each DASH resource:
@@ -544,8 +601,11 @@ For each DASH resource:
 4. Verify command "crm show thresholds dash <resource>"
 5. Verify command "crm show resources dash <resource>"
 
-### 4.1.3 VS tests
-### 4.1.3.1 DASH VS tests
+### 4.1.3 DRAM sonic-utilities
+The existing tests (test_crm.py) should be extended to cover DRAM resource in the same way as all the other CRM resources ("show/config thresholds" and "config thresholds")
+
+### 4.1.4 VS tests
+### 4.1.4.1 DASH VS tests
 The existing unit tests should be extended to cover DASH resources. The same test cases should be reused.
 
 For each DASH resource:
@@ -556,6 +616,9 @@ For each DASH resource:
 5. Remove DASH entries to fell above low threshold
 6. Verify that THRESHOLD_CLEAR message is written to syslog
 7. Verity that TH_USED counter from syslog message matches created entries
+
+### 4.1.4.2 DRAM VS tests
+The existing unit tests should be extended to cover DRAM resources in the same way as all the other CRM resources (STATS and THRESHOLD events)
 
 ## 4.2 System Test cases
 ## 4.2.1 DASH System Test Cases
