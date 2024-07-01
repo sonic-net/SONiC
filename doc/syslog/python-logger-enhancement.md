@@ -37,9 +37,10 @@ Note: `sonic_py_common.logger.Logger` is not in the feature scope because it is 
 
 `swsscommon.Logger` depends on a thread to listen to CONFIG DB LOGGER table change. It refreshes log level for each logger instances once the thread detects a DB entry change. A thread is considered heavy in a python script, especially that there are many short and simple python scripts which also use logger. To keep python logger light weight, it uses a different design than `swsscommon.Logger`:
 
-- A class level logger registry shall be added to `SysLogger`class
-- Each logger instance shall register itself to logger register if enables runtime configuration
-- Logger configuration shall be refreshed by CLI which send a SIGHUP signal to the daemon
+- `SysLogger` class shall be changed to a singleton.
+- `SysLogger` instance shall load log level configuration from DB during initialization stage if DB configuration is available.
+- `SysLogger` instance shall save log level configuration to DB during initialization stage if DB configuration is not available.
+- Logger configuration shall be refreshed by CLI which send a SIGHUP signal to the daemon.
 
 ![python-logger-enhancement](/doc/syslog/images/python_logger_enhancement.svg)
 
@@ -47,12 +48,11 @@ Note: `sonic_py_common.logger.Logger` is not in the feature scope because it is 
 
 #### SysLogger class change
 
-- A new class level variable `log_registry` shall be added to `SysLogger`class. The type is `dict`.
+- `SysLogger` class shall be changed to a singleton
 - A new argument `enable_runtime_config` shall be added to `SysLogger.__init__`. Default to False.
-- SysLogger instance shall register itself to `log_registry` if `enable_runtime_config` is True.
-- SysLogger instance shall read log level configuration from CONFIG DB if `enable_runtime_config` is True and DB entry is available.
-- SysLogger instance shall update its log level configuration to CONFIG DB if `enable_runtime_config` is True and DB entry is not available.
-- A new class level method `refresh_config` shall be added to `SysLogger` class. The method shall be called while receiving SIGHUP to update log configuration for each logger instance registered to `log_registry`.
+- `SysLogger` instance shall load log level configuration from DB during initialization stage if `enable_runtime_config` is True and DB config is available.
+- `SysLogger` instance shall save log level configuration to DB during initialization stage if `enable_runtime_config` is True and DB configuration is not available.
+- A new class level method `refresh_config` shall be added to `SysLogger` class. This method handles load or save log level configuration logic.
 
 SysLogger create flow:
 
@@ -61,11 +61,6 @@ SysLogger create flow:
 Refresh configuration flow:
 
 ![python-logger-refresh-config-flow](/doc/syslog/images/python_logger_refresh_config_flow.svg)
-
-#### Multi threading support
-
-- `SysLogger` shall use `threading.Lock` to protect `log_registry`
-- Multi-threading support is transparent to daemons who uses `SysLogger`
 
 ### SAI API
 
