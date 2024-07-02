@@ -216,7 +216,7 @@ zebra:
   - Provide an API for vrrpd to update kernel Macvlan device state.
   - Listen for kernel interface state change events and notify vrrpd.
 
-vrrpmgrd:
+macvlanmgrd:
   - Listens to VRRP create, delete and parameter change in CONFIG_DB. Complete the following tasks:
     - Add/del Linux Macvlan device to kernel. The Macvlan device name starting with 'Vrrp4-' or 'Vrrp6-'.
     - Config virtual MAC to Macvlan device;
@@ -227,7 +227,7 @@ vrrpmgrd:
 ##### SWSS container
 
 vrrpsyncd:
-  - Listens to MACVLAN interfaces that are added by vrrp, programming in kernel. Vrrpmgrd would add the MACVLAN interface in the kernel with interface name starting with 'vrrp'. Here the status of MACVLAN interface determines Master/Backup state of VRRP instances. VRRP_Table in APPL_DB will be programmed with interface name and VIP for Master instances.
+  - Listens to MACVLAN interfaces that are added by vrrp, programming in kernel. Macvlanmgrd would add the MACVLAN interface in the kernel with interface name starting with 'vrrp'. Here the status of MACVLAN interface determines Master/Backup state of VRRP instances. VRRP_Table in APPL_DB will be programmed with interface name and VIP for Master instances.
     - For every IP add to MACVLAN interface, adds interface name and Virtual IP in APPL_DB in VRRP_Table.
     - For every IP delete from MACVLAN interface, deletes interface name and Virtual IP in APPL_DB from VRRP_Table.
 
@@ -265,7 +265,7 @@ VRRP_TABLE
 
 Producer: config manager
 
-Consumer: vrrpmgrd
+Consumer: macvlanmgrd
 
 Description: New table that stores VRRP configuration for per interface + VRID.
 
@@ -458,7 +458,7 @@ admin@sonic:~$ redis-cli -n 1 hgetall "ASIC_STATE:SAI_OBJECT_TYPE_ROUTER_INTERFA
 
 ![VRRP ADD/DEL VRRP instance Flows](images/VRRP_Config_Instance_Flow.png)
 
-vrrpmgrd:
+macvlanmgrd:
   - Listens to VRRP create, delete and parameter change in CONFIG DB
   - Upon change
     - Add/del VRRP instance corresponding Macvlan device to kernel with IPs and state.
