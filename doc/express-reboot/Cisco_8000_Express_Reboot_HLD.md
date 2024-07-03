@@ -6,10 +6,10 @@
 The goal of Sonic express reboot is to be able to restart and upgrade SONiC software with sub-second data plane interruption. This is achieved by not initializing external phys, and only initializing NPU after receiving all configuration updates. Figure 1 below illustrates how V1 and V2 version of sonic/SDK/NPU interacts as express boot progresses.
 
 <p align=center>
-<img src="img/express-boot_flow.png" alt="Figure 1. Express boot flow">
+<img src="img/express-boot-flow.png" alt="Figure 1. Express boot flow">
 </p>
 
-To keep express boot stateless, which is one of the cornerstone of express boot design, it is best to avoid punt-header-v1 reaching SDK-v2. This is why express boot design calls for disabling punt-inject from t1 to t3.
+It can be seen from Figure 1, it is possible that punt-header-v1 reachs SONIC-v2 or inject-header-v2 reachs NPU-v1 during t1 to t2 window. The punt and inject header changes are rare and not commom. Currently punt and inject header data structure differences between V1 and V2 are handled case by case basis in S1 SDK internally. A more generic and scalable approach for it is being planned and will be shared with the community as an express boot phase-2 once it is finalized.
 
 Figure 2 below compares major steps taken in warm boot and express boot from both SONiC and SDK point of view. 
 
