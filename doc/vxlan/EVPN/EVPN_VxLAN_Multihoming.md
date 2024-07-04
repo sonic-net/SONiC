@@ -123,7 +123,7 @@ The ICCPd based MCLAG continue to co-exist as an alternate solution.
 <a id="11-Requirements"></a>
 ## 1.1 Requirements
 
-<a id="11-Requirements"></a>
+<a id="111-Functional-Requirements"></a>
 ### 1.1.1 Functional Requirements
 The following are functional requirements for EVPN VxLAN Multihoming:
 
