@@ -525,7 +525,7 @@ summary                 = STRING                         ; summary status for th
 ```
 We store items to db only if it is abnormal. Here is an example:
 ```
-admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
+admin@sonic:~$ redis-cli -n 13 hgetall SYSTEM_HEALTH_INFO
 1) "lldp:lldpmgrd"
 2) "Process 'lldpmgrd' in container 'lldp' is not running"
 3) "summary"
@@ -533,7 +533,7 @@ admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
 ```
 If the system status is good, the data in redis is like:
 ```
-admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
+admin@sonic:~$ redis-cli -n 13 hgetall SYSTEM_HEALTH_INFO
  1) "summary"
  2) "OK"
 ```
@@ -570,17 +570,7 @@ get_state_info(self):
 ```
 
 #### DPU_HEALTH Use Case
-* The major consumer of this data could be CLIs, fault management, debug, error recovery 
-
-get_health_info(self):
-```
-    Retrieves the dpu health object having the detailed dpu health Fetched from the DPUs
-
-    Returns:
-        An object instance of the dpu health as shown in the schema
-        Returns None when the module is SWITCH
-
-```
+* The major consumer of this data could be CLIs, fault management, debug, error recovery.  There is no platform API for this.
 
 ### 3.2 Thermal management
 * Platform  initializes all sensors
@@ -620,8 +610,8 @@ A typical modular chassis includes a midplane-interface to interconnect the Supe
 * By default smartswitch midplane IP address assignment will be done using internal DHCP.
 * Please refer to the [ip-address-assignment document](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/ip-address-assigment/smart-switch-ip-address-assignment.md) for IP address assignment between the switch host and the DPUs.
 * The second option is the static IP address assignment.
-* A midplane state change handler will be implemented to monitor PCIe link state change events and DPU control-plane and data-plane state transitions mainly for HA.
-* There will be a separate hld for the midplane state change handler.
+* A DPU state change handler will be implemented to monitor PCIe link state change events, DPU control-plane and data-plane state transitions mainly for HA.
+* There will be a separate hld for the DPU state change handler.
 
 ### 3.4 Debug & RMA
 CLI Extensions and Additions
@@ -694,7 +684,7 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 
 #### 3.4.1 Reboot Cause CLIs
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
-* Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The DPUs will limit the number of history entries to a maximum of ten. The recent reboot-cause can be derived from that list of reboot-causes. Platforms which are not capable of populating the ChasissStateDB can use the "get_reboot_cause" API to fetch the data from the DPUs. The trigger to activate the API will eventually come from the midplane state change handler.
+* Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The DPUs will limit the number of history entries to a maximum of ten. The recent reboot-cause can be derived from that list of reboot-causes. Platforms which are not capable of populating the ChasissStateDB can use the "get_reboot_cause" API to fetch the data from the DPUs. The trigger to activate the API will eventually come from the DPU state change handler.
 
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause
