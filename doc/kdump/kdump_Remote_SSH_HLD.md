@@ -46,9 +46,9 @@
 
 Rev   |   Date   |  Author   | Change Description
 :---: | :-----:  | :------:  | :---------
-0.1   | 06/05/2024 | Ghulam Bahoo, Bilal Ismail | Initial version
+0.1   | 06/05/2024 | Ghulam Bahoo | Initial version
 ## Overview
-This document outlines the configuration and usage of the kdump remote feature with SSH for the SONiC.
+This document outlines the configuration and usage of the kdump remote feature with ssh for the SONiC.
 
 ## Scope
 
@@ -65,7 +65,7 @@ This document describes how to configure remote kdump feature in SONiC infrastru
 | NFS          | Network File System    |
 
 ## Introduction
-Kdump, a built-in Linux kernel feature, generates and stores a crash dump file in the event of a kernel panic. Currently SONiC lacks the functionality of storing dump files on a remote server. It offloads the storage from switch by saving the crasg reports to a separate designated server for offline analysis. This feature extends existing kdump feature by enabling remote dumps via SSH protocol, allowing you to transmit kernel crash data to a designated remote server.
+Kdump, a built-in Linux kernel feature, generates and stores a crash dump file in the event of a kernel panic. Currently SONiC lacks the functionality of storing dump files on a remote server. It offloads the storage from switch by saving the crash reports to a separate designated server for offline analysis. This feature extends existing kdump feature by enabling remote dumps via ssh protocol, allowing you to transfer kernel crash data to a designated remote server.
 
 ## Requirements Overview  <a name="requirements-overview"></a>
 
@@ -73,14 +73,13 @@ Kdump, a built-in Linux kernel feature, generates and stores a crash dump file i
 This section describes the SONiC requirements for kdump remote feature.
 
 At a high level the following should be supported:
-1. The kernel core dump files must be stored on the a remote SSH server for offline analysis.
+1. The kernel core dump files must be stored on the a remote ssh server.
 ### Configuration and Management Requirements
 
-- CLI support for configuring remote kdump feature enable/disable via SSH.
-- CLI support for configuring username and hostname of SSH server (username@server_address).
-- CLI support for configuring SSH private key path for SSH server (SSH_private_Key_Path).
-- CLI support for displaying SSH crededentials of SSH server.
-- CLI support for displaying SSH private key path for SSH server (SSH_private_Key_Path).
+- CLI support for configuring remote kdump feature enable/disable via ssh.
+- CLI support for configuring username and hostname of ssh server (username@server_address).
+- CLI support for configuring SSH private key path for ssh server (SSH_private_Key_Path).
+- CLI support for displaying crededentials of ssh server.
 - CLI support for displaying state of kdump remote feature (enable/disable).
 ### SSH Key Generation Requirement
 The system should authenticate with the remote server using SSH keys for secure access. 
@@ -117,13 +116,11 @@ We are suggesting modifying the exisitng SONiC configuration as following sonic-
 
     - Required for kdump_remote_ssh_dump: Initialize network interfaces and enable DHCP upon kernel crash. 
 
-2. files/build_templates/sonic-debian-extension.j2(Edit)
-
-    - Edit the kdump-tools package script to call a custom one, which shall enable ethernet interfaces in the crash kernel environment.
-3. files/scripts/network-interface-state-init.sh (Addition)
+2. files/scripts/network_setup.sh (New Addition)
     - A script to initialize the network interfaces and enable DHCP on them.
+3. files/script/network_setup.hook (New Addition)
 
-## Configuration and management
+## Configuration and Management
 This section describes all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below.
 
 
@@ -153,9 +150,17 @@ No SAI API change or addition is needed for this HLD.
 New SONiC CLI commands are introduced to configure remote kdump feature.
 
 ```
-admin@sonic: sudo config kdump remote ssh -c <username@server_address> -p <path_to_ssh_private_key>
+admin@sonic: sudo config kdump remote enable 
 ```
-This commans will configure remote kdumo feature in SONiC. -c is the flag for connection string and -p is the flag for path to ssh_private_key
+This commans will configure remote kdump feature in SONiC.
+
+```
+admin@sonic: sudo config kdump remote ssh_connection_string
+```
+
+```
+admin@sonic: sudo config kdump remote ssh_private_key_path
+```
 
 ```
 admin@sonic: sudo config kdump remote disable
@@ -175,6 +180,7 @@ Kdump administrative mode: Enabled
 Kdump operational mode: Ready
 Kdump memory reservation: 512
 Maximum number of Kdump files: 3
+remote: true
 Kdump remote server user@ip/hostname: ghulam@172.16.7.13
 Kdump private key file path for remote ssh connection: /home/admin/.ssh/id_rsa
 ```
