@@ -100,20 +100,11 @@ config syslog level -c xcvrd -l DEBUG --service pmon --pid 20
 # Update the log level and send SIGHUP to PID 20 running in host
 config syslog level -c xcvrd -l DEBUG --pid 20
 
-# Send SIGHUP to xcvrd running in PMON without update log level
-config syslog level --service pmon --program xcvrd
-
-# Send SIGHUP to PID 20 running in PMON without update log level
-config syslog level --service pmon --pid 20
-
-# Send SIGHUP to PID 20 running in host without update log level
-config syslog level --pid 20
-
 # Invalid, --program must be used together with --service
-config syslog level --program xcvrd
+config syslog level -c xcvrd -l DEBUG --program xcvrd
 
 # Invalid, --service must be used together with --pid or --program
-config syslog level --service xcvrd
+config syslog level -c xcvrd -l DEBUG --service xcvrd
 ```
 
 #### Config DB Enhancements
