@@ -87,7 +87,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     "vni": {{vni1},{vni2},...} (OPTIONAL) 
     "weight": {{w1},{w2},...} (OPTIONAL) 
     “profile”: {{profile_name}} (OPTIONAL) 
-{% raw %} # ignore this line please
+{% endraw %} # ignore this line please
 ```
 
 Proposed changes
@@ -102,7 +102,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     “profile”: {{profile_name}} (OPTIONAL) 
     "rx_monitor_timer": {time in milliseconds}
     "tx_monitor_timer": {time in milliseconds}
-{% raw %} # ignore this line please
+{% endraw %} # ignore this line please
 ```
 
 ## 2.2 SmartSwitch NPU-DPU BFD sessions
