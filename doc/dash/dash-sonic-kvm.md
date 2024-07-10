@@ -129,7 +129,7 @@ ssh -i ~/.ssh/id_rsa_docker_sonic_mgmt zegan@172.17.0.2
 cd /data/sonic-mgmt/tests
 
 # Run testcases
-./run_tests.sh -u -n vms-kvm-dpu -d vlab-01 -m individual -e --skip_sanity -e --disable_loganalyzer  -c dash/test_dash_vnet.py -f vtestbed.yaml -i ../ansible/veos_vtb -e "--skip_dataplane_checking"
+./run_tests.sh -u -n vms-kvm-dpu -d vlab-01 -m individual -e --skip_sanity -e --disable_loganalyzer  -c dash/test_dash_vnet.py -f vtestbed.yaml -i ../ansible/veos_vtb -e --skip_dataplane_checking -e --skip_cert_cleanup
 ```
 
 ## 5.1.2 Connect to the DPU
