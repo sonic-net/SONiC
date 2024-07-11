@@ -51,7 +51,7 @@
 
 ## Revision
 
-Revision 1.1
+Revision 1.2
 
 ## Scope
 
@@ -69,13 +69,13 @@ The scope of this document is to outline the High-Level Design (HLD) for the *Sc
 
 ## Overview
 
-The *Scheduled Configurations* feature will allow administrators to schedule specific network configurations to be applied and later removed at predefined times without manual intervention. This capability is particularly useful for network scenarios where policies need to change dynamically at certain times of the day or week, such as different ACL rules that should be active only during business hours. The scheduled configuration feature easily integrates within the existing infrastructure of SONiC by following established practices and utilizing widely adopted tools like `cron`. `cron` is a time-based job scheduler in Unix-like operating systems, used to automate the execution of scripts and commands at specified times. This approach not only minimizes the learning curve associated with the adoption of new features but also leverages the proven reliability and efficiency of an open-source utility.
+The *Scheduled Configurations* feature will allow administrators to schedule specific network configurations to be applied and later removed or reconfigured at predefined times without manual intervention. This capability is particularly useful for network scenarios where policies need to change dynamically at certain times of the day or week, such as different ACL rules that should be active only during business hours. The scheduled configuration feature easily integrates within the existing infrastructure of SONiC by following established practices and utilizing widely adopted tools like `cron`. `cron` is a time-based job scheduler in Unix-like operating systems, used to automate the execution of scripts and commands at specified times. This approach not only minimizes the learning curve associated with the adoption of new features but also leverages the proven reliability and efficiency of an open-source utility.
 
 ## Requirements
 
 ### Design Requirements
 
-- **Configurability**: Administrators must be able to define time ranges for configuration activation and deactivation.
+- **Configurability**: Administrators must be able to define time ranges for configuration activation and deactivation as well as the ability to configure new configurations at deactivation.
 - **Extensibility**: The design should be flexible to support various configuration types like ACL, QoS, port shutdown, etc...
 
 ### Functional Requirements
@@ -85,7 +85,7 @@ The *Scheduled Configurations* feature will allow administrators to schedule spe
 
 ## Architecture Design
 
-In practice, the administrator will configure both a time range (a start and end time) and at least one scheduled configuration bound to that time range. When the beginning of the time range is reached, the system automatically activates the associated configurations. These configurations remain active until the end of the time range, at which point they are automatically deactivated.
+In practice, the administrator will configure both a time range (a start and end time) and at least one scheduled configuration bound to that time range. When the beginning of the time range is reached, the system automatically activates the associated configurations. These configurations remain active until the end of the time range, at which point they are automatically deactivated. When deactivated, the configuration may either be deleted, or replaced with with another configuration. 
 
 For example, an administrator may create a time range to run every weekday from 8 AM to 5 PM. Then the administrator will create a configuration to apply an ACL in order to block (or allow) specific IP addresses and bind it to the time range. This ACL will be applied at the beginning of the time range (8 AM) and removed at the end of the time range (5 PM).
 
@@ -114,7 +114,7 @@ The Scheduled Configurations feature enhances the existing SONiC architecture by
 
 ### Subscription APPL_DB
 
-In order to fully integrate with the new scheduled configurations feature, all switch components desiring to utilize this functionality must subscribe to the `APPL_DB`. The table schema will be the same as the schema used in `CONFIG_DB` to apply new configurations, all that is needed is to add the new subscription to the orchagent subcomponents. This is done in order to distinguish between administrator configurations, and configurations applied due to an application (ie. *Scheduled Configurations*).
+In order to fully integrate with the new scheduled configurations feature, all switch components desiring to utilize this functionality must subscribe to the `APPL_DB`. The table schema will be the same as the schema used in `CONFIG_DB` to apply new configurations, all that is needed is to add the new subscription to the orchagent subcomponents and config managers. This is done in order to distinguish between administrator configurations, and configurations applied due to an application (ie. *Scheduled Configurations*).
 
 The following diagram shows the connections between the different components:
 
@@ -137,7 +137,7 @@ The following diagrams illustrate the interactions between the databases and app
 
 1. Apply scheduled configurations to the `SCHEDULED_CONFIGURATIONS` table in `CONFIG_DB`
 2. Changes to `SCHEDULED_CONFIGURATIONS` will cause a subscription notification to `scheduledconfigmgrd`
-3. If the time range this configuration is already active, it will publish this new configuration to the `APPL_DB`
+3. If the time range this configuration is already active, it will publish this new configuration to the `APPL_DB`, if inactive but the scheduled configuration has a deactivation configuration, then publish this configuration instead.
 4. `scheduledconfigmgrd` saves the configuration internally
 
 #### Delete
@@ -149,7 +149,7 @@ The following diagrams illustrate the interactions between the databases and app
 3. `timerangemgrd` deletes the crontab files associated with this time range
 4. `timerangemgrd` deletes the time range entry from the `TIME_RANGE_STATUS_TABLE` table found in the `STATE_DB`
 5. A subscription notification is sent to `scheduledconfigmgrd` the op *delete*
-6. `scheduledconfigmgrd` checks if the time range is active, if yes then it will deactivate the configurations bound to this time range by deleting the configurations from the `APPL_DB`
+6. `scheduledconfigmgrd` checks if the time range is active, if yes then it will deactivate the configurations bound to this time range by deleting the configurations from the `APPL_DB`, if the scheduled configuration has a deactivation configuration, then instead of deletion, replace it with the deactivation configuration
 7. Finally, `scheduledconfigmgrd` deletes the time range internally, and the scheduled configurations will be unbound
 
 ![scheduled configuration flow -- delete](images/scheduled-configuration-flow-del.png)
@@ -168,7 +168,7 @@ The following diagrams illustrate the interactions between the databases and app
 3. `scheduledconfigmgrd` applies all the configurations bound to the time range by publishing to the `APPL_DB`
 4. During the scheduled deactivation time, `cron` updates the **status** field in the `TIME_RANGE_STATUS_TABLE` found in the `STATE_DB` to *inactive*
 5. A subscription notification is sent to `scheduledconfigmgrd`
-6. `scheduledconfigmgrd` deletes all the configurations bound to the time range by publishing to the `APPL_DB`
+6. `scheduledconfigmgrd` will go over each configuration bound to the time range, and either delete it from `APPL_DB`, or set a new *deactivation configuration*
 
 ## High-Level Design
 
@@ -278,6 +278,9 @@ status-str     = "active"/"inactive"      ; String representing the current stat
             "time_range": "<TIME_RANGE_NAME>",
             "configuration": {
                 // type-specific configuration goes here
+            },
+            "deactivation_configuration": {
+                // Optional configuration to be set instead of deleting
             }
         }
     }
@@ -287,6 +290,7 @@ status-str     = "active"/"inactive"      ; String representing the current stat
 - `<CONFIG_NAME>`: A unique identifier for the scheduled configuration.
 - `<TIME_RANGE_NAME>`: The reference to the time interval defined in the `TIME_RANGE` table.
 - `configuration`: The actual configuration data to be applied during the specified time range.
+- `deactivation_configuration`: An optional configuration to be set when bound time range is deactived. This configuration will be set instead of removing the previous configuration.
 
 ##### Example
 
@@ -420,8 +424,16 @@ module sonic-scheduled-configurations {
                 }
 
                 leaf configuration {
+                    mandatory true;
                     type string;
                     description "Configuration to be applied to APPL_DB in JSON format";
+                }
+
+                lef deactivation_configurations {
+
+                    type string;
+                    description "An optional configuration to be applied instead of removing the configuration";
+
                 }
             } /* end of list SCHEDULED_CONFIGURATIONS_LIST */
             
@@ -501,6 +513,16 @@ Configuration:
             "policy_desc": "Night Time Access Control",
             "type": "L3",
             "ports": ["Ethernet0", "Ethernet4"]
+        }
+    }
+}
+Deactivation Configuration:
+{
+    "ACL_TABLE_TABLE": {
+        "ACL_TABLE_NAME": {
+            "policy_desc": "Daytime Access Control",
+            "type": "L3",
+            "ports": ["Ethernet0"]
         }
     }
 }
