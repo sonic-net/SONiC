@@ -49,7 +49,7 @@ Note: `sonic_py_common.logger.Logger` is not in the feature scope because it is 
 #### SysLogger class change
 
 - `SysLogger` class shall be changed to a singleton
-- A new argument `enable_runtime_config` shall be added to `SysLogger.__init__`. Default to False.
+- A new argument `enable_runtime_config` shall be added to `SysLogger.__init__`. Default to False. Daemons who want to enable runtime log configuration can set it to True.
 - `SysLogger` instance shall load log level configuration from DB during initialization stage if `enable_runtime_config` is True and DB config is available.
 - `SysLogger` instance shall save log level configuration to DB during initialization stage if `enable_runtime_config` is True and DB configuration is not available.
 - A new class level method `update_log_level` shall be added to `SysLogger` class. This method handles load or save log level configuration logic.
