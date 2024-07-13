@@ -708,9 +708,23 @@ Name                    Cause                       Time                        
 * The "show reboot-cause history" CLI on the switch shows the history of the Switch and all DPUs
 * The "show reboot-cause history module-name" CLI on the switch shows the history of the specified module
 
-"show reboot-cause history"      <font>**`Executed on the switch`**</font>
 ```
 root@sonic:~#show reboot-cause
+
+Name                    Cause                       Time                                User    Comment
+
+2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
+
+
+root@sonic:~#show reboot-cause history
+
+Name                    Cause                       Time                                User    Comment
+
+2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
+2023_10_05_18_23_46     reboot                      Wed 05 Oct 2023 06:23:46 PM UTC     user    N/A
+
+
+root@sonic:~#show reboot-cause all
 
 Device          Name                    Cause                       Time                                User    Comment
 
@@ -718,7 +732,8 @@ switch          2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oc
 DPU3            2023_10_03_18_23_46     Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
 DPU2            2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
 
-root@sonic:~#show reboot-cause history
+
+root@sonic:~#show reboot-cause history all
 
 Device          Name                    Cause                       Time                                User    Comment
 
