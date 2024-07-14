@@ -54,7 +54,7 @@ in the common config feature.
 |-- x86_64-broadcom_b27 -- broadcom-sonic-td3.config.bcm
 |-- x86_64-broadcom_b37 -- broadcom-sonic-td3.config.bcm
 |-- x86_64-broadcom_b77 -- broadcom-sonic-td3.config.bcm
-|-- x86_64-broadcom_b78 -- broadcom-sonic-td4.config.bcm
+|-- x86_64-broadcom_b78 -- broadcom-sonic-td3.config.bcm
 |-- x86_64-broadcom_b85 -- broadcom-sonic-td2.config.bcm
 |-- x86_64-broadcom_b87 -- broadcom-sonic-td4.config.bcm
 |-- x86_64-broadcom_b88 -- broadcom-sonic-td4.config.bcm
@@ -62,7 +62,7 @@ in the common config feature.
 |-- x86_64-broadcom_b97-- broadcom-sonic-th2.config.bcm
 |-- x86_64-broadcom_b98-- broadcom-sonic-th3.config.bcm
 |-- x86_64-broadcom_b99-- broadcom-sonic-th4.config.bcm
-|-- x86_64-broadcom_b90-- broadcom-sonic-th5.config.bcm
+|-- x86_64-broadcom_f90-- broadcom-sonic-th5.config.bcm
 ```
 ## 3 Design Detail
 The main change of the design is in the SYNCD docker syncd/scripts/syncd_init_common.sh script along with common config being created in the device/broadcom/x86_64-broadcom_common/ folder. The design standardize the common file name as broadcom-sonic-{$chip_id}.config.bcm . Also, in the SYNCD docker-syncd-brcm.mk, we extern the common config directory path /usr/share/sonic/device/x86_64-broadcom_common from host to docker for script reference.
