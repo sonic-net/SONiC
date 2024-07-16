@@ -79,6 +79,7 @@ Existing VNET_ROUTE_TUNNEL_TABLE is updated to include BFD Rx and Tx timers. Ove
 
 Existing
 ```
+{% raw %} # ignore this line please
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}  
     "endpoint": {{ip_address1},{ip_address2},...} 
     "endpoint_monitor": {{ip_address1},{ip_address2},...} (OPTIONAL) 
@@ -86,10 +87,12 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     "vni": {{vni1},{vni2},...} (OPTIONAL) 
     "weight": {{w1},{w2},...} (OPTIONAL) 
     “profile”: {{profile_name}} (OPTIONAL) 
+{% endraw %} # ignore this line please
 ```
 
 Proposed changes
 ```
+{% raw %} # ignore this line please
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}  
     "endpoint": {{ip_address1},{ip_address2},...} 
     "endpoint_monitor": {{ip_address1},{ip_address2},...} (OPTIONAL) 
@@ -99,6 +102,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     “profile”: {{profile_name}} (OPTIONAL) 
     "rx_monitor_timer": {time in milliseconds}
     "tx_monitor_timer": {time in milliseconds}
+{% endraw %} # ignore this line please
 ```
 
 ## 2.2 SmartSwitch NPU-DPU BFD sessions
