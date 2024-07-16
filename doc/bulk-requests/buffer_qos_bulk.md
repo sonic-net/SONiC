@@ -49,7 +49,7 @@ As part of the performance optimization during config push, QoS and Buffer confi
 
 SWSS uses bufferorch and qosorch to handle Qos/Buffer requests in APPL/CONFIG DB. Currently, qosorch handles qos maps and their application on ports, wred profiles/schedulers and their applications on queues/priority groups/scheduler groups, bufferorch handles buffer pools, profiles and their application on buffer queues/priority groups or ports.  
 
-For some configurations, Qos/BufferOrchs can iterate through queues, priority groups, scheduler groups and ports at magnitudes of 10 or 100, calling the same SAI API. As experiments using the SAI bulk API on Broadcom show, bulking these SAI calls can potentially reduce 67% of SAI calls times.
+For some configurations, Qos/BufferOrchs can iterate through queues, priority groups, scheduler groups and ports at magnitudes of 10 or 100, calling the same SAI API. As experiments using the SAI bulk API on Broadcom show, bulking these SAI calls can potentially reduce 67% time duration compared to individual SAI calls. For example, in our experiments, processing 1362 individual API `sai_queue_api->set_queue_attribute()` takes ~470ms whereas 1 bulk API `sai_queue_api->set_queues_attribute()` takes only ~160ms. 
 
 To enabling the SAI bulk API for qos/buffer requests in SWSS, it has requirements and restrictions:
 
