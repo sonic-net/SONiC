@@ -9,11 +9,15 @@
 * [Overview](#overview)
 * [Requirements](#requirements)
 * [High-Level Design](#high-level-design)
+  + [Preparation](#preparation)
+    + [Define bulk API in bulker.h](#define-bulk-api-in-bulkerh)
+    + [Enable bulk API](#enable-bulk-api)
+  + [Execution](#execution)
   + [BufferOrch](#bufferorch)
   + [QosOrch](#qosorch)
-      + [Scheduler Bulk Request Handler](#scheduler-bulk-request-handler)
-      + [Port QoS Map Bulk Request Handler](#port-qos-map-bulk-request-handler)
-      + [Queue Bulk Request Handler](#queue-bulk-request-handler)
+    + [Scheduler Bulk Request Handler](#scheduler-bulk-request-handler)
+    + [Port QoS Map Bulk Request Handler](#port-qos-map-bulk-request-handler)
+    + [Queue Bulk Request Handler](#queue-bulk-request-handler)
 * [SAI API](#sai-api)
 * [Configuration and management](#configuration-and-management)
 * [Config DB Enhancements](#config-db-enhancements)
@@ -55,35 +59,89 @@ To enabling the SAI bulk API for qos/buffer requests in SWSS, it has requirement
 * Backward compatibility is needed to give option to fall back to individual SAI calls for SONiC community adaption.
 * Buffer/Qos requests allow retries.
 
-### High-Level Design 
+### High-Level Design
 
-To enable the bulk processing of Buffer and QoS requests, a knob in CONFIG DB or a flag upon starting swss in orchagent.sh can be utilized. This approach ensures backward compatibility, thus avoiding disruptive changes across various platforms and hardware.
+#### Preparation
+##### Define bulk API in bulker.h
+Below SAI bulk APIs are required. 
+```
+sai_port_api->set_ports_attribute() - (API is available)
+sai_port_api->get_ports_attribute() - (API is available)
+sai_queue_api->set_queues_attribute() - (API is WIP)
+sai_scheduler_group_api->set_scheduler_groups_attribute() - (API is WIP)
+sai_scheduler_group_api->get_scheduler_groups_attribute() - (API is WIP)
+sai_scheduler_api->create_schedulers() - (API is WIP)
+sai_scheduler_api->set_schedulers_attribute() - (API is WIP)
+sai_scheduler_api->remove_schedulers() - (API is WIP)
+```
+The wrapped EntityBulker will be defined in the `builker.h`
+```
+template <>
+inline EntityBulker<sai_queue_api>::EntityBulker(sai_queue_api *api, size_t max_bulk_size) :
+    max_bulk_size(max_bulk_size)
+{
+    set_entries_attribute = api->set_queues_attribute;
+}
+
+
+template <>
+inline EntityBulker<sai_scheduler_group_api>::EntityBulker(sai_scheduler_group_api *api, size_t max_bulk_size) :
+    max_bulk_size(max_bulk_size)
+{
+    set_entries_attribute = api->set_scheduler_groups_attribute;
+    get_entries_attribute = api->get_scheduler_groups_attribute;
+}
+
+template <>
+inline EntityBulker<sai_scheduler_api>::EntityBulker(sai_scheduler_api *api, size_t max_bulk_size) :
+    max_bulk_size(max_bulk_size)
+{
+    set_entries_attribute = api->set_schedulers_attribute;
+    create_entries = api->create_schedulers;
+    remove_entries = api->remove_schedulers;
+}
+
+template <>
+inline EntityBulker<sai_port_api>::EntityBulker(sai_port_api *api, size_t max_bulk_size) :
+    max_bulk_size(max_bulk_size)
+{
+    set_entries_attribute = api->set_ports_attribute;
+    get_entries_entries = api->get_ports_attribute;
+}
+```
+
+##### Enable bulk API
+To enable the bulk processing of Buffer and QoS requests, a knob in `rules/config` can be defined. It will be passed as an environment parameter in docker-orchagent Dockerfile and be used as parameter upon starting swss in orchagent.sh. QosOrch/BufferOrch will be initialized with EntityBulker APIs defined in builker.h. When bulk API is enabled, queuing SAI requests in EntityBulker(e.g.`gQueueBuilker`), otherwise execute individual SAI request.This approach ensures backward compatibility, thus avoiding disruptive changes across various platforms and hardware.
 
 ```
-# CONFIG DB knob
-BULK_API_FEATURE:
-  BUFFER_QUEUE:enabled
-  SCHEDULER:enabled
-  PORT_QOS_MAP:enabled
-  QUEUE:enabled
+# rules/config
+# BULK_API_QOS - flag to enable/disable SAI bulk API in qosorch
+BULK_API_QOS = y
+# BULK_API_BUFFER - flag to enable/disable SAI bulk API in bufferorch
+BULK_API_BUFFER = y
 ```
+
 
 The bulk handlers aggregate SAI requests calling the same API. During `doTask()` execution, multiple requests are grouped together in `consumer.m_toSync`.  for the same APPL/CONFIG DB table.
 
+#### Execution
+
 The processing of aggregated APPL/CONFIG DB requests involves several stages:
 
-* Prerequisites Checks:
+![Bulk QoS/Buffer Requests Diagram](./Bulk%20QoS_Buffer%20Requests.png)
+
+* **Prerequisites Checks**:
     * Iterate through each request and verify prerequisites, such as dependency object creation and port readiness.
     * Record need_retry or failure task status if a prerequisite is not met.
     * Otherwise, prepare the cache required for post-SAI call processing and organize SAI attribute lists based on SAI object and operation type, including `remove_<object>s`, `set_<object>s_attribute`, and `create_<object>s`.
-* Bulk SAI Call Execution:
+* **Bulk SAI Call Execution**:
     * `m_toSync` is a multimap where the same entry key can have one or two entries (SET or DEL only) or (DEL then SET)[[code](https://github.com/sonic-net/sonic-swss/blob/master/orchagent/orch.cpp#L63-L144)]. DEL requests' SAI attribute lists (typically `remove_<object>s`) are processed before SET requests (`create_<object>s` or `set_<object>s_attributes`) to maintain logical order.
     * SAI bulk operations are processed in `SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR` mode, as requests are orthogonal, and retries are permitted for Buffer/QoS requests.
     * SAI call statuses are mapped to task status lists. If an APPL/CONFIG DB request has multiple SAI call requests, the first failure task status is recorded to maintain consistency with non-bulking request handlers.
-* Cache Management and Post SAI Call Process:
+* **Cache Management and Post SAI Call Process**:
     * Update the software cache state based on bulk SAI calls responses.
     * Process other orchagent callback requests (e.g., Pfc watchdog state) and return a list of task statuses.
-* Handle Task Statuses:
+* **Handle Task Statuses**:
     * For requests requiring retries, queue them in a temporary `m_bulkRetryEntries`, clear `consumer.m_toSync`, and add the retry entries back to m_toSync.
     * Otherwise, write task status to APPL STATE DB and publish notifications.
 
