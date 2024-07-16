@@ -52,7 +52,7 @@ P.S: The diagram above is intended as a high-level overview of the components th
 #### Goals
 
 - Handle all SAI programming errors gracefully without causing orchagent to crash or restart
-- Detect missed notifications from APP_DB to orchagent in SONiC systems that use redis-based communication channels
+- Detect missed notifications from APP_DB to orchagent in SONiC
 - Detect out-of-sync entries between APP_DB and ASIC_DB
 
 #### Non-Goals
@@ -85,7 +85,7 @@ This HLD discusses three potential ways in which orchagent behavior today can be
 
 3. Detect out-of-sync entries between APP_DB and ASIC_DB
 
-    This is a situation that is similar to the one discussed above, but slightly different in the sense that these notifications are not missed by Orchagent. These notifications have been processed by orchagent but have not been synced to ASIC-DB due to either failed dependency checks or other conflicts resulting in retries. In this case the entries are part of m_toSync data structure until they are successfully added to ASIC_DB. A good example for such a situation is where a route addition fails when the nexthop neighbor is not resolved. This will trigger a set of retries in orchagent with the expectation that it will eventually succeed, however in many cases the situation may not resolve itself and will need an intervention. Such situations are easily overlooked when trying to narrow down the root cause for a traffic loss scenario in a complex network deployment. While route_check.py script does help to identify such routes which are out of sync between APP_DB and ASIC_DB, a more generic object-agnostic way of determining entries that are out of sync between APP_DB and ASIC_DB at any given time is needed. Our proposal is to either leverage the script used in #1 to also determine such pending entries in a periodic manner using monit or otherwise extend the main loop of orchagent to check for pending entries after each iteration, i.e after executing doTask() methods for all the orchs in m_orchList once.
+    This is a situation that is similar to the one discussed above, but slightly different in the sense that these notifications are not missed by Orchagent. These notifications have been processed by orchagent but have not been synced to ASIC-DB due to either failed dependency checks or other conflicts resulting in retries. In this case the entries are part of m_toSync data structure until they are successfully added to ASIC_DB. A good example for such a situation is where a route addition fails when the nexthop neighbor is not resolved. This will trigger a set of retries in orchagent with the expectation that it will eventually succeed, however in many cases the situation may not resolve itself and will need an intervention. Such situations are easily overlooked when trying to narrow down the root cause for a traffic loss scenario in a complex network deployment. While route_check.py script does help to identify such routes which are out of sync between APP_DB and ASIC_DB, a more generic object-agnostic way of determining entries that are out of sync between APP_DB and ASIC_DB at any given time is needed. Our proposal is to leverage the script used in #2 to also determine such out-of-sync entries in a periodic manner using monit.
 
 ## Orchagent changes
 
@@ -110,7 +110,7 @@ It is to be noted that some combinations in the table above are not valid scenar
 
 ### 2. Detect missed notifications from APP_DB to orchagent
 
-A new python script will be introduced whose job is to verify that there are no notifications from APP_DB that are yet to be seen or consumed by orchagent over a specified period of time. The initial plan is to introduce this monitoring and mitgation only for certain dynamic APP_DB tables that undergo a lot of churn like LAG_MEMBER_TABLE, LAG_TABLE, NEIGH_TABLE, ROUTE_TABLE, INTF_TABLE and MUX_CABLE_TABLE.
+A new python script will be introduced whose job is to verify that there are no notifications from APP_DB that are yet to be seen or consumed by orchagent over a specified period of time. The initial plan is to introduce this monitoring only for certain dynamic APP_DB tables that undergo a lot of churn like LAG_MEMBER_TABLE, LAG_TABLE, NEIGH_TABLE, ROUTE_TABLE, INTF_TABLE and MUX_CABLE_TABLE.
 
 The script workflow will be as follows:
 
@@ -216,6 +216,6 @@ The unit test plan for orchagent error handling is documented below.
 
 ### Open items/Future enhancements
 
-Change the retry logic so that it follows an exponential backoff mechanism to save CPU cycles rather than the current static retry mechanism in SONiC.
-Leverage ERROR_DB that is already available to escalate the errors from Orchagent to upper layers/applications.
+1. Change the retry logic so that it follows an exponential backoff mechanism to save CPU cycles rather than the current static retry mechanism in SONiC. This will be considered as part of phase-2.
+2. Leverage ERROR_DB that is already available to escalate the errors from Orchagent to upper layers/applications.
 
