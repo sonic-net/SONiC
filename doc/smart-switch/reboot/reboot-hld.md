@@ -18,9 +18,12 @@
     - [NPU platform.json](#npu-platformjson)
     - [GNOI API implementation](#gnoi-api-implementation)
     - [reboot CLI modifications](#reboot-cli-modifications)
-    - [reboot.py script modifications](#rebootpy-script-modifications)
+    - [reboot script modifications](#reboot-script-modifications)
+    - [PCIe daemon modifications](#pcie-daemon-modifications)
+    - [Hardware watchdog on DPU](#hardware-watchdog-on-dpu)
     - [Error handling and exception scenarios](#error-handling-and-exception-scenarios)
   - [Test plan](#test-plan)
+  - [References](#references)
 
 ## Revision ##
 
@@ -29,6 +32,7 @@
 | 0.1 | 05/16/2024 | Vasundhara Volam | Initial version    |
 | 0.2 | 05/29/2024 | Vasundhara Volam | Update images and APIs |
 | 0.3 | 06/10/2024 | Vasundhara Volam | Minor changes based on discussion with the community |
+| 0.4 | 07/29/2024 | Vasundhara Volam | Add PCIe daemon changes |
 
 ## Glossory ##
 
@@ -160,9 +164,9 @@ Returns:
 
 ### NPU platform.json ###
 
-Introduce a new parameter, <span style="color:blue">'dpu_halt_services_timeout'</span>, to specify the duration(in secs) for waiting for the DPU to terminate all services, as defined by
-the platform vendor. If the DPU fails to respond within this timeout, the NPU will proceed with the reboot sequence. If no timeout is explicitly
-defined, a default timeout will be used.
+Introduce a new parameter, <span style="color:blue">'dpu_halt_services_timeout'</span>, to specify the duration(in secs) for waiting for the DPU to terminate all services,
+as defined by the platform vendor. If the DPU fails to respond within this timeout, the NPU will proceed with the reboot sequence. If no timeout is explicitly defined,
+a default timeout will be used.
 
 ```json
 {
@@ -196,8 +200,10 @@ defined, a default timeout will be used.
 
 ### GNOI API implementation ###
 
-According to the RebootRequest protocol outlined below, we will utilize the HALT command in the RebootMethod to terminate services on the DPU.
-When the NPU sends the RebootRequest with the HALT RebootMethod to the DPU, it will kill all services except GNMI and database services.
+According to the RebootRequest protocol outlined below, we will utilize the 'HALT' in the RebootMethod to terminate services on the DPU. When the NPU sends the RebootRequest
+with the HALT RebootMethod to the DPU, it will invoke the /usr/local/bin/reboot script to stop all the services except GNMI server and database services. Refer to the
+[gNOI reboot HLD](#https://github.com/sonic-net/SONiC/blob/master/doc/warm-reboot/Warmboot_Manager_HLD.md) for design information of gNOI reboot flow to invoke the
+reboot script in SONiC host services.
 
 ```
 *Arguments*: type of reboot (cold, warm, etc.), delay before issuing reboot, string describing reason for reboot, option to force reboot if sanity checks fail.
@@ -232,8 +238,8 @@ enum RebootMethod {
 }
 ```
 
-Upon sending the RebootRequest RPC to the DPU, the NPU will commence polling using RebootStatusRequest. If the DPU has effectively terminated the
-services, it responds with STATUS_SUCCESS set in the RebootStatusResponse. Otherise, it will send the response with STATUS_RETRIABLE_FAILURE status.
+After receiving the acknowledgement for RebootRequest RPC from the DPU, the NPU starts polling with RebootStatusRequest. If the DPU has effectively terminated
+the services, it responds with STATUS_SUCCESS set in the RebootStatusResponse. Otherise, it will send the response with STATUS_RETRIABLE_FAILURE status.
 
 ```
 rpc RebootStatus(RebootStatusRequest) returns (RebootStatusResponse) {}
@@ -263,7 +269,6 @@ message RebootStatus {
   string message = 2;
 }
 ```
-
 ### reboot CLI modifications ###
 
 Introduce a new parameter <span style="color:blue">'-d'</span> to the reboot command for specifying the DPU module name requiring a reboot. If the chassis is
@@ -279,9 +284,10 @@ Usage /usr/local/bin/reboot [options]
         -h, -? : getting this help
         -f     : execute reboot force
         -d     : DPU module name
+        -p     : pre-shutdown
 ```
 
-### reboot.py script modifications ###
+### reboot script modifications ###
 
 * Within the reboot() function, incorporate a verification step to invoke is_smartswitch(). Should is_smartswitch() yield false, proceed with the current
 implementation. However, if is_smartswitch() returns true, invoke the new reboot_smartswitch() function, passing a parameter to specify whether it's
@@ -302,6 +308,35 @@ def reboot_smartswitch(duthost, localhost, reboot_type='cold', reboot_dpu='false
     :param reboot_dpu: reboot dpu or switch (true, false)
     :param dpu_id: reboot the dpu with id, valid only if reboot_dpu is true.
 ```
+
+* NPU invokes the reboot script with "-p" option on the DPU via GNOI API to reboot the DPU. When reboot script is invoked with "-p" option,
+execute all the steps except the actual reboot at the end of the script.
+
+* When a DPU module is requested for a reboot, the reboot script will update StateDB with the reboot information according to the schema defined
+below. Define a new function named update_dpu_reboot_info() for this purpose. Additionally, if the entire smart switch is undergoing a reboot,
+update the same information for all the DPUs. Once the DPU is rebooted and the PCIe device is reattached, the StateDB entry will be updated accordingly.
+
+#### REBOOT_INFO schema in StateDB
+
+```
+"REBOOT_INFO|DPU_0": {
+  "value": {
+    "id": "1",
+    "dpu_state": "rebooting",
+    "bus_info" : "[DDDD:]BB:SS.F"
+  }
+}
+```
+
+### PCIe daemon modifications ###
+The PCIe daemon will be updated to avoid logging "PCIe Device: <Device name> Not Found" messages when DPUs are undergoing a reboot, as this is a
+user-initiated action.
+
+In the [check_pci_devices()](#https://github.com/sonic-net/sonic-platform-daemons/blob/bf865c6b711833347d3c57e9d84cd366bcd1b776/sonic-pcied/scripts/pcied#L155) function,
+read the State DB for the REBOOT_INFO and suppress the "device not found" warning logs during a DPU reboot when the device is intentionally detached.
+
+### Hardware watchdog on DPU ###
+TBD
 
 ### Error handling and exception scenarios ###
 
@@ -335,3 +370,10 @@ Presented below is the test plan within the ```sonic-mgmt``` framework for the s
 
 The test scenarios above ensure that both the NPU and all DPUs are fully operational following any type of reboot. Furthermore, the tests verify the
 functionality of PCI communication between NPU and DPUs.
+
+## References
+
+- [Openconfig system.proto](#https://github.com/openconfig/gnoi/blob/main/system/system.proto)
+- [Warmboot Manager HLD](#https://github.com/sonic-net/SONiC/blob/master/doc/warm-reboot/Warmboot_Manager_HLD.md)
+- [gNOI reboot HLD](#https://github.com/sonic-net/SONiC/blob/master/doc/warm-reboot/Warmboot_Manager_HLD.md)
+- [PCIe daemon](#https://github.com/sonic-net/sonic-platform-daemons/blob/master/sonic-pcied/scripts/pcied)
