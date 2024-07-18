@@ -207,3 +207,5 @@ The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` 
     - In config DB, find out all addresses that has bbr-required equals true and remove aggregated addresses in the bgp container then update state DB with inactive state.
 5. The bgp container restarted:
     - the bgp container will process all existed config one by one according to 1~4.
+
+To avoid concurrency issue, all operation mentioned above will be put into queue and be processed one by one. 
