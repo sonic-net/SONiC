@@ -57,7 +57,7 @@ The key will index to a list of aggregated addresses with their parameters.
 The YANG model and config DB demo are showed in below:
 
 #### Yang Model
-```json
+```
 module sonic-bgp-aggregate-address {
     namespace "http://github.com/sonic-net/sonic-bgp-aggregate-address";
 
