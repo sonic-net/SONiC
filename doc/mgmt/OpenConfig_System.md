@@ -174,10 +174,10 @@ This document provides general information about the OpenConfig configuration/ma
 ## 1.1 Requirements
 ### 1.1.1 Functional Requirements
 1. Provide support for OpenConfig System YANG models.
-2. Implement transformer support for Openconfig system model to have following supports:
-    Configure/Set System attributes. 
-    Get System attributes. 
-    Delete System attributes. 
+2. Implement transformer support for Openconfig system model to have following supports:  
+    Configure/Set System attributes.  
+    Get System attributes.  
+    Delete System attributes.   
     Subscribe System attributes for telemetry.
 3. Add support for following System features:
     * hostname
@@ -224,7 +224,7 @@ There are no changes to CONFIG DB schema definition.
 There are no changes to APP DB schema definition.
 
 ### 3.2.3 STATE DB
-There are no changes to STATE DB schema definition. 
+There are no changes to STATE DB schema definition.  
 For software-version, new table will be added in STATE DB, namely VERSION|SOFTWARE.
 
 ### 3.2.4 ASIC DB
@@ -235,8 +235,8 @@ There are no changes to COUNTER DB schema definition.
 
 ## 3.3 User Interface
 ### 3.3.1 Data Models
-Openconfig-system.yang (2.0.0) and its submodules will be used as user interfacing models. 
-We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (2.0.0). 
+Openconfig-system.yang (2.0.0) and its submodules will be used as user interfacing models.  
+We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (2.0.0).  
 Main changes among these to openconfig versions are:
  * Feature wise major changes -
     * system/state -> uptime, software-version, last-configuration-timestamp nodes are added
