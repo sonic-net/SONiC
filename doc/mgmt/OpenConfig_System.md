@@ -175,9 +175,9 @@ This document provides general information about the OpenConfig configuration/ma
 ### 1.1.1 Functional Requirements
 1. Provide support for OpenConfig System YANG models.
 2. Implement transformer support for Openconfig system model to have following supports:
-    Configure/Set System attributes.
-    Get System attributes.
-    Delete System attributes.
+    Configure/Set System attributes. 
+    Get System attributes. 
+    Delete System attributes. 
     Subscribe System attributes for telemetry.
 3. Add support for following System features:
     * hostname
@@ -202,7 +202,7 @@ NA
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-SONiC already supports System features configurations such as Get, Patch and Delete via REST and gNMI. This feature adds support for OpenConfig based YANG models using transformer based implementation for System features.
+SONiC already supports framework for Get, Patch and Delete via REST and gNMI. This feature adds support for OpenConfig based YANG models using transformer based implementation for System features.
 
 ### 1.2.2 Container
 The code changes for this feature are part of *Management Framework* container which includes the REST server and *gnmi* container for gNMI support in *sonic-mgmt-common* repository.
@@ -224,7 +224,7 @@ There are no changes to CONFIG DB schema definition.
 There are no changes to APP DB schema definition.
 
 ### 3.2.3 STATE DB
-There are no changes to STATE DB schema definition.
+There are no changes to STATE DB schema definition. 
 For software-version, new table will be added in STATE DB, namely VERSION|SOFTWARE.
 
 ### 3.2.4 ASIC DB
@@ -235,8 +235,8 @@ There are no changes to COUNTER DB schema definition.
 
 ## 3.3 User Interface
 ### 3.3.1 Data Models
-Openconfig-system.yang (2.0.0) and its submodules will be used as user interfacing models.
-We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (2.0.0)
+Openconfig-system.yang (2.0.0) and its submodules will be used as user interfacing models. 
+We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (2.0.0). 
 Main changes among these to openconfig versions are:
  * Feature wise major changes -
     * system/state -> uptime, software-version, last-configuration-timestamp nodes are added
@@ -245,7 +245,7 @@ Main changes among these to openconfig versions are:
     * logging -> For remote-server, network-instance support is added. Files & VTY containers are added newly
     * memory -> used and free leaves are added.
 
- * New features added in recent version -
+ * New features added in latest version -
     * license
     * mac-address
     * hashing
@@ -368,8 +368,8 @@ Invalid configurations/operations will report an error.
 5. Verify that operations supported for gNMI/REST works fine for ssh-server timeout.
 6. Verify that operations supported for gNMI/REST works fine for logging and messages nodes.
 7. Verify that operations supported for gNMI/REST works fine for AAA (TACACS & RADIUS) nodes.
-8. Verify that operations supported for gNMI/REST works fine for memory nodes.
-9. Verify that operations supported for gNMI/REST works fine for CPU nodes.
+8. Verify that operations supported for gNMI/REST works fine for login & motd banners.
+9. Verify that operations supported for gNMI/REST works fine for up-time, boot-time, current-datetime & software-version.
 10. Verify that operations supported for gNMI/REST works fine for processes nodes.
 
 ## 6.2 Negative Test Cases
@@ -380,4 +380,3 @@ Invalid configurations/operations will report an error.
 5. Verify that invalid NTP source address returns proper error.
 6. Verify that AAA server source-address accepts only valid IP.
 7. Verify that GET on processes with non-existing pid returns an empty data.
-8. Verify that invalid CPU index returns an empty data.
