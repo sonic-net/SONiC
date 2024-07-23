@@ -39,9 +39,9 @@ Adapter is a shared software library, supplied by a linecard vendor, that implem
 The adapter module is loaded into a hosting process (“adapter host”) and then initialized. During
 initialization the adapter initiates discovery process of the specified instance of a optical linecard entity. The linecard entity is a top-level object in OTAI.
   
-Adapter host is a component that loads Adapter and exposes its functionalities to the Optical Linecard State Service (OLSS) module. There would be multiple Adapter Hosts running at the same time, each optical linecard has one Adapter host. Each Adapter Host is responsible for managing a portion of functions within the linecard. For example, there is a OLP linecard on slot 1, the adapter host for slot 1 is responsible for manage the OLP linecard.
+Adapter host is a component that loads Adapter and exposes its functionalities to the Optical Transport State Service (OTSS) module. There would be multiple Adapter Hosts running at the same time, each optical linecard has one Adapter host. Each Adapter Host is responsible for managing a portion of functions within the linecard. For example, there is a OLP linecard on slot 1, the adapter host for slot 1 is responsible for manage the OLP linecard.
   
-The optical linecard state service (OLSS) is a collection of software that provides a database interface for communication between northbound interface and linecard. 
+OTSS is a collection of software that provides a database interface for communication between northbound interface and linecard. 
 
 Key assumptions, design decisions and API semantic clarifications:
 - CRUD (Create/Read/Update/Delete) based API to manage the OTAI objects.
@@ -55,26 +55,26 @@ The API is designed to be platform-agnostic(*nix/Windows/etc...). The API is a c
 The OTAI objects includes:
 | Object | Description | File Name |
 | :------| :---------- | :-------- |
-| [Linecard](#optical-transport-linecard-functionality-otailinecardh) | Optical Transport Linecard | [otailinecard.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otailinecard.h) |
-| [Transceiver](#transceiver-functionality-otaitransceiverh) | Optical Transceiver | [otaitransceiver.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaitransceiver.h) |
-| [Port](#optical-transport-port-functionality-otaiporth) | Optical transport port | [otaiport.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiport.h) |
-| [Physical Channel](#physical-channel-functionality-otaiphysicalchannelh) | Physical Channel | [otaiphysicalchannel.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiphysicalchannel.h) |
-| [Logical Channel](#optical-logical-channel-otailogicalchannelh) | Optical Logical Channel | [otailogicalchannel.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otailogicalchannel.h) |
-| [Ethernet](#ethernet-functionality-otaietherneth) | Ethernet | [otaiethernet.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiethernet.h) |
-| [Assignment](#opctial-assignment-functionality-otaiassignmenth) | Opctial Assignment | [otaiassignment.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiassignment.h) |
-| [OTN](#otn-protocol-functionality-otaiotnh) | OTN protocol | [otaiotn.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiotn.h) |
-| [OCH](#optical-channel-functionality-otaiochh) | Optical Channel | [otaioch.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaioch.h) |
-| [OA](#optical-amplifier-functionality-otaioah) | Optical Amplifier | [otaioa.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaioa.h) |
-| [WSS](#wavelength-selective-switch-functionality-otaiwssh) | Wavelength Selective Switch | [otaiwss.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiwss.h) |
-| [OMC](#optical-media-channel-functionality-otaimediachannelh) | Optical Media Channel | [otaimediachannel.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaimediachannel.h) |
-| [OSC](#optical-supervisory-channel-functionality-otaiosch) | Optical Supervisory Channel | [otaiosc.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiosc.h) |
-| [Interface](#interface-functionality-otaiinterfaceh) | Interface | [otaiinterface.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiinterface.h) |
-| [LLDP](#link-layer-discovery-protocol-functionality-otailldph) | Link Layer Discovery Protocol | [otailldp.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otailldp.h) |
-| [OTDR](#optical-time-domain-reflectometer-functionality-otaiotdrh) | Optical Time Domain Reflectometer | [otaiotdr.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiotdr.h) |
-| [OCM](#optical-channel-monitor-functionality-otaiocmh) | Optical Channel Monitor | [otaiocm.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiocm.h) |
-| [VOA](#optical-attenuator-functionality-otaiattenuatorh) | Optical Attenuator | [otaiattenuator.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiattenuator.h) |
-| [APS](#automatic-protection-switch-functionality-otaiapsh) | Automatic Protection Switch | [otaiaps.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiaps.h) |
-| [APS Port](#automatic-protection-switch-port-functionality-otaiapsporth) | Automatic Protection Switch Port | [otaiapsport.h](https://github.com/zhengweitang-zwt/OTAI/blob/main/inc/otaiapsport.h) |
+| [Linecard](#optical-transport-linecard-functionality-otailinecardh) | Optical Transport Linecard | [otailinecard.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otailinecard.h) |
+| [Transceiver](#transceiver-functionality-otaitransceiverh) | Optical Transceiver | [otaitransceiver.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaitransceiver.h) |
+| [Port](#optical-transport-port-functionality-otaiporth) | Optical transport port | [otaiport.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiport.h) |
+| [Physical Channel](#physical-channel-functionality-otaiphysicalchannelh) | Physical Channel | [otaiphysicalchannel.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiphysicalchannel.h) |
+| [Logical Channel](#optical-logical-channel-otailogicalchannelh) | Optical Logical Channel | [otailogicalchannel.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otailogicalchannel.h) |
+| [Ethernet](#ethernet-functionality-otaietherneth) | Ethernet | [otaiethernet.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiethernet.h) |
+| [Assignment](#opctial-assignment-functionality-otaiassignmenth) | Opctial Assignment | [otaiassignment.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiassignment.h) |
+| [OTN](#otn-protocol-functionality-otaiotnh) | OTN protocol | [otaiotn.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiotn.h) |
+| [OCH](#optical-channel-functionality-otaiochh) | Optical Channel | [otaioch.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaioch.h) |
+| [OA](#optical-amplifier-functionality-otaioah) | Optical Amplifier | [otaioa.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaioa.h) |
+| [WSS](#wavelength-selective-switch-functionality-otaiwssh) | Wavelength Selective Switch | [otaiwss.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiwss.h) |
+| [OMC](#optical-media-channel-functionality-otaimediachannelh) | Optical Media Channel | [otaimediachannel.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaimediachannel.h) |
+| [OSC](#optical-supervisory-channel-functionality-otaiosch) | Optical Supervisory Channel | [otaiosc.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiosc.h) |
+| [Interface](#interface-functionality-otaiinterfaceh) | Interface | [otaiinterface.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiinterface.h) |
+| [LLDP](#link-layer-discovery-protocol-functionality-otailldph) | Link Layer Discovery Protocol | [otailldp.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otailldp.h) |
+| [OTDR](#optical-time-domain-reflectometer-functionality-otaiotdrh) | Optical Time Domain Reflectometer | [otaiotdr.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiotdr.h) |
+| [OCM](#optical-channel-monitor-functionality-otaiocmh) | Optical Channel Monitor | [otaiocm.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiocm.h) |
+| [VOA](#optical-attenuator-functionality-otaiattenuatorh) | Optical Attenuator | [otaiattenuator.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiattenuator.h) |
+| [APS](#automatic-protection-switch-functionality-otaiapsh) | Automatic Protection Switch | [otaiaps.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiaps.h) |
+| [APS Port](#automatic-protection-switch-port-functionality-otaiapsporth) | Automatic Protection Switch Port | [otaiapsport.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiapsport.h) |
 
 Here is OTAI objects and hierarchy, the top-level object is the linecard object, which could be a real hardware on multi linecard device, or a logical system on a pizza box. The linecard may contains a set of optical components and logical objects. For instance, an optical transponder and muxponder linecard includes Ports(client and line port), transceivers, and logical objects (logical channels, physical channels, ethernet, OTN, OCH, LLDP, etc). An optical linecard in the line system, it may includes OA, OSC, APS, Attenuators, WSS, Media Channel, OCM, OTDR, Ports, etc.  
 
