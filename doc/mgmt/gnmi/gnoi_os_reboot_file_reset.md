@@ -308,6 +308,7 @@ The Reboot Request Succeeds when:
 
 ![reboot](https://github.com/user-attachments/assets/2979e81e-ab88-4cd6-8ff6-6e651c9600e0)
 
+The design for warmboot through the gNOI System.Reboot service is covered in the [Warmboot Manager HLD](https://github.com/akarshgupta25/SONiC-NSF-Mgr-HLD/blob/9dd1ade0b48ce96d513468a54bf794efa43a9f54/doc/warm-reboot/Warmboot_Manager_HLD.md)
 
 ### gNOI File
 
