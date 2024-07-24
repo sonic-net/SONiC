@@ -1,4 +1,4 @@
-# BGP Aggregate Address In Config DB
+# BGP Route Aggregation With BBR Awareness
 
 - [Revision](#revision)
 - [Definitions/Abbreviations](#definitionsabbreviations)
@@ -38,19 +38,23 @@
 
 ## Scope
 
-This document describes how to leverage the SONiC config DB to add or remove BGP aggregate address.
+This document describes how to leverage the SONiC config DB to add or remove BGP aggregate address and the SONiC state DB to track the state of it with BBR awareness
 
 
 ## Overview
-In BGP, we can aggregate details routes into one single aggregated route. it is a quite useful feature in some scenarios, for example reducing routes count.
+In BGP, we can aggregate detailed routes into one single aggregated route. It has many advantages, for example reducing routes’ count.
 
-To leverage the benefit of address aggregation, we trying design the aggregate address configuration mechanism in this doc.
+However, firstly, SONiC can’t configurate aggregated addresses via config DB and doesn’t have CLI support for it.
+
+Secondly, if we aggregated routes without BBR feature on device, we many got packet drop on this device due to detail routes missing.
+
+To leverage the benefit of address aggregation and the BBR feature, we are trying to design the aggregate address configuration mechanism with BBR awareness in this doc.
 
 
 ## Requirements
-User can add or remove aggregated address via editing config DB, and there are parameters to control the aggregation and route announcement behavior.
+With this design, users can add or remove aggregated address via editing config DB or config CLI with parameters to control the aggregation and route announcement behavior and can use the show command to check aggregated address on device.
 
-User can use the show command to check aggregated address on device.
+With BBR awareness, aggregated address will be generated conditionally depend on BBR feature's state.
 
 ## High Level Design
 First we introduce the config DB extension which define the feature scope and parameters we have.
@@ -205,12 +209,15 @@ The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` 
 To avoid concurrency issue, all operation mentioned above will be put into queue and be processed one by one. 
 #### UML Sequence Diagrams
 ![](img/add-aggregated-address.png)
+
 *Fig.1 Add Address*
 
 ![](img/remove-aggregated-address.png)
+
 *Fig.2 Remove Address*
 
 ![](img/bbr-feature-state-change.png)
+
 *Fig.3 BBR Feature State Change*
 
 ### CLI Design
@@ -218,6 +225,8 @@ To avoid concurrency issue, all operation mentioned above will be put into queue
   |:----------------------|:-----------------------------------------------------------|
   | show ip bgp aggregate-address | Show aggregate address in ipv4 address family |
   | show ipv6 bgp aggregate-address | Show aggregate address in ipv6 address family |
+  | config bgp aggregate-address add | Add aggregate address |
+  | config bgp aggregate-address remove | Remove aggregate address |
 
 #### Show CLI
 **show ip bgp aggregate-address**
