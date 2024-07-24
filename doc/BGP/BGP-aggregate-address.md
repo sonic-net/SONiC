@@ -14,6 +14,8 @@
         - [State DB Sample](#state-db-sample)
         - [State Transition Diagram](#state-transition-diagram)
     - [Bgp Container Behavior](#bgp-container-behavior)
+        - [UML Sequence Diagrams](#uml-sequence-diagrams)
+    - [CLI Design](#cli-design)
 
 
 
@@ -29,7 +31,7 @@
 | ------------------------ | ----------- |
 | BGP | Border Gateway Protocol |
 | FRR | A free and open source Internet routing protocol suite for Linux and Unix platforms |
-| BBR | An feature to allow device learn routes that go through the same AS |
+| BBR | Full name is Bounce Back Routing, a feature that can prevent packet drop caused by aggregated address.|
 
 
 ## Scope
@@ -45,6 +47,8 @@ To leverage the benefit of address aggregation, we trying design the aggregate a
 
 ## Requirements
 User can add or remove aggregated address via editing config DB, and there are parameters to control the aggregation and route announcement behavior.
+
+User can use the show command to check aggregated address on device.
 
 ## High Level Design
 First we introduce the config DB extension which define the feature scope and parameters we have.
@@ -109,11 +113,6 @@ module sonic-bgp-aggregate-address {
                     description "Only advertise the summary of aggregate address";
                 }
 
-                leaf route-map {
-                    type string;
-                    description "Attribute-map to be applied to the aggregate address";
-                }
-
                 leaf as-set {
                      type boolean;
                      description "Set if include the AS set when advertising the aggregated address";
@@ -136,7 +135,6 @@ module sonic-bgp-aggregate-address {
         "fc00::/63": {
             "bbr-required": "true",
             "summary-only": "true"
-            "route-map": "AGG_V6",
             "as-set": "true"
         }
     }
@@ -161,12 +159,6 @@ If it's true, then details routes will be suppressed and only aggregated address
 It's a boolean to indicate whether add a as set of details routes in as path when advertising aggregated address.
 
 If it's true, then when advertising aggregated address there will be a as set of detail routes appended at as path.
-
-
-##### Route Map
-It's a string to indicate which route map to apply to aggregated address.
-
-It should be a name of route map.
 
 ### State DB Extension
 For every aggregated address, we track its state in state DB, it has two states active and inactive. Active state means the address is configurated in the bgp container, while inactive state means isn't.
@@ -201,11 +193,86 @@ The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` 
     - else, add address in state DB with inactive state.
 2. Remove address in config DB:
     - Remove aggregated address in the bgp container and remove address in state DB.
-3. Enable BBR feature in config DB:
+3. Update address in config DB:
+    - We will first follow the procedure in 2(Remove address in config DB) then follow the procedure in 1(Add address in config DB)
+4. Enable BBR feature in config DB:
     - In config DB, find out all addresses that has bbr-required equals true and generate aggregated addresses in the bgp container then update state DB with active state.
-4. Disable BBR feature in config DB:
+5. Disable BBR feature in config DB:
     - In config DB, find out all addresses that has bbr-required equals true and remove aggregated addresses in the bgp container then update state DB with inactive state.
-5. The bgp container restarted:
-    - the bgp container will process all existed config one by one according to 1~4.
+6. The bgp container restarted:
+    - First, the bgp container will clean the addresses in state DB and then the bgp container will process all existed config one by one according to 1~4.
 
 To avoid concurrency issue, all operation mentioned above will be put into queue and be processed one by one. 
+#### UML Sequence Diagrams
+
+<p align=center>
+<img src="img/add-aggregated-address.png" alt="state-transition">
+</p>
+<p style="text-align: center;">Fig.1 Add Address</p>
+
+<p align=center>
+<img src="img/remove-aggregated-address.png" alt="state-transition">
+</p>
+<p style="text-align: center;">Fig.2 Remove Address</p>
+
+<p align=center>
+<img src="img/bbr-feature-state-change.png" alt="state-transition">
+</p>
+<p style="text-align: center;">Fig.3 BBR Feature State Change</p>
+
+### CLI Design
+  | CLI |               Description                        |
+  |:----------------------|:-----------------------------------------------------------|
+  | show ip bgp aggregate-address | Show aggregate address in ipv4 address family |
+  | show ipv6 bgp aggregate-address | Show aggregate address in ipv6 address family |
+
+#### show ip bgp aggregate-address
+
+This command is used to show aggregate address in ipv4 address family
+- Usage
+  ```
+  show ip bgp aggregate-address
+  ```
+
+- Example
+  ```
+  > show ip bgp aggregate-address
+  +----------------+---------+-------------+-------------+---------------+
+  |Prefix          |State    |Summary Only |BBR Required |As Set Enabled |
+  |----------------+---------+-------------+-------------+---------------+
+  |192.168.0.0/24  |Active   |False        |False        |True           |
+  +----------------+---------+-------------+-------------+---------------+
+  |10.0.0.0/24     |Inactive |True         |True         |False          |
+  +----------------+---------+-------------+-------------+---------------+
+  ```
+
+#### show ipv6 bgp aggregate-address
+
+This command is used to show aggregate address in ipv6 address family
+- Usage
+  ```
+  show ipv6 bgp aggregate-address
+  ```
+
+- Example
+  ```
+  > show ipv6 bgp aggregate-address
+  +----------------+---------+-------------+-------------+---------------+
+  |Prefix          |State    |Summary Only |BBR Required |As Set Enabled |
+  |----------------+---------+-------------+-------------+---------------+
+  |fc00:1::/64     |Active   |False        |False        |True           |
+  +----------------+---------+-------------+-------------+---------------+
+  |fc00:3::/64     |Inactive |True         |True         |False          |
+  +----------------+---------+-------------+-------------+---------------+
+  ```
+
+
+### Test Plan Design
+First we will implement unit test in sonic-buildimage repo to test basic functionality.
+
+Then we will implement test in sonic-mgmt repo to test if this feature works including scenarios like: 
+1. Add aggregated address with bbr-required equals true and check whether the address will be generated when switch the state of BBR feature.
+2. Add aggregated address with bbr-required equals false and check whether the address will be generated when switch the state of BBR feature.
+3. Remove aggregated address in config db and check whether the address will be removed from state db and bgp container.
+4. Update aggregated address with bbr-required equals true adn check whether the address will be generated when the BBR feature was enabled.
+5. More tests details will be published in sonic-mgmt repo.
