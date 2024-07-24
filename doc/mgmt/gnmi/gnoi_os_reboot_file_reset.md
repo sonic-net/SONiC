@@ -25,12 +25,12 @@
 |------|------------|--------------------|--------------------|
 | v0.1 | 07/22/2024 | Neha Das (Google)   | Initial version |
 
-### Scope
+## Scope
 
 This document describes the high level design of adding the capability to support gNOI APIs for OS, Reboot, File, Factory Reset services in the telemetry server. 
-It provides the definition as well as the front end and back end implementation for the gNOI services needed in the SONIC framework. The details of the underlying gNMI server design are captured [here](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md) and the host dbus communication is captured in a separate HLD.
+It provides the definition as well as the front end and back end implementation for the gNOI services needed in the SONIC framework. The details of the underlying gNMI server design are captured [here](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md) and the host service DBUS communication is captured in a separate [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md).
 
-### Definitions/Abbreviations
+## Definitions/Abbreviations
 
 - [gNOI](https://github.com/openconfig/gnoi) : gRPC Network Operations Interface
 - API : Application Programming Interface
@@ -40,26 +40,27 @@ It provides the definition as well as the front end and back end implementation 
 - FE: Frontend
 - BE: Backend
 
-### Overview
+## Overview
 
 gNOI defines a set of gRPC-based microservices for executing operational commands on network devices as an alternative to using CLI commands for the same. 
 These RPC services are supported through OpenConfig and are defined through protobuf in [OpenConfig](https://github.com/openconfig/gnoi)
 The target device will listen on a specific TCP port(s) to expose the collection of gNOI services. The standard port for gNOI is 9339, which is the same as the gNMI server.
 
-### Requirements
+## Requirements
 
 Any client should be able to connect to these gNOI services at the IP of the target device and the port of the service, provided they have the necessary authentication and authorization privileges. 
 
-### Architecture Design
+## Architecture Design
 
 This feature does not change the SONiC Architecture but leverages the existing gNMI/telemetry server interface design. gNOI requests made by clients are verified and serviced by the gNMI UMF server after which they are sent to the corresponding Backend entity to process through DBUS communication to the host service. The details of the Docker to Host communication through DBUS are added [here](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md)
 
 ![gnoi_dbus](https://github.com/user-attachments/assets/2b33a978-36b7-439f-810f-65339d0355f7)
 
+In the above picture “SONiC Host Service” and “DBUS” are entities executing directly on the host (as opposed to within a container). DBUS is a system daemon facilitating IPC between processes and is used for communication between containers and the SONiC Host Service. SONiC Host Service is a host process fulfilling container requests that require host access. The host service is python based and has a module plugin style architecture. The Redis database is used as an IPC mechanism between containers.
 
-### High-Level Design
+## High-Level Design
 
-#### gNOI OS
+### gNOI OS
 
 The [OS](https://github.com/openconfig/gnoi/blob/main/os/os.proto) proto is designed for switch software installation and defines APIs for OS services and provides an interface for OS installation on a Target.
 
@@ -98,7 +99,9 @@ service OS {
 
 #### gNOI OS Sequence Flow
 
-1. OS Install on the primary and secondary controller cards.
+![gnoi_install](https://github.com/user-attachments/assets/6f3c40b1-c0bc-4ea9-a991-8d0deea05a53)
+
+Step 1. OS Install on the primary and secondary controller cards.
 
 Install and activate a new software version on primary supervisor.
 
@@ -147,10 +150,10 @@ a. Verify that the supervisor has a valid image by issuing gnoi.os.Verify rpc.
 
 Configuration push verification post OS update.
 
-Push a test configuration to the router using gNMI.Set() RPC with "replace operation".
+Push a test configuration  using gNMI.Set() RPC with "replace operation".
 If the configuration push is successful, make a gNMI.Get() RPC call and compare the configuration received with the originally pushed configuration and check if the configuration is a match. Test is a failure if either the gNMI.Get() operation fails or the configuration do not match with the one that was pushed.
 
-The front end implementation calls the host service via the module `gnoi_os_mgmt` to remove the file on the target.
+The front end implementation calls the host service via the module `gnoi_os_mgmt` to remove the file on the target. HostQuery calls the corresponding D-Bus endpoint on the host and returns any error and the response body.
 ```
 // ActivateOS initiates the operations for activating the OS (via DBUS).
 // Input is the request message in JSON format.
@@ -184,7 +187,7 @@ func InstallOS(reqStr string) (string, error) {
 ```
 
 
-#### gNOI System
+### gNOI System
 
 The details of the System Reboot API design is captured in a separate [HLD](https://github.com/sonic-net/SONiC/pull/1489/). The OpenConfig [system.proto](https://github.com/openconfig/gnoi/blob/main/system/system.proto) defines Reboot, CancelReboot and RebootStatus RPCs within the system service. These RPCs can be used to start, cancel and check the status of reboot on a target.
 
@@ -293,7 +296,20 @@ message TimeResponse {
 
 ```
 
-#### gNOI File
+The gNOI server performs sanity checks after receiving the requests, and rejects if it fails (and `force` is not set). For example, we should reject requests if:
+- the supplied reboot method is not supported in the platform,
+- parameters are out range (e.g., reboot after 1year), etc.
+
+The Reboot Request Succeeds when:
+- The gNOI server validates the request,
+- checks that no requests are pending/ active, and
+- writes the data successfully to the DB.
+- Once notified, the back end will act on the operation independently.
+
+![reboot](https://github.com/user-attachments/assets/2979e81e-ab88-4cd6-8ff6-6e651c9600e0)
+
+
+### gNOI File
 
 The [file](https://github.com/openconfig/gnoi/blob/main/file/file.proto) proto defines a gNOI API used for file specific services on the target. The following is described for the Remove API which is supported.
 
@@ -335,7 +351,7 @@ func FileRemove(remoteFile string) (string, error) {
 }
 ```
 
-#### gNOI Factory Reset
+### gNOI Factory Reset
 
 The [factory_reset](https://github.com/openconfig/gnoi/blob/main/factory_reset/factory_reset.proto) proto defines a gNOI API used for factory resetting a Target.
 
@@ -416,5 +432,17 @@ No effect on warm/fast boot
 
 ### Testing Requirements/Design
 
+In this section, we discuss both manual and automated testing strategies.
+
+#### Manual Tests
+CLI
+UMF has a gnoi_client CLI tool which can be used to invoke service RPCs on the switch. This would include adding support for both JSON and proto formats of requests.
+
+#### Automated Tests
+Component Tests
+For gNOI logic implementation in UMF, we will use the existing component test infrastructure for testing by adding UTs for individual API per supported gNOI service.
+
+End-to-End Tests
+These tests would invoke gNOI requests from the client to verify expected behaviour for gNOI services and are implemented on the Thinkit testing infrastructure.
 
 ### Open/Action items - if any
