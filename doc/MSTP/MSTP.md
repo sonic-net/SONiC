@@ -185,10 +185,10 @@ SWSS Container is responsible for passing on configurations to SAI as follows:
 ### STPOrch
 Updates SAI via following APIs:
 
-1. Creating/deleting instances via SAI STP API.
-2. Assigning VLAN to instance via SAI STP API and SAI VLAN API.
-3. Creation of STP Port and assigning port state with respect to each instance via SAI STP API.
-4. Flushing FDB entries via SAI FDB API.
+1. Creating/deleting instances 
+2. Assigning VLAN to instance 
+3. Creation of STP Port and assigning port state with respect to each instance 
+4. Flushing FDB entries 
 
 There are no changes in PortOrch.
 
@@ -388,7 +388,7 @@ MSTP standard does not support uplink fast so uplink fast functionality will be 
 ## Instance Creation 
 ![Instance Creation ](images/MSTP_Instance_Create.drawio.png)
 
-## MSTP Instance Deletion 
+## Instance Deletion 
 ![Instance Deletion](images/MSTP_Instance_Delete.drawio.png)
 
 ## MSTP Instance Creation 
