@@ -16,6 +16,8 @@
     - [Bgp Container Behavior](#bgp-container-behavior)
         - [UML Sequence Diagrams](#uml-sequence-diagrams)
     - [CLI Design](#cli-design)
+        - [Show CLI](#show-cli)
+        - [Config CLI](#config-cli)
 
 
 
@@ -193,32 +195,23 @@ The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` 
     - else, add address in state DB with inactive state.
 2. Remove address in config DB:
     - Remove aggregated address in the bgp container and remove address in state DB.
-3. Update address in config DB:
-    - We will first follow the procedure in 2(Remove address in config DB) then follow the procedure in 1(Add address in config DB)
-4. Enable BBR feature in config DB:
+3. Enable BBR feature in config DB:
     - In config DB, find out all addresses that has bbr-required equals true and generate aggregated addresses in the bgp container then update state DB with active state.
-5. Disable BBR feature in config DB:
+4. Disable BBR feature in config DB:
     - In config DB, find out all addresses that has bbr-required equals true and remove aggregated addresses in the bgp container then update state DB with inactive state.
-6. The bgp container restarted:
+5. The bgp container restarted:
     - First, the bgp container will clean the addresses in state DB and then the bgp container will process all existed config one by one according to 1~4.
 
 To avoid concurrency issue, all operation mentioned above will be put into queue and be processed one by one. 
 #### UML Sequence Diagrams
+![](img/add-aggregated-address.png)
+*Fig.1 Add Address*
 
-<p align=center>
-<img src="img/add-aggregated-address.png" alt="state-transition">
-</p>
-<p style="text-align: center;">Fig.1 Add Address</p>
+![](img/remove-aggregated-address.png)
+*Fig.2 Remove Address*
 
-<p align=center>
-<img src="img/remove-aggregated-address.png" alt="state-transition">
-</p>
-<p style="text-align: center;">Fig.2 Remove Address</p>
-
-<p align=center>
-<img src="img/bbr-feature-state-change.png" alt="state-transition">
-</p>
-<p style="text-align: center;">Fig.3 BBR Feature State Change</p>
+![](img/bbr-feature-state-change.png)
+*Fig.3 BBR Feature State Change*
 
 ### CLI Design
   | CLI |               Description                        |
@@ -226,7 +219,8 @@ To avoid concurrency issue, all operation mentioned above will be put into queue
   | show ip bgp aggregate-address | Show aggregate address in ipv4 address family |
   | show ipv6 bgp aggregate-address | Show aggregate address in ipv6 address family |
 
-#### show ip bgp aggregate-address
+#### Show CLI
+**show ip bgp aggregate-address**
 
 This command is used to show aggregate address in ipv4 address family
 - Usage
@@ -246,7 +240,7 @@ This command is used to show aggregate address in ipv4 address family
   +----------------+---------+-------------+-------------+---------------+
   ```
 
-#### show ipv6 bgp aggregate-address
+**show ipv6 bgp aggregate-address**
 
 This command is used to show aggregate address in ipv6 address family
 - Usage
@@ -266,6 +260,36 @@ This command is used to show aggregate address in ipv6 address family
   +----------------+---------+-------------+-------------+---------------+
   ```
 
+#### Config CLI
+**config bgp aggregate-address add**
+
+This command is used to add aggregate address
+- Usage
+  ```
+  config bgp aggregate-address add <address> [--bbr-required] [--summary-only] [--as-set]
+  ```
+
+- Example
+  ```
+  config bgp aggregate-address add 192.168.0.0/24 --bbr-required
+  config bgp aggregate-address add 192.168.0.0/24 --summary-only
+  config bgp aggregate-address add 192.168.0.0/24 --summary-only --as-set
+  config bgp aggregate-address add fc00:1::/64 --bbr-required
+  ```
+
+**config bgp aggregate-address remove**
+
+This command is used to remove aggregate address
+- Usage
+  ```
+  config bgp aggregate-address remove <address>
+  ```
+
+- Example
+  ```
+  config bgp aggregate-address remove 192.168.0.0/24
+  config bgp aggregate-address remove fc00:1::/64
+  ```
 
 ### Test Plan Design
 First we will implement unit test in sonic-buildimage repo to test basic functionality.
@@ -274,5 +298,4 @@ Then we will implement test in sonic-mgmt repo to test if this feature works inc
 1. Add aggregated address with bbr-required equals true and check whether the address will be generated when switch the state of BBR feature.
 2. Add aggregated address with bbr-required equals false and check whether the address will be generated when switch the state of BBR feature.
 3. Remove aggregated address in config db and check whether the address will be removed from state db and bgp container.
-4. Update aggregated address with bbr-required equals true adn check whether the address will be generated when the BBR feature was enabled.
-5. More tests details will be published in sonic-mgmt repo.
+4. More tests details will be published in sonic-mgmt repo.
