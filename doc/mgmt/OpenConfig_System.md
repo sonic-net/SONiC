@@ -253,7 +253,7 @@ Main changes among these to openconfig versions are:
     * control-plane-traffic (copp)
     * resource utilization
 
-Apart from these, to add support for ntp-key reference in ntp server, we have created community PR [OpenConfig YANG community](https://github.com/openconfig/public/pull/1149)
+Apart from these, to add support for ntp-key reference in ntp server, we have created community PR [OpenConfig YANG community](https://github.com/openconfig/public/pull/1149), which is under review and dependency for this HLD.
 
 ### 3.3.2 REST API Support
 #### 3.3.2.1 GET
