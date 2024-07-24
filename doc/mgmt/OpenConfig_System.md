@@ -218,14 +218,14 @@ This HLD design is in line with the [https://github.com/sonic-net/SONiC/blob/mas
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
-There are no changes to CONFIG DB schema definition.
+There are no changes to CONFIG DB schema definition.  
+For software-version, new table will be added, namely VERSION|SOFTWARE.
 
 ### 3.2.2 APP DB
 There are no changes to APP DB schema definition.
 
 ### 3.2.3 STATE DB
-There are no changes to STATE DB schema definition.  
-For software-version, new table will be added in STATE DB, namely VERSION|SOFTWARE.
+There are no changes to STATE DB schema definition.
 
 ### 3.2.4 ASIC DB
 There are no changes to ASIC DB schema definition.
