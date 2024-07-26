@@ -453,6 +453,9 @@ Currently, there already are some fields in `BUFFER_POOL` table. In this design,
                                         ; and its real size will be calculated by substracting accumulative headroom and reserved size
                                         ; from total available memory which stored ASIC_TABLE.
     xoff        = 1*9DIGIT              ; the shared headroom pool size. Available for ingress_lossless_pool only.
+    percentage  = 1*3DIGIT              ; the percentage of the buffer pool size compared with the whole available memory size
+                                        ; available in dynamic buffer model only
+                                        ; the buffer pool size in APPL_DB.BUFFER_POOL_TABE is available_memory_size * percentage / 100 if it is configured
 ```
 
 ##### Initialization
