@@ -455,7 +455,7 @@ Currently, there already are some fields in `BUFFER_POOL` table. In this design,
     xoff        = 1*9DIGIT              ; the shared headroom pool size. Available for ingress_lossless_pool only.
     percentage  = 1*3DIGIT              ; the percentage of the buffer pool size compared with the whole available memory size
                                         ; available in dynamic buffer model only
-                                        ; the buffer pool size in APPL_DB.BUFFER_POOL_TABE is availlable_memory_size * percentage if it is configured
+                                        ; the buffer pool size in APPL_DB.BUFFER_POOL_TABE is available_memory_size * percentage / 100 if it is configured
 ```
 
 ##### Initialization
