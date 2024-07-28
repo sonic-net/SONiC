@@ -5,7 +5,7 @@
 | 0.1 | 12/02/2023 | Ramesh Raghupathy | Initial version|
 | 0.2 | 01/08/2024 | Ramesh Raghupathy | Updated API, CPI sections and addressed review comments |
 | 0.3 | 02/26/2024 | Ramesh Raghupathy | Addressed review comments |
-| 0.4 | 06/06/2024 | Ramesh Raghupathy | Added schema for DPU health-info and added key suffix to module reboot-cause to avoid key conflicts |
+| 0.4 | 06/06/2024 | Ramesh Raghupathy | Added schema for DPU health-info and called out phase:1 and phase:2 activities for DPU health-info. Added key suffix to module reboot-cause to avoid key conflicts |
 
 ## Definitions / Abbreviations
 
@@ -197,7 +197,7 @@ Key: "CHASSIS_MODULE|DPU0"
     * SmartSwitch DPUs should store their health data locally and also provide it to the host for a consolidated view of the CLIs
     * DPUs should support a CLI to display the health data “show system-health ...” (See CLIs section)
     * The host pmon should use this data to support the host side CLIs. Though accessing this data from DPUs and storing them on the switch is implementation specific it is recommended to use redis call and store them on the switch chassisStateDB for faster access.
-    * Please refer to section:3.1.5.1 for the HEALTH_INFO schema
+    * This is done in two phases. Please refer to section:3.1.5.1 for the HEALTH_INFO schema
     * use "UserDefinedChecker" class to provide this data to the CLIs.
     * Vendor specific data such as interrupt events can also be placed in user defined fields under this DB
     * This table already exists in modular chassis design and the DPUs will use this just like a line card.
@@ -439,6 +439,7 @@ is_midplane_reachable(self):
 #### 3.1.5 ModuleBase class new APIs
 
 ##### 3.1.5.1 Need for consistent storage and access of DPU reboot cause, state and health
+#### Reboot Cause
 1.  The smartswitch needs to know the reboot cause for DPUs. Please refer to the CLI section for the various options and their effects when executed on the switch and DPUs. 
 
 * Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The recent reboot-cause can be derived from that list of reboot-causes.
@@ -474,6 +475,7 @@ is_midplane_reachable(self):
   }
 
 ```
+#### DPU State
 2. Though the get_oper_status(self) can get the operational status of the DPU Modules, the current implementation only has limited capabilities.
     * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progression the DPU failed. This is critical in fault isolation, DPU switchover decision, resiliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistent way of storing and accessing the information.
@@ -481,6 +483,7 @@ is_midplane_reachable(self):
     * get_state_info(self) will return an object with the ChassisStateDB data
     * Potential consumers: HA, LB, Switch CLIs, Utils (install/repair images), Life Cycle Manager 
     * Use cases: HA, Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state
+
 #### DPU_STATE definition
 dpu_midplane_link_state: up refers to the pcie link between the NPU and DPU is operational. This will be updated by the switch pcied.
 
@@ -507,10 +510,14 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
         ”dpu_data_plane_time": ”timestamp",
         ”dpu_data_plane_reason": ”Pipeline failure",
 ```
-
-3. Each DPU has to store the health data in its local DB and should provide it to the switch.
-* When the "show system-health ..." CLI is executed on the switch. For faster access store it in the switch ChassisStateDB.
-* The DPU is a complex hardware, to facilitate debug, a consistent way of storing and accessing the health record of the DPUs is critical in a multi vendor scenario even though it is a platform specific implementation.
+#### DPU Health
+3. This feature is implemented in two phases.
+#### Phase:1
+* Each DPU has to store the health info locally and should be available on the DPU when the "show system-health ..." CLI is executed on the DPU just like the switch.
+#### Phase:2
+* Each DPU besides storing the health info locally, should also store the DPU health info in the switch ChassisStateDB. The schema for each DPU health info is the same as the switch and also is shown below.
+* When the "show system-health <all/DPUx/SWITCH>" CLI is executed on the switch a consolidated view of the entire system health will be provided.
+* The DPU is a complex hardware. To facilitate debug, a consistent way of storing and accessing the health record of the DPUs is critical in a multi vendor scenario even though it is a platform specific implementation.
 * Both switch and the DPUs will follow the [SONiC system health monitor HLD](https://github.com/sonic-net/SONiC/blob/ce313db92a694e007a6c5332ce3267ac158290f6/doc/system_health_monitoring/system-health-HLD.md)
 * Refer to section 3.4.5 for "show system-health .." CLIs
 
@@ -766,7 +773,12 @@ DPU1        SS-DPU1             2           Online          up              SN20
 SWITCH      Chassis             0           Online          N/A             FLM27000ER
 ```
 #### 3.4.5  System health details
-* The system health summary on NPU should include the DPU health. Extend the existing infrastructure.
+#### Phase:1
+* The system health summary on switch will display only the NPU health
+* The system health summary on DPU will display the DPU health
+
+#### Phase:2
+* The system health summary on switch should include the NPU and DPU health. Extend the existing CLI infrastructure.
 
 show system-health summary \<module-name\>   <font>**`Executed on the switch or DPU - module-name is ignored on the DPUs`**</font>
 ```
