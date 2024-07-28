@@ -65,12 +65,11 @@ The main differences between two approaches are that L2 learning is enabled on t
 
 Usually, VXLAN usage is based on BGP-EVPN deployement, which can be quite complex and heavy memory requirements.
 
-In small-scale datacenters, to reduce costs instead of BGP deployement, L3 forwarding could be based, either, on static configuration or usage of simpler protocol (such as OSPF or IS-IS).
-
-Thus, in these cases, pure Layer2 VNI provides simple, flexible and cost-efficient solution.
+In a controller-based VXLAN network, the configuration is static and distributed by the controller, while L2 forwarding relies on dynamic MAC learning. Examples of such edge datacenter providers include CISCO and VMware.
 
 ##### Limitations
-BGP EVPN and Data plane are mutually exclusive.
+* BGP EVPN and Data plane are mutually exclusive.
+* P2MP tunnels are not supported
 
 #### Configuration
 
@@ -227,7 +226,7 @@ Description: This table holds the tunnel name specifying the VTEP remote IP used
 key = VXLAN_REMOTE_VTEP_TABLE|remote_vtep_name
                           ; VTEP name as a string
 ; field = value
-src_ip = ipv4_address ; Source Ipv4 address of the remote VTEP.
+remote_ip = ipv4_address ; Source Ipv4 address of the remote VTEP.
 
 
 ##### 2.2 VXLAN_REMOTE_VTEP_VNI_TABLE
@@ -327,7 +326,7 @@ VXLAN_TUNNEL_MAP|{{source_vtep_name}}|{{tunnel_map_name}}
     "vlan" : 10
 
 VXLAN_REMOTE_VTEP_TABLE|vtep2
-    "src_ip" : 1.1.1.2
+    "remote_ip" : 1.1.1.2
 
 VXLAN_REMOTE_VTEP_VNI_TABLE|vtep2|map_1000
     "vni" : 1000
@@ -476,9 +475,7 @@ sequenceDiagram
 
 
 #### 4.3.2 P2MP Tunnel Creation
-    In the current implementation P2MP tunnel creation flow exist with the exception of a bridgeport not created for P2MP tunnel. To support using P2MP tunnel for L2 purposes a bridge port is created for the P2MP tunnel object.
-   
-    * Can/should it be supported in case of data plane tunnel ?
+A P2MP tunnel uses a single tunnel termination. Because tunnel termination is utilized for MAC learning, supporting P2MP requires manual MAC configuration, which undermines the goal of dynamic learning.
 
 #### 4.4 Fdborch
 * FDB entries will be learned over tunnel interface and not configured via APP_VXLAN_FDB_TABLE_NAME(as in BGP-EVPN). So they will be handled as regular MAC entries.
