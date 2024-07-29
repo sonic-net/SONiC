@@ -309,27 +309,19 @@ get_module_dpu_data_port(self, index):
 #### 3.1.3 NPU to DPU data port mapping
 platform.json of NPU/switch will show the NPU to DPU data port mapping. This will be used by services early in the system boot. 
 ```
-{
-    "DPUs" : [
+    "DPUS": [
         {
-        "dpu0": {
-                    "interface": {"Ethernet224": "Ethernet0"}
-        }
-        },
-        {
-        "dpu1": {
-                    "interface": {"Ethernet232": "Ethernet0"}
+            "dpu0": {
+                "interface": {"Ethernet224": "Ethernet0"}
             },
-        },
-        .
-        .
-        {
-        "dpuX": {
-                    "interface": {"EthernetX": "EthernetY"}
-            }
+            "dpu1": {
+                "interface": {"Ethernet232": "Ethernet0"}
+            },
+            "dpux": {
+                "interface": {"Ethernet2xx": "Ethernet0"}
+            },
         }
     ]
-}
 ```
 #### 3.1.4 ModuleBase class API enhancements
 get_base_mac(self):
