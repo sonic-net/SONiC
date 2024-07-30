@@ -25,6 +25,7 @@ OSC| Optical Supervisory Channel
 OLP| Optical Line Protection
 VOA|Optical Attenuator
 OTDR| Optical Time Domain Reflectometer
+PM| Performance Monitoring
 FSM| Finite-State Machine
 UUID| Universally Unique IDentifier
 
@@ -32,17 +33,17 @@ UUID| Universally Unique IDentifier
 
 ### Overview 
 
-OTSS is a SONiC user space docker application, which manages all the optical components and object in an OTN device with an unified and vendor-neutral OTAI APIs. It's in parallel with the SWSS and SAI in the SONiC switch.
+OTSS is a SONiC user space docker application, which provides a database interface for communication with and state representation of optical network applications and optical transport component hardware. OTSS is in parallel with the SWSS in the SONiC switch.
 
 
 ### 1 Requirements
 
 The OTSS provides these functionalities:
- * Supports Multi ASIC architecture. In a SONiC-OTN product, each OTN linecard is handled as an ASIC.
- * Manages all OTAI components and objects with OTAI CRUD APIs. 
- * Configures Syncd PM and status sampling based on users configuration file.
+ * Supports Multi ASIC architecture. In a SONiC-OTN device, each OTN linecard is handled as an ASIC.
+ * Manages all OTAI components and objects with OTAI redis CRUD APIs. 
+ * Configures Syncd PM and status sampling based on users flexcounter configuration file.
  * Supports OTN linecard pre-configuration
- * Supports warm reboot, OTN linecard software upgrade and transceivers firmware upgrade.
+ * Supports warm and cold reboot optical linecard, optical linecard software upgrade and transceivers firmware upgrade.
  * Supports OTN linecard and transceivers hot plugging. 
 
 ### 2 Architecture Design 
@@ -53,10 +54,10 @@ OTSS and Syncd-OT interact with each other to manage kinds of OTN linecards and 
 * configsyncd  
   configsyncd application loads OTN linecard's OTAI object configurations from the redis config_db to app_db. All the OTAI objects (Transceivers, OA, OSC, OLP, VOA, etc) are handled in the same way. 
 * orchagent  
-  orchagent application manages the OTN linecard and OTAI objects. It creates and initializes the linecard OTAI object instance, then the other OTAI object instances within the linecard. It loads the linecard flexCounter configuration to set-up the PM and Status sampling in the Syncd-OT.  
+  orchagent application manages the OTN linecard and OTAI objects. It creates and initializes the linecard OTAI object instance, then the other OTAI object instances within the linecard. It loads the linecard flexCounter configuration to set-up the PM and status sampling in the Syncd-OT.  
   > FlexCounter is a representation of flex counter group which supports querying multiple types of statistic/attributes in the syncd.  
 
-  swss_common and otai_redis libraries are employed to access the redis database and interact with syncd-ot.
+  `swss_common` and `otai_redis` libraries are employed to access the redis database and interact with syncd-ot.
 * cmd_tool  
   cmd_tool is an OTSS command tool to execute OTAI operations, such as reboot the linecard, trigger an OTDR scan, upgrade transceiver firmware, etc.
  
@@ -68,7 +69,7 @@ In an OTN device, it contains multiple pluggable optical linecards. End-user can
 	
 <img src="../../images/otn/linecardmgrd-flow.png" alt="otss linecardmgrd flow" style="zoom: 30%;" />
 
-Because the OTSS supports the multi-ASIC architecture, there are multiple OTSS instances in a multi-slots OTN device. In this flow, it illustrates the linecard in the slot 1 as an example. By default, there is no linecard data in the state_db, so the linecardmgrd keeps looping the linecard `power-admin-state` until it changes to `POWER_ENABLED`. If a linecard is inserted into a slot, the PMON container has to generate the linecard data in the state_db and update the `power-admin-state` to `POWER_ENABLED` when the linecard is powered on.
+Because the OTSS supports the multi-ASIC architecture, there are multiple OTSS instances in a multi-slots OTN device. In this flow, it illustrates the linecard in the slot 1 as an example. By default, there is no linecard data in the state_db, so the linecardmgrd keeps looping the linecard `power-admin-state` in state_db until it changes to `POWER_ENABLED`. If a linecard is inserted into a slot, the PMON container has to generate the linecard data in the state_db and update the `power-admin-state` to `POWER_ENABLED` when the linecard is powered on.
 1. User provision the linecard type, the sonic-cfggen can generate the target linecard default configurations and load these configurations into config_db
 2. The linecardmgrd subscribe the linecard tables in config_db, it starts to handle these linecard configurations
 3. The linecardmgrd keeps waiting until the linecard status in state_db is power enabled.
@@ -81,7 +82,7 @@ Here is the configsyncd work flow:
 
 <img src="../../images/otn/configsyncd-flow.png" alt="otss configsyncd flow" style="zoom: 30%;" />
 
-There are more than 15 kinds of OTAI objects are defined. These objects' configurations are synchronizes by configsyncd in the same way. The synchronization process is triggered when it detects the linecard is plugged in the slot.
+There are more than 15 kinds of OTAI objects are defined. These objects' configurations are synchronized by configsyncd in the same way. The synchronization process is triggered when it detects the linecard is plugged in the slot.
 1. User provision the linecard type, the sonic-cfggen can generate the target linecard default configurations and load these configurations into config_db
 2. The configsyncd subscribes all the other OTAI objects tables in config_db, it starts to handle these OTAI object configurations
 3. For each OTAI objects, it counts the number of OTAI object instances. For instance, 1 OSC, 2 Amplifiers, 3 VOAs, etc. 
@@ -124,9 +125,10 @@ Once the FSM is `ORCH_STATE_WORK`, the other OTAI object orchestration modules s
 ##### 2.3.2 Synchronized Setting Operation
 In OTN device, the northbound interfaces (CLI, Restconf, GNMi) do synchronized configurations. The end-user expects the realtime response from the hardware, so the upper layer applications can persist succeed configurations and rollback failed configurations.
 
-The CLI and Restconf application can configure each OTAI objects by setting the attributes in the config_db, and providing an operation-id in the config_db. The linecardOrch and the other OTAI object orchestration modules handle these configuration attributes by calling OTAI `setOtaiObjectAttrs`, then publish the result to the upper layer applications through redis channel with the operation-id. The UUID is adopted as the default operational id.
+The CLI and Restconf application can configure each OTAI objects by setting the attributes in the config_db, and provide an operation-id in the config_db. The linecardOrch and the other OTAI object orchestration modules handle these configuration attributes by calling OTAI `setOtaiObjectAttrs`, then publish the result to the upper layer applications through redis channel with the operation-id. The UUID is adopted as the default operational id.
 
-Here is an example, the northbound applications enable a transceiver by setting the attribute and generating the operation-id. When the OTSS handles the configuration, it publishes the configuration result to the channel with the attributes and operation-id, the upper application can subscribe this channel and get response on time.
+Here is an example, the northbound applications enable a transceiver by setting the attribute `enabled` and generating the operation-id. When the OTSS handles the configuration, it publishes the configuration result to the channel with the attributes and operation-id, the upper application can subscribe this channel and get response on time.
+
 <img src="../../images/otn/otss-synchronized-configuration.png" alt="otss synchronized configuration" style="zoom: 50%;" />
 
 ##### 2.3.3 Pre-configuration 
@@ -157,7 +159,7 @@ OTSS configures the syncd flexcounter by setting the flexcounter group tables an
 
 <img src="../../images/otn/OTSS-Flexcounter-config-flow.png" alt="otss orchagent flow" style="zoom: 40%;" />
 
-The flexcounter module in Syncd subscribes the group and counter tables in flexcounter database, it samples all the attributes and statistics with OTAI APIs. These attributes sample data are saved in the state_db, the performance monitoring (PM) data are saved in the counter_db, the historical PM data are saved in the history_db.
+The flexcounter module in Syncd-OT subscribes the group and counter tables in flexcounter database, it samples all the attributes and statistics with OTAI APIs. These attributes sample data are saved in the state_db, the performance monitoring (PM) data are saved in the counter_db, the historical PM data are saved in the history_db.
 
 ##### 2.3.5 Pluggable components handling
 There are pluggable linecards, transceivers, etc in the OTN device. If these pluggable components are plugged out, OTSS has to flush the status and PM data in the redis database, and stop the flexcounter for these pluggable components.

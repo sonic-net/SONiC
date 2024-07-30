@@ -81,7 +81,7 @@ The `flexcounter.json` contains the FlexCounter configurations per optical linec
 2. STAT_GAUGE, the counter for optical components analog data sampling.
 3. STAT_COUNTER, the counter for optical components counter data sampling.
 
-The `flexcounter.json` contains the counter IDs for each target optical objects. Here is an example of linecard gauge configuration, it includes four gauge counter IDs, memory available, memory utilized, cpu utilization and temperature. The Flexcounter module in OTSS can sample these user assigned counter IDs. User can customize these list to enable different sampling groups and OTAI attributes. Vendor can customize all amplifiers's status sampling attributes in the `OA_COUNTER_ID_LIST_STATUS` group, and customize interface package counters attributes for an OSC interface in `INTERFACE_COUNTER_ID_LIST_COUNTER`.
+The `flexcounter.json` contains the counter IDs for each target optical objects. Here is an example of linecard gauge configuration, it includes four gauge counter IDs, memory available, memory utilized, cpu utilization and temperature. The Flexcounter module in Syncd-OT can sample these user assigned counter IDs. User can customize these list to enable different sampling groups and OTAI attributes. Vendor can customize all amplifiers's status sampling attributes in the `OA_COUNTER_ID_LIST_STATUS` group, and customize interface package counters attributes for an OSC interface in `INTERFACE_COUNTER_ID_LIST_COUNTER`.
 
 ```json
 "LINECARD_COUNTER_ID_LIST_GAUGE": {
@@ -132,9 +132,9 @@ When Syncd-OT handles the linecard creation request message in CRUD module, it a
 #### 2.4 linecard and Syncd-OT re-initialization
 In the OTN system, user can restart the optical linecard and the Syncd-OT docker container, then the OTN system needs to re-initialize the Syncd-OT container and the optical linecard. For instance, recreate and configure all the optical components with the attributes in the ASIC_db, re-initialize the Flexcounter based on the configurations in FlexCounter database. 
 
-If the SYncd-OT container restart, the Syncd-OT calls the `HardReiniter` function to re-initialize all the OTAI objects and Flexcounter module. 
+If the Syncd-OT container restart, the Syncd-OT calls the `HardReiniter` function to re-initialize all the OTAI objects and Flexcounter module. 
 
-If the linecard reboot, the OTAI library can detect the heartbeat and trigger the `OTAI_LINECARD_NOTIFICATION_NAME_LINECARD_STATE_CHANGE` notification. When the linecard boot-up and status ready, OTAI library triggers the notification again. Once the status is ready, then Syncd-OT call the `SoftReniniter` functions to re-initialize all the OTAI objects and Flexcounter module. 
+If the linecard reboot, vendor's OTAI library can detect the heartbeat with optical linecard and trigger the `OTAI_LINECARD_NOTIFICATION_NAME_LINECARD_STATE_CHANGE` notification. When the linecard boot-up and status ready, OTAI library triggers the optical linecard state changing notification again. Once the status is ready, then Syncd-OT call the `SoftReniniter` functions to re-initialize all the OTAI objects and Flexcounter module. 
 
 <img src="../../images/otn/Syncd-OT_ReIniter.png" alt="Syncd-OT re-initialization.png" style="zoom: 50%;" />
 
@@ -143,15 +143,15 @@ If the linecard reboot, the OTAI library can detect the heartbeat and trigger th
 3. It re-initialize the linecard first by calling the `processLinecards` function.  
 4. In the `processLinecards` function, it recreates the linecard object based on the attributes in AISC_db.  
 5. Once the linecard object is created, it calls vendor's OTAI library to set the other attributes.  
-6. Then Syncd-OT starts to re-initialize the other OTAi objects in `processOids`  
-7. In the `processOids` function, it loops all OTAI objects and calls vendor's OTAI library to recreate these objects.  
+6. Then Syncd-OT starts to re-initialize the other OTAI objects in `processOids`  
+7. In the `processOids` function, it loops all OTAI objects and calls vendor's OTAI library to recreate these OTAI objects.  
 8. After all the other OTAI objects are created, it calls vendor's OTAI library to set the other attributes.  
 9. Syncd-OT starts to reinitialize Flexcounter, it the Flexcounter groups and counter_ids from Flexcounter database  
 10. Based on these configurations in Flexcounter database, it calls the FlexCounterManager to add plugins and counters.  
 
 
 ### 3 Vendor OTAI Library
-Vendor OTAI library implements these OTAI APIs and provides Syncd-OT the ability to manage the linecard and OTAI objects. There are four sections of the OTAI APIs.
+Vendor OTAI library implements these OTAI APIs and provides Syncd-OT the ability to manage the linecard and its internal optical components. There are four sections of the OTAI APIs.
 * Initialization and unInitialization APIs  
     OTAI library implements these APIs to initialize and uninitialize the OTAI library.
 * CRUD APIs  
@@ -183,10 +183,9 @@ Vendor OTAI library implements these OTAI APIs and provides Syncd-OT the ability
 12. `otai_linecard_ocm_spectrum_power_notification_fn()`, the callback function when the OCM module finish spectrum power scanning and report the data.
 13. `otai_linecard_otdr_result_notification_fn()`, the callback function when the OTDR module finish fiber scanning and report the data.
 14. `otai_aps_report_switch_info_fn()`, this is a vendor extension to report the optical power during the OLP switch between different path.
-    
 15. `otai_api_uninitialize()`, uninitialize OTAI APIs.
 
-
+Here are the utility APIs.  
 a. `objectTypeQuery()`, return the OTAI object type if the otai_object_id is valid, otherwise return NULL.  
 b. `otai_query_attribute_capability()`, query an attribute capability.  
 c. `otai_query_attribute_enum_values_capability()`, query an enum attribute list of implemented enum values.  
@@ -198,7 +197,7 @@ e. `otai_log_set()`, set log level for an OTAI API module
 #### 4.1 Test cases
 1. Verify that Syncd-OT can support multi-ASIC architecture, each Syncd-OT manages one linecard and all data are isolated.
 2. When vendor OTAI library is not linked with linecard, verify that Syncd-OT cannot handle the CRUD request from OTSS.
-3. When vendor OTAI library is linked with linecard, verify that Syncd-OT cannot handle the CRUD request from OTSS.
+3. When vendor OTAI library is linked with linecard, verify that Syncd-OT handle the CRUD request from OTSS.
 4. Verify that Syncd-OT can handle the create request message from OTSS, it calls vendor OTAI library create API and save data to ASIC_DB.
 5. Verify that Syncd-OT can handle the update request message from OTSS, it calls vendor OTAI library set API and update data in ASIC_DB.
 6. Verify that Syncd-OT can handle the retrieve request message from OTSS, it calls vendor OTAI library get API.

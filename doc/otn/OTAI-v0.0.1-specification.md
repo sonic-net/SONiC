@@ -29,19 +29,19 @@ This specification defines an abstraction interface for optical transport lineca
 This document is intended primarily for the programmers who plan to use OTAI API or develop OTAI extensions.
 
 ## High-Level design notes  
-A typical optical transport equipment contains one or two main boards and several optical linecards. There are different kinds of optical transport linecards in optical networks, and different venders have their private ways to control their optical modules on the linecard hardware. there are different optical components (OP, WSS, OLP, OTDR) and logical components (OCH, OTN, Logical channels, interfaces, LLDP, etc) on different linecards.In a disaggregated linecard whitebox, the challenge is how to abstract these linecards into a unified and standard model.OTAI defines the vendor independent APIs to control and monitoring all kinds of optical linecards in a uniform manner.  
+A typical optical transport equipment contains one or two main units and several optical linecards. There are different kinds of optical transport linecards in optical networks, and different venders have their private ways to control their optical modules on the linecard hardware. there are different optical components (OP, WSS, OLP, OTDR) and logical components (OCH, OTN, Logical channels, interfaces, LLDP, etc) on different optical linecards. In a disaggregated optical transport whitebox, the challenge is how to abstract these optical linecards into a unified and standard model. OTAI defines the vendor independent APIs to control and monitoring all kinds of optical linecards in a uniform manner.  
 <img src="../../images/otn/OTAI-architecture.png" alt="OTAI in an optical transport system" style="zoom: 30%;" />
 
 OTAI is based upon the Switch Abstraction Interface or [SAI](https://github.com/opencomputeproject/SAI), which includes C Application Programming Interfaces (APIs) and C headers for different optical modules. 
   
-Adapter is a shared software library, supplied by a linecard vendor, that implements OTAI Specification. It sets up a vendor-specific communication channel with the software that runs upon a linecard.  Adapters are expected to be as simple as possible, ideally simple wrappers around vendor’s SDKs. Our design strives to push the bookkeeping complexity from adapter into the adapter host wherever possible.
+Adapter is a shared software library, supplied by an optical linecard vendor, that implements OTAI Specification. It sets up a vendor-specific communication channel with the software that runs upon a linecard.  Adapters are expected to be as simple as possible, ideally simple wrappers around vendor’s SDKs. Our design strives to push the bookkeeping complexity from adapter into the adapter host wherever possible.
   
 The adapter module is loaded into a hosting process (“adapter host”) and then initialized. During
-initialization the adapter initiates discovery process of the specified instance of a optical linecard entity. The linecard entity is a top-level object in OTAI.
+initialization the adapter initiates discovery process of the specified instance of a optical linecard entity. The optical linecard entity is a top-level object in OTAI.
   
-Adapter host is a component that loads Adapter and exposes its functionalities to the Optical Transport State Service (OTSS) module. There would be multiple Adapter Hosts running at the same time, each optical linecard has one Adapter host. Each Adapter Host is responsible for managing a portion of functions within the linecard. For example, there is a OLP linecard on slot 1, the adapter host for slot 1 is responsible for manage the OLP linecard.
+Adapter host is a component that loads Adapter and exposes its functionalities to the Optical Transport State Service (OTSS) module. There would be multiple Adapter Hosts running at the same time, each optical linecard has one Adapter host. Each Adapter Host is responsible for managing a portion of functions within the optical linecard. For example, there is a OLP linecard on slot 1, the adapter host for slot 1 is responsible for manage the OLP linecard.
   
-OTSS is a collection of software that provides a database interface for communication between northbound interface and linecard. 
+OTSS is a collection of software that provides a database interface for communication between northbound interface and optical linecard. 
 
 Key assumptions, design decisions and API semantic clarifications:
 - CRUD (Create/Read/Update/Delete) based API to manage the OTAI objects.
@@ -76,7 +76,7 @@ The OTAI objects includes:
 | [APS](#automatic-protection-switch-functionality-otaiapsh) | Automatic Protection Switch | [otaiaps.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiaps.h) |
 | [APS Port](#automatic-protection-switch-port-functionality-otaiapsporth) | Automatic Protection Switch Port | [otaiapsport.h](https://github.com/sonic-otn/OTAI/blob/main/inc/otaiapsport.h) |
 
-Here is OTAI objects and hierarchy, the top-level object is the linecard object, which could be a real hardware on multi linecard device, or a logical system on a pizza box. The linecard may contains a set of optical components and logical objects. For instance, an optical transponder and muxponder linecard includes Ports(client and line port), transceivers, and logical objects (logical channels, physical channels, ethernet, OTN, OCH, LLDP, etc). An optical linecard in the line system, it may includes OA, OSC, APS, Attenuators, WSS, Media Channel, OCM, OTDR, Ports, etc.  
+Here are OTAI objects and hierarchy, the top-level object is the optical linecard object, which could be a real hardware on multi linecard device, or a logical system on a pizza box. The linecard may contains a set of optical components and logical objects. For instance, an optical transponder and muxponder linecard includes Ports(client and line port), transceivers, and logical objects (logical channels, physical channels, ethernet, OTN, OCH, LLDP, etc). An optical linecard in the line system, it may includes OA, OSC, APS, Attenuators, WSS, Media Channel, OCM, OTDR, Ports, etc.  
 
 <img src="../../images/otn/OTAI-objects-hierarchy.png" alt="OTAI object model and hierarchy" style="zoom: 40%;" />
 
@@ -129,9 +129,9 @@ Linecard is the top module in OTAI. It defines a group of attributes and some st
 
 Once a linecard is created, the adapter returns this linecard's OID. Adapter host can get linecard attributes and statistics  and create the other submodules in the linecard with this OID. You can find the input attribute `linecard_id` from the other submodules' create APIs. 
 
-The R/W column indicates an attribute is READABLE, WRITABLE and CREATE_ONLY. If an attribute is CREATE_ONLY, it can assign value in the create API. Adapter host can set an attribute if it is WRITABLE. Adapter
+The R/W column indicates an attribute is READABLE, WRITABLE and CREATE_ONLY. If an attribute is CREATE_ONLY, it can assign value in the create API. Adapter host can set an attribute if it is WRITABLE. 
 
-There are two types for a statistic, gauge and counter. If an statistic PM type is gauge, the adapter host can use this annotation to distinguish different type of statistic, and apply different PM accumulation rule.
+There are two types for a statistic, gauge and counter. If an statistic PM type is gauge, the adapter host can use this annotation to distinguish different type of statistic, and apply different PM accumulation rules.
 
 |Object|Attribute|Type|R/W|Precision|Unit|PM-Type|
 |:----|:----|:----|:----|:----|:----|:----|
