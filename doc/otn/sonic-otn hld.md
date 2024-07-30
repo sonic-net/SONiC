@@ -1,10 +1,12 @@
 ## Authors
-Alibaba : Weitang Zheng
+Alibaba : Weitang Zheng  
+Molex: Jimmy Jin
 
 ## List of Changes
 | Version | Changes | Name | Date |
 | :-----| :---- | :----- | :----- |
 | V0.0.1 | Initial Draft | Weitang Zheng | 2024-6-18 |
+| V0.0.2 | Update the CLI auto generation section | Jimmy Jin | 2024-7-30 |
 
 ### Definitions/Abbreviations 
 
@@ -253,7 +255,7 @@ The OTSS and Syncd-OT services are enabled on the OTN platform, and support Mult
 
 #### 4.4 Add OTN required enhancement
 ##### 4.4.1 In mgmt-common module, three new enhancements are added. 
-1. Supports multi-ASIC architecture. The mgmt-common module interacts with multiple database instances in Multi-ASIC architecture. The applications in mgmt-common dispatch RESTCONF requests to the correct database instance based on the request URL.
+1. Supports multi-ASIC architecture. Here is the [pull request](https://github.com/sonic-net/SONiC/pull/1701) for this enhancement. The mgmt-common module interacts with multiple database instances in Multi-ASIC architecture. The applications in mgmt-common dispatch RESTCONF requests to the correct database instance based on the request URL.
 For instance, the following URLs accesses the optical amplifier instance `AMPLIFIER-1-1-1`'s `enable` status, the `AMPLIFIER-1-1-1` stands for the optical amplifier in chassis `1`, slot `1` and component id `1`. All optical components with slot `1` are mapped to ASIC ID `1`.
 ```
 /restconf/data/openconfig-optical-amplifier:optical-amplifier/amplifiers/amplifier=AMPLIFIER-1-1-1/config/enabled
@@ -282,10 +284,16 @@ For instance, the following URLs accesses the optical amplifier instance `AMPLIF
 ```
 
 ##### 4.4.2 Add OTN CLI commands in the SONiC-utilities and auto-generated CLI commands based on Openconfig Yang models.
-TBD
+SONiC-OTN project adopts openconfig yang model, https://github.com/openconfig/public/tree/master/release/models/optical-transport, for optical network device support. Therefore, these yang models and corresponding SONiC extension annotations are added into sonic-mgmt-common for supporting OTN REST APIs.
+
+An automatic CLI generation mechanism is introduced as part of OTN project to eliminate the manual effort of writing click based CLI. 
+
+The mechanism is a SONiC compatible Docker image, based on [SONiC application extension mechanism](https://github.com/sonic-net/SONiC/tree/master/doc/sonic-application-extension). It can be built stand alone, then installed on a SONiC system at run time, as well as built into a sonic image at build time using [sonic-buildimage](https://github.com/sonic-net/sonic-buildimage).
+
+Please see [HLD](https://github.com/sonic-otn/SONiC-OTN/blob/main/documentation/openconfig-cli-autogen-HLD.md) and [prototype](https://github.com/jjin62/sonic-openconfig-cli) for details.
 
 #### 4.4.3 Support peripheral devices PM monitoring and alarms
-TBD
+OTN product requires the performance data monitoring and alarm monitoring for peripheral devices. A new PM module is introduced to implement this feature. Here is the high level design for this enhancement in `sonic-platform-common` [ont_pmon_hld](https://github.com/sonic-otn/SONiC-OTN/blob/main/documentation/otn_pmon_hld.md)
 
 
 ### 6. Key OTN requirements for SONiC
