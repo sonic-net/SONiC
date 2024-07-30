@@ -282,11 +282,11 @@ Upon access interface going operationally up, new support is added in the Orchag
 ##### 1.2.1.3.7  Configure Interface with an Ethernet Segment
 **Remote MAC Handling:** When an access interface is configured with an ESI, FRR updates all of the MAC addresses associated with the Ethernet Segment in the VXLAN_FDB_TABLE with the "ifname" of corresponding interface. FdbOrch is extended to reprogram the MAC addresses pointing to the interface.
 
-**Local MAC handling:** No changes to existing Local MAC addresses as part of interface configured with an Ethernet Segment. 
+**Local MAC handling:** No changes to existing Local MAC addresses as part of interface configured with an Ethernet Segment.
 
 ##### 1.2.1.3.8  Remove ES configuration under the Interface.
 
-**Remote MAC Handling:** When ESI config is removed from the interface, FRR/Fdbsyncd will update the MAC addresses in the VXLAN_FDB_TABLE with L2 NHID. FdbOrch to reprogram the remote MAC entries with L2 NHID. 
+**Remote MAC Handling:** When ESI config is removed from the interface, FRR/Fdbsyncd will update the MAC addresses in the VXLAN_FDB_TABLE with L2 NHID. FdbOrch to reprogram the remote MAC entries with L2 NHID.
 
 **Local MAC Handling:** Local MAC addresses remain unaffected.
 
@@ -295,7 +295,7 @@ Following MAC move scenarios is supported:
 - **Local to Local MAC move:**  MAC address move between 2 local interfaces is supported. The interface can be of any type including PortChannel configured with ESI. No new change is required for this case.
 - **Local to remote MAC move:** FRR/Fdbsyncd updates the MAC with remote tunnel/L2-NHID or with MH interface information.  FdbOrch is extended to move the MAC to program against, VxLAN tunnel/L2-NHID or associated MH interface correspondingly.
 - **Remote to remote MAC move:** MAC address can be moved between the remote VTEP interfaces. FRR to update the remote MAC with new tunnel/L2-NHID or interface information. FdbOrch is extended to move the MAC to program against VxLAN tunnel/L2-NHID or associated PortMH interface correspondingly.
-- **Remote to Local MAC move:** FdbOrch updates the existing remote MAC as part of the local learn event and update the STATE_FDB_TABLE with local interface information. The local port can be associated with MH interface or any type of the local Orphan port. 
+- **Remote to Local MAC move:** FdbOrch updates the existing remote MAC as part of the local learn event and update the STATE_FDB_TABLE with local interface information. The local port can be associated with MH interface or any type of the local Orphan port.
 
 ##### 1.2.1.4 Proxy advertisement of Type-2 routes
 IETF draft [ip-mac-proxy-adv](https://datatracker.ietf.org/doc/html/draft-rbickhart-evpn-ip-mac-proxy-adv-02) introduces scheme of proxy advertisement of Type-2 routes useful for the EVPN Multihoming scenarios. The ARP/ND extended community is enhanced to advertise the proxy flag in the Type-2 route updates. The VTEPs, where the MAC address is locally learnt, advertise the Type-2 route without the proxy flag set. The remote VTEPs, which are connected to the same ES, on receiving the Type-2 routes install the MAC address on their local multihomed interface. These remote VTEPs immediately re-advertise (proxy) the same Type-2 route declaring reachability of the MAC address through them as well -- even though the MAC is not locally learnt. These Type-2 route updates are sent with proxy flag set to indicate that MAC is not locally learnt by these VTEPs.
@@ -331,7 +331,7 @@ The ShlOrch is a submodule within Orchagent responsible for reading EVPN Multiho
 <a id="123-SAI-Overview"></a>
 ### 1.2.3 SAI Overview
 Following new objects are added:
-- L2 ECMP group for Known MAC. 
+- L2 ECMP group for Known MAC.
 
 New attributes are added to existing objects to associate with the above objects.
 
@@ -417,7 +417,7 @@ It is recommended that all of the VTEPs multihoming one or more common ES are SO
 
 <a id="223-Split-Horizon-Filtering"></a>
 ### 2.2.3 Split Horizon Filtering
-Split Horizon filtering is achieved by identifying the set of VTEPs Multihoming in a given Ethernet Segment. 
+Split Horizon filtering is achieved by identifying the set of VTEPs Multihoming in a given Ethernet Segment.
 
 Using EVPN Type-4 route, FRR constructs list of participating VTEPs for each ESI. And Fpmsyncd installs EVPN_SPLIT_HORIZON_TABLE entry in APP-DB that contains list of remote VTEPs multihoming the given access interface.
 
@@ -667,7 +667,7 @@ key = VXLAN_FDB_TABLE:"Vlan"vlanid:mac_address
 remote_vtep   = IPv4/IPv6 address           (existing field)
 nexthop_group = L2_NEXTHOP_GROUP_TABLE:key (new field)
 				; index within the L2_NEXTHOP_GROUP_TABLE
-				; 
+				;
 				used instead of remote_vtep field
 vni           = 1*8DIGIT                    (existing field)
 group         = "external"/"internal"       (existing field)
@@ -713,7 +713,7 @@ No changes
 <a id="324-ASIC-DB"></a>
 ### 3.2.4 ASIC DB
 
-Refer to Section 3.4 for the new SAI objects and changes to existing SAI objects. 
+Refer to Section 3.4 for the new SAI objects and changes to existing SAI objects.
 The ASIC DB changes will reflect the above.
 
 #<a id="325-COUNTER-DB"></a>
@@ -740,7 +740,7 @@ No impact is anticipated to MCLAG and LAG modules, e.g.
 - mclagsyncd
 
 <a id="331-MCLAG-Management-Framework"></a>
-### 3.3.1 MCLAG Management Framework 
+### 3.3.1 MCLAG Management Framework
 Configuration handling of MCLAG should now be aware of EVPN Ethernet-Segment configurations and throw appropriate errors in order to achieve mutual-exclusion between EVPN Multihoming and MCLAG features.
 OpenConfig evpn yang is imported into SONiC and ethernet-segment URIs are implemented.
 OpenConfig LACP yang already has system-id-mac configuration and it will be implemented.
@@ -790,14 +790,14 @@ Fdborch to process the local interface down and up in a similar fashion as for M
 - New Orchagent class being introduced.
 - Subscription to different tables
   - APP DB - L2_NEXTHOP_GROUP, L2_NEXTHOP_GROUP_MEMBER
-  - CONFIG DB - EVPN_ES_INTERFACE.
+  - CONFIG DB - EVPN_ETHERNET_SEGMENT.
 - Subscription to L2_NEXTHOP_GROUP
-  - Creates/deletes the L2_ECMP_GROUP ASIC DB table.
-  - Interacts with PortsOrch to create a bridge-port object of type L2_ECMP_GROUP.
+  - Creates/deletes the NEXT_HOP_GROUP ASIC DB table.
+  - Interacts with PortsOrch to create a next_hop group object of type bridge-port.
 - Subscription to L2_NEXTHOP_GROUP_MEMBER
-  - Creates/deletes the L2_ECMP_GROUP_MEMBER ASIC DB tables entries on the L2_NEXTHOP_GROUP APP DB table updates.
+  - Creates/deletes the next_hop of type bridge port ASIC DB tables entries on the L2_NEXTHOP_GROUP APP DB table updates.
   - Interacts with VxlanOrch to update the refcnt per remote VTEP.
-- Subscription to EVPN_ESI CONFIG_DB table
+- Subscription to EVPN_ETHERNET_SEGMENT CONFIG_DB table
   - Informs Fdborch of the ESI to access interface mapping.
   - Maintain a local cache of the mapping.
 - Subscription to LAG oper-status updates from PortsOrch
@@ -805,11 +805,11 @@ Fdborch to process the local interface down and up in a similar fashion as for M
   - L2 NHID to Bridgeport mapping.
 
 <a id="339-EvpnMhOrch"></a>
-### 3.3.9 EvpnMhOrch 
+### 3.3.9 EvpnMhOrch
 A new EvpnMhOrch class will be introduced to perform following activities,
 
 1. Subscribe to EVPN_MH_GLOBAL config table and set the SAI switch attribute.
-2. Subscribe to EVPN_ES_INTERFACE config table updates and maintain internal cache.
+2. Subscribe to EVPN_ETHERNET_SEGMENT config table updates and maintain internal cache.
 3. Provide set of API to check if the given acces interface is ES associated or not.
 4. Subscribe to LAG_TABLE oper status changes and trigger MAC update requests to FdbOrch.
 
@@ -827,12 +827,12 @@ A new ShlOrch class will be introduced to perform following activities,
 ## 3.4 SAI
 
 <a id="341-new-sai-objects"></a>
-### 3.4.1 New SAI Objects 
+### 3.4.1 New SAI Objects
 
 - **L2_ECMP_GROUP**
   - Holds a set of remote VTEPs.
-  - Bridgeport objects of type L2_ECMP_GROUP will be associated with this object. 
-  - Known unicast traffic with Destination MACs pointing to the above bridgeport type will be load balanced among the remote VTEPs. 
+  - Bridgeport objects of type L2_ECMP_GROUP will be associated with this object.
+  - Known unicast traffic with Destination MACs pointing to the above bridgeport type will be load balanced among the remote VTEPs.
 
 ```
 typedef enum _sai_l2_ecmp_group_attr_t
@@ -1019,6 +1019,247 @@ typedef enum _sai_l2_ecmp_group_member_attr_t
     - isogrp_mbr_oid_21 corresponding to isogrp_oid_2+bridgeport_oid_po2
     - isogrp_mbr_oid_41 corresponding to isogrp_oid_4+bridgeport_oid_po2
 
+
+
+
+
+
+
+
+## 3.4 SAI
+<a id="341-new-sai-objects"></a>
+### 3.4.1 SAI Objects
+No new SAI object is required to support this feature.
+For unicast traffic, existing L2NHG_GROUP and FDB are leverage whereas for BUM traffic, existing ISOLATION_GROUP and BRIDGE_PORT are used.
+The L2NH group type is defined to support programming backup reachability.
+
+<a id="342-changes-to-existing-sai-objects"></a>
+### 3.4.2 Changes to Existing SAI Objects
+
+- **BRIDGEPORT**
+
+  - New type of bridgeport providing nexthop group
+    - Applicable when bridge_port points to a group of nexthop.
+```
+    ...
+
+    /** Bridge port next hop group */
+    SAI_BRIDGE_PORT_TYPE_BRIDGE_PORT_NEXT_HOP_GROUP,
+
+  } sai_bridge_port_type_t;
+```
+
+  - New attributes for NON_DF to drop BUM traffic
+    - Applicable to bridgeport type PORT.
+    - When set, ingress BUM traffic on this bridge port will be dropped.
+    - Traffic dropped due to this should not be counted against SAI_PORT_STAT_IF_OUT_DISCARDS i.e Interface Tx drop counters.
+
+  ```
+    ...
+
+    /**
+     * @brief Associated bridge port nexthop group id
+     *
+     * @type sai_object_id_t
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @objects SAI_OBJECT_TYPE_NEXT_HOP_GROUP
+     * @condition SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_BRIDGE_PORT_NEXT_HOP_GROUP
+     */
+    SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_NEXT_HOP_GROUP_ID,
+
+    /**
+     * @brief Indicates if the bridge port is set to drop the broadcast, unknown unicast and multicast traffic
+     * When set to true, ingress BUM traffic will be dropped
+     *
+     * @type bool
+     * @flags CREATE_AND_SET
+     * @default false
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     */
+    SAI_BRIDGE_PORT_ATTR_BUM_RX_DROP,
+
+    /**
+     * @brief Indicates if the bridge port is set to drop the broadcast, unknown unicast and multicast traffic
+     * When set to true, egress BUM traffic will be dropped
+     *
+     * @type bool
+     * @flags CREATE_AND_SET
+     * @default false
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     */
+    SAI_BRIDGE_PORT_ATTR_BUM_TX_DROP,
+
+    /**
+     * @brief Indicates if the bridge port is set to drop the unicast traffic
+     * When set to true, ingress unicast traffic will be dropped
+     *
+     * @type bool
+     * @flags CREATE_AND_SET
+     * @default false
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     */
+    SAI_BRIDGE_PORT_ATTR_UCAST_RX_DROP,
+
+    /**
+     * @brief Indicates if the bridge port is set to drop the unicast traffic
+     * When set to true, egress unicast traffic will be dropped
+     *
+     * @type bool
+     * @flags CREATE_AND_SET
+     * @default false
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     */
+    SAI_BRIDGE_PORT_ATTR_UCAST_TX_DROP,
+
+    /**
+     * @brief Associated protection bridge port nexthop group id
+     *
+     * @type sai_object_id_t
+     * @flags CREATE_AND_SET
+     * @objects SAI_OBJECT_TYPE_NEXT_HOP_GROUP
+     * @allownull true
+     * @default SAI_NULL_OBJECT_ID
+     */
+    SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_PROTECTION_NEXT_HOP_GROUP_ID,
+
+  } sai_bridge_port_attr_t
+
+  ```
+
+
+- **NEXT_HOP**
+  - Adding a new type of next hop equal to bridge_port.
+    MAC points to bridge port (either local or remote)
+
+```
+    ...
+
+    /** Next hop group is for bridge port */
+    SAI_NEXT_HOP_TYPE_BRIDGE_PORT,
+
+  } sai_next_hop_type_t;
+```
+
+- **NEXT_HOP_GROUP**
+   - Adding a new next hop group type equal to bridge port.
+     Grouping a list of nexthops of bridge port type
+   - Reusing next hop group type equal to protection group.
+     Grouping a list of protection group usually primary/backup paths.
+
+```
+    ...
+
+    /** Next hop group is for bridge port */
+    SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT,
+
+    /** Next hop protection group. Contains primary and backup next hops. */
+    SAI_NEXT_HOP_GROUP_TYPE_PROTECTION,
+
+  } sai_next_hop_group_type_t
+```
+
+
+- **ISOLATION_GROUP**
+  - There is no change to the Isolation group and group member definition.
+  - Bridgeport of type TUNNEL will also now have the isolation group attribute set.
+
+
+<a id="343-sai-object-usage"></a>
+
+### 3.4.3 SAI Object usage
+#### 3.4.3.1 Known MAC Handling
+- Refer to Sec 1.2.1
+- At VTEP5 the following objects are created.
+  - tnl_oid_1-tnl_oid_4 corresponding to tunnels created to VTEP1-VTEP4.
+  - nh_bridgeport_oid_1 to nh_bridgeport_oid_4 for corresponding bridgeports of type tunnels (tnl_oid_1-tnl_oid_4)
+
+  - nh_grp_bridgeport_oid_1 for ESI-1(H2)
+  - nh_grp_bridgeport_oid_2 for ESI-2(H3)
+
+  - nh_grp_bridgeport_oid_1 has members nh_bridgeport_oid_1 and nh_bridgeport_oid_4
+  - nh_grp_bridgeport_oid_2 has members nh_bridgeport_oid_1 to nh_bridgeport_oid_4
+
+  - bridgeport_oid_h2 of type nexthop group pointing to nh_grp_bridgeport_oid_1
+  - bridgeport_oid_h3 of type nexthop group pointing to nh_grp_bridgeport_oid_2
+
+  - mac_h2 pointing to bridgeport_oid_h2
+  - mac_h3 pointing to bridgeport_oid_h3
+
+- At VTEP1, the following objects are created.
+  - tnl_oid_2-tnl_oid_5 corresponding to tunnels created to VTEP2-VTEP5.
+  - nh_bridgeport_oid_2 to nh_bridgeport_oid_5 for corresponding bridgeports of type tunnels (tnl_oid_2-tnl_oid_5)
+
+  - nh_bridgeport_oid6 to bridgeport Type Local (PortChannel1)
+  - nh_bridgeport_oid7 to bridgeport Type Local (PortChannel2)
+
+  - nh_grp_bridgeport_oid_1 for backup ESI-1(H2)
+  - nh_grp_bridgeport_oid_2 for backup ESI-2(H3)
+
+  - nh_grp_bridgeport_oid_1 has members nh_bridgeport_oid_4
+  - nh_grp_bridgeport_oid_2 has members nh_bridgeport_oid_2 to nh_bridgeport_oid_4
+
+  - nh_grp_protection_oid_1 for ESI-1(H2)
+  - nh_grp_protection_oid_2 for ESI-2(H3)
+
+  - nh_grp_protection_oid_1 has members nh_bridgeport_oid6 and nh_grp_bridgeport_oid_1 (primary preferred)
+  - nh_grp_protection_oid_2 has members nh_bridgeport_oid7 and nh_grp_bridgeport_oid_2 (primary preferred)
+
+  - bridgeport_oid_h6 of type Local pointing to nh_grp_protection_oid_1
+  - bridgeport_oid_h7 of type local pointing to nh_grp_protection_oid_2
+
+  - mac_h2 pointing to bridgeport_oid_h6
+  - mac_h3 pointing to bridgeport_oid_h7
+
+#### 3.4.3.2 BUM handling
+- Refer to Sec 1.2.1.1
+- DF settings
+  - At VTEP1 bridgeport_oid for Po2 is marked as BUM_RX_DROP.
+  - At VTEP4 bridgeport_oid for Po1 is marked as BUM_RX_DROP.
+  - At VTEP2, VTEP3 bridgeport_oid for Po2 is marked as BUM_RX_DROP.
+- Isolation Group settings for Split Horizon and Local Bias
+  - At VTEP1
+    - tnl_oid_2-4 for tunnels towards the peer multihoming VTEP2-4
+    - bridgeport_oid_2-4 corresponding to tunnels as above.
+    - isogrp_oid_2-4 corresponding to tunnels as above.
+    - bridgeport_oid_2-4 have isolation group attribute set as isogrp_oid_2-4.
+    - isogrp_mbr_oid_21 corresponding to isogrp_oid_2+bridgeport_oid_po2
+    - isogrp_mbr_oid_31 corresponding to isogrp_oid_3+bridgeport_oid_po2
+    - isogrp_mbr_oid_41 corresponding to isogrp_oid_4+bridgeport_oid_po1
+    - isogrp_mbr_oid_42 corresponding to isogrp_oid_4+bridgeport_oid_po2
+  - At VTEP4
+    - tnl_oid_1-3 for tunnels towards the peer multihoming VTEP1-3
+    - bridgeport_oid_1-3 corresponding to tunnels as above.
+    - isogrp_oid_1-3 corresponding to tunnels as above.
+    - bridgeport_oid_1-3 have isolation group attribute set as isogrp_oid_1-3.
+    - isogrp_mbr_oid_21 corresponding to isogrp_oid_2+bridgeport_oid_po2
+    - isogrp_mbr_oid_31 corresponding to isogrp_oid_3+bridgeport_oid_po2
+    - isogrp_mbr_oid_11 corresponding to isogrp_oid_1+bridgeport_oid_po1
+    - isogrp_mbr_oid_12 corresponding to isogrp_oid_1+bridgeport_oid_po2
+  - At VTEP2
+    - tnl_oid_1,3,4 for tunnels towards the peer multihoming VTEP1,3,4
+    - bridgeport_oid_1,3,4 corresponding to tunnels as above.
+    - isogrp_oid_1,3,4 corresponding to tunnels as above.
+    - bridgeport_oid_1,3,4 have isolation group attribute set as isogrp_oid_1,3,4.
+    - isogrp_mbr_oid_11 corresponding to isogrp_oid_1+bridgeport_oid_po2
+    - isogrp_mbr_oid_31 corresponding to isogrp_oid_3+bridgeport_oid_po2
+    - isogrp_mbr_oid_41 corresponding to isogrp_oid_4+bridgeport_oid_po2
+  - At VTEP3
+    - tnl_oid_1,2,4 for tunnels towards the peer multihoming VTEP1,2,4
+    - bridgeport_oid_1,2,4 corresponding to tunnels as above.
+    - isogrp_oid_1,2,4 corresponding to tunnels as above.
+    - bridgeport_oid_1,2,4 have isolation group attribute set as isogrp_oid_1,2,4
+    - isogrp_mbr_oid_11 corresponding to isogrp_oid_1+bridgeport_oid_po2
+    - isogrp_mbr_oid_21 corresponding to isogrp_oid_2+bridgeport_oid_po2
+    - isogrp_mbr_oid_41 corresponding to isogrp_oid_4+bridgeport_oid_po2
+
+
+
+
+
+
+
+
+
 <a id="35-CLI"></a>
 ## 3.5 CLI
 
@@ -1114,7 +1355,7 @@ Total count : 3
 Description:
 
 1. Existing CLI
-2. Changed Tunnel Column to display all the tunnels. 
+2. Changed Tunnel Column to display all the tunnels.
 3. Read from the APP_DB
 ```
 
@@ -1203,7 +1444,7 @@ sonic# show evpn es-evi 100
 VNI 100 ESI: 03:00:00:00:11:22:33:00:00:01
  Type: L
  Ready for BGP: yes
- 
+
 VNI 100 ESI: 03:00:00:00:11:22:33:00:00:02
  Type: L
  Ready for BGP: yes
@@ -1375,14 +1616,14 @@ curl -X PATCH "https://SWITCH_IP:9090/restconf/data/openconfig-network-instance:
 
 ** EVPN Multihoming global configuration **
 ```
-curl -X PATCH "https://SWICH_IP:9090/restconf/data/openconfig-network-instance:network-instances/network-instance=default/evpn/evpn-mh/config" -H "accept: */*" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-network-instance:config\":{\"startup-delay\":150,\"mac-holdtime\":200,\"neigh-holdtime\":250}}" 
+curl -X PATCH "https://SWICH_IP:9090/restconf/data/openconfig-network-instance:network-instances/network-instance=default/evpn/evpn-mh/config" -H "accept: */*" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-network-instance:config\":{\"startup-delay\":150,\"mac-holdtime\":200,\"neigh-holdtime\":250}}"
 ```
 <a id="4-Flow-Diagrams"></a>
 # 4 Flow Diagrams
 
 As part of this document, next hop group handling is added as an important piece to improve performance and convergence. Whenever members are added or removed from a next hop group, it should be a hitless action in hardware. If there are scenarios where a new NHG is to be used, the transition from one NHG to another must also be hitless. For implementations where single-path next hop groups re-use the same ID as the path itself, the transition from single to multi-path (and vice-versa) must be hitless.
 
-Similar to the existing VXLAN support, remote MACs that have been learned by BGP are installed in the linux FDB by Zebra. The rest of the programming chain remains unchanged from the existing VXLAN support. The main change is the type of nexthop the MAC points to. Instead of pointing towards a VTEP IPv4 address, it will point to a next hop group ID. This NHG may have 1 or more paths to load balance across. The following picture illustrate the flow: 
+Similar to the existing VXLAN support, remote MACs that have been learned by BGP are installed in the linux FDB by Zebra. The rest of the programming chain remains unchanged from the existing VXLAN support. The main change is the type of nexthop the MAC points to. Instead of pointing towards a VTEP IPv4 address, it will point to a next hop group ID. This NHG may have 1 or more paths to load balance across. The following picture illustrate the flow:
 
 ```mermaid
 sequenceDiagram
@@ -1446,7 +1687,7 @@ sequenceDiagram
 __Figure 7: Remote Multihomed MAC Resolution__
 
 The downgrade of the number of paths may happens under two conditions: from ES/EAD route withdraw and/or from MAC withdraw.
-The following diagram shows the flow for ES/EAD route withdraw. 
+The following diagram shows the flow for ES/EAD route withdraw.
 
 ```mermaid
 sequenceDiagram
