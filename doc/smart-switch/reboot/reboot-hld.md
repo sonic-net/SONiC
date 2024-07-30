@@ -20,7 +20,6 @@
     - [reboot CLI modifications](#reboot-cli-modifications)
     - [reboot script modifications](#reboot-script-modifications)
     - [PCIe daemon modifications](#pcie-daemon-modifications)
-    - [Hardware watchdog on DPU](#hardware-watchdog-on-dpu)
     - [Error handling and exception scenarios](#error-handling-and-exception-scenarios)
   - [Test plan](#test-plan)
   - [References](#references)
@@ -335,9 +334,6 @@ user-initiated action.
 In the [check_pci_devices()](#https://github.com/sonic-net/sonic-platform-daemons/blob/bf865c6b711833347d3c57e9d84cd366bcd1b776/sonic-pcied/scripts/pcied#L155) function,
 read the State DB for the REBOOT_INFO and suppress the "device not found" warning logs during a DPU reboot when the device is intentionally detached.
 
-### Hardware watchdog on DPU ###
-TBD
-
 ### Error handling and exception scenarios ###
 
 The following are specific error scenarios where the DPU state will not be DPU_READY.
@@ -350,6 +346,8 @@ upon receiving an acknowledgment.
 * If a DPU fails to reboot during a switch reboot, the NPU should attempt to recover the DPU and log any errors that occur.
 
 * In the event of power failure, a power-cycle due to a kernel panic, or any other unknown reason, both the DPU and NPU will undergo an ungraceful reboot.
+
+* In the event of a DPU reboot failure, a hardware watchdog is needed to monitor and reset the DPU. This implementation is vendor-specific.
 
 ## Test plan ##
 
