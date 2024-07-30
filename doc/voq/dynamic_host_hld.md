@@ -129,9 +129,9 @@ BGP downloads the route to RIB and FIB. Routes gets installed with Fabric header
 <a id="121-BGP-Tunnel-Encap"></a>
 ## 1.2.1 BGP Tunnel Encapsulation
 
-A new BGP Encapsulation Tunnel type called: Fabric Tunnel (Type X) is proposed to accommodate different header data from various ASICs on the market. 
+A new BGP Encapsulation Tunnel type called: Fabric Tunnel (Type X) is proposed to accommodate different header data from various ASICs on the market.
 
-Currently, a specific layout is not possible until various ASICs handle a common header; vendors must agree on its format. 
+Currently, a specific layout is not possible until various ASICs handle a common header; vendors must agree on its format.
 As per [RFC9012](https://datatracker.ietf.org/doc/rfc9012/), the Tunnel Encapsulation attribute is an optional transitive BGP path attribute.
 IANA has assigned the value 23 as the type code of the attribute in the "BGP Path Attributes" registry.
 ```
@@ -181,6 +181,9 @@ field in the Encapsulation sub-TLV is shown here.
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 __Figure x: Fabric Tunnel Encapsulation Sub-TLV Value Field__
+
+Notice that the values are transmitted in network order. End devices must properly
+ translate them into host order for processing.
 
 <a id="122-Container"></a>
 ### 1.2.2 Container Overview
