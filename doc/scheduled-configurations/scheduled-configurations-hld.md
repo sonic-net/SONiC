@@ -37,6 +37,8 @@
       - [TIME\_RANGE Yang Model](#time_range-yang-model)
       - [SCHEDULED\_CONFIGURATIONS Yang Model](#scheduled_configurations-yang-model)
     - [CLI Commands](#cli-commands)
+      - [Config Scheduled Configuration](#config-scheduled-configuration)
+      - [Config Time Range](#config-time-range)
       - [Show Time Range](#show-time-range)
       - [Show Scheduled Configurations](#show-scheduled-configurations)
   - [SAI API](#sai-api)
@@ -437,6 +439,26 @@ module sonic-scheduled-configurations {
 ```
 
 ### CLI Commands
+
+#### Config Scheduled Configuration
+
+This new configuration command, `config scheduled-configuration` will take a JSON file, containing scheduled configuration changes, as an argument, and will validate the configuration using YANG, as well as the internal configurations (`configuration` and `deactivation_configuration`) before applying the changes to the `CONFIG_DB`. You can also add the optional flag `-d` or `--dry-run` to only validate the configuration, and not apply it.
+
+The following is the syntax:
+
+```bash
+config scheduled-configuration [-d] <JSON-FILE>
+```
+
+#### Config Time Range
+
+This new configuration command, `config time-range` will take a JSON file containing time range(s), as an argument, and will validate the configuration using YANG before applying to `CONFIG_DB`. You can also add the optional flag `-d` or `--dry-run` to only validate the configuration, and not apply it.
+
+The following is the syntax:
+
+```bash
+config scheduled-configuration [-d] <JSON-FILE>
+```
 
 #### Show Time Range
 
