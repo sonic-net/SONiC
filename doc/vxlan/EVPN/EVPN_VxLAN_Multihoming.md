@@ -2,7 +2,7 @@
 
 # High Level Design Document
 
-Rev 1.0
+Rev 1.1
 
 # Table of Contents
 
@@ -85,6 +85,8 @@ Rev 1.0
 | 0.x  | Feb-2024   | Mike Mallin, Patrice Brissette, Naveen Gamini  | Cisco initial draft  |
 | 0.x  | Feb-2024   | Syed Hasan Naqvi, Rajesh Sankaran, Kishore Kunal, Praveen Elagala  | Broadcom initial draft  |
 | 1.0  | May-2024   | Syed Hasan Naqvi (Broadcom), Patrice Brissette (Cisco), Praveen Elagala (Broadcom), Rajesh Sankaran (Broadcom), Mike Mallin (Cisco), Kishore Kunal (Broadcom), Naveen Gamini (Cisco), Tapraj Singh (Cisco)   | Merged version   |
+| 1.1  | Jul-2024   | Syed Hasan Naqvi (Broadcom) | Updated kernel, SAI, config, and design sections |
+
 
 <a id="About-this-Manual"></a>
 # About this Manual
@@ -240,12 +242,15 @@ The above diagram depicts a typical working of BUM forwarding by the elected DF.
 Each of these VTEPs attempt to flood the traffic on local access ports. However, for the multihomed ESs, only the DF forwards the BUM traffic and rest of the VTEPs refrain from forwarding.
 
 #### 1.2.1.2 L2 Unicast forwarding in EVPN MH
-The control-plane and forwarding-plane handling of MAC and local adjacency (ARP/ND) learnt on the Multihomed Ethernet-Segments significantly differs from the single homed Ethernet-Segments in the EVPN VxLAN network.
+The control-plane and forwarding-plane handling of MAC/ARP learnt on the Multihomed Ethernet-Segments significantly differs from the single homed Ethernet-Segments in the EVPN VxLAN network.
 
-Each VTEP advertises EVPN Type-1 (per ES/EAD) route per local Ethernet-Segment. These VTEPs also advertises EVPN Type-2 (MAC/IP) route per locally learn adjacency (ARP/ND). Remote VTEPs perform EVPN route resolution based on matching ESI value carried as part of these routes. For each Ethernet-Segment, an unique L2 Next-hop group (NHG) is formed that contains the participating VTEPs. All processed EVPN Type-2 routes are pointing to that L2 NHG on matching ESI.
+Each VTEP advertises EVPN Type-1 (AD-per-ES) route to advertise its association with each of the Multihomed ES connected to it. And the Type-2 route for the MAC/ARP learnt on Multihomed ES carry the corresponding 10-byte ES-ID.
+The Type-1 route is used to identify all of the VTEPs that are member of a given Multihomed ES in the network. For each ES-ID, a unique L2 Next-hop group (NHG) is formed that contains the participating VTEPs.
+Subsequently, when Type-2 route is processed that contains an ES-ID, the corresponding MAC/ARP is installed in the system pointing to the L2 NHG.
 
-The L2 NHG serves two purposes. First, it allows load-balancing of L2 unicast flows among the participating VTEPs multihoming the ES. Second, it helps in faster-convergence of traffic in case of Ethernet-Segment failure on one of the participating VTEPs where EVPN Type-1 (ES/EAD) route is withdrawn; the L2 NHG is refreshed with the removal of the affected VTEP.
-![](images/evpn_mh_unicast_forwarding.PNG)
+The L2 NHG serves two purposes. First, it allows load-balancing of L2 unicast flows among the participating VTEPs multihoming the ES. Second, it helps in faster-convergence of traffic in case of ES failure on one of the participating VTEPs.
+
+![image](https://github.com/hasan-brcm/SONiC/assets/56742004/4bd442a9-5275-4fb1-8ccf-a46083c57bf9)
 
 __Figure 4: Unicast Forwarding__
 
@@ -425,8 +430,9 @@ The Isolation group SAI object used for achieving Local Bias and Split Horizon F
 
 <a id="224-Linux-Kernel-Support"></a>
 ### 2.2.4 Linux Kernel Support
-EVPN Multihoming feature requires L2 next-hop group (NHG) support in the Linux kernel that is available in v5.10.
-EVPN Multihoming feature will not be supported in SONiC releases running 4.x kernel versions.
+SONiC is currently at Linux kernel v6.1.38.
+EVPN Multihoming feature requires L2 next-hop group (NHG) support in the Linux kernel that is already available in v6.1.
+However, BUM split-horizon filtering and backup nexthop group support required for EVPN Multihoming came in subsequent Linux kernel versions.
 
 #### 2.2.4.1 L2 Next-hop Groups
 Remote MAC addresses received via BGP EVPN Type-2 route updates having non-zero ESI will be installed in the Linux kernel fdb with L2 nhid as show below:
@@ -445,24 +451,31 @@ id 536870913 group 268435458/268435459 fdb
 ```
 In the example output, L2 NHID group 536870913 has two member nexthops - 268435458 and 268435459 - which resolve to single path VTEP nexthops.
 
+
 #### 2.2.4.2 BUM traffic handling
-Linux kernel v5.10 does not have support for split-horizon filtering. Kernel patches are required in Linux bridge driver to achieve following:
+Linux kernel v6.1 does not have support for split-horizon filtering and designated forwarder.
+Support for Split-horizon filtering and filtering of BUM packets on a non-DF node came in kernel from versions 6.3 - 6.6.
 
-- Each bridge-port in bridge driver keeps up to 4 VTEP addresses.
-- Each bridge-port in bridge driver has flag to indicate it is DF.
-- SKB ingressing VxLAN netdevices and being flooded to a bridge-port (access interface), will undergo following checks:
-	+ If source IP address in SKB matches one of the VTEPs on egress bridge-port, the packet will be dropped.
-	+ Otherwise, packet will be forwarded if DF flag is set on the bridge-port.
-
-Note: This section needs to be revisited in purview of below Linux kernel commit:
 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?h=v6.7.5&id=e180a33cf4636721de9c3e694aaad31e77fcdeb1
 
+Specific kernel and iproute2 patches will be required in SONiC for slow path handling of of split-horizon and DF role.
+
+
+
 #### 2.2.4.3 FDB local and remote activity tracking
-Linux kernel v5.10 has few enhancements for tracking local activity and remote learning of FDB entries. When the MAC address is learnt locally, as well as the advertisement is received from the EVPN MH peer VTEP, the FDB entry holds extra attributes to identify if the FDB entry has become inactive locally.
+Linux kernel has a few enhancements for tracking local activity and remote learning of FDB entries. When the MAC address is learnt locally, as well as the advertisement is received from the EVPN MH peer VTEP, the FDB entry holds extra attributes to identify if the FDB entry has become inactive locally.
 
 Changes in activity of the FDB entry is notified using netlink extended attribute *NDA_FDB_EXT_ATTRS* sent as part of AF_BRIDGE RTM_NEWNEIGH updates by the kernel. When the FDB entry ages out locally, the *FDB_NOTIFY_INACTIVE_BIT* flag is reset in the *NFEA_ACTIVITY_NOTIFY* nested netlink attribute.
 
 Similarly, when installing the mac address received from EVPN MH peer, *NFEA_DONT_REFRESH* attribute is set by the application (FRR) to not reset aging timer (refresh) for the existing FDB entry in the kernel.
+
+#### 2.2.4.4 Bridge port backup nexthop 
+Backup nexthop for Bridge port is a useful feature to avoid traffic loss during local ES link down scenarios.
+
+https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?h=v6.7.5&id=29cfb2aaa4425a608651a05b9b875bc445394443
+
+The above patch was added in kernel v6.6. 
+
 
 <a id="225-MAC-learning-aging-and-move-handling"></a>
 ### 2.2.5 MAC learning, aging, and move handling
@@ -527,7 +540,17 @@ ARP/ND suppression will be supported in EVPN Multihoming scenarios. The VTEP wil
 
 <a id="31-Overview"></a>
 ## 3.1 Overview
+The diagram below shows the flow of various EVPN MH specific events and messages between the components in SONiC subsystem.
+![image](https://github.com/hasan-brcm/SONiC/assets/56742004/3ae593a7-f3a9-4350-869b-dd7ad76b1ccb)
 
+
+- The below diagram summarizes the BUM traffic handling for a given ES:
+  
+![image](https://github.com/hasan-brcm/SONiC/assets/56742004/eb1eaff2-b991-42b1-b998-ff7aefc5604b)
+
+o EVPN_SPLIT_HORIZON_TABLE specifies the list of VTEPs for a given ES.
+
+o EVPN_DF_TABLE specifies the DF role for a given ES.
 <a id="32-DB-Changes"></a>
 ## 3.2 DB Changes
 
@@ -558,6 +581,9 @@ df_pref    = 1*5DIGIT
                 ; Designated-Forwarder election preference for this router in (1..65535) range.
                 ; Default=32767.
 ```
+
+The notions in *esi_type* and *esi* fields are leveraged from openconfig yang and allow smoother translation from openconfig-yang to sonic-yang and config-db:
+https://github.com/openconfig/public/blob/master/doc/evpn_use_cases.md
 
 **PORTCHANNEL**
 ```
@@ -670,7 +696,6 @@ nexthop_group = L2_NEXTHOP_GROUP_TABLE:key (new field)
 				; 
 				used instead of remote_vtep field
 vni           = 1*8DIGIT                    (existing field)
-group         = "external"/"internal"       (existing field)
 ifname        = STRING                      (new field)
 				; Local interface name in case
 				; mac is received with local ESI.
@@ -701,8 +726,6 @@ nexthop_group = L2_NEXTHOP_GROUP_TABLE:key
 				; by "," used for recursive/ECMP routes.
 				; ( When this field is present, other fields will
 				; not be present)
-ifname        = "ifname"if_id
-				; Optionally set.
 ```
 
 <a id="323-STATE-DB"></a>
@@ -732,7 +755,6 @@ The following components will undergo changes to support EVPN Multihoming:
 - Fdbsyncd
 - Fdborch
 - VxlanOrch
-- LinkTrackOrch
 
 No impact is anticipated to MCLAG and LAG modules, e.g.
 
@@ -756,11 +778,17 @@ Existing TeamMgr will be extended to perform following activites
 
 <a id="333-Zebra"></a>
 ### 3.3.3 Zebra
-Zebra changes are required to send ES membership and DF election information to Fpmsyncd. Existing socket for zebra-Fpmsyncd communication is leveraged. For sending split-horizon and DF information to Fpmsyncd, Trafic Control (TC) update messages will be used. Fpmsyncd will process raw netlink messages instead of using libnl3 APIs for decoding these messages.
+Zebra changes are required to send ES membership and DF election information to Fpmsyncd. Existing socket for zebra-Fpmsyncd communication is leveraged. For sending split-horizon and DF information to Fpmsyncd, NEXTHOP update messages will be used. Fpmsyncd will process raw netlink messages instead of using libnl3 APIs for decoding these messages.
+
+Zebra changes will also be required to drive Linux kernel states for following:
+
+- TC filter for split-horizon
+- TC filter for non-DF
+- Backup nexthop for local ES
 
 <a id="334-Fpmsyncd"></a>
 ### 3.3.4 Fpmsyncd
-Fpmsyncd changes are required to handle ES membership and DF election information from zebra and write EVPN_SPLIT_HORIZON_TABLE and EVPN_DF_TABLE APP-DB entries.
+Fpmsyncd changes are required to handle ES membership and DF election information from zebra and write EVPN_SPLIT_HORIZON_TABLE, EVPN_DF_TABLE, and EVPN_ES_BACKUP_NHG_TABLE APP-DB entries.
 
 <a id="335-Fdbsyncd"></a>
 ### 3.3.5 Fdbsyncd
@@ -768,7 +796,6 @@ Fdbsyncd changes are required to handle the following:
 1. Handling of L2-NHG netlink notifications and dump from kernel.
 2. Programming of L2_NEXTHOP_GROUP_TABLE APP-DB entries based on kernel L2-NHG events.
 3. Programming of VXLAN_FDB_TABLE APP-DB entries with L2-NHID.
-4. Warm-reboot reconciliation of L2_NEXTHOP_GROUP_TABLE and VXLAN_FDB_TABLE similar to ROUTE_TABLE/NEXTHOP_GROUP_TABLE reconciliation in Fpmsyncd.
 
 <a id="336-Vxlanorch"></a>
 ### 3.3.6 Vxlanorch
@@ -808,161 +835,183 @@ Fdborch to process the local interface down and up in a similar fashion as for M
 ### 3.3.9 EvpnMhOrch 
 A new EvpnMhOrch class will be introduced to perform following activities,
 
-1. Subscribe to EVPN_MH_GLOBAL config table and set the SAI switch attribute.
-2. Subscribe to EVPN_ES_INTERFACE config table updates and maintain internal cache.
-3. Provide set of API to check if the given acces interface is ES associated or not.
-4. Subscribe to LAG_TABLE oper status changes and trigger MAC update requests to FdbOrch.
-
-<a id="3310-ShlOrch"></a>
-### 3.3.10 ShlOrch
-A new ShlOrch class will be introduced to perform following activities,
-
-1. Subscribe to EVPN_SPLIT_HORIZON_TABLE from APP-DB.
-2. Update ASIC-DB with corresponding list of VTEPs for specific MH access interface.
-3. Handle interface add/removal.
-4. Interact with EvpnMhOrch to check if the given access interface is associated with ES or not
+1. Subscribe to EVPN_ES_INTERFACE config table updates and maintain internal cache.
+2. Provide set of API to check if the given acces interface is ES associated or not.
+3. Subscribe to LAG_TABLE oper status changes and trigger MAC update requests to FdbOrch.
 4. Handle interface ES assignement and removal.
+
+Following split-horizon handling and activities will also be performed by the EvpnMhOrch:
+1. Subscribe to EVPN_SPLIT_HORIZON_TABLE and EVPN_DF_TABLE from APP-DB.
+2. Update ASIC-DB with corresponding list of VTEPs for specific MH access interface.
+3. Update ASIC-DB Bridge port with NON_DF attribute.
+
 
 <a id="34-SAI"></a>
 ## 3.4 SAI
 
 <a id="341-new-sai-objects"></a>
 ### 3.4.1 New SAI Objects 
-
-- **L2_ECMP_GROUP**
-  - Holds a set of remote VTEPs.
-  - Bridgeport objects of type L2_ECMP_GROUP will be associated with this object. 
-  - Known unicast traffic with Destination MACs pointing to the above bridgeport type will be load balanced among the remote VTEPs. 
-
-```
-typedef enum _sai_l2_ecmp_group_attr_t
-{
-    /**
-     * @brief Start of attributes
-     */
-    SAI_L2_ECMP_GROUP_ATTR_START,
-
-    /**
-     * @brief Number of L2 ECMP GROUP members in the group
-     *
-     * @type sai_uint32_t
-     * @flags READ_ONLY
-     */
-    SAI_L2_ECMP_GROUP_ATTR_MEMBER_COUNT = SAI_L2_ECMP_GROUP_ATTR_START,
-
-    /**
-     * @brief L2 ECMP GROUP member list
-     *
-     * @type sai_object_list_t
-     * @flags READ_ONLY
-     * @objects SAI_OBJECT_TYPE_L2_ECMP_GROUP_MEMBER
-     */
-    SAI_L2_ECMP_GROUP_ATTR_MEMBER_LIST,
-
-    /**
-     * @brief Attach a counter
-     *
-     * When it is empty, then packet hits won't be counted
-     *
-     * @type sai_object_id_t
-     * @flags CREATE_AND_SET
-     * @objects SAI_OBJECT_TYPE_COUNTER
-     * @allownull true
-     * @default SAI_NULL_OBJECT_ID
-     */
-    SAI_L2_ECMP_GROUP_ATTR_COUNTER_ID,
-
-    /**
-     * @brief End of attributes
-     */
-    SAI_L2_ECMP_GROUP_ATTR_END,
-
-    /** Custom range base value */
-    SAI_L2_ECMP_GROUP_ATTR_CUSTOM_RANGE_START = 0x10000000,
-
-    /** End of custom range base */
-    SAI_L2_ECMP_GROUP_ATTR_CUSTOM_RANGE_END
-
-} sai_l2_ecmp_group_attr_t;
-
-```
-
-- **L2_ECMP_GROUP_MEMBER**
-  - Represents a remote VTEP.
-  - Is associated with an L2 ECMP GROUP.
-
-```
-typedef enum _sai_l2_ecmp_group_member_attr_t
-{
-    /**
-     * @brief Start of attributes
-     */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_START,
-
-    /**
-     * @brief L2 ECMP GROUP id
-     *
-     * @type sai_object_id_t
-     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
-     * @objects SAI_OBJECT_TYPE_L2_ECMP_GROUP
-     */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_L2_ECMP_GROUP_ID = SAI_L2_ECMP_GROUP_MEMBER_ATTR_START,
-
-    /**
-     * @brief P2P Tunnel oid
-     *
-     * @type sai_object_id_t
-     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
-     * @objects SAI_OBJECT_TYPE_TUNNEL
-     */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_TUNNEL_ID,
-
-    /**
-     * @brief End of attributes
-     */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_END,
-
-    /** Custom range base value */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_CUSTOM_RANGE_START = 0x10000000,
-
-    /** End of custom range base */
-    SAI_L2_ECMP_GROUP_MEMBER_ATTR_CUSTOM_RANGE_END
-
-} sai_l2_ecmp_group_member_attr_t;
-
-```
-
-- Capabilities corresponding to the above new SAI objects to be implemented.
+No new SAI objects are introduced as part of this design.
 
 <a id="342-changes-to-existing-sai-objects"></a>
 ### 3.4.2 Changes to Existing SAI Objects
 
-- **BRIDGEPORT**
-  - A new bridge-port type of type L2_ECMP_GROUP
-  - A new attribute NON_DF to drop BUM traffic .
-    - Applicable to bridgeport type PORT.
-    - When set, egress BUM traffic on this bridge port will be dropped.
-    - Traffic dropped due to this should not be counted against SAI_PORT_STAT_IF_OUT_DISCARDS i.e Interface Tx drop counters.
+**Layer2 ECMP support**
+
+New Bridge-port of type next-hop group type is introduced for FDB entries to point to Layer2 ECMP (Bridge port.)
 ```
+typedef enum _sai_bridge_port_type_t
+...
+    /** Bridge port next hop group */
+    SAI_BRIDGE_PORT_TYPE_BRIDGE_PORT_NEXT_HOP_GROUP,
+} sai_bridge_port_type_t;
+```
+
+The Bridge-port of type next-hop group should have next-hop group ID attribute set.
+```
+typedef enum _sai_bridge_port_attr_t
+{
+...
     /**
-     * @brief Indication if this bridge port is Not a Designated Forwarder
-     * When set, egress BUM traffic on this bridge port will be dropped.
+     * @brief Associated bridge port nexthop group id
+     *
+     * @type sai_object_id_t
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @objects SAI_OBJECT_TYPE_NEXT_HOP_GROUP
+     * @condition SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_BRIDGE_PORT_NEXT_HOP_GROUP
+     */
+    SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_NEXT_HOP_GROUP_ID,
+...
+}
+```
+
+The next-hop groups should be of L2 (Bridge port) type to distinguish from L3 next-hop groups.
+The Bridge port next-hop groups do not rewrite MAC when switching.
+```
+typedef enum _sai_next_hop_group_type_t
+...
+    /** Next hop group is for bridge port */
+    SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT,
+
+} sai_next_hop_group_type_t;
+```
+
+The corresponding nexthop group members should also be of type Bridge-port.
+```
+typedef enum _sai_next_hop_type_t
+...
+    /** Next hop group is for bridge port */
+    SAI_NEXT_HOP_TYPE_BRIDGE_PORT,
+} sai_next_hop_type_t;
+```
+
+Tunnel-ID attribute will be set for Bridge-port nexthops.
+```
+typedef enum _sai_next_hop_attr_t
+...
+    /**
+     * @brief Next hop entry tunnel-id
+     *
+     * @type sai_object_id_t
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @objects SAI_OBJECT_TYPE_TUNNEL
+     * @condition SAI_NEXT_HOP_ATTR_TYPE == SAI_NEXT_HOP_TYPE_TUNNEL_ENCAP or SAI_NEXT_HOP_ATTR_TYPE == SAI_NEXT_HOP_TYPE_SRV6_SIDLIST
+     * @condition SAI_NEXT_HOP_ATTR_TYPE == SAI_NEXT_HOP_TYPE_TUNNEL_ENCAP or SAI_NEXT_HOP_ATTR_TYPE == SAI_NEXT_HOP_TYPE_SRV6_SIDLIST or SAI_NEXT_HOP_ATTR_TYPE == SAI_NEXT_HOP_TYPE_BRIDGE_PORT
+     */
+    SAI_NEXT_HOP_ATTR_TUNNEL_ID,
+...
+```
+
+**BUM and Unicast Filtering**
+
+New Bridge port attributes are defined to support:
+  	- Non-Designated Forwarder BUM Filtering
+  	- Unicast and BUM Filtering on Single Active Ethernet Segment
+
+Note: Traffic dropped due to this should not be counted against SAI_PORT_STAT_IF_OUT_DISCARDS i.e Interface Tx drop counters.
+
+```
+typedef enum _sai_bridge_port_attr_t
+{
+...
+    /**
+     * @brief Indicates if the bridge port is set to drop the broadcast, unknown unicast and multicast traffic
+     * When set to true, ingress BUM traffic will be dropped
      *
      * @type bool
      * @flags CREATE_AND_SET
      * @default false
      * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
      */
-    SAI_BRIDGE_PORT_ATTR_NON_DF,
+    SAI_BRIDGE_PORT_ATTR_BUM_RX_DROP,
+
+    /**
+     * @brief Indicates if the bridge port is set to drop the broadcast, unknown unicast and multicast traffic
+     * When set to true, egress BUM traffic will be dropped
+     *
+     * @type bool
+     * @flags CREATE_AND_SET
+     * @default false
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     */
+    SAI_BRIDGE_PORT_ATTR_BUM_TX_DROP,
+
+    /**
+     * @brief Indicates if the bridge port is set to drop the unicast traffic
+     * When set to true, ingress unicast traffic will be dropped
+     *
+     * @type bool
+     * @flags CREATE_AND_SET
+     * @default false
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     */
+    SAI_BRIDGE_PORT_ATTR_UCAST_RX_DROP,
+
+    /**
+     * @brief Indicates if the bridge port is set to drop the unicast traffic
+     * When set to true, egress unicast traffic will be dropped
+     *
+     * @type bool
+     * @flags CREATE_AND_SET
+     * @default false
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     */
+    SAI_BRIDGE_PORT_ATTR_UCAST_TX_DROP,
+...
+}
+```
+**Backup Nexthop Group support**
+
+A new Bridge port attribute (for type PORT) is introduced to specify the protection nexthop group ID.
+When the Bridge port is down, all of the traffic to the Bridge port is redirected to the protection nexthop.
 
 ```
+typedef enum _sai_bridge_port_attr_t
+{
+...
+    /**
+     * @brief Associated protection bridge port nexthop group id
+     *
+     * @type sai_object_id_t
+     * @flags CREATE_AND_SET
+     * @objects SAI_OBJECT_TYPE_NEXT_HOP_GROUP
+     * @allownull true
+     * @default SAI_NULL_OBJECT_ID
+     */
+    SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_PROTECTION_NEXT_HOP_GROUP_ID,
+...
+}
+```
 
-- **ISOLATION_GROUP**
+**ISOLATION_GROUP**
+
   - There is no change to the Isolation group and group member definition.
   - Bridgeport of type TUNNEL will also now have the isolation group attribute set.
   - Multiple Tunnel bridgeports can have the isolation group attribute set.
 
-- Capabilities corresponding to the above new SAI attributes to be implemented.
+
+[SAI PR 2058] (https://github.com/opencomputeproject/SAI/pull/2058) is raised for the above changes.
+
 
 <a id="343-sai-object-usage"></a>
 ### 3.4.3 SAI Object usage
@@ -1538,134 +1587,14 @@ Existing serviceability and debug applicable to this feature. No new debugging c
 
 <a id="7-Warm-Boot-Support"></a>
 # 7 Warm Boot Support
-Warm reboot for EVPN Multihoming feature is supported on the platforms that support warm-boot. All of the newly added components and functionalities support warm-reboot processing.
+Warm reboot is not part of this design due to below dependencies at present:
 
-<a id="8-Scalability"></a>
-# 8 Scalability
-Below are the targeted EVPN Multihoming scale numbers on platforms providing EVPN Multihoming capability.
+- FRR currently does not support BGP GR for EVPN address-family
+- NHID (L3) WB reconciliation currently does not exist
 
-| Metric                     | Scale |
-|:---------------------------|:-------|
-| EVPN MH ES VTEP membership | 4      |
-| ESIs in a site/cluster     | 1K     |
-| ESIs on a VTEP             | 128    |
-| VNI per ESI                | 4K     |
+Once above dependencies are resolved, WB reconcilation of below objects will be required:
 
-<a id="9-Unit-Test"></a>
-# 9 Unit Test
-
-<a id="91-Functional-Test-Cases"></a>
-## 9.1 Functional Test Cases
-### 9.1.1 Configuration tests
-1. Configure the same system-mac address and Vlan on PortChannel interfaces on two VTEPs and verify multihomed PortChannel interface is up on both of the VTEPs.
-2. Configure Type-0 ESI on PortChannel and verify per ES/AD routes are advertised. Verify list of peering VTEPs is accurate.
-3. Remove Type-0 ESI and configuration from PortChannel. Verify ES/AD routes are withdrawn. Verify list of peering VTEPs is accurate.
-4. Configure Type-3 ES-ID on PortChannel and verify ES/AD routes are advertised. Verify list of peering VTEPs is accurate.
-5. Remove system-mac on the PortChannel. Verify PortChannel mac address is set to default, interface is down on the VTEP where system-mac config is removed, and interface still up on the remote multihomed VTEP(s). Verify ES/AD routes are withdrawn locally.
-6. Reconfigure system-mac on the PortChannel. Verify Portchannel interface is up on the multihomed VTEPs. Verify ES/AD routes are advertised. Verify list of peering VTEPs is accurate.
-7. Remove Type-3 ES configuration from PortChannel. Verify ES/AD routes are withdrawn.
-8. Configure Type-1 ESI on PortChannel and verify ES/AD routes are advertised. Verify list of peering VTEPs is accurate.
-9. Configure system-mac on client node and verify ES/AD routes are advertised with updated Type-1 ESI value. Verify list of peering VTEPs is accurate.
-10. Unconfigure system-mac on client node, and verify ES/AD routes are advertised with previous ESI value.
-11. Configure Type-0 ESI on PortChannel on the VTEP and verify ES/AD routes are advertised with Type-0 ESI value. Verify list of peering VTEPs is accurate.
-12. Remove VLAN from PortChannel and verify AD-per-EVI route is withdrawn.
-13. Add VLAN to PortChannel and verify AD-per-EVI route is advertised. Verify list of peering VTEPs is accurate.
-
-### 9.1.2 DF-election tests
-1. Configure Type-0 ESI on PortChannel1(Po1) connected to VTEP1&4, Type-1 ESI on PortChannel2(Po2) connected to VTEP3 and VTEP4, and Type-3 ESI on PortChannel3(Po3) connected to VTEP1-4.
-2. Verify using APP_DB, kernel, and in hardware that only 1 node with the lowest VTEP-IP is elected as DF for each of the ES.
-3. Configure df-preference on the higher IP VTEP and verify the VTEP is elected as DF and rest of the nodes as non-DF.
-4. Configure same df-preference on all of the nodes and verify the VTEP with lowest VTEP-IP is selected as DF and rest of the nodes are not DF.
-5. Shutdown PortChannel interface on the lowest IP VTEP, and verify lowest IP VTEP is DF and rest of them are non-DF.
-6. Startup PortChannel interface and verify the lowest IP VTEP is selected as DF, and rest of them are non-DF.
-7. Unconfigure ESI configuration and verify that next lowest IP VTEP is selected as DF and rest of them as non-DF.
-8. Re-configure ESI configuration and verify the lowest IP VTEP is selected as DF, and rest of them are non-DF
-9. Configure incremental df-preference on the VTEPs and shutdown portchannel interface on the VTEPs in reverse order. Verify DF election at each step.
-10. Startup portchannel interfaces in the same reverse order and verify DF election at each step.
-11. Unconfigure DF preference configuration from all of the interfaces and nodes. Verify lowest IP vtep is the DF.
-12. Start traffic from remote VTEP and verify that duplicate packets are not received on the client tgen port.
-13. Start traffic from Po1 client and verify that duplicate packets are not sent to the Po2 and Po3 clients.
-14. Verify the behavior when some VTEP has df-preference configure and some not.
-
-### 9.1.3 Split-horizon tests
-1. Configure Type-0 ESI on Po1 connected to VTEP1&4, Type-1 ESI on Po2 connected to VTEP3 and VTEP4, and Type-3 ESI on Po3 connected to VTEP1-4.
-2. Verify APP_DB, kernel, and hardware that split horizon table is correctly populated with the participating VTEP IPs.
-3. Shutdown PortChannel on one of the VTEPS and verify split-horizon table is updated on all of the VTEPs.
-4. Startup PortChannel on the VTEP and verify split-horizon table is updated on all of the VTEPs.
-5. Unconfigure ESI on one of the VTEPs and verify split-horizon table is updated on all of the VTEPs.
-6. Re-configure ESI on the VTEP and verify split-horizon table is updated on all of the VTEPs
-7. Start traffic from Po1 client, and verify that Po1 client does not receive back the traffic.
-8. Shutdown Po3 on VTEP1, and start traffic from Po1 client. Verify Po3 client receive the same amount of traffic.
-9. Startup Po3 on VTEP1, and start the traffic from Po1 client. Verify Po3 client receives the same amount of traffic.
-10. Configure Vlan 100 on Po1, 200 on Po2, and 100,200 on Po3 on the corresponding participating VTEPs.
-11. Send traffic from Po3 client on Vlan200. Verify Po1 client does not receive the traffic, and Po2 client receives the traffic.
-12. Shutdown all of the spine links, and verify that DF election and split-horizon tables are cleaned up on local node. And the same reflected on the remote VTEPs.
-13. Startup spine links and verify that DF election and split-horizon tables are populated correctly on all of the VTEPs.
-14. Remove bgp configuration and verify split-horizon tables are cleaned up on the local VTEP and the same is reflected on remote vteps, and DF table entry is present on the node where BGP config is removed.
-15. Re-configure BGP and verify DF election and split-horizon tables are populated on all of the VTEPs.
-
-### 9.1.4 L2 Unicast tests
-1. Configure Po1 connected to VTEP1 & 4. and Po3 connected to VTEPs 1-4. Add 2 VLANs on each PortChannels, and advertise mac addresses from Po1 and Po3.
-2. On VTEP5, verify show evpn ES output shows {VTEP1, VTEP4} for ESI-1 and VTEP1-4 for ESI-3.
-3. On VTEP5, verify APP_DB VXLAN_FDB_TABLE and L2_NEXTHOP_GROUP_ID tables that {VTEP1,VTEP4} for H1-MAC and {VTEP1-4} for H3-MAC.
-4. Move MAC from Po1 to orphan port of VTEP1. Verify MAC is pointing to remote VTEP instead of NHG on other VTEPs.
-5. Move MAC back from orphan port of VTEP1 to Po1. Verify MAC is pointing to NHG on VTEP, and pointing to local Po on ES member VTEPs.
-6. Move MAC from Po1 to Po2 on VTEP2. Verify MAC on VTEP is pointing to NHG, and to local Po on participating VTEPs.
-7. Move MAC from Po2 to Po3 on VTEP2. Verify MAC on VTEP is pointing to NHG, and to local Po on participating VTEPs.
-8. Wait for MAC ageing interval and verify MAC is removed from all of the VTEPs.
-9. Learn H1-MAC on ES-1. Verify H1-MAC pointing to ES members on VTEP. Shutdown ESI-1 link on VTEP1. On VTEP5, verify ES and FDB outputs show only VTEP4. On VTEP1, verify H1-MAC is pointing to VTEP4.
-10. Startup ESI-1 link on VTEP1. On VTEP5, Verify ES and FDB outputs show VTEP1 & VTEP4. On VTEP1, verify H1-MAC is pointing to local interface.
-11. Shutdown ESI-1 on VTEP1 and VTEP4. Verify MAC is removed from all of the VTEPs after mac holdtimer value.
-12. Re-learn the H1-MAC and wait for MAC ageing, and verify MAC is removed from all of the VTEPs after mac ageing and evpn-mh mac-hold timer expires.
-13. Start traffic from VTEP5 to H1, H2, and H3 MAC. Verify traffic is received on all of the client tgen ports without duplication.
-
-### 9.1.5 ARP/ND tests
-1. Configure hosts on tgen ports connected to client1, client2, and VTEP5. Configure separate IP addresses in the same subnet in default-vrf on the VTEPs of corresponding Po interfaces. For all tests below, verify the neighbor database is accurate.
-2. Ping between the tgen hosts. Verify that ping goes through.
-3. Ping from tgen of VTEP5 to the tgen hosts. Verify that ping goes through.
-4. Move host IP from client1 to client2 tgen port. Verify ping between the tgen hosts.
-5. Shutdown the client2 Po interface on one of the member VTEPs. Verify arp/nd entries are still present and ping successful from tgen hosts.
-6. Shutdown the client2 Po interface on all of the member VTEPs. Verify arp/nd entries are removed from all of the vteps.
-7. Startup the client2 Po interfaces on all of the member VTEPs. Verify ping between the tgen hosts and arp/nd entries are re-learnt.
-
-### 9.1.10 ARP/ND Synchronization tests
-1. H1 is connected to VTEP1 and VTEP2. H2 is connected to VTEP3 and VTEP4. H3 is connected to VTEP5. H1 and H2 are in the same subnet whereas H3 is in a different subnet.
-2. Ping between H1 and H2. Verify that ping goes through. Verify H1 and H2 ARP entry is synchronized on peering PE. Sync MAC and IP portion point to local interface when sync'ed.
-3. Send traffic from H2. Ensure it is ECMP between VTEP1 and VTEP2 to H1 used L3 forwarding.
-4. Send traffic from H3. Ensure it is ECMP between VTEP1 and VTEP2 to H1 using L3 forwarding.
-5. Ageout locally learned ARP and MAC entries.
-6. Send traffic from H3. Check if GLEAN-type of behavior happen where H1 gets resolved. End to end traffic should work once H1 is resolved. Ensure it is ECMP between VTEP1 and VTEP2 to H1 using L3 forwarding.
-
-### 9.1.6 Static Anycast Gateway tests
-1. Configure VRF1 and L3VNI and VLAN200 in the VRF. Assign VLAN200 memberships to the ESIs. Configure SAG subnet on the VTEPs on VLAN200 and assign IP addresses on clients. Verify ping between H1, H2, and H3 works fine. Verify SAG IP addresses are advertised and programmed properly on all VTEPs (e.g., /24 -> ECMP of remote VTEPs)
-2. Configure VRF1 and L3VNI on VTEP5. Verify host routes for H2 and H3 IP addresses are installed in routing table and forming ECMP.
-3. Shutdown ESI-1 link on VTEP1. Verify host route for H1-IP still present in routing table with single path to VTEP4.
-4. Startup ESI-1 link on VTEP1. Verify host route for H1-IP still present and forming ECMP with VTEP1 and VTEP4.
-5. Shutdown Po interfaces on ES clients. Verify host route for the client IP address are removed from SVTEP.
-6. Startup Po interfaces on ES clients. Verify host route for the client IP address are removed from SVTEP.
-7. Clear ARP on VTEP1-4 and ping between the clients and verify host routes for H2 and H3 IP addresses are learnt again on SVTEP.
-8. Configure Vlan100 in default VRF on VTEPs and clients. Configure ip address on Vlan100 on clients, and SAG on the VTEPs. Ping between the clients to verify the reachability.
-9. Verify ARP output shows VTEP1,4 and VTEP1-4 for H2 and H3 IP addresses respectively.
-10. Shutdown ESI-1 link on VTEP1. Verify ARP output shows only VTEP4.
-11. Startup ESI-1 link on VTEP1. Verify ARP output shows only VTEP4.
-12. Ping from H5 to H2/H3. Verify ARP for H2/H3 IP address is present on VTEP5, and the ping is successful.
-13. Repeat tests with Neighbor Discovery.
-
-### 9.1.7 Negative tests
-1. Configure MCLAG domain and then configure Type-0 & Type-3 ESI on PortChannel. Verify that ESI configuration on PortChannel is rejected with error.
-2. Configure Type-0 / Type-3 ESI on PortChannel and then configure MCLAG domain. Verify that MCLAG domain configuration is rejected with error.
-3. Configure ESI on PortChannel1 on VTEP1 and VTEP4 and verify PortChannel is up on H2. Remove ESI configuration on PortChannel1 and configure MCLAG and make PortChannel1 member of MCLAG on VTEP1 and VTEP4. Verify that PortChannel is up on H2.
-4. Remove MCLAG domain configuration and configure ESI on PortChannel1 on VTEP1 and VTEP4. Verify PortChannel interface is up on H2.
-5. Ensure Type-2 MAC/MACIP is received without AD-per-ES route and ensure these Type-2 routes are installed pointing to VTEP.
-
-### 9.1.8 Scale tests
-1. Advertise 1K mac addresses PortChannel2 interface and verify that all of the MAC addresses are installed on PortChannel2 on VTEP1-4 and against L2-NHG for ESI-2 on VTEP5.
-2. Shutdown ES link on VTEP1. Verify on VTEP1 that MAC addresses are now installed against L2-NHG, and L2-NHG has VTEP2-4 members. Verify on VTEP5 that all of the MAC addresses are installed against L2-NHG for ESI-2.
-3. Startup ES link on VTEP1. Verify on VTEP1 that MAC addresses are now installed against PortChannel interface.
-4. Re-advertise all of the MAC addresses from PortChannel1. Verify that MAC addresses are installed on PortChannel1 on VTEP1 and VTEP4, and against L2-NHG for ESI-1 on rest of the VTEPs.
-5. Wait for the FDB aging timeout and verify that all of the MAC addresses are removed from all of the VTEPs.
-
-### 9.1.9 Convergence tests
-1. Shutdown ESI-2 link on VTEP2 and VTEP3 while traffic is running. Verify traffic loss stops after small loss.
-2. Startup ESI-2 link on VTEP2 and VTEP3 while traffic is running. Verify traffic converges to use VTEP2 and VTEP3 ESI links.
-
+- L2 Nexthop groups
+  Since there is no ESI-to-NHID mapping in the Linux kernel, the ESI-to-NHID mapping is required to be passed to fpmsyncd, preserved in APPL_DB, and passed back to zebra for the reconciliation.
+- Split Horizon and Designated Forwarder data
+  Fpmsyncd can indepedently reconcile these similar to ROUTE_TABLE reconciliation.
