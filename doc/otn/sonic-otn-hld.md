@@ -272,7 +272,7 @@ Developers focus on a specific microservice, they don't need to understand how o
 [Optical Transport Abstraction Interface (OTAI)](./OTAI-v0.0.1-specification.md) is a standard interface for managing and controlling the optical transport components.
 OTAI provides CRUD APIs for all OTN components and objects, notifications for OTN status change and data reporting. All attributes defined in OTAI are compatible with the OpenConfig model.
 
-[Syncd-OT](./otn_sycd_hld.md) provides a mechanism to allow the synchronization of the optical transport network state with actual optical transport components and hardware. It includes the initialization, the configuration, the PM collections and the alarms of the optical components.
+[Syncd-OT](./otn_syncd_hld.md) provides a mechanism to allow the synchronization of the optical transport network state with actual optical transport components and hardware. It includes the initialization, the configuration, the PM collections and the alarms of the optical components.
 
 [The Optical Transport State Service (OTSS)](./otn_otss_hld.md) is a collection of software that provides a database interface for communication with and state representation of optical network applications and optical transport component hardware.
 
