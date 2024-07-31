@@ -114,11 +114,12 @@ We are suggesting modifying the exisitng SONiC configuration as following sonic-
  
 1. build_debian.sh (Addition)
 
-    - Required for kdump_remote_ssh_dump: Initialize network interfaces and enable DHCP upon kernel crash. 
+    - Required for kdump_remote_ssh_dump: InItialize network interfaces and enable DHCP upon kernel crash. 
 
 2. files/scripts/network_setup.sh (New Addition)
     - A script to initialize the network interfaces and enable DHCP on them.
 3. files/script/network_setup.hook (New Addition)
+4. Added a daemon into files/image_config/kdump-feature/kdump-service.py (New Addition).
 
 ## Configuration and Management
 This section describes all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below.
@@ -134,8 +135,8 @@ This section describes all types of configuration and management related design.
      "memory"     :{{string}}
      "num_dumps"  :{{number}}
      "remote"     :{{"false"|"true"}}
-     "ssh_connection_string" :{{string}}
-     "ssh_private_key_path" :{{string}}
+     "ssh_string" :{{string}}
+     "ssh_path" :{{string}}
 ```
 
 ### SAI API 
@@ -155,11 +156,19 @@ admin@sonic: sudo config kdump remote enable
 This commans will configure remote kdump feature in SONiC.
 
 ```
-admin@sonic: sudo config kdump remote ssh_connection_string
+admin@sonic: sudo config kdump remote add ssh_string username@serverip
 ```
 
 ```
-admin@sonic: sudo config kdump remote ssh_private_key_path
+admin@sonic: sudo config kdump remote add ssh_path /path to ssh private key/
+```
+
+```
+admin@sonic: sudo config kdump remove ssh_sting
+```
+
+```
+admin@sonic: sudo config kdump remove ssh_path
 ```
 
 ```
@@ -181,8 +190,8 @@ Kdump operational mode: Ready
 Kdump memory reservation: 512
 Maximum number of Kdump files: 3
 remote: true
-Kdump remote server user@ip/hostname: ghulam@172.16.7.13
-Kdump private key file path for remote ssh connection: /home/admin/.ssh/id_rsa
+ssh_string: username@serverip
+ssh_path: /path to ssh_private key/
 ```
 
 ### YANG Enhancements
@@ -191,21 +200,15 @@ Kdump private key file path for remote ssh connection: /home/admin/.ssh/id_rsa
 leaf remote {
    description "SSH Remote Config";
 
-					type string {
-						pattern "true|false";
-					} 
+					type boolean;
+}
+
+leaf ssh_stirng {
+					type string;
 				}
 
-leaf ssh_connection_string {
-					type string {
-						length 1..128;
-					}
-				}
-
-leaf ssh_private_key_path {
-					type string {
-						length 1..128;
-					}
+leaf ssh_path {
+					type string;
 				}				
 
 ```
@@ -218,8 +221,8 @@ Configuring kdump feature always requires a cold reboot of the switch. Warmboot 
 
 ### Unit Test Cases
 - Enable/Disable remote kdump feature.
-- Add/Remove SSH_Connection_String i.e. username@hostname.
-- Add/Remove SSH_Private_Key_Path.
+- Add/Remove ssh_string i.e. username@hostname.
+- Add/Remove ssh_path.
 
 ## Links
  - [White Paper: Red Hat Crash Utility](https://people.redhat.com/anderson/crash_whitepaper/)
