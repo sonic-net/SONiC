@@ -2,13 +2,40 @@
 Alibaba : Weitang Zheng  
 Molex: Jimmy Jin
 
+## Table of Contents
+- [Authors](#authors)
+- [Table of Contents](#table-of-contents)
+- [List of Changes](#list-of-changes)
+  - [Definitions and abbreviations](#definitions-and-abbreviations)
+  - [1. SONiC for optical network introduction](#1-sonic-for-optical-network-introduction)
+  - [2. optical transport network device introduction](#2-optical-transport-network-device-introduction)
+  - [3. SONiC for OTN architecture](#3-sonic-for-otn-architecture)
+  - [4. How to implement OTN features in SONiC](#4-how-to-implement-otn-features-in-sonic)
+    - [4.1 How to add OTN platforms and devices](#41-how-to-add-otn-platforms-and-devices)
+    - [4.2 How to customize feature and service](#42-how-to-customize-feature-and-service)
+    - [4.3 Add OTAI, Synd-OT and OTSS services](#43-add-otai-synd-ot-and-otss-services)
+      - [4.3.1 Monolithic SWSS and Syncd](#431-monolithic-swss-and-syncd)
+      - [4.3.2 Microservice OTN services](#432-microservice-otn-services)
+      - [4.3.3 Monolithic vs Microservice OTN services](#433-monolithic-vs-microservice-otn-services)
+      - [4.3.4 The OTN services introduction](#434-the-otn-services-introduction)
+    - [4.4 Add OTN required enhancement](#44-add-otn-required-enhancement)
+      - [4.4.1 In mgmt-common module, three new enhancements are added.](#441-in-mgmt-common-module-three-new-enhancements-are-added)
+      - [4.4.2 Add auto-generated OTN CLI](#442-add-auto-generated-otn-cli)
+      - [4.4.3 Support peripheral devices PM monitoring and alarms](#443-support-peripheral-devices-pm-monitoring-and-alarms)
+  - [5. Key OTN requirements for SONiC](#5-key-otn-requirements-for-sonic)
+    - [5.1 RESTCONF](#51-restconf)
+    - [5.2 gNMI](#52-gnmi)
+    - [5.3 CLI](#53-cli)
+    - [5.4 Performance Management (PM)](#54-performance-management-pm)
+    - [5.5 Alarm Management](#55-alarm-management)
+
 ## List of Changes
 | Version | Changes | Name | Date |
 | :-----| :---- | :----- | :----- |
-| V0.0.1 | Initial Draft | Weitang Zheng | 2024-6-18 |
-| V0.0.2 | Update the CLI auto generation section | Jimmy Jin | 2024-7-30 |
+| V0.1 | Initial Draft | Weitang Zheng | 2024-6-18 |
+| V0.2 | Update the CLI auto generation section | Jimmy Jin | 2024-7-30 |
 
-### Definitions/Abbreviations 
+### Definitions and abbreviations 
 
 Definitions/Abbreviation|Description
 ------------------------|-----------
@@ -98,7 +125,7 @@ There are three modifications to the SONiC system.
    * Add and enable OTSS and Syncd-OT instances per-asic-scope.
 3. Add OTN required enhancements in sonic-platform-common module and sonic-utilities module.
 
-Here is an example of running docker images on the `virtual-ot` platform with 4 ASICs (optical linecard). It contains 4 instances of Syncd-ot and otss, 5 instances of redis database, 1 global instance of pmon, lldp, gNMI, bgp and eventd.
+Here is an example of running docker images on the `virtual-ot` platform with 4 ASICs (optical linecard). It contains 4 instances of Syncd-OT and OTSS, 5 instances of redis database, 1 global instance of pmon, lldp, mgmt-framework, gNMI, bgp and eventd.
 ```
 admin@sonic:~$ docker ps
 CONTAINER ID   IMAGE                                COMMAND                  CREATED         STATUS              PORTS     NAMES
@@ -126,7 +153,7 @@ admin@sonic:~$
 
 ### 4. How to implement OTN features in SONiC
 #### 4.1 How to add OTN platforms and devices
-Add multiple new otn platforms types in `sonic-buildimage/platform` folder, the optical platforms include the prefix 'ot-' in the platform name. The optical platform folder contains an optical platform specific target files for syncd-ot, ONIE, OTAI library, etc.
+Add multiple new otn platforms types in `sonic-buildimage/platform` folder, the optical platforms include the prefix 'ot-' in the platform name. The optical platform folder contains an optical platform specific target files for Syncd-OT, ONIE, OTAI library, etc.
 
 ```
 sonic-buildimage/platform
@@ -155,7 +182,7 @@ sonic-buildimage/platform
 │   ├── syncd-ot-vs.dep
 │   └── syncd-ot-vs.mk
 ```
-Then adds multiple otn device in the device folder. This folder contains an OTN device specific configuration files for ASIC, PMON, SKU, default linecard configuration templates and flexcounter configurations, etc. For an OTN platform, the platform_asic should start with "ot-" prefix, the ASIC number stands for the number of optical linecards in the system.
+Then add multiple OTN device in the device folder. This folder contains an OTN device specific configuration files for ASIC, PMON, SKU, default linecard configuration templates and flexcounter configurations, etc. For an OTN platform, the platform_asic should start with "ot-" prefix, the ASIC number stands for the number of optical linecards in the system.
 ```
 sonic-buildimage/device/
 ├── virtual-ot
@@ -181,9 +208,9 @@ sonic-buildimage/device/
 SONiC provides two mechanisms to customize feature and services. 
 * In "rules/config", multiple IP layer features can be disabled on the OTN platform.
 * In the "files/build_templates/init_cfg.json.j2", if the platform type start with "ot-", 
-  1. the WSS, Syncd, dhcp_relay, and snmp services are disabled.
-  2. the OTSS and Syncd-OT services are enabled per-asic-scope.
-  3. the LLDP and BPG services are enabled with only one global instance, without per-asic-scope instances.
+  1) the WSS, Syncd, dhcp_relay, and snmp services are disabled.
+  2) the OTSS and Syncd-OT services are enabled per-asic-scope.
+  3) the LLDP and BPG services are enabled with only one global instance, without per-asic-scope instances.
 ```
 {%- if sonic_asic_platform.startswith('ot-') %}
     {% do features.append(("otss", "enabled", false, "enabled")) %}
@@ -196,13 +223,14 @@ SONiC provides two mechanisms to customize feature and services.
 {%- endif %}
 ```
 
-### 4.3 Add OTAI, Synd-OT and OTSS services
+#### 4.3 Add OTAI, Synd-OT and OTSS services
 There were two options to manage OTN components in the SONiC platform.
 1) Monolithic SWSS and Syncd. Embed OTN features in the SWSS, Syncd and OTN definitions in SAI.
-2) Microservice OTN services. Introduce pure OTN services OTSS, Syncd-OT, and OTN abstraction interface (OTAI)
-The SONiC-OTN workgroup prefer to choosing the OTN microservice architecture.
+2) Microservice OTN services. Introduce pure OTN services OTSS, Syncd-OT, and OTN abstraction interface (OTAI)  
 
-#### 4.3.1 Monolithic SWSS and Syncd
+The SONiC-OTN workgroup prefers the OTN microservice architecture.
+
+##### 4.3.1 Monolithic SWSS and Syncd
 In this option, the OTN features are implemented and embedded in the SWSS and Syncd container. New OTN components and objects' APIs, structures and parameters are defined in the SAI.
 
 <img src="../../images/otn/otn-monolithic-swss-syncd.png" alt="sonic otn monolithic swss and syncd" style="zoom: 35%;" />
@@ -217,17 +245,17 @@ The platform prefix `ot-` is the feature toggle to enable and disable the OTN fe
 * In SAI, new OTN components, notfication callbacks, structures, attributes, annotations are defined.
 * In SAI, Syncd and SWSS, mulitple OTN notifications are defined and handled, for example, the optical components' alarms, OTDR and OCM data reporting notification, optical linecard status update notification, etc.
 
-#### 4.3.2 Microservice OTN services
+##### 4.3.2 Microservice OTN services
 In this option, the OTN features are implemented by two new services, the Optical Transport State Service (OTSS) and Syncd for optical transport (Syncd-OT). Optical Transport Abstraction Interface (OTAI) is introduced to manage the OTN components and objects with standard interfaces.
 
 <img src="../../images/otn/otn-microservice-otss-syncd-ot.png" alt="sonic otn microservice otss and syncd-ot" style="zoom: 35%;" />
 
 The OTSS and Syncd-OT services are in parrallel with the SWSS and Syncd services. On IP platforms, the OTSS and Syncd-OT services are disabled. On OTN platform, the SWSS and Syncd services are disabled. All OTN specific features are implemented and isolated in the OTSS and Syncd-OT containers.
 
-The OTSS shares the common utilities in the `sonic-swss-common` repository. The Syncd-OT shares some common infrastrues with the Syncd container, for example the `meta`, `redis-remote`, `flexcounter` and `notification`. The OTAI shares some common infrastrue with the SAI, for example the `metadatatypes`, `serializer`, `deserializer` and `parser.pl`. The OTN workgroup can mannually merge common infrastrues from the syncd and sai repositories to syncd-OT and OTAI, but a common infrastrue library repostory `sonic-syncd-common` is recommended as softwre evolution in the future. 
+The OTSS shares the common utilities in the `sonic-swss-common` repository. The Syncd-OT shares some common infrastrues with the Syncd container, for example the `meta`, `redis-remote`, `flexcounter` and `notification`. The OTAI shares some common infrastrue with the SAI, for example the `metadatatypes`, `serializer`, `deserializer` and `parser.pl`. The OTN workgroup can mannually merge common infrastrues from the syncd and SAI repositories to syncd-OT and OTAI, but a common infrastrue library repostory `sonic-syncd-common` is recommended as softwre evolution in the future. 
 
-#### 4.3.3 Monolithic vs Microservice OTN services
-There are pros and cons to both monolithic and microservice architectures for OTN services, but the SONiC-OTN workgroup prefers the microservice architecture.
+##### 4.3.3 Monolithic vs Microservice OTN services
+There are pros and cons to both monolithic and microservice architectures for OTN services, but the SONiC-OTN workgroup prefers the microservice architecture. Here’s a summary of benefits of microservice OTN architecture.
 * Reduce risks  
 OTSS and Syncd-OT microservices limits the impact on the IP applications, all OTN modifications are isolated in docker containers and loose coupling with the IP applications. Any failure of the OTN services will not impact the IP applications. User can re-deploy impacting IP or OTN microservices to improve SONiC system recoverability.
 
@@ -240,7 +268,7 @@ With microservice architecutre, it's more cost-effective in the long term, user 
 * Team capability  
 Developers focus on a specific microservice, they don't need to understand how other microservices work. Developers only need IP or OTN domain knowledge to develop the microservice.
 
-#### 4.3.4 The OTN services introduction
+##### 4.3.4 The OTN services introduction
 [Optical Transport Abstraction Interface (OTAI)](./OTAI-v0.0.1-specification.md) is a standard interface for managing and controlling the optical transport components.
 OTAI provides CRUD APIs for all OTN components and objects, notifications for OTN status change and data reporting. All attributes defined in OTAI are compatible with the OpenConfig model.
 
@@ -256,7 +284,7 @@ The OTSS and Syncd-OT services are enabled on the OTN platform, and support Mult
 #### 4.4 Add OTN required enhancement
 ##### 4.4.1 In mgmt-common module, three new enhancements are added. 
 1. Supports multi-ASIC architecture. Here is the [pull request](https://github.com/sonic-net/SONiC/pull/1701) for this enhancement. The mgmt-common module interacts with multiple database instances in Multi-ASIC architecture. The applications in mgmt-common dispatch RESTCONF requests to the correct database instance based on the request URL.
-For instance, the following URLs accesses the optical amplifier instance `AMPLIFIER-1-1-1`'s `enable` status, the `AMPLIFIER-1-1-1` stands for the optical amplifier in chassis `1`, slot `1` and component id `1`. All optical components with slot `1` are mapped to ASIC ID `1`.
+For instance, the following URL accesses the optical amplifier instance `AMPLIFIER-1-1-1`'s `enable` status, the `AMPLIFIER-1-1-1` stands for the optical amplifier in chassis `1`, slot `1` and component id `1`. All optical components with slot `1` are mapped to ASIC ID `1`.
 ```
 /restconf/data/openconfig-optical-amplifier:optical-amplifier/amplifiers/amplifier=AMPLIFIER-1-1-1/config/enabled
 ``` 
@@ -283,7 +311,7 @@ For instance, the following URLs accesses the optical amplifier instance `AMPLIF
 ......
 ```
 
-##### 4.4.2 Add OTN CLI commands in the SONiC-utilities and auto-generated CLI commands based on Openconfig Yang models.
+##### 4.4.2 Add auto-generated OTN CLI
 SONiC-OTN project adopts openconfig yang model, https://github.com/openconfig/public/tree/master/release/models/optical-transport, for optical network device support. Therefore, these yang models and corresponding SONiC extension annotations are added into sonic-mgmt-common for supporting OTN REST APIs.
 
 An automatic CLI generation mechanism is introduced as part of OTN project to eliminate the manual effort of writing click based CLI. 
@@ -292,17 +320,17 @@ The mechanism is a SONiC compatible Docker image, based on [SONiC application ex
 
 Please see [HLD](https://github.com/sonic-otn/SONiC-OTN/blob/main/documentation/openconfig-cli-autogen-HLD.md) and [prototype](https://github.com/jjin62/sonic-openconfig-cli) for details.
 
-#### 4.4.3 Support peripheral devices PM monitoring and alarms
+##### 4.4.3 Support peripheral devices PM monitoring and alarms
 OTN product requires the performance data monitoring and alarm monitoring for peripheral devices. A new PM module is introduced to implement this feature. Here is the high level design for this enhancement in `sonic-platform-common` [ont_pmon_hld](https://github.com/sonic-otn/SONiC-OTN/blob/main/documentation/otn_pmon_hld.md)
 
 
-### 6. Key OTN requirements for SONiC
-#### 6.1 RESTCONF
+### 5. Key OTN requirements for SONiC
+#### 5.1 RESTCONF
 * Support multi-ASIC architecture and manage multiple optical linecard.
 * Support Synchronized create and set RESTCONF request.
 * Support openconfig-platform model with components such as chassis, main control units, fans, power supplies, linecard, OSC, OCM, OTDR, optical transceivers, OLP, WSS, OA, panel ports, VOA, etc.  
 * Support openconfig-system model with hostname, timezone, and NTP, along with alarm reporting and system reset RPC functions.  
-* Support openconfig-terminal-device model with logical-channels, otn, ethernet, lldp, assignments and operational-modes.  
+* Support openconfig-terminal-device model with logical-channels, OTN, ethernet, LLDP, assignments and operational-modes.  
 * Support openconfig-interfaces model with interface and ethernet nodes.  
 * Support openconfig-lldp model for OSC and transponder client-side ethernet .  
 * Support openconfig-telemetry model with sensor-groups, destination-groups.
@@ -312,13 +340,13 @@ OTN product requires the performance data monitoring and alarm monitoring for pe
 * Support openconfig-optical-attenuator model with attenuators.  
 * Support openconfig-wavelength-router model with media-channels. 
 
-#### 6.2 gNMI
+#### 5.2 gNMI
 * Support OTN Openconfig Yang models in gNMI dial-out and dial-in mode.
 * Support subscribing an URL path without a key specified.
 * Support configuring multiple Telemetry data collection servers.  
 * Support alarm notifications when the Telemetry collector is unreachable.  
 
-#### 6.3 CLI
+#### 5.3 CLI
 * Support quering running configuration, current and historical performance and alarm; 
 * Support clearing historical alarms and resetting current performance statistics.  
 * Support in-service software upgrades for chassis and optical linecard.
@@ -331,14 +359,14 @@ OTN product requires the performance data monitoring and alarm monitoring for pe
 * Support configure and query all optical components (transceivers, OA, VOA, OSC, OLP, panel ports, OCMs, OTDRs, and WSS on optical linecards) status and parameters defined in OTAI.  
 * Support quering LLDP neighbor information over OSC interface.  
  
-#### 6.4 Performance Management (PM)
+#### 5.4 Performance Management (PM)
 * Support current and historical performance statistics with 15-minute and 24-hour periods.  
 * Retain historical PM data for 7 days.
 * PM data must contain a VALID field to indicate data's validity within the period.  
 * Device's analog performance statistics must include maximum value, time of maximum value occurrence, minimum value, time of minimum value occurrence, and average value.  
 * Device must not lose historical performance data after cold and warm resets.  
 
-#### 6.5 Alarm Management
+#### 5.5 Alarm Management
 * The device must support alarm reporting with Openconfig alarm definitions 
 * The optical alarm types must be defined in OTAI alarm types;   
 * Device must support historical alarm queries and clearance, 
