@@ -96,7 +96,7 @@ These rules will be included in the image and enabled by default.
 ```
 {
     "AUDIT": {
-      "global": {
+      "config": {
         "enable": "true"
       }
     }
@@ -139,7 +139,7 @@ module sonic-audit {
 
             description "AUDIT part of config_db.json";
 
-            container global {
+            container config {
 
                 leaf enable {
                     description "This configuration identicates whether enable audit";
@@ -147,7 +147,7 @@ module sonic-audit {
                     default "true";
                 }
             }
-            /* end of container global */
+            /* end of container config */
         }
         /* end of container AUDIT */
     }
