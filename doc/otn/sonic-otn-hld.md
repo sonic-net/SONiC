@@ -1,6 +1,10 @@
 ## Authors
-Alibaba : Weitang Zheng  
-Molex: Jimmy Jin
+Alibaba : Weitang Zheng Chongjin Xie  
+Molex: Jimmy Jin  
+Infinera: Harish VenKatraman  
+Accelink: Ying Zhang  
+Cisco: Sudhir Kayamkulangara  
+Microsoft: Yawei Yin  
 
 ## Table of Contents
 - [Authors](#authors)
@@ -79,7 +83,7 @@ Although these optical linecards provide different functionalities and are diver
 
 <img src="../../images/otn/optical-linecard-and-components.png" alt="optical linecard and component" style="zoom: 35%;" />
 
-The control unit (CU) is the main control plane component of an optical transport network device. The OTN device's NOS runs on the CU, and interacts with optical linecard's autonomous systems which are either MUC software or embedded operating system. A typical optical NOS architecture on CU has four layers:
+The control unit (CU) is the main control plane component of an optical transport network device. The OTN device's NOS runs on the CU, and interacts with optical linecard's autonomous systems which are either microcontroller unit (MCU) software or embedded operating system. A typical optical NOS architecture on CU has four layers:
 * Northbound application layer: provides Restconf, Netconf, gNMI, CLI and SNMP interfaces
 * System application layer: provides message handler, optical control, management network, in-service software upgrade, and configuration managers, etc.
 * Hardware Abstraction layer (HAL): provides hardware abstraction layer for the optical linecard, FAN, PSU, EEPROM, etc.
@@ -250,7 +254,7 @@ In this option, the OTN features are implemented by two new services, the Optica
 
 <img src="../../images/otn/otn-microservice-otss-syncd-ot.png" alt="sonic otn microservice otss and syncd-ot" style="zoom: 35%;" />
 
-The OTSS and Syncd-OT services are in parrallel with the SWSS and Syncd services. On IP platforms, the OTSS and Syncd-OT services are disabled. On OTN platform, the SWSS and Syncd services are disabled. All OTN specific features are implemented and isolated in the OTSS and Syncd-OT containers.
+The OTSS and Syncd-OT services are in parrallel with the SWSS and Syncd services. On IP platforms, the OTSS and Syncd-OT services are disabled by defualt, and the SWSS and Syncd services are disabled on OTN platform by default. User can enable both IP and OTN services in case of IP over OTN device. All OTN specific features are implemented and isolated in the OTSS and Syncd-OT containers.
 
 The OTSS shares the common utilities in the `sonic-swss-common` repository. The Syncd-OT shares some common infrastrues with the Syncd container, for example the `meta`, `redis-remote`, `flexcounter` and `notification`. The OTAI shares some common infrastrue with the SAI, for example the `metadatatypes`, `serializer`, `deserializer` and `parser.pl`. The OTN workgroup can mannually merge common infrastrues from the syncd and SAI repositories to syncd-OT and OTAI, but a common infrastrue library repostory `sonic-syncd-common` is recommended as softwre evolution in the future. 
 
