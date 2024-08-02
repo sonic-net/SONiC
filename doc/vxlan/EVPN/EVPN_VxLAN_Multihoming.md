@@ -83,7 +83,8 @@ Rev 1.1
 | 0.x  | Feb-2024   | Syed Hasan Naqvi, Rajesh Sankaran, Kishore Kunal, Praveen Elagala  | Broadcom initial draft  |
 | 1.0  | May-2024   | Syed Hasan Naqvi (Broadcom), Patrice Brissette (Cisco), Praveen Elagala (Broadcom), Rajesh Sankaran (Broadcom), Mike Mallin (Cisco), Kishore Kunal (Broadcom), Naveen Gamini (Cisco), Tapraj Singh (Cisco)   | Merged version   |
 | 1.1  | Jul-2024   | Syed Hasan Naqvi (Broadcom) | Updated kernel, SAI, config, and design sections |
-| 1.2  | Jul-2024   | Patrice Brissette (Cisco)   | Updated SAI examples, adding ShlOrchagent definition, addressing PR comments |
+| 1.2  | Jul-2024   | Patrice Brissette (Cisco)   | Adding ShlOrchagent definition, addressing PR comments |
+| 1.3  | Aug-2024   | Patrice Brissette (Cisco)   | Updated SAI examples |
 
 
 <a id="About-this-Manual"></a>
@@ -1004,13 +1005,47 @@ typedef enum _sai_bridge_port_attr_t
 
 #### 3.4.3.1 Known MAC Handling
 - Refer to Sec 1.2.1.2.
-- At VTEP5 the following objects will be created.
+On remote Leaf5 where ECMP chains are built:
+- At VTEP5 the following objects are created.
   - tnl_oid_1-tnl_oid_4 corresponding to tunnels created to VTEP1-VTEP4.
-  - l2_ecmp_grp_oid_1 and l2_ecmp_group_oid_2 NHID-ESI-1 and NHID-ESI-2
-  - l2_ecmp_grp_mbr_oid_11 and l2_ecmp_grp_mbr_oid_14 corresponding to l2_ecmp_grp_oid_1 and tnl_oid_1 and 4 respectively.
-  - l2_ecmp_grp_mbr_oid_21-24 corresponding to l2_ecmp_grp_oid_2 and tnl_oid_1-4 respectively.
-  - bridgeport_oid_1 and bridgeport_oid_2 corresponding to l2_ecmp_grp_oid_1 and l2_ecmp_grp_oid_2.
-  - fdb_entry_oid_H2 pointing to bridgeport_oid_1 and fdb_entry_oid_H3 pointing to bridgeport_oid_2.
+  - nh_bridgeport_oid_1 to nh_bridgeport_oid_4 for corresponding bridgeports of type tunnels (tnl_oid_1-tnl_oid_4)
+
+  - nh_grp_bridgeport_oid_1 for ESI-1(H2)
+  - nh_grp_bridgeport_oid_2 for ESI-2(H3)
+
+  - nh_grp_bridgeport_oid_1 has members nh_bridgeport_oid_1 and nh_bridgeport_oid_4
+  - nh_grp_bridgeport_oid_2 has members nh_bridgeport_oid_1 to nh_bridgeport_oid_4
+
+  - bridgeport_oid_h2 of type nexthop group pointing to nh_grp_bridgeport_oid_1
+  - bridgeport_oid_h3 of type nexthop group pointing to nh_grp_bridgeport_oid_2
+
+  - mac_h2 pointing to bridgeport_oid_h2
+  - mac_h3 pointing to bridgeport_oid_h3
+
+- At VTEP1, the following objects are created.
+  - tnl_oid_2-tnl_oid_5 corresponding to tunnels created to VTEP2-VTEP5.
+  - nh_bridgeport_oid_2 to nh_bridgeport_oid_5 for corresponding bridgeports of type tunnels (tnl_oid_2-tnl_oid_5)
+
+  - nh_bridgeport_oid6 to bridgeport Type Local (PortChannel1)
+  - nh_bridgeport_oid7 to bridgeport Type Local (PortChannel2)
+
+  - nh_grp_bridgeport_oid_1 for backup ESI-1(H2)
+  - nh_grp_bridgeport_oid_2 for backup ESI-2(H3)
+
+  - nh_grp_bridgeport_oid_1 has members nh_bridgeport_oid_4
+  - nh_grp_bridgeport_oid_2 has members nh_bridgeport_oid_2 to nh_bridgeport_oid_4
+
+  - nh_grp_protection_oid_1 for ESI-1(H2)
+  - nh_grp_protection_oid_2 for ESI-2(H3)
+
+  - nh_grp_protection_oid_1 has members nh_bridgeport_oid6 and nh_grp_bridgeport_oid_1 (primary preferred)
+  - nh_grp_protection_oid_2 has members nh_bridgeport_oid7 and nh_grp_bridgeport_oid_2 (primary preferred)
+
+  - bridgeport_oid_h6 of type Local pointing to nh_grp_protection_oid_1
+  - bridgeport_oid_h7 of type local pointing to nh_grp_protection_oid_2
+
+  - mac_h2 pointing to bridgeport_oid_h6
+  - mac_h3 pointing to bridgeport_oid_h7
 
 #### 3.4.3.2 BUM handling
 - Refer to Sec 1.2.1.1
