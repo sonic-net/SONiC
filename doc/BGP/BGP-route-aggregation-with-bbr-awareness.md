@@ -206,7 +206,6 @@ The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` 
 5. The bgp container restarted:
     - First, the bgp container will clean the addresses in state DB and then the bgp container will process all existed config one by one according to 1~4.
 
-To avoid concurrency issue, all operation mentioned above will be put into queue and be processed one by one. 
 #### UML Sequence Diagrams
 ![](img/add-aggregated-address.png)
 
