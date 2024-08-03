@@ -51,7 +51,7 @@ This document provides general information about the OpenConfig configuration/ma
 # Scope
 - This document describes the high level design of OpenConfig configuration/management of System features via gNMI/REST in SONiC.
 - This does not cover the SONiC KLISH CLI.
-- Openconfig-system.yang version 2.0.0 - latest openconfig yang repo version is considered.
+- Openconfig-system.yang version 2.1.0 - latest openconfig yang repo version is considered.
 - Supported attributes in OpenConfig YANG tree:
   ```
   +--rw system
@@ -235,15 +235,20 @@ There are no changes to COUNTER DB schema definition.
 
 ## 3.3 User Interface
 ### 3.3.1 Data Models
-Openconfig-system.yang (2.0.0) and its submodules will be used as user interfacing models.  
-We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (2.0.0).  
+Openconfig-system.yang (2.1.0) and its submodules will be used as user interfacing models.  
+We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (2.1.0).  
+Community PR [https://github.com/sonic-net/sonic-mgmt-common/pull/147]  
+   * In this PR openconfig-system.yang and its submodules are updated to latest version available
+   * Reference to openconfig-network-instance module is commented, as this module is yet to be supported in sonic
+
 Main changes among these to openconfig versions are:
  * Feature wise major changes -
-    * system/state -> uptime, software-version, last-configuration-timestamp nodes are added
+    * system/state -> uptime, software-version, last-configuration-timestamp nodes are added.
     * ntp -> source-address moved to per server list from global container. Also network-instance is included per server.
     * grpc-server -> Restructured completely, multiple server provision is added.
-    * logging -> For remote-server, network-instance support is added. Files & VTY containers are added newly
+    * logging -> For remote-server, network-instance support is added. Files & VTY containers are added newly.
     * memory -> used and free leaves are added.
+    * process -> uptime node is removed.
 
  * New features added in latest version -
     * license
@@ -252,8 +257,6 @@ Main changes among these to openconfig versions are:
     * bootz
     * control-plane-traffic (copp)
     * resource utilization
-
-Apart from these, to add support for ntp-key reference in ntp server, we have created community PR [OpenConfig YANG community](https://github.com/openconfig/public/pull/1149), which is under review and dependency for this HLD.
 
 ### 3.3.2 REST API Support
 #### 3.3.2.1 GET
