@@ -56,7 +56,6 @@ in the common config feature.
 |-- x86_64-broadcom_b77 -- broadcom-sonic-td3.config.bcm
 |-- x86_64-broadcom_b78 -- broadcom-sonic-td3.config.bcm
 |-- x86_64-broadcom_b85 -- broadcom-sonic-td2.config.bcm
-|-- x86_64-broadcom_b87 -- broadcom-sonic-td4.config.bcm
 |-- x86_64-broadcom_b88 -- broadcom-sonic-td4.config.bcm
 |-- x86_64-broadcom_b96-- broadcom-sonic-th.config.bcm
 |-- x86_64-broadcom_b97-- broadcom-sonic-th2.config.bcm
@@ -69,10 +68,13 @@ The main change of the design is in the SYNCD docker syncd/scripts/syncd_init_co
 
 The design change for syncd_init_common.sh is targeted on the config_syncd_bcm() which is only used for BRCM switch chip. In the config_syncd_bcm() function, it will load the common silicon config.bcm file by looking for a *.bcm file in the  /usr/share/sonic/device/x86_64-broadcom_common/x86_64-broadcom_{$chip_id} folder where the $chip_id is the upper 3 nibbles of the switching silicon's device ID as listed in SDK/include/soc/devids.h. Then, merge common broadcom-sonic-{$chip_name}.config.bcm file with the existing platform specific config.bcm file in which the duplicate configuration entries in the platform specific file will override entries in the common broadcom-sonic-{$chip_name}.config.bcm file. 
 
-In the updated 0.2 version, the script will check the platform specific config file. If it is yml based, it will merge common broadcom-sonic-{$chip_name}.config.bcm file with the existing platform specific config.yml file.
+In the updated 0.2 version, the script will check the platform specific config file. If it is yml based, it will merge common broadcom-sonic-{$chip_name}.config.bcm file with the existing platform specific config.yml file. 
+
+In order to support common config overwrite the platform config feature in updated version 0.2. We propose a package config folder under each switch silicon common config folder. The properties of common config file under the package config folder will merge and overwrite the platform config.   
 
 Since the platform specific config.bcm is read only in docker, the design copies the platform specific config.bcm or config.yml and sai.profile to /tmp for handling common config merge process. The /tmp/sai.profile will be modified to point to the merged config.bcm or config.yml under/tmp directory. The following switch initialization will reference to the new merged config.bcm or config.yml pointed by updated sai.profile from the /tmp directory.
 
+The design will also copy the merged config.bcm or config.yml and sai.profile to /var/run/ share folder for debugging and testing purpose
 
 ## 4 Serviceability and DEBUG
 ### 4.1 Syslogs
@@ -110,8 +112,7 @@ sai_eapp_config_file=/etc/broadcom/eapps_cfg.json
 NA
 ## 6 Unit Test
 - Check the system status to make sure syncd initial success
-- Check the syslog to make sure the common config merged to
-   config.bcm and config.yml successfully
+- Check the syslog to make sure the common config merged to config.bcm and config.yml successfully
 - Check the final merged config.bcm or config.yml dump from show tech dump 
 
 
