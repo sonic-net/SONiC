@@ -283,7 +283,7 @@ get_dpu_id(self, name):
     Retrieves the DPU ID for the given dpu-module name. Returns None for non-smartswitch chassis.
 
     Returns:
-        An integer, indicating the DPU ID Ex: name:DPU0 return value 1, name:DPU1 return value 2, name:DPUX return value X+1
+        An integer, indicating the DPU ID Ex: name:DPU0 return value 0, name:DPU1 return value 1, name:DPUX return value X
 ```
 
 is_smartswitch(self):
@@ -544,8 +544,7 @@ get_dpu_id(self):
     Retrieves the DPU ID. Returns None for non-smartswitch chassis.
 
     Returns:
-        An integer, indicating the DPU ID. DPU0 returns 1, DPUX returns X+1
-        Returns '0' on switch module
+        An integer, indicating the DPU ID. DPU0 returns 0, DPUX returns X
 ```
 #### Get DPU reboot cause
 def get_reboot_cause(self):
