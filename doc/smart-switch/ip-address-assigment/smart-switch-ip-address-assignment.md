@@ -364,7 +364,7 @@ The YANG model shown in this section is provided as a reference. The complete mo
             container GLOBAL {
                 leaf bridge {
                     type string {
-                        pattern "bridge_midplane";
+                        pattern "bridge-midplane";
                     }
                     description "Name of the midplane bridge";
 
