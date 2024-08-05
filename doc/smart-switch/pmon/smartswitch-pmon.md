@@ -1030,4 +1030,4 @@ Note:
 ```
 
 ## 4.   Test Plan
-[Test Plan](https://github.com/rameshraghupathy/sonic-mgmt/blob/master/docs/testplan/SmartSwitch-PMON-testplan.md)
+[Test Plan](https://github.com/nissampa/sonic-mgmt_dpu_test/blob/dpu_test_plan_draft_pr/docs/testplan/Smartswitch-test-plan.md)
