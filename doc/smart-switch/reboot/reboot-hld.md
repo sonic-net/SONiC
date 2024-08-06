@@ -63,7 +63,7 @@ Smart Switch supports only cold-reboot and does not support warm-reboot as of to
 
 ## Requirements ##
 
-1. NPU host is running gNMI/gNOI server to communicate with DPU.
+1. NPU host is running gNOI client to communicate with DPU.
 2. DPU host is running gNOI server to listen to gNOI client requests.
 3. Each DPU is assigned an IP address to communicate from NPU.
 
@@ -173,7 +173,7 @@ a default timeout will be used.
     .
     "dpu_halt_services_timeout" : "TBD"
 
-    "DPUs" : [
+    "DPUS" : [
         {
             "dpu0": {
                 "bus_info" : "[DDDD:]BB:SS.F"
@@ -312,16 +312,16 @@ def reboot_smartswitch(duthost, localhost, reboot_type='cold', reboot_dpu='false
 execute all the steps except the actual reboot at the end of the script.
 
 * When a DPU module is requested for a reboot, the reboot script will update StateDB with the reboot information according to the schema defined
-below. Define a new function named update_dpu_reboot_info() for this purpose. Additionally, if the entire smart switch is undergoing a reboot,
+below. Define a new function named update_dpu_pcie_info() for this purpose. Additionally, if the entire smart switch is undergoing a reboot,
 update the same information for all the DPUs. Once the DPU is rebooted and the PCIe device is reattached, the StateDB entry will be updated accordingly.
 
-#### REBOOT_INFO schema in StateDB
+#### PCIE_DETACH_INFO schema in StateDB
 
 ```
-"REBOOT_INFO|DPU_0": {
+"PCIE_DETACH_INFO|DPU_0": {
   "value": {
     "id": "1",
-    "dpu_state": "rebooting",
+    "dpu_state": "detaching",
     "bus_info" : "[DDDD:]BB:SS.F"
   }
 }
@@ -332,7 +332,7 @@ The PCIe daemon will be updated to avoid logging "PCIe Device: <Device name> Not
 user-initiated action.
 
 In the [check_pci_devices()](#https://github.com/sonic-net/sonic-platform-daemons/blob/bf865c6b711833347d3c57e9d84cd366bcd1b776/sonic-pcied/scripts/pcied#L155) function,
-read the State DB for the REBOOT_INFO and suppress the "device not found" warning logs during a DPU reboot when the device is intentionally detached.
+read the State DB for the PCIE_DETACH_INFO and suppress the "device not found" warning logs during a DPU reboot when the device is intentionally detached.
 
 ### Error handling and exception scenarios ###
 
