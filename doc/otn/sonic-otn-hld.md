@@ -1,8 +1,8 @@
 ## Authors
-Alibaba : Weitang Zheng Chongjin Xie  
+Alibaba : Weitang Zheng, Chongjin Xie  
 Molex: Jimmy Jin  
-Infinera: Harish Venkatraman  
-Accelink: Ying Zhang  
+Infinera: Harish Venkatraman, Anoop Mathew, Gandhi Sevagan, Saranya Azhgamuthaiyan
+Accelink: Ying Zhang, Wei Wang  
 Cisco: Sudhir Kayamkulangara  
 Microsoft: Yawei Yin  
 
@@ -325,7 +325,7 @@ The mechanism is a SONiC compatible Docker image, based on [SONiC application ex
 Please see [HLD](https://github.com/sonic-otn/SONiC-OTN/blob/main/documentation/openconfig-cli-autogen-HLD.md) and [prototype](https://github.com/jjin62/sonic-openconfig-cli) for details.
 
 ##### 4.4.3 Support peripheral devices PM monitoring and alarms
-OTN product requires the performance data monitoring and alarm monitoring for peripheral devices. A new PM module is introduced to implement this feature. Here is the high level design for this enhancement in `sonic-platform-common` [ont_pmon_hld](https://github.com/sonic-otn/SONiC-OTN/blob/main/documentation/otn_pmon_hld.md)
+OTN product requires the performance data monitoring and alarm monitoring for peripheral devices. A new PM module is introduced to implement this feature. Here is the high level design for this enhancement in `sonic-platform-common` [otn_pmon_hld](https://github.com/sonic-otn/SONiC-OTN/blob/main/documentation/otn_pmon_hld.md)
 
 
 ### 5. Key OTN requirements for SONiC
