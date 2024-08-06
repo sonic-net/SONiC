@@ -88,7 +88,7 @@ The picture below highlights the PMON vertical and its association with other lo
 <p align="center"><img src="./images/dpu-startup-seq.svg"></p>
 
 #### 2.1.1 DPUs in dark mode
-* Generally a smartswitch boots up with the DPUs in the dark mode with the help of platform config_db as shown in the "CHASSIS_MODULE" schema.
+* Generally a smartswitch boots up with the DPUs in the dark mode with the help of platform config_db
 * NPU pmon listens to config DB events for DPU admin up/down events
 * PMON use set_admin_state() API to honor the request
 * The DPUs would stay power down in dark mode and will not consume power
