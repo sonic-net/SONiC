@@ -165,7 +165,8 @@ The following flow captures CoPP manager functionality.
             "mode":"sr_tcm",
             "cir":"600",
             "cbs":"600",
-            "red_action":"drop"
+            "red_action":"drop",
+            "trap_action":"trap"
         },
 
         "COPP_GROUP|queue4_group1": {
