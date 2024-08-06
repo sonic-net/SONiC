@@ -36,8 +36,8 @@ admin@switch1:~$ redis-cli -n 4 hgetall "SNMP|LOCATION"
 2) "Emerald City"
 
 admin@switch1:~$ redis-cli -n 4 hgetall "SNMP|CONTACT"
-1) "joe"
-2) "joe@contoso.com"
+1) "Contact"
+2) "joe joe@contoso.com"
 ```
 
 # SNMP_COMMUNITY Table
@@ -127,12 +127,12 @@ Options:
 admin@switch1:~$
 
 admin@switch1:~$ show run snmp contact
-Contact    Contact Email
----------  -----------------
-Joe        joe@contoso.com
+Contact
+---------
+joe joe@contoso.com
 admin@switch1:~$
 admin@switch1:~$ show run snmp contact --json
-{'joe': 'joe@contoso.com'}
+{'Contact': 'joe joe@contoso.com'}
 admin@switch1:~$
 ```
 
@@ -246,28 +246,28 @@ Options:
   -h, -?, --help  Show this message and exit.
 
 Commands:
-  add     Add snmp contact name and email
-  del     Delete snmp contact name and email
+  add     Add snmp contact
+  del     Delete snmp contact
   modify  Modify snmp contact
 admin@switch1:~$
 admin@switch1:~$ sudo config snmp contact add -h
-Usage: config snmp contact add [OPTIONS] <contact_name> <contact_email>
+Usage: config snmp contact add [OPTIONS] <contact>
 
-  Add snmp contact name and email
+  Add snmp contact
 
 Options:
   -?, -h, --help  Show this message and exit.
 admin@switch1:~$
 admin@switch1:~$ sudo config snmp contact del -h
-Usage: config snmp contact del [OPTIONS] <contact_name>
+Usage: config snmp contact del [OPTIONS] <contact>
 
-  Delete snmp contact name and email
+  Delete snmp contact
 
 Options:
   -h, -?, --help  Show this message and exit.
 admin@switch1:~$
 admin@switch1:~$ sudo config snmp contact modify -h
-Usage: config snmp contact modify [OPTIONS] <contact> <contact email>
+Usage: config snmp contact modify [OPTIONS] <contact>
 
   Modify snmp contact
 
