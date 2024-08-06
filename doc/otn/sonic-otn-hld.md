@@ -1,7 +1,7 @@
 ## Authors
 Alibaba : Weitang Zheng Chongjin Xie  
 Molex: Jimmy Jin  
-Infinera: Harish VenKatraman  
+Infinera: Harish Venkatraman  
 Accelink: Ying Zhang  
 Cisco: Sudhir Kayamkulangara  
 Microsoft: Yawei Yin  
