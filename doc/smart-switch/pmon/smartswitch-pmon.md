@@ -87,9 +87,18 @@ The picture below highlights the PMON vertical and its association with other lo
 ### DPU startup sequence diagram
 <p align="center"><img src="./images/dpu-startup-seq.svg"></p>
 
-### Configuring startup and shutdown
-* The DPUs can be powered down by configuring the admin_status as shown.
-* The corresponding switch configDB table is also shown
+#### 2.1.1 DPUs in dark mode
+* Generally a smartswitch boots up with the DPUs in the dark mode with the help of platform config_db as shown in the "CHASSIS_MODULE" schema.
+* NPU pmon listens to config DB events for DPU admin up/down events
+* PMON use set_admin_state() API to honor the request
+* The DPUs would stay power down in dark mode and will not consume power
+
+#### 2.1.2 Configuring startup and shutdown
+* The user can use the “config chassis modules startup DPUx”  to power ON a DPU Example: “config chassis modules startup DPU0”
+* The “config chassis modules shutdown DPUx” is used to power OFF a DPU Example: “config chassis modules shutdown DPU0”
+* The DPUs are powered down by configuring the admin_status as shown in the schema
+* The config change event handler listens to the config change and sets the corresponding switch configDB table and also triggers the module set_admin_state() API
+* The platform executes the power ON/OFF sequence
 
 #### config_db.json
 CHASSIS_MODULE table holds the list and configuration of DPU modules in a smartswitch chassis. It allows user to administratively bring down a DPU
