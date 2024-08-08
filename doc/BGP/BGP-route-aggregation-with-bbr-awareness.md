@@ -42,11 +42,11 @@ This document describes how to leverage the SONiC config DB to add or remove BGP
 
 
 ## Overview
-In BGP, we can aggregate detailed routes into one single aggregated route. It has many advantages, for example reducing routes’ count.
+In BGP, we can aggregate contributing routes into one single aggregated route. It has many advantages, for example reducing routes’ count.
 
 However, firstly, SONiC can’t configurate aggregated addresses via config DB and doesn’t have CLI support for it.
 
-Secondly, if we aggregated routes without BBR feature on device, we many got packet drop on this device due to detail routes missing.
+Secondly, if we aggregated routes without BBR feature on device, we many got packet drop on this device due to contributing routes missing.
 
 To leverage the benefit of address aggregation and the BBR feature, we are trying to design the aggregate address configuration mechanism with BBR awareness in this doc.
 
@@ -120,8 +120,18 @@ module sonic-bgp-aggregate-address {
                 }
 
                 leaf as-set {
-                     type boolean;
-                     description "Set if include the AS set when advertising the aggregated address";
+                    type boolean;
+                    description "Set if include the AS set when advertising the aggregated address";
+                }
+
+                leaf aggregate-address-prefix-list {
+                    type string;
+                    description "The name of prefix list to append the aggregate address";
+                }
+
+                leaf contributing-address-prefix-list {
+                    type string;
+                    description "The name of prefix list to append the contributing addresses whose prefix length is greater and equal than the aggregate address";
                 }
             }
         }
@@ -136,11 +146,13 @@ module sonic-bgp-aggregate-address {
     "BGP_AGGREGATE_ADDRESS": {
         "192.168.0.0/24": {
             "bbr-required": "true",
-            "summary-only": "false"
+            "summary-only": "false",
+            "aggregate-address-prefix-list": "AGG_ROUTES_V4",
+            "contributing-address-prefix-list": "AGG_CONTRIBUTING_ROUTES_V4"
         },
         "fc00::/63": {
             "bbr-required": "true",
-            "summary-only": "true"
+            "summary-only": "true",
             "as-set": "true"
         }
     }
@@ -159,12 +171,18 @@ If it's true and the BBR feature is not enabled, aggregated address won't genera
 ##### Summary Only
 It's a boolean to indicate whether only advertise aggregate address only.
 
-If it's true, then details routes will be suppressed and only aggregated address will be advertised.
+If it's true, then contributing routes will be suppressed and only aggregated address will be advertised.
 
 ##### AS Set
-It's a boolean to indicate whether add a as set of details routes in as path when advertising aggregated address.
+It's a boolean to indicate whether add a as set of contributing routes in as path when advertising aggregated address.
 
-If it's true, then when advertising aggregated address there will be a as set of detail routes appended at as path.
+If it's true, then when advertising aggregated address there will be a as set of contributing routes appended at as path.
+
+##### Aggregate Address Prefix List
+It's a string which should be the name of a prefix list, and the aggregate address will be append to the prefix list.
+
+##### Contributing Address Prefix List
+It's a string which should be the name of a prefix list, and the aggregate address will be append to the prefix list with prefix length filter to filter prefixes whose length greater or equal to the prefix length of the aggregate address.
 
 ### State DB Extension
 For every aggregated address, we track its state in state DB, it has two states active and inactive. Active state means the address is configurated in the bgp container, while inactive state means isn't.
@@ -175,10 +193,14 @@ For every aggregated address, we track its state in state DB, it has two states 
     ...
     "BGP_AGGREGATE_ADDRESS": {
         "192.168.0.0/24": {
-            "state": "inactive"
+            "state": "inactive",
+            "aggregate-address-prefix-list": "AGG_ROUTES_V4",
+            "contributing-address-prefix-list": "AGG_CONTRIBUTING_ROUTES_V4"
         },
         "fc00::/63": {
-            "state": "active"
+            "state": "active",
+            "aggregate-address-prefix-list": "None",
+            "contributing-address-prefix-list": "None"
         }
     }
     ...
@@ -195,14 +217,21 @@ For every aggregated address, we track its state in state DB, it has two states 
 ### Bgp Container Behavior
 The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` in config DB. The possible events and related process are:
 1. Add address in config DB:
-    - if BRR requirement is satisfied, generate aggregated address in the bgp container and add address in state DB with active state.
-    - else, add address in state DB with inactive state.
+    - if BRR requirement is satisfied, generate aggregated address in the bgp container and add address in state DB with active state and prefix list names.
+        - if aggregate-address-prefix-list provided, append aggregated address to the prefix list.
+        - if contributing-address-prefix-list provided, append aggregated address to the prefix list with prefix length filter.
+    - else, add address in state DB with inactive state and prefix list names.
 2. Remove address in config DB:
+    - Query state DB to see if there are prefix lists contain the address, if yes, remove the address from those prefix lists.
     - Remove aggregated address in the bgp container and remove address in state DB.
 3. Enable BBR feature in config DB:
     - In config DB, find out all addresses that has bbr-required equals true and generate aggregated addresses in the bgp container then update state DB with active state.
+        - if aggregate-address-prefix-list is not None, append aggregated address to the prefix list.
+        - if contributing-address-prefix-list is not None, append aggregated address to the prefix list with prefix length filter.
 4. Disable BBR feature in config DB:
     - In config DB, find out all addresses that has bbr-required equals true and remove aggregated addresses in the bgp container then update state DB with inactive state.
+        - if aggregate-address-prefix-list is not None, remove aggregated address from the prefix list.
+        - if contributing-address-prefix-list is not None, remove aggregated address from the prefix list.
 5. The bgp container restarted:
     - First, the bgp container will clean the addresses in state DB and then the bgp container will process all existed config one by one according to 1~4.
 
@@ -239,13 +268,13 @@ This command is used to show aggregate address in ipv4 address family
 - Example
   ```
   > show ip bgp aggregate-address
-  +----------------+---------+-------------+-------------+---------------+
-  |Prefix          |State    |Summary Only |BBR Required |As Set Enabled |
-  |----------------+---------+-------------+-------------+---------------+
-  |192.168.0.0/24  |Active   |False        |False        |True           |
-  +----------------+---------+-------------+-------------+---------------+
-  |10.0.0.0/24     |Inactive |True         |True         |False          |
-  +----------------+---------+-------------+-------------+---------------+
+  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
+  |Prefix          |State    |Summary Only |BBR Required |As Set Enabled |Aggregate Address Prefix List|Contributing Address Prefix List|
+  |----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
+  |192.168.0.0/24  |Active   |False        |False        |True           |AGG_ROUTES_V4                |AGG_CONTRIBUTING_ROUTES_V4      |
+  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
+  |10.0.0.0/24     |Inactive |True         |True         |False          |None                         |None                            |
+  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
   ```
 
 **show ipv6 bgp aggregate-address**
@@ -259,13 +288,13 @@ This command is used to show aggregate address in ipv6 address family
 - Example
   ```
   > show ipv6 bgp aggregate-address
-  +----------------+---------+-------------+-------------+---------------+
-  |Prefix          |State    |Summary Only |BBR Required |As Set Enabled |
-  |----------------+---------+-------------+-------------+---------------+
-  |fc00:1::/64     |Active   |False        |False        |True           |
-  +----------------+---------+-------------+-------------+---------------+
-  |fc00:3::/64     |Inactive |True         |True         |False          |
-  +----------------+---------+-------------+-------------+---------------+
+  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
+  |Prefix          |State    |Summary Only |BBR Required |As Set Enabled |Aggregate Address Prefix List|Contributing Address Prefix List|
+  |----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
+  |fc00:1::/64     |Active   |False        |False        |True           |AGG_ROUTES_V6                |AGG_CONTRIBUTING_ROUTES_V6      |
+  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
+  |fc00:3::/64     |Inactive |True         |True         |False          |None                         |None                            |
+  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
   ```
 
 #### Config CLI
@@ -274,7 +303,7 @@ This command is used to show aggregate address in ipv6 address family
 This command is used to add aggregate address
 - Usage
   ```
-  config bgp aggregate-address add <address> [--bbr-required] [--summary-only] [--as-set]
+  config bgp aggregate-address add <address> [--bbr-required] [--summary-only] [--as-set] [--aggregate-address-prefix-list] [--contributing-address-prefix-list]
   ```
 
 - Example
@@ -283,6 +312,7 @@ This command is used to add aggregate address
   config bgp aggregate-address add 192.168.0.0/24 --summary-only
   config bgp aggregate-address add 192.168.0.0/24 --summary-only --as-set
   config bgp aggregate-address add fc00:1::/64 --bbr-required
+  config bgp aggregate-address add fc00:1::/64 --bbr-required --aggregate-address-prefix-list AGG_ROUTE_V4 --contributing-address-prefix-list CONTRIBUTING_ROUTE_V4
   ```
 
 **config bgp aggregate-address remove**
