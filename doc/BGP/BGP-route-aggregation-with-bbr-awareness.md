@@ -69,6 +69,7 @@ The YANG model and config DB demo are showed in below:
 #### Yang Model
 ```
 module sonic-bgp-aggregate-address {
+
     namespace "http://github.com/sonic-net/sonic-bgp-aggregate-address";
 
     prefix bgp-aggregate-address;
@@ -111,27 +112,36 @@ module sonic-bgp-aggregate-address {
 
                 leaf bbr-required {
                     type boolean;
+                    default false;
                     description "Set if BBR is required for generating aggregate address";
                 }
 
                 leaf summary-only {
                     type boolean;
+                    default false;
                     description "Only advertise the summary of aggregate address";
                 }
 
                 leaf as-set {
                     type boolean;
+                    default false;
                     description "Set if include the AS set when advertising the aggregated address";
                 }
 
                 leaf aggregate-address-prefix-list {
-                    type string;
-                    description "The name of prefix list to append the aggregate address";
+                    type string {
+                        pattern "[0-9a-zA-Z_-]*";
+                    }
+                    default "";
+                    description "Set if include the AS set when advertising the aggregated address";
                 }
 
                 leaf contributing-address-prefix-list {
-                    type string;
-                    description "The name of prefix list to append the contributing addresses whose prefix length is greater and equal than the aggregate address";
+                    type string {
+                        pattern "[0-9a-zA-Z_-]*";
+                    }
+                    default "";
+                    description "Set if include the AS set when advertising the aggregated address";
                 }
             }
         }
@@ -199,8 +209,8 @@ For every aggregated address, we track its state in state DB, it has two states 
         },
         "fc00::/63": {
             "state": "active",
-            "aggregate-address-prefix-list": "None",
-            "contributing-address-prefix-list": "None"
+            "aggregate-address-prefix-list": "",
+            "contributing-address-prefix-list": ""
         }
     }
     ...
@@ -226,12 +236,12 @@ The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` 
     - Remove aggregated address in the bgp container and remove address in state DB.
 3. Enable BBR feature in config DB:
     - In config DB, find out all addresses that has bbr-required equals true and generate aggregated addresses in the bgp container then update state DB with active state.
-        - if aggregate-address-prefix-list is not None, append aggregated address to the prefix list.
-        - if contributing-address-prefix-list is not None, append aggregated address to the prefix list with prefix length filter.
+        - if aggregate-address-prefix-list is not empty string, append aggregated address to the prefix list.
+        - if contributing-address-prefix-list is not empty string, append aggregated address to the prefix list with prefix length filter.
 4. Disable BBR feature in config DB:
     - In config DB, find out all addresses that has bbr-required equals true and remove aggregated addresses in the bgp container then update state DB with inactive state.
-        - if aggregate-address-prefix-list is not None, remove aggregated address from the prefix list.
-        - if contributing-address-prefix-list is not None, remove aggregated address from the prefix list.
+        - if aggregate-address-prefix-list is not empty string, remove aggregated address from the prefix list.
+        - if contributing-address-prefix-list is not empty string, remove aggregated address from the prefix list.
 5. The bgp container restarted:
     - First, the bgp container will clean the addresses in state DB and then the bgp container will process all existed config one by one according to 1~4.
 
@@ -273,7 +283,7 @@ This command is used to show aggregate address in ipv4 address family
   |----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
   |192.168.0.0/24  |Active   |False        |False        |True           |AGG_ROUTES_V4                |AGG_CONTRIBUTING_ROUTES_V4      |
   +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
-  |10.0.0.0/24     |Inactive |True         |True         |False          |None                         |None                            |
+  |10.0.0.0/24     |Inactive |True         |True         |False          |                             |                                |
   +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
   ```
 
@@ -293,7 +303,7 @@ This command is used to show aggregate address in ipv6 address family
   |----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
   |fc00:1::/64     |Active   |False        |False        |True           |AGG_ROUTES_V6                |AGG_CONTRIBUTING_ROUTES_V6      |
   +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
-  |fc00:3::/64     |Inactive |True         |True         |False          |None                         |None                            |
+  |fc00:3::/64     |Inactive |True         |True         |False          |                             |                                |
   +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
   ```
 
