@@ -28,7 +28,7 @@ The controller communicates with SmartSwitch via the GNMI interface. To enhance 
 ## Requirement
 
 - Support for multiple operations in a single request
-- Non-child objects must always include the version ID field
+- Non-child objects must always include the version ID field, and the version ID should be maintained by the controller(VNET or SDN side) side.
 - The GNMI server supports set, remove, get, and subscribe operations
 - The GNMI client can proactively subscribe to or get objects/tables via object key or table name
 
@@ -46,6 +46,7 @@ The controller communicates with SmartSwitch via the GNMI interface. To enhance 
 
 ```mermaid
 sequenceDiagram
+    actor CTR as Controller
     participant GC as GNMI Client
     box NPU SONiC
         participant GS as GNMI Server
@@ -59,12 +60,18 @@ sequenceDiagram
         participant SY as SYNCD
     end
 
+    CTR ->> CTR: Prepare objects operations
+    alt Set command
+        CTR ->> CTR: Prepare version ID
+    end
+    CTR ->> GC: Call GNMI API
     GC ->> GS: Update commands
     loop Each commands:
         GS --) AD: Insert object
         GS ->> ZMQ: Update command
     end
     GS -->> GC: 
+    GC -->> CTR: 
     ZMQ ->> SW: Consume commands
     SW ->> SY: SAI call
     SY -->> SW: 
