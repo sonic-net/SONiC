@@ -112,8 +112,6 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     ; Defines Transceiver DOM sensor information for a port
     key                          = TRANSCEIVER_DOM_SENSOR|ifname    ; information module DOM sensors on port
     ; field                      = value
-    tx_disable                   = BOOLEAN                          ; TX disable state
-    tx_disabled_channel          = INTEGER                          ; TX disable field
     temperature                  = FLOAT                            ; temperature value in Celsius
     voltage                      = FLOAT                            ; voltage value in V
     tx1power                     = FLOAT                            ; tx 1 power in dBm
@@ -301,6 +299,8 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     rxoutput_status_hostlane6    = BOOLEAN                          ; rx output status on host lane 6
     rxoutput_status_hostlane7    = BOOLEAN                          ; rx output status on host lane 7
     rxoutput_status_hostlane8    = BOOLEAN                          ; rx output status on host lane 8
+    tx_disable                   = BOOLEAN                          ; TX disable state
+    tx_disabled_channel          = INTEGER                          ; TX disable field
     txfault                      = BOOLEAN                          ; tx fault flag on media lane
     txlos_hostlane1              = BOOLEAN                          ; tx loss of signal flag on host lane 1
     txlos_hostlane2              = BOOLEAN                          ; tx loss of signal flag on host lane 2
@@ -747,6 +747,52 @@ This command displays information for all the interfaces for the transceiver req
   Host Input Loopback : False
   ```
 
+- **show interfaces transceiver dom**
+
+    Expected output for "show interfaces transceiver dom \<port\>" CLI.
+
+    Please note that in the below o/p, the line starting with "Section" will not be printed with CLI o/p. It is currently present just for information purpose only.
+
+    **Laser config frequency, Laser current frequency and Tx config power** will show value as N/A for non C_CMIS transveivers and threshold values
+    ```
+                                  Live          High Alarm  High Warn   Low Warn    Low Alarm
+    Sensor Type                   Measurement   Threshold   Threshold   Threshold   Threshold
+    -------                       ------------  ----------  ----------  ----------  ----------
+    Section 1 - Common fields for all types (CCMIS, CMIS, SFF8636 (QSFP28), SFF8436 (QSFP+), SFF8472 (QSFP+))
+    Laser config frequency [GHz]
+    Laser current frequency [GHz]
+    Tx config power [dBm]
+    Case Temperature [C]
+    Voltage [V]
+    Tx Bias [mA]                  [Val1, .. Valn]
+    Tx Power [dBm]                [Val1, .. Valn]
+    Rx Power [dBm]                [Val1, .. Valn]
+
+    Section 2 - Fields specific for CMIS + CCMIS
+    Laser Temperatue [C]
+    Post-FEC BER
+    Pre-FEC BER
+
+    Section 3 - Fields specific for CCMIS
+    Bias X/I [%]
+    Bias X_Phase [%]
+    Bias X/Q [%]
+    Bias Y/I [%]
+    Bias Y_Phase [%]
+    Bias Y/Q [%]
+    SOP ROC [krad/s]
+    CD – Long Link [Ps/nm]
+    CD – Short Link [Ps/nm]
+    CFO [MHz]
+    DGD [Ps]
+    eSNR [dB]
+    OSNR [dB]
+    PDL [dB]
+    Rx signal power[dBm]
+    Rx total power[dBm]
+    SOPMD [Ps^2]
+    ```
+
 #### 2.3 Config_DB Schema ####
 ##### 2.3.1 Transceiver Config Table #####
 Stores information for physical switch ports managed by the switch chip. Ports to the CPU (ie: management port) and logical ports (loopback) are not declared in the PORT_TABLE. See INTF_TABLE.
@@ -779,20 +825,21 @@ configure privisioning settings of the transceivers
 
 - Example (bring module up from low power mode, or bring down module to low power mode):
     ```
-    admin@sonic:~# config interface transceiver lpmode Ethernet0 -- enable
+    admin@sonic:~# config interface transceiver lpmode Ethernet0 enable
     Enabling low-power mode for port Ethernet0 ... OK
 
-    admin@sonic:~# config interface transceiver lpmode Ethernet0 -- disable
+    admin@sonic:~# config interface transceiver lpmode Ethernet0 disable
     Disabling low-power mode for port Ethernet0 ... OK
     ```
 
 - Example (config the privisioning frequency):
     ```
-    admin@sonic:~# config interface transceiver frequency Ethernet0 -- 196025
+    admin@sonic:~# config interface transceiver frequency Ethernet0 196025
     Setting laser frequency to 196025 GHz on port Ethernet0
     ```
 
 - Example (config the privisioning TX power):
+The "--" is needed here because the provisioned value is negative.
     ```
     admin@sonic:~# config interface transceiver tx_power Ethernet0 -- -10.0
     Setting target Tx output power to -10.0 dBm on port Ethernet0
@@ -800,7 +847,7 @@ configure privisioning settings of the transceivers
 
 - Example (config the loopback mode):
     ```
-    admin@sonic:~$ config interface transceiver loopback Ethernet0 -- none
+    admin@sonic:~$ config interface transceiver loopback Ethernet0 none
     Setting loopback mode to none
     ```
     
@@ -1049,6 +1096,29 @@ def get_TX_configured_power(port):
 ```
 
 #### 3.2 Get VDM related information
+
+The table below specifies the threshold for important optics and DSP performance metrics:
+
+
+|PM|	Min|	Max|
+|--|--|--|
+|PreFEC BER|0|	1.25E-2|
+|PostFEC BER|	|0|
+|Tx Power (dBm)|		| | 
+|Rx Power (dBm)|		| | 
+|OSNR (dB/0.1nm)|26| |
+|SNR (dB)|13.6| |
+|CD (ps/nm)|	0|	2400|
+|Frequency Offset (GHz)|-3.6|3.6|
+|peak DGD (ps)|	0|	28|
+|peak PDL (dB)|	0| 3.5|
+|SOP (krad/s)|	0|	50|
+|Case Temperature ($^{o}$C)	|	|75 |
+|Laser Temperature ($^{o}$C)|	|75 |
+| EVM| | |
+
+
+
 - get_VDM
 
 ```get_VDM_page``` function uses ```VDM_TYPE``` dictionary above. It parses all the VDM items defined in the dictionary within a certain VDM page and returns both VDM monitor values and four threshold values related to this VDM item. ```get_VDM``` function combines VDM items from all VDM pages.

@@ -248,7 +248,7 @@ function Port_Config() {
 <th>ASIC Vendor</th>
 <th>Switch ASIC</th>
 <th>Port Configuration</th>
-<th>Latest successful build</th>
+<th>Successful build</th>
 </tr>
 </thead>
 <tbody id="data_table">
@@ -405,6 +405,22 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
+<td>Accton</td>
+<td>Wedge 100BF-32</td>
+<td class="asic_vendor">Intel</td>
+<td>Tofino</td>
+<td>32x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>Wedge 100BF-65X</td>
+<td class="asic_vendor">Intel</td>
+<td>Tofino</td>
+<td>32x100G</td>
+<td></td>
+</tr>
+<tr>
 <td>Alphanetworks</td>
 <td>SNH60A0-320Fv2</td>
 <td class="asic_vendor">Broadcom</td>
@@ -430,7 +446,15 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Arista</td>
-<td>7050QX-32</td>
+<td>CCS-720DT-48S</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3.X2</td>
+<td>48x1G + 4x10G</td>
+<td></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>DCS-7050QX-32</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
@@ -438,7 +462,7 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Arista</td>
-<td>7050QX-32S</td>
+<td>DCS-7050QX-32S</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
@@ -446,7 +470,7 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Arista</td>
-<td>7050CX3-32S</td>
+<td>DCS-7050CX3-32S</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>32x100G + 2x10G</td>
@@ -454,15 +478,15 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Arista</td>
-<td>7060CX-32S</td>
+<td>DCS-7060CX-32S</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
-<td>32x100G</td>
+<td>32x100G + 2x10G</td>
 <td></td>
 </tr>
 <tr>
 <td>Arista</td>
-<td>7060DX4-32</td>
+<td>DCS-7060DX4-32</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x400G + 2x10G</td>
@@ -470,7 +494,7 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Arista</td>
-<td>7060PX4-32</td>
+<td>DCS-7060PX4-32</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x400G + 2x10G</td>
@@ -478,7 +502,39 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Arista</td>
-<td>7170-32CD</td>
+<td>DCS-7060DX5-32</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 4T</td>
+<td>32x400G + 2x10G</td>
+<td></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>DCS-7060DX5-64</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 4</td>
+<td>32x800G + 2x10G</td>
+<td></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>DCS-7060PX5-64</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 4</td>
+<td>32x800G + 2x10G</td>
+<td></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>DCS-7060DX5-64S</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 4</td>
+<td>64x400G + 2x10G</td>
+<td></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>DCS-7170-32CD</td>
 <td class="asic_vendor">Intel</td>
 <td>Tofino</td>
 <td>32x100G + 2x10G</td>
@@ -486,23 +542,23 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Arista</td>
-<td>7170-64C</td>
+<td>DCS-7170-64C</td>
 <td class="asic_vendor">Intel</td>
 <td>Tofino</td>
-<td>64x100G</td>
+<td>64x100G + 2x10G</td>
 <td></td>
 </tr>
 <tr>
 <td>Arista</td>
-<td>7260CX3-64</td>
+<td>DCS-7260CX3-64</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
-<td>64x100G</td>
+<td>64x100G + 2x10G</td>
 <td></td>
 </tr>
 <tr>
 <td>Arista</td>
-<td>7280CR3-32D4</td>
+<td>DCS-7280CR3-32D4</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Jericho 2</td>
 <td>32x100G + 4x400G</td>
@@ -510,26 +566,10 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Arista</td>
-<td>7280CR3-32P4</td>
+<td>DCS-7280CR3-32P4</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Jericho 2</td>
 <td>32x100G + 4x400G</td>
-<td></td>
-</tr>
-<tr>
-<td>Accton</td>
-<td>Wedge 100BF-32</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino</td>
-<td>32x100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Accton</td>
-<td>Wedge 100BF-65X</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino</td>
-<td>32x100G</td>
 <td></td>
 </tr>
 <tr>
@@ -668,7 +708,7 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Dell</td>
-<td>S6000-ON</td>
+<td>S6000-ON*</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
@@ -955,6 +995,38 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
+<td>Mitac</td>
+<td>LY1200-B32H0-C3</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Netberg </td>
+<td>Aurora 610</td>
+<td class="asic_vendor">Intel</td>
+<td>Tofino BFN-T10-032D-020</td>
+<td>48x 25G + 8x 100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Netberg </td>
+<td>Aurora 710</td>
+<td class="asic_vendor">Intel</td>
+<td>Tofino BFN-T10-032D</td>
+<td>32x 100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Netberg </td>
+<td>Aurora 750</td>
+<td class="asic_vendor">Intel</td>
+<td>Tofino BFN-T10-064Q</td>
+<td>64x 100G</td>
+<td></td>
+</tr>
+<tr>
 <td>Nvidia</td>
 <td>SN2010</td>
 <td class="asic_vendor">Nvidia</td>
@@ -968,6 +1040,14 @@ function Port_Config() {
 <td class="asic_vendor">Nvidia</td>
 <td>Spectrum</td>
 <td>16x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Nvidia</td>
+<td>SN2201</td>
+<td class="asic_vendor">Nvidia</td>
+<td>Spectrum</td>
+<td>48x1G + 4x100G</td>
 <td></td>
 </tr>
 <tr>
@@ -1020,10 +1100,26 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Nvidia</td>
+<td>SN4410</td>
+<td class="asic_vendor">Nvidia</td>
+<td>Spectrum 3</td>
+<td>48x100 + 8x400</td>
+<td></td>
+</tr>
+<tr>
+<td>Nvidia</td>
 <td>SN4600C</td>
 <td class="asic_vendor">Nvidia</td>
 <td>Spectrum 3</td>
 <td>64x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Nvidia</td>
+<td>SN4600V</td>
+<td class="asic_vendor">Nvidia</td>
+<td>Spectrum 3</td>
+<td>64x200G</td>
 <td></td>
 </tr>
 <tr>
@@ -1035,11 +1131,11 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
-<td>Mitac</td>
-<td>LY1200-B32H0-C3</td>
-<td class="asic_vendor">Broadcom</td>
-<td>Tomahawk</td>
-<td>32x100G</td>
+<td>Nvidia</td>
+<td>SN5600</td>
+<td class="asic_vendor">Nvidia</td>
+<td>Spectrum 4</td>
+<td>64x800G</td>
 <td></td>
 </tr>
 <tr>
@@ -1091,6 +1187,94 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
+<td>Ragile</td>
+<td>RA-B6510-48V8C</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3</td>
+<td>48x25G+8x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ragile</td>
+<td>RA-B6910-64C</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ragile</td>
+<td>RA-B6510-32C</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3</td>
+<td>32x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ragile</td>
+<td>RA-B6920-4S</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 3</td>
+<td>128x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ragile</td>
+<td>RA-B6010-48GT4X</td>
+<td class="asic_vendor">Centec</td>
+<td>Centec</td>
+<td>48x1G+4x10G</td>
+<td></td>
+</tr>
+<tr>
+<td>Ruijie</td>
+<td>B6510-48VS8CQ</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3</td>
+<td>48x25G+8x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>SuperMicro</td>
+<td>SSE-T7132S</td>
+<td class="asic_vendor">Marvell</td>
+<td>Teralynx 7</td>
+<td>32x400G</td>
+<td></td>
+</tr>
+<tr>
+<td>Tencent</td>
+<td>TCS8400-24CC8CD</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 4</td>
+<td>24x200G + 8*400G</td>
+<td></td>
+</tr>
+<tr>
+<td>Tencent</td>
+<td>TCS9400-128CC</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Tomahawk 4</td>
+<td>128x200G</td>
+<td></td>
+</tr>
+<tr>
+<td>Wistron</td>
+<td>sw-to3200k</td>
+<td class="asic_vendor">Marvell</td>
+<td>Teralynx 7</td>
+<td>32x400G</td>
+<td></td>
+</tr>
+<tr>
+<td>Wistron</td>
+<td>6512-32r</td>
+<td class="asic_vendor">Marvell</td>
+<td>Teralynx 7</td>
+<td>32x400G</td>
+<td></td>
+</tr>
+<tr>
 <td>Wnc</td>
 <td>OSW1800</td>
 <td class="asic_vendor">Intel</td>
@@ -1109,6 +1293,7 @@ Note:
 <li>ONIE images are normally pre-installed. For DELL switches, you can find their ONIE images and instructions on Dell's website,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=H8TWD&amp;fileId=3477666073&amp;osCode=NAA&amp;productCode=force10-s6000-on&amp;languageCode=en&amp;categoryId=SM" rel="nofollow">S6000-ON</a>,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=XP77D&amp;fileId=3538637982&amp;osCode=NAA&amp;productCode=networking-s6100-on&amp;languageCode=en&amp;categoryId=OS" rel="nofollow">S6100-ON</a>,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=4T5CJ&amp;fileId=3500562904&amp;osCode=NAA&amp;productCode=networking-z9100&amp;languageCode=en&amp;categoryId=OS" rel="nofollow">Z9100-ON</a>.</li>
 <li>Please contact Marvell for details of the SKU information.</li>
 <li>Please contact vendors for support and SKU information.</li>
+<li>Dell S6000-ON* supports the build till 202012 release image. No other image after 202012 release works on S6000.</li>
 <ol>
 <li>Inventec&nbsp;<a href="mailto:swsp@inventec.com">swsp@inventec.com</a></li>
 <li>Edgecore&nbsp;<a href="mailto:sales@edge-core.com">sales@edge-core.com</a></li>
@@ -1174,25 +1359,29 @@ Note:
 		    }
 		    var table = document.getElementById("data_table").children;
 		    for (var i = 0; i < table.length; i++) {
+			pvendor = table[i].children[0].textContent;
 			vdata = table[i].children[2].textContent;
+			asic_name = table[i].children[3].textContent;
 			if (vdata == "Nvidia")
 			    vdata = "Mellanox";
-				
-			if (vdata == "Intel")
-			    vdata = "Barefoot";	
 
-			if (vdata == "Marvell"){
+			if (vdata == "Intel")
+			    vdata = "Barefoot";
+
+			if (vdata == "Marvell")
 			    vdata = "Marvell-armhf";
-			}
+
+			if (pvendor == "Arista")
+			    vdata = "Aboot-" + vdata.charAt(0).toLowerCase() + vdata.slice(1);
+
+			if (asic_name.startsWith("Jericho") || asic_name.startsWith("Qumran"))
+			    vdata += "-dnx";
 
 			if(vendor_data[vdata] == "")
 			    table[i].children[5].innerHTML = "<td style=\"text-align: center;\"><span style=\"color: #0000ff;\">N/A</span></td>";
 			else
 				table[i].children[5].innerHTML = vendor_data[vdata];
-			    
 			}
-		    
-
 		});
 
 	});
