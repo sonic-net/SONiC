@@ -205,7 +205,7 @@ Based on the preset `t1-smartswitch` default topology the configuration generate
 The DEVICE_METADATA table includes the following:
 
 - "switch_type" field that indicates this device is switch.
-- "type" field that indicates that this is Smart Switch.
+- "subtype" field that indicates that this is Smart Switch.
 
 The MID_PLANE_BRIDGE table includes the following:
 
