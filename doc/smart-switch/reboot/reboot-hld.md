@@ -320,7 +320,7 @@ update the same information for all the DPUs. Once the DPU is rebooted and the P
 ```
 "PCIE_DETACH_INFO|DPU_0": {
   "value": {
-    "id": "1",
+    "dpu_id": "0",
     "dpu_state": "detaching",
     "bus_info" : "[DDDD:]BB:SS.F"
   }
