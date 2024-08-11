@@ -168,10 +168,10 @@ config logrotate <syslog|debug> size <size>
 **The following command display log rotate configuration:**
 ```bash
 root@sonic:/home/admin# show logrotate
-file      disk-percentage  frequency      max-number    size
-------  -----------------  -----------  ------------  ------
-syslog             10.2    daily                  10    20.0
-debug              50.5    weekly                 20    10.0
+file      disk-percentage  frequency      max-number  size (MiB)
+------  -----------------  -----------  ------------  ----------
+syslog             10.2    daily                  10        20.0
+debug              50.5    weekly                 20        10.0
 ```
 
 ## 2.4 YANG model
