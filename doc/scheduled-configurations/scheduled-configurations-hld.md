@@ -56,7 +56,7 @@ Revision 1.3
 
 ## Scope
 
-The scope of this document is to outline the High-Level Design (HLD) for the *Scheduled Configurations* feature in SONiC. This feature aims to enable and disable SONiC configurations based on a schedule defined by the user. It includes the ability to schedule configurations for absolute-time events as well as recurring time intervals.
+The scope of this document is to outline the High-Level Design (HLD) for the *Scheduled Configurations* feature in SONiC. This feature aims to set SONiC configurations based on a schedule defined by the user. It includes the ability to schedule configurations for absolute-time events as well as recurring time intervals.
 
 ## Definitions/Abbreviations
 
@@ -81,7 +81,7 @@ The *Scheduled Configurations* feature will allow administrators to schedule spe
 ### Functional Requirements
 
 - **Scheduling**: The system must be able to handle both absolute and recurring events.
-- **State Tracking**: The system should keep track of active configurations and their current states.
+- **State Tracking**: The system should keep track of configurations and their current states.
 
 ## Architecture Design
 
@@ -173,7 +173,7 @@ The following diagrams illustrate the interactions between the databases and app
 - No hardware platform-specific dependencies are expected.
 - Dependandant on cron open-source linux utility.
 - The feature is designed to be managed through SONiC's existing management interfaces.
-- New show commands will be added to see the current scheduled configurations.
+- New show and config commands will be added to print and configure the scheduled configurations and time ranges.
 
 ## Configuration and Management
 
@@ -204,7 +204,7 @@ key           = SCHEDULED_CONFIGURATIONS|name    ; Unique identifier for each sc
 ;field        = value
 time_range    = name                              ; Reference to the name of the time range in TIME_RANGE table.
 configuration = JSON_STRING                       ; The actual configuration data in JSON string format.
-deactivation_configuration = "remove"/JSON_STRING ; The configuration to apply upon deactivation of deletion of scheduled configuration. May also be the string "remove"
+deactivation_configuration = "remove"/JSON_STRING ; The configuration to apply upon deactivation of bound time range. May also be the string "remove" in order to delete the configuration
 
 ;value annotations
 name          = 1*64VCHAR                         ; Unique time range name.
@@ -457,7 +457,7 @@ This new configuration command, `config time-range` will take a JSON file contai
 The following is the syntax:
 
 ```bash
-config scheduled-configuration [-d] <JSON-FILE>
+config time-range [-d] <JSON-FILE>
 ```
 
 #### Show Time Range
@@ -469,7 +469,7 @@ If you also include the name of a specific time range, only that time range's de
 The following is the syntax:
 
 ```bash
-show time-range-configurations [time_range_name]
+show time-range [time_range_name]
 ```
 
 ```bash
