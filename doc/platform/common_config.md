@@ -23,7 +23,9 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 11/03/2020  | Geans Pin          | Initial version                   |
-| 0.2 | 07/13/2024. | Geans Pin.         | Updated version                   |
+| 0.2 | 07/13/2024. | Geans Pin.         | Updated version:  Include the common config   overwrite platform specific config option and platform specific yaml config merged| 
+                                    
+
 
 # About this Manual
 We added support for a per-switching silicon common config.bcm file to assist with silicon-wide application configuration settings for all affected Broadcom platforms. The infrastructure saves development time by allowing applications to refactor common settings in a single location, and allows for platform-specific overrides. 
@@ -41,6 +43,9 @@ The functional requirements include :
 
 - Merge the common config from device common directory to ODM
 platform specific config. Duplicate configuration entries in the platform specific file override entries in the common config.bcm
+
+Common config. Duplicate configuration entries in the common config override entries in the platform specific config.bcm ( Feature added in Rev 0.2 )
+
 
 - The final config.bcm merged with common config is required to be copied to a shared folder for debugging   
   
@@ -70,7 +75,14 @@ The design change for syncd_init_common.sh is targeted on the config_syncd_bcm()
 
 In the updated 0.2 version, the script will check the platform specific config file. If it is yml based, it will merge common broadcom-sonic-{$chip_name}.config.bcm file with the existing platform specific config.yml file. 
 
-In order to support common config overwrite the platform config feature in updated version 0.2. We propose a package config folder under each switch silicon common config folder. The properties of common config file under the package config folder will merge and overwrite the platform config.   
+In order to support common config overwrite the platform config feature in updated version 0.2. We propose a package config folder under each switch silicon common config folder. The properties of common config file under the package config folder will merge and overwrite the platform config. The properties of common config located in the package config folder have the high priority than the platform specfic config. As the following example, the common config located
+in the cloud-base abd enterprise-base will overwirte the platform specifc config during the merged process. The package info can be parsed from /etc/sonic/sonic_branding.yml
+
+```
+|-- x86_64-broadcom_b87 -- broadcom-sonic-td3.config.bcm
+|   cloud-base -- broadcom-sonic-td3.config.bcm
+|   enterprise-base -- broadcom-sonic-td3.config.bcm
+```
 
 Since the platform specific config.bcm is read only in docker, the design copies the platform specific config.bcm or config.yml and sai.profile to /tmp for handling common config merge process. The /tmp/sai.profile will be modified to point to the merged config.bcm or config.yml under/tmp directory. The following switch initialization will reference to the new merged config.bcm or config.yml pointed by updated sai.profile from the /tmp directory.
 
@@ -114,5 +126,14 @@ NA
 - Check the system status to make sure syncd initial success
 - Check the syslog to make sure the common config merged to config.bcm and config.yml successfully
 - Check the final merged config.bcm or config.yml dump from show tech dump 
+- Check the if syncd service is running well without seeing any SAI crash
+  Running sudo systemctl status syncd to check the syncd service status
+  Check the if any syncd SAI related Error from syslog
+- Enable PDE in config/rules and Run the PDE test_sai.py to make sure baseline SAI initial 
+  can pass. Go into pde docker and run pde-test -v test_sai.py
+  test_sai.py::test_for_switch_port_enumeration PASSED                     [ 68%]
+  test_sai.py::test_for_switch_port_loopback PASSED                        [ 69%]
+  test_sai.py::test_for_switch_port_traffic PASSED                         [ 70%]
+
 
 
