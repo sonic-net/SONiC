@@ -18,11 +18,11 @@
       - [3.3.2 YANG model](#332-yang-model)
       - [3.3.3 CLI design](#333-cli-design)
       - [3.3.4 Logrotate](#334-logrotate)
-      - [3.3.5 Audit Rule Order](#335-audit-rule-order)
     - [3.4 Warmboot and Fastboot Design Impact](#34-warmboot-and-fastboot-design-impact)
     - [3.5 Timeline](#35-timeline)
-    - [3.6 Security Compliance](#36-security-compliance)
-    - [3.7 Supported Branches](#37-supported-branches)
+    - [3.6 Performance](#36-performance)
+    - [3.7 Audit Rule Order](#37-audit-rule-order)
+    - [3.8 Security Compliance](#38-security-compliance)
   - [4. Testing Requirements/Design](#4-testing-requirementsdesign)
     - [4.1 Unit Test cases](#41-unit-test-cases)
           - [Table 3: Unit Test cases](#table-3-unit-test-cases)
@@ -87,7 +87,7 @@ These rules will be included in the image and enabled by default.
 | File deletion            | `-a exit,always -F arch=b64 -S unlink -S unlinkat -F key=file_deletion`<br>`-a exit,always -F arch=b32 -S unlink -S unlinkat -F key=file_deletion` |
 | Log changes              | `-w /var/log -p wa -k log_changes` |
 | Docker related           | `-w /usr/bin/dockerd -p wa -k docker_daemon`<br>`-w /etc/docker/daemon.json -p wa -k docker_config`<br>`-w /lib/systemd/system/docker.service -p wa -k docker_service`<br>`-w /lib/systemd/system/docker.socket -p wa -k docker_socket`<br>`-a always,exit -F arch=b64 -S execve -F path=/usr/bin/docker -k docker_commands`<br>`-w /var/lib/docker/ -p wa -k docker_storage`<br>`-a always,exit -F arch=b64 -S setuid,setgid,bind,connect -F comm="/usr/bin/docker" -k docker_sys` |
-| Process audit            | `-a never,exit -F path=/usr/bin/docker  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/dockerd  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/containerd -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/runc -F perm=x`<br>`-a never,exit -F path=/usr/bin/python* -F perm=x`<br>`-a exit,always -F arch=b64 -S execve -F key=process_audit`<br>`-a exit,always -F arch=b32 -S execve -F key=process_audit` |
+| Process audit            | `-a never,exit -F path=/usr/bin/docker  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/dockerd  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/containerd -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/runc -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/python* -F key=process_audit`<br>`-a exit,always -F arch=b64 -S execve -F key=process_audit`<br>`-a exit,always -F arch=b32 -S execve -F key=process_audit` |
 | Network activity         | `-a exit,always -F arch=b64 -S connect,accept,sendto,recvfrom -F key=network_activity`<br>`-a exit,always -F arch=b32 -S connect,sendto,recvfrom -F key=network_activity` |
 | Socket activity          | `-a always,exit -F arch=b64 -S socket -F key=socket_activity`<br>`-a always,exit -F arch=b32 -S socket -F key=socket_activity` |
 
@@ -221,7 +221,7 @@ module sonic-audit {
   ```
 
 #### 3.3.4 Logrotate
-The following settings in the /etc/logrotate.d/audit file set up log rotation for audit logs:
+The following settings in the `/etc/logrotate.d/audit` file set up log rotation for audit logs:
 ```
 {
     rotate 30
@@ -245,9 +245,6 @@ This will:
 - Continue rotation without reporting an error if the log file is missing (`missingok`).
 - Restart the auditd service after rotating the logs (`postrotate /etc/init.d/auditd restart endscript`).
 
-#### 3.3.5 Audit Rule Order
-For best performance, it is recommended that the events that occur the most should be at the top and the exclusions should be at the bottom on the list. 
-
 ### 3.4 Warmboot and Fastboot Design Impact
 auditd will be stopped and then restarted as part of the reboot process, resulting in a gap in audit logs
 
@@ -270,11 +267,84 @@ auditd will be stopped and then restarted as part of the reboot process, resulti
   - Network activity
   - Socket activity
 
-### 3.6 Security Compliance
-The new rules will be assessed with the security team to ensure compliance.
+### 3.6 Performance
+Monitor memory and CPU utilization for auditd and kauditd processes over an hour
 
-### 3.7 Supported Branches
-Ensure supporting 202311 branch.
+Tested device specs
+SONiC Software Version: SONiC.20230531.22
+Platform: x86_64-arista_7260cx3_64
+HwSKU: Arista-7260CX3-C64
+
+| Rule name | Tested Device |
+|-----------|---------------|
+| %CPU      | 1.0% - 2.0%   |
+| %MEM      | 0.0% - 0.1%   |
+
+Number of logs per key
+| Audit Key | Count By Key |
+|-----------|---------------|
+| network_activity |	72021|
+| socket_activity |	3312 |
+| user_group_management	| 801 |
+| process_audit	| 729 |
+| file_deletion	| 529 |
+| tacplus	| 259 |
+| log_changes	| 199 |
+| docker_storage | 156 |
+| cron_changes | 6 |
+| shutdown_reboot |	4 |
+| modules	| 3 |
+| auth_logs	| 1 |
+| bin_changes	| 1 |
+| time_changes | 1 |
+| dns_changes	| 1 |
+| sbin_changes | 1 |
+| usr_bin_changes | 1 |
+| usr_sbin_changes | 1 |
+| docker_socket | 1 |
+| docker_commands | 1 |
+| docker_service | 1 |
+| hosts_changes	| 1 |
+| sudoers_changes	| 1 |
+| docker_config	| 1 |
+| docker_daemon	| 1 |
+
+Processes in network_activity key
+| Process | Count By Process |
+|-----------|---------------|
+| /usr/sbin/audisp-syslog | 41896 |
+| /usr/sbin/rsyslogd | 11145 |
+| /usr/sbin/snmpd | 8000 |
+| /usr/bin/python3.9 | 7313 |
+| /usr/bin/vtysh | 809 |
+| /usr/bin/redis-check-rdb | 485 |
+| /usr/bin/docker	| 354 |
+| /usr/bin/teamd | 322 |
+| /usr/sbin/lldpd	| 307 |
+| /usr/sbin/audisp-tacplus | 276 |
+| /usr/bin/sudo | 190 |
+| /usr/sbin/sshd | 174 |
+| /usr/bin/eventd	| 166 |
+| /usr/bin/bash	| 116 |
+| /bin/bash	| 114 |
+| /usr/sbin/auditctl| 68 |
+| /usr/sbin/lldpcli	| 55 |
+| /usr/lib/frr/bgpd	| 44 |
+| /usr/sbin/ntpd | 37 |
+| /usr/lib/frr/zebra | 35 |
+| /usr/bin/monit | 35 |
+| /usr/lib/frr/staticd | 29 |
+| /usr/sbin/cron | 19 |
+| /usr/bin/systemctl | 15 |
+| /usr/bin/rsyslog_plugin	| 12 |
+| /usr/sbin/usermod	| 2 |
+| /usr/bin/syncd | 2 |
+
+### 3.7 Audit Rule Order
+For best performance, it is recommended that the events that occur the most should be at the top and the exclusions should be at the bottom on the list. 
+
+### 3.8 Security Compliance
+The new rules will be assessed with the security team to ensure compliance.
 
 ## 4. Testing Requirements/Design
 ### 4.1 Unit Test cases
