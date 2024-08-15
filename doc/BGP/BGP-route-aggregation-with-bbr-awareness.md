@@ -131,6 +131,7 @@ module sonic-bgp-aggregate-address {
                 leaf aggregate-address-prefix-list {
                     type string {
                         pattern "[0-9a-zA-Z_-]*";
+                        length 0..128;
                     }
                     default "";
                     description "Set if include the AS set when advertising the aggregated address";
@@ -139,6 +140,7 @@ module sonic-bgp-aggregate-address {
                 leaf contributing-address-prefix-list {
                     type string {
                         pattern "[0-9a-zA-Z_-]*";
+                        length 0..128;
                     }
                     default "";
                     description "Set if include the AS set when advertising the aggregated address";
@@ -244,6 +246,9 @@ The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` 
         - if contributing-address-prefix-list is not empty string, remove aggregated address from the prefix list.
 5. The bgp container restarted:
     - First, the bgp container will clean the addresses in state DB and then the bgp container will process all existed config one by one according to 1~4.
+6. Parameters updated in config DB:
+    - First remove the address according to 2
+    - Then add the address back according to 1
 
 #### UML Sequence Diagrams
 ![](img/add-aggregated-address.png)
