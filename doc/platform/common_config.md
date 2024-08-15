@@ -23,7 +23,7 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 11/03/2020  | Geans Pin          | Initial version                   |
-| 0.2 | 07/13/2024. | Geans Pin.         | Updated version:  Include the common config   overwrite platform specific config option and platform specific yaml config merged| 
+| 0.2 | 07/13/2024. | Geans Pin.         | Updated version:  Support option of common config properties overwriting platform specific config and common config merging to yaml based platform config  
                                     
 
 
@@ -42,9 +42,9 @@ The functional requirements include :
 - Create the common file in the device common directory for different  BRCM switch chip family
 
 - Merge the common config from device common directory to ODM
-platform specific config. Duplicate configuration entries in the platform specific file override entries in the common config.bcm
+platform specific config. Duplicate configuration properties in the platform specific file override the properties in the common config.bcm
 
-Common config. Duplicate configuration entries in the common config override entries in the platform specific config.bcm ( Feature added in Rev 0.2 )
+Common config. Duplicate configuration properties in the overwrite section of common config override the properties in the platform specific config.bcm ( Feature added in Rev 0.2 )
 
 
 - The final config.bcm merged with common config is required to be copied to a shared folder for debugging   
@@ -62,11 +62,11 @@ in the common config feature.
 |-- x86_64-broadcom_b78 -- broadcom-sonic-td3.config.bcm
 |-- x86_64-broadcom_b85 -- broadcom-sonic-td2.config.bcm
 |-- x86_64-broadcom_b88 -- broadcom-sonic-td4.config.bcm
-|-- x86_64-broadcom_b96-- broadcom-sonic-th.config.bcm
-|-- x86_64-broadcom_b97-- broadcom-sonic-th2.config.bcm
-|-- x86_64-broadcom_b98-- broadcom-sonic-th3.config.bcm
-|-- x86_64-broadcom_b99-- broadcom-sonic-th4.config.bcm
-|-- x86_64-broadcom_f90-- broadcom-sonic-th5.config.bcm
+|-- x86_64-broadcom_b96 -- broadcom-sonic-th.config.bcm
+|-- x86_64-broadcom_b97 -- broadcom-sonic-th2.config.bcm
+|-- x86_64-broadcom_b98 -- broadcom-sonic-th3.config.bcm
+|-- x86_64-broadcom_b99 -- broadcom-sonic-th4.config.bcm
+|-- x86_64-broadcom_f90 -- broadcom-sonic-th5.config.bcm
 ```
 ## 3 Design Detail
 The main change of the design is in the SYNCD docker syncd/scripts/syncd_init_common.sh script along with common config being created in the device/broadcom/x86_64-broadcom_common/ folder. The design standardize the common file name as broadcom-sonic-{$chip_id}.config.bcm . Also, in the SYNCD docker-syncd-brcm.mk, we extern the common config directory path /usr/share/sonic/device/x86_64-broadcom_common from host to docker for script reference.
@@ -75,13 +75,21 @@ The design change for syncd_init_common.sh is targeted on the config_syncd_bcm()
 
 In the updated 0.2 version, the script will check the platform specific config file. If it is yml based, it will merge common broadcom-sonic-{$chip_name}.config.bcm file with the existing platform specific config.yml file. 
 
-In order to support common config overwrite the platform config feature in updated version 0.2. We propose a package config folder under each switch silicon common config folder. The properties of common config file under the package config folder will merge and overwrite the platform config. The properties of common config located in the package config folder have the high priority than the platform specfic config. As the following example, the common config located
-in the cloud-base abd enterprise-base will overwirte the platform specifc config during the merged process. The package info can be parsed from /etc/sonic/sonic_branding.yml
+In order to support common config overwriting the platform config feature in updated version 0.2. We propose a option for supporting properties of common config overwriting to the Platform config. The properties of common config in the overwrite section have the high priority than the platform specfic config and will merge and overwrite to the platform config. As the following example, the properties of common config in the overwrite section will overwirte the platform specifc config during the merged process. 
 
 ```
-|-- x86_64-broadcom_b87 -- broadcom-sonic-td3.config.bcm
-|   cloud-base -- broadcom-sonic-td3.config.bcm
-|   enterprise-base -- broadcom-sonic-td3.config.bcm
+/device/broadcom/x86_64-broadcom_common/x86_64-broadcom_b27/broadcom-sonic-td3.config.bcm
+###Normal Section###
+mem_cache_enable=1
+sai_create_dflt_trap=1
+sai_default_tc_to_pg_map=1
+qos_map_dot1p_nonsharable_mode=1
+
+
+###Overwrite Section###
+l3_mem_entries=16384
+lpm_scaling_enable=0
+l3_alpm_enable=0
 ```
 
 Since the platform specific config.bcm is read only in docker, the design copies the platform specific config.bcm or config.yml and sai.profile to /tmp for handling common config merge process. The /tmp/sai.profile will be modified to point to the merged config.bcm or config.yml under/tmp directory. The following switch initialization will reference to the new merged config.bcm or config.yml pointed by updated sai.profile from the /tmp directory.
