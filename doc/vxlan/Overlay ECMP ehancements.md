@@ -71,7 +71,7 @@ The following new fields have been added the **VNET_ROUTE_TUNNEL_TABLE**
  - Primary
  - rx_monitor_timer
  - tx_monitor_timer
- - context
+ - check_directly_connected
  - monitoring
  - adv_prefix
 
@@ -90,7 +90,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     “adv_prefix”: {{prefix}} (OPTIONAL)                                    <<<< New Field
     “rx_monitor_timer”: {time in milliseconds} (OPTIONAL)                  <<<< New Field
     “tx_monitor_timer”: {time in milliseconds} (OPTIONAL)                  <<<< New Field
-    “context”: “check_directly_connected” (OPTIONAL)                       <<<< New Field
+    “check_directly_connected”: {{true|false}} (OPTIONAL)                  <<<< New Field
 ```
 
 
@@ -99,7 +99,7 @@ primary                  = ipv4/v6 address list      ; Primary endpoint to choos
 monitoring               = STRING                    ; A string tag to indicate custom monitoring be used instead of BFD.
 rx_monitor_timer         = DIGITS                    ; time in Milliseconds for the monitor session Rx wait time.(Applicable to BFD only) (Optional) 
 tx_monitor_timer         = DIGITS                    ; time in Milliseconds for the monitor session Tx internval.(Applicable to BFD only) (Optional) 
-context                  = STRING                    ; A tag used by the route creator to specify certain behavior.
+check_directly_connected = BOOLEAN                   ; Boolean used by the route creator to indicate if nexthops need to be checked for being directly connected.
 adv_prefix               = IP-PREFIX                 ; PRefix value to be advertised instead of route prefix.
 ```
 
@@ -186,11 +186,11 @@ The optional overlay_dmac field is  provided in the VNET table and is passed to 
  For this puropose three new attributes are being added to the **VNET_ROUTE_TUNNEL_TABLE** as shown in the Schema update.
  - **tx_monitor_timer**
  - **rx_monitor_timer**
- - **context**
+ - **check_directly_connected**
 
 The Tx and Rx monitor timer attributes are intended for BFD sessions and would not be used to change the behavior of VNET-monitor sessions. The orchagent shall pass this monitor timer attributes to the BfdOrch at the time of BFD session creation. These values will not be passed to the custom monitor table in this phase of implementation. During route update if these values are updated, the Orchagent shall remove and recreate the BFD session. 
 
-The context field provides a generic string which is intended to future proof this Schema. If a route owner wishes to specify a special implementation behavior, then this field can be used for such purposes. The Smart Switch implementation would provide “check_directly_connected” value. This would be used by the Orchagent to check if any of the next hops are directly connected to the switch.  
+The check_directly_connected can be set to true or false. This is intended for the Smart Switch implementation and would be used by the Orchagent to check if any of the next hops are directly connected to the switch.  
 
 Since  Smart Switch uses primary/secondary route model, it must ensure that all the next hops in either primary or secondary set must be direct connected. e.g. a primary set of two next hops where one is directly connected cannot be supported. Similarly, a secondary set of two next hops where one is directly connected is also not supported. If such a configuration is applied, this would result in failure. 
 
