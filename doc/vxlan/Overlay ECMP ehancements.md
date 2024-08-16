@@ -152,8 +152,7 @@ when primary endpoints are specified the following behavior is adopted.
 
 The following diagram depicts the scenario where Endpoint 1 and 2 are primary in a tunnel route and Endpoint 3 and 4 are backup. The active endpoints 1 and 2 are indicated with green line.
 
-<p align=center>
-<img src="images/vxlan_hld/OverlayEcmp_priorty.png" alt="Example Diagram.">
+![](https://github.com/sonic-net/SONiC/blob/22e06c87939f49ee72687cf2972f83a526c67b30/images/vxlan_hld/OverlayEcmp_priorty.png)
 
 
 ### 3.1.1 Behaviour example
