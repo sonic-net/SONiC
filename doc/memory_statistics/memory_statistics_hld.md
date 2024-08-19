@@ -209,6 +209,10 @@ To display memory usage statistics, use the following command with optional para
 
 Below is an example of the Memory Statistics output as it appears in the CLI. This display provides a summary of system memory metrics over a default time period, ideal for routine monitoring and analysis:
 
+
+    admin@sonic:~$ show memory-stats 
+
+
     Codes:	M - minutes, H - hours, D - days
 	--------------------------------------------------------------------------------
 	Report Generated:    2024-06-15 09:00:00
@@ -222,9 +226,10 @@ Below is an example of the Memory Statistics output as it appears in the CLI. Th
 	Used Memory         2.3G        2.5G       2.0G       2.1G       2.2G       2.2G       2.3G       2.4G       2.3G       2.2G       2.3G
 	Free Memory         11.9G       12.4G      10.6G      11.0G      11.2G      11.4G      11.5G      11.7G      11.8G      11.9G      12.0G
 	Available Memory    13.0G       14.3G      12.4G      12.6G      12.7G      12.8G      12.9G      13.0G      13.1G      13.2G      13.3G
-        Cached Memory       
-        Buffer Memory
-	Shared Memory
+    Cached Memory       1.2G        1.5G       1.0G       1.1G       1.2G       1.3G       1.4G       1.3G       1.4G       1.2G       1.2G
+    Buffer Memory       0.3G        0.4G       0.2G       0.2G       0.3G       0.3G       0.4G       0.3G       0.3G       0.4G       0.3G
+	Shared Memory       0.5G        0.6G       0.4G       0.5G       0.5G       0.5G       0.4G       0.5G       0.5G       0.5G       0.5G
+
 
 **View Memory Statistics Configuration**
 
@@ -236,7 +241,7 @@ To display the current configuration parameters such as data collection frequenc
 
 Below is an example of the Memory Statistics Configuration output as it appears in the CLI. This display provides a snapshot of the current configuration settings for memory statistics monitoring in confgdb:
 
-    sonic:~$ show memory-stats config
+    admin@sonic:~$ show memory-stats config
      
     Memory Statistics Configuration:
     --------------------------------
