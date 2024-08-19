@@ -5,16 +5,17 @@
   - [Table of Content](#table-of-content)
   - [List of Tables](#list-of-tables)
   - [Revision](#revision)
-          - [Table 1: Revision](#table-1-revision)
   - [Scope](#scope)
   - [1. Overview](#1-overview)
   - [2. Current Architecture Design](#2-current-architecture-design)
   - [3. High-level Design](#3-high-level-design)
     - [3.1 Design](#31-design)
     - [3.2 Audit Rules Review](#32-audit-rules-review)
-          - [Table 2: Audit Rules Review](#table-2-audit-rules-review)
     - [3.3 Configuration design](#33-configuration-design)
       - [3.3.1 ConfigDB schema](#331-configdb-schema)
+        - [3.3.1.1 AUDIT TABLE](#3311-audit-table)
+        - [3.3.1.2 Config DB JSON Sample](#3312-config-db-json-sample)
+        - [3.3.1.3 Redis Entries Sample](#3313-redis-entries-sample)
       - [3.3.2 YANG model](#332-yang-model)
       - [3.3.3 CLI design](#333-cli-design)
       - [3.3.4 Logrotate](#334-logrotate)
@@ -25,9 +26,7 @@
     - [3.8 Security Compliance](#38-security-compliance)
   - [4. Testing Requirements/Design](#4-testing-requirementsdesign)
     - [4.1 Unit Test cases](#41-unit-test-cases)
-          - [Table 3: Unit Test cases](#table-3-unit-test-cases)
     - [4.2 System Test cases](#42-system-test-cases)
-          - [Table 4: System Test cases](#table-4-system-test-cases)
 
 ## List of Tables
 * [Table 1: Revision](#table-1-revision)
@@ -59,14 +58,17 @@ In SONiC, audit settings are centrally managed through a configuration file at `
 
 ## 3. High-level Design
 ### 3.1 Design
-- Introduce a new file, `security-auditing.rules`, into the `/etc/audit/rules.d/` directory.
-- Additionally, the `/etc/audit/plugins.d/syslog.conf` is modified (by setting `active = yes`) to enable sending auditd logs to a syslog server.
+- Introduce a new file, `security-auditing.rules`, into the `/etc/audit/rules.d/` directory
+- A predefined set of rules (detailed in section 3.2) will be automatically enabled as the default configuration.
+- Modify the `/etc/audit/plugins.d/syslog.conf` file by setting `active = yes` to enable the forwarding of auditd logs to a syslog server.
 - ConfigDB schema design
 - YANG model
-- CLI commands enhancement
+- CLI commands to enable or disable all rules, with support for adding or removing individual rules for fine-grained control:
+  - `show audit`
   - `config audit enable`
   - `config audit disable`
-  - `show audit`
+  - `config audit add <rule>`
+  - `config audit remove <rule>`
 - Logrotate
 - Audit rules ordering
 
@@ -93,24 +95,61 @@ These rules will be included in the image and enabled by default.
 
 ### 3.3 Configuration design
 #### 3.3.1 ConfigDB schema
+##### 3.3.1.1 AUDIT TABLE
+The database to be used is Config DB. A new AUDIT table will be added to the Config DB, which is responsible for storing audit configuration settings. This table allows the system to manage security auditing by defining whether auditing is enabled and specifying the rules to be applied. The structure of the AUDIT table is as follows
+```
+; Defines audit configuration information
+key                          = AUDIT|config                 ; Audit configuration settings
+; field                      = value
+enable                       = boolean                      ; Indicates whether security auditing is enabled (true/false)
+RULESET                      = list                         ; List of audit rule sets
+name                         = 1*255VCHAR                   ; Name of the audit rule set
+rule                         = 1*255VCHAR                   ; Audit rule definition in auditd format
+```
+
+##### 3.3.1.2 Config DB JSON Sample
+The predefined list of rules in section 3.2 will be enabled as default. Example of how the audit rules might be represented in JSON format within the Config DB
 ```
 {
     "AUDIT": {
-      "config": {
-        "enable": "true"
-      }
+        "config": {
+            "enable": "true",
+            "RULESET": [
+                {
+                    "name": "file_deletion",
+                    "rules": [
+                        "-a exit,always -F arch=b64 -S unlink -S unlinkat -F key=file_deletion",
+                        "-a exit,always -F arch=b32 -S unlink -S unlinkat -F key=file_deletion"
+                    ]
+                },
+                {
+                    "name": "dns_changes",
+                    "rules": [
+                        "-w /etc/resolv.conf -p wa -k dns_changes"
+                    ]
+                }
+            ]
+        }
     }
 }
 ```
-| Key       | Description                 |
-| --------- | --------------------------- |
-| enable    | enable or not enable the AUDIT, the default value is true  |
 
-The AUDIT config is in the redis CONFIG_DB. The redis dictionary key is AUDIT|config.
+##### 3.3.1.3 Redis Entries Sample
+Once the AUDIT table is populated in the Config DB, the corresponding entries can be viewed in Redis. Below are example Redis commands and outputs
+```
+127.0.0.1:6379[4]> keys AUDIT|config
+1) "AUDIT|config"
 
-| Key       | Description                 |
-| --------- | --------------------------- |
-| enabled   | The flag indicating whether the AUDIT enabled, 1 enabled, others not enabled  |
+127.0.0.1:6379[4]> hgetall AUDIT|config
+1) "enable"
+2) "true"
+3) "RULESET|file_deletion|1"
+4) "-a exit,always -F arch=b64 -S unlink -S unlinkat -F key=file_deletion"
+5) "RULESET|file_deletion|2"
+6) "-a exit,always -F arch=b32 -S unlink -S unlinkat -F key=file_deletion"
+7) "RULESET|dns_changes|1"
+8) "-w /etc/resolv.conf -p wa -k dns_changes"
+```
 
 #### 3.3.2 YANG model
 New YANG model `sonic-audit.yang` will be added.
@@ -129,7 +168,7 @@ module sonic-audit {
 
     description "AUDIT YANG Module for SONiC OS";
 
-    revision 2024-06-20 {
+    revision 2024-08-12 {
         description "First Revision";
     }
 
@@ -146,6 +185,22 @@ module sonic-audit {
                     type stypes:boolean_type;
                     default "true";
                 }
+
+                list RULESET {
+                    key "name";
+                    description "List of audit rules";
+
+                    leaf name {
+                        type string;
+                        description "Name of the audit rule";
+                    }
+
+                    list rule {
+                        key "rule";
+                        type string;
+                        description "Audit rule definition";
+                    }
+                }
             }
             /* end of container config */
         }
@@ -153,23 +208,24 @@ module sonic-audit {
     }
     /* end of top level container */
 }
-/* end of module sonic-audit */
++/* end of module sonic-audit */
 ```
 
 #### 3.3.3 CLI design
 **show command**
 - `show audit` - show all audit current active rules, including security auditing rules and tacplus accounting rules.
   ```
-  admin@sonic:~$ show audit
+  admin@vlab-01:~$ show audit
+  List of current .rules files in /etc/audit/rules.d/ directory
+  audisp-tacplus.rules
+  audit.rules
+  security-auditing.rules
+
+  List of all current active audit rules
   -a always,exit -F arch=b32 -S exit,execve,exit_group -F auid>1000 -F auid!=-1 -F key=tacplus
   -a always,exit -F arch=b64 -S execve,exit,exit_group -F auid>1000 -F auid!=-1 -F key=tacplus
-  -a never,exit -F path=/usr/bin/docker -F perm=x -F key=process_audit
-  -a never,exit -F path=/usr/bin/dockerd -F perm=x -F key=process_audit
-  -a never,exit -F path=/usr/bin/containerd -F perm=x -F key=process_audit
-  -a never,exit -F path=/usr/bin/runc -F perm=x -F key=process_audit
-  -a never,exit -F path=/usr/bin/python* -F perm=x -F key=process_audit
-  -a always,exit -F arch=b64 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F key=user_group_management
-  -a always,exit -F arch=b32 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F key=user_group_management
+  -a always,exit -F arch=b64 -S socket -F key=socket_activity
+  -a always,exit -F arch=b32 -S socket -F key=socket_activity
   -a exit,always -F arch=b64 -S unlink -S unlinkat -F key=file_deletion
   -a exit,always -F arch=b32 -S unlink -S unlinkat -F key=file_deletion
   -a always,exclude -F msgtype=CRED_ACQ
@@ -190,6 +246,12 @@ module sonic-audit {
   If security auditing is disabled, `show audit` will only show tacplus accounting rule.
   ```
   admin@sonic:~$ show audit
+  admin@vlab-01:~$ show audit
+  List of current .rules files in /etc/audit/rules.d/ directory
+  audisp-tacplus.rules
+  audit.rules
+
+  List of all current active audit rules
   -a always,exit -F arch=b32 -S exit,execve,exit_group -F auid>1000 -F auid!=-1 -F key=tacplus
   -a always,exit -F arch=b64 -S execve,exit,exit_group -F auid>1000 -F auid!=-1 -F key=tacplus
   -a always,exclude -F msgtype=CRED_ACQ
@@ -208,16 +270,62 @@ module sonic-audit {
   -a always,exclude -F msgtype=USER_START
   ```
 
-**config command**
-- `config audit enable` -  enables all **security** audit rules (`security-auditing.rules`).
+**config command enable/disable**
+- Usage
+  ```
+  config audit <enable/disable>
+  ```
+- `config audit enable` - enables all **security** audit rules (`security-auditing.rules`)
   ```
   admin@sonic:~$ config audit enable
   Security auditing is enabled.
   ```
-- `config audit disable` - removes or disables all **security** audit rules.
+
+- `config audit disable` - removes or disables all **security** audit rules
   ```
   admin@sonic:~$ config audit disable
   Security auditing is disabled.
+  ```
+
+**config command add/remove**
+- Usage
+  ```
+  config audit add [--name <name>] [--rules <rules>]
+  config audit remove [--name <name>]
+  ```
+
+- Requirements
+  ```
+  // --name and --rules are mandatory
+  // --name specifies the audit key name. The --name value must exactly match the -k value in the --rules. 
+      // Example: time_changes
+  // --rules defines the audit rule in auditd format. The rule must include a key (-k) that exactly matches the --name value.
+  // This ensures that the corresponding rule can be easily removed.
+      // Example: -w /etc/localtime -p wa -k time_changes
+
+  // A single --name value can be associated with multiple --rules entries. However, when adding rules, each rule must be added individually.
+      // Example: User wants to add/remove these rules
+      // -a always,exit -F arch=b64 -S socket -F key=socket_activity
+      // -a always,exit -F arch=b32 -S socket -F key=socket_activity
+
+      // Example CLI commands to add above rules:
+          // Step 1: config audit add --name socket_activity --rules "-a always,exit -F arch=b64 -S socket -F key=socket_activity"
+          // Step 2: config audit add --name socket_activity --rules "-a always,exit -F arch=b32 -S socket -F key=socket_activity"
+      // Example CLI commands to remove above rules:
+          // S tep 1: config audit remove --name socket_activity
+  ```
+
+- `config audit add` - add an individual audit rule  
+  For example, `--name` value is `time_changes`, which is exactly same as `-k` value in `--rules`
+  ```
+  admin@sonic:~$ config audit add --name "time_changes"  --rules "-w /etc/localtime -p wa -k time_changes"
+  Added time_changes rule
+  ```
+
+- `config audit remove` - remove an individual audit rule
+  ```
+  admin@sonic:~$ config audit remove --name "time_changes"
+  Removed time_changes rule
   ```
 
 #### 3.3.4 Logrotate
@@ -354,13 +462,17 @@ The new rules will be assessed with the security team to ensure compliance.
 | 1         | Unit Test for config audit enable  |
 | 2         | Unit Test for config audit disable |
 | 3         | Unit Test for show audit           |
+| 4         | Unit Test for config audit add     |
+| 5         | Unit Test for config audit remove  |
 
 ### 4.2 System Test cases
 ###### Table 4: System Test cases
 | Test case | Description                 |
 | --------- | --------------------------- |
-| 1         | System Test for audit enable test |
-| 2         | System Test for audit disable test |
+| 1         | System Test for config audit enable test |
+| 2         | System Test for configaudit disable test |
 | 3         | System Test for log test - verify that audit accurately send logs to syslog server. |
 | 4         | System Test for performance test |
-| 5         | System Test for audit rule ordering test |
+| 5         | System Test for audit rule ordering test for default rules |
+| 6         | System Test for config audit add rule test |
+| 7         | System Test for config audit remove rule test |
