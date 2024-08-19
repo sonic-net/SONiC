@@ -331,7 +331,7 @@ module sonic-audit {
 #### 3.3.4 Logrotate
 The following settings in the `/etc/logrotate.d/audit` file set up log rotation for audit logs:
 ```
-{
+/var/log/audit/audit.log {
     rotate 30
     daily
     compress
@@ -376,13 +376,12 @@ auditd will be stopped and then restarted as part of the reboot process, resulti
   - Socket activity
 
 ### 3.6 Performance
-Monitor memory and CPU utilization for auditd and kauditd processes over an hour
-
 Tested device specs
-SONiC Software Version: SONiC.20230531.22
-Platform: x86_64-arista_7260cx3_64
-HwSKU: Arista-7260CX3-C64
+- SONiC Software Version: SONiC.20230531.22
+- Platform: x86_64-arista_7260cx3_64
+- HwSKU: Arista-7260CX3-C64
 
+Monitor memory and CPU utilization for auditd and kauditd processes over an hour
 | Rule name | Tested Device |
 |-----------|---------------|
 | %CPU      | 1.0% - 2.0%   |
