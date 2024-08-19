@@ -17,13 +17,17 @@
         - [3.3.1.2 Config DB JSON Sample](#3312-config-db-json-sample)
         - [3.3.1.3 Redis Entries Sample](#3313-redis-entries-sample)
       - [3.3.2 YANG model](#332-yang-model)
-      - [3.3.3 CLI design](#333-cli-design)
-      - [3.3.4 Logrotate](#334-logrotate)
-    - [3.4 Warmboot and Fastboot Design Impact](#34-warmboot-and-fastboot-design-impact)
-    - [3.5 Timeline](#35-timeline)
-    - [3.6 Performance](#36-performance)
-    - [3.7 Audit Rule Order](#37-audit-rule-order)
-    - [3.8 Security Compliance](#38-security-compliance)
+      - [3.3.3 Flows](#333-flows)
+        - [3.3.3.1 Audit Init Flow](#3331-audit-init-flow)
+        - [3.3.3.2 Audit Config Flow](#3332-audit-config-flow)
+        - [3.3.3.3 Audit Show Flow](#3333-audit-show-flow)
+      - [3.3.4 CLI design](#334-cli-design)
+      - [3.3.5 Logrotate](#335-logrotate)
+    - [3.6 Warmboot and Fastboot Design Impact](#36-warmboot-and-fastboot-design-impact)
+    - [3.7 Timeline](#37-timeline)
+    - [3.8 Performance](#38-performance)
+    - [3.9 Audit Rule Order](#39-audit-rule-order)
+    - [3.10 Security Compliance](#310-security-compliance)
   - [4. Testing Requirements/Design](#4-testing-requirementsdesign)
     - [4.1 Unit Test cases](#41-unit-test-cases)
     - [4.2 System Test cases](#42-system-test-cases)
@@ -211,7 +215,23 @@ module sonic-audit {
 +/* end of module sonic-audit */
 ```
 
-#### 3.3.3 CLI design
+#### 3.3.3 Flows
+##### 3.3.3.1 Audit Init Flow
+<img src="./audit_init_flow.jpeg" alt="Audit Init Flow" width="600" height="400">
+
+###### Figure 1: Audit Init Flow
+
+##### 3.3.3.2 Audit Config Flow
+<img src="./audit_config_flow.jpeg" alt="Audit Config Flow" width="1000" height="400">
+
+###### Figure 2: Audit Config Flow
+
+##### 3.3.3.3 Audit Show Flow
+<img src="./audit_show_flow.jpeg" alt="Audit Show Flow" width="500" height="400">
+
+###### Figure 3: Audit Show Flow
+
+#### 3.3.4 CLI design
 **show command**
 - `show audit` - show all audit current active rules, including security auditing rules and tacplus accounting rules.
   ```
@@ -328,7 +348,7 @@ module sonic-audit {
   Removed time_changes rule
   ```
 
-#### 3.3.4 Logrotate
+#### 3.3.5 Logrotate
 The following settings in the `/etc/logrotate.d/audit` file set up log rotation for audit logs:
 ```
 /var/log/audit/audit.log {
@@ -353,10 +373,10 @@ This will:
 - Continue rotation without reporting an error if the log file is missing (`missingok`).
 - Restart the auditd service after rotating the logs (`postrotate /etc/init.d/auditd restart endscript`).
 
-### 3.4 Warmboot and Fastboot Design Impact
+### 3.6 Warmboot and Fastboot Design Impact
 auditd will be stopped and then restarted as part of the reboot process, resulting in a gap in audit logs
 
-### 3.5 Timeline
+### 3.7 Timeline
 - Phase 1
   - Critical files changes
   - DNS changes
@@ -375,7 +395,7 @@ auditd will be stopped and then restarted as part of the reboot process, resulti
   - Network activity
   - Socket activity
 
-### 3.6 Performance
+### 3.8 Performance
 Tested device specs
 - SONiC Software Version: SONiC.20230531.22
 - Platform: x86_64-arista_7260cx3_64
@@ -447,10 +467,10 @@ Processes in network_activity key
 | /usr/sbin/usermod	| 2 |
 | /usr/bin/syncd | 2 |
 
-### 3.7 Audit Rule Order
+### 3.9 Audit Rule Order
 For best performance, it is recommended that the events that occur the most should be at the top and the exclusions should be at the bottom on the list. 
 
-### 3.8 Security Compliance
+### 3.10 Security Compliance
 The new rules will be assessed with the security team to ensure compliance.
 
 ## 4. Testing Requirements/Design
