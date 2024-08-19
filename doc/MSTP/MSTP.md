@@ -484,7 +484,10 @@ Following new commands will be added:
 - **config spanning_tree interface \<ifname\> cost \<cost-value\>**
   - Specify configuring the port level priority for root bridge in seconds.
   - Default: 0, range 1-200000000
-  - 
+
+ - **config spanning_tree interface \<ifname\> link-type {P2P|Shared-Lan|Auto}**
+  - Specify configuring the interface at different link types.
+ 
 ## Show Commands
 
 - show spanning_tree mst
@@ -1114,9 +1117,24 @@ User is expected to do a cold reboot when MSTP is running. If a user tries to pe
 
 1. Verify MSTP over LAG. 
 
-1. Verify MSTP over static breakout ports. 
+1. Verify MSTP over static breakout ports.
 
- 
+1. Verify BPDU Guard Activation on Ports.
+   
+1.  Verify BPDU Guard Port State Transition
+   
+1.  Verify BPDU Guard Recovery Mechanism
+   
+1. Verify BPDU Guard and MSTP Interaction
+   
+1. Verify MSTP Topology Changes Detection
+   
+1. Verify MSTP and VLAN Integration
+
+1. Verify MSTP Path Cost Calculation
+   
+1. Verify MSTP Failover
+
 ### Logging and Debugging Test Cases 
 
 1. Verify debugging logs for a region. 
