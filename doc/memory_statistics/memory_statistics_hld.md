@@ -116,17 +116,17 @@ The high-level feature design diagram is shown below.
 <p align="center">
     <img src="./images/architecture_diagram.svg" alt="architecture diagram for memory data" width="80%"/>
     <br>
-	Figure 1: Feature architecture diagram showing the unix socket, daemon, ConfigDB, Config File and data file
+	Figure 1: Feature architecture diagram showing the unix socket, daemon, ConfigDB, and data file
 </p>
 
 ### Sequence Diagram
 
-#### View Memory Usage
+### Enable/Disable Memory Monitoring
 
 <p align="center">
-    <img src="./images/view_memory_usage.svg" alt="Sequence diagram for memory data show command" width="80%"/>
+    <img src="./images/enable_disable.svg" alt="Sequence diagram for Enable/Disable Memory Monitoring command" width="80%"/>
     <br>
-	Figure 2: Sequence diagram for memory data show command
+	Figure 2: Sequence diagram for enabling or disabling the memory statistics monitoring feature
 </p>
 
 ### Memory Collection Frequency Setting
@@ -145,20 +145,23 @@ The high-level feature design diagram is shown below.
 	Figure 4: Sequence diagram for setting how long the memory data should be retained
 </p>
 
-### Enable/Disable Memory Monitoring
+
+#### View Memory Usage
 
 <p align="center">
-    <img src="./images/enable_disable.svg" alt="Sequence diagram for Enable/Disable Memory Monitoring command" width="80%"/>
+    <img src="./images/view_memory_usage.svg" alt="Sequence diagram for memory data show command" width="80%"/>
     <br>
-	Figure 5: Sequence diagram for enabling or disabling the memory statistics monitoring feature
-</p>
+	Figure 5: Sequence diagram for memory data show command
+</p>  
+
 
 ### Displaying Memory Statistics Configuration
 
 <p align="center">
     <img src="./images/mem_stats_configuration.svg" alt="Sequence diagram for Memory Statistics Configuration command" width="36%" />
     <br>
-	Figure 5: Sequence diagram for displaying the current memory statistics configuration in ConfigDB using the CLI
+	Figure 6: Sequence diagram for displaying the current memory statistics configuration in ConfigDB using the CLI
+  
 
 ## SAI API
 
