@@ -113,7 +113,7 @@ The overall SONiC architecture will remain the same. However, the following upda
 The high-level feature design diagram is shown below.
 
 <p align="center">
-    <img src="./images/architecture_diagram.svg" alt="architecture diagram for memory data" width="80%"/>
+    <img src="./images/architecture_diagram.png" alt="architecture diagram for memory data" width="80%"/>
     <br>
 	Figure 1: Feature architecture diagram showing the unix socket, daemon, ConfigDB and data file
 </p>
