@@ -303,18 +303,6 @@ is_smartswitch(self):
       True
 ```
 
-get_module_dpu_data_port(self, index):
-```
-    Retrieves the DPU data port NPU-DPU association represented for the DPU index. Platforms that need to overwrite the platform.json file will use this API
-
-    This is valid only on the Switch and not on DPUs. On the DPUs this can return None
-
-    Args:
-        index: An integer, the index of the module to retrieve
-
-    Returns:
-        NPU-DPU port association: A string Ex: For index: 1 will return the dup0 port association which is "Ethernet224: Ethernet0" where the string left of ":" (Ethernet224) is the NPU port and the string right of ":" (Ethernet0) is the DPU port.
-```
 #### 3.1.3 NPU to DPU data port mapping
 platform.json of NPU/switch will show the NPU to DPU data port mapping. This will be used by services early in the system boot.
 ```
@@ -961,6 +949,22 @@ DDR                        OK        UserDefine
 ```
 
 show interface status - will show the NPU-DPU interface status also      <font>**`Executed on the switch`**</font>
+
+The internal DPU ports use role type in interfaces to indicate NPU-DPU Data Port Type as shown here. Check the type for "Ethernet224" in the "show interface status" output
+```
+{
+    "interfaces": {
+        "Ethernet224": {
+            "lanes": "2828,2829,2830,2831",
+            "index": "28,28,28,28",
+            "breakout_modes": {"1x200G": ["dpu-0"]},
+            "subport": "1",
+            "autoneg": "on",
+            "role": "Dpc"
+        },
+    }
+}
+```
 ```
 root@sonic:~# show interfaces status
   Interface                                    Lanes    Speed    MTU    FEC    Alias    Vlan    Oper    Admin    Type       Asym PFC
@@ -971,16 +975,14 @@ root@sonic:~# show interfaces status
  Ethernet24  2048,2049,2050,2051,2052,2053,2054,2055     400G   9100    N/A     etp3  routed    down       up     N/A           N/A
  Ethernet32  1792,1793,1794,1795,1796,1797,1798,1799     400G   9100    N/A     etp4  routed    down       up     N/A           N/A
  Ethernet40  1800,1801,1802,1803,1804,1805,1806,1807     400G   9100    N/A     etp5  routed    down       up     N/A           N/A
- ...
- ...
-
-### These are internal DPU ports.  Use role type to indicate NPU-DPU Data Port.###
 ...
 ...
-Ethernet192                                   4,5,6,7     200G   9100    N/A   dpu-0  routed    down       up     DPU-NPU Data Port  N/A
-Ethernet200                                   0,1,2,3     200G   9100    N/A   dpu-1  routed    down       up     DPU-NPU Data Port  N/A
-Ethernet208                                 8,9,10,11     200G   9100    N/A   dpu-2  routed    down       up     DPU-NPU Data Port  N/A
-Ethernet216                               12,13,14,15     200G   9100    N/A   dpu-3  routed    down       up     DPU-NPU Data Port  N/A
+...
+...
+Ethernet224                                   4,5,6,7     200G   9100    N/A   dpu-0  routed    down       up     Dpc  N/A
+Ethernet232                                   0,1,2,3     200G   9100    N/A   dpu-1  routed    down       up     Dpc  N/A
+Ethernet240                                 8,9,10,11     200G   9100    N/A   dpu-2  routed    down       up     Dpc  N/A
+Ethernet248                               12,13,14,15     200G   9100    N/A   dpu-3  routed    down       up     Dpc  N/A
 ```
 
 show interface status     <font>**`Executed on the DPU`**</font>
