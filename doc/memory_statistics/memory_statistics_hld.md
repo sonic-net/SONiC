@@ -23,6 +23,7 @@
     - [Adjust Data Retention](#adjust-data-retention)
     - [Enable/Disable Memory Monitoring](#enabledisable-memory-monitoring)
     - [Displaying Memory Statistics Configuration](#displaying-memory-statistics-configuration)
+- [Daemon Configuration Management](#daemon-configuration-management)
 - [SAI API](#sai-api)
 - [Configuration and Management](#configuration-and-management)
   - [CLI/YANG Model Enhancements](#cliyang-model-enhancements)
@@ -82,7 +83,7 @@ This section explains how Memory Statistics feature works, focusing on user cont
 
 #### Data Collection and Storage
 
-Memory Statistics utilizes a dedicated systemd process for the periodic collection of memory data. This daemon operates in the background, ensuring minimal impact on system performance. Data is stored in compressed log files within the system, optimizing storage usage while ensuring data is easily retrievable for analysis and reporting.
+Memory Statistics utilizes a dedicated daemon process for the continuous collection of memory data. This daemon operates in the background, ensuring minimal impact on system performance. Data is stored in compressed log files within the system, optimizing storage usage while ensuring data is easily retrievable for analysis and reporting.
 
 #### User Interaction
 
@@ -160,11 +161,55 @@ The high-level feature design diagram is shown below.
     <img src="./images/mem_stats_configuration.svg" alt="Sequence diagram for Memory Statistics Configuration command" width="36%" />
     <br>
 	Figure 6: Sequence diagram for displaying the current memory statistics configuration in ConfigDB using the CLI
-  
+
+
+### Daemon Configuration Management
+
+The `memorystatsd` will dynamically manage its configuration using the `hostcfgd`. The design will:
+
+1. **Read Configuration at Startup**: On startup, `memorystatsd` will read its configuration directly from the ConfigDB to initialize its settings.
+2. **Monitor ConfigDB for Changes**: `hostcfgd` will monitor the `MEMORY_STATISTICS_TABLE` in ConfigDB for any changes to the configurations.
+3. **Signal Daemon to Reload Configuration**: When configurations are updated via CLI and written to ConfigDB, hostcfgd will detect these changes and signal `memorystatsd` to reload its configuration.
+4. **Reload to Apply Changes**: `memorystatsd` will reload its configurations upon receiving the signal and apply the new settings.
+
+**Workflow for Configuration Management**
+
+1. **Initial Setup**: On deployment, default settings are written to the ConfigDB.
+2. **Daemon Startup**: `memorystatsd` reads configuration from ConfigDB and initializes its parameters.
+3. **Runtime Configuration Changes**: Administrators update settings via CLI, which writes changes to ConfigDB.
+4. **Monitor ConfigDB for Changes**: `hostcfgd` detects changes in ConfigDB.
+5. **Signal Daemon to Reload Configuration**: hostcfgd signals `memorystatsd` to reload its configuration.
+6. **Reload Daemon**: `memorystatsd` reloads the configuration to apply the new settings.
+
 
 ## SAI API
 
 No SAI API change or addition is needed for this HLD.
+
+### Config DB Enhancements
+
+A new table, `MEMORY_STATISTICS_TABLE`, will be introduced in `ConfigDB` to store the configuration settings of the Memory Statistics feature. This table will allow for management of data collection frequency, retention period, and enable/disable status. The relevant configuration parameters and the schema for this table are detailed below.
+
+**MEMORY_STATS Configuration Parameters**
+
+| Parameter           | Type        | Description                                                    |
+|---------------------|-------------|----------------------------------------------------------------|
+| enabled             | boolean     | Enable or disable memory statistics collection.                |
+| sampling_interval   | unit16      | Interval for memory data collection.       		     |
+| retention_period    | unit16      | Duration for which memory data is retained.		     |   
+
+**Config DB Schema**
+```json
+
+MEMORY_STATS_TABLE: {
+    "MemoryStats": {
+        "enabled": "true",
+        "sampling_interval": "5",
+        "retention_period":  "15"
+    }
+}
+``` 
+
 
 ## Configuration and Management
 
@@ -293,47 +338,7 @@ module memory-stats {
 
  ```
 
-### Config DB Enhancements
 
-A new table, `MEMORY_STATISTICS_TABLE`, will be introduced in `ConfigDB` to store the configuration settings of the Memory Statistics feature. This table will allow for management of data collection frequency, retention period, and enable/disable status. The relevant configuration parameters and the schema for this table are detailed below.
-
-**MEMORY_STATS Configuration Parameters**
-
-| Parameter           | Type        | Description                                                    |
-|---------------------|-------------|----------------------------------------------------------------|
-| enabled             | boolean     | Enable or disable memory statistics collection.                |
-| sampling_interval   | unit16      | Interval for memory data collection.       		     |
-| retention_period    | unit16      | Duration for which memory data is retained.		     |   
-
-**Config DB Schema**
-```json
-
-MEMORY_STATS_TABLE: {
-    "MemoryStats": {
-        "enabled": "true",
-        "sampling_interval": "5",
-        "retention_period":  "15"
-    }
-}
-``` 
-
-6. **Daemon Configuration Management**
-
-The `memorystatsd` will dynamically manage its configuration using the `hostcfgd`. The design will:
-
-1. **Read Configuration at Startup**: On startup, `memorystatsd` will read its configuration directly from the ConfigDB to initialize its settings.
-2. **Monitor ConfigDB for Changes**: `hostcfgd` will monitor the `MEMORY_STATISTICS_TABLE` in ConfigDB for any changes to the configurations.
-3. **Signal Daemon to Reload Configuration**: When configurations are updated via CLI and written to ConfigDB, hostcfgd will detect these changes and signal `memorystatsd` to reload its configuration.
-4. **Reload to Apply Changes**: `memorystatsd` will reload its configurations upon receiving the signal and apply the new settings.
-
-**Workflow for Configuration Management**
-
-1. **Initial Setup**: On deployment, default settings are written to the ConfigDB.
-2. **Daemon Startup**: `memorystatsd` reads configuration from ConfigDB and initializes its parameters.
-3. **Runtime Configuration Changes**: Administrators update settings via CLI, which writes changes to ConfigDB.
-4. **Monitor ConfigDB for Changes**: `hostcfgd` detects changes in ConfigDB.
-5. **Signal Daemon to Reload Configuration**: hostcfgd signals `memorystatsd` to reload its configuration.
-6. **Reload Daemon**: `memorystatsd` reloads the configuration to apply the new settings.
 
 ## Warmboot and Fastboot Design Impact
 
