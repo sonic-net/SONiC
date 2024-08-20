@@ -217,18 +217,18 @@ Below is an example of the Memory Statistics output as it appears in the CLI. Th
 	--------------------------------------------------------------------------------
 	Report Generated:    2024-06-15 09:00:00
     Analysis Period:     From 2024-06-01 09:00:00 to 2024-06-15 09:00:00
-    Interval:	         Bi-daily
+    Interval:	         2 days
 	--------------------------------------------------------------------------------
-	  Metric            Current     High       Low        D1-D2      D3-D4      D5-D6      D7-D8      D9-D10     D11-D12    D13-D14    D15
-	                    Value       Value      Value      01Jun24    03Jun24    05Jun24    07Jun24    09Jun24    11Jun24    13Jun24    15Jun24
-	--------------      --------    --------   --------   ---------  ---------  ---------  ---------  ---------  ---------  ---------  ---------
-	Total Memory        15.6G       15.6G      15.1G      15.1G      15.2G      15.3G      15.3G      15.4G      15.5G      15.5G      15.6G
-	Used Memory         2.3G        2.5G       2.0G       2.1G       2.2G       2.2G       2.3G       2.4G       2.3G       2.2G       2.3G
-	Free Memory         11.9G       12.4G      10.6G      11.0G      11.2G      11.4G      11.5G      11.7G      11.8G      11.9G      12.0G
-	Available Memory    13.0G       14.3G      12.4G      12.6G      12.7G      12.8G      12.9G      13.0G      13.1G      13.2G      13.3G
-    Cached Memory       1.2G        1.5G       1.0G       1.1G       1.2G       1.3G       1.4G       1.3G       1.4G       1.2G       1.2G
-    Buffer Memory       0.3G        0.4G       0.2G       0.2G       0.3G       0.3G       0.4G       0.3G       0.3G       0.4G       0.3G
-	Shared Memory       0.5G        0.6G       0.4G       0.5G       0.5G       0.5G       0.4G       0.5G       0.5G       0.5G       0.5G
+	  Metric            Current     High       Low        D1-D3      D3-D5      D5-D7      D7-D9      D9-D11     D11-D13    D13-D15    
+	                    Value       Value      Value      01Jun24    03Jun24    05Jun24    07Jun24    09Jun24    11Jun24    13Jun24    
+	--------------      --------    --------   --------   ---------  ---------  ---------  ---------  ---------  ---------  ---------
+	Total Memory        15.6G       15.6G      15.1G      15.1G      15.2G      15.3G      15.3G      15.4G      15.5G      15.5G      
+	Used Memory         2.3G        2.5G       2.0G       2.1G       2.2G       2.2G       2.3G       2.4G       2.3G       2.2G       
+	Free Memory         11.9G       12.4G      10.6G      11.0G      11.2G      11.4G      11.5G      11.7G      11.8G      11.9G      
+	Available Memory    13.0G       14.3G      12.4G      12.6G      12.7G      12.8G      12.9G      13.0G      13.1G      13.2G      
+    Cached Memory       1.2G        1.5G       1.0G       1.1G       1.2G       1.3G       1.4G       1.3G       1.4G       1.2G       
+    Buffer Memory       0.3G        0.4G       0.2G       0.2G       0.3G       0.3G       0.4G       0.3G       0.3G       0.4G       
+	Shared Memory       0.5G        0.6G       0.4G       0.5G       0.5G       0.5G       0.4G       0.5G       0.5G       0.5G       
 
 
 **View Memory Statistics Configuration**
