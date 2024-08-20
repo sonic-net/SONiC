@@ -42,7 +42,7 @@
 ###### Table 1: Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 06/14/2024  | Mai Bui            | Initial version                   |
+| 0.1 | 08/20/2024  | Mai Bui            | Initial version                   |
 
 ## Scope
 This section describes the audit enhancement high-level design in SONiC.
@@ -65,7 +65,7 @@ In SONiC, audit settings are centrally managed through a configuration file at `
 - Introduce a new file, `security-auditing.rules`, into the `/etc/audit/rules.d/` directory
 - A predefined set of rules (detailed in section 3.2) will be automatically enabled as the default configuration.
 - Modify the `/etc/audit/plugins.d/syslog.conf` file by setting `active = yes` to enable the forwarding of auditd logs to a syslog server.
-- ConfigDB schema design
+- ConfigDB schema design, new AUDIT table in Config DB
 - YANG model
 - CLI commands to enable or disable all rules, with support for adding or removing individual rules for fine-grained control:
   - `show audit`
@@ -263,6 +263,7 @@ module sonic-audit {
   -a always,exclude -F msgtype=USER_END
   -a always,exclude -F msgtype=USER_START
   ```
+  
   If security auditing is disabled, `show audit` will only show tacplus accounting rule.
   ```
   admin@sonic:~$ show audit
@@ -295,6 +296,7 @@ module sonic-audit {
   ```
   config audit <enable/disable>
   ```
+
 - `config audit enable` - enables all **security** audit rules (`security-auditing.rules`)
   ```
   admin@sonic:~$ config audit enable
@@ -316,10 +318,12 @@ module sonic-audit {
 
 - Requirements
   ```
-  // --name and --rules are mandatory
-  // --name specifies the audit key name. The --name value must exactly match the -k value in the --rules. 
+  // Both --name and --rules are required.
+  // --name specifies the audit key name. The value provided for --name must exactly match the (-k <>/ -F key=<>) value used in the --rules.
       // Example: time_changes
-  // --rules defines the audit rule in auditd format. The rule must include a key (-k) that exactly matches the --name value.
+  // --rules defines the audit rule in auditd format. 
+  // If a key is not specified (-k <>/ -F key=<>), the key will be automatically set to the value of --name. 
+  // If a key is specified, it must exactly match the value of --name.
   // This ensures that the corresponding rule can be easily removed.
       // Example: -w /etc/localtime -p wa -k time_changes
 
@@ -332,7 +336,7 @@ module sonic-audit {
           // Step 1: config audit add --name socket_activity --rules "-a always,exit -F arch=b64 -S socket -F key=socket_activity"
           // Step 2: config audit add --name socket_activity --rules "-a always,exit -F arch=b32 -S socket -F key=socket_activity"
       // Example CLI commands to remove above rules:
-          // S tep 1: config audit remove --name socket_activity
+          // Step 1: config audit remove --name socket_activity
   ```
 
 - `config audit add` - add an individual audit rule  
