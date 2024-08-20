@@ -46,7 +46,7 @@
 
 Rev   |   Date   |  Author   | Change Description
 :---: | :-----:  | :------:  | :---------
-0.1   | 06/05/2024 | Ghulam Bahoo | Initial version
+0.1   | 06/05/2024 | Ghulam Bahoo, Muhammad Ali Hussnain | Initial version
 ## Overview
 This document outlines the configuration and usage of the kdump remote feature with ssh for the SONiC.
 
@@ -199,17 +199,16 @@ ssh_path: /path to ssh_private key/
 ```
 leaf remote {
    description "SSH Remote Config";
-
-					type boolean;
-}
+     type boolean;
+        }
 
 leaf ssh_stirng {
-					type string;
-				}
+    type string;
+}
 
 leaf ssh_path {
-					type string;
-				}				
+  type string;
+}				
 
 ```
 
