@@ -25,7 +25,7 @@
 
 | Revision | Date        | Author           | Change Description |
 | -------- | ----------- | ---------------- | ------------------ |
-| 1.0      | Jul 17 2024 | Wenda Chu, Jing Kan | Initial proposal   |
+| 1.0      | Jul 17 2024 | Wenda Chu        | Initial proposal   |
 
 ## Definitions/Abbreviations
 
@@ -246,7 +246,7 @@ The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` 
         - if contributing-address-prefix-list is not empty string, remove aggregated address from the prefix list.
 5. The bgp container restarted:
     - First, the bgp container will clean the addresses in state DB and then the bgp container will process all existed config one by one according to 1~4.
-6. Parameters updated in config DB:
+6. Update parameter of address in config DB:
     - First remove the address according to 2
     - Then add the address back according to 1
 
