@@ -112,7 +112,7 @@ module sonic-bgp-aggregate-address {
 
                 leaf bbr-required {
                     type boolean {
-						pattern "true|false";
+                        pattern "true|false";
                     }
                     default false;
                     description "Set if BBR is required for generating aggregate address";
@@ -120,7 +120,7 @@ module sonic-bgp-aggregate-address {
 
                 leaf summary-only {
                     type boolean {
-						pattern "true|false";
+                        pattern "true|false";
                     }
                     default false;
                     description "Only advertise the summary of aggregate address";
@@ -128,7 +128,7 @@ module sonic-bgp-aggregate-address {
 
                 leaf as-set {
                     type boolean {
-						pattern "true|false";
+                        pattern "true|false";
                     }
                     default false;
                     description "Set if include the AS set when advertising the aggregated address";
@@ -136,18 +136,18 @@ module sonic-bgp-aggregate-address {
 
                 leaf aggregate-address-prefix-list {
                     type string {
-						pattern "[0-9a-zA-Z_-]*";
+                        pattern "[0-9a-zA-Z_-]*";
                         length 0..128;
-					}
+                    }
                     default "";
                     description "Set if include the AS set when advertising the aggregated address";
                 }
 
                 leaf contributing-address-prefix-list {
                     type string {
-						pattern "[0-9a-zA-Z_-]*";
+                        pattern "[0-9a-zA-Z_-]*";
                         length 0..128;
-					}
+                    }
                     default "";
                     description "Set if include the AS set when advertising the aggregated address";
                 }
