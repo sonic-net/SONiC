@@ -31,6 +31,8 @@
   - [4. Testing Requirements/Design](#4-testing-requirementsdesign)
     - [4.1 Unit Test cases](#41-unit-test-cases)
     - [4.2 System Test cases](#42-system-test-cases)
+  - [5. Q\&A](#5-qa)
+  - [6. Future Improvements](#6-future-improvements)
 
 ## List of Tables
 * [Table 1: Revision](#table-1-revision)
@@ -493,9 +495,19 @@ The new rules will be assessed with the security team to ensure compliance.
 | Test case | Description                 |
 | --------- | --------------------------- |
 | 1         | System Test for config audit enable test |
-| 2         | System Test for configaudit disable test |
+| 2         | System Test for config audit disable test |
 | 3         | System Test for log test - verify that audit accurately send logs to syslog server. |
 | 4         | System Test for performance test |
 | 5         | System Test for audit rule ordering test for default rules |
 | 6         | System Test for config audit add rule test |
 | 7         | System Test for config audit remove rule test |
+
+## 5. Q&A
+1. Q: Who can enable/disable the security auditing feature?
+   A: Only privileged users with sudo or root-level access can enable/disable the security auditing feature in SONiC.
+2. Q: What if an attacker disables the audit daemon using the config audit disable command and then performs malicious activities, leaving no logs?
+   A: The config audit disable command is intended as an enablement feature, allowing users to disable security auditing when needed, such as for performance optimization. However, only users with sudo or root-level access should have the ability to execute this command to prevent misuse.
+
+## 6. Future Improvements
+1. Support monitor Config DB changes and auto restart auditd daemon, not depend on CLI
+2. Support only trusted user can manage the security auditing feature
