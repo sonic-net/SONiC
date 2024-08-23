@@ -39,7 +39,7 @@ No new architecture changes are required to SONiC.
 
 A new database `CHASSIS_COUNTERS_DB` will be introduced on `redis_chassis` instance of the SSI dedicated to aggregate statistics.
 
-Voq stats on FSI are already polled via flex counter for each asic by it's corresponding sync instance and updated in COUNTER_DB. Swss will be used to synchronise VOQ stats between COUNTERS_DB of FSI(s) and CHASSIS_COUNTERS_DB on the SSI
+Voq stats on FSI are already polled via flex counter for each asic by it's corresponding syncd instance and updated in COUNTER_DB. Swss will be used to synchronise VOQ stats between COUNTERS_DB of FSI(s) and CHASSIS_COUNTERS_DB on the SSI
 
 ### High-Level Design
 
@@ -107,13 +107,6 @@ cmp217-5|asic0|Ethernet24   VOQ5              16              800            0  
 cmp217-5|asic0|Ethernet24   VOQ6              23             1150            0             0                     0
 cmp217-5|asic0|Ethernet24   VOQ7              47            13792            0             0                     0
 ```
-		
-
-
-### Restrictions/Limitations  
-
-   * Since this feature doesn't use flex counter, the polling interval is not configurable.
-   * The polling can't be disabled permanently as well.
 
 ### Testing Requirements/Design  
 #### System Test cases
