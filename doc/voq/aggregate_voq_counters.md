@@ -39,7 +39,7 @@ No new architecture changes are required to SONiC. An instance of SWSS runs for 
 ### High-Level Design
 
 Figure 1: Gathering the VOQ stats in CHASSIS_APP_DB
-![Sequence Diagram](images/add_voq_seq.png "Figure 1: Sequence Diagram")  
+![Sequence Diagram](images/add_voq_sec.png "Figure 1: Sequence Diagram")  
 Figure 2: Aggregation of VOQ stats
 ![Aggregation of VOQ Stats](images/add_voq_cli.png "Figure 2: Aggregation of VOQ Stats")
 
