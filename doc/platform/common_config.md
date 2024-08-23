@@ -79,14 +79,14 @@ In order to support common config overwriting the platform config feature in upd
 
 ```
 /device/broadcom/x86_64-broadcom_common/x86_64-broadcom_b27/broadcom-sonic-td3.config.bcm
-###Normal Section###
+[Normal Section]
 mem_cache_enable=1
 sai_create_dflt_trap=1
 sai_default_tc_to_pg_map=1
 qos_map_dot1p_nonsharable_mode=1
 
 
-###Overwrite Section###
+[Overwrite Section]
 l3_mem_entries=16384
 lpm_scaling_enable=0
 l3_alpm_enable=0
