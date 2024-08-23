@@ -8,7 +8,7 @@
 
 |Revision No.|Description|Author|Date|
 | :- | :- | :- | :- |
-|0.1|Modified Design| [Divya Kumaran Chandralekha](https://github.com/divyachandralekha) , [Rida Hanif](github.com/ridahanif96)| July 02, 2024|
+|0.1|Modified Design| [Divya Kumaran Chandralekha](https://github.com/divyachandralekha) , [Rida Hanif](github.com/ridahanif96) , [Wajahat Razi](https://github.com/wajahatrazi) | July 02, 2024|
 
 # Table of Contents
 
