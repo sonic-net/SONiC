@@ -1,5 +1,6 @@
 
 
+
 # Aggregate VOQ Counters in SONiC #
 #### Rev 1.0
 
@@ -34,39 +35,59 @@ Provide aggregate VOQ counters in a distributed VOQ architecture.
 
 ### Architecture Design 
 
-No new architecture changes are required to SONiC. An instance of SWSS runs for each ASIC on it's respective FSI instance, in a distributed VOQ architecture. SWSS can be used to poll VOQ stats for every ASIC and update CHASSIS_APP_DB which is accessible from every FSI module. 
+No new architecture changes are required to SONiC. 
+
+A new database `CHASSIS_COUNTERS_DB` will be introduced on `redis_chassis` instance of the SSI dedicated to aggregate statistics.
+
+Voq stats on FSI are already polled via flex counter for each asic by it's corresponding sync instance and updated in COUNTER_DB. Swss will be used to synchronise VOQ state between COUNTERS_DB of FSI(s) and CHASSIS_COUNTERS_DB on the SSI
 
 ### High-Level Design
 
-Figure 1: Gathering the VOQ stats in CHASSIS_APP_DB
+Figure 1: Gathering the VOQ stats in CHASSIS_COUNTERS_DB 
 ![Sequence Diagram](images/voq_stats_seq.png "Figure 1: Sequence Diagram")  
 Figure 2: Aggregation of VOQ stats
 ![Aggregation of VOQ Stats](images/voq_cli.png "Figure 2: Aggregation of VOQ Stats")
 
 
-#### CHASSIS_APP_DB Changes
+#### Database Changes
+A new database called CHASSIS_COUNTERS_DB will be introduced on the redis_chassis instance of SSI.
+
+```
+"CHASSIS_COUNTERS_DB"  :  {
+	  "id": 21,
+	  "separator": ":",
+	  "instance": "redis_chassis"
+}
+```
+
+The VOQ stats will be updated in a new table `COUNTERS_VOQ`
 
 The following new VOQ counters should be available for each VOQ entry in the DB:
-   * `COUNTERS|fsi_id|asic_id|intf@fsi_id|asic_id:VOQ_index`
-      * `SAI_VOQ_STAT_PACKETS`
-      * `SAI_VOQ_STAT_BYTES`
-      * `SAI_VOQ_STAT_DROPPED_PACKETS`
-      * `SAI_VOQ_STAT_DROPPED_BYTES`
-   * The first part of the key ( before @ ) `fsi_id|asic_id|intf` denotes the physical location of the interface.
+   * `COUNTERS_VOQ|fsi_id|asic_id|intf@fsi_id|asic_id:VOQ_index`
+		      * `SAI_VOQ_STAT_PACKETS`
+		      * `SAI_VOQ_STAT_BYTES`
+		      * `SAI_VOQ_STAT_DROPPED_PACKETS`
+		      * `SAI_VOQ_STAT_DROPPED_BYTES`
+		      * `SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS`
+
+   * The first part of the key ( before @ ) `fsi_id|asic_id|intf` denotes the physical location of the interface ( or full system port name )
    * The second part of the key ( after @ ) `fsi_id|asic_id:VOQ_index` denotes the location of the VOQ and its index.
         
 #### SWSS Changes
-##### PortsOrch Changes
-PortsOrch will periodically poll the VOQ stats through SAI call `get_queue_stats` and update them into `CHASSIS_APP_DB`
+##### New VoqStatsOrch module
+A new module called VoqStatsOrch will be introduced which will be initialised by orchdaemon.
+
+VoqStatsOrch will synchronise the VOQ counters between ASIC's local COUNTERS_DB on the FSI and CHASSIS_COUNTERS_DB running on the SSI.
 
 #### Repositories that need to be changed
+   * sonic-buildimage
    * sonic-swss-common: https://github.com/sonic-net/sonic-swss-common/pull/855
    * sonic-swss: https://github.com/sonic-net/sonic-swss/pull/3047
    * sonic-utilities: https://github.com/sonic-net/sonic-utilities/pull/3163
    * sonic-mgmt
 
 ### SAI API 
-No new SAI API is being added. PortsOrch will use the existing SAI API i.e. `get_queue_stats`.
+No new SAI API is being added. 
 
 ### Configuration and management 
 #### CLI
@@ -74,17 +95,17 @@ CLI (queuestat.py) aggregates the VOQ stats for a VOQ across ASICS and present a
 
 $ show VOQ counters [interface] --voq
 ```
-admin@nfc404:~$ show queue counters "nfc404-3|Asic0|Ethernet4" --voq
-                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
-------------------------  -----  --------------  ---------------  -----------  ------------
-nfc404-3|Asic0|Ethernet4   VOQ0              45            12386            0             0
-nfc404-3|Asic0|Ethernet4   VOQ1               1               50            0             0
-nfc404-3|Asic0|Ethernet4   VOQ2             255            12750            0             0
-nfc404-3|Asic0|Ethernet4   VOQ3               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ4              37             1850            0             0
-nfc404-3|Asic0|Ethernet4   VOQ5               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ6             172             8600            0             0
-nfc404-3|Asic0|Ethernet4   VOQ7               0                0            0             0
+admin@cmp217:~$ show queue counters "cmp217-5|asic0|Ethernet24" --voq
+                     Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Credit-WD-Del/pkts
+-------------------------  -----  --------------  ---------------  -----------  ------------  --------------------
+cmp217-5|asic0|Ethernet24   VOQ0              54             2700            0             0                     0
+cmp217-5|asic0|Ethernet24   VOQ1              51             2550            0             0                     0
+cmp217-5|asic0|Ethernet24   VOQ2               4              200            0             0                     0
+cmp217-5|asic0|Ethernet24   VOQ3              45             2250            0             0                     0
+cmp217-5|asic0|Ethernet24   VOQ4               7              350            0             0                     0
+cmp217-5|asic0|Ethernet24   VOQ5              16              800            0             0                     0
+cmp217-5|asic0|Ethernet24   VOQ6              23             1150            0             0                     0
+cmp217-5|asic0|Ethernet24   VOQ7              47            13792            0             0                     0
 ```
 		
 
