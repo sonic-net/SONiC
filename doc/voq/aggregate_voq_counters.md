@@ -39,7 +39,7 @@ No new architecture changes are required to SONiC.
 
 A new database `CHASSIS_COUNTERS_DB` will be introduced on `redis_chassis` instance of the SSI dedicated to aggregate statistics.
 
-Voq stats on FSI are already polled via flex counter for each asic by it's corresponding sync instance and updated in COUNTER_DB. Swss will be used to synchronise VOQ state between COUNTERS_DB of FSI(s) and CHASSIS_COUNTERS_DB on the SSI
+Voq stats on FSI are already polled via flex counter for each asic by it's corresponding sync instance and updated in COUNTER_DB. Swss will be used to synchronise VOQ stats between COUNTERS_DB of FSI(s) and CHASSIS_COUNTERS_DB on the SSI
 
 ### High-Level Design
 
