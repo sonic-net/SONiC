@@ -64,11 +64,11 @@ The VOQ stats will be updated in a new table `COUNTERS_VOQ`
 
 The following new VOQ counters should be available for each VOQ entry in the DB:
    * `COUNTERS_VOQ|fsi_id|asic_id|intf@fsi_id|asic_id:VOQ_index`
-		      * `SAI_VOQ_STAT_PACKETS`
-		      * `SAI_VOQ_STAT_BYTES`
-		      * `SAI_VOQ_STAT_DROPPED_PACKETS`
-		      * `SAI_VOQ_STAT_DROPPED_BYTES`
-		      * `SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS`
+     * `SAI_VOQ_STAT_PACKETS`
+     * `SAI_VOQ_STAT_BYTES`
+     * `SAI_VOQ_STAT_DROPPED_PACKETS`
+     * `SAI_VOQ_STAT_DROPPED_BYTES`
+     * `SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS`
 
    * The first part of the key ( before @ ) `fsi_id|asic_id|intf` denotes the physical location of the interface ( or full system port name )
    * The second part of the key ( after @ ) `fsi_id|asic_id:VOQ_index` denotes the location of the VOQ and its index.
