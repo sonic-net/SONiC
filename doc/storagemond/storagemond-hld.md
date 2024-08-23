@@ -3,7 +3,8 @@
 
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
- | 0.1 |             |      Ashwin Srinivasan  | Initial version                   |
+ | 0.1 |             |      Ashwin Srinivasan  | Initial version              |
+ | 0.2 |  2024-23-08 |      Ashwin Srinivasan  | STORAGE_INFO schema change   |
 
 ## 1. Overview
 
@@ -382,6 +383,7 @@ disk_io_writes          = STRING                    ; Describes the total number
 reserved_blocks         = STRING                    ; Describes the reserved blocks count of the SSD                                         (Dynamic)
 firmware                = STRING                    ; Describes the Firmware version of the SSD                                              (Dynamic)
 health                  = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs      (Dynamic)
+last_sync_time          = STRING                    ; The latest successful sync time of disk attribtes to STATE_DB in UNIX timestamp format (Dynamic)
 ```
 
 NOTE: disk_io_reads and disk_io_writes return total LBAs read/written. 'LBA' stands for Logical Block Address. 
