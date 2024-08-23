@@ -10,7 +10,7 @@
    * [Requirements](#requirements)
    * [Architecture Design](#architecture-design)
    * [High-Level Design](#high-level-design)
-      * [CHASSIS_APP_DB Changes](#chassis_app_db-changes)
+      * [Database changes](#database-changes)
       * [SWSS Changes](#swss-changes)
       * [Repositories that need to be changed](#repositories-that-need-to-be-changed)
    * [SAI API](#sai-api)
