@@ -1096,3 +1096,4 @@ N/A
 | 21        | [Updating PG headroom configs.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_pg_headroom_update.py) |
 | 22        | [Add/Remove Rack.](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/configlet/test_add_rack.py) |
 | 23        | [Updating NTP configs](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_ntp.py) |
+| 24        | [Updating forced_mgmt_routes configs](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/generic_config_updater/test_mgmt_interface.py) |
