@@ -1052,6 +1052,7 @@ N/A
 | 24        | Cross-ASIC Dependency Verification: While each ASIC operates independently, this test involves applying patches that could potentially have indirect impacts on other ASICs through shared resources or network topology changes. Validate that changes in one ASIC do not adversely affect others.|
 | 25        | Patch Compatibility and Conflict Resolution: Apply patches that introduce changes conflicting with existing configurations across ASICs. This test examines how the system identifies and resolves conflicts, ensuring that the most critical settings are preserved and that any issues are clearly reported.|
 | 26        | Performance Impact Assessment: Measure system performance before and after patch application to determine the impact of configuration changes. This includes monitoring processing speed, memory usage, and network latency to ensure that performance remains within acceptable parameters.|
+| 27        | Add and remove forced mgmt routes config with IPV4 and IPV6 address.|
 
 ## 9.2 Unit Tests for Checkpoint
 | Test Case | Description |
