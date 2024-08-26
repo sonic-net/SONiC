@@ -90,8 +90,12 @@ MSTP reduces convergence time compared to STP. When a network topology change oc
 # Understanding MSTP: IST, CIST, MSTIs, MST Regions, Vlan to MSTI mapping 
 
 
-1. Default Internal Spanning Tree (IST): VLANs not explicitly mapped to an MSTI are managed by the default IST (Instance 0). The IST serves as a catch-all instance, ensuring that all VLAN traffic is appropriately managed. 
-1. Common and Internal Spanning Tree (CIST): Common Spanning Tree (CST): CST interconnects different MST regions, enabling communication across the entire network. CST ensures that there is a single spanning tree for the entire network, preventing loops between MST regions.
+1. Default Internal Spanning Tree (IST): An internal spanning tree (IST) is a spanning tree that runs in an MST region. It is also called MSTI 0, a special MSTI to which all VLANs are mapped by default. 
+
+1. Common and Internal Spanning Tree (CIST): The common and internal spanning tree (CIST) is a single spanning tree that connects all devices in a switched network. It consists of the ISTs in all MST regions and the CST. 
+
+1. Common Spanning Tree (CST): The common spanning tree (CST) is a single spanning tree that connects all MST regions in a switched network.
+
 1. MST Instances (MSTIs): MSTP divides the network into multiple regions, each containing several MSTIs. Each MSTI operates independently, allowing for efficient use of network resources and optimized load balancing across different VLANs.
 1.  MST Regions:  An MST region is a group of interconnected bridges that share the same MST configuration, including the MST configuration name, revision number, and VLAN-to-instance mappings
 1. VLAN-to-MSTI Mapping: MSTP maps VLANs to specific MSTIs using a VLAN mapping table. This mapping ensures that traffic within a VLAN follows the corresponding MSTI, optimizing the network path and improving performance. 
@@ -162,7 +166,7 @@ MSTP calculates spanning trees on the basis of Multiple Spanning Tree Bridge Pro
 # Architecture Design
 Following diagram explains the architectural design and linkages for MSTP. MSTP uses multiple existing SONiC containers, configuration details of each is mentioned below as well.
 
-![MSTP Architecture](images/MSTPDesign_Archi.drawio.png)
+![MSTP Architecture](images/MSTP_Design_Architecture.drawio.png)
 
 ## STP Container
 STP Container is responsible for actions taken for BPDU rx and BPDU tx. Following are the details for implementation:
@@ -365,7 +369,7 @@ Root guard feature will also be supported by MSTP.
 The Root Guard feature provides a way to enforce the root bridge placement in the network and allows STP to interoperate with user network bridges while still maintaining the bridged network topology that the administrator requires. When BPDUs are received on a root guard enabled port, the STP state will be moved to "Root inconsistent" state to indicate this condition. Once the port stops receiving superior BPDUs, Root Guard will automatically set the port back to a FORWARDING state.
 
 ## Edge Port
-Edge ports immediately transition to the forwarding state upon activation and do not participate in STP topology calculations. In PVST, this functionality is achieved through the "Portfast" feature, while in MSTP standard, the term "Edge Port" is used. To ensure user clarity, separate command will be provided for configuring Edge Ports.
+Edge ports immediately transition to the forwarding state upon activation and do not participate in STP topology calculations. 
 
 
 ## Uplink Fast
@@ -392,7 +396,7 @@ MSTP standard does not support uplink fast so uplink fast functionality will be 
 ![Instance Deletion](images/MSTP_Instance_Delete.drawio.png)
 
 ## MSTP Instance Creation 
-![MSTP Instance Creation](images/MSTP_Add_ExistingInstance.drawio.png)
+![MSTP Instance Creation](images/MSTP_Add_InstanceVlan.drawio.png)
 
 ## MSTP Instance Deletion 
 ![MSTP Instance Deletion](images/MSTP_Del_InstanceVlan.drawio.png)
@@ -416,6 +420,7 @@ Following configuration commands will be provided for configuration of MSTP:
 - **config spanning_tree {enable|disable} {mst}**
   - Enables or disables mstp at global level on all ports of the switch.
   - Only one mode of STP can be enabled at a time.
+  - By default disabled.
     
 - **config spanning_tree mst max_hops \<max-hops-value\>**
   - Specify the number of maximum hops before the BPDU is discarded inside a region.
@@ -485,7 +490,7 @@ Following new commands will be added:
   - Specify configuring the port level priority for root bridge in seconds.
   - Default: 0, range 1-200000000
 
- - **config spanning_tree interface \<ifname\> link-type {P2P|Shared-Lan|Auto}**
+- **config spanning_tree interface \<ifname\> link-type {P2P|Shared-Lan|Auto}**
   - Specify configuring the interface at different link types.
  
 ## Show Commands
@@ -534,14 +539,14 @@ Bridge               Address 8000.80a2.3526.0c5e
 Ethernet20 is DESIGNATED FORWARDING
 Port info              port id 86 priority 128          cost 800
 Designated             Address 8000.80a2.3526.0c5e      cost 0
-Designated bridge      Address 8000.80a2.3526.0c5e      port id 86
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 25
 Timers:  forward transitions 0
 Bpdu send 80, received 0
 
 Ethernet46 is DESIGNATED FORWARDING
 Port info              port id 25 priority 128          cost 1000
 Designated             Address 8000.80a2.3526.0c5e      cost 0
-Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 86
 Timers:  forward transitions 0
 Bpdu send 80, received 0
 
@@ -560,7 +565,7 @@ Bridge               Address 8000.80a2.3526.0c5e
 Ethernet46 is DESIGNATED FORWARDING
 Port info              port id 85 priority 128          cost 2000
 Designated             Address 8000.80a2.3526.0c5e      cost 0
-Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
+Designated bridge      Address 8000.80a2.3526.0c5e      port id 86
 Timers:  forward transitions 0
 Bpdu send 80, received 0
 
@@ -742,6 +747,7 @@ module sonic-stp {
                     enum "mstp";
                 }
                 description "STP mode";
+                default disable:
             }
 
             leaf forward_delay {
