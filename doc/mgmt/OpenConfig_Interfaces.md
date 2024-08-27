@@ -1,7 +1,7 @@
 # OpenConfig support for Ethernet interfaces.
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -43,7 +43,8 @@
 # Revision
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
-| 0.1 | 02/24/2024  | Nikita Agarwal / Satoru Shinohara | Initial version                   |
+| 0.1 | 02/24/2024  | Nikita Agarwal / Satoru Shinohara | Initial version       |
+| 0.2 | 08/27/2024  | Kanji Nakano  | Interface Conuter Supoprt                 |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration of Ethernet interfaces in SONiC.
@@ -72,6 +73,21 @@ This document provides general information about the OpenConfig configuration of
         |  +--ro description?    string
         |  +--ro enabled?        boolean
         |  +--ro admin-status    enumeration
+        |  +--ro counters
+        |     +--ro in-octets?             oc-yang:counter64
+        |     +--ro in-pkts?               oc-yang:counter64
+        |     +--ro in-unicast-pkts?       oc-yang:counter64
+        |     +--ro in-broadcast-pkts?     oc-yang:counter64
+        |     +--ro in-multicast-pkts?     oc-yang:counter64
+        |     +--ro in-errors?             oc-yang:counter64
+        |     +--ro in-discards?           oc-yang:counter64
+        |     +--ro out-octets?            oc-yang:counter64
+        |     +--ro out-pkts?              oc-yang:counter64
+        |     +--ro out-unicast-pkts?      oc-yang:counter64
+        |     +--ro out-broadcast-pkts?    oc-yang:counter64
+        |     +--ro out-multicast-pkts?    oc-yang:counter64
+        |     +--ro out-discards?          oc-yang:counter64
+        |     +--ro out-errors?            oc-yang:counter64
         +--rw subinterfaces
         |  +--rw subinterface* [index]
         |     +--rw index         -> ../config/index
