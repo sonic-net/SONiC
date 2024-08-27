@@ -21,7 +21,6 @@
 * [Architecture Design](#architecture-design)
   - [STP Container](#stp-container)
   - [SWSS Container](#swss-container)
-  - [CoPP Configurations](#copp-configurations)
 * [Database Changes](#database-changes)
   - [CONFIG DB](#config-db)
   - [APP DB](#app-db)
@@ -82,7 +81,6 @@ Spanning Tree Protocol (STP) is a network protocol that operates at the Data Lin
 Multiple Spanning Tree Protocol (MSTP), standardized in IEEE 802.1s, is an extension of STP. MSTP enhances STP by providing better loop prevention, path redundancy, and optimal bandwidth utilization. MSTP allows network engineers to create multiple spanning trees, each associated with a set of VLANs, and assign them to different switch ports. This configuration optimizes bandwidth usage, reduces convergence time, and simplifies network management. 
 
  
-
 MSTP reduces convergence time compared to STP. When a network topology change occurs, only the affected MSTI needs to reconverge, minimizing the impact on the entire network. 
 
 
@@ -92,9 +90,10 @@ MSTP reduces convergence time compared to STP. When a network topology change oc
 
 1. Default Internal Spanning Tree (IST): An internal spanning tree (IST) is a spanning tree that runs in an MST region. It is also called MSTI 0, a special MSTI to which all VLANs are mapped by default. 
 
-1. Common and Internal Spanning Tree (CIST): The common and internal spanning tree (CIST) is a single spanning tree that connects all devices in a switched network. It consists of the ISTs in all MST regions and the CST. 
+1.  Common Spanning Tree (CST): The common spanning tree (CST) is a single spanning tree that connects all MST regions in a switched network.
 
-1. Common Spanning Tree (CST): The common spanning tree (CST) is a single spanning tree that connects all MST regions in a switched network.
+
+1. Common and Internal Spanning Tree (CIST): The common and internal spanning tree (CIST) is a single spanning tree that connects all devices in a switched network. It consists of the ISTs in all MST regions and the CST. 
 
 1. MST Instances (MSTIs): MSTP divides the network into multiple regions, each containing several MSTIs. Each MSTI operates independently, allowing for efficient use of network resources and optimized load balancing across different VLANs.
 1.  MST Regions:  An MST region is a group of interconnected bridges that share the same MST configuration, including the MST configuration name, revision number, and VLAN-to-instance mappings
@@ -166,8 +165,7 @@ MSTP calculates spanning trees on the basis of Multiple Spanning Tree Bridge Pro
 # Architecture Design
 Following diagram explains the architectural design and linkages for MSTP. MSTP uses multiple existing SONiC containers, configuration details of each is mentioned below as well.
 
-![MSTP Architecture](images/MSTP_Design_Architecture.drawio.png)
-
+![MSTP Architecture](images/MSTPDesign_Archi.drawio.png)
 ## STP Container
 STP Container is responsible for actions taken for BPDU rx and BPDU tx. Following are the details for implementation:
 
@@ -193,8 +191,6 @@ Updates SAI via following APIs:
 2. Assigning VLAN to instance 
 3. Creation of STP Port and assigning port state with respect to each instance 
 4. Flushing FDB entries 
-
-There are no changes in PortOrch.
 
 
 # Database Changes
@@ -389,30 +385,25 @@ MSTP standard does not support uplink fast so uplink fast functionality will be 
 ## MSTP region name/version change
 ![MSTP Region Config](images/MSTP_Region_Name.drawio.png)
 
-## Instance Creation 
-![Instance Creation ](images/MSTP_Instance_Create.drawio.png)
 
-## Instance Deletion 
-![Instance Deletion](images/MSTP_Instance_Delete.drawio.png)
-
-## MSTP Instance Creation 
+## MSTP  Global Instance Creation 
 ![MSTP Instance Creation](images/MSTP_Add_InstanceVlan.drawio.png)
 
-## MSTP Instance Deletion 
+## MSTP  Global Instance Deletion 
 ![MSTP Instance Deletion](images/MSTP_Del_InstanceVlan.drawio.png)
+
+## MSTIs Instance Creation 
+![Instance Creation ](images/MSTP_Instance_Create.drawio.png)
+
+## MSTIs Instance Deletion 
+![Instance Deletion](images/MSTP_Instance_Delete.drawio.png)
+
 
 ## Add VLAN to Exisiting Instance
 ![MSTP VLAN Add](images/MSTP_Add_ExistingInstance.drawio.png)
 
 ## Del VLAN from  Exisiting Instance
 ![MSTP VLAN Del](images/MSTP_Del_ExistingInstance.drawio.png)
-
-## Add VLAN member
-![MSTP VLAN Member Add](images/MSTP_Add_Vlan_Member.drawio.png)
-
-## Del VLAN member
-![MSTP VLAN Member Del](images/MSTP_Del_Vlan_Member.drawio.png)
-
 
 # Configuration Commands
 Following configuration commands will be provided for configuration of MSTP:
@@ -530,6 +521,8 @@ PortChannel1001    DESIGNATED   FORWARDING      1000        128.45       P2P
 - show spanning_tree  mst detail 
 
 ```
+admin@sonic: show spanning_tree detail
+
 
 #######  MST0        Vlans mapped : 1, 4-8, 202-4094
 Bridge               Address 8000.80a2.3526.0c5e
@@ -548,14 +541,14 @@ Port info              port id 25 priority 128          cost 1000
 Designated             Address 8000.80a2.3526.0c5e      cost 0
 Designated bridge      Address 8000.80a2.3526.0c5e      port id 86
 Timers:  forward transitions 0
-Bpdu send 80, received 0
+Bpdu send 40, received 0
 
 PortChannel1001 is DESIGNATED FORWARDING
 Port info              port id 25 priority 128          cost 2000
 Designated             Address 8000.80a2.3526.0c5e      cost 0
 Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
 Timers:  forward transitions 0
-Bpdu send 80, received 0
+Bpdu send 30, received 0
 
 #######  MST1        Vlans mapped : 2, 300, 400
 Bridge               Address 8000.80a2.3526.0c5e
@@ -583,7 +576,8 @@ Bpdu send 80, received 0
 - show spanning_tree  mst instance <instance-id>
 
 ```
-show spanning_tree mst instance 0
+admin@sonic: show spanning_tree mst instance 0
+
 #######  MST0        Vlans mapped : 1, 4-8, 202-4094
 Bridge               Address 8000.80a2.3526.0c5e
 Root                 Address 8000.80a2.3526.0c5e
@@ -603,7 +597,8 @@ PortChannel1001    DESIGNATED   FORWARDING     1000        128.45       P2P
 - show spanning_tree  mst interface 
 
 ```
-show spanning_tree mst interface  Ethernet46
+admin@sonic: show spanning_tree mst interface  Ethernet46
+
 Link Type: P2P        Bpdu filter: False
 Boundary : internal   Bpdu guard:  False
 
@@ -617,28 +612,40 @@ Instance           Role        State           Cost       Prio.Nbr     Vlans
 - show spanning_tree mst bpdu_guard
 
 ```
+admin@sonic:  show spanning_tree mst bpdu_guard
+
+
 PortNum               Shutdown Configured             Port Shut due to BPDU Guard
 ---------             --------------------           -----------------------------
-Ethernet45             Yes                            Yes             
+Ethernet46             Yes                            Yes             
 PortChannel1001        No                             NA
 ```
 
 - show spanning_tree  mst instance \<instance-id\> interface \<ifname\>
 
 ```
-Port        Prio Path Edge State      Role  Designated  Designated          Designated
-Num         rity Cost Port                  Cost        Root                Bridge
-Ethernet13  128  4    N    FORWARDING Root  0           32768002438eefbc3   32768002438eefbc3
+admin@sonic:  show spanning_tree  mst instance 0 interface Ethernet46
+
+
+Port        Prio   Path    Edge     State         Role     Designated    Designated          Designated
+Num         rity   Cost    Port                            Cost          Root                Bridge
+Ethernet46  128    800     N        FORWARDING    Root     0             32768002438eefbc3   32768002438eefbc3
 ```
 
 ### Statistics Commands
 - show spanning_tree mst statistics instance \<instance-id\>
+
 ```
-MSTP instance 0 - VLANs 10, 20, 30
+
+admin@sonic:  show spanning_tree  mst  statistics instance 0 
+
+
+MSTP instance 0 - VLANs 1, 4-8, 202-4094
 --------------------------------------------------------------------
 PortNum           BPDU Tx     BPDU Rx     TCN Tx     TCN Rx             
-Ethernet13        10	      4           3          4
-PortChannel15     20	      6           4          1
+Ethernet20        80	      4           3          4
+Ethernet46        40	      6           3          4
+PortChannel15     30	      6           4          1
 ```
 
 
@@ -747,7 +754,6 @@ module sonic-stp {
                     enum "mstp";
                 }
                 description "STP mode";
-                default disable:
             }
 
             leaf forward_delay {
