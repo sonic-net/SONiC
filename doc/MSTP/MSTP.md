@@ -269,7 +269,7 @@ Following new tables are introduced as part of MSTP Feature:
 #### STP_MST_INST_TABLE
 ```
 ;Stores the STP per  MSTI operational details
-key                       = _STP_MST_INST_TABLE:"MST" id  
+key                       = STP_MST_INST_TABLE:"MST" id  
 vlan_list                 = vlan_id-or-range[,vlan_id-or-range]       ; list of VLAN IDs assigned to MST instance
 bridge_address            = 16HEXDIG                                  ; bridge id
 regional_root_address     = 16HEXDIG                                  ; regional root bridge id
@@ -286,7 +286,7 @@ root_port                 = ifName                                    ; Root por
 #### STP_MST_PORT_TABLE
 ```
 ;Stores STP MST instance interface details
-key                 = _STP_MST_PORT_TABLE:"MST":id:ifname    ; MSTI+Intf with prefix "STP_MST_PORT
+key                 = STP_MST_PORT_TABLE:"MST":id:ifname     ; MSTI+Intf with prefix "STP_MST_PORT
 port_number         = 1*3DIGIT                               ; port number or bridge port 
 path_cost           = 1*9DIGIT                               ; port path cost (1 to 200000000)
 priority            = 3*DIGIT                                ; port priority (0 to 240, DEF:128)
@@ -306,7 +306,7 @@ bpdu_received       = 1*10DIGIT                              ; bpdu received
 #### STP_PORT_TABLE
 ```
 ;Stores STP interface detail
-key                 = _STP_PORT_TABLE:ifname    ; ifname with prefix STP_INTF
+key                 = STP_PORT_TABLE:ifname    ; ifname with prefix STP_INTF
 edge_port           = BIT                       ; edge port  enabled or disabled
 link_type           = "type"                    ; point-to-point or shared link type
 mst_boundary        = BIT                       ; enabled or disabled
@@ -317,7 +317,7 @@ mst_boundary_proto  = BIT                       ; enabled or disabled
 
 ```
 ;Defines instance and port for which FDB Flush needs to be performed
-key                 = _STP_INST_PORT_FLUSH_TABLE:instane:ifname         ; FDB Flush instance id and port
+key                 = STP_INST_PORT_FLUSH_TABLE:instane:ifname         ; FDB Flush instance id and port
 name           
 state               = "true"                                            
 ```
@@ -976,13 +976,13 @@ module sonic-stp {
                         path "../../../STP_PORT/STP_PORT_LIST/ifname";
                     }
                     description
-                        "Reference to Ethernet interface or PortChannel";
+                        "Reference to Ethernet interface or PortChannel in the STP database";
                 }
                 uses interfaceAttr;
             }
         }
 
-	list _STP_MST_INST_TABLE_LIST {
+	list STP_MST_INST_TABLE_LIST {
             sonic-ext:db-name "APPL_DB";
             key "inst_id";
 
