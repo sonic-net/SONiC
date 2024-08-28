@@ -54,6 +54,7 @@ This document provides general information about the OpenConfig configuration/ma
 - Openconfig-system.yang version 2.1.0 - latest openconfig yang repo version is considered.
 - Supported attributes in OpenConfig YANG tree:
   ```
+module: openconfig-system
   +--rw system
      +--rw config
      |  +--rw hostname?       oc-inet:domain-name
@@ -110,6 +111,13 @@ This document provides general information about the OpenConfig configuration/ma
      |  |     |  +--rw source-address?     oc-inet:ip-address
      |  |     |  +--rw network-instance?   oc-ni:network-instance-ref
      |  |     |  +--rw remote-port?        oc-inet:port-number
+     |  |     +--rw selectors
+     |  |        +--rw selector* [facility severity]
+     |  |           +--rw facility    -> ../config/facility
+     |  |           +--rw severity    -> ../config/severity
+     |  |           +--rw config
+     |  |           |  +--rw facility?   identityref
+     |  |           |  +--rw severity?   syslog-severity
      +--rw processes
      |  +--ro process* [pid]
      |     +--ro pid      -> ../state/pid
@@ -122,12 +130,6 @@ This document provides general information about the OpenConfig configuration/ma
      +--rw messages
      |  +--rw config
      |  |  +--rw severity?   oc-log:syslog-severity
-     |  +--rw debug-entries
-     |     +--rw debug-service* [service]
-     |        +--rw service    -> ../config/service
-     |        +--rw config
-     |        |  +--rw service?   identityref
-     |        |  +--rw enabled?   boolean
      +--rw ssh-server
      |  +--rw config
      |  |  +--rw timeout?            uint16
@@ -159,7 +161,6 @@ This document provides general information about the OpenConfig configuration/ma
      |        |  +--rw key-id?      ->    ../../../ntp-keys/ntp-key/key-id
      |        |  +--rw network-instance?   oc-ni:network-instance-ref
      |        |  +--rw source-address?     oc-inet:ip-address
-
   ```
 
 # Definition/Abbreviation
@@ -219,7 +220,7 @@ This HLD design is in line with the [https://github.com/sonic-net/SONiC/blob/mas
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
 There are no changes to CONFIG DB schema definition.  
-For software-version, new table will be added, namely VERSION|SOFTWARE.
+For software-version, new table will be added, namely VERSIONS|SOFTWARE.
 
 ### 3.2.2 APP DB
 There are no changes to APP DB schema definition.
@@ -235,16 +236,16 @@ There are no changes to COUNTER DB schema definition.
 
 ## 3.3 User Interface
 ### 3.3.1 Data Models
-Openconfig-system.yang (2.1.0) and its submodules will be used as user interfacing models.  
-We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (2.1.0).  
+Openconfig-system.yang (revision 2.1.0) and its submodules will be used as user interfacing models.  
+We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (revision 2.1.0), to have all the latest changes from community.  
 Community PR [https://github.com/sonic-net/sonic-mgmt-common/pull/147]  
    * In this PR openconfig-system.yang and its submodules are updated to latest version available
-   * Reference to openconfig-network-instance module is commented, as this module is yet to be supported in sonic
+   * Reference to openconfig-network-instance model is commented, as this module is yet to be supported in SONiC
 
-Main changes among these to openconfig versions are:
+Main changes in the latest openconfig versions are:
  * Feature wise major changes -
-    * system/state -> uptime, software-version, last-configuration-timestamp nodes are added.
-    * ntp -> source-address moved to per server list from global container. Also network-instance is included per server.
+    * system/state -> up-time, software-version, last-configuration-timestamp nodes are added.
+    * ntp -> source-address moved to per server list from global container. Also network-instance is included per server. NTP Key reference is added in server.
     * grpc-server -> Restructured completely, multiple server provision is added.
     * logging -> For remote-server, network-instance support is added. Files & VTY containers are added newly.
     * memory -> used and free leaves are added.
@@ -286,7 +287,6 @@ gnmic -a <ip:port> -u <user> -p <passwd> get --path "/openconfig-system:system"
     "values": {
       "openconfig-system:system": {
           "state": {
-            "hostname": "mytest-hostname"
             "boot-time": "1712672712",
             "current-datetime": "2024-04-09T14:32:40Z+00:00"
           }
