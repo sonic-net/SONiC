@@ -58,9 +58,11 @@ extends https://github.com/sonic-net/SONiC/blob/master/doc/voq/voq_hld.md.
 
 ## Table 1: Abbreviations
 
-| Term     | Meaning                                   |
-| -------- | ----------------------------------------- |
-| VOQ      | Virtual Output Queue                      |
+| Term         | Meaning                                   |
+| ------------ | ----------------------------------------- |
+| Ingress node | Node where the packet encapsulation is performed using fabric header information received form BGP |
+| Egress node  | Node where packets are decapsulated and forwarded based on the incoming fabric header |
+| VOQ          | Virtual Output Queue                      |
 
 <a id="1-Feature-Overview"></a>
 # 1 Feature Overview
@@ -73,22 +75,16 @@ extends https://github.com/sonic-net/SONiC/blob/master/doc/voq/voq_hld.md.
 
 The following are functional requirements:
 
- - Learn dynamically local connected hosts.
- - Redistribute connected hosts with VOQ information to enable forwarding on remote devices.
- - Today, done via static configuration using scripting
-
-Pre-requisite
-  - Setup VxLAN with L3VNI, L3BD and L3SVI connected to a VRF
-  - VxLAN, L3VNI, L3BD and L3SVI are NOT download to SONIC. Use only to make FRR happy so RT-5 are generated
-  - Setup L3 interface on that VRF connected to local host
+ - Dynamically learn locally connected peers.
+ - Redistribute routes with VOQ information to enable forwarding on remote devices.
 
 
 <a id="112-Configuration-and-Management-Requirements"></a>
 ### 1.1.2 Configuration and Management Requirements
-The following are configuration and management requirements for EVPN VxLAN Multihoming:
+The following are configuration and management requirements:
 
 1. All of the configurations and show outputs should be available through SONiC yang - REST, gNMI.
-2. All of the configurations and show outputs should be available through click/FRR-vtysh.
+2. All of the configurations and show outputs should be available through FRR-vtysh.
 
 <a id="113-Platform-Requirements"></a>
 ### 1.1.3 Platform requirements
@@ -106,9 +102,9 @@ The following are targeted scale numbers:
 <a id="12-Design-Overview"></a>
 ## 1.2 Design Overview
 
-Dynamicy host learning extension leverages well-known BGP technics described in [RFC9012](https://datatracker.ietf.org/doc/rfc9012/).
+Dynamic host learning extension leverages well-known BGP technics described in [RFC9012](https://datatracker.ietf.org/doc/rfc9012/).
 
-VOQ architecture does not use any usual encapsulation such as VxLAN, MPLS, IP, etc. Packets being transmitted on ingress device are encapsulated using a Fabric Header. That fabric header is usually ASIC specific. However, within SONiC community, the VOQ based architecture is common and enhanced by all contributors including Cisco.
+VOQ architecture does not use any usual encapsulation such as VxLAN, MPLS, IP, etc. Packets being transmitted on ingress device are encapsulated using a Fabric Header. That fabric header is usually ASIC specific. However, within SONiC community, the VOQ based architecture is common and enhanced by all contributors.
 
 The packet format looks like:
 ```
@@ -119,19 +115,19 @@ The packet format looks like:
 +--------------------+
 ```
 
-The Fabric header information must be transmitted from egress node to ingress node for each locally learned host.
+The Fabric header information must be transmitted from egress node to ingress node for each locally learned neighbor.
 A standard way of redistributing host information is with BGP.
 
-Basically, host are learned using standard ARP/ND procedure. Local adjacencies are advertised in BGP along with a BGP tunnel Encap attribute. Ingress node receives IP routes along with the Fabric header information.
+Basically, local neighbors are learned using standard ARP/ND procedure. Local adjacencies are advertised in BGP along with a BGP tunnel Encap attribute. Ingress node receives IP routes along with the Fabric header information.
 BGP downloads the route to RIB and FIB. Routes gets installed with Fabric header information allowing VOQ-based architecture to work properly.
 
 
 <a id="121-BGP-Tunnel-Encap"></a>
 ## 1.2.1 BGP Tunnel Encapsulation
 
-A new BGP Encapsulation Tunnel type called: Fabric Tunnel (Type X) is proposed to accommodate different header data from various ASICs on the market.
+A new BGP Encapsulation Tunnel type called: Fabric Tunnel (Type X) is proposed to accommodate different header data from various vendor ASIC's.
 
-Currently, a specific layout is not possible until various ASICs handle a common header; vendors must agree on its format.
+Currently, a specific layout is not possible until various vendor ASICs handle a common header; vendors must agree on its format.
 As per [RFC9012](https://datatracker.ietf.org/doc/rfc9012/), the Tunnel Encapsulation attribute is an optional transitive BGP path attribute.
 IANA has assigned the value 23 as the type code of the attribute in the "BGP Path Attributes" registry.
 ```
@@ -160,15 +156,15 @@ OR with the usage of sub-TLV.
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 __Figure x: Tunnel Encapsulation TLV__
-A new tunnel type must be allocated for Fabric tunnels. That new value will be assigned by IANA
+A new tunnel type is allocated for Fabric tunnels. That new value will be assigned by IANA
 
 When the tunnel type is Fabric, the variable value is an opaque data. The associated length is based on
 the amount of octets of the opaque value.
 
-Opaque data is proposed to accomodate various specific header request by various ASICs on the market.
-Currently, a specific layeout is not possible until various ASICs process a common header.
+Opaque data is proposed to accomodate vendor specific header requests for satisfying their ASIC requirements.
+Currently, a specific layout is not possible until various ASICs process a common header.
 
-In our case, the layout is as follow:
+For Cisco, the layout is as follow:
 The length of the sub-TLV is 8 octets. The structure of the Value
 field in the Encapsulation sub-TLV is shown here.
 ```
@@ -202,13 +198,12 @@ No new objects is added by this feature.
 <a id="221-Feature-Configuration"></a>
 ### 2.2.1 Feature Configuration
 
-The bulk of the required configuration to enable this feature is as part of FRR.
-The following shows the basic configuration of FRR :
+Required configuration to enable this feature is as part of FRR.
+The following shows the basic configuration of FRR:
 
 As part of bgp, two CLi knob are used:
-1. send-extra-data is leverages allowing BGP to send extra opaque data to Zebra.
-2. redistribute adjacency is a new CLI used to advertise adjacency route to BGP.
-3. Proper VRF configuration with import / export rules
+1. "send-extra-data" is an existing CLI allows BGP to send extra opaque data to Zebra.
+2. "redistribute adjacency" is a new CLI used to advertise adjacency route to BGP.
 
 ```
 bgp
@@ -218,53 +213,26 @@ bgp
     redistribute adjacency ## new CLI
   exit-address-family
 
-  vrf <name>
-    import-rt ...
-    export-rt ...
-```
+  address-family ipv4 unicast
+    redistribute adjacency ## new CLI
+  exit-address-family
 
+```
 In zebra, a new CLI is added per interface to enable the learning of adjacency route.
 ```
-interface <foo>
-    host-route-enable ##  or can this be named as adjacency-route-enable ?
-    vrf <name>
-
-```
-
-<PATRICE>
-Encapsulation: switch-type: VOQ
-Following CLI just be added to SONIC.. else when FRR container restart, CLI is lost.
-</PATRICE>
-
-
-The remaining CLI is pre-requisite to the feature enablement. It is mainly due to 
-design complexity in FRR where the advertise of RT-5 (IP route) is tightly couple with L3VNI / VxLAN. 
-As a first step, VxLAN is mandatory to satisfy FRR but has no effet on the SONIC dataplane.
-
-In following sample, L3VNI is configured on vrf vr500.
-A dummy bridge domain (br500) is added along with svi (no ip address). 
-VxLAN mandates that to connect the L3VNI to a specfic vrf.
-The sample shows linux kernel commands:
-
-```
-    ip link add vrf500 type vrf table 500
-    ip link set vrf500 up
-
-    ip link add br500 type bridge
-    ip link set br500 master vrf500 addrgenmode none
-    ip link set br500 addr aa:bb:cc:00:00:11
-    ip link add vni500 type vxlan local 1.2.3.4 dstport 4789 id 500 nolearning
-
-    node.run("ip link set vni500 master br500 addrgenmode none")
-    node.run("ip link set vni500 up")
-    node.run("ip link set br500 up")
-```
+interface <ifname>
+  adjacency-route-enable
+'''
 
 <a id="3-Design"></a>
 # 3 Design
 
 <a id="31-Overview"></a>
 ## 3.1 Overview
+
+
+
+
 
 <a id="32-FRR-Extensions"></a>
 ## 3.2 FRR Extensions
@@ -274,15 +242,13 @@ FRR is extended to support this feature.
 BGP is updated as follow:
 - A new route type is added to zebra: adjacency route
 
-- BGP advertisement of neighbor entries as RT-5 with VNI associated with VRF. (see pre-requisite)
+- BGP advertisement of neighbor entries using IPv4 and/or IPv6 unicast address-family.
 
 - A new BGP tunnel encapsulation attribute is created to carry required fabric header information enabling the forwarding per host.
-- New BGP tunnel encapsulation attribute is added to RT-5.
+- New BGP tunnel encapsulation attribute is added IPv4/IPv6 unicast, EVPN RT-5, etc.
 
 - BGP show command displays only RAW data from TLV (opaque serie of bytes)
-- BGP show command enhance required to display pretty meaningful information instead of raw information
-
-- BGP receiving RT-5 import the IP + BGP tunnel encapsulation attribute to Zebra (RIB)
+- BGP show command enhancement required to display pretty meaningful information instead of raw information
 
 - New configuration knob added to bgpd
     "redistribute adjacency" similarly as "redistribute connected"
@@ -299,7 +265,7 @@ Zebra is updated as follow:
 - Enhance show output to display tunnel encapsulation attibute data properly
 
 - A new "neighbor pending" DB is created (Keys are: vrf, ip address)
-  It is holding tunnel encapsulation data coming from SONiC per host
+  It is holding tunnel encapsulation data coming from SONiC per local neighbor
   Useful when zebra_fpm provides new tunnel encap data for unknown-to-zebra host. Basically, it allows for race condition.
   When a local neighbor is learned in neighbor DB, it is copied to zebra with the tunnel encap data from the pending DB.
 
@@ -312,11 +278,11 @@ Zebra is updated as follow:
 - A new show to display pending entries is created #show ip neighbor pending
 
 - New config knob added to Zebra:
-    interface <foo> host-route-enable
+    interface <foo> adjacency-route-enable
   The interface submode is present for any type of interfaces
-  CLI is required to avoid huge set of /32 (host route) advertised as RT-5.
+  CLI is required to avoid huge set of local adjacencies advertised in BGP
 
-Finally, a new test CLI tom manage pending entries is added. This allows FRR to have its own topotest and guarantee the functionality provided here.
+Finally, a new test CLI to manage pending entries is added. This allows FRR to have its own topotest and guarantee the functionality provided here.
 
 The new added test cli to manage pending entries is:
 ```
@@ -335,20 +301,16 @@ The new added test cli to manage pending entries is:
        "Encap index number\n")
 ```
 
-<PATRICE>
-TOPOTEST UT - in progress - mimic'ing SONIC interaction. (both directions) running on FRR side.
-</PATRICE>
-
 <a id="33-FRR-SONIC-Interaction"></a>
 ## 3.3 FRR, SONiC Interaction
 
 The FRR/Zebra communication with SONiC is extended with new message types. The extension is mainly around fpm.
 
-1. Zebra has now the capability to request tunnel encap data to SONiC using newly added GETENCAP() message. The message is a trigger to tell SONiC to send all fabric related DB entries
+1. Zebra has now the capability to request tunnel encap data from SONiC using newly added GETENCAP() message. The message is a trigger to tell SONiC to send all fabric headet related DB entries.
 
 2. Zebra downloads remote routes with remote tunnel encap data to SONiC. A new route TLV is added: RTA_FPM_EXTRA.
-The new TLV contains opaque data TLV to carry raw data from Zebra to fpmsyncd. The lenght is 14 octets. It carries
-system-port-id, neighbor encap index and neighbor MAC address. RTA_FPM_EXTRA goes along with the route download using RTM_NEW_ROUTE (kernel_netlink.h, zebra_netlink.c).
+The new TLV contains opaque data TLV to carry raw data from Zebra to fpmsyncd. The lenght is 8 octets. It carries
+system-port-id and neighbor encap index. RTA_FPM_EXTRA goes along with the route download using RTM_NEW_ROUTE (kernel_netlink.h, zebra_netlink.c).
 
 3. SONiC provides tunnel encap data with two new message types: ADDENCAP and DELENCAP.
 On FRR side, the fpm plugin is running in the dataplane so the dataplane pthread.
@@ -367,7 +329,7 @@ On the egress device, the following is required:
   1. SONiC must provide ADD_ENCAP / DELETE_ENCAP message to Zebra when new locally learned neighbor appears in CHASSIS_APP_DB system_neighbor table.
   Based on that trigger, fpmsyncd builds the new message update to Zebra. It gets the system-port-id from CONFIG_APP_DB system_port table per host.
 
-  Note: system_port string to system_port key is cached in redis by fpmsyncd (local cache / process cache). It is highly useful for any message comoing from zebra where the information is coming only a string.
+  Note: system_port string to system_port key is cached in redis by fpmsyncd (local cache / process cache). It is highly useful for any message coming from Zebra where the information is coming only a string.
 
   2. SONiC must response to any GET_ENCAP query from Zebra. fpmsyncd walks over neighbors in system_neighbor table and reply back all locally learned neighbor to Zebra using ADD_ENCAP / DELETE_ENCAP messages.
 
@@ -423,7 +385,7 @@ kernel ->> Zebra_neighbor_db: Netlink message per adjacency <br/>Create new adja
 Zebra_neighbor_pending_db ->> Zebra_neighbor_db: Get opaque data.
 Zebra_neighbor_db ->> Zebra: Create adjacency route in RIB with data from pending_db
 Zebra ->> BGP: Redistribute adjacency routes
-BGP ->> BGP_peer: Advertise local adjacency (host) as EVPN RT-5 with new TLV <br/> due to L3VNI presence
+BGP ->> BGP_peer: Advertise local adjacency (host) as BGP route with new TLV
 ```
 __Figure x: FRR local host advertisement__
 
@@ -439,7 +401,7 @@ sequenceDiagram
   participant kernel
   participant fpmsyncd
 
-BGP_peer ->> BGP: Receive EVPN RT-5 with new TLV for processing
+BGP_peer ->> BGP: Receive BGP route with new TLV for processing
 BGP ->> Zebra: Download IP route to RIB with opaque data
 Zebra ->> fpmsyncd: RTM_NEWROUTE message with RTA_FPM_EXTRA data <br/>(netlink message)
 Zebra ->> kernel: Zebra avoids the download of that route to the kernel <br/>neighOrch takes care of it.
@@ -463,13 +425,13 @@ sequenceDiagram
  
         Zebra ->> RouteSync: RTM_NEWROUTE message with RTA_FPM_EXTRA processing <br/> RTM_NEWNEXTHOP is NOT provided.
         RouteSync ->> CHASSIS_APP_DB(Neighbor Table): Create SYSTEM_NEIGH entry <br/>with encap_index
-        CHASSIS_APP_DB(Neighbor Table) ->> Orchagent_Neighorch: Neigh Entry - A.R.C.D/32 (no-host-route)
+        CHASSIS_APP_DB(Neighbor Table) ->> Orchagent_Neighorch: Neigh Entry - A.B.C.D/32 (no-host-route)
         Orchagent_Neighorch ->> Neigh_table: Publish Neighbor Entry to Neigh table
         Orchagent_Neighorch ->> SAI_Redis: Create SAI neigh entry with no-host-route attr (sai_neighbor_api->create_neighbor_entry)
         Orchagent_Neighorch ->> SAI_Redis: Create SAI nhop NH_ID(ENCAP ID) (sai_next_hop_api->create_next_hop)
         Orchagent_Neighorch ->> SAI_Redis: Create SAI Route IP -> NH_ID(ENCAP ID) (sai_route_api->create_route_entry)
         Neigh_table ->> Nbrmgrd: Consume Published Neighbor Entry
-        Nbrmgrd ->> Kernel: Add Kernel Route - Netlink Add - A.B.C.D/32(Next HOP -> Ethernet IB0)
+        Nbrmgrd ->> Kernel: Add Kernel Route - Netlink Add - A.B.C.D/32 (Next HOP -> Ethernet IB0)
         Kernel ->> FPM_Syncd: Gets the added Route Entry over RTM socket
         FPM_Syncd ->> Route_APP_Table: Publish this Route Entry (protocol = kernel)
         Route_APP_Table ->> Orchagent_Routeorch: Ignore Route Update pointing to Ethernet IB0
@@ -478,8 +440,7 @@ sequenceDiagram
 __Figure x: SONiC Remote Route Processing__
 
 
-Note: Zebra does not provide route download to the kernel; SONiC is responsible to do so in the VOQ architecture.
-<PATRICE> HOW DO WE PREVENT FRR TO DO SO ? </PATRICE>
+Note: Zebra does not provide route download to the kernel; SONiC NeighOrch is responsible to do so in the VOQ architecture.
 
 
 <a id="5-Error-Handling"></a>
@@ -499,22 +460,22 @@ Existing serviceability and debug applicable to this feature. No new debugging c
 
 ### 7.1.1 Configuration tests
 
-1. Enable host-route-enable under the local interface where host are learned.
-2. Verify the host is learned in the FRR neighbor DB and added to Zebra.
-3. Unconfigure host-route-enable under the local interface.
-4. Verify the host is removed from Zebra and FRR neighbor DB.
+1. Enable adjacency-route-enable under the local interface where adjacency is learned.
+2. Verify the adjacency is learned in the FRR neighbor DB and added to Zebra.
+3. Unconfigure adjacency-route-enable under the local interface.
+4. Verify the adjacency is removed from Zebra and FRR neighbor DB.
 
 
 ### 7.1.2 Egress node tests
 
-1. Ping local interface from connected host. Verify the host is learned in the FRR neighbor DB.
-2. Verify the host is added as adjacency route in Zebra with proper tunnel encapsulation data.
-3. Verify BGP advertise an EVPN RT-5 with corresponding Tunnel Encap attributes.
+1. Ping local interface from connected adjacency. Verify the adjacency is learned in the FRR neighbor DB.
+2. Verify the adjacency is added as adjacency route in Zebra with proper tunnel encapsulation data.
+3. Verify BGP advertise an IPv4/IPv6 unicast with corresponding Tunnel Encap attributes.
 
 ### 7.1.2 Ingress node tests
 
-1. Ping local interface from connected host on remote node.
-2. Verify the reception of a BGP EVPN RT-5 for that host.
+1. Ping local interface from connected adjacency on remote node.
+2. Verify the reception of a BGP IPv4/IPv6 unicast route for that adjacency.
 3. Verify the route is coming with Tunnel Encapsulation attribute
 4. Verify the route is imported into Zebra with Tunnel Encapsulation data
 5. Verify the route is downloaded to fpmsyncd.
