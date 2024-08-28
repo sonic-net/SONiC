@@ -222,16 +222,13 @@ In zebra, a new CLI is added per interface to enable the learning of adjacency r
 ```
 interface <ifname>
   adjacency-route-enable
-'''
+```
 
 <a id="3-Design"></a>
 # 3 Design
 
 <a id="31-Overview"></a>
 ## 3.1 Overview
-
-
-
 
 
 <a id="32-FRR-Extensions"></a>
