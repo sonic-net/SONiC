@@ -6,6 +6,7 @@
 Rev | Rev	Date	| Author	| Change Description
 ---------|--------------|-----------|-------------------
 |v0.1 |28/03/2024  |Weitang Zheng | Initial version
+|v0.2 |28/08/2024  |Weitang Zheng | update PM section and delete OTAI capability APIs
 
 ### Scope  
 
@@ -24,6 +25,8 @@ OSC| Optical Supervisory Channel
 OLP| Optical Line Protection
 VOA|Optical Attenuator
 OTDR| Optical Time Domain Reflectometer
+OCH| Optical Channel
+OID| Object ID
 
 
 
@@ -108,6 +111,28 @@ The FlexCounter module in Syncd-OT subscribes the FlexCounter database, and init
 
 The PM module accumulates these sampled gauge and counter data within 15 minutes and 24 hours interval, and saves these current PM data to counter_db. When the timer reached 15 minutes and 24 hours window, these PM data are saved to the history_db as well.
 
+##### 2.2.1 PM and status sampling example
+In a SONiC system, to configure an OTAI object (such as OCH) for PM and status sampling, the device vendor must define the default optical linecard and flexcounter configurations. Once defined, the OTSS and Syncd-OT services will create the OTAI objects in ASIC_DB and begin sampling their status and PM data.
+1. define the optical default configuration in the `/etc/sonic/config_dbx.json`, the `x` stands for the AISC number.
+2. define the flexcounter configuration in the `/etc/sonic/P230C/flexcounter.json`, the `P230C` stands for the optical linecard type name, device vendor can change the linecard name to the other name.
+
+For example, device vendor defines the OCH object in `/etc/sonic/config_dbx.json`, the OCH name is `OCH-1-1-L1`. OTSS and Syncd-OT can create the OTAI object in ASIC_DB with the unique OTAI Object ID (OID) `ASIC_STATE:OTAI_OBJECT_TYPE_OCH:oid:0x800000000002a`, and a name dictionary `COUNTERS_OCH_NAME_MAP` to map the OID to the OCH name.
+
+<img src="../../images/otn/PM_create_OCH_OTAI_object.png" alt="Create OCH OTAI object" style="zoom: 50%;" />
+
+
+---
+***NOTE***
+
+Device vendor can change and customize the OCH name to any name, but the name must be unique in the configuration file.
+
+---
+
+Device vendor can define the flexcounter configuration for each optical linecard, the configuration includes all the OTAI sampling groups and counter IDs for each OTAI object. Then OTSS and Syncd-OT loads these configurations and initialize the FlexCounter module. Based on the name dictionary `COUNTERS_OCH_NAME_MAP`, it can save the sampled OCH status in `"OCH|OCH-1-1-L1"` table in state_db, and PM data in `"OCH:OCH-1-1-L1_InputPower:15_pm_current"` in Counter_DB.
+
+<img src="../../images/otn/PM_sample_OCH_PM_and_status.png" alt="Sample OCH OTAI object PM and status" style="zoom: 50%;" />
+
+
 #### 2.3 Notification handler
 The notification handler provides a mechanism to register and handle the events from an optical linecard. For instance, the alarm notification, the OCM spectrum data reporting notification, the OTDR scanning data reporting notification, etc.  
 
@@ -186,11 +211,8 @@ Vendor OTAI library implements these OTAI APIs and provides Syncd-OT the ability
 15. `otai_api_uninitialize()`, uninitialize OTAI APIs.
 
 Here are the utility APIs.  
-a. `objectTypeQuery()`, return the OTAI object type if the otai_object_id is valid, otherwise return NULL.  
-b. `otai_query_attribute_capability()`, query an attribute capability.  
-c. `otai_query_attribute_enum_values_capability()`, query an enum attribute list of implemented enum values.  
-d. `otai_object_type_get_availability()`, query an OTAI object's attributes availability.  
-e. `otai_log_set()`, set log level for an OTAI API module 
+a. `objectTypeQuery()`, return the OTAI object type if the otai_object_id is valid, otherwise return NULL.   
+b. `otai_log_set()`, set log level for an OTAI API module 
 
 
 ### 4 Tests
