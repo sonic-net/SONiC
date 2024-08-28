@@ -53,7 +53,7 @@ This document provides general information about the OpenConfig configuration/ma
 - This does not cover the SONiC KLISH CLI.
 - Openconfig-system.yang version 2.1.0 - latest openconfig yang repo version is considered.
 - Supported attributes in OpenConfig YANG tree:
-  ```
+```
 module: openconfig-system
   +--rw system
      +--rw config
@@ -161,7 +161,7 @@ module: openconfig-system
      |        |  +--rw key-id?      ->    ../../../ntp-keys/ntp-key/key-id
      |        |  +--rw network-instance?   oc-ni:network-instance-ref
      |        |  +--rw source-address?     oc-inet:ip-address
-  ```
+```
 
 # Definition/Abbreviation
 ### Table 1: Abbreviations
