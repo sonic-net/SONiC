@@ -49,6 +49,7 @@
 |  1.6  | 06/01/2023 |    Prince Sunny     | Added FastPath                            |
 |  1.7  | 02/20/2024 |    Prince Sunny     | Introduce Route Group Table               |
 |  2.0  | 04/08/2024 |    Prince Sunny     | Schema updates for PL, PL-NSG, metering   |
+|  2.1  | 08/22/2024 | Mukesh M Velayudhan | Add local Region ID field in appliance    |
 
 # About this Manual
 This document provides more detailed design of DASH APIs, DASH orchestration agent, Config and APP DB Schemas and other SONiC buildimage changes required to bring up SONiC image on an appliance card. General DASH HLD can be found at [dash_hld](https://github.com/sonic-net/DASH/tree/main/documentation/general/dash-high-level-design.md).
@@ -486,6 +487,7 @@ vni                      = vni value associated with the corresponding action.
 DASH_APPLIANCE_TABLE:{{appliance_id}}
     "sip": {{ip_address}}
     "vm_vni": {{vni}}
+    "local_region_id": {{region_id}}
 ```
 
 ```
@@ -493,6 +495,7 @@ key                      = DASH_APPLIANCE_TABLE:id ; attributes specific for the
 ; field                  = value 
 sip                      = source ip address, to be used in encap
 vm_vni                   = VM VNI that is used for setting direction. Also used for inbound encap to VM
+local_region_id          = Region where this appliance is located
 ```
 
 ### 3.2.9 ROUTE LPM TABLE - OUTBOUND
