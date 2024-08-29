@@ -1,6 +1,6 @@
 # SONiC-DASH HLD
 ## High Level Design Document
-### Rev 2.0
+### Rev 2.2
 
 # Table of Contents
 
@@ -50,6 +50,7 @@
 |  1.7  | 02/20/2024 |    Prince Sunny     | Introduce Route Group Table               |
 |  2.0  | 04/08/2024 |    Prince Sunny     | Schema updates for PL, PL-NSG, metering   |
 |  2.1  | 08/22/2024 | Mukesh M Velayudhan | Add local Region ID field in appliance    |
+|  2.2  | 08/28/2024 |    Lawrence Lee     | Route table `routing_type` restrictions, fully unbound route group deletion    |
 
 # About this Manual
 This document provides more detailed design of DASH APIs, DASH orchestration agent, Config and APP DB Schemas and other SONiC buildimage changes required to bring up SONiC image on an appliance card. General DASH HLD can be found at [dash_hld](https://github.com/sonic-net/DASH/tree/main/documentation/general/dash-high-level-design.md).
@@ -184,6 +185,7 @@ DASH Sonic implementation is targeted for appliance scenarios and must handles m
 14. During a bulk operation, if any part/subset of API fails, implementation shall return *error* for the entire API. Sonic implementation shall validate the entire API as pre-checks before applying and return accordingly.
 15. Implementation must have flexible memory allocation for ENI and not reserve max scale during initial create (e.g 100k routes). This is to allow oversubscription.
 16. Implementation must not have silent failures for APIs. E.g accepting an API from controller, returning success and failing in the backend. This is orthogonal to the idempotency of APIs described above for ADD and Delete operations. Intent is to ensure SDN controller and Sonic implementation is in-sync
+17. If previously bound route group is unbound from all ENIs, it will be implicitly deleted. Since memory constraints mean that routes cannot be cached indefinitely in orchagent/SAI, route information is lost after programming to hardware. This means it is not possible to recreate the routes for a given route group, so once a route group is completely unbound it cannot be rebound to another ENI and must be deleted. Adding routes for a route group which has been deleted in this manner will result in an error.
 
 ## 1.7 ACL requirements
 
@@ -519,7 +521,8 @@ DASH_ROUTE_GROUP_TABLE:{{group_id}}
 
 ``` 
 DASH_ROUTE_TABLE:{{group_id}}:{{prefix}} 
-    "action_type": {{routing_type}} 
+    "action_type": {{routing_type}} (DEPRECATED)
+    "routing_type": {{routing_type}}
     "vnet":{{vnet_name}} (OPTIONAL)
     "appliance":{{appliance_id}} (OPTIONAL)
     "overlay_ip":{{ip_address}} (OPTIONAL)
@@ -535,13 +538,14 @@ DASH_ROUTE_TABLE:{{group_id}}:{{prefix}}
 ```
 key                      = DASH_ROUTE_TABLE:group_id:prefix ; Route route table with CA prefix for packet Outbound
 ; field                  = value 
-action_type              = routing_type              ; reference to routing type
+action_type              = routing_type              ; reference to routing type (DEPRECATED)
+routing_type             = routing_type              ; replacement for the deprecated `action_type` field. Must be one of {vnet, vnet_direct, direct, servicetunnel, drop}.
 vnet                     = vnet name                 ; destination vnet name if routing_type is {vnet, vnet_direct}, a vnet other than eni's vnet means vnet peering
 appliance                = appliance id              ; appliance id if routing_type is {appliance} 
 overlay_ip               = ip_address                ; overly_ip to lookup if routing_type is {vnet_direct}, use dst ip from packet if not specified
 overlay_sip_prefix       = ip_prefix                 ; overlay ipv6 src ip if routing_type is {servicetunnel}, transform last 32 bits from packet (src ip)
 overlay_dip_prefix       = ip_prefix                 ; overlay ipv6 dst ip if routing_type is {servicetunnel}, transform last 32 bits from packet (dst ip) 
-underlay_sip             = ip_address                ; underlay ipv4 src ip if routing_type is {servicetunnel,privatelink}; this is the ST GW VIP (for ST traffic) or custom VIP. If specified, overrides pl_underlay_sip from DASH_ENI_TABLE
+underlay_sip             = ip_address                ; underlay ipv4 src ip if routing_type is {servicetunnel} or for DASH_VNET_MAPPING_TABLE entries in this prefix where routing_type is {privatelink}; this is the ST GW VIP (for ST traffic) or custom VIP. If specified, overrides pl_underlay_sip from DASH_ENI_TABLE
 underlay_dip             = ip_address                ; underlay ipv4 dst ip to override if routing_type is {servicetunnel}, use dst ip from packet if not specified
 metering_policy_en	 = bool                      ; Metering policy lookup enable (optional), default = false  (OBSOLETED). If aggregated or/and bits is 0, metering policy is applied
 metering_class_or        = uint32                    ; Metering class-id 'or' bits
@@ -593,7 +597,7 @@ DASH_VNET_MAPPING_TABLE:{{vnet}}:{{ip_address}}
 ```
 key                      = DASH_VNET_MAPPING_TABLE:vnet:ip_address ; CA-PA mapping table for Vnet
 ; field                  = value 
-action_type              = routing_type              ; reference to routing type
+routing_type             = routing_type              ; reference to routing type
 underlay_ip              = ip_address                ; PA address for the CA
 mac_address              = MAC address as string     ; Inner dst mac
 metering_class_or        = uint32                    ; metering class 'or' bits
