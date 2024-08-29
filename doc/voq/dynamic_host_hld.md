@@ -230,6 +230,21 @@ interface <ifname>
 <a id="31-Overview"></a>
 ## 3.1 Overview
 
+Locally neighbors are learned by SONIC and given to Linux Kernel. FRR is notified of new local adjacencies.
+SONIC provides corresponding fabric data per local neighbor to FRR.
+Once the information is consolidated, BGP advertises route per local neighbor along with tunnel encapsulation data.
+Remote devices import BGP route and program forwarding chains accordingly using tunnel encapsulation data.
+
+SONIC is responsible to provide:
+ 1. Learn local neighbors
+ 2. Provide corresponding fabric data
+ 3. Program local and remote neighbor / fabric data association in forwarding chains.
+
+FRR is responsible to provide:
+ 1. Consolidation of local neighbor and fabric data in Zebra
+ 2. BGP tunnel encap extension
+ 3. Advertisement and import of adjacency routes along with tunnel encap extension
+ 4. Programming SONIC with fabric data per adjaency
 
 <a id="32-FRR-Extensions"></a>
 ## 3.2 FRR Extensions
@@ -242,7 +257,7 @@ BGP is updated as follow:
 - BGP advertisement of neighbor entries using IPv4 and/or IPv6 unicast address-family.
 
 - A new BGP tunnel encapsulation attribute is created to carry required fabric header information enabling the forwarding per host.
-- New BGP tunnel encapsulation attribute is added IPv4/IPv6 unicast, EVPN RT-5, etc.
+- New BGP tunnel encapsulation attribute is added IPv4/IPv6 unicast, EVPN, etc.
 
 - BGP show command displays only RAW data from TLV (opaque serie of bytes)
 - BGP show command enhancement required to display pretty meaningful information instead of raw information
@@ -329,8 +344,6 @@ On the egress device, the following is required:
   Note: system_port string to system_port key is cached in redis by fpmsyncd (local cache / process cache). It is highly useful for any message coming from Zebra where the information is coming only a string.
 
   2. SONiC must response to any GET_ENCAP query from Zebra. fpmsyncd walks over neighbors in system_neighbor table and reply back all locally learned neighbor to Zebra using ADD_ENCAP / DELETE_ENCAP messages.
-
-
 
 On Ingress device (where the forwarding chain is setup based on BGP download), the following is required:
 
