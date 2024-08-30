@@ -50,7 +50,7 @@
 |  1.7  | 02/20/2024 |    Prince Sunny     | Introduce Route Group Table               |
 |  2.0  | 04/08/2024 |    Prince Sunny     | Schema updates for PL, PL-NSG, metering   |
 |  2.1  | 08/22/2024 | Mukesh M Velayudhan | Add local Region ID field in appliance    |
-|  2.2  | 08/28/2024 |    Lawrence Lee     | Route table `routing_type` restrictions, fully unbound route group deletion    |
+|  2.2  | 08/28/2024 |    Lawrence Lee     | Route table `routing_type` restrictions, delete op behavior    |
 
 # About this Manual
 This document provides more detailed design of DASH APIs, DASH orchestration agent, Config and APP DB Schemas and other SONiC buildimage changes required to bring up SONiC image on an appliance card. General DASH HLD can be found at [dash_hld](https://github.com/sonic-net/DASH/tree/main/documentation/general/dash-high-level-design.md).
@@ -179,13 +179,11 @@ DASH Sonic implementation is targeted for appliance scenarios and must handles m
 8. In normal operation, mappings churn often followed by routes and least for ACLs.
 9. ENIs shall have an admin-state that enables normal connections and forwarding only *after* all configurations for an ENI is applied during initial creation. When the ENI is admin-state down, the packets destined to this ENI shall be dropped. Order of operation/configuration shall be enforced by the controller. Sonic implementation shall honor the state set by controller and ENI shall accept and forward traffic only if the admin-state is set to 'up'. 
 10. ENI must support 1M active bi-directional TCP connections or UDP flows however the connection pool can be oversubscribed. An oversubscription of 2:1 would be expected, so the connection pool can be more optimal if executed as one large table where ENI can be a part of the key.
-11. During VNET or ENI delete, implementation must support ability to delete all *mappings* or *routes* in a single API call.
-12. Add and Delete APIs are idempotent. As an example, deleting an object that doesn't exists shall not return an error. 
-13. During a delete operation, if there is a dependency (E.g. mappings still present when a VNET is deleted), implementation shall return *error* and shall not perform any force-deletions or delete dependencies implicitly. 
-14. During a bulk operation, if any part/subset of API fails, implementation shall return *error* for the entire API. Sonic implementation shall validate the entire API as pre-checks before applying and return accordingly.
-15. Implementation must have flexible memory allocation for ENI and not reserve max scale during initial create (e.g 100k routes). This is to allow oversubscription.
-16. Implementation must not have silent failures for APIs. E.g accepting an API from controller, returning success and failing in the backend. This is orthogonal to the idempotency of APIs described above for ADD and Delete operations. Intent is to ensure SDN controller and Sonic implementation is in-sync
-17. If previously bound route group is unbound from all ENIs, it will be implicitly deleted. Since memory constraints mean that routes cannot be cached indefinitely in orchagent/SAI, route information is lost after programming to hardware. This means it is not possible to recreate the routes for a given route group, so once a route group is completely unbound it cannot be rebound to another ENI and must be deleted. Adding routes for a route group which has been deleted in this manner will result in an error.
+11. Add and Delete APIs are idempotent. As an example, deleting an object that doesn't exists shall not return an error. 
+12. With some exceptions, during a delete operation, if there is a dependency (E.g. ), implementation shall return *error* and shall not perform any force-deletions or delete dependencies implicitly. See **Implicit deletion of SAI objects** below for exceptions.
+13. During a bulk operation, if any part/subset of API fails, implementation shall return *error* for the entire API. Sonic implementation shall validate the entire API as pre-checks before applying and return accordingly.
+14. Implementation must have flexible memory allocation for ENI and not reserve max scale during initial create (e.g 100k routes). This is to allow oversubscription.
+15. Implementation must not have silent failures for APIs. E.g accepting an API from controller, returning success and failing in the backend. This is orthogonal to the idempotency of APIs described above for ADD and Delete operations. Intent is to ensure SDN controller and Sonic implementation is in-sync
 
 ## 1.7 ACL requirements
 
@@ -212,6 +210,17 @@ ACL is essential for NSGs and have different stages. In the current model, there
 - Deleting ACL group is permitted as long as it is not bind to an ENI. It is not expected for application to delete individual rules prior to deleting a group. Implementation is expected to delete/free all resources when application triggers an ACL group delete.
 - ACL rules are not expected to have both tags and prefixes of same type configured in the same rule. For e.g, same rule shall not have both src tag and src prefix configured, but it is possible to have src tag and dst prefix or vice-versa
 - Counters can be attached to ACL rules optionally for retrieving the number of connections/flows. It is not required to get the packet/byte counter as in the traditional model. A new SAI counter type shall be required for this.
+
+## 1.8 Implicit deletion of SAI objects
+Due to memory constraints, certain high-volume table entries will not be cached in orchagent/SAI. Once programmed to hardware, SONiC is unable to perform operations on specific entries without being explicitly configured. This has the following implications:
+- For a given 'parent' which is depended on by uncached 'child' entries, deleting the parent must also delete all child entries in the same SAI API call. This is to avoid needing a separate delete op for each child. For example, `DASH_ROUTE_GROUP_TABLE` is a parent for `DASH_ROUTE_TABLE`, which corresponds to `sai_outbound_routing_entry_t`. A command to delete a route group must, in the same SAI API call, delete all `sai_outbound_routing_entry_t` objects in that group. See the table below for all such dependencies between tables.
+- If a previously bound route group is unbound from all ENIs, it must be implicitly deleted (in both orchagent cache and SAI). Since route information is not cached, it is not possible to reprogram routes to hardware, so once a route group is completely unbound it cannot be rebound to another ENI and must be deleted. Adding routes for a route group which has been deleted in this manner will result in an error. (Note that the previous bullet also applies here, so all routes in the unbound route group must also be deleted)
+
+| Parent Table | Child Table | Child SAI Type(s) |
+| ------------ | ----------- | ---------------- |
+| `DASH_ROUTE_GROUP_TABLE` | `DASH_ROUTE_TABLE` | `sai_outbound_routing_entry_t` |
+| `DASH_ACL_GROUP_TABLE`   | `DASH_ACL_RULE_TABLE` | ACL rule ID (`sai_object_id_t`) |
+| `DASH_VNET_TABLE`        | `DASH_VNET_MAPPING_TABLE` | `sai_outbound_ca_to_pa_entry_t`,<br>`sai_pa_validation_entry_t`,<br>`sai_outbound_routing_entry_t` (only if `SAI_OUTBOUND_ROUTING_ENTRY_ATTR_DST_VNET_ID` matches the deleted VNET) |
 
 # 2 Packet Flows
 	
