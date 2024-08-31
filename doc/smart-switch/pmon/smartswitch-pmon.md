@@ -948,18 +948,20 @@ CPU                        OK        UserDefine
 DDR                        OK        UserDefine
 ```
 
-show interface status - will show the NPU-DPU interface status also      <font>**`Executed on the switch`**</font>
+show interface status - will show the NPU-DPU dataplane interface status also      <font>**`Executed on the switch`**</font>
 
-The internal DPU ports use role type in interfaces to indicate NPU-DPU Data Port Type as shown here. Check the type for "Ethernet224" in the "show interface status" output
+The internal DPU ports use "role" type in PORT config to indicate NPU-DPU Data Port Type as shown here. Check the type for "Ethernet224" in the "show interface status" output. This config is part of hwsku.json file.
 ```
 {
-    "interfaces": {
+    "PORT": {
         "Ethernet224": {
             "lanes": "2828,2829,2830,2831",
-            "index": "28,28,28,28",
-            "breakout_modes": {"1x200G": ["dpu-0"]},
-            "subport": "1",
-            "autoneg": "on",
+            "alias": "dpu-0",
+            "index": "28",
+            "speed": "200000",
+            "subport": "0",
+            "admin_status": "up",
+            "mtu": "9100",
             "role": "Dpc"
         },
     }
