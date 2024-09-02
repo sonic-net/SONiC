@@ -19,8 +19,6 @@
 		- [Enterprise Environment](#enterprise-environment)
 		- [Custom Environment](#custom-environment)
 	- [Testing](#testing)
-	- [Security Considerations](#security-considerations)
-	- [References](#references)
 
 ### Revision
 
@@ -98,7 +96,7 @@ To streamline profile creation and enhance the clarity of configurations, standa
   - `BUILD_SONIC_<FEATURE>`: Builds the relevent source code associated with the feature
   - `INSTALL_SONIC_<FEATURE>`: Installs the docker container into the SONiC image
   - `ENABLE_SONIC_<FEATURE>`: Enables the docker container by default when starting the SONiC image.
-  - `DELAY_SONIC_<FEATURE>`: Delays the start of the docker container
+  - `DELAY_SONIC_<FEATURE>`: Delays the start of the docker container until after port config is done (unless warmboot/fastboot)
   - `AUTORESTART_SONIC_<FEATURE>`: Automatically restarts the container after failure.
 
 #### Profiling
@@ -169,15 +167,3 @@ This approach provides greater flexibility, allowing organizations to use an exi
 	- Do changes need to be made to PTF specifically
 	- Does every profile need it's own PTF? Can these be changed in runtime?
 		- Automatic detection?
-
-### Security Considerations
-
-This section discusses any security considerations related to the Sonic Profiling feature. It should cover:
-
-- Potential security risks.
-- Mitigation strategies.
-- Impact on existing security measures.
-
-### References
-
-This section lists any references used in the creation of this high-level design document.
