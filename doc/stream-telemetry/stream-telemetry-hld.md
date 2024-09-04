@@ -212,7 +212,7 @@ For example, if the switch has 8 ports, but we only want to get the `SAI_PORT_ST
 0...31
 |Set ID = 2|Set Length = 76<12+8*8>|
 |Template ID  =  256|Number of Fields = 9|
-|Type = 324|Field Length = 16|
+|Type = 324|Field Length = 8|
 |1|Element ID = 0|Field Length = 0|
 |Enterprise Number = 0|
 |1|Element ID = 0|Field Length = 0|
