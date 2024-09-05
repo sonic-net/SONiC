@@ -201,14 +201,14 @@ No new objects is added by this feature.
 Required configuration to enable this feature is as part of FRR.
 The following shows the basic configuration of FRR:
 
-As part of bgp, two CLi knob are used:
-1. "send-extra-data" is an existing CLI allows BGP to send extra opaque data to Zebra.
-2. "redistribute adjacency" is a new CLI used to advertise adjacency route to BGP.
-
+Three CLI changes are used:
+1. "frr fabric-mode voq" is a new CLI that controls VOQ fabric behavior in zebra and in bgpd.
+2. "host-routes-enable" is a new CLI that causes zebra to maintain host routes for connected hosts on specific interfaces.
+3. "redistribute adjacency" is a new CLI used to advertise adjacency routes to BGP.
 ```
-bgp
-  send-extra-data zebra ## existing CLI being reuse
+frr fabric-mode voq
 
+bgp
   address-family ipv4 unicast
     redistribute adjacency ## new CLI
   exit-address-family
@@ -221,7 +221,7 @@ bgp
 In zebra, a new CLI is added per interface to enable the learning of adjacency route.
 ```
 interface <ifname>
-  adjacency-route-enable
+  host-routes-enable
 ```
 
 <a id="3-Design"></a>
@@ -252,12 +252,12 @@ FRR is responsible to provide:
 FRR is extended to support this feature.
 
 BGP is updated as follow:
-- A new route type is added to zebra: adjacency route
+- A new route type is added to FRR: adjacency route
 
 - BGP advertisement of neighbor entries using IPv4 and/or IPv6 unicast address-family.
 
 - A new BGP tunnel encapsulation attribute is created to carry required fabric header information enabling the forwarding per host.
-- New BGP tunnel encapsulation attribute is added IPv4/IPv6 unicast, EVPN, etc.
+- New BGP tunnel encapsulation attribute is added to IPv4/IPv6 unicast, EVPN, etc.
 
 - BGP show command displays only RAW data from TLV (opaque serie of bytes)
 - BGP show command enhancement required to display pretty meaningful information instead of raw information
@@ -287,10 +287,10 @@ Zebra is updated as follow:
   2- neighbor first
       Perform direct lookup in pending DB  (Quick!)
 
-- A new show to display pending entries is created #show ip neighbor pending
+- A new show to display pending entries is created #show ip neighbor encap
 
 - New config knob added to Zebra:
-    interface <foo> adjacency-route-enable
+    interface <foo> host-routes-enable
   The interface submode is present for any type of interfaces
   CLI is required to avoid huge set of local adjacencies advertised in BGP
 
@@ -318,10 +318,10 @@ The new added test cli to manage pending entries is:
 
 The FRR/Zebra communication with SONiC is extended with new message types. The extension is mainly around fpm.
 
-1. Zebra has now the capability to request tunnel encap data from SONiC using newly added GETENCAP() message. The message is a trigger to tell SONiC to send all fabric headet related DB entries.
+1. Zebra has now the capability to request tunnel encap data from SONiC using newly added GETENCAP() message. The message is a trigger to tell SONiC to send all fabric-related DB entries.
 
 2. Zebra downloads remote routes with remote tunnel encap data to SONiC. A new route TLV is added: RTA_FPM_EXTRA.
-The new TLV contains opaque data TLV to carry raw data from Zebra to fpmsyncd. The lenght is 8 octets. It carries
+The new TLV contains opaque data TLV to carry raw data from Zebra to fpmsyncd. The length is 8 octets. It carries
 system-port-id and neighbor encap index. RTA_FPM_EXTRA goes along with the route download using RTM_NEW_ROUTE (kernel_netlink.h, zebra_netlink.c).
 
 3. SONiC provides tunnel encap data with two new message types: ADDENCAP and DELENCAP.
@@ -343,7 +343,7 @@ On the egress device, the following is required:
 
   Note: system_port string to system_port key is cached in redis by fpmsyncd (local cache / process cache). It is highly useful for any message coming from Zebra where the information is coming only a string.
 
-  2. SONiC must response to any GET_ENCAP query from Zebra. fpmsyncd walks over neighbors in system_neighbor table and reply back all locally learned neighbor to Zebra using ADD_ENCAP / DELETE_ENCAP messages.
+  2. SONiC must respond to any GETENCAP query from Zebra. fpmsyncd walks over neighbors in system_neighbor table and reply back all locally learned neighbor to Zebra using ADD_ENCAP / DELETE_ENCAP messages.
 
 On Ingress device (where the forwarding chain is setup based on BGP download), the following is required:
 
@@ -434,7 +434,7 @@ sequenceDiagram
         participant Orchagent_Routeorch
  
         Zebra ->> RouteSync: RTM_NEWROUTE message with RTA_FPM_EXTRA processing <br/> RTM_NEWNEXTHOP is NOT provided.
-        RouteSync ->> CHASSIS_APP_DB(Neighbor Table): Create SYSTEM_NEIGH entry <br/>with encap_index
+        RouteSync ->> CHASSIS_APP_DB(Neighbor Table): Create SYSTEM_INTERFACE and SYSTEM_NEIGH entry <br/>with encap_index
         CHASSIS_APP_DB(Neighbor Table) ->> Orchagent_Neighorch: Neigh Entry - A.B.C.D/32 (no-host-route)
         Orchagent_Neighorch ->> Neigh_table: Publish Neighbor Entry to Neigh table
         Orchagent_Neighorch ->> SAI_Redis: Create SAI neigh entry with no-host-route attr (sai_neighbor_api->create_neighbor_entry)
