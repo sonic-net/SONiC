@@ -54,13 +54,13 @@ module sonic-acl {
 }
 ```
 
-### 3. Define namespace as "http://github.com/Azure/{model-name}".
+### 3. Define namespace as "http://github.com/sonic-net/{model-name}".
 
 Example :
 ####  YANG
 ```yang
 module sonic-acl {
-	namespace "http://github.com/Azure/sonic-acl";
+	namespace "http://github.com/sonic-net/sonic-acl";
 	.....
 	.....
 }
@@ -783,7 +783,7 @@ module sonic-port {
 
 ```yang
 module sonic-acl {
-	namespace "http://github.com/Azure/sonic-acl";
+	namespace "http://github.com/sonic-net/sonic-acl";
 	prefix sacl;
 	yang-version 1.1;
 
