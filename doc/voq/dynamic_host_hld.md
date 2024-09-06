@@ -213,7 +213,7 @@ bgp
     redistribute adjacency ## new CLI
   exit-address-family
 
-  address-family ipv4 unicast
+  address-family ipv6 unicast
     redistribute adjacency ## new CLI
   exit-address-family
 
