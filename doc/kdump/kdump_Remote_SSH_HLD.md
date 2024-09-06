@@ -79,7 +79,7 @@ At a high level the following should be supported:
 - CLI support for configuring remote kdump feature enable/disable via ssh.
 - CLI support for configuring username and hostname of ssh server (username@server_address).
 - CLI support for configuring SSH private key path for ssh server (SSH_private_Key_Path).
-- CLI support for displaying crededentials of ssh server.
+- CLI support for displaying credentials of ssh server.
 - CLI support for displaying state of kdump remote feature (enable/disable).
 ### SSH Key Generation Requirement
 The system should authenticate with the remote server using SSH keys for secure access. 
@@ -198,16 +198,22 @@ ssh_path: /path to ssh_private key/
 
 ```
 leaf remote {
-   description "SSH Remote Config";
-     type boolean;
-        }
+        type boolean;
+        description
+            "Enable or Disable the Kdump remote ssh mechanism";
+}
 
-leaf ssh_stirng {
-    type string;
+leaf ssh_string {
+        type string;
+        description  
+            "Remote ssh connection string";
 }
 
 leaf ssh_path {
-  type string;
+        type string;
+        description  
+            "Remote ssh private key path";
+
 }				
 
 ```
