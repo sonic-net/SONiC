@@ -1,76 +1,90 @@
-# Stream telemetry high level design #
-- [Stream telemetry high level design](#stream-telemetry-high-level-design)
-  - [Table of Content](#table-of-content)
-    - [Revision](#revision)
-    - [Scope](#scope)
-    - [Definitions/Abbreviations](#definitionsabbreviations)
-    - [Overview](#overview)
-    - [Requirements](#requirements)
-    - [Architecture Design](#architecture-design)
-    - [High-Level Design](#high-level-design)
-      - [Modules](#modules)
-        - [Netlink Module](#netlink-module)
-      - [Data format](#data-format)
-        - [IPFIX header](#ipfix-header)
-        - [IPFIX template](#ipfix-template)
-        - [IPFIX data](#ipfix-data)
-        - [Bandwidth Estimation](#bandwidth-estimation)
-      - [Config DB](#config-db)
-        - [STREAM\_TELEMETRY\_PROFILE](#stream_telemetry_profile)
-        - [STREAM\_TELEMETRY\_GROUP](#stream_telemetry_group)
-      - [StateDb](#statedb)
-        - [STREAM\_TELEMETRY\_SESSION](#stream_telemetry_session)
-      - [Work Flow](#work-flow)
-    - [SAI API](#sai-api)
-      - [Create HOSTIF object](#create-hostif-object)
-      - [Creating TAM transport object](#creating-tam-transport-object)
-      - [Creating TAM collector object](#creating-tam-collector-object)
-      - [Creating TAM report object](#creating-tam-report-object)
-      - [Creating TAM telemetry type object](#creating-tam-telemetry-type-object)
-      - [Creating TAM telemetry object](#creating-tam-telemetry-object)
-      - [Create TAM counter subscription objects](#create-tam-counter-subscription-objects)
-      - [Create TAM object](#create-tam-object)
-      - [Query IPFIX template](#query-ipfix-template)
-      - [Enable/Disable telemetry stream](#enabledisable-telemetry-stream)
-    - [Configuration and management](#configuration-and-management)
-      - [Manifest (if the feature is an Application Extension)](#manifest-if-the-feature-is-an-application-extension)
-      - [CLI/YANG model Enhancements](#cliyang-model-enhancements)
-      - [Config DB Enhancements](#config-db-enhancements)
-    - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
-    - [Memory Consumption](#memory-consumption)
-    - [Restrictions/Limitations](#restrictionslimitations)
-    - [Testing Requirements/Design](#testing-requirementsdesign)
-      - [Unit Test cases](#unit-test-cases)
-      - [System Test cases](#system-test-cases)
-    - [Open/Action items - if any](#openaction-items---if-any)
+# Stream telemetry high level design <!-- omit in toc -->
 
+## Table of Content ## <!-- omit in toc -->
 
-## Table of Content 
+- [Revision](#revision)
+- [Scope](#scope)
+- [Definitions/Abbreviations](#definitionsabbreviations)
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Architecture Design](#architecture-design)
+- [High-Level Design](#high-level-design)
+  - [Modules](#modules)
+    - [Counter Syncd](#counter-syncd)
+    - [Stream Telemetry Orch](#stream-telemetry-orch)
+    - [Netlink Module and DMA Engine](#netlink-module-and-dma-engine)
+  - [Data format](#data-format)
+    - [IPFIX header](#ipfix-header)
+    - [IPFIX template](#ipfix-template)
+    - [IPFIX data](#ipfix-data)
+  - [Bandwidth Estimation](#bandwidth-estimation)
+  - [Config DB](#config-db)
+    - [STREAM\_TELEMETRY\_PROFILE](#stream_telemetry_profile)
+    - [STREAM\_TELEMETRY\_GROUP](#stream_telemetry_group)
+  - [StateDb](#statedb)
+    - [STREAM\_TELEMETRY\_SESSION](#stream_telemetry_session)
+  - [Work Flow](#work-flow)
+  - [SAI API](#sai-api)
+    - [Create HOSTIF object](#create-hostif-object)
+    - [Creating TAM transport object](#creating-tam-transport-object)
+    - [Creating TAM collector object](#creating-tam-collector-object)
+    - [Creating TAM report object](#creating-tam-report-object)
+    - [Creating TAM telemetry type object](#creating-tam-telemetry-type-object)
+    - [Creating TAM telemetry object](#creating-tam-telemetry-object)
+    - [Create TAM counter subscription objects](#create-tam-counter-subscription-objects)
+    - [Create TAM object](#create-tam-object)
+    - [Query IPFIX template](#query-ipfix-template)
+    - [Enable/Disable telemetry stream](#enabledisable-telemetry-stream)
+- [Configuration and management](#configuration-and-management)
+  - [Manifest (if the feature is an Application Extension)](#manifest-if-the-feature-is-an-application-extension)
+  - [CLI/YANG model Enhancements](#cliyang-model-enhancements)
+    - [Config CLI](#config-cli)
+    - [Inspect stream CLI](#inspect-stream-cli)
+    - [YANG](#yang)
+  - [Config DB Enhancements](#config-db-enhancements)
+  - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
+  - [Memory Consumption](#memory-consumption)
+  - [Restrictions/Limitations](#restrictionslimitations)
+  - [Testing Requirements/Design](#testing-requirementsdesign)
+    - [Unit Test cases](#unit-test-cases)
+    - [System Test cases](#system-test-cases)
+  - [Open/Action items - if any](#openaction-items---if-any)
 
-### Revision  
+## Revision
 
-### Scope  
+| Rev | Date       | Author | Change Description |
+| --- | ---------- | ------ | ------------------ |
+| 0.1 | 09/06/2024 | Ze Gan | Initial version    |
 
-This section describes the scope of this high-level design document in SONiC.
+## Scope
 
-### Definitions/Abbreviations 
+This document outlines the high-level design of stream telemetry, focusing primarily on the internal aspects of SONiC rather than external telemetry systems.
 
-This section covers the abbreviation if any, used in this high-level design document and its definitions.
+## Definitions/Abbreviations
 
-### Overview 
+| Abbreviation | Description                               |
+| ------------ | ----------------------------------------- |
+| SAI          | The Switch Abstraction Interface          |
+| IPFIX        | Internet Protocol Flow Information Export |
+| TAM          | Telemetry and Monitoring                  |
+| BW           | Bandwidth                                 |
 
-The purpose of this section is to give an overview of high-level design document and its architecture implementation in SONiC. 
+## Overview
 
-### Requirements
+The existing telemetry solution of SONiC relies on the syncd process to proactively query stats and counters via the SAI API. This approach causes the syncd process to spend excessive time on SAI communication. The stream telemetry described in this document aims to provide a more efficient method for collecting object stats. The main idea is that selected stats will be proactively pushed from the vendor's driver to the collector via netlink.
 
-This section list out all the requirements for the HLD coverage and exemptions (not supported) if any for this design.
+## Requirements
 
-### Architecture Design 
+- The number of SAI object types should not exceed 32,768 ($2^{15}$). This means the value of SAI_OBJECT_TYPE_MAX should be less than 32,768.
+- The number of SAI object extension types should not exceed 32,768.
+- The number of stats types for a single SAI object type should not exceed 32,768.
+- The number of extension stats types for a single SAI object type should not exceed 32,768.
+- The number of SAI objects of the same type should not exceed 32,768.
+- The vendor SDK should support publishing stats in IPFIX format and its IPFIX template.
+- If a polling frequency for stats cannot be supported, the vendor's SDK should report this error.
+- When reconfiguring any stream settings, whether it is the polling interval or the stats list, the existing stream will be interrupted and regenerated.
 
-This section covers the changes that are required in the SONiC architecture. In general, it is expected that the current architecture is not changed.
-This section should explain how the new feature/enhancement (module/sub-module) fits in the existing architecture. 
-
-If this feature is a SONiC Application Extension mention which changes (if any) needed in the Application Extension infrastructure to support new feature.
+## Architecture Design
 
 ``` mermaid
 
@@ -124,15 +138,15 @@ flowchart BT
     counter_syncd --telemetry message--> gnmi
 ```
 
-### High-Level Design ###
+STATE_DB channel model? Produce Table/Consume Table
 
-#### Modules ####
+## High-Level Design
 
-##### Netlink Module #####
+### Modules
 
-generic_netlink
+#### Counter Syncd
 
-netlink configuration constants in /etc/sonic/constants.yml
+The `counter syncd` is a new module that runs within the GNMI container. Its primary responsibility is to receive counter messages via netlink and convert them into GNMI messages for an external collector. It subscribes to a socket of a specific family and multicast group of generic netlink. The configuration for generic netlink is defined as constants in `/etc/sonic/constants.yml` as follows.
 
 ``` yaml
 constants:
@@ -143,22 +157,34 @@ constants:
 
 ```
 
-Ring buffer model
+#### Stream Telemetry Orch
 
-Pin CPU?
+The `Stream Telemetry Orch` is a new object within the Orchagent. It has following primary duties:
+
+1. Maintain the TAM SAI objects according to the stream telemetry configuration in the config DB.
+2. Generate a unique template ID for each stream telemetry profile to ensure distinct identification and management.
+3. Register and activate streams on counter syncd.
+
+`Stream Telemetry Orch` leverages `tam_counter_subscription` objects to bind monitoring objects, such as ports, buffers, or queues, to streams. Therefore, this orch must ensure that the lifecycle of `tam_counter_subscription` objects is within the lifecycle of their respective monitoring objects.
+
+#### Netlink Module and DMA Engine
+
+These two modules need to be provided by vendors. This document proposes a ring buffer communication model to support all expected TAM configurations as follows.
 
 ![netlink_dma_channel](netlink_dma_channel.drawio.svg)
 
-#### Data format ####
+### Data format
 
-We would like to use IPFIX as the report format, and the bytes order of all numbers in the IPFIX message is network-order(Big-endian order).
+We will use IPFIX as the report format, with all numbers in the IPFIX message in network-order (Big-endian).
 
-The reference of IPFIX:
+For more information on IPFIX, refer to the following resources:
 
 - [Specification of the IP Flow Information Export (IPFIX) Protocol for the Exchange of Flow Information](https://datatracker.ietf.org/doc/html/rfc7011)
 - [IP Flow Information Export (IPFIX) Entities](https://www.iana.org/assignments/ipfix/ipfix.xhtml)
 
-##### IPFIX header #####
+#### IPFIX header
+
+The `Version` and `Observation Domain ID` fields of the IPFIX header are identical for each IPFIX message.
 
 ``` mermaid
 
@@ -174,7 +200,7 @@ packet-beta
 
 ```
 
-##### IPFIX template #####
+#### IPFIX template
 
 ``` mermaid
 
@@ -183,70 +209,79 @@ title: stream message of IPFIX template
 ---
 packet-beta
 0-15: "Set ID = 2"
-16-31: "Set Length = (12 + Number of Element * 8) bytes"
+16-31: "Set Length = (12 + Number of Stats * 8) bytes"
 32-47: "Template ID = > 256 configured"
 48-63: "Number of Fields = 1 + Number of stats"
-64-79: "Element ID=observationTimeMilliseconds (324)"
-80-95: "Field length = 8 bytes"
+64-79: "Element ID=observationTimeNanoseconds (325)"
+80-95: "Field length = 4 bytes"
 96-96: "1"
-97-111: "Element ID = SAI STATS ID 1"
-112-127: "Field Length = 0 or 8 bytes"
-128-159: "Enterprise Number = SAI TYPE ID 1"
+97-111: "Element ID = Object index for the stats 1"
+112-127: "Field Length = 8 bytes"
+128-159: "Enterprise Number = SAI TYPE ID + SAI STATS ID for the stats 1"
 160-191: "..."
 192-192: "1"
-193-207: "Element ID = SAI STATS ID N"
-208-223: "Field Length = 0 or 8 bytes"
-224-255: "Enterprise Number = SAI TYPE ID N"
+193-207: "Element ID = Object index for the stats N"
+208-223: "Field Length = 8 bytes"
+224-255: "Enterprise Number = SAI TYPE ID + SAI STATS ID for the stats N"
 
 ```
 
-- To some high frequency counters, the unit of timestamp of native IPFIX is second which cannot meet our requirement. So, we introduce an extra element, `observationTimeMilliseconds`, for each record.
-- Normally, to use the [SAI_OBJECT_TYPE](https://github.com/opencomputeproject/SAI/blob/master/inc/saitypes.h) as the enterprise number of IPFIX directly and derive the element ID of IPFIX from SAI stats ID via AND `0x8000`.
-For example, to the `SAI_QUEUE_STAT_WRED_ECN_MARKED_PACKETS=0x00000022` of `SAI_OBJECT_TYPE_QUEUE = 21`, the enterprise number would be: `0x000000015`, and the element ID would be `0x8022`.
-- We don't support the stats ID exceeds to `65535` currently, because the IPFIX specification itself limits the element ID to two bytes. If a larger stats IDs are needed in the future, we will need to extend IPFIX to a private encoding with 8 bytes element IDs.
-- In order to the a flexibility and an efficiency, this system will support partial telemetry. It means this system will only report stats from selected ports/queue or so on. For example, if we only configure to report stats on Ethernet2 and Ethernet8, the report data will only include stats from these two ports even though there are 256 ports on this switch. To achieve this, the selection information needs to be encoded into the IPFIX template via field length. **The template should includes ALL objects for the stats. Meanwhile, if an object is selected, the length of corresponding field is 8, vice versa it's 0.**
-For example, if the switch has 8 ports, but we only want to get the `SAI_PORT_STAT_IF_IN_OCTETS = 0` on Ethernet2 and Ethernet5. The template will look like:
+- For high-frequency counters, the native IPFIX timestamp unit of seconds is insufficient. Therefore, we introduce an additional element, `observationTimeNanoseconds`, for each record to meet our requirements.
+- The enterprise bit is always set to 1 for stats records.
+- The element ID of IPFIX is derived from the object index. For example, for `Ethernet5`, the element ID will be `0x5 | 0x8000 = 0x8005`.
+- The enterprise number is derived from the combination of the [SAI_OBJECT_TYPE](https://github.com/opencomputeproject/SAI/blob/master/inc/saitypes.h) and its corresponding stats ID. The high bits are used to indicate the SAI extension flag. For example, for `SAI_QUEUE_STAT_WRED_ECN_MARKED_PACKETS=0x00000022` of `SAI_OBJECT_TYPE_QUEUE=0x00000015`, the enterprise number will be `0x00000022 << 16 | 0x00000015 = 0x00220015`.
+
+``` mermaid
+---
+title: Enterprise number encoding
+---
+packet-beta
+0: "EF"
+1-15: "SAI TYPE ID"
+16: "EF"
+17-31: "SAI STATS ID"
 
 ```
 
-0...31
-|Set ID = 2|Set Length = 76<12+8*8>|
-|Template ID  =  256|Number of Fields = 9|
-|Type = 324|Field Length = 8|
-|1|Element ID = 0|Field Length = 0|
-|Enterprise Number = 0|
-|1|Element ID = 0|Field Length = 0|
-|Enterprise Number = 0|
-|1|Element ID = 0|Field Length = 8|
-|Enterprise Number = 0|
-|1|Element ID = 0|Field Length = 0|
-|Enterprise Number = 0|
-|1|Element ID = 0|Field Length = 0|
-|Enterprise Number = 0|
-|1|Element ID = 0|Field Length = 8|
-|Enterprise Number = 0|
-|1|Element ID = 0|Field Length = 0|
-|Enterprise Number = 0
-|1|Element ID = 0|Field Length = 0|
-|Enterprise Number = 0|
+**EF is the extension flag: If this type or stat is an SAI extension, it should be set to 1.**
+
+For example, if the switch has 8 ports, but we only want to get the `SAI_PORT_STAT_IF_IN_ERRORS = 0x00000004` of `SAI_OBJECT_TYPE_PORT = 0x00000001` on Ethernet2 and Ethernet5, the template will look like this:
+
+``` mermaid
+
+packet-beta
+0-15: "Set ID = 2"
+16-31: "Set Length = 28 bytes"
+32-47: "Template ID = 256"
+48-63: "Number of Fields = 3"
+64-79: "Element ID=325"
+80-95: "Field length = 4 bytes"
+96-96: "1"
+97-111: "Element ID = 2 (port index)"
+112-127: "Field Length = 8 bytes"
+128-159: "Enterprise Number = 0x00010004"
+160-160: "1"
+161-175: "Element ID = 5 (port index)"
+176-191: "Field Length = 8 bytes"
+192-223: "Enterprise Number = 0x00010004"
 
 ```
 
-##### IPFIX data #####
+#### IPFIX data
 
-A message of IPFIX data contains two level hierarchies, namely chunks and snapshots. A chunk contains a numbers of snapshots. And a snapshot is a binary block that can be interpreted by the IPFIX template mentioned above.
+An IPFIX data message consists of two hierarchical levels: chunk and snapshots. A chunk contains multiple snapshots, and a snapshot is a binary block that can be interpreted using the IPFIX template mentioned above.
 
-The binary block of snapshot is as follows:
+The binary structure of a snapshot is as follows:
 
 ``` mermaid
 
 ---
-title: stream message of IPFIX data
+title: A snapshot of IPFIX data
 ---
 packet-beta
 0-15: "Set ID = Same as template ID"
-16-31: "Set Length = (8 + Number of valid stats * 8) bytes"
-32-63: "Rcord 1: observationTimeMilliseconds"
+16-31: "Set Length = (8 + Number of stats * 8) bytes"
+32-63: "Rcord 1: observationTimeNanoseconds"
 64-95: "Record 2: Stats 1"
 96-127: "..."
 128-159: "Record N + 1: Stats N"
@@ -254,56 +289,64 @@ packet-beta
 ```
 
 - The chunk size can be configured via SAI.
-- The shot structure is derived from the IPFIX template, which is also derived from the stats we want to record.
+- The snapshot structure is derived from the IPFIX template, which is based on the stats we want to record.
 
-The following is an IPFIX message example of the same stats record as the IPFIX template example, and the chunk size is 3
+Below is an example of an IPFIX message for the same stats record as the IPFIX template example, with a chunk size of 3:
 
+``` mermaid
+
+---
+title: stream message IPFIX
+---
+packet-beta
+0-15: "Version = 0x000a"
+16-31: "Message Length = 112 bytes"
+32-63: "Export Timestamp = 2024-08-29 20:30:60"
+64-95: "Sequence Number = 1"
+96-127: "Observation Domain ID = 0"
+128-143: "Set ID = 256"
+144-159: "Set Length = 32 bytes"
+160-191: "observationTimeNanoseconds = 10000"
+192-255: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 10"
+256-319: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
+320-383: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 5"
+384-399: "Set ID = 256"
+400-415: "Set Length = 32 bytes"
+416-447: "observationTimeNanoseconds = 20000"
+448-511: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 15"
+512-575: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
+576-639: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 6"
+640-655: "Set ID = 256"
+656-671: "Set Length = 32 bytes"
+672-703: "observationTimeNanoseconds = 30000"
+704-767: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 20"
+768-831: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
+832-895: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 8"
 ```
 
-0...31
-|Version = 0x000a|Message Length = 64|
-|Export Timestamp = 2024-08-29 20:30:60|
-|Sequence Number = 1|
-|Observation Domain ID = 0|
-|Set ID = 256|Set Length = 24|
-|Record 1: observationTimeMilliseconds = 100|
-|Record 2: SAI_PORT_STAT_IF_IN_OCTETS = 10 |
-|Record 3: SAI_PORT_STAT_IF_IN_OCTETS = 0 |
-|Set ID = 256|Set Length = 24|
-|Record 1: observationTimeMilliseconds = 200|
-|Record 2: SAI_PORT_STAT_IF_IN_OCTETS = 10 |
-|Record 3: SAI_PORT_STAT_IF_IN_OCTETS = 5 |
-|Set ID = 256|Set Length = 24|
-|Record 1: observationTimeMilliseconds = 300|
-|Record 2: SAI_PORT_STAT_IF_IN_OCTETS = 30 |
-|Record 3: SAI_PORT_STAT_IF_IN_OCTETS = 20 |
+### Bandwidth Estimation
 
-```
-
-##### Bandwidth Estimation #####
-
-We estimate the bandwidth based only on the effective data size, not the actual data size. Because the extra information of a message is the IPFIX header(16 bytes), data prefix(4 bytes) and observation time milliseconds(4 bytes) which is negligible. For example, if we want to collect 30 stats on 256 ports, and the chunk size is 100. The percentage of effective data = `(4 * 30 * 256 * 100<effective data>) / (16<header> + 4 * 100<data prefix> + 4 * 100<observation time milliseconds> + 4 * 30 * 256 * 100<effective data>) = 99.9%`.
+We estimate the bandwidth based only on the effective data size, not the actual data size. The extra information in a message, such as the IPFIX header (16 bytes), data prefix (4 bytes), and observation time milliseconds (4 bytes), is negligible. For example, if we want to collect 30 stats on 64 ports, and the chunk size is 100: $The Percentage Of Effective Data = \frac{8 \times 30 \times 64 \times 100_{Effective Data}}{16_{Header} + 4 \times 100_{Data Prefix} + 4 \times 100_{Observation Time Milliseconds} + 8 \times 30 \times 64 \times 100_{Effective Data}} \approx 99.9\%$ .
 
 The following table is telemetry bandwidth of one cluster
 
-| # of stats per port | # of ports per switch | # of switch | frequency (ms) | Total BW per switch(Mbps) | Total BW(Mbps) |
+| # of stats per port | # of ports per switch | # of switch | frequency (us) | Total BW per switch(Mbps) | Total BW(Mbps) |
 | ------------------- | --------------------- | ----------- | -------------- | ------------------------- | -------------- |
-| 30                  | 512                   | 10000       | 1              | 122.88                    | 1,228,800      |
+| 30                  | 64                    | 10,000      | 10             | 12,288                    | 122,880,000    |
 
-- *Total BW per switch = <# of stats per port> * <# of ports per switch> * <frequency * 1000> * 8 / 1,000,000*
-- *Total BM = <Total BW per switch> * <# of switch>*
+- ${Total BW Per Switch} = \frac{{\verb|#| Of Stats Per Port} \times 8_{bytes} \times {\verb|#| Of Ports Per Switch} \times {Frequency} \times 1,000 \times 8}{1,000,000}$
+- ${Total BM} = {Total BW Per Switch} \times {\verb|#| Of Switch}$
 
-#### Config DB ####
+### Config DB
 
-Any configuration changes in the config DB will interrupt existing session and restart new one.
+Any configuration changes in the config DB will interrupt the existing session and initiate a new one.
 
-##### STREAM_TELEMETRY_PROFILE #####
+#### STREAM_TELEMETRY_PROFILE
 
 ```
-STREAM_TELEMETRY_PROFILE:{{profile_name}}
-    "stream_status": {{enable/disable}}
+STREAM_TELEMETRY_PROFILE|{{profile_name}}
+    "stream_state": {{enabled/disabled}}
     "poll_interval": {{uint32}}
-    "profile_id": {{uint16}}
     "chunk_size": {{uint32}} (OPTIONAL)
     "cache_size": {{uint32}} (OPTIONAL)
 ```
@@ -311,40 +354,43 @@ STREAM_TELEMETRY_PROFILE:{{profile_name}}
 ```
 key                = STREAM_TELEMETRY_PROFILE:profile_name a string as the identifier of stream telemetry
 ; field            = value
-stream_status      = enable/disable ; Enable/Disable stream.
+stream_state       = enabled/disabled ; Enabled/Disabled stream.
 poll_interval      = uint32 ; The interval to poll counter, unit milliseconds.
-profile_id         = uint16 ; A numeric identifier of stream telemetry. The range is 256-65535.
 chunk_size         = uint32 ; number of stats groups in a telemetry message.
 cache_size         = uint32 ; number of chunks that can be cached.
 ```
 
-##### STREAM_TELEMETRY_GROUP #####
+#### STREAM_TELEMETRY_GROUP
 
 ```
-STREAM_TELEMETRY_GROUP:{{group_name}}:{{profile_name}}
+STREAM_TELEMETRY_GROUP|{{profile_name}}|{{group_name}}
     "object_names": {{list of object name}}
     "object_counters": {{list of stats of object}}
 ```
 
 ```
 key             = STREAM_TELEMETRY_GROUP:group_name:profile_name
-                    ; group_name is the object type, like PORT, QUEUE or INGRESS_PRIORITY_GROUP.
+                    ; group_name is the object type, like PORT, BUFFER_PG or BUFFER_POOL.
                     ; Multiple groups can be bound to a same stream telemetry profile.
 ; field         = value
-object_names    = list of object name
-                    ; The object name in the group, like Ethernet0,Ethernet8. comma separated list.
+object_names    = A comma separated list of object name.
+                    ; The syntax of object name is top_object_name|index_range.
+                    ; The object_name is the object of the top level, like port, Ethernet0,Ethernet4.
+                    ; The index range is the object in second level, like priority group.
+                    ; An example is Ethernet0|0,Ethernet4|3-4.
 object_counters = list of stats of object
                     ; The stats name in the group. like SAI_PORT_STAT_IF_IN_OCTETS,SAI_PORT_STAT_IF_IN_UCAST_PKTS.
                     ; comma separated list.
 ```
 
-#### StateDb ####
+### StateDb
 
-##### STREAM_TELEMETRY_SESSION #####
+#### STREAM_TELEMETRY_SESSION
 
 ```
-STREAM_TELEMETRY_SESSION:{{profile_name}}
-    "session_status": {{enable/disable}}
+STREAM_TELEMETRY_SESSION|{{profile_name}}
+    "session_status": {{enabled/disabled}}
+    "session_type": {{ipfix}}
     "session_template": {{binary array}}
 ```
 
@@ -352,10 +398,11 @@ STREAM_TELEMETRY_SESSION:{{profile_name}}
 key                 = STREAM_TELEMETRY_SESSION:profile_name ; a string as the identifier of stream telemetry
 ; field             = value
 session_status      = enable/disable ; Enable/Disable stream.
-session_template    = binary array; The IPFIX template to interpret the message from netlink
+session_type        = ipfix ; Specified the session type.
+session_template    = binary array; The IPFIX template to interpret the message of this session.
 ```
 
-#### Work Flow
+### Work Flow
 
 ``` mermaid
 
@@ -424,31 +471,7 @@ sequenceDiagram
 
 ```
 
-This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
-		
-	- Is it a built-in SONiC feature or a SONiC Application Extension?
-	- What are the modules and sub-modules that are modified for this design?
-	- What are the repositories that would be changed?
-	- Module/sub-module interfaces and dependencies. 
-	- SWSS and Syncd changes in detail
-	- DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB)
-	- Sequence diagram if required.
-	- Linux dependencies and interface
-	- Warm reboot requirements/dependencies
-	- Fastboot requirements/dependencies
-	- Scalability and performance requirements/impact
-	- Memory requirements
-	- Docker dependency
-	- Build dependency if any
-	- Management interfaces - SNMP, CLI, RestAPI, etc.,
-	- Serviceability and Debug (logging, counters, trace etc) related design
-	- Is this change specific to any platform? Are there dependencies for platforms to implement anything to make this feature work? If yes, explain in detail and inform community in advance.
-	- SAI API requirements, CLI requirements, ConfigDB requirements. Design is covered in following sections.
-
-### SAI API ###
-
-This section covers the changes made or new API added in SAI API for implementing this feature. If there is no change in SAI API for HLD feature, it should be explicitly mentioned in this section.
-This section should list the SAI APIs/objects used by the design so that silicon vendors can implement the required support in their SAI. Note that the SAI requirements should be discussed with SAI community during the design phase and ensure the required SAI support is implemented along with the feature/enhancement.
+### SAI API
 
 ``` mermaid
 
@@ -480,7 +503,7 @@ erDiagram
         SAI_TAM_REPORT_ATTR_REPORT_MODE SAI_TAM_REPORT_MODE_BULK
         SAI_TAM_REPORT_ATTR_REPORT_INTERVAL poll_interval "STREAM_TELEMETRY_PROFILE:profile_name[poll_interval] on Config DB"
         SAI_TAM_REPORT_ATTR_TEMPLATE_REPORT_INTERVAL _0 "Don't push the template, Because we hope the template can be proactively queried by orchagent"
-        SAI_TAM_REPORT_ATTR_REPORT_IPFIX_TEMPLATE_ID profile_id "STREAM_TELEMETRY_PROFILE:profile_name[profile_id] on Config DB"
+        SAI_TAM_REPORT_ATTR_REPORT_IPFIX_TEMPLATE_ID template_id "A unique id generated by stream telemetry orch"
         SAI_TAM_REPORT_ATTR_REPORT_INTERVAL_UNIT SAI_TAM_REPORT_INTERVAL_UNIT_MSEC
     }
     telemetry_type[TAM_telemetry_type] {
@@ -508,15 +531,19 @@ erDiagram
         SAI_TAM_ATTR_TELEMETRY_OBJECTS_LIST sai_tam_telemetry_obj
         SAI_TAM_ATTR_TAM_BIND_POINT_TYPE_LIST SAI_TAM_BIND_POINT_TYPE_PORT
     }
+    switch[Switch] {
+        SAI_ID SAI_VALUE "Comments"
+        SAI_SWITCH_ATTR_TAM_OBJECT_ID sai_tam_obj
+    }
 
-    collector ||--|| hostif: binds
-    collector ||--|| transport: binds
-    telemetry_type ||--|| report: binds
-    telemetry ||..o| telemetry_type: binds
-    telemetry }o..|{ collector: binds
-    counter_subscription }|--|| telemetry_type: binds
-    TAM ||--|| telemetry: binds
-
+    collector |o--|| hostif: binds
+    collector |o--|| transport: binds
+    telemetry_type |o--|| report: binds
+    telemetry |o--o| telemetry_type: binds
+    telemetry }o--o{ collector: binds
+    counter_subscription }o--|| telemetry_type: binds
+    TAM |o--o| telemetry: binds
+    switch |o..o{ TAM: binds
 ```
 
 | Object Type              | Scope                        |
@@ -530,8 +557,7 @@ erDiagram
 | TAM_report               | per STREAM_TELEMETRY profile |
 | TAM_counter_subscription | per stats of object          |
 
-
-#### Create HOSTIF object ####
+#### Create HOSTIF object
 
 ``` c++
 
@@ -554,7 +580,7 @@ create_hostif(sai_hostif_obj, switch_id, attr_count, sai_attr_list);
 
 ```
 
-#### Creating TAM transport object ####
+#### Creating TAM transport object
 
 ``` c++
 
@@ -566,7 +592,7 @@ sai_create_tam_transport_fn(&sai_tam_transport_obj, switch_id, attr_count, sai_a
 
 ```
 
-#### Creating TAM collector object ####
+#### Creating TAM collector object
 
 ``` c++
 typedef enum _sai_tam_collector_attr_t
@@ -608,7 +634,7 @@ sai_create_tam_collector_fn(&sai_tam_collector_obj, switch_id, attr_count, sai_a
 
 ```
 
-#### Creating TAM report object ####
+#### Creating TAM report object
 
 ``` c++
 /**
@@ -666,7 +692,7 @@ sai_attr_list[3].id = SAI_TAM_REPORT_ATTR_TEMPLATE_REPORT_INTERVAL;
 sai_attr_list[3].value.s32 = 0; // Don't push the template, Because we hope the template can be proactively queried by orchagent
 
 sai_attr_list[4].id = SAI_TAM_REPORT_ATTR_REPORT_IPFIX_TEMPLATE_ID;
-sai_attr_list[4].value.u16 = profile_id;// STREAM_TELEMETRY_PROFILE:profile_name[profile_id] on Config DB;
+sai_attr_list[4].value.u16 = template_id;// A unique id generated by stream telemetry orch
 
 sai_attr_list[5].id = SAI_TAM_REPORT_ATTR_REPORT_INTERVAL_UNIT;
 sai_attr_list[5].value.s32 = SAI_TAM_REPORT_INTERVAL_UNIT_MSEC;
@@ -676,7 +702,7 @@ sai_create_tam_report_fn(&sai_tam_report_obj, switch_id, attr_count, sai_attr_li
 
 ```
 
-#### Creating TAM telemetry type object ####
+#### Creating TAM telemetry type object
 
 ``` c++
 
@@ -700,7 +726,7 @@ sai_create_tam_tel_type_fn(&sai_tam_tel_type_obj, switch_id, attr_count, sai_att
 
 ```
 
-#### Creating TAM telemetry object ####
+#### Creating TAM telemetry object
 
 Extern TAM telemetry attributes in SAI
 
@@ -809,9 +835,104 @@ sai_create_tam_telemetry_fn(&sai_tam_telemetry_obj, switch_id, attr_count, sai_a
 
 ```
 
-#### Create TAM counter subscription objects ####
+#### Create TAM counter subscription objects
 
 Based on the STREAM_TELEMETRY_GROUP on Config DB, to create corresponding counter subscription objects.
+
+Proposal a new subscription mode: OBJECT TYPE and Index
+
+``` c++
+
+typedef enum _sai_tam_counter_subscription_type_t
+{
+    /** @brief Object based subscription */
+    SAI_TAM_COUNTER_SUBSCRIPTION_OBJECT_ID_BASE,
+
+    /** @brief Index based subscription */
+    SAI_TAM_COUNTER_SUBSCRIPTION_OBJECT_INDEX_BASE,
+
+} sai_tam_counter_subscription_type_t;
+
+typedef enum _sai_tam_counter_subscription_attr_t
+{
+
+    /**
+     * @brief Subscribed object
+     *
+     * @type sai_object_id_t
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @objects SAI_OBJECT_TYPE_BUFFER_POOL, SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP, SAI_OBJECT_TYPE_PORT, SAI_OBJECT_TYPE_QUEUE
+     * @validonly SAI_TAM_COUNTER_SUBSCRIPTION_TYPE == SAI_TAM_COUNTER_SUBSCRIPTION_OBJECT_ID_BASE
+     */
+    SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_OBJECT_ID,
+
+    /**
+     * @brief Subscribed stat enum
+     *
+     * @type sai_uint32_t
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     */
+    SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STAT_ID,
+
+    // ...
+
+    /**
+     * @brief Tam telemetry reporting type
+     *
+     * @type sai_tam_reporting_type_t
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @default SAI_TAM_COUNTER_SUBSCRIPTION_OBJECT_ID_BASE
+     */
+    SAI_TAM_COUNTER_SUBSCRIPTION_TYPE,
+
+    /**
+     * @brief Subscribed object
+     *
+     * @type sai_object_type_t
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @validonly SAI_TAM_COUNTER_SUBSCRIPTION_TYPE == SAI_TAM_COUNTER_SUBSCRIPTION_OBJECT_INDEX_BASE
+     */
+    SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_OBJECT_TYPE,
+
+    /**
+     * @brief Subscribed object
+     *
+     * @type sai_uint32_t
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @validonly SAI_TAM_COUNTER_SUBSCRIPTION_TYPE == SAI_TAM_COUNTER_SUBSCRIPTION_OBJECT_INDEX_BASE
+     */
+    SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_OBJECT_INDEX,
+
+} sai_tam_counter_subscription_attr_t;
+
+```
+
+- Index ID based
+
+``` c++
+
+// Create counter subscription list
+
+sai_attr_list[0].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_TEL_TYPE;
+sai_attr_list[0].value.oid = sai_tam_tel_type_obj;
+
+sai_attr_list[1].id = SAI_TAM_COUNTER_SUBSCRIPTION_TYPE;
+sai_attr_list[1].value.s32 = SAI_TAM_COUNTER_SUBSCRIPTION_OBJECT_INDEX_BASE;
+
+sai_attr_list[2].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_OBJECT_TYPE;
+sai_attr_list[2].value.s32 = SAI_OBJECT_TYPE_PORT;
+
+sai_attr_list[3].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_OBJECT_INDEX;
+sai_attr_list[3].value.u32 = 2; // Calculate this index according to 
+
+
+attr_count = 4;
+
+create_tam_counter_subscription(&sai_tam_counter_subscription_obj, switch_id, attr_count, sai_attr_lis);
+// If this stats of object cannot support this poll frequency, this API should return SAI_STATUS_NOT_SUPPORTED.
+```
+
+- Object ID based
 
 ``` c++
 
@@ -826,16 +947,13 @@ sai_attr_list[1].value.oid = port_obj;
 sai_attr_list[2].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STAT_ID;
 sai_attr_list[2].value.oid = SAI_PORT_STAT_IF_IN_OCTETS;
 
-sai_attr_list[3].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL;
-sai_attr_list[3].value.oid = index; // The index of IPFIX template
-
-attr_count = 4;
+attr_count = 3;
 
 create_tam_counter_subscription(&sai_tam_counter_subscription_obj, switch_id, attr_count, sai_attr_lis);
 // If this stats of object cannot support this poll frequency, this API should return SAI_STATUS_NOT_SUPPORTED.
 ```
 
-#### Create TAM object ####
+#### Create TAM object
 
 ``` c++
 
@@ -853,7 +971,7 @@ sai_create_tam_fn(&sai_tam_obj, switch_id, attr_count, sai_attr_list);
 
 ```
 
-#### Query IPFIX template ####
+#### Query IPFIX template
 
 ``` c++
 
@@ -868,63 +986,96 @@ free(attr.value.u8list.list);
 
 ```
 
-#### Enable/Disable telemetry stream ####
+#### Enable/Disable telemetry stream
 
 ``` c++
 
-sai_attribute_t attr;
+sai_object_id_t obj_list[100] = { 0 };
+sai_attr.value.count = 0;
+
+sai_attribute_t sai_attr;
+sai_attr.id = SAI_SWITCH_ATTR_TAM_OBJECT_ID;
+sai_attr.value.oidlist = obj_list;
+sai_attr.value.count = 0;
+
+get_switch_attribute(switch_id, 1, &sai_attr);
 
 // Enable telemetry stream
 
-attr.id = SAI_TAM_TELEMETRY_ATTR_TAM_TYPE_LIST;
-attr.value.objlist.count = 1;
-attr.value.objlist.list[0] =  sai_tam_tel_type_obj;
+sai_attr.value.oidlist[sai_attr.value.count] = sai_tam_obj;
+sai_attr.value.count++;
 
 // Disable telemetry stream
 
-attr.id = SAI_TAM_TELEMETRY_ATTR_TAM_TYPE_LIST;
-attr.value.objlist.count = 1;
-attr.value.objlist.list[0] =  sai_tam_tel_type_obj;
+std::remove(sai_attr.value.oidlist, sai_attr.value.oidlist + sai_attr.value.count, sai_tam_obj);
+sai_attr.value.count--;
 
-get_tam_telemetry_attribute(&sai_tam_telemetry_obj, 1, &attr);
+set_switch_attribute(switch_id, sai_attr)
 
 ```
 
-### Configuration and management 
-This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
-If there is breaking change which may impact existing platforms, please call out in the design and get platform vendors reviewed. 
+## Configuration and management
 
-#### Manifest (if the feature is an Application Extension)
+### Manifest (if the feature is an Application Extension)
 
-Paste a preliminary manifest in a JSON format.
+N/A
 
-#### CLI/YANG model Enhancements 
+### CLI/YANG model Enhancements 
 
-This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. 
-This should also explain the CLICK and/or KLISH related configuration/show in detail.
-https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md needs be updated with the corresponding CLI change.
+#### Config CLI
 
-#### Config DB Enhancements  
+``` shell
 
-This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change. 
-		
-### Warmboot and Fastboot Design Impact  
-Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
+# Add a new profile
+sudo config stream_telemetry profile add $profile_name --stream_state=$stream_state --poll_interval=$poll_interval --chunk_size=$chunk_size --cache_size=$cache_size
+
+# Change stream state
+sudo config stream_telemetry profile set $profile_name --stream_state=$stream_state
+
+# Remove a existing profile
+sudo config stream_telemetry group "$profile|$group_name" --object_names="$object1,$object2" --object_counters="$object_counters1,$object_counters2"
+
+```
+
+#### Inspect stream CLI
+
+Fetch all counters on the stream-telemetry
+
+``` shell
+sudo stream-telemetry $profile_name --json/--table --duration=$duration
+```
+
+#### YANG
+
+[sonic-stream-telemetry.yang](sonic-stream-telemetry.yang)
+
+### Config DB Enhancements
+
+[Config DB](#config-db)
+
+### Warmboot and Fastboot Design Impact
+
+Warmboot/fastboot support is not required.
 
 ### Memory Consumption
-This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration. 
-### Restrictions/Limitations  
 
-### Testing Requirements/Design  
-Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
-Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
-Example sub-sections for unit test cases and system test cases are given below. 
+In addition to constant memory consumption, dynamic memory consumption can be adjusted by configuring the chunk size and cache size of the stream-telemetry profile table in the config DB.
 
-#### Unit Test cases  
+$Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Cache Size} \times {Chunk Size} \times 8_{bytes} \times \sum_{Group} ({Object Count} \times {Stat Count}))$
+
+### Restrictions/Limitations
+
+[Requirements](#requirements)
+
+### Testing Requirements/Design
+
+#### Unit Test cases
+
+- Test that the `STREAM_TELEMETRY_GROUP` can be correctly converted to the SAI objects and their corresponding SAI STAT IDs by the Orchagent.
 
 #### System Test cases
 
-### Open/Action items - if any 
+- Test that the counter can be correctly monitored by the counter syncd.
+- Test that the counter can be correctly fetched using the telemetry stream CLI.
 
-	
-NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
+### Open/Action items - if any

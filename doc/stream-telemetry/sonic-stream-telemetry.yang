@@ -1,0 +1,81 @@
+module sonic-stream-telemetry {
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/sonic-stream-telemetry";
+
+    prefix sonic-stream-telemetry;
+
+    container sonic-stream-telemetry {
+        container STREAM_TELEMETRY_PROFILE {
+            description "STREAM_TELEMETRY_PROFILE part of config_db.json";
+            list STREAM_TELEMETRY_PROFILE_LIST {
+
+                key "name";
+
+                leaf name {
+                    type string {
+                        length 1..128;
+                    }
+                }
+
+                leaf stream_state {
+                    type string {
+                        pattern "enabled|disabled";
+                    }
+                }
+
+                leaf poll_interval {
+                    description "The interval to poll counter, unit milliseconds.";
+                    type uint32;
+                }
+
+                leaf chunk_size {
+                    type uint32;
+                    default 0;
+                }
+
+                leaf cache_size {
+                    type uint32;
+                    default 0;
+                }
+            }
+        }
+
+        container STREAM_TELEMETRY_GROUP {
+            description "STREAM_TELEMETRY_GROUP part of config_db.json";
+            list STREAM_TELEMETRY_GROUP_LIST {
+                key "profile_name group_name";
+
+                leaf profile_name {
+                    type leafref {
+                        path "/sonic-stream-telemetry:sonic-stream-telemetry/STREAM_TELEMETRY_PROFILE/STREAM_TELEMETRY_PROFILE_LIST/name";
+                    }
+                }
+
+                // The table name of config db
+                leaf group_name {
+                    type string {
+                        pattern "PORT|QUEUE|BUFFER_PG|BUFFER_POOL|BUFFER_QUEUE";
+                    }
+                }
+
+                leaf-list object_names {
+                    type string {
+                        pattern "\w+(\|\d+(-\d+)?)?";
+                        error-message "Invalid object names";
+                    }
+                    description "The object names to be monitored";
+                }
+
+                leaf-list object_counters {
+                    string {
+                        pattern "SAI_[A-Z]+_STAT_([A-Z]+_)*[A-Z]+";
+                        error-message "Invalid STATS ID for SAI object";
+                    }
+                    description "The SAI STATS ID";
+                }
+
+            }
+        }
+    }
+}
