@@ -130,6 +130,7 @@ This feature adds the following enhancements.
 - Routing of L3 (IPv4 and IPv6) traffic in and out of the VXLAN tunnel.
 - Overlay ECMP support.
 - EVPN ARP and ND suppression.
+- Coexistence of IPv4 and IPv6 VTEPs within the same network
 
 The following item will be added in the future. 
 - Basic OAM support for tunnels -  tunnel operational status and statistics.
@@ -143,9 +144,9 @@ This document covers high level design and interaction aspects of the SONiC soft
 The following aspects are outside the scope of this document.
 
 - Support for L2 multi-tenancy is not in scope. VLAN ids received on all the access ports are mapped to the same broadcast domain and hence the same VNI. 
-- IPv6 addresses for VTEPs.
 - Static VXLAN tunnels.
 - Multi-homing support described in the EVPN RFCs.
+- Coexistence of IPv4 and IPv6 VTEP source addresses in the same VTEP device
 
 
 
@@ -747,7 +748,7 @@ REMOTE_VNI_TABLE:{{vlan_id}}:{{remote_vtep}}
      "vni" : {{vni_id}}
 ```
 
-The *vni_id* is remote VNI received in the IMET route, and *remote_vtep* is IPv4 next-hop of the IMET route.
+The *vni_id* is remote VNI received in the IMET route, and *remote_vtep* is IPv4 or IPv6 next-hop of the IMET route.
 
 ##### VxlanOrch processing
 
@@ -1051,10 +1052,10 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 
 ```
 1. VTEP Source IP configuration
-   - config vxlan add <vtepname> <src_ipv4>
+   - config vxlan add <vtepname> <src_ip>
    - config vxlan del <vtepname>
    - vtepname is a string. 
-   - src_ipv4 is an IPV4 address in dotted notation A.B.C.D or IPv6 address in notation A:B:C::D
+   - src_ip is an IPV4 address in dotted notation A.B.C.D or IPv6 address in notation A:B:C::D
 2. EVPN NVO configuration 
    - config vxlan evpn_nvo add <nvoname> <vtepname>
    - config vxlan evpn_nvo del <nvoname>
