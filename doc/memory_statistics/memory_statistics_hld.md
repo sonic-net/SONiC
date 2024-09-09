@@ -83,7 +83,7 @@ This section explains how Memory Statistics feature works, focusing on user cont
 
 #### Data Collection and Storage
 
-Memory Statistics utilizes a dedicated daemon process for the continuous collection of memory data. This daemon operates in the background, ensuring minimal impact on system performance. Data is stored in compressed log files within the system, optimizing storage usage while ensuring data is easily retrievable for analysis and reporting.
+Memory Statistics utilizes a dedicated daemon process for the continuous collection of memory data. This process operates in the background, ensuring minimal impact on system performance. Data is stored in compressed log files within the system, optimizing storage usage while ensuring data is easily retrievable for analysis and reporting.
 
 #### User Interaction
 
@@ -167,10 +167,10 @@ The high-level feature design diagram is shown below.
 
 The `memorystatsd` will dynamically manage its configuration using the `hostcfgd`. The design will:
 
-1. **Read Configuration at Startup**: On startup, `memorystatsd` will read its configuration directly from the ConfigDB to initialize its settings.
+1. **Read Configuration at Startup**: On startup, `memorystatsd` process will read its configuration directly from the ConfigDB to initialize its settings.
 2. **Monitor ConfigDB for Changes**: `hostcfgd` will monitor the `MEMORY_STATISTICS_TABLE` in ConfigDB for any changes to the configurations.
-3. **Signal Daemon to Reload Configuration**: When configurations are updated via CLI and written to ConfigDB, hostcfgd will detect these changes and signal `memorystatsd` to reload its configuration.
-4. **Reload to Apply Changes**: `memorystatsd` will reload its configurations upon receiving the signal and apply the new settings.
+3. **Signal Daemon to Reload Configuration**: When configurations are updated via CLI and written to ConfigDB, hostcfgd will detect these changes and signal `memorystatsd` process to reload its configuration.
+4. **Reload to Apply Changes**: `memorystatsd` process will reload its configurations upon receiving the signal and apply the new settings.
 
 **Workflow for Configuration Management**
 
@@ -179,7 +179,7 @@ The `memorystatsd` will dynamically manage its configuration using the `hostcfgd
 3. **Runtime Configuration Changes**: Administrators update settings via CLI, which writes changes to ConfigDB.
 4. **Monitor ConfigDB for Changes**: `hostcfgd` detects changes in ConfigDB.
 5. **Signal Daemon to Reload Configuration**: hostcfgd signals `memorystatsd` to reload its configuration.
-6. **Reload Daemon**: `memorystatsd` reloads the configuration to apply the new settings.
+6. **Reload Daemon**: `memorystatsd` process reloads the configuration to apply the new settings.
 
 
 ## SAI API
@@ -365,7 +365,7 @@ There is no impact on warmboot/fastboot functionalities by this HLD.
 
 | Test Case ID | Test Case Description                                                                                      | 
 |--------------|------------------------------------------------------------------------------------------------------------|
-| ST1          | Validate the end-to-end functionality of the memory statistics daemon, ensuring proper configuration reading, restart on update, data collection, and data retention | 
+| ST1          | Validate the end-to-end functionality of the memory statistics daemon process, ensuring proper configuration reading, restart on update, data collection, and data retention | 
 
 ## Future Work
 
