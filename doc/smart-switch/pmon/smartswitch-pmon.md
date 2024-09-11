@@ -138,9 +138,10 @@ Key: "CHASSIS_MODULE|DPU0"
 #### DPU shutdown sequence
 * There could be two possible sources for DPU shutdown. 1. A configuration change to DPU "admin_status: down" 2. The GNOI logic can trigger it.
 * The GNOI server runs on the DPU even after the DPU is shutdown.
-* The host sends a GNOI signal to shutdown the DPU. The DPU does a pre-shutdown and sends an ack back to the host.
-* Upon receiving the ack or on a timeout the host may trigger the switch PMON to shutdown the DPU.
-* NPU-DPU (GNOI) soft reboot workflow will be captured in another document.
+* The host sends a GNOI signal to shutdown the DPU. The DPU does a graceful-shutdown and sends an ack back to the host.
+* Upon receiving the ack or on a timeout the host may trigger the switch PMON vendor API to shutdown the DPU.
+* If a vendor specific API is not defined, detachment is done via sysfs (echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove).
+* NPU-DPU (GNOI) soft reboot workflow is captured in [reboot-hld.md](https://github.com/sonic-net/SONiC/blob/26f3f4e282f3d2bd4a5c684608897850354f5c30/doc/smart-switch/reboot/reboot-hld.md)
 * In the first option the "admin_status: down" configDB status change event will send a message to the switch PMON.
 * The switch PMON will invoke the module class API "set_admin_state(self, up):" with the state being "down" and the platform in turn will call its API to gracefully shutdown the DPU.  
 * The DPU upon receiving the shutdown message will do a graceful shutdown and send an ack back. The DPU graceful shutdown is vendor specific. The DPU power will be turned off after the graceful shutdown. In case of timeout the platform will force power down.
