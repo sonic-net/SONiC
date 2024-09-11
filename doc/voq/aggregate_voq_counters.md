@@ -27,7 +27,7 @@
 
 ### Overview 
 
-In a [distributed VOQ architecture](https://github.com/sonic-net/SONiC/blob/master/doc/voq/architecture.md) corresponding to each output VOQ present on an ASIC, there are VOQs present on every ASIC in the system. Each ASIC has its own set of VOQ stats maintained in the FSI that needs to be gathered independently and can be hard to visualize, providing a non-cohesive experience.
+In a [distributed VOQ architecture](https://github.com/sonic-net/SONiC/blob/master/doc/voq/architecture.md) corresponding to each output VOQ present on an ASIC, there are VOQs present on every ASIC in the system. Each ASIC has its own set of VOQ stats maintained in the linecard that needs to be gathered independently and can be hard to visualize, providing a non-cohesive experience.
 
 ### Requirements
 
@@ -37,9 +37,9 @@ Provide aggregate VOQ counters in a distributed VOQ architecture.
 
 No new architecture changes are required to SONiC. 
 
-A new database `CHASSIS_COUNTERS_DB` will be introduced in `redis_chassis` instance of the SSI dedicated to aggregate statistics.
+A new database `CHASSIS_COUNTERS_DB` will be introduced in `redis_chassis` instance of the supervisor dedicated to aggregate statistics.
 
-Voq stats on FSI are already polled via flex counter for each asic by it's corresponding syncd instance and updated in COUNTER_DB. Swss will be used to synchronise VOQ stats between FSI and SSI.
+Voq stats on linecard are already polled via flex counter for each asic by it's corresponding syncd instance and updated in COUNTER_DB. Swss will be used to synchronise VOQ stats between linecard and supervisor.
 
 ### High-Level Design
 
@@ -50,7 +50,7 @@ Figure 2: Aggregation of VOQ stats
 
 
 #### Database Changes
-A new database called CHASSIS_COUNTERS_DB will be introduced on the redis_chassis instance of SSI.
+A new database called CHASSIS_COUNTERS_DB will be introduced on the redis_chassis instance of supervisor.
 
 ```
 "CHASSIS_COUNTERS_DB"  :  {
@@ -79,19 +79,19 @@ The following new VOQ counters should be available for each VOQ entry in the DB:
 ##### New VoqStatsOrch module
 A new module called VoqStatsOrch will be introduced which will be initialised by orchdaemon.
 
-VoqStatsOrch will synchronise the VOQ counters between each ASIC's COUNTERS_DB on FSIs and CHASSIS_COUNTERS_DB running on the SSI.
+VoqStatsOrch will synchronise the VOQ counters between each ASIC's COUNTERS_DB on linecards and CHASSIS_COUNTERS_DB running on the supervisor.
 
 #### gNMI changes
-New virtual paths will be introduced to retrieve VOQ counters from FSI and aggregated VOQ counter stats from SSI
+New virtual paths will be introduced to retrieve VOQ counters from linecard and aggregated VOQ counter stats from supervisor
 
 |  DB target|   Virtual Path  | Supported On? |     Description|
 |  ----     |:----:| :-:| ----|
-|COUNTERS_DB | "COUNTERS/``<asic id>``/``<system port>``/Voq"| FSI |  All VOQ counters for a sytem port on an ASIC on FSI
-|COUNTERS_DB | "COUNTERS/``<asic id>``/``*``/Voq"| FSI | All VOQ counters for all sytem ports on an ASIC on FSI
-|COUNTERS_DB | "COUNTERS/``<system port>``/Voq"| SSI | Aggregated VOQ counters for a system port from SSI
-|COUNTERS_DB | "COUNTERS/``*``/Voq"| SSI | Aggregated VOQ counters for all system ports from SSI
+|COUNTERS_DB | "COUNTERS/``<asic id>``/``<system port>``/Voq"| Linecard |  All VOQ counters for a sytem port on an ASIC on linecard
+|COUNTERS_DB | "COUNTERS/``<asic id>``/``*``/Voq"| Linecard | All VOQ counters for all sytem ports on an ASIC on linecard
+|COUNTERS_DB | "COUNTERS/``<system port>``/Voq"| Supervisor | Aggregated VOQ counters for a system port from supervisor
+|COUNTERS_DB | "COUNTERS/``*``/Voq"| Supervisor | Aggregated VOQ counters for all system ports from supervisor
 
-Note: For the sake of uniformity the virtual path for `SSI` says target as `COUNTERS_DB` and table as `COUNTERS` but it will be internally mapped to `CHASSIS_COUNTERS_DB` and `COUNTERS_VOQ`.
+Note: For the sake of uniformity the virtual path for supervisor says target as `COUNTERS_DB` and table as `COUNTERS` but it will be internally mapped to `CHASSIS_COUNTERS_DB` and `COUNTERS_VOQ`.
 
 #### Repositories that need to be changed
    * sonic-buildimage 
