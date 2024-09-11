@@ -93,11 +93,10 @@ endif
 To streamline profile creation and enhance the clarity of configurations, standardized environment variables will be introduced. These changes will ensure consistent interpretation and implementation of configurations across all features:
 
 - All features that implement a docker container will have the following environment variables:
-  - `BUILD_SONIC_<FEATURE>`: Builds the relevent source code associated with the feature
-  - `INSTALL_SONIC_<FEATURE>`: Installs the docker container into the SONiC image
-  - `ENABLE_SONIC_<FEATURE>`: Enables the docker container by default when starting the SONiC image.
-  - `DELAY_SONIC_<FEATURE>`: Delays the start of the docker container until after port config is done (unless warmboot/fastboot)
-  - `AUTORESTART_SONIC_<FEATURE>`: Automatically restarts the container after failure.
+  - `INCLUDE_<FEATURE>`: Builds and installs the relevent source code associated with the feature
+  - `ENABLE_<FEATURE>`: Enables the docker container by default when starting the SONiC image.
+  - `DELAY_<FEATURE>`: Delays the start of the docker container until after port config is done (unless warmboot/fastboot)
+  - `AUTORESTART_<FEATURE>`: Automatically restarts the container after failure.
 
 #### Profiling
 
@@ -107,16 +106,16 @@ The following block of code will be added to `makefile.work`.
 
 ```bash
 # Check if SONIC_PROFILE is set
-if [ -z "$SONIC_PROFILE" ]; then
-    echo "SONIC_PROFILE is not set. Using default configuration."
-    CONFIG_FILE="rules/config"
+ifeq ($(SONIC_PROFILE),)
+    CONFIG_FILE := rules/config
+    $(info SONIC_PROFILE is not set. Using default configuration.)
 else
-    CONFIG_FILE="rules/config.$SONIC_PROFILE"
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "Configuration file $CONFIG_FILE does not exist. Using default configuration."
-        CONFIG_FILE="rules/config"
-    fi
-fi
+    CONFIG_FILE := rules/config.$(SONIC_PROFILE)
+    ifeq ($(wildcard $(CONFIG_FILE)),)
+        CONFIG_FILE := rules/config
+        $(info Configuration file $(CONFIG_FILE) does not exist. Using default configuration.)
+    endif
+endif
 
 # Import the configuration file
 include $CONFIG_FILE
