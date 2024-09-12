@@ -64,10 +64,10 @@ The VOQ stats will be updated in a new table `COUNTERS_VOQ`
 
 The following new VOQ counters should be available for each VOQ entry in the DB:
    * `COUNTERS_VOQ : LINECARD | ASIC | EthernetXXX @ LINECARD | ASIC : VOQ_index`
-     * `SAI_VOQ_STAT_PACKETS`
-     * `SAI_VOQ_STAT_BYTES`
-     * `SAI_VOQ_STAT_DROPPED_PACKETS`
-     * `SAI_VOQ_STAT_DROPPED_BYTES`
+     * `SAI_QUEUE_STAT_PACKETS`
+     * `SAI_QUEUE_STAT_BYTES`
+     * `SAI_QUEUE_STAT_DROPPED_PACKETS`
+     * `SAI_QUEUE_STAT_DROPPED_BYTES`
      * `SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS`
 
    * `COUNTERS_VOQ` is the table name.
