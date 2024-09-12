@@ -28,7 +28,7 @@
 
 ### Scope
 
-This document outlines enhancements to the SONiC build system, focusing on implementing build profiles and standardizing build configurations to support various deployment environments.
+This document outlines the introduction of a profiling system within the SONiC build process. The primary objective is to create build profiles that optimize configurations for different deployment environments, with improvements to the build system being a foundational step in this direction.
 
 ### Definitions/Abbreviations
 
@@ -36,7 +36,8 @@ This section covers the abbreviations, if any, used in this high-level design do
 
 ### Overview
 
-The SONiC Profiling feature simplifies the configuration of feature sets tailored for different use cases, such as enterprise and datacenter environments. As SONiC expands into areas like AI and enterprise networks, each use case requires specific configurations. The introduction of standardized build profiles addresses this need by streamlining the build process and ensuring that each deployment type receives the appropriate settings.
+The SONiC Profiling feature introduces a structured approach to configuration, creating profiles optimized for specific use cases such as enterprise or datacenter environments. As SONiC continues to expand into diverse applications like AI and enterprise networks, these profiles will streamline the deployment process. Standardizing build configurations is the first step towards a comprehensive profiling system, ensuring that each profile can be reliably integrated into the build process with appropriate settings for the target environment.
+
 
 ### Requirements
 
@@ -156,7 +157,7 @@ By leveraging the SONiC Profiling feature, enterprises can deploy network device
 
 #### Custom Environment
 
-Organizations may create and utilize custom profiles tailored to their unique needs. Additional configuration profiles can be created by adding a config file in the rules directory in the format config.<profile-name>. While using the SONiC profile, any configurations can be overridden during the build process by setting environment variables. For example: make SONIC_PROFILE=ENTERPRISE DEFAULT_PASSWORD='foo' target/sonic-vs.img.gz.
+Organizations may create and utilize custom profiles tailored to their unique needs. Additional configuration profiles can be created by adding a config file in the rules directory in the format `config.<profile-name>`. While using the SONiC profile, any configurations can be overridden during the build process by setting environment variables. For example: make SONIC_PROFILE=ENTERPRISE DEFAULT_PASSWORD='foo' target/sonic-vs.img.gz.
 
 This approach provides greater flexibility, allowing organizations to use an existing configuration file as a template while customizing it to better align with their specific requirements.
 
