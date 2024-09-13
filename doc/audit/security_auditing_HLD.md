@@ -47,7 +47,7 @@
 | 0.1 | 08/20/2024  | Mai Bui            | Initial version                   |
 
 ## Scope
-This section describes the audit enhancement high-level design in SONiC.
+This document describes the audit enhancement high-level design in SONiC. The scope of this document focuses on enhancing security auditing in SONiC by monitoring critical system aspects such as configuration changes, user activities, and key system files. This includes auditing files like /etc/passwd, network settings, system time changes, and Docker activities to detect unauthorized modifications.
 
 ## 1. Overview
 This design aims to enhance the auditing capabilities within SONiC operating system using audit daemon (auditd). Auditing is the process of recording and analyzing the events that occur on the device. Auditing can help to detect unauthorized access, configuration changes, malicious activity, or system errors. Auditing can also provide evidence for forensic investigations, compliance audits, or incident response.
@@ -78,6 +78,10 @@ In SONiC, audit settings are centrally managed through a configuration file at `
 - Logrotate
 - Audit rules ordering
 
+<img src="./proposed_architecture.jpeg" alt="Audit Proposed Architecture" width="700" height="400">
+
+###### Figure 1: Audit Proposed Architecture
+
 ### 3.2 Audit Rules Review
 ###### Table 2: Audit Rules Review
 These rules will be included in the image and enabled by default.
@@ -98,6 +102,17 @@ These rules will be included in the image and enabled by default.
 | Process audit            | `-a never,exit -F path=/usr/bin/docker  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/dockerd  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/containerd -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/runc -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/python* -F key=process_audit`<br>`-a exit,always -F arch=b64 -S execve -F key=process_audit`<br>`-a exit,always -F arch=b32 -S execve -F key=process_audit` |
 | Network activity         | `-a exit,always -F arch=b64 -S connect,accept,sendto,recvfrom -F key=network_activity`<br>`-a exit,always -F arch=b32 -S connect,sendto,recvfrom -F key=network_activity` |
 | Socket activity          | `-a always,exit -F arch=b64 -S socket -F key=socket_activity`<br>`-a always,exit -F arch=b32 -S socket -F key=socket_activity` |
+
+Examples:
+<pre style="white-space: pre-wrap;">
+<14>May 10 21:18:38 STG01-0101-0111-14T1 audisp-syslog: type=SYSCALL msg=audit(1715375918.777:364628): arch=c000003e syscall=257 success=yes exit=6 a0=ffffff9c a1=565091e7cd40 a2=20902 a3=0 items=1 ppid=3076081 pid=3076082 auid=1003 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=5666 comm="usermod" exe="/usr/sbin/usermod" subj=unconfined key="passwd_changes" ARCH=x86_64 SYSCALL=openat AUID="anp_dcfx_rw1" UID="root" GID="root" EUID="root" SUID="root" FSUID="root" EGID="root" SGID="root" FSGID="root"
+
+<14>May 10 20:51:01 STG01-0101-0111-14T1 audisp-syslog: type=SYSCALL msg=audit(1715374186.361:364290): arch=c000003e syscall=44 success=yes exit=78 a0=12 a1=563f55111260 a2=4e a3=4000 items=0 ppid=2392 pid=3714 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=pts0 ses=4294967295 comm="portsyncd" exe="/usr/bin/portsyncd" subj=unconfined key="network_activity" ARCH=x86_64 SYSCALL=sendto AUID="unset" UID="root" GID="root" EUID="root" SUID="root" FSUID="root" EGID="root" SGID="root" FSGID="root"
+
+<14>May 10 20:36:45 STG01-0101-0111-14T1 audisp-syslog: type=CONFIG_CHANGE msg=audit(1715373405.824:340331): auid=1011 ses=5656 subj=unconfined op=add_rule key="dns_changes" list=4 res=1 AUID="maibui"
+
+<14>May 10 20:43:04 STG01-0101-0111-14T1 audisp-syslog: type=SYSCALL msg=audit(1715373784.030:344761): arch=c000003e syscall=41 success=yes exit=7 a0=10 a1=3 a2=9 a3=1 items=0 ppid=3054883 pid=3060212 auid=1011 uid=1011 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=pts0 ses=5656 comm="sudo" exe="/usr/bin/sudo" subj=unconfined key="socket_activity" ARCH=x86_64 SYSCALL=socket AUID="maibui" UID="maibui" GID="root" EUID="root" SUID="root" FSUID="root" EGID="root" SGID="root" FSGID="root"
+</pre>
 
 ### 3.3 Configuration design
 #### 3.3.1 ConfigDB schema
@@ -182,7 +197,7 @@ module sonic-audit {
 
         container AUDIT {
 
-            description "AUDIT part of config_db.json";
+            description "AUDIT part of config_db";
 
             container config {
 
@@ -197,13 +212,17 @@ module sonic-audit {
                     description "List of audit rules";
 
                     leaf name {
-                        type string;
+                        type string {
+                            length "1..255";
+                        }
                         description "Name of the audit rule";
                     }
 
                     list rule {
                         key "rule";
-                        type string;
+                        type string {
+                            length "1..255";
+                        }
                         description "Audit rule definition";
                     }
                 }
@@ -221,17 +240,17 @@ module sonic-audit {
 ##### 3.3.3.1 Audit Init Flow
 <img src="./audit_init_flow.jpeg" alt="Audit Init Flow" width="600" height="400">
 
-###### Figure 1: Audit Init Flow
+###### Figure 2: Audit Init Flow
 
 ##### 3.3.3.2 Audit Config Flow
 <img src="./audit_config_flow.jpeg" alt="Audit Config Flow" width="1000" height="400">
 
-###### Figure 2: Audit Config Flow
+###### Figure 3: Audit Config Flow
 
 ##### 3.3.3.3 Audit Show Flow
 <img src="./audit_show_flow.jpeg" alt="Audit Show Flow" width="500" height="400">
 
-###### Figure 3: Audit Show Flow
+###### Figure 4: Audit Show Flow
 
 #### 3.3.4 CLI design
 **show command**
@@ -509,5 +528,5 @@ The new rules will be assessed with the security team to ensure compliance.
    A: The config audit disable command is intended as an enablement feature, allowing users to disable security auditing when needed, such as for performance optimization. However, only users with sudo or root-level access should have the ability to execute this command to prevent misuse.
 
 ## 6. Future Improvements
-1. Support monitor Config DB changes and auto restart auditd daemon, not depend on CLI
+1. Support most recent 5-10 change history list? Like who and when made the changes?
 2. Support only trusted user can manage the security auditing feature
