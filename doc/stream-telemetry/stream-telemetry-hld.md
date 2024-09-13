@@ -1,6 +1,6 @@
 # Stream telemetry high level design <!-- omit in toc -->
 
-## Table of Content ## <!-- omit in toc -->
+## Table of Content <!-- omit in toc -->
 
 - [Revision](#revision)
 - [Scope](#scope)
@@ -373,15 +373,15 @@ key             = STREAM_TELEMETRY_GROUP:group_name:profile_name
                     ; group_name is the object type, like PORT, BUFFER_PG or BUFFER_POOL.
                     ; Multiple groups can be bound to a same stream telemetry profile.
 ; field         = value
-object_names    = A comma separated list of object name.
-                    ; The syntax of object name is top_object_name|index_range.
+object_names    = A list of object name.
+                    ; The syntax of object name is top_object_name|index.
                     ; The object_name is the object of the top level, like port, Ethernet0,Ethernet4.
-                    ; The index range is the object in second level, like priority group.
-                    ; An example is Ethernet0|0,Ethernet4|3-4.
-object_counters = list of stats of object
-                    ; The stats name in the group. like SAI_PORT_STAT_IF_IN_OCTETS,SAI_PORT_STAT_IF_IN_UCAST_PKTS.
-                    ; comma separated list.
+                    ; The index indicates the object in second level, like priority group.
+                    ; An example is Ethernet0|0,Ethernet4|3.
+object_counters = A list of stats of object;
 ```
+
+For the schema of `STREAM_TELEMETRY_GROUP`, please refer to its [YANG model](sonic-stream-telemetry.yang).
 
 ### StateDb
 

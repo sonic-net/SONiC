@@ -5,6 +5,22 @@ module sonic-stream-telemetry {
 
     prefix sonic-stream-telemetry;
 
+    import sonic-port {
+        prefix port;
+    }
+
+    import sonic-buffer-pool {
+        prefix bpl;
+    }
+
+    import sonic-buffer-pg {
+        prefix bpg;
+    }
+
+    import sonic-buffer-queue {
+        prefix bql;
+    }
+
     container sonic-stream-telemetry {
         container STREAM_TELEMETRY_PROFILE {
             description "STREAM_TELEMETRY_PROFILE part of config_db.json";
@@ -19,19 +35,23 @@ module sonic-stream-telemetry {
                 }
 
                 leaf stream_state {
+                    mandatory true;
                     type string {
                         pattern "enabled|disabled";
                     }
                 }
 
                 leaf poll_interval {
+                    mandatory true;
                     description "The interval to poll counter, unit milliseconds.";
                     type uint32;
                 }
 
                 leaf chunk_size {
-                    type uint32;
-                    default 0;
+                    type uint32 {
+                        range "1..4294967295";
+                    }
+                    default 1;
                 }
 
                 leaf cache_size {
@@ -54,25 +74,30 @@ module sonic-stream-telemetry {
 
                 // The table name of config db
                 leaf group_name {
-                    type string {
-                        pattern "PORT|QUEUE|BUFFER_PG|BUFFER_POOL|BUFFER_QUEUE";
+                    type enumeration {
+                        enum PORT;
+                        enum BUFFER_POOL;
+                        enum BUFFER_PG;
+                        enum BUFFER_QUEUE;
                     }
                 }
 
                 leaf-list object_names {
-                    type string {
-                        pattern "\w+(\|\d+(-\d+)?)?";
-                        error-message "Invalid object names";
-                    }
-                    description "The object names to be monitored";
+                   type string;
+                   must "( ../group_name = 'PORT' and current() = /port:sonic-port/port:PORT/port:PORT_LIST/port:name )"
+                        + " or ( ../group_name = 'BUFFER_POOL' and current() = /bpl:sonic-buffer-pool/bpl:BUFFER_POOL/bpl:BUFFER_POOL_LIST/bpl:name )"
+                        + " or ( ../group_name = 'BUFFER_PG' and substring-before(current(), '|') = /bpg:sonic-buffer-pg/bpg:BUFFER_PG/bpg:BUFFER_PG_LIST/bpg:port and re-match(substring-after(current(), '|'), '[0-9]+') )"
+                        + " or ( ../group_name = 'BUFFER_QUEUE' and substring-before(current(), '|') = /bql:sonic-buffer-queue/bql:BUFFER_QUEUE/bql:BUFFER_QUEUE_LIST/bql:port and re-match(substring-after(current(), '|'), '[0-9]+') )";
                 }
 
+                must "count(object_names) > 0";
+
                 leaf-list object_counters {
-                    string {
-                        pattern "SAI_[A-Z]+_STAT_([A-Z]+_)*[A-Z]+";
-                        error-message "Invalid STATS ID for SAI object";
-                    }
-                    description "The SAI STATS ID";
+                    type string;
+                    must "( ../group_name = 'PORT' and re-match(current(), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES') )"
+                        + " or ( ../group_name = 'BUFFER_POOL' and re-match(current(), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS') )"
+                        + " or ( ../group_name = 'BUFFER_PG' and re-match(current(), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS') )"
+                        + " or ( ../group_name = 'BUFFER_QUEUE' and re-match(current(), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES') )";
                 }
 
             }
