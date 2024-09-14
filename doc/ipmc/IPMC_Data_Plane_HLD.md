@@ -105,7 +105,7 @@ For the implementation of the data plane, firstly, the fpm component does not su
 
 In ECMP routing, there is already a very elegant nexthop group design and implementation, so for IP multicast routing reference this design uses mgmanager to manage the ipmc group and rpf group.
 
-The following diagram summarizes the key structure of IPMC functionality in SONiC (The abbreviation of FRR Container is frr-pimd):
+The following diagram summarizes the key structure of IPMC functionality in SONiC:
 
 ![IPMC main structure1](images/ipmc_components.png "Figure 1: IPMC main structure")
 
