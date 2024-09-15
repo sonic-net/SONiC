@@ -514,6 +514,19 @@ Example list of xpaths which can be used for subscription
 Mapping attributes between OpenConfig YANG and SONiC YANG:
 ![openconfig to sonic mapping](images/Openconfig_system_SONiC_mapping.png)
 
+Translation Notes:  
+1. current-datetime, up-time & boot-time nodes are directly fetched from system using syscall.
+2. system/dns/config/search : Deletion of individual value is not supported currently.
+3. system/ntp -  
+   i. Server version - Only 3 and 4 are supported in SONiC  
+   ii. Server association-type - Only SERVER & POOL are supported in SONiC  
+   iii. Key-type - Only MD5 is supported as per Openconfig  
+   iv. Server network-instanse & source-address - Only a single value is supported across servers, as SONiC support these nodes in global table, not per server.  
+   v. Server source-address - SONiC has src_intf support instead of source-address in NTP configurations. Translib will fetch src_intf for given address.  
+                              So user must configure IP on Ports properly, before NTP configuration.  
+4. logging & messages severity - EMERGENCY, ALERT & CRITICAL, all these three are translated to SONiC critical level
+5. logging facility - Only ALL is supported currently
+
 # 5 Error Handling
 Invalid configurations/operations will report an error.
 
