@@ -301,6 +301,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> get --path "/openconfig-system:system"
 
 #### 3.3.3.2 SET
 Supported
+
 Sample SET logs for system/config/hostname node:
 ```
 gnmi_set -target_addr <ip:port> -update /openconfig-system:system/config/hostname:@./hostname-value.json -xpath_target OC-YANG
@@ -351,9 +352,10 @@ response: <
 
 #### 3.3.3.3 DELETE
 Supported
+
 Sample delete logs on system/config/hostname node   
 ```
-gnmi_set -target_addr localhost:8080 -insecure -notls -delete /openconfig-system:system/config/hostname -xpath_target OC-YANG
+gnmi_set -target_addr <ip:port> -delete /openconfig-system:system/config/hostname -xpath_target OC-YANG
 == setRequest:
 prefix: <
   target: "OC-YANG"
@@ -394,9 +396,10 @@ response: <
 
 #### 3.3.3.4 SUBSCRIBE
 Supported
+
 Sample telemetry logs with ON-CHANGE mode on system/config/hostname node   
 ```
-gnmic -a <ip>:<port> -u <> -p <> --insecure sub --path "/openconfig-system:system/config/hostname" --target OC-YANG --stream-mode on-change
+gnmic -a <ip>:<port> -u <> -p <> sub --path "/openconfig-system:system/config/hostname" --target OC-YANG --stream-mode on-change
 
 {
   "source": "<ip>:<port>",
@@ -418,7 +421,7 @@ gnmic -a <ip>:<port> -u <> -p <> --insecure sub --path "/openconfig-system:syste
 
 Sample telemetry logs with SAMPLE mode on system/config/hostname node   
 ```
-gnmic -a <ip>:<port> -u <> -p <> --insecure sub --path "/openconfig-system:system/config/hostname" --target OC-YANG  --stream-mode sample 
+gnmic -a <ip>:<port> -u <> -p <> sub --path "/openconfig-system:system/config/hostname" --target OC-YANG  --stream-mode sample 
 {
   "source": "<ip>:<port>",
   "subscription-name": "default-1726298785",
@@ -455,7 +458,7 @@ gnmic -a <ip>:<port> -u <> -p <> --insecure sub --path "/openconfig-system:syste
 ```
 Sample telemetry logs with ON-CHANGE mode on system/logging/remote-servers/remote-server[host=<>]/config/remote-port node   
 ```
-gnmic -a <ip>:<port> -u <> -p <> --insecure sub --path "/openconfig-system:system/logging/remote-servers/remote-server[host=3.3.2.1]/config/remote-port" --target OC-YANG --stream-mode on-change
+gnmic -a <ip>:<port> -u <> -p <> sub --path "/openconfig-system:system/logging/remote-servers/remote-server[host=3.3.2.1]/config/remote-port" --target OC-YANG --stream-mode on-change
 
 {
   "source": "<ip>:<port>",
@@ -516,8 +519,9 @@ Invalid configurations/operations will report an error.
 
 # 6 Unit Test cases
 ## 6.1 Functional Test Cases
-Operations gNMI - (Create/Update/Delete/Replace/Get/Subscribe)  
-           REST - POST/PATCH/DELETE/PUT/GET  
+Operations:  
+gNMI - (Create/Update/Delete/Replace/Get/Subscribe)  
+REST - POST/PATCH/DELETE/PUT/GET  
 1. Verify that operations supported for gNMI/REST works fine for hostname.
 2. Verify that operations supported for gNMI/REST works fine for clock/timezone-name.
 3. Verify that operations supported for gNMI/REST works fine for DNS nameserver.
