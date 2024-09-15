@@ -351,9 +351,161 @@ response: <
 
 #### 3.3.3.3 DELETE
 Supported
+Sample delete logs on system/config/hostname node   
+```
+gnmi_set -target_addr localhost:8080 -insecure -notls -delete /openconfig-system:system/config/hostname -xpath_target OC-YANG
+== setRequest:
+prefix: <
+  target: "OC-YANG"
+>
+delete: <
+  origin: "openconfig-system"
+  elem: <
+    name: "system"
+  >
+  elem: <
+    name: "config"
+  >
+  elem: <
+    name: "hostname"
+  >
+>
+
+== setResponse:
+prefix: <
+  target: "OC-YANG"
+>
+response: <
+  path: <
+    origin: "openconfig-system"
+    elem: <
+      name: "openconfig-system:system"
+    >
+    elem: <
+      name: "config"
+    >
+    elem: <
+      name: "hostname"
+    >
+  >
+  op: DELETE
+>
+```
 
 #### 3.3.3.4 SUBSCRIBE
 Supported
+Sample telemetry logs with ON-CHANGE mode on system/config/hostname node   
+```
+gnmic -a <ip>:<port> -u <> -p <> --insecure sub --path "/openconfig-system:system/config/hostname" --target OC-YANG --stream-mode on-change
+
+{
+  "source": "<ip>:<port>",
+  "subscription-name": "default-1726297999",
+  "timestamp": 1726298048063798519,
+  "time": "2024-09-14T12:44:08.063798519+05:30",
+  "prefix": "openconfig-system:system/config",
+  "target": "OC-YANG",
+  "updates": [
+    {
+      "Path": "hostname",
+      "values": {
+        "hostname": "test-hostname"
+      }
+    }
+  ]
+}
+```
+
+Sample telemetry logs with SAMPLE mode on system/config/hostname node   
+```
+gnmic -a <ip>:<port> -u <> -p <> --insecure sub --path "/openconfig-system:system/config/hostname" --target OC-YANG  --stream-mode sample 
+{
+  "source": "<ip>:<port>",
+  "subscription-name": "default-1726298785",
+  "timestamp": 1726298785374727009,
+  "time": "2024-09-14T12:56:25.374727009+05:30",
+  "prefix": "openconfig-system:system/config",
+  "target": "OC-YANG",
+  "updates": [
+    {
+      "Path": "hostname",
+      "values": {
+        "hostname": "test-hostname-1"
+      }
+    }
+  ]
+}
+
+{
+  "source": "<ip>:<port>",
+  "subscription-name": "default-1726298785",
+  "timestamp": 1726298805381331766,
+  "time": "2024-09-14T12:56:45.381331766+05:30",
+  "prefix": "openconfig-system:system/config",
+  "target": "OC-YANG",
+  "updates": [
+    {
+      "Path": "hostname",
+      "values": {
+        "hostname": "test-hostname-1"
+      }
+    }
+  ]
+}
+```
+Sample telemetry logs with ON-CHANGE mode on system/logging/remote-servers/remote-server[host=<>]/config/remote-port node   
+```
+gnmic -a <ip>:<port> -u <> -p <> --insecure sub --path "/openconfig-system:system/logging/remote-servers/remote-server[host=3.3.2.1]/config/remote-port" --target OC-YANG --stream-mode on-change
+
+{
+  "source": "<ip>:<port>",
+  "subscription-name": "default-1726301236",
+  "timestamp": 1726301236435511374,
+  "time": "2024-09-14T13:37:16.435511374+05:30",
+  "prefix": "openconfig-system:system/logging/remote-servers/remote-server[host=3.3.2.1]/config",
+  "target": "OC-YANG",
+  "updates": [
+    {
+      "Path": "remote-port",
+      "values": {
+        "remote-port": 4444
+      }
+    }
+  ]
+}
+{
+  "source": "<ip>:<port>",
+  "subscription-name": "default-1726301236",
+  "timestamp": 1726301246166992112,
+  "time": "2024-09-14T13:37:26.166992112+05:30",
+  "prefix": "openconfig-system:system/logging/remote-servers/remote-server[host=3.3.2.1]/config",
+  "target": "OC-YANG",
+  "updates": [
+    {
+      "Path": "remote-port",
+      "values": {
+        "remote-port": 3333
+      }
+    }
+  ]
+}
+```
+Example list of xpaths which can be used for subscription  
+```
+"/openconfig-system:system/config/hostname"
+"/openconfig-system:system/config/motd-banner"
+"/openconfig-system:system/config/login-banner"
+"/openconfig-system:system/state/software-version"
+"/openconfig-system:system/logging/remote-servers/remote-server[host=<>]/config/remote-port"
+"/openconfig-system:system/messages/config"
+"/openconfig-system:system/ssh-server/config"
+/openconfig-system:system/clock/config"
+"/openconfig-system:system/processes/process[pid=<>]"
+"/openconfig-system:system/dns/config"
+"/openconfig-system:system/ntp/config"
+"openconfig-system:system/ntp/ntp-keys/ntp-key[key-id=<>]/config"
+"/openconfig-system:system/ntp/servers/server[address=<>]/config"
+```
 
 # 4 Flow Diagrams
 Mapping attributes between OpenConfig YANG and SONiC YANG:
@@ -364,6 +516,8 @@ Invalid configurations/operations will report an error.
 
 # 6 Unit Test cases
 ## 6.1 Functional Test Cases
+Operations gNMI - (Create/Update/Delete/Replace/Get/Subscribe)  
+           REST - POST/PATCH/DELETE/PUT/GET  
 1. Verify that operations supported for gNMI/REST works fine for hostname.
 2. Verify that operations supported for gNMI/REST works fine for clock/timezone-name.
 3. Verify that operations supported for gNMI/REST works fine for DNS nameserver.
