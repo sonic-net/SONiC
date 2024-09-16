@@ -40,7 +40,7 @@ The SONiC Profiling feature introduces a structured approach to configuration, c
 
 #### Functional Requirements
 
-- Support multiple profiles such as ENTERPRISE, DATACENTER, and future profiles.
+- Support multiple profiles such as ENTERPRISE, DATACENTER, AI, and future environments.
 - Each profile must include a predefined set of configurations optimized for its respective use case.
 
 ### Architecture Design
