@@ -75,8 +75,8 @@ The *Scheduled Configurations* feature will allow administrators to schedule spe
 
 ### Design Requirements
 
-- **Configurability**: Administrators must be able to define time ranges for configuration activation and deactivation as well as the ability to configure new configurations at deactivation.
-- **Extensibility**: The design should be flexible to support various configuration types like ACL, QoS, port shutdown, etc...
+- **Configurability**: Administrators must be able to define time range intervals that will activate and deactivate configurations. These configurations can update the CONFIG DB during activation and deactivation.
+- **Generic**: The design should be able to configure all existing configurations available in CONFIG DB,  such as ACL, QoS, port shutdown, etc...
 
 ### Functional Requirements
 
