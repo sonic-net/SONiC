@@ -1489,7 +1489,7 @@ For the example configuration above, the following is a brief explanation of loo
             "routing_type":"privatelink",
             "mac_address":"F9-22-83-99-22-A2",
             "underlay_ip":"50.2.2.6",
-            "overlay_sip_prefix":"cca4:ac57:2546::/ffff:ffff:ffff::",
+            "overlay_sip_prefix":"ccc4:ac57:2546::/ffff:ffff:ffff::",
             "overlay_dip_prefix":"3332:0f1c:2878:c130:d6a0:a997:aa33:c63d/ffff:ffff:ffff:ffff:ffff:ffff::",
         },
         "OP": "SET"
