@@ -13,12 +13,10 @@
 			- [Inconsistent Configurations](#inconsistent-configurations)
 			- [Solution](#solution)
 		- [Profiling](#profiling)
-		- [Adjacent Considerations](#adjacent-considerations)
 	- [Use Cases](#use-cases)
 		- [Datacenter Environment](#datacenter-environment)
 		- [Enterprise Environment](#enterprise-environment)
 		- [Custom Environment](#custom-environment)
-	- [Testing](#testing)
 
 ### Revision
 
@@ -37,7 +35,6 @@ This section covers the abbreviations, if any, used in this high-level design do
 ### Overview
 
 The SONiC Profiling feature introduces a structured approach to configuration, creating profiles optimized for specific use cases such as enterprise or datacenter environments. As SONiC continues to expand into diverse applications like AI and enterprise networks, these profiles will streamline the deployment process. Standardizing build configurations is the first step towards a comprehensive profiling system, ensuring that each profile can be reliably integrated into the build process with appropriate settings for the target environment.
-
 
 ### Requirements
 
@@ -124,11 +121,6 @@ include $CONFIG_FILE
 
 Additional configurations can override the profile settings during the build process. If no `SONIC_PROFILE` is provided, the default configuration file will be used.
 
-#### Adjacent Considerations
-
-1. Identify and remove deprecated features/containers to reduce maintenance overhead.
-2. Evaluate the impact on image size and resource usage when all features are enabled. Consider optimizing containers like docker-nat for size reduction.
-
 ### Use Cases
 
 #### Datacenter Environment
@@ -160,10 +152,3 @@ By leveraging the SONiC Profiling feature, enterprises can deploy network device
 Organizations may create and utilize custom profiles tailored to their unique needs. Additional configuration profiles can be created by adding a config file in the rules directory in the format `config.<profile-name>`. While using the SONiC profile, any configurations can be overridden during the build process by setting environment variables. For example: make SONIC_PROFILE=ENTERPRISE DEFAULT_PASSWORD='foo' target/sonic-vs.img.gz.
 
 This approach provides greater flexibility, allowing organizations to use an existing configuration file as a template while customizing it to better align with their specific requirements.
-
-### Testing
-
-- Check how PTF and other testing suites interacts with features (disabled and enabled)
-	- Do changes need to be made to PTF specifically
-	- Does every profile need it's own PTF? Can these be changed in runtime?
-		- Automatic detection?
