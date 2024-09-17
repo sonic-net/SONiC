@@ -37,7 +37,7 @@
 ## List of Tables
 * [Table 1: Revision](#table-1-revision)
 * [Table 2: Audit Rules Review](#table-2-audit-rules-review)
-* [Table 3: Unit Test Cases](#table-3-unit-test-cases)
+* [Table 3: Unt Test Cases](#table-3-unit-test-cases)
 * [Table 4: System Test Cases](#table-4-system-test-cases)
 
 ## Revision
@@ -64,17 +64,21 @@ In SONiC, audit settings are centrally managed through a configuration file at `
 
 ## 3. High-level Design
 ### 3.1 Design
-- Introduce a new file, `security-auditing.rules`, into the `/etc/audit/rules.d/` directory
+- The design is intended as a group-level control mechanism.
 - A predefined set of rules (detailed in section 3.2) will be automatically enabled as the default configuration.
+- Hardcoded default rules files will be stored under the `/usr/share/sonic/auditd/` directory.
+  - The hardcoded default rule files include: `critical_files.rules`, `dns_changes.rules`, `time_changes.rules`, `shutdown_reboot.rules`, `cron_changes.rules`, `modules_changes.rules`, `auth_logs.rules`, `bin_changes.rules`, `user_group_management.rules`, `file_deletion.rules`, `log_changes.rules`, `docker_changes.rules`, `process_audit.rules`, `network_activity.rules`, `socket_activity.rules`.
+  - Users will NOT have permission to modify these files.
+- Users will have the ability to define custom rules for more fine-grained control, but this feature will be disabled by default.
+  - An empty custom rules file, custom-audit.rules, will be provided under the /usr/share/sonic/auditd/ directory.
+  - Users will have permission to modify this file.
 - Modify the `/etc/audit/plugins.d/syslog.conf` file by setting `active = yes` to enable the forwarding of auditd logs to a syslog server.
 - ConfigDB schema design, new AUDIT table in Config DB
 - YANG model
-- CLI commands to enable or disable all rules, with support for adding or removing individual rules for fine-grained control:
+- CLI commands to enable or disable all rules, with support for group-level fine-grained control:
   - `show audit`
-  - `config audit enable`
-  - `config audit disable`
-  - `config audit add <rule>`
-  - `config audit remove <rule>`
+  - `config audit enable [OPTIONS] [--all | --group <group_name>]`
+  - `config audit disable [OPTIONS] [--all | --group <group_name>]`
 - Logrotate
 - Audit rules ordering
 
@@ -87,24 +91,24 @@ In SONiC, audit settings are centrally managed through a configuration file at `
 These rules will be included in the image and enabled by default.
 | Rule name | Details |
 |--------------------------|--------------------------|
-| Critical files changes   | `-w /etc/passwd -p wa -k passwd_changes`<br>`-w /etc/shadow -p wa -k shadow_changes`<br>`-w /etc/group -p wa -k group_changes`<br>`-w /etc/sudoers -p wa -k sudoers_changes`<br>`-w /etc/hosts -p wa -k hosts_changes` |
-| DNS changes              | `-w /etc/resolv.conf -p wa -k dns_changes` |
-| Time changes             | `-w /etc/localtime -p wa -k time_changes` |
-| Shutdown reboot          | `-w /var/log/wtmp -p wa -k shutdown_reboot` |
-| Cron changes             | `-w /etc/crontab -p wa -k cron_changes`<br>`-w /etc/cron.d -p wa -k cron_changes`<br>`-w /etc/cron.daily -p wa -k cron_changes`<br>`-w /etc/cron.hourly -p wa -k cron_changes`<br>`-w /etc/cron.weekly -p wa -k cron_changes`<br>`-w /etc/cron.monthly -p wa -k cron_changes` |
-| Modules                  | `-w /sbin/insmod -p x -k modules`<br>`-w /sbin/rmmod -p x -k modules`<br>`-w /sbin/modprobe -p x -k modules` |
-| auth.log changes         | `-w /var/log/auth.log -p wa -k auth_logs` |
-| Monitor binary dirs      | `-w /bin -p wa -k bin_changes`<br>`-w /sbin -p wa -k sbin_changes`<br>`-w /usr/bin -p wa -k usr_bin_changes`<br>`-w /usr/sbin -p wa -k usr_sbin_changes` |
-| User group management    | `-a always,exit -F arch=b64 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F key=user_group_management`<br>`-a always,exit -F arch=b32 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F key=user_group_management` |
-| File deletion            | `-a exit,always -F arch=b64 -S unlink -S unlinkat -F key=file_deletion`<br>`-a exit,always -F arch=b32 -S unlink -S unlinkat -F key=file_deletion` |
-| Log changes              | `-w /var/log -p wa -k log_changes` |
-| Docker related           | `-w /usr/bin/dockerd -p wa -k docker_daemon`<br>`-w /etc/docker/daemon.json -p wa -k docker_config`<br>`-w /lib/systemd/system/docker.service -p wa -k docker_service`<br>`-w /lib/systemd/system/docker.socket -p wa -k docker_socket`<br>`-a always,exit -F arch=b64 -S execve -F path=/usr/bin/docker -k docker_commands`<br>`-w /var/lib/docker/ -p wa -k docker_storage`<br>`-a always,exit -F arch=b64 -S setuid,setgid,bind,connect -F comm="/usr/bin/docker" -k docker_sys` |
-| Process audit            | `-a never,exit -F path=/usr/bin/docker  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/dockerd  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/containerd -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/runc -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/python* -F key=process_audit`<br>`-a exit,always -F arch=b64 -S execve -F key=process_audit`<br>`-a exit,always -F arch=b32 -S execve -F key=process_audit` |
-| Network activity         | `-a exit,always -F arch=b64 -S connect,accept,sendto,recvfrom -F key=network_activity`<br>`-a exit,always -F arch=b32 -S connect,sendto,recvfrom -F key=network_activity` |
-| Socket activity          | `-a always,exit -F arch=b64 -S socket -F key=socket_activity`<br>`-a always,exit -F arch=b32 -S socket -F key=socket_activity` |
+| `critical_files`         | `-w /etc/passwd -p wa -k critical_files`<br>`-w /etc/shadow -p wa -k critical_files`<br>`-w /etc/group -p wa -k critical_files`<br>`-w /etc/sudoers -p wa -k critical_files`<br>`-w /etc/hosts -p wa -k critical_files` |
+| `dns_changes`            | `-w /etc/resolv.conf -p wa -k dns_changes` |
+| `time_changes`           | `-w /etc/localtime -p wa -k time_changes` |
+| `shutdown_reboot`        | `-w /var/log/wtmp -p wa -k shutdown_reboot` |
+| `cron_changes`           | `-w /etc/crontab -p wa -k cron_changes`<br>`-w /etc/cron.d -p wa -k cron_changes`<br>`-w /etc/cron.daily -p wa -k cron_changes`<br>`-w /etc/cron.hourly -p wa -k cron_changes`<br>`-w /etc/cron.weekly -p wa -k cron_changes`<br>`-w /etc/cron.monthly -p wa -k cron_changes` |
+| `modules_changes`        | `-w /sbin/insmod -p x -k modules_changes`<br>`-w /sbin/rmmod -p x -k modules_changes`<br>`-w /sbin/modprobe -p x -k modules_changes` |
+| `auth_logs`              | `-w /var/log/auth.log -p wa -k auth_logs` |
+| `bin_changes`            | `-w /bin -p wa -k bin_changes`<br>`-w /sbin -p wa -k bin_changes`<br>`-w /usr/bin -p wa -k bin_changes`<br>`-w /usr/sbin -p wa -k bin_changes` |
+| `user_group_management`  | `-a always,exit -F arch=b64 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F key=user_group_management`<br>`-a always,exit -F arch=b32 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F key=user_group_management` |
+| `file_deletion`          | `-a exit,always -F arch=b64 -S unlink -S unlinkat -F key=file_deletion`<br>`-a exit,always -F arch=b32 -S unlink -S unlinkat -F key=file_deletion` |
+| `log_changes`            | `-w /var/log -p wa -k log_changes` |
+| `docker_changes`         | `-w /usr/bin/dockerd -p wa -k docker_changes`<br>`-w /etc/docker/daemon.json -p wa -k docker_changes`<br>`-w /lib/systemd/system/docker.service -p wa -k docker_changes`<br>`-w /lib/systemd/system/docker.socket -p wa -k docker_changes`<br>`-a always,exit -F arch=b64 -S execve -F path=/usr/bin/docker -k docker_changes`<br>`-w /var/lib/docker/ -p wa -k docker_changes`<br>`-a always,exit -F arch=b64 -S setuid,setgid,bind,connect -F comm="/usr/bin/docker" -k docker_changes` |
+| `process_audit`          | `-a never,exit -F path=/usr/bin/docker  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/dockerd  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/containerd -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/runc -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/python* -F key=process_audit`<br>`-a exit,always -F arch=b64 -S execve -F key=process_audit`<br>`-a exit,always -F arch=b32 -S execve -F key=process_audit` |
+| `network_activity`       | `-a exit,always -F arch=b64 -S connect,accept,sendto,recvfrom -F key=network_activity`<br>`-a exit,always -F arch=b32 -S connect,sendto,recvfrom -F key=network_activity` |
+| `socket_activity`        | `-a always,exit -F arch=b64 -S socket -F key=socket_activity`<br>`-a always,exit -F arch=b32 -S socket -F key=socket_activity` |
 
 Examples:
-<pre style="white-space: pre-wrap;">
+```
 <14>May 10 21:18:38 STG01-0101-0111-14T1 audisp-syslog: type=SYSCALL msg=audit(1715375918.777:364628): arch=c000003e syscall=257 success=yes exit=6 a0=ffffff9c a1=565091e7cd40 a2=20902 a3=0 items=1 ppid=3076081 pid=3076082 auid=1003 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=5666 comm="usermod" exe="/usr/sbin/usermod" subj=unconfined key="passwd_changes" ARCH=x86_64 SYSCALL=openat AUID="anp_dcfx_rw1" UID="root" GID="root" EUID="root" SUID="root" FSUID="root" EGID="root" SGID="root" FSGID="root"
 
 <14>May 10 20:51:01 STG01-0101-0111-14T1 audisp-syslog: type=SYSCALL msg=audit(1715374186.361:364290): arch=c000003e syscall=44 success=yes exit=78 a0=12 a1=563f55111260 a2=4e a3=4000 items=0 ppid=2392 pid=3714 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=pts0 ses=4294967295 comm="portsyncd" exe="/usr/bin/portsyncd" subj=unconfined key="network_activity" ARCH=x86_64 SYSCALL=sendto AUID="unset" UID="root" GID="root" EUID="root" SUID="root" FSUID="root" EGID="root" SGID="root" FSGID="root"
@@ -112,64 +116,86 @@ Examples:
 <14>May 10 20:36:45 STG01-0101-0111-14T1 audisp-syslog: type=CONFIG_CHANGE msg=audit(1715373405.824:340331): auid=1011 ses=5656 subj=unconfined op=add_rule key="dns_changes" list=4 res=1 AUID="maibui"
 
 <14>May 10 20:43:04 STG01-0101-0111-14T1 audisp-syslog: type=SYSCALL msg=audit(1715373784.030:344761): arch=c000003e syscall=41 success=yes exit=7 a0=10 a1=3 a2=9 a3=1 items=0 ppid=3054883 pid=3060212 auid=1011 uid=1011 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=pts0 ses=5656 comm="sudo" exe="/usr/bin/sudo" subj=unconfined key="socket_activity" ARCH=x86_64 SYSCALL=socket AUID="maibui" UID="maibui" GID="root" EUID="root" SUID="root" FSUID="root" EGID="root" SGID="root" FSGID="root"
-</pre>
+```
 
 ### 3.3 Configuration design
 #### 3.3.1 ConfigDB schema
 ##### 3.3.1.1 AUDIT TABLE
-The database to be used is Config DB. A new AUDIT table will be added to the Config DB, which is responsible for storing audit configuration settings. This table allows the system to manage security auditing by defining whether auditing is enabled and specifying the rules to be applied. The structure of the AUDIT table is as follows
+The database to be used is Config DB. A new AUDIT table will be added to the Config DB, which is responsible for storing audit configuration settings. This table allows the system to manage security auditing by defining whether auditing is enabled and specifying the rules to be applied. The structure of the AUDIT table is as follows.
 ```
 ; Defines audit configuration information
 key                          = AUDIT|config                 ; Audit configuration settings
 ; field                      = value
-enable                       = boolean                      ; Indicates whether security auditing is enabled (true/false)
-RULESET                      = list                         ; List of audit rule sets
-name                         = 1*255VCHAR                   ; Name of the audit rule set
-rule                         = 1*255VCHAR                   ; Audit rule definition in auditd format
+groupid                      = 1*255VCHAR                   ; Name of the audit rule group
+groupvalue                   = enabled / disabled           ; Indicates whether the entire audit rule group is enabled or disabled
 ```
 
 ##### 3.3.1.2 Config DB JSON Sample
-The predefined list of rules in section 3.2 will be enabled as default. Example of how the audit rules might be represented in JSON format within the Config DB
+The predefined list of rules in Section 3.2 will be **enabled** by default, while the custom user-defined group will be **disabled** by default. Below is an example of how the audit rules could be represented in JSON format within the Config DB.
 ```
 {
     "AUDIT": {
         "config": {
-            "enable": "true",
-            "RULESET": [
-                {
-                    "name": "file_deletion",
-                    "rules": [
-                        "-a exit,always -F arch=b64 -S unlink -S unlinkat -F key=file_deletion",
-                        "-a exit,always -F arch=b32 -S unlink -S unlinkat -F key=file_deletion"
-                    ]
-                },
-                {
-                    "name": "dns_changes",
-                    "rules": [
-                        "-w /etc/resolv.conf -p wa -k dns_changes"
-                    ]
-                }
-            ]
+            "critical_files": "enabled",
+            "dns_changes": "enabled",
+            "time_changes": "enabled",
+            "shutdown_reboot": "enabled",
+            "cron_changes": "enabled",
+            "modules_changes": "enabled",
+            "auth_logs": "enabled",
+            "bin_changes": "enabled",
+            "user_group_management": "enabled",
+            "file_deletion": "enabled",
+            "log_changes": "enabled",
+            "docker_changes": "enabled",
+            "process_audit": "enabled",
+            "network_activity": "enabled",
+            "socket_activity": "enabled",
+            "custom_audit": "disabled"
         }
     }
 }
 ```
 
 ##### 3.3.1.3 Redis Entries Sample
-Once the AUDIT table is populated in the Config DB, the corresponding entries can be viewed in Redis. Below are example Redis commands and outputs
+Once the AUDIT table is populated in the Config DB, the corresponding entries can be viewed in Redis. Below are complete example Redis commands and outputs
 ```
 127.0.0.1:6379[4]> keys AUDIT|config
 1) "AUDIT|config"
 
 127.0.0.1:6379[4]> hgetall AUDIT|config
-1) "enable"
-2) "true"
-3) "RULESET|file_deletion|1"
-4) "-a exit,always -F arch=b64 -S unlink -S unlinkat -F key=file_deletion"
-5) "RULESET|file_deletion|2"
-6) "-a exit,always -F arch=b32 -S unlink -S unlinkat -F key=file_deletion"
-7) "RULESET|dns_changes|1"
-8) "-w /etc/resolv.conf -p wa -k dns_changes"
+1) "critical_files"
+2) "enabled"
+3) "dns_changes"
+4) "enabled"
+5) "time_changes"
+6) "enabled"
+7) "shutdown_reboot"
+8) "enabled"
+9) "cron_changes"
+10) "enabled"
+11) "modules_changes"
+12) "enabled"
+13) "auth_logs"
+14) "enabled"
+15) "bin_changes"
+16) "enabled"
+17) "user_group_management"
+18) "enabled"
+19) "file_deletion"
+20) "enabled"
+21) "log_changes"
+22) "enabled"
+23) "docker_changes"
+24) "enabled"
+25) "process_audit"
+26) "enabled"
+27) "network_activity"
+28) "enabled"
+29) "socket_activity"
+30) "enabled"
+31) "custom_audit"
+32) "disabled"
 ```
 
 #### 3.3.2 YANG model
@@ -199,41 +225,36 @@ module sonic-audit {
 
             description "AUDIT part of config_db";
 
-            container config {
+            list config {
+                key "groupid";
+                description "List of audit rules";
 
-                leaf enable {
-                    description "This configuration identicates whether enable audit";
-                    type stypes:boolean_type;
-                    default "true";
+                leaf groupid {
+                    type string {
+                        length "1..255";
+                    }
+                    description "Name of the audit rule group";
                 }
 
-                list RULESET {
-                    key "name";
-                    description "List of audit rules";
-
-                    leaf name {
-                        type string {
-                            length "1..255";
+                leaf groupvalue {
+                    type enumeration {
+                        enum "enabled" {
+                            description "Audit rule is enabled.";
                         }
-                        description "Name of the audit rule";
-                    }
-
-                    list rule {
-                        key "rule";
-                        type string {
-                            length "1..255";
+                        enum "disabled" {
+                            description "Audit rule is disabled.";
                         }
-                        description "Audit rule definition";
                     }
+                    description "Status of the audit rule group (enabled or disabled).";
                 }
             }
-            /* end of container config */
+            /* end of list config */
         }
         /* end of container AUDIT */
     }
     /* end of top level container */
 }
-+/* end of module sonic-audit */
+/* end of module sonic-audit */
 ```
 
 #### 3.3.3 Flows
@@ -260,7 +281,8 @@ module sonic-audit {
   List of current .rules files in /etc/audit/rules.d/ directory
   audisp-tacplus.rules
   audit.rules
-  security-auditing.rules
+  socket_activity.rules
+  file_deletion.rules
 
   List of all current active audit rules
   -a always,exit -F arch=b32 -S exit,execve,exit_group -F auid>1000 -F auid!=-1 -F key=tacplus
@@ -315,62 +337,32 @@ module sonic-audit {
 **config command enable/disable**
 - Usage
   ```
-  config audit <enable/disable>
+  config audit enable [OPTIONS] [--all | --group <group_name>]
+  config audit disable [OPTIONS] [--all | --group <group_name>]
   ```
 
-- `config audit enable` - enables all **security** audit rules (`security-auditing.rules`)
+- `config audit enable --all` - This command enables all predefined security audit rule groups, excluding the `custom_audit.rules` group. The default rule set is automatically applied, but custom user-defined rules are not affected by this command.
   ```
-  admin@sonic:~$ config audit enable
-  Security auditing is enabled.
-  ```
-
-- `config audit disable` - removes or disables all **security** audit rules
-  ```
-  admin@sonic:~$ config audit disable
-  Security auditing is disabled.
+  admin@sonic:~$ config audit enable --all
+  Default security auditing is enabled.
   ```
 
-**config command add/remove**
-- Usage
+- `config audit disable --all` - This command disables or removes all predefined security audit rule groups, except for the `custom_audit.rules` group. This stops the monitoring of the default system activities defined in the hardcoded rules.
   ```
-  config audit add [--name <name>] [--rules <rules>]
-  config audit remove [--name <name>]
-  ```
-
-- Requirements
-  ```
-  // Both --name and --rules are required.
-  // --name specifies the audit key name. The value provided for --name must exactly match the (-k <>/ -F key=<>) value used in the --rules.
-      // Example: time_changes
-  // --rules defines the audit rule in auditd format. 
-  // If a key is not specified (-k <>/ -F key=<>), the key will be automatically set to the value of --name. 
-  // If a key is specified, it must exactly match the value of --name.
-  // This ensures that the corresponding rule can be easily removed.
-      // Example: -w /etc/localtime -p wa -k time_changes
-
-  // A single --name value can be associated with multiple --rules entries. However, when adding rules, each rule must be added individually.
-      // Example: User wants to add/remove these rules
-      // -a always,exit -F arch=b64 -S socket -F key=socket_activity
-      // -a always,exit -F arch=b32 -S socket -F key=socket_activity
-
-      // Example CLI commands to add above rules:
-          // Step 1: config audit add --name socket_activity --rules "-a always,exit -F arch=b64 -S socket -F key=socket_activity"
-          // Step 2: config audit add --name socket_activity --rules "-a always,exit -F arch=b32 -S socket -F key=socket_activity"
-      // Example CLI commands to remove above rules:
-          // Step 1: config audit remove --name socket_activity
+  admin@sonic:~$ config audit disable --all
+  Default security auditing is disabled.
   ```
 
-- `config audit add` - add an individual audit rule  
-  For example, `--name` value is `time_changes`, which is exactly same as `-k` value in `--rules`
+- `config audit enable --group <group-name>` - This command enables a specific security audit rule group identified by `<group-name>`. For instance, enabling the network_activity group will monitor and log all network-related activities. This command also applies for `custom_audit.rules`
   ```
-  admin@sonic:~$ config audit add --name "time_changes"  --rules "-w /etc/localtime -p wa -k time_changes"
-  Added time_changes rule
+  admin@sonic:~$ config audit enable --group "network_activity"
+  network_activity auditing is enabled.
   ```
 
-- `config audit remove` - remove an individual audit rule
+- `config audit disable --group <group-name>` - This command disables a specific security audit rule group identified by `<group-name>`. The selected group will stop logging the associated activities. This command also applies for `custom_audit.rules`
   ```
-  admin@sonic:~$ config audit remove --name "time_changes"
-  Removed time_changes rule
+  admin@sonic:~$ config audit disable --group "network_activity"
+  network_activity auditing is disabled.
   ```
 
 #### 3.3.5 Logrotate
@@ -506,8 +498,6 @@ The new rules will be assessed with the security team to ensure compliance.
 | 1         | Unit Test for config audit enable  |
 | 2         | Unit Test for config audit disable |
 | 3         | Unit Test for show audit           |
-| 4         | Unit Test for config audit add     |
-| 5         | Unit Test for config audit remove  |
 
 ### 4.2 System Test cases
 ###### Table 4: System Test cases
@@ -518,8 +508,6 @@ The new rules will be assessed with the security team to ensure compliance.
 | 3         | System Test for log test - verify that audit accurately send logs to syslog server. |
 | 4         | System Test for performance test |
 | 5         | System Test for audit rule ordering test for default rules |
-| 6         | System Test for config audit add rule test |
-| 7         | System Test for config audit remove rule test |
 
 ## 5. Q&A
 1. Q: Who can enable/disable the security auditing feature?
