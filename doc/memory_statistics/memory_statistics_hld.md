@@ -163,24 +163,43 @@ The high-level feature design diagram is shown below.
 	Figure 6: Sequence diagram for displaying the current memory statistics configuration in ConfigDB using the CLI
 
 
-### Daemon Configuration Management
 
-The `memorystatsd` will dynamically manage its configuration using the `hostcfgd`. The design will:
+## **Daemon Configuration Management**
 
-1. **Read Configuration at Startup**: On startup, `memorystatsd` process will read its configuration directly from the ConfigDB to initialize its settings.
-2. **Monitor ConfigDB for Changes**: `hostcfgd` will monitor the `MEMORY_STATISTICS_TABLE` in ConfigDB for any changes to the configurations.
-3. **Signal Daemon to Reload Configuration**: When configurations are updated via CLI and written to ConfigDB, hostcfgd will detect these changes and signal `memorystatsd` process to reload its configuration.
-4. **Reload to Apply Changes**: `memorystatsd` process will reload its configurations upon receiving the signal and apply the new settings.
 
-**Workflow for Configuration Management**
+The `memorystatsd` process will dynamically manage its configuration with the help of `hostcfgd`. The design ensures reliable behavior by utilizing both a predefined configuration file and the ConfigDB for real-time updates.
 
-1. **Initial Setup**: On deployment, default settings are written to the ConfigDB.
-2. **Daemon Startup**: `memorystatsd` reads configuration from ConfigDB and initializes its parameters.
-3. **Runtime Configuration Changes**: Administrators update settings via CLI, which writes changes to ConfigDB.
-4. **Monitor ConfigDB for Changes**: `hostcfgd` detects changes in ConfigDB.
-5. **Signal Daemon to Reload Configuration**: hostcfgd signals `memorystatsd` to reload its configuration.
-6. **Reload Daemon**: `memorystatsd` process reloads the configuration to apply the new settings.
+- **Read Configuration at Startup**: Upon startup, the `memorystatsd` process reads its default configuration from a predefined config file. This guarantees that in the event of a restart—whether due to a crash or manual intervention—the daemon will always return to a known, consistent state.
 
+- **Monitor ConfigDB for Changes**: During runtime, `hostcfgd` monitors the `MEMORY_STATISTICS_TABLE` in ConfigDB for any configuration changes made via the CLI, such as adjustments to retention periods, sampling intervals, or enabling/disabling the daemon.
+
+- **Signal Daemon to Reload Configuration**: When a configuration change is detected in ConfigDB, `hostcfgd` signals the `memorystatsd` process using the `SIGHUP` signal to reload its configuration without restarting the process. This ensures the changes are applied dynamically during runtime.
+
+- **Graceful Shutdown with SIGTERM**: The `memorystatsd` process is designed to handle the `SIGTERM` signal for a graceful shutdown, allowing it to safely terminate and clean up resources. This ensures any related processes or files are properly handled before the daemon stops.
+
+- **Revert to Default on Restart**: While the daemon can reload configuration from ConfigDB during runtime, upon any restart (whether triggered by a crash or other factors), it will always revert to the default settings defined in the configuration file. This separation between startup defaults and runtime updates ensures predictable and safe behavior in the event of a failure.
+
+- **Default Disabled State**: By default, the `memorystatsd` process will be **disabled**. The user must manually enable it using the CLI before it starts collecting memory statistics. This provides control over when the daemon begins its operations.
+
+### **Workflow for Configuration Management**:
+
+1. **Initial Setup**: Default settings, including retention periods and sampling intervals, are written to the config file during deployment. Optionally, these settings may also be written to ConfigDB.
+   
+2. **Daemon Startup**: On startup, `memorystatsd` reads its configuration from the predefined config file, initializing the necessary parameters such as retention period and sampling interval. However, it will start in a **disabled state** by default, requiring manual activation.
+
+3. **Enable Daemon Manually**: Administrators need to manually enable the `memorystatsd` process via the CLI before it starts collecting memory statistics.
+
+4. **Runtime Configuration Changes**: Administrators can modify settings like retention periods or sampling intervals via the CLI. These changes are written directly to the `MEMORY_STATISTICS_TABLE` in ConfigDB.
+
+5. **Monitor ConfigDB for Changes**: `hostcfgd` continuously monitors ConfigDB for updates to the `MEMORY_STATISTICS_TABLE`.
+
+6. **Signal Daemon to Reload Configuration**: Upon detecting changes in ConfigDB, `hostcfgd` sends a `SIGHUP` signal to the `memorystatsd` daemon, prompting it to reload its configuration without restarting.
+
+7. **Reload Daemon**: The `memorystatsd` process applies the new settings from ConfigDB dynamically, allowing the daemon to continue operating with updated parameters during runtime.
+
+8. **Handling Crashes and Restarts**: In case of a crash or restart, the `memorystatsd` daemon will always reload its default settings from the config file, ensuring a consistent startup state. Runtime-configured values from ConfigDB are only applied during runtime and not retained after a restart unless manually reloaded.
+
+9. **Graceful Shutdown**: When the daemon needs to be stopped, the `SIGTERM` signal ensures a graceful shutdown, where the daemon cleans up resources and terminates smoothly.
 
 ## SAI API
 
