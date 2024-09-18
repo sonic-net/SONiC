@@ -70,7 +70,7 @@ In SONiC, audit settings are centrally managed through a configuration file at `
   - The hardcoded default rule files include: `critical_files.rules`, `dns_changes.rules`, `time_changes.rules`, `shutdown_reboot.rules`, `cron_changes.rules`, `modules_changes.rules`, `auth_logs.rules`, `bin_changes.rules`, `user_group_management.rules`, `file_deletion.rules`, `log_changes.rules`, `docker_changes.rules`, `process_audit.rules`, `network_activity.rules`, `socket_activity.rules`.
   - Users will NOT have permission to modify these files.
 - Users will have the ability to define custom rules for more fine-grained control, but this feature will be disabled by default.
-  - An empty custom rules file, custom-audit.rules, will be provided under the /usr/share/sonic/auditd/ directory.
+  - An empty custom rules file, `custom_audit.rules`, will be provided under the `/usr/share/sonic/auditd/` directory.
   - Users will have permission to modify this file.
 - Modify the `/etc/audit/plugins.d/syslog.conf` file by setting `active = yes` to enable the forwarding of auditd logs to a syslog server.
 - ConfigDB schema design, new AUDIT table in Config DB
@@ -268,6 +268,26 @@ module sonic-audit {
 
 ###### Figure 3: Audit Config Flow
 
+**Hardcoded default rule group**
+Hardcoded default rules files will be stored under the `/usr/share/sonic/auditd/` directory.
+
+The hardcoded default rule files include: `critical_files.rules`, `dns_changes.rules`, `time_changes.rules`, `shutdown_reboot.rules`, `cron_changes.rules`, `modules_changes.rules`, `auth_logs.rules`, `bin_changes.rules`, `user_group_management.rules`, `file_deletion.rules`, `log_changes.rules`, `docker_changes.rules`, `process_audit.rules`, `network_activity.rules`, `socket_activity.rules`.
+  
+Users will NOT have permission to modify these files.
+
+To enable, users may simply use `sudo config audit enable --group <group-name>`. hostcfgd will copy rule file from `/usr/share/sonic/auditd/` to `/etc/audit/rules.d/` and restart auditd service.
+
+To disable, users may simply use `sudo config audit disable --group <group-name>`. hostcfgd will remove rule file from `/etc/audit/rules.d/` and restart auditd service.
+
+**User-defined custom rule group**
+User-defined custom rule files will be stored under the `/usr/share/sonic/auditd/` directory, named `custom_audit.rules`
+  
+Users will have permission to modify this custom file.
+
+To enable, users may 1) modify `custom_audit.rules` file and 2) execute `sudo config audit enable --group custom_audit`. click CLI will validate input in `custom_audit.rules` file. hostcfgd will copy `custom_audit.rules` file from `/usr/share/sonic/auditd/` to `/etc/audit/rules.d/` and restart auditd service.
+
+To disable, users may 1) empty/remove `custom_audit.rules` file and 2) execute `sudo config audit disable --group custom_audit`. click CLI will validate input in `custom_audit.rules` file. hostcfgd will remove `custom_audit.rules` file from `/etc/audit/rules.d/` and restart auditd service.
+
 ##### 3.3.3.3 Audit Show Flow
 <img src="./audit_show_flow.jpeg" alt="Audit Show Flow" width="500" height="400">
 
@@ -341,30 +361,30 @@ module sonic-audit {
   config audit disable [OPTIONS] [--all | --group <group_name>]
   ```
 
-- `config audit enable --all` - This command enables all predefined security audit rule groups, excluding the `custom_audit.rules` group. The default rule set is automatically applied, but custom user-defined rules are not affected by this command.
+- `config audit enable --all` - This command enables all predefined security audit rule groups.
   ```
   admin@sonic:~$ config audit enable --all
   Default security auditing is enabled.
   ```
 
-- `config audit disable --all` - This command disables or removes all predefined security audit rule groups, except for the `custom_audit.rules` group. This stops the monitoring of the default system activities defined in the hardcoded rules.
+- `config audit disable --all` - This command disables or removes all predefined security audit rule groups.
   ```
   admin@sonic:~$ config audit disable --all
   Default security auditing is disabled.
   ```
 
-- `config audit enable --group <group-name>` - This command enables a specific security audit rule group identified by `<group-name>`. For instance, enabling the network_activity group will monitor and log all network-related activities. This command also applies for `custom_audit.rules`
+- `config audit enable --group <group-name>` - This command enables a specific security audit rule group identified by `<group-name>`. For instance, enabling the network_activity group will monitor and log all network-related activities.
   ```
   admin@sonic:~$ config audit enable --group "network_activity"
   network_activity auditing is enabled.
   ```
 
-- `config audit disable --group <group-name>` - This command disables a specific security audit rule group identified by `<group-name>`. The selected group will stop logging the associated activities. This command also applies for `custom_audit.rules`
+- `config audit disable --group <group-name>` - This command disables a specific security audit rule group identified by `<group-name>`. The selected group will stop logging the associated activities.
   ```
   admin@sonic:~$ config audit disable --group "network_activity"
   network_activity auditing is disabled.
   ```
-
+ 
 #### 3.3.5 Logrotate
 The following settings in the `/etc/logrotate.d/audit` file set up log rotation for audit logs:
 ```
@@ -427,31 +447,31 @@ Monitor memory and CPU utilization for auditd and kauditd processes over an hour
 Number of logs per key
 | Audit Key | Count By Key |
 |-----------|---------------|
-| network_activity |	72021|
-| socket_activity |	3312 |
-| user_group_management	| 801 |
-| process_audit	| 729 |
-| file_deletion	| 529 |
-| tacplus	| 259 |
-| log_changes	| 199 |
+| network_activity | 72021|
+| socket_activity | 3312 |
+| user_group_management | 801 |
+| process_audit | 729 |
+| file_deletion | 529 |
+| tacplus | 259 |
+| log_changes | 199 |
 | docker_storage | 156 |
 | cron_changes | 6 |
-| shutdown_reboot |	4 |
-| modules	| 3 |
-| auth_logs	| 1 |
-| bin_changes	| 1 |
+| shutdown_reboot | 4 |
+| modules | 3 |
+| auth_logs | 1 |
+| bin_changes | 1 |
 | time_changes | 1 |
-| dns_changes	| 1 |
+| dns_changes | 1 |
 | sbin_changes | 1 |
 | usr_bin_changes | 1 |
 | usr_sbin_changes | 1 |
 | docker_socket | 1 |
 | docker_commands | 1 |
 | docker_service | 1 |
-| hosts_changes	| 1 |
-| sudoers_changes	| 1 |
-| docker_config	| 1 |
-| docker_daemon	| 1 |
+| hosts_changes | 1 |
+| sudoers_changes | 1 |
+| docker_config | 1 |
+| docker_daemon | 1 |
 
 Processes in network_activity key
 | Process | Count By Process |
@@ -462,26 +482,26 @@ Processes in network_activity key
 | /usr/bin/python3.9 | 7313 |
 | /usr/bin/vtysh | 809 |
 | /usr/bin/redis-check-rdb | 485 |
-| /usr/bin/docker	| 354 |
+| /usr/bin/docker | 354 |
 | /usr/bin/teamd | 322 |
-| /usr/sbin/lldpd	| 307 |
+| /usr/sbin/lldpd | 307 |
 | /usr/sbin/audisp-tacplus | 276 |
 | /usr/bin/sudo | 190 |
 | /usr/sbin/sshd | 174 |
-| /usr/bin/eventd	| 166 |
-| /usr/bin/bash	| 116 |
-| /bin/bash	| 114 |
+| /usr/bin/eventd | 166 |
+| /usr/bin/bash | 116 |
+| /bin/bash | 114 |
 | /usr/sbin/auditctl| 68 |
-| /usr/sbin/lldpcli	| 55 |
-| /usr/lib/frr/bgpd	| 44 |
+| /usr/sbin/lldpcli | 55 |
+| /usr/lib/frr/bgpd | 44 |
 | /usr/sbin/ntpd | 37 |
 | /usr/lib/frr/zebra | 35 |
 | /usr/bin/monit | 35 |
 | /usr/lib/frr/staticd | 29 |
 | /usr/sbin/cron | 19 |
 | /usr/bin/systemctl | 15 |
-| /usr/bin/rsyslog_plugin	| 12 |
-| /usr/sbin/usermod	| 2 |
+| /usr/bin/rsyslog_plugin | 12 |
+| /usr/sbin/usermod | 2 |
 | /usr/bin/syncd | 2 |
 
 ### 3.9 Audit Rule Order
