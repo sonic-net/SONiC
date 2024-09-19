@@ -25,14 +25,17 @@
     - [STREAM\_TELEMETRY\_SESSION](#stream_telemetry_session)
   - [Work Flow](#work-flow)
   - [SAI API](#sai-api)
-    - [Create HOSTIF object](#create-hostif-object)
+    - [Creating HOSTIF object](#creating-hostif-object)
+    - [Creating HOSTIF trap group](#creating-hostif-trap-group)
+    - [Creating HOSTIF user defined trap](#creating-hostif-user-defined-trap)
+    - [Creating Hostif table entry](#creating-hostif-table-entry)
     - [Creating TAM transport object](#creating-tam-transport-object)
     - [Creating TAM collector object](#creating-tam-collector-object)
     - [Creating TAM report object](#creating-tam-report-object)
     - [Creating TAM telemetry type object](#creating-tam-telemetry-type-object)
     - [Creating TAM telemetry object](#creating-tam-telemetry-object)
-    - [Create TAM counter subscription objects](#create-tam-counter-subscription-objects)
-    - [Create TAM object](#create-tam-object)
+    - [Creating TAM counter subscription objects](#creating-tam-counter-subscription-objects)
+    - [Creating TAM object](#creating-tam-object)
     - [Query IPFIX template](#query-ipfix-template)
     - [Enable/Disable telemetry stream](#enabledisable-telemetry-stream)
 - [Configuration and management](#configuration-and-management)
@@ -152,7 +155,7 @@ The `counter syncd` is a new module that runs within the GNMI container. Its pri
 constants:
     stream_telemetry:
         genl_family: "sonic_stel"
-        genl_multicast_group: "stats"
+        genl_multicast_group: "ipfix"
 }
 
 ```
@@ -427,7 +430,7 @@ sequenceDiagram
         participant netlink_module as Netlink module
     end
     participant asic as ASIC
-    
+
     counter --> counter: Initialize genetlink
     config_db ->> st_orch: STREAM_TELEMETRY_PROFILE
     opt Is the first telemetry profile?
@@ -479,13 +482,29 @@ sequenceDiagram
 title: Stream Telemetry SAI Objects
 ---
 erDiagram
+    hostif_trap_group [HOSTIF_trap_group] {
+        SAI_ID SAI_VALUE "Comments"
+    }
     hostif[HOSTIF] {
         SAI_ID SAI_VALUE "Comments"
         SAI_HOSTIF_ATTR_TYPE SAI_HOSTIF_TYPE_GENETLINK
         SAI_HOSTIF_ATTR_OPER_STATUS true
         SAI_HOSTIF_ATTR_NAME sonic_stel "constant variables"
-        SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME stats "constant variables"
+        SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME ipfix "constant variables"
     }
+    host_table_entry [HOSTIF_table_entry] {
+        SAI_ID SAI_VALUE "Comments"
+        SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE SAI_HOSTIF_TABLE_ENTRY_TYPE_TRAP_ID
+        SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID sai_hostif_udt_obj
+        SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE SAI_HOSTIF_TABLE_ENTRY_CHANNEL_TYPE_GENETLINK
+        SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF sai_hostif_obj
+    }
+    hostif_trap [HostIF_user_defined_trap] {
+        SAI_ID SAI_VALUE "Comments"
+        SAI_HOSTIF_USER_DEFINED_TRAP_ATTR_TYPE SAI_HOSTIF_USER_DEFINED_TRAP_TYPE_TAM
+        SAI_HOSTIF_USER_DEFINED_TRAP_ATTR_TRAP_GROUP sai_trap_group_obj
+    }
+
     transport[TAM_transport] {
         SAI_ID SAI_VALUE "Comments"
         SAI_TAM_TRANSPORT_ATTR_TRANSPORT_TYPE SAI_TAM_TRANSPORT_TYPE_NONE
@@ -494,7 +513,7 @@ erDiagram
         SAI_ID SAI_VALUE "Comments"
         SAI_TAM_COLLECTOR_ATTR_TRANSPORT sai_tam_transport_obj
         SAI_TAM_COLLECTOR_ATTR_LOCALHOST true
-        SAI_TAM_COLLECTOR_ATTR_HOSTIF sai_hostif_obj
+        SAI_TAM_COLLECTOR_ATTR_HOSTIF sai_hostif_udt_obj
         SAI_TAM_COLLECTOR_ATTR_DSCP_VALUE _0
     }
     report[TAM_report] {
@@ -536,7 +555,10 @@ erDiagram
         SAI_SWITCH_ATTR_TAM_OBJECT_ID sai_tam_obj
     }
 
-    collector |o--|| hostif: binds
+    host_table_entry |o--|| hostif: binds
+    host_table_entry |o--|| hostif_trap: binds
+    hostif_trap |o--|| hostif_trap_group: binds
+    collector |o--|| hostif_trap: binds
     collector |o--|| transport: binds
     telemetry_type |o--|| report: binds
     telemetry |o--o| telemetry_type: binds
@@ -549,6 +571,9 @@ erDiagram
 | Object Type              | Scope                        |
 | ------------------------ | ---------------------------- |
 | HOSTIF                   | Global                       |
+| HOSTIF_trap_group        | Global                       |
+| HostIF_user_defined_trap | Global                       |
+| HOSTIF_table_entry       | Global                       |
 | TAM_transport            | Global                       |
 | TAM_collector            | Global                       |
 | TAM                      | per STREAM_TELEMETRY profile |
@@ -557,7 +582,7 @@ erDiagram
 | TAM_report               | per STREAM_TELEMETRY profile |
 | TAM_counter_subscription | per stats of object          |
 
-#### Create HOSTIF object
+#### Creating HOSTIF object
 
 ``` c++
 
@@ -573,10 +598,54 @@ strncpy(sai_attr_list[2].value.chardata, "sonic_stel", strlen("sonic_stel") + 1)
 
 // Set genetlink group
 sai_attr_list[3].id = SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME;
-strncpy(sai_attr_list[3].value.chardata, "stats", strlen("stats") + 1);
+strncpy(sai_attr_list[3].value.chardata, "ipfix", strlen("ipfix") + 1);
 
 attr_count = 4;
 create_hostif(sai_hostif_obj, switch_id, attr_count, sai_attr_list);
+
+```
+
+#### Creating HOSTIF trap group
+
+``` c++
+
+create_hostif_trap_group(sai_trap_group_obj, switch_id, 0, NULL);
+
+```
+
+#### Creating HOSTIF user defined trap
+
+``` c++
+
+sai_attr_list[0].id = SAI_HOSTIF_USER_DEFINED_TRAP_ATTR_TYPE;
+sai_attr_list[0].value.s32 = SAI_HOSTIF_USER_DEFINED_TRAP_TYPE_TAM;
+
+sai_attr_list[1].id = SAI_HOSTIF_USER_DEFINED_TRAP_ATTR_TRAP_GROUP;
+sai_attr_list[1].value.oid = sai_trap_group_obj;
+
+attr_count = 2;
+sai_create_hostif_user_defined_trap_fn(&sai_hostif_udt_obj, switch_id, attr_count, sai_attr_list);
+
+```
+
+#### Creating Hostif table entry
+
+``` c++
+
+sai_attr_list[0].id = SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE;
+sai_attr_list[0].value.s32 = SAI_HOSTIF_TABLE_ENTRY_TYPE_TRAP_ID;
+
+sai_attr_list[1].id = SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID;
+sai_attr_list[1].value.oid = sai_hostif_udt_obj;
+
+sai_attr_list[2].id = SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE;
+sai_attr_list[2].value.s32 = SAI_HOSTIF_TABLE_ENTRY_CHANNEL_TYPE_GENETLINK;
+
+sai_attr_list[3].id = SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF;
+sai_attr_list[3].value.oid = sai_hostif_obj;
+
+attr_count = 4;
+sai_create_hostif_table_entry_fn(&sai_hostif_table_entry_obj, switch_id, attr_count, sai_attr_list);
 
 ```
 
@@ -585,35 +654,13 @@ create_hostif(sai_hostif_obj, switch_id, attr_count, sai_attr_list);
 ``` c++
 
 sai_attr_list[0].id = SAI_TAM_TRANSPORT_ATTR_TRANSPORT_TYPE;
-sai_attr_list[0].value.s32 = SAI_TAM_TRANSPORT_TYPE_NONE; 
-
+sai_attr_list[0].value.s32 = SAI_TAM_TRANSPORT_TYPE_NONE;
 attr_count = 1;
 sai_create_tam_transport_fn(&sai_tam_transport_obj, switch_id, attr_count, sai_attr_list);
 
 ```
 
 #### Creating TAM collector object
-
-``` c++
-typedef enum _sai_tam_collector_attr_t
-{
-    // ...
-
-    /**
-     * @brief Hostif object used to reach local host via GENETLINK
-     *
-     * @type sai_object_id_t
-     * @flags CREATE_AND_SET
-     * @objects SAI_OBJECT_TYPE_HOSTIF
-     * @allownull true
-     * @default SAI_NULL_OBJECT_ID
-     * @validonly SAI_TAM_COLLECTOR_ATTR_LOCALHOST == true
-     */
-    SAI_TAM_COLLECTOR_ATTR_HOSTIF,
-
-    // ...
-} sai_tam_collector_attr_t;
-```
 
 ``` c++
 
@@ -623,8 +670,8 @@ sai_attr_list[0].value.oid = sai_tam_transport_obj;
 sai_attr_list[1].id = SAI_TAM_COLLECTOR_ATTR_LOCALHOST;
 sai_attr_list[1].value.booldata = true;
 
-sai_attr_list[2].id = SAI_TAM_COLLECTOR_ATTR_HOSTIF;
-sai_attr_list[2].value.oid = sai_hostif_obj;
+sai_attr_list[2].id = SAI_TAM_COLLECTOR_ATTR_HOSTIF_TRAP;
+sai_attr_list[2].value.oid = sai_hostif_udt_obj;
 
 sai_attr_list[3].id = SAI_TAM_COLLECTOR_ATTR_DSCP_VALUE;
 sai_attr_list[3].value.u8 = 0;
@@ -659,7 +706,7 @@ typedef enum _sai_tam_report_attr_t
     SAI_TAM_REPORT_ATTR_REPORT_IPFIX_TEMPLATE_ID,
 
     /**
-     * @brief query IPFIX template 
+     * @brief query IPFIX template
      *
      * Return the IPFIX template binary buffer
      *
@@ -835,7 +882,7 @@ sai_create_tam_telemetry_fn(&sai_tam_telemetry_obj, switch_id, attr_count, sai_a
 
 ```
 
-#### Create TAM counter subscription objects
+#### Creating TAM counter subscription objects
 
 Based on the STREAM_TELEMETRY_GROUP on Config DB, to create corresponding counter subscription objects.
 
@@ -858,19 +905,19 @@ create_tam_counter_subscription(&sai_tam_counter_subscription_obj, switch_id, at
 // If this stats of object cannot support this poll frequency, this API should return SAI_STATUS_NOT_SUPPORTED.
 ```
 
-#### Create TAM object
+#### Creating TAM object
 
 ``` c++
 
 sai_attr_list[0].id = SAI_TAM_ATTR_TELEMETRY_OBJECTS_LIST;
 sai_attr_list[0].value.objlist.count = 1;
 sai_attr_list[0].value.objlist.list[0] = sai_tam_telemetry_obj;
- 
+
 sai_attr_list[1].id = SAI_TAM_ATTR_TAM_BIND_POINT_TYPE_LIST;
 sai_attr_list[1].value.objlist.count = 2;
 sai_attr_list[1].value.objlist.list[0] = SAI_TAM_BIND_POINT_TYPE_PORT;
-sai_attr_list[1].value.objlist.list[0] = SAI_TAM_BIND_POINT_TYPE_QUEUE; 
- 
+sai_attr_list[1].value.objlist.list[0] = SAI_TAM_BIND_POINT_TYPE_QUEUE;
+
 attr_count = 2;
 sai_create_tam_fn(&sai_tam_obj, switch_id, attr_count, sai_attr_list);
 
@@ -925,7 +972,7 @@ set_switch_attribute(switch_id, sai_attr)
 
 N/A
 
-### CLI/YANG model Enhancements 
+### CLI/YANG model Enhancements
 
 #### Config CLI
 
