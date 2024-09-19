@@ -37,7 +37,7 @@
 ## List of Tables
 * [Table 1: Revision](#table-1-revision)
 * [Table 2: Audit Rules Review](#table-2-audit-rules-review)
-* [Table 3: Unt Test Cases](#table-3-unit-test-cases)
+* [Table 3: Unit Test Cases](#table-3-unit-test-cases)
 * [Table 4: System Test Cases](#table-4-system-test-cases)
 
 ## Revision
@@ -127,7 +127,7 @@ The database to be used is Config DB. A new AUDIT table will be added to the Con
 key                          = AUDIT|config                 ; Audit configuration settings
 ; field                      = value
 groupid                      = 1*255VCHAR                   ; Name of the audit rule group
-groupvalue                   = enabled / disabled           ; Indicates whether the entire audit rule group is enabled or disabled
+groupvalue                   = enable / disable           ; Indicates whether the entire audit rule group is enabled or disabled
 ```
 
 ##### 3.3.1.2 Config DB JSON Sample
@@ -136,22 +136,22 @@ The predefined list of rules in Section 3.2 will be **enabled** by default, whil
 {
     "AUDIT": {
         "config": {
-            "critical_files": "enabled",
-            "dns_changes": "enabled",
-            "time_changes": "enabled",
-            "shutdown_reboot": "enabled",
-            "cron_changes": "enabled",
-            "modules_changes": "enabled",
-            "auth_logs": "enabled",
-            "bin_changes": "enabled",
-            "user_group_management": "enabled",
-            "file_deletion": "enabled",
-            "log_changes": "enabled",
-            "docker_changes": "enabled",
-            "process_audit": "enabled",
-            "network_activity": "enabled",
-            "socket_activity": "enabled",
-            "custom_audit": "disabled"
+            "critical_files": "enable",
+            "dns_changes": "enable",
+            "time_changes": "enable",
+            "shutdown_reboot": "enable",
+            "cron_changes": "enable",
+            "modules_changes": "enable",
+            "auth_logs": "enable",
+            "bin_changes": "enable",
+            "user_group_management": "enable",
+            "file_deletion": "enable",
+            "log_changes": "enable",
+            "docker_changes": "enable",
+            "process_audit": "enable",
+            "network_activity": "enable",
+            "socket_activity": "enable",
+            "custom_audit": "disable"
         }
     }
 }
@@ -165,37 +165,37 @@ Once the AUDIT table is populated in the Config DB, the corresponding entries ca
 
 127.0.0.1:6379[4]> hgetall AUDIT|config
 1) "critical_files"
-2) "enabled"
+2) "enable"
 3) "dns_changes"
-4) "enabled"
+4) "enable"
 5) "time_changes"
-6) "enabled"
+6) "enable"
 7) "shutdown_reboot"
-8) "enabled"
+8) "enable"
 9) "cron_changes"
-10) "enabled"
+10) "enable"
 11) "modules_changes"
-12) "enabled"
+12) "enable"
 13) "auth_logs"
-14) "enabled"
+14) "enable"
 15) "bin_changes"
-16) "enabled"
+16) "enable"
 17) "user_group_management"
-18) "enabled"
+18) "enable"
 19) "file_deletion"
-20) "enabled"
+20) "enable"
 21) "log_changes"
-22) "enabled"
+22) "enable"
 23) "docker_changes"
-24) "enabled"
+24) "enable"
 25) "process_audit"
-26) "enabled"
+26) "enable"
 27) "network_activity"
-28) "enabled"
+28) "enable"
 29) "socket_activity"
-30) "enabled"
+30) "enable"
 31) "custom_audit"
-32) "disabled"
+32) "disable"
 ```
 
 #### 3.3.2 YANG model
@@ -238,14 +238,14 @@ module sonic-audit {
 
                 leaf groupvalue {
                     type enumeration {
-                        enum "enabled" {
+                        enum "enable" {
                             description "Audit rule is enabled.";
                         }
-                        enum "disabled" {
+                        enum "disable" {
                             description "Audit rule is disabled.";
                         }
                     }
-                    description "Status of the audit rule group (enabled or disabled).";
+                    description "Status of the audit rule group (enable or disable).";
                 }
             }
             /* end of list config */
