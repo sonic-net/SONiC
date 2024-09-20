@@ -70,7 +70,7 @@ When a Redis Client is requested through this new function, the Redis Client is 
 
 #### TransactionalRedisClient(db DBNum)
 
-The TransactionalRedisClient function takes in a database number, defined in [db.go](https://github.com/sonic-net/sonic-mgmt-common/blob/master/translib/db/db.go#L136), creates a new Redis Client for that database with a PoolSize of 1, and returns it to the caller. This Redis Client is not shared with any other client and it can be used for [Transactional Redis Operations](https://redis.io/docs/latest/develop/interact/transactions/) (such as MULTI, EXEC, PSUBSCRIBE, etc...). This client must be closed after it is done being used, by calling CloseRedisClient.
+The TransactionalRedisClient function takes in a database number, defined in [db.go](https://github.com/sonic-net/sonic-mgmt-common/blob/master/translib/db/db.go#L136), creates a new Redis Client for that database with a PoolSize of 1, and returns it to the caller. This Redis Client is not shared with any other client and it can be used for [Transactional Redis Operations](https://redis.io/docs/latest/develop/interact/transactions/) (such as MULTI, EXEC, PSUBSCRIBE, etc...). This client must be closed after it is done being used, by calling CloseRedisClient. The Redis Options that are used to create the client will be fetched using the existing [adjustRedisOpts()](https://github.com/sonic-net/sonic-mgmt-common/blob/master/translib/db/db_redis_opts.go#L80) API.
 
 No initialization is required to support this function. A new client is created using redis.NewClient when this function is called. This process looks like this:
 
@@ -97,7 +97,7 @@ RCM keeps counters for the number of requests for Redis Clients. The counters ar
 
 Additionally go-redis has internal counters for Connection Pools that can be accessed for each Redis Client in the cache. More details are provided [here](https://pkg.go.dev/github.com/go-redis/redis/v8@v8.11.5/internal/pool#Stats).
 
-The counters can be fetched through another function provided by RCM, called RedisClientManagerCounters().
+The counters will be managed by RCM and exported through the existing [DBStats](https://github.com/sonic-net/sonic-mgmt-common/blob/master/translib/db/db_stats.go) API. This will require modifications to the existing API to integrate these new counters.
 
 #### Command Line Flag
 
@@ -112,6 +112,29 @@ When "use_connection_pools" is false, all calls to RedisClient() will just call 
 In all places where a Redis Client is not used to perform a transactional operation, the call will be refactored to use RedisClient(). This will result in the caller now using a shared Redis Client with a connection pool. This will significantly reduce the number of new Redis Clients and connections to Redis.
 
 In all places where a transactional operation is performed, the call will be refactored to use TransactionalRedisClient(). This will give the caller a new Redis Client that is unique. If more options need to be specified, the call will be refactored to use TransactionalRedisClientWithOpts().
+
+The calls to redis.NewClient() that will be refactored are:
+- [db.go:401](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db.go#L401): RedisClient or TransactionalRedisClient depending on the value of the `TransactionsRequired` option.
+- [db_lock.go:268](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db_lock.go#L268): TransactionalRedisClient
+- [db_stats.go:538](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db_stats.go#L538): TransactionalRedisClient
+- []
+
+Since calls to [NewDB()](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db.go#L388) will need to result in using a pool or transactional Redis Client, the caller will need to specify which one is needed. A new DB [Option](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db.go#L164) is being introduced, called `TrasactionsRequired`. If a transactional Redis Client is needed, the caller of NewDB() needs to pass this option in, otherwise a pool client will be used.
+
+All the calls to NewDB() and their corresponding `TransactionsRequired` value are:
+- [cs.go:183](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/cs/cs.go#L183): TrasactionsRequired=`true`
+- [cs_getdb.go:49](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/cs/cs_getdb.go#L49): TrasactionsRequired=`true`
+- [db/subscribe.go:145](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/subscribe.go#L145): TransactionsRequired=`true`
+- [subscribe.go:176](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L176): TransactionsRequired=`true`
+- [subscribe.go:223](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L223): TransactionsRequired=`false`
+- [subscribe.go:275](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L275): TransactionsRequired=`false`
+- [subscribe.go:467](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L467): TransactionsRequired=`true`
+- [translib:go:179](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L179): TransactionsRequired=`true`
+- [translib.go:252](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L252): TransactionsRequired=`true`
+- [translib.go:326](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L326): TransactionsRequired=`true`
+- [translib.go:399](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L399): TransactionsRequired=`true`
+- [translib.go:569](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L569): TransactionsRequired=`true`
+- [translib.go:468](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L468): TransactionsRequired=`false`
 
 All calls to redis.Close() will be replaced with calls to CloseRedisClient(). This will ensure that Redis Clients that use connection pools are not closed.
 
