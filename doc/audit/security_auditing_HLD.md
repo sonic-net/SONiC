@@ -37,7 +37,7 @@
 ## List of Tables
 * [Table 1: Revision](#table-1-revision)
 * [Table 2: Audit Rules Review](#table-2-audit-rules-review)
-* [Table 3: Unt Test Cases](#table-3-unit-test-cases)
+* [Table 3: Unit Test Cases](#table-3-unit-test-cases)
 * [Table 4: System Test Cases](#table-4-system-test-cases)
 
 ## Revision
