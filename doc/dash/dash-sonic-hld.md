@@ -362,7 +362,7 @@ DASH_ENI_TABLE:{{eni}}
     "underlay_ip": {{ip_addr}}
     "admin_state": {{enabled/disabled}}
     "vnet": {{vnet_name}}
-    "pl_sip_encoding": {{ip_prefix}} (OPTIONAL) (OBSOLETED)
+    "pl_sip_encoding": {{ip_prefix}} (OPTIONAL)
     "pl_underlay_sip": {{ip_addr}} (OPTIONAL)
     "v4_meter_policy_id": {{string}} (OPTIONAL)
     "v6_meter_policy_id": {{string}} (OPTIONAL)
@@ -376,8 +376,7 @@ qos                      = Associated Qos profile
 underlay_ip              = PA address for Inbound encapsulation to VM
 admin_state              = Enabled after all configurations are applied. 
 vnet                     = Vnet that ENI belongs to
-pl_sip_encoding          = Private Link encoding for IPv6 SIP transpositions; Format "field_value/full_mask" where both field_value and `full_mask` must be given as IPv6 addresses. field_value must be used as a replacement to the
-			   first (128-len(full_mask)) bits of pl_sip. Last 32 bits are reserved for the IPv4 CA. Logic: ((pl_sip & !full_mask) | field_value). (Obsoleted - Will use overlay transpositions from mapping tables)
+pl_sip_encoding          = Privatelink encoding for IPv6 SIP transformation; Format `field_value/full_mask` where both `field_value` and `full_mask` must be given as IPv6 addresses. See "3.6.3.2 PL IPv6 Address Transformation" for details.
 pl_underlay_sip          = Underlay SIP (ST GW VIP) to be used for all private link transformation for this ENI
 v4_meter_policy_id	     = IPv4 meter policy ID
 v6_meter_policy_id	     = IPv6 meter policy ID
@@ -611,8 +610,8 @@ underlay_ip              = ip_address                ; PA address for the CA
 mac_address              = MAC address as string     ; Inner dst mac
 metering_class_or        = uint32                    ; metering class 'or' bits
 use_dst_vni              = bool                      ; if true, use the destination VNET VNI for encap. If false or not specified, use source VNET's VNI
-overlay_sip_prefix       = ip_prefix                 ; overlay src ip prefix if routing_type is {privatelink}, transform last 32 bits from packet if mask is 96
-overlay_dip_prefix       = ip_prefix                 ; overlay dst ip prefix if routing_type is {privatelink} 
+overlay_sip_prefix       = ip_prefix                 ; overlay src ip prefix if routing_type is {privatelink}. Format `field_value/full_mask` where both `field_value` and `full_mask` must be IPv6 addresses. See "3.6.3.2 PL IPv6 Address Transformation" for details.
+overlay_dip_prefix       = ip_prefix                 ; overlay dst ip prefix if routing_type is {privatelink}. Format `field_value/full_mask` where both `field_value` and `full_mask` must be IPv6 addresses. See "3.6.3.2 PL IPv6 Address Transformation" for details.
 routing_appliance_id     = uint32                    ; ID of routing appliance to use if routing_type is {privatelinknsg} (OBSOLETED)
 tunnel                   = string                    ; Nexthop tunnel for privatelink nsg for additional encapsulation. 
 ```
@@ -1407,6 +1406,7 @@ For the example configuration above, the following is a brief explanation of loo
 
 ### 3.6.3 Private Link 
 
+#### 3.6.3.1 PL Sample Configuration
 ```
 [
     {
@@ -1439,7 +1439,8 @@ For the example configuration above, the following is a brief explanation of loo
 	    "underlay_ip": "25.1.1.1",
 	    "admin_state": "enabled",
 	    "vnet": "Vnet1",
-	    "pl_underlay_sip": "55.1.2.3"
+	    "pl_underlay_sip": "55.1.2.3",
+        "pl_sip_encoding": "::cb3a:16e5:ff71:0:0/::ffff:ffff:ffff:0:0"
         },
         "OP": "SET"
     },
@@ -1470,8 +1471,8 @@ For the example configuration above, the following is a brief explanation of loo
             "routing_type":"privatelink",
             "mac_address":"F9-22-83-99-22-A2",
             "underlay_ip":"50.1.2.3",
-            "overlay_sip_prefix":"fd41:108:20:d204::0/96",
-            "overlay_dip_prefix":"2603:10e1:100:2::3401:203/128",
+            "overlay_sip_prefix":"fd41:108:20:abc:abc::0/ffff:ffff:ffff:ffff:ffff:ffff::",
+            "overlay_dip_prefix":"2603:10e1:100:2::3401:203/ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
             "metering_class_or":"0x06",
         },
         "OP": "SET"
@@ -1488,8 +1489,8 @@ For the example configuration above, the following is a brief explanation of loo
             "routing_type":"privatelink",
             "mac_address":"F9-22-83-99-22-A2",
             "underlay_ip":"50.2.2.6",
-            "overlay_sip_prefix":"fd41:108:20:d204::200::0/96",
-            "overlay_dip_prefix":"2603:10e1:100:2::3402:206/128",
+            "overlay_sip_prefix":"ccc4:ac57:2546::/ffff:ffff:ffff::",
+            "overlay_dip_prefix":"3332:0f1c:2878:c130:d6a0:a997:aa33:c63d/ffff:ffff:ffff:ffff:ffff:ffff::",
         },
         "OP": "SET"
     },
@@ -1498,8 +1499,8 @@ For the example configuration above, the following is a brief explanation of loo
             "routing_type":"privatelink",
             "mac_address":"F9-22-83-99-22-A2",
             "underlay_ip":"50.2.2.6",
-            "overlay_sip_prefix":"fd41:108:20:d204::200::0/96",
-            "overlay_dip_prefix":"2603:10e1:100:2::3402:206/128",
+            "overlay_sip_prefix":"35ea:8ec2:e511::/ffff:ffff:ffff::",
+            "overlay_dip_prefix":"f409:6491:d18e:d3ff:ad7a:3b6e:0702:a92a/ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
             "tunnel":"nsg_tunnel_1"
         },
         "OP": "SET"
@@ -1529,44 +1530,74 @@ For the example configuration above, the following is a brief explanation of loo
     
 For the example configuration above, the following is a brief explanation of lookup behavior in the outbound direction:
 
-	1. Packet destined to 10.1.0.8 from 10.1.1.1:
-		a. LPM lookup hits for entry 10.1.0.8/32
-		b. The action in this case is "vnet"
-		c. Next lookup is in the mapping table and mapping table action here is "privatelink"
-		d. First Action for "privatelink" is 4to6 transposition
-		e. Packet gets transformed as: 
-		 	For Overlay SIP, use Overlay SIP prefix -> Overlay SIP fd41:108:20:d204::a01:101 using the following logic:
-			result = overlay_sip_prefix | 10.1.1.1 (insert source CA to last 32 bits)
-			Overlay DIP 2603:10e1:100:2::3401:203 (No transformation, provided as part of mapping)
-		f. Second Action is Static NVGRE encap with GRE key '100'. 
-		g. Underlay DIP shall be 50.1.2.3 (from mapping), Underlay SIP shall be 55.1.2.3 (from ENI)
-		h. Metering:
-                    - LPM route has metering bits configured
-                    - Aggregated OR - 0x66
-		    - Aggregated AND - 0x77
-                    - Metering class is derived from (Agreggated OR & Agreggated AND) -> 0x66 used for accounting the traffic
+1. Packet destined to 10.1.0.8 from 10.1.1.1:
+    1. LPM lookup hits for entry 10.1.0.8/32
+    2. The action in this case is "vnet"
+    3. Next lookup is in the mapping table and mapping table action here is "privatelink"
+    4. First Action for "privatelink" is 4to6 transposition
+    5. As per **3.6.3.2**, the final overlay SIP is `fd41:108:20:cb3a:16e5:ff71:a01:101`:
+        - Start with the original SIP `10.1.1.1` and convert it to IPv6 to give `::a01:101`.
+        - The mapping table `overlay_sip_prefix` has the mask `ffff:ffff:ffff:ffff:ffff:ffff::`, which means that bytes 1-12 of the final SIP are cleared. The IP remains `::a01:101`
+        - `overlay_sip_prefix.address` is written, giving `fd41:108:20:abc:abc::a01:101`. 
+        - `pl_sip_encoding` has the mask `::ffff:ffff:ffff:0:0` so bytes 7-12 are cleared giving `fd41:108:20::a01:101`. 
+        - `pl_sip_encoding.address` is written, giving the final SIP `fd41:108:20:cb3a:16e5:ff71:a01:101`.
+    6. Similarly, the final overlay DIP is `2603:10e1:100:2::3401:203`:
+        - The original packet DIP is converted to IPv6, giving `::a01:108`.
+        - The `overlay_dip_prefix` mask is `ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff` which clears all bits, giving `::`.
+        - `overlay_dip_prefix.address` is written, giving `2603:10e1:100:2::3401:203`
+    7. Second Action is Static NVGRE encap with GRE key '100'. 
+    8. Underlay DIP shall be 50.1.2.3 (from mapping), Underlay SIP shall be 55.1.2.3 (from ENI)
+    9. Metering:
+        - LPM route has metering bits configured
+        - Aggregated OR - 0x66
+        - Aggregated AND - 0x77
+                - Metering class is derived from (Agreggated OR & Agreggated AND) -> 0x66 used for accounting the traffic
 
-	2. Packet destined to 10.2.0.6 from 10.1.1.2:
-		a. LPM lookup hits for entry 10.2.0.0/24
-		b. The action in this case is "vnet"
-		c. Next lookup is in the mapping table and mapping table action here is "privatelink"
-		d. First Action for "privatelink" is 4to6 transposition
-		e. Packet gets transformed as: 
-		 	For Overlay SIP, use Overlay SIP prefix -> Overlay SIP fd41:108:20:d204::200:a02:6;	
-			Overlay DIP 2603:10e1:100:2::3402:206 (No transformation, provided as part of mapping)
-		f. Second Action is Static NVGRE encap with GRE key '100'. 
-		g. Underlay DIP shall be 50.2.2.6 (from mapping), Underlay SIP shall be 55.1.2.3 (from ENI)
+2. Packet destined to 10.2.0.6 from 10.1.1.2:
+    1. LPM lookup hits for entry 10.2.0.0/24
+    2. The action in this case is "vnet"
+    3. Next lookup is in the mapping table and mapping table action here is "privatelink"
+    4. First Action for "privatelink" is 4to6 transposition
+    5. As per **3.6.3.2**, the final overlay SIP is `cca4:ac57:2546:cb3a:16e5:ff71:a01:102`
+        - Convert original SIP to IPv6 to get `::a01:102`
+        - Clear bits 1-12 and write `overlay_sip_prefix.address` to get `cca4:ac57:2546::a01:102`
+        - Clear bits 7-12 and write `pl_sip_encoding.address` to get `cca4:ac57:2546:cb3a:16e5:ff71:a01:102`
+    6. The final overlay DIP is `3332:0f1c:2878:c130:d6a0:a997:a02:6`
+        - Convert original DIP to IPv6: `::a02:6`
+        - Clear bits 1-12 and write `overlay_dip_prefix.address` to get `3332:0f1c:2878:c130:d6a0:a997:a02:6`.
+    6. Second Action is Static NVGRE encap with GRE key '100'. 
+    7. Underlay DIP shall be 50.2.2.6 (from mapping), Underlay SIP shall be 55.1.2.3 (from ENI)
 
-	3. Packet destined to 10.2.0.9 from 10.1.1.2:
-		a. LPM lookup hits for entry 10.2.0.0/24
-		b. The action in this case is "vnet"
-		c. Next lookup is in the mapping table and mapping table action here is "privatelink"
-		d. First Action for "privatelink" is 4to6 transposition
-		e. Packet gets transformed as: 
-		 	For Overlay SIP, use Overlay SIP prefix -> Overlay SIP fd41:108:20:d204::200:a02:9;	
-			Overlay DIP 2603:10e1:100:2::3402:206 (No transformation, provided as part of mapping)
-		f. Second Action is Static NVGRE encap with GRE key '100'. 
-		g. Underlay DIP shall be 50.2.2.6 (from mapping), Underlay SIP shall be 55.1.2.3 (from ENI)
-		h. Mapping gives the tunnel info for final encap - nsg_tunnel_1
-		i. Packet shall be encapsulated with Outer DIP as 100.8.1.2 and SIP as VIP of this originating appliance card with VNI of 101. 
-		j. Inbound flow shall be similar to PL and outer encap shall be of the SLB MUX and not of the NSG appliance.
+3. Packet destined to 10.2.0.9 from 10.1.1.2:
+    1. LPM lookup hits for entry 10.2.0.0/24
+    2. The action in this case is "vnet"
+    3. Next lookup is in the mapping table and mapping table action here is "privatelink"
+    4. First Action for "privatelink" is 4to6 transposition
+    5. Final overlay SIP is `35ea:8ec2:e511:cb3a:16e5:ff71:a01:102`:
+        - Convert original SIP to IPv6: `::a01:102`
+        - Apply `overlay_sip_prefix`: `35ea:8ec2:e511::a01:102`
+        - Apply `pl_sip_encoding`: `35ea:8ec2:e511:cb3a:16e5:ff71:a01:102`
+    6. Final overlay DIP is `f409:6491:d18e:d3ff:ad7a:3b6e:0702:a92a`.
+        - As in the first example, mask length is 128 bits so the entire value of `overlay_dip_prefix.address` is written.
+    7. Second Action is Static NVGRE encap with GRE key '100'. 
+    8. Underlay DIP shall be 50.2.2.6 (from mapping), Underlay SIP shall be 55.1.2.3 (from ENI)
+    9. Mapping gives the tunnel info for final encap - nsg_tunnel_1
+    10. Packet shall be encapsulated with Outer DIP as 100.8.1.2 and SIP as VIP of this originating appliance card with VNI of 101. 
+    11. Inbound flow shall be similar to PL and outer encap shall be of the SLB MUX and not of the NSG appliance.
+
+#### 3.6.3.2 PL IPv6 Address Transformation
+Privatelink uses bytes 1-12 of the overlay source IPv6 address to encode extra information. The encoding information is provided in `DASH_ENI_TABLE:pl_sip_encoding` and `DASH_VNET_MAPPING_TABLE:overlay_sip_prefix`. `overlay_sip_prefix` and `pl_sip_encoding` contain both an IP address as well as a network mask. The mask for `overlay_sip_prefix` is used to clear specific bits in the final source IPv6 address, then the IP address is used to populate those same bits (the same applies to `pl_sip_encoding`). This operation can be represented as follows:
+
+```
+final_overlay_sip = (((orig_packet_sip & ~overlay_sip_prefix.mask)
+                        | overlay_sip_prefix.addr)
+                        & ~pl_sip_encoding.mask)
+                        | pl_sip_encoding.addr
+```
+where `&`, `|`, and `~` represent bitwise `AND`, `OR`, and `NOT`.
+
+The same principle applies to `overlay_dip_prefix` and the final overlay destination IPv6 address:
+```
+final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
+                        | overlay_dip_prefix.addr
+```
