@@ -86,13 +86,14 @@ DPUs are internally connected to the NPU via PCI-E bridge. Below is the reboot s
 the DPU to terminate all services.
 
 * Upon dispatching the Reboot API, the NPU issues the RebootStatus API to monitor whether the DPU has terminated all services except gNOI and database
-service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS.
-Until the services are terminated gracefully, DPU response RebootStatusResponse with STATUS_RETRIABLE_FAILURE status.
+service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS and 'active'
+will be set to false in the RebootStatusResponse. Until the services are terminated gracefully, 'active' will be '1' in the RebootStatusResponse.
 
 * Subsequently, the NPU detaches the DPU PCI with a vendor defined API. If a vendor specific API is not defined, detachment is done via sysfs
 (echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove).
 
-* Next, the NPU triggers a platform vendor reboot API to initiate the reboot process for the DPU.
+* Next, the NPU triggers a platform vendor reboot API to initiate the reboot process for the DPU. If the DPU is stuck or unresponsive, the DPU reboot platform API should
+attempt a cold boot or power cycle to recover it.
 
 * The NPU either immediately rescans the PCI upon return or after a timeout period. Rescan of the PCI is achieved by vendor defined API. If vendor specific API
 is not defined, then rescan is done via sysfs (echo 1 > /sys/bus/pci/rescan).
@@ -109,14 +110,14 @@ The following outlines the reboot procedure for the entire Smart Switch:
 services, excluding the gNOI server and also database, in preparation for the reboot.
 
 * Upon dispatching the Reboot API, the NPU issues the RebootStatus API to monitor whether the DPU has terminated all services except GNMI and database
-service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS.
-Until the services are terminated gracefully, DPU response RebootStatusResponse with STATUS_RETRIABLE_FAILURE status.
+service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS and 'active'
+will be set to false in the RebootStatusResponse. Until the services are terminated gracefully, 'active' will be '1' in the RebootStatusResponse.
 
 * Following the confirmation from the DPUs, the NPU proceeds to detach the PCI devices associated with the DPUs. This detachment is achieved either by calling
 vendor specific API or by issuing a command through the sysfs interface, specifically by echoing '1' to the /sys/bus/pci/devices/XXXX:XX:XX.X/remove file
 for each DPU.
 
-* With the DPUs prepared for reboot, the NPU triggers a platform vendor API to initiate the reboot process for the DPUs. Vendor API reboots a single DPU, but the NPU spawns multiple threads to reboot DPUs in parallel.
+* With the DPUs prepared for reboot, the NPU triggers a platform vendor API to initiate the reboot process for the DPUs. Vendor API reboots a single DPU, but the NPU spawns multiple threads to reboot DPUs in parallel. If any of the the DPU is stuck or unresponsive, the DPU reboot platform API should attempt a cold boot or power cycle to recover it.
 
 * DPUs will send an acknowledgment to the NPU and then undergo a reboot. After receiving the acknowledgment from the DPUs, the NPU will proceed to reboot itself to complete the overall reboot procedure. The vendor-specific reboot API should include an error handling mechanism to manage DPU reboot failures. Additionally log all the failures. DPUs will be in DPU_READY state, if the reboot happened successfully.
 
@@ -238,7 +239,8 @@ enum RebootMethod {
 ```
 
 After receiving the acknowledgement for RebootRequest RPC from the DPU, the NPU starts polling with RebootStatusRequest. If the DPU has effectively terminated
-the services, it responds with STATUS_SUCCESS set in the RebootStatusResponse. Otherise, it will send the response with STATUS_RETRIABLE_FAILURE status.
+the services, it responds with STATUS_SUCCESS  and 'active' will be set to false in the RebootStatusResponse. Until the services are terminated gracefully,
+'active' will be '1' in the RebootStatusResponse.
 
 ```
 rpc RebootStatus(RebootStatusRequest) returns (RebootStatusResponse) {}
