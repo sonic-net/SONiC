@@ -183,54 +183,82 @@ CLI (queuestat.py) aggregates the VOQ stats for a VOQ across ASICS and present a
 
 $ show VOQ counters [interface] --voq
 
-From linecard - nfc404-3 (existing CLI)
-
+From linecard - cmp227-4 and asic0 (existing CLI)
 ```
-admin@nfc404-3:~$ show queue counters "nfc404-3|Asic0|Ethernet4" -n Asic0 --voq
-                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
-------------------------  -----  --------------  ---------------  -----------  ------------
-nfc404-3|Asic0|Ethernet4   VOQ0              45            12386            0             0
-nfc404-3|Asic0|Ethernet4   VOQ1               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ2             204            10200            0             0
-nfc404-3|Asic0|Ethernet4   VOQ3               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ4              21             1050            0             0
-nfc404-3|Asic0|Ethernet4   VOQ5               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ6              29             1450            0             0
-nfc404-3|Asic0|Ethernet4   VOQ7               0                0            0             0
-
+admin@cmp227-4:~$ show queue counters "cmp227-4|asic0|Ethernet0" --voq -n asic0
+                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Credit-WD-Del/pkts
+------------------------  -----  --------------  ---------------  -----------  ------------  --------------------
+cmp227-4|asic0|Ethernet0   VOQ0            6813           340650            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ1             161             8050            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ2             356            17800            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ3             257            12850            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ4             157             7850            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ5            2257           112850            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ6             257            12850            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ7             149            42468            0             0                     0
 ```
 
+From linecard - cmp227-4 and asic1 (existing CLI)
+```
+admin@cmp227-4:~$ show queue counters "cmp227-4|asic0|Ethernet0" --voq -n asic1
+                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Credit-WD-Del/pkts
+------------------------  -----  --------------  ---------------  -----------  ------------  --------------------
+cmp227-4|asic0|Ethernet0   VOQ0             123             6150            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ1             289            14450            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ2             789            39450            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ3             345            17250            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ4           45586          2279300            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ5              90             4500            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ6              56             2800            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ7               0                0            0             0                     0
+```
 
-From linecard - nfc408-8 (existing CLI)
+From linecard - cmp227-5 and asic1 (existing CLI)
+
 ```
-admin@nfc404-8:~$ show queue counters "nfc404-3|Asic0|Ethernet4" -n Asic0 --voq
-                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
-------------------------  -----  --------------  ---------------  -----------  ------------
-nfc404-3|Asic0|Ethernet4   VOQ0               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ1               1               50            0             0
-nfc404-3|Asic0|Ethernet4   VOQ2              51             2550            0             0
-nfc404-3|Asic0|Ethernet4   VOQ3               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ4              16              800            0             0
-nfc404-3|Asic0|Ethernet4   VOQ5               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ6             143             7150            0             0
-nfc404-3|Asic0|Ethernet4   VOQ7               0                0            0             0
+admin@cmp227-5:~$ show queue counters "cmp227-4|asic0|Ethernet0" --voq
+                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Credit-WD-Del/pkts
+------------------------  -----  --------------  ---------------  -----------  ------------  --------------------
+cmp227-4|asic0|Ethernet0   VOQ0             452            22600            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ1             262            13100            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ2             879            43950            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ3             123             6150            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ4             897            44850            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ5             543            27150            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ6             975            48750            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ7               0                0            0             0                     0
 ```
+From linecard - cmp227-6 and asic1 (existing CLI)
+```
+admin@cmp227-6:~$ show queue counters "cmp227-4|asic0|Ethernet0" --voq
+                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Credit-WD-Del/pkts
+------------------------  -----  --------------  ---------------  -----------  ------------  --------------------
+cmp227-4|asic0|Ethernet0   VOQ0              23             1150            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ1             481            24050            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ2              23             1150            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ3            4444           222200            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ4            6789           339450            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ5             590            29500            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ6             567            28350            0             0                     0
+cmp227-4|asic0|Ethernet0   VOQ7               0                0            0             0                     0
+```
+
+Note: Linecard cmp227-5 and cmp227-6 have only 1 asic therefore asic can be omitted.
 
 From supervisor (same command extended for sup.)
 
 ```
-admin@nfc404:~$ show queue counters "nfc404-3|Asic0|Ethernet4" --voq
+admin@cmp227:~$ show queue counters "cmp227-4|asic0|Ethernet0" --voq                                                                                                                                                                                                                       
                     Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
 ------------------------  -----  --------------  ---------------  -----------  ------------
-nfc404-3|Asic0|Ethernet4   VOQ0              45            12386            0             0
-nfc404-3|Asic0|Ethernet4   VOQ1               1               50            0             0
-nfc404-3|Asic0|Ethernet4   VOQ2             255            12750            0             0
-nfc404-3|Asic0|Ethernet4   VOQ3               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ4              37             1850            0             0
-nfc404-3|Asic0|Ethernet4   VOQ5               0                0            0             0
-nfc404-3|Asic0|Ethernet4   VOQ6             172             8600            0             0
-nfc404-3|Asic0|Ethernet4   VOQ7               0                0            0             0
-
+cmp227-4|asic0|Ethernet0   VOQ0            7411           370550            0             0
+cmp227-4|asic0|Ethernet0   VOQ1            1193            59650            0             0
+cmp227-4|asic0|Ethernet0   VOQ2            2047           102350            0             0
+cmp227-4|asic0|Ethernet0   VOQ3            5169           258450            0             0
+cmp227-4|asic0|Ethernet0   VOQ4           53429          2671450            0             0
+cmp227-4|asic0|Ethernet0   VOQ5            3480           174000            0             0
+cmp227-4|asic0|Ethernet0   VOQ6            1855            92750            0             0
+cmp227-4|asic0|Ethernet0   VOQ7             170            49650            0             0
 ```
 
 ### Testing Requirements/Design  
