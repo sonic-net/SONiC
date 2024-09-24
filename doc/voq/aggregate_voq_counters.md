@@ -86,6 +86,8 @@ Aggretation happens for every system port.
 Figure 2: Aggregation of VOQ stats
 ![Aggregation of VOQ Stats](images/voq_cli.png "Figure 2: Aggregation of VOQ Stats")
 
+
+
 #### gNMI changes
 New virtual paths will be introduced to retrieve VOQ counters from linecard and aggregated VOQ counter stats from supervisor
 
@@ -98,13 +100,79 @@ New virtual paths will be introduced to retrieve VOQ counters from linecard and 
 
 Note: For the sake of uniformity the virtual path for supervisor says target as `COUNTERS_DB` and table as `COUNTERS` but it will be internally mapped to `CHASSIS_COUNTERS_DB` and `COUNTERS_VOQ`.
 
+##### Output from linecard
+
+```
+admin@FSI $ gnmi_get -target_addr <FSI>:<PORT> …… -xpath_target COUNTERS_DB -xpath “/COUNTERS/asic0/Linecard4|asic0|Ethernet0/Voq”
+
+== getResponse:
+notification: <
+………
+    val: <
+      json_ietf_val: {
+"Linecard4|asic0|Ethernet0:0”: {
+"SAI_QUEUE_STAT_BYTES”:4382,
+“SAI_QUEUE_STAT_PACKETS”:98,
+"SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS":0,
+“SAI_QUEUE_STAT_DROPPED_BYTES":0,
+"SAI_QUEUE_STAT_DROPPED_PACKETS":0},
+"Linecard4|asic0|Ethernet0:1":{
+"SAI_QUEUE_STAT_BYTES":8050,
+“SAI_QUEUE_STAT_PACKETS”:161,
+“SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS":0,
+"SAI_QUEUE_STAT_DROPPED_BYTES":0,
+“SAI_QUEUE_STAT_DROPPED_PACKETS":0},
+…………
+…………
+"Linecard4|asic0|Ethernet0:7":{
+"SAI_QUEUE_STAT_BYTES":32961,
+“SAI_QUEUE_STAT_PACKETS”:129,
+"SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS":0,
+"SAI_QUEUE_STAT_DROPPED_BYTES":0,
+"SAI_QUEUE_STAT_DROPPED_PACKETS":0}}"
+    >
+
+```
+
+##### Output from supervisor
+```
+admin@SSI $ gnmi_get -target_addr <SSI>:<PORT> …… -xpath_target COUNTERS_DB -xpath “/COUNTERS/Linecard4|asic0|Ethernet0/Voq”
+
+== getResponse:
+notification: <
+………
+    val: <
+      json_ietf_val: {
+"Linecard4|asic0|Ethernet0:0”: {
+"SAI_QUEUE_STAT_BYTES”:340650,
+“SAI_QUEUE_STAT_PACKETS”:6813,
+"SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS":0,
+“SAI_QUEUE_STAT_DROPPED_BYTES":0,
+"SAI_QUEUE_STAT_DROPPED_PACKETS":0},
+"Linecard4|asic0|Ethernet0:1":{
+"SAI_QUEUE_STAT_BYTES":8050,
+“SAI_QUEUE_STAT_PACKETS”:161,
+“SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS":0,
+"SAI_QUEUE_STAT_DROPPED_BYTES":0,
+“SAI_QUEUE_STAT_DROPPED_PACKETS":0},
+…………
+…………
+"Linecard4|asic0|Ethernet0:7":{
+"SAI_QUEUE_STAT_BYTES":42468,
+“SAI_QUEUE_STAT_PACKETS”:149,
+"SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS":0,
+"SAI_QUEUE_STAT_DROPPED_BYTES":0,
+"SAI_QUEUE_STAT_DROPPED_PACKETS":0}}"
+    >
+
+```
+
 #### Repositories that need to be changed
    * sonic-buildimage 
    * sonic-swss-common 
    * sonic-swss 
    * sonic-utilities 
    * sonic-gnmi 
-   * sonic-mgmt 
 
 ### SAI API 
 No new SAI API is being added. 
@@ -114,18 +182,55 @@ No new SAI API is being added.
 CLI (queuestat.py) aggregates the VOQ stats for a VOQ across ASICS and present a consolidated view. No new CLI command is being introduced for this rather the following CLI command is leveraged to provide this output on an SSI.
 
 $ show VOQ counters [interface] --voq
+
+From linecard - nfc404-3 (existing CLI)
+
 ```
-admin@cmp217:~$ show queue counters "cmp217-5|asic0|Ethernet24" --voq
-                     Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Credit-WD-Del/pkts
--------------------------  -----  --------------  ---------------  -----------  ------------  --------------------
-cmp217-5|asic0|Ethernet24   VOQ0              54             2700            0             0                     0
-cmp217-5|asic0|Ethernet24   VOQ1              51             2550            0             0                     0
-cmp217-5|asic0|Ethernet24   VOQ2               4              200            0             0                     0
-cmp217-5|asic0|Ethernet24   VOQ3              45             2250            0             0                     0
-cmp217-5|asic0|Ethernet24   VOQ4               7              350            0             0                     0
-cmp217-5|asic0|Ethernet24   VOQ5              16              800            0             0                     0
-cmp217-5|asic0|Ethernet24   VOQ6              23             1150            0             0                     0
-cmp217-5|asic0|Ethernet24   VOQ7              47            13792            0             0                     0
+admin@nfc404-3:~$ show queue counters "nfc404-3|Asic0|Ethernet4" --voq
+                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
+------------------------  -----  --------------  ---------------  -----------  ------------
+nfc404-3|Asic0|Ethernet4   VOQ0              45            12386            0             0
+nfc404-3|Asic0|Ethernet4   VOQ1               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ2             204            10200            0             0
+nfc404-3|Asic0|Ethernet4   VOQ3               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ4              21             1050            0             0
+nfc404-3|Asic0|Ethernet4   VOQ5               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ6              29             1450            0             0
+nfc404-3|Asic0|Ethernet4   VOQ7               0                0            0             0
+
+```
+
+
+From linecard - nfc408-8 (existing CLI)
+```
+admin@nfc404-8:~$ show queue counters "nfc404-3|Asic0|Ethernet4" --voq
+                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
+------------------------  -----  --------------  ---------------  -----------  ------------
+nfc404-3|Asic0|Ethernet4   VOQ0               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ1               1               50            0             0
+nfc404-3|Asic0|Ethernet4   VOQ2              51             2550            0             0
+nfc404-3|Asic0|Ethernet4   VOQ3               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ4              16              800            0             0
+nfc404-3|Asic0|Ethernet4   VOQ5               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ6             143             7150            0             0
+nfc404-3|Asic0|Ethernet4   VOQ7               0                0            0             0
+```
+
+From supervisor (same command extended for sup.)
+
+```
+admin@nfc404:~$ show queue counters "nfc404-3|Asic0|Ethernet4" --voq
+                    Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
+------------------------  -----  --------------  ---------------  -----------  ------------
+nfc404-3|Asic0|Ethernet4   VOQ0              45            12386            0             0
+nfc404-3|Asic0|Ethernet4   VOQ1               1               50            0             0
+nfc404-3|Asic0|Ethernet4   VOQ2             255            12750            0             0
+nfc404-3|Asic0|Ethernet4   VOQ3               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ4              37             1850            0             0
+nfc404-3|Asic0|Ethernet4   VOQ5               0                0            0             0
+nfc404-3|Asic0|Ethernet4   VOQ6             172             8600            0             0
+nfc404-3|Asic0|Ethernet4   VOQ7               0                0            0             0
+
 ```
 
 ### Testing Requirements/Design  
