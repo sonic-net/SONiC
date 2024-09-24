@@ -10,8 +10,8 @@
    * [Requirements](#requirements)
    * [Architecture Design](#architecture-design)
    * [High-Level Design](#high-level-design)
-      * [Database changes](#database-changes)
       * [SWSS Changes](#swss-changes)
+      * [Database changes](#database-changes)
       * [Telemetry Changes](#gnmi-changes)
       * [Repositories that need to be changed](#repositories-that-need-to-be-changed)
    * [SAI API](#sai-api)
@@ -42,12 +42,16 @@ A new database `CHASSIS_COUNTERS_DB` will be introduced in `redis_chassis` insta
 Voq stats on linecard are already polled via flex counter for each asic by it's corresponding syncd instance and updated in COUNTER_DB. Swss will be used to synchronise VOQ stats between linecard and supervisor.
 
 ### High-Level Design
+        
+#### SWSS Changes
+##### New VoqStatsOrch module
 
 Figure 1: Gathering the VOQ stats in CHASSIS_COUNTERS_DB 
 ![Sequence Diagram](images/voq_seq_diagram.png "Figure 1: Sequence Diagram")  
-Figure 2: Aggregation of VOQ stats
-![Aggregation of VOQ Stats](images/voq_cli.png "Figure 2: Aggregation of VOQ Stats")
 
+A new module called VoqStatsOrch will be introduced which will be initialised by orchdaemon.
+
+VoqStatsOrch will synchronise the VOQ counters between each ASIC's COUNTERS_DB on linecards and CHASSIS_COUNTERS_DB running on the supervisor.
 
 #### Database Changes
 A new database called CHASSIS_COUNTERS_DB will be introduced on the redis_chassis instance of supervisor.
@@ -63,7 +67,7 @@ A new database called CHASSIS_COUNTERS_DB will be introduced on the redis_chassi
 The VOQ stats will be updated in a new table `COUNTERS_VOQ`
 
 The following new VOQ counters should be available for each VOQ entry in the DB:
-   * `COUNTERS_VOQ : LINECARD | ASIC | EthernetXXX @ LINECARD | ASIC : VOQ_index`
+   * `COUNTERS_VOQ : <DST_LINECARD> | <DST_ASIC> | EthernetXXX @ <SRC_LINECARD> | <SRC_ASIC> : VOQ_index`
      * `SAI_QUEUE_STAT_PACKETS`
      * `SAI_QUEUE_STAT_BYTES`
      * `SAI_QUEUE_STAT_DROPPED_PACKETS`
@@ -71,15 +75,16 @@ The following new VOQ counters should be available for each VOQ entry in the DB:
      * `SAI_QUEUE_STAT_CREDIT_WD_DELETED_PACKETS`
 
    * `COUNTERS_VOQ` is the table name.
-   * The first part of the key ( before `@` ) `LINECARD | ASIC | EthernetXXX` denotes the physical location of the interface ( or full system port name )
-   * The second part of the key ( after `@` ) `LINECARD | ASIC` denotes the location of the VOQ.
+   * The first part of the key ( before `@` ) `<DST_LINECARD> | <DST_ASIC> | EthernetXXX` denotes the physical location of the interface ( or full system port name )
+   * The second part of the key ( after `@` ) `<SRC_LINECARD> | <SRC_ASIC>` denotes the location of the VOQ or in other words the source where this data came from.
    * VOQ_index is the index of the VOQ in question.
-        
-#### SWSS Changes
-##### New VoqStatsOrch module
-A new module called VoqStatsOrch will be introduced which will be initialised by orchdaemon.
 
-VoqStatsOrch will synchronise the VOQ counters between each ASIC's COUNTERS_DB on linecards and CHASSIS_COUNTERS_DB running on the supervisor.
+#### How aggregation happens?
+
+Aggretation happens for every system port.
+
+Figure 2: Aggregation of VOQ stats
+![Aggregation of VOQ Stats](images/voq_cli.png "Figure 2: Aggregation of VOQ Stats")
 
 #### gNMI changes
 New virtual paths will be introduced to retrieve VOQ counters from linecard and aggregated VOQ counter stats from supervisor
