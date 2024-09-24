@@ -186,7 +186,7 @@ $ show VOQ counters [interface] --voq
 From linecard - nfc404-3 (existing CLI)
 
 ```
-admin@nfc404-3:~$ show queue counters "nfc404-3|Asic0|Ethernet4" --voq
+admin@nfc404-3:~$ show queue counters "nfc404-3|Asic0|Ethernet4" -n Asic0 --voq
                     Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
 ------------------------  -----  --------------  ---------------  -----------  ------------
 nfc404-3|Asic0|Ethernet4   VOQ0              45            12386            0             0
@@ -203,7 +203,7 @@ nfc404-3|Asic0|Ethernet4   VOQ7               0                0            0   
 
 From linecard - nfc408-8 (existing CLI)
 ```
-admin@nfc404-8:~$ show queue counters "nfc404-3|Asic0|Ethernet4" --voq
+admin@nfc404-8:~$ show queue counters "nfc404-3|Asic0|Ethernet4" -n Asic0 --voq
                     Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
 ------------------------  -----  --------------  ---------------  -----------  ------------
 nfc404-3|Asic0|Ethernet4   VOQ0               0                0            0             0
