@@ -160,7 +160,6 @@ MSTP calculates spanning trees on the basis of Multiple Spanning Tree Bridge Pro
 
 1. Support clear commands as mentioned in Configuration section 
 
-1. Support disable commands as mentioned in Configuration section 
 
 # Architecture Design
 Following diagram explains the architectural design and linkages for MSTP. MSTP uses multiple existing SONiC containers, configuration details of each is mentioned below as well.
@@ -212,7 +211,7 @@ Other fields of this table are not applicable for "mstp" mode.
 Following new tables will be added to CONFIG_DB:
 
 
-#### STP_MST
+#### STP_MST_TABLE
 ```
 ;Stores STP Global configuration
 key                       = STP_MST| GLOBAL               ; GLOBAL MSTP table key 
@@ -224,7 +223,7 @@ hello_time                = 2*DIGIT                       ; hello time in secs (
 forward_delay             = 2*DIGIT                       ; forward_delay in secs (4 to 30sec, DEF:15 sec)
 ```
 
-#### STP_MST_INST
+#### STP_MST_INST_TABLE
 ```
 ;Stores STP configurations per MSTI
 key                 = STP_MST| "MST_INSTANCE":"Instance" id   ; MST with prefix "STP_MST"
@@ -232,7 +231,7 @@ bridge_priority     = 5*DIGIT                                 ; bridge priority 
 vlan_list           = "Vlans"                                 ; Lists of VLANs assigned to the MST instance
 ```
 
-#### STP_MST_PORT 
+#### STP_MST_PORT_TABLE 
 
 ```
 ;Stores STP interface details per MSTI
@@ -242,7 +241,7 @@ priority            = 3*DIGIT                                   ; port priority 
 
 ```
 
-#### STP_PORT
+#### STP_PORT_TABLE
 
 ```
 ;Stores STP interface details
@@ -373,24 +372,16 @@ MSTP standard does not support uplink fast so uplink fast functionality will be 
 
 
 #  Sequence Diagrams
+
 ## MSTP global enable
-
-
 ![MSTP Global Enable](images/MSTP_GLobal_enable.drawio.png)
 
 ## MSTP global disable
 ![MSTP Global Disable](images/MSTP_Global_disable.drawio.png)
 
-
 ## MSTP region name/version change
 ![MSTP Region Config](images/MSTP_Region_Name.drawio.png)
 
-
-## MSTP  Global Instance Creation 
-![MSTP Instance Creation](images/MSTP_Add_InstanceVlan.drawio.png)
-
-## MSTP  Global Instance Deletion 
-![MSTP Instance Deletion](images/MSTP_Del_InstanceVlan.drawio.png)
 
 ## MSTIs Instance Creation 
 ![Instance Creation ](images/MSTP_Instance_Create.drawio.png)
@@ -405,6 +396,7 @@ MSTP standard does not support uplink fast so uplink fast functionality will be 
 ## Del VLAN from  Exisiting Instance
 ![MSTP VLAN Del](images/MSTP_Del_ExistingInstance.drawio.png)
 
+
 # Configuration Commands
 Following configuration commands will be provided for configuration of MSTP:
 ## Global Level
@@ -413,15 +405,15 @@ Following configuration commands will be provided for configuration of MSTP:
   - Only one mode of STP can be enabled at a time.
   - By default disabled.
     
-- **config spanning_tree mst max_hops \<max-hops-value\>**
+- **config spanning_tree max_hops \<max-hops-value\>**
   - Specify the number of maximum hops before the BPDU is discarded inside a region.
   - max-hops-value: Default: 20, range: 1-255
 
-- **config spanning_tree mst hello \<hello-value\>**
+- **config spanning_tree hello \<hello-value\>**
   - Specify configuring hello interval in sec for transmission of BPDUs. 
   - Default: 2, range 1-10 
 
-- **config spanning_tree mst max_age \<max_age-value\>**
+- **config spanning_tree max_age \<max_age-value\>**
   - Specify configuring maximum time to listen for root bridge in seconds.
   - Default: 2, range 6-40
 
@@ -453,7 +445,7 @@ Below commands allow configuration of an instance:
 ## Instance, Interface Level
 Following commands are used for spanning-tree configurations on per instance, per interface basis:
 
-- **config spanning_tree mst instance  \<instance-id\> interface \<ifname\> priority \<priority-value\>**
+- **config spanning_tree mst instance \<instance-id\> interface \<ifname\> priority \<priority-value\>**
   - Configure priority of an interface for an instance.
   - priority-value: Default: 128, range: 0-240
 - **config spanning_tree mst instance \<instance-id\> interface \<ifname\> cost \<cost-value\>**
@@ -463,25 +455,28 @@ Following commands are used for spanning-tree configurations on per instance, pe
 ## Interface Level
 Following new commands will be added:
 
-- **config spanning_tree interface \<ifname\> {enable|disable}**
+- **config spanning_tree interface {enable|disable} \<ifname\>**
   - Configure an interface for MSTP.
 
-
-- **config spanning_tree interface \<ifname\> edgeport {enable|disable}**
+- **config spanning_tree interface edgeport {enable|disable} \<ifname\>**
   - This command allow enabling or disabling of edge port on an interface.
 
-- **config spanning_tree interface \<ifname\> guard {root|bpdu} {enable|disable}**  
-  - Configure an interface as a root or bpdu guard.  
+- **config spanning_tree interface bpdu_guard {enable|disable} \<ifname\>**
+  - This command allow enabling or disabling of bpdu_guard on an interface.
 
-- **config spanning_tree interface \<ifname\> priority \<port_priority-value\>**
+- **config spanning_tree interface root_guard {enable|disable} \<ifname\>**
+    - This command allow enabling or disabling of bpdu_guard on an interface.
+
+
+- **config spanning_tree interface priority \<ifname\> \<port_priority-value\>**
   - Specify configuring the port level priority for root bridge in seconds.
   - Default: 128, range 0-240  
 
-- **config spanning_tree interface \<ifname\> cost \<cost-value\>**
+- **config spanning_tree interface cost  \<ifname\> \<cost-value\>**
   - Specify configuring the port level priority for root bridge in seconds.
   - Default: 0, range 1-200000000
 
-- **config spanning_tree interface \<ifname\> link-type {P2P|Shared-Lan|Auto}**
+- **config spanning_tree interface link-type {P2P|Shared-Lan|Auto} \<ifname\>**
   - Specify configuring the interface at different link types.
  
 ## Show Commands
@@ -609,10 +604,10 @@ Instance           Role        State           Cost       Prio.Nbr     Vlans
 ```
 
 
-- show spanning_tree mst bpdu_guard
+- show spanning_tree bpdu_guard
 
 ```
-admin@sonic:  show spanning_tree mst bpdu_guard
+admin@sonic:  show spanning_tree bpdu_guard
 
 
 PortNum               Shutdown Configured             Port Shut due to BPDU Guard
@@ -650,7 +645,7 @@ PortChannel15     30	      6           4          1
 
 
 ## Clear Commands
-- sonic-clear spanning_tree mst statistics 
+- sonic-clear spanning_tree statistics 
 - sonic-clear spanning_tree mst statistics instance \<instance-id\>
 
 
@@ -658,27 +653,15 @@ PortChannel15     30	      6           4          1
 Following debug commands will be supported for enabling additional logging which can be viewed in /var/log/stpd.log, orchagent related logs can be viewed in /var/log/syslog.
 
 - debug spanning_tree mst instance \<instance-id\>
-- debug spanning_tree mst bpdu [tx|rx]
-- debug spanning_tree mst event
-- debug spanning_tree mst verbose
-- debug spanning_tree mst interface \<ifname\>
-
+- debug spanning_tree bpdu [tx|rx]
+- debug spanning_tree event
+- debug spanning_tree verbose
+- debug spanning_tree interface \<ifname\>
 
 Following debug commands will be supported for displaying internal data structures
 
-- debug spanning_tree mst dump instance \<instance-id\>
-
-## Disabled Commands
-Following commands are used to configure parameters at VLAN level and these commands are disabled if spanning-tree mode is `mstp`:
-
-
-- config spanning_tree mst vlan (enable|disable) \<vlan\>
-- config spanning_tree mst vlan forward_delay \<vlan\> \<fwd-delay-value\>
-- config spanning_tree mst vlan hello \<vlan\> \<hello-value\>
-- config spanning_tree mst vlan max_age \<vlan\> \<max-age-value\>
-- config spanning_tree mst vlan priority \<vlan\> \<priority-value\>
-- config spanning_tree mst vlan interface cost \<vlan\> \<ifname\> \<value\>
-- config spanning_tree mst vlan interface priority \<vlan\> \<ifname\> \<value\>
+- debug spanning_tree dump global 
+- debug spanning_tree dump mst instance \<instance-id\>
 
 # YANG Model
 
