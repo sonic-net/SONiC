@@ -120,141 +120,133 @@ Examples:
 
 ### 3.3 Configuration design
 #### 3.3.1 ConfigDB schema
-##### 3.3.1.1 AUDIT TABLE
-The database to be used is Config DB. A new AUDIT table will be added to the Config DB, which is responsible for storing audit configuration settings. This table allows the system to manage security auditing by defining whether auditing is enabled and specifying the rules to be applied. The structure of the AUDIT table is as follows.
+##### 3.3.1.1 AUDITD TABLE
+The database to be used is Config DB. A new AUDITD table will be added to the Config DB, which is responsible for storing auditd configuration settings. This table allows the system to manage security auditing by defining whether auditing is enabled and specifying the rules to be applied. The structure of the AUDITD table is as follows.
 ```
 ; Defines audit configuration information
-key                          = AUDIT|config                 ; Audit configuration settings
+key                          = AUDITD                       ; Audit configuration settings
 ; field                      = value
-groupid                      = 1*255VCHAR                   ; Name of the audit rule group
-groupvalue                   = enabled / disabled           ; Indicates whether the entire audit rule group is enabled or disabled
+name                         = 1*255VCHAR                   ; Name of the audit rule group
+state                        = enabled / disabled           ; Indicates whether the entire audit rule group is enabled or disabled
 ```
 
 ##### 3.3.1.2 Config DB JSON Sample
 The predefined list of rules in Section 3.2 will be **enabled** by default, while the custom user-defined group will be **disabled** by default. Below is an example of how the audit rules could be represented in JSON format within the Config DB.
 ```
 {
-    "AUDIT": {
-        "config": {
-            "critical_files": "enabled",
-            "dns_changes": "enabled",
-            "time_changes": "enabled",
-            "shutdown_reboot": "enabled",
-            "cron_changes": "enabled",
-            "modules_changes": "enabled",
-            "auth_logs": "enabled",
-            "bin_changes": "enabled",
-            "user_group_management": "enabled",
-            "file_deletion": "enabled",
-            "log_changes": "enabled",
-            "docker_changes": "enabled",
-            "process_audit": "enabled",
-            "network_activity": "enabled",
-            "socket_activity": "enabled",
-            "custom_audit": "disabled"
+    "AUDITD": {
+        "critical_files": {
+            "state": "enabled"
+        },
+        "dns_changes": {
+            "state": "enabled"
+        },
+        "time_changes": {
+            "state": "enabled"
+        },
+        "shutdown_reboot": {
+            "state": "enabled"
+        },
+        "cron_changes": {
+            "state": "enabled"
+        },
+        "modules_changes": {
+            "state": "enabled"
+        },
+        "auth_logs": {
+            "state": "enabled"
+        },
+        "bin_changes": {
+            "state": "enabled"
+        },
+        "user_group_management": {
+            "state": "enabled"
+        },
+        "file_deletion": {
+            "state": "enabled"
+        },
+        "log_changes": {
+            "state": "enabled"
+        },
+        "docker_changes": {
+            "state": "enabled"
+        },
+        "process_audit": {
+            "state": "enabled"
+        },
+        "network_activity": {
+            "state": "enabled"
+        },
+        "socket_activity": {
+            "state": "enabled"
+        },
+        "custom_audit": {
+            "state": "disabled"
         }
     }
 }
 ```
 
 ##### 3.3.1.3 Redis Entries Sample
-Once the AUDIT table is populated in the Config DB, the corresponding entries can be viewed in Redis. Below are complete example Redis commands and outputs
+Once the AUDITD table is populated in the Config DB, the corresponding entries can be viewed in Redis. Below are complete example Redis commands and outputs
 ```
-127.0.0.1:6379[4]> keys AUDIT|config
-1) "AUDIT|config"
-
-127.0.0.1:6379[4]> hgetall AUDIT|config
-1) "critical_files"
+127.0.0.1:6379[4]> hgetall AUDIT|file_deletion
+1) "state"
 2) "enabled"
-3) "dns_changes"
-4) "enabled"
-5) "time_changes"
-6) "enabled"
-7) "shutdown_reboot"
-8) "enabled"
-9) "cron_changes"
-10) "enabled"
-11) "modules_changes"
-12) "enabled"
-13) "auth_logs"
-14) "enabled"
-15) "bin_changes"
-16) "enabled"
-17) "user_group_management"
-18) "enabled"
-19) "file_deletion"
-20) "enabled"
-21) "log_changes"
-22) "enabled"
-23) "docker_changes"
-24) "enabled"
-25) "process_audit"
-26) "enabled"
-27) "network_activity"
-28) "enabled"
-29) "socket_activity"
-30) "enabled"
-31) "custom_audit"
-32) "disabled"
+
+127.0.0.1:6379[4]> hgetall AUDIT|dns_changes
+1) "state"
+2) "enabled"
 ```
 
 #### 3.3.2 YANG model
-New YANG model `sonic-audit.yang` will be added.
+New YANG model `sonic-auditd.yang` will be added.
 ```
-module sonic-audit {
+module sonic-auditd {
 
     yang-version 1.1;
 
-    namespace "http://github.com/sonic-net/sonic-audit";
+    namespace  "http://github.com/sonic-net/sonic-auditd";
 
-    prefix sonic-audit;
+    prefix sonic-auditd;
 
-    import sonic-types {
-        prefix stypes;
+    description "AUDITD YANG module for SONiC OS";
+
+    revision 2024-09-26 {
+        description "Initial version";
     }
 
-    description "AUDIT YANG Module for SONiC OS";
+    container sonic-auditd {
 
-    revision 2024-08-12 {
-        description "First Revision";
-    }
+        container AUDITD {
 
-    container sonic-audit {
+            description "AUDITD part of config_db";
 
-        container AUDIT {
-
-            description "AUDIT part of config_db";
-
-            list config {
-                key "groupid";
+            list AUDITD_LIST {
+                key "name";
                 description "List of audit rules";
 
-                leaf groupid {
+                leaf name {
                     type string {
                         length "1..255";
                     }
                     description "Name of the audit rule group";
                 }
 
-                leaf groupvalue {
-                    type enumeration {
-                        enum "enabled" {
-                            description "Audit rule is enabled.";
-                        }
-                        enum "disabled" {
-                            description "Audit rule is disabled.";
-                        }
+                leaf state {
+                    type string {
+                        pattern "enabled|disabled";
                     }
                     description "Status of the audit rule group (enabled or disabled).";
                 }
             }
-            /* end of list config */
+            /* end of AUDITD_LIST */
         }
-        /* end of container AUDIT */
+        /* end of container AUDITD */
     }
     /* end of top level container */
 }
-/* end of module sonic-audit */
+/* end of module sonic-auditd */
 ```
 
 #### 3.3.3 Flows
