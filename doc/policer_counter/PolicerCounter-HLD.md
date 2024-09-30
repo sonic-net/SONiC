@@ -164,6 +164,18 @@ E.g:
  1) "span_policer"
  2) "oid:0x100000000037a"
 ```
+### Flows
+
+### POLICER counter registration in FC
+<p align=center>
+<img src="img/policer-flow-add-counter.png" alt="Figure 2. Policer counter registration flow">
+</p>
+
+
+### POLICER counter de-registration in FC
+<p align=center>
+<img src="img/policer-flow-remove-counter.png" alt="Figure 3. Policer counter de-registration flow">
+</p>
 
 ### CLI
 
@@ -182,19 +194,6 @@ Added a new CLI command
 show policer counter <policer_name>
 clear policer counter <policer_name>
 ```
-### Flows
-
-### POLICER counter registration in FC
-<p align=center>
-<img src="img/policer-flow-add-counter.png" alt="Figure 2. Policer counter registration flow">
-</p>
-
-
-### POLICER counter de-registration in FC
-<p align=center>
-<img src="img/policer-flow-remove-counter.png" alt="Figure 3. Policer counter de-registration flow">
-</p>
-
 
 ### Configuration and management 
 #### CLI/YANG model Enhancements 
