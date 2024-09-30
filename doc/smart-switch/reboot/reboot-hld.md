@@ -138,7 +138,7 @@ This API is defined in [smartswitch-pmon.md](https://github.com/sonic-net/SONiC/
 
 ### ModuleBase Class new APIs ###
 
-pci_detach_dpu(self):
+pci_detach(self. module_name):
 ```
 Detaches the DPU PCI device from the NPU. In the case of non-smart-switch chassis, no action is taken.
 
@@ -146,7 +146,7 @@ Returns:
     True
 ```
 
-pci_reattach_dpu(self):
+pci_reattach(self, module_name):
 ```
 Rescans the PCI bus and attach the DPU back to NPU. In the case of non-smart-switch chassis, no action is taken.
 
@@ -154,7 +154,7 @@ Returns:
     True
 ```
 
-get_dpu_bus_info(self, dpu_module_name):
+get_bus_info(self, module_name):
 ```
 For a given DPU module name, retrieve the PCI bus information. In the case of non-smart-switch chassis, no action is taken.
 
