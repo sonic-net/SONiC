@@ -23,13 +23,13 @@
     - [Adjust Data Retention](#adjust-data-retention)
     - [Enable/Disable Memory Monitoring](#enabledisable-memory-monitoring)
     - [Displaying Memory Statistics Configuration](#displaying-memory-statistics-configuration)
-- [Daemon Configuration Management](#daemon-configuration-management)
 - [SAI API](#sai-api)
 - [Configuration and Management](#configuration-and-management)
+  - [Daemon Configuration Management](#daemon-configuration-management)
+  - [Config DB Enhancements](#config-db-enhancements)
   - [CLI/YANG Model Enhancements](#cliyang-model-enhancements)
     - [CLI Commands](#cli-commands)
     - [YANG Model Enhancements](#yang-model-enhancements)
-  - [Config DB Enhancements](#config-db-enhancements)
 - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
 - [Testing Requirements/Design](#testing-requirementsdesign)
   - [Unit Test Cases](#unit-test-cases)
@@ -106,11 +106,11 @@ The overall SONiC architecture will remain the same. However, the following upda
 
 - **Daemon Process:**
 	- **memorystatsd:** A new system daemon process that will be implemented to gather and log memory statistics.
-	- **hostcfgd:** The existing host config daemon will monitor changes in the ConfigDB's `MEMORY_STATISTICS_TABLE` and will reload the `memorystatsd` service to apply the new settings.
+	- **hostcfgd:** The existing host config daemon will monitor changes in the ConfigDB's `MEMORY_STATISTICS` table and will reload the `memorystatsd` service to apply the new settings.
 
 - **Log File Directories:** Supporting log file directories will be established via SONiC Buildimage.
 - **SONiC Utilities Updates:** Changes will be made in the SONiC Utilities container to add new "show" and "config" commands.
-- **New Configuration Table:** A new table, MEMORY_STATISTICS_TABLE, will be added to ConfigDB to store memory-stats configuration parameters.
+- **New Configuration Table:** A new table, MEMORY_STATISTICS, will be added to ConfigDB to store memory-stats configuration parameters.
 The high-level feature design diagram is shown below.
 
 <p align="center">
@@ -124,7 +124,7 @@ The high-level feature design diagram is shown below.
 ### Enable/Disable Memory Monitoring
 
 <p align="center">
-    <img src="./images/enable_disable.svg" alt="Sequence diagram for Enable/Disable Memory Monitoring command" width="80%"/>
+    <img src="./images/enable_disable.png" alt="Sequence diagram for Enable/Disable Memory Monitoring command" width="80%"/>
     <br>
 	Figure 2: Sequence diagram for enabling or disabling the memory statistics monitoring feature
 </p>
@@ -164,14 +164,22 @@ The high-level feature design diagram is shown below.
 
 
 
-## **Daemon Configuration Management**
+
+
+## SAI API
+
+No SAI API change or addition is needed for this HLD.
+
+## Configuration and Management
+
+### **Daemon Configuration Management**
 
 
 The `memorystatsd` process will dynamically manage its configuration with the help of `hostcfgd`. The design ensures reliable behavior by utilizing both a predefined configuration file and the ConfigDB for real-time updates.
 
 - **Read Configuration at Startup**: Upon startup, the `memorystatsd` process reads its default configuration from a predefined config file. This guarantees that in the event of a restart—whether due to a crash or manual intervention—the daemon will always return to a known, consistent state.
 
-- **Monitor ConfigDB for Changes**: During runtime, `hostcfgd` monitors the `MEMORY_STATISTICS_TABLE` in ConfigDB for any configuration changes made via the CLI, such as adjustments to retention periods, sampling intervals, or enabling/disabling the daemon.
+- **Monitor ConfigDB for Changes**: During runtime, `hostcfgd` monitors the `MEMORY_STATISTICS` table in ConfigDB for any configuration changes made via the CLI, such as adjustments to retention periods, sampling intervals, or enabling/disabling the daemon.
 
 - **Signal Daemon to Reload Configuration**: When a configuration change is detected in ConfigDB, `hostcfgd` signals the `memorystatsd` process using the `SIGHUP` signal to reload its configuration without restarting the process. This ensures the changes are applied dynamically during runtime.
 
@@ -189,9 +197,9 @@ The `memorystatsd` process will dynamically manage its configuration with the he
 
 3. **Enable Daemon Manually**: Administrators need to manually enable the `memorystatsd` process via the CLI before it starts collecting memory statistics.
 
-4. **Runtime Configuration Changes**: Administrators can modify settings like retention periods or sampling intervals via the CLI. These changes are written directly to the `MEMORY_STATISTICS_TABLE` in ConfigDB.
+4. **Runtime Configuration Changes**: Administrators can modify settings like retention periods or sampling intervals via the CLI. These changes are written directly to the `MEMORY_STATISTICS` in ConfigDB.
 
-5. **Monitor ConfigDB for Changes**: `hostcfgd` continuously monitors ConfigDB for updates to the `MEMORY_STATISTICS_TABLE`.
+5. **Monitor ConfigDB for Changes**: `hostcfgd` continuously monitors ConfigDB for updates to the `MEMORY_STATISTICS`.
 
 6. **Signal Daemon to Reload Configuration**: Upon detecting changes in ConfigDB, `hostcfgd` sends a `SIGHUP` signal to the `memorystatsd` daemon, prompting it to reload its configuration without restarting.
 
@@ -201,27 +209,23 @@ The `memorystatsd` process will dynamically manage its configuration with the he
 
 9. **Graceful Shutdown**: When the daemon needs to be stopped, the `SIGTERM` signal ensures a graceful shutdown, where the daemon cleans up resources and terminates smoothly.
 
-## SAI API
-
-No SAI API change or addition is needed for this HLD.
-
 ### Config DB Enhancements
 
-A new table, `MEMORY_STATISTICS_TABLE`, will be introduced in `ConfigDB` to store the configuration settings of the Memory Statistics feature. This table will allow for management of data collection frequency, retention period, and enable/disable status. The relevant configuration parameters and the schema for this table are detailed below.
+A new table, `MEMORY_STATISTICS`, will be introduced in `ConfigDB` to store the configuration settings of the Memory Statistics feature. This table will allow for management of data collection frequency, retention period, and enable/disable status. The relevant configuration parameters and the schema for this table are detailed below.
 
 **MEMORY_STATS Configuration Parameters**
 
 | Parameter           | Type        | Description                                                    |
 |---------------------|-------------|----------------------------------------------------------------|
 | enabled             | boolean     | Enable or disable memory statistics collection.                |
-| sampling_interval   | unit16      | Interval for memory data collection.       		     |
-| retention_period    | unit16      | Duration for which memory data is retained.		     |   
+| sampling_interval   | unit8      | Interval for memory data collection.       		     |
+| retention_period    | unit8      | Duration for which memory data is retained.		     |   
 
 **Config DB Schema**
 ```json
 
-MEMORY_STATS_TABLE: {
-    "MemoryStats": {
+MEMORY_STATISTICS: {
+    "memory_statistics": {
         "enabled": "true",
         "sampling_interval": "5",
         "retention_period":  "15"
@@ -230,11 +234,16 @@ MEMORY_STATS_TABLE: {
 ``` 
 
 
-## Configuration and Management
-
 ### CLI/YANG Model Enhancements
 
 #### CLI Commands
+
+**Enable/Disable Memory Statistics Monitoring**
+
+To enable or disable the memory statistics monitoring feature, use the following command:
+
+	admin@sonic:~$ config memory-stats enable/disable
+ By default, it is disabled.
 
 **Set the Frequency of Memory Data Collection**
 
@@ -249,13 +258,6 @@ To set how long the memory data should be retained, use the following command:
 
 	admin@sonic:~$ config memory-stats retention-period <period>
  Default retention-period is 15 days
-
-**Enable/Disable Memory Statistics Monitoring**
-
-To enable or disable the memory statistics monitoring feature, use the following command:
-
-	admin@sonic:~$ config memory-stats enable/disable
- By default, it is disabled.
 
 **View Memory Usage**
 
@@ -310,50 +312,61 @@ Below is an example of the Memory Statistics Configuration output as it appears 
     Memory Statistics Configuration:
     --------------------------------
     Enabled:            true
-    Sampling Interval:  5 minutes
-    Retention Period:   15 days
+    Sampling Interval:  5
+    Retention Period:   15
  
  #### YANG Model Enhancements
 
 A new YANG Model for sonic-memory-stats will be added.
 
 ```
-module memory-stats {
+module sonic-memory-statistics {
     yang-version 1.1;
 
-    namespace "http://github.com/sonic-net/sonic-memory-stats";
+    namespace "http://github.com/sonic-net/sonic-memory-statistics";
     prefix mem;
-    
+
     import sonic-types {
         prefix stypes;
     }
-    
-    description "Memory-Stats YANG Module for SONiC-based OS";
+
+    description "YANG module for configuring memory statistics in SONiC-based OS.";
+
     revision 2024-07-22 {
         description "First Revision";
     }
-     
-    container MemoryStats {
-        description "Memory statistics configuration";
 
-        leaf enabled {
-            type boolean;
-            default false;
-            description "Enable or disable memory statistics";
-        }
+    container sonic-memory-statistics {
+        container MEMORY_STATISTICS {
+            description "Memory statistics configuration parameters.";
+            container memory_statistics{
+                leaf enabled {
+                    type boolean;
+                    default false;
+                    description "Flag to enable or disable memory statistics collection. If set to false, the memory statistics collection will stop.";
+                }
 
-        leaf sampling-interval {
-            type uint16;
-            units "minutes";
-            description "Interval for sampling memory statistics";
-        }
+                leaf sampling_interval {
+                    type uint8 {
+                        range "3..15";
+                    }
+                    units "minutes";
+                    default 5;
+                    description "Time interval in minutes for sampling memory statistics. Valid range, is between 3 minutes to 30 minutes.";
+                }
 
-        leaf retention-period {
-            type uint16;
-            units "days";
-            description "Retention period for memory statistics data";
+                leaf retention_period {
+                    type uint8 {
+                        range "1..30";
+                    }
+                    units "days";
+                    default 15;
+                    description "Retention period for memory statistics data, defined in days. Valid range is from 1 day to 30 days.";
+                }
+            }    
         }
     }
+}
 
  ```
 
