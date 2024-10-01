@@ -119,7 +119,7 @@ We are suggesting modifying the exisitng SONiC configuration as following sonic-
 2. files/scripts/network_setup.sh (New Addition)
     - A script to initialize the network interfaces and enable DHCP on them.
 3. files/script/network_setup.hook (New Addition)
-4. Added a daemon into files/image_config/kdump-feature/kdump-service.py (New Addition).
+4. Updated exisitng hostcfg daemon file script/hostcfgd (Updation).
 
 ## Configuration and Management
 This section describes all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below.
