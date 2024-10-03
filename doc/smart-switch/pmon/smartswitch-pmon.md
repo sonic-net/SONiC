@@ -572,11 +572,13 @@ get_state_info(self):
 ### 3.2 Thermal management
 * Platform  initializes all sensors
 * Thermalctld fetch CPU temperature, DPU temperature, fan speed, monitor and update the DB
+* The thermal management runs on NPU
 * Thermal manager reads all thermal sensor data, run thermal policy and take policy action Ex. Set fan speed, set alarm, set syslog, set LEDs 
 * Platform collects fan related data such as presence, failure and then applies fan algorithm to set the new fan speed
 * The north bound CLI/Utils/App use DB data to ”show environment”, ”show platform temp” show platform fan”
 * The DPUs will update the ChassisStateDB "TEMPERATURE_INFO" tables through redis client call which in turn will be pushed into the switch StateDB.
 * The existing "TEMPERATURE_INFO" schema will be used to store the values and is shown below for convenience.
+* For phase:1 implementation the sensor values collected by DPU will not be pushed to the chassisStateDB.
 #### TEMPERATURE_INFO schema in StateDB
 ```
   "TEMPERATURE_INFO|DPU_0_T": {
@@ -681,7 +683,11 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 
 #### 3.4.1 Reboot Cause CLIs
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
-* Each DPU will update its reboot cause history in the Switch ChassisStateDB upon boot up. The PMON on the DPU side will be responsible to update the switch side chassisStateDB on DPU boot up, using the push model specified in [section: 3.2.4 of SONiC Chassis Platform Management & Monitoring HLD](https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon-chassis-design.md) The DPUs will limit the number of history entries to a maximum of ten. The recent reboot-cause can be derived from that list of reboot-causes. Platforms which are not capable of populating the ChassisStateDB can use the "get_reboot_cause" API to fetch the data from the DPUs. The trigger to activate the API will eventually come from the DPU state change handler.
+* Each DPU will update its reboot cause history in the Switch ChassisStateDB upon boot up.
+* The PMON on the DPU side will be responsible to update the switch side chassisStateDB on DPU boot up, using the push model specified in [section: 3.2.4 of SONiC Chassis Platform Management & Monitoring HLD](https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon-chassis-design.md)
+* Though how DPU pmon updates this is vendor dependent, it is recommended to use the sonic telemetry agent to align with the existing SONiC implementation.
+* The DPUs will limit the number of history entries to a maximum of ten.
+* The recent reboot-cause can be derived from that list of reboot-causes. Platforms which are not capable of populating the ChassisStateDB can use the "get_reboot_cause" API to fetch the data from the DPUs. The trigger to activate the API will eventually come from the DPU state change handler.
 
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause
