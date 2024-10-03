@@ -383,7 +383,7 @@ disk_io_writes          = STRING                    ; Describes the total number
 reserved_blocks         = STRING                    ; Describes the reserved blocks count of the SSD                                         (Dynamic)
 firmware                = STRING                    ; Describes the Firmware version of the SSD                                              (Dynamic)
 health                  = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs      (Dynamic)
-last_sync_time          = STRING                    ; The latest successful sync time of disk attribtes to STATE_DB (MM:DD:YYYY format)      (Dynamic)
+last_sync_time          = STRING                    ; The latest successful sync time of disk attribtes to STATE_DB (YYYY:MM:DD HH:MM:SS)    (Dynamic)
 ```
 
 NOTE: disk_io_reads and disk_io_writes return total LBAs read/written. 'LBA' stands for Logical Block Address. 
@@ -422,7 +422,8 @@ admin@str2-dx010-acs-7:~$ redis-cli -n 6
 22) "863702"
 23) "reserved_blocks"
 24) "135"
-
+25) "last_sync_time"
+26) "2024-10-02 23:49:41"
 
 
 ```
@@ -431,11 +432,11 @@ admin@str2-dx010-acs-7:~$ redis-cli -n 6
 ```
 ; Defines information for FS Stats synchronization
 
-key                     = STORAGE_INFO|FSSTATS_SYNC     ; This key is for information pertaining to synchronization of FSIO Reads/Writes
+key                     = STORAGE_INFO|FSSTATS_SYNC  ; This key is for information pertaining to synchronization of FSIO Reads/Writes
 
 ; field                 = value
 
-successful_sync_time    = STRING                        ; The latest successful sync time of FSIO reads and writes to file in UNIX timestamp format
+successful_sync_time    = STRING                     ; The latest successful sync time of FSIO reads and writes to file ("YYYY:MM:DD HH:MM:SS" format)
 
 ```
 
