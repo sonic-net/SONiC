@@ -88,16 +88,17 @@ The picture below highlights the PMON vertical and its association with other lo
 <p align="center"><img src="./images/dpu-startup-seq.svg"></p>
 
 #### 2.1.1 DPUs in dark mode
-* Generally a smartswitch boots up with the DPUs in the dark mode with the help of platform config_db
-* NPU pmon listens to config DB events for DPU admin up/down events
-* PMON use set_admin_state() API to honor the request
-* The DPUs would stay power down in dark mode and will not consume power
+* A smartswitch when configured to boot up with all the DPUs in it are powered down upon boot up is referred as DPUs in dark mode.
+* In the dark mode the platform.json file shown in section "3.1.3" will not have the dictionary for the DPUS.
+* The term dark mode is overloaded in some cases where the platform.json may have the dictionary but the config_db.json will have the admin_state of all DPU modules as "down".
+* Generally a smartswitch boots up with the DPUs in the dark mode.
+* The DPUs would stay power down in dark mode and will not consume power.
 
 #### 2.1.2 Configuring startup and shutdown
 * The user can use the “config chassis modules startup DPUx”  to power ON a DPU Example: “config chassis modules startup DPU0”
 * The “config chassis modules shutdown DPUx” is used to power OFF a DPU Example: “config chassis modules shutdown DPU0”
 * The DPUs are powered down by configuring the admin_status as shown in the schema
-* The config change event handler listens to the config change and sets the corresponding switch configDB table and also triggers the module set_admin_state() API
+* The config change event handler running on the chassisd of PMON listens to the config change and sets the corresponding switch configDB table and also triggers the module set_admin_state() API.
 * The platform executes the power ON/OFF sequence
 
 #### config_db.json
@@ -137,7 +138,7 @@ Key: "CHASSIS_MODULE|DPU0"
 * DPU: Maintenance, Critical alarm, Service migration, RMA
 #### DPU shutdown sequence
 * There could be two possible sources for DPU shutdown. 1. A configuration change to DPU "admin_status: down" 2. The GNOI logic can trigger it.
-* The GNOI server runs on the DPU even after the DPU is shutdown.
+* The GNOI server runs on the DPU even after the DPU is pre-shutdown and listens until the graceful shutdown finishes.
 * The host sends a GNOI signal to shutdown the DPU. The DPU does a graceful-shutdown and sends an ack back to the host.
 * Upon receiving the ack or on a timeout the host may trigger the switch PMON vendor API to shutdown the DPU.
 * If a vendor specific API is not defined, detachment is done via sysfs (echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove).
@@ -466,10 +467,10 @@ is_midplane_reachable(self):
 
 ```
 #### DPU State
-2. Though the get_oper_status(self) can get the operational status of the DPU Modules, the current implementation only has limited capabilities.
+2. Though the get_oper_status(self) can get the operational status of the DPU modules, the current implementation only has limited capabilities.
     * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progression the DPU failed. This is critical in fault isolation, DPU switchover decision, resiliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistent way of storing and accessing the information.
-    * Store the state progression (dpu_midplane_link_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB.
+    * Store the state progression (dpu_midplane_link_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB using the push model specified in [section: 3.2.4 of SONiC Chassis Platform Management & Monitoring HLD](https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon-chassis-design.md)
     * get_state_info(self) will return an object with the ChassisStateDB data
     * Potential consumers: HA, LB, Switch CLIs, Utils (install/repair images), Life Cycle Manager 
     * Use cases: HA, Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state
@@ -680,7 +681,7 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 
 #### 3.4.1 Reboot Cause CLIs
 * There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
-* Each DPU will update its reboot cause history in the Switch ChasissStateDB upon boot up. The DPUs will limit the number of history entries to a maximum of ten. The recent reboot-cause can be derived from that list of reboot-causes. Platforms which are not capable of populating the ChasissStateDB can use the "get_reboot_cause" API to fetch the data from the DPUs. The trigger to activate the API will eventually come from the DPU state change handler.
+* Each DPU will update its reboot cause history in the Switch ChassisStateDB upon boot up. The PMON on the DPU side will be responsible to update the switch side chassisStateDB on DPU boot up, using the push model specified in [section: 3.2.4 of SONiC Chassis Platform Management & Monitoring HLD](https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon-chassis-design.md) The DPUs will limit the number of history entries to a maximum of ten. The recent reboot-cause can be derived from that list of reboot-causes. Platforms which are not capable of populating the ChassisStateDB can use the "get_reboot_cause" API to fetch the data from the DPUs. The trigger to activate the API will eventually come from the DPU state change handler.
 
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause
@@ -998,7 +999,67 @@ root@sonic:/home/admin# show interfaces status
 ### 3.5 Console Management
 The console access to smartswitch needs to support DPU access in addition to the switch.
 * By default the management port should be connected to the switch CPU console
-* Once inside the switch, the DPUs should be accesssible from it. The design workflow for this will be covered in another document.
+* Once inside the switch, the DPUs should be accesssible from it.
+
+#### 3.5.1 Dpu Console Utility
+* Sonic now supports a DPU console utility "dpu-tty.py"
+* The scope of this is limited only to smartswitch paltforms
+* The user can invoke one or more DPU consoles as shown below by invoking the script "dpu-tty.py" with the module name option "-n dpu0"
+
+```
+root@MtFuji:/home/cisco# dpu-tty.py -n dpu0
+picocom v3.1
+
+port is        : /dev/ttyS4
+flowcontrol    : none
+baudrate is    : 115200
+parity is      : none
+databits are   : 8
+stopbits are   : 1
+escape is      : C-a
+local echo is  : no
+noinit is      : no
+noreset is     : no
+hangup is      : no
+nolock is      : no
+send_cmd is    : sz -vv
+receive_cmd is : rz -vv -E
+imap is        : 
+omap is        : 
+emap is        : crcrlf,delbs,
+logfile is     : none
+initstring     : none
+exit_after is  : not set
+exit is        : no
+
+Type [C-a] [C-h] to see available commands
+Terminal ready
+
+sonic login: admin
+Password: 
+
+```
+#### 3.5.2 Dpu Console Configuration
+* The console configuration is provided via the platform.json file as shown
+* This file is responsible for selecting the baud rate and mapping the module name to the underlying TTY device name.
+```
+Sample platform.json configuration
+
+"DPUS": {
+    "dpu0": {
+        "serial-console": {
+            "device": "ttyS4",
+            "baud-rate": "115200"
+        }
+    },
+    "dpu1": {
+        "serial-console": {
+            "device": "ttyS5",
+            "baud-rate": "115200"
+        }
+    }
+},
+```
 
 ### 3.6 Firmware Upgrade
 * The fwutility should remain unchanged, but the vendor plugin should be extended to support the DPU FW upgrade.
