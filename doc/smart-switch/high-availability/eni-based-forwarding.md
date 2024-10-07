@@ -43,3 +43,7 @@ This document provides a high-level design for Smart Switch ENI based Packet For
 ## Overview ##
 
 ## Requirements ##
+
+<p align="center"><img alt="Current ACL Orchagent Redirect Flow" src="./images/old_acl_redirect_flow.svg"></p>
+
+<p align="center"><img alt="Proposed ACL Orchagent Redirect Flow" src="./images/new_acl_redirect_flow.svg"></p>
