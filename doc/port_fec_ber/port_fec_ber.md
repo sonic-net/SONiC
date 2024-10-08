@@ -60,6 +60,14 @@ There is no changes in the current Sonic Architecture.
 
 ### 3 High-Level Design 
 
+The following redis DB entries will be access for the BER calculations  
+|Redis DB      | Table       | Entries                                   |  
+|--------------|-------------|-------------------------------------------| 
+|COUNTER_DB    |COUNTERS     |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS     |
+|COUNTER_DB    |COUNTERS     |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES|
+|COUNTER_DB    |COUNTERS     |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS     |
+|COUNTER_DB    |COUNTERS     |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS     |
+
 This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
 		
 	- Is it a built-in SONiC feature or a SONiC Application Extension?
