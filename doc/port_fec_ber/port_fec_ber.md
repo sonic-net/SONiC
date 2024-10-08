@@ -1,55 +1,64 @@
 # Sonic Port FEC BER #
 
 ## Table of Content 
-- [About this Manual](#about-this-manual)
+- [Revision](#revision)
 - [Scope](#scope)
-- [Definitions/Abbreviation](#definitionsabbreviation)
-- [1 Subsystem Requirements Overview](#1-subsystem-requirements-overview)
+- [Definitions/Abbreviation](#abbreviations)
+- [1 Overview](#1-overview)
   - [1.1 Functional requirements](#11-functional-requirements)
   - [1.2 CLI requirements](#12-cli-requirements)
-- [2 Implementation details](#2-mimplementation-details)
-  - [2.1 SAI counters used](#21-sai-counters-used)
-  - [2.2 Calculation formulas](#22-calculation-formulas)
-    - [2.2.1 Byte rate](#221-byte-rate)
-    - [2.2.2 Packet rate](#222-packet-rate)
-    - [2.2.3 Utilization](#223-utilization)### Revision  
+- [2 Architecture Design](#2-architecture-design)
+- [3 High level design](#3-high-level-design)
+  - [3.1 SAI counters used](#31-sai-counters-used)
+  - [3.2 Calculation formulas](#32-calculation-formulas)
+    - [3.2.1 Byte rate](#321-byte-rate)
+    - [3.2.2 Packet rate](#322-packet-rate)
+    - [3.2.3 Utilization](#323-utilization)
+
+### Revision  
+
+| Rev |     Date    |       Author           | Change Description                |
+|:---:|:-----------:|:----------------------:|-----------------------------------|
+| 0.1 |             | Vincent (Ping Ching) Ng| Initial version                   |
 
 ### Scope  
 
 This document provide information about the implementation of Port Forward Error Correction (FEC) Bit Error Rate (BER) measurement. 
 This calculation include correctable bits and uncorrectable bits
 
-### Definitions/Abbreviations 
+### Abbreviations 
 
-FEC        - Forward Error Correction.
-BER        - Bits Error Rate, measure in bit per second.
-Pre FEC    - The number of bits which FEC successsfully correct.
-Post FEC   - The number of bits which FEC fail to correct.
-Frame	   - size of each FEC block.
-Symbol     - part of the FEC structure which the error detection and correction base on.
-RS-FEC     - Reed Solomon Forward Error correction, RSFEC-544 = 5440 total size , RSFEC-528 = 5280 total size
+FEC        - Forward Error Correction.  
+BER        - Bits Error Rate, measure in bit per second.  
+Pre FEC    - The number of bits which FEC successsfully correct.  
+Post FEC   - The number of bits which FEC fail to correct.  
+Frame	   - size of each FEC block.  
+Symbol     - part of the FEC structure which the error detection and correction base on.  
+RS-FEC     - Reed Solomon Forward Error correction, RSFEC-544 = 5440 total size , RSFEC-528 = 5280 total size  
 
-### Overview 
+### 1 Overview 
 
-FEC is a common hardarew feature deployed in a high speed network. Due to the signal integeraty, date ingressing to a port might have bit(s) corrupted.
-The FEC will correct the data's corruptiom and increment error counters to account for corrected bits (Pre FEC) or uncorrected frame (Post FEC)
+ FEC is a common hardarew feature deployed in a high speed network. Due to the signal integeraty, date ingressing to a port might have bit(s) corrupted.
+ The FEC will correct the data's corruptiom and increment error counters to account for corrected bits (Pre FEC) or uncorrected frame (Post FEC)
 
-### Requirements
+#### 1.1 Functional Requirements
+ This HLD is to 
+  - enhance the current "show interface counter fec-stat" to include Pre and Post BER statistic as new columns
+  - Add Pre and Post FEC BER per interface into Redis DB for telemetry streaming
+  - Calculate the Pre and Post FEC BER at the same intervale as the PORT_STAT poll rate which is 1 sec.
 
-This HLD is to 
-   - enhance the current "show interface counter fec-stat" to include Pre and Post BER statistic as new columns
-   - Add Pre and Post FEC BER per interface into Redis DB for telemetry streaming
-   - Calculate the Pre and Post FEC BER at the same intervale as the PORT_STAT poll rate which is 1 sec.
+#### 1.2 CLI Requirements
+
+The existing "show interface counter fec-stat" will enhanced to include two additional columns, 
+   - Pre FEC BER
+   - Post FEC BER
+     
+### 2 Architecture Design
+
+There is no changes in the current Sonic Architecture. 
 
 
-### Architecture Design 
-
-This section covers the changes that are required in the SONiC architecture. In general, it is expected that the current architecture is not changed.
-This section should explain how the new feature/enhancement (module/sub-module) fits in the existing architecture. 
-
-If this feature is a SONiC Application Extension mention which changes (if any) needed in the Application Extension infrastructure to support new feature.
-
-### High-Level Design 
+### 3 High-Level Design 
 
 This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
 		
