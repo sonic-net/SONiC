@@ -1,20 +1,36 @@
-# HLD Name #
+# Sonic Port FEC BER #
 
 ## Table of Content 
-
-### Revision  
+- [About this Manual](#about-this-manual)
+- [Scope](#scope)
+- [Definitions/Abbreviation](#definitionsabbreviation)
+- [1 Subsystem Requirements Overview](#1-subsystem-requirements-overview)
+  - [1.1 Functional requirements](#11-functional-requirements)
+  - [1.2 CLI requirements](#12-cli-requirements)
+- [2 Implementation details](#2-mimplementation-details)
+  - [2.1 SAI counters used](#21-sai-counters-used)
+  - [2.2 Calculation formulas](#22-calculation-formulas)
+    - [2.2.1 Byte rate](#221-byte-rate)
+    - [2.2.2 Packet rate](#222-packet-rate)
+    - [2.2.3 Utilization](#223-utilization)### Revision  
 
 ### Scope  
 
-This section describes the scope of this high-level design document in SONiC.
+This document provide information about the implementation of Port Forward Error Correction (FEC) Bit Error Rate (BER) measurement. 
+This calculation include correctable bits and uncorrectable bits
 
 ### Definitions/Abbreviations 
 
-This section covers the abbreviation if any, used in this high-level design document and its definitions.
+FEC        - Forward Error Correction.
+BER        - Bits Error Rate, measure in bit per second.
+Pre FEC    - The number of bits which FEC successsfully correct.
+Post FEC   - The number of bits which FEC fail to correct.
 
 ### Overview 
 
-The purpose of this section is to give an overview of high-level design document and its architecture implementation in SONiC. 
+FEC is a common hardarew feature deployed in a high speed network. Due to the signal integeraty, date ingressing to a port might have bit(s) corrupted.
+The FEC will correct the data's error and increment counters to account for correction is successful (Pre FEC) or correction is not succcessful (Post FEC)
+This HLD is to enhance the current show interface counter fec-stat to include Pre and Post BER statistic as new columns.
 
 ### Requirements
 
