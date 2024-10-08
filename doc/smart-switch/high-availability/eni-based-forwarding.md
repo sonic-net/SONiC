@@ -173,6 +173,36 @@ ACL Rule for Outbound Traffic and Local DPU. Inbound traffic will be matched on 
 
 ### Tunnel Next Hop ### 
 
+An example flow which creates a Tunnel Next Hop would be when a VNET Route is programmed with Tunnel Hop. Ref: https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md#22-app-db
+
+    VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
+        "endpoint": {{ip_address}} 
+        "mac_address":{{mac_address}} (OPTIONAL) 
+        "vni": {{vni}}(OPTIONAL) 
+
+To identify a Tunnel Next Hop, a combination of these parameters are required by ACL Orchagent
+1) Tunnel Name
+2) Endpoint IP
+3) MAC (OPTIONAL)
+4) VNI (OPTIONAL)
+
+ACL_RULE_TABLE should be equipped to accept these new paremeters without breaking backward compatibility. Thus it is decided to add a new Table to represent 
+
+
+    key: ACL_RULE_TABLE:table_name:rule_name
+
+    redirect_action = 1*255CHAR                ; redirect parameter
+                                               ; This parameter defines a destination for redirected packets
+                                               ; it could be:
+                                               : name of physical port.          Example: "Ethernet10"
+                                               : name of LAG port                Example: "PortChannel5"
+                                               : next-hop ip address (in global) Example: "10.0.0.1"
+                                               : next-hop ip address and vrf     Example: "10.0.0.2@Vrf2"
+                                               : next-hop ip address and ifname  Example: "10.0.0.3@Ethernet1"
+                                               : next-hop group set of next-hop  Example: "10.0.0.1,10.0.0.3@Ethernet1"
+                                               : next hop for tunnel             Example: "{\"endpoint\": \"1.1.1.1/32\", \"mac_address\": \"aa:aa:aa:aa:aa:aa\", \"tunnel_name\": \"ha_tunnel0\", \"vni\": \"100\"}"
+                                               : next hop group set for tunnel   Example: "{\"endpoint\": \"1.1.1.1/32\", \"tunnel_name\": \"ha_tunnel0\", }"
+
 ACL Rule for Inbound traffic and remote DPU
 
      {
