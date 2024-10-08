@@ -11,9 +11,9 @@
   - [Requirements](#requirements)
   - [Architecture Design](#architecture-design)
     - [Programming ACL Rules](#programming-acl-rules)
-        - [HA Active Mode](#ha-active-mode)
-        - [HA Standy Mode](#ha-standby-mode)
     - [ACL Orchagent Design Changes](#acl-orchagent-design-changes)
+        - [Existing Design](#existing-design)
+        - [Updated Design](#Updated-design)
     - [Configuration and management](#configuration-and-management)
   - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
   - [Memory Consumption](#memory-consumption)
@@ -39,11 +39,73 @@ This document provides a high-level design for Smart Switch ENI based Packet For
 | ---- | ------------------------------------------------------- |
 | NPU  | Network Processing Unit                                 |
 | DPU  | Data Processing Unit                                    |
+| VIP  | Virtual IP                                    |
+| PA  | Physical Adress                                   |
 
 ## Overview ##
 
+There are two possible NPU-DPU Traffic forwarding models.
+
+1) VIP based model
+    * Controller allocates VIP per DPU, which is advertised and visible from anywhere in the cloud infrastructure.
+    * The host has the DPU VIP as the gateway address for its traffic.
+    * Simple, decouples a DPU from switch.
+    * Costly, since you need VIP per DPU.
+
+2) ENI Based Forwarding
+    * The host has the switch VIP as the gateway address for its traffic.
+    * Cheaper, since only VIP per switch is needed (or even per a row of switches). ENI placement can be directed even across smart switches.
+
+ENI Based Forwarding is the preferred approach because of cost constraints.
+
 ## Requirements ##
 
+ENI based forwarding requires the switch to understand the relationship between the packet and ENI, and ENI and DPU.
+
+* Each DPU is represented as a PA (public address). Unlike VIP, PA does't have to be visible from the entire cloud infrastructure
+* Each ENI belongs to a certain DPU (local or remote)
+* Each packet can be identified as belonging to that switch using VIP and VNI
+* Forwarding can be to local DPU PA or remote DPU PA over L3 VxLAN
+* Scale: [# of DPUs] * [# of ENIs per DPU] * 2 (inbound and outbound)
+
+## Architecture Design ##
+
+### Programming ACL Rules ###
+
+* Packet Forwarding from NPU to local and remote DPU's are clearly explained in the High Availability HLD https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/high-availability/smart-switch-ha-hld.md#42-data-path-ha
+* In a nutshell, the ACL rule for a ENI depends on the role of its DPU in the corresponding HA pair i.e. local or standby
+* Thus, ACL rules must be dynamically updated on the NPU. This should be handled by HaMgrd as it will have all the necessary information to make the decision. 
+* The format on how the rules must be writted will be explained further in the document
+
+### ACL Orchagent Design Changes ### 
+
+#### Existing Design ####
+
+Current Design on ACL Orchagent is equipped to infer and program "REDIRECT" action for an ACL Rule. Here is the schema expected for the field
+
+    key: ACL_RULE_TABLE:table_name:rule_name
+
+    redirect_action = 1*255CHAR                ; redirect parameter
+                                               ; This parameter defines a destination for redirected packets
+                                               ; it could be:
+                                               : name of physical port.          Example: "Ethernet10"
+                                               : name of LAG port                Example: "PortChannel5"
+                                               : next-hop ip address (in global) Example: "10.0.0.1"
+                                               : next-hop ip address and vrf     Example: "10.0.0.2@Vrf2"
+                                               : next-hop ip address and ifname  Example: "10.0.0.3@Ethernet1"
+                                               : next-hop group set of next-hop  Example: "10.0.0.1,10.0.0.3@Ethernet1"
+
+Existing configuration flow is presented below
+
 <p align="center"><img alt="Current ACL Orchagent Redirect Flow" src="./images/old_acl_redirect_flow.svg"></p>
+
+#### Updated Design ####
+
+This design has a few shortcomings
+
+1) It is not equipped to handle redirect action to a Tunnel Next Hop
+2) It follows fire and forget and doesn't keep track of the updates made to that next-hop object. This has to be fixed for the DPU to have uninterrupted traffic flow after an event which triggers an update of next-hop object
+
+Updated design is presented below
 
 <p align="center"><img alt="Proposed ACL Orchagent Redirect Flow" src="./images/new_acl_redirect_flow.svg"></p>
