@@ -186,47 +186,43 @@ To identify a Tunnel Next Hop, a combination of these parameters are required by
 3) MAC (OPTIONAL)
 4) VNI (OPTIONAL)
 
-ACL_RULE_TABLE should be equipped to accept these new paremeters without breaking backward compatibility. Thus it is decided to add a new Table to represent 
+ACL_RULE_TABLE should be equipped to accept these new paremeters without breaking backward compatibility. Thus, a new Table to represent the tunnel next hop. 
 
+```
+key                      = "TUNNEL_NEXT_HOP:tunnel_next_hop_name" 
 
-    key: ACL_RULE_TABLE:table_name:rule_name
+tunnel_name              = STRING                ; Name of the Tunnel which has the nexthop associated
+endpoint_ip              = IPv4/IPv6             ; Endpoint IP
+mac_address              = MAC                   ; Inner Destination MAC (Optional)
+vni                      = INT                   ; Next Hop Entry VNI (Optional)  
+```
 
-    redirect_action = 1*255CHAR                ; redirect parameter
-                                               ; This parameter defines a destination for redirected packets
-                                               ; it could be:
-                                               : name of physical port.          Example: "Ethernet10"
-                                               : name of LAG port                Example: "PortChannel5"
-                                               : next-hop ip address (in global) Example: "10.0.0.1"
-                                               : next-hop ip address and vrf     Example: "10.0.0.2@Vrf2"
-                                               : next-hop ip address and ifname  Example: "10.0.0.3@Ethernet1"
-                                               : next-hop group set of next-hop  Example: "10.0.0.1,10.0.0.3@Ethernet1"
-                                               : next hop for tunnel             Example: "{\"endpoint\": \"1.1.1.1/32\", \"mac_address\": \"aa:aa:aa:aa:aa:aa\", \"tunnel_name\": \"ha_tunnel0\", \"vni\": \"100\"}"
-                                               : next hop group set for tunnel   Example: "{\"endpoint\": \"1.1.1.1/32\", \"tunnel_name\": \"ha_tunnel0\", }"
+Key for this table should be an input to redirect_action field in the ACL_RULE_TABLE 
 
-ACL Rule for Inbound traffic and remote DPU
+```
+key: ACL_RULE_TABLE:table_name:rule_name
+
+redirect_action = 1*255CHAR         : <All the old attributes>   
+                                    : next hop for tunnel             Example: ha_tunnel0_nh, this should be an entry in the TUNNEL_NEXT_HOP table
+```
+
+Exmaple: ACL Rule for outbound traffic and remote DPU
 
      {
+        "TUNNEL_NEXT_HOP": {
+            "ha_tunnel0_nh":{
+                "tunnel_name": "ha_tunnel0",
+                "endpoint_ip": "3.3.3.3/32",
+                "vni": "100"
+            }
+        }
         "ACL_RULE": {
-              "ENI|RULE_INBOUND_ENI0": {
+              "ENI|RULE_INBOUND_REMOTE_ENI0": {
                   "PRIORITY": "999",
                   "VNI": "4000",
                   "DST_IP": "1.1.1.1/32",
-                  "INNER_SRC_MAC": "aa:bb:cc:dd:ee:ff"
-                  "REDIRECT": '{"tunnel_name" : "tunnel0", "dst_ip": "4.4.4.4", "vni": "100", "mac_address": ""}'
+                  "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
+                  "REDIRECT": "ha_tunnel0"
               }
-          }
-    }
-
-ACL Rule for Outbound traffic and remote DPU
-
-    {
-        "ACL_RULE": {
-              "ENI|RULE_INBOUND_ENI0": {
-                  "PRIORITY": "999",
-                  "VNI": "4000",
-                  "DST_IP": "3.3.3.3/32",
-                  "INNER_DST_MAC": "aa:bb:cc:11:22:33"
-                  "REDIRECT": '{"tunnel_name" : "tunnel0", "dst_ip": "6.6.6.6", "vni": "100", "mac_address": ""}'
-              }
-          }
+        }
     }
