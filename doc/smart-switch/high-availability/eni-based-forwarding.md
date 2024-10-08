@@ -100,10 +100,11 @@ Existing configuration flow is presented below
 
 #### Updated Design ####
 
-This design has a few shortcomings
+The existing design has a few shortcomings
 
 1) It is not equipped to handle redirect action to a Tunnel Next Hop
 2) It follows fire and forget and doesn't keep track of the updates made to that next-hop object. This has to be fixed for the DPU to have uninterrupted traffic flow after an event which triggers an update of next-hop object
+3) State of the ACL rule should be clearly reflected in the STATE_DB
 
 Updated design is presented below
 
