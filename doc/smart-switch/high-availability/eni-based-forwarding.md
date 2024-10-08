@@ -17,10 +17,8 @@
     - [ACL Configuration](#acl-configuration)
         - [Tunnel Next Hop](#tunnel-next-hop)
   - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
-  - [Memory Consumption](#memory-consumption)
   - [Restrictions/Limitations](#restrictionslimitations)
   - [Testing Requirements/Design](#testing-requirementsdesign)
-    - [Unit Test cases](#unit-test-cases)
     - [System Test cases](#system-test-cases)
   - [Open/Action items - if any](#openaction-items---if-any)
 
@@ -41,7 +39,7 @@ This document provides a high-level design for Smart Switch ENI based Packet For
 | NPU  | Network Processing Unit                                 |
 | DPU  | Data Processing Unit                                    |
 | VIP  | Virtual IP                                    |
-| PA  | Physical Adress                                   |
+| PA  | Physical Address                                   |
 
 ## Overview ##
 
@@ -143,7 +141,7 @@ ACL Table Type and ACL table Configuration as follows:
         }
     }
 
-ACL Rule for Inbound Traffic and Local DPU. Inbound traffic will be matched on INNER_SRC_MAC
+Example: ACL Rule for Inbound Traffic and Local DPU. Inbound traffic will be matched on INNER_SRC_MAC
 
     {
         "ACL_RULE": {
@@ -157,7 +155,7 @@ ACL Rule for Inbound Traffic and Local DPU. Inbound traffic will be matched on I
           }
     }
 
-ACL Rule for Outbound Traffic and Local DPU. Inbound traffic will be matched on INNER_DST_MAC
+Example: ACL Rule for Outbound Traffic and Local DPU. Inbound traffic will be matched on INNER_DST_MAC
 
     {
         "ACL_RULE": {
@@ -189,27 +187,29 @@ To identify a Tunnel Next Hop, a combination of these parameters are required by
 ACL_RULE_TABLE should be equipped to accept these new paremeters without breaking backward compatibility. Thus, a new Table to represent the tunnel next hop. 
 
 ```
-key                      = "TUNNEL_NEXT_HOP:tunnel_next_hop_name" 
+key                      = "TUNNEL_NEXT_HOP_TABLE:next_hop_object_name" 
 
-tunnel_name              = STRING                ; Name of the Tunnel which has the nexthop associated
-endpoint_ip              = IPv4/IPv6             ; Endpoint IP
-mac_address              = MAC                   ; Inner Destination MAC (Optional)
-vni                      = INT                   ; Next Hop Entry VNI (Optional)  
+tunnel_name              = STRING                               ; Name of the Tunnel which has the nexthop associated
+endpoint_ip              = List of IP's separated by comma      ; Endpoint IP's. When there are multiple IP's it is assumed to be a next hop group
+mac_address              = List of MAC's separated by comma     ; Inner Destination MAC's (Optional)
+vni                      = List of VNI's separated by comma     ; Next Hop Entry VNI's (Optional)
 ```
 
-Key for this table should be an input to redirect_action field in the ACL_RULE_TABLE 
+Key for this table should be an input to redirect_action field in the ACL_RULE_TABLE
+
+**Note:  **
 
 ```
 key: ACL_RULE_TABLE:table_name:rule_name
 
 redirect_action = 1*255CHAR         : <All the old attributes>   
-                                    : next hop for tunnel             Example: ha_tunnel0_nh, this should be an entry in the TUNNEL_NEXT_HOP table
+                                    : next hop for tunnel             Example: ha_tunnel0_nh, this should be a key in the TUNNEL_NEXT_HOP table
 ```
 
 Exmaple: ACL Rule for outbound traffic and remote DPU
 
      {
-        "TUNNEL_NEXT_HOP": {
+        "TUNNEL_NEXT_HOP_TABLE": {
             "ha_tunnel0_nh":{
                 "tunnel_name": "ha_tunnel0",
                 "endpoint_ip": "3.3.3.3/32",
@@ -217,12 +217,29 @@ Exmaple: ACL Rule for outbound traffic and remote DPU
             }
         }
         "ACL_RULE": {
-              "ENI|RULE_INBOUND_REMOTE_ENI0": {
+              "ENI|RULE_OUTBOUND_REMOTE_ENI0": {
                   "PRIORITY": "999",
                   "VNI": "4000",
                   "DST_IP": "1.1.1.1/32",
                   "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
-                  "REDIRECT": "ha_tunnel0"
+                  "REDIRECT": "ha_tunnel0_nh"
               }
         }
     }
+
+## Warmboot and Fastboot Design Impact ##
+
+No Changes here. 
+
+## Restrictions/Limitations ##
+
+- Even though provision for Tunnel NH Group is provided, it is not in the scope of this feature to support Tunnel NH Group.
+- HaMgrd will be writing the ACL rules to APPL_DB and so Configuration/CLI/Yang model to support TUNNEL_NEXT_HOP_TABLE is not in the scope of this feature
+
+## Testing Requirements/Design ##
+
+- Migrate existing Private Link tests to use ENI Forwarding Approach. Until HaMgrd is available, test should progran ACL rules in APPL_DB
+- Add individual test cases which verify next hop forwarding 
+- Add individual test cases to verify tunnel next hop forwarding regardless of HA availability 
+
+## Open/Action items - if any ##
