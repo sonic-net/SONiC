@@ -204,15 +204,15 @@ Key for this table should be an input to redirect_action field in the ACL_RULE_T
 key: ACL_RULE_TABLE:table_name:rule_name
 
 redirect_action = 1*255CHAR         : <All the old attributes>   
-                                    : next hop for tunnel             Example: ha_tunnel0_nh, this should be a key in the TUNNEL_NEXT_HOP table
+                                    : next hop for tunnel             Example: npu2npu_tunnel0, this should be a key in the TUNNEL_NEXT_HOP table
 ```
 
 Exmaple: ACL Rule for outbound traffic and remote DPU
 
      {
         "TUNNEL_NEXT_HOP_TABLE": {
-            "ha_tunnel0_nh":{
-                "tunnel_name": "ha_tunnel0",
+            "npu2npu_tunnel_nh":{
+                "tunnel_name": "npu2npu_tunnel0",
                 "endpoint_ip": "3.3.3.3/32",
                 "vni": "100"
             }
@@ -223,7 +223,7 @@ Exmaple: ACL Rule for outbound traffic and remote DPU
                   "VNI": "4000",
                   "DST_IP": "1.1.1.1/32",
                   "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
-                  "REDIRECT": "ha_tunnel0_nh"
+                  "REDIRECT": "npu2npu_tunnel_nh"
               }
         }
     }
@@ -234,7 +234,6 @@ No Changes here.
 
 ## Restrictions/Limitations ##
 
-- Even though provision for Tunnel NH Group is provided, it is not in the scope of this feature to support Tunnel NH Group.
 - HaMgrd will be writing the ACL rules to APPL_DB and so Configuration/CLI/Yang model to support TUNNEL_NEXT_HOP_TABLE is not in the scope of this feature
 
 ## Testing Requirements/Design ##
