@@ -37,9 +37,9 @@ The FEC will correct the data's corruptiom and increment error counters to accou
 ### Requirements
 
 This HLD is to 
-   (1) enhance the current "show interface counter fec-stat" to include Pre and Post BER statistic as new columns
-   (2) Add Pre and Post FEC BER per interface into Redis DB for telemetry streaming
-   (3) Calculate the Pre and Post FEC BER at the same intervale as the PORT_STAT poll rate which is 1 sec.
+   - enhance the current "show interface counter fec-stat" to include Pre and Post BER statistic as new columns
+   - Add Pre and Post FEC BER per interface into Redis DB for telemetry streaming
+   - Calculate the Pre and Post FEC BER at the same intervale as the PORT_STAT poll rate which is 1 sec.
 
 
 ### Architecture Design 
