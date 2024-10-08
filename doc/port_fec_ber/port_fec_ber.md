@@ -25,16 +25,22 @@ FEC        - Forward Error Correction.
 BER        - Bits Error Rate, measure in bit per second.
 Pre FEC    - The number of bits which FEC successsfully correct.
 Post FEC   - The number of bits which FEC fail to correct.
+Frame	   - size of each FEC block.
+Symbol     - part of the FEC structure which the error detection and correction base on.
+RS-FEC     - Reed Solomon Forward Error correction, RSFEC-544 = 5440 total size , RSFEC-528 = 5280 total size
 
 ### Overview 
 
 FEC is a common hardarew feature deployed in a high speed network. Due to the signal integeraty, date ingressing to a port might have bit(s) corrupted.
-The FEC will correct the data's error and increment counters to account for correction is successful (Pre FEC) or correction is not succcessful (Post FEC)
-This HLD is to enhance the current show interface counter fec-stat to include Pre and Post BER statistic as new columns.
+The FEC will correct the data's corruptiom and increment error counters to account for corrected bits (Pre FEC) or uncorrected frame (Post FEC)
 
 ### Requirements
 
-This section list out all the requirements for the HLD coverage and exemptions (not supported) if any for this design.
+This HLD is to 
+   (1) enhance the current "show interface counter fec-stat" to include Pre and Post BER statistic as new columns
+   (2) Add Pre and Post FEC BER per interface into Redis DB for telemetry streaming
+   (3) Calculate the Pre and Post FEC BER at the same intervale as the PORT_STAT poll rate which is 1 sec.
+
 
 ### Architecture Design 
 
