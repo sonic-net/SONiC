@@ -93,12 +93,12 @@ CounterType::POLICER
 ```
 
 PolicerOrch holds a new object of type FlexCounterManager and is initialized with ```StatsMode::READ```
-and a default polling interval of 10 sec and enabled by default:
+and a default polling interval of 10 sec and disable by default:
 ```c++
 FlexCounterManager m_pc_manager;
 ```
 
-#### Additionally, the following mapping should be added:
+#### Additionally, the following mapping should be added for the CLI:
 - "COUNTERS_POLICER_NAME_MAP" - maps the POLICER oid to its name
 
 ### Syncd
