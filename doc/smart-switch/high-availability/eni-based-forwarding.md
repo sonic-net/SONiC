@@ -14,7 +14,8 @@
     - [ACL Orchagent Design Changes](#acl-orchagent-design-changes)
         - [Existing Design](#existing-design)
         - [Updated Design](#Updated-design)
-    - [Configuration and management](#configuration-and-management)
+    - [ACL Configuration](#acl-configuration)
+        - [Tunnel Next Hop](#tunnel-next-hop)
   - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
   - [Memory Consumption](#memory-consumption)
   - [Restrictions/Limitations](#restrictionslimitations)
@@ -109,3 +110,93 @@ This design has a few shortcomings
 Updated design is presented below
 
 <p align="center"><img alt="Proposed ACL Orchagent Redirect Flow" src="./images/new_acl_redirect_flow.svg"></p>
+
+### ACL Configuration ### 
+
+ACL Table Type and ACL table Configuration as follows:
+
+    {
+        "ACL_TABLE_TYPE": {
+            "ENI": {
+                "MATCHES": [
+                    "VNI",
+                    "DST_IP",
+                    "INNER_SRC_MAC",
+                    "INNER_DST_MAC",
+                ],
+                "ACTIONS": [
+                    "REDIRECT_ACTION",
+                ],
+                "BIND_POINTS": [
+                    "PORT"
+                ]
+            }
+        },
+        "ACL_TABLE": {
+            "ENI": {
+                "STAGE": "INGRESS",
+                "TYPE": "ENI",
+                "PORTS": [
+                    "<All Ports except the Internal Ports>"
+                ]
+            }
+        }
+    }
+
+ACL Rule for Inbound Traffic and Local DPU. Inbound traffic will be matched on INNER_SRC_MAC
+
+    {
+        "ACL_RULE": {
+              "ENI|RULE_INBOUND_ENI0": {
+                  "PRIORITY": "999",
+                  "VNI": "4000",
+                  "DST_IP": "1.1.1.1/32",
+                  "INNER_SRC_MAC": "aa:bb:cc:dd:ee:ff"
+                  "REDIRECT": "2.2.2.2" # PA Address for local DPU
+              }
+          }
+    }
+
+ACL Rule for Outbound Traffic and Local DPU. Inbound traffic will be matched on INNER_DST_MAC
+
+    {
+        "ACL_RULE": {
+              "ENI|RULE_INBOUND_ENI0": {
+                  "PRIORITY": "999",
+                  "VNI": "4000",
+                  "DST_IP": "3.3.3.3/32",
+                  "INNER_DST_MAC": "aa:bb:cc:11:22:33"
+                  "REDIRECT": "2.2.2.2" # PA Address for local DPU
+              }
+          }
+    }
+
+### Tunnel Next Hop ### 
+
+ACL Rule for Inbound traffic and remote DPU
+
+     {
+        "ACL_RULE": {
+              "ENI|RULE_INBOUND_ENI0": {
+                  "PRIORITY": "999",
+                  "VNI": "4000",
+                  "DST_IP": "1.1.1.1/32",
+                  "INNER_SRC_MAC": "aa:bb:cc:dd:ee:ff"
+                  "REDIRECT": '{"tunnel_name" : "tunnel0", "dst_ip": "4.4.4.4", "vni": "100", "mac_address": ""}'
+              }
+          }
+    }
+
+ACL Rule for Outbound traffic and remote DPU
+
+    {
+        "ACL_RULE": {
+              "ENI|RULE_INBOUND_ENI0": {
+                  "PRIORITY": "999",
+                  "VNI": "4000",
+                  "DST_IP": "3.3.3.3/32",
+                  "INNER_DST_MAC": "aa:bb:cc:11:22:33"
+                  "REDIRECT": '{"tunnel_name" : "tunnel0", "dst_ip": "6.6.6.6", "vni": "100", "mac_address": ""}'
+              }
+          }
+    }
