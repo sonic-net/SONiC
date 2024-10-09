@@ -66,6 +66,7 @@ Smart Switch supports only cold-reboot and does not support warm-reboot as of to
 1. NPU host is running gNOI client to communicate with DPU.
 2. DPU host is running gNOI server to listen to gNOI client requests.
 3. Each DPU is assigned an IP address to communicate from NPU.
+4. SONiC host services on both the NPU and DPU should undergo a graceful shutdown during reboot.
 
 ## Methods of Switch and DPU Reboot ##
 
@@ -82,11 +83,10 @@ In addition to the previously mentioned causes of graceful reboots, a switch or 
 
 DPUs are internally connected to the NPU via PCI-E bridge. Below is the reboot sequence for rebooting a specific DPU:
 
-* Upon receiving a reboot CLI command to restart a particular DPU, the NPU transmits a gNOI Reboot API signal with reboot method set to ‘HALT’, instructing
-the DPU to terminate all services.
+* Upon receiving a [reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/reboot) CLI command to restart a particular DPU, the NPU transmits a gNOI Reboot RPC signal with RebootMethod set to ‘HALT’, instructing the DPU to terminate all services.
 
-* Upon dispatching the Reboot API, the NPU issues the RebootStatus API to monitor whether the DPU has terminated all services except gNOI and database
-service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS and 'active'
+* Upon dispatching the gNOI Reboot RPC, the NPU issues the gNOI RebootStatus RPC to monitor whether the DPU has terminated all services except gNOI and database
+service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the gNOI RebootStatus RPC with STATUS_SUCCESS and 'active'
 will be set to false in the RebootStatusResponse. Until the services are terminated gracefully, 'active' will be '1' in the RebootStatusResponse.
 
 * Subsequently, the NPU detaches the DPU PCI with a vendor defined API. If a vendor specific API is not defined, detachment is done via sysfs
@@ -104,13 +104,13 @@ is not defined, then rescan is done via sysfs (echo 1 > /sys/bus/pci/rescan).
 
 The following outlines the reboot procedure for the entire Smart Switch:
 
-* When the NPU receives a reboot command via the CLI to restart the SmartSwitch, it initiates the reboot sequence.
+* When the NPU receives a [reboot](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/reboot) command via the CLI to restart the SmartSwitch, it initiates the reboot sequence.
 
-* The NPU sends a gNOI Reboot API signal to all connected DPUs in parallel using multiple threads. This signal instructs the DPUs to gracefully terminate all
+* The NPU sends a gNOI Reboot RPC signal to all connected DPUs in parallel using multiple threads. This signal instructs the DPUs to gracefully terminate all
 services, excluding the gNOI server and also database, in preparation for the reboot.
 
-* Upon dispatching the Reboot API, the NPU issues the RebootStatus API to monitor whether the DPU has terminated all services except GNMI and database
-service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the RebootStatus API with STATUS_SUCCESS and 'active'
+* Upon dispatching the gNOI Reboot RPC, the NPU issues the gNOI RebootStatus RPC to monitor whether the DPU has terminated all services except GNMI and database
+service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the gNOI RebootStatus RPC with STATUS_SUCCESS and 'active'
 will be set to false in the RebootStatusResponse. Until the services are terminated gracefully, 'active' will be '1' in the RebootStatusResponse.
 
 * Following the confirmation from the DPUs, the NPU proceeds to detach the PCI devices associated with the DPUs. This detachment is achieved either by calling
@@ -119,7 +119,7 @@ for each DPU.
 
 * With the DPUs prepared for reboot, the NPU triggers a platform vendor API to initiate the reboot process for the DPUs. Vendor API reboots a single DPU, but the NPU spawns multiple threads to reboot DPUs in parallel. If any of the the DPU is stuck or unresponsive, the DPU reboot platform API should attempt a cold boot or power cycle to recover it.
 
-* DPUs will send an acknowledgment to the NPU and then undergo a reboot. After receiving the acknowledgment from the DPUs, the NPU will proceed to reboot itself to complete the overall reboot procedure. The vendor-specific reboot API should include an error handling mechanism to manage DPU reboot failures. Additionally log all the failures. DPUs will be in DPU_READY state, if the reboot happened successfully.
+* After all the DPUs have rebooted and responded to the platform's reboot vendor API, the NPU will proceed with its own reboot to complete the overall reboot process. The vendor-specific reboot API should include an error handling mechanism to manage DPU reboot failures. Additionally log all the failures. DPUs will be in DPU_READY state, if the reboot happened successfully.
 
 * Upon successful reboot, the NPU resumes operation. As part of the post-reboot process, the NPU may choose to rescan the PCI devices. This rescan operation,
 performed either by invoking vendor API or by echoing '1' to the /sys/bus/pci/rescan file, ensures that all PCI devices are properly
@@ -172,7 +172,7 @@ a default timeout will be used.
 {
     .
     .
-    "dpu_halt_services_timeout" : "TBD"
+    "dpu_halt_services_timeout" : "300"
 
     "DPUS" : [
         {
@@ -355,6 +355,14 @@ upon receiving an acknowledgment.
 
 Presented below is the test plan within the ```sonic-mgmt``` framework for the smart switch reboot.
 
+###Graceful boot/reboot###
+
+A graceful boot refers to a controlled and orderly startup process where the system (whether it is a device, DPU, NPU, or the entire system) powers on or reboots without any unexpected interruptions or failures. During a graceful boot, all components follow a well-defined sequence to ensure system stability and functionality.
+
+###Ungraceful boot/reboot###
+
+An ungraceful boot occurs when the boot process is interrupted, incomplete, or initiated in a hasty or unexpected manner, leading to potential system errors or data corruption. This may result from power loss, forced shutdowns, or reboot failures.
+
 
 | Event                                     | NPU reboot sequence | DPU reboot sequence |
 | ----------------------------------------- | ------------------- | ------------------- |
@@ -368,11 +376,16 @@ Presented below is the test plan within the ```sonic-mgmt``` framework for the s
 | Unplanned Smart Switch System Crash       | Ungraceful reboot   | Ungraceful reboot   |
 | Unplanned DPU System Crash                | -                   | Ungraceful reboot   |
 
-The test scenarios above ensure that both the NPU and all DPUs are fully operational following any type of reboot. Furthermore, the tests verify the
-functionality of PCI communication between NPU and DPUs.
+The test scenarios described above ensure that both the NPU and all DPUs are fully operational after any type of reboot. Additionally, the tests verify the following post-reboot conditions:
+
+1. DPUs that were UP before the reboot have successfully come back online.
+2. DPUs that were administratively down remain in the down state after the reboot.
+3. PCI communication between the NPU and any DPUs that are online is functioning correctly.
+4. The cause of the reboot is accurately recorded and updated.
 
 ## References
 
+- [PMON HLD](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/pmon/smartswitch-pmon.md)
 - [Openconfig system.proto](#https://github.com/openconfig/gnoi/blob/main/system/system.proto)
 - [Warmboot Manager HLD](#https://github.com/sonic-net/SONiC/blob/master/doc/warm-reboot/Warmboot_Manager_HLD.md)
 - [gNOI reboot HLD](#https://github.com/sonic-net/SONiC/blob/master/doc/warm-reboot/Warmboot_Manager_HLD.md)
