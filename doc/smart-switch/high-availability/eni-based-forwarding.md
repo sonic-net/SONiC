@@ -121,7 +121,7 @@ The existing design has a few shortcomings
 
 1) It is not equipped to handle redirect action to a Tunnel NH or NG Group
 2) It follows fire and forget and doesn't keep track of the updates made to that next-hop object. This has to be fixed for the DPU to have uninterrupted traffic flow after an event which triggers an update of next-hop object
-3) Update ACL Orchagent to match on INNER_SRC_MAC and INNER_DST_MAC
+3) ACL Orchagent doesn't support matching on INNER_SRC_MAC and INNER_DST_MAC
 
 **Proposed design when Nexthop is programmed**
 
