@@ -13,8 +13,10 @@
   - [3.2 SAI counters used](#32-sai-counters-used)
   - [3.3 SAI API](#33-sai-api)
   - [3.4 Calculation formulas](#34-calculation-formulas)
- 
+- [4 Sample output](#4-sample-output)
 
+
+ 
 ### Revision  
 
   | Rev |     Date    |       Author           | Change Description                |
@@ -164,7 +166,25 @@ Step 6: the following data will be updated and its latest value stored in the CO
     Pre FEC BER , Post FEC BEC, SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last and SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last
 
 ```
-
+### 4 Sample Output
+```
+root@ctd615:/usr/local/lib/python3.11/dist-packages/utilities_common#  portstat -f
+      IFACE    STATE    FEC_CORR    FEC_UNCORR    FEC_SYMBOL_ERR    FEC_PRE_BER    FEC_POST_BER
+-----------  -------  ----------  ------------  ----------------  -------------  --------------
+  Ethernet0        U           0             0                 0    1.48e-20b/s     0.00e+00b/s
+  Ethernet8        U           0             0                 0    1.98e-19b/s     0.00e+00b/s
+ Ethernet16        U           0             0                 0    1.77e-20b/s     0.00e+00b/s
+ Ethernet24        U           0             0                 0    4.36e-19b/s     0.00e+00b/s
+ Ethernet32        U           0             0                 0    1.93e-19b/s     0.00e+00b/s
+ Ethernet40        U           1             0                 1    2.77e-18b/s     0.00e+00b/s
+ Ethernet48        U           0             0                 0    8.33e-23b/s     0.00e+00b/s
+ Ethernet56        U           0             0                 0    1.48e-55b/s     0.00e+00b/s
+ Ethernet64        U           0             0                 0   9.88e-324b/s     0.00e+00b/s
+ Ethernet72        U           0             0                 0    4.97e-22b/s     0.00e+00b/s
+ Ethernet80        U           0             0                 0    4.10e-19b/s     0.00e+00b/s
+ Ethernet88        U           0             0                 0    3.84e-19b/s     0.00e+00b/s
+ Ethernet96        U           0             0                 0    4.77e-20b/s     0.00e+00b/s
+```
 
 #### Unit Test cases  
 
