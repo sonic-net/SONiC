@@ -279,6 +279,7 @@ No Changes here.
 ## Restrictions/Limitations ##
 
 - HaMgrd will be writing the ACL rules to APPL_DB and so Configuration/CLI/Yang model to support TUNNEL_NH_TABLE is not in the scope of this feature
+- ACL Orchagent will not perform any checks if the Tunnel NH or NHG is already created for the given parameters. This would be a problem if NH or NHG is created by VnetOrch, EVPN etc. However, this is out of scope of this feature
 
 ## Testing Requirements/Design ##
 
