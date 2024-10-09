@@ -152,15 +152,17 @@ Step 3 : look up link serdes speed
 
 Step 4 : frame size
 
-     /* NRZ encoding RDFEC-52 8*/
-    if the user speed < 25G
+     /* NRZ encoding RsFEC-528 */
+    if the user speed <= 25G
       frame_size = 528
-    else /* PAM4 encoding RSFEC-544 */
+    else
+      frame_size = 544 /* PAM4 RsFec-544 */
+
 
 Step 5: calcuate BER
 
-Pre FEC BER = (SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS - SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last) / delta in sec
-Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * "frame size" * 10 / delta in sec
+Pre FEC BER = (SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS - SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last) / (serdes * interval)
+Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * "frame size" * 10 / (serdes * interval)
 
 Step 6: the following data will be updated and its latest value stored in the COUNTER_DB, RATES table after each iteraction
     Pre FEC BER , Post FEC BEC, SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last and SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last
@@ -171,19 +173,19 @@ Step 6: the following data will be updated and its latest value stored in the CO
 root@ctd615:/usr/local/lib/python3.11/dist-packages/utilities_common#  portstat -f
       IFACE    STATE    FEC_CORR    FEC_UNCORR    FEC_SYMBOL_ERR    FEC_PRE_BER    FEC_POST_BER
 -----------  -------  ----------  ------------  ----------------  -------------  --------------
-  Ethernet0        U           0             0                 0    1.48e-20b/s     0.00e+00b/s
-  Ethernet8        U           0             0                 0    1.98e-19b/s     0.00e+00b/s
- Ethernet16        U           0             0                 0    1.77e-20b/s     0.00e+00b/s
- Ethernet24        U           0             0                 0    4.36e-19b/s     0.00e+00b/s
- Ethernet32        U           0             0                 0    1.93e-19b/s     0.00e+00b/s
- Ethernet40        U           1             0                 1    2.77e-18b/s     0.00e+00b/s
- Ethernet48        U           0             0                 0    8.33e-23b/s     0.00e+00b/s
- Ethernet56        U           0             0                 0    1.48e-55b/s     0.00e+00b/s
- Ethernet64        U           0             0                 0   9.88e-324b/s     0.00e+00b/s
- Ethernet72        U           0             0                 0    4.97e-22b/s     0.00e+00b/s
- Ethernet80        U           0             0                 0    4.10e-19b/s     0.00e+00b/s
- Ethernet88        U           0             0                 0    3.84e-19b/s     0.00e+00b/s
- Ethernet96        U           0             0                 0    4.77e-20b/s     0.00e+00b/s
+  Ethernet0        U           0             0                 0    1.48e-20       0.00e+00
+  Ethernet8        U           0             0                 0    1.98e-19       0.00e+00
+ Ethernet16        U           0             0                 0    1.77e-20       0.00e+00
+ Ethernet24        U           0             0                 0    4.36e-19       0.00e+00
+ Ethernet32        U           0             0                 0    1.93e-19       0.00e+00
+ Ethernet40        U           1             0                 1    2.77e-18       0.00e+00
+ Ethernet48        U           0             0                 0    8.33e-23       0.00e+00
+ Ethernet56        U           0             0                 0    1.48e-55       0.00e+00
+ Ethernet64        U           0             0                 0    9.88e-32       0.00e+00
+ Ethernet72        U           0             0                 0    4.97e-22       0.00e+00
+ Ethernet80        U           0             0                 0    4.10e-19       0.00e+00
+ Ethernet88        U           0             0                 0    3.84e-19       0.00e+00
+ Ethernet96        U           0             0                 0    4.77e-20       0.00e+00
 ```
 
 #### Unit Test cases  
