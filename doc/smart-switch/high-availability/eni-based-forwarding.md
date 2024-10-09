@@ -40,6 +40,8 @@ This document provides a high-level design for Smart Switch ENI based Packet For
 | DPU  | Data Processing Unit                                    |
 | VIP  | Virtual IP                                    |
 | PA  | Physical Address                                   |
+| NH  | Next Hop                                   |
+| NHG  | Next Hop Group                                |
 
 ## Overview ##
 
@@ -76,6 +78,8 @@ ENI based forwarding requires the switch to understand the relationship between 
 * Thus, ACL rules must be dynamically updated on the NPU. This should be handled by HaMgrd as it will have all the necessary information to make the decision. 
 * The format on how the rules must be writted will be explained further in the document
 
+![alt text](./images/eni_redirect_overview.png)
+
 ### ACL Orchagent Design Changes ### 
 
 #### Existing Design ####
@@ -94,25 +98,28 @@ Current Design on ACL Orchagent is equipped to infer and program "REDIRECT" acti
                                                : next-hop ip address and ifname  Example: "10.0.0.3@Ethernet1"
                                                : next-hop group set of next-hop  Example: "10.0.0.1,10.0.0.3@Ethernet1"
 
-Existing configuration flow is presented below
-
-<p align="center"><img alt="Current ACL Orchagent Redirect Flow" src="./images/old_acl_redirect_flow.svg"></p>
+**Current ACL Orchagent Redirect Flow**
+<p align="center"><img alt="" src="./images/old_acl_redirect_flow.svg"></p>
 
 #### Updated Design ####
 
 The existing design has a few shortcomings
 
-1) It is not equipped to handle redirect action to a Tunnel Next Hop
+1) It is not equipped to handle redirect action to a Tunnel NH or NG Group
 2) It follows fire and forget and doesn't keep track of the updates made to that next-hop object. This has to be fixed for the DPU to have uninterrupted traffic flow after an event which triggers an update of next-hop object
 3) State of the ACL rule should be clearly reflected in the STATE_DB
 
-Updated design is presented below
+**Proposed design when Nexthop is programmed**
 
 <p align="center"><img alt="Proposed ACL Orchagent Redirect Flow" src="./images/new_acl_redirect_flow.svg"></p>
 
+**Proposed design when Tunnel NH or NHG is programmed**
+
+<p align="center"><img alt="Proposed ACL Orchagent Redirect Flow" src="./images/acl_tunnel_redirect_flow.svg"></p>
+
 ### ACL Configuration ### 
 
-ACL Table Type and ACL table Configuration as follows:
+**ACL Table Type and ACL table Configuration**
 
     {
         "ACL_TABLE_TYPE": {
@@ -136,13 +143,13 @@ ACL Table Type and ACL table Configuration as follows:
                 "STAGE": "INGRESS",
                 "TYPE": "ENI",
                 "PORTS": [
-                    "<All Ports except the Internal Ports>"
+                    "<Ingress front panel ports>"
                 ]
             }
         }
     }
 
-Example: ACL Rule for Inbound Traffic and Local DPU. Inbound traffic will be matched on INNER_SRC_MAC
+**Example: ACL Rule for Inbound Traffic and Local DPU**
 
     {
         "ACL_RULE": {
@@ -150,21 +157,21 @@ Example: ACL Rule for Inbound Traffic and Local DPU. Inbound traffic will be mat
                   "PRIORITY": "999",
                   "VNI": "4000",
                   "DST_IP": "1.1.1.1/32",
-                  "INNER_SRC_MAC": "aa:bb:cc:dd:ee:ff"
+                  "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
                   "REDIRECT": "2.2.2.2" # PA Address for local DPU
               }
           }
     }
 
-Example: ACL Rule for Outbound Traffic and Local DPU. Inbound traffic will be matched on INNER_DST_MAC
+**Example: ACL Rule for Outbound Traffic and Local DPU**
 
     {
         "ACL_RULE": {
-              "ENI|RULE_INBOUND_ENI0": {
+              "ENI|RULE_OUTBOUND_ENI0": {
                   "PRIORITY": "999",
                   "VNI": "4000",
                   "DST_IP": "3.3.3.3/32",
-                  "INNER_DST_MAC": "aa:bb:cc:11:22:33"
+                  "INNER_SRC_MAC": "aa:bb:cc:11:22:33"
                   "REDIRECT": "2.2.2.2" # PA Address for local DPU
               }
           }
@@ -172,58 +179,71 @@ Example: ACL Rule for Outbound Traffic and Local DPU. Inbound traffic will be ma
 
 ### Tunnel Next Hop ### 
 
-An example flow which creates a Tunnel Next Hop would be when a VNET Route is programmed with Tunnel Hop. Ref: https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md#22-app-db
+An example flow which creates a Tunnel Next Hop would be programming a VNET route with Tunnel Hop. Ref for Schema: https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md#22-app-db
 
     VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
         "endpoint": {{ip_address}} 
         "mac_address":{{mac_address}} (OPTIONAL) 
         "vni": {{vni}}(OPTIONAL) 
 
-To identify a Tunnel Next Hop, a combination of these parameters are required by ACL Orchagent
-1) Tunnel Name
-2) Endpoint IP
-3) MAC (OPTIONAL)
-4) VNI (OPTIONAL)
+To create a Tunnel NH or NHG, a combination of these parameters are required
+- Tunnel Name
+- Endpoint IP
+- MAC (OPTIONAL)
+- VNI (OPTIONAL)
 
-ACL_RULE_TABLE should be equipped to accept these new paremeters without breaking backward compatibility. Thus, a new Table to represent the tunnel next hop. 
+ACL_RULE_TABLE should be equipped to accept these new paremeters. Thus, a new table to represent the tunnel NH or NHG is added. 
+Key for this table should be an input to redirect_action field in the ACL_RULE_TABLE
 
 ```
-key                      = "TUNNEL_NEXT_HOP_TABLE:next_hop_object_name" 
+key                      = "TUNNEL_NH_TABLE:nh_object_name" 
 
-tunnel_name              = STRING                               ; Name of the Tunnel which has the nexthop associated
+tunnel_name              = STRING                               ; Name of the Tunnel which has the NH or NHG associated
 endpoint_ip              = List of IP's separated by comma      ; Endpoint IP's. When there are multiple IP's it is assumed to be a next hop group
 mac_address              = List of MAC's separated by comma     ; Inner Destination MAC's (Optional)
 vni                      = List of VNI's separated by comma     ; Next Hop Entry VNI's (Optional)
+description              = STRING                               ; Additional Information explaining the NH  (Optional)
 ```
 
-Key for this table should be an input to redirect_action field in the ACL_RULE_TABLE
-
-**Note:  **
 
 ```
 key: ACL_RULE_TABLE:table_name:rule_name
 
 redirect_action = 1*255CHAR         : <All the old attributes>   
-                                    : next hop for tunnel             Example: npu2npu_tunnel0, this should be a key in the TUNNEL_NEXT_HOP table
+                                    : next hop for tunnel             Example: npu2npu_tunnel0, this should be a key in the TUNNEL_NH_TABLE
 ```
 
 Exmaple: ACL Rule for outbound traffic and remote DPU
 
      {
-        "TUNNEL_NEXT_HOP_TABLE": {
-            "npu2npu_tunnel_nh":{
-                "tunnel_name": "npu2npu_tunnel0",
-                "endpoint_ip": "3.3.3.3/32",
-                "vni": "100"
+        "TUNNEL_NH_TABLE": {
+            "ha_tunnel_nh0":{
+                "DESCRIPTION": "NH to Active NPU with ENI 1000"
+                "TUNNEL_NAME": "npu_tunnel",
+                "ENDPOINT_IP": "3.3.3.3",
+                "VNI": "100"
+            },
+            "npu2npu_tunnel_nhg0":{
+                "DESCRIPTION": "NHG to HA Pair with ENI 2000"
+                "TUNNEL_NAME": "npu_tunnel",
+                "ENDPOINT_IP": "1.1.1.1,2.2.2.2",
+                "VNI": "200,200"
             }
         }
         "ACL_RULE": {
-              "ENI|RULE_OUTBOUND_REMOTE_ENI0": {
+              "ENI|INBOUND_REMOTE_ENI1000": {
                   "PRIORITY": "999",
                   "VNI": "4000",
                   "DST_IP": "1.1.1.1/32",
                   "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
-                  "REDIRECT": "npu2npu_tunnel_nh"
+                  "REDIRECT": "ha_tunnel_nh0"
+              },
+              "ENI|INBOUND_REMOTE_ENI2000": {
+                  "PRIORITY": "999",
+                  "VNI": "4000",
+                  "DST_IP": "1.1.1.1/32",
+                  "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
+                  "REDIRECT": "npu2npu_tunnel_nhg0"
               }
         }
     }
