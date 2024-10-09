@@ -31,7 +31,7 @@
 ### Abbreviations 
 
   FEC        - Forward Error Correction.  
-  BER        - Bits Error Rate, measure in bit per second.  
+  BER        - Bits Error Rate  
   Pre FEC    - The number of bits which FEC successsfully correct.  
   Post FEC   - The number of bits which FEC fail to correct.  
   Frame      - size of each FEC block.  
@@ -42,7 +42,7 @@
 
 ### 1 Overview 
 
-#### FEC is a common hardware feature deployed in a high speed interconnect. Due to the signal integrity issue, date being tarnsfer might have bit(s) corrupted. The FEC will correct the data's corruptiom and increment counters to account for corrected bits (Pre FEC) or uncorrected frame (Post FEC)
+##### FEC is a common hardware feature deployed in a high speed interconnect. Due to the signal integrity issue, date being tarnsfer might have bit(s) corruption. The FEC will correct the data's corruptiom and increment counters to account for corrected bits (Pre FEC) or uncorrected frame (Post FEC)
 
 #### 1.1 Functional Requirements
 #####  This HLD is to   
@@ -66,7 +66,7 @@
  * SWSS changes:  
    + port_rates.lua
      
-     ##### Enhance to collect and compute the BER on each ports at one sec interval. This is the same as the existing port stats collection rate.
+     ##### Enhance to collect and compute the BER on each ports at same port state collection interval. It is current at 1 second.
      
      ##### - Access the counter_db for counters for SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS & SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES
      ##### - Access to the appl_db to compute the actual serdes speed of the ports and its number of lanes
@@ -118,8 +118,8 @@
 
 ### 3.4 Calculation Formulas
 
-#### Each port can made up of multiple lanes and each running at same serdes speed. The hardware counters is per port basis. Therefore the BER calculation will require to accounts for #lanes and serdes speed of the port.  The lanes count and port speed can be retrive from the APPL_DB. The serdes speed will be calcuate using port speed / number of lanes.
-#### However in the case of post FEC, the farme were actually dropped. There is no way to tell the actually number of error bits in the frames. The calculation is assuming the worst case which is the all bits in the frame were corrupted.
+#### Each port can made up of multiple lanes and each running at same serdes speed. The hardware counters is per port basis. Therefore the BER calculation will require to account for #lanes and serdes speed of the port.  The lanes count and port speed can be retrive from the APPL_DB. The serdes speed will be calculate using port speed / number of lanes.
+#### However in the case of post FEC, the frame were actually dropped. There is no way to tell the actually number of error bits in the frame. The calculation is assuming the worst case which is the all bits in the frame were corrupted.
 
 - 
 
