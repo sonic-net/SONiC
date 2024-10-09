@@ -9,6 +9,7 @@
   - [Definitions/Abbreviations](#definitionsabbreviations)
   - [Overview](#overview)
   - [Requirements](#requirements)
+  - [Packet Flow](#packet-flow)
   - [Architecture Design](#architecture-design)
     - [Programming ACL Rules](#programming-acl-rules)
     - [ACL Orchagent Design Changes](#acl-orchagent-design-changes)
@@ -42,6 +43,7 @@ This document provides a high-level design for Smart Switch ENI based Packet For
 | PA  | Physical Address                                   |
 | NH  | Next Hop                                   |
 | NHG  | Next Hop Group                                |
+| HA  | High Availability                                |
 
 ## Overview ##
 
@@ -67,18 +69,30 @@ ENI based forwarding requires the switch to understand the relationship between 
 * Each ENI belongs to a certain DPU (local or remote)
 * Each packet can be identified as belonging to that switch using VIP and VNI
 * Forwarding can be to local DPU PA or remote DPU PA over L3 VxLAN
-* Scale: [# of DPUs] * [# of ENIs per DPU] * 2 (inbound and outbound)
+* Scale: [# of DPUs] * [# of ENIs per DPU] * 2 (inbound and outbound) in case of one VIP per switch
 
 ## Architecture Design ##
 
 ### Programming ACL Rules ###
 
-* Packet Forwarding from NPU to local and remote DPU's are clearly explained in the High Availability HLD https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/high-availability/smart-switch-ha-hld.md#42-data-path-ha
+* Packet Forwarding from NPU to local and remote DPU's are clearly explained in the HA HLD https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/high-availability/smart-switch-ha-hld.md#42-data-path-ha
 * In a nutshell, the ACL rule for a ENI depends on the role of its DPU in the corresponding HA pair i.e. local or standby
 * Thus, ACL rules must be dynamically updated on the NPU. This should be handled by HaMgrd as it will have all the necessary information to make the decision. 
 * The format on how the rules must be writted will be explained further in the document
 
-![alt text](./images/eni_redirect_overview.png)
+## Packet Flow ##
+
+**Case 1: Packet lands directly on NPU which has the currrent Active ENI**
+
+![Active ENI case](./images/active_eni.png)
+
+**Case 2: Packet lands NPU which has the currrent Standby ENI**
+
+![Active Standby ENI case](./images/active_standby_eni.png)
+
+**Case 3: Packet lands a NPU which has the same VIP but it doesn't host the ENI**
+
+![Case for Tunnel NHG](./images/case_for_tunnel_nhg.png)
 
 ### ACL Orchagent Design Changes ### 
 
@@ -107,7 +121,7 @@ The existing design has a few shortcomings
 
 1) It is not equipped to handle redirect action to a Tunnel NH or NG Group
 2) It follows fire and forget and doesn't keep track of the updates made to that next-hop object. This has to be fixed for the DPU to have uninterrupted traffic flow after an event which triggers an update of next-hop object
-3) State of the ACL rule should be clearly reflected in the STATE_DB
+3) Update ACL Orchagent to match on INNER_SRC_MAC and INNER_DST_MAC
 
 **Proposed design when Nexthop is programmed**
 
@@ -119,14 +133,15 @@ The existing design has a few shortcomings
 
 ### ACL Configuration ### 
 
-**ACL Table Type and ACL table Configuration**
+**ACL Table Type and ACL Table Configuration**
 
     {
         "ACL_TABLE_TYPE": {
             "ENI": {
                 "MATCHES": [
-                    "VNI",
+                    "TUNNEL_VNI",
                     "DST_IP",
+                    "DST_IPV6",
                     "INNER_SRC_MAC",
                     "INNER_DST_MAC",
                 ],
@@ -155,8 +170,8 @@ The existing design has a few shortcomings
         "ACL_RULE": {
               "ENI|RULE_INBOUND_ENI0": {
                   "PRIORITY": "999",
-                  "VNI": "4000",
-                  "DST_IP": "1.1.1.1/32",
+                  "TUNNEL_VNI": "4000",
+                  "DST_IP": "1.1.1.1/32", # Switch VIP
                   "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
                   "REDIRECT": "2.2.2.2" # PA Address for local DPU
               }
@@ -169,7 +184,7 @@ The existing design has a few shortcomings
         "ACL_RULE": {
               "ENI|RULE_OUTBOUND_ENI0": {
                   "PRIORITY": "999",
-                  "VNI": "4000",
+                  "TUNNEL_VNI": "4000",
                   "DST_IP": "3.3.3.3/32",
                   "INNER_SRC_MAC": "aa:bb:cc:11:22:33"
                   "REDIRECT": "2.2.2.2" # PA Address for local DPU
@@ -213,7 +228,7 @@ redirect_action = 1*255CHAR         : <All the old attributes>
                                     : next hop for tunnel             Example: npu2npu_tunnel0, this should be a key in the TUNNEL_NH_TABLE
 ```
 
-Exmaple: ACL Rule for outbound traffic and remote DPU
+**Exmaple: ACL Rule for outbound traffic and remote DPU in the same HA pair**
 
      {
         "TUNNEL_NH_TABLE": {
@@ -222,7 +237,23 @@ Exmaple: ACL Rule for outbound traffic and remote DPU
                 "TUNNEL_NAME": "npu_tunnel",
                 "ENDPOINT_IP": "3.3.3.3",
                 "VNI": "100"
-            },
+            }
+        }
+        "ACL_RULE": {
+              "ENI|INBOUND_REMOTE_ENI1000": {
+                  "PRIORITY": "999",
+                  "TUNNEL_VNI": "4000",
+                  "DST_IP": "1.1.1.1/32",
+                  "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
+                  "REDIRECT": "ha_tunnel_nh0"
+              }
+        }
+    }
+
+**Exmaple: ACL Rule for outbound traffic and remote DPU in a different HA pair**
+
+     {
+        "TUNNEL_NH_TABLE": {
             "npu2npu_tunnel_nhg0":{
                 "DESCRIPTION": "NHG to HA Pair with ENI 2000"
                 "TUNNEL_NAME": "npu_tunnel",
@@ -231,16 +262,9 @@ Exmaple: ACL Rule for outbound traffic and remote DPU
             }
         }
         "ACL_RULE": {
-              "ENI|INBOUND_REMOTE_ENI1000": {
-                  "PRIORITY": "999",
-                  "VNI": "4000",
-                  "DST_IP": "1.1.1.1/32",
-                  "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
-                  "REDIRECT": "ha_tunnel_nh0"
-              },
               "ENI|INBOUND_REMOTE_ENI2000": {
                   "PRIORITY": "999",
-                  "VNI": "4000",
+                  "TUNNEL_VNI": "4000",
                   "DST_IP": "1.1.1.1/32",
                   "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
                   "REDIRECT": "npu2npu_tunnel_nhg0"
@@ -254,7 +278,7 @@ No Changes here.
 
 ## Restrictions/Limitations ##
 
-- HaMgrd will be writing the ACL rules to APPL_DB and so Configuration/CLI/Yang model to support TUNNEL_NEXT_HOP_TABLE is not in the scope of this feature
+- HaMgrd will be writing the ACL rules to APPL_DB and so Configuration/CLI/Yang model to support TUNNEL_NH_TABLE is not in the scope of this feature
 
 ## Testing Requirements/Design ##
 
