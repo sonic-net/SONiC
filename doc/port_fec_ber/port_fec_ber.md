@@ -153,7 +153,7 @@ Step 3 : look up link serdes speed
 Step 4 : frame size
 
      /* NRZ encoding Rs-528  or PAM4 encoding Rs-544*/
-    if the user speed <= 25G
+    if user_port_lane_speed <= 25G
       frame_size = 5280
     else
       frame_size = 5440
