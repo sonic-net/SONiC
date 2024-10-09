@@ -31,12 +31,12 @@
 ### Abbreviations 
 
   FEC        - Forward Error Correction.  
-  BER        - Bits Error Rate  
+  BER        - Bits Error Rate, a measure of percentage of transmitted bits that are received incorrectly.  
   Pre FEC    - The number of bits which FEC successsfully correct.  
   Post FEC   - The number of bits which FEC fail to correct.  
   Frame      - size of each FEC block.  
   Symbol     - part of the FEC structure which the error detection and correction base on.  
-  RS-FEC     - Reed Solomon Forward Error correction, RSFEC-544 = 5440 total size , RSFEC-528 = 5280 total size  
+  RS-FEC     - Reed Solomon Forward Error correction, RS-544 = 5440 total size , RS-528 = 5280 total size  
   NRZ        - Non Return to Zero encoding  
   PAM4       - Pulse Amplitude Modulation 4 level eocoding  
 
@@ -152,17 +152,17 @@ Step 3 : look up link serdes speed
 
 Step 4 : frame size
 
-     /* NRZ encoding RsFEC-528 */
+     /* NRZ encoding Rs-528  or PAM4 encoding Rs-544*/
     if the user speed <= 25G
       frame_size = 528
     else
-      frame_size = 544 /* PAM4 RsFec-544 */
+      frame_size = 544 
 
 
 Step 5: calcuate BER
-
-Pre FEC BER = (SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS - SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last) / (serdes * interval)
-Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * "frame size" * 10 / (serdes * interval)
+interval = PORT_STATE poll interval which is 1000 ms currently
+Pre FEC BER = (SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS - SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last) / (serdes * interval / 1000)
+Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * "frame size" * 10 / (serdes * interval / 1000)
 
 Step 6: the following data will be updated and its latest value stored in the COUNTER_DB, RATES table after each iteraction
     Pre FEC BER , Post FEC BEC, SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last and SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last
