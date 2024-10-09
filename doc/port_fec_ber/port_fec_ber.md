@@ -9,11 +9,11 @@
   - [1.2 CLI requirements](#12-cli-requirements)
 - [2 Architecture Design](#2-architecture-design)
 - [3 High level design](#3-high-level-design)
-  - [3.1 SAI counters used](#31-sai-counters-used)
-  - [3.2 Calculation formulas](#32-calculation-formulas)
-    - [3.2.1 Byte rate](#321-byte-rate)
-    - [3.2.2 Packet rate](#322-packet-rate)
-    - [3.2.3 Utilization](#323-utilization)
+  - [3.1 Assumptions](#31-assumptions)
+  - [3.2 SAI counters used](#32-sai-counters-used)
+  - [3.3 SAI API](#33-sai-api)
+  - [3.4 Calculation formulas](#34-calculation-formulas)
+ 
 
 ### Revision  
 
@@ -24,7 +24,7 @@
 ### Scope  
 
   This document provide information about the implementation of Port Forward Error Correction (FEC) Bit Error Rate (BER) measurement. 
-  This calculation include correctable bits and uncorrectable bits
+  This new statistic will include correctable bits and uncorrectable bits BER.
 
 ### Abbreviations 
 
@@ -35,94 +35,136 @@
   Frame      - size of each FEC block.  
   Symbol     - part of the FEC structure which the error detection and correction base on.  
   RS-FEC     - Reed Solomon Forward Error correction, RSFEC-544 = 5440 total size , RSFEC-528 = 5280 total size  
+  NRZ        - Non Return to Zero encoding  
+  PAM4       - Pulse Amplitude Modulation 4 level eocoding  
 
 ### 1 Overview 
 
-  FEC is a common hardarew feature deployed in a high speed network. Due to the signal integeraty, date ingressing to a port might have bit(s) corrupted.
-  The FEC will correct the data's corruptiom and increment error counters to account for corrected bits (Pre FEC) or uncorrected frame (Post FEC)
+#### FEC is a common hardware feature deployed in a high speed interconnect. Due to the signal integrity issue, date being tarnsfer might have bit(s) corrupted. The FEC will correct the data's corruptiom and increment counters to account for corrected bits (Pre FEC) or uncorrected frame (Post FEC)
 
 #### 1.1 Functional Requirements
-  This HLD is to   
-  - enhance the current "show interface counter fec-stat" to include Pre and Post BER statistic as new columns
-  - Add Pre and Post FEC BER per interface into Redis DB for telemetry streaming
-  - Calculate the Pre and Post FEC BER at the same intervale as the PORT_STAT poll rate which is 1 sec.
+#####  This HLD is to   
+#####  - enhance the current "show interface counter fec-stat" to include Pre and Post BER statistic as new columns
+#####  - Add Pre and Post FEC BER per interface into Redis DB for telemetry streaming
+#####  - Calculate the Pre and Post FEC BER at the same intervale as the PORT_STAT poll rate which is 1 sec.
 
 #### 1.2 CLI Requirements
 
-  The existing "show interface counter fec-stat" will enhanced to include two additional columns with unit BER (b/s).   
-  - Pre FEC BER
-  - Post FEC BER
+##### The existing "show interface counter fec-stat" will enhanced to include two additional columns for BER (b/s).   
+##### - Pre FEC BER  
+##### - Post FEC BER
      
 ### 2 Architecture Design
 
-There is no changes in the current Sonic Architecture. 
+#### There is no changes in the current Sonic Architecture. 
 
 
 ### 3 High-Level Design 
 
-The following redis DB entries will be access for the BER calculations  
-|Redis DB      | Table       | Entries                                   |  
-|--------------|-------------|-------------------------------------------| 
-|COUNTER_DB    |COUNTERS     |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS     |
-|COUNTER_DB    |COUNTERS     |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES|
-|COUNTER_DB    |COUNTERS     |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS     |
-|COUNTER_DB    |COUNTERS     |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS     |
+ * SWSS changes:  
+   + port_rates.lua
+     
+     ##### Enhance to collect and compute the BER on each ports at one sec interval. This is the same as the existing port stats collection rate.
+     
+     ##### - Access the counter_db for counters for SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS & SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES
+     ##### - Access to the appl_db to compute the actual serdes speed of the ports and its number of lanes
+     ##### - Store the computed BER and the old redis counters value back to the redis DB
 
-This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
-		
-	- Is it a built-in SONiC feature or a SONiC Application Extension?
-	- What are the modules and sub-modules that are modified for this design?
-	- What are the repositories that would be changed?
-	- Module/sub-module interfaces and dependencies. 
-	- SWSS and Syncd changes in detail
-	- DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB)
-	- Sequence diagram if required.
-	- Linux dependencies and interface
-	- Warm reboot requirements/dependencies
-	- Fastboot requirements/dependencies
-	- Scalability and performance requirements/impact
-	- Memory requirements
-	- Docker dependency
-	- Build dependency if any
-	- Management interfaces - SNMP, CLI, RestAPI, etc.,
-	- Serviceability and Debug (logging, counters, trace etc) related design
-	- Is this change specific to any platform? Are there dependencies for platforms to implement anything to make this feature work? If yes, explain in detail and inform community in advance.
-	- SAI API requirements, CLI requirements, ConfigDB requirements. Design is covered in following sections.
+ * Utilities Common changes:
+ 
+   + portstat.py:
+     
+     ##### The portstat command with -f , which representing the cli "show interface counter fec-stat" will enhanced to add two new columns, FEC_PRE_BER & FEC_POST_BER
+  
+   + netstat.py :
+     
+     ##### Add new format support to diplay the BER in a floating point format in b/s
 
-### SAI API 
 
-This section covers the changes made or new API added in SAI API for implementing this feature. If there is no change in SAI API for HLD feature, it should be explicitly mentioned in this section.
-This section should list the SAI APIs/objects used by the design so that silicon vendors can implement the required support in their SAI. Note that the SAI requirements should be discussed with SAI community during the design phase and ensure the required SAI support is implemented along with the feature/enhancement.
+### 3.1 Assumptions
 
-### Configuration and management 
-This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
-If there is breaking change which may impact existing platforms, please call out in the design and get platform vendors reviewed. 
+#### SAI provide access to each interface the following attributes
+- SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS
+  - monotonically increasing
+  - return not support if its not working for an interface
+- SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES
+  - monotonically increasing
+  - return not support if its not working for an interface
 
-#### Manifest (if the feature is an Application Extension)
 
-Paste a preliminary manifest in a JSON format.
+### 3.2 Sai Counters Used
 
-#### CLI/YANG model Enhancements 
+#### The following redis DB entries will be access for the BER calculations 
 
-This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. 
-This should also explain the CLICK and/or KLISH related configuration/show in detail.
-https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md needs be updated with the corresponding CLI change.
+|Redis DB |Table|Entries|New, RW| Format | Descriptions|   
+|--------------|-------------|------------------|--------|----------------|----------------|  
+|COUNTER_DB |COUNTERS |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS |R |number |Total number bits corrected</sub>|
+|COUNTER_DB |COUNTERS |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES |R |number |Tota number uncorrectable frame |
+|COUNTER_DB |COUNTERS_PORT_NAME_MAP |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES|R |number |Oid to name mapping |  
+|COUNTER_DB |RATES |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last | New, RW|number |Last corrected bits counts |
+|COUNTER_DB |RATES |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last |New, RW|number |Last uncorrctedble frame counts |  
+|COUNTER_DB |RATES |FEC_PRE_BER |New, RW| floating |calculated pre fec BER |  
+|COUNTER_DB |RATES |FEC_POST_BER |New, RW| floating | calulated post fec BER |  
+|APPL_DB |PORT_TABLE |lanes |R |strings |number of serdes lanes in the port |  
+|APPL_DB |PORT_TABLE |speed |R |number |port speed |  
 
-#### Config DB Enhancements  
 
-This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change. 
-		
-### Warmboot and Fastboot Design Impact  
-Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
+### 3.3 SAI API 
 
-### Memory Consumption
-This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration. 
-### Restrictions/Limitations  
+#### No change in the SAI API. No new SAI object accessed.   
 
-### Testing Requirements/Design  
-Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
-Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
-Example sub-sections for unit test cases and system test cases are given below. 
+
+### 3.4 Calculation Formulas
+
+#### Each port can made up of multiple lanes and each running at same serdes speed. The hardware counters is per port basis. Therefore the BER calculation will require to accounts for #lanes and serdes speed of the port.  The lanes count and port speed can be retrive from the APPL_DB. The serdes speed will be calcuate using port speed / number of lanes.
+#### However in the case of post FEC, the farme were actually dropped. There is no way to tell the actually number of error bits in the frames. The calculation is assuming the worst case which is the all bits in the frame were corrupted.
+
+- 
+
+```
+Pseudocode :
+
+Step 1: get lanes count and port speed
+    lanes count  : APPL_DB , hget PORT_TABLE lanes , lane count calculate using string.gsub()
+    port speed : APPL_DB , hget PORT_TABLE speed,  speed of the port
+
+Step 2: calculate user_port_lane_speed
+    user_port_lane_speed = math.fmod(port speed / number of lanes)
+
+Step 3 : look up link serdes speed
+    Look up the serdes speed using the following logic
+
+    if port_data_rate == 1000 then
+        serdes = 1.25e+9
+    elseif port_data_rate == 10000 then
+        serdes = 10.3125e+9
+    elseif port_data_rate == 25000 then
+        serdes = 25.78125e+9
+    elseif port_data_rate == 50000 then
+        serdes = 53.125e+9
+    elseif port_data_rate == 100000 then
+        serdes = 106.25e+9
+    else
+        serdes = 0
+    end
+
+Step 4 : frame size
+
+     /* NRZ encoding RDFEC-52 8*/
+    if the user speed < 25G
+      frame_size = 528
+    else /* PAM4 encoding RSFEC-544 */
+
+Step 5: calcuate BER
+
+Pre FEC BER = (SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS - SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last) / delta in sec
+Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * "frame size" * 10 / delta in sec
+
+Step 6: the following data will be updated and its latest value stored in the COUNTER_DB, RATES table after each iteraction
+    Pre FEC BER , Post FEC BEC, SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last and SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last
+
+```
+
 
 #### Unit Test cases  
 
