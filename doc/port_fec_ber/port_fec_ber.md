@@ -130,8 +130,8 @@ Step 1: get lanes count and port speed
     lanes count  : APPL_DB , hget PORT_TABLE lanes , lane count calculate using string.gsub()
     port speed : APPL_DB , hget PORT_TABLE speed,  speed of the port
 
-Step 2: calculate user_port_lane_speed
-    user_port_lane_speed = math.fmod(port speed / number of lanes)
+Step 2: calculate port_data_rate
+    port_data_rate = math.fmod(port speed / number of lanes)
 
 Step 3 : look up link serdes speed
     Look up the serdes speed using the following logic
@@ -162,8 +162,8 @@ Step 5: calcuate BER
 
     interval = PORT_STATE poll interval which is 1000 ms currently
 
-    Pre FEC BER = (SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS - SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last) / (serdes * interval / 1000)
-    Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * "frame size" / (serdes * interval / 1000)
+    Pre FEC BER = (SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS - SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last) / (serdes * lanes_count * interval / 1000)
+    Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * "frame size" / (serdes * lanes_count * interval / 1000)
 
 
 Step 6: the following data will be updated and its latest value stored in the COUNTER_DB, RATES table after each iteraction
