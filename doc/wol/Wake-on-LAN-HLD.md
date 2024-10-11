@@ -83,7 +83,7 @@ packet-beta
 6-11: "Source MAC"
 12-13: "Ethertype"
 14-19: "Repetitions of 0xff"
-20-115: "Repetitions of target MAC(16 bytes in total)"
+20-115: "Repetitions of target MAC(16 times in total)"
 116-121: "Password(0, 4 or 6 bytes)"
 ```
 
@@ -109,7 +109,7 @@ packet-beta
 4-5: "Length"
 6-7: "Checksum"
 8-13: "Repetitions of 0xff"
-14-109: "Repetitions of target MAC(16 bytes in total)"
+14-109: "Repetitions of target MAC(16 times in total)"
 110-115: "Password(0, 4 or 6 bytes)"
 ```
 
