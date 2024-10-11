@@ -141,8 +141,6 @@ flowchart BT
     counter_syncd --telemetry message--> gnmi
 ```
 
-STATE_DB channel model? Produce Table/Consume Table
-
 ## High-Level Design
 
 ### Modules
