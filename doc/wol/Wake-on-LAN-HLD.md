@@ -96,9 +96,9 @@ Offset   |0     |1     |2     |3     |4     |5     |
 **Magic Packet** is a Ethernet frame with structure:
 
 * **IP Header**:
-  * **Destination IP**: user provided target IP address, cloud be IPv4 address or IPv6 address, default is `255.255.255.255`.
+  * **Destination IP**: User provided target IP address, cloud be IPv4 address or IPv6 address.
 * **UDP Header**:
-  * **Destination Port**: user provided target port, default is 9.
+  * **Destination Port**: User provided target port.
 * **UDP Payload**:
   * Six bytes of all `0xff`. [6 bytes]
   * Sixteen repetitions of the target device's MAC address. [96 bytes]
@@ -138,10 +138,10 @@ wol <interface> <target_mac> [-b] [-u] [-a ip-address] [-t udp-port] [-p passwor
 
 - `interface`: SONiC interface name.
 - `target_mac`: a list of target devices' MAC address, separated by comma.
-- `-b`: Use broadcast MAC address instead of target device's MAC address as **Destination MAC Address in Ethernet Frame Header**.
-- `-u`: Let device send magic pattern in udp payload, when this flag was used, -b won't work and destination mac is set by device's networking stack.
-- `-a ip-address`: This parameter only work when -u flag was used. Let device send packet to the ip address, this ip address cloud IPv4 address or IPv6 address.
-- `-t udp-port`: This parameter only work when -u flag was used. Let device send packet to the udp port.
+- `-b`: Use broadcast MAC address instead of target device's MAC address as **Destination MAC Address in Ethernet Frame Header**. This parameter can't use with `-u`.
+- `-u`: Let device send magic pattern in udp payload, when this flag was used, -b won't work and destination mac is set by device's networking stack. This parameter can't use with `-b`.
+- `-a ip-address`: This parameter only work when -u flag was used. Let device send packet to the ip address, this ip address cloud IPv4 address or IPv6 address. Default value is `255.255.255.255`.
+- `-t udp-port`: This parameter only work when -u flag was used. Let device send packet to the udp port. Default value is 9.
 - `-p password`: An optional 4 or 6 byte password, in ethernet hex format or quad-dotted decimal[^3].
 - `-c count`: For each target MAC address, the `count` of magic packets to send. `count` must between 1 and 5. Default value is 1. This param must use with `-i`.
 - `-i interval`: Wait `interval` milliseconds between sending each magic packet. `interval` must between 0 and 2000. Default value is 0. This param must use with `-c`.
@@ -153,7 +153,7 @@ admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55
 admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55 -b
 admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -p 00:22:44:66:88:aa
 admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -p 192.168.1.1 -c 3 -i 2000
-admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -u
+admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55,11:33:55:77:99:bb -u
 admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -u -c 3 -i 2000
 admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -u -a 192.168.255.255
 admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -u -a 192.168.255.255 -t 7
@@ -161,7 +161,7 @@ admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -u -a 192.168.25
 
 For the 4th example, it specifise 2 target MAC addresses and `count` is 3. So it'll send 6 magic packets in total.
 
-## gNOI Design ( gNOI only support magic pattern in ethernet payload. )
+## gNOI Design
 
 The gNOI service `SONiCWolService` will provide a `Wol` interface to user, which can be called to send magic packet to target device:
 
