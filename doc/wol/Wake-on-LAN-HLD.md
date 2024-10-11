@@ -106,15 +106,17 @@ Offset   |0     |1     |2     |3     |4     |5     |
 
 ```mermaid
 ---
-title: UDP packet in bits
+config:
+    bitsPerRow: 64
+title: UDP packet in bytes
 ---
 packet-beta
-0-15: "Source Port"
-16-31: "Destination Port"
-32-63: "Length and Checksum"
-64-111: "Repetitions of 1"
-112-879: "Sixteen repetitions of target MAC"
-880-927: "Password (optional 0, 4 or 6 bytes)"
+0-1: "Src Port"
+2-3: "Dst Port"
+4-7: "Length and Checksum"
+8-13: "Repetitions of 0xff"
+14-109: "Repetitions of target MAC"
+110-115: "Password(0, 4 or 6 bytes)"
 ```
 
 ## CLI Design
