@@ -101,8 +101,8 @@ flowchart BT
     end
 
     subgraph SONiC service
-    subgraph GNMI container
-        gnmi(GNMI server)
+    subgraph OpenTelemetry container
+        otel(OpenTelemetry Collector)
         counter_syncd(Counter Syncd)
     end
     subgraph SWSS container
@@ -138,7 +138,7 @@ flowchart BT
     asic --counters--> dma_engine
     dma_engine --IPFIX record--> netlink_module
     netlink_module --IPFIX record--> counter_syncd
-    counter_syncd --telemetry message--> gnmi
+    counter_syncd -- open telemetry message --> otel
 ```
 
 ## High-Level Design
@@ -147,7 +147,7 @@ flowchart BT
 
 #### Counter Syncd
 
-The `counter syncd` is a new module that runs within the GNMI container. Its primary responsibility is to receive counter messages via netlink and convert them into GNMI messages for an external collector. It subscribes to a socket of a specific family and multicast group of generic netlink. The configuration for generic netlink is defined as constants in `/etc/sonic/constants.yml` as follows.
+The `counter syncd` is a new module that runs within the OpenTelemetry container. Its primary responsibility is to receive counter messages via netlink and convert them into open telemetry messages for a collector. It subscribes to a socket of a specific family and multicast group of generic netlink. The configuration for generic netlink is defined as constants in `/etc/sonic/constants.yml` as follows.
 
 ``` yaml
 constants:
@@ -413,8 +413,8 @@ sequenceDiagram
         participant config_db as CONFIG_DB
         participant state_db as STATE_DB
     end
-    box GNMI container
-        participant gnmi as gnmi server
+    box OpenTelemetry container
+        participant otel as OpenTelemetry Collector
         participant counter as counter syncd
     end
     box SWSS container
@@ -464,7 +464,7 @@ sequenceDiagram
     end
     loop Receive IPFIX message of stats from genetlink
         alt Have this template of IPFIX been registered?
-            counter ->> gnmi: Push message to GNMI server
+            counter ->> otel: Push message to OpenTelemetry Collector
         else
             counter ->> counter: Discard this message
         end
