@@ -104,17 +104,17 @@ Offset   |0     |1     |2     |3     |4     |5     |
   * Sixteen repetitions of the target device's MAC address. [96 bytes]
   * (Optional) A four or six byte password. [4 or 6 bytes]
 
-```
-Packet in bytes:
-0 ~ X: Ethernet Header
-...
-(IPv4:Y ~ Y+31)/(IPv6:Z ~ Z+127): Destination IP address
-...
-J ~ J+1: UDP Destination Port
-...
-K ~ K+5: Six repetitions of `0xff`
-K+6 ~ K+101: Sixteen repetitions of the target device's MAC address.
-[Optional, K+102 ~ END: A four or six byte password.]
+```mermaid
+---
+title: UDP packet in bits
+---
+packet-beta
+0-15: "Source Port"
+16-31: "Destination Port"
+32-63: "Length and Checksum"
+64-69: "Six repetitions of `0xff`"
+70-165: "Sixteen repetitions of the target device's MAC address"
+166-171: "Password (optional, 0, 4 or 6 bytes.)"
 ```
 
 ## CLI Design
