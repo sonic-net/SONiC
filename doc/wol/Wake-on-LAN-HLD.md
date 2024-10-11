@@ -74,22 +74,17 @@ Although the magic pattern is fixed which is a frame has 6 bytes of 0xFF, 16 rep
   * Sixteen repetitions of the target device's MAC address. [96 bytes]
   * (Optional) A four or six byte password. [4 or 6 bytes]
 
-```
-Byte     |
-Offset   |0     |1     |2     |3     |4     |5     |
----------+------+------+------+------+------+------+
-       0 |             Destination MAC             |
-         +------+------+------+------+------+------+        ETHERNET FRAME
-       6 |               Source MAC                |           HEADER
-         +------+------+---------------------------+
-      12 | 0x08 | 0x42 |   \      \      \      \
-         +------+------+------+------+------+------+------------------------------
-      14 | 0xFF | 0xFF | 0xFF | 0xFF | 0xFF | 0xFF |
-         +------+------+------+------+------+------+        ETHERNET FRAME
-      20 | Target MAC (repeat 16 times, 96 bytes)  |           PAYLOAD
-         +-----------------------------------------+
-     116 |    Password (optional, 4 or 6 bytes)    |
-         +-----------------------------------------+
+```mermaid
+---
+title: Ethernet packet in bytes
+---
+packet-beta
+0-5: "Destination MAC"
+6-11: "Source MAC"
+12-13: "Ethertype"
+14-19: "Repetitions of 0xff"
+20-115: "Repetitions of target MAC(16 bytes in total)"
+116-121: "Password(0, 4 or 6 bytes)"
 ```
 
 ### Magic Pattern in UDP Payload
@@ -106,16 +101,15 @@ Offset   |0     |1     |2     |3     |4     |5     |
 
 ```mermaid
 ---
-config:
-    bitsPerRow: 64
 title: UDP packet in bytes
 ---
 packet-beta
 0-1: "Src Port"
 2-3: "Dst Port"
-4-7: "Length and Checksum"
+4-5: "Length"
+6-7: "Checksum"
 8-13: "Repetitions of 0xff"
-14-109: "Repetitions of target MAC"
+14-109: "Repetitions of target MAC(16 bytes in total)"
 110-115: "Password(0, 4 or 6 bytes)"
 ```
 
