@@ -16,7 +16,7 @@
 | Revision | Date       | Author     | Change Description |
 | -------- | ---------- | ---------- | ------------------ |
 | 1.0      | Nov 7 2023 | Zhijian Li | Initial proposal   |
-| 1.1      | Oct 11 2024 | Wenda Chu | extend wol by udp packet|
+| 1.1      | Oct 11 2024 | Wenda Chu | Extend wol with udp packet|
 
 ## Definitions/Abbreviations 
 
@@ -93,8 +93,8 @@ Offset   |0     |1     |2     |3     |4     |5     |
 ```
 
 ### Magic Pattern in UDP Payload
-**Magic Packet** is a Ethernet frame with structure:
-
+**Magic Packet** structure:
+* **Ethernet Header**:
 * **IP Header**:
   * **Destination IP**: User provided target IP address, cloud be IPv4 address or IPv6 address.
 * **UDP Header**:
@@ -105,25 +105,16 @@ Offset   |0     |1     |2     |3     |4     |5     |
   * (Optional) A four or six byte password. [4 or 6 bytes]
 
 ```
-Byte     |
-Offset   |0     |1     |2     |3     |4     |5     |
----------+------+------+------+------+------+------+
-           \      \      \      \      \      \     
-         +------+------+------+------+------+------+
-         |.. Destination IP(4 bytes or 16 bytes) ..|
-         +------+------+------+------+------+------+      
-           \      \      \      \      \      \      
-         +------+------+---------------------------+
-         |  ... Destination Port(2 bytes) ...      |   
-         +------+------+---------------------------+
-           \      \      \      \      \      \      
-         +------+------+------+------+------+------+------------------------------
-       N | 0xFF | 0xFF | 0xFF | 0xFF | 0xFF | 0xFF |
-         +------+------+------+------+------+------+           UDP
-     N+6 | Target MAC (repeat 16 times, 96 bytes)  |           PAYLOAD
-         +-----------------------------------------+
-   N+102 |    Password (optional, 4 or 6 bytes)    |
-         +-----------------------------------------+
+Packet in bytes:
+0 ~ X: Ethernet Header
+...
+(IPv4:Y ~ Y+31)/(IPv6:Z ~ Z+127): Destination IP address
+...
+J ~ J+1: UDP Destination Port
+...
+K ~ K+5: Six repetitions of `0xff`
+K+6 ~ K+101: Sixteen repetitions of the target device's MAC address.
+[Optional, K+102 ~ END: A four or six byte password.]
 ```
 
 ## CLI Design
@@ -206,7 +197,7 @@ message WolResponse {
 | Input valid `count` and `interval`. | Parameter validation pass, send magic packet |
 | Input value of `count` or `interval` is out of range. | Parameter validation Fail |
 | Param `count` and `interval` not appear in input together. | Parameter validation Fail |
-| Param `-b` and `-u` not appear in input together. | Parameter validation Fail |
+| Param `-b` and `-u` appear in input together. | Parameter validation Fail |
 | Param `-u` is required when using `-a ip-address` or `-t udp-port`. | Parameter validation Fail |
 | Mock a send magic packet failure (e.g., socket error) | Return user friendly error message |
 
