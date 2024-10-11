@@ -541,7 +541,7 @@ erDiagram
         SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_TEL_TYPE sai_tam_tel_type_obj
         SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_OBJECT_ID port_obj
         SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STAT_ID SAI_PORT_STAT_IF_IN_OCTETS "A stats in sai_port_stat_t"
-        SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL index "The index of IPFIX template"
+        SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL index "Element ID of the object in the IPFIX template"
     }
     TAM[TAM] {
         SAI_ID SAI_VALUE "Comments"
@@ -897,7 +897,10 @@ sai_attr_list[1].value.oid = port_obj;
 sai_attr_list[2].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STAT_ID;
 sai_attr_list[2].value.oid = SAI_PORT_STAT_IF_IN_OCTETS;
 
-attr_count = 3;
+sai_attr_list[3].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL;
+sai_attr_list[3].value.oid = index; // Element ID of the object in the IPFIX template
+
+attr_count = 4;
 
 create_tam_counter_subscription(&sai_tam_counter_subscription_obj, switch_id, attr_count, sai_attr_lis);
 // If this stats of object cannot support this poll frequency, this API should return SAI_STATUS_NOT_SUPPORTED.
