@@ -112,9 +112,9 @@ packet-beta
 0-15: "Source Port"
 16-31: "Destination Port"
 32-63: "Length and Checksum"
-64-69: "Six repetitions of `0xff`"
-70-165: "Sixteen repetitions of the target device's MAC address"
-166-171: "Password (optional, 0, 4 or 6 bytes.)"
+64-111: "Repetitions of 1"
+112-879: "Sixteen repetitions of target MAC"
+880-927: "Password (optional 0, 4 or 6 bytes)"
 ```
 
 ## CLI Design
