@@ -8,6 +8,7 @@
 | 0.4 | 08/17/2023 | Riff Jiang | Redesigned HA control plane data channel |
 | 0.5 | 10/14/2023 | Riff Jiang | Merged resource placement and topology section and moved detailed design out for better readability |
 | 0.6 | 10/22/2023 | Riff Jiang | Added ENI leak detection |
+| 0.7 | 10/13/2024 | Riff Jiang | Update HA control plane components graph to match with latest design update on database and gNMI. |
 
 1. [1. Background](#1-background)
 2. [2. Terminology](#2-terminology)
