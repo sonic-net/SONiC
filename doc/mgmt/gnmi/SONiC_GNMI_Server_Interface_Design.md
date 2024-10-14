@@ -456,25 +456,24 @@ The full configuration request will be overwritten by subsequent full configurat
 
 #### 1.2.1.12 Backward Compatibility
 
-SONiC telemetry is using prefix target to identify target database, and we will add a new target to support mixed schema.
+GNMI native will support original telemetry schema for backward compatiblity, and we will use origin field to support new schema.
 
-    enum Target {
-      option allow_alias = true;
-      APPL_DB         = 0;
-      ASIC_DB         = 1;
-      COUNTERS_DB     = 2;
-      LOGLEVEL_DB     = 3;
-      CONFIG_DB       = 4;
-      // PFC_WD_DB shares the the same db number with FLEX_COUNTER_DB
-      PFC_WD_DB       = 5;
-      FLEX_COUNTER_DB = 5;
-      STATE_DB        = 6;
-      // For none-DB data
-      OTHERS          = 100;
-      // For mixed schema
-      MIXED_SCHEMA    = 101;
-    }
+#### 1.2.1.13 Improvement
 
+<img src="images/imp_tree.svg" alt="overwritten-config" width="800px"/>
+
+Current telemetry read has some limitations:
+* It cannot read the entire database.
+* It requires one GNMI path element per table key.
+    * telemetry needs to read database to identify table key and table field, that's impossible for write operation.
+    * telemetry does not support more than 2 table keys, but CONFIG_DB has table with 3 or 4 table keys.
+
+GNMI native will provide below improvements:
+* It can read the entire database.
+* It can support multiple ASIC device and smartswitch device in the second GNMI path element.
+* It put all table key with separator in the third GNMI path element.
+    * GNMI native can use the same schema for read operation and write operation.
+    * GNMI native can support more than 2 table keys.
 
 ### 1.2.2 Container
 
