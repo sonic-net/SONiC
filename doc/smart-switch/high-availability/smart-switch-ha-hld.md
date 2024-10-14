@@ -8,6 +8,7 @@
 | 0.4 | 08/17/2023 | Riff Jiang | Redesigned HA control plane data channel |
 | 0.5 | 10/14/2023 | Riff Jiang | Merged resource placement and topology section and moved detailed design out for better readability |
 | 0.6 | 10/22/2023 | Riff Jiang | Added ENI leak detection |
+| 0.7 | 10/13/2024 | Riff Jiang | Update HA control plane components graph to match with latest design update on database and gNMI. |
 
 1. [1. Background](#1-background)
 2. [2. Terminology](#2-terminology)
@@ -1462,7 +1463,7 @@ Once the HA pair starts to run as standalone setup, the inline sync will stop wo
 
 1. New flows can be created on one side, but not the other.
 2. Existing flows can be terminated on one side, but not the other.
-3. Existing flows can be aged out on one side, but not the other, depending on how we manage the lifetime of the lows.
+3. Existing flows can be aged out on one side, but not the other, depending on how we manage the lifetime of the flows.
 4. Due to policy updates, the same flow might get different packet transformations now, e.g., flow resimulation or flow recreation after policy update.
 
 And during recovery, we need to merge these 2 sets of flows back to one using "[bulk sync](#115-bulk-sync)".
