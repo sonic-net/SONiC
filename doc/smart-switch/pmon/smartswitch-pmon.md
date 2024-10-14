@@ -74,11 +74,14 @@ The picture below highlights the PMON vertical and its association with other lo
 #### Use case
 * Switch: Day0 setup, Maintenance, RMA
 * DPU: Day0, Day1-N Provisioning, Maintenance, RMA
+#### DPU dark mode
+* When a DPU is in dark mode, it remains powered down and does not consume any power.
+* Dark mode is enabled by default, but can be configured through the platform's config_db if needed.
 #### DPU cold startup Sequence
 * The chassis is powered up and the host is booting up.
 * The switch PMON is registered with the configDB state change handler.
-* DPU "admin_status: up" is set in the configDB. When not explicitly configured the default is "up".
-* The switch PMON gets the admin up notification from the configDB
+* If the DPU's "admin_status: down" in the configDB, the DPU will remain powered down. The default setting is "down".
+* If the DPU "admin_status: up" is set in the configDB, the switch PMON receives an admin-up notification from the configDB.
 * The switch PMON invokes the platform API to power on the DPU
 * DPU boots up and attaches itself to the midplane.
 * Once SONiC is up, the state progression is updated for every state transition on the DPU_STATE table in the chassisStateDB
