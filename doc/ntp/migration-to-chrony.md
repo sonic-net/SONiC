@@ -192,6 +192,12 @@ time should *not* be synchronized after 12 minutes.
 
 # Pull requests
 
+* [sonic-net/sonic-utilities: Switch to using chrony instead of ntpd](https://github.com/sonic-net/sonic-utilities/pull/3574)
+* [sonic-net/sonic-host-services: Update hostcfgd to start chrony instead of ntp-config or ntpd](https://github.com/sonic-net/sonic-host-services/pull/170)
+* [sonic-net/sonic-buildimage: Switch from ntpd to chrony](https://github.com/sonic-net/sonic-buildimage/pull/20497)
+* [sonic-net/sonic-mgmt: Add support for testing chrony](https://github.com/sonic-net/sonic-mgmt/pull/15008)
 
 # References
 
+* [chrony FAQ](https://chrony-project.org/faq.html)
+* [chrony.conf man page](https://chrony-project.org/doc/4.6.1/chrony.conf.html)
