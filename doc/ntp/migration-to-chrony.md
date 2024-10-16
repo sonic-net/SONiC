@@ -180,6 +180,17 @@ There are no changes needed in the SAI API or in the implementation by vendors.
 The output of the `show ntp` CLI will change as the output format of `chronyc`
 is different. There will be no other changes specifically related to this.
 
+However, `config ntp` will have additional options added. Specifically, it will
+accept `--iburst`, `--version`, and `--association-type` arguments when adding
+a NTP server, to enable iburst, specify the NTP association version, or specify
+the association type, respectively.
+
+Examples:
+
+```
+sudo config ntp add --iburst 10.250.0.1
+```
+
 ## Restrictions/Limitations
 
 There are expected to be no new restrictions or limitations with this change.
