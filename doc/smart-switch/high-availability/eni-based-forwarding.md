@@ -241,7 +241,8 @@ flowchart LR
     DashEniFwdOrch --> |Observe| RouteOrch
 
     Ques1 --> CREATE_TUNNEL_NH
-    RouteOrch --> |Notify Local NH| DashEniFwdOrch
+    CREATE_TUNNEL_NH --> |oid| DashEniFwdOrch
+    RouteOrch --> |Notify NH for Local Endpoint| DashEniFwdOrch
     DashEniFwdOrch --> AclOrch
 ```
 
@@ -266,7 +267,7 @@ Current Schema for REDIRECT field in ACL_RULE_TABLE
 This is enhanced to accept an object oid. AclOrch will verify if the object is of type SAI_OBJECT_TYPE_NEXT_HOP and only then permit the rule
 
 ```
-redirect_action = 1*255CHAR                    : oid of type SAI_OBJECT_NEXT_HOP Example: oid:0x400000000064d
+  redirect_action = 1*255CHAR                    : oid of type SAI_OBJECT_NEXT_HOP Example: oid:0x400000000064d
 ```
 
 ## Warmboot and Fastboot Design Impact ##
