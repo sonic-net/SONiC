@@ -242,7 +242,8 @@ flowchart LR
     ENI_TABLE --> DashEniFwdOrch
     DashEniFwdOrch --> ACL_RULE_TABLE
     ACL_RULE_TABLE --> AclOrch
-    RouteOrch --> DashEniFwdOrch
+    RouteOrch --> |NotifyNextHop| DashEniFwdOrch
+    DashEniFwdOrch --> |ObserveNextHop| RouteOrch
 ```
 
 
