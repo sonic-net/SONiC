@@ -18,10 +18,7 @@
     - [Handling path loops after Tunnel decap](#handling-path-loops-after-tunnel-decap)
     - [Nexthop resolution](#nexthop-resolution)
     - [Dash ENI Forward Orch](#dash-eni-forward-orch)
-        - [Existing Design](#existing-design)
-        - [Updated Design](#Updated-design)
-    - [ACL Configuration](#acl-configuration)
-        - [Tunnel Next Hop](#tunnel-next-hop)
+      - [Schema Change in ACL_RULE](#schema-change-in-acl-rule)
   - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
   - [Restrictions/Limitations](#restrictionslimitations)
   - [Testing Requirements/Design](#testing-requirementsdesign)
@@ -231,8 +228,7 @@ Nexthop can be to a local DPU or a remote DPU. Orchagent must figure out if the 
 
 ### Dash ENI Forward Orch ### 
 
-A new orchagent DashEniFwdOrch is added which runs on NPU to translate the requirements into ACL Rules
-
+A new orchagent DashEniFwdOrch is added which runs on NPU to translate the requirements into ACL Rules.
 
 ```mermaid
 flowchart LR
@@ -240,17 +236,20 @@ flowchart LR
 
     HaMgrD --> ENI_TABLE
     ENI_TABLE --> DashEniFwdOrch
-    DashEniFwdOrch --> ACL_RULE_TABLE
-    ACL_RULE_TABLE --> AclOrch
-    RouteOrch --> |NotifyNextHop| DashEniFwdOrch
-    DashEniFwdOrch --> |ObserveNextHop| RouteOrch
+
+    DashEniFwdOrch --> Ques1{Remote Endpoint}
+    DashEniFwdOrch --> |Observe| RouteOrch
+
+    Ques1 --> CREATE_TUNNEL_NH
+    RouteOrch --> |Notify Local NH| DashEniFwdOrch
+    DashEniFwdOrch --> AclOrch
 ```
 
+#### Schema Change in ACL_RULE ####
 
-#### Existing Design ####
+Current Schema for REDIRECT field in ACL_RULE_TABLE
 
-Current Design on ACL Orchagent is equipped to infer and program "REDIRECT" action for an ACL Rule. Here is the schema expected for the field
-
+```
     key: ACL_RULE_TABLE:table_name:rule_name
 
     redirect_action = 1*255CHAR                ; redirect parameter
@@ -262,148 +261,30 @@ Current Design on ACL Orchagent is equipped to infer and program "REDIRECT" acti
                                                : next-hop ip address and vrf     Example: "10.0.0.2@Vrf2"
                                                : next-hop ip address and ifname  Example: "10.0.0.3@Ethernet1"
                                                : next-hop group set of next-hop  Example: "10.0.0.1,10.0.0.3@Ethernet1"
-
-**Current ACL Orchagent Redirect Flow**
-<p align="center"><img alt="" src="./images/old_acl_redirect_flow.svg"></p>
-
-#### Updated Design ####
-
-The existing design has a few shortcomings
-
-1) It is not equipped to handle redirect action to a Tunnel NH or NG Group
-2) It follows fire and forget and doesn't keep track of the updates made to that next-hop object. This has to be fixed for the DPU to have uninterrupted traffic flow after an event which triggers an update of next-hop object
-3) ACL Orchagent doesn't support matching on INNER_SRC_MAC and INNER_DST_MAC
-
-
-### ACL Configuration ### 
-
-
-
-**Example: ACL Rule for Inbound Traffic and Local DPU**
-
-    {
-        "ACL_RULE": {
-              "ENI|RULE_INBOUND_ENI0": {
-                  "PRIORITY": "999",
-                  "TUNNEL_VNI": "4000",
-                  "DST_IP": "1.1.1.1/32", # Switch VIP
-                  "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
-                  "REDIRECT": "2.2.2.2" # PA Address for local DPU
-              }
-          }
-    }
-
-**Example: ACL Rule for Outbound Traffic and Local DPU**
-
-    {
-        "ACL_RULE": {
-              "ENI|RULE_OUTBOUND_ENI0": {
-                  "PRIORITY": "999",
-                  "TUNNEL_VNI": "4000",
-                  "DST_IP": "3.3.3.3/32",
-                  "INNER_SRC_MAC": "aa:bb:cc:11:22:33"
-                  "REDIRECT": "2.2.2.2" # PA Address for local DPU
-              }
-          }
-    }
-
-### Tunnel Next Hop ### 
-
-An example flow which creates a Tunnel Next Hop would be programming a VNET route with Tunnel Hop. Ref for Schema: https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md#22-app-db
-
-    VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
-        "endpoint": {{ip_address}} 
-        "mac_address":{{mac_address}} (OPTIONAL) 
-        "vni": {{vni}}(OPTIONAL) 
-
-To create a Tunnel NH or NHG, a combination of these parameters are required
-- Tunnel Name
-- Endpoint IP
-- MAC (OPTIONAL)
-- VNI (OPTIONAL)
-
-ACL_RULE_TABLE should be equipped to accept these new paremeters. Thus, a new table to represent the tunnel NH or NHG is added. 
-Key for this table should be an input to redirect_action field in the ACL_RULE_TABLE
-
-```
-key                      = "TUNNEL_NH_TABLE:nh_object_name" 
-
-tunnel_name              = STRING                               ; Name of the Tunnel which has the NH or NHG associated
-endpoint_ip              = List of IP's separated by comma      ; Endpoint IP's. When there are multiple IP's it is assumed to be a next hop group
-mac_address              = List of MAC's separated by comma     ; Inner Destination MAC's (Optional)
-vni                      = List of VNI's separated by comma     ; Next Hop Entry VNI's (Optional)
-description              = STRING                               ; Additional Information explaining the NH  (Optional)
 ```
 
+This is enhanced to accept an object oid. AclOrch will verify if the object is of type SAI_OBJECT_TYPE_NEXT_HOP and only then permit the rule
 
 ```
-key: ACL_RULE_TABLE:table_name:rule_name
-
-redirect_action = 1*255CHAR         : <All the old attributes>   
-                                    : next hop for tunnel             Example: npu2npu_tunnel0, this should be a key in the TUNNEL_NH_TABLE
+redirect_action = 1*255CHAR                    : oid of type SAI_OBJECT_NEXT_HOP Example: oid:0x400000000064d
 ```
-
-**Exmaple: ACL Rule for outbound traffic and remote DPU in the same HA pair**
-
-     {
-        "TUNNEL_NH_TABLE": {
-            "ha_tunnel_nh0":{
-                "DESCRIPTION": "NH to Active NPU with ENI 1000"
-                "TUNNEL_NAME": "npu_tunnel",
-                "ENDPOINT_IP": "3.3.3.3",
-                "VNI": "100"
-            }
-        }
-        "ACL_RULE": {
-              "ENI|INBOUND_REMOTE_ENI1000": {
-                  "PRIORITY": "999",
-                  "TUNNEL_VNI": "4000",
-                  "DST_IP": "1.1.1.1/32",
-                  "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
-                  "REDIRECT": "ha_tunnel_nh0"
-              }
-        }
-    }
-
-**Exmaple: ACL Rule for outbound traffic and remote DPU in a different HA pair**
-
-     {
-        "TUNNEL_NH_TABLE": {
-            "npu2npu_tunnel_nhg0":{
-                "DESCRIPTION": "NHG to HA Pair with ENI 2000"
-                "TUNNEL_NAME": "npu_tunnel",
-                "ENDPOINT_IP": "1.1.1.1,2.2.2.2",
-                "VNI": "200,200"
-            }
-        }
-        "ACL_RULE": {
-              "ENI|INBOUND_REMOTE_ENI2000": {
-                  "PRIORITY": "999",
-                  "TUNNEL_VNI": "4000",
-                  "DST_IP": "1.1.1.1/32",
-                  "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
-                  "REDIRECT": "npu2npu_tunnel_nhg0"
-              }
-        }
-    }
 
 ## Warmboot and Fastboot Design Impact ##
 
-No Changes here. 
+DashEniFwdOrch will directly call AclOrch API's to create ACL_RULES. This it to simplify the process of reconciliation during WR/FR.
+
+During the reconciliation phase, DashEniFwdOrch will first read all the entries in the ENI_DASH_TUNNEL_TABLE. It'll create the Tunnel NH objects or read the local NH from RouteOrch and program the exact rules to AclOrch. 
+
+ACL Rules in ASIC should be same before and after warm-reboot. 
 
 ## Restrictions/Limitations ##
 
-- HaMgrd will be writing the ACL rules to APPL_DB and so Configuration/CLI/Yang model to support TUNNEL_NH_TABLE is not in the scope of this feature
-- ACL Orchagent will not perform any checks if the Tunnel NH or NHG is already created for the given parameters. This would be a problem if NH or NHG is created by VnetOrch, EVPN etc. However, this is out of scope of this feature
-
 ## Testing Requirements/Design ##
 
-- Migrate existing Private Link tests to use ENI Forwarding Approach. Until HaMgrd is available, test should progran ACL rules in APPL_DB
-- Add individual test cases which verify next hop forwarding 
-- Add individual test cases to verify tunnel next hop forwarding regardless of HA availability 
+- Migrate existing Private Link tests to use ENI Forwarding Approach. Until HaMgrd is available, test should write to the ENI_DASH_TUNNEL_TABLE
+- Add individual test cases which verify forwarding to remote endpoint. This should not require HA availability 
+- HA test cases should work
 
 ## Open/Action items - if any ##
 
 - Will there be a packet coming to T1 which doesn't host its ENI? Theoretically possible if all the T1's in a cluster share the same VIP
-
-![Case for Tunnel NHG](./images/case_for_tunnel_nhg.png)
