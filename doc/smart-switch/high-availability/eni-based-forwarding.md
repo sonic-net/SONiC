@@ -283,7 +283,7 @@ ACL Rules in ASIC should be same before and after warm-reboot.
 
 - Migrate existing Private Link tests to use ENI Forwarding Approach. Until HaMgrd is available, test should write to the ENI_DASH_TUNNEL_TABLE
 - Add individual test cases which verify forwarding to remote endpoint. This should not require HA availability 
-- HA test cases should work
+- HA test cases should work by just writing the expected configuration to ENI_DASH_TUNNEL_TABLE
 
 ## Open/Action items - if any ##
 
