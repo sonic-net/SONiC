@@ -228,7 +228,9 @@ Nexthop can be to a local DPU or a remote DPU. Orchagent must figure out if the 
 
 ### Dash ENI Forward Orch ### 
 
-A new orchagent DashEniFwdOrch is added which runs on NPU to translate the requirements into ACL Rules.
+A new orchagent DashEniFwdOrch is added which runs on NPU to translate the requirements into ACL Rules. 
+
+DashEniFwdOrch should infer the type of endpoint (local or remote) by parsing the DPU/vDPU table and saving the local DPU PA's in a set.
 
 ```mermaid
 flowchart LR
@@ -244,6 +246,7 @@ flowchart LR
     CREATE_TUNNEL_NH --> |oid| DashEniFwdOrch
     RouteOrch --> |Notify NH for Local Endpoint| DashEniFwdOrch
     DashEniFwdOrch --> AclOrch
+    DPU/vDPU --> DashEniFwdOrch
 ```
 
 #### Schema Change in ACL_RULE ####
@@ -267,25 +270,23 @@ Current Schema for REDIRECT field in ACL_RULE_TABLE
 This is enhanced to accept an object oid. AclOrch will verify if the object is of type SAI_OBJECT_TYPE_NEXT_HOP and only then permit the rule
 
 ```
-  redirect_action = 1*255CHAR                    : oid of type SAI_OBJECT_NEXT_HOP Example: oid:0x400000000064d
+   redirect_action = 1*255CHAR                  : oid of type SAI_OBJECT_NEXT_HOP Example: oid:0x400000000064d
 ```
 
 ## Warmboot and Fastboot Design Impact ##
 
-DashEniFwdOrch will directly call AclOrch API's to create ACL_RULES. This it to simplify the process of reconciliation during WR/FR.
-
-During the reconciliation phase, DashEniFwdOrch will first read all the entries in the ENI_DASH_TUNNEL_TABLE. It'll create the Tunnel NH objects or read the local NH from RouteOrch and program the exact rules to AclOrch. 
-
-ACL Rules in ASIC should be same before and after warm-reboot. 
+No impact here
 
 ## Restrictions/Limitations ##
 
 ## Testing Requirements/Design ##
 
 - Migrate existing Private Link tests to use ENI Forwarding Approach. Until HaMgrd is available, test should write to the ENI_DASH_TUNNEL_TABLE
-- Add individual test cases which verify forwarding to remote endpoint. This should not require HA availability 
+- Add individual test cases which verify forwarding to remote endpoint and also Tunnel Termination. This should not require HA availability
 - HA test cases should work by just writing the expected configuration to ENI_DASH_TUNNEL_TABLE
 
 ## Open/Action items - if any ##
 
 - Will there be a packet coming to T1 which doesn't host its ENI? Theoretically possible if all the T1's in a cluster share the same VIP
+- Will the endpoint for local DPU is PA of the interface address of the DPU
+- ENI_DASH_TUNNEL_TABLE schema
