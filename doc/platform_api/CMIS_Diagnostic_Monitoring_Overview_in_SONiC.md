@@ -23,26 +23,26 @@ The CMIS diagnostic monitoring data is stored in the `STATE_DB` database. The `S
 - `TRANSCEIVER_VDM_CURRENT_SAMPLE`: Stores VDM sample data.
 - `TRANSCEIVER_VDM_THRESHOLD`: Contains threshold values for VDM parameters.
 - `TRANSCEIVER_VDM_HALARM_THRESHOLD`: Stores the high alarm threshold values for the VDM data.
-- `TRANSCEIVER_VDM_LALARM_THRESHOLD`: Stores the high alarm threshold values for the VDM data.
+- `TRANSCEIVER_VDM_LALARM_THRESHOLD`: Stores the low alarm threshold values for the VDM data.
 - `TRANSCEIVER_VDM_HWARN_THRESHOLD`: Stores the high warning threshold values for the VDM data.
-- `TRANSCEIVER_VDM_LWARN_THRESHOLD`: Stores the high warning threshold values for the VDM data.
+- `TRANSCEIVER_VDM_LWARN_THRESHOLD`: Stores the low warning threshold values for the VDM data.
 - `TRANSCEIVER_VDM_HALARM_FLAG`: Stores the high alarm flag for the VDM data.
 - `TRANSCEIVER_VDM_LALARM_FLAG`: Stores the low alarm flag for the VDM data.
 - `TRANSCEIVER_VDM_HWARN_FLAG`: Stores the high warning flag for the VDM data.
 - `TRANSCEIVER_VDM_LWARN_FLAG`: Stores the low warning flag for the VDM data.
-- `TRANSCEIVER_VDM_HALARM_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM flag has changed for high alarm flags.
-- `TRANSCEIVER_VDM_LALARM_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM flag has changed for low alarm flags.
-- `TRANSCEIVER_VDM_HWARN_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM flag has changed for high warning flags.
-- `TRANSCEIVER_VDM_LWARN_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM flag has changed for low warning flags.
+- `TRANSCEIVER_VDM_HALARM_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM high alarm flag has changed.
+- `TRANSCEIVER_VDM_LALARM_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM low alarm flag has changed.
+- `TRANSCEIVER_VDM_HWARN_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM high warning flag has changed.
+- `TRANSCEIVER_VDM_LWARN_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM low warning flag has changed.
 - `TRANSCEIVER_VDM_HALARM_SET_TIME`: Records the timestamp when each VDM high alarm flag was set.
 - `TRANSCEIVER_VDM_LALARM_SET_TIME`: Records the timestamp when each VDM low alarm flag was set.
 - `TRANSCEIVER_VDM_HWARN_SET_TIME`: Records the timestamp when each VDM high warning flag was set.
 - `TRANSCEIVER_VDM_LWARN_SET_TIME`: Records the timestamp when each VDM low warning flag was set.
-- `TRANSCEIVER_VDM_HALM_CLEAR_TIME`: Records the timestamp when each VDM high alarm flag was cleared.
-- `TRANSCEIVER_VDM_LALM_CLEAR_TIME`: Records the timestamp when each VDM low alarm flag was cleared.
+- `TRANSCEIVER_VDM_HALARM_CLEAR_TIME`: Records the timestamp when each VDM high alarm flag was cleared.
+- `TRANSCEIVER_VDM_LALARM_CLEAR_TIME`: Records the timestamp when each VDM low alarm flag was cleared.
 - `TRANSCEIVER_VDM_HWARN_CLEAR_TIME`: Records the timestamp when each VDM high warning flag was cleared.
 - `TRANSCEIVER_VDM_LWARN_CLEAR_TIME`: Records the timestamp when each VDM low warning flag was cleared.
-- `TRANSCEIVER_STATUS`: Stores the status data of the transceivers.
+- `TRANSCEIVER_STATUS`: Stores the module and datapath state data along with various flags related to it. Also stores various Tx and Rx related flags.
 - `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT`: Stores the count of times the transceiver status flag has changed.
 - `TRANSCEIVER_STATUS_FLAG_SET_TIME`: Records the timestamp when the transceiver status flag was set.
 - `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME`: Records the timestamp when the transceiver status flag was cleared.
@@ -788,7 +788,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_halarm_chg_cnt                                    = INTEGER; rx signal power in dbm (high alarm flag change count)
 ```
 
-###### 2.2.4.2 Transceiver VDM low alarm flag change count data
+##### 2.2.4.2 Transceiver VDM low alarm flag change count data
 
 The `TRANSCEIVER_VDM_LALARM_FLAG_CHANGE_COUNT` table stores the flag change count for low alarm flag for the VDM data.
 
@@ -1605,8 +1605,8 @@ Port         Parameter_Name   Last Clear Time            Last Clear Time        
 -----------  ---------------  -------------------------  -------------------------  -------------------------  -------------------------
 Ethernet1    Temperature      True/                      False/                     False/                     False/
                               1/                         0/                         0/                         0/
-                              Wed Oct 16 03:46:41 2024/  N/A/                       N/A/                       N/A/
-                              N/A                        N/A                        N/A                        N/A
+                              Wed Oct 16 03:46:41 2024/  Never                      Never                      Never
+                              Never                      Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024
 ```
 
 ### 3.2 CLI Commands for VDM Monitoring
@@ -1657,8 +1657,8 @@ Port         Parameter_Name   Last Clear Time            Last Clear Time        
 -----------  ---------------  -------------------------  -------------------------  -------------------------  -------------------------
 Ethernet1    eSNR Media Input True/                      False/                     False/                     False/
                               1/                         0/                         0/                         0/
-                              Wed Oct 16 03:46:41 2024/  N/A/                       N/A/                       N/A/
-                              N/A                        N/A                        N/A                        N/A
+                              Wed Oct 16 03:46:41 2024/  Never                      Never                      Never
+                              Never                      Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024
 ```
 
 ## 4. SONiC CMIS diagnostic monitoring workflow
@@ -1689,7 +1689,7 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
     6. Analyze the transceiver DOM flag data by comparing the current flag data with the previous flag data and update the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables.
     7. Read the transceiver status data from the module and update the `TRANSCEIVER_STATUS` table.
     8. If the transceiver supports VDM monitoring, perform the following steps:
-        1. Freeze the statistics by calling the CMIS API (`freeze_vdm_stats`) and wait for `FreezeDone` by calling `get_vdm_freeze_status`. Once the statistics are frozen, record the timestamp and copy the VDM and PM statistics from the transceiver.
+        1. Freeze the statistics by calling the CMIS API (`freeze_vdm_stats`) and wait for `FreezeDone` by calling `get_vdm_freeze_status`. Once the statistics are frozen, record the timestamp and copy the supported VDM and PM data from the transceiver.
         2. Unfreeze the statistics by calling the CMIS API (`unfreeze_vdm_stats`).
         3. Update the `TRANSCEIVER_VDM_CURRENT_SAMPLE` and `TRANSCEIVER_PM` tables with both basic and statistic instance's data read for VDM and PM.
         4. Analyze the VDM flags by comparing the current data with the previous data and update the VDM flag, change count and time related tables.
@@ -1824,9 +1824,9 @@ The purpose of flag analysis is to track the status of various parameters and to
 **Tables Used for Flag Analysis:**
 
 - `TRANSCEIVER_DOM_FLAG`: This table stores flags indicating the status of various DOM parameters.
-- `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: This table keeps a count of how many times each DOM flag has changed.
-- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`.
-- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`
+- `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: This table keeps a count of how many times each DOM flag has changed. Upon initialization, the count is set to 0.
+- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `Never` if the flag is not set.
+- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `Never` if the flag is set.
 
 **Example of Table Updates:**
 
@@ -1840,3 +1840,9 @@ The purpose of flag analysis is to track the status of various parameters and to
 #### 4.2.4 Flag Change Count and Time Set/Clear Behavior During `xcvrd` Restart
 
 During `xcvrd` stop, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are deleted by the `xcvrd` process. When `xcvrd` is restarted, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are recreated and the flag change count and set/clear time are updated based on the current flag status (i.e. the value of these fields are not cached between `xcvrd` restarts).
+
+#### 4.2.5 Flag Change Count and Time Set/Clear Behavior During Transceiver Removal and Insertion
+
+When a transceiver is removed, `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are deleted by the `SfpStateUpdateTask` thread.
+
+When the transceiver is inserted back, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are recreated through the periodic polling routine of `DomInfoUpdateTask` and the flag change count and set/clear time are updated based on the current flag status.
