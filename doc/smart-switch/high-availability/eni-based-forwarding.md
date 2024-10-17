@@ -8,11 +8,16 @@
   - [Scope](#scope)
   - [Definitions/Abbreviations](#definitionsabbreviations)
   - [Overview](#overview)
+    - [Packet Flow](#packet-flow)
   - [Requirements](#requirements)
-  - [Packet Flow](#packet-flow)
+    - [Phase 1](#phase-1)
+    - [Phase 2](#phase-2)
   - [Architecture Design](#architecture-design)
-    - [Programming ACL Rules](#programming-acl-rules)
-    - [ACL Orchagent Design Changes](#acl-orchagent-design-changes)
+    - [ACL Table Configuration](#acl-table-configuration)
+    - [ACL Rules](#acl-rules)
+    - [Handling path loops after Tunnel decap](#handling-path-loops-after-tunnel-decap)
+    - [Nexthop resolution](#nexthop-resolution)
+    - [Dash ENI Forward Orch](#dash-eni-forward-orch)
         - [Existing Design](#existing-design)
         - [Updated Design](#Updated-design)
     - [ACL Configuration](#acl-configuration)
@@ -59,28 +64,11 @@ There are two possible NPU-DPU Traffic forwarding models.
     * The host has the switch VIP as the gateway address for its traffic.
     * Cheaper, since only VIP per switch is needed (or even per a row of switches). ENI placement can be directed even across smart switches.
 
-ENI Based Forwarding is the preferred approach because of cost constraints.
+ENI Based Forwarding is the preferred approach because of cost constraints. 
 
-## Requirements ##
+Packet Forwarding from NPU to local and remote DPU's are clearly explained in the HA HLD https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/high-availability/smart-switch-ha-hld.md#42-data-path-ha
 
-ENI based forwarding requires the switch to understand the relationship between the packet and ENI, and ENI and DPU.
-
-* Each DPU is represented as a PA (public address). Unlike VIP, PA does't have to be visible from the entire cloud infrastructure
-* Each ENI belongs to a certain DPU (local or remote)
-* Each packet can be identified as belonging to that switch using VIP and VNI
-* Forwarding can be to local DPU PA or remote DPU PA over L3 VxLAN
-* Scale: [# of DPUs] * [# of ENIs per DPU] * 2 (inbound and outbound) in case of one VIP per switch
-
-## Architecture Design ##
-
-### Programming ACL Rules ###
-
-* Packet Forwarding from NPU to local and remote DPU's are clearly explained in the HA HLD https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/high-availability/smart-switch-ha-hld.md#42-data-path-ha
-* In a nutshell, the ACL rule for a ENI depends on the role of its DPU in the corresponding HA pair i.e. local or standby
-* Thus, ACL rules must be dynamically updated on the NPU. This should be handled by HaMgrd as it will have all the necessary information to make the decision. 
-* The format on how the rules must be writted will be explained further in the document
-
-## Packet Flow ##
+### Packet Flow ###
 
 **Case 1: Packet lands directly on NPU which has the currrent Active ENI**
 
@@ -90,11 +78,173 @@ ENI based forwarding requires the switch to understand the relationship between 
 
 ![Active Standby ENI case](./images/active_standby_eni.png)
 
-**Case 3: Packet lands a NPU which has the same VIP but it doesn't host the ENI**
 
-![Case for Tunnel NHG](./images/case_for_tunnel_nhg.png)
+## Requirements ##
 
-### ACL Orchagent Design Changes ### 
+ENI based forwarding requires the switch to understand the relationship between the packet and ENI, and ENI and DPU.
+
+* Each DPU is represented as a PA (public address). Unlike VIP, PA does't have to be visible from the entire cloud infrastructure
+* Each ENI belongs to a certain DPU (local or remote)
+* Each packet can be identified as belonging to that switch using VIP and VNI
+* Forwarding can be to local DPU PA or remote DPU PA over L3 VxLAN
+* Scale: 
+    - One VIP per HA pair: [# of DPUs] * [# of ENIs per DPU] * 2 (inbound and outbound) * 2 (One with/without Tunnel Termination)
+
+### Phase 1 ###
+
+- Only HaMgrd will make decision on where to route the packet and write to ENI_DASH_TUNNEL_TABLE table
+- Orchagent will only process the primary endpoint and translate the requirement into ACL Rules
+- Orchagent should also program ACL Rules with Tunnel termination entries
+- No BFD sessions are created to local DPU or the remote DPU.
+
+### Phase 2 ###
+
+- BFD sessions are created to local DPU or the remote DPU for faster reactivity to card level failures
+- Orchagent will switch between primary and secondary endpoint based on BFD status
+
+## Architecture Design ##
+
+### ACL Table Configuration ### 
+```
+{
+    "ACL_TABLE_TYPE": {
+        "ENI_REDIRECT": {
+            "MATCHES": [
+                "TUNNEL_VNI",
+                "DST_IP",
+                "DST_IPV6",
+                "INNER_SRC_MAC",
+                "INNER_DST_MAC",
+                "TUNNEL_TERM"
+            ],
+            "ACTIONS": [
+                "REDIRECT_ACTION",
+            ],
+            "BIND_POINTS": [
+                "PORT"
+            ]
+        }
+    },
+    "ACL_TABLE": {
+        "ENI": {
+            "STAGE": "INGRESS",
+            "TYPE": "ENI_REDIRECT",
+            "PORTS": [
+                "<Ingress front panel ports>"
+            ]
+        }
+    }
+}
+```
+### ACL Rules ### 
+
+Assume the following ENI attributes
+```
+MAC: aa:bb:cc:dd:ee:ff
+TUNNEL_VNI: 4000
+VIP: 1.1.1.1/32
+```
+
+**ACL Rule for outbound traffic**
+
+```
+{  
+    "ACL_RULE": {
+        "ENI:aa:bb:cc:ff:fe:dd:ee:ff:OUT0": {
+            "PRIORITY": "999",
+            "TUNNEL_VNI": "4000",
+            "DST_IP": "1.1.1.1/32",
+            "INNER_SRC_MAC": "aa:bb:cc:dd:ee:ff"
+            "REDIRECT": "<local/remote nexthop oid>"
+        }
+    }
+}
+```
+
+**ACL Rule for inbound traffic**
+
+```
+{  
+    "ACL_RULE": {
+        "ENI:aa:bb:cc:ff:fe:dd:ee:ff:IN0": {
+            "PRIORITY": "999",
+            "TUNNEL_VNI": "4000",
+            "DST_IP": "1.1.1.1/32",
+            "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
+            "REDIRECT": "<local/remote nexthop oid>"
+        }
+    }
+}
+```
+
+### Handling path loops after Tunnel decap ### 
+
+During HA failover, the HA pair will end up in a transitional state that makes it ambiguous to the switch if it is active or backup.
+
+When the HA failover happens, the used-to-be active becomes standby, but the used-to-be standby is still unchanged.
+
+This state, although brief in time, may lead to congestion, and packet drops on a switch.
+
+![Tunnel Termination Problem](./images/tunn_term_problem.png)
+
+To solve this, ACL rules with high priority are added and the redirect should always be to local nexthop
+
+![Tunnel Termination Solution](./images/tunn_term_solution.png)
+
+**ACL Rule for outbound traffic with Tunnel Termination**
+
+```
+{  
+    "ACL_RULE": {
+        "ENI:aa:bb:cc:ff:fe:dd:ee:ff:OUT1": {
+            "PRIORITY": "9999",
+            "TUNNEL_VNI": "4000",
+            "DST_IP": "1.1.1.1/32",
+            "INNER_SRC_MAC": "aa:bb:cc:dd:ee:ff",
+            "TUNN_TERM": "true",
+            "REDIRECT": "<local nexthop oid>"
+        }
+    }
+}
+```
+
+**ACL Rule for inbound traffic with Tunnel Termination**
+
+```
+{
+    "ACL_RULE": {
+        "ENI:aa:bb:cc:ff:fe:dd:ee:ff:IN1": {
+            "PRIORITY": "9999",
+            "TUNNEL_VNI": "4000",
+            "DST_IP": "1.1.1.1/32",
+            "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
+            "TUNN_TERM": "true",
+            "REDIRECT": "<local nexthop oid>"
+        }
+    }
+}
+```
+
+### Nexthop resolution ###
+
+Nexthop can be to a local DPU or a remote DPU. Orchagent must figure out if the endpoint is either local or remote and handle it accordingly
+
+### Dash ENI Forward Orch ### 
+
+A new orchagent DashEniFwdOrch is added which runs on NPU to translate the requirements into ACL Rules
+
+
+```mermaid
+flowchart LR
+    ENI_TABLE[ENI_DASH_TUNNEL_TABLE]
+
+    HaMgrD --> ENI_TABLE
+    ENI_TABLE --> DashEniFwdOrch
+    DashEniFwdOrch --> ACL_RULE_TABLE
+    ACL_RULE_TABLE --> AclOrch
+    RouteOrch --> DashEniFwdOrch
+```
+
 
 #### Existing Design ####
 
@@ -123,46 +273,10 @@ The existing design has a few shortcomings
 2) It follows fire and forget and doesn't keep track of the updates made to that next-hop object. This has to be fixed for the DPU to have uninterrupted traffic flow after an event which triggers an update of next-hop object
 3) ACL Orchagent doesn't support matching on INNER_SRC_MAC and INNER_DST_MAC
 
-**Proposed design when Nexthop is programmed**
-
-<p align="center"><img alt="Proposed ACL Orchagent Redirect Flow" src="./images/new_acl_redirect_flow.svg"></p>
-
-**Proposed design when Tunnel NH or NHG is programmed**
-
-<p align="center"><img alt="Proposed ACL Orchagent Redirect Flow" src="./images/acl_tunnel_redirect_flow.svg"></p>
 
 ### ACL Configuration ### 
 
-**ACL Table Type and ACL Table Configuration**
 
-    {
-        "ACL_TABLE_TYPE": {
-            "ENI": {
-                "MATCHES": [
-                    "TUNNEL_VNI",
-                    "DST_IP",
-                    "DST_IPV6",
-                    "INNER_SRC_MAC",
-                    "INNER_DST_MAC",
-                ],
-                "ACTIONS": [
-                    "REDIRECT_ACTION",
-                ],
-                "BIND_POINTS": [
-                    "PORT"
-                ]
-            }
-        },
-        "ACL_TABLE": {
-            "ENI": {
-                "STAGE": "INGRESS",
-                "TYPE": "ENI",
-                "PORTS": [
-                    "<Ingress front panel ports>"
-                ]
-            }
-        }
-    }
 
 **Example: ACL Rule for Inbound Traffic and Local DPU**
 
@@ -288,3 +402,7 @@ No Changes here.
 - Add individual test cases to verify tunnel next hop forwarding regardless of HA availability 
 
 ## Open/Action items - if any ##
+
+- Will there be a packet coming to T1 which doesn't host its ENI? Theoretically possible if all the T1's in a cluster share the same VIP
+
+![Case for Tunnel NHG](./images/case_for_tunnel_nhg.png)
