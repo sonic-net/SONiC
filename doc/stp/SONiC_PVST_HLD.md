@@ -357,7 +357,7 @@ Openconfig STP yang model will be extended to support PVST.
 ### 3.6.2.1 Global level 
 
 ### 3.6.2.1.1 Enabling or Disabling of PVST feature - Global spanning-tree mode
-This command allows enabling the spanning tree mode for the device. 
+The below command allows enabling the spanning tree mode for the device. 
 
 **config spanning_tree {enable|disable} {pvst}**
 
@@ -366,39 +366,51 @@ Note:
 2) When multiple spanning-tree modes are supported, only one mode can be enabled at any given point of time.
 
 ### 3.6.2.1.2 Per VLAN spanning-tree 
-This command allows enabling or disabling spanning-tree on a VLAN.
+The below command allows enabling or disabling spanning-tree on a VLAN.
 
 **config spanning_tree vlan {enable|disable} <vlan\>**
 
+This command allows the user to control the convergence of the logical topology pertaining to the specified VLAN. This can addionally help in load balancing the traffic belonging to a range of VLANs.
+
  ### 3.6.2.1.3 Root-guard timeout
 
-This command allows configuring a root guard timeout value. Once superior BPDUs stop coming on the port, device will wait for a period until root guard timeout before moving the port to forwarding state(default = 30 secs), range 5-600.
+The below command allows configuring a root guard timeout value.
 
 **config spanning_tree root_guard_timeout <value\>**
 
+Once superior BPDUs cease arriving on the port, device would wait for a period equal to the root guard timeout value before moving the port to forwarding state(default = 30 secs), range 5-600.
+
  ### 3.6.2.1.4 Forward-delay 
 
-This command allows configuring the forward delay time in seconds (default = 15), range 4-30.
+The below command allows configuring the forward delay time in seconds (default = 15), range 4-30.
 
 **config spanning_tree forward_delay <value\>**
 
+This value significantly impacts the total convergence time of a STP port that the user can control using this command, unless uplink fast is configured on the port.
+
  ### 3.6.2.1.5 Hello interval
-This command allow configuring the hello interval in secs for transmission of bpdus (default = 2), range 1-10.
+The below command allows configuring the hello interval in seconds for transmission of BPDUs (default = 2), range 1-10. 
 
 **config spanning_tree hello <value\>**
 
+Configuring this parameter to the lowest value (i.e. 1) would make the convergence faster at the cost of double the load on the CPU as it needs to compose, transmit and process twice as many BPDUs multiplied by the no. of VLANs enabled with STP. Thus the command helps the user control the total convergence time to be slower or faster than the default convergence time.
+
  ### 3.6.2.1.6 Max-age
-This command allows configuring the maximum time to listen for root bridge in seconds (default = 20), range 6-40.
+The below command allows configuring the maximum time to listen for root bridge in seconds (default = 20), range 6-40.
 
 **config spanning_tree max_age <value\>**
 
+This timer advertised in the BDPU of the root bridge, enables the aging of the received STP root information on the receiving switch, until a fresh same or superior BPDU is received, that refreshes this timer. This command when configured on a root bridge, allows the user to age out the root information, either faster or slower from the switches as per the configured value, causing topology re-convergence.
+
  ### 3.6.2.1.7 Bridge priority
-This command allows configuring the bridge priority in increments of 4096 (default = 32768), range 0-61440.
+The below command allows configuring the bridge priority in increments of 4096 (default = 32768), range 0-61440.
 
 **config spanning_tree priority <value\>**
 
+This parameter determines the eligibility for a switch to assume the role of a root bridge. Lower the priority, better the chance of the bridge assuming root role. This command thus allows the user to choose the root bridge with lowest bridge priority and the backup root bridge with next lowest bridge priority etc.
+
  ### 3.6.2.2 VLAN level 
-Below commands are similar to the global level commands but allow configuring on per VLAN basis.
+Below commands are similar to the global level commands but allow configuring them on a per VLAN basis.
 
 **config spanning_tree vlan forward_delay <vlan\> <fwd-delay-value\>**
 
@@ -409,17 +421,23 @@ Below commands are similar to the global level commands but allow configuring on
 **config spanning_tree vlan priority <vlan\> <priority-value\>**
 
  ### 3.6.2.3 VLAN, interface level 
-Below configurations allow STP parameters to be configured on per VLAN, interface basis.
+Below configurations allow STP parameters to be configured on a per VLAN, interface basis.
 
  ### 3.6.2.3.1 Port Cost
-This command allows to configure the port level cost value for a VLAN, range 1 - 200000000
+The below command allows to configure the port level cost value for a VLAN, range 1 - 200000000
 
 **config spanning_tree vlan interface cost <vlan\> <ifname\> <value\>**
 
+This parameter for all the ports when added up, determines the total spanning tree path cost between the root bridge and the switch. Thus, it plays significant role in calculating the shortest path to the root bridge for narrowing down the best topology possible for the specified VLAN.
+
+This command thus allows the user to control the spanning tree topology convergence by choosing the designated bridges with the best paths towards the root bridge. This also aids in choosing the root ports over the alternate ports on these designated bridges with best path cost towards the root bridge.
+
  ### 3.6.2.3.2 Port priority
-This command allows to configure the port level priority value for a VLAN, range 0 - 240 (default 128)
+The below command allows to configure the port level priority value for a VLAN, range 0 - 240 (default 128)
 
 **config spanning_tree vlan interface priority <vlan\> <ifname\> <value\>**
+
+This command when configured on an upstream root or designated switch allows an user to choose a port on the downstream designated switch as root port over an alternate port with equal Path Cost for the STP instance pertaining to the VLAN.
 
  ### 3.6.2.4 Interface level 
 
@@ -431,27 +449,28 @@ This command allows enabling or disabling of STP on an interface, by default STP
 
  ### 3.6.2.4.2 Root Guard:
 The Root Guard feature provides a way to enforce the root bridge placement in the network and allows STP to interoperate with user network bridges while still
-maintaining the bridged network topology that the administrator requires. When BPDUs are received on a root guard enabled port, the STP state will be moved to "Root inconsistent" state to indicate this condition. Once the port stops receiving superior BPDUs, Root Guard will automatically set the port back to a FORWARDING state after the timeout period has expired.
+maintaining the bridged network topology that the administrator requires. When superior BPDUs are received on a root guard enabled port, the STP state will be moved to "Root inconsistent" state to indicate this condition. Once the port ceases receiving superior BPDUs, Root Guard will automatically set the port back to a FORWARDING state after the timeout period has expired.
 
-This command allow enabling or disabling of root guard on an interface.
+This command allows enabling or disabling of Root Guard on an interface. It enables the user to avoid any traffic disruption due to the topology re-convergence caused by any spurious switch with a lower bridge priority connected somewhere downstream. Thus, this increases reliability, manageability and security of the L2 network.
 
 **config spanning_tree interface root_guard {enable|disable} <ifname\>**
 
-Following syslogs will be generated when entering and exiting root guard condition respectively - 
+Following syslogs will be generated when entering and exiting Root Guard condition respectively - 
 
 STP: Root Guard interface Ethernet4, VLAN 100 inconsistent (Received superior BPDU)
 
 STP: Root Guard interface Ethernet4, VLAN 100 consistent (Timeout)
 
  ### 3.6.2.4.3 BPDU Guard
-BPDU Guard feature disables the connected device ability to initiate or participate in STP on edge ports. When STP BPDUs are received on the port where BPDU guard is enabled the port will be shutdown. User can re-enable the port administratively after ensuring the BPDUs have stopped coming on the port.
+BPDU Guard feature disables the connected device ability to initiate or participate in STP on edge ports. When STP BPDUs are received on the port where BPDU guard is enabled the port would be admin-shut. User can re-enable the port administratively after ensuring the BPDUs have ceased arriving on the port.
 
-Below command allows enabling or disabling of bpdu guard on an interface.
+Below command allows enabling or disabling of bpdu guard on an interface. 
 
 **config spanning_tree interface bpdu_guard {enable|disable} <ifname\>**
 
+This command enables the user to avoid any traffic disruption due to the topology re-convergence caused by any newly connected downstream STP enabled switch, unknowingly transmitting BPDUs to the existing STP topology, by shutting the connected interface receiving this BPDU. Thus it helps in creating the boundaries for the existing STP topology which can be expanded to include any newly connected switches by admin interference only.
 
-By default, BPDU guard will only generate a syslog indicating the condition, for taking an action like disabling the port below command can be used with shutdown option
+By default, BPDU guard will only generate a syslog indicating the condition, for taking an action like disabling the port. The command can be used with shutdown option as shown below
 
 **config spanning_tree interface bpdu_guard {enable|disable} <ifname\> [--shutdown | -s]**
 
@@ -462,30 +481,38 @@ STP: Tagged BPDU(100) received, interface Ethernet4 disabled due to BPDU guard t
 STPd will update the config DB for shutting down the interface, user can enable the interface back once it has stopped receiving the BPDUs.
 
  ### 3.6.2.4.4 Port fast
-Portfast command is enabled by default on all ports, portfast allows edge ports to move to forwarding state quickly when the connected device is not participating in spanning-tree.
+Portfast command is enabled by default on all ports, portfast allows edge ports to quickly transition to forwarding state when the connected device is not participating in spanning-tree.
 
 Below command allows enabling or disabling of portfast on an interface.
 
 **config spanning_tree interface portfast {enable|disable} <ifname\>**
 
- ### 3.6.2.4.4 Uplink fast
- Uplink fast feature enhances STP performance for switches with redundant uplinks. Using the default value for the standard STP forward delay, convergence following a transition from an active link to a redundant link can take 30 seconds (15 seconds for listening and an additional 15 seconds for learning).
+This command allows the user to quickly enable traffic flow (bypassing the Listening and Learning port states) through the edge ports connected to the traffic sources such as workstations or servers that do not participate in STP and thus saving twice the Forwarding delay time for port convergence.
 
-When uplink fast is configured on the redundant uplinks, it reduces the convergence time to just one second by moving to forwarding state (bypassing listening and learning modes) in just once second when the active link goes down. 
+ ### 3.6.2.4.4 Uplink fast
+Uplink fast feature enhances STP performance for switches with redundant uplinks. Using the default value for the standard STP forward delay, convergence following a transition from an active link to a redundant link can take 30 seconds (15 seconds for listening and an additional 15 seconds for learning).
+
+Below command allows enabling or disabling of uplink-fast on an interface.
 
 **config spanning_tree interface uplink_fast {enable|disable} <ifname\>**
+
+When uplink fast is configured on the redundant uplinks, it allows the user to significantly reduce the convergence time by directly transitioning to forwarding state (bypassing listening and learning port states) in just once second when the active link goes down.
 
  ### 3.6.2.4.5 Port level priority
 This command allows to configure the port level priority value, range 0 - 240 (default 128)
 
 **config spanning_tree interface priority <ifname\> <value\>**
 
+This command when configured on an upstream root or designated bridge allows an user to choose a port on the downstream designated bridge as root port over an alternate port with equal Path Cost for all the STP instances pertaining to configured VLANs on the interface.
+
  ### 3.6.2.4.6 Port level path cost
 This command allows to configure the port level cost value, range 1 - 200000000
 
 **configure spanning_tree interface cost <ifname\> <value\>**
 
+This parameter for all the ports when added up, determines the total spanning tree path cost between the root bridge and the switch. Thus, it plays significant role in calculating the shortest path to the root bridge for narrowing down the best topology possible for all the STP instances irrespective of the configured VLANs.
 
+This command thus allows the user to control the spanning tree topology convergence by choosing the designated bridges with the best paths towards the root bridge. It also aids in choosing the root ports over the alternate ports on these designated bridges with best path cost towards the root bridge for all the STP instances pertaining to the configured VLANs on the interface.
 
 ### 3.6.3 Show Commands
 - show spanning_tree
