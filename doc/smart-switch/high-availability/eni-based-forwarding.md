@@ -285,4 +285,4 @@ No impact here
 
 - Will there be a packet coming to T1 which doesn't host its ENI? Theoretically possible if all the T1's in a cluster share the same VIP
 - Will the endpoint for local DPU is PA of the interface address of the DPU
-- ENI_DASH_TUNNEL_TABLE schema
+- ENI_DASH_TUNNEL_TABLE schema. Will VIP, Tunnel VNI be part of ENI_DASH_TUNNEL_TABLE
