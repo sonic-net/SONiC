@@ -17,6 +17,7 @@
     - [IPFIX header](#ipfix-header)
     - [IPFIX template](#ipfix-template)
     - [IPFIX data](#ipfix-data)
+    - [Netlink message](#netlink-message)
   - [Bandwidth Estimation](#bandwidth-estimation)
   - [Config DB](#config-db)
     - [STREAM\_TELEMETRY\_PROFILE](#stream_telemetry_profile)
@@ -323,6 +324,35 @@ packet-beta
 704-767: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 20"
 768-831: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
 832-895: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 8"
+```
+
+#### Netlink message
+
+We expect that all control messages and out-of-band information will be transmitted by the SAI. Therefore, we do not need to read the attribute header of netlink and message header of Genetlink from the socket. The sample code for building the message from the kernel side should look as follows:
+
+``` c
+
+struct genl_multicast_group stel_mcgrps[] = {
+    { .name = "ipfix" },
+};
+
+// Family definition
+static struct genl_family nl_bench_family = {
+    .name = "sonic_stel",
+    .version = 1,
+    // ...
+    .mcgrps = stel_mcgrps,
+    .n_mcgrps = ARRAY_SIZE(stel_mcgrps),
+};
+
+
+void send_msg_to_user(int ipfix_msg_len, const void *ipfix_msg)
+{
+    struct sk_buff *skb_out = nlmsg_new(ipfix_msg_len, GFP_KERNEL);
+    nla_put_nohdr(skb_out, ipfix_msg_len, ipfix_msg);
+    genlmsg_multicast(&genl_family, skb_out, 0, 0/* group_id to ipfix group */, GFP_KERNEL);
+}
+
 ```
 
 ### Bandwidth Estimation
