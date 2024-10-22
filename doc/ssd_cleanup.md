@@ -53,10 +53,12 @@ We will add a 'SSDCleanupData' property on ChassisBase that return the following
 _WarningThreshold_ - the free space threshold (in GiB) for Monit to trigger a warning. The default will be align with the current implementation which is 90% of the filesystem size.
 _CriticalThershold_ - the free space threshold (in GiB) for Monit to trigger the cleanup script. The default is None to keep the current implementation.
 _CleanupTargets_ - a list of (_name_, _directory-path_, _filename-pattern_) tuples, which will be cleaned in order until the _WarningThreshold_ is reached. E.g.
+'''
 [
 ("ASIC FW Directory", '/path/to/fw-files/', '.*\.mfa'),
 ("STATS Directory", '/path/to/stats-files/', '.*'),
 ]
+'''
 
 
 #### Utility Scripts
