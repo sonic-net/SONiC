@@ -61,7 +61,7 @@ The picture below highlights the PMON vertical and its association with other lo
 * The SmartSwitch host PMON should be able to Startup, Shutdown, Restart, and Soft Reboot the entire system or the individual DPUs. The DPU_MODULE will behave like the LINE_CARD_MODULE of a modular chassis with respect to these functions.
 
 ### SmartSwitch Power up/down sequence:
-* When the smartswitch device is booted, the host will boot first and leave the DPUs either up or down depending on the configuration. The DPUs will be up by default.
+* When the smartswitch device is booted, the host will boot first and leave the DPUs down by defualt.
 * This section describes the cold startup, shutdown, restart and soft reboot. 
 
 ### Cold Startup
@@ -78,7 +78,7 @@ The picture below highlights the PMON vertical and its association with other lo
 #### DPU cold startup Sequence
 * The chassis is powered up and the host is booting up.
 * The switch PMON is registered with the configDB state change handler.
-* DPU "admin_status: up" is set in the configDB. When not explicitly configured the default is "up".
+* If the DPU's "admin_status: down" in the configDB, the DPU will remain powered down. The default setting is "down".
 * The switch PMON gets the admin up notification from the configDB
 * The switch PMON invokes the platform API to power on the DPU
 * DPU boots up and attaches itself to the midplane.
@@ -91,7 +91,7 @@ The picture below highlights the PMON vertical and its association with other lo
 * A smartswitch when configured to boot up with all the DPUs in it are powered down upon boot up is referred as DPUs in dark mode.
 * In the dark mode the platform.json file shown in section "3.1.3" will not have the dictionary for the DPUS.
 * The term dark mode is overloaded in some cases where the platform.json may have the dictionary but the config_db.json will have the admin_state of all DPU modules as "down".
-* Generally a smartswitch boots up with the DPUs in the dark mode.
+* Default mode on smartswitch is dark mode, unless platform.json configures it to be in light up mode.
 * The DPUs would stay power down in dark mode and will not consume power.
 
 #### 2.1.2 Configuring startup and shutdown
@@ -397,7 +397,7 @@ reboot(self, reboot_type):
 set_admin_state(self, up):
 ```
     Request to keep the card/DPU in administratively up/down state.
-    Default state is up.
+    Default state is down.
 ```
 
 get_maximum_consumed_power(self):
