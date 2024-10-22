@@ -35,13 +35,15 @@
          1. [2.3.1.1. HA set configurations](#2311-ha-set-configurations)
          2. [2.3.1.2. HA scope configurations](#2312-ha-scope-configurations)
          3. [2.3.1.3. Flow sync sessions](#2313-flow-sync-sessions)
-      2. [2.3.2. CHASSIS\_STATE\_DB (per-NPU)](#232-chassis_state_db-per-npu)
-         1. [2.3.2.1. DPU / vDPU state](#2321-dpu--vdpu-state)
-      3. [2.3.3. DPU\_STATE\_DB (per-DPU)](#233-dpu_state_db-per-dpu)
-         1. [2.3.3.1. HA set state](#2331-ha-set-state)
-         2. [2.3.3.2. HA scope state](#2332-ha-scope-state)
-         3. [2.3.3.3. Flow sync session states](#2333-flow-sync-session-states)
-         4. [2.3.3.4. DASH BFD probe state](#2334-dash-bfd-probe-state)
+      2. [2.3.2. APPL\_DB (per-NPU)](#232-appl_db-per-npu)
+         1. [2.3.2.1. DASH\_ENI\_FORWARD\_TABLE](#2321-dash_eni_forward_table)
+      3. [2.3.3. CHASSIS\_STATE\_DB (per-NPU)](#233-chassis_state_db-per-npu)
+         1. [2.3.3.1. DPU / vDPU state](#2331-dpu--vdpu-state)
+      4. [2.3.4. DPU\_STATE\_DB (per-DPU)](#234-dpu_state_db-per-dpu)
+         1. [2.3.4.1. HA set state](#2341-ha-set-state)
+         2. [2.3.4.2. HA scope state](#2342-ha-scope-state)
+         3. [2.3.4.3. Flow sync session states](#2343-flow-sync-session-states)
+         4. [2.3.4.4. DASH BFD probe state](#2344-dash-bfd-probe-state)
 3. [3. Telemetry](#3-telemetry)
    1. [3.1. HA state and related health signals](#31-ha-state-and-related-health-signals)
    2. [3.2. Traffic forwarding related](#32-traffic-forwarding-related)
@@ -97,7 +99,7 @@ flowchart LR
       end
 
       subgraph APPL DB
-         NPU_DASH_ENI_TUNNEL_TABLE[DASH_ENI_TUNNEL_TABLE]
+         NPU_DASH_ENI_FORWARD_TABLE[DASH_ENI_FORWARD_TABLE]
          NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
 
          NPU_BFD_SESSION[BFD_SESSION_TABLE]
@@ -144,7 +146,7 @@ flowchart LR
    %% NPU tables --> NPU side SWSS:
    NPU_DPU --> |SubscribeStateTable| NPU_SWSS
    NPU_VDPU --> |SubscribeStateTable| NPU_SWSS
-   NPU_DASH_ENI_TUNNEL_TABLE --> |zmq| NPU_SWSS
+   NPU_DASH_ENI_FORWARD_TABLE --> |zmq| NPU_SWSS
    NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
    NPU_BFD_SESSION --> |ConsumerStateTable| NPU_SWSS
    NPU_ROUTE--> |ConsumerStateTable| NPU_SWSS
@@ -167,7 +169,7 @@ flowchart LR
    NPU_DASH_HA_SCOPE_CONFIG --> |zmq| NPU_HAMGRD
 
    %% hamgrd --> NPU tables:
-   NPU_HAMGRD --> |zmq| NPU_DASH_ENI_TUNNEL_TABLE
+   NPU_HAMGRD --> |zmq| NPU_DASH_ENI_FORWARD_TABLE
    NPU_HAMGRD --> |ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
 
    %% hamgrd --> DPU tables:
@@ -208,7 +210,7 @@ flowchart LR
 
       subgraph APPL DB
          NPU_ACL_RULE[ACL_RULE_TABLE]
-         NPU_DASH_ENI_TUNNEL_TABLE[DASH_ENI_TUNNEL_TABLE]
+         NPU_DASH_ENI_FORWARD_TABLE[DASH_ENI_FORWARD_TABLE]
          NPU_VNET_ROUTE_TUNNEL_TABLE[VNET_ROUTE_TUNNEL_TABLE]
       end
 
@@ -253,7 +255,7 @@ flowchart LR
    %% NPU tables --> NPU side SWSS:
    NPU_BFD_SESSION_STATE --> |ConsumerStateTable| NPU_SWSS
    NPU_ACL_RULE --> |ConsumerStateTable| NPU_SWSS
-   NPU_DASH_ENI_TUNNEL_TABLE --> |zmq| NPU_SWSS
+   NPU_DASH_ENI_FORWARD_TABLE --> |zmq| NPU_SWSS
    NPU_VNET_ROUTE_TUNNEL_TABLE --> |ConsumerStateTable| NPU_SWSS
 
    %% NPU side SWSS --> NPU tables:
@@ -269,7 +271,7 @@ flowchart LR
    DPU_DASH_COUNTERS --> |Direct Table Query| NPU_HAMGRD
 
    %% hamgrd --> NPU tables:
-   NPU_HAMGRD --> |zmq| NPU_DASH_ENI_TUNNEL_TABLE
+   NPU_HAMGRD --> |zmq| NPU_DASH_ENI_FORWARD_TABLE
    NPU_HAMGRD --> |ProducerStateTable| NPU_VNET_ROUTE_TUNNEL_TABLE
    NPU_HAMGRD --> NPU_DASH_HA_SCOPE_STATE
 
@@ -533,9 +535,23 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | target_server_ip | The IP of the server that used to receive flow records. |
 | | | target_server_port | The port of the server that used to receive flow records. |
 
-#### 2.3.2. CHASSIS_STATE_DB (per-NPU)
+#### 2.3.2. APPL_DB (per-NPU)
 
-##### 2.3.2.1. DPU / vDPU state
+##### 2.3.2.1. DASH_ENI_FORWARD_TABLE
+
+| Table | Key | Field | Description | Value Format |
+| --- | --- | --- | --- | --- |
+| DASH_ENI_FORWARD_TABLE | | | | |
+| | \<VNET_NAME\> | | VNET name. Used to correlate the VNET table. | {{vnet_name}} |
+| | \<ENI_ID\> | | ENI ID. Same as the MAC address of the ENI. | {{eni_id}} |
+| | | endpoint | The list destination IP addresses, e.g. the PA of local or remote DPU. | {{ip_address1},{ip_address2},...} |
+| | | endpoint_monitor | (Optional) The list IP addresses used to establish the BFD probes, e.g. the PA of local or remote DPU. | {{ip_address1},{ip_address2},...} |
+| | | primary | The primary endpoint index. | {{index}} |
+| | | outbound_eni_mac_lookup | (Optional) Specify which MAC address to use to lookup the ENI for the outbound traffic. | "" (default), "dst", "src" |
+
+#### 2.3.3. CHASSIS_STATE_DB (per-NPU)
+
+##### 2.3.3.1. DPU / vDPU state
 
 DPU state table stores the health states of each DPU. These data are collected by `pmon`.
 
@@ -548,9 +564,9 @@ DPU state table stores the health states of each DPU. These data are collected b
 | | \<VDPU_ID\> | | vDPU ID |
 | | | ... | Placeholder for future vDPU usage. It should follow the same PMON design for DPU. |
 
-#### 2.3.3. DPU_STATE_DB (per-DPU)
+#### 2.3.4. DPU_STATE_DB (per-DPU)
 
-##### 2.3.3.1. HA set state
+##### 2.3.4.1. HA set state
 
 * The HA set state table contains the state of each HA set.
 
@@ -561,7 +577,7 @@ DPU state table stores the health states of each DPU. These data are collected b
 | | | last_updated_time | The last update time of this state in milliseconds. |
 | | | dp_channel_is_alive | Data plane channel is alive or not. |
 
-##### 2.3.3.2. HA scope state
+##### 2.3.4.2. HA scope state
 
 * The HA scope state table contains the HA state of each HA scope.
   * When ENI-level HA is used, it shows the HA state of each ENI that is hosted on the local DPU.
@@ -579,7 +595,7 @@ DPU state table stores the health states of each DPU. These data are collected b
 | | | flow_reconcile_pending | Flow reconcile is requested and pending approval. |
 | | | brainsplit_recover_pending | Brainsplit is detected, and DPU is pending on recovery. |
 
-##### 2.3.3.3. Flow sync session states
+##### 2.3.4.3. Flow sync session states
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
@@ -589,7 +605,7 @@ DPU state table stores the health states of each DPU. These data are collected b
 | | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
 | | | last_state_start_time_in_ms | Flow sync session last state start time in milliseconds. |
 
-##### 2.3.3.4. DASH BFD probe state
+##### 2.3.4.4. DASH BFD probe state
 
 The schema of `DASH_BFD_PROBE_STATE` table is defined in the [SmartSwitch BFD HLD](https://github.com/sonic-net/SONiC/pull/1635). Please refer to it for detailed definition.
 
