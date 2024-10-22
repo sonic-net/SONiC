@@ -89,14 +89,12 @@ DPUs are internally connected to the NPU via PCI-E bridge. Below is the reboot s
 service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the gNOI RebootStatus RPC with STATUS_SUCCESS and 'active'
 will be set to false in the RebootStatusResponse. Until the services are terminated gracefully, 'active' will be '1' in the RebootStatusResponse.
 
-* Subsequently, the NPU detaches the DPU PCI with a vendor defined API. If a vendor specific API is not defined, detachment is done via sysfs
-(echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove).
+* Subsequently, the NPU detaches the DPU PCI device using the sysfs interface by executing `echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove`. This detachment is currently performed via sysfs, with future plans to implement a vendor-specific API when the DPU bus information cannot have a fixed value.
 
 * Next, the NPU triggers a platform vendor reboot API to initiate the reboot process for the DPU. If the DPU is stuck or unresponsive, the DPU reboot platform API should
 attempt a cold boot or power cycle to recover it.
 
-* The NPU either immediately rescans the PCI upon return or after a timeout period. Rescan of the PCI is achieved by vendor defined API. If vendor specific API
-is not defined, then rescan is done via sysfs (echo 1 > /sys/bus/pci/rescan).
+* The NPU either immediately rescans the PCI bus upon return or after a specified timeout period. This rescan is performed via the sysfs interface by echoing '1' to /sys/bus/pci/rescan.
 
 ## Switch reboot sequence ##
 
@@ -113,17 +111,13 @@ services, excluding the gNOI server and also database, in preparation for the re
 service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the gNOI RebootStatus RPC with STATUS_SUCCESS and 'active'
 will be set to false in the RebootStatusResponse. Until the services are terminated gracefully, 'active' will be '1' in the RebootStatusResponse.
 
-* Following the confirmation from the DPUs, the NPU proceeds to detach the PCI devices associated with the DPUs. This detachment is achieved either by calling
-vendor specific API or by issuing a command through the sysfs interface, specifically by echoing '1' to the /sys/bus/pci/devices/XXXX:XX:XX.X/remove file
-for each DPU.
+* Following the confirmation from the DPUs, the NPU proceeds to detach the PCI devices associated with the DPUs. This detachment is achieved through the sysfs interface by echoing '1' to the /sys/bus/pci/devices/XXXX:XX:XX.X/remove file for each DPU. While this detachment is currently performed via sysfs, there are plans to implement a vendor-specific API for cases where the DPU bus information cannot have a fixed value.
 
 * With the DPUs prepared for reboot, the NPU triggers a platform vendor API to initiate the reboot process for the DPUs. Vendor API reboots a single DPU, but the NPU spawns multiple threads to reboot DPUs in parallel. If any of the the DPU is stuck or unresponsive, the DPU reboot platform API should attempt a cold boot or power cycle to recover it.
 
 * After all the DPUs have rebooted and responded to the platform's reboot vendor API, the NPU will proceed with its own reboot to complete the overall reboot process. The vendor-specific reboot API should include an error handling mechanism to manage DPU reboot failures. Additionally log all the failures. DPUs will be in DPU_READY state, if the reboot happened successfully.
 
-* Upon successful reboot, the NPU resumes operation. As part of the post-reboot process, the NPU may choose to rescan the PCI devices. This rescan operation,
-performed either by invoking vendor API or by echoing '1' to the /sys/bus/pci/rescan file, ensures that all PCI devices are properly
-recognized and initialized.
+* After a successful reboot, the NPU resumes its operations, and PCI enumeration occurs as part of the reboot process.
 
 ## High-Level Design ##
 
