@@ -18,8 +18,8 @@ The CMIS diagnostic monitoring data is stored in the `STATE_DB` database. The `S
 - `TRANSCEIVER_DOM_THRESHOLD`: Contains threshold values for DOM parameters.
 - `TRANSCEIVER_DOM_FLAG`: Stores flags indicating the status of various DOM parameters.
 - `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: Keeps a count of how many times each DOM flag has changed.
-- `TRANSCEIVER_DOM_FLAG_SET_TIME`: Records the timestamp when each DOM flag was set.
-- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: Records the timestamp when each DOM flag was cleared.
+- `TRANSCEIVER_DOM_FLAG_SET_TIME`: Records the last timestamp when each DOM flag was set.
+- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: Records the last timestamp when each DOM flag was cleared.
 - `TRANSCEIVER_VDM_CURRENT_SAMPLE`: Stores VDM sample data.
 - `TRANSCEIVER_VDM_THRESHOLD`: Contains threshold values for VDM parameters.
 - `TRANSCEIVER_VDM_HALARM_THRESHOLD`: Stores the high alarm threshold values for the VDM data.
@@ -34,14 +34,14 @@ The CMIS diagnostic monitoring data is stored in the `STATE_DB` database. The `S
 - `TRANSCEIVER_VDM_LALARM_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM low alarm flag has changed.
 - `TRANSCEIVER_VDM_HWARN_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM high warning flag has changed.
 - `TRANSCEIVER_VDM_LWARN_FLAG_CHANGE_COUNT`: Keeps a count of how many times each VDM low warning flag has changed.
-- `TRANSCEIVER_VDM_HALARM_SET_TIME`: Records the timestamp when each VDM high alarm flag was set.
-- `TRANSCEIVER_VDM_LALARM_SET_TIME`: Records the timestamp when each VDM low alarm flag was set.
-- `TRANSCEIVER_VDM_HWARN_SET_TIME`: Records the timestamp when each VDM high warning flag was set.
-- `TRANSCEIVER_VDM_LWARN_SET_TIME`: Records the timestamp when each VDM low warning flag was set.
-- `TRANSCEIVER_VDM_HALARM_CLEAR_TIME`: Records the timestamp when each VDM high alarm flag was cleared.
-- `TRANSCEIVER_VDM_LALARM_CLEAR_TIME`: Records the timestamp when each VDM low alarm flag was cleared.
-- `TRANSCEIVER_VDM_HWARN_CLEAR_TIME`: Records the timestamp when each VDM high warning flag was cleared.
-- `TRANSCEIVER_VDM_LWARN_CLEAR_TIME`: Records the timestamp when each VDM low warning flag was cleared.
+- `TRANSCEIVER_VDM_HALARM_FLAG_SET_TIME`: Records the last timestamp when each VDM high alarm flag was set.
+- `TRANSCEIVER_VDM_LALARM_FLAG_SET_TIME`: Records the last timestamp when each VDM low alarm flag was set.
+- `TRANSCEIVER_VDM_HWARN_FLAG_SET_TIME`: Records the last timestamp when each VDM high warning flag was set.
+- `TRANSCEIVER_VDM_LWARN_FLAG_SET_TIME`: Records the last timestamp when each VDM low warning flag was set.
+- `TRANSCEIVER_VDM_HALARM_FLAG_CLEAR_TIME`: Records the last timestamp when each VDM high alarm flag was cleared.
+- `TRANSCEIVER_VDM_LALARM_FLAG_CLEAR_TIME`: Records the last timestamp when each VDM low alarm flag was cleared.
+- `TRANSCEIVER_VDM_HWARN_FLAG_CLEAR_TIME`: Records the last timestamp when each VDM high warning flag was cleared.
+- `TRANSCEIVER_VDM_LWARN_FLAG_CLEAR_TIME`: Records the last timestamp when each VDM low warning flag was cleared.
 - `TRANSCEIVER_STATUS`: Stores the module and datapath state data along with various flags related to it. Also stores various Tx and Rx related status values.
 - `TRANSCEIVER_STATUS_FLAG`: Stores the module and datapath status flags along with various Tx and Rx related status flags.
 - `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT`: Stores the count of times the transceiver status flag has changed.
@@ -151,32 +151,32 @@ lane_num: Represents lane number of the field. The lane number is an integer val
 
 ```plaintext
     ;Defines Transceiver DOM flag change count for a port
-    key                              = TRANSCEIVER_DOM_FLAG_CHANGE|ifname   ; information module DOM flags change count on port
+    key                              = TRANSCEIVER_DOM_FLAG_CHANGE_COUNT|ifname   ; information module DOM flags change count on port
     ; field                          = value
-    temphighalarm_chg_cnt                 = INTEGER           ; temperature high alarm change count
-    temphighwarning_chg_cnt               = INTEGER           ; temperature high warning change count
-    templowalarm_chg_cnt                  = INTEGER           ; temperature low alarm change count
-    templowwarning_chg_cnt                = INTEGER           ; temperature low warning change count
-    vcchighalarm_chg_cnt                  = INTEGER           ; vcc high alarm change count
-    vcchighwarning_chg_cnt                = INTEGER           ; vcc high warning change count
-    vcclowalarm_chg_cnt                   = INTEGER           ; vcc low alarm change count
-    vcclowwarning_chg_cnt                 = INTEGER           ; vcc low warning change count
-    txpowerhighalarm_chg_cnt{lane_num}    = INTEGER           ; tx power high alarm change count
-    txpowerlowalarm_chg_cnt{lane_num}     = INTEGER           ; tx power low alarm change count
-    txpowerhighwarning_chg_cnt{lane_num}  = INTEGER           ; tx power high warning change count
-    txpowerlowwarning_chg_cnt{lane_num}   = INTEGER           ; tx power low alarm change count
-    rxpowerhighalarm_chg_cnt{lane_num}    = INTEGER           ; rx power high alarm change count
-    rxpowerlowalarm_chg_cnt{lane_num}     = INTEGER           ; rx power low alarm change count
-    rxpowerhighwarning_chg_cnt{lane_num}  = INTEGER           ; rx power high warning change count
-    rxpowerlowwarning_chg_cnt{lane_num}   = INTEGER           ; rx power low warning change count
-    txbiashighalarm_chg_cnt{lane_num}     = INTEGER           ; tx bias high alarm change count
-    txbiaslowalarm_chg_cnt{lane_num}      = INTEGER           ; tx bias low alarm change count
-    txbiashighwarning_chg_cnt{lane_num}   = INTEGER           ; tx bias high warning change count
-    txbiaslowwarning_chg_cnt{lane_num}    = INTEGER           ; tx bias low warning change count
-    lasertemphighalarm_chg_cnt            = INTEGER           ; laser temperature high alarm change count
-    lasertemplowalarm_chg_cnt             = INTEGER           ; laser temperature low alarm change count
-    lasertemphighwarning_chg_cnt          = INTEGER           ; laser temperature high warning change count
-    lasertemplowwarning_chg_cnt           = INTEGER           ; laser temperature low warning change count
+    temphighalarm                 = INTEGER           ; temperature high alarm change count
+    temphighwarning               = INTEGER           ; temperature high warning change count
+    templowalarm                  = INTEGER           ; temperature low alarm change count
+    templowwarning                = INTEGER           ; temperature low warning change count
+    vcchighalarm                  = INTEGER           ; vcc high alarm change count
+    vcchighwarning                = INTEGER           ; vcc high warning change count
+    vcclowalarm                   = INTEGER           ; vcc low alarm change count
+    vcclowwarning                 = INTEGER           ; vcc low warning change count
+    txpowerhighalarm{lane_num}    = INTEGER           ; tx power high alarm change count
+    txpowerlowalarm{lane_num}     = INTEGER           ; tx power low alarm change count
+    txpowerhighwarning{lane_num}  = INTEGER           ; tx power high warning change count
+    txpowerlowwarning{lane_num}   = INTEGER           ; tx power low alarm change count
+    rxpowerhighalarm{lane_num}    = INTEGER           ; rx power high alarm change count
+    rxpowerlowalarm{lane_num}     = INTEGER           ; rx power low alarm change count
+    rxpowerhighwarning{lane_num}  = INTEGER           ; rx power high warning change count
+    rxpowerlowwarning{lane_num}   = INTEGER           ; rx power low warning change count
+    txbiashighalarm{lane_num}     = INTEGER           ; tx bias high alarm change count
+    txbiaslowalarm{lane_num}      = INTEGER           ; tx bias low alarm change count
+    txbiashighwarning{lane_num}   = INTEGER           ; tx bias high warning change count
+    txbiaslowwarning{lane_num}    = INTEGER           ; tx bias low warning change count
+    lasertemphighalarm            = INTEGER           ; laser temperature high alarm change count
+    lasertemplowalarm             = INTEGER           ; laser temperature low alarm change count
+    lasertemphighwarning          = INTEGER           ; laser temperature high warning change count
+    lasertemplowwarning           = INTEGER           ; laser temperature low warning change count
 ```
 
 #### 2.1.5 Transceiver DOM flag time set data
@@ -189,30 +189,30 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver DOM flag time set for a port
     key                          = TRANSCEIVER_DOM_FLAG_SET_TIME|ifname   ; information module DOM flag time set on port
     ; field                      = value
-    temphighalarm_last_set_time                 = STR           ; temperature high alarm last set time
-    temphighwarning_last_set_time               = STR           ; temperature high warning last set time
-    templowalarm_last_set_time                  = STR           ; temperature low alarm last set time
-    templowwarning_last_set_time                = STR           ; temperature low warning last set time
-    vcchighalarm_last_set_time                  = STR           ; vcc high alarm last set time
-    vcchighwarning_last_set_time                = STR           ; vcc high warning last set time
-    vcclowalarm_last_set_time                   = STR           ; vcc low alarm last set time
-    vcclowwarning_last_set_time                 = STR           ; vcc low warning last set time
-    txpowerhighalarm_last_set_time{lane_num}    = STR           ; tx power high alarm last set time
-    txpowerlowalarm_last_set_time{lane_num}     = STR           ; tx power low alarm last set time
-    txpowerhighwarning_last_set_time{lane_num}  = STR           ; tx power high warning last set time
-    txpowerlowwarning_last_set_time{lane_num}   = STR           ; tx power low warning last set time
-    rxpowerhighalarm_last_set_time{lane_num}    = STR           ; rx power high alarm last set time
-    rxpowerlowalarm_last_set_time{lane_num}     = STR           ; rx power low alarm last set time
-    rxpowerhighwarning_last_set_time{lane_num}  = STR           ; rx power high warning last set time
-    rxpowerlowwarning_last_set_time{lane_num}   = STR           ; rx power low warning last set time
-    txbiashighalarm_last_set_time{lane_num}     = STR           ; tx bias high alarm last set time
-    txbiaslowalarm_last_set_time{lane_num}      = STR           ; tx bias low alarm last set time
-    txbiashighwarning_last_set_time{lane_num}   = STR           ; tx bias high warning last set time
-    txbiaslowwarning_last_set_time{lane_num}    = STR           ; tx bias low warning last set time
-    lasertemphighalarm_last_set_time            = STR           ; laser temperature high alarm last set time
-    lasertemplowalarm_last_set_time             = STR           ; laser temperature low alarm last set time
-    lasertemphighwarning_last_set_time          = STR           ; laser temperature high warning last set time
-    lasertemplowwarning_last_set_time           = STR           ; laser temperature low warning last set time
+    temphighalarm                 = STR           ; temperature high alarm last set time
+    temphighwarning               = STR           ; temperature high warning last set time
+    templowalarm                  = STR           ; temperature low alarm last set time
+    templowwarning                = STR           ; temperature low warning last set time
+    vcchighalarm                  = STR           ; vcc high alarm last set time
+    vcchighwarning                = STR           ; vcc high warning last set time
+    vcclowalarm                   = STR           ; vcc low alarm last set time
+    vcclowwarning                 = STR           ; vcc low warning last set time
+    txpowerhighalarm{lane_num}    = STR           ; tx power high alarm last set time
+    txpowerlowalarm{lane_num}     = STR           ; tx power low alarm last set time
+    txpowerhighwarning{lane_num}  = STR           ; tx power high warning last set time
+    txpowerlowwarning{lane_num}   = STR           ; tx power low warning last set time
+    rxpowerhighalarm{lane_num}    = STR           ; rx power high alarm last set time
+    rxpowerlowalarm{lane_num}     = STR           ; rx power low alarm last set time
+    rxpowerhighwarning{lane_num}  = STR           ; rx power high warning last set time
+    rxpowerlowwarning{lane_num}   = STR           ; rx power low warning last set time
+    txbiashighalarm{lane_num}     = STR           ; tx bias high alarm last set time
+    txbiaslowalarm{lane_num}      = STR           ; tx bias low alarm last set time
+    txbiashighwarning{lane_num}   = STR           ; tx bias high warning last set time
+    txbiaslowwarning{lane_num}    = STR           ; tx bias low warning last set time
+    lasertemphighalarm            = STR           ; laser temperature high alarm last set time
+    lasertemplowalarm             = STR           ; laser temperature low alarm last set time
+    lasertemphighwarning          = STR           ; laser temperature high warning last set time
+    lasertemplowwarning           = STR           ; laser temperature low warning last set time
 ```
 
 #### 2.1.6 Transceiver DOM flag time clear data
@@ -225,30 +225,30 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver DOM flag time clear for a port
     key                          = TRANSCEIVER_DOM_FLAG_CLEAR_TIME|ifname  ; information module DOM flag time clear on port
     ; field                      = value
-    temphighalarm_last_clear_time                = STR          ; temperature high alarm last clear time
-    temphighwarning_last_clear_time              = STR          ; temperature high warning last clear time
-    templowalarm_last_clear_time                 = STR          ; temperature low alarm last clear time
-    templowwarning_last_clear_time               = STR          ; temperature low warning last clear time
-    vcchighalarm_last_clear_time                 = STR          ; vcc high alarm last clear time
-    vcchighwarning_last_clear_time               = STR          ; vcc high warning last clear time
-    vcclowalarm_last_clear_time                  = STR          ; vcc low alarm last clear time
-    vcclowwarning_last_clear_time                = STR          ; vcc low warning last clear time
-    txpowerhighalarm_last_clear_time{lane_num}   = STR          ; tx power high alarm last clear time
-    txpowerlowalarm_last_clear_time{lane_num}    = STR          ; tx power low alarm last clear time
-    txpowerhighwarning_last_clear_time{lane_num} = STR          ; tx power high warning last clear time
-    txpowerlowwarning_last_clear_time{lane_num}  = STR          ; tx power low warning last clear time
-    rxpowerhighalarm_last_clear_time{lane_num}   = STR          ; rx power high alarm last clear time
-    rxpowerlowalarm_last_clear_time{lane_num}    = STR          ; rx power low alarm last clear time
-    rxpowerhighwarning_last_clear_time{lane_num} = STR          ; rx power high warning last clear time
-    rxpowerlowwarning_last_clear_time{lane_num}  = STR          ; rx power low warning last clear time
-    txbiashighalarm_last_clear_time{lane_num}    = STR          ; tx bias high alarm last clear time
-    txbiaslowalarm_last_clear_time{lane_num}     = STR          ; tx bias low alarm last clear time
-    txbiashighwarning_last_clear_time{lane_num}  = STR          ; tx bias high warning last clear time
-    txbiaslowwarning_last_clear_time{lane_num}   = STR          ; tx bias low warning last clear time
-    lasertemphighalarm_last_clear_time           = STR          ; laser temperature high alarm last clear time
-    lasertemplowalarm_last_clear_time            = STR          ; laser temperature low alarm last clear time
-    lasertemphighwarning_last_clear_time         = STR          ; laser temperature high warning last clear time
-    lasertemplowwarning_last_clear_time          = STR          ; laser temperature low warning last clear time
+    temphighalarm                = STR          ; temperature high alarm last clear time
+    temphighwarning              = STR          ; temperature high warning last clear time
+    templowalarm                 = STR          ; temperature low alarm last clear time
+    templowwarning               = STR          ; temperature low warning last clear time
+    vcchighalarm                 = STR          ; vcc high alarm last clear time
+    vcchighwarning               = STR          ; vcc high warning last clear time
+    vcclowalarm                  = STR          ; vcc low alarm last clear time
+    vcclowwarning                = STR          ; vcc low warning last clear time
+    txpowerhighalarm{lane_num}   = STR          ; tx power high alarm last clear time
+    txpowerlowalarm{lane_num}    = STR          ; tx power low alarm last clear time
+    txpowerhighwarning{lane_num} = STR          ; tx power high warning last clear time
+    txpowerlowwarning{lane_num}  = STR          ; tx power low warning last clear time
+    rxpowerhighalarm{lane_num}   = STR          ; rx power high alarm last clear time
+    rxpowerlowalarm{lane_num}    = STR          ; rx power low alarm last clear time
+    rxpowerhighwarning{lane_num} = STR          ; rx power high warning last clear time
+    rxpowerlowwarning{lane_num}  = STR          ; rx power low warning last clear time
+    txbiashighalarm{lane_num}    = STR          ; tx bias high alarm last clear time
+    txbiaslowalarm{lane_num}     = STR          ; tx bias low alarm last clear time
+    txbiashighwarning{lane_num}  = STR          ; tx bias high warning last clear time
+    txbiaslowwarning{lane_num}   = STR          ; tx bias low warning last clear time
+    lasertemphighalarm           = STR          ; laser temperature high alarm last clear time
+    lasertemplowalarm            = STR          ; laser temperature low alarm last clear time
+    lasertemphighwarning         = STR          ; laser temperature high warning last clear time
+    lasertemplowwarning          = STR          ; laser temperature low warning last clear time
 ```
 
 ### 2.2 Transceiver VDM
@@ -746,47 +746,47 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM high alarm flag change count for a port
     key                          = TRANSCEIVER_VDM_HALARM_FLAG_CHANGE_COUNT|ifname
     ; field                      = value
-    laser_temperature_media_halarm_chg_cnt{lane_num}             = INTEGER ; laser temperature high alarm flag change count for media input
-    esnr_media_input_halarm_chg_cnt{lane_num}                    = INTEGER ; eSNR high alarm flag change count for media input
-    esnr_host_input_halarm_chg_cnt{lane_num}                     = INTEGER ; eSNR high alarm flag change count for host input
-    pam4_level_transition_media_input_halarm_chg_cnt{lane_num}   = INTEGER ; PAM4 level transition high alarm flag change count for media input
-    pam4_level_transition_host_input_halarm_chg_cnt{lane_num}    = INTEGER ; PAM4 level transition high alarm flag change count for host input
-    prefec_ber_min_media_input_halarm_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER minimum high alarm flag change count for media input
-    prefec_ber_max_media_input_halarm_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER maximum high alarm flag change count for media input
-    prefec_ber_avg_media_input_halarm_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER average high alarm flag change count for media input
-    prefec_ber_curr_media_input_halarm_chg_cnt{lane_num}         = INTEGER ; Pre-FEC BER current high alarm flag change count for media input
-    prefec_ber_min_host_input_halarm_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER minimum high alarm flag change count for host input
-    prefec_ber_max_host_input_halarm_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER maximum high alarm flag change count for host input
-    prefec_ber_avg_host_input_halarm_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER average high alarm flag change count for host input
-    prefec_ber_curr_host_input_halarm_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER current high alarm flag change count for host input
-    errored_frames_min_media_input_halarm_chg_cnt{lane_num}      = INTEGER ; Errored frames minimum high alarm flag change count for media input
-    errored_frames_max_media_input_halarm_chg_cnt{lane_num}      = INTEGER ; Errored frames maximum high alarm flag change count for media input
-    errored_frames_avg_media_input_halarm_chg_cnt{lane_num}      = INTEGER ; Errored frames average high alarm flag change count for media input
-    errored_frames_curr_media_input_halarm_chg_cnt{lane_num}     = INTEGER ; Errored frames current high alarm flag change count for media input
-    errored_frames_min_host_input_halarm_chg_cnt{lane_num}       = INTEGER ; Errored frames minimum high alarm flag change count for host input
-    errored_frames_max_host_input_halarm_chg_cnt{lane_num}       = INTEGER ; Errored frames maximum high alarm flag change count for host input
-    errored_frames_avg_host_input_halarm_chg_cnt{lane_num}       = INTEGER ; Errored frames average high alarm flag change count for host input
-    errored_frames_curr_host_input_halarm_chg_cnt{lane_num}      = INTEGER ; Errored frames current high alarm flag change count for host input
+    laser_temperature_media_halarm{lane_num}             = INTEGER ; laser temperature high alarm flag change count for media input
+    esnr_media_input_halarm{lane_num}                    = INTEGER ; eSNR high alarm flag change count for media input
+    esnr_host_input_halarm{lane_num}                     = INTEGER ; eSNR high alarm flag change count for host input
+    pam4_level_transition_media_input_halarm{lane_num}   = INTEGER ; PAM4 level transition high alarm flag change count for media input
+    pam4_level_transition_host_input_halarm{lane_num}    = INTEGER ; PAM4 level transition high alarm flag change count for host input
+    prefec_ber_min_media_input_halarm{lane_num}          = INTEGER ; Pre-FEC BER minimum high alarm flag change count for media input
+    prefec_ber_max_media_input_halarm{lane_num}          = INTEGER ; Pre-FEC BER maximum high alarm flag change count for media input
+    prefec_ber_avg_media_input_halarm{lane_num}          = INTEGER ; Pre-FEC BER average high alarm flag change count for media input
+    prefec_ber_curr_media_input_halarm{lane_num}         = INTEGER ; Pre-FEC BER current high alarm flag change count for media input
+    prefec_ber_min_host_input_halarm{lane_num}           = INTEGER ; Pre-FEC BER minimum high alarm flag change count for host input
+    prefec_ber_max_host_input_halarm{lane_num}           = INTEGER ; Pre-FEC BER maximum high alarm flag change count for host input
+    prefec_ber_avg_host_input_halarm{lane_num}           = INTEGER ; Pre-FEC BER average high alarm flag change count for host input
+    prefec_ber_curr_host_input_halarm{lane_num}          = INTEGER ; Pre-FEC BER current high alarm flag change count for host input
+    errored_frames_min_media_input_halarm{lane_num}      = INTEGER ; Errored frames minimum high alarm flag change count for media input
+    errored_frames_max_media_input_halarm{lane_num}      = INTEGER ; Errored frames maximum high alarm flag change count for media input
+    errored_frames_avg_media_input_halarm{lane_num}      = INTEGER ; Errored frames average high alarm flag change count for media input
+    errored_frames_curr_media_input_halarm{lane_num}     = INTEGER ; Errored frames current high alarm flag change count for media input
+    errored_frames_min_host_input_halarm{lane_num}       = INTEGER ; Errored frames minimum high alarm flag change count for host input
+    errored_frames_max_host_input_halarm{lane_num}       = INTEGER ; Errored frames maximum high alarm flag change count for host input
+    errored_frames_avg_host_input_halarm{lane_num}       = INTEGER ; Errored frames average high alarm flag change count for host input
+    errored_frames_curr_host_input_halarm{lane_num}      = INTEGER ; Errored frames current high alarm flag change count for host input
 
     ;C-CMIS specific fields
-    biasxi_halarm_chg_cnt                                        = INTEGER ; modulator bias xi in percentage (high alarm flag change count)
-    biasxq_halarm_chg_cnt                                        = INTEGER ; modulator bias xq in percentage (high alarm flag change count)
-    biasxp_halarm_chg_cnt                                        = INTEGER ; modulator bias xp in percentage (high alarm flag change count)
-    biasyi_halarm_chg_cnt                                        = INTEGER ; modulator bias yi in percentage (high alarm flag change count)
-    biasyq_halarm_chg_cnt                                        = INTEGER ; modulator bias yq in percentage (high alarm flag change count)
-    biasyp_halarm_chg_cnt                                        = INTEGER ; modulator bias yq in percentage (high alarm flag change count)
-    cdshort_halarm_chg_cnt                                       = INTEGER ; chromatic dispersion, high granularity, short link in ps/nm (high alarm flag change count)
-    cdlong_halarm_chg_cnt                                        = INTEGER ; chromatic dispersion, high granularity, long link in ps/nm (high alarm flag change count)
-    dgd_halarm_chg_cnt                                           = INTEGER ; differential group delay in ps (high alarm flag change count)
-    sopmd_halarm_chg_cnt                                         = INTEGER ; second order polarization mode dispersion in ps^2 (high alarm flag change count)
-    soproc_halarm_chg_cnt                                        = INTEGER ; state of polarization rate of change in krad/s (high alarm flag change count)
-    pdl_halarm_chg_cnt                                           = INTEGER ; polarization dependent loss in db (high alarm flag change count)
-    osnr_halarm_chg_cnt                                          = INTEGER ; optical signal to noise ratio in db (high alarm flag change count)
-    esnr_halarm_chg_cnt                                          = INTEGER ; electrical signal to noise ratio in db (high alarm flag change count)
-    cfo_halarm_chg_cnt                                           = INTEGER ; carrier frequency offset in Hz (high alarm flag change count)
-    txcurrpower_halarm_chg_cnt                                   = INTEGER ; tx current output power in dbm (high alarm flag change count)
-    rxtotpower_halarm_chg_cnt                                    = INTEGER ; rx total power in  dbm (high alarm flag change count)
-    rxsigpower_halarm_chg_cnt                                    = INTEGER; rx signal power in dbm (high alarm flag change count)
+    biasxi_halarm                                        = INTEGER ; modulator bias xi in percentage (high alarm flag change count)
+    biasxq_halarm                                        = INTEGER ; modulator bias xq in percentage (high alarm flag change count)
+    biasxp_halarm                                        = INTEGER ; modulator bias xp in percentage (high alarm flag change count)
+    biasyi_halarm                                        = INTEGER ; modulator bias yi in percentage (high alarm flag change count)
+    biasyq_halarm                                        = INTEGER ; modulator bias yq in percentage (high alarm flag change count)
+    biasyp_halarm                                        = INTEGER ; modulator bias yq in percentage (high alarm flag change count)
+    cdshort_halarm                                       = INTEGER ; chromatic dispersion, high granularity, short link in ps/nm (high alarm flag change count)
+    cdlong_halarm                                        = INTEGER ; chromatic dispersion, high granularity, long link in ps/nm (high alarm flag change count)
+    dgd_halarm                                           = INTEGER ; differential group delay in ps (high alarm flag change count)
+    sopmd_halarm                                         = INTEGER ; second order polarization mode dispersion in ps^2 (high alarm flag change count)
+    soproc_halarm                                        = INTEGER ; state of polarization rate of change in krad/s (high alarm flag change count)
+    pdl_halarm                                           = INTEGER ; polarization dependent loss in db (high alarm flag change count)
+    osnr_halarm                                          = INTEGER ; optical signal to noise ratio in db (high alarm flag change count)
+    esnr_halarm                                          = INTEGER ; electrical signal to noise ratio in db (high alarm flag change count)
+    cfo_halarm                                           = INTEGER ; carrier frequency offset in Hz (high alarm flag change count)
+    txcurrpower_halarm                                   = INTEGER ; tx current output power in dbm (high alarm flag change count)
+    rxtotpower_halarm                                    = INTEGER ; rx total power in  dbm (high alarm flag change count)
+    rxsigpower_halarm                                    = INTEGER; rx signal power in dbm (high alarm flag change count)
 ```
 
 ##### 2.2.4.2 Transceiver VDM low alarm flag change count data
@@ -799,47 +799,47 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low alarm flag change count for a port
     key                          = TRANSCEIVER_VDM_LALARM_FLAG_CHANGE_COUNT|ifname
     ; field                      = value
-    laser_temperature_media_lalarm_chg_cnt{lane_num}             = INTEGER ; laser temperature low alarm flag change count for media input
-    esnr_media_input_lalarm_chg_cnt{lane_num}                    = INTEGER ; eSNR low alarm flag change count for media input
-    esnr_host_input_lalarm_chg_cnt{lane_num}                     = INTEGER ; eSNR low alarm flag change count for host input
-    pam4_level_transition_media_input_lalarm_chg_cnt{lane_num}   = INTEGER ; PAM4 level transition low alarm flag change count for media input
-    pam4_level_transition_host_input_lalarm_chg_cnt{lane_num}    = INTEGER ; PAM4 level transition low alarm flag change count for host input
-    prefec_ber_min_media_input_lalarm_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER minimum low alarm flag change count for media input
-    prefec_ber_max_media_input_lalarm_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER maximum low alarm flag change count for media input
-    prefec_ber_avg_media_input_lalarm_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER average low alarm flag change count for media input
-    prefec_ber_curr_media_input_lalarm_chg_cnt{lane_num}         = INTEGER ; Pre-FEC BER current low alarm flag change count for media input
-    prefec_ber_min_host_input_lalarm_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER minimum low alarm flag change count for host input
-    prefec_ber_max_host_input_lalarm_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER maximum low alarm flag change count for host input
-    prefec_ber_avg_host_input_lalarm_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER average low alarm flag change count for host input
-    prefec_ber_curr_host_input_lalarm_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER current low alarm flag change count for host input
-    errored_frames_min_media_input_lalarm_chg_cnt{lane_num}      = INTEGER ; Errored frames minimum low alarm flag change count for media input
-    errored_frames_max_media_input_lalarm_chg_cnt{lane_num}      = INTEGER ; Errored frames maximum low alarm flag change count for media input
-    errored_frames_avg_media_input_lalarm_chg_cnt{lane_num}      = INTEGER ; Errored frames average low alarm flag change count for media input
-    errored_frames_curr_media_input_lalarm_chg_cnt{lane_num}     = INTEGER ; Errored frames current low alarm flag change count for media input
-    errored_frames_min_host_input_lalarm_chg_cnt{lane_num}       = INTEGER ; Errored frames minimum low alarm flag change count for host input
-    errored_frames_max_host_input_lalarm_chg_cnt{lane_num}       = INTEGER ; Errored frames maximum low alarm flag change count for host input
-    errored_frames_avg_host_input_lalarm_chg_cnt{lane_num}       = INTEGER ; Errored frames average low alarm flag change count for host input
-    errored_frames_curr_host_input_lalarm_chg_cnt{lane_num}      = INTEGER ; Errored frames current low alarm flag change count for host input
+    laser_temperature_media_lalarm{lane_num}             = INTEGER ; laser temperature low alarm flag change count for media input
+    esnr_media_input_lalarm{lane_num}                    = INTEGER ; eSNR low alarm flag change count for media input
+    esnr_host_input_lalarm{lane_num}                     = INTEGER ; eSNR low alarm flag change count for host input
+    pam4_level_transition_media_input_lalarm{lane_num}   = INTEGER ; PAM4 level transition low alarm flag change count for media input
+    pam4_level_transition_host_input_lalarm{lane_num}    = INTEGER ; PAM4 level transition low alarm flag change count for host input
+    prefec_ber_min_media_input_lalarm{lane_num}          = INTEGER ; Pre-FEC BER minimum low alarm flag change count for media input
+    prefec_ber_max_media_input_lalarm{lane_num}          = INTEGER ; Pre-FEC BER maximum low alarm flag change count for media input
+    prefec_ber_avg_media_input_lalarm{lane_num}          = INTEGER ; Pre-FEC BER average low alarm flag change count for media input
+    prefec_ber_curr_media_input_lalarm{lane_num}         = INTEGER ; Pre-FEC BER current low alarm flag change count for media input
+    prefec_ber_min_host_input_lalarm{lane_num}           = INTEGER ; Pre-FEC BER minimum low alarm flag change count for host input
+    prefec_ber_max_host_input_lalarm{lane_num}           = INTEGER ; Pre-FEC BER maximum low alarm flag change count for host input
+    prefec_ber_avg_host_input_lalarm{lane_num}           = INTEGER ; Pre-FEC BER average low alarm flag change count for host input
+    prefec_ber_curr_host_input_lalarm{lane_num}          = INTEGER ; Pre-FEC BER current low alarm flag change count for host input
+    errored_frames_min_media_input_lalarm{lane_num}      = INTEGER ; Errored frames minimum low alarm flag change count for media input
+    errored_frames_max_media_input_lalarm{lane_num}      = INTEGER ; Errored frames maximum low alarm flag change count for media input
+    errored_frames_avg_media_input_lalarm{lane_num}      = INTEGER ; Errored frames average low alarm flag change count for media input
+    errored_frames_curr_media_input_lalarm{lane_num}     = INTEGER ; Errored frames current low alarm flag change count for media input
+    errored_frames_min_host_input_lalarm{lane_num}       = INTEGER ; Errored frames minimum low alarm flag change count for host input
+    errored_frames_max_host_input_lalarm{lane_num}       = INTEGER ; Errored frames maximum low alarm flag change count for host input
+    errored_frames_avg_host_input_lalarm{lane_num}       = INTEGER ; Errored frames average low alarm flag change count for host input
+    errored_frames_curr_host_input_lalarm{lane_num}      = INTEGER ; Errored frames current low alarm flag change count for host input
 
     ;C-CMIS specific fields
-    biasxi_lalarm_chg_cnt                                        = INTEGER ; modulator bias xi in percentage (low alarm flag change count)
-    biasxq_lalarm_chg_cnt                                        = INTEGER ; modulator bias xq in percentage (low alarm flag change count)
-    biasxp_lalarm_chg_cnt                                        = INTEGER ; modulator bias xp in percentage (low alarm flag change count)
-    biasyi_lalarm_chg_cnt                                        = INTEGER ; modulator bias yi in percentage (low alarm flag change count)
-    biasyq_lalarm_chg_cnt                                        = INTEGER ; modulator bias yq in percentage (low alarm flag change count)
-    biasyp_lalarm_chg_cnt                                        = INTEGER ; modulator bias yq in percentage (low alarm flag change count)
-    cdshort_lalarm_chg_cnt                                       = INTEGER ; chromatic dispersion, low granularity, short link in ps/nm (low alarm flag change count)
-    cdlong_lalarm_chg_cnt                                        = INTEGER ; chromatic dispersion, low granularity, long link in ps/nm (low alarm flag change count)
-    dgd_lalarm_chg_cnt                                           = INTEGER ; differential group delay in ps (low alarm flag change count)
-    sopmd_lalarm_chg_cnt                                         = INTEGER ; second order polarization mode dispersion in ps^2 (low alarm flag change count)
-    soproc_lalarm_chg_cnt                                        = INTEGER ; state of polarization rate of change in krad/s (low alarm flag change count)
-    pdl_lalarm_chg_cnt                                           = INTEGER ; polarization dependent loss in db (low alarm flag change count)
-    osnr_lalarm_chg_cnt                                          = INTEGER ; optical signal to noise ratio in db (low alarm flag change count)
-    esnr_lalarm_chg_cnt                                          = INTEGER ; electrical signal to noise ratio in db (low alarm flag change count)
-    cfo_lalarm_chg_cnt                                           = INTEGER ; carrier frequency offset in Hz (low alarm flag change count)
-    txcurrpower_lalarm_chg_cnt                                   = INTEGER ; tx current output power in dbm (low alarm flag change count)
-    rxtotpower_lalarm_chg_cnt                                    = INTEGER ; rx total power in  dbm (low alarm flag change count)
-    rxsigpower_lalarm_chg_cnt                                    = INTEGER; rx signal power in dbm (low alarm flag change count)
+    biasxi_lalarm                                        = INTEGER ; modulator bias xi in percentage (low alarm flag change count)
+    biasxq_lalarm                                        = INTEGER ; modulator bias xq in percentage (low alarm flag change count)
+    biasxp_lalarm                                        = INTEGER ; modulator bias xp in percentage (low alarm flag change count)
+    biasyi_lalarm                                        = INTEGER ; modulator bias yi in percentage (low alarm flag change count)
+    biasyq_lalarm                                        = INTEGER ; modulator bias yq in percentage (low alarm flag change count)
+    biasyp_lalarm                                        = INTEGER ; modulator bias yq in percentage (low alarm flag change count)
+    cdshort_lalarm                                       = INTEGER ; chromatic dispersion, low granularity, short link in ps/nm (low alarm flag change count)
+    cdlong_lalarm                                        = INTEGER ; chromatic dispersion, low granularity, long link in ps/nm (low alarm flag change count)
+    dgd_lalarm                                           = INTEGER ; differential group delay in ps (low alarm flag change count)
+    sopmd_lalarm                                         = INTEGER ; second order polarization mode dispersion in ps^2 (low alarm flag change count)
+    soproc_lalarm                                        = INTEGER ; state of polarization rate of change in krad/s (low alarm flag change count)
+    pdl_lalarm                                           = INTEGER ; polarization dependent loss in db (low alarm flag change count)
+    osnr_lalarm                                          = INTEGER ; optical signal to noise ratio in db (low alarm flag change count)
+    esnr_lalarm                                          = INTEGER ; electrical signal to noise ratio in db (low alarm flag change count)
+    cfo_lalarm                                           = INTEGER ; carrier frequency offset in Hz (low alarm flag change count)
+    txcurrpower_lalarm                                   = INTEGER ; tx current output power in dbm (low alarm flag change count)
+    rxtotpower_lalarm                                    = INTEGER ; rx total power in  dbm (low alarm flag change count)
+    rxsigpower_lalarm                                    = INTEGER; rx signal power in dbm (low alarm flag change count)
 ```
 
 ##### 2.2.4.3 Transceiver VDM high warning flag change count data
@@ -852,47 +852,47 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM high warning flag change count for a port
     key                          = TRANSCEIVER_VDM_HWARN_FLAG_CHANGE_COUNT|ifname
     ; field                      = value
-    laser_temperature_media_hwarn_chg_cnt{lane_num}             = INTEGER ; laser temperature high warning flag change count for media input
-    esnr_media_input_hwarn_chg_cnt{lane_num}                    = INTEGER ; eSNR high warning flag change count for media input
-    esnr_host_input_hwarn_chg_cnt{lane_num}                     = INTEGER ; eSNR high warning flag change count for host input
-    pam4_level_transition_media_input_hwarn_chg_cnt{lane_num}   = INTEGER ; PAM4 level transition high warning flag change count for media input
-    pam4_level_transition_host_input_hwarn_chg_cnt{lane_num}    = INTEGER ; PAM4 level transition high warning flag change count for host input
-    prefec_ber_min_media_input_hwarn_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER minimum high warning flag change count for media input
-    prefec_ber_max_media_input_hwarn_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER maximum high warning flag change count for media input
-    prefec_ber_avg_media_input_hwarn_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER average high warning flag change count for media input
-    prefec_ber_curr_media_input_hwarn_chg_cnt{lane_num}         = INTEGER ; Pre-FEC BER current high warning flag change count for media input
-    prefec_ber_min_host_input_hwarn_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER minimum high warning flag change count for host input
-    prefec_ber_max_host_input_hwarn_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER maximum high warning flag change count for host input
-    prefec_ber_avg_host_input_hwarn_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER average high warning flag change count for host input
-    prefec_ber_curr_host_input_hwarn_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER current high warning flag change count for host input
-    errored_frames_min_media_input_hwarn_chg_cnt{lane_num}      = INTEGER ; Errored frames minimum high warning flag change count for media input
-    errored_frames_max_media_input_hwarn_chg_cnt{lane_num}      = INTEGER ; Errored frames maximum high warning flag change count for media input
-    errored_frames_avg_media_input_hwarn_chg_cnt{lane_num}      = INTEGER ; Errored frames average high warning flag change count for media input
-    errored_frames_curr_media_input_hwarn_chg_cnt{lane_num}     = INTEGER ; Errored frames current high warning flag change count for media input
-    errored_frames_min_host_input_hwarn_chg_cnt{lane_num}       = INTEGER ; Errored frames minimum high warning flag change count for host input
-    errored_frames_max_host_input_hwarn_chg_cnt{lane_num}       = INTEGER ; Errored frames maximum high warning flag change count for host input
-    errored_frames_avg_host_input_hwarn_chg_cnt{lane_num}       = INTEGER ; Errored frames average high warning flag change count for host input
-    errored_frames_curr_host_input_hwarn_chg_cnt{lane_num}      = INTEGER ; Errored frames current high warning flag change count for host input
+    laser_temperature_media_hwarn{lane_num}             = INTEGER ; laser temperature high warning flag change count for media input
+    esnr_media_input_hwarn{lane_num}                    = INTEGER ; eSNR high warning flag change count for media input
+    esnr_host_input_hwarn{lane_num}                     = INTEGER ; eSNR high warning flag change count for host input
+    pam4_level_transition_media_input_hwarn{lane_num}   = INTEGER ; PAM4 level transition high warning flag change count for media input
+    pam4_level_transition_host_input_hwarn{lane_num}    = INTEGER ; PAM4 level transition high warning flag change count for host input
+    prefec_ber_min_media_input_hwarn{lane_num}          = INTEGER ; Pre-FEC BER minimum high warning flag change count for media input
+    prefec_ber_max_media_input_hwarn{lane_num}          = INTEGER ; Pre-FEC BER maximum high warning flag change count for media input
+    prefec_ber_avg_media_input_hwarn{lane_num}          = INTEGER ; Pre-FEC BER average high warning flag change count for media input
+    prefec_ber_curr_media_input_hwarn{lane_num}         = INTEGER ; Pre-FEC BER current high warning flag change count for media input
+    prefec_ber_min_host_input_hwarn{lane_num}           = INTEGER ; Pre-FEC BER minimum high warning flag change count for host input
+    prefec_ber_max_host_input_hwarn{lane_num}           = INTEGER ; Pre-FEC BER maximum high warning flag change count for host input
+    prefec_ber_avg_host_input_hwarn{lane_num}           = INTEGER ; Pre-FEC BER average high warning flag change count for host input
+    prefec_ber_curr_host_input_hwarn{lane_num}          = INTEGER ; Pre-FEC BER current high warning flag change count for host input
+    errored_frames_min_media_input_hwarn{lane_num}      = INTEGER ; Errored frames minimum high warning flag change count for media input
+    errored_frames_max_media_input_hwarn{lane_num}      = INTEGER ; Errored frames maximum high warning flag change count for media input
+    errored_frames_avg_media_input_hwarn{lane_num}      = INTEGER ; Errored frames average high warning flag change count for media input
+    errored_frames_curr_media_input_hwarn{lane_num}     = INTEGER ; Errored frames current high warning flag change count for media input
+    errored_frames_min_host_input_hwarn{lane_num}       = INTEGER ; Errored frames minimum high warning flag change count for host input
+    errored_frames_max_host_input_hwarn{lane_num}       = INTEGER ; Errored frames maximum high warning flag change count for host input
+    errored_frames_avg_host_input_hwarn{lane_num}       = INTEGER ; Errored frames average high warning flag change count for host input
+    errored_frames_curr_host_input_hwarn{lane_num}      = INTEGER ; Errored frames current high warning flag change count for host input
 
     ;C-CMIS specific fields
-    biasxi_hwarn_chg_cnt                                        = INTEGER ; modulator bias xi in percentage (high warning flag change count)
-    biasxq_hwarn_chg_cnt                                        = INTEGER ; modulator bias xq in percentage (high warning flag change count)
-    biasxp_hwarn_chg_cnt                                        = INTEGER ; modulator bias xp in percentage (high warning flag change count)
-    biasyi_hwarn_chg_cnt                                        = INTEGER ; modulator bias yi in percentage (high warning flag change count)
-    biasyq_hwarn_chg_cnt                                        = INTEGER ; modulator bias yq in percentage (high warning flag change count)
-    biasyp_hwarn_chg_cnt                                        = INTEGER ; modulator bias yq in percentage (high warning flag change count)
-    cdshort_hwarn_chg_cnt                                       = INTEGER ; chromatic dispersion, low granularity, short link in ps/nm (high warning flag change count)
-    cdlong_hwarn_chg_cnt                                        = INTEGER ; chromatic dispersion, low granularity, long link in ps/nm (high warning flag change count)
-    dgd_hwarn_chg_cnt                                           = INTEGER ; differential group delay in ps (high warning flag change count)
-    sopmd_hwarn_chg_cnt                                         = INTEGER ; second order polarization mode dispersion in ps^2 (high warning flag change count)
-    soproc_hwarn_chg_cnt                                        = INTEGER ; state of polarization rate of change in krad/s (high warning flag change count)
-    pdl_hwarn_chg_cnt                                           = INTEGER ; polarization dependent loss in db (high warning flag change count)
-    osnr_hwarn_chg_cnt                                          = INTEGER ; optical signal to noise ratio in db (high warning flag change count)
-    esnr_hwarn_chg_cnt                                          = INTEGER ; electrical signal to noise ratio in db (high warning flag change count)
-    cfo_hwarn_chg_cnt                                           = INTEGER ; carrier frequency offset in Hz (high warning flag change count)
-    txcurrpower_hwarn_chg_cnt                                   = INTEGER ; tx current output power in dbm (high warning flag change count)
-    rxtotpower_hwarn_chg_cnt                                    = INTEGER ; rx total power in  dbm (high warning flag change count)
-    rxsigpower_hwarn_chg_cnt                                    = INTEGER; rx signal power in dbm (high warning flag change count)
+    biasxi_hwarn                                        = INTEGER ; modulator bias xi in percentage (high warning flag change count)
+    biasxq_hwarn                                        = INTEGER ; modulator bias xq in percentage (high warning flag change count)
+    biasxp_hwarn                                        = INTEGER ; modulator bias xp in percentage (high warning flag change count)
+    biasyi_hwarn                                        = INTEGER ; modulator bias yi in percentage (high warning flag change count)
+    biasyq_hwarn                                        = INTEGER ; modulator bias yq in percentage (high warning flag change count)
+    biasyp_hwarn                                        = INTEGER ; modulator bias yq in percentage (high warning flag change count)
+    cdshort_hwarn                                       = INTEGER ; chromatic dispersion, low granularity, short link in ps/nm (high warning flag change count)
+    cdlong_hwarn                                        = INTEGER ; chromatic dispersion, low granularity, long link in ps/nm (high warning flag change count)
+    dgd_hwarn                                           = INTEGER ; differential group delay in ps (high warning flag change count)
+    sopmd_hwarn                                         = INTEGER ; second order polarization mode dispersion in ps^2 (high warning flag change count)
+    soproc_hwarn                                        = INTEGER ; state of polarization rate of change in krad/s (high warning flag change count)
+    pdl_hwarn                                           = INTEGER ; polarization dependent loss in db (high warning flag change count)
+    osnr_hwarn                                          = INTEGER ; optical signal to noise ratio in db (high warning flag change count)
+    esnr_hwarn                                          = INTEGER ; electrical signal to noise ratio in db (high warning flag change count)
+    cfo_hwarn                                           = INTEGER ; carrier frequency offset in Hz (high warning flag change count)
+    txcurrpower_hwarn                                   = INTEGER ; tx current output power in dbm (high warning flag change count)
+    rxtotpower_hwarn                                    = INTEGER ; rx total power in  dbm (high warning flag change count)
+    rxsigpower_hwarn                                    = INTEGER; rx signal power in dbm (high warning flag change count)
 ```
 
 ##### 2.2.4.4 Transceiver VDM low warning flag change count data
@@ -905,475 +905,475 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low warning flag change count for a port
     key                          = TRANSCEIVER_VDM_LWARN_FLAG_CHANGE_COUNT|ifname
     ; field                      = value
-    laser_temperature_media_lwarn_chg_cnt{lane_num}             = INTEGER ; laser temperature low warning flag change count for media input
-    esnr_media_input_lwarn_chg_cnt{lane_num}                    = INTEGER ; eSNR low warning flag change count for media input
-    esnr_host_input_lwarn_chg_cnt{lane_num}                     = INTEGER ; eSNR low warning flag change count for host input
-    pam4_level_transition_media_input_lwarn_chg_cnt{lane_num}   = INTEGER ; PAM4 level transition low warning flag change count for media input
-    pam4_level_transition_host_input_lwarn_chg_cnt{lane_num}    = INTEGER ; PAM4 level transition low warning flag change count for host input
-    prefec_ber_min_media_input_lwarn_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER minimum low warning flag change count for media input
-    prefec_ber_max_media_input_lwarn_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER maximum low warning flag change count for media input
-    prefec_ber_avg_media_input_lwarn_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER average low warning flag change count for media input
-    prefec_ber_curr_media_input_lwarn_chg_cnt{lane_num}         = INTEGER ; Pre-FEC BER current low warning flag change count for media input
-    prefec_ber_min_host_input_lwarn_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER minimum low warning flag change count for host input
-    prefec_ber_max_host_input_lwarn_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER maximum low warning flag change count for host input
-    prefec_ber_avg_host_input_lwarn_chg_cnt{lane_num}           = INTEGER ; Pre-FEC BER average low warning flag change count for host input
-    prefec_ber_curr_host_input_lwarn_chg_cnt{lane_num}          = INTEGER ; Pre-FEC BER current low warning flag change count for host input
-    errored_frames_min_media_input_lwarn_chg_cnt{lane_num}      = INTEGER ; Errored frames minimum low warning flag change count for media input
-    errored_frames_max_media_input_lwarn_chg_cnt{lane_num}      = INTEGER ; Errored frames maximum low warning flag change count for media input
-    errored_frames_avg_media_input_lwarn_chg_cnt{lane_num}      = INTEGER ; Errored frames average low warning flag change count for media input
-    errored_frames_curr_media_input_lwarn_chg_cnt{lane_num}     = INTEGER ; Errored frames current low warning flag change count for media input
-    errored_frames_min_host_input_lwarn_chg_cnt{lane_num}       = INTEGER ; Errored frames minimum low warning flag change count for host input
-    errored_frames_max_host_input_lwarn_chg_cnt{lane_num}       = INTEGER ; Errored frames maximum low warning flag change count for host input
-    errored_frames_avg_host_input_lwarn_chg_cnt{lane_num}       = INTEGER ; Errored frames average low warning flag change count for host input
-    errored_frames_curr_host_input_lwarn_chg_cnt{lane_num}      = INTEGER ; Errored frames current low warning flag change count for host input
+    laser_temperature_media_lwarn{lane_num}             = INTEGER ; laser temperature low warning flag change count for media input
+    esnr_media_input_lwarn{lane_num}                    = INTEGER ; eSNR low warning flag change count for media input
+    esnr_host_input_lwarn{lane_num}                     = INTEGER ; eSNR low warning flag change count for host input
+    pam4_level_transition_media_input_lwarn{lane_num}   = INTEGER ; PAM4 level transition low warning flag change count for media input
+    pam4_level_transition_host_input_lwarn{lane_num}    = INTEGER ; PAM4 level transition low warning flag change count for host input
+    prefec_ber_min_media_input_lwarn{lane_num}          = INTEGER ; Pre-FEC BER minimum low warning flag change count for media input
+    prefec_ber_max_media_input_lwarn{lane_num}          = INTEGER ; Pre-FEC BER maximum low warning flag change count for media input
+    prefec_ber_avg_media_input_lwarn{lane_num}          = INTEGER ; Pre-FEC BER average low warning flag change count for media input
+    prefec_ber_curr_media_input_lwarn{lane_num}         = INTEGER ; Pre-FEC BER current low warning flag change count for media input
+    prefec_ber_min_host_input_lwarn{lane_num}           = INTEGER ; Pre-FEC BER minimum low warning flag change count for host input
+    prefec_ber_max_host_input_lwarn{lane_num}           = INTEGER ; Pre-FEC BER maximum low warning flag change count for host input
+    prefec_ber_avg_host_input_lwarn{lane_num}           = INTEGER ; Pre-FEC BER average low warning flag change count for host input
+    prefec_ber_curr_host_input_lwarn{lane_num}          = INTEGER ; Pre-FEC BER current low warning flag change count for host input
+    errored_frames_min_media_input_lwarn{lane_num}      = INTEGER ; Errored frames minimum low warning flag change count for media input
+    errored_frames_max_media_input_lwarn{lane_num}      = INTEGER ; Errored frames maximum low warning flag change count for media input
+    errored_frames_avg_media_input_lwarn{lane_num}      = INTEGER ; Errored frames average low warning flag change count for media input
+    errored_frames_curr_media_input_lwarn{lane_num}     = INTEGER ; Errored frames current low warning flag change count for media input
+    errored_frames_min_host_input_lwarn{lane_num}       = INTEGER ; Errored frames minimum low warning flag change count for host input
+    errored_frames_max_host_input_lwarn{lane_num}       = INTEGER ; Errored frames maximum low warning flag change count for host input
+    errored_frames_avg_host_input_lwarn{lane_num}       = INTEGER ; Errored frames average low warning flag change count for host input
+    errored_frames_curr_host_input_lwarn{lane_num}      = INTEGER ; Errored frames current low warning flag change count for host input
 
     ;C-CMIS specific fields
-    biasxi_lwarn_chg_cnt                                        = INTEGER ; modulator bias xi in percentage (low warning flag change count)
-    biasxq_lwarn_chg_cnt                                        = INTEGER ; modulator bias xq in percentage (low warning flag change count)
-    biasxp_lwarn_chg_cnt                                        = INTEGER ; modulator bias xp in percentage (low warning flag change count)
-    biasyi_lwarn_chg_cnt                                        = INTEGER ; modulator bias yi in percentage (low warning flag change count)
-    biasyq_lwarn_chg_cnt                                        = INTEGER ; modulator bias yq in percentage (low warning flag change count)
-    biasyp_lwarn_chg_cnt                                        = INTEGER ; modulator bias yq in percentage (low warning flag change count)
-    cdshort_lwarn_chg_cnt                                       = INTEGER ; chromatic dispersion, low granularity, short link in ps/nm (low warning flag change count)
-    cdlong_lwarn_chg_cnt                                        = INTEGER ; chromatic dispersion, low granularity, long link in ps/nm (low warning flag change count)
-    dgd_lwarn_chg_cnt                                           = INTEGER ; differential group delay in ps (low warning flag change count)
-    sopmd_lwarn_chg_cnt                                         = INTEGER ; second order polarization mode dispersion in ps^2 (low warning flag change count)
-    soproc_lwarn_chg_cnt                                        = INTEGER ; state of polarization rate of change in krad/s (low warning flag change count)
-    pdl_lwarn_chg_cnt                                           = INTEGER ; polarization dependent loss in db (low warning flag change count)
-    osnr_lwarn_chg_cnt                                          = INTEGER ; optical signal to noise ratio in db (low warning flag change count)
-    esnr_lwarn_chg_cnt                                          = INTEGER ; electrical signal to noise ratio in db (low warning flag change count)
-    cfo_lwarn_chg_cnt                                           = INTEGER ; carrier frequency offset in Hz (low warning flag change count)
-    txcurrpower_lwarn_chg_cnt                                   = INTEGER ; tx current output power in dbm (low warning flag change count)
-    rxtotpower_lwarn_chg_cnt                                    = INTEGER ; rx total power in  dbm (low warning flag change count)
-    rxsigpower_lwarn_chg_cnt                                    = INTEGER; rx signal power in dbm (low warning flag change count)
+    biasxi_lwarn                                        = INTEGER ; modulator bias xi in percentage (low warning flag change count)
+    biasxq_lwarn                                        = INTEGER ; modulator bias xq in percentage (low warning flag change count)
+    biasxp_lwarn                                        = INTEGER ; modulator bias xp in percentage (low warning flag change count)
+    biasyi_lwarn                                        = INTEGER ; modulator bias yi in percentage (low warning flag change count)
+    biasyq_lwarn                                        = INTEGER ; modulator bias yq in percentage (low warning flag change count)
+    biasyp_lwarn                                        = INTEGER ; modulator bias yq in percentage (low warning flag change count)
+    cdshort_lwarn                                       = INTEGER ; chromatic dispersion, low granularity, short link in ps/nm (low warning flag change count)
+    cdlong_lwarn                                        = INTEGER ; chromatic dispersion, low granularity, long link in ps/nm (low warning flag change count)
+    dgd_lwarn                                           = INTEGER ; differential group delay in ps (low warning flag change count)
+    sopmd_lwarn                                         = INTEGER ; second order polarization mode dispersion in ps^2 (low warning flag change count)
+    soproc_lwarn                                        = INTEGER ; state of polarization rate of change in krad/s (low warning flag change count)
+    pdl_lwarn                                           = INTEGER ; polarization dependent loss in db (low warning flag change count)
+    osnr_lwarn                                          = INTEGER ; optical signal to noise ratio in db (low warning flag change count)
+    esnr_lwarn                                          = INTEGER ; electrical signal to noise ratio in db (low warning flag change count)
+    cfo_lwarn                                           = INTEGER ; carrier frequency offset in Hz (low warning flag change count)
+    txcurrpower_lwarn                                   = INTEGER ; tx current output power in dbm (low warning flag change count)
+    rxtotpower_lwarn                                    = INTEGER ; rx total power in  dbm (low warning flag change count)
+    rxsigpower_lwarn                                    = INTEGER; rx signal power in dbm (low warning flag change count)
 ```
 
 #### 2.2.5 Transceiver VDM flag time set data
 
 ##### 2.2.5.1 Transceiver VDM high alarm flag time set data
 
-The `TRANSCEIVER_VDM_HALARM_SET_TIME` table stores the flag time set for the VDM high alarm flag.
+The `TRANSCEIVER_VDM_HALARM_FLAG_SET_TIME` table stores the last set time for the VDM high alarm flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
 ```plaintext
     ;Defines Transceiver VDM high alarm last set time for a port
-    key                          = TRANSCEIVER_VDM_HALARM_SET_TIME|ifname
+    key                          = TRANSCEIVER_VDM_HALARM_FLAG_SET_TIME|ifname
     ; field                      = value
-    laser_temperature_media_halarm_last_set_time{lane_num}             = STR ; laser temperature high alarm last set time for media input
-    esnr_media_input_halarm_last_set_time{lane_num}                    = STR ; eSNR high alarm last set time for media input
-    esnr_host_input_halarm_last_set_time{lane_num}                     = STR ; eSNR high alarm last set time for host input
-    pam4_level_transition_media_input_halarm_last_set_time{lane_num}   = STR ; PAM4 level transition high alarm last set time for media input
-    pam4_level_transition_host_input_halarm_last_set_time{lane_num}    = STR ; PAM4 level transition high alarm last set time for host input
-    prefec_ber_min_media_input_halarm_last_set_time{lane_num}          = STR ; Pre-FEC BER minimum high alarm last set time for media input
-    prefec_ber_max_media_input_halarm_last_set_time{lane_num}          = STR ; Pre-FEC BER maximum high alarm last set time for media input
-    prefec_ber_avg_media_input_halarm_last_set_time{lane_num}          = STR ; Pre-FEC BER average high alarm last set time for media input
-    prefec_ber_curr_media_input_halarm_last_set_time{lane_num}         = STR ; Pre-FEC BER current high alarm last set time for media input
-    prefec_ber_min_host_input_halarm_last_set_time{lane_num}           = STR ; Pre-FEC BER minimum high alarm last set time for host input
-    prefec_ber_max_host_input_halarm_last_set_time{lane_num}           = STR ; Pre-FEC BER maximum high alarm last set time for host input
-    prefec_ber_avg_host_input_halarm_last_set_time{lane_num}           = STR ; Pre-FEC BER average high alarm last set time for host input
-    prefec_ber_curr_host_input_halarm_last_set_time{lane_num}          = STR ; Pre-FEC BER current high alarm last set time for host input
-    errored_frames_min_media_input_halarm_last_set_time{lane_num}      = STR ; Errored frames minimum high alarm last set time for media input
-    errored_frames_max_media_input_halarm_last_set_time{lane_num}      = STR ; Errored frames maximum high alarm last set time for media input
-    errored_frames_avg_media_input_halarm_last_set_time{lane_num}      = STR ; Errored frames average high alarm last set time for media input
-    errored_frames_curr_media_input_halarm_last_set_time{lane_num}     = STR ; Errored frames current high alarm last set time for media input
-    errored_frames_min_host_input_halarm_last_set_time{lane_num}       = STR ; Errored frames minimum high alarm last set time for host input
-    errored_frames_max_host_input_halarm_last_set_time{lane_num}       = STR ; Errored frames maximum high alarm last set time for host input
-    errored_frames_avg_host_input_halarm_last_set_time{lane_num}       = STR ; Errored frames average high alarm last set time for host input
-    errored_frames_curr_host_input_halarm_last_set_time{lane_num}      = STR ; Errored frames current high alarm last set time for host input
+    laser_temperature_media_halarm{lane_num}             = STR ; laser temperature high alarm last set time for media input
+    esnr_media_input_halarm{lane_num}                    = STR ; eSNR high alarm last set time for media input
+    esnr_host_input_halarm{lane_num}                     = STR ; eSNR high alarm last set time for host input
+    pam4_level_transition_media_input_halarm{lane_num}   = STR ; PAM4 level transition high alarm last set time for media input
+    pam4_level_transition_host_input_halarm{lane_num}    = STR ; PAM4 level transition high alarm last set time for host input
+    prefec_ber_min_media_input_halarm{lane_num}          = STR ; Pre-FEC BER minimum high alarm last set time for media input
+    prefec_ber_max_media_input_halarm{lane_num}          = STR ; Pre-FEC BER maximum high alarm last set time for media input
+    prefec_ber_avg_media_input_halarm{lane_num}          = STR ; Pre-FEC BER average high alarm last set time for media input
+    prefec_ber_curr_media_input_halarm{lane_num}         = STR ; Pre-FEC BER current high alarm last set time for media input
+    prefec_ber_min_host_input_halarm{lane_num}           = STR ; Pre-FEC BER minimum high alarm last set time for host input
+    prefec_ber_max_host_input_halarm{lane_num}           = STR ; Pre-FEC BER maximum high alarm last set time for host input
+    prefec_ber_avg_host_input_halarm{lane_num}           = STR ; Pre-FEC BER average high alarm last set time for host input
+    prefec_ber_curr_host_input_halarm{lane_num}          = STR ; Pre-FEC BER current high alarm last set time for host input
+    errored_frames_min_media_input_halarm{lane_num}      = STR ; Errored frames minimum high alarm last set time for media input
+    errored_frames_max_media_input_halarm{lane_num}      = STR ; Errored frames maximum high alarm last set time for media input
+    errored_frames_avg_media_input_halarm{lane_num}      = STR ; Errored frames average high alarm last set time for media input
+    errored_frames_curr_media_input_halarm{lane_num}     = STR ; Errored frames current high alarm last set time for media input
+    errored_frames_min_host_input_halarm{lane_num}       = STR ; Errored frames minimum high alarm last set time for host input
+    errored_frames_max_host_input_halarm{lane_num}       = STR ; Errored frames maximum high alarm last set time for host input
+    errored_frames_avg_host_input_halarm{lane_num}       = STR ; Errored frames average high alarm last set time for host input
+    errored_frames_curr_host_input_halarm{lane_num}      = STR ; Errored frames current high alarm last set time for host input
 
     ;C-CMIS specific fields
-    biasxi_halarm_last_set_time                                        = STR ; modulator bias xi in percentage (high alarm last set time)
-    biasxq_halarm_last_set_time                                        = STR ; modulator bias xq in percentage (high alarm last set time)
-    biasxp_halarm_last_set_time                                        = STR ; modulator bias xp in percentage (high alarm last set time)
-    biasyi_halarm_last_set_time                                        = STR ; modulator bias yi in percentage (high alarm last set time)
-    biasyq_halarm_last_set_time                                        = STR ; modulator bias yq in percentage (high alarm last set time)
-    biasyp_halarm_last_set_time                                        = STR ; modulator bias yq in percentage (high alarm last set time)
-    cdshort_halarm_last_set_time                                       = STR ; chromatic dispersion, high granularity, short link in ps/nm (high alarm last set time)
-    cdlong_halarm_last_set_time                                        = STR ; chromatic dispersion, high granularity, long link in ps/nm (high alarm last set time)
-    dgd_halarm_last_set_time                                           = STR ; differential group delay in ps (high alarm last set time)
-    sopmd_halarm_last_set_time                                         = STR ; second order polarization mode dispersion in ps^2 (high alarm last set time)
-    soproc_halarm_last_set_time                                        = STR ; state of polarization rate of change in krad/s (high alarm last set time)
-    pdl_halarm_last_set_time                                           = STR ; polarization dependent loss in db (high alarm last set time)
-    osnr_halarm_last_set_time                                          = STR ; optical signal to noise ratio in db (high alarm last set time)
-    esnr_halarm_last_set_time                                          = STR ; electrical signal to noise ratio in db (high alarm last set time)
-    cfo_halarm_last_set_time                                           = STR ; carrier frequency offset in Hz (high alarm last set time)
-    txcurrpower_halarm_last_set_time                                   = STR ; tx current output power in dbm (high alarm last set time)
-    rxtotpower_halarm_last_set_time                                    = STR ; rx total power in  dbm (high alarm last set time)
-    rxsigpower_halarm_last_set_time                                    = STR; rx signal power in dbm (high alarm last set time)
+    biasxi_halarm                                        = STR ; modulator bias xi in percentage (high alarm last set time)
+    biasxq_halarm                                        = STR ; modulator bias xq in percentage (high alarm last set time)
+    biasxp_halarm                                        = STR ; modulator bias xp in percentage (high alarm last set time)
+    biasyi_halarm                                        = STR ; modulator bias yi in percentage (high alarm last set time)
+    biasyq_halarm                                        = STR ; modulator bias yq in percentage (high alarm last set time)
+    biasyp_halarm                                        = STR ; modulator bias yq in percentage (high alarm last set time)
+    cdshort_halarm                                       = STR ; chromatic dispersion, high granularity, short link in ps/nm (high alarm last set time)
+    cdlong_halarm                                        = STR ; chromatic dispersion, high granularity, long link in ps/nm (high alarm last set time)
+    dgd_halarm                                           = STR ; differential group delay in ps (high alarm last set time)
+    sopmd_halarm                                         = STR ; second order polarization mode dispersion in ps^2 (high alarm last set time)
+    soproc_halarm                                        = STR ; state of polarization rate of change in krad/s (high alarm last set time)
+    pdl_halarm                                           = STR ; polarization dependent loss in db (high alarm last set time)
+    osnr_halarm                                          = STR ; optical signal to noise ratio in db (high alarm last set time)
+    esnr_halarm                                          = STR ; electrical signal to noise ratio in db (high alarm last set time)
+    cfo_halarm                                           = STR ; carrier frequency offset in Hz (high alarm last set time)
+    txcurrpower_halarm                                   = STR ; tx current output power in dbm (high alarm last set time)
+    rxtotpower_halarm                                    = STR ; rx total power in  dbm (high alarm last set time)
+    rxsigpower_halarm                                    = STR; rx signal power in dbm (high alarm last set time)
 ```
 
 ##### 2.2.5.2 Transceiver VDM low alarm flag time set data
 
-The `TRANSCEIVER_VDM_LALARM_SET_TIME` table stores the flag time set for the VDM low alarm flag.
+The `TRANSCEIVER_VDM_LALARM_FLAG_SET_TIME` table stores the last set time for the VDM low alarm flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
 ```plaintext
     ;Defines Transceiver VDM low alarm last set time for a port
-    key                          = TRANSCEIVER_VDM_LALARM_SET_TIME|ifname
+    key                          = TRANSCEIVER_VDM_LALARM_FLAG_SET_TIME|ifname
     ; field                      = value
-    laser_temperature_media_lalarm_last_set_time{lane_num}             = STR ; laser temperature low alarm last set time for media input
-    esnr_media_input_lalarm_last_set_time{lane_num}                    = STR ; eSNR low alarm last set time for media input
-    esnr_host_input_lalarm_last_set_time{lane_num}                     = STR ; eSNR low alarm last set time for host input
-    pam4_level_transition_media_input_lalarm_last_set_time{lane_num}   = STR ; PAM4 level transition low alarm last set time for media input
-    pam4_level_transition_host_input_lalarm_last_set_time{lane_num}    = STR ; PAM4 level transition low alarm last set time for host input
-    prefec_ber_min_media_input_lalarm_last_set_time{lane_num}          = STR ; Pre-FEC BER minimum low alarm last set time for media input
-    prefec_ber_max_media_input_lalarm_last_set_time{lane_num}          = STR ; Pre-FEC BER maximum low alarm last set time for media input
-    prefec_ber_avg_media_input_lalarm_last_set_time{lane_num}          = STR ; Pre-FEC BER average low alarm last set time for media input
-    prefec_ber_curr_media_input_lalarm_last_set_time{lane_num}         = STR ; Pre-FEC BER current low alarm last set time for media input
-    prefec_ber_min_host_input_lalarm_last_set_time{lane_num}           = STR ; Pre-FEC BER minimum low alarm last set time for host input
-    prefec_ber_max_host_input_lalarm_last_set_time{lane_num}           = STR ; Pre-FEC BER maximum low alarm last set time for host input
-    prefec_ber_avg_host_input_lalarm_last_set_time{lane_num}           = STR ; Pre-FEC BER average low alarm last set time for host input
-    prefec_ber_curr_host_input_lalarm_last_set_time{lane_num}          = STR ; Pre-FEC BER current low alarm last set time for host input
-    errored_frames_min_media_input_lalarm_last_set_time{lane_num}      = STR ; Errored frames minimum low alarm last set time for media input
-    errored_frames_max_media_input_lalarm_last_set_time{lane_num}      = STR ; Errored frames maximum low alarm last set time for media input
-    errored_frames_avg_media_input_lalarm_last_set_time{lane_num}      = STR ; Errored frames average low alarm last set time for media input
-    errored_frames_curr_media_input_lalarm_last_set_time{lane_num}     = STR ; Errored frames current low alarm last set time for media input
-    errored_frames_min_host_input_lalarm_last_set_time{lane_num}       = STR ; Errored frames minimum low alarm last set time for host input
-    errored_frames_max_host_input_lalarm_last_set_time{lane_num}       = STR ; Errored frames maximum low alarm last set time for host input
-    errored_frames_avg_host_input_lalarm_last_set_time{lane_num}       = STR ; Errored frames average low alarm last set time for host input
-    errored_frames_curr_host_input_lalarm_last_set_time{lane_num}      = STR ; Errored frames current low alarm last set time for host input
+    laser_temperature_media_lalarm{lane_num}             = STR ; laser temperature low alarm last set time for media input
+    esnr_media_input_lalarm{lane_num}                    = STR ; eSNR low alarm last set time for media input
+    esnr_host_input_lalarm{lane_num}                     = STR ; eSNR low alarm last set time for host input
+    pam4_level_transition_media_input_lalarm{lane_num}   = STR ; PAM4 level transition low alarm last set time for media input
+    pam4_level_transition_host_input_lalarm{lane_num}    = STR ; PAM4 level transition low alarm last set time for host input
+    prefec_ber_min_media_input_lalarm{lane_num}          = STR ; Pre-FEC BER minimum low alarm last set time for media input
+    prefec_ber_max_media_input_lalarm{lane_num}          = STR ; Pre-FEC BER maximum low alarm last set time for media input
+    prefec_ber_avg_media_input_lalarm{lane_num}          = STR ; Pre-FEC BER average low alarm last set time for media input
+    prefec_ber_curr_media_input_lalarm{lane_num}         = STR ; Pre-FEC BER current low alarm last set time for media input
+    prefec_ber_min_host_input_lalarm{lane_num}           = STR ; Pre-FEC BER minimum low alarm last set time for host input
+    prefec_ber_max_host_input_lalarm{lane_num}           = STR ; Pre-FEC BER maximum low alarm last set time for host input
+    prefec_ber_avg_host_input_lalarm{lane_num}           = STR ; Pre-FEC BER average low alarm last set time for host input
+    prefec_ber_curr_host_input_lalarm{lane_num}          = STR ; Pre-FEC BER current low alarm last set time for host input
+    errored_frames_min_media_input_lalarm{lane_num}      = STR ; Errored frames minimum low alarm last set time for media input
+    errored_frames_max_media_input_lalarm{lane_num}      = STR ; Errored frames maximum low alarm last set time for media input
+    errored_frames_avg_media_input_lalarm{lane_num}      = STR ; Errored frames average low alarm last set time for media input
+    errored_frames_curr_media_input_lalarm{lane_num}     = STR ; Errored frames current low alarm last set time for media input
+    errored_frames_min_host_input_lalarm{lane_num}       = STR ; Errored frames minimum low alarm last set time for host input
+    errored_frames_max_host_input_lalarm{lane_num}       = STR ; Errored frames maximum low alarm last set time for host input
+    errored_frames_avg_host_input_lalarm{lane_num}       = STR ; Errored frames average low alarm last set time for host input
+    errored_frames_curr_host_input_lalarm{lane_num}      = STR ; Errored frames current low alarm last set time for host input
 
     ;C-CMIS specific fields
-    biasxi_lalarm_last_set_time                                        = STR ; modulator bias xi in percentage (low alarm last set time)
-    biasxq_lalarm_last_set_time                                        = STR ; modulator bias xq in percentage (low alarm last set time)
-    biasxp_lalarm_last_set_time                                        = STR ; modulator bias xp in percentage (low alarm last set time)
-    biasyi_lalarm_last_set_time                                        = STR ; modulator bias yi in percentage (low alarm last set time)
-    biasyq_lalarm_last_set_time                                        = STR ; modulator bias yq in percentage (low alarm last set time)
-    biasyp_lalarm_last_set_time                                        = STR ; modulator bias yq in percentage (low alarm last set time)
-    cdshort_lalarm_last_set_time                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low alarm last set time)
-    cdlong_lalarm_last_set_time                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low alarm last set time)
-    dgd_lalarm_last_set_time                                           = STR ; differential group delay in ps (low alarm last set time)
-    sopmd_lalarm_last_set_time                                         = STR ; second order polarization mode dispersion in ps^2 (low alarm last set time)
-    soproc_lalarm_last_set_time                                        = STR ; state of polarization rate of change in krad/s (low alarm last set time)
-    pdl_lalarm_last_set_time                                           = STR ; polarization dependent loss in db (low alarm last set time)
-    osnr_lalarm_last_set_time                                          = STR ; optical signal to noise ratio in db (low alarm last set time)
-    esnr_lalarm_last_set_time                                          = STR ; electrical signal to noise ratio in db (low alarm last set time)
-    cfo_lalarm_last_set_time                                           = STR ; carrier frequency offset in Hz (low alarm last set time)
-    txcurrpower_lalarm_last_set_time                                   = STR ; tx current output power in dbm (low alarm last set time)
-    rxtotpower_lalarm_last_set_time                                    = STR ; rx total power in  dbm (low alarm last set time)
-    rxsigpower_lalarm_last_set_time                                    = STR; rx signal power in dbm (low alarm last set time)
+    biasxi_lalarm                                        = STR ; modulator bias xi in percentage (low alarm last set time)
+    biasxq_lalarm                                        = STR ; modulator bias xq in percentage (low alarm last set time)
+    biasxp_lalarm                                        = STR ; modulator bias xp in percentage (low alarm last set time)
+    biasyi_lalarm                                        = STR ; modulator bias yi in percentage (low alarm last set time)
+    biasyq_lalarm                                        = STR ; modulator bias yq in percentage (low alarm last set time)
+    biasyp_lalarm                                        = STR ; modulator bias yq in percentage (low alarm last set time)
+    cdshort_lalarm                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low alarm last set time)
+    cdlong_lalarm                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low alarm last set time)
+    dgd_lalarm                                           = STR ; differential group delay in ps (low alarm last set time)
+    sopmd_lalarm                                         = STR ; second order polarization mode dispersion in ps^2 (low alarm last set time)
+    soproc_lalarm                                        = STR ; state of polarization rate of change in krad/s (low alarm last set time)
+    pdl_lalarm                                           = STR ; polarization dependent loss in db (low alarm last set time)
+    osnr_lalarm                                          = STR ; optical signal to noise ratio in db (low alarm last set time)
+    esnr_lalarm                                          = STR ; electrical signal to noise ratio in db (low alarm last set time)
+    cfo_lalarm                                           = STR ; carrier frequency offset in Hz (low alarm last set time)
+    txcurrpower_lalarm                                   = STR ; tx current output power in dbm (low alarm last set time)
+    rxtotpower_lalarm                                    = STR ; rx total power in  dbm (low alarm last set time)
+    rxsigpower_lalarm                                    = STR; rx signal power in dbm (low alarm last set time)
 ```
 
 ##### 2.2.5.3 Transceiver VDM high warning flag time set data
 
-The `TRANSCEIVER_VDM_HWARN_SET_TIME` table stores the flag time set for the VDM high warning flag.
+The `TRANSCEIVER_VDM_HWARN_FLAG_SET_TIME` table stores the last set time for the VDM high warning flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
 ```plaintext
     ;Defines Transceiver VDM high warning last set time for a port
-    key                          = TRANSCEIVER_VDM_HWARN_SET_TIME|ifname
+    key                          = TRANSCEIVER_VDM_HWARN_FLAG_SET_TIME|ifname
     ; field                      = value
-    laser_temperature_media_hwarn_last_set_time{lane_num}             = STR ; laser temperature high warning last set time for media input
-    esnr_media_input_hwarn_last_set_time{lane_num}                    = STR ; eSNR high warning last set time for media input
-    esnr_host_input_hwarn_last_set_time{lane_num}                     = STR ; eSNR high warning last set time for host input
-    pam4_level_transition_media_input_hwarn_last_set_time{lane_num}   = STR ; PAM4 level transition high warning last set time for media input
-    pam4_level_transition_host_input_hwarn_last_set_time{lane_num}    = STR ; PAM4 level transition high warning last set time for host input
-    prefec_ber_min_media_input_hwarn_last_set_time{lane_num}          = STR ; Pre-FEC BER minimum high warning last set time for media input
-    prefec_ber_max_media_input_hwarn_last_set_time{lane_num}          = STR ; Pre-FEC BER maximum high warning last set time for media input
-    prefec_ber_avg_media_input_hwarn_last_set_time{lane_num}          = STR ; Pre-FEC BER average high warning last set time for media input
-    prefec_ber_curr_media_input_hwarn_last_set_time{lane_num}         = STR ; Pre-FEC BER current high warning last set time for media input
-    prefec_ber_min_host_input_hwarn_last_set_time{lane_num}           = STR ; Pre-FEC BER minimum high warning last set time for host input
-    prefec_ber_max_host_input_hwarn_last_set_time{lane_num}           = STR ; Pre-FEC BER maximum high warning last set time for host input
-    prefec_ber_avg_host_input_hwarn_last_set_time{lane_num}           = STR ; Pre-FEC BER average high warning last set time for host input
-    prefec_ber_curr_host_input_hwarn_last_set_time{lane_num}          = STR ; Pre-FEC BER current high warning last set time for host input
-    errored_frames_min_media_input_hwarn_last_set_time{lane_num}      = STR ; Errored frames minimum high warning last set time for media input
-    errored_frames_max_media_input_hwarn_last_set_time{lane_num}      = STR ; Errored frames maximum high warning last set time for media input
-    errored_frames_avg_media_input_hwarn_last_set_time{lane_num}      = STR ; Errored frames average high warning last set time for media input
-    errored_frames_curr_media_input_hwarn_last_set_time{lane_num}     = STR ; Errored frames current high warning last set time for media input
-    errored_frames_min_host_input_hwarn_last_set_time{lane_num}       = STR ; Errored frames minimum high warning last set time for host input
-    errored_frames_max_host_input_hwarn_last_set_time{lane_num}       = STR ; Errored frames maximum high warning last set time for host input
-    errored_frames_avg_host_input_hwarn_last_set_time{lane_num}       = STR ; Errored frames average high warning last set time for host input
-    errored_frames_curr_host_input_hwarn_last_set_time{lane_num}      = STR ; Errored frames current high warning last set time for host input
+    laser_temperature_media_hwarn{lane_num}             = STR ; laser temperature high warning last set time for media input
+    esnr_media_input_hwarn{lane_num}                    = STR ; eSNR high warning last set time for media input
+    esnr_host_input_hwarn{lane_num}                     = STR ; eSNR high warning last set time for host input
+    pam4_level_transition_media_input_hwarn{lane_num}   = STR ; PAM4 level transition high warning last set time for media input
+    pam4_level_transition_host_input_hwarn{lane_num}    = STR ; PAM4 level transition high warning last set time for host input
+    prefec_ber_min_media_input_hwarn{lane_num}          = STR ; Pre-FEC BER minimum high warning last set time for media input
+    prefec_ber_max_media_input_hwarn{lane_num}          = STR ; Pre-FEC BER maximum high warning last set time for media input
+    prefec_ber_avg_media_input_hwarn{lane_num}          = STR ; Pre-FEC BER average high warning last set time for media input
+    prefec_ber_curr_media_input_hwarn{lane_num}         = STR ; Pre-FEC BER current high warning last set time for media input
+    prefec_ber_min_host_input_hwarn{lane_num}           = STR ; Pre-FEC BER minimum high warning last set time for host input
+    prefec_ber_max_host_input_hwarn{lane_num}           = STR ; Pre-FEC BER maximum high warning last set time for host input
+    prefec_ber_avg_host_input_hwarn{lane_num}           = STR ; Pre-FEC BER average high warning last set time for host input
+    prefec_ber_curr_host_input_hwarn{lane_num}          = STR ; Pre-FEC BER current high warning last set time for host input
+    errored_frames_min_media_input_hwarn{lane_num}      = STR ; Errored frames minimum high warning last set time for media input
+    errored_frames_max_media_input_hwarn{lane_num}      = STR ; Errored frames maximum high warning last set time for media input
+    errored_frames_avg_media_input_hwarn{lane_num}      = STR ; Errored frames average high warning last set time for media input
+    errored_frames_curr_media_input_hwarn{lane_num}     = STR ; Errored frames current high warning last set time for media input
+    errored_frames_min_host_input_hwarn{lane_num}       = STR ; Errored frames minimum high warning last set time for host input
+    errored_frames_max_host_input_hwarn{lane_num}       = STR ; Errored frames maximum high warning last set time for host input
+    errored_frames_avg_host_input_hwarn{lane_num}       = STR ; Errored frames average high warning last set time for host input
+    errored_frames_curr_host_input_hwarn{lane_num}      = STR ; Errored frames current high warning last set time for host input
 
     ;C-CMIS specific fields
-    biasxi_hwarn_last_set_time                                        = STR ; modulator bias xi in percentage (high warning last set time)
-    biasxq_hwarn_last_set_time                                        = STR ; modulator bias xq in percentage (high warning last set time)
-    biasxp_hwarn_last_set_time                                        = STR ; modulator bias xp in percentage (high warning last set time)
-    biasyi_hwarn_last_set_time                                        = STR ; modulator bias yi in percentage (high warning last set time)
-    biasyq_hwarn_last_set_time                                        = STR ; modulator bias yq in percentage (high warning last set time)
-    biasyp_hwarn_last_set_time                                        = STR ; modulator bias yq in percentage (high warning last set time)
-    cdshort_hwarn_last_set_time                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (high warning last set time)
-    cdlong_hwarn_last_set_time                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (high warning last set time)
-    dgd_hwarn_last_set_time                                           = STR ; differential group delay in ps (high warning last set time)
-    sopmd_hwarn_last_set_time                                         = STR ; second order polarization mode dispersion in ps^2 (high warning last set time)
-    soproc_hwarn_last_set_time                                        = STR ; state of polarization rate of change in krad/s (high warning last set time)
-    pdl_hwarn_last_set_time                                           = STR ; polarization dependent loss in db (high warning last set time)
-    osnr_hwarn_last_set_time                                          = STR ; optical signal to noise ratio in db (high warning last set time)
-    esnr_hwarn_last_set_time                                          = STR ; electrical signal to noise ratio in db (high warning last set time)
-    cfo_hwarn_last_set_time                                           = STR ; carrier frequency offset in Hz (high warning last set time)
-    txcurrpower_hwarn_last_set_time                                   = STR ; tx current output power in dbm (high warning last set time)
-    rxtotpower_hwarn_last_set_time                                    = STR ; rx total power in  dbm (high warning last set time)
-    rxsigpower_hwarn_last_set_time                                    = STR; rx signal power in dbm (high warning last set time)
+    biasxi_hwarn                                        = STR ; modulator bias xi in percentage (high warning last set time)
+    biasxq_hwarn                                        = STR ; modulator bias xq in percentage (high warning last set time)
+    biasxp_hwarn                                        = STR ; modulator bias xp in percentage (high warning last set time)
+    biasyi_hwarn                                        = STR ; modulator bias yi in percentage (high warning last set time)
+    biasyq_hwarn                                        = STR ; modulator bias yq in percentage (high warning last set time)
+    biasyp_hwarn                                        = STR ; modulator bias yq in percentage (high warning last set time)
+    cdshort_hwarn                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (high warning last set time)
+    cdlong_hwarn                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (high warning last set time)
+    dgd_hwarn                                           = STR ; differential group delay in ps (high warning last set time)
+    sopmd_hwarn                                         = STR ; second order polarization mode dispersion in ps^2 (high warning last set time)
+    soproc_hwarn                                        = STR ; state of polarization rate of change in krad/s (high warning last set time)
+    pdl_hwarn                                           = STR ; polarization dependent loss in db (high warning last set time)
+    osnr_hwarn                                          = STR ; optical signal to noise ratio in db (high warning last set time)
+    esnr_hwarn                                          = STR ; electrical signal to noise ratio in db (high warning last set time)
+    cfo_hwarn                                           = STR ; carrier frequency offset in Hz (high warning last set time)
+    txcurrpower_hwarn                                   = STR ; tx current output power in dbm (high warning last set time)
+    rxtotpower_hwarn                                    = STR ; rx total power in  dbm (high warning last set time)
+    rxsigpower_hwarn                                    = STR; rx signal power in dbm (high warning last set time)
 ```
 
 ##### 2.2.5.4 Transceiver VDM low warning flag time set data
 
-The `TRANSCEIVER_VDM_LWARN_SET_TIME` table stores the flag time set for the VDM low warning flag.
+The `TRANSCEIVER_VDM_LWARN_FLAG_SET_TIME` table stores the last set time for the VDM low warning flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
 ```plaintext
     ;Defines Transceiver VDM low warning last set time for a port
-    key                          = TRANSCEIVER_VDM_LWARN_SET_TIME|ifname
+    key                          = TRANSCEIVER_VDM_LWARN_FLAG_SET_TIME|ifname
     ; field                      = value
-    laser_temperature_media_lwarn_last_set_time{lane_num}             = STR ; laser temperature low warning last set time for media input
-    esnr_media_input_lwarn_last_set_time{lane_num}                    = STR ; eSNR low warning last set time for media input
-    esnr_host_input_lwarn_last_set_time{lane_num}                     = STR ; eSNR low warning last set time for host input
-    pam4_level_transition_media_input_lwarn_last_set_time{lane_num}   = STR ; PAM4 level transition low warning last set time for media input
-    pam4_level_transition_host_input_lwarn_last_set_time{lane_num}    = STR ; PAM4 level transition low warning last set time for host input
-    prefec_ber_min_media_input_lwarn_last_set_time{lane_num}          = STR ; Pre-FEC BER minimum low warning last set time for media input
-    prefec_ber_max_media_input_lwarn_last_set_time{lane_num}          = STR ; Pre-FEC BER maximum low warning last set time for media input
-    prefec_ber_avg_media_input_lwarn_last_set_time{lane_num}          = STR ; Pre-FEC BER average low warning last set time for media input
-    prefec_ber_curr_media_input_lwarn_last_set_time{lane_num}         = STR ; Pre-FEC BER current low warning last set time for media input
-    prefec_ber_min_host_input_lwarn_last_set_time{lane_num}           = STR ; Pre-FEC BER minimum low warning last set time for host input
-    prefec_ber_max_host_input_lwarn_last_set_time{lane_num}           = STR ; Pre-FEC BER maximum low warning last set time for host input
-    prefec_ber_avg_host_input_lwarn_last_set_time{lane_num}           = STR ; Pre-FEC BER average low warning last set time for host input
-    prefec_ber_curr_host_input_lwarn_last_set_time{lane_num}          = STR ; Pre-FEC BER current low warning last set time for host input
-    errored_frames_min_media_input_lwarn_last_set_time{lane_num}      = STR ; Errored frames minimum low warning last set time for media input
-    errored_frames_max_media_input_lwarn_last_set_time{lane_num}      = STR ; Errored frames maximum low warning last set time for media input
-    errored_frames_avg_media_input_lwarn_last_set_time{lane_num}      = STR ; Errored frames average low warning last set time for media input
-    errored_frames_curr_media_input_lwarn_last_set_time{lane_num}     = STR ; Errored frames current low warning last set time for media input
-    errored_frames_min_host_input_lwarn_last_set_time{lane_num}       = STR ; Errored frames minimum low warning last set time for host input
-    errored_frames_max_host_input_lwarn_last_set_time{lane_num}       = STR ; Errored frames maximum low warning last set time for host input
-    errored_frames_avg_host_input_lwarn_last_set_time{lane_num}       = STR ; Errored frames average low warning last set time for host input
-    errored_frames_curr_host_input_lwarn_last_set_time{lane_num}      = STR ; Errored frames current low warning last set time for host input
+    laser_temperature_media_lwarn{lane_num}             = STR ; laser temperature low warning last set time for media input
+    esnr_media_input_lwarn{lane_num}                    = STR ; eSNR low warning last set time for media input
+    esnr_host_input_lwarn{lane_num}                     = STR ; eSNR low warning last set time for host input
+    pam4_level_transition_media_input_lwarn{lane_num}   = STR ; PAM4 level transition low warning last set time for media input
+    pam4_level_transition_host_input_lwarn{lane_num}    = STR ; PAM4 level transition low warning last set time for host input
+    prefec_ber_min_media_input_lwarn{lane_num}          = STR ; Pre-FEC BER minimum low warning last set time for media input
+    prefec_ber_max_media_input_lwarn{lane_num}          = STR ; Pre-FEC BER maximum low warning last set time for media input
+    prefec_ber_avg_media_input_lwarn{lane_num}          = STR ; Pre-FEC BER average low warning last set time for media input
+    prefec_ber_curr_media_input_lwarn{lane_num}         = STR ; Pre-FEC BER current low warning last set time for media input
+    prefec_ber_min_host_input_lwarn{lane_num}           = STR ; Pre-FEC BER minimum low warning last set time for host input
+    prefec_ber_max_host_input_lwarn{lane_num}           = STR ; Pre-FEC BER maximum low warning last set time for host input
+    prefec_ber_avg_host_input_lwarn{lane_num}           = STR ; Pre-FEC BER average low warning last set time for host input
+    prefec_ber_curr_host_input_lwarn{lane_num}          = STR ; Pre-FEC BER current low warning last set time for host input
+    errored_frames_min_media_input_lwarn{lane_num}      = STR ; Errored frames minimum low warning last set time for media input
+    errored_frames_max_media_input_lwarn{lane_num}      = STR ; Errored frames maximum low warning last set time for media input
+    errored_frames_avg_media_input_lwarn{lane_num}      = STR ; Errored frames average low warning last set time for media input
+    errored_frames_curr_media_input_lwarn{lane_num}     = STR ; Errored frames current low warning last set time for media input
+    errored_frames_min_host_input_lwarn{lane_num}       = STR ; Errored frames minimum low warning last set time for host input
+    errored_frames_max_host_input_lwarn{lane_num}       = STR ; Errored frames maximum low warning last set time for host input
+    errored_frames_avg_host_input_lwarn{lane_num}       = STR ; Errored frames average low warning last set time for host input
+    errored_frames_curr_host_input_lwarn{lane_num}      = STR ; Errored frames current low warning last set time for host input
 
     ;C-CMIS specific fields
-    biasxi_lwarn_last_set_time                                        = STR ; modulator bias xi in percentage (low warning last set time)
-    biasxq_lwarn_last_set_time                                        = STR ; modulator bias xq in percentage (low warning last set time)
-    biasxp_lwarn_last_set_time                                        = STR ; modulator bias xp in percentage (low warning last set time)
-    biasyi_lwarn_last_set_time                                        = STR ; modulator bias yi in percentage (low warning last set time)
-    biasyq_lwarn_last_set_time                                        = STR ; modulator bias yq in percentage (low warning last set time)
-    biasyp_lwarn_last_set_time                                        = STR ; modulator bias yq in percentage (low warning last set time)
-    cdshort_lwarn_last_set_time                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low warning last set time)
-    cdlong_lwarn_last_set_time                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low warning last set time)
-    dgd_lwarn_last_set_time                                           = STR ; differential group delay in ps (low warning last set time)
-    sopmd_lwarn_last_set_time                                         = STR ; second order polarization mode dispersion in ps^2 (low warning last set time)
-    soproc_lwarn_last_set_time                                        = STR ; state of polarization rate of change in krad/s (low warning last set time)
-    pdl_lwarn_last_set_time                                           = STR ; polarization dependent loss in db (low warning last set time)
-    osnr_lwarn_last_set_time                                          = STR ; optical signal to noise ratio in db (low warning last set time)
-    esnr_lwarn_last_set_time                                          = STR ; electrical signal to noise ratio in db (low warning last set time)
-    cfo_lwarn_last_set_time                                           = STR ; carrier frequency offset in Hz (low warning last set time)
-    txcurrpower_lwarn_last_set_time                                   = STR ; tx current output power in dbm (low warning last set time)
-    rxtotpower_lwarn_last_set_time                                    = STR ; rx total power in  dbm (low warning last set time)
-    rxsigpower_lwarn_last_set_time                                    = STR; rx signal power in dbm (low warning last set time)
+    biasxi_lwarn                                        = STR ; modulator bias xi in percentage (low warning last set time)
+    biasxq_lwarn                                        = STR ; modulator bias xq in percentage (low warning last set time)
+    biasxp_lwarn                                        = STR ; modulator bias xp in percentage (low warning last set time)
+    biasyi_lwarn                                        = STR ; modulator bias yi in percentage (low warning last set time)
+    biasyq_lwarn                                        = STR ; modulator bias yq in percentage (low warning last set time)
+    biasyp_lwarn                                        = STR ; modulator bias yq in percentage (low warning last set time)
+    cdshort_lwarn                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low warning last set time)
+    cdlong_lwarn                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low warning last set time)
+    dgd_lwarn                                           = STR ; differential group delay in ps (low warning last set time)
+    sopmd_lwarn                                         = STR ; second order polarization mode dispersion in ps^2 (low warning last set time)
+    soproc_lwarn                                        = STR ; state of polarization rate of change in krad/s (low warning last set time)
+    pdl_lwarn                                           = STR ; polarization dependent loss in db (low warning last set time)
+    osnr_lwarn                                          = STR ; optical signal to noise ratio in db (low warning last set time)
+    esnr_lwarn                                          = STR ; electrical signal to noise ratio in db (low warning last set time)
+    cfo_lwarn                                           = STR ; carrier frequency offset in Hz (low warning last set time)
+    txcurrpower_lwarn                                   = STR ; tx current output power in dbm (low warning last set time)
+    rxtotpower_lwarn                                    = STR ; rx total power in  dbm (low warning last set time)
+    rxsigpower_lwarn                                    = STR; rx signal power in dbm (low warning last set time)
 ```
 
 #### 2.2.6 Transceiver VDM flag time clear data
 
 ##### 2.2.6.1 Transceiver VDM high alarm flag time clear data
 
-The `TRANSCEIVER_VDM_HALARM_CLEAR_TIME` table stores the flag time clear for the VDM high alarm flag.
+The `TRANSCEIVER_VDM_HALARM_FLAG_CLEAR_TIME` table stores the last clear time for the VDM high alarm flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
 ```plaintext
     ;Defines Transceiver VDM high alarm last clear time for a port
-    key                          = TRANSCEIVER_VDM_HALARM_CLEAR_TIME|ifname
+    key                          = TRANSCEIVER_VDM_HALARM_FLAG_CLEAR_TIME|ifname
     ; field                      = value
-    laser_temperature_media_halarm_last_clear_time{lane_num}             = STR ; laser temperature high alarm last clear time for media input
-    esnr_media_input_halarm_last_clear_time{lane_num}                    = STR ; eSNR high alarm last clear time for media input
-    esnr_host_input_halarm_last_clear_time{lane_num}                     = STR ; eSNR high alarm last clear time for host input
-    pam4_level_transition_media_input_halarm_last_clear_time{lane_num}   = STR ; PAM4 level transition high alarm last clear time for media input
-    pam4_level_transition_host_input_halarm_last_clear_time{lane_num}    = STR ; PAM4 level transition high alarm last clear time for host input
-    prefec_ber_min_media_input_halarm_last_clear_time{lane_num}          = STR ; Pre-FEC BER minimum high alarm last clear time for media input
-    prefec_ber_max_media_input_halarm_last_clear_time{lane_num}          = STR ; Pre-FEC BER maximum high alarm last clear time for media input
-    prefec_ber_avg_media_input_halarm_last_clear_time{lane_num}          = STR ; Pre-FEC BER average high alarm last clear time for media input
-    prefec_ber_curr_media_input_halarm_last_clear_time{lane_num}         = STR ; Pre-FEC BER current high alarm last clear time for media input
-    prefec_ber_min_host_input_halarm_last_clear_time{lane_num}           = STR ; Pre-FEC BER minimum high alarm last clear time for host input
-    prefec_ber_max_host_input_halarm_last_clear_time{lane_num}           = STR ; Pre-FEC BER maximum high alarm last clear time for host input
-    prefec_ber_avg_host_input_halarm_last_clear_time{lane_num}           = STR ; Pre-FEC BER average high alarm last clear time for host input
-    prefec_ber_curr_host_input_halarm_last_clear_time{lane_num}          = STR ; Pre-FEC BER current high alarm last clear time for host input
-    errored_frames_min_media_input_halarm_last_clear_time{lane_num}      = STR ; Errored frames minimum high alarm last clear time for media input
-    errored_frames_max_media_input_halarm_last_clear_time{lane_num}      = STR ; Errored frames maximum high alarm last clear time for media input
-    errored_frames_avg_media_input_halarm_last_clear_time{lane_num}      = STR ; Errored frames average high alarm last clear time for media input
-    errored_frames_curr_media_input_halarm_last_clear_time{lane_num}     = STR ; Errored frames current high alarm last clear time for media input
-    errored_frames_min_host_input_halarm_last_clear_time{lane_num}       = STR ; Errored frames minimum high alarm last clear time for host input
-    errored_frames_max_host_input_halarm_last_clear_time{lane_num}       = STR ; Errored frames maximum high alarm last clear time for host input
-    errored_frames_avg_host_input_halarm_last_clear_time{lane_num}       = STR ; Errored frames average high alarm last clear time for host input
-    errored_frames_curr_host_input_halarm_last_clear_time{lane_num}      = STR ; Errored frames current high alarm last clear time for host input
+    laser_temperature_media_halarm{lane_num}             = STR ; laser temperature high alarm last clear time for media input
+    esnr_media_input_halarm{lane_num}                    = STR ; eSNR high alarm last clear time for media input
+    esnr_host_input_halarm{lane_num}                     = STR ; eSNR high alarm last clear time for host input
+    pam4_level_transition_media_input_halarm{lane_num}   = STR ; PAM4 level transition high alarm last clear time for media input
+    pam4_level_transition_host_input_halarm{lane_num}    = STR ; PAM4 level transition high alarm last clear time for host input
+    prefec_ber_min_media_input_halarm{lane_num}          = STR ; Pre-FEC BER minimum high alarm last clear time for media input
+    prefec_ber_max_media_input_halarm{lane_num}          = STR ; Pre-FEC BER maximum high alarm last clear time for media input
+    prefec_ber_avg_media_input_halarm{lane_num}          = STR ; Pre-FEC BER average high alarm last clear time for media input
+    prefec_ber_curr_media_input_halarm{lane_num}         = STR ; Pre-FEC BER current high alarm last clear time for media input
+    prefec_ber_min_host_input_halarm{lane_num}           = STR ; Pre-FEC BER minimum high alarm last clear time for host input
+    prefec_ber_max_host_input_halarm{lane_num}           = STR ; Pre-FEC BER maximum high alarm last clear time for host input
+    prefec_ber_avg_host_input_halarm{lane_num}           = STR ; Pre-FEC BER average high alarm last clear time for host input
+    prefec_ber_curr_host_input_halarm{lane_num}          = STR ; Pre-FEC BER current high alarm last clear time for host input
+    errored_frames_min_media_input_halarm{lane_num}      = STR ; Errored frames minimum high alarm last clear time for media input
+    errored_frames_max_media_input_halarm{lane_num}      = STR ; Errored frames maximum high alarm last clear time for media input
+    errored_frames_avg_media_input_halarm{lane_num}      = STR ; Errored frames average high alarm last clear time for media input
+    errored_frames_curr_media_input_halarm{lane_num}     = STR ; Errored frames current high alarm last clear time for media input
+    errored_frames_min_host_input_halarm{lane_num}       = STR ; Errored frames minimum high alarm last clear time for host input
+    errored_frames_max_host_input_halarm{lane_num}       = STR ; Errored frames maximum high alarm last clear time for host input
+    errored_frames_avg_host_input_halarm{lane_num}       = STR ; Errored frames average high alarm last clear time for host input
+    errored_frames_curr_host_input_halarm{lane_num}      = STR ; Errored frames current high alarm last clear time for host input
 
     ;C-CMIS specific fields
-    biasxi_halarm_last_clear_time                                        = STR ; modulator bias xi in percentage (high alarm last clear time)
-    biasxq_halarm_last_clear_time                                        = STR ; modulator bias xq in percentage (high alarm last clear time)
-    biasxp_halarm_last_clear_time                                        = STR ; modulator bias xp in percentage (high alarm last clear time)
-    biasyi_halarm_last_clear_time                                        = STR ; modulator bias yi in percentage (high alarm last clear time)
-    biasyq_halarm_last_clear_time                                        = STR ; modulator bias yq in percentage (high alarm last clear time)
-    biasyp_halarm_last_clear_time                                        = STR ; modulator bias yq in percentage (high alarm last clear time)
-    cdshort_halarm_last_clear_time                                       = STR ; chromatic dispersion, high granularity, short link in ps/nm (high alarm last clear time)
-    cdlong_halarm_last_clear_time                                        = STR ; chromatic dispersion, high granularity, long link in ps/nm (high alarm last clear time)
-    dgd_halarm_last_clear_time                                           = STR ; differential group delay in ps (high alarm last clear time)
-    sopmd_halarm_last_clear_time                                         = STR ; second order polarization mode dispersion in ps^2 (high alarm last clear time)
-    soproc_halarm_last_clear_time                                        = STR ; state of polarization rate of change in krad/s (high alarm last clear time)
-    pdl_halarm_last_clear_time                                           = STR ; polarization dependent loss in db (high alarm last clear time)
-    osnr_halarm_last_clear_time                                          = STR ; optical signal to noise ratio in db (high alarm last clear time)
-    esnr_halarm_last_clear_time                                          = STR ; electrical signal to noise ratio in db (high alarm last clear time)
-    cfo_halarm_last_clear_time                                           = STR ; carrier frequency offset in Hz (high alarm last clear time)
-    txcurrpower_halarm_last_clear_time                                   = STR ; tx current output power in dbm (high alarm last clear time)
-    rxtotpower_halarm_last_clear_time                                    = STR ; rx total power in  dbm (high alarm last clear time)
-    rxsigpower_halarm_last_clear_time                                    = STR; rx signal power in dbm (high alarm last clear time)
+    biasxi_halarm                                        = STR ; modulator bias xi in percentage (high alarm last clear time)
+    biasxq_halarm                                        = STR ; modulator bias xq in percentage (high alarm last clear time)
+    biasxp_halarm                                        = STR ; modulator bias xp in percentage (high alarm last clear time)
+    biasyi_halarm                                        = STR ; modulator bias yi in percentage (high alarm last clear time)
+    biasyq_halarm                                        = STR ; modulator bias yq in percentage (high alarm last clear time)
+    biasyp_halarm                                        = STR ; modulator bias yq in percentage (high alarm last clear time)
+    cdshort_halarm                                       = STR ; chromatic dispersion, high granularity, short link in ps/nm (high alarm last clear time)
+    cdlong_halarm                                        = STR ; chromatic dispersion, high granularity, long link in ps/nm (high alarm last clear time)
+    dgd_halarm                                           = STR ; differential group delay in ps (high alarm last clear time)
+    sopmd_halarm                                         = STR ; second order polarization mode dispersion in ps^2 (high alarm last clear time)
+    soproc_halarm                                        = STR ; state of polarization rate of change in krad/s (high alarm last clear time)
+    pdl_halarm                                           = STR ; polarization dependent loss in db (high alarm last clear time)
+    osnr_halarm                                          = STR ; optical signal to noise ratio in db (high alarm last clear time)
+    esnr_halarm                                          = STR ; electrical signal to noise ratio in db (high alarm last clear time)
+    cfo_halarm                                           = STR ; carrier frequency offset in Hz (high alarm last clear time)
+    txcurrpower_halarm                                   = STR ; tx current output power in dbm (high alarm last clear time)
+    rxtotpower_halarm                                    = STR ; rx total power in  dbm (high alarm last clear time)
+    rxsigpower_halarm                                    = STR; rx signal power in dbm (high alarm last clear time)
 ```
 
 ##### 2.2.6.2 Transceiver VDM low alarm flag time clear data
 
-The `TRANSCEIVER_VDM_LALARM_CLEAR_TIME` table stores the flag time clear for the VDM low alarm flag.
+The `TRANSCEIVER_VDM_LALARM_FLAG_CLEAR_TIME` table stores the last clear time for the VDM low alarm flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
 ```plaintext
     ;Defines Transceiver VDM low alarm last clear time for a port
-    key                          = TRANSCEIVER_VDM_LALARM_CLEAR_TIME|ifname
+    key                          = TRANSCEIVER_VDM_LALARM_FLAG_CLEAR_TIME|ifname
     ; field                      = value
-    laser_temperature_media_lalarm_last_clear_time{lane_num}             = STR ; laser temperature low alarm last clear time for media input
-    esnr_media_input_lalarm_last_clear_time{lane_num}                    = STR ; eSNR low alarm last clear time for media input
-    esnr_host_input_lalarm_last_clear_time{lane_num}                     = STR ; eSNR low alarm last clear time for host input
-    pam4_level_transition_media_input_lalarm_last_clear_time{lane_num}   = STR ; PAM4 level transition low alarm last clear time for media input
-    pam4_level_transition_host_input_lalarm_last_clear_time{lane_num}    = STR ; PAM4 level transition low alarm last clear time for host input
-    prefec_ber_min_media_input_lalarm_last_clear_time{lane_num}          = STR ; Pre-FEC BER minimum low alarm last clear time for media input
-    prefec_ber_max_media_input_lalarm_last_clear_time{lane_num}          = STR ; Pre-FEC BER maximum low alarm last clear time for media input
-    prefec_ber_avg_media_input_lalarm_last_clear_time{lane_num}          = STR ; Pre-FEC BER average low alarm last clear time for media input
-    prefec_ber_curr_media_input_lalarm_last_clear_time{lane_num}         = STR ; Pre-FEC BER current low alarm last clear time for media input
-    prefec_ber_min_host_input_lalarm_last_clear_time{lane_num}           = STR ; Pre-FEC BER minimum low alarm last clear time for host input
-    prefec_ber_max_host_input_lalarm_last_clear_time{lane_num}           = STR ; Pre-FEC BER maximum low alarm last clear time for host input
-    prefec_ber_avg_host_input_lalarm_last_clear_time{lane_num}           = STR ; Pre-FEC BER average low alarm last clear time for host input
-    prefec_ber_curr_host_input_lalarm_last_clear_time{lane_num}          = STR ; Pre-FEC BER current low alarm last clear time for host input
-    errored_frames_min_media_input_lalarm_last_clear_time{lane_num}      = STR ; Errored frames minimum low alarm last clear time for media input
-    errored_frames_max_media_input_lalarm_last_clear_time{lane_num}      = STR ; Errored frames maximum low alarm last clear time for media input
-    errored_frames_avg_media_input_lalarm_last_clear_time{lane_num}      = STR ; Errored frames average low alarm last clear time for media input
-    errored_frames_curr_media_input_lalarm_last_clear_time{lane_num}     = STR ; Errored frames current low alarm last clear time for media input
-    errored_frames_min_host_input_lalarm_last_clear_time{lane_num}       = STR ; Errored frames minimum low alarm last clear time for host input
-    errored_frames_max_host_input_lalarm_last_clear_time{lane_num}       = STR ; Errored frames maximum low alarm last clear time for host input
-    errored_frames_avg_host_input_lalarm_last_clear_time{lane_num}       = STR ; Errored frames average low alarm last clear time for host input
-    errored_frames_curr_host_input_lalarm_last_clear_time{lane_num}      = STR ; Errored frames current low alarm last clear time for host input
+    laser_temperature_media_lalarm{lane_num}             = STR ; laser temperature low alarm last clear time for media input
+    esnr_media_input_lalarm{lane_num}                    = STR ; eSNR low alarm last clear time for media input
+    esnr_host_input_lalarm{lane_num}                     = STR ; eSNR low alarm last clear time for host input
+    pam4_level_transition_media_input_lalarm{lane_num}   = STR ; PAM4 level transition low alarm last clear time for media input
+    pam4_level_transition_host_input_lalarm{lane_num}    = STR ; PAM4 level transition low alarm last clear time for host input
+    prefec_ber_min_media_input_lalarm{lane_num}          = STR ; Pre-FEC BER minimum low alarm last clear time for media input
+    prefec_ber_max_media_input_lalarm{lane_num}          = STR ; Pre-FEC BER maximum low alarm last clear time for media input
+    prefec_ber_avg_media_input_lalarm{lane_num}          = STR ; Pre-FEC BER average low alarm last clear time for media input
+    prefec_ber_curr_media_input_lalarm{lane_num}         = STR ; Pre-FEC BER current low alarm last clear time for media input
+    prefec_ber_min_host_input_lalarm{lane_num}           = STR ; Pre-FEC BER minimum low alarm last clear time for host input
+    prefec_ber_max_host_input_lalarm{lane_num}           = STR ; Pre-FEC BER maximum low alarm last clear time for host input
+    prefec_ber_avg_host_input_lalarm{lane_num}           = STR ; Pre-FEC BER average low alarm last clear time for host input
+    prefec_ber_curr_host_input_lalarm{lane_num}          = STR ; Pre-FEC BER current low alarm last clear time for host input
+    errored_frames_min_media_input_lalarm{lane_num}      = STR ; Errored frames minimum low alarm last clear time for media input
+    errored_frames_max_media_input_lalarm{lane_num}      = STR ; Errored frames maximum low alarm last clear time for media input
+    errored_frames_avg_media_input_lalarm{lane_num}      = STR ; Errored frames average low alarm last clear time for media input
+    errored_frames_curr_media_input_lalarm{lane_num}     = STR ; Errored frames current low alarm last clear time for media input
+    errored_frames_min_host_input_lalarm{lane_num}       = STR ; Errored frames minimum low alarm last clear time for host input
+    errored_frames_max_host_input_lalarm{lane_num}       = STR ; Errored frames maximum low alarm last clear time for host input
+    errored_frames_avg_host_input_lalarm{lane_num}       = STR ; Errored frames average low alarm last clear time for host input
+    errored_frames_curr_host_input_lalarm{lane_num}      = STR ; Errored frames current low alarm last clear time for host input
 
     ;C-CMIS specific fields
-    biasxi_lalarm_last_clear_time                                        = STR ; modulator bias xi in percentage (low alarm last clear time)
-    biasxq_lalarm_last_clear_time                                        = STR ; modulator bias xq in percentage (low alarm last clear time)
-    biasxp_lalarm_last_clear_time                                        = STR ; modulator bias xp in percentage (low alarm last clear time)
-    biasyi_lalarm_last_clear_time                                        = STR ; modulator bias yi in percentage (low alarm last clear time)
-    biasyq_lalarm_last_clear_time                                        = STR ; modulator bias yq in percentage (low alarm last clear time)
-    biasyp_lalarm_last_clear_time                                        = STR ; modulator bias yq in percentage (low alarm last clear time)
-    cdshort_lalarm_last_clear_time                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low alarm last clear time)
-    cdlong_lalarm_last_clear_time                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low alarm last clear time)
-    dgd_lalarm_last_clear_time                                           = STR ; differential group delay in ps (low alarm last clear time)
-    sopmd_lalarm_last_clear_time                                         = STR ; second order polarization mode dispersion in ps^2 (low alarm last clear time)
-    soproc_lalarm_last_clear_time                                        = STR ; state of polarization rate of change in krad/s (low alarm last clear time)
-    pdl_lalarm_last_clear_time                                           = STR ; polarization dependent loss in db (low alarm last clear time)
-    osnr_lalarm_last_clear_time                                          = STR ; optical signal to noise ratio in db (low alarm last clear time)
-    esnr_lalarm_last_clear_time                                          = STR ; electrical signal to noise ratio in db (low alarm last clear time)
-    cfo_lalarm_last_clear_time                                           = STR ; carrier frequency offset in Hz (low alarm last clear time)
-    txcurrpower_lalarm_last_clear_time                                   = STR ; tx current output power in dbm (low alarm last clear time)
-    rxtotpower_lalarm_last_clear_time                                    = STR ; rx total power in  dbm (low alarm last clear time)
-    rxsigpower_lalarm_last_clear_time                                    = STR; rx signal power in dbm (low alarm last clear time)
+    biasxi_lalarm                                        = STR ; modulator bias xi in percentage (low alarm last clear time)
+    biasxq_lalarm                                        = STR ; modulator bias xq in percentage (low alarm last clear time)
+    biasxp_lalarm                                        = STR ; modulator bias xp in percentage (low alarm last clear time)
+    biasyi_lalarm                                        = STR ; modulator bias yi in percentage (low alarm last clear time)
+    biasyq_lalarm                                        = STR ; modulator bias yq in percentage (low alarm last clear time)
+    biasyp_lalarm                                        = STR ; modulator bias yq in percentage (low alarm last clear time)
+    cdshort_lalarm                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low alarm last clear time)
+    cdlong_lalarm                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low alarm last clear time)
+    dgd_lalarm                                           = STR ; differential group delay in ps (low alarm last clear time)
+    sopmd_lalarm                                         = STR ; second order polarization mode dispersion in ps^2 (low alarm last clear time)
+    soproc_lalarm                                        = STR ; state of polarization rate of change in krad/s (low alarm last clear time)
+    pdl_lalarm                                           = STR ; polarization dependent loss in db (low alarm last clear time)
+    osnr_lalarm                                          = STR ; optical signal to noise ratio in db (low alarm last clear time)
+    esnr_lalarm                                          = STR ; electrical signal to noise ratio in db (low alarm last clear time)
+    cfo_lalarm                                           = STR ; carrier frequency offset in Hz (low alarm last clear time)
+    txcurrpower_lalarm                                   = STR ; tx current output power in dbm (low alarm last clear time)
+    rxtotpower_lalarm                                    = STR ; rx total power in  dbm (low alarm last clear time)
+    rxsigpower_lalarm                                    = STR; rx signal power in dbm (low alarm last clear time)
 ```
 
 ##### 2.2.6.3 Transceiver VDM high warning flag time clear data
 
-The `TRANSCEIVER_VDM_HWARN_CLEAR_TIME` table stores the flag time clear for the VDM high warning flag.
+The `TRANSCEIVER_VDM_HWARN_FLAG_CLEAR_TIME` table stores the last clear time for the VDM high warning flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
 ```plaintext
     ;Defines Transceiver VDM high warning last clear time for a port
-    key                          = TRANSCEIVER_VDM_HWARN_CLEAR_TIME|ifname
+    key                          = TRANSCEIVER_VDM_HWARN_FLAG_CLEAR_TIME|ifname
     ; field                      = value
-    laser_temperature_media_hwarn_last_clear_time{lane_num}             = STR ; laser temperature high warning last clear time for media input
-    esnr_media_input_hwarn_last_clear_time{lane_num}                    = STR ; eSNR high warning last clear time for media input
-    esnr_host_input_hwarn_last_clear_time{lane_num}                     = STR ; eSNR high warning last clear time for host input
-    pam4_level_transition_media_input_hwarn_last_clear_time{lane_num}   = STR ; PAM4 level transition high warning last clear time for media input
-    pam4_level_transition_host_input_hwarn_last_clear_time{lane_num}    = STR ; PAM4 level transition high warning last clear time for host input
-    prefec_ber_min_media_input_hwarn_last_clear_time{lane_num}          = STR ; Pre-FEC BER minimum high warning last clear time for media input
-    prefec_ber_max_media_input_hwarn_last_clear_time{lane_num}          = STR ; Pre-FEC BER maximum high warning last clear time for media input
-    prefec_ber_avg_media_input_hwarn_last_clear_time{lane_num}          = STR ; Pre-FEC BER average high warning last clear time for media input
-    prefec_ber_curr_media_input_hwarn_last_clear_time{lane_num}         = STR ; Pre-FEC BER current high warning last clear time for media input
-    prefec_ber_min_host_input_hwarn_last_clear_time{lane_num}           = STR ; Pre-FEC BER minimum high warning last clear time for host input
-    prefec_ber_max_host_input_hwarn_last_clear_time{lane_num}           = STR ; Pre-FEC BER maximum high warning last clear time for host input
-    prefec_ber_avg_host_input_hwarn_last_clear_time{lane_num}           = STR ; Pre-FEC BER average high warning last clear time for host input
-    prefec_ber_curr_host_input_hwarn_last_clear_time{lane_num}          = STR ; Pre-FEC BER current high warning last clear time for host input
-    errored_frames_min_media_input_hwarn_last_clear_time{lane_num}      = STR ; Errored frames minimum high warning last clear time for media input
-    errored_frames_max_media_input_hwarn_last_clear_time{lane_num}      = STR ; Errored frames maximum high warning last clear time for media input
-    errored_frames_avg_media_input_hwarn_last_clear_time{lane_num}      = STR ; Errored frames average high warning last clear time for media input
-    errored_frames_curr_media_input_hwarn_last_clear_time{lane_num}     = STR ; Errored frames current high warning last clear time for media input
-    errored_frames_min_host_input_hwarn_last_clear_time{lane_num}       = STR ; Errored frames minimum high warning last clear time for host input
-    errored_frames_max_host_input_hwarn_last_clear_time{lane_num}       = STR ; Errored frames maximum high warning last clear time for host input
-    errored_frames_avg_host_input_hwarn_last_clear_time{lane_num}       = STR ; Errored frames average high warning last clear time for host input
-    errored_frames_curr_host_input_hwarn_last_clear_time{lane_num}      = STR ; Errored frames current high warning last clear time for host input
+    laser_temperature_media_hwarn{lane_num}             = STR ; laser temperature high warning last clear time for media input
+    esnr_media_input_hwarn{lane_num}                    = STR ; eSNR high warning last clear time for media input
+    esnr_host_input_hwarn{lane_num}                     = STR ; eSNR high warning last clear time for host input
+    pam4_level_transition_media_input_hwarn{lane_num}   = STR ; PAM4 level transition high warning last clear time for media input
+    pam4_level_transition_host_input_hwarn{lane_num}    = STR ; PAM4 level transition high warning last clear time for host input
+    prefec_ber_min_media_input_hwarn{lane_num}          = STR ; Pre-FEC BER minimum high warning last clear time for media input
+    prefec_ber_max_media_input_hwarn{lane_num}          = STR ; Pre-FEC BER maximum high warning last clear time for media input
+    prefec_ber_avg_media_input_hwarn{lane_num}          = STR ; Pre-FEC BER average high warning last clear time for media input
+    prefec_ber_curr_media_input_hwarn{lane_num}         = STR ; Pre-FEC BER current high warning last clear time for media input
+    prefec_ber_min_host_input_hwarn{lane_num}           = STR ; Pre-FEC BER minimum high warning last clear time for host input
+    prefec_ber_max_host_input_hwarn{lane_num}           = STR ; Pre-FEC BER maximum high warning last clear time for host input
+    prefec_ber_avg_host_input_hwarn{lane_num}           = STR ; Pre-FEC BER average high warning last clear time for host input
+    prefec_ber_curr_host_input_hwarn{lane_num}          = STR ; Pre-FEC BER current high warning last clear time for host input
+    errored_frames_min_media_input_hwarn{lane_num}      = STR ; Errored frames minimum high warning last clear time for media input
+    errored_frames_max_media_input_hwarn{lane_num}      = STR ; Errored frames maximum high warning last clear time for media input
+    errored_frames_avg_media_input_hwarn{lane_num}      = STR ; Errored frames average high warning last clear time for media input
+    errored_frames_curr_media_input_hwarn{lane_num}     = STR ; Errored frames current high warning last clear time for media input
+    errored_frames_min_host_input_hwarn{lane_num}       = STR ; Errored frames minimum high warning last clear time for host input
+    errored_frames_max_host_input_hwarn{lane_num}       = STR ; Errored frames maximum high warning last clear time for host input
+    errored_frames_avg_host_input_hwarn{lane_num}       = STR ; Errored frames average high warning last clear time for host input
+    errored_frames_curr_host_input_hwarn{lane_num}      = STR ; Errored frames current high warning last clear time for host input
 
     ;C-CMIS specific fields
-    biasxi_hwarn_last_clear_time                                        = STR ; modulator bias xi in percentage (high warning last clear time)
-    biasxq_hwarn_last_clear_time                                        = STR ; modulator bias xq in percentage (high warning last clear time)
-    biasxp_hwarn_last_clear_time                                        = STR ; modulator bias xp in percentage (high warning last clear time)
-    biasyi_hwarn_last_clear_time                                        = STR ; modulator bias yi in percentage (high warning last clear time)
-    biasyq_hwarn_last_clear_time                                        = STR ; modulator bias yq in percentage (high warning last clear time)
-    biasyp_hwarn_last_clear_time                                        = STR ; modulator bias yq in percentage (high warning last clear time)
-    cdshort_hwarn_last_clear_time                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (high warning last clear time)
-    cdlong_hwarn_last_clear_time                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (high warning last clear time)
-    dgd_hwarn_last_clear_time                                           = STR ; differential group delay in ps (high warning last clear time)
-    sopmd_hwarn_last_clear_time                                         = STR ; second order polarization mode dispersion in ps^2 (high warning last clear time)
-    soproc_hwarn_last_clear_time                                        = STR ; state of polarization rate of change in krad/s (high warning last clear time)
-    pdl_hwarn_last_clear_time                                           = STR ; polarization dependent loss in db (high warning last clear time)
-    osnr_hwarn_last_clear_time                                          = STR ; optical signal to noise ratio in db (high warning last clear time)
-    esnr_hwarn_last_clear_time                                          = STR ; electrical signal to noise ratio in db (high warning last clear time)
-    cfo_hwarn_last_clear_time                                           = STR ; carrier frequency offset in Hz (high warning last clear time)
-    txcurrpower_hwarn_last_clear_time                                   = STR ; tx current output power in dbm (high warning last clear time)
-    rxtotpower_hwarn_last_clear_time                                    = STR ; rx total power in  dbm (high warning last clear time)
-    rxsigpower_hwarn_last_clear_time                                    = STR; rx signal power in dbm (high warning last clear time)
+    biasxi_hwarn                                        = STR ; modulator bias xi in percentage (high warning last clear time)
+    biasxq_hwarn                                        = STR ; modulator bias xq in percentage (high warning last clear time)
+    biasxp_hwarn                                        = STR ; modulator bias xp in percentage (high warning last clear time)
+    biasyi_hwarn                                        = STR ; modulator bias yi in percentage (high warning last clear time)
+    biasyq_hwarn                                        = STR ; modulator bias yq in percentage (high warning last clear time)
+    biasyp_hwarn                                        = STR ; modulator bias yq in percentage (high warning last clear time)
+    cdshort_hwarn                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (high warning last clear time)
+    cdlong_hwarn                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (high warning last clear time)
+    dgd_hwarn                                           = STR ; differential group delay in ps (high warning last clear time)
+    sopmd_hwarn                                         = STR ; second order polarization mode dispersion in ps^2 (high warning last clear time)
+    soproc_hwarn                                        = STR ; state of polarization rate of change in krad/s (high warning last clear time)
+    pdl_hwarn                                           = STR ; polarization dependent loss in db (high warning last clear time)
+    osnr_hwarn                                          = STR ; optical signal to noise ratio in db (high warning last clear time)
+    esnr_hwarn                                          = STR ; electrical signal to noise ratio in db (high warning last clear time)
+    cfo_hwarn                                           = STR ; carrier frequency offset in Hz (high warning last clear time)
+    txcurrpower_hwarn                                   = STR ; tx current output power in dbm (high warning last clear time)
+    rxtotpower_hwarn                                    = STR ; rx total power in  dbm (high warning last clear time)
+    rxsigpower_hwarn                                    = STR; rx signal power in dbm (high warning last clear time)
 ```
 
 ##### 2.2.6.4 Transceiver VDM low warning flag time clear data
 
-The `TRANSCEIVER_VDM_LWARN_CLEAR_TIME` table stores the flag time clear for the VDM low warning flag.
+The `TRANSCEIVER_VDM_LWARN_FLAG_CLEAR_TIME` table stores the last clear time for the VDM low warning flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
 ```plaintext
     ;Defines Transceiver VDM low warning last clear time for a port
-    key                          = TRANSCEIVER_VDM_LWARN_CLEAR_TIME|ifname
+    key                          = TRANSCEIVER_VDM_LWARN_FLAG_CLEAR_TIME|ifname
     ; field                      = value
-    laser_temperature_media_lwarn_last_clear_time{lane_num}             = STR ; laser temperature low warning last clear time for media input
-    esnr_media_input_lwarn_last_clear_time{lane_num}                    = STR ; eSNR low warning last clear time for media input
-    esnr_host_input_lwarn_last_clear_time{lane_num}                     = STR ; eSNR low warning last clear time for host input
-    pam4_level_transition_media_input_lwarn_last_clear_time{lane_num}   = STR ; PAM4 level transition low warning last clear time for media input
-    pam4_level_transition_host_input_lwarn_last_clear_time{lane_num}    = STR ; PAM4 level transition low warning last clear time for host input
-    prefec_ber_min_media_input_lwarn_last_clear_time{lane_num}          = STR ; Pre-FEC BER minimum low warning last clear time for media input
-    prefec_ber_max_media_input_lwarn_last_clear_time{lane_num}          = STR ; Pre-FEC BER maximum low warning last clear time for media input
-    prefec_ber_avg_media_input_lwarn_last_clear_time{lane_num}          = STR ; Pre-FEC BER average low warning last clear time for media input
-    prefec_ber_curr_media_input_lwarn_last_clear_time{lane_num}         = STR ; Pre-FEC BER current low warning last clear time for media input
-    prefec_ber_min_host_input_lwarn_last_clear_time{lane_num}           = STR ; Pre-FEC BER minimum low warning last clear time for host input
-    prefec_ber_max_host_input_lwarn_last_clear_time{lane_num}           = STR ; Pre-FEC BER maximum low warning last clear time for host input
-    prefec_ber_avg_host_input_lwarn_last_clear_time{lane_num}           = STR ; Pre-FEC BER average low warning last clear time for host input
-    prefec_ber_curr_host_input_lwarn_last_clear_time{lane_num}          = STR ; Pre-FEC BER current low warning last clear time for host input
-    errored_frames_min_media_input_lwarn_last_clear_time{lane_num}      = STR ; Errored frames minimum low warning last clear time for media input
-    errored_frames_max_media_input_lwarn_last_clear_time{lane_num}      = STR ; Errored frames maximum low warning last clear time for media input
-    errored_frames_avg_media_input_lwarn_last_clear_time{lane_num}      = STR ; Errored frames average low warning last clear time for media input
-    errored_frames_curr_media_input_lwarn_last_clear_time{lane_num}     = STR ; Errored frames current low warning last clear time for media input
-    errored_frames_min_host_input_lwarn_last_clear_time{lane_num}       = STR ; Errored frames minimum low warning last clear time for host input
-    errored_frames_max_host_input_lwarn_last_clear_time{lane_num}       = STR ; Errored frames maximum low warning last clear time for host input
-    errored_frames_avg_host_input_lwarn_last_clear_time{lane_num}       = STR ; Errored frames average low warning last clear time for host input
-    errored_frames_curr_host_input_lwarn_last_clear_time{lane_num}      = STR ; Errored frames current low warning last clear time for host input
+    laser_temperature_media_lwarn{lane_num}             = STR ; laser temperature low warning last clear time for media input
+    esnr_media_input_lwarn{lane_num}                    = STR ; eSNR low warning last clear time for media input
+    esnr_host_input_lwarn{lane_num}                     = STR ; eSNR low warning last clear time for host input
+    pam4_level_transition_media_input_lwarn{lane_num}   = STR ; PAM4 level transition low warning last clear time for media input
+    pam4_level_transition_host_input_lwarn{lane_num}    = STR ; PAM4 level transition low warning last clear time for host input
+    prefec_ber_min_media_input_lwarn{lane_num}          = STR ; Pre-FEC BER minimum low warning last clear time for media input
+    prefec_ber_max_media_input_lwarn{lane_num}          = STR ; Pre-FEC BER maximum low warning last clear time for media input
+    prefec_ber_avg_media_input_lwarn{lane_num}          = STR ; Pre-FEC BER average low warning last clear time for media input
+    prefec_ber_curr_media_input_lwarn{lane_num}         = STR ; Pre-FEC BER current low warning last clear time for media input
+    prefec_ber_min_host_input_lwarn{lane_num}           = STR ; Pre-FEC BER minimum low warning last clear time for host input
+    prefec_ber_max_host_input_lwarn{lane_num}           = STR ; Pre-FEC BER maximum low warning last clear time for host input
+    prefec_ber_avg_host_input_lwarn{lane_num}           = STR ; Pre-FEC BER average low warning last clear time for host input
+    prefec_ber_curr_host_input_lwarn{lane_num}          = STR ; Pre-FEC BER current low warning last clear time for host input
+    errored_frames_min_media_input_lwarn{lane_num}      = STR ; Errored frames minimum low warning last clear time for media input
+    errored_frames_max_media_input_lwarn{lane_num}      = STR ; Errored frames maximum low warning last clear time for media input
+    errored_frames_avg_media_input_lwarn{lane_num}      = STR ; Errored frames average low warning last clear time for media input
+    errored_frames_curr_media_input_lwarn{lane_num}     = STR ; Errored frames current low warning last clear time for media input
+    errored_frames_min_host_input_lwarn{lane_num}       = STR ; Errored frames minimum low warning last clear time for host input
+    errored_frames_max_host_input_lwarn{lane_num}       = STR ; Errored frames maximum low warning last clear time for host input
+    errored_frames_avg_host_input_lwarn{lane_num}       = STR ; Errored frames average low warning last clear time for host input
+    errored_frames_curr_host_input_lwarn{lane_num}      = STR ; Errored frames current low warning last clear time for host input
 
     ;C-CMIS specific fields
-    biasxi_lwarn_last_clear_time                                        = STR ; modulator bias xi in percentage (low warning last clear time)
-    biasxq_lwarn_last_clear_time                                        = STR ; modulator bias xq in percentage (low warning last clear time)
-    biasxp_lwarn_last_clear_time                                        = STR ; modulator bias xp in percentage (low warning last clear time)
-    biasyi_lwarn_last_clear_time                                        = STR ; modulator bias yi in percentage (low warning last clear time)
-    biasyq_lwarn_last_clear_time                                        = STR ; modulator bias yq in percentage (low warning last clear time)
-    biasyp_lwarn_last_clear_time                                        = STR ; modulator bias yq in percentage (low warning last clear time)
-    cdshort_lwarn_last_clear_time                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low warning last clear time)
-    cdlong_lwarn_last_clear_time                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low warning last clear time)
-    dgd_lwarn_last_clear_time                                           = STR ; differential group delay in ps (low warning last clear time)
-    sopmd_lwarn_last_clear_time                                         = STR ; second order polarization mode dispersion in ps^2 (low warning last clear time)
-    soproc_lwarn_last_clear_time                                        = STR ; state of polarization rate of change in krad/s (low warning last clear time)
-    pdl_lwarn_last_clear_time                                           = STR ; polarization dependent loss in db (low warning last clear time)
-    osnr_lwarn_last_clear_time                                          = STR ; optical signal to noise ratio in db (low warning last clear time)
-    esnr_lwarn_last_clear_time                                          = STR ; electrical signal to noise ratio in db (low warning last clear time)
-    cfo_lwarn_last_clear_time                                           = STR ; carrier frequency offset in Hz (low warning last clear time)
-    txcurrpower_lwarn_last_clear_time                                   = STR ; tx current output power in dbm (low warning last clear time)
-    rxtotpower_lwarn_last_clear_time                                    = STR ; rx total power in  dbm (low warning last clear time)
-    rxsigpower_lwarn_last_clear_time                                    = STR; rx signal power in dbm (low warning last clear time)
+    biasxi_lwarn                                        = STR ; modulator bias xi in percentage (low warning last clear time)
+    biasxq_lwarn                                        = STR ; modulator bias xq in percentage (low warning last clear time)
+    biasxp_lwarn                                        = STR ; modulator bias xp in percentage (low warning last clear time)
+    biasyi_lwarn                                        = STR ; modulator bias yi in percentage (low warning last clear time)
+    biasyq_lwarn                                        = STR ; modulator bias yq in percentage (low warning last clear time)
+    biasyp_lwarn                                        = STR ; modulator bias yq in percentage (low warning last clear time)
+    cdshort_lwarn                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low warning last clear time)
+    cdlong_lwarn                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low warning last clear time)
+    dgd_lwarn                                           = STR ; differential group delay in ps (low warning last clear time)
+    sopmd_lwarn                                         = STR ; second order polarization mode dispersion in ps^2 (low warning last clear time)
+    soproc_lwarn                                        = STR ; state of polarization rate of change in krad/s (low warning last clear time)
+    pdl_lwarn                                           = STR ; polarization dependent loss in db (low warning last clear time)
+    osnr_lwarn                                          = STR ; optical signal to noise ratio in db (low warning last clear time)
+    esnr_lwarn                                          = STR ; electrical signal to noise ratio in db (low warning last clear time)
+    cfo_lwarn                                           = STR ; carrier frequency offset in Hz (low warning last clear time)
+    txcurrpower_lwarn                                   = STR ; tx current output power in dbm (low warning last clear time)
+    rxtotpower_lwarn                                    = STR ; rx total power in  dbm (low warning last clear time)
+    rxsigpower_lwarn                                    = STR; rx signal power in dbm (low warning last clear time)
 ```
 
 ### 2.3 Transceiver status data
@@ -1441,25 +1441,25 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ; Defines Transceiver Status info for a port
     key                                     = TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT|ifname        ; Flag information for module on port
     ; field                                 = value
-    datapath_firmware_fault_chg_cnt           = INTEGER           ; datapath (DSP) firmware fault change count
-    module_firmware_fault_chg_cnt             = INTEGER           ; module firmware fault change count
-    module_state_changed_chg_cnt              = INTEGER           ; module state changed change count
-    txfault{lane_num}_chg_cnt                 = INTEGER           ; tx fault flag on media lane {lane_num} change count
-    txlos_hostlane{lane_num}_chg_cnt          = INTEGER           ; tx loss of signal flag on host lane {lane_num} change count
-    txcdrlol_hostlane{lane_num}_chg_cnt       = INTEGER           ; tx clock and data recovery loss of lock flag on host lane {lane_num} change count
-    tx_eq_fault{lane_num}_chg_cnt             = INTEGER           ; tx equalization fault flag on host lane {lane_num} change count
-    rxlos{lane_num}_chg_cnt                   = INTEGER           ; rx loss of signal flag on media lane {lane_num} change count
-    rxcdrlol{lane_num}_chg_cnt                = INTEGER           ; rx clock and data recovery loss of lock flag on media lane {lane_num} change count
-    target_output_power_oor_chg_cnt           = INTEGER           ; target output power out of range flag change count
-    fine_tuning_oor_chg_cnt                   = INTEGER           ; fine tuning  out of range flag change count
-    tuning_not_accepted_chg_cnt               = INTEGER           ; tuning not accepted flag change count
-    invalid_channel_num_chg_cnt               = INTEGER           ; invalid channel number flag change count
-    tuning_complete_chg_cnt                   = INTEGER           ; tuning complete flag change count
+    datapath_firmware_fault           = INTEGER           ; datapath (DSP) firmware fault change count
+    module_firmware_fault             = INTEGER           ; module firmware fault change count
+    module_state_changed              = INTEGER           ; module state changed change count
+    txfault{lane_num}                 = INTEGER           ; tx fault flag on media lane {lane_num} change count
+    txlos_hostlane{lane_num}          = INTEGER           ; tx loss of signal flag on host lane {lane_num} change count
+    txcdrlol_hostlane{lane_num}       = INTEGER           ; tx clock and data recovery loss of lock flag on host lane {lane_num} change count
+    tx_eq_fault{lane_num}             = INTEGER           ; tx equalization fault flag on host lane {lane_num} change count
+    rxlos{lane_num}                   = INTEGER           ; rx loss of signal flag on media lane {lane_num} change count
+    rxcdrlol{lane_num}                = INTEGER           ; rx clock and data recovery loss of lock flag on media lane {lane_num} change count
+    target_output_power_oor           = INTEGER           ; target output power out of range flag change count
+    fine_tuning_oor                   = INTEGER           ; fine tuning  out of range flag change count
+    tuning_not_accepted               = INTEGER           ; tuning not accepted flag change count
+    invalid_channel_num               = INTEGER           ; invalid channel number flag change count
+    tuning_complete                   = INTEGER           ; tuning complete flag change count
 ```
 
 #### 2.3.4 Transceiver status data to store module and data path flag set time
 
-The `TRANSCEIVER_STATUS_FLAG_SET_TIME` table stores the set time for the transceiver flag.
+The `TRANSCEIVER_STATUS_FLAG_SET_TIME` table stores the last set time for the transceiver flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
@@ -1467,25 +1467,25 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ; Defines Transceiver Status info for a port
     key                                        = TRANSCEIVER_STATUS_FLAG_SET_TIME|ifname        ; Flag information for module on port
     ; field                                    = value
-    datapath_firmware_fault_last_set_time      = STR           ; datapath (DSP) firmware fault set time
-    module_firmware_fault_last_set_time        = STR           ; module firmware fault set time
-    module_state_changed_last_set_time         = STR           ; module state changed set time
-    txfault{lane_num}_last_set_time            = STR           ; tx fault flag on media lane {lane_num} set time
-    txlos_hostlane{lane_num}_last_set_time     = STR           ; tx loss of signal flag on host lane {lane_num} set time
-    txcdrlol_hostlane{lane_num}_last_set_time  = STR           ; tx clock and data recovery loss of lock flag on host lane {lane_num} set time
-    tx_eq_fault{lane_num}_last_set_time        = STR           ; tx equalization fault flag on host lane {lane_num} set time
-    rxlos{lane_num}_last_set_time              = STR           ; rx loss of signal flag on media lane {lane_num} set time
-    rxcdrlol{lane_num}_last_set_time           = STR           ; rx clock and data recovery loss of lock flag on media lane {lane_num} set time
-    target_output_power_oor_last_set_time      = STR           ; target output power out of range flag set time
-    fine_tuning_oor_last_set_time              = STR           ; fine tuning  out of range flag set time
-    tuning_not_accepted_last_set_time          = STR           ; tuning not accepted flag set time
-    invalid_channel_num_last_set_time          = STR           ; invalid channel number flag set time
-    tuning_complete_last_set_time              = STR           ; tuning complete flag set time
+    datapath_firmware_fault      = STR           ; datapath (DSP) firmware fault set time
+    module_firmware_fault        = STR           ; module firmware fault set time
+    module_state_changed         = STR           ; module state changed set time
+    txfault{lane_num}            = STR           ; tx fault flag on media lane {lane_num} set time
+    txlos_hostlane{lane_num}     = STR           ; tx loss of signal flag on host lane {lane_num} set time
+    txcdrlol_hostlane{lane_num}  = STR           ; tx clock and data recovery loss of lock flag on host lane {lane_num} set time
+    tx_eq_fault{lane_num}        = STR           ; tx equalization fault flag on host lane {lane_num} set time
+    rxlos{lane_num}              = STR           ; rx loss of signal flag on media lane {lane_num} set time
+    rxcdrlol{lane_num}           = STR           ; rx clock and data recovery loss of lock flag on media lane {lane_num} set time
+    target_output_power_oor      = STR           ; target output power out of range flag set time
+    fine_tuning_oor              = STR           ; fine tuning  out of range flag set time
+    tuning_not_accepted          = STR           ; tuning not accepted flag set time
+    invalid_channel_num          = STR           ; invalid channel number flag set time
+    tuning_complete              = STR           ; tuning complete flag set time
 ```
 
 #### 2.3.5 Transceiver status data to store module and data path flag clear time
 
-The `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` table stores the clear time for the transceiver flag.
+The `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` table stores the last clear time for the transceiver flag.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
@@ -1493,20 +1493,20 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ; Defines Transceiver Status info for a port
     key                                        = TRANSCEIVER_STATUS_FLAG_CLEAR_TIME|ifname        ; Flag information for module on port
     ; field                                    = value
-    datapath_firmware_fault_last_clear_time           = STR           ; datapath (DSP) firmware fault clear time
-    module_firmware_fault_last_clear_time             = STR           ; module firmware fault clear time
-    module_state_changed_last_clear_time              = STR           ; module state changed clear time
-    txfault{lane_num}_last_clear_time                 = STR           ; tx fault flag on media lane {lane_num} clear time
-    txlos_hostlane{lane_num}_last_clear_time          = STR           ; tx loss of signal flag on host lane {lane_num} clear time
-    txcdrlol_hostlane{lane_num}_last_clear_time       = STR           ; tx clock and data recovery loss of lock flag on host lane {lane_num} clear time
-    tx_eq_fault{lane_num}_last_clear_time             = STR           ; tx equalization fault flag on host lane {lane_num} clear time
-    rxlos{lane_num}_last_clear_time                   = STR           ; rx loss of signal flag on media lane {lane_num} clear time
-    rxcdrlol{lane_num}_last_clear_time                = STR           ; rx clock and data recovery loss of lock flag on media lane {lane_num} clear time
+    datapath_firmware_fault           = STR           ; datapath (DSP) firmware fault clear time
+    module_firmware_fault             = STR           ; module firmware fault clear time
+    module_state_changed              = STR           ; module state changed clear time
+    txfault{lane_num}                 = STR           ; tx fault flag on media lane {lane_num} clear time
+    txlos_hostlane{lane_num}          = STR           ; tx loss of signal flag on host lane {lane_num} clear time
+    txcdrlol_hostlane{lane_num}       = STR           ; tx clock and data recovery loss of lock flag on host lane {lane_num} clear time
+    tx_eq_fault{lane_num}             = STR           ; tx equalization fault flag on host lane {lane_num} clear time
+    rxlos{lane_num}                   = STR           ; rx loss of signal flag on media lane {lane_num} clear time
+    rxcdrlol{lane_num}                = STR           ; rx clock and data recovery loss of lock flag on media lane {lane_num} clear time
     target_output_power_last_oor_clear_time           = STR           ; target output power out of range flag clear time
-    fine_tuning_oor_last_clear_time                   = STR           ; fine tuning  out of range flag clear time
-    tuning_not_accepted_last_clear_time               = STR           ; tuning not accepted flag clear time
-    invalid_channel_num_last_clear_time               = STR           ; invalid channel number flag clear time
-    tuning_complete_last_clear_time                   = STR           ; tuning complete flag clear time
+    fine_tuning_oor                   = STR           ; fine tuning  out of range flag clear time
+    tuning_not_accepted               = STR           ; tuning not accepted flag clear time
+    invalid_channel_num               = STR           ; invalid channel number flag clear time
+    tuning_complete                   = STR           ; tuning complete flag clear time
 ```
 
 ### 2.4 Transceiver PM data
@@ -2126,22 +2126,22 @@ Example
 
 The following fields related to `temperature` are updated in the `redis-db` during a link down event:
 
-- `temphighalarm_flag`
-- `temphighwarning_flag`
-- `templowwarning_flag`
-- `templowalarm_flag`
-- `temphighalarm_chg_cnt`
-- `temphighwarning_chg_cnt`
-- `templowwarning_chg_cnt`
-- `templowalarm_chg_cnt`
-- `temphighalarm_last_set_time`
-- `temphighwarning_last_set_time`
-- `templowwarning_last_set_time`
-- `templowalarm_last_set_time`
-- `temphighalarm_last_clear_time`
-- `temphighwarning_last_clear_time`
-- `templowwarning_last_clear_time`
-- `templowalarm_last_clear_time`
+- `temphighalarm_flag` in `TRANSCEIVER_DOM_FLAG` table
+- `temphighwarning_flag` in `TRANSCEIVER_DOM_FLAG` table
+- `templowwarning_flag` in `TRANSCEIVER_DOM_FLAG` table
+- `templowalarm_flag` in `TRANSCEIVER_DOM_FLAG` table
+- `temphighalarm` in `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT` table
+- `temphighwarning` in `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT` table
+- `templowwarning` in `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT` table
+- `templowalarm` in `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT` table
+- `temphighalarm` in `TRANSCEIVER_DOM_FLAG_SET_TIME` table
+- `temphighwarning` in `TRANSCEIVER_DOM_FLAG_SET_TIME` table
+- `templowwarning` in `TRANSCEIVER_DOM_FLAG_SET_TIME` table
+- `templowalarm` in `TRANSCEIVER_DOM_FLAG_SET_TIME` table
+- `temphighalarm` in `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` table
+- `temphighwarning` in `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` table
+- `templowwarning` in `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` table
+- `templowalarm` in `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` table
 
 ##### 4.2.2.2 VDM Related Fields
 
@@ -2173,22 +2173,22 @@ Example
 
 The following fields related to `esnr_media_input` are updated in the `redis-db` during a link down event:
 
-- `esnr_media_input_halarm_flag{lane_num}`
-- `esnr_media_input_lalarm_flag{lane_num}`
-- `esnr_media_input_hwarn_flag{lane_num}`
-- `esnr_media_input_lwarn_flag{lane_num}`
-- `esnr_media_input_halarm_chg_cnt{lane_num}`
-- `esnr_media_input_lalarm_chg_cnt{lane_num}`
-- `esnr_media_input_hwarn_chg_cnt{lane_num}`
-- `esnr_media_input_lwarn_chg_cnt{lane_num}`
-- `esnr_media_input_halarm_last_set_time{lane_num}`
-- `esnr_media_input_lalarm_last_set_time{lane_num}`
-- `esnr_media_input_hwarn_last_set_time{lane_num}`
-- `esnr_media_input_lwarn_last_set_time{lane_num}`
-- `esnr_media_input_halarm_last_clear_time{lane_num}`
-- `esnr_media_input_lalarm_last_clear_time{lane_num}`
-- `esnr_media_input_hwarn_last_clear_time{lane_num}`
-- `esnr_media_input_lwarn_last_clear_time{lane_num}`
+- `esnr_media_input_halarm_flag{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG` table
+- `esnr_media_input_lalarm_flag{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG` table
+- `esnr_media_input_hwarn_flag{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG` table
+- `esnr_media_input_lwarn_flag{lane_num}` in `TRANSCEIVER_VDM_LWARN_FLAG` table
+- `esnr_media_input_halarm{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG_CHANGE_COUNT` table
+- `esnr_media_input_lalarm{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG_CHANGE_COUNT` table
+- `esnr_media_input_hwarn{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG_CHANGE_COUNT` table
+- `esnr_media_input_lwarn{lane_num}` in `TRANSCEIVER_VDM_LWARN_FLAG_CHANGE_COUNT` tables
+- `esnr_media_input_halarm{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG_SET_TIME` table
+- `esnr_media_input_lalarm{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG_SET_TIME` table
+- `esnr_media_input_hwarn{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG_SET_TIME` table
+- `esnr_media_input_lwarn{lane_num}` in `TRANSCEIVER_VDM_LWARN_FLAG_SET_TIME` table
+- `esnr_media_input_halarm{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG_CLEAR_TIME` table
+- `esnr_media_input_lalarm{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG_CLEAR_TIME` table
+- `esnr_media_input_hwarn{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG_CLEAR_TIME` table
+- `esnr_media_input_lwarn{lane_num}` in `TRANSCEIVER_VDM_LWARN_FLAG_CLEAR_TIME` table
 
 ##### 4.2.2.3 Transceiver Status Related Fields
 
@@ -2219,10 +2219,10 @@ Example
 
 The following fields related to `datapath_firmware_fault` are updated in the `redis-db` during a link down event:
 
-- `datapath_firmware_fault`
-- `datapath_firmware_fault_chg_cnt`
-- `datapath_firmware_fault_last_set_time`
-- `datapath_firmware_fault_last_clear_time`
+- `datapath_firmware_fault` in `TRANSCEIVER_STATUS` table
+- `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT` table
+- `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_SET_TIME` table
+- `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` table
 
 #### 4.2.3 Details of Flag Analysis of Tables
 
