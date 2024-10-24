@@ -42,7 +42,8 @@ The CMIS diagnostic monitoring data is stored in the `STATE_DB` database. The `S
 - `TRANSCEIVER_VDM_LALARM_CLEAR_TIME`: Records the timestamp when each VDM low alarm flag was cleared.
 - `TRANSCEIVER_VDM_HWARN_CLEAR_TIME`: Records the timestamp when each VDM high warning flag was cleared.
 - `TRANSCEIVER_VDM_LWARN_CLEAR_TIME`: Records the timestamp when each VDM low warning flag was cleared.
-- `TRANSCEIVER_STATUS`: Stores the module and datapath state data along with various flags related to it. Also stores various Tx and Rx related flags.
+- `TRANSCEIVER_STATUS`: Stores the module and datapath state data along with various flags related to it. Also stores various Tx and Rx related status values.
+- `TRANSCEIVER_STATUS_FLAG`: Stores the module and datapath status flags along with various Tx and Rx related status flags.
 - `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT`: Stores the count of times the transceiver status flag has changed.
 - `TRANSCEIVER_STATUS_FLAG_SET_TIME`: Records the timestamp when the transceiver status flag was set.
 - `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME`: Records the timestamp when the transceiver status flag was cleared.
@@ -1387,6 +1388,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ; Defines Transceiver Status info for a port
     key                                     = TRANSCEIVER_STATUS|ifname        ; Error information for module on port
     ; field                                 = value
+    cmis_state                              = 1*255VCHAR        ; Software CMIS state of the module
     status                                  = 1*255VCHAR        ; code of the module status (plug in, plug out)
     error                                   = 1*255VCHAR        ; module error (N/A or a string consisting of error descriptions joined by "|", like "error1 | error2" )
     module_state                            = 1*255VCHAR        ; current module state (ModuleLowPwr, ModulePwrUp, ModuleReady, ModulePwrDn, Fault)
@@ -1396,8 +1398,8 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxoutput_status_hostlane{lane_num}      = BOOLEAN           ; rx output status on host lane {lane_num}
     tx{lane_num}disable                     = BOOLEAN           ; TX disable state on media lane {lane_num}
     tx_disabled_channel                     = INTEGER           ; TX disable field
-    dpdeinit_hostlane{lane_num}             = BOOLEAN           ; data path deinitialized status on host lane {lane_num}
     config_state_hostlane{lane_num}         = 1*255VCHAR        ; configuration status for the data path of host line {lane_num}
+    dpdeinit_hostlane{lane_num}             = BOOLEAN           ; data path deinitialized status on host lane {lane_num}
     dpinit_pending_hostlane{lane_num}       = BOOLEAN           ; data path configuration updated on host lane {lane_num}
     tuning_in_progress                      = BOOLEAN           ; tuning in progress status
     wavelength_unlock_status                = BOOLEAN           ; laser unlocked status
@@ -1416,12 +1418,12 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     datapath_firmware_fault                 = BOOLEAN           ; datapath (DSP) firmware fault
     module_firmware_fault                   = BOOLEAN           ; module firmware fault
     module_state_changed                    = BOOLEAN           ; module state changed
-    txfault{lane_num}                       = BOOLEAN            ; tx fault flag on media lane {lane_num}
-    txlos_hostlane{lane_num}                = BOOLEAN            ; tx loss of signal flag on host lane {lane_num}
-    txcdrlol_hostlane{lane_num}             = BOOLEAN            ; tx clock and data recovery loss of lock flag on host lane {lane_num}
-    tx_eq_fault{lane_num}                   = BOOLEAN            ; tx equalization fault flag on host lane {lane_num}
-    rxlos{lane_num}                         = BOOLEAN            ; rx loss of signal flag on media lane {lane_num}
-    rxcdrlol{lane_num}                      = BOOLEAN            ; rx clock and data recovery loss of lock flag on media lane {lane_num}
+    txfault{lane_num}                       = BOOLEAN           ; tx fault flag on media lane {lane_num}
+    txlos_hostlane{lane_num}                = BOOLEAN           ; tx loss of signal flag on host lane {lane_num}
+    txcdrlol_hostlane{lane_num}             = BOOLEAN           ; tx clock and data recovery loss of lock flag on host lane {lane_num}
+    tx_eq_fault{lane_num}                   = BOOLEAN           ; tx equalization fault flag on host lane {lane_num}
+    rxlos{lane_num}                         = BOOLEAN           ; rx loss of signal flag on media lane {lane_num}
+    rxcdrlol{lane_num}                      = BOOLEAN           ; rx clock and data recovery loss of lock flag on media lane {lane_num}
     target_output_power_oor                 = BOOLEAN           ; target output power out of range flag
     fine_tuning_oor                         = BOOLEAN           ; fine tuning  out of range flag
     tuning_not_accepted                     = BOOLEAN           ; tuning not accepted flag
@@ -1566,6 +1568,8 @@ This CLI shows the transceiver DOM and threshold values for a given port.
 
 ```plaintext
 CLI output format:
+LX - Represents the data for the lane number X
+
                               High Alarm   High Warning   Low Warning   Low Alarm
              Paramter_Name    Threshold    Threshold      Threshold     Threshold
 Port         (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
@@ -1573,11 +1577,73 @@ Port         (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
 
 Example:
 admin@sonic#show interfaces transceiver dom Ethernet1
+LX - Represents the data for the lane number X
+
                               High Alarm   High Warning   Low Warning   Low Alarm
              Temperature      Threshold    Threshold      Threshold     Threshold
 Port         (Celsius)        (Celsius)    (Celsius)      (Celsius)     (Celsius)
 -----------  ---------------  --------     --------       --------      --------
-Ethernet1    100              90           80             -10            -20
+Ethernet1    50              90           80             -10            -20
+                              High Alarm   High Warning   Low Warning   Low Alarm
+             Voltage          Threshold    Threshold      Threshold     Threshold
+Port         (Volts)          (Volts)      (Volts)        (Volts)       (Volts)
+-----------  ---------------  --------     --------       --------      --------
+Ethernet1    3.295            3.6          3.465           3.135        3.105
+             Tx Bias          High Alarm   High Warning   Low Warning   Low Alarm
+             Current          Threshold    Threshold      Threshold     Threshold
+Port         (mA)             (mA)         (mA)           (mA)          (mA)
+-----------  ---------------  --------     --------       --------      --------
+Ethernet1    L1 - 106.952     340.0        320.0          60.0          50.0
+             L2 - 106.952     340.0        320.0          60.0          50.0
+             L3 - 106.952     340.0        320.0          60.0          50.0
+             L4 - 106.952     340.0        320.0          60.0          50.0
+             L5 - 106.952     340.0        320.0          60.0          50.0
+             L6 - 106.952     340.0        320.0          60.0          50.0
+             L7 - 106.952     340.0        320.0          60.0          50.0
+             L8 - 106.952     340.0        320.0          60.0          50.0
+                              High Alarm   High Warning   Low Warning   Low Alarm
+             TX Power         Threshold    Threshold      Threshold     Threshold
+Port         (dBm)            (dBm)        (dBm)          (dBm)         (dBm)
+-----------  ---------------  --------     --------       --------      --------
+Ethernet1    L1 - 2.929       6.0          5.0            -10           -20.202
+             L2 - 2.929       6.0          5.0            -10           -20.202
+             L3 - 2.929       6.0          5.0            -10           -20.202
+             L4 - 2.929       6.0          5.0            -10           -20.202
+             L5 - 2.929       6.0          5.0            -10           -20.202
+             L6 - 2.929       6.0          5.0            -10           -20.202
+             L7 - 2.929       6.0          5.0            -10           -20.202
+             L8 - 2.929       6.0          5.0            -10           -20.202
+                              High Alarm   High Warning   Low Warning   Low Alarm
+             RX Power         Threshold    Threshold      Threshold     Threshold
+Port         (dBm)            (dBm)        (dBm)          (dBm)         (dBm)
+-----------  ---------------  --------     --------       --------      --------
+Ethernet1    L1 - 2.01        4.5           3.0           -3.903        -4.903
+             L2 - 2.01        4.5           3.0           -3.903        -4.903
+             L3 - 2.01        4.5           3.0           -3.903        -4.903
+             L4 - 2.01        4.5           3.0           -3.903        -4.903
+             L5 - 2.01        4.5           3.0           -3.903        -4.903
+             L6 - 2.01        4.5           3.0           -3.903        -4.903
+             L7 - 2.01        4.5           3.0           -3.903        -4.903
+             L8 - 2.01        4.5           3.0           -3.903        -4.903
+                              High Alarm   High Warning   Low Warning   Low Alarm
+             Laser Temp       Threshold    Threshold      Threshold     Threshold
+Port         (Celsius)        (Celsius)    (Celsius)      (Celsius)     (Celsius)
+-----------  ---------------  --------     --------       --------      --------
+Ethernet1    50               90           80             -10           -20
+             Laser config     High Alarm   High Warning   Low Warning   Low Alarm
+             frequency        Threshold    Threshold      Threshold     Threshold
+Port         (GHz)            (GHz)        (GHz)          (GHz)         (GHz)
+-----------  ---------------  --------     --------       --------      --------
+Ethernet1    195.5            N/A          N/A            N/A           N/A
+             Laser current    High Alarm   High Warning   Low Warning   Low Alarm
+Port         (GHz)            (GHz)        (GHz)          (GHz)         (GHz)
+-----------  ---------------  --------     --------       --------      --------
+Ethernet1    195.5            N/A          N/A            N/A           N/A
+             Tx config        High Alarm   High Warning   Low Warning   Low Alarm
+             power            Threshold    Threshold      Threshold     Threshold
+Port         (dBm)            (dBm)        (dBm)          (dBm)         (dBm)
+-----------  ---------------  --------     --------       --------      --------
+Ethernet1    195.5            N/A          N/A            N/A           N/A
 ```
 
 #### 3.1.2 `show interfaces transceiver dom flag PORT`
@@ -1586,7 +1652,9 @@ This CLI shows the transceiver DOM flags for a given port.
 
 ```plaintext
 CLI output format:
+LX - Represents the data for the lane number X
 Current System Time: Day Mon DD HH:MM:SS YYYY
+
                               High Alarm                 High Warning               Low Warning                Low Alarm
                               Flag/                      Flag/                      Flag/                      Flag/
                               Change Count/              Change Count/              Change Count/              Change Count/
@@ -1596,7 +1664,9 @@ Port         Parameter_Name   Last Clear Time            Last Clear Time        
 
 Example:
 admin@sonic#show interfaces transceiver dom flag Ethernet1
+LX - Represents the data for the lane number X
 Current System Time: Wed Oct 16 03:46:41 2024
+
                               High Alarm                 High Warning               Low Warning                Low Alarm
                               Flag/                      Flag/                      Flag/                      Flag/
                               Change Count/              Change Count/              Change Count/              Change Count/
@@ -1605,8 +1675,112 @@ Port         Parameter_Name   Last Clear Time            Last Clear Time        
 -----------  ---------------  -------------------------  -------------------------  -------------------------  -------------------------
 Ethernet1    Temperature      True/                      False/                     False/                     False/
                               1/                         0/                         0/                         0/
-                              Wed Oct 16 03:46:41 2024/  Never                      Never                      Never
-                              Never                      Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024
+                              Wed Oct 16 03:46:41 2024/  never                      never                      never
+                              never                      Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024
+Ethernet1    Voltage          False/                     False/                     False/                     False/
+                              0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
+             L1               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
+             L2               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
+             L3               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
+             L4               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
+             L5               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
+             L6               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
+             L7               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
+             L8               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Power         False/                     False/                     False/                     False/
+             L1               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Power         False/                     False/                     False/                     False/
+             L2               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Power         False/                     False/                     False/                     False/
+             L3               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Power         False/                     False/                     False/                     False/
+             L4               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Power         False/                     False/                     False/                     False/
+             L5               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Power         False/                     False/                     False/                     False/
+             L6               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Power         False/                     False/                     False/                     False/
+             L7               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Tx Power         False/                     False/                     False/                     False/
+             L8               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Rx Power         False/                     False/                     False/                     False/
+             L1               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Rx Power         False/                     False/                     False/                     False/
+             L2               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Rx Power         False/                     False/                     False/                     False/
+             L3               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Rx Power         False/                     False/                     False/                     False/
+             L4               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Rx Power         False/                     False/                     False/                     False/
+             L5               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Rx Power         False/                     False/                     False/                     False/
+             L6               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Rx Power         False/                     False/                     False/                     False/
+             L7               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Rx Power         False/                     False/                     False/                     False/
+             L8               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never                      never                      never
+Ethernet1    Laser            False/                     False/                     False/                     False/
+             Temperature      0/                         0/                         1/                         1/
+                              never/                     never/                     Wed Oct 16 03:46:41 2024/  never/
+                              never                      never                      never                      never
 ```
 
 ### 3.2 CLI Commands for VDM Monitoring
@@ -1614,51 +1788,288 @@ Ethernet1    Temperature      True/                      False/                 
 #### 3.2.1 `show interfaces transceiver vdm PORT`
 
 This CLI shows the transceiver VDM and threshold values for a given port.
+The CLI will show VDM data for observables which are supported by the module vendor. If the module vendor does not support a particular observable, the CLI will not show data for that observable.
 
 ```plaintext
 CLI output format:
                               High Alarm   High Warning   Low Warning   Low Alarm
-             Paramter_Name    Threshold    Threshold      Threshold     Threshold
+             Observable_Name  Threshold    Threshold      Threshold     Threshold
 Port         (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
 -----------  ---------------  --------     --------       --------      --------
 
 Example:
 admin@sonic#show interfaces transceiver vdm Ethernet1
-Basic Values:
-                              High Alarm   High Warning   Low Warning   Low Alarm
-             eSNR Media Input Threshold    Threshold      Threshold     Threshold
-Port         (dB)             (dB)         (dB)           (dB)          (dB)
+             eSNR Media         High Alarm   High Warning   Low Warning   Low Alarm
+             Input              Threshold    Threshold      Threshold     Threshold
+Port         (dB)               (dB)         (dB)           (dB)          (dB)
 -----------  ---------------  --------     --------       --------      --------
-Ethernet1    23.48046875      0            0              0             0
+Ethernet1    L1 - 23.480468   0            0              0             0
+             L2 - 23.480468   0            0              0             0
+             L3 - 23.480468   0            0              0             0
+             L4 - 23.480468   0            0              0             0
+             L5 - 23.480468   0            0              0             0
+             L6 - 23.480468   0            0              0             0
+             L7 - 23.480468   0            0              0             0
+             L8 - 23.480468   0            0              0             0
+             eSNR Media         High Alarm   High Warning   Low Warning   Low Alarm
+             Output             Threshold    Threshold      Threshold     Threshold
+Port         (dB)               (dB)         (dB)           (dB)          (dB)
+-----------  ---------------  --------     --------       --------      --------
+Ethernet1    L1 - 23.480468   0            0              0             0
+             L2 - 23.480468   0            0              0             0
+             L3 - 23.480468   0            0              0             0
+             L4 - 23.480468   0            0              0             0
+             L5 - 23.480468   0            0              0             0
+             L6 - 23.480468   0            0              0             0
+             L7 - 23.480468   0            0              0             0
+             L8 - 23.480468   0            0              0             0
+.
+.
+.
+Upto all observables supported by the module vendor
 ```
 
 #### 3.2.2 `show interfaces transceiver vdm flag PORT`
 
 This CLI shows the transceiver VDM flags for a given port.
+For a given observable, the CLI will show data only for only 1 lane if one or more lanes has a flag set to true. If none of the lanes have a flag set to true, no data will be shown for that observable.
+The `--detail` option can be used to show the data for all lanes and observables irrespective of the flag status. Please refer to the next section for the details on the usage of this option.
 
 ```plaintext
 CLI output format:
 Current System Time: Day Mon DD HH:MM:SS YYYY
+LX - Represents the data for the lane number X
+
                               High Alarm                 High Warning               Low Warning                Low Alarm
                               Flag/                      Flag/                      Flag/                      Flag/
                               Change Count/              Change Count/              Change Count/              Change Count/
                               Last Set Time/             Last Set Time/             Last Set Time/             Last Set Time/
-Port         Parameter_Name   Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
+Port         Observable_Name  Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
 -----------  ---------------  ---------------  ---------------  ---------------  ---------------
 
 Example:
 admin@sonic#show interfaces transceiver vdm flag Ethernet1
+LX - Represents the data for the lane number X
 Current System Time: Wed Oct 16 03:46:41 2024
+
                               High Alarm                 High Warning               Low Warning                Low Alarm
                               Flag/                      Flag/                      Flag/                      Flag/
                               Change Count/              Change Count/              Change Count/              Change Count/
                               Last Set Time/             Last Set Time/             Last Set Time/             Last Set Time/
-Port         Parameter_Name   Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
+Port         Observable_Name  Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
 -----------  ---------------  -------------------------  -------------------------  -------------------------  -------------------------
-Ethernet1    eSNR Media Input True/                      False/                     False/                     False/
-                              1/                         0/                         0/                         0/
-                              Wed Oct 16 03:46:41 2024/  Never                      Never                      Never
-                              Never                      Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024   Wed Oct 16 03:46:41 2024
+Ethernet1    Laser Temp Media True/                      False/                     False/                     False/
+             L1               1/                         0/                         2/                         0/
+                              Wed Oct 16 03:46:41 2024/  never/                     Wed Oct 16 02:46:41 2024   never/
+                              never                      never/                     Wed Oct 16 03:46:41 2024   never
+Ethernet1   PAM4 Level        False                      True                       False/                     False/
+            Transition        0/                         1/                         0/                         0/
+            Media Input       never/                     Wed Oct 16 03:46:41 2024/  never/                     never/
+            L2                never                      never                      never                      never
+.
+.
+.
+Upto all observables with at least one lane having a flag set to true
+```
+
+##### 3.2.2.1 VDM flags dump using the `--detail` option
+
+With the `--detail` option, only the VDM data for observables which are supported by the module vendor will be displayed. With this option, the CLI will show data for all lanes and supported observables (irrespective of the flag status).
+
+```plaintext
+admin@sonic#show interfaces transceiver vdm flag Ethernet1 --detail
+LX - Represents the data for the lane number X
+Current System Time: Wed Oct 16 03:46:41 2024
+
+                              High Alarm                 High Warning               Low Warning                Low Alarm
+                              Flag/                      Flag/                      Flag/                      Flag/
+                              Change Count/              Change Count/              Change Count/              Change Count/
+                              Last Set Time/             Last Set Time/             Last Set Time/             Last Set Time/
+Port         Observable_Name  Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
+-----------  ---------------  -------------------------  -------------------------  -------------------------  -------------------------
+Ethernet1    Laser Temp Media True/                      False/                     False/                     False/
+             L1               1/                         0/                         2/                         0/
+                              Wed Oct 16 03:46:41 2024/  never/                     Wed Oct 16 02:46:41 2024   never/
+                              never                      never/                     Wed Oct 16 03:46:41 2024   never
+Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
+             L2               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never/                     never                      never
+Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
+             L3               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never/                     never                      never
+Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
+             L3               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never/                     never                      never
+Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
+             L4               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never/                     never                      never
+Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
+             L5               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never/                     never                      never
+Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
+             L6               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never/                     never                      never
+Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
+             L7               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never/                     never                      never
+Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
+             L8               0/                         0/                         0/                         0/
+                              never/                     never/                     never/                     never/
+                              never                      never/                     never                      never
+.
+.
+.
+Upto all observables for all lanes
+```
+
+### 3.3 CLI Commands for transceiver status monitoring
+
+#### 3.3.1 `show interfaces transceiver status PORT`
+
+Shows the module and datapath state data along with various flags related to it. Also stores various Tx and Rx related flags.
+
+```plaintext
+Example:
+admin@sonic:/home/admin# show int transceiver status Ethernet0
+Ethernet0: 
+        CMIS State (SW): READY
+        TX disable status on lane 1: False
+        TX disable status on lane 2: False
+        TX disable status on lane 3: False
+        TX disable status on lane 4: False
+        TX disable status on lane 5: False
+        TX disable status on lane 6: False
+        TX disable status on lane 7: False
+        TX disable status on lane 8: False
+        Disabled TX channels: 0
+        Current module state: ModuleReady
+        Reason of entering the module fault state: No Fault detected
+        Data path state indicator on host lane 1: DataPathActivated
+        Data path state indicator on host lane 2: DataPathActivated
+        Data path state indicator on host lane 3: DataPathActivated
+        Data path state indicator on host lane 4: DataPathActivated
+        Data path state indicator on host lane 5: DataPathActivated
+        Data path state indicator on host lane 6: DataPathActivated
+        Data path state indicator on host lane 7: DataPathActivated
+        Data path state indicator on host lane 8: DataPathActivated
+        Tx output status on media lane 1: True
+        Tx output status on media lane 2: True
+        Tx output status on media lane 3: True
+        Tx output status on media lane 4: True
+        Tx output status on media lane 5: True
+        Tx output status on media lane 6: True
+        Tx output status on media lane 7: True
+        Tx output status on media lane 8: True
+        Rx output status on host lane 1: True
+        Rx output status on host lane 2: True
+        Rx output status on host lane 3: True
+        Rx output status on host lane 4: True
+        Rx output status on host lane 5: True
+        Rx output status on host lane 6: True
+        Rx output status on host lane 7: True
+        Rx output status on host lane 8: True
+        Configuration status for the data path of host line 1: ConfigSuccess
+        Configuration status for the data path of host line 2: ConfigSuccess
+        Configuration status for the data path of host line 3: ConfigSuccess
+        Configuration status for the data path of host line 4: ConfigSuccess
+        Configuration status for the data path of host line 5: ConfigSuccess
+        Configuration status for the data path of host line 6: ConfigSuccess
+        Configuration status for the data path of host line 7: ConfigSuccess
+        Configuration status for the data path of host line 8: ConfigSuccess
+        Data path deinit status on host lane 1: False
+        Data path deinit status on host lane 2: False
+        Data path deinit status on host lane 3: False
+        Data path deinit status on host lane 4: False
+        Data path deinit status on host lane 5: False
+        Data path deinit status on host lane 6: False
+        Data path deinit status on host lane 7: False
+        Data path deinit status on host lane 8: False
+        Data path configuration updated on host lane 1: False
+        Data path configuration updated on host lane 2: False
+        Data path configuration updated on host lane 3: False
+        Data path configuration updated on host lane 4: False
+        Data path configuration updated on host lane 5: False
+        Data path configuration updated on host lane 6: False
+        Data path configuration updated on host lane 7: False
+        Data path configuration updated on host lane 8: False
+        Tuning in progress status: False
+        Laser unlocked status: True
+```
+
+#### 3.3.2 `show interfaces transceiver status flag PORT`
+
+This CLI shows the various module and datapath state flags for a given port along with the change count and set/clear time.
+
+```plaintext
+admin@sonic:/home/admin# show int transceiver status flag Ethernet0
+LX - Represents the data for the lane number X
+Current System Time: Wed Oct 16 03:46:41 2024
+
+Port         Observable_Name              Flag Status/Change Count/Last Set Time/Last Clear Time
+-----------  ---------------------------  -------------------------------------------------------
+Ethernet0    Tx fault on media L1         False/  1/  Wed Oct 16 03:46:41 2024/  never
+Ethernet0    Tx fault on media L2         False/  0/  never/  never
+Ethernet0    Tx fault on media L3         False/  0/  never/  never
+Ethernet0    Tx fault on media L4         False/  0/  never/  never
+Ethernet0    Tx fault on media L5         False/  0/  never/  never
+Ethernet0    Tx fault on media L6         False/  0/  never/  never
+Ethernet0    Tx fault on media L7         False/  0/  never/  never
+Ethernet0    Tx fault on media L8         False/  0/  never/  never
+Ethernet0    Rx LOS on media L1           False/  0/  never/  never
+Ethernet0    Rx LOS on media L2           False/  0/  never/  never
+Ethernet0    Rx LOS on media L3           False/  0/  never/  never
+Ethernet0    Rx LOS on media L4           False/  0/  never/  never
+Ethernet0    Rx LOS on media L5           False/  0/  never/  never
+Ethernet0    Rx LOS on media L6           False/  0/  never/  never
+Ethernet0    Rx LOS on media L7           False/  0/  never/  never
+Ethernet0    Rx LOS on media L8           False/  0/  never/  never
+Ethernet0    Datapath firmware fault      False/  0/  never/  never
+Ethernet0    Module firmware fault        False/  0/  never/  never
+Ethernet0    Module state changed         False/  0/  never/  never
+Ethernet0    Tx LOS on host L1            False/  0/  never/  never
+Ethernet0    Tx LOS on host L2            False/  0/  never/  never
+Ethernet0    Tx LOS on host L3            False/  0/  never/  never
+Ethernet0    Tx LOS on host L4            False/  0/  never/  never
+Ethernet0    Tx LOS on host L5            False/  0/  never/  never
+Ethernet0    Tx LOS on host L6            False/  0/  never/  never
+Ethernet0    Tx LOS on host L7            False/  0/  never/  never
+Ethernet0    Tx LOS on host L8            False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host L1        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host L2        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host L3        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host L4        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host L5        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host L6        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host L7        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host L8        False/  0/  never/  never
+Ethernet0    Tx EQ fault on host L1       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host L2       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host L3       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host L4       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host L5       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host L6       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host L7       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host L8       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media L1       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media L2       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media L3       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media L4       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media L5       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media L6       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media L7       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media L8       False/  0/  never/  never
+Ethernet0    Target output power out of range  False/  0/  never/  never
+Ethernet0    Fine tuning out of range flag False/  0/  never/  never
+Ethernet0    Tuning not accepted flag    False/  0/  never/  never
+Ethernet0    Invalid channel number flag False/  0/  never/  never
+Ethernet0    Tuning complete flag        False/  0/  never/  never
 ```
 
 ## 4. SONiC CMIS diagnostic monitoring workflow
@@ -1825,8 +2236,8 @@ The purpose of flag analysis is to track the status of various parameters and to
 
 - `TRANSCEIVER_DOM_FLAG`: This table stores flags indicating the status of various DOM parameters.
 - `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: This table keeps a count of how many times each DOM flag has changed. Upon initialization, the count is set to 0.
-- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `Never` if the flag is not set.
-- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `Never` if the flag is set.
+- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is not set.
+- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is set.
 
 **Example of Table Updates:**
 
