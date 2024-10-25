@@ -245,7 +245,9 @@ Nexthop can be to a local DPU or a remote DPU. Orchagent must figure out if the 
 
 A new orchagent DashEniFwdOrch is added which runs on NPU to translate the requirements into ACL Rules. 
 
-DashEniFwdOrch should infer the type of endpoint (local or remote) by parsing the DPU/vDPU table and saving the local DPU PA's in a set.
+DashEniFwdOrch should infer the type of endpoint (local or remote) by parsing the DPU table.
+
+#### Remote NextHop Flow #### 
 
 ```mermaid
 flowchart LR
@@ -253,15 +255,56 @@ flowchart LR
 
     HaMgrD --> ENI_TABLE
     ENI_TABLE --> DashEniFwdOrch
+    DPU --> DashEniFwdOrch
 
     DashEniFwdOrch --> Ques1{Remote Endpoint}
-    DashEniFwdOrch --> |Observe| RouteOrch
+    Ques1 --> |Create Tunnel NH| VxLanTunnOrch
 
-    Ques1 --> CREATE_TUNNEL_NH
-    CREATE_TUNNEL_NH --> |oid| DashEniFwdOrch
-    RouteOrch --> |Notify NH for Local Endpoint| DashEniFwdOrch
+    DashEniFwdOrch --> ACL_RULE_TABLE
+
+    AclOrch --> |Get oid| VxLanTunnOrch
+    ACL_RULE_TABLE --> AclOrch
+```
+
+#### Local NextHop Flow (Option 1) #### 
+
+```mermaid
+flowchart LR
+    ENI_TABLE[ENI_DASH_FORWARD_TABLE]
+
+    HaMgrD --> ENI_TABLE
+    ENI_TABLE --> DashEniFwdOrch
+    DPU --> DashEniFwdOrch
+
+    DashEniFwdOrch --> |Observe| NeighOrch
+    NeighOrch --> |Notify Local NH| DashEniFwdOrch
+
+    DashEniFwdOrch --> | SET/DEL | ACL_RULE_TABLE
+    ACL_RULE_TABLE --> AclOrch
     DashEniFwdOrch --> AclOrch
-    DPU/vDPU --> DashEniFwdOrch
+```
+
+#### Local NextHop Flow (Option 2) #### 
+
+```mermaid
+flowchart LR
+    ENI_TABLE[ENI_DASH_FORWARD_TABLE]
+
+    HaMgrD --> ENI_TABLE
+    ENI_TABLE --> DashEniFwdOrch
+    DPU --> DashEniFwdOrch
+
+    DashEniFwdOrch --> Ques1{Remote Endpoint}
+    Ques1 --> |Create Tunnel NH| VxLanTunnOrch
+    VxLanTunnOrch --> |oid| DashEniFwdOrch
+
+    AclOrch --> |Observe| NeighOrch
+    NeighOrch --> |Notify NH for Local Endpoint| AclOrch
+
+    DashEniFwdOrch --> | DEL | ACL_RULE_TABLE
+    DashEniFwdOrch --> | SET | ACL_RULE_TABLE
+
+    ACL_RULE_TABLE --> AclOrch
 ```
 
 #### Schema Change in ACL_RULE ####
