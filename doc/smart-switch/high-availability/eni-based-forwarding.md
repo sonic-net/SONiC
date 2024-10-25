@@ -287,6 +287,7 @@ flowchart LR
     DashEniFwdOrch --> | NH Delete| AclOrch
 
     ACL_RULE_TABLE -->  AclOrch
+    AclOrch --> |Get oid| NeighOrch
     AclOrch --> SAI/SDK
 ```
 
@@ -314,6 +315,7 @@ flowchart LR
     NeighOrch --> |NH Update| AclOrch
 
     AclOrch --> SAI/SDK
+    AclOrch --> |Get oid| NeighOrch
 ```
 
 #### Schema Change in ACL_RULE ####
