@@ -44,8 +44,8 @@ This document provides a high-level design for Smart Switch ENI based Packet For
 | VIP  | Virtual IP                                    |
 | PA  | Physical Address                                   |
 | NH  | Next Hop                                   |
-| NHG  | Next Hop Group                                |
 | HA  | High Availability                                |
+| ENI  | Elastic Network Interface                      |
 
 ## Overview ##
 
@@ -59,9 +59,10 @@ There are two possible NPU-DPU Traffic forwarding models.
 
 2) ENI Based Forwarding
     * The host has the switch VIP as the gateway address for its traffic.
-    * Cheaper, since only VIP per switch is needed (or even per a row of switches). ENI placement can be directed even across smart switches.
+    * Cheaper, since only VIP per switch is needed (or even per a row of switches). 
+    * ENI placement can be directed even across smart switches.
 
-ENI Based Forwarding is the preferred approach because of cost constraints. 
+Due to cost constraints, ENI Based Forwarding is the preferred approach. 
 
 Packet Forwarding from NPU to local and remote DPU's are clearly explained in the HA HLD https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/high-availability/smart-switch-ha-hld.md#42-data-path-ha
 
@@ -75,6 +76,9 @@ Packet Forwarding from NPU to local and remote DPU's are clearly explained in th
 
 ![Active Standby ENI case](./images/active_standby_eni.png)
 
+**Case 3: Packet lands on NPU which doesn't host the corresponding ENI**
+
+![T1 Cluster View](./images/t1_cluster.png)
 
 ## Requirements ##
 
@@ -83,16 +87,26 @@ ENI based forwarding requires the switch to understand the relationship between 
 * Each DPU is represented as a PA (public address). Unlike VIP, PA does't have to be visible from the entire cloud infrastructure
 * Each ENI belongs to a certain DPU (local or remote)
 * Each packet can be identified as belonging to that switch using VIP and VNI
-* Forwarding can be to local DPU PA or remote DPU PA over L3 VxLAN
-* Scale: 
-    - One VIP per HA pair: [# of DPUs] * [# of ENIs per DPU] * 2 (inbound and outbound) * 2 (One with/without Tunnel Termination)
+* Forwarding can be to local DPU or remote DPU over L3 VxLAN
+* Scale:
+    - [# of ENIs hosted] * 2 (inbound and outbound) * 2 (with/without Tunnel Termination) + [# of ENIs not hosted] * 2 (Inbound and outbound)
+* Scale Example:
+    - T1 per cluster: 8
+    - DPU per T1: 4
+    - ENI per DPU: 32
+    - HA Scaling factor: 2
+    - Total ENI's in this Cluster:  (8 * 4 * 32) / 2 = 512
+    - ENI's hosted on a T1: 128
+    - Number of ACL Rules:  128 * (2 * 2) + (512 - 128) * 2 = 1280
 
 ### Phase 1 ###
 
-- Only HaMgrd will make decision on where to route the packet and write to ENI_DASH_TUNNEL_TABLE table
+- Only HaMgrd will make decision on where to route the packet and write to ENI_DASH_FORWARD_TABLE table
 - Orchagent will only process the primary endpoint and translate the requirement into ACL Rules
 - Orchagent should also program ACL Rules with Tunnel termination entries
 - No BFD sessions are created to local DPU or the remote DPU.
+
+ENI_DAS
 
 ### Phase 2 ###
 
@@ -140,6 +154,7 @@ Assume the following ENI attributes
 MAC: aa:bb:cc:dd:ee:ff
 TUNNEL_VNI: 4000
 VIP: 1.1.1.1/32
+VNET: Vnet1000
 ```
 
 **ACL Rule for outbound traffic**
@@ -147,12 +162,12 @@ VIP: 1.1.1.1/32
 ```
 {  
     "ACL_RULE": {
-        "ENI:aa:bb:cc:ff:fe:dd:ee:ff:OUT0": {
-            "PRIORITY": "999",
+        "ENI:Vnet1000_AABBCCDDEEFF_OUT": {
+            "PRIORITY": "9997",
             "TUNNEL_VNI": "4000",
             "DST_IP": "1.1.1.1/32",
             "INNER_SRC_MAC": "aa:bb:cc:dd:ee:ff"
-            "REDIRECT": "<local/remote nexthop oid>"
+            "REDIRECT": "<local/tunnel nexthop>"
         }
     }
 }
@@ -160,15 +175,16 @@ VIP: 1.1.1.1/32
 
 **ACL Rule for inbound traffic**
 
+Inbound Traffic can have any ENI expect the outbound VNI, no need to match on TUNNEL_VNI
+
 ```
 {  
     "ACL_RULE": {
-        "ENI:aa:bb:cc:ff:fe:dd:ee:ff:IN0": {
-            "PRIORITY": "999",
-            "TUNNEL_VNI": "4000",
+        "ENI:Vnet1000_AABBCCDDEEFF_IN": {
+            "PRIORITY": "9996",
             "DST_IP": "1.1.1.1/32",
             "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
-            "REDIRECT": "<local/remote nexthop oid>"
+            "REDIRECT": "<local/tunnel nexthop>"
         }
     }
 }
@@ -193,11 +209,11 @@ To solve this, ACL rules with high priority are added and the redirect should al
 ```
 {  
     "ACL_RULE": {
-        "ENI:aa:bb:cc:ff:fe:dd:ee:ff:OUT1": {
+        "ENI:Vnet1000_AABBCCDDEEFF_OUT_TERM": {
             "PRIORITY": "9999",
             "TUNNEL_VNI": "4000",
             "DST_IP": "1.1.1.1/32",
-            "INNER_SRC_MAC": "aa:bb:cc:dd:ee:ff",
+            "INNER_SRC_MAC/INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
             "TUNN_TERM": "true",
             "REDIRECT": "<local nexthop oid>"
         }
@@ -211,8 +227,7 @@ To solve this, ACL rules with high priority are added and the redirect should al
 {
     "ACL_RULE": {
         "ENI:aa:bb:cc:ff:fe:dd:ee:ff:IN1": {
-            "PRIORITY": "9999",
-            "TUNNEL_VNI": "4000",
+            "PRIORITY": "9998",
             "DST_IP": "1.1.1.1/32",
             "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
             "TUNN_TERM": "true",
@@ -234,7 +249,7 @@ DashEniFwdOrch should infer the type of endpoint (local or remote) by parsing th
 
 ```mermaid
 flowchart LR
-    ENI_TABLE[ENI_DASH_TUNNEL_TABLE]
+    ENI_TABLE[ENI_DASH_FORWARD_TABLE]
 
     HaMgrD --> ENI_TABLE
     ENI_TABLE --> DashEniFwdOrch
@@ -277,12 +292,12 @@ No impact here
 
 ## Testing Requirements/Design ##
 
-- Migrate existing Private Link tests to use ENI Forwarding Approach. Until HaMgrd is available, test should write to the ENI_DASH_TUNNEL_TABLE
+- Migrate existing Private Link tests to use ENI Forwarding Approach. Until HaMgrd is available, test should write to the ENI_DASH_FORWARD_TABLE
 - Add individual test cases which verify forwarding to remote endpoint and also Tunnel Termination. This should not require HA availability
-- HA test cases should work by just writing the expected configuration to ENI_DASH_TUNNEL_TABLE
+- HA test cases should work by just writing the expected configuration to ENI_DASH_FORWARD_TABLE
 
 ## Open/Action items - if any ##
 
 - Will there be a packet coming to T1 which doesn't host its ENI? Theoretically possible if all the T1's in a cluster share the same VIP
 - Will the endpoint for local DPU is PA of the interface address of the DPU
-- ENI_DASH_TUNNEL_TABLE schema. Will VIP, Tunnel VNI be part of ENI_DASH_TUNNEL_TABLE
+- ENI_DASH_FORWARD_TABLE schema. Will VIP, Tunnel VNI be part of ENI_DASH_FORWARD_TABLE
