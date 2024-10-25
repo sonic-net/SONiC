@@ -266,6 +266,7 @@ flowchart LR
 
     AclOrch --> |Get oid| VxLanTunnOrch
     ACL_RULE_TABLE --> AclOrch
+    AclOrch --> SAI/SDK
 ```
 
 #### Local NextHop Flow (Option 1) #### 
@@ -279,12 +280,22 @@ flowchart LR
     DPU --> DashEniFwdOrch
 
     DashEniFwdOrch --> |Observe| NeighOrch
-    NeighOrch --> |Notify Local NH| DashEniFwdOrch
+    NeighOrch --> |NH Update| DashEniFwdOrch
 
-    DashEniFwdOrch --> | SET/DEL | ACL_RULE_TABLE
-    ACL_RULE_TABLE --> AclOrch
-    DashEniFwdOrch --> AclOrch
+    DashEniFwdOrch --> | Eni CRUD op | ACL_RULE_TABLE
+    DashEniFwdOrch --> | NH Update | ACL_RULE_TABLE
+    DashEniFwdOrch --> | NH Delete| AclOrch
+
+    ACL_RULE_TABLE -->  AclOrch
+    AclOrch --> SAI/SDK
 ```
+
+**Implementation Nuance**
+
+During ENI Create/Delete Flows, DashEniFwdOrch will just write the ACL_RULES to DB.
+
+However, when there is a Neigh Delete, DashEniFwdOrch will need to directly call AclOrch API's to delete the RULES. 
+This is required because DB update is async in nature
 
 #### Local NextHop Flow (Option 2) #### 
 
@@ -300,7 +311,9 @@ flowchart LR
     ACL_RULE_TABLE --> AclOrch
     
     AclOrch --> |Observe| NeighOrch
-    NeighOrch --> |Notify Local NH| AclOrch
+    NeighOrch --> |NH Update| AclOrch
+
+    AclOrch --> SAI/SDK
 ```
 
 #### Schema Change in ACL_RULE ####
@@ -326,7 +339,7 @@ This is enhanced to accept a representation for tunnel next-hop.
 ```
     key: ACL_RULE_TABLE:table_name:rule_name
 
-    redirect_action = 1*255CHAR                ; tunnel next-hop                 Example: "2.2.2.1@tunnel"
+    redirect_action = 1*255CHAR                ; tunnel next-hop                 Example: "2.2.2.1@tunnel_name"
 ```
 
 ## Warmboot and Fastboot Design Impact ##
