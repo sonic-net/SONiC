@@ -106,7 +106,7 @@ ENI based forwarding requires the switch to understand the relationship between 
 - Orchagent should also program ACL Rules with Tunnel termination entries
 - No BFD sessions are created to local DPU or the remote DPU.
 
-ENI_DAS
+ENI_DASH_FORWARD_TABLE schema is available here https://github.com/r12f/SONiC/blob/user/r12f/ha2/doc/smart-switch/high-availability/smart-switch-ha-detailed-design.md#2321-dash_eni_forward_table
 
 ### Phase 2 ###
 
@@ -159,6 +159,8 @@ VNET: Vnet1000
 
 **ACL Rule for outbound traffic**
 
+MacDirection for outbound rules depends on the outbound_eni_mac_lookup field in the ENI_DASH_FORWARD_TABLE
+
 ```
 {  
     "ACL_RULE": {
@@ -166,7 +168,7 @@ VNET: Vnet1000
             "PRIORITY": "9997",
             "TUNNEL_VNI": "4000",
             "DST_IP": "1.1.1.1/32",
-            "INNER_SRC_MAC": "aa:bb:cc:dd:ee:ff"
+            "INNER_SRC_MAC/INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
             "REDIRECT": "<local/tunnel nexthop>"
         }
     }
@@ -294,17 +296,11 @@ flowchart LR
     ENI_TABLE --> DashEniFwdOrch
     DPU --> DashEniFwdOrch
 
-    DashEniFwdOrch --> Ques1{Remote Endpoint}
-    Ques1 --> |Create Tunnel NH| VxLanTunnOrch
-    VxLanTunnOrch --> |oid| DashEniFwdOrch
-
-    AclOrch --> |Observe| NeighOrch
-    NeighOrch --> |Notify NH for Local Endpoint| AclOrch
-
-    DashEniFwdOrch --> | DEL | ACL_RULE_TABLE
-    DashEniFwdOrch --> | SET | ACL_RULE_TABLE
-
+    DashEniFwdOrch --> | SET/DEL | ACL_RULE_TABLE
     ACL_RULE_TABLE --> AclOrch
+    
+    AclOrch --> |Observe| NeighOrch
+    NeighOrch --> |Notify Local NH| AclOrch
 ```
 
 #### Schema Change in ACL_RULE ####
@@ -325,7 +321,13 @@ Current Schema for REDIRECT field in ACL_RULE_TABLE
                                                : next-hop group set of next-hop  Example: "10.0.0.1,10.0.0.3@Ethernet1"
 ```
 
-This is enhanced to accept an object oid. AclOrch will verify if the object is of type SAI_OBJECT_TYPE_NEXT_HOP and only then permit the rule
+This is enhanced to accept a representation for tunnel next-hop.
+
+```
+    key: ACL_RULE_TABLE:table_name:rule_name
+
+    redirect_action = 1*255CHAR                ; tunnel next-hop                 Example: "2.2.2.1@tunnel"
+```
 
 ## Warmboot and Fastboot Design Impact ##
 
@@ -341,6 +343,4 @@ No impact here
 
 ## Open/Action items - if any ##
 
-- Will there be a packet coming to T1 which doesn't host its ENI? Theoretically possible if all the T1's in a cluster share the same VIP
-- Will the endpoint for local DPU is PA of the interface address of the DPU
-- ENI_DASH_FORWARD_TABLE schema. Will VIP, Tunnel VNI be part of ENI_DASH_FORWARD_TABLE
+
