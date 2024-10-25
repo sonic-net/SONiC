@@ -112,6 +112,7 @@ ENI_DASH_FORWARD_TABLE schema is available here https://github.com/r12f/SONiC/bl
 
 - BFD sessions are created to local DPU or the remote DPU for faster reactivity to card level failures
 - Orchagent will switch between primary and secondary endpoint based on BFD status
+- Handle the local NEIGH down possibility. 
 
 ## Architecture Design ##
 
@@ -241,7 +242,9 @@ To solve this, ACL rules with high priority are added and the redirect should al
 
 ### Nexthop resolution ###
 
-Nexthop can be to a local DPU or a remote DPU. Orchagent must figure out if the endpoint is either local or remote and handle it accordingly
+Nexthop can be to a local DPU or a remote DPU. Orchagent must figure out if the endpoint is either local or remote and handle it accordingly.
+
+It is also DashEniFwdOrch's responsibility to resolve the neighbor. This can be achieved by writing the entry to APP_NEIGH_RESOLVE_TABLE_NAME table.
 
 ### Dash ENI Forward Orch ### 
 
@@ -279,44 +282,20 @@ flowchart LR
     ENI_TABLE --> DashEniFwdOrch
     DPU --> DashEniFwdOrch
 
-    DashEniFwdOrch --> |Observe| NeighOrch
+    DashEniFwdOrch --> |Observe|Resolve| NeighOrch
     NeighOrch --> |NH Update| DashEniFwdOrch
 
-    DashEniFwdOrch --> | Eni CRUD op | ACL_RULE_TABLE
-    DashEniFwdOrch --> | NH Update | ACL_RULE_TABLE
-    DashEniFwdOrch --> | NH Delete| AclOrch
+    DashEniFwdOrch --> ACL_RULE_TABLE
+    DashEniFwdOrch --> AclOrch
 
     ACL_RULE_TABLE -->  AclOrch
     AclOrch --> |Get oid| NeighOrch
     AclOrch --> SAI/SDK
 ```
 
-**Implementation Nuance**
-
-During ENI Create/Delete Flows, DashEniFwdOrch will just write the ACL_RULES to DB.
-
-However, when there is a Neigh Delete, DashEniFwdOrch will need to directly call AclOrch API's to delete the RULES. 
-This is required because DB update is async in nature
 
 #### Local NextHop Flow (Option 2) #### 
 
-```mermaid
-flowchart LR
-    ENI_TABLE[ENI_DASH_FORWARD_TABLE]
-
-    HaMgrD --> ENI_TABLE
-    ENI_TABLE --> DashEniFwdOrch
-    DPU --> DashEniFwdOrch
-
-    DashEniFwdOrch --> | SET/DEL | ACL_RULE_TABLE
-    ACL_RULE_TABLE --> AclOrch
-    
-    AclOrch --> |Observe| NeighOrch
-    NeighOrch --> |NH Update| AclOrch
-
-    AclOrch --> SAI/SDK
-    AclOrch --> |Get oid| NeighOrch
-```
 
 #### Schema Change in ACL_RULE ####
 
