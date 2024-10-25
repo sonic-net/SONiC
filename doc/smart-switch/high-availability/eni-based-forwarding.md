@@ -229,7 +229,7 @@ To solve this, ACL rules with high priority are added and the redirect should al
 ```
 {
     "ACL_RULE": {
-        "ENI:aa:bb:cc:ff:fe:dd:ee:ff:IN1": {
+        "ENI:Vnet1000_AABBCCDDEEFF_IN_TERM": {
             "PRIORITY": "9998",
             "DST_IP": "1.1.1.1/32",
             "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
@@ -272,7 +272,7 @@ flowchart LR
     AclOrch --> SAI/SDK
 ```
 
-#### Local NextHop Flow (Option 1) #### 
+#### Local NextHop Flow #### 
 
 ```mermaid
 flowchart LR
@@ -282,20 +282,15 @@ flowchart LR
     ENI_TABLE --> DashEniFwdOrch
     DPU --> DashEniFwdOrch
 
-    DashEniFwdOrch --> |Observe|Resolve| NeighOrch
+    DashEniFwdOrch --> |Observe/Resolve| NeighOrch
     NeighOrch --> |NH Update| DashEniFwdOrch
 
     DashEniFwdOrch --> ACL_RULE_TABLE
-    DashEniFwdOrch --> AclOrch
 
     ACL_RULE_TABLE -->  AclOrch
     AclOrch --> |Get oid| NeighOrch
     AclOrch --> SAI/SDK
 ```
-
-
-#### Local NextHop Flow (Option 2) #### 
-
 
 #### Schema Change in ACL_RULE ####
 
