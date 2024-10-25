@@ -18,6 +18,7 @@ changes in behavior.
 
 * NTP: Network Time Protocol
 * RTC: Real Time Clock
+* System time: the time that is used by userspace applications when they want to get the current time
 
 ## Overview
 
@@ -46,10 +47,10 @@ shortcomings with regards to how this daemon works:
 2. When slewing the time, ntpd disables the kernel time discipline. One of the
    effects of this is that the kernel will never know that the system time has
    been synchronized to the actual time, and thus will not update the
-   hardware/RTC clock on the board with the correct time. When the kernel knows
+   hardware clock/RTC on the board with the correct time. When the kernel knows
    that the system time is synchronized, every 11 minutes, it will write the
-   current system time to the hardware/RTC clock. Not syncing the system time
-   to the hardware/RTC clock means that if the system were to be rebooted, then
+   current system time to the hardware clock/RTC. Not syncing the system time
+   to the hardware clock/RTC means that if the system were to be rebooted, then
    it would come back up with whatever time was recorded in the hardware clock,
    which might not be the actual time.  It is possible to manually sync the
    system time to the hardware clock, which is what is done in SONiC when the
@@ -118,46 +119,73 @@ For SONiC's purposes, there are specific advantages that chrony has over ntpd:
 * Unless specified via a config option, chrony will use the system's routing
   rules to determine what interface to send NTP packets to for each source, and
   will listen for a response on the socket that it opens. In other words, the
-  list of interfaces to listen on doesn't need to be specified. The config
-  option `bindacqdevice` specifies an interface to use to send and receive NTP
-  packets.
-* The kernel will get a notification that the time is synchronized, which will
-  allow it to sync the hardware/RTC clock.
+  list of interfaces to listen on doesn't need to be specified, and a permanent
+  socket doesn't need to be kept open (unlike ntpd). If it is desired that NTP
+  packets are sent via a specific interface, then the config option
+  `bindacqdevice` can be used to specify this interface. Similarly,
+  `bindacqaddress` can be used to specify an IPv4 or IPv6 address.
+* If `rtcsync` is enabled in the configuration, then the kernel will get a
+  notification that the time is synchronized, which will allow it to sync the
+  hardware clock/RTC. Otherwise, chrony can manage the hardware clock/RTC.
 * There's a separate communication method (Unix socket and UDP port 323) for
-  talking to and configuring `chronyd` itself. This can help with
+  talking to and configuring `chronyd` itself. `ntpd` uses the same port for
+  daemon configuration/information as NTP packets. This can help with
   security/firewalls.
 
 ### Disadvantages of replacing ntpd with chrony
 
 There are also a couple minor disadvantages as well:
 
-* In the server case, chrony can listen on only one interface or one IP address
-  (per family). This means that unlike ntpd, where there may be multiple
-  sockets, one per interface or per IP address, listening for NTP packets,
-  chrony will have only two (one for IPv4, one for IPv6) sockets open. Instead,
-  chrony can be told which IP addresses to allow/deny packets from.
+* When chrony is acting as an NTP server (not just as a client), chrony can
+  listen on only one interface or on one IPv4 and one IPv6 address. This means
+  that unlike ntpd, where there may be multiple sockets (one per interface or
+  per IP address) listening for NTP packets from client, chrony will have only
+  two sockets (one for IPv4, one for IPv6) open. That being said, chrony can be
+  told which IP addresses/subnets to allow/deny packets from. This means that
+  chrony can be told to listen on all addresses (i.e. not be bound to a single
+  interface, and listen on 0.0.0.0 and ::), and specify which subnets are
+  allowed to talk to chrony through the use of `allow` and `deny` config
+  options (i.e. `allow 10.2.0.0/16` and `deny 10.2.3.0/24`). Alternatively, a
+  firewall (such as iptables) can be used to allow/block UDP port 123 packets
+  from selected interfaces/IP subnets.
 * Tools that work with `ntpd` such as `ntpq` and `ntpstat` will not work with
   chrony, as they use different protocols for communication. Fortunately,
   `chronyc` can serve as a replacement to all necessary functions of `ntpq` and
   `ntpstat`, but with possibly different output formats.
+
+### Conclusion
+
+Given the issues that the usage of ntpd have revealed, chrony's differences in
+behavior (always slewing the time, optionally updating the hardware clock/RTC,
+and reduced scope of permanently open sockets) are a major improvement over
+ntpd. For the disadvantages listed here, there are at least workarounds that
+can be used. These workarounds are listed above.
+
+For this reason, it makes sense to migrate to chrony.
 
 ## Migrating from ntpd to chrony in SONiC
 
 ### Configuration
 
 In terms of SONiC configuration changes, there are no configuration changes
-needed for migrating from ntpd to chrony. All of the configuration information
-passed in can be translated to chrony's syntax.
+required for migrating from ntpd to chrony. All of the configuration
+information passed in can be translated to chrony's syntax.
 
 For chrony's configuration file, there are differences in the configuration
 options that are available. The major ones of note are:
 * Chrony doesn't require listening on an interface to be able to send and
   receive NTP packets on it.
-* Chrony can only listen on one interface (or one IPv4 and one IPv6 address),
-  whereas ntpd can open any number of sockets listening on port 123.
-* Chrony doesn't have a default panic threshold, where if the time received via
-  NTP is too different than the system time, then chrony exits, whereas ntpd
-  does, which needed to be disabled in our configuration.
+* When acting as a NTP server, chrony can only listen on one interface (or one
+  IPv4 and one IPv6 address), whereas ntpd can open any number of sockets
+  listening on port 123.
+* Chrony doesn't have a default panic threshold, whereas ntpd does by default.
+  A panic threshold means that if the time received via NTP is too different
+  than the system time (i.e. greater than the panic threshold), then the NTP
+  daemon will exit immediately instead of doing anything, and expect the system
+  administrator to first correct the system time to the actual time. For
+  SONiC's purposes, we do not want the panic threshold to be set. Chrony
+  doesn't set one, whereas ntpd does set a threshold of 1000 seconds by default
+  (which can be overridden).
 * ntpd's configuration specified what each subnet was allowed to do, whereas
   chrony doesn't quite have that. This is partly because the configuration
   control for chrony is on a different port entirely (UDP port 323 instead of
@@ -168,6 +196,15 @@ options that are available. The major ones of note are:
 * Chrony also allows storing the NTP servers in a separate file, making it
   possible to reload the daemon and have it reread the servers instead of
   restarting the whole daemon. At this time, this is not used in SONiC.
+* Chrony configuration file can specify `rtcsync` to tell the kernel that the
+  system time is now synchronized, and the kernel can then synchronize the
+  hardware clock/RTC with the system time. However, this would mean that if the
+  system time is significantly different from the actual time, then the
+  hardware clock/RTC will not get updated until the system time is synchronized
+  to the actual time, which may take months. As an alternative, chrony can
+  manage the hardware clock/RTC. With this, it will immediately update the
+  hardware clock/RTC with the actual time, while the system time is gradually
+  slewed. This will be the configuration chosen for SONiC.
 
 ## SAI API
 
@@ -183,7 +220,9 @@ is different. There will be no other changes specifically related to this.
 However, `config ntp` will have additional options added. Specifically, it will
 accept `--iburst`, `--version`, and `--association-type` arguments when adding
 a NTP server, to enable iburst, specify the NTP association version, or specify
-the association type, respectively.
+the association type, respectively. This is to address the gap that while these
+options could be configured via `config_db.json`, there is no CLI option to
+configure this.
 
 Examples:
 
