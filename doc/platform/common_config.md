@@ -75,18 +75,18 @@ The design change for syncd_init_common.sh is targeted on the config_syncd_bcm()
 
 In the updated 0.2 version, the script will check the platform specific config file. If it is yml based, it will merge common broadcom-sonic-{$chip_name}.config.bcm file with the existing platform specific config.yml file. 
 
-In order to support common config overwriting the platform config feature in updated version 0.2. We propose a option for supporting properties of common config overwriting to the Platform config. The properties of common config in the overwrite section have the high priority than the platform specfic config and will merge and overwrite to the platform config. As the following example, the properties of common config in the overwrite section will overwirte the platform specifc config during the merged process. Note, the Overwrite Section should be located after normal section in the common config file, otherwise the logic will overwrite all properties
+In order to support common config overwriting the platform config feature in updated version 0.2. We propose a option for supporting properties of common config overwriting to the Platform config. The properties of common config in the High Inheritance Precedence section have the high priority than the platform specfic config and will merge and overwrite to the platform config. As the following example, the properties of common config in the High Inheritance Precedence section will overwirte the platform specifc config during the merged process. Note, the Overwrite Section should be located after normal section in the common config file, otherwise the logic will overwrite all properties
 
 ```
 /device/broadcom/x86_64-broadcom_common/x86_64-broadcom_b27/broadcom-sonic-td3.config.bcm
-[Normal Section]
+[Low Inheritance Precedence]
 mem_cache_enable=1
 sai_create_dflt_trap=1
 sai_default_tc_to_pg_map=1
 qos_map_dot1p_nonsharable_mode=1
 
 
-[Overwrite Section]
+[High Inheritance Precedence]
 l3_mem_entries=16384
 lpm_scaling_enable=0
 l3_alpm_enable=0
