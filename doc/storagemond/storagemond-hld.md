@@ -371,19 +371,19 @@ key                     = STORAGE_INFO|<disk_name>  ; This key is for informatio
 
 ; field                 = value
 
-device_model            = STRING                    ; Describes the Vendor information of the disk                                           (Static)
-serial                  = STRING                    ; Describes the Serial number of the disk                                                (Static)
-temperature_celsius     = STRING                    ; Describes the operating temperature of the disk in Celsius                             (Dynamic)
-total_fsio_reads        = STRING                    ; Describes the total number of filesystem reads completed successfully                  (Dynamic)
-total_fsio_writes       = STRING                    ; Describes the total number of filesystem writes completed successfully                 (Dynamic)
-latest_fsio_reads       = STRING                    ; Describes the latest number of filesystem reads completed successfully                 (Dynamic)
-latest_fsio_writes      = STRING                    ; Describes the latest number of filesystem writes completed successfully                (Dynamic)
-disk_io_reads           = STRING                    ; Describes the total number of reads completed successfully from the SSD (Bytes)        (Dynamic)
-disk_io_writes          = STRING                    ; Describes the total number of writes completed on the SSD (Bytes)                      (Dynamic)
-reserved_blocks         = STRING                    ; Describes the reserved blocks count of the SSD                                         (Dynamic)
-firmware                = STRING                    ; Describes the Firmware version of the SSD                                              (Dynamic)
-health                  = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs      (Dynamic)
-last_sync_time          = STRING                    ; The latest successful sync time of disk attribtes to STATE_DB (YYYY:MM:DD HH:MM:SS)    (Dynamic)
+device_model            = STRING                    ; Describes the Vendor information of the disk                                                     (Static)
+serial                  = STRING                    ; Describes the Serial number of the disk                                                          (Static)
+temperature_celsius     = STRING                    ; Describes the operating temperature of the disk in Celsius                                       (Dynamic)
+total_fsio_reads        = STRING                    ; Describes the total number of filesystem reads completed successfully                            (Dynamic)
+total_fsio_writes       = STRING                    ; Describes the total number of filesystem writes completed successfully                           (Dynamic)
+latest_fsio_reads       = STRING                    ; Describes the latest number of filesystem reads completed successfully                           (Dynamic)
+latest_fsio_writes      = STRING                    ; Describes the latest number of filesystem writes completed successfully                          (Dynamic)
+disk_io_reads           = STRING                    ; Describes the total number of reads completed successfully from the SSD (Bytes)                  (Dynamic)
+disk_io_writes          = STRING                    ; Describes the total number of writes completed on the SSD (Bytes)                                (Dynamic)
+reserved_blocks         = STRING                    ; Describes the reserved blocks count of the SSD                                                   (Dynamic)
+firmware                = STRING                    ; Describes the Firmware version of the SSD                                                        (Dynamic)
+health                  = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs                (Dynamic)
+last_sync_time          = STRING                    ; The latest successful sync time (in UTC) of disk attribtes to STATE_DB (YYYY:MM:DD HH:MM:SS)     (Dynamic)
 ```
 
 NOTE: disk_io_reads and disk_io_writes return total LBAs read/written. 'LBA' stands for Logical Block Address. 
@@ -436,7 +436,7 @@ key                     = STORAGE_INFO|FSSTATS_SYNC  ; This key is for informati
 
 ; field                 = value
 
-successful_sync_time    = STRING                     ; The latest successful sync time of FSIO reads and writes to file ("YYYY:MM:DD HH:MM:SS" format)
+successful_sync_time    = STRING                     ; The latest successful sync time (in UTC) of FSIO reads and writes to file ("YYYY:MM:DD HH:MM:SS" format)
 
 ```
 
