@@ -20,12 +20,14 @@
     - [Netlink message](#netlink-message)
   - [Bandwidth Estimation](#bandwidth-estimation)
   - [Config DB](#config-db)
+    - [DEVICE\_METADATA](#device_metadata)
     - [STREAM\_TELEMETRY\_PROFILE](#stream_telemetry_profile)
     - [STREAM\_TELEMETRY\_GROUP](#stream_telemetry_group)
   - [StateDb](#statedb)
     - [STREAM\_TELEMETRY\_SESSION](#stream_telemetry_session)
   - [Work Flow](#work-flow)
   - [SAI API](#sai-api)
+    - [Initialize TAM cache count for Switch](#initialize-tam-cache-count-for-switch)
     - [Creating HOSTIF object](#creating-hostif-object)
     - [Creating HOSTIF trap group](#creating-hostif-trap-group)
     - [Creating HOSTIF user defined trap](#creating-hostif-user-defined-trap)
@@ -39,6 +41,7 @@
     - [Creating TAM object](#creating-tam-object)
     - [Query IPFIX template](#query-ipfix-template)
     - [Enable/Disable telemetry stream](#enabledisable-telemetry-stream)
+    - [Query stream telemetry capability](#query-stream-telemetry-capability)
 - [Configuration and management](#configuration-and-management)
   - [Manifest (if the feature is an Application Extension)](#manifest-if-the-feature-is-an-application-extension)
   - [CLI/YANG model Enhancements](#cliyang-model-enhancements)
@@ -85,7 +88,8 @@ The existing telemetry solution of SONiC relies on the syncd process to proactiv
 - The number of extension stats types for a single SAI object type should not exceed 32,768.
 - The number of SAI objects of the same type should not exceed 32,768.
 - The vendor SDK should support publishing stats in IPFIX format and its IPFIX template.
-- If a polling frequency for stats cannot be supported, the vendor's SDK should report this error.
+- If a polling frequency for stats cannot be supported, the vendor's SDK should return this error.
+- The vendor SDK should support querying the minimal polling interval for each counter.
 - When reconfiguring any stream settings, whether it is the polling interval or the stats list, the existing stream will be interrupted and regenerated.
 
 ## Architecture Design
@@ -215,7 +219,7 @@ packet-beta
 32-47: "Template ID = > 256 configured"
 48-63: "Number of Fields = 1 + Number of stats"
 64-79: "Element ID=observationTimeNanoseconds (325)"
-80-95: "Field length = 4 bytes"
+80-95: "Field length = 8 bytes"
 96-96: "1"
 97-111: "Element ID = Object index for the stats 1"
 112-127: "Field Length = 8 bytes"
@@ -271,7 +275,7 @@ packet-beta
 
 #### IPFIX data
 
-An IPFIX data message consists of two hierarchical levels: chunk and snapshots. A chunk contains multiple snapshots, and a snapshot is a binary block that can be interpreted using the IPFIX template mentioned above.
+An IPFIX data message consists of a snapshot that is a binary block that can be interpreted using the IPFIX template mentioned above.
 
 The binary structure of a snapshot is as follows:
 
@@ -283,17 +287,15 @@ title: A snapshot of IPFIX data
 packet-beta
 0-15: "Set ID = Same as template ID"
 16-31: "Set Length = (8 + Number of stats * 8) bytes"
-32-63: "Rcord 1: observationTimeNanoseconds"
-64-95: "Record 2: Stats 1"
-96-127: "..."
-128-159: "Record N + 1: Stats N"
-
+32-95: "Data 1: observationTimeNanoseconds"
+96-127: "Data 2: Stats 1"
+128-159: "..."
+160-191: "Data N + 1: Stats N"
 ```
 
-- The chunk size can be configured via SAI.
 - The snapshot structure is derived from the IPFIX template, which is based on the stats we want to record.
 
-Below is an example of an IPFIX message for the same stats record as the IPFIX template example, with a chunk size of 3:
+Below is an example of an IPFIX message for the same stats record as the IPFIX template example:
 
 ``` mermaid
 
@@ -308,27 +310,15 @@ packet-beta
 96-127: "Observation Domain ID = 0"
 128-143: "Set ID = 256"
 144-159: "Set Length = 32 bytes"
-160-191: "observationTimeNanoseconds = 10000"
-192-255: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 10"
-256-319: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
-320-383: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 5"
-384-399: "Set ID = 256"
-400-415: "Set Length = 32 bytes"
-416-447: "observationTimeNanoseconds = 20000"
-448-511: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 15"
-512-575: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
-576-639: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 6"
-640-655: "Set ID = 256"
-656-671: "Set Length = 32 bytes"
-672-703: "observationTimeNanoseconds = 30000"
-704-767: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 20"
-768-831: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
-832-895: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 8"
+160-223: "observationTimeNanoseconds = 10000"
+224-287: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 10"
+288-351: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
+352-415: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 5"
 ```
 
 #### Netlink message
 
-We expect that all control messages and out-of-band information will be transmitted by the SAI. Therefore, we do not need to read the attribute header of netlink and message header of Genetlink from the socket. The sample code for building the message from the kernel side should look as follows:
+We expect all control messages and out-of-band information to be transmitted by the SAI. Therefore, it is unnecessary to read the attribute header of netlink and the message header of Genetlink from the socket. Instead, we can insert a bulk of IPFIX recordings as the payload of the netlink message. The sample code for building the message from the kernel side is as follows:
 
 ``` c
 
@@ -346,10 +336,20 @@ static struct genl_family nl_bench_family = {
 };
 
 
-void send_msg_to_user(int ipfix_msg_len, const void *ipfix_msg)
+void send_msgs_to_user(/* ... */)
 {
     struct sk_buff *skb_out = nlmsg_new(ipfix_msg_len, GFP_KERNEL);
-    nla_put_nohdr(skb_out, ipfix_msg_len, ipfix_msg);
+
+    for (size_t i = 0; i < bulk_count; i++)
+    {
+        struct ipfix *msg = ring_buffer.pop();
+        if (msg == NULL)
+        {
+            break;
+        }
+        nla_append(skb_out, msg->data, msg->len);
+    }
+
     genlmsg_multicast(&genl_family, skb_out, 0, 0/* group_id to ipfix group */, GFP_KERNEL);
 }
 
@@ -357,9 +357,9 @@ void send_msg_to_user(int ipfix_msg_len, const void *ipfix_msg)
 
 ### Bandwidth Estimation
 
-We estimate the bandwidth based only on the effective data size, not the actual data size. The extra information in a message, such as the IPFIX header (16 bytes), data prefix (4 bytes), and observation time milliseconds (4 bytes), is negligible. For example, if we want to collect 30 stats on 64 ports, and the chunk size is 100: $The Percentage Of Effective Data = \frac{8 \times 30 \times 64 \times 100_{Effective Data}}{16_{Header} + 4 \times 100_{Data Prefix} + 4 \times 100_{Observation Time Milliseconds} + 8 \times 30 \times 64 \times 100_{Effective Data}} \approx 99.9\%$ .
+We estimate the bandwidth based only on the effective data size, not the actual data size. The extra information in a message, such as the IPFIX header (16 bytes), data prefix (4 bytes), and observation time milliseconds (8 bytes), is negligible. For example, a IPFIX message could include $The Maximal Number Of Counters In One Message = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Milliseconds Bytes}}{8_{bytes}} \approx 8188$, So $The Percentage Of Effective Data = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Milliseconds Bytes}} {0xFFFF_{Max LengthBytes}} \approx 99.9\%$ .
 
-The following table is telemetry bandwidth of one cluster
+The following table is an example of telemetry bandwidth of one cluster
 
 | # of stats per port | # of ports per switch | # of switch | frequency (us) | Total BW per switch(Mbps) | Total BW(Mbps) |
 | ------------------- | --------------------- | ----------- | -------------- | ------------------------- | -------------- |
@@ -372,23 +372,28 @@ The following table is telemetry bandwidth of one cluster
 
 Any configuration changes in the config DB will interrupt the existing session and initiate a new one.
 
+#### DEVICE_METADATA
+
+```
+DEVICE_METADATA|localhost
+    "stream_telemetry_cache_size": number of message that can be cached.
+```
+
 #### STREAM_TELEMETRY_PROFILE
 
 ```
 STREAM_TELEMETRY_PROFILE|{{profile_name}}
     "stream_state": {{enabled/disabled}}
     "poll_interval": {{uint32}}
-    "chunk_size": {{uint32}} (OPTIONAL)
-    "cache_size": {{uint32}} (OPTIONAL)
+    "bulk_size": {{uint32}} (OPTIONAL)
 ```
 
 ```
 key                = STREAM_TELEMETRY_PROFILE:profile_name a string as the identifier of stream telemetry
 ; field            = value
 stream_state       = enabled/disabled ; Enabled/Disabled stream.
-poll_interval      = uint32 ; The interval to poll counter, unit milliseconds.
-chunk_size         = uint32 ; number of stats groups in a telemetry message.
-cache_size         = uint32 ; number of chunks that can be cached.
+poll_interval      = uint32 ; The interval to poll counter, unit microseconds.
+bulk_size          = uint32 ; Defines the size of reporting bulk, which means TAM will report to the collector every time
 ```
 
 #### STREAM_TELEMETRY_GROUP
@@ -504,6 +509,8 @@ sequenceDiagram
 
 ### SAI API
 
+The SAI logic for stream telemetry follows the existing SAI documentation: [Granular-Counter-Subscription.md](https://github.com/opencomputeproject/SAI/blob/master/doc/TAM/Granular-Counter-Subscription.md).
+
 ``` mermaid
 
 ---
@@ -550,7 +557,6 @@ erDiagram
         SAI_TAM_REPORT_ATTR_REPORT_MODE SAI_TAM_REPORT_MODE_BULK
         SAI_TAM_REPORT_ATTR_REPORT_INTERVAL poll_interval "STREAM_TELEMETRY_PROFILE:profile_name[poll_interval] on Config DB"
         SAI_TAM_REPORT_ATTR_TEMPLATE_REPORT_INTERVAL _0 "Don't push the template, Because we hope the template can be proactively queried by orchagent"
-        SAI_TAM_REPORT_ATTR_REPORT_IPFIX_TEMPLATE_ID template_id "A unique id generated by stream telemetry orch"
         SAI_TAM_REPORT_ATTR_REPORT_INTERVAL_UNIT SAI_TAM_REPORT_INTERVAL_UNIT_MSEC
     }
     telemetry_type[TAM_telemetry_type] {
@@ -563,8 +569,7 @@ erDiagram
         SAI_TAM_TELEMETRY_ATTR_TAM_TYPE_LIST sai_tam_tel_type_obj
         SAI_TAM_TELEMETRY_ATTR_COLLECTOR_LIST sai_tam_collector_obj
         SAI_TAM_TELEMETRY_ATTR_REPORTING_TYPE SAI_TAM_REPORTING_TYPE_COUNT_BASED
-        SAI_TAM_TELEMETRY_ATTR_REPORTING_CHUNK_SIZE chunk_size "STREAM_TELEMETRY_PROFILE:profile_name[chunk_size] on Config DB"
-        SAI_TAM_TELEMETRY_ATTR_CACHE_SIZE cache_size "STREAM_TELEMETRY_PROFILE:profile_name[cache_size] on Config DB"
+        SAI_TAM_TELEMETRY_ATTR_REPORTING_BULK_SIZE bulk_count "STREAM_TELEMETRY_PROFILE:profile_name[bulk_count] on Config DB"
     }
     counter_subscription[TAM_counter_subscription] {
         SAI_ID SAI_VALUE "Comments"
@@ -572,6 +577,7 @@ erDiagram
         SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_OBJECT_ID port_obj
         SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STAT_ID SAI_PORT_STAT_IF_IN_OCTETS "A stats in sai_port_stat_t"
         SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL index "Element ID of the object in the IPFIX template"
+        SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STATS_MODE SAI_STATS_MODE_READ "Set read counter mode"
     }
     TAM[TAM] {
         SAI_ID SAI_VALUE "Comments"
@@ -581,6 +587,7 @@ erDiagram
     switch[Switch] {
         SAI_ID SAI_VALUE "Comments"
         SAI_SWITCH_ATTR_TAM_OBJECT_ID sai_tam_obj
+        SAI_SWITCH_ATTR_TAM_CACHE_COUNT cache_count
     }
 
     host_table_entry |o--|| hostif: binds
@@ -609,6 +616,41 @@ erDiagram
 | TAM_telemetry_type       | per STREAM_TELEMETRY profile |
 | TAM_report               | per STREAM_TELEMETRY profile |
 | TAM_counter_subscription | per stats of object          |
+
+#### Initialize TAM cache count for Switch
+
+``` c++
+/**
+ * @brief Attribute Id in sai_set_switch_attribute() and
+ * sai_get_switch_attribute() calls.
+ */
+typedef enum _sai_switch_attr_t
+{
+    // ...
+
+    /**
+     * @brief Tam telemetry cache count
+     *
+     * If the collector isn't ready to receive the report, this value indicates how many
+     * reports that can be cached. 0 means no cache which is the default behavior.
+     *
+     * @type sai_uint32_t
+     * @flags CREATE_ONLY
+     * @default 0
+     */
+    SAI_SWITCH_ATTR_TAM_CACHE_COUNT,
+
+    // ...
+} sai_switch_attr_t;
+
+sai_attr_list[0].id = SAI_SWITCH_ATTR_TAM_CACHE_COUNT;
+sai_attr_list[0].value.u32 = cache_count;
+
+// ...
+
+create_switch(&gSwitchId, (uint32_t)sai_attr_list.size(), sai_attr_list.data());
+
+```
 
 #### Creating HOSTIF object
 
@@ -712,45 +754,6 @@ sai_create_tam_collector_fn(&sai_tam_collector_obj, switch_id, attr_count, sai_a
 #### Creating TAM report object
 
 ``` c++
-/**
- * @brief Attributes for TAM report
- */
-typedef enum _sai_tam_report_attr_t
-{
-
-    // ...
-
-    /**
-     * @brief Set ID for IPFIX template
-     *
-     * According to the IPFIX spec, the available range should be 256-65535.
-     * The value 0 means the ID will be decided by the vendor's SAI.
-     *
-     * @type sai_uint16_t
-     * @flags CREATE_AND_SET
-     * @isvlan false
-     * @default 0
-     * @validonly SAI_TAM_REPORT_ATTR_TYPE == SAI_TAM_REPORT_TYPE_IPFIX
-     */
-    SAI_TAM_REPORT_ATTR_REPORT_IPFIX_TEMPLATE_ID,
-
-    /**
-     * @brief Query IPFIX template
-     *
-     * Return the IPFIX template binary buffer
-     *
-     * @type sai_u8_list_t
-     * @flags READ_ONLY
-     */
-    SAI_TAM_REPORT_ATTR_IPFIX_TEMPLATE,
-
-    // ...
-
-} sai_tam_report_attr_t;
-
-```
-
-``` c++
 
 sai_attr_list[0].id = SAI_TAM_REPORT_ATTR_TYPE;
 sai_attr_list[0].value.s32 = SAI_TAM_REPORT_TYPE_IPFIX;
@@ -766,13 +769,10 @@ sai_attr_list[2].value.u32 = poll_interval; // STREAM_TELEMETRY_PROFILE:profile_
 sai_attr_list[3].id = SAI_TAM_REPORT_ATTR_TEMPLATE_REPORT_INTERVAL;
 sai_attr_list[3].value.s32 = 0; // Don't push the template, Because we hope the template can be proactively queried by orchagent
 
-sai_attr_list[4].id = SAI_TAM_REPORT_ATTR_REPORT_IPFIX_TEMPLATE_ID;
-sai_attr_list[4].value.u16 = template_id;// A unique id generated by stream telemetry orch
+sai_attr_list[4].id = SAI_TAM_REPORT_ATTR_REPORT_INTERVAL_UNIT;
+sai_attr_list[4].value.s32 = SAI_TAM_REPORT_INTERVAL_UNIT_MSEC;
 
-sai_attr_list[5].id = SAI_TAM_REPORT_ATTR_REPORT_INTERVAL_UNIT;
-sai_attr_list[5].value.s32 = SAI_TAM_REPORT_INTERVAL_UNIT_MSEC;
-
-attr_count = 6;
+attr_count = 5;
 sai_create_tam_report_fn(&sai_tam_report_obj, switch_id, attr_count, sai_attr_list);
 
 ```
@@ -854,35 +854,23 @@ typedef enum _sai_tam_telemetry_attr_t
      * @brief Tam telemetry reporting type
      *
      * @type sai_tam_reporting_type_t
-     * @flags CREATE_AND_SET
+     * @flags CREATE_ONLY
      * @default SAI_TAM_REPORTING_TYPE_TIME_BASED
      */
     SAI_TAM_TELEMETRY_ATTR_TAM_REPORTING_TYPE,
 
     /**
-     * @brief Tam telemetry reporting chunk size
+     * @brief Tam telemetry reporting bulk count
      *
-     * defines the size of reporting chunk, which means TAM will report to the collector every time
-     * if the report count reaches the chunk size.
+     * defines the size of reporting bulk, which means TAM will report to the collector every time
+     * if the report count reaches the bulk count.
      *
      * @type sai_uint32_t
      * @flags CREATE_AND_SET
      * @default 1
      * @validonly SAI_TAM_TELEMETRY_ATTR_TAM_REPORTING_TYPE == SAI_TAM_REPORTING_TYPE_COUNT_BASED
      */
-    SAI_TAM_TELEMETRY_ATTR_REPORTING_CHUNK_SIZE,
-
-    /**
-     * @brief Tam telemetry cache size
-     *
-     * If the collector isn't ready to receive the report, this value indicates how many
-     * reports that can be cached. 0 means no cache which is the default behavior.
-     *
-     * @type sai_uint32_t
-     * @flags CREATE_AND_SET
-     * @default 0
-     */
-    SAI_TAM_TELEMETRY_ATTR_CACHE_SIZE,
+    SAI_TAM_TELEMETRY_ATTR_REPORTING_BULK_COUNT,
 
 } sai_tam_telemetry_attr_t;
 
@@ -901,13 +889,10 @@ sai_attr_list[1].value.objlist.list[0] = sai_tam_collector_obj;
 sai_attr_list[2].id = SAI_TAM_TELEMETRY_ATTR_REPORTING_TYPE;
 sai_attr_list[2].value.s32 = SAI_TAM_REPORTING_TYPE_COUNT_BASED
 
-sai_attr_list[3].id = SAI_TAM_TELEMETRY_ATTR_REPORTING_CHUNK_SIZE;
-sai_attr_list[3].value.u32 = chunk_size; // STREAM_TELEMETRY_PROFILE:profile_name[chunk_size] on Config DB
+sai_attr_list[3].id = SAI_TAM_TELEMETRY_ATTR_REPORTING_BULK_COUNT;
+sai_attr_list[3].value.u32 = bulk_count; // STREAM_TELEMETRY_PROFILE:profile_name[bulk_count] on Config DB
 
-sai_attr_list[4].id = SAI_TAM_TELEMETRY_ATTR_CACHE_SIZE;
-sai_attr_list[4].value.u32 = cache_size; // STREAM_TELEMETRY_PROFILE:profile_name[cache_size] on Config DB
-
-attr_count = 5;
+attr_count = 4;
 
 sai_create_tam_telemetry_fn(&sai_tam_telemetry_obj, switch_id, attr_count, sai_attr_list);
 
@@ -918,6 +903,40 @@ sai_create_tam_telemetry_fn(&sai_tam_telemetry_obj, switch_id, attr_count, sai_a
 Based on the STREAM_TELEMETRY_GROUP on Config DB, to create corresponding counter subscription objects.
 
 ``` c++
+
+/**
+ * @brief Counter Subscription attributes
+ */
+typedef enum _sai_tam_counter_subscription_attr_t
+{
+
+// ...
+
+    /**
+     * @brief Telemetry label
+     *
+     * Label to identify this counter in telemetry reports.
+     * If the report type is IPFIX, this label will be used as the element ID in the IPFIX template.
+     *
+     * @type sai_uint64_t
+     * @flags CREATE_ONLY
+     * @default 0
+     */
+    SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL,
+
+    /**
+     * @brief Setting of read-clear or read-only for statistics read.
+     *
+     * @type sai_stats_mode_t
+     * @flags CREATE_ONLY
+     * @default SAI_STATS_MODE_READ
+     */
+    SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STATS_MODE,
+
+// ...
+
+} sai_tam_counter_subscription_attr_t;
+
 
 // Create counter subscription list
 
@@ -933,7 +952,11 @@ sai_attr_list[2].value.oid = SAI_PORT_STAT_IF_IN_OCTETS;
 sai_attr_list[3].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL;
 sai_attr_list[3].value.oid = index; // Element ID of the object in the IPFIX template
 
-attr_count = 4;
+sai_attr_list[4].id =SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STATS_MODE;
+sai_attr_list[4].value.s32 = SAI_STATS_MODE_READ;
+// sai_attr_list[4].value.s32 = SAI_STATS_MODE_READ_AND_CLEAR; // It could be read and clear for queue watermark
+
+attr_count = 5;
 
 create_tam_counter_subscription(&sai_tam_counter_subscription_obj, switch_id, attr_count, sai_attr_lis);
 // If this stats of object cannot support this poll frequency, this API should return SAI_STATUS_NOT_SUPPORTED.
@@ -960,15 +983,41 @@ sai_create_tam_fn(&sai_tam_obj, switch_id, attr_count, sai_attr_list);
 #### Query IPFIX template
 
 ``` c++
+/**
+ * @brief Attributes for TAM report
+ */
+typedef enum _sai_tam_report_attr_t
+{
 
-sai_attribute_t attr;
-get_tam_report_attribute(&sai_tam_report_obj, 1, &attr);
+    // ...
 
-std::vector<uint8_t> ipfix_template(attr.value.u8list.list, attr.value.u8list.list + attr.value.u8list.count);
-// Save ipfix_template to STATE DB
+    /**
+     * @brief Query IPFIX template
+     *
+     * Return the IPFIX template binary buffer
+     *
+     * @type sai_u8_list_t
+     * @flags READ_ONLY
+     */
+    SAI_TAM_REPORT_ATTR_IPFIX_TEMPLATES,
 
-// Free memory
-free(attr.value.u8list.list);
+    // ...
+
+} sai_tam_report_attr_t;
+
+```
+
+``` c++
+
+std::vector<uint8_t> template_buffer(64*1024*10, 0);
+
+sai_attribute_t sai_attr_list;
+
+sai_attr_list[0].id = SAI_TAM_REPORT_ATTR_IPFIX_TEMPLATES;
+sai_attr_list[0].value.u8list.list = template_buffer.data();
+sai_attr_list[0].value.u8list.count = template_buffer.size();
+
+get_tam_report_attribute(&sai_tam_report_obj, 1, &sai_attr_list);
 
 ```
 
@@ -997,6 +1046,52 @@ std::remove(sai_attr.value.oidlist, sai_attr.value.oidlist + sai_attr.value.coun
 sai_attr.value.count--;
 
 set_switch_attribute(switch_id, sai_attr)
+
+```
+
+#### Query stream telemetry capability
+
+``` c++
+
+/**
+ * @brief Query statistics capability for statistics bound at object level under the stream telemetry mode
+ *
+ * @param[in] switch_id SAI Switch object id
+ * @param[in] object_type SAI object type
+ * @param[inout] stats_capability List of implemented enum values, the statistics modes (bit mask) supported and minimal polling interval per value
+ *
+ * @return #SAI_STATUS_SUCCESS on success, #SAI_STATUS_BUFFER_OVERFLOW if lists size insufficient, failure status code on error
+ */
+sai_status_t sai_query_stats_st_capability(
+        _In_ sai_object_id_t switch_id,
+        _In_ sai_object_type_t object_type,
+        _Inout_ sai_stat_st_capability_list_t *stats_capability);
+
+/**
+ * @brief Stat capability under the stream telemetry mode
+ */
+typedef struct _sai_stat_st_capability_t
+{
+    /**
+     * @brief Typical stat capability
+     */
+    sai_stat_capability_t capability;
+
+    /**
+     * @brief Minimal polling interval in nanoseconds
+     *
+     * If polling interval is less than this value, it will be unacceptable.
+     */
+    uint32_t minimal_polling_interval;
+
+} sai_stat_st_capability_t;
+
+typedef struct _sai_stat_st_capability_list_t
+{
+    uint32_t count;
+    sai_stat_st_capability_t *list;
+
+} sai_stat_st_capability_list_t;
 
 ```
 
@@ -1062,6 +1157,7 @@ $Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Cache Size} \times {Chunk
 #### System Test cases
 
 - Test that the counter can be correctly monitored by the counter syncd.
-- Test that the counter can be correctly fetched using the telemetry stream CLI.
+- Verify that the bulk size is accurate when reading messages from the netlink socket.
+- Ensure that counters can be correctly retrieved using the telemetry stream CLI.
 
 ### Open/Action items - if any
