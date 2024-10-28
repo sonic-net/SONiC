@@ -275,7 +275,7 @@ packet-beta
 
 #### IPFIX data
 
-An IPFIX data message consists of a snapshot that is a binary block that can be interpreted using the IPFIX template mentioned above.
+An IPFIX data message consists of snapshots that is a binary block that can be interpreted using the IPFIX template mentioned above.
 
 The binary structure of a snapshot is as follows:
 
@@ -295,7 +295,7 @@ packet-beta
 
 - The snapshot structure is derived from the IPFIX template, which is based on the stats we want to record.
 
-Below is an example of an IPFIX message for the same stats record as the IPFIX template example:
+Below is an example of an IPFIX message with 3 snapshots for the same stats record as the IPFIX template example:
 
 ``` mermaid
 
@@ -308,13 +308,34 @@ packet-beta
 32-63: "Export Timestamp = 2024-08-29 20:30:60"
 64-95: "Sequence Number = 1"
 96-127: "Observation Domain ID = 0"
+
 128-143: "Set ID = 256"
 144-159: "Set Length = 32 bytes"
 160-223: "observationTimeNanoseconds = 10000"
 224-287: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 10"
 288-351: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
 352-415: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 5"
+
+416-431: "Set ID = 256"
+432-447: "Set Length = 32 bytes"
+448-511: "observationTimeNanoseconds = 20000"
+512-575: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 15"
+576-639: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
+640-703: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 6"
+
+704-719: "Set ID = 256"
+720-735: "Set Length = 32 bytes"
+736-799: "observationTimeNanoseconds = 30000"
+800-863: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 20"
+864-927: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
+928-991: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 8"
+
 ```
+
+- If the number of stats in a group is small, multiple snapshots may be encoded into a single IPFIX message.
+- If the number of stats in a group exceeds 8K, the group must be split across multiple IPFIX messages.
+
+The IPFIX template should be provided by vendors. This document does not restrict how to split or concatenate snapshots, but each separated snapshot must include its own `observationTimeNanoseconds`.
 
 #### Netlink message
 
