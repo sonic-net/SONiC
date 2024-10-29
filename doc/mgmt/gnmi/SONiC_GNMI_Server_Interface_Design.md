@@ -441,18 +441,34 @@ For incremental configuration, 'config apply-patch' should not restart gNMI, bgp
 
 ##### 1.2.1.11.2 Full Configurations
 
-For full configuration, there’re 2 possible solutions: 
-* gNMI server needs to send response at first, and then invoke 'config reload'.
+We will use single gnmi request to support full configuration update.
+1. The host service will perform YANG validation and return an error if it fails.
+2. The host service will mask the gNMI service, preventing it from restarting after a config reload.
+3. The host service will execute a config reload using the input configuration.
+4. The host service will execute a config save if step 3 is successful.
+5. The host service will perform a config reload to recover if step 3 fails.
+6. The host service will unmask the gNMI service.
 
-<img src="images/full_rpc.svg" alt="full-gnmi" width="800px"/>
+```mermaid
+sequenceDiagram
+    participant client
+    box SONiC
+        participant gnmi server
+        participant host service
+    end
+    client->>gnmi server: update full configuration
+    gnmi server->>host service: reload configuration
+    host service->>host service: run yang validation, return if failed
+    host service->>host service: mask gnmi service
+    host service->>host service: run config reload with input config
+    host service->>host service: if config reload suceeded, run config save
+    host service->>host service: if config reload failed, run config reload to recover
+    host service->>host service: unmask gnmi service
+    host service-->>gnmi server: result
+    gnmi server-->>client: result
+```
 
-* Use gNMI request and gNOI request together to implement full configuration update.
-
-<img src="images/full_rpc_gnoi.svg" alt="full-gnmi-gnoi" width="800px"/>
-
-The full configuration request will be overwritten by subsequent full configuration request or incremental configuration request.
-
-<img src="images/mixed requests.svg" alt="overwritten-config" width="800px"/>
+One limitation is that we can't restart the gNMI server. Therefore, if we update the configuration for the gNMI server, the changes will not take effect.
 
 #### 1.2.1.12 Backward Compatibility
 
