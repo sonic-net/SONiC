@@ -141,6 +141,8 @@ NA
   test_sai.py::test_for_switch_port_enumeration PASSED                     [ 68%]
   test_sai.py::test_for_switch_port_loopback PASSED                        [ 69%]
   test_sai.py::test_for_switch_port_traffic PASSED                         [ 70%]
-
+- Go into the syncd docker to run the UT and make sure it's PASS
+  syncd/scripts/brcm_common_config_ut.sh
+  PASS: Checking Common config merged Success   
 
 
