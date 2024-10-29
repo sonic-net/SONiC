@@ -4,9 +4,13 @@ Active-active dual ToR link manager is an evolution of active-standby dual ToR l
 
 ## Revision
 
-| Rev | Date     | Author          | Change Description |
-|:---:|:--------:|:---------------:|--------------------|
-| 0.1 | 05/23/22 | Jing Zhang      | Initial version    |
+|  Rev  |   Date   |    Author     | Change Description             |
+| :---: | :------: | :-----------: | ------------------------------ |
+|  0.1  | 05/23/22 |  Jing Zhang   | Initial version                |
+|  0.2  | 12/02/22 | Longxiang Lyu | Add Traffic Forwarding section |
+|  0.3  | 12/08/22 | Longxiang Lyu | Add BGP update delay section   |
+|  0.4  | 12/13/22 | Longxiang Lyu | Add skip ACL section           |
+|  0.5  | 04/10/23 | Longxiang Lyu | Add command line section       |
 
 ## Scope 
 This document provides the high level design of SONiC dual toR solution, supporting active-active setup. 
@@ -41,8 +45,19 @@ This document provides the high level design of SONiC dual toR solution, support
   - [3.5 Transceiver Daemon](#35-transceiver-daemon)
     - [3.5.1 Cable Control through gRPC](#351-cable-control-through-grpc)
   - [3.6 State Transition Flow](#36-state-transition-flow)
-  - [3.7 Further Enhancement](#37-further-enhancement)
-  - [3.8 Command Line](#38-command-line)
+  - [3.7 Traffic Forwarding](#37-traffic-forwarding)
+    - [3.7.1 Special Cases of Traffic Forwarding](#371-special-cases-of-traffic-forwarding)
+      - [3.7.1.1 gRPC Traffic to the NiC IP](#3711-grpc-traffic-to-the-nic-ip)
+  - [3.8 Further Enhancement](#38-further-enhancement)
+    - [3.8.1 Advertise updated routes to T1](#381-advertise-updated-routes-to-t1)
+    - [3.8.2 Server Servicing & ToR Upgrade](#382-server-servicing--tor-upgrade)
+    - [3.8.3 BGP update delay](#383-bgp-update-delay)
+    - [3.8.4 Skip adding ingress drop ACL](#384-skip-adding-ingress-drop-acl)
+  - [3.9 Command Line](#39-command-line)
+    - [3.9.1 Show mux status](#391-show-mux-status)
+    - [3.9.2 Show mux config](#392-show-mux-config)
+    - [3.9.3 Show mux tunnel-route](#393-show-mux-tunnel-route)
+    - [3.9.4 Config mux mode](#394-config-mux-mode)
 
 [4 Warm Reboot Support](#4-warm-reboot-support)
 
@@ -427,21 +442,151 @@ MuxOrch will listen to state changes from linkmgrd and does the following at a h
       1. Shutdown / restart notification from SoC to ToR.
 
 ### 3.6 State Transition Flow
-The following UML sequence illustrates the state transtion when linkmgrd state moves to active. The flow will be similar for moving to standby. 
+The following UML sequence illustrates the state transition when linkmgrd state moves to active. The flow will be similar for moving to standby.
 
 ![state transition flow](./image/state_transition_flow.png)
 
-### 3.7 Further Enhancement
-**Advertise updated routes to T1**  
+### 3.7 Traffic Forwarding
+The following shows the traffic forwarding behaviors:
+  * both ToRs are active.
+  * one ToR is active while the another ToR is standby.
+
+![Traffic Forwarding](./image/traffic_forwarding.png)
+
+#### 3.7.1 Special Cases of Traffic Forwarding
+
+##### 3.7.1.1 gRPC Traffic to the NiC IP
+There is a scenario that, if the upper ToR enters standby when its peer(the lower ToR) is already in standby state, all downstream I/O from ToR A will be forwarded through the tunnel to the peer ToR(the lower ToR), so does the control plane gRPC traffic from the transceiver daemon. As the lower ToR is in standby, those tunneled I/O will be blackholed, the NiC will never know that the upper ToR has entered standby in this case.
+
+To solve this issue, we want the control plane gRPC traffic from the transceiver daemon to be forwarded directly via the local devices. This is to differentiate the control plane traffic to the NiC IPs from dataplane traffic that its forwarding behavior honors the mux state and be forwarded to the peer active ToR via the tunnel when the port comes to standby.
+
+The following shows the traffic forwarding behavior when the lower ToR is active while the upper ToR is standby. Now, gRPC traffic from the standby ToR(Upper ToR) is forwarded to the NiC directly. The downstream dataplane traffic to the Upper ToR are directed to the tunnel to the active Lower ToR.
+
+<img src="./image/traffic_forwarding_enhanced.png" width="600" />
+<br/><br/>
+When orchagent is notified to change to standby, it will re-program both the ASIC and the kernel to let both control plane and data plane traffic be forwarded via the tunnel. To achieve the design proposed above, MuxOrch now will be changed to skip notifying the Tunnelmgrd if the neighbor address is the NiC IP address, so Tunnelmgrd will not re-program the kernel route in this case and the gRPC traffic to the NiC IP address from the transceiver daemon will be forwarded directly.
+
+The following UML diagram shows this change when Linkmgrd state moves to standby:
+
+![message change flow](./image/message_flow_standby.png)
+
+### 3.8 Enhancements
+
+#### 3.8.1 Advertise updated routes to T1
 Current failover strategy can smoothly handle the link failure cases, but if one of the ToRs crashes, and if T1 still sends traffic to the crashed ToR, we will see packet loss. 
 
 A further improvement in rescuing scenario, is when detecting peer's unhealthy status, local ToR advertises specific routes (i.e. longer prefix), so that traffic from T1 does't go to crashed ToR as all. 
 
-**Server Servicing & ToR Upgrade**  
+#### 3.8.2 Server Servicing & ToR Upgrade
 For server graceful restart, We already have gRPC service defined in [3.5.1](#351-cable-control-through-grpc). An indicator of ongoing server servicing should be defined based on that notification, so ToR can avoid upgrades in the meantime. Vice versa, we can also define gRPC APIs to notify server when ToR upgrade is ongoing.
 
-### 3.8 Command Line  
-TBD 
+#### 3.8.3 BGP update delay
+When the BGP neighbors are started on an active-active T0 switch, the T0 will try to establish BGP sessions with its connected T1 switches. After the BGP sessions' establishment, the T0 will exchange routes with those T1s. T1 switches usually have more routes than the T0 so T1 switches take more time to process out routes before sending updates. The consequence is that, after BGP sessions’ establishment, T1 switches could receive BGP updates from the T0 before the T0 receives any BGP updates from the T1s. There will be a period that those T1s have routes learnt from the T0 but the T0 has no routes learnt from the T1(T0 has no default routes). In this period, Those T1s could send downstream traffic to this T0, as stated in [3.3.5](#335-default-route-to-t1), the T0 is still in standby state, it will try to forward the traffic via the tunnel. As the T0 has no default route in this period, those traffic will be blackholed.
+
+So for the active-active T0s, a BGP update delay of 10 seconds is introduced to the BGP configurations to postpone sending BGP update after BGP session establishment. In this case, the T0 could learn routes from the T1s before the T1s learn any routes from the T0. So when the T1 could send any downstream traffic to the T0, the T0 will have default routes ready.
+
+#### 3.8.4 Skip adding ingress drop ACL
+Previously, at a high level, when the mux port comes to standby, the MuxOrch add ingress ACL to drop packets on the mux port. And when the mux port comes to active, the MuxOrch remove the ingress ACL. As described in [3.6], the MuxOrch is acted an intermediate agent between LinkMgrd and the transceiver daemon. Before the NiC receives gRPC request to toggle standby, the ingress drop ACL has already been programmed by MuxOrch. In this period, the server NiC still regard this ToR as active and could send upstream traffic to this ToR, but the upstream traffic will be dropped by the installed ingress drop ACL rule.
+
+A change to skip the installation of ingress drop ACL rule when toggling standby is introduced to forward the upstream traffic with best effort. This is because that, though the mux port is already in standby state in this period, the removal of the ingress drop ACL could allow the upstream traffic to reach the ToR and to be possibly forwarded by the ToR.
+
+### 3.9 Command Line
+This part only covers the command lines and options for active-active dualtor.
+
+#### 3.9.1 Show mux status
+`show mux status` returns the mux status for mux ports:
+  * `PORT`: mux port name
+  * `STATUS`: current mux status, could be either `active` or `standby`
+  * `SERVER_STATUS`: the mux status read from mux server as the result of last toggle
+    * `active`: mux server returned `active` as the result of last toggle to `active`
+    * `standby`: mux server returned `standby` as the result of last toggle to `standby`
+    * `unknown`: last toggle failed to switch the mux server status, or failed to read the status from the mux server
+    * `error`: last toggle failed to switch the orchagent status
+  * `HEALTH`: mux port health
+    *  `healthy`: it means that the ToR could receive link probe replies from the mux server, the following conditions must be satisfied for a mux port to be `healthy`:
+       * port status is `up`
+       * could receive replies for self link probes
+       * current mux status(`STATUS`) should match server status(`SERVER_STATUS`) or server status is `unknown`
+       * default route to T1s is present
+    *  `unheathy`: any of the above `healthy` conditions is broken
+  * `HWSTATUS`: check if current mux status matches server status
+    * `consistent`: `STATUS` matches `SERVER_STATUS`
+    * `inconsistent`: `STATUS` doesn't matches `SERVER_STATUS`
+    * `absent`: `SERVER_STATUS` is not present
+  * `LAST_SWITCHOVER_TIME`: last switchover timestamp
+
+```
+$ show mux status
+PORT        STATUS    SERVER_STATUS    HEALTH    HWSTATUS    LAST_SWITCHOVER_TIME
+----------  --------  ---------------  --------  ----------  ---------------------------
+Ethernet4   active    active           healthy   consistent  2023-Mar-27 07:57:43.314674
+Ethernet8   active    active           healthy   consistent  2023-Mar-27 07:59:33.227819
+```
+
+#### 3.9.2 Show mux config
+`show mux config` returns the mux configurations:
+  * `SWITCH_NAME`: peer switch hostname
+  * `PEER_TOR`: peer switch loopback address
+  * `PORT`: mux port name
+  * `state`: mux mode configuration
+    * `auto`: enable failover logics for both self and peer
+    * `manual`: disable failover logics for both self and peer
+    * `active`: if current mux status is not `active`, toggle the mux to `active` once, then work in `manual` mode
+    * `standby`: if current mux status is not `standby`, toggle the mux `standby` once, then work in `manual` mode
+    * `detach`: enable failover logics only for self
+  * `ipv4`: mux server ipv4 address
+  * `ipv6`: mux server ipv6 address
+  * `cable_type`: mux cable type, `active-active` for active-active dualtor
+  * `soc_ipv4`: soc ipv4 address
+
+```
+$ show mux config
+SWITCH_NAME        PEER_TOR
+-----------------  ----------
+lab-switch-2  10.1.0.33
+port        state    ipv4             ipv6               cable_type     soc_ipv4
+----------  -------  ---------------  -----------------  -------------  ---------------
+Ethernet4   auto     192.168.0.2/32   fc02:1000::2/128   active-active  192.168.0.3/32
+Ethernet8   auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32
+```
+
+#### 3.9.3 Show mux tunnel-route
+`show mux tunnel-route` returns tunnel routes that have been created for mux ports. 
+
+For each mux port, there can be 3 entries: `server_ipv4`, `server_ipv6`, `soc_ipv4`. For each entry, if tunnel route is created in `kernel` or `asic`, you will see `added` in command output, if not, you will see `-`. If no tunnel route is created for any of the 3 entries, mux port won't show in the command output. 
+
+* Usage:  
+```
+show mux tunnel-route [OPTIONS] <port_name>
+
+show muxcable tunnel-route <port_name>
+```
+* Options:
+```
+--json          display the output in json format
+```
+* Example
+```
+$ show mux tunnel-route Ethernet44
+PORT        DEST_TYPE    DEST_ADDRESS       kernel    asic
+----------  -----------  -----------------  --------  ------
+Ethernet44  server_ipv4  192.168.0.22/32    added     added
+Ethernet44  server_ipv6  fc02:1000::16/128  added     added
+Ethernet44  soc_ipv4     192.168.0.23/32    -         added
+```
+
+#### 3.9.4 Config mux mode
+`config mux mode` configures the operational mux mode for specified port.
+```
+# config mux mode <operation_status> <port_name>
+
+argument "<operation_status>" is  choose from:
+        active,
+        auto,
+        manual,
+        standby,
+        detach.
+```
 
 ## 4 Warm Reboot Support
 TBD

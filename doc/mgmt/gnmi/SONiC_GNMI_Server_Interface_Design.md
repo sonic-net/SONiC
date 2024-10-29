@@ -164,7 +164,13 @@ The ultimate goal is to use SONiC Yang models for configuration, and we also nee
 
 * We will follow OpenConfig specification to use origin field to support mixed schema.
 
-* And we use the first element to specify the target database.
+* We use the first element to specify the target database.
+
+* We use the second element to specify the database instance:
+  * For single asic device, this element is "localhost"
+  * For multiple asic device, this element can be "localhost", "asic0", "asic1", ...
+  * For smartswitch device, this element can be "localhost", "dpu0", "dpu1", ...
+  * For smartswitch with multiple asic NPU, this element can be "localhost", "asic0", "asic1", ..., "dpu0", "dpu1", ...
 
 A single request cannot have both SONiC YANG paths and ConfigDB/ApplDB schema paths. 
 
@@ -218,7 +224,7 @@ With CONFIG_DB schema:
 
     ++++++++ Sending get request: ++++++++
     path {
-        elem {name: "CONFIG_DB"} elem {name: "DEVICE_NEIGHBOR"}
+        elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"}
     }
     encoding: JSON_IETF
     ++++++++ Recevied get response: ++++++++
@@ -226,7 +232,7 @@ With CONFIG_DB schema:
         update {
             path {
                 origin: "sonic_db"
-                elem {name: "CONFIG_DB"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet8"}
+                elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet8"}
             }
             val {
                 json_ietf_val: "{\"name\": \"Servers1\",\"port\": \"eth0\"}"
@@ -235,7 +241,7 @@ With CONFIG_DB schema:
         update {
             path {
                 origin: "sonic_db"
-                elem {name: "CONFIG_DB"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet96"}
+                elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet96"}
             }
             val {
                 json_ietf_val: "{\"name\": \"Servers23\",\"port\": \"eth0\"}"
@@ -248,7 +254,7 @@ With CONFIG_YANG schema:
     ++++++++ Sending get request: ++++++++
     path {
         origin: "sonic_yang"
-        elem {name: "CONFIG_DB"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"}
+        elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"}
     }
     encoding: JSON_IETF
     ++++++++ Recevied get response: ++++++++
@@ -256,7 +262,7 @@ With CONFIG_YANG schema:
         update {
             path {
                 origin: "sonic_yang"
-                elem {name: "CONFIG_DB"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet8"}}
+                elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet8"}}
             }
             val {
                 json_ietf_val: "{\"name\": \"Servers1\",\"port\": \"eth0\"}"
@@ -265,7 +271,7 @@ With CONFIG_YANG schema:
         update {
             path {
                 origin: "sonic_yang"
-                elem {name: "CONFIG_DB"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet96"}}
+                elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet96"}}
             }
             val {
                 json_ietf_val: "{\"name\": \"Servers23\",\"port\": \"eth0\"}"
@@ -281,13 +287,13 @@ With CONFIG_DB schema:
     replace {
         path {
             origin: "sonic_db"
-            elem {name: "CONFIG_DB"} elem {name: "DEVICE_NEIGHBOR"}  elem {name: "Ethernet96"}
+            elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"}  elem {name: "Ethernet96"}
         }
     }
     replace {
         path {
             origin: "sonic_db"
-            elem {name: "CONFIG_DB"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet8"} elem {name: "port"}
+            elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet8"} elem {name: "port"}
         }
         val {
             json_ietf_val: "eth1"
@@ -297,14 +303,14 @@ With CONFIG_DB schema:
     response {
         path {
             origin: "sonic_db"
-            elem {name: "CONFIG_DB"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet96"}
+            elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet96"}
         }
         op: REPLACE
     }
     response {
         path {
             origin: "sonic_db"
-            elem {name: "CONFIG_DB"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet8"} elem {name: "port"}
+            elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet8"} elem {name: "port"}
         }
         op: REPLACE
     }
@@ -315,13 +321,13 @@ With CONFIG_YANG schema:
     replace {
         path {
             origin: "sonic_yang"
-            elem {name: "CONFIG_DB"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet96"}}
+            elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet96"}}
         }
     }
     replace {
         path {
             origin: "sonic_yang"
-            elem {name: "CONFIG_DB"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet8"}} elem {name: "port"}
+            elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet8"}} elem {name: "port"}
         }
         val {
             json_ietf_val: "eth1"
@@ -331,14 +337,14 @@ With CONFIG_YANG schema:
     response {
         path {
             origin: "sonic_yang"
-            elem {name: "CONFIG_DB"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet96"}}
+            elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet96"}}
         }
         op: REPLACE
     }
     response {
         path {
             origin: "sonic_yang"
-            elem {name: "CONFIG_DB"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet8"}} elem {name: "port"}
+            elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"} elem {name: "sonic-device_neighbor:DEVICE_NEIGHBOR"} elem {name: "DEVICE_NEIGHBOR_LIST" key {key: "name" value: "Ethernet8"}} elem {name: "port"}
         }
         op: REPLACE
     }
@@ -368,7 +374,7 @@ Below table provides an example to translate from SetRequest to JsonPatch.
 ### Table 3: Translate Example
 | SetRequest Format | JsonPatch Format |
 |  ----  | ----  |
-| replace {<br>&ensp;path {<br>&ensp;&ensp;elem {name: "CONFIG_DB"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet96"}<br>&ensp;}<br>}<br>replace {<br>&ensp;path {<br>&ensp;&ensp;elem {name: "CONFIG_DB"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet8"} elem {name: "port"}<br>&ensp;}<br>&ensp;val { json_ietf_val: "eth1" }<br>} | [<br>&ensp;{<br>&ensp;&ensp;"op": "remove", "path": "/DEVICE_NEIGHBOR/Ethernet96"}, <br>&ensp;&ensp;{ "op": "add", "path": "/DEVICE_NEIGHBOR/Ethernet8/port", "value": "eth1"}<br>] |
+| replace {<br>&ensp;path {<br>&ensp;&ensp;elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet96"}<br>&ensp;}<br>}<br>replace {<br>&ensp;path {<br>&ensp;&ensp;elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"} elem {name: "Ethernet8"} elem {name: "port"}<br>&ensp;}<br>&ensp;val { json_ietf_val: "eth1" }<br>} | [<br>&ensp;{<br>&ensp;&ensp;"op": "remove", "path": "/DEVICE_NEIGHBOR/Ethernet96"}, <br>&ensp;&ensp;{ "op": "add", "path": "/DEVICE_NEIGHBOR/Ethernet8/port", "value": "eth1"}<br>] |
 
 #### 1.2.1.5 Full Configurations
 
@@ -378,21 +384,33 @@ SetRequest message will be:
 
     ++++++++ Sending set request: ++++++++
     delete {
-        path { origin: "sonic_db" }
+        path { 
+            origin: "sonic_db"
+            elem {name: "CONFIG_DB"} elem {name: "localhost"}
+        }
     }
     update {
-        path { origin: "sonic_db" }
+        path { 
+            origin: "sonic_db"
+            elem {name: "CONFIG_DB"} elem {name: "localhost"}
+        }
         val {
             json_ietf_val: "{\"DEVICE_NEIGHBOR/Ethernet8/name\":\"Servers1\", \"DEVICE_NEIGHBOR/Ethernet8/port\":\"eth0\", \"DEVICE_NEIGHBOR/Ethernet96/name\":\"Servers23\", \"DEVICE_NEIGHBOR/Ethernet96/port\":\"eth0\", ...}"
         }
     }
     ++++++++ Recevied set response: ++++++++
     response {
-        path { origin: "sonic_db" }
+        path { 
+            origin: "sonic_db"
+            elem {name: "CONFIG_DB"} elem {name: "localhost"}
+        }
         op: DELETE
     }
     response {
-        path { origin: "sonic_db" }
+        path { 
+            origin: "sonic_db"
+            elem {name: "CONFIG_DB"} elem {name: "localhost"}
+        }
         op: UPDATE
     }
 
