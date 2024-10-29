@@ -457,12 +457,20 @@ sequenceDiagram
         participant host service
     end
     client->>gnmi server: update full configuration
-    gnmi server->>host service: reload configuration
-    host service->>host service: run yang validation, return if failed
+    gnmi server->>host service: run yang validation
+    host service->>host service: run yang validation
+    host service-->>gnmi server: result
+    gnmi server->>host service: run config reload with input config
     host service->>host service: mask gnmi service
     host service->>host service: run config reload with input config
-    host service->>host service: if config reload suceeded, run config save
-    host service->>host service: if config reload failed, run config reload to recover
+    host service->>host service: unmask gnmi service
+    host service-->>gnmi server: result
+    gnmi server->>host service: if config reload suceeded, run config save
+    host service->>host service: run config save
+    host service-->>gnmi server: result
+    gnmi server->>host service: if config reload failed, run config reload to recover
+    host service->>host service: mask gnmi service
+    host service->>host service: run config reload -f
     host service->>host service: unmask gnmi service
     host service-->>gnmi server: result
     gnmi server-->>client: result
