@@ -1391,6 +1391,8 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     cmis_state                              = 1*255VCHAR        ; Software CMIS state of the module
     status                                  = 1*255VCHAR        ; code of the module status (plug in, plug out)
     error                                   = 1*255VCHAR        ; module error (N/A or a string consisting of error descriptions joined by "|", like "error1 | error2" )
+    dom_update_interval                     = INTEGER           ; DOM thread update interval in seconds
+    dom_last_update_time                    = STR               ; last update time for diagnostic data
     module_state                            = 1*255VCHAR        ; current module state (ModuleLowPwr, ModulePwrUp, ModuleReady, ModulePwrDn, Fault)
     module_fault_cause                      = 1*255VCHAR        ; reason of entering the module fault state
     DP{lane_num}State                       = 1*255VCHAR        ; data path state indicator on host lane {lane_num}
@@ -1569,6 +1571,9 @@ This CLI shows the transceiver DOM and threshold values for a given port.
 ```plaintext
 CLI output format:
 LX - Represents the data for the lane number X
+Current System Time: Day Mon DD HH:MM:SS YYYY
+Update interval: SS seconds
+Last updated: Day Mon DD HH:MM:SS YYYY
 
                               High Alarm   High Warning   Low Warning   Low Alarm
              Paramter_Name    Threshold    Threshold      Threshold     Threshold
@@ -1578,6 +1583,9 @@ Port         (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
 Example:
 admin@sonic#show interfaces transceiver dom Ethernet1
 LX - Represents the data for the lane number X
+Current System Time: Wed Oct 17 03:46:41 2024
+Update interval: 10 seconds
+Last updated: Wed Oct 17 03:46:41 2024
 
                               High Alarm   High Warning   Low Warning   Low Alarm
              Temperature      Threshold    Threshold      Threshold     Threshold
@@ -1654,7 +1662,8 @@ This CLI shows the transceiver DOM flags for a given port.
 CLI output format:
 LX - Represents the data for the lane number X
 Current System Time: Day Mon DD HH:MM:SS YYYY
-
+Update interval: SS seconds
+Last updated: Day Mon DD HH:MM:SS YYYY
                               High Alarm                 High Warning               Low Warning                Low Alarm
                               Flag/                      Flag/                      Flag/                      Flag/
                               Change Count/              Change Count/              Change Count/              Change Count/
@@ -1665,7 +1674,9 @@ Port         Parameter_Name   Last Clear Time            Last Clear Time        
 Example:
 admin@sonic#show interfaces transceiver dom flag Ethernet1
 LX - Represents the data for the lane number X
-Current System Time: Wed Oct 16 03:46:41 2024
+Current System Time: Wed Oct 17 03:46:41 2024
+Update interval: 10 seconds
+Last updated: Wed Oct 17 03:46:41 2024
 
                               High Alarm                 High Warning               Low Warning                Low Alarm
                               Flag/                      Flag/                      Flag/                      Flag/
@@ -1792,6 +1803,10 @@ The CLI will show VDM data for observables which are supported by the module ven
 
 ```plaintext
 CLI output format:
+LX - Represents the data for the lane number X
+Current System Time: Day Mon DD HH:MM:SS YYYY
+Update interval: SS seconds
+Last updated: Day Mon DD HH:MM:SS YYYY
                               High Alarm   High Warning   Low Warning   Low Alarm
              Observable_Name  Threshold    Threshold      Threshold     Threshold
 Port         (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
@@ -1799,6 +1814,10 @@ Port         (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
 
 Example:
 admin@sonic#show interfaces transceiver vdm Ethernet1
+LX - Represents the data for the lane number X
+Current System Time: Wed Oct 17 03:46:41 2024
+Update interval: 10 seconds
+Last updated: Wed Oct 17 03:46:41 2024
              eSNR Media         High Alarm   High Warning   Low Warning   Low Alarm
              Input              Threshold    Threshold      Threshold     Threshold
 Port         (dB)               (dB)         (dB)           (dB)          (dB)
@@ -1837,9 +1856,10 @@ The `--detail` option can be used to show the data for all lanes and observables
 
 ```plaintext
 CLI output format:
-Current System Time: Day Mon DD HH:MM:SS YYYY
 LX - Represents the data for the lane number X
-
+Current System Time: Day Mon DD HH:MM:SS YYYY
+Update interval: SS seconds
+Last updated: Day Mon DD HH:MM:SS YYYY
                               High Alarm                 High Warning               Low Warning                Low Alarm
                               Flag/                      Flag/                      Flag/                      Flag/
                               Change Count/              Change Count/              Change Count/              Change Count/
@@ -1850,8 +1870,9 @@ Port         Observable_Name  Last Clear Time            Last Clear Time        
 Example:
 admin@sonic#show interfaces transceiver vdm flag Ethernet1
 LX - Represents the data for the lane number X
-Current System Time: Wed Oct 16 03:46:41 2024
-
+Current System Time: Wed Oct 17 03:46:41 2024
+Update interval: 10 seconds
+Last updated: Wed Oct 17 03:46:41 2024
                               High Alarm                 High Warning               Low Warning                Low Alarm
                               Flag/                      Flag/                      Flag/                      Flag/
                               Change Count/              Change Count/              Change Count/              Change Count/
@@ -1879,8 +1900,9 @@ With the `--detail` option, only the VDM data for observables which are supporte
 ```plaintext
 admin@sonic#show interfaces transceiver vdm flag Ethernet1 --detail
 LX - Represents the data for the lane number X
-Current System Time: Wed Oct 16 03:46:41 2024
-
+Current System Time: Wed Oct 17 03:46:41 2024
+Update interval: 10 seconds
+Last updated: Wed Oct 17 03:46:41 2024
                               High Alarm                 High Warning               Low Warning                Low Alarm
                               Flag/                      Flag/                      Flag/                      Flag/
                               Change Count/              Change Count/              Change Count/              Change Count/
@@ -1938,6 +1960,9 @@ Shows the module and datapath state data along with various flags related to it.
 ```plaintext
 Example:
 admin@sonic:/home/admin# show int transceiver status Ethernet0
+Current System Time: Wed Oct 16 03:46:41 2024
+Update interval: 10 seconds
+Last updated: Wed Oct 17 03:46:41 2024
 Ethernet0: 
         CMIS State (SW): READY
         TX disable status on lane 1: False
@@ -2010,8 +2035,9 @@ This CLI shows the various module and datapath state flags for a given port alon
 ```plaintext
 admin@sonic:/home/admin# show int transceiver status flag Ethernet0
 LX - Represents the data for the lane number X
-Current System Time: Wed Oct 16 03:46:41 2024
-
+Current System Time: Wed Oct 17 03:46:41 2024
+Update interval: 10 seconds
+Last updated: Wed Oct 17 03:46:41 2024
 Port         Observable_Name              Flag Status/Change Count/Last Set Time/Last Clear Time
 -----------  ---------------------------  -------------------------------------------------------
 Ethernet0    Tx fault on media L1         False/  1/  Wed Oct 16 03:46:41 2024/  never
@@ -2257,3 +2283,27 @@ During `xcvrd` stop, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_F
 When a transceiver is removed, `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are deleted by the `SfpStateUpdateTask` thread.
 
 When the transceiver is inserted back, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are recreated through the periodic polling routine of `DomInfoUpdateTask` and the flag change count and set/clear time are updated based on the current flag status.
+
+#### 4.2.6 Diagnostic Information Last Update Timestamp and Interval Period by `DomInfoUpdateTask`
+
+The `TRANSCEIVER_STATUS` table contains the following fields to capture the last update timestamp and interval period for the diagnostic information:
+
+1. **`dom_last_update_time`**:
+   - This field records the timestamp (in local timezone) when the diagnostic information was last updated.
+   - The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`.
+   - This timestamp is updated by the `DomInfoUpdateTask` thread after the last diagnostic information is read from the transceiver for a port.
+
+2. **`dom_update_interval`**:
+   - This field records the interval period (in seconds) at which the diagnostic information is updated by the `DomInfoUpdateTask` thread for a port.
+   - Unlike the `DOM_INFO_UPDATE_PERIOD_SECS` timer value, this field is updated dynamically to reflect the actual time taken to update the diagnostic information for a port in the `redis-db`.
+   - The time taken to read the diagnostic information from the transceiver can vary between successive polls based on:
+     - Transceiver type
+     - Number of diagnostic parameters supported by the transceiver
+     - Device platform (which can affect I2C read/write speed)
+     - Number of ports with the transceiver plugged in
+     - Number of ports in the breakout port group
+
+**Behavior of `dom_update_interval` Field**:
+
+- Initially, the `dom_update_interval` field is set to `0` (as part of the `TRANSCEIVER_STATUS` table creation) to indicate that the diagnostic information has not been updated yet.
+- After the second diagnostic information update for a port by the `DomInfoUpdateTask` thread, the `dom_update_interval` field is set to the actual time taken to read the diagnostic information from the transceiver for that port. Specifically, the `dom_update_interval` field is updated with the difference between the current timestamp and the `dom_last_update_time`.
