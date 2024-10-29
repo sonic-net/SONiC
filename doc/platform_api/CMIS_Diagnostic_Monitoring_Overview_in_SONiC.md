@@ -2306,4 +2306,4 @@ The `TRANSCEIVER_STATUS` table contains the following fields to capture the last
 **Behavior of `dom_update_interval` Field**:
 
 - Initially, the `dom_update_interval` field is set to `0` (as part of the `TRANSCEIVER_STATUS` table creation) to indicate that the diagnostic information has not been updated yet.
-- After the second diagnostic information update for a port by the `DomInfoUpdateTask` thread, the `dom_update_interval` field is set to the actual time taken to read the diagnostic information from the transceiver for that port. Specifically, the `dom_update_interval` field is updated with the difference between the current timestamp and the `dom_last_update_time`.
+- After the second diagnostic information update for a port by the `DomInfoUpdateTask` thread post `xcvrd` boot-up or transceiver insertion, the `dom_update_interval` field is set to the actual time taken to read the diagnostic information from the transceiver for that port. Specifically, the `dom_update_interval` field is updated with the difference between the current timestamp and the `dom_last_update_time`.
