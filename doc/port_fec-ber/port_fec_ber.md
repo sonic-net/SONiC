@@ -154,20 +154,16 @@ Step 3 : look up link serdes speed
         serdes = 0
     end
 
-Step 4 : frame size
+Step 4 : assume statistical average error rate as 1e-8 per frame
 
-     /* NRZ encoding Rs-528  or PAM4 encoding Rs-544*/
-    if user_port_lane_speed <= 25G
-      frame_size = 5280
-    else
-      frame_size = 5440
+     rs_average_frame_error = 1e-8 
 
 Step 5: calcuate BER
 
     interval = PORT_STATE poll interval which is 1000 ms currently
 
     Pre FEC BER = (SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS - SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last) / (serdes * lanes_count * interval / 1000)
-    Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * "frame size" / (serdes * lanes_count * interval / 1000)
+    Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * rs_average_frame_error / (serdes * lanes_count * interval / 1000)
 
 
 Step 6: the following data will be updated and its latest value stored in the COUNTER_DB, RATES table after each iteraction
