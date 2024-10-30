@@ -85,7 +85,7 @@ Packet Forwarding from NPU to local and remote DPU's are clearly explained in th
 ENI based forwarding requires the switch to understand the relationship between the packet and ENI, and ENI and DPU.
 
 * Each DPU is represented as a PA (public address). Unlike VIP, PA does't have to be visible from the entire cloud infrastructure
-* Each ENI belongs to a certain DPU (local or remote)
+* Every ENI should be a part of T1 cluster
 * Each packet can be identified as belonging to that switch using VIP and VNI
 * Forwarding can be to local DPU or remote DPU over L3 VxLAN
 * Scale:
