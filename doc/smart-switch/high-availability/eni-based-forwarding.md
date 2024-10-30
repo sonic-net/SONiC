@@ -260,7 +260,7 @@ flowchart LR
 
     HaMgrD --> ENI_TABLE
     ENI_TABLE --> DashEniFwdOrch
-    DPU --> DashEniFwdOrch
+    DPU/vDPU --> DashEniFwdOrch
 
     DashEniFwdOrch --> Ques1{Remote Endpoint}
     Ques1 --> |Create Tunnel NH| VxLanTunnOrch
@@ -280,7 +280,7 @@ flowchart LR
 
     HaMgrD --> ENI_TABLE
     ENI_TABLE --> DashEniFwdOrch
-    DPU --> DashEniFwdOrch
+    DPU/vDPU --> DashEniFwdOrch
 
     DashEniFwdOrch --> |Observe/Resolve| NeighOrch
     NeighOrch --> |NH Update| DashEniFwdOrch
