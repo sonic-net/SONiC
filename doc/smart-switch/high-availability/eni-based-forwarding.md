@@ -93,20 +93,20 @@ ENI based forwarding requires the switch to understand the relationship between 
 * Scale Example:
     - T1 per cluster: 8
     - DPU per T1: 4
-    - ENI per DPU: 32
+    - ENI per DPU: 64
     - HA Scaling factor: 2
-    - Total ENI's in this Cluster:  (8 * 4 * 32) / 2 = 512
-    - ENI's hosted on a T1: 128
-    - Number of ACL Rules:  128 * (2 * 2) + (512 - 128) * 2 = 1280
+    - Total ENI's in this Cluster:  (8 * 4 * 64) / 2 = 1024
+    - ENI's hosted on a T1: 256
+    - Number of ACL Rules:  256 * (2 * 2) + (1024 - 256) * 2 = 2560
 
 ### Phase 1 ###
 
-- Only HaMgrd will make decision on where to route the packet and write to ENI_DASH_FORWARD_TABLE table
+- Only HaMgrd will make decision on where to route the packet and write to DASH_ENI_FORWARD_TABLE table
 - Orchagent will only process the primary endpoint and translate the requirement into ACL Rules
 - Orchagent should also program ACL Rules with Tunnel termination entries
 - No BFD sessions are created to local DPU or the remote DPU.
 
-ENI_DASH_FORWARD_TABLE schema is available here https://github.com/r12f/SONiC/blob/user/r12f/ha2/doc/smart-switch/high-availability/smart-switch-ha-detailed-design.md#2321-dash_eni_forward_table
+DASH_ENI_FORWARD_TABLE schema is available here https://github.com/r12f/SONiC/blob/user/r12f/ha2/doc/smart-switch/high-availability/smart-switch-ha-detailed-design.md#2321-dash_eni_forward_table
 
 ### Phase 2 ###
 
@@ -160,7 +160,7 @@ VNET: Vnet1000
 
 **ACL Rule for outbound traffic**
 
-MacDirection for outbound rules depends on the outbound_eni_mac_lookup field in the ENI_DASH_FORWARD_TABLE
+MacDirection for outbound rules depends on the outbound_eni_mac_lookup field in the DASH_ENI_FORWARD_TABLE
 
 ```
 {  
@@ -256,7 +256,7 @@ DashEniFwdOrch should infer the type of endpoint (local or remote) by parsing th
 
 ```mermaid
 flowchart LR
-    ENI_TABLE[ENI_DASH_FORWARD_TABLE]
+    ENI_TABLE[DASH_ENI_FORWARD_TABLE]
 
     HaMgrD --> ENI_TABLE
     ENI_TABLE --> DashEniFwdOrch
@@ -276,7 +276,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    ENI_TABLE[ENI_DASH_FORWARD_TABLE]
+    ENI_TABLE[DASH_ENI_FORWARD_TABLE]
 
     HaMgrD --> ENI_TABLE
     ENI_TABLE --> DashEniFwdOrch
@@ -326,9 +326,9 @@ No impact here
 
 ## Testing Requirements/Design ##
 
-- Migrate existing Private Link tests to use ENI Forwarding Approach. Until HaMgrd is available, test should write to the ENI_DASH_FORWARD_TABLE
+- Migrate existing Private Link tests to use ENI Forwarding Approach. Until HaMgrd is available, test should write to the DASH_ENI_FORWARD_TABLE
 - Add individual test cases which verify forwarding to remote endpoint and also Tunnel Termination. This should not require HA availability
-- HA test cases should work by just writing the expected configuration to ENI_DASH_FORWARD_TABLE
+- HA test cases should work by just writing the expected configuration to DASH_ENI_FORWARD_TABLE
 
 ## Open/Action items - if any ##
 
