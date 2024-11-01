@@ -2252,7 +2252,7 @@ The following fields related to `datapath_firmware_fault` are updated in the `re
 
 #### 4.2.3 Details of Flag Analysis of Tables
 
-**Note**: For simplicity, this section uses DOM as an example. However, the same analysis is applicable for VDM as well.
+**Note**: For simplicity, this section uses DOM as an example. However, the same analysis is applicable for VDM and STATUS related flags as well.
 
 **Purpose of Flag Analysis:**
 
@@ -2274,17 +2274,17 @@ The purpose of flag analysis is to track the status of various parameters and to
 - **TRANSCEIVER_DOM_FLAG_CLEAR_TIME:**
   - When a flag is cleared in the `TRANSCEIVER_DOM_FLAG` table, the current timestamp (based on local timezone) is recorded in this table.
 
-#### 4.2.4 Flag Change Count and Time Set/Clear Behavior During `xcvrd` Restart
+##### 4.2.3.1 Flag Change Count and Time Set/Clear Behavior During `xcvrd` Restart
 
 During `xcvrd` stop, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are deleted by the `xcvrd` process. When `xcvrd` is restarted, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are recreated and the flag change count and set/clear time are updated based on the current flag status (i.e. the value of these fields are not cached between `xcvrd` restarts).
 
-#### 4.2.5 Flag Change Count and Time Set/Clear Behavior During Transceiver Removal and Insertion
+##### 4.2.3.2 Flag Change Count and Time Set/Clear Behavior During Transceiver Removal and Insertion
 
 When a transceiver is removed, `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are deleted by the `SfpStateUpdateTask` thread.
 
 When the transceiver is inserted back, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are recreated through the periodic polling routine of `DomInfoUpdateTask` and the flag change count and set/clear time are updated based on the current flag status.
 
-#### 4.2.6 Diagnostic Information Last Update Timestamp and Interval Period by `DomInfoUpdateTask`
+#### 4.2.4 Diagnostic Information Last Update Timestamp and Interval Period by `DomInfoUpdateTask`
 
 The `TRANSCEIVER_STATUS` table contains the following fields to capture the last update timestamp and interval period for the diagnostic information:
 
