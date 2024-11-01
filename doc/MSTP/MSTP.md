@@ -84,27 +84,38 @@ Multiple Spanning Tree Protocol (MSTP), standardized in IEEE 802.1s, is an exten
 MSTP reduces convergence time compared to STP. When a network topology change occurs, only the affected MSTI needs to reconverge, minimizing the impact on the entire network. 
 
 
+# Understanding MSTP: IST, CIST, CST, MST Regions, MSTIs, VLAN to MSTI Mapping 
 
-# Understanding MSTP: IST, CIST, MSTIs, MST Regions, Vlan to MSTI mapping 
+Before diving into the specific terms related to Multiple Spanning Tree Protocol (MSTP), it's important to first define the concept of an MST region. The following definitions outline the key components of MSTP, starting with the MST region.
+
+1. **MST Regions**: An MST region is a group of interconnected bridges that share the same MST configuration, including the MST configuration name, revision number, and VLAN-to-instance mappings.
+
+2. **Default Internal Spanning Tree (IST)**: An internal spanning tree (IST) is a spanning tree that runs in an MST region. It is also called MSTI 0, a special MSTI to which all VLANs are mapped by default.
+
+3. **Common Spanning Tree (CST)**: The common spanning tree (CST) is a single spanning tree that connects all MST regions in a switched network.
+
+4. **Common and Internal Spanning Tree (CIST)**: The common and internal spanning tree (CIST) is a single spanning tree that connects all devices in a switched network. It consists of the ISTs in all MST regions and the CST.
+
+5. **MST Instances (MSTIs)**: MSTP divides the network into multiple regions, each containing several MSTIs. Each MSTI operates independently, allowing for efficient use of network resources and optimized load balancing across different VLANs.
 
 
-1. Default Internal Spanning Tree (IST): An internal spanning tree (IST) is a spanning tree that runs in an MST region. It is also called MSTI 0, a special MSTI to which all VLANs are mapped by default. 
+# MSTP Advantages
 
-1.  Common Spanning Tree (CST): The common spanning tree (CST) is a single spanning tree that connects all MST regions in a switched network.
+1. **VLAN-to-MSTI Mapping**: MSTP maps VLANs to specific MSTIs using a VLAN mapping table. This mapping ensures that traffic within a VLAN follows the corresponding MSTI, optimizing the network path and improving performance.
 
+2. **Traffic Load Sharing and Link Level Redundancy**: By effectively utilizing VLAN-to-MSTI mapping, MSTP can facilitate traffic load sharing across multiple links and provide redundancy at the link level. This helps in balancing the traffic load and enhances overall network resilience.
 
-1. Common and Internal Spanning Tree (CIST): The common and internal spanning tree (CIST) is a single spanning tree that connects all devices in a switched network. It consists of the ISTs in all MST regions and the CST. 
+3. **Optimized Bandwidth**: MSTP ensures that network paths are used efficiently, reducing link blocking and optimizing bandwidth usage. This results in improved performance for data transmission across the network.
 
-1. MST Instances (MSTIs): MSTP divides the network into multiple regions, each containing several MSTIs. Each MSTI operates independently, allowing for efficient use of network resources and optimized load balancing across different VLANs.
-1.  MST Regions:  An MST region is a group of interconnected bridges that share the same MST configuration, including the MST configuration name, revision number, and VLAN-to-instance mappings
-1. VLAN-to-MSTI Mapping: MSTP maps VLANs to specific MSTIs using a VLAN mapping table. This mapping ensures that traffic within a VLAN follows the corresponding MSTI, optimizing the network path and improving performance. 
-1.  Optimized Bandwidth: By mapping VLANs to specific MSTIs, MSTP ensures that network paths are used efficiently, reducing link blocking and optimizing bandwidth usage
  
-#### MSTP Operation 
+# MSTP Operation 
 
-MST BPDUs: MSTP uses Multiple Spanning Tree Bridge Protocol Data Units (MST BPDUs) to exchange information between switches. These BPDUs contain information about the MSTI and VLAN mappings, ensuring consistent spanning tree calculations across the network. 
+1. **MST BPDUs**: MSTP uses Multiple Spanning Tree Bridge Protocol Data Units (MST BPDUs) to exchange information between switches. These BPDUs contain information about the MSTI and VLAN mappings, ensuring consistent spanning tree calculations across the network. MSTP calculates spanning trees based on MST BPDUs.
 
-MSTP calculates spanning trees on the basis of Multiple Spanning Tree Bridge Protocol Data Units (MST BPDUs).
+2. **MSTP BPDUs Characteristics**: MSTP BPDUs, which utilize the IEEE Reserved Multicast MAC address, are untagged. This is in contrast to PVST BPDUs. Additionally, MSTP BPDUs are backward compatible with legacy STP, RSTP, and PVST+/RPVST+ BPDUs.
+
+3. **Config Digest**: A hash of MSTP-VLAN mapping knows as 'config digest' is carried in the BPDUs, coupled with region name and the revision number, determines the same/different MST region of the sending switch.
+
 
 <div align="center">
 <img src="images/MSTP_BPDU.png" alt="MSTP BPDU">
@@ -121,30 +132,31 @@ MSTP calculates spanning trees on the basis of Multiple Spanning Tree Bridge Pro
 ### Requirements 
 
 
-#### Functional Requirements 
+### Functional Requirements
 
-1. Support the creation of Multiple Spanning Tree Instances (MSTIs). 
-1. Support the assignment of one or more VLANs to a specific MSTI within a region. 
+1. Support the creation of Multiple Spanning Tree Instances (MSTIs).
 
-1. Support the option to assign a region name and revision number to MSTP regions to achieve unique identification of VLAN to instance mapping across switches. 
+2. Support the assignment of one or more VLANs to a specific MSTI within a region.
 
-1. Support path selection and forwarding behavior in MSTI to optimize network performance within each instance by configuring a distinct root bridge. 
+3. Support the option to assign a region name and revision number to MSTP regions to achieve unique identification of VLAN to instance mapping across switches.
 
-1. Support the configuration of spanning tree parameters such as forward delay, hello timer, hop count. 
+4. Support path selection and forwarding behavior in MSTI to optimize network performance within each instance by configuring a distinct root bridge.
 
-1. The Destination Mac Address will be 01:80:C2:00:00:00 for MSTP BPDUs. 
+5. Support the configuration of spanning tree parameters such as forward delay, hello timer, and hop count.
 
-1. Support compatibility with networks employing different spanning tree protocols, such as STP, RSTP. 
+6. The Destination MAC Address will be `01:80:C2:00:00:00` for MSTP BPDUs.
 
-1. Support edge port functionality 
+7. Support backward compatibility with networks employing different spanning tree protocols, such as STP and RSTP.
 
-1. Support BPDU guard functionality 
+8. Support edge port functionality.
 
-1. Support root guard functionality 
+9. Support BPDU guard functionality.
 
-1. Support protocol operation on static breakout ports 
+10. Support root guard functionality.
 
-1. Support protocol operation on Port-channel interfaces 
+11. Support protocol operation on static breakout ports.
+
+12. Support protocol operation on Port-channel interfaces. Note: MSTP does not support aggregated path cost calculations.
 
  
 #### Configuration & Management Requirements 
@@ -152,19 +164,20 @@ MSTP calculates spanning trees on the basis of Multiple Spanning Tree Bridge Pro
 
 1. Support CLI configurations as mentioned in Configuration section 
 
-1. Support show commands as mentioned in Configuration section 
+2. Support show commands as mentioned in Configuration section 
 
-1. Support debug commands as mentioned in Configuration section 
+3. Support debug commands as mentioned in Configuration section 
 
-1. Support statistics commands as mentioned in Configuration section 
+4. Support statistics commands as mentioned in Configuration section 
 
-1. Support clear commands as mentioned in Configuration section 
+5. Support clear commands as mentioned in Configuration section 
 
 
 # Architecture Design
 Following diagram explains the architectural design and linkages for MSTP. MSTP uses multiple existing SONiC containers, configuration details of each is mentioned below as well.
 
 ![MSTP Architecture](images/MSTPDesign_Archi.drawio.png)
+
 ## STP Container
 STP Container is responsible for actions taken for BPDU rx and BPDU tx. Following are the details for implementation:
 
@@ -251,7 +264,6 @@ link_type           = "type"                       ; type can be of auto, point-
 enabled             = BIT                          ; enabled or disabled
 bpdu_guard          = BIT                          ; enabled or disabled
 bpdu_guard_do       = BIT                          ; enabled or disabled 
-enabled             = BIT                          ; enabled or disabled
 root_guard          = BIT                          ; enabled or disabled 
 path_cost           = 9*DIGIT                      ; port path cost (1 to 20000000)
 priority            = 3*DIGIT                      ; port priority (0 to 240, DEF:128)
@@ -359,9 +371,7 @@ BPDU guard feature will also be supported by MSTP. BPDU Guard feature disables t
 
 
 ## Root Guard
-Root guard feature will also be supported by MSTP. 
-
-The Root Guard feature provides a way to enforce the root bridge placement in the network and allows STP to interoperate with user network bridges while still maintaining the bridged network topology that the administrator requires. When BPDUs are received on a root guard enabled port, the STP state will be moved to "Root inconsistent" state to indicate this condition. Once the port stops receiving superior BPDUs, Root Guard will automatically set the port back to a FORWARDING state.
+Root guard feature will also be supported by MSTP. The Root Guard feature provides a way to enforce the root bridge placement in the network and allows STP to interoperate with user network bridges while still maintaining the bridged network topology that the administrator requires. When BPDUs are received on a root guard enabled port, the STP state will be moved to "Root inconsistent" state to indicate this condition. Once the port stops receiving superior BPDUs, Root Guard will automatically set the port back to a FORWARDING state.
 
 ## Edge Port
 Edge ports immediately transition to the forwarding state upon activation and do not participate in STP topology calculations. 
@@ -390,7 +400,7 @@ MSTP standard does not support uplink fast so uplink fast functionality will be 
 ![Instance Deletion](images/MSTP_Instance_Delete.drawio.png)
 
 
-## Add VLAN to Exisiting Instance
+## Add VLAN to Existing Instance
 ![MSTP VLAN Add](images/MSTP_Add_ExistingInstance.drawio.png)
 
 ## Del VLAN from  Exisiting Instance
@@ -400,6 +410,7 @@ MSTP standard does not support uplink fast so uplink fast functionality will be 
 # Configuration Commands
 Following configuration commands will be provided for configuration of MSTP:
 ## Global Level
+
 - **config spanning_tree {enable|disable} {mst}**
   - Enables or disables mstp at global level on all ports of the switch.
   - Only one mode of STP can be enabled at a time.
@@ -424,6 +435,7 @@ Below commands allow configuring on region basis:
 - **config spanning_tree mst region-name \<region-name\>**
   - Edit the name of region
   - region-name: Case sensitive, characters should be less than or equal to 32, default: mac-address of bridge
+
 - **config spanning-tree mst revision \<revision-number\>**
   - Revision number is used to track changes in the configuration and to synchronize the configuration across the switches in the same region.
   - revision-number: Default: 0, range: 0-65535
@@ -436,6 +448,7 @@ Below commands allow configuration of an instance:
   - Configure priority of bridge for an instance.
   - instance-id: id of the instance for which bridge priority is to be defined. If the provided instance id is not created yet, an error message is displayed.
   - priority-value: Default: 32768, range: 0-61440 (should be multiple of 4096)
+
 - **config spanning_tree mst instance \<instance-id\> vlan (add|del)  \<vlan-id\>**
   - VLAN to instance mapping.
   - instance-id: id of the instance to which VLAN is to be mapped. If the provided instance id is not created yet, an error message is displayed.
@@ -448,6 +461,7 @@ Following commands are used for spanning-tree configurations on per instance, pe
 - **config spanning_tree mst instance \<instance-id\> interface \<ifname\> priority \<priority-value\>**
   - Configure priority of an interface for an instance.
   - priority-value: Default: 128, range: 0-240
+
 - **config spanning_tree mst instance \<instance-id\> interface \<ifname\> cost \<cost-value\>**
   - Configure path cost of an interface for an instance.
   - cost-value: Range: 1-200000000
@@ -465,7 +479,7 @@ Following new commands will be added:
   - This command allow enabling or disabling of bpdu_guard on an interface.
 
 - **config spanning_tree interface root_guard {enable|disable} \<ifname\>**
-    - This command allow enabling or disabling of bpdu_guard on an interface.
+    - This command allow enabling or disabling of root_guard on an interface.
 
 
 - **config spanning_tree interface priority \<ifname\> \<port_priority-value\>**
@@ -478,6 +492,10 @@ Following new commands will be added:
 
 - **config spanning_tree interface link-type {P2P|Shared-Lan|Auto} \<ifname\>**
   - Specify configuring the interface at different link types.
+  - Deafault : Auto
+
+
+  **Note : These functionalities need to be explicitly enabled.**
  
 ## Show Commands
 
@@ -485,8 +503,10 @@ Following new commands will be added:
 
     The output of this command will be as follows for `mstp`:
 ```
+admin@sonic: show spanning_tree detail
+
 Spanning-tree Mode: MSTP
-#######  MST0        Vlans mapped : 1, 4-8, 202-4094
+#######  MST0 (CIST)       Vlans mapped : 1, 4-8, 202-4094
 Bridge               Address 8000.80a2.3526.0c5e
 Root                 Address 8000.80a2.3526.0c5e
                      Port     Root                  Path cost 0 
@@ -502,7 +522,7 @@ Ethernet46         DESIGNATED   FORWARDING     800         128.86       P2P
 PortChannel1001    DESIGNATED   FORWARDING     1000        128.45       P2P
 
 
-#######  MST1       Vlans mapped : 2, 300, 400
+#######  MST1   (CIST)     Vlans mapped : 2, 300, 400
 Bridge               Address 8000.80a2.3526.0c5e
 Root                 Address 8000.80a2.3526.0c5e
                      Port    Root            Path cost 0    Rem Hops 20
@@ -519,10 +539,10 @@ PortChannel1001    DESIGNATED   FORWARDING      1000        128.45       P2P
 admin@sonic: show spanning_tree detail
 
 
-#######  MST0        Vlans mapped : 1, 4-8, 202-4094
-Bridge               Address 8000.80a2.3526.0c5e
+#######  MST0 (CIST)     Vlans mapped : 1, 4-8, 202-4094
+Bridge                Address 8000.80a2.3526.0c5e
  Root                 Address 8000.80a2.3526.0c5e
-                     Port    Root            Path cost 0    Rem Hops 20
+                      Port    Root            Path cost 0    Rem Hops 20
 
 Ethernet20 is DESIGNATED FORWARDING
 Port info              port id 86 priority 128          cost 800
@@ -545,10 +565,10 @@ Designated bridge      Address 8000.80a2.3526.0c5e      port id 45
 Timers:  forward transitions 0
 Bpdu send 30, received 0
 
-#######  MST1        Vlans mapped : 2, 300, 400
-Bridge               Address 8000.80a2.3526.0c5e
+#######  MST1 (CIST)   Vlans mapped : 2, 300, 400
+Bridge                Address 8000.80a2.3526.0c5e
  Root                 Address 8000.80a2.3526.0c5e
-                     Port    Root            Path cost 0    Rem Hops 20
+                      Port    Root            Path cost 0    Rem Hops 20
 
 Ethernet46 is DESIGNATED FORWARDING
 Port info              port id 85 priority 128          cost 2000
@@ -573,14 +593,14 @@ Bpdu send 80, received 0
 ```
 admin@sonic: show spanning_tree mst instance 0
 
-#######  MST0        Vlans mapped : 1, 4-8, 202-4094
-Bridge               Address 8000.80a2.3526.0c5e
-Root                 Address 8000.80a2.3526.0c5e
-                     Port     Root            Path cost 0 
-Regional Root        Address  8000.80a2.3526.0c5e
-                     Internal cost 0         Rem hops 20 
-Operational          Hello Time  2, Forward Delay 15, Max Age 20, Txholdcount 6
-Configured           Hello Time  2, Forward Delay 15, Max Age 20, Max Hops 20
+#######  MST0 (CIST)  Vlans mapped : 1, 4-8, 202-4094
+Bridge                Address 8000.80a2.3526.0c5e
+Root                  Address 8000.80a2.3526.0c5e
+                      Port      Root                    Path cost 0 
+Regional Root         Address   8000.80a2.3526.0c5e
+                      Internal cost 0         Rem hops 20 
+Operational           Hello Time  2, Forward Delay 15, Max Age 20, Txholdcount 6
+Configured            Hello Time  2, Forward Delay 15, Max Age 20, Max Hops 20
 
 Interface           Role        State           Cost       Prio.Nbr    Type
 ---------------    --------     ----------      -------    ---------   -----------
@@ -616,6 +636,19 @@ Ethernet46             Yes                            Yes
 PortChannel1001        No                             NA
 ```
 
+
+- show spanning_tree root_guard
+
+```
+admin@sonic:  show spanning_tree root_guard
+
+
+PortNum               Root Guard Enabled            Port Status
+---------             ---------------------         --------------
+Ethernet46             Yes                          Active
+PortChannel1001        No                           NA
+```
+
 - show spanning_tree  mst instance \<instance-id\> interface \<ifname\>
 
 ```
@@ -635,7 +668,7 @@ Ethernet46  128    800     N        FORWARDING    Root     0             3276800
 admin@sonic:  show spanning_tree  mst  statistics instance 0 
 
 
-MSTP instance 0 - VLANs 1, 4-8, 202-4094
+MSTP instance 0 (CIST) -  VLANs 1, 4-8, 202-4094
 --------------------------------------------------------------------
 PortNum           BPDU Tx     BPDU Rx     TCN Tx     TCN Rx             
 Ethernet20        80	      4           3          4
@@ -646,6 +679,7 @@ PortChannel15     30	      6           4          1
 
 ## Clear Commands
 - sonic-clear spanning_tree statistics 
+
 - sonic-clear spanning_tree mst statistics instance \<instance-id\>
 
 
@@ -653,20 +687,26 @@ PortChannel15     30	      6           4          1
 Following debug commands will be supported for enabling additional logging which can be viewed in /var/log/stpd.log, orchagent related logs can be viewed in /var/log/syslog.
 
 - debug spanning_tree mst instance \<instance-id\>
+
 - debug spanning_tree bpdu [tx|rx]
+
 - debug spanning_tree event
+
 - debug spanning_tree verbose
+
 - debug spanning_tree interface \<ifname\>
 
 Following debug commands will be supported for displaying internal data structures
 
 - debug spanning_tree dump global 
+
 - debug spanning_tree dump mst instance \<instance-id\>
 
 # YANG Model
 
-YANG Model will be extended as follows for MSTP:
-```yang
+ Model will be extended as follows for MSTP:
+
+```
 module sonic-stp {
 
     yang-version 1.1;
@@ -706,7 +746,7 @@ module sonic-stp {
                 range "1..200000000" {
                     error-message "Invalid Port Path Cost value.";
                 }
-            }
+        }
             default 200;
             description
                 "The port's contribution, when it is the Root Port,
@@ -718,14 +758,31 @@ module sonic-stp {
                 range "0..240" {
                     error-message "Invalid Port Priority value.";
                 }
-            }
+        }
             default 128;
             description
                 "The manageable component of the Port Identifier,
                 also known as the Port Priority";
         }
-    }
 
+        leaf link_type {
+            type enumeration {
+                    enum "P2P" {
+                    description "Point-to-Point link type.";
+                }
+                enum "Shared-Lan" {
+                description "Shared LAN link type.";
+                }
+                enum "Auto" {
+                description "Automatically determine link type.";
+                }
+        }
+            default "Auto";
+            description
+                "The type of link for the interface. Options include 
+                P2P, Shared-Lan, or Auto.";
+        }
+    }
     container sonic-stp {
 
         container STP_GLOBAL {
@@ -1024,6 +1081,7 @@ module sonic-stp {
 ```
 
 # Rest API Support
+
 Rest API is out of scope for this HLD.
 
 # Warm Boot
@@ -1031,131 +1089,181 @@ Warm boot will not be supported. The IEEE 802.1s standard of MSTP does not defin
 
 User is expected to do a cold reboot when MSTP is running. If a user tries to perform a warm boot while MSTP is enabled, an error message will be displayed. User will first need to disable MSTP so the topology converges and reevaluates the paths.
 
+
 # Testing Requirements
-## Unit test cases
-### CLI test cases
 
-1. Verify CLI to enable MSTP globally. 
-1. Verify CLI to disable MSTP globally. 
-1. Verify CLI to set MSTP region name. 
-1. Verify CLI to set MSTP region revision. 
-1. Verify CLI to set MSTP port priority 
-1. Verify CLI to set MSTP hello-time 
-1. Verify CLI to set MSTP cost-value 
-1. Verify CLI to set MSTP max-hops 
-1. Verify CLI to set MSTP root guard 
-1. Verify CLI to set MSTP bpdu guard 
-1. Verify CLI to set edgeport 
-1. Verify CLI to create an instance. 
-1. Verify CLI to delete an instance 
-1. Verify CLI to clear MSTP region name. 
-1. Verify CLI to clear MSTP region revision. 
-1. Verify CLI to clear MSTP port priority 
-1. Verify CLI to clear MSTP hello-time 
-1. Verify CLI to clear MSTP cost-value 
-1. Verify CLI to clear MSTP max-hops 
-1. Verify CLI to clear MSTP root guard 
-1. Verify CLI to clear MSTP bpdu guard 
-1. Verify CLI to clear bridge priority in an instance. 
-1. Verify CLI to map VLAN to an instance 
-1. Verify CLI to delete VLAN from an instance. 
-1. Verify CLI to set interface priority on a per instance basis. 
-1. Verify CLI to set interface cost on a per instance basis. 
-1. Verify CLI to display all information related to the region. 
-1. Verify CLI to display information related to a specific instance. 
-1. Verify CLI to display information about a specific interface in a specific instance. 
-1. Verify CLI to display statistics. 
-1. Verify CLI to display statistics on a per instance basis. 
-1. Verify CLI to clear statistics. 
-1. Verify CLI to clear statistics on a per instance basis. 
-1. Verify CLI to clear statistics on a per interface per instance basis. 
-1. Verify the commands that are disabled for MSTP mode 
+## Unit Test Cases
 
+### CLI Test Cases
+
+1. Verify CLI to enable MSTP globally.  
+
+2. Verify CLI to disable MSTP globally. 
+
+3. Verify CLI to set MSTP region name.  
+
+4. Verify CLI to set MSTP region revision.  
+
+5. Verify CLI to set MSTP port priority.  
+
+6. Verify CLI to set MSTP hello-time.  
+
+7. Verify CLI to set MSTP cost-value.  
+
+8. Verify CLI to set MSTP max-hops.  
+
+9. Verify CLI to set MSTP root guard.  
+
+10. Verify CLI to set MSTP BPDU guard.  
+
+11. Verify CLI to set edge port.  
+
+12. Verify CLI to create an instance. 
+
+13. Verify CLI to delete an instance.  
+
+14. Verify CLI to clear MSTP region name.  
+
+15. Verify CLI to clear MSTP region revision.
+
+16. Verify CLI to clear MSTP port priority.
+ 
+17. Verify CLI to clear MSTP hello-time. 
+
+18. Verify CLI to clear MSTP cost-value.  
+
+19. Verify CLI to clear MSTP max-hops.  
+
+20. Verify CLI to clear MSTP root guard. 
+
+21. Verify CLI to clear MSTP BPDU guard.  
+
+22. Verify CLI to clear bridge priority in an instance.  
+
+23. Verify CLI to map VLAN to an instance.  
+
+24. Verify CLI to delete VLAN from an instance.  
+
+25. Verify CLI to set interface priority on a per-instance basis.  
+
+26. Verify CLI to set interface cost on a per-instance basis.  
+
+27. Verify CLI to display all information related to the region. 
+
+28. Verify CLI to display information related to a specific instance.  
+
+29. Verify CLI to display information about a specific interface in a specific instance.  
+
+30. Verify CLI to display statistics.  
+
+31. Verify CLI to display statistics on a per-instance basis.  
+
+32. Verify CLI to clear statistics.  
+
+33. Verify CLI to clear statistics on a per-instance basis.  
+
+34. Verify CLI to clear statistics on a per-interface per-instance basis.  
+
+35. Verify the commands that are disabled for MSTP mode.  
 
 ### Functional Test Cases 
 
-1. Verify CONFIG DB is populated with configured MSTP parameters. 
-1. Verify MSTP instances running on multiple VLANs. 
-1. Verify multiple VLANs can be mapped to a single instance. 
-1. Verify VLAN to STP instance mapping is populated correctly in APP DB, ASIC DB, Hardware 
-1. Verify instance STP ports are created for its VLAN members. 
-1. Verify correct format of MSTP BPDU. 
-1. Verify MSTP traps are created. 
-1. Verify correct operation of CIST and MSTIs. 
-1. Verify two bridges are in the same region only if they have the same region name, revision and instance to VLAN mapping. 
-1. Verify the loop free topology inside and between regions. 
-1. Verify the operational values of forward delay, max age, hello timer and max hops are of the CIST root. 
-1. Verify FDB flush as a result of topology change. 
-1. Verify instance is active only when there is at least one VLAN member of any of the VLANs that are mapped to it. 
-1. Verify altering bridge priority can alter the selection of CIST root, regional root and MSTI root. 
+1. Verify CONFIG DB is populated with configured MSTP parameters.  
 
-1. Verify altering port priority can alter the selection of designated port. 
-1. Verify max-hops by changing value. 
+2. Verify MSTP instances running on multiple VLANs.  
 
-1. Verify hello-timer by changing timer values 
+3. Verify multiple VLANs can be mapped to a single instance. 
 
-1. Verify max-age by changing intervals 
+4. Verify VLAN to STP instance mapping is populated correctly in APP DB, ASIC DB, and Hardware.  
 
-1. Verify altering bridge priority will alter Root Bridge selection 
+5. Verify instance STP ports are created for its VLAN members.  
 
-1. Verify altering port priority will alter Root port selection 
+6. Verify correct format of MSTP BPDU.  
 
-1. Verify altering port priority will alter Designated port selection 
+7. Verify MSTP traps are created.  
 
-1. Verify altering port cost results in path with lowest root path cost is seleced as root port 
+8. Verify correct operation of CIST and MSTIs. 
 
-1. Verify port states on same physical interface 
+9. Verify two bridges are in the same region only if they have the same region name, revision, and instance to VLAN mapping.  
 
-1. Verify MSTP interoperability with STP, RSTP. 
+10. Verify the loop-free topology inside and between regions.  
 
-1. Verify MSTP operational data is synced to APP DB and ASIC DB correctly. 
+11. Verify the operational values of forward delay, max age, hello timer, and max hops are of the CIST root.  
 
-1. Verify MSTP over LAG. 
+12. Verify FDB flush as a result of topology change.  
 
-1. Verify MSTP over static breakout ports.
+13. Verify instance is active only when there is at least one VLAN member of any of the VLANs that are mapped to it.  
 
-1. Verify BPDU Guard Activation on Ports.
-   
-1.  Verify BPDU Guard Port State Transition
-   
-1.  Verify BPDU Guard Recovery Mechanism
-   
-1. Verify BPDU Guard and MSTP Interaction
-   
-1. Verify MSTP Topology Changes Detection
-   
-1. Verify MSTP and VLAN Integration
+14. Verify altering bridge priority can alter the selection of CIST root, regional root, and MSTI root.  
 
-1. Verify MSTP Path Cost Calculation
-   
-1. Verify MSTP Failover
+15. Verify altering port priority can alter the selection of designated port.  
+
+16. Verify max-hops by changing value.  
+
+17. Verify hello-timer by changing timer values.  
+
+18. Verify max-age by changing intervals.  
+
+19. Verify altering bridge priority will alter Root Bridge selection.  
+
+20. Verify altering port priority will alter Root port selection.  
+
+21. Verify altering port priority will alter Designated port selection.  
+
+22. Verify altering port cost results in the path with the lowest root path cost being selected as the root port.  
+
+23. Verify port states on the same physical interface.  
+
+24. Verify MSTP interoperability with STP and RSTP.  
+
+25. Verify MSTP operational data is synced to APP DB and ASIC DB correctly. 
+
+26. Verify MSTP over LAG.  
+
+27. Verify MSTP over static breakout ports.  
+
+28. Verify BPDU Guard Activation on Ports.
+
+29. Verify BPDU Guard Port State Transition.  
+
+30. Verify BPDU Guard Recovery Mechanism.  
+
+31. Verify BPDU Guard and MSTP Interaction.  
+
+32. Verify MSTP Topology Changes Detection. 
+
+33. Verify MSTP and VLAN Integration.  
+
+34. Verify MSTP Path Cost Calculation.  
+
+35. Verify MSTP Failover.  
 
 ### Logging and Debugging Test Cases 
 
-1. Verify debugging logs for a region. 
+1. Verify debugging logs for a region.  
 
-1. Verify debugging logs for an instance. 
+2. Verify debugging logs for an instance.  
 
-1. Verify debugging of internal data structure of region. 
+3. Verify debugging of internal data structure of a region.  
 
-1. Verify debugging of internal data structure of an instance. 
+4. Verify debugging of internal data structure of an instance.  
 
-1. Verify debugging of internal data structure of a specific interface in an instance.  
+5. Verify debugging of internal data structure of a specific interface in an instance.  
 
 ### SAI 
 
-1. Verify creation of STP instance. 
+1. Verify creation of STP instance.  
 
-1. Verify adding VLAN to an instance. 
+2. Verify adding VLAN to an instance.  
 
-1. Verify deleting VLAN from an instance. 
+3. Verify deleting VLAN from an instance.  
 
-1. Verify adding a port to an instance. 
+4. Verify adding a port to an instance.  
 
-1. Verify deleting port from an instance. 
+5. Verify deleting a port from an instance.  
 
-1. Verify port state for different instances. 
+6. Verify port state for different instances.  
 
 ### L3 
 
-1. Verify normal flow of L3 traffic with the MSTP topology. 
+1. Verify normal flow of L3 traffic with the MSTP topology.  
