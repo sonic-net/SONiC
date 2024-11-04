@@ -90,7 +90,7 @@ Before diving into the specific terms related to Multiple Spanning Tree Protocol
 
 1. **MST Regions**: An MST region is a group of interconnected bridges that share the same MST configuration, including the MST configuration name, revision number, and VLAN-to-instance mappings.
 
-2. **Default Internal Spanning Tree (IST)**: An internal spanning tree (IST) is a spanning tree that runs in an MST region. It is also called MSTI 0, a special MSTI to which all VLANs are mapped by default.
+2. **Default Internal Spanning Tree (IST)**: An internal spanning tree (IST) is a spanning tree that runs in an MST region. It is also called MSTI 0, a special MSTI to which all VLANs are mapped by Default.
 
 3. **Common Spanning Tree (CST)**: The common spanning tree (CST) is a single spanning tree that connects all MST regions in a switched network.
 
@@ -358,7 +358,7 @@ Following table shows the existing SAI Attributes that will be used:
 ||SAI_STP_PORT_STATE_FORWARDING|
 ||SAI_STP_PORT_STATE_BLOCKING|
 |VLAN STP Instance|SAI_VLAN_ATTR_STP_INSTANCE|
-|Switch STP Attributes|SAI_SWITCH_ATTR_DEFAULT_STP_INST_ID|
+|Switch STP Attributes|SAI_SWITCH_ATTR_Default_STP_INST_ID|
 ||SAI_SWITCH_ATTR_MAX_STP_INSTANCE|
 
 ## New SAI Attributes
@@ -414,7 +414,7 @@ Following configuration commands will be provided for configuration of MSTP:
 - **config spanning_tree {enable|disable} {mst}**
   - Enables or disables mstp at global level on all ports of the switch.
   - Only one mode of STP can be enabled at a time.
-  - By default disabled.
+  - By Default disabled.
     
 - **config spanning_tree max_hops \<max-hops-value\>**
   - Specify the number of maximum hops before the BPDU is discarded inside a region.
@@ -434,7 +434,7 @@ Below commands allow configuring on region basis:
 
 - **config spanning_tree mst region-name \<region-name\>**
   - Edit the name of region
-  - region-name: Case sensitive, characters should be less than or equal to 32, default: mac-address of bridge
+  - region-name: Case sensitive, characters should be less than or equal to 32, Default: mac-address of bridge
 
 - **config spanning-tree mst revision \<revision-number\>**
   - Revision number is used to track changes in the configuration and to synchronize the configuration across the switches in the same region.
@@ -493,7 +493,7 @@ Following new commands will be added:
 
 - **config spanning_tree interface link-type {P2P|Shared-Lan|Auto} \<ifname\>**
   - Specify configuring the interface at different link types.
-  - Deafault : Auto
+  - Default : Auto
 
 
   **Note : These functionalities need to be explicitly enabled.**
@@ -750,7 +750,7 @@ module sonic-stp {
                     error-message "Invalid Port Path Cost value.";
                 }
         }
-            default 200;
+            Default 200;
             description
                 "The port's contribution, when it is the Root Port,
                 to the Root Path Cost for the Bridge";
@@ -762,7 +762,7 @@ module sonic-stp {
                     error-message "Invalid Port Priority value.";
                 }
         }
-            default 128;
+            Default 128;
             description
                 "The manageable component of the Port Identifier,
                 also known as the Port Priority";
@@ -780,7 +780,7 @@ module sonic-stp {
                 description "Automatically determine link type.";
                 }
         }
-            default "Auto";
+            Default "Auto";
             description
                 "The type of link for the interface. Options include 
                 P2P, Shared-Lan, or Auto.";
@@ -809,7 +809,7 @@ module sonic-stp {
                         error-message "forward_delay value out of range";
                     }
                 }
-                default 15;
+                Default 15;
                 description "Forward delay in sec";
             }
 
@@ -823,7 +823,7 @@ module sonic-stp {
                         error-message "hello_time value out of range";
                     }
                 }
-                default 2;
+                Default 2;
                 description "Hello time in sec";
             }
 
@@ -837,7 +837,7 @@ module sonic-stp {
                         error-message "max_age value out of range";
                     }
                 }
-                default 20;
+                Default 20;
                 description "Max age";
             }
 
@@ -851,7 +851,7 @@ module sonic-stp {
                         error-message "rootguard_timeout value out of range";
                     }
                 }
-                default 30;
+                Default 30;
                 description "Root guard timeout in sec";
             }
 
@@ -869,7 +869,7 @@ module sonic-stp {
                         error-message "priority value out of range";
                     }
                 }
-                default 32768;
+                Default 32768;
                 description "Bridge priority";
             }
         }
@@ -923,7 +923,7 @@ module sonic-stp {
                         	error-message "max-hops value out of range";
                     	}
 		    }
-                    default 20;
+                    Default 20;
                     description
                         "MST Max hops";
                 }
@@ -938,7 +938,7 @@ module sonic-stp {
                         	error-message "hello_time value out of range";
                     	}
 		    }
-		    default 2;
+		    Default 2;
                     description
                         "MST hello time";
                 }
@@ -953,7 +953,7 @@ module sonic-stp {
                         	error-message "max_age value out of range";
                     	}
 	            }
-                    default 20;
+                    Default 20;
                     description
                         "MST max age";
                 }
@@ -968,7 +968,7 @@ module sonic-stp {
                         	error-message "forward_delay value out of range";
 			}
                     }
-                    default 15;
+                    Default 15;
                     description
                         "MST forward delay";
                 }
@@ -995,7 +995,7 @@ module sonic-stp {
                             error-message "Invalid Bridge Priority value.";
                         }
                     }
-                    default 32768;
+                    Default 32768;
                     description
                         "The manageable component of the Bridge Identifier";
                 }
