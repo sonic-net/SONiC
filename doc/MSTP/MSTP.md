@@ -461,6 +461,7 @@ Following commands are used for spanning-tree configurations on per instance, pe
 - **config spanning_tree mst instance \<instance-id\> interface \<ifname\> priority \<priority-value\>**
   - Configure priority of an interface for an instance.
   - priority-value: Default: 128, range: 0-240
+  - Supported Instances : 64 
 
 - **config spanning_tree mst instance \<instance-id\> interface \<ifname\> cost \<cost-value\>**
   - Configure path cost of an interface for an instance.
@@ -643,10 +644,12 @@ PortChannel1001        No                             NA
 admin@sonic:  show spanning_tree root_guard
 
 
-PortNum               Root Guard Enabled            Port Status
----------             ---------------------         --------------
-Ethernet46             Yes                          Active
-PortChannel1001        No                           NA
+PortNum               VLAN                          Current State
+---------             ---------------------         ---------------------------------------------
+Ethernet46             1, 4-8, 202-4094             Inconsistent state 
+PortChannel1001                                     Consistent state
+
+
 ```
 
 - show spanning_tree  mst instance \<instance-id\> interface \<ifname\>
