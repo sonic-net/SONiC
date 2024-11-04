@@ -476,7 +476,7 @@ sequenceDiagram
     gnmi server-->>client: result
 ```
 
-One limitation is that we can't restart the gNMI server. Therefore, if we update the configuration for the gNMI server, the changes will not take effect.
+One limitation is that we can't restart the gNMI server. Therefore, if we update the configuration for the gNMI server, the changes will not take effect. And we can use gNOI reboot request to apply the whole configurations.
 
 #### 1.2.1.12 Backward Compatibility
 
