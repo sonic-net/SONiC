@@ -644,7 +644,7 @@ PortChannel1001        No                             NA
 admin@sonic:  show spanning_tree root_guard
 
 
-PortNum               VLAN                          Current State
+PortNum               VLAN/MST                      Current State
 ---------             ---------------------         ---------------------------------------------
 Ethernet46             1, 4-8, 202-4094             Inconsistent state 
 PortChannel1001                                     Consistent state
