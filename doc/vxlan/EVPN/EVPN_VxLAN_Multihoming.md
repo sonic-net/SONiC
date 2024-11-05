@@ -106,7 +106,6 @@ The ICCPd based MCLAG continue to co-exist as an alternate solution.
 | -------- | ----------------------------------------- |
 | (N)DF    | (Non-)Designated Forwarder                |
 | IRB      | Integrated Routing and Bridging           |
-| LVTEP    | Logical VTEP                              |
 | L3VNI    | (VxLAN) Layer3 Virtual Network Identifier |
 | MHD, SHD | Multi-Homed Device, Single-Homed Device   |
 | MCLAG    | Multi-Chassis LAG                         |
@@ -135,7 +134,7 @@ The following are functional requirements for EVPN VxLAN Multihoming:
 	- BGP-EVPN Multihomed Ethernet-Segment
 	- ARP/ND suppression
 
-4. Support for Type-0 (Operator configured), Type-1 (LACP based), and Type-3 (System-MAC config based) Ethernet Segment IDs types.
+4. Support for Type-0 (Operator configured) and Type-3 (System-MAC config based) Ethernet Segment IDs types.
 5. SONiC currently supports EVPN Vlan-based service. No new service-types are introduced with this feature
 
 The following are non-goals for the EVPN Multihoming feature:
@@ -171,9 +170,8 @@ __Figure 1: Typical EVPN Multihoming network__
 
 The devices H1, H4, and H5 are SH devices and connected to Vtep-1, Vtep-4, and Vtep-5 respectively. The devices H2 & H3 are multihomed and connected to EVPN VxLAN network with active-active redundancy using LAG. Device H2 is multihomed to Vtep-1 and Vtep-4 whereas device H3 is multihomed to Vtep-1, Vtep-2, Vtep-3, and Vtep-4.
 
-In order to configure EVPN Multihoming for the LAGs connecting multihomed devices, Type-0, Type-1, or Type-3 ESI is required to be configured on the LAG interfaces:
-- *T*ype-0: Operator configured ESI*
-- *Type-1: ESI automatically derived from LACP partner MAC*
+In order to configure EVPN Multihoming for the LAGs connecting multihomed devices, Type-0 or Type-3 ESI is required to be configured on the LAG interfaces:
+- *Type-0: Operator configured ESI*
 - *Type-3: ESI automatically derived from configured LAG system-mac address*
 
 For a given Multihomed Ethernet-Segment, the value of ES-ID should be same on all of the participating VTEPs.
@@ -351,18 +349,12 @@ As described in [Proxy advertisement of Type-2 routes](#111-Functional-Requireme
 Please note that MCLAG and EVPN MH global configurations are mutually exclusive. If MCLAG is configured, above configuration will not be successful. Similarly, if EVPN MH global configuration is present, MCLAG configuration will not be allowed.
 
 ### 2.2.1.2 EVPN Multihoming Ethernet Segment configuration
-EVPN Ethernet-segment configurations for Type-0, Type-1, and Type-3 ES-ID types are supported. Please refer to [RFC 7432](https://datatracker.ietf.org/doc/html/rfc7432)
+EVPN Ethernet-segment configurations for Type-0 and Type-3 ES-ID types are supported. Please refer to [RFC 7432](https://datatracker.ietf.org/doc/html/rfc7432)
 
 The Type-0 ESI is an administrator configured 10-byte ESI value. Below is an example of configuring Type-0 ESI.
 ```
 sudo config interface sys-mac add PortChannel1 00:00:00:0a:00:01
 sudo config interface evpn-esi add PortChannel1 00:00:00:00:00:00:00:0a:00:01
-```
-
-The Type-1 ESI is automatically generated using LACP partner MAC address and the PortChannel interface number. Below is an example of configuring Type-1 ESI.
-```
-sudo config interface sys-mac add PortChannel1 00:00:00:0a:00:01
-sudo config interface evpn-esi add PortChannel1 auto-lacp
 ```
 
 The Type-3 ESI is generated using System MAC address and the PortChannel interface number. Below is an example of configuring Type-3 ESI.
