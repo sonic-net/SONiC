@@ -41,10 +41,7 @@ This document gives the details of Per-switching silicon Common config for Broad
 The functional requirements include :
 - Create the common file in the device common directory for different  BRCM switch chip family
 
-- Merge the common config from device common directory to ODM
-platform specific config. Duplicate configuration properties in the platform specific file override the properties in the common config.bcm
-
-Common config. Duplicate configuration properties in the overwrite section of common config override the properties in the platform specific config.bcm ( Feature added in Rev 0.2 )
+- Merge the common config from device common directory to ODM platform specific config. Duplicate configuration properties in the platform specific file override the properties in the common config.bcm Common config. In the Rev 0.2 feature, support Duplicate configuration properties in the High Inheritance Precedence section of common config override the properties in the platform specific config.bcm.
 
 
 - The final config.bcm merged with common config is required to be copied to a shared folder for debugging   
@@ -52,8 +49,7 @@ Common config. Duplicate configuration properties in the overwrite section of co
 
 ## 2 Supported Platforms
 
-Per-switching silicon Common config feature is supported on all of the Broadcom platform if the common config files are created in the device/broadcom/x86_64-broadcom_common. Following is the current supported common configuration : In the latest 0.2 updated version, TD4, TH4, and TH5 yml based switch silicons are supported
-in the common config feature.  
+Per-switching silicon Common config feature is supported on all of the Broadcom platform if the common config files are created in the device/broadcom/x86_64-broadcom_common. Following is the current supported common configuration : In the latest 0.2 updated version, TD4, TH4, and TH5 switch silicons with yml config are supported in the common config feature.  
 
 ```
 |-- x86_64-broadcom_b27 -- broadcom-sonic-td3.config.bcm
@@ -91,7 +87,7 @@ lpm_scaling_enable=0
 l3_alpm_enable=0
 ```
 
-Since the platform specific config.bcm is read only in docker, the design copies the platform specific config.bcm or config.yml and sai.profile to /tmp for handling common config merge process. The /tmp/sai.profile will be modified to point to the merged config.bcm or config.yml under/tmp directory. The following switch initialization will reference to the new merged config.bcm or config.yml pointed by updated sai.profile from the /tmp directory.
+Since the platform specific config.bcm is read only in docker, the design copies the platform specific config.bcm or config.yml and sai.profile to /tmp for handling common config merge process. The /tmp/sai.profile will be modified to point to the merged config.bcm or config.yml under /tmp directory. The following switch initialization will reference to the new merged config.bcm or config.yml pointed by updated sai.profile from the /tmp directory.
 
 The design will also copy the merged config.bcm or config.yml and sai.profile to /var/run/ share folder for debugging and testing purpose
 
