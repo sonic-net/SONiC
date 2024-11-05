@@ -117,30 +117,30 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver DOM flags for a port
     key                          = TRANSCEIVER_DOM_FLAG|ifname    ; information module DOM flags on port
     ; field                      = value
-    temphighalarm_flag                    = BOOLEAN            ; temperature high alarm flag 
-    temphighwarning_flag                  = BOOLEAN            ; temperature high warning flag
-    templowalarm_flag                     = BOOLEAN            ; temperature low alarm flag
-    templowwarning_flag                   = BOOLEAN            ; temperature low warning flag
-    vcchighalarm_flag                     = BOOLEAN            ; vcc high alarm flag
-    vcchighwarning_flag                   = BOOLEAN            ; vcc high warning flag
-    vcclowalarm_flag                      = BOOLEAN            ; vcc low alarm flag
-    vcclowwarning_flag                    = BOOLEAN            ; vcc low warning flag
-    txpowerhighalarm_flag{lane_num}       = BOOLEAN            ; tx power high alarm flag
-    txpowerlowalarm_flag{lane_num}        = BOOLEAN            ; tx power low alarm flag
-    txpowerhighwarning_flag{lane_num}     = BOOLEAN            ; tx power high warning flag
-    txpowerlowwarning_flag{lane_num}      = BOOLEAN            ; tx power low alarm flag
-    rxpowerhighalarm_flag{lane_num}       = BOOLEAN            ; rx power high alarm flag
-    rxpowerlowalarm_flag{lane_num}        = BOOLEAN            ; rx power low alarm flag
-    rxpowerhighwarning_flag{lane_num}     = BOOLEAN            ; rx power high warning flag
-    rxpowerlowwarning_flag{lane_num}      = BOOLEAN            ; rx power low warning flag
-    txbiashighalarm_flag{lane_num}        = BOOLEAN            ; tx bias high alarm flag
-    txbiaslowalarm_flag{lane_num}         = BOOLEAN            ; tx bias low alarm flag
-    txbiashighwarning_flag{lane_num}      = BOOLEAN            ; tx bias high warning flag
-    txbiaslowwarning_flag{lane_num}       = BOOLEAN            ; tx bias low warning flag
-    lasertemphighalarm_flag               = BOOLEAN            ; laser temperature high alarm flag
-    lasertemplowalarm_flag                = BOOLEAN            ; laser temperature low alarm flag
-    lasertemphighwarning_flag             = BOOLEAN            ; laser temperature high warning flag
-    lasertemplowwarning_flag              = BOOLEAN            ; laser temperature low warning flag
+    temphighalarm                    = BOOLEAN            ; temperature high alarm flag 
+    temphighwarning                  = BOOLEAN            ; temperature high warning flag
+    templowalarm                     = BOOLEAN            ; temperature low alarm flag
+    templowwarning                   = BOOLEAN            ; temperature low warning flag
+    vcchighalarm                     = BOOLEAN            ; vcc high alarm flag
+    vcchighwarning                   = BOOLEAN            ; vcc high warning flag
+    vcclowalarm                      = BOOLEAN            ; vcc low alarm flag
+    vcclowwarning                    = BOOLEAN            ; vcc low warning flag
+    txpowerhighalarm{lane_num}       = BOOLEAN            ; tx power high alarm flag
+    txpowerlowalarm{lane_num}        = BOOLEAN            ; tx power low alarm flag
+    txpowerhighwarning{lane_num}     = BOOLEAN            ; tx power high warning flag
+    txpowerlowwarning{lane_num}      = BOOLEAN            ; tx power low alarm flag
+    rxpowerhighalarm{lane_num}       = BOOLEAN            ; rx power high alarm flag
+    rxpowerlowalarm{lane_num}        = BOOLEAN            ; rx power low alarm flag
+    rxpowerhighwarning{lane_num}     = BOOLEAN            ; rx power high warning flag
+    rxpowerlowwarning{lane_num}      = BOOLEAN            ; rx power low warning flag
+    txbiashighalarm{lane_num}        = BOOLEAN            ; tx bias high alarm flag
+    txbiaslowalarm{lane_num}         = BOOLEAN            ; tx bias low alarm flag
+    txbiashighwarning{lane_num}      = BOOLEAN            ; tx bias high warning flag
+    txbiaslowwarning{lane_num}       = BOOLEAN            ; tx bias low warning flag
+    lasertemphighalarm               = BOOLEAN            ; laser temperature high alarm flag
+    lasertemplowalarm                = BOOLEAN            ; laser temperature low alarm flag
+    lasertemphighwarning             = BOOLEAN            ; laser temperature high warning flag
+    lasertemplowwarning              = BOOLEAN            ; laser temperature low warning flag
 ```
 
 #### 2.1.4 Transceiver DOM flag change count data
@@ -530,47 +530,47 @@ The `TRANSCEIVER_VDM_HALARM_FLAG` table stores the flag status for the VDM data.
     ;Defines Transceiver VDM high alarm flag for a port
     key                          = TRANSCEIVER_VDM_HALARM_FLAG|ifname
     ; field                      = value
-    laser_temperature_media_halarm_flag{lane_num}             = BOOLEAN ; laser temperature high alarm flag for media input
-    esnr_media_input_halarm_flag{lane_num}                    = BOOLEAN ; eSNR high alarm flag for media input
-    esnr_host_input_halarm_flag{lane_num}                     = BOOLEAN ; eSNR high alarm flag for host input
-    pam4_level_transition_media_input_halarm_flag{lane_num}   = BOOLEAN ; PAM4 level transition high alarm flag for media input
-    pam4_level_transition_host_input_halarm_flag{lane_num}    = BOOLEAN ; PAM4 level transition high alarm flag for host input
-    prefec_ber_min_media_input_halarm_flag{lane_num}          = BOOLEAN ; Pre-FEC BER minimum high alarm flag for media input
-    prefec_ber_max_media_input_halarm_flag{lane_num}          = BOOLEAN ; Pre-FEC BER maximum high alarm flag for media input
-    prefec_ber_avg_media_input_halarm_flag{lane_num}          = BOOLEAN ; Pre-FEC BER average high alarm flag for media input
-    prefec_ber_curr_media_input_halarm_flag{lane_num}         = BOOLEAN ; Pre-FEC BER current high alarm flag for media input
-    prefec_ber_min_host_input_halarm_flag{lane_num}           = BOOLEAN ; Pre-FEC BER minimum high alarm flag for host input
-    prefec_ber_max_host_input_halarm_flag{lane_num}           = BOOLEAN ; Pre-FEC BER maximum high alarm flag for host input
-    prefec_ber_avg_host_input_halarm_flag{lane_num}           = BOOLEAN ; Pre-FEC BER average high alarm flag for host input
-    prefec_ber_curr_host_input_halarm_flag{lane_num}          = BOOLEAN ; Pre-FEC BER current high alarm flag for host input
-    errored_frames_min_media_input_halarm_flag{lane_num}      = BOOLEAN ; Errored frames minimum high alarm flag for media input
-    errored_frames_max_media_input_halarm_flag{lane_num}      = BOOLEAN ; Errored frames maximum high alarm flag for media input
-    errored_frames_avg_media_input_halarm_flag{lane_num}      = BOOLEAN ; Errored frames average high alarm flag for media input
-    errored_frames_curr_media_input_halarm_flag{lane_num}     = BOOLEAN ; Errored frames current high alarm flag for media input
-    errored_frames_min_host_input_halarm_flag{lane_num}       = BOOLEAN ; Errored frames minimum high alarm flag for host input
-    errored_frames_max_host_input_halarm_flag{lane_num}       = BOOLEAN ; Errored frames maximum high alarm flag for host input
-    errored_frames_avg_host_input_halarm_flag{lane_num}       = BOOLEAN ; Errored frames average high alarm flag for host input
-    errored_frames_curr_host_input_halarm_flag{lane_num}      = BOOLEAN ; Errored frames current high alarm flag for host input
+    laser_temperature_media_halarm{lane_num}             = BOOLEAN ; laser temperature high alarm flag for media input
+    esnr_media_input_halarm{lane_num}                    = BOOLEAN ; eSNR high alarm flag for media input
+    esnr_host_input_halarm{lane_num}                     = BOOLEAN ; eSNR high alarm flag for host input
+    pam4_level_transition_media_input_halarm{lane_num}   = BOOLEAN ; PAM4 level transition high alarm flag for media input
+    pam4_level_transition_host_input_halarm{lane_num}    = BOOLEAN ; PAM4 level transition high alarm flag for host input
+    prefec_ber_min_media_input_halarm{lane_num}          = BOOLEAN ; Pre-FEC BER minimum high alarm flag for media input
+    prefec_ber_max_media_input_halarm{lane_num}          = BOOLEAN ; Pre-FEC BER maximum high alarm flag for media input
+    prefec_ber_avg_media_input_halarm{lane_num}          = BOOLEAN ; Pre-FEC BER average high alarm flag for media input
+    prefec_ber_curr_media_input_halarm{lane_num}         = BOOLEAN ; Pre-FEC BER current high alarm flag for media input
+    prefec_ber_min_host_input_halarm{lane_num}           = BOOLEAN ; Pre-FEC BER minimum high alarm flag for host input
+    prefec_ber_max_host_input_halarm{lane_num}           = BOOLEAN ; Pre-FEC BER maximum high alarm flag for host input
+    prefec_ber_avg_host_input_halarm{lane_num}           = BOOLEAN ; Pre-FEC BER average high alarm flag for host input
+    prefec_ber_curr_host_input_halarm{lane_num}          = BOOLEAN ; Pre-FEC BER current high alarm flag for host input
+    errored_frames_min_media_input_halarm{lane_num}      = BOOLEAN ; Errored frames minimum high alarm flag for media input
+    errored_frames_max_media_input_halarm{lane_num}      = BOOLEAN ; Errored frames maximum high alarm flag for media input
+    errored_frames_avg_media_input_halarm{lane_num}      = BOOLEAN ; Errored frames average high alarm flag for media input
+    errored_frames_curr_media_input_halarm{lane_num}     = BOOLEAN ; Errored frames current high alarm flag for media input
+    errored_frames_min_host_input_halarm{lane_num}       = BOOLEAN ; Errored frames minimum high alarm flag for host input
+    errored_frames_max_host_input_halarm{lane_num}       = BOOLEAN ; Errored frames maximum high alarm flag for host input
+    errored_frames_avg_host_input_halarm{lane_num}       = BOOLEAN ; Errored frames average high alarm flag for host input
+    errored_frames_curr_host_input_halarm{lane_num}      = BOOLEAN ; Errored frames current high alarm flag for host input
 
     ;C-CMIS specific fields
-    biasxi_halarm_flag                                        = BOOLEAN ; modulator bias xi in percentage (high alarm flag)
-    biasxq_halarm_flag                                        = BOOLEAN ; modulator bias xq in percentage (high alarm flag)
-    biasxp_halarm_flag                                        = BOOLEAN ; modulator bias xp in percentage (high alarm flag)
-    biasyi_halarm_flag                                        = BOOLEAN ; modulator bias yi in percentage (high alarm flag)
-    biasyq_halarm_flag                                        = BOOLEAN ; modulator bias yq in percentage (high alarm flag)
-    biasyp_halarm_flag                                        = BOOLEAN ; modulator bias yq in percentage (high alarm flag)
-    cdshort_halarm_flag                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (high alarm flag)
-    cdlong_halarm_flag                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (high alarm flag)
-    dgd_halarm_flag                                           = BOOLEAN ; differential group delay in ps (high alarm flag)
-    sopmd_halarm_flag                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (high alarm flag)
-    soproc_halarm_flag                                        = BOOLEAN ; state of polarization rate of change in krad/s (high alarm flag)
-    pdl_halarm_flag                                           = BOOLEAN ; polarization dependent loss in db (high alarm flag)
-    osnr_halarm_flag                                          = BOOLEAN ; optical signal to noise ratio in db (high alarm flag)
-    esnr_halarm_flag                                          = BOOLEAN ; electrical signal to noise ratio in db (high alarm flag)
-    cfo_halarm_flag                                           = BOOLEAN ; carrier frequency offset in Hz (high alarm flag)
-    txcurrpower_halarm_flag                                   = BOOLEAN ; tx current output power in dbm (high alarm flag)
-    rxtotpower_halarm_flag                                    = BOOLEAN ; rx total power in  dbm (high alarm flag)
-    rxsigpower_halarm_flag                                    = BOOLEAN; rx signal power in dbm (high alarm flag)
+    biasxi_halarm                                        = BOOLEAN ; modulator bias xi in percentage (high alarm flag)
+    biasxq_halarm                                        = BOOLEAN ; modulator bias xq in percentage (high alarm flag)
+    biasxp_halarm                                        = BOOLEAN ; modulator bias xp in percentage (high alarm flag)
+    biasyi_halarm                                        = BOOLEAN ; modulator bias yi in percentage (high alarm flag)
+    biasyq_halarm                                        = BOOLEAN ; modulator bias yq in percentage (high alarm flag)
+    biasyp_halarm                                        = BOOLEAN ; modulator bias yq in percentage (high alarm flag)
+    cdshort_halarm                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (high alarm flag)
+    cdlong_halarm                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (high alarm flag)
+    dgd_halarm                                           = BOOLEAN ; differential group delay in ps (high alarm flag)
+    sopmd_halarm                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (high alarm flag)
+    soproc_halarm                                        = BOOLEAN ; state of polarization rate of change in krad/s (high alarm flag)
+    pdl_halarm                                           = BOOLEAN ; polarization dependent loss in db (high alarm flag)
+    osnr_halarm                                          = BOOLEAN ; optical signal to noise ratio in db (high alarm flag)
+    esnr_halarm                                          = BOOLEAN ; electrical signal to noise ratio in db (high alarm flag)
+    cfo_halarm                                           = BOOLEAN ; carrier frequency offset in Hz (high alarm flag)
+    txcurrpower_halarm                                   = BOOLEAN ; tx current output power in dbm (high alarm flag)
+    rxtotpower_halarm                                    = BOOLEAN ; rx total power in  dbm (high alarm flag)
+    rxsigpower_halarm                                    = BOOLEAN; rx signal power in dbm (high alarm flag)
 ```
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
@@ -585,47 +585,47 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low alarm flag for a port
     key                          = TRANSCEIVER_VDM_LALARM_FLAG|ifname
     ; field                      = value
-    laser_temperature_media_lalarm_flag{lane_num}             = BOOLEAN ; laser temperature low alarm flag for media input
-    esnr_media_input_lalarm_flag{lane_num}                    = BOOLEAN ; eSNR low alarm flag for media input
-    esnr_host_input_lalarm_flag{lane_num}                     = BOOLEAN ; eSNR low alarm flag for host input
-    pam4_level_transition_media_input_lalarm_flag{lane_num}   = BOOLEAN ; PAM4 level transition low alarm flag for media input
-    pam4_level_transition_host_input_lalarm_flag{lane_num}    = BOOLEAN ; PAM4 level transition low alarm flag for host input
-    prefec_ber_min_media_input_lalarm_flag{lane_num}          = BOOLEAN ; Pre-FEC BER minimum low alarm flag for media input
-    prefec_ber_max_media_input_lalarm_flag{lane_num}          = BOOLEAN ; Pre-FEC BER maximum low alarm flag for media input
-    prefec_ber_avg_media_input_lalarm_flag{lane_num}          = BOOLEAN ; Pre-FEC BER average low alarm flag for media input
-    prefec_ber_curr_media_input_lalarm_flag{lane_num}         = BOOLEAN ; Pre-FEC BER current low alarm flag for media input
-    prefec_ber_min_host_input_lalarm_flag{lane_num}           = BOOLEAN ; Pre-FEC BER minimum low alarm flag for host input
-    prefec_ber_max_host_input_lalarm_flag{lane_num}           = BOOLEAN ; Pre-FEC BER maximum low alarm flag for host input
-    prefec_ber_avg_host_input_lalarm_flag{lane_num}           = BOOLEAN ; Pre-FEC BER average low alarm flag for host input
-    prefec_ber_curr_host_input_lalarm_flag{lane_num}          = BOOLEAN ; Pre-FEC BER current low alarm flag for host input
-    errored_frames_min_media_input_lalarm_flag{lane_num}      = BOOLEAN ; Errored frames minimum low alarm flag for media input
-    errored_frames_max_media_input_lalarm_flag{lane_num}      = BOOLEAN ; Errored frames maximum low alarm flag for media input
-    errored_frames_avg_media_input_lalarm_flag{lane_num}      = BOOLEAN ; Errored frames average low alarm flag for media input
-    errored_frames_curr_media_input_lalarm_flag{lane_num}     = BOOLEAN ; Errored frames current low alarm flag for media input
-    errored_frames_min_host_input_lalarm_flag{lane_num}       = BOOLEAN ; Errored frames minimum low alarm flag for host input
-    errored_frames_max_host_input_lalarm_flag{lane_num}       = BOOLEAN ; Errored frames maximum low alarm flag for host input
-    errored_frames_avg_host_input_lalarm_flag{lane_num}       = BOOLEAN ; Errored frames average low alarm flag for host input
-    errored_frames_curr_host_input_lalarm_flag{lane_num}      = BOOLEAN ; Errored frames current low alarm flag for host input
+    laser_temperature_media_lalarm{lane_num}             = BOOLEAN ; laser temperature low alarm flag for media input
+    esnr_media_input_lalarm{lane_num}                    = BOOLEAN ; eSNR low alarm flag for media input
+    esnr_host_input_lalarm{lane_num}                     = BOOLEAN ; eSNR low alarm flag for host input
+    pam4_level_transition_media_input_lalarm{lane_num}   = BOOLEAN ; PAM4 level transition low alarm flag for media input
+    pam4_level_transition_host_input_lalarm{lane_num}    = BOOLEAN ; PAM4 level transition low alarm flag for host input
+    prefec_ber_min_media_input_lalarm{lane_num}          = BOOLEAN ; Pre-FEC BER minimum low alarm flag for media input
+    prefec_ber_max_media_input_lalarm{lane_num}          = BOOLEAN ; Pre-FEC BER maximum low alarm flag for media input
+    prefec_ber_avg_media_input_lalarm{lane_num}          = BOOLEAN ; Pre-FEC BER average low alarm flag for media input
+    prefec_ber_curr_media_input_lalarm{lane_num}         = BOOLEAN ; Pre-FEC BER current low alarm flag for media input
+    prefec_ber_min_host_input_lalarm{lane_num}           = BOOLEAN ; Pre-FEC BER minimum low alarm flag for host input
+    prefec_ber_max_host_input_lalarm{lane_num}           = BOOLEAN ; Pre-FEC BER maximum low alarm flag for host input
+    prefec_ber_avg_host_input_lalarm{lane_num}           = BOOLEAN ; Pre-FEC BER average low alarm flag for host input
+    prefec_ber_curr_host_input_lalarm{lane_num}          = BOOLEAN ; Pre-FEC BER current low alarm flag for host input
+    errored_frames_min_media_input_lalarm{lane_num}      = BOOLEAN ; Errored frames minimum low alarm flag for media input
+    errored_frames_max_media_input_lalarm{lane_num}      = BOOLEAN ; Errored frames maximum low alarm flag for media input
+    errored_frames_avg_media_input_lalarm{lane_num}      = BOOLEAN ; Errored frames average low alarm flag for media input
+    errored_frames_curr_media_input_lalarm{lane_num}     = BOOLEAN ; Errored frames current low alarm flag for media input
+    errored_frames_min_host_input_lalarm{lane_num}       = BOOLEAN ; Errored frames minimum low alarm flag for host input
+    errored_frames_max_host_input_lalarm{lane_num}       = BOOLEAN ; Errored frames maximum low alarm flag for host input
+    errored_frames_avg_host_input_lalarm{lane_num}       = BOOLEAN ; Errored frames average low alarm flag for host input
+    errored_frames_curr_host_input_lalarm{lane_num}      = BOOLEAN ; Errored frames current low alarm flag for host input
 
     ;C-CMIS specific fields
-    biasxi_lalarm_flag                                        = BOOLEAN ; modulator bias xi in percentage (low alarm flag)
-    biasxq_lalarm_flag                                        = BOOLEAN ; modulator bias xq in percentage (low alarm flag)
-    biasxp_lalarm_flag                                        = BOOLEAN ; modulator bias xp in percentage (low alarm flag)
-    biasyi_lalarm_flag                                        = BOOLEAN ; modulator bias yi in percentage (low alarm flag)
-    biasyq_lalarm_flag                                        = BOOLEAN ; modulator bias yq in percentage (low alarm flag)
-    biasyp_lalarm_flag                                        = BOOLEAN ; modulator bias yq in percentage (low alarm flag)
-    cdshort_lalarm_flag                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (low alarm flag)
-    cdlong_lalarm_flag                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (low alarm flag)
-    dgd_lalarm_flag                                           = BOOLEAN ; differential group delay in ps (low alarm flag)
-    sopmd_lalarm_flag                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (low alarm flag)
-    soproc_lalarm_flag                                        = BOOLEAN ; state of polarization rate of change in krad/s (low alarm flag)
-    pdl_lalarm_flag                                           = BOOLEAN ; polarization dependent loss in db (low alarm flag)
-    osnr_lalarm_flag                                          = BOOLEAN ; optical signal to noise ratio in db (low alarm flag)
-    esnr_lalarm_flag                                          = BOOLEAN ; electrical signal to noise ratio in db (low alarm flag)
-    cfo_lalarm_flag                                           = BOOLEAN ; carrier frequency offset in Hz (low alarm flag)
-    txcurrpower_lalarm_flag                                   = BOOLEAN ; tx current output power in dbm (low alarm flag)
-    rxtotpower_lalarm_flag                                    = BOOLEAN ; rx total power in  dbm (low alarm flag)
-    rxsigpower_lalarm_flag                                    = BOOLEAN; rx signal power in dbm (low alarm flag)
+    biasxi_lalarm                                        = BOOLEAN ; modulator bias xi in percentage (low alarm flag)
+    biasxq_lalarm                                        = BOOLEAN ; modulator bias xq in percentage (low alarm flag)
+    biasxp_lalarm                                        = BOOLEAN ; modulator bias xp in percentage (low alarm flag)
+    biasyi_lalarm                                        = BOOLEAN ; modulator bias yi in percentage (low alarm flag)
+    biasyq_lalarm                                        = BOOLEAN ; modulator bias yq in percentage (low alarm flag)
+    biasyp_lalarm                                        = BOOLEAN ; modulator bias yq in percentage (low alarm flag)
+    cdshort_lalarm                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (low alarm flag)
+    cdlong_lalarm                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (low alarm flag)
+    dgd_lalarm                                           = BOOLEAN ; differential group delay in ps (low alarm flag)
+    sopmd_lalarm                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (low alarm flag)
+    soproc_lalarm                                        = BOOLEAN ; state of polarization rate of change in krad/s (low alarm flag)
+    pdl_lalarm                                           = BOOLEAN ; polarization dependent loss in db (low alarm flag)
+    osnr_lalarm                                          = BOOLEAN ; optical signal to noise ratio in db (low alarm flag)
+    esnr_lalarm                                          = BOOLEAN ; electrical signal to noise ratio in db (low alarm flag)
+    cfo_lalarm                                           = BOOLEAN ; carrier frequency offset in Hz (low alarm flag)
+    txcurrpower_lalarm                                   = BOOLEAN ; tx current output power in dbm (low alarm flag)
+    rxtotpower_lalarm                                    = BOOLEAN ; rx total power in  dbm (low alarm flag)
+    rxsigpower_lalarm                                    = BOOLEAN; rx signal power in dbm (low alarm flag)
 ```
 
 ##### 2.2.3.3 Transceiver VDM high warning flag data
@@ -638,47 +638,47 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM high warning flag for a port
     key                          = TRANSCEIVER_VDM_HWARN_FLAG|ifname
     ; field                      = value
-    laser_temperature_media_hwarn_flag{lane_num}             = BOOLEAN ; laser temperature high warning flag for media input
-    esnr_media_input_hwarn_flag{lane_num}                    = BOOLEAN ; eSNR high warning flag for media input
-    esnr_host_input_hwarn_flag{lane_num}                     = BOOLEAN ; eSNR high warning flag for host input
-    pam4_level_transition_media_input_hwarn_flag{lane_num}   = BOOLEAN ; PAM4 level transition high warning flag for media input
-    pam4_level_transition_host_input_hwarn_flag{lane_num}    = BOOLEAN ; PAM4 level transition high warning flag for host input
-    prefec_ber_min_media_input_hwarn_flag{lane_num}          = BOOLEAN ; Pre-FEC BER minimum high warning flag for media input
-    prefec_ber_max_media_input_hwarn_flag{lane_num}          = BOOLEAN ; Pre-FEC BER maximum high warning flag for media input
-    prefec_ber_avg_media_input_hwarn_flag{lane_num}          = BOOLEAN ; Pre-FEC BER average high warning flag for media input
-    prefec_ber_curr_media_input_hwarn_flag{lane_num}         = BOOLEAN ; Pre-FEC BER current high warning flag for media input
-    prefec_ber_min_host_input_hwarn_flag{lane_num}           = BOOLEAN ; Pre-FEC BER minimum high warning flag for host input
-    prefec_ber_max_host_input_hwarn_flag{lane_num}           = BOOLEAN ; Pre-FEC BER maximum high warning flag for host input
-    prefec_ber_avg_host_input_hwarn_flag{lane_num}           = BOOLEAN ; Pre-FEC BER average high warning flag for host input
-    prefec_ber_curr_host_input_hwarn_flag{lane_num}          = BOOLEAN ; Pre-FEC BER current high warning flag for host input
-    errored_frames_min_media_input_hwarn_flag{lane_num}      = BOOLEAN ; Errored frames minimum high warning flag for media input
-    errored_frames_max_media_input_hwarn_flag{lane_num}      = BOOLEAN ; Errored frames maximum high warning flag for media input
-    errored_frames_avg_media_input_hwarn_flag{lane_num}      = BOOLEAN ; Errored frames average high warning flag for media input
-    errored_frames_curr_media_input_hwarn_flag{lane_num}     = BOOLEAN ; Errored frames current high warning flag for media input
-    errored_frames_min_host_input_hwarn_flag{lane_num}       = BOOLEAN ; Errored frames minimum high warning flag for host input
-    errored_frames_max_host_input_hwarn_flag{lane_num}       = BOOLEAN ; Errored frames maximum high warning flag for host input
-    errored_frames_avg_host_input_hwarn_flag{lane_num}       = BOOLEAN ; Errored frames average high warning flag for host input
-    errored_frames_curr_host_input_hwarn_flag{lane_num}      = BOOLEAN ; Errored frames current high warning flag for host input
+    laser_temperature_media_hwarn{lane_num}             = BOOLEAN ; laser temperature high warning flag for media input
+    esnr_media_input_hwarn{lane_num}                    = BOOLEAN ; eSNR high warning flag for media input
+    esnr_host_input_hwarn{lane_num}                     = BOOLEAN ; eSNR high warning flag for host input
+    pam4_level_transition_media_input_hwarn{lane_num}   = BOOLEAN ; PAM4 level transition high warning flag for media input
+    pam4_level_transition_host_input_hwarn{lane_num}    = BOOLEAN ; PAM4 level transition high warning flag for host input
+    prefec_ber_min_media_input_hwarn{lane_num}          = BOOLEAN ; Pre-FEC BER minimum high warning flag for media input
+    prefec_ber_max_media_input_hwarn{lane_num}          = BOOLEAN ; Pre-FEC BER maximum high warning flag for media input
+    prefec_ber_avg_media_input_hwarn{lane_num}          = BOOLEAN ; Pre-FEC BER average high warning flag for media input
+    prefec_ber_curr_media_input_hwarn{lane_num}         = BOOLEAN ; Pre-FEC BER current high warning flag for media input
+    prefec_ber_min_host_input_hwarn{lane_num}           = BOOLEAN ; Pre-FEC BER minimum high warning flag for host input
+    prefec_ber_max_host_input_hwarn{lane_num}           = BOOLEAN ; Pre-FEC BER maximum high warning flag for host input
+    prefec_ber_avg_host_input_hwarn{lane_num}           = BOOLEAN ; Pre-FEC BER average high warning flag for host input
+    prefec_ber_curr_host_input_hwarn{lane_num}          = BOOLEAN ; Pre-FEC BER current high warning flag for host input
+    errored_frames_min_media_input_hwarn{lane_num}      = BOOLEAN ; Errored frames minimum high warning flag for media input
+    errored_frames_max_media_input_hwarn{lane_num}      = BOOLEAN ; Errored frames maximum high warning flag for media input
+    errored_frames_avg_media_input_hwarn{lane_num}      = BOOLEAN ; Errored frames average high warning flag for media input
+    errored_frames_curr_media_input_hwarn{lane_num}     = BOOLEAN ; Errored frames current high warning flag for media input
+    errored_frames_min_host_input_hwarn{lane_num}       = BOOLEAN ; Errored frames minimum high warning flag for host input
+    errored_frames_max_host_input_hwarn{lane_num}       = BOOLEAN ; Errored frames maximum high warning flag for host input
+    errored_frames_avg_host_input_hwarn{lane_num}       = BOOLEAN ; Errored frames average high warning flag for host input
+    errored_frames_curr_host_input_hwarn{lane_num}      = BOOLEAN ; Errored frames current high warning flag for host input
 
     ;C-CMIS specific fields
-    biasxi_hwarn_flag                                        = BOOLEAN ; modulator bias xi in percentage (high warning flag)
-    biasxq_hwarn_flag                                        = BOOLEAN ; modulator bias xq in percentage (high warning flag)
-    biasxp_hwarn_flag                                        = BOOLEAN ; modulator bias xp in percentage (high warning flag)
-    biasyi_hwarn_flag                                        = BOOLEAN ; modulator bias yi in percentage (high warning flag)
-    biasyq_hwarn_flag                                        = BOOLEAN ; modulator bias yq in percentage (high warning flag)
-    biasyp_hwarn_flag                                        = BOOLEAN ; modulator bias yq in percentage (high warning flag)
-    cdshort_hwarn_flag                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (high warning flag)
-    cdlong_hwarn_flag                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (high warning flag)
-    dgd_hwarn_flag                                           = BOOLEAN ; differential group delay in ps (high warning flag)
-    sopmd_hwarn_flag                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (high warning flag)
-    soproc_hwarn_flag                                        = BOOLEAN ; state of polarization rate of change in krad/s (high warning flag)
-    pdl_hwarn_flag                                           = BOOLEAN ; polarization dependent loss in db (high warning flag)
-    osnr_hwarn_flag                                          = BOOLEAN ; optical signal to noise ratio in db (high warning flag)
-    esnr_hwarn_flag                                          = BOOLEAN ; electrical signal to noise ratio in db (high warning flag)
-    cfo_hwarn_flag                                           = BOOLEAN ; carrier frequency offset in Hz (high warning flag)
-    txcurrpower_hwarn_flag                                   = BOOLEAN ; tx current output power in dbm (high warning flag)
-    rxtotpower_hwarn_flag                                    = BOOLEAN ; rx total power in  dbm (high warning flag)
-    rxsigpower_hwarn_flag                                    = BOOLEAN; rx signal power in dbm (high warning flag)
+    biasxi_hwarn                                        = BOOLEAN ; modulator bias xi in percentage (high warning flag)
+    biasxq_hwarn                                        = BOOLEAN ; modulator bias xq in percentage (high warning flag)
+    biasxp_hwarn                                        = BOOLEAN ; modulator bias xp in percentage (high warning flag)
+    biasyi_hwarn                                        = BOOLEAN ; modulator bias yi in percentage (high warning flag)
+    biasyq_hwarn                                        = BOOLEAN ; modulator bias yq in percentage (high warning flag)
+    biasyp_hwarn                                        = BOOLEAN ; modulator bias yq in percentage (high warning flag)
+    cdshort_hwarn                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (high warning flag)
+    cdlong_hwarn                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (high warning flag)
+    dgd_hwarn                                           = BOOLEAN ; differential group delay in ps (high warning flag)
+    sopmd_hwarn                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (high warning flag)
+    soproc_hwarn                                        = BOOLEAN ; state of polarization rate of change in krad/s (high warning flag)
+    pdl_hwarn                                           = BOOLEAN ; polarization dependent loss in db (high warning flag)
+    osnr_hwarn                                          = BOOLEAN ; optical signal to noise ratio in db (high warning flag)
+    esnr_hwarn                                          = BOOLEAN ; electrical signal to noise ratio in db (high warning flag)
+    cfo_hwarn                                           = BOOLEAN ; carrier frequency offset in Hz (high warning flag)
+    txcurrpower_hwarn                                   = BOOLEAN ; tx current output power in dbm (high warning flag)
+    rxtotpower_hwarn                                    = BOOLEAN ; rx total power in  dbm (high warning flag)
+    rxsigpower_hwarn                                    = BOOLEAN; rx signal power in dbm (high warning flag)
 ```
 
 ##### 2.2.3.4 Transceiver VDM low warning flag data
@@ -691,47 +691,47 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low warning flag for a port
     key                          = TRANSCEIVER_VDM_LWARN_FLAG|ifname
     ; field                      = value
-    laser_temperature_media_lwarn_flag{lane_num}             = BOOLEAN ; laser temperature low warning flag for media input
-    esnr_media_input_lwarn_flag{lane_num}                    = BOOLEAN ; eSNR low warning flag for media input
-    esnr_host_input_lwarn_flag{lane_num}                     = BOOLEAN ; eSNR low warning flag for host input
-    pam4_level_transition_media_input_lwarn_flag{lane_num}   = BOOLEAN ; PAM4 level transition low warning flag for media input
-    pam4_level_transition_host_input_lwarn_flag{lane_num}    = BOOLEAN ; PAM4 level transition low warning flag for host input
-    prefec_ber_min_media_input_lwarn_flag{lane_num}          = BOOLEAN ; Pre-FEC BER minimum low warning flag for media input
-    prefec_ber_max_media_input_lwarn_flag{lane_num}          = BOOLEAN ; Pre-FEC BER maximum low warning flag for media input
-    prefec_ber_avg_media_input_lwarn_flag{lane_num}          = BOOLEAN ; Pre-FEC BER average low warning flag for media input
-    prefec_ber_curr_media_input_lwarn_flag{lane_num}         = BOOLEAN ; Pre-FEC BER current low warning flag for media input
-    prefec_ber_min_host_input_lwarn_flag{lane_num}           = BOOLEAN ; Pre-FEC BER minimum low warning flag for host input
-    prefec_ber_max_host_input_lwarn_flag{lane_num}           = BOOLEAN ; Pre-FEC BER maximum low warning flag for host input
-    prefec_ber_avg_host_input_lwarn_flag{lane_num}           = BOOLEAN ; Pre-FEC BER average low warning flag for host input
-    prefec_ber_curr_host_input_lwarn_flag{lane_num}          = BOOLEAN ; Pre-FEC BER current low warning flag for host input
-    errored_frames_min_media_input_lwarn_flag{lane_num}      = BOOLEAN ; Errored frames minimum low warning flag for media input
-    errored_frames_max_media_input_lwarn_flag{lane_num}      = BOOLEAN ; Errored frames maximum low warning flag for media input
-    errored_frames_avg_media_input_lwarn_flag{lane_num}      = BOOLEAN ; Errored frames average low warning flag for media input
-    errored_frames_curr_media_input_lwarn_flag{lane_num}     = BOOLEAN ; Errored frames current low warning flag for media input
-    errored_frames_min_host_input_lwarn_flag{lane_num}       = BOOLEAN ; Errored frames minimum low warning flag for host input
-    errored_frames_max_host_input_lwarn_flag{lane_num}       = BOOLEAN ; Errored frames maximum low warning flag for host input
-    errored_frames_avg_host_input_lwarn_flag{lane_num}       = BOOLEAN ; Errored frames average low warning flag for host input
-    errored_frames_curr_host_input_lwarn_flag{lane_num}      = BOOLEAN ; Errored frames current low warning flag for host input
+    laser_temperature_media_lwarn{lane_num}             = BOOLEAN ; laser temperature low warning flag for media input
+    esnr_media_input_lwarn{lane_num}                    = BOOLEAN ; eSNR low warning flag for media input
+    esnr_host_input_lwarn{lane_num}                     = BOOLEAN ; eSNR low warning flag for host input
+    pam4_level_transition_media_input_lwarn{lane_num}   = BOOLEAN ; PAM4 level transition low warning flag for media input
+    pam4_level_transition_host_input_lwarn{lane_num}    = BOOLEAN ; PAM4 level transition low warning flag for host input
+    prefec_ber_min_media_input_lwarn{lane_num}          = BOOLEAN ; Pre-FEC BER minimum low warning flag for media input
+    prefec_ber_max_media_input_lwarn{lane_num}          = BOOLEAN ; Pre-FEC BER maximum low warning flag for media input
+    prefec_ber_avg_media_input_lwarn{lane_num}          = BOOLEAN ; Pre-FEC BER average low warning flag for media input
+    prefec_ber_curr_media_input_lwarn{lane_num}         = BOOLEAN ; Pre-FEC BER current low warning flag for media input
+    prefec_ber_min_host_input_lwarn{lane_num}           = BOOLEAN ; Pre-FEC BER minimum low warning flag for host input
+    prefec_ber_max_host_input_lwarn{lane_num}           = BOOLEAN ; Pre-FEC BER maximum low warning flag for host input
+    prefec_ber_avg_host_input_lwarn{lane_num}           = BOOLEAN ; Pre-FEC BER average low warning flag for host input
+    prefec_ber_curr_host_input_lwarn{lane_num}          = BOOLEAN ; Pre-FEC BER current low warning flag for host input
+    errored_frames_min_media_input_lwarn{lane_num}      = BOOLEAN ; Errored frames minimum low warning flag for media input
+    errored_frames_max_media_input_lwarn{lane_num}      = BOOLEAN ; Errored frames maximum low warning flag for media input
+    errored_frames_avg_media_input_lwarn{lane_num}      = BOOLEAN ; Errored frames average low warning flag for media input
+    errored_frames_curr_media_input_lwarn{lane_num}     = BOOLEAN ; Errored frames current low warning flag for media input
+    errored_frames_min_host_input_lwarn{lane_num}       = BOOLEAN ; Errored frames minimum low warning flag for host input
+    errored_frames_max_host_input_lwarn{lane_num}       = BOOLEAN ; Errored frames maximum low warning flag for host input
+    errored_frames_avg_host_input_lwarn{lane_num}       = BOOLEAN ; Errored frames average low warning flag for host input
+    errored_frames_curr_host_input_lwarn{lane_num}      = BOOLEAN ; Errored frames current low warning flag for host input
 
     ;C-CMIS specific fields
-    biasxi_lwarn_flag                                        = BOOLEAN ; modulator bias xi in percentage (low warning flag)
-    biasxq_lwarn_flag                                        = BOOLEAN ; modulator bias xq in percentage (low warning flag)
-    biasxp_lwarn_flag                                        = BOOLEAN ; modulator bias xp in percentage (low warning flag)
-    biasyi_lwarn_flag                                        = BOOLEAN ; modulator bias yi in percentage (low warning flag)
-    biasyq_lwarn_flag                                        = BOOLEAN ; modulator bias yq in percentage (low warning flag)
-    biasyp_lwarn_flag                                        = BOOLEAN ; modulator bias yq in percentage (low warning flag)
-    cdshort_lwarn_flag                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (low warning flag)
-    cdlong_lwarn_flag                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (low warning flag)
-    dgd_lwarn_flag                                           = BOOLEAN ; differential group delay in ps (low warning flag)
-    sopmd_lwarn_flag                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (low warning flag)
-    soproc_lwarn_flag                                        = BOOLEAN ; state of polarization rate of change in krad/s (low warning flag)
-    pdl_lwarn_flag                                           = BOOLEAN ; polarization dependent loss in db (low warning flag)
-    osnr_lwarn_flag                                          = BOOLEAN ; optical signal to noise ratio in db (low warning flag)
-    esnr_lwarn_flag                                          = BOOLEAN ; electrical signal to noise ratio in db (low warning flag)
-    cfo_lwarn_flag                                           = BOOLEAN ; carrier frequency offset in Hz (low warning flag)
-    txcurrpower_lwarn_flag                                   = BOOLEAN ; tx current output power in dbm (low warning flag)
-    rxtotpower_lwarn_flag                                    = BOOLEAN ; rx total power in  dbm (low warning flag)
-    rxsigpower_lwarn_flag                                    = BOOLEAN; rx signal power in dbm (low warning flag)
+    biasxi_lwarn                                        = BOOLEAN ; modulator bias xi in percentage (low warning flag)
+    biasxq_lwarn                                        = BOOLEAN ; modulator bias xq in percentage (low warning flag)
+    biasxp_lwarn                                        = BOOLEAN ; modulator bias xp in percentage (low warning flag)
+    biasyi_lwarn                                        = BOOLEAN ; modulator bias yi in percentage (low warning flag)
+    biasyq_lwarn                                        = BOOLEAN ; modulator bias yq in percentage (low warning flag)
+    biasyp_lwarn                                        = BOOLEAN ; modulator bias yq in percentage (low warning flag)
+    cdshort_lwarn                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (low warning flag)
+    cdlong_lwarn                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (low warning flag)
+    dgd_lwarn                                           = BOOLEAN ; differential group delay in ps (low warning flag)
+    sopmd_lwarn                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (low warning flag)
+    soproc_lwarn                                        = BOOLEAN ; state of polarization rate of change in krad/s (low warning flag)
+    pdl_lwarn                                           = BOOLEAN ; polarization dependent loss in db (low warning flag)
+    osnr_lwarn                                          = BOOLEAN ; optical signal to noise ratio in db (low warning flag)
+    esnr_lwarn                                          = BOOLEAN ; electrical signal to noise ratio in db (low warning flag)
+    cfo_lwarn                                           = BOOLEAN ; carrier frequency offset in Hz (low warning flag)
+    txcurrpower_lwarn                                   = BOOLEAN ; tx current output power in dbm (low warning flag)
+    rxtotpower_lwarn                                    = BOOLEAN ; rx total power in  dbm (low warning flag)
+    rxsigpower_lwarn                                    = BOOLEAN; rx signal power in dbm (low warning flag)
 ```
 
 #### 2.2.4 Transceiver VDM flag change count data
@@ -2152,10 +2152,10 @@ Example
 
 The following fields related to `temperature` are updated in the `redis-db` during a link down event:
 
-- `temphighalarm_flag` in `TRANSCEIVER_DOM_FLAG` table
-- `temphighwarning_flag` in `TRANSCEIVER_DOM_FLAG` table
-- `templowwarning_flag` in `TRANSCEIVER_DOM_FLAG` table
-- `templowalarm_flag` in `TRANSCEIVER_DOM_FLAG` table
+- `temphighalarm` in `TRANSCEIVER_DOM_FLAG` table
+- `temphighwarning` in `TRANSCEIVER_DOM_FLAG` table
+- `templowwarning` in `TRANSCEIVER_DOM_FLAG` table
+- `templowalarm` in `TRANSCEIVER_DOM_FLAG` table
 - `temphighalarm` in `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT` table
 - `temphighwarning` in `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT` table
 - `templowwarning` in `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT` table
@@ -2199,10 +2199,10 @@ Example
 
 The following fields related to `esnr_media_input` are updated in the `redis-db` during a link down event:
 
-- `esnr_media_input_halarm_flag{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG` table
-- `esnr_media_input_lalarm_flag{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG` table
-- `esnr_media_input_hwarn_flag{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG` table
-- `esnr_media_input_lwarn_flag{lane_num}` in `TRANSCEIVER_VDM_LWARN_FLAG` table
+- `esnr_media_input_halarm{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG` table
+- `esnr_media_input_lalarm{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG` table
+- `esnr_media_input_hwarn{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG` table
+- `esnr_media_input_lwarn{lane_num}` in `TRANSCEIVER_VDM_LWARN_FLAG` table
 - `esnr_media_input_halarm{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG_CHANGE_COUNT` table
 - `esnr_media_input_lalarm{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG_CHANGE_COUNT` table
 - `esnr_media_input_hwarn{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG_CHANGE_COUNT` table
