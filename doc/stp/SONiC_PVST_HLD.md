@@ -43,15 +43,15 @@ PVST
 # Revision
 | Rev |     Date    |       Author               | Change Description                |
 |:---:|:-----------:|:--------------------------:|-----------------------------------|
-| 0.1 | 05/02/2019  |     Sandeep, Praveen       | Initial version  |
-| 0.2 | 05/02/2019  |     Sandeep, Praveen       | Incorporated Review comments  |
-| 0.3 | 06/25/2019  |     Sandeep, Praveen       | Incorporated Review comments  |
+| 0.1 | 05/02/2019  |     Sandeep, Praveen       | Initial version                   |
+| 0.2 | 05/02/2019  |     Sandeep, Praveen       | Incorporated Review comments      |
+| 0.3 | 06/25/2019  |     Sandeep, Praveen       | Incorporated Review comments      |
 | 1.0 | 10/15/2019  |     Sandeep, Praveen       | Minor changes post implementation |
 
 # About this Manual
 This document provides general information about the PVST (Per VLAN spanning tree) feature implementation in SONiC.
 # Scope
-This document describes the high level design of PVST feature. 
+This document describes the high level design of PVST feature.
 
 # Definition/Abbreviation
 ### Table 1: Abbreviations
@@ -80,7 +80,7 @@ This feature would support CLI and REST based configurations.
  1. Support CLI configurations as mentioned in section 3.6.2
  2. Support show commands as mentioned in section 3.6.3
  3. Support debug commands as mentioned in section 3.6.4
- 4. Support Openconfig yang model - with extensions for supporting PVST 
+ 4. Support Openconfig yang model - with extensions for supporting PVST
  5. Support REST APIs for config and operational data
 
 ## 1.3 Scalability Requirements
@@ -129,7 +129,7 @@ STPd process would handle all the protocol functionality and has following inter
  * STPSync is part of STPd handling all the STP operational data updates to APP DB 
 
 Alternate design consideration:
-Linux kernel has support for spanning-tree but is not being considered for following reasons 
+Linux kernel has support for spanning-tree but is not being considered for following reasons
  * Supports only STP, no support for RSTP and MSTP
  * Currently SONiC does not create a netdevice for each vlan, port combination as it relies on vlan aware bridge configuration. For supporting per VLAN spanning tree a netdevice needs to be created for each vlan, port combination, this would result in higher memory requirements due to additional netdevices and also a major change from SONiC perspective.
 
@@ -140,43 +140,58 @@ Following config DB schemas are defined for supporting this feature.
 ### STP_GLOBAL_TABLE
     ;Stores STP Global configuration
     ;Status: work in progress
-    key                    = STP|GLOBAL			; Global STP table key
-    mode                   = "pvst"			        ; spanning-tree mode pvst
-    rootguard_timeout      = 3*DIGIT				; root-guard timeout value (5 to 600 sec, DEF:30 sec)
-    forward_delay          = 2*DIGIT			    	; forward delay in secs (4 to 30 sec, DEF:15 sec)
-    hello_time             = 2*DIGIT				; hello time in secs (1 to 10 sec, DEF:2sec)
-    max_age                = 2*DIGIT				; maximum age time in secs (6 to 40 sec, DEF:20sec)
-    priority               = 5*DIGIT				; bridge priority (0 to 61440, DEF:32768)
+    key                    = STP|GLOBAL                         ; Global STP table key
+    mode                   = "pvst"                             ; spanning-tree mode pvst
+    rootguard_timeout      = 3*DIGIT                            ; root-guard timeout value (5 to 600 sec, DEF:30 sec)
+    forward_delay          = 2*DIGIT                            ; forward delay in secs (4 to 30 sec, DEF:15 sec)
+    hello_time             = 2*DIGIT                            ; hello time in secs (1 to 10 sec, DEF:2sec)
+    max_age                = 2*DIGIT                            ; maximum age time in secs (6 to 40 sec, DEF:20sec)
+    priority               = 5*DIGIT                            ; bridge priority (0 to 61440, DEF:32768)
 
 ### STP_VLAN_TABLE
     ;Stores STP configuration per VLAN
     ;Status: work in progress
-    key             = STP_VLAN|"Vlan"vlanid			; VLAN with prefix "STP_VLAN"
-    forward_delay   = 2*DIGIT					; forward delay in secs (4 to 30 sec, DEF:15 sec)
-    hello_time      = 2*DIGIT					; hello time in secs (1 to 10 sec, DEF:2sec)
-    max_age         = 2*DIGIT					; maximum age time in secs (6 to 40 sec, DEF:20sec)
-    priority        = 5*DIGIT					; bridge priority (0 to 61440, DEF:32768)
-    enabled         = "true"/"false"            ; spanning-tree is enabled or not
+    key                   = STP_VLAN|"Vlan"vlanid               ; VLAN with prefix "STP_VLAN"
+    bridge_id             = 16HEXDIG                            ; bridge id
+    max_age               = 2*DIGIT                             ; maximum age time in secs (6 to 40 sec, DEF:20sec)
+    hello_time            = 2*DIGIT                             ; hello time in secs (1 to 10 sec, DEF:2sec)
+    forward_delay         = 2*DIGIT                             ; forward delay in secs (4 to 30 sec, DEF:15 sec)
+    hold_time             = 1*DIGIT                             ; hold time in secs (1 sec)
+    last_topology_change  = 1*10DIGIT                           ; time in secs since last topology change occured 
+    topology_change_count = 1*10DIGIT                           ; Number of times topology change occured
+    root_bridge_id        = 16HEXDIG                            ; root bridge id
+    root_path_cost        = 1*9DIGIT                            ; port path cost
+    desig_bridge_id       = 16HEXDIG                            ; designated bridge id
+    root_port             = ifName                              ; Root port name
+    root_max_age          = 1*2DIGIT                            ; Max age as per root bridge
+    root_hello_time       = 1*2DIGIT                            ; hello time as per root bridge
+    root_forward_delay    = 1*2DIGIT                            ; forward delay as per root bridge
+    stp_instance          = 1*4DIGIT                            ; STP instance for this VLAN
+    forward_delay         = 2*DIGIT                             ; forward delay in secs (4 to 30 sec, DEF:15 sec)
+    hello_time            = 2*DIGIT                             ; hello time in secs (1 to 10 sec, DEF:2sec)
+    max_age               = 2*DIGIT                             ; maximum age time in secs (6 to 40 sec, DEF:20sec)
+    priority              = 5*DIGIT                             ; bridge priority (0 to 61440, DEF:32768)
+    enabled               = "true"/"false"                      ; spanning-tree is enabled or not
 
 ### STP_VLAN_INTF_TABLE
     ;Stores STP interface details per VLAN
     ;Status: work in progress
-    key             = STP_VLAN_INTF|"Vlan"vlanid|ifname         ; VLAN+Intf with prefix "STP_VLAN_INTF" ifname can be physical or port-channel name
-    path_cost       = 9*DIGIT                                   ; port path cost (1 to 200000000) 
-    priority        = 3*DIGIT                                   ; port priority (0 to 240, DEF:128)
+    key                   = STP_VLAN_INTF|"Vlan"vlanid|ifname   ; VLAN+Intf with prefix "STP_VLAN_INTF" ifname can be physical or port-channel name
+    path_cost             = 9*DIGIT                             ; port path cost (1 to 200000000) 
+    priority              = 3*DIGIT                             ; port priority (0 to 240, DEF:128)
 
 ### STP_INTF_TABLE
     ;Stores STP interface details
     ;Status: work in progress
-    key                    = STP_INTF|ifname			; ifname with prefix STP_INTF, ifname can be physical or port-channel name
-    enabled                = BIT			        ; is the STP on port enabled (1) or disabled (0)
-    root_guard             = BIT		        	; is the Root Guard on port enabled (1) or disabled (0)
-    bpdu_guard             = BIT				; is the BPDU Guard on port enabled (1) or disabled (0)
-    bpdu_guard_do_disable  = BIT		         	; port to be disabled when it receives a BPDU; enabled (1) or disabled (0)
-    path_cost              = 9*DIGIT			    	; port path cost (2 to 200000000)
-    priority               = 3*DIGIT				; port priority (0 to 240, DEF:128)
-    portfast               = BIT                    		; Portfast is enabled or not
-    uplink_fast            = BIT                    		; Uplink fast is enabled or not
+    key                   = STP_INTF|ifname                     ; ifname with prefix STP_INTF, ifname can be physical or port-channel name
+    enabled               = BIT                                 ; is the STP on port enabled (1) or disabled (0)
+    root_guard            = BIT                                 ; is the Root Guard on port enabled (1) or disabled (0)
+    bpdu_guard            = BIT                                 ; is the BPDU Guard on port enabled (1) or disabled (0)
+    bpdu_guard_do_disable = BIT                                 ; port to be disabled when it receives a BPDU; enabled (1) or disabled (0)
+    path_cost             = 9*DIGIT                             ; port path cost (2 to 200000000)
+    priority              = 3*DIGIT                             ; port priority (0 to 240, DEF:128)
+    portfast              = BIT                                 ; Portfast is enabled or not
+    uplink_fast           = BIT                                 ; Uplink fast is enabled or not
 
 ### 3.2.2 APP DB
 
@@ -184,76 +199,76 @@ Following config DB schemas are defined for supporting this feature.
     ;Stores the STP per VLAN operational details
     ;Status: work in progress
     key                   = STP_VLAN:"Vlan"vlanid
-    bridge_id             = 16HEXDIG                    	; bridge id
-    max_age               = 2*DIGIT			        ; maximum age time in secs (6 to 40 sec, DEF:20sec)
-    hello_time            = 2*DIGIT			        ; hello time in secs (1 to 10 sec, DEF:2sec)
-    forward_delay         = 2*DIGIT			        ; forward delay in secs (4 to 30 sec, DEF:15 sec)
-    hold_time             = 1*DIGIT			        ; hold time in secs (1 sec)
-    last_topology_change  = 1*10DIGIT			        ; time in secs since last topology change occured 
-    topology_change_count = 1*10DIGIT			        ; Number of times topology change occured
-    root_bridge_id        = 16HEXDIG			        ; root bridge id
-    root_path_cost        = 1*9DIGIT			        ; port path cost
-    desig_bridge_id       = 16HEXDIG			        ; designated bridge id
-    root_port             = ifName			            ; Root port name
-    root_max_age          = 1*2DIGIT			        ; Max age as per root bridge
-    root_hello_time       = 1*2DIGIT			        ; hello time as per root bridge
-    root_forward_delay    = 1*2DIGIT			        ; forward delay as per root bridge
-    stp_instance          = 1*4DIGIT			        ; STP instance for this VLAN
+    bridge_id             = 16HEXDIG                            ; bridge id
+    max_age               = 2*DIGIT                             ; maximum age time in secs (6 to 40 sec, DEF:20sec)
+    hello_time            = 2*DIGIT                             ; hello time in secs (1 to 10 sec, DEF:2sec)
+    forward_delay         = 2*DIGIT                             ; forward delay in secs (4 to 30 sec, DEF:15 sec)
+    hold_time             = 1*DIGIT                             ; hold time in secs (1 sec)
+    last_topology_change  = 1*10DIGIT                           ; time in secs since last topology change occured
+    topology_change_count = 1*10DIGIT                           ; Number of times topology change occured
+    root_bridge_id        = 16HEXDIG                            ; root bridge id
+    root_path_cost        = 1*9DIGIT                            ; port path cost
+    desig_bridge_id       = 16HEXDIG                            ; designated bridge id
+    root_port             = ifName                              ; Root port name
+    root_max_age          = 1*2DIGIT                            ; Max age as per root bridge
+    root_hello_time       = 1*2DIGIT                            ; hello time as per root bridge
+    root_forward_delay    = 1*2DIGIT                            ; forward delay as per root bridge
+    stp_instance          = 1*4DIGIT                            ; STP instance for this VLAN
 
 ### STP_VLAN_INTF_TABLE
     ;Stores STP VLAN interface details 
     ;Status: work in progress
-    key                 = STP_VLAN_INTF:"Vlan"vlanid:ifname     ; VLAN+Intf with prefix "STP_VLAN_INTF"
-    port_num            = 1*3DIGIT                              ; port number of bridge port
-    path_cost           = 1*9DIGIT                              ; port path cost (1 to 200000000)
-    priority            = 3*DIGIT                               ; port priority (0 to 240, DEF:128)
-    port_state          = "state"                               ; STP state - disabled, block, listen, learn, forward
-    desig_cost          = 1*9DIGIT                              ; designated cost
-    desig_root          = 16HEXDIG                              ; designated root
-    desig_bridge        = 16HEXDIG                              ; designated bridge
-    desig_port          = 1*3DIGIT                              ; designated port
-    fwd_transitions     = 1*5DIGIT                              ; number of forward transitions
-    bpdu_sent           = 1*10DIGIT                             ; BPDU transmitted
-    bpdu_received       = 1*10DIGIT                             ; BPDU received
-    tcn_sent            = 1*10DIGIT                             ; TCN transmitted
-    tcn_received        = 1*10DIGIT                             ; TCN received
-    root_guard_timer    = 1*3DIGIT                              ; Root Guard current timer value
+    key                   = STP_VLAN_INTF:"Vlan"vlanid:ifname   ; VLAN+Intf with prefix "STP_VLAN_INTF"
+    port_num              = 1*3DIGIT                            ; port number of bridge port
+    path_cost             = 1*9DIGIT                            ; port path cost (1 to 200000000)
+    priority              = 3*DIGIT                             ; port priority (0 to 240, DEF:128)
+    port_state            = "state"                             ; STP state - disabled, block, listen, learn, forward
+    desig_cost            = 1*9DIGIT                            ; designated cost
+    desig_root            = 16HEXDIG                            ; designated root
+    desig_bridge          = 16HEXDIG                            ; designated bridge
+    desig_port            = 1*3DIGIT                            ; designated port
+    fwd_transitions       = 1*5DIGIT                            ; number of forward transitions
+    bpdu_sent             = 1*10DIGIT                           ; BPDU transmitted
+    bpdu_received         = 1*10DIGIT                           ; BPDU received
+    tcn_sent              = 1*10DIGIT                           ; TCN transmitted
+    tcn_received          = 1*10DIGIT                           ; TCN received
+    root_guard_timer      = 1*3DIGIT                            ; Root Guard current timer value
 
 ### STP_INTF_TABLE
     ;Stores STP interface details
     ;Status: work in progress
-    key                    = STP_INTF:ifname			    ; ifname with prefix STP_INTF, ifname can be physical or port-channel name
-    bpdu_guard_shutdown    = "yes" / "no"                          ; port disabled due to bpdu-guard
-    port_fast              = "yes" / "no"                          ; port fast is enabled or not
+    key                   = STP_INTF:ifname                     ; ifname with prefix STP_INTF, ifname can be physical or port-channel name
+    bpdu_guard_shutdown   = "yes" / "no"                        ; port disabled due to bpdu-guard
+    port_fast             = "yes" / "no"                        ; port fast is enabled or not
 
 
 ### STP_PORT_STATE_TABLE
     ;Stores STP port state per instance
     ;Status: work in progress
-    key                 = STP_PORT_STATE:ifname:instance        ; ifname and the STP instance
-    state               = 1DIGIT                                ; 0-disabled, 1-block, 2-listen, 3-learn, 4-forward 
+    key                   = STP_PORT_STATE:ifname:instance      ; ifname and the STP instance
+    state                 = 1DIGIT                              ; 0-disabled, 1-block, 2-listen, 3-learn, 4-forward
 
 
 ### STP_VLAN_INSTANCE_TABLE 
     ;Defines VLANs and the STP instance mapping
     ;Status: work in progress
-    key                 = STP_VLAN_INSTANCE_TABLE:"Vlan"vlanid  ; DIGIT 1-4095 with prefix "Vlan"
-    stp_instance        = 1*4DIGIT                              ; STP instance associated with this VLAN
+    key                   = STP_VLAN_INSTANCE_TABLE:"Vlan"vlanid; DIGIT 1-4095 with prefix "Vlan"
+    stp_instance          = 1*4DIGIT                            ; STP instance associated with this VLAN
 
 
 ### STP_FASTAGEING_FLUSH_TABLE
     ;Defines vlans for which fastageing is enabled
     ;Status: work in progress
-    key                 = STP_FASTAGEING_FLUSH_TABLE:"Vlan"vlanid       ; vlan id for which flush needs to be done
-    state               = "true"                                        ; true perform flush  
+    key                   = STP_FASTAGEING_FLUSH_TABLE:"Vlan"vlanid; vlan id for which flush needs to be done
+    state                 = "true"                              ; true perform flush
 
 ### 3.2.3 STATE DB
 
 ### STP_TABLE
     ;Defines the global STP state table
     ;Status: work in progress
-    key                 = STP_TABLE:GLOBAL       ; key
-    max_stp_inst        = 1*3DIGIT               ; Max STP instances supported by HW 
+    key                   = STP_TABLE:GLOBAL                    ; key
+    max_stp_inst          = 1*3DIGIT                            ; Max STP instances supported by HW
 
 
 ## 3.3 Switch State Service Design
@@ -292,7 +307,7 @@ STPd process would handle following interactions. STPd would use libevent for pr
 
 ### Interface DB:
 
-In SONiC, ethernet interface is represented in the format Ethernet<id\> where id represents the physical port number and port-channel is represented by PortChannel<id\> where id is a 4 digit numerical value. 
+In SONiC, ethernet interface is represented in the format Ethernet<id\> where id represents the physical port number and port-channel is represented by PortChannel<id\> where id is a 4 digit numerical value.
 
 STPd implementation makes use of its own internal port id for its protocol operation. These port ids are used for bit representation in port masks and also for indexing the array which holds the pointers to STP port level information. So to continue using these mechanisms it is required to convert the SONiC representation of interface to local STP port ids. So when STPd interacts with other components in the system local port id would be converted to SONiC interface name, similarly all messages received from other components with SONiC interface name would be converted to local STP port id before processing. For this purpose an interface DB (AVL tree) would be maintained to map the SONiC interface names to local STP port ids.
 
@@ -315,6 +330,7 @@ Note: The port id for Port-channel interface would be allocated only when the fi
 Example of port id allocation -
 ```
 SONiC interface          STP Port id
+------------------------------------
 Ethernet0                    0
 Ethernet4                    4
 Ethernet8                    8
@@ -336,7 +352,7 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saistp.h
 
 Control packet traps required for STP (SAI_HOSTIF_TRAP_TYPE_STP) and PVST (SAI_HOSTIF_TRAP_TYPE_PVRST) are defined in below SAI spec -
 
-https://github.com/opencomputeproject/SAI/blob/master/inc/saihostif.h 
+https://github.com/opencomputeproject/SAI/blob/master/inc/saihostif.h
 
 ## 3.6 CLI
 ### 3.6.1 Data Models
@@ -344,7 +360,7 @@ Openconfig STP yang model would be extended to support PVST.
 
 ### 3.6.2 Configuration Commands
 
-### 3.6.2.1 Global level 
+### 3.6.2.1 Global level
 
 ### 3.6.2.1.1 Enabling or Disabling of PVST feature - Global spanning-tree mode
 The below command allows enabling the spanning tree mode for the device.
@@ -355,7 +371,7 @@ Note:
 1) When global pvst mode is enabled, by default spanning tree would be enabled on the first 255 VLANs, for rest of the VLAN spanning tree would be disabled.
 2) When multiple spanning-tree modes are supported, only one mode can be enabled at any given point of time.
 
-### 3.6.2.1.2 Per VLAN spanning-tree 
+### 3.6.2.1.2 Per VLAN spanning-tree
 The below command allows enabling or disabling spanning-tree on a VLAN.
 
 **config spanning_tree vlan {enable|disable} <vlan\>**
@@ -383,7 +399,7 @@ The below command allows configuring the hello interval in seconds for transmiss
 
 **config spanning_tree hello <value\>**
 
-Configuring this parameter to the lowest value (i.e. 1) would make the convergence faster at the cost of double the load on the CPU as it needs to compose, transmit and process twice as many BPDUs multiplied by the no. of VLANs enabled with STP. Thus, the command helps the user control the total convergence time to be slower or faster, than the default convergence time.
+Configuring this parameter to the lowest value (i.e. 1) would make the convergence faster at the cost of double the load on the CPU as it needs to compose, transmit and process twice as many BPDUs, multiplied by the no. of VLANs enabled with STP. Thus, the command helps the user control the total convergence time to be slower or faster, than the default convergence time.
 
  ### 3.6.2.1.6 Max-age
 The below command allows configuring the maximum time to listen for root bridge in seconds (default = 20), range 6-40.
@@ -418,7 +434,7 @@ The below command allows to configure the port level cost value for a VLAN, rang
 
 **config spanning_tree vlan interface cost <vlan\> <ifname\> <value\>**
 
-This parameter for all the ports in the path when added up, determines the total spanning tree path cost between the root bridge and the downstream switch. Thus, it plays significant role in calculating the shortest path to the root bridge for narrowing down the best topology possible, for the specified VLAN.
+This parameter for all the ports in the path when added up, determines the total spanning tree path cost between the root bridge and the downstream switch. Thus, it plays significant role in calculating the shortest path to the root bridge, thus narrowing down the best topology possible, for the specified VLAN.
 
 This command thus, allows the user to control the spanning tree topology convergence, by electing the designated bridges with the best paths towards the root bridge. This also aids in choosing the root ports over other ports, on these elected designated bridges.
 
@@ -457,7 +473,7 @@ The below command allows enabling or disabling of BPDU Guard feature on an STP e
 
 **config spanning_tree interface bpdu_guard {enable|disable} <ifname\>**
 
-This command enables the user to avoid any traffic disruption due to the topology re-convergence, caused by any newly connected downstream STP enabled switch, unknowingly transmitting BPDUs to the existing STP topology, by shutting the connected interface receiving this BPDU. Thus it helps in creating the boundaries for the existing STP topology which can be expanded to include any newly connected switches, only by admin interference.
+This command enables the user to avoid any traffic disruption due to the topology re-convergence, caused by any newly connected downstream STP enabled switch, unknowingly transmitting BPDUs to the existing STP topology. This can be achieved by shutting the connected interface receiving this BPDU, if enabled so. Thus it helps in creating the boundaries for the existing STP topology which can be expanded to include any newly connected switches, only by admin interference.
 
 By default, BPDU Guard feature would only generate a syslog indicating the condition, for taking an action such as disabling the port. The command can be used with shutdown option as shown below
 
@@ -470,22 +486,22 @@ STP: Tagged BPDU(100) received, interface Ethernet4 disabled due to BPDU Guard t
 STPd would update the config DB for shutting down the interface, user can enable the interface back once it has stopped receiving the BPDUs.
 
  ### 3.6.2.4.4 Port fast
-Portfast command is enabled by default on all ports. This feature allows the edge ports to quickly transition to the FORWARDING state when the connected device is not participating in spanning-tree.
+Portfast command is enabled by default on all ports. This feature allows the edge ports to quickly transition to the FORWARDING state, when the connected device is not participating in the spanning-tree.
 
 The below command allows enabling or disabling the portfast feature on an interface.
 
 **config spanning_tree interface portfast {enable|disable} <ifname\>**
 
-This command allows the user to quickly enable traffic flow (through bypassing the LISTENING and the LEARNING port states), on the edge ports connected to the traffic sources, such as workstations or servers that do not participate in STP. Thus, it saves twice the the FORWARDING delay time for port convergence.
+This command allows the user to quickly enable traffic flow (through bypassing the LISTENING and the LEARNING port states), on the edge ports connected to the traffic sources, such as workstations or servers, that do not participate in the spanning-tree. Thus, it saves twice the FORWARDING delay time for the port convergence.
 
  ### 3.6.2.4.4 Uplink fast
-Uplink fast feature enhances STP performance for switches with redundant uplinks. Using the default value for the standard STP FORWARDING delay time, convergence following a transition from an active link to a redundant link can take 30 seconds (15 seconds for the LISTENING and an additional 15 seconds for the LEARNING port states).
+Uplink fast feature enhances STP performance for switches with redundant uplinks. Using the default value for the standard STP FORWARDING delay time, convergence following a transition from an active link to a redundant link, can take 30 seconds (15 seconds for the LISTENING and an additional 15 seconds for the LEARNING port states).
 
 The below command allows enabling or disabling the uplink-fast feature on an interface.
 
 **config spanning_tree interface uplink_fast {enable|disable} <ifname\>**
 
-When uplink fast command is configured on the redundant uplinks, it allows the user to significantly reduce the convergence time by directly transitioning to the FORWARDING port state (bypassing the LISTENING and the LEARNING port states) in just once second when the active link goes down.
+When uplink fast command is configured on the redundant uplinks, it allows the user to significantly reduce the convergence time, by directly transitioning to the FORWARDING port state (bypassing the LISTENING and the LEARNING port states) in just a second when the active link goes down.
 
  ### 3.6.2.4.5 Port level priority
 The below command allows to configure the port level priority value, range 0 - 240 (default 128)
@@ -499,7 +515,7 @@ The below command allows to configure the port level cost value, range 1 - 20000
 
 **configure spanning_tree interface cost <ifname\> <value\>**
 
-This parameter for all the ports in the path when added up, determines the total spanning tree path cost between the root bridge and the downstream switch. Thus, it plays significant role in calculating the shortest path to the root bridge, for narrowing down the best topology possible, for all the STP instances irrespective of the configured VLANs.
+This parameter for all the ports in the path when added up, determines the total spanning tree path cost between the root bridge and the downstream switch. Thus, it plays significant role in calculating the shortest path to the root bridge, thus narrowing down the best topology possible, for all the STP instances, irrespective of the configured VLANs.
 
 This command thus, allows the user to control the spanning tree topology convergence, by choosing the designated bridges with the best paths towards the root bridge. It also aids in choosing the root ports over other ports on these designated bridges, with best path cost towards the root bridge, for all the STP instances pertaining to the configured VLANs on the interface.
 
@@ -517,18 +533,18 @@ STP Bridge Parameters:
 Bridge           Bridge Bridge Bridge Hold  LastTopology Topology
 Identifier       MaxAge Hello  FwdDly Time  Change       Change
 hex              sec    sec    sec    sec   sec          cnt
-8000002438eefbc3 20     2      15     1     0            0       
+8000002438eefbc3 20     2      15     1     0            0
 
 RootBridge       RootPath  DesignatedBridge Root  Max Hel Fwd
 Identifier       Cost      Identifier       Port  Age lo  Dly
 hex                        hex                    sec sec sec
-8000002438eefbc3 0         8000002438eefbc3 Root  20  2   15  
+8000002438eefbc3 0         8000002438eefbc3 Root  20  2   15
 
 STP Port Parameters:
 
 Port        Prio Path Port Uplink   State      Designated  Designated       Designated
 Num         rity Cost Fast Fast                Cost        Root             Bridge
-Ethernet13  128  4    Y    N        FORWARDING 0           8000002438eefbc3 8000002438eefbc3 
+Ethernet13  128  4    Y    N        FORWARDING 0           8000002438eefbc3 8000002438eefbc3
 ```
 
 - show spanning_tree bpdu_guard
@@ -560,9 +576,9 @@ This command displays the spanning-tree BPDU statistics. Statistics would be syn
 ```
 VLAN 100 - STP instance 3
 --------------------------------------------------------------------
-PortNum           BPDU Tx     BPDU Rx     TCN Tx      TCN Rx             
-Ethernet13        10	      4           3          4
-PortChannel15     20	      6           4          1
+PortNum           BPDU Tx     BPDU Rx     TCN Tx     TCN Rx
+Ethernet13        10          4           3          4
+PortChannel15     20          6           4          1
 ```
 
 ### 3.6.4 Debug Commands
