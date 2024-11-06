@@ -2,7 +2,7 @@
 
 # High Level Design Document
 
-Rev 1.1
+Rev 1.4
 
 # Table of Contents
 
@@ -85,7 +85,7 @@ Rev 1.1
 | 1.1  | Jul-2024   | Syed Hasan Naqvi (Broadcom) | Updated kernel, SAI, config, and design sections |
 | 1.2  | Jul-2024   | Patrice Brissette (Cisco)   | Adding ShlOrchagent definition, addressing PR comments |
 | 1.3  | Aug-2024   | Patrice Brissette (Cisco)   | Updated SAI examples |
-
+| 1.4  | Nov-2024   | Syed Hasan Naqvi (Broadcom) | Addressed review comments. Updated/removed duplicate text in SAI sec. |
 
 <a id="About-this-Manual"></a>
 # About this Manual
@@ -815,7 +815,7 @@ A new EvpnMhOrch class will be introduced to perform following activities,
 2. Subscribe to EVPN_ETHERNET_SEGMENT config table updates and maintain internal cache.
 3. Provide set of API to check if the given acces interface is ES associated or not.
 4. Subscribe to LAG_TABLE oper status changes and trigger MAC update requests to FdbOrch.
-5. Subscribe to EVPN_DF_TABLE from APP-DB and set the SAI bridge port attribute SAI_BRIDGE_PORT_ATTR_BUM_TX_DROP to relevant Bridgeport.
+5. Subscribe to EVPN_DF_TABLE from APP-DB and set the SAI bridge port attribute SAI_BRIDGE_PORT_ATTR_TUNNEL_TERM_BUM_TX_DROP to relevant Bridgeport.
 
 <a id="3310-ShlOrch"></a>
 ### 3.3.10 ShlOrch
@@ -839,6 +839,8 @@ Following split-horizon handling and activities will also be performed by the Ev
 <a id="341-new-sai-objects"></a>
 ### 3.4.1 New SAI Objects 
 No new SAI objects are introduced as part of this design.
+For unicast traffic, existing L2NHG_GROUP and FDB are leverage whereas for BUM traffic, existing ISOLATION_GROUP and BRIDGE_PORT are used.
+The L2NH group type is defined to support programming backup reachability.
 
 <a id="342-changes-to-existing-sai-objects"></a>
 ### 3.4.2 Changes to Existing SAI Objects
@@ -921,49 +923,39 @@ Note: Traffic dropped due to this should not be counted against SAI_PORT_STAT_IF
 typedef enum _sai_bridge_port_attr_t
 {
 ...
-    /**
-     * @brief Indicates if the bridge port is set to drop the broadcast, unknown unicast and multicast traffic
-     * When set to true, ingress BUM traffic will be dropped
-     *
-     * @type bool
-     * @flags CREATE_AND_SET
-     * @default false
-     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
-     */
-    SAI_BRIDGE_PORT_ATTR_BUM_RX_DROP,
 
     /**
-     * @brief Indicates if the bridge port is set to drop the broadcast, unknown unicast and multicast traffic
+     * @brief Indicates if the bridge port is set to drop the Tunnel Terminated broadcast, unknown unicast and multicast traffic
      * When set to true, egress BUM traffic will be dropped
      *
      * @type bool
      * @flags CREATE_AND_SET
      * @default false
-     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT or SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_SUB_PORT or SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_TUNNEL
      */
-    SAI_BRIDGE_PORT_ATTR_BUM_TX_DROP,
+    SAI_BRIDGE_PORT_ATTR_TUNNEL_TERM_BUM_TX_DROP,
 
     /**
-     * @brief Indicates if the bridge port is set to drop the unicast traffic
-     * When set to true, ingress unicast traffic will be dropped
+     * @brief Indicates if the bridge port is set to drop the ingress traffic
+     * When set to true, all ingress traffic will be dropped
      *
      * @type bool
      * @flags CREATE_AND_SET
      * @default false
-     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT or SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_SUB_PORT or SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_TUNNEL
      */
-    SAI_BRIDGE_PORT_ATTR_UCAST_RX_DROP,
+    SAI_BRIDGE_PORT_ATTR_RX_DROP,
 
     /**
-     * @brief Indicates if the bridge port is set to drop the unicast traffic
-     * When set to true, egress unicast traffic will be dropped
+     * @brief Indicates if the bridge port is set to drop the egress traffic
+     * When set to true, all egress traffic will be dropped
      *
      * @type bool
      * @flags CREATE_AND_SET
      * @default false
-     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
+     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT or SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_SUB_PORT or SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_TUNNEL
      */
-    SAI_BRIDGE_PORT_ATTR_UCAST_TX_DROP,
+    SAI_BRIDGE_PORT_ATTR_TX_DROP,
 ...
 }
 ```
@@ -1053,233 +1045,6 @@ On remote Leaf5 where ECMP chains are built:
   - At VTEP1 bridgeport_oid for Po2 is marked as NON_DF.
   - At VTEP4 bridgeport_oid for Po1 is marked as NON_DF.
   - At VTEP2, VTEP3 bridgeport_oid for Po2 is marked as NON_DF.
-- Isolation Group settings for Split Horizon and Local Bias
-  - At VTEP1
-    - tnl_oid_2-4 for tunnels towards the peer multihoming VTEP2-4
-    - bridgeport_oid_2-4 corresponding to tunnels as above.
-    - isogrp_oid_2-4 corresponding to tunnels as above.
-    - bridgeport_oid_2-4 have isolation group attribute set as isogrp_oid_2-4.
-    - isogrp_mbr_oid_21 corresponding to isogrp_oid_2+bridgeport_oid_po2
-    - isogrp_mbr_oid_31 corresponding to isogrp_oid_3+bridgeport_oid_po2
-    - isogrp_mbr_oid_41 corresponding to isogrp_oid_4+bridgeport_oid_po1
-    - isogrp_mbr_oid_42 corresponding to isogrp_oid_4+bridgeport_oid_po2
-  - At VTEP4
-    - tnl_oid_1-3 for tunnels towards the peer multihoming VTEP1-3
-    - bridgeport_oid_1-3 corresponding to tunnels as above.
-    - isogrp_oid_1-3 corresponding to tunnels as above.
-    - bridgeport_oid_1-3 have isolation group attribute set as isogrp_oid_1-3.
-    - isogrp_mbr_oid_21 corresponding to isogrp_oid_2+bridgeport_oid_po2
-    - isogrp_mbr_oid_31 corresponding to isogrp_oid_3+bridgeport_oid_po2
-    - isogrp_mbr_oid_11 corresponding to isogrp_oid_1+bridgeport_oid_po1
-    - isogrp_mbr_oid_12 corresponding to isogrp_oid_1+bridgeport_oid_po2
-  - At VTEP2
-    - tnl_oid_1,3,4 for tunnels towards the peer multihoming VTEP1,3,4
-    - bridgeport_oid_1,3,4 corresponding to tunnels as above.
-    - isogrp_oid_1,3,4 corresponding to tunnels as above.
-    - bridgeport_oid_1,3,4 have isolation group attribute set as isogrp_oid_1,3,4.
-    - isogrp_mbr_oid_11 corresponding to isogrp_oid_1+bridgeport_oid_po2
-    - isogrp_mbr_oid_31 corresponding to isogrp_oid_3+bridgeport_oid_po2
-    - isogrp_mbr_oid_41 corresponding to isogrp_oid_4+bridgeport_oid_po2
-  - At VTEP3
-    - tnl_oid_1,2,4 for tunnels towards the peer multihoming VTEP1,2,4
-    - bridgeport_oid_1,2,4 corresponding to tunnels as above.
-    - isogrp_oid_1,2,4 corresponding to tunnels as above.
-    - bridgeport_oid_1,2,4 have isolation group attribute set as isogrp_oid_1,2,4
-    - isogrp_mbr_oid_11 corresponding to isogrp_oid_1+bridgeport_oid_po2
-    - isogrp_mbr_oid_21 corresponding to isogrp_oid_2+bridgeport_oid_po2
-    - isogrp_mbr_oid_41 corresponding to isogrp_oid_4+bridgeport_oid_po2
-
-
-## 3.4 SAI
-<a id="341-new-sai-objects"></a>
-### 3.4.1 SAI Objects
-No new SAI object is required to support this feature.
-For unicast traffic, existing L2NHG_GROUP and FDB are leverage whereas for BUM traffic, existing ISOLATION_GROUP and BRIDGE_PORT are used.
-The L2NH group type is defined to support programming backup reachability.
-
-<a id="342-changes-to-existing-sai-objects"></a>
-### 3.4.2 Changes to Existing SAI Objects
-
-- **BRIDGEPORT**
-
-  - New type of bridgeport providing nexthop group
-    - Applicable when bridge_port points to a group of nexthop.
-```
-    ...
-
-    /** Bridge port next hop group */
-    SAI_BRIDGE_PORT_TYPE_BRIDGE_PORT_NEXT_HOP_GROUP,
-
-  } sai_bridge_port_type_t;
-```
-
-  - New attributes for NON_DF to drop BUM traffic
-    - Applicable to bridgeport type PORT.
-    - When set, ingress BUM traffic on this bridge port will be dropped.
-    - Traffic dropped due to this should not be counted against SAI_PORT_STAT_IF_OUT_DISCARDS i.e Interface Tx drop counters.
-
-  ```
-    ...
-
-    /**
-     * @brief Associated bridge port nexthop group id
-     *
-     * @type sai_object_id_t
-     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
-     * @objects SAI_OBJECT_TYPE_NEXT_HOP_GROUP
-     * @condition SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_BRIDGE_PORT_NEXT_HOP_GROUP
-     */
-    SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_NEXT_HOP_GROUP_ID,
-
-    /**
-     * @brief Indicates if the bridge port is set to drop the broadcast, unknown unicast and multicast traffic
-     * When set to true, ingress BUM traffic will be dropped
-     *
-     * @type bool
-     * @flags CREATE_AND_SET
-     * @default false
-     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
-     */
-    SAI_BRIDGE_PORT_ATTR_BUM_RX_DROP,
-
-    /**
-     * @brief Indicates if the bridge port is set to drop the broadcast, unknown unicast and multicast traffic
-     * When set to true, egress BUM traffic will be dropped
-     *
-     * @type bool
-     * @flags CREATE_AND_SET
-     * @default false
-     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
-     */
-    SAI_BRIDGE_PORT_ATTR_BUM_TX_DROP,
-
-    /**
-     * @brief Indicates if the bridge port is set to drop the unicast traffic
-     * When set to true, ingress unicast traffic will be dropped
-     *
-     * @type bool
-     * @flags CREATE_AND_SET
-     * @default false
-     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
-     */
-    SAI_BRIDGE_PORT_ATTR_UCAST_RX_DROP,
-
-    /**
-     * @brief Indicates if the bridge port is set to drop the unicast traffic
-     * When set to true, egress unicast traffic will be dropped
-     *
-     * @type bool
-     * @flags CREATE_AND_SET
-     * @default false
-     * @validonly SAI_BRIDGE_PORT_ATTR_TYPE == SAI_BRIDGE_PORT_TYPE_PORT
-     */
-    SAI_BRIDGE_PORT_ATTR_UCAST_TX_DROP,
-
-    /**
-     * @brief Associated protection bridge port nexthop group id
-     *
-     * @type sai_object_id_t
-     * @flags CREATE_AND_SET
-     * @objects SAI_OBJECT_TYPE_NEXT_HOP_GROUP
-     * @allownull true
-     * @default SAI_NULL_OBJECT_ID
-     */
-    SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_PROTECTION_NEXT_HOP_GROUP_ID,
-
-  } sai_bridge_port_attr_t
-
-  ```
-
-
-- **NEXT_HOP**
-  - Adding a new type of next hop equal to bridge_port.
-    MAC points to bridge port (either local or remote)
-
-```
-    ...
-
-    /** Next hop group is for bridge port */
-    SAI_NEXT_HOP_TYPE_BRIDGE_PORT,
-
-  } sai_next_hop_type_t;
-```
-
-- **NEXT_HOP_GROUP**
-   - Adding a new next hop group type equal to bridge port.
-     Grouping a list of nexthops of bridge port type
-   - Reusing next hop group type equal to protection group.
-     Grouping a list of protection group usually primary/backup paths.
-
-```
-    ...
-
-    /** Next hop group is for bridge port */
-    SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT,
-
-    /** Next hop protection group. Contains primary and backup next hops. */
-    SAI_NEXT_HOP_GROUP_TYPE_PROTECTION,
-
-  } sai_next_hop_group_type_t
-```
-
-
-- **ISOLATION_GROUP**
-  - There is no change to the Isolation group and group member definition.
-  - Bridgeport of type TUNNEL will also now have the isolation group attribute set.
-
-
-<a id="343-sai-object-usage"></a>
-
-### 3.4.3 SAI Object usage
-#### 3.4.3.1 Known MAC Handling
-- Refer to Sec 1.2.1
-- At VTEP5 the following objects are created.
-  - tnl_oid_1-tnl_oid_4 corresponding to tunnels created to VTEP1-VTEP4.
-  - nh_bridgeport_oid_1 to nh_bridgeport_oid_4 for corresponding bridgeports of type tunnels (tnl_oid_1-tnl_oid_4)
-
-  - nh_grp_bridgeport_oid_1 for ESI-1(H2)
-  - nh_grp_bridgeport_oid_2 for ESI-2(H3)
-
-  - nh_grp_bridgeport_oid_1 has members nh_bridgeport_oid_1 and nh_bridgeport_oid_4
-  - nh_grp_bridgeport_oid_2 has members nh_bridgeport_oid_1 to nh_bridgeport_oid_4
-
-  - bridgeport_oid_h2 of type nexthop group pointing to nh_grp_bridgeport_oid_1
-  - bridgeport_oid_h3 of type nexthop group pointing to nh_grp_bridgeport_oid_2
-
-  - mac_h2 pointing to bridgeport_oid_h2
-  - mac_h3 pointing to bridgeport_oid_h3
-
-- At VTEP1, the following objects are created.
-  - tnl_oid_2-tnl_oid_5 corresponding to tunnels created to VTEP2-VTEP5.
-  - nh_bridgeport_oid_2 to nh_bridgeport_oid_5 for corresponding bridgeports of type tunnels (tnl_oid_2-tnl_oid_5)
-
-  - nh_bridgeport_oid6 to bridgeport Type Local (PortChannel1)
-  - nh_bridgeport_oid7 to bridgeport Type Local (PortChannel2)
-
-  - nh_grp_bridgeport_oid_1 for backup ESI-1(H2)
-  - nh_grp_bridgeport_oid_2 for backup ESI-2(H3)
-
-  - nh_grp_bridgeport_oid_1 has members nh_bridgeport_oid_4
-  - nh_grp_bridgeport_oid_2 has members nh_bridgeport_oid_2 to nh_bridgeport_oid_4
-
-  - nh_grp_protection_oid_1 for ESI-1(H2)
-  - nh_grp_protection_oid_2 for ESI-2(H3)
-
-  - nh_grp_protection_oid_1 has members nh_bridgeport_oid6 and nh_grp_bridgeport_oid_1 (primary preferred)
-  - nh_grp_protection_oid_2 has members nh_bridgeport_oid7 and nh_grp_bridgeport_oid_2 (primary preferred)
-
-  - bridgeport_oid_h6 of type Local pointing to nh_grp_protection_oid_1
-  - bridgeport_oid_h7 of type local pointing to nh_grp_protection_oid_2
-
-  - mac_h2 pointing to bridgeport_oid_h6
-  - mac_h3 pointing to bridgeport_oid_h7
-
-#### 3.4.3.2 BUM handling
-- Refer to Sec 1.2.1.1
-- DF settings
-  - At VTEP1 bridgeport_oid for Po2 is marked as BUM_RX_DROP.
-  - At VTEP4 bridgeport_oid for Po1 is marked as BUM_RX_DROP.
-  - At VTEP2, VTEP3 bridgeport_oid for Po2 is marked as BUM_RX_DROP.
 - Isolation Group settings for Split Horizon and Local Bias
   - At VTEP1
     - tnl_oid_2-4 for tunnels towards the peer multihoming VTEP2-4
