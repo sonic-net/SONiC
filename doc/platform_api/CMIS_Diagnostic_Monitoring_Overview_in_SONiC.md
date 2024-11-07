@@ -20,7 +20,7 @@ The CMIS diagnostic monitoring data is stored in the `STATE_DB` database. The `S
 - `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: Keeps a count of how many times each DOM flag has changed.
 - `TRANSCEIVER_DOM_FLAG_SET_TIME`: Records the last timestamp when each DOM flag was set.
 - `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: Records the last timestamp when each DOM flag was cleared.
-- `TRANSCEIVER_VDM_CURRENT_SAMPLE`: Stores VDM sample data.
+- `TRANSCEIVER_VDM_REAL_VALUE`: Stores VDM sample data.
 - `TRANSCEIVER_VDM_THRESHOLD`: Contains threshold values for VDM parameters.
 - `TRANSCEIVER_VDM_HALARM_THRESHOLD`: Stores the high alarm threshold values for the VDM data.
 - `TRANSCEIVER_VDM_LALARM_THRESHOLD`: Stores the low alarm threshold values for the VDM data.
@@ -255,13 +255,13 @@ lane_num: Represents lane number of the field. The lane number is an integer val
 
 #### 2.2.1 Transceiver VDM sample data
 
-The `TRANSCEIVER_VDM_CURRENT_SAMPLE` table stores the real time VDM data
+The `TRANSCEIVER_VDM_REAL_VALUE` table stores the real time VDM data
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
 ```plaintext
     ;Defines Transceiver VDM sample for a port
-    key                                            = TRANSCEIVER_VDM_CURRENT_SAMPLE|ifname    ; information module VDM sample on port
+    key                                            = TRANSCEIVER_VDM_REAL_VALUE|ifname    ; information module VDM sample on port
     ; field                                        = value
     laser_temperature_media{lane_num}              = FLOAT                  ; laser temperature value in Celsius for media input
     esnr_media_input{lane_num}                     = FLOAT                  ; eSNR value in dB for media input
@@ -286,24 +286,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input{lane_num}       = FLOAT                  ; Errored frames current value for host input
 
     ;C-CMIS specific fields
-    biasxi                                         = FLOAT                  ; modulator bias xi in percentage
-    biasxq                                         = FLOAT                  ; modulator bias xq in percentage
-    biasxp                                         = FLOAT                  ; modulator bias xp in percentage
-    biasyi                                         = FLOAT                  ; modulator bias yi in percentage
-    biasyq                                         = FLOAT                  ; modulator bias yq in percentage
-    biasyp                                         = FLOAT                  ; modulator bias yq in percentage
-    cdshort                                        = FLOAT                  ; chromatic dispersion, high granularity, short link in ps/nm
-    cdlong                                         = FLOAT                  ; chromatic dispersion, high granularity, long link in ps/nm  
-    dgd                                            = FLOAT                  ; differential group delay in ps
-    sopmd                                          = FLOAT                  ; second order polarization mode dispersion in ps^2
-    soproc                                         = FLOAT                  ; state of polarization rate of change in krad/s
-    pdl                                            = FLOAT                  ; polarization dependent loss in db
-    osnr                                           = FLOAT                  ; optical signal to noise ratio in db
-    esnr                                           = FLOAT                  ; electrical signal to noise ratio in db
-    cfo                                            = FLOAT                  ; carrier frequency offset in Hz
-    txcurrpower                                    = FLOAT                  ; tx current output power in dbm
-    rxtotpower                                     = FLOAT                  ; rx total power in  dbm
-    rxsigpower                                     = FLOAT                  ; rx signal power in dbm
+    biasxi{lane_num}                               = FLOAT                  ; modulator bias xi in percentage
+    biasxq{lane_num}                               = FLOAT                  ; modulator bias xq in percentage
+    biasxp{lane_num}                               = FLOAT                  ; modulator bias xp in percentage
+    biasyi{lane_num}                               = FLOAT                  ; modulator bias yi in percentage
+    biasyq{lane_num}                               = FLOAT                  ; modulator bias yq in percentage
+    biasyp{lane_num}                               = FLOAT                  ; modulator bias yq in percentage
+    cdshort{lane_num}                              = FLOAT                  ; chromatic dispersion, high granularity, short link in ps/nm
+    cdlong{lane_num}                               = FLOAT                  ; chromatic dispersion, high granularity, long link in ps/nm  
+    dgd{lane_num}                                  = FLOAT                  ; differential group delay in ps
+    sopmd{lane_num}                                = FLOAT                  ; second order polarization mode dispersion in ps^2
+    soproc{lane_num}                               = FLOAT                  ; state of polarization rate of change in krad/s
+    pdl{lane_num}                                  = FLOAT                  ; polarization dependent loss in db
+    osnr{lane_num}                                 = FLOAT                  ; optical signal to noise ratio in db
+    esnr{lane_num}                                 = FLOAT                  ; electrical signal to noise ratio in db
+    cfo{lane_num}                                  = FLOAT                  ; carrier frequency offset in Hz
+    txcurrpower{lane_num}                          = FLOAT                  ; tx current output power in dbm
+    rxtotpower{lane_num}                           = FLOAT                  ; rx total power in  dbm
+    rxsigpower{lane_num}                           = FLOAT                  ; rx signal power in dbm
 ```
 
 #### 2.2.2 Transceiver VDM threshold data
@@ -341,24 +341,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_halarm{lane_num}      = FLOAT          ; Errored frames current high alarm value for host input
 
     ;C-CMIS specific fields
-    biasxi_halarm                                       = FLOAT         ; modulator bias xi in percentage (high alarm)
-    biasxq_halarm                                       = FLOAT         ; modulator bias xq in percentage (high alarm)
-    biasxp_halarm                                       = FLOAT         ; modulator bias xp in percentage (high alarm)
-    biasyi_halarm                                       = FLOAT         ; modulator bias yi in percentage (high alarm)
-    biasyq_halarm                                       = FLOAT         ; modulator bias yq in percentage (high alarm)
-    biasyp_halarm                                       = FLOAT         ; modulator bias yq in percentage (high alarm)
-    cdshort_halarm                                      = FLOAT         ; chromatic dispersion, high granularity, short link in ps/nm (high alarm)
-    cdlong_halarm                                       = FLOAT         ; chromatic dispersion, high granularity, long link in ps/nm (high alarm)
-    dgd_halarm                                          = FLOAT         ; differential group delay in ps (high alarm)
-    sopmd_halarm                                        = FLOAT         ; second order polarization mode dispersion in ps^2 (high alarm)
-    soproc_halarm                                       = FLOAT         ; state of polarization rate of change in krad/s (high alarm)
-    pdl_halarm                                          = FLOAT         ; polarization dependent loss in db (high alarm)
-    osnr_halarm                                         = FLOAT         ; optical signal to noise ratio in db (high alarm)
-    esnr_halarm                                         = FLOAT         ; electrical signal to noise ratio in db (high alarm)
-    cfo_halarm                                          = FLOAT         ; carrier frequency offset in Hz (high alarm)
-    txcurrpower_halarm                                  = FLOAT         ; tx current output power in dbm (high alarm)
-    rxtotpower_halarm                                   = FLOAT         ; rx total power in  dbm (high alarm)
-    rxsigpower_halarm                                   = FLOAT         ; rx signal power in dbm (high alarm)
+    biasxi_halarm{lane_num}                             = FLOAT         ; modulator bias xi in percentage (high alarm)
+    biasxq_halarm{lane_num}                             = FLOAT         ; modulator bias xq in percentage (high alarm)
+    biasxp_halarm{lane_num}                             = FLOAT         ; modulator bias xp in percentage (high alarm)
+    biasyi_halarm{lane_num}                             = FLOAT         ; modulator bias yi in percentage (high alarm)
+    biasyq_halarm{lane_num}                             = FLOAT         ; modulator bias yq in percentage (high alarm)
+    biasyp_halarm{lane_num}                             = FLOAT         ; modulator bias yq in percentage (high alarm)
+    cdshort_halarm{lane_num}                            = FLOAT         ; chromatic dispersion, high granularity, short link in ps/nm (high alarm)
+    cdlong_halarm{lane_num}                             = FLOAT         ; chromatic dispersion, high granularity, long link in ps/nm (high alarm)
+    dgd_halarm{lane_num}                                = FLOAT         ; differential group delay in ps (high alarm)
+    sopmd_halarm{lane_num}                              = FLOAT         ; second order polarization mode dispersion in ps^2 (high alarm)
+    soproc_halarm{lane_num}                             = FLOAT         ; state of polarization rate of change in krad/s (high alarm)
+    pdl_halarm{lane_num}                                = FLOAT         ; polarization dependent loss in db (high alarm)
+    osnr_halarm{lane_num}                               = FLOAT         ; optical signal to noise ratio in db (high alarm)
+    esnr_halarm{lane_num}                               = FLOAT         ; electrical signal to noise ratio in db (high alarm)
+    cfo_halarm{lane_num}                                = FLOAT         ; carrier frequency offset in Hz (high alarm)
+    txcurrpower_halarm{lane_num}                        = FLOAT         ; tx current output power in dbm (high alarm)
+    rxtotpower_halarm{lane_num}                         = FLOAT         ; rx total power in  dbm (high alarm)
+    rxsigpower_halarm{lane_num}                         = FLOAT         ; rx signal power in dbm (high alarm)
 ```
 
 ##### 2.2.2.2 Transceiver VDM low alarm threshold data
@@ -394,24 +394,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_lalarm{lane_num}      = FLOAT          ; Errored frames current low alarm value for host input
 
     ;C-CMIS specific fields
-    biasxi_lalarm                                       = FLOAT         ; modulator bias xi in percentage (low alarm)
-    biasxq_lalarm                                       = FLOAT         ; modulator bias xq in percentage (low alarm)
-    biasxp_lalarm                                       = FLOAT         ; modulator bias xp in percentage (low alarm)
-    biasyi_lalarm                                       = FLOAT         ; modulator bias yi in percentage (low alarm)
-    biasyq_lalarm                                       = FLOAT         ; modulator bias yq in percentage (low alarm)
-    biasyp_lalarm                                       = FLOAT         ; modulator bias yq in percentage (low alarm)
-    cdshort_lalarm                                      = FLOAT         ; chromatic dispersion, high granularity, short link in ps/nm (low alarm)
-    cdlong_lalarm                                       = FLOAT         ; chromatic dispersion, high granularity, long link in ps/nm (low alarm)
-    dgd_lalarm                                          = FLOAT         ; differential group delay in ps (low alarm)
-    sopmd_lalarm                                        = FLOAT         ; second order polarization mode dispersion in ps^2 (low alarm)
-    soproc_lalarm                                       = FLOAT         ; state of polarization rate of change in krad/s (low alarm)
-    pdl_lalarm                                          = FLOAT         ; polarization dependent loss in db (low alarm)
-    osnr_lalarm                                         = FLOAT         ; optical signal to noise ratio in db (low alarm)
-    esnr_lalarm                                         = FLOAT         ; electrical signal to noise ratio in db (low alarm)
-    cfo_lalarm                                          = FLOAT         ; carrier frequency offset in Hz (low alarm)
-    txcurrpower_lalarm                                  = FLOAT         ; tx current output power in dbm (low alarm)
-    rxtotpower_lalarm                                   = FLOAT         ; rx total power in  dbm (low alarm)
-    rxsigpower_lalarm                                   = FLOAT         ; rx signal power in dbm (low alarm)
+    biasxi_lalarm{lane_num}                             = FLOAT         ; modulator bias xi in percentage (low alarm)
+    biasxq_lalarm{lane_num}                             = FLOAT         ; modulator bias xq in percentage (low alarm)
+    biasxp_lalarm{lane_num}                             = FLOAT         ; modulator bias xp in percentage (low alarm)
+    biasyi_lalarm{lane_num}                             = FLOAT         ; modulator bias yi in percentage (low alarm)
+    biasyq_lalarm{lane_num}                             = FLOAT         ; modulator bias yq in percentage (low alarm)
+    biasyp_lalarm{lane_num}                             = FLOAT         ; modulator bias yq in percentage (low alarm)
+    cdshort_lalarm{lane_num}                            = FLOAT         ; chromatic dispersion, high granularity, short link in ps/nm (low alarm)
+    cdlong_lalarm{lane_num}                             = FLOAT         ; chromatic dispersion, high granularity, long link in ps/nm (low alarm)
+    dgd_lalarm{lane_num}                                = FLOAT         ; differential group delay in ps (low alarm)
+    sopmd_lalarm{lane_num}                              = FLOAT         ; second order polarization mode dispersion in ps^2 (low alarm)
+    soproc_lalarm{lane_num}                             = FLOAT         ; state of polarization rate of change in krad/s (low alarm)
+    pdl_lalarm{lane_num}                                = FLOAT         ; polarization dependent loss in db (low alarm)
+    osnr_lalarm{lane_num}                               = FLOAT         ; optical signal to noise ratio in db (low alarm)
+    esnr_lalarm{lane_num}                               = FLOAT         ; electrical signal to noise ratio in db (low alarm)
+    cfo_lalarm{lane_num}                                = FLOAT         ; carrier frequency offset in Hz (low alarm)
+    txcurrpower_lalarm{lane_num}                        = FLOAT         ; tx current output power in dbm (low alarm)
+    rxtotpower_lalarm{lane_num}                         = FLOAT         ; rx total power in  dbm (low alarm)
+    rxsigpower_lalarm{lane_num}                         = FLOAT         ; rx signal power in dbm (low alarm)
 ```
 
 ##### 2.2.2.3 Transceiver VDM high warning threshold data
@@ -447,24 +447,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_hwarn{lane_num}      = FLOAT          ; Errored frames current high warning value for host input
 
     ;C-CMIS specific fields
-    biasxi_hwarn                                       = FLOAT         ; modulator bias xi in percentage (high warning)
-    biasxq_hwarn                                       = FLOAT         ; modulator bias xq in percentage (high warning)
-    biasxp_hwarn                                       = FLOAT         ; modulator bias xp in percentage (high warning)
-    biasyi_hwarn                                       = FLOAT         ; modulator bias yi in percentage (high warning)
-    biasyq_hwarn                                       = FLOAT         ; modulator bias yq in percentage (high warning)
-    biasyp_hwarn                                       = FLOAT         ; modulator bias yq in percentage (high warning)
-    cdshort_hwarn                                      = FLOAT         ; chromatic dispersion, high granularity, short link in ps/nm (high warning)
-    cdlong_hwarn                                       = FLOAT         ; chromatic dispersion, high granularity, long link in ps/nm (high warning)
-    dgd_hwarn                                          = FLOAT         ; differential group delay in ps (high warning)
-    sopmd_hwarn                                        = FLOAT         ; second order polarization mode dispersion in ps^2 (high warning)
-    soproc_hwarn                                       = FLOAT         ; state of polarization rate of change in krad/s (high warning)
-    pdl_hwarn                                          = FLOAT         ; polarization dependent loss in db (high warning)
-    osnr_hwarn                                         = FLOAT         ; optical signal to noise ratio in db (high warning)
-    esnr_hwarn                                         = FLOAT         ; electrical signal to noise ratio in db (high warning)
-    cfo_hwarn                                          = FLOAT         ; carrier frequency offset in Hz (high warning)
-    txcurrpower_hwarn                                  = FLOAT         ; tx current output power in dbm (high warning)
-    rxtotpower_hwarn                                   = FLOAT         ; rx total power in  dbm (high warning)
-    rxsigpower_hwarn                                   = FLOAT         ; rx signal power in dbm (high warning)
+    biasxi_hwarn{lane_num}                             = FLOAT         ; modulator bias xi in percentage (high warning)
+    biasxq_hwarn{lane_num}                             = FLOAT         ; modulator bias xq in percentage (high warning)
+    biasxp_hwarn{lane_num}                             = FLOAT         ; modulator bias xp in percentage (high warning)
+    biasyi_hwarn{lane_num}                             = FLOAT         ; modulator bias yi in percentage (high warning)
+    biasyq_hwarn{lane_num}                             = FLOAT         ; modulator bias yq in percentage (high warning)
+    biasyp_hwarn{lane_num}                             = FLOAT         ; modulator bias yq in percentage (high warning)
+    cdshort_hwar{lane_num}                             = FLOAT         ; chromatic dispersion, high granularity, short link in ps/nm (high warning)
+    cdlong_hwarn{lane_num}                             = FLOAT         ; chromatic dispersion, high granularity, long link in ps/nm (high warning)
+    dgd_hwarn{lane_num}                                = FLOAT         ; differential group delay in ps (high warning)
+    sopmd_hwarn{lane_num}                              = FLOAT         ; second order polarization mode dispersion in ps^2 (high warning)
+    soproc_hwarn{lane_num}                             = FLOAT         ; state of polarization rate of change in krad/s (high warning)
+    pdl_hwarn{lane_num}                                = FLOAT         ; polarization dependent loss in db (high warning)
+    osnr_hwarn{lane_num}                               = FLOAT         ; optical signal to noise ratio in db (high warning)
+    esnr_hwarn{lane_num}                               = FLOAT         ; electrical signal to noise ratio in db (high warning)
+    cfo_hwarn{lane_num}                                = FLOAT         ; carrier frequency offset in Hz (high warning)
+    txcurrpower_hwarn{lane_num}                        = FLOAT         ; tx current output power in dbm (high warning)
+    rxtotpower_hwarn{lane_num}                         = FLOAT         ; rx total power in  dbm (high warning)
+    rxsigpower_hwarn{lane_num}                         = FLOAT         ; rx signal power in dbm (high warning)
 ```
 
 ##### 2.2.2.4 Transceiver VDM low warning threshold data
@@ -500,24 +500,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_lwarn{lane_num}      = FLOAT          ; Errored frames current low warning value for host input
 
     ;C-CMIS specific fields
-    biasxi_lwarn                                       = FLOAT         ; modulator bias xi in percentage (low warning)
-    biasxq_lwarn                                       = FLOAT         ; modulator bias xq in percentage (low warning)
-    biasxp_lwarn                                       = FLOAT         ; modulator bias xp in percentage (low warning)
-    biasyi_lwarn                                       = FLOAT         ; modulator bias yi in percentage (low warning)
-    biasyq_lwarn                                       = FLOAT         ; modulator bias yq in percentage (low warning)
-    biasyp_lwarn                                       = FLOAT         ; modulator bias yq in percentage (low warning)
-    cdshort_lwarn                                      = FLOAT         ; chromatic dispersion, high granularity, short link in ps/nm (low warning)
-    cdlong_lwarn                                       = FLOAT         ; chromatic dispersion, high granularity, long link in ps/nm (low warning)
-    dgd_lwarn                                          = FLOAT         ; differential group delay in ps (low warning)
-    sopmd_lwarn                                        = FLOAT         ; second order polarization mode dispersion in ps^2 (low warning)
-    soproc_lwarn                                       = FLOAT         ; state of polarization rate of change in krad/s (low warning)
-    pdl_lwarn                                          = FLOAT         ; polarization dependent loss in db (low warning)
-    osnr_lwarn                                         = FLOAT         ; optical signal to noise ratio in db (low warning)
-    esnr_lwarn                                         = FLOAT         ; electrical signal to noise ratio in db (low warning)
-    cfo_lwarn                                          = FLOAT         ; carrier frequency offset in Hz (low warning)
-    txcurrpower_lwarn                                  = FLOAT         ; tx current output power in dbm (low warning)
-    rxtotpower_lwarn                                   = FLOAT         ; rx total power in  dbm (low warning)
-    rxsigpower_lwarn                                   = FLOAT         ; rx signal power in dbm (low warning)
+    biasxi_lwarn{lane_num}                             = FLOAT         ; modulator bias xi in percentage (low warning)
+    biasxq_lwarn{lane_num}                             = FLOAT         ; modulator bias xq in percentage (low warning)
+    biasxp_lwarn{lane_num}                             = FLOAT         ; modulator bias xp in percentage (low warning)
+    biasyi_lwarn{lane_num}                             = FLOAT         ; modulator bias yi in percentage (low warning)
+    biasyq_lwarn{lane_num}                             = FLOAT         ; modulator bias yq in percentage (low warning)
+    biasyp_lwarn{lane_num}                             = FLOAT         ; modulator bias yq in percentage (low warning)
+    cdshort_lwarn{lane_num}                            = FLOAT         ; chromatic dispersion, high granularity, short link in ps/nm (low warning)
+    cdlong_lwarn{lane_num}                             = FLOAT         ; chromatic dispersion, high granularity, long link in ps/nm (low warning)
+    dgd_lwarn{lane_num}                                = FLOAT         ; differential group delay in ps (low warning)
+    sopmd_lwarn{lane_num}                              = FLOAT         ; second order polarization mode dispersion in ps^2 (low warning)
+    soproc_lwarn{lane_num}                             = FLOAT         ; state of polarization rate of change in krad/s (low warning)
+    pdl_lwarn{lane_num}                                = FLOAT         ; polarization dependent loss in db (low warning)
+    osnr_lwarn{lane_num}                               = FLOAT         ; optical signal to noise ratio in db (low warning)
+    esnr_lwarn{lane_num}                               = FLOAT         ; electrical signal to noise ratio in db (low warning)
+    cfo_lwarn{lane_num}                                = FLOAT         ; carrier frequency offset in Hz (low warning)
+    txcurrpower_lwarn{lane_num}                        = FLOAT         ; tx current output power in dbm (low warning)
+    rxtotpower_lwarn{lane_num}                         = FLOAT         ; rx total power in  dbm (low warning)
+    rxsigpower_lwarn{lane_num}                         = FLOAT         ; rx signal power in dbm (low warning)
 ```
 
 #### 2.2.3 Transceiver VDM flag data
@@ -553,24 +553,24 @@ The `TRANSCEIVER_VDM_HALARM_FLAG` table stores the flag status for the VDM data.
     errored_frames_curr_host_input_halarm{lane_num}      = BOOLEAN ; Errored frames current high alarm flag for host input
 
     ;C-CMIS specific fields
-    biasxi_halarm                                        = BOOLEAN ; modulator bias xi in percentage (high alarm flag)
-    biasxq_halarm                                        = BOOLEAN ; modulator bias xq in percentage (high alarm flag)
-    biasxp_halarm                                        = BOOLEAN ; modulator bias xp in percentage (high alarm flag)
-    biasyi_halarm                                        = BOOLEAN ; modulator bias yi in percentage (high alarm flag)
-    biasyq_halarm                                        = BOOLEAN ; modulator bias yq in percentage (high alarm flag)
-    biasyp_halarm                                        = BOOLEAN ; modulator bias yq in percentage (high alarm flag)
-    cdshort_halarm                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (high alarm flag)
-    cdlong_halarm                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (high alarm flag)
-    dgd_halarm                                           = BOOLEAN ; differential group delay in ps (high alarm flag)
-    sopmd_halarm                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (high alarm flag)
-    soproc_halarm                                        = BOOLEAN ; state of polarization rate of change in krad/s (high alarm flag)
-    pdl_halarm                                           = BOOLEAN ; polarization dependent loss in db (high alarm flag)
-    osnr_halarm                                          = BOOLEAN ; optical signal to noise ratio in db (high alarm flag)
-    esnr_halarm                                          = BOOLEAN ; electrical signal to noise ratio in db (high alarm flag)
-    cfo_halarm                                           = BOOLEAN ; carrier frequency offset in Hz (high alarm flag)
-    txcurrpower_halarm                                   = BOOLEAN ; tx current output power in dbm (high alarm flag)
-    rxtotpower_halarm                                    = BOOLEAN ; rx total power in  dbm (high alarm flag)
-    rxsigpower_halarm                                    = BOOLEAN; rx signal power in dbm (high alarm flag)
+    biasxi_halarm{lane_num}                              = BOOLEAN ; modulator bias xi in percentage (high alarm flag)
+    biasxq_halarm{lane_num}                              = BOOLEAN ; modulator bias xq in percentage (high alarm flag)
+    biasxp_halarm{lane_num}                              = BOOLEAN ; modulator bias xp in percentage (high alarm flag)
+    biasyi_halarm{lane_num}                              = BOOLEAN ; modulator bias yi in percentage (high alarm flag)
+    biasyq_halarm{lane_num}                              = BOOLEAN ; modulator bias yq in percentage (high alarm flag)
+    biasyp_halarm{lane_num}                              = BOOLEAN ; modulator bias yq in percentage (high alarm flag)
+    cdshort_halarm{lane_num}                             = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (high alarm flag)
+    cdlong_halarm{lane_num}                              = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (high alarm flag)
+    dgd_halarm{lane_num}                                 = BOOLEAN ; differential group delay in ps (high alarm flag)
+    sopmd_halarm{lane_num}                               = BOOLEAN ; second order polarization mode dispersion in ps^2 (high alarm flag)
+    soproc_halarm{lane_num}                              = BOOLEAN ; state of polarization rate of change in krad/s (high alarm flag)
+    pdl_halarm{lane_num}                                 = BOOLEAN ; polarization dependent loss in db (high alarm flag)
+    osnr_halarm{lane_num}                                = BOOLEAN ; optical signal to noise ratio in db (high alarm flag)
+    esnr_halarm{lane_num}                                = BOOLEAN ; electrical signal to noise ratio in db (high alarm flag)
+    cfo_halarm{lane_num}                                 = BOOLEAN ; carrier frequency offset in Hz (high alarm flag)
+    txcurrpower_halarm{lane_num}                         = BOOLEAN ; tx current output power in dbm (high alarm flag)
+    rxtotpower_halarm{lane_num}                          = BOOLEAN ; rx total power in  dbm (high alarm flag)
+    rxsigpower_halarm{lane_num}                          = BOOLEAN; rx signal power in dbm (high alarm flag)
 ```
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
@@ -608,24 +608,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_lalarm{lane_num}      = BOOLEAN ; Errored frames current low alarm flag for host input
 
     ;C-CMIS specific fields
-    biasxi_lalarm                                        = BOOLEAN ; modulator bias xi in percentage (low alarm flag)
-    biasxq_lalarm                                        = BOOLEAN ; modulator bias xq in percentage (low alarm flag)
-    biasxp_lalarm                                        = BOOLEAN ; modulator bias xp in percentage (low alarm flag)
-    biasyi_lalarm                                        = BOOLEAN ; modulator bias yi in percentage (low alarm flag)
-    biasyq_lalarm                                        = BOOLEAN ; modulator bias yq in percentage (low alarm flag)
-    biasyp_lalarm                                        = BOOLEAN ; modulator bias yq in percentage (low alarm flag)
-    cdshort_lalarm                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (low alarm flag)
-    cdlong_lalarm                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (low alarm flag)
-    dgd_lalarm                                           = BOOLEAN ; differential group delay in ps (low alarm flag)
-    sopmd_lalarm                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (low alarm flag)
-    soproc_lalarm                                        = BOOLEAN ; state of polarization rate of change in krad/s (low alarm flag)
-    pdl_lalarm                                           = BOOLEAN ; polarization dependent loss in db (low alarm flag)
-    osnr_lalarm                                          = BOOLEAN ; optical signal to noise ratio in db (low alarm flag)
-    esnr_lalarm                                          = BOOLEAN ; electrical signal to noise ratio in db (low alarm flag)
-    cfo_lalarm                                           = BOOLEAN ; carrier frequency offset in Hz (low alarm flag)
-    txcurrpower_lalarm                                   = BOOLEAN ; tx current output power in dbm (low alarm flag)
-    rxtotpower_lalarm                                    = BOOLEAN ; rx total power in  dbm (low alarm flag)
-    rxsigpower_lalarm                                    = BOOLEAN; rx signal power in dbm (low alarm flag)
+    biasxi_lalarm{lane_num}                              = BOOLEAN ; modulator bias xi in percentage (low alarm flag)
+    biasxq_lalarm{lane_num}                              = BOOLEAN ; modulator bias xq in percentage (low alarm flag)
+    biasxp_lalarm{lane_num}                              = BOOLEAN ; modulator bias xp in percentage (low alarm flag)
+    biasyi_lalarm{lane_num}                              = BOOLEAN ; modulator bias yi in percentage (low alarm flag)
+    biasyq_lalarm{lane_num}                              = BOOLEAN ; modulator bias yq in percentage (low alarm flag)
+    biasyp_lalarm{lane_num}                              = BOOLEAN ; modulator bias yq in percentage (low alarm flag)
+    cdshort_lalarm{lane_num}                             = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (low alarm flag)
+    cdlong_lalarm{lane_num}                              = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (low alarm flag)
+    dgd_lalarm{lane_num}                                 = BOOLEAN ; differential group delay in ps (low alarm flag)
+    sopmd_lalarm{lane_num}                               = BOOLEAN ; second order polarization mode dispersion in ps^2 (low alarm flag)
+    soproc_lalarm{lane_num}                              = BOOLEAN ; state of polarization rate of change in krad/s (low alarm flag)
+    pdl_lalarm{lane_num}                                 = BOOLEAN ; polarization dependent loss in db (low alarm flag)
+    osnr_lalarm{lane_num}                                = BOOLEAN ; optical signal to noise ratio in db (low alarm flag)
+    esnr_lalarm{lane_num}                                = BOOLEAN ; electrical signal to noise ratio in db (low alarm flag)
+    cfo_lalarm{lane_num}                                 = BOOLEAN ; carrier frequency offset in Hz (low alarm flag)
+    txcurrpower_lalarm{lane_num}                         = BOOLEAN ; tx current output power in dbm (low alarm flag)
+    rxtotpower_lalarm{lane_num}                          = BOOLEAN ; rx total power in  dbm (low alarm flag)
+    rxsigpower_lalarm{lane_num}                          = BOOLEAN; rx signal power in dbm (low alarm flag)
 ```
 
 ##### 2.2.3.3 Transceiver VDM high warning flag data
@@ -661,24 +661,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_hwarn{lane_num}      = BOOLEAN ; Errored frames current high warning flag for host input
 
     ;C-CMIS specific fields
-    biasxi_hwarn                                        = BOOLEAN ; modulator bias xi in percentage (high warning flag)
-    biasxq_hwarn                                        = BOOLEAN ; modulator bias xq in percentage (high warning flag)
-    biasxp_hwarn                                        = BOOLEAN ; modulator bias xp in percentage (high warning flag)
-    biasyi_hwarn                                        = BOOLEAN ; modulator bias yi in percentage (high warning flag)
-    biasyq_hwarn                                        = BOOLEAN ; modulator bias yq in percentage (high warning flag)
-    biasyp_hwarn                                        = BOOLEAN ; modulator bias yq in percentage (high warning flag)
-    cdshort_hwarn                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (high warning flag)
-    cdlong_hwarn                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (high warning flag)
-    dgd_hwarn                                           = BOOLEAN ; differential group delay in ps (high warning flag)
-    sopmd_hwarn                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (high warning flag)
-    soproc_hwarn                                        = BOOLEAN ; state of polarization rate of change in krad/s (high warning flag)
-    pdl_hwarn                                           = BOOLEAN ; polarization dependent loss in db (high warning flag)
-    osnr_hwarn                                          = BOOLEAN ; optical signal to noise ratio in db (high warning flag)
-    esnr_hwarn                                          = BOOLEAN ; electrical signal to noise ratio in db (high warning flag)
-    cfo_hwarn                                           = BOOLEAN ; carrier frequency offset in Hz (high warning flag)
-    txcurrpower_hwarn                                   = BOOLEAN ; tx current output power in dbm (high warning flag)
-    rxtotpower_hwarn                                    = BOOLEAN ; rx total power in  dbm (high warning flag)
-    rxsigpower_hwarn                                    = BOOLEAN; rx signal power in dbm (high warning flag)
+    biasxi_hwarn{lane_num}                              = BOOLEAN ; modulator bias xi in percentage (high warning flag)
+    biasxq_hwarn{lane_num}                              = BOOLEAN ; modulator bias xq in percentage (high warning flag)
+    biasxp_hwarn{lane_num}                              = BOOLEAN ; modulator bias xp in percentage (high warning flag)
+    biasyi_hwarn{lane_num}                              = BOOLEAN ; modulator bias yi in percentage (high warning flag)
+    biasyq_hwarn{lane_num}                              = BOOLEAN ; modulator bias yq in percentage (high warning flag)
+    biasyp_hwarn{lane_num}                              = BOOLEAN ; modulator bias yq in percentage (high warning flag)
+    cdshort_hwarn{lane_num}                             = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (high warning flag)
+    cdlong_hwarn{lane_num}                              = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (high warning flag)
+    dgd_hwarn{lane_num}                                 = BOOLEAN ; differential group delay in ps (high warning flag)
+    sopmd_hwarn{lane_num}                               = BOOLEAN ; second order polarization mode dispersion in ps^2 (high warning flag)
+    soproc_hwarn{lane_num}                              = BOOLEAN ; state of polarization rate of change in krad/s (high warning flag)
+    pdl_hwarn{lane_num}                                 = BOOLEAN ; polarization dependent loss in db (high warning flag)
+    osnr_hwarn{lane_num}                                = BOOLEAN ; optical signal to noise ratio in db (high warning flag)
+    esnr_hwarn{lane_num}                                = BOOLEAN ; electrical signal to noise ratio in db (high warning flag)
+    cfo_hwarn{lane_num}                                 = BOOLEAN ; carrier frequency offset in Hz (high warning flag)
+    txcurrpower_hwarn{lane_num}                         = BOOLEAN ; tx current output power in dbm (high warning flag)
+    rxtotpower_hwarn{lane_num}                          = BOOLEAN ; rx total power in  dbm (high warning flag)
+    rxsigpower_hwarn{lane_num}                          = BOOLEAN; rx signal power in dbm (high warning flag)
 ```
 
 ##### 2.2.3.4 Transceiver VDM low warning flag data
@@ -714,24 +714,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_lwarn{lane_num}      = BOOLEAN ; Errored frames current low warning flag for host input
 
     ;C-CMIS specific fields
-    biasxi_lwarn                                        = BOOLEAN ; modulator bias xi in percentage (low warning flag)
-    biasxq_lwarn                                        = BOOLEAN ; modulator bias xq in percentage (low warning flag)
-    biasxp_lwarn                                        = BOOLEAN ; modulator bias xp in percentage (low warning flag)
-    biasyi_lwarn                                        = BOOLEAN ; modulator bias yi in percentage (low warning flag)
-    biasyq_lwarn                                        = BOOLEAN ; modulator bias yq in percentage (low warning flag)
-    biasyp_lwarn                                        = BOOLEAN ; modulator bias yq in percentage (low warning flag)
-    cdshort_lwarn                                       = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (low warning flag)
-    cdlong_lwarn                                        = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (low warning flag)
-    dgd_lwarn                                           = BOOLEAN ; differential group delay in ps (low warning flag)
-    sopmd_lwarn                                         = BOOLEAN ; second order polarization mode dispersion in ps^2 (low warning flag)
-    soproc_lwarn                                        = BOOLEAN ; state of polarization rate of change in krad/s (low warning flag)
-    pdl_lwarn                                           = BOOLEAN ; polarization dependent loss in db (low warning flag)
-    osnr_lwarn                                          = BOOLEAN ; optical signal to noise ratio in db (low warning flag)
-    esnr_lwarn                                          = BOOLEAN ; electrical signal to noise ratio in db (low warning flag)
-    cfo_lwarn                                           = BOOLEAN ; carrier frequency offset in Hz (low warning flag)
-    txcurrpower_lwarn                                   = BOOLEAN ; tx current output power in dbm (low warning flag)
-    rxtotpower_lwarn                                    = BOOLEAN ; rx total power in  dbm (low warning flag)
-    rxsigpower_lwarn                                    = BOOLEAN; rx signal power in dbm (low warning flag)
+    biasxi_lwarn{lane_num}                              = BOOLEAN ; modulator bias xi in percentage (low warning flag)
+    biasxq_lwarn{lane_num}                              = BOOLEAN ; modulator bias xq in percentage (low warning flag)
+    biasxp_lwarn{lane_num}                              = BOOLEAN ; modulator bias xp in percentage (low warning flag)
+    biasyi_lwarn{lane_num}                              = BOOLEAN ; modulator bias yi in percentage (low warning flag)
+    biasyq_lwarn{lane_num}                              = BOOLEAN ; modulator bias yq in percentage (low warning flag)
+    biasyp_lwarn{lane_num}                              = BOOLEAN ; modulator bias yq in percentage (low warning flag)
+    cdshort_lwarn{lane_num}                             = BOOLEAN ; chromatic dispersion, high granularity, short link in ps/nm (low warning flag)
+    cdlong_lwarn{lane_num}                              = BOOLEAN ; chromatic dispersion, high granularity, long link in ps/nm (low warning flag)
+    dgd_lwarn{lane_num}                                 = BOOLEAN ; differential group delay in ps (low warning flag)
+    sopmd_lwarn{lane_num}                               = BOOLEAN ; second order polarization mode dispersion in ps^2 (low warning flag)
+    soproc_lwarn{lane_num}                              = BOOLEAN ; state of polarization rate of change in krad/s (low warning flag)
+    pdl_lwarn{lane_num}                                 = BOOLEAN ; polarization dependent loss in db (low warning flag)
+    osnr_lwarn{lane_num}                                = BOOLEAN ; optical signal to noise ratio in db (low warning flag)
+    esnr_lwarn{lane_num}                                = BOOLEAN ; electrical signal to noise ratio in db (low warning flag)
+    cfo_lwarn{lane_num}                                 = BOOLEAN ; carrier frequency offset in Hz (low warning flag)
+    txcurrpower_lwarn{lane_num}                         = BOOLEAN ; tx current output power in dbm (low warning flag)
+    rxtotpower_lwarn{lane_num}                          = BOOLEAN ; rx total power in  dbm (low warning flag)
+    rxsigpower_lwarn{lane_num}                          = BOOLEAN; rx signal power in dbm (low warning flag)
 ```
 
 #### 2.2.4 Transceiver VDM flag change count data
@@ -769,24 +769,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_halarm{lane_num}      = INTEGER ; Errored frames current high alarm flag change count for host input
 
     ;C-CMIS specific fields
-    biasxi_halarm                                        = INTEGER ; modulator bias xi in percentage (high alarm flag change count)
-    biasxq_halarm                                        = INTEGER ; modulator bias xq in percentage (high alarm flag change count)
-    biasxp_halarm                                        = INTEGER ; modulator bias xp in percentage (high alarm flag change count)
-    biasyi_halarm                                        = INTEGER ; modulator bias yi in percentage (high alarm flag change count)
-    biasyq_halarm                                        = INTEGER ; modulator bias yq in percentage (high alarm flag change count)
-    biasyp_halarm                                        = INTEGER ; modulator bias yq in percentage (high alarm flag change count)
-    cdshort_halarm                                       = INTEGER ; chromatic dispersion, high granularity, short link in ps/nm (high alarm flag change count)
-    cdlong_halarm                                        = INTEGER ; chromatic dispersion, high granularity, long link in ps/nm (high alarm flag change count)
-    dgd_halarm                                           = INTEGER ; differential group delay in ps (high alarm flag change count)
-    sopmd_halarm                                         = INTEGER ; second order polarization mode dispersion in ps^2 (high alarm flag change count)
-    soproc_halarm                                        = INTEGER ; state of polarization rate of change in krad/s (high alarm flag change count)
-    pdl_halarm                                           = INTEGER ; polarization dependent loss in db (high alarm flag change count)
-    osnr_halarm                                          = INTEGER ; optical signal to noise ratio in db (high alarm flag change count)
-    esnr_halarm                                          = INTEGER ; electrical signal to noise ratio in db (high alarm flag change count)
-    cfo_halarm                                           = INTEGER ; carrier frequency offset in Hz (high alarm flag change count)
-    txcurrpower_halarm                                   = INTEGER ; tx current output power in dbm (high alarm flag change count)
-    rxtotpower_halarm                                    = INTEGER ; rx total power in  dbm (high alarm flag change count)
-    rxsigpower_halarm                                    = INTEGER; rx signal power in dbm (high alarm flag change count)
+    biasxi_halarm{lane_num}                              = INTEGER ; modulator bias xi in percentage (high alarm flag change count)
+    biasxq_halarm{lane_num}                              = INTEGER ; modulator bias xq in percentage (high alarm flag change count)
+    biasxp_halarm{lane_num}                              = INTEGER ; modulator bias xp in percentage (high alarm flag change count)
+    biasyi_halarm{lane_num}                              = INTEGER ; modulator bias yi in percentage (high alarm flag change count)
+    biasyq_halarm{lane_num}                              = INTEGER ; modulator bias yq in percentage (high alarm flag change count)
+    biasyp_halarm{lane_num}                              = INTEGER ; modulator bias yq in percentage (high alarm flag change count)
+    cdshort_halarm{lane_num}                             = INTEGER ; chromatic dispersion, high granularity, short link in ps/nm (high alarm flag change count)
+    cdlong_halarm{lane_num}                              = INTEGER ; chromatic dispersion, high granularity, long link in ps/nm (high alarm flag change count)
+    dgd_halarm{lane_num}                                 = INTEGER ; differential group delay in ps (high alarm flag change count)
+    sopmd_halarm{lane_num}                               = INTEGER ; second order polarization mode dispersion in ps^2 (high alarm flag change count)
+    soproc_halarm{lane_num}                              = INTEGER ; state of polarization rate of change in krad/s (high alarm flag change count)
+    pdl_halarm{lane_num}                                 = INTEGER ; polarization dependent loss in db (high alarm flag change count)
+    osnr_halarm{lane_num}                                = INTEGER ; optical signal to noise ratio in db (high alarm flag change count)
+    esnr_halarm{lane_num}                                = INTEGER ; electrical signal to noise ratio in db (high alarm flag change count)
+    cfo_halarm{lane_num}                                 = INTEGER ; carrier frequency offset in Hz (high alarm flag change count)
+    txcurrpower_halarm{lane_num}                         = INTEGER ; tx current output power in dbm (high alarm flag change count)
+    rxtotpower_halarm{lane_num}                          = INTEGER ; rx total power in  dbm (high alarm flag change count)
+    rxsigpower_halarm{lane_num}                          = INTEGER; rx signal power in dbm (high alarm flag change count)
 ```
 
 ##### 2.2.4.2 Transceiver VDM low alarm flag change count data
@@ -822,24 +822,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_lalarm{lane_num}      = INTEGER ; Errored frames current low alarm flag change count for host input
 
     ;C-CMIS specific fields
-    biasxi_lalarm                                        = INTEGER ; modulator bias xi in percentage (low alarm flag change count)
-    biasxq_lalarm                                        = INTEGER ; modulator bias xq in percentage (low alarm flag change count)
-    biasxp_lalarm                                        = INTEGER ; modulator bias xp in percentage (low alarm flag change count)
-    biasyi_lalarm                                        = INTEGER ; modulator bias yi in percentage (low alarm flag change count)
-    biasyq_lalarm                                        = INTEGER ; modulator bias yq in percentage (low alarm flag change count)
-    biasyp_lalarm                                        = INTEGER ; modulator bias yq in percentage (low alarm flag change count)
-    cdshort_lalarm                                       = INTEGER ; chromatic dispersion, low granularity, short link in ps/nm (low alarm flag change count)
-    cdlong_lalarm                                        = INTEGER ; chromatic dispersion, low granularity, long link in ps/nm (low alarm flag change count)
-    dgd_lalarm                                           = INTEGER ; differential group delay in ps (low alarm flag change count)
-    sopmd_lalarm                                         = INTEGER ; second order polarization mode dispersion in ps^2 (low alarm flag change count)
-    soproc_lalarm                                        = INTEGER ; state of polarization rate of change in krad/s (low alarm flag change count)
-    pdl_lalarm                                           = INTEGER ; polarization dependent loss in db (low alarm flag change count)
-    osnr_lalarm                                          = INTEGER ; optical signal to noise ratio in db (low alarm flag change count)
-    esnr_lalarm                                          = INTEGER ; electrical signal to noise ratio in db (low alarm flag change count)
-    cfo_lalarm                                           = INTEGER ; carrier frequency offset in Hz (low alarm flag change count)
-    txcurrpower_lalarm                                   = INTEGER ; tx current output power in dbm (low alarm flag change count)
-    rxtotpower_lalarm                                    = INTEGER ; rx total power in  dbm (low alarm flag change count)
-    rxsigpower_lalarm                                    = INTEGER; rx signal power in dbm (low alarm flag change count)
+    biasxi_lalarm{lane_num}                              = INTEGER ; modulator bias xi in percentage (low alarm flag change count)
+    biasxq_lalarm{lane_num}                              = INTEGER ; modulator bias xq in percentage (low alarm flag change count)
+    biasxp_lalarm{lane_num}                              = INTEGER ; modulator bias xp in percentage (low alarm flag change count)
+    biasyi_lalarm{lane_num}                              = INTEGER ; modulator bias yi in percentage (low alarm flag change count)
+    biasyq_lalarm{lane_num}                              = INTEGER ; modulator bias yq in percentage (low alarm flag change count)
+    biasyp_lalarm{lane_num}                              = INTEGER ; modulator bias yq in percentage (low alarm flag change count)
+    cdshort_lalarm{lane_num}                             = INTEGER ; chromatic dispersion, low granularity, short link in ps/nm (low alarm flag change count)
+    cdlong_lalarm{lane_num}                              = INTEGER ; chromatic dispersion, low granularity, long link in ps/nm (low alarm flag change count)
+    dgd_lalarm{lane_num}                                 = INTEGER ; differential group delay in ps (low alarm flag change count)
+    sopmd_lalarm{lane_num}                               = INTEGER ; second order polarization mode dispersion in ps^2 (low alarm flag change count)
+    soproc_lalarm{lane_num}                              = INTEGER ; state of polarization rate of change in krad/s (low alarm flag change count)
+    pdl_lalarm{lane_num}                                 = INTEGER ; polarization dependent loss in db (low alarm flag change count)
+    osnr_lalarm{lane_num}                                = INTEGER ; optical signal to noise ratio in db (low alarm flag change count)
+    esnr_lalarm{lane_num}                                = INTEGER ; electrical signal to noise ratio in db (low alarm flag change count)
+    cfo_lalarm{lane_num}                                 = INTEGER ; carrier frequency offset in Hz (low alarm flag change count)
+    txcurrpower_lalarm{lane_num}                         = INTEGER ; tx current output power in dbm (low alarm flag change count)
+    rxtotpower_lalarm{lane_num}                          = INTEGER ; rx total power in  dbm (low alarm flag change count)
+    rxsigpower_lalarm{lane_num}                          = INTEGER; rx signal power in dbm (low alarm flag change count)
 ```
 
 ##### 2.2.4.3 Transceiver VDM high warning flag change count data
@@ -983,24 +983,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_halarm{lane_num}      = STR ; Errored frames current high alarm last set time for host input
 
     ;C-CMIS specific fields
-    biasxi_halarm                                        = STR ; modulator bias xi in percentage (high alarm last set time)
-    biasxq_halarm                                        = STR ; modulator bias xq in percentage (high alarm last set time)
-    biasxp_halarm                                        = STR ; modulator bias xp in percentage (high alarm last set time)
-    biasyi_halarm                                        = STR ; modulator bias yi in percentage (high alarm last set time)
-    biasyq_halarm                                        = STR ; modulator bias yq in percentage (high alarm last set time)
-    biasyp_halarm                                        = STR ; modulator bias yq in percentage (high alarm last set time)
-    cdshort_halarm                                       = STR ; chromatic dispersion, high granularity, short link in ps/nm (high alarm last set time)
-    cdlong_halarm                                        = STR ; chromatic dispersion, high granularity, long link in ps/nm (high alarm last set time)
-    dgd_halarm                                           = STR ; differential group delay in ps (high alarm last set time)
-    sopmd_halarm                                         = STR ; second order polarization mode dispersion in ps^2 (high alarm last set time)
-    soproc_halarm                                        = STR ; state of polarization rate of change in krad/s (high alarm last set time)
-    pdl_halarm                                           = STR ; polarization dependent loss in db (high alarm last set time)
-    osnr_halarm                                          = STR ; optical signal to noise ratio in db (high alarm last set time)
-    esnr_halarm                                          = STR ; electrical signal to noise ratio in db (high alarm last set time)
-    cfo_halarm                                           = STR ; carrier frequency offset in Hz (high alarm last set time)
-    txcurrpower_halarm                                   = STR ; tx current output power in dbm (high alarm last set time)
-    rxtotpower_halarm                                    = STR ; rx total power in  dbm (high alarm last set time)
-    rxsigpower_halarm                                    = STR; rx signal power in dbm (high alarm last set time)
+    biasxi_halarm{lane_num}                              = STR ; modulator bias xi in percentage (high alarm last set time)
+    biasxq_halarm{lane_num}                              = STR ; modulator bias xq in percentage (high alarm last set time)
+    biasxp_halarm{lane_num}                              = STR ; modulator bias xp in percentage (high alarm last set time)
+    biasyi_halarm{lane_num}                              = STR ; modulator bias yi in percentage (high alarm last set time)
+    biasyq_halarm{lane_num}                              = STR ; modulator bias yq in percentage (high alarm last set time)
+    biasyp_halarm{lane_num}                              = STR ; modulator bias yq in percentage (high alarm last set time)
+    cdshort_halarm{lane_num}                             = STR ; chromatic dispersion, high granularity, short link in ps/nm (high alarm last set time)
+    cdlong_halarm{lane_num}                              = STR ; chromatic dispersion, high granularity, long link in ps/nm (high alarm last set time)
+    dgd_halarm{lane_num}                                 = STR ; differential group delay in ps (high alarm last set time)
+    sopmd_halarm{lane_num}                               = STR ; second order polarization mode dispersion in ps^2 (high alarm last set time)
+    soproc_halarm{lane_num}                              = STR ; state of polarization rate of change in krad/s (high alarm last set time)
+    pdl_halarm{lane_num}                                 = STR ; polarization dependent loss in db (high alarm last set time)
+    osnr_halarm{lane_num}                                = STR ; optical signal to noise ratio in db (high alarm last set time)
+    esnr_halarm{lane_num}                                = STR ; electrical signal to noise ratio in db (high alarm last set time)
+    cfo_halarm{lane_num}                                 = STR ; carrier frequency offset in Hz (high alarm last set time)
+    txcurrpower_halarm{lane_num}                         = STR ; tx current output power in dbm (high alarm last set time)
+    rxtotpower_halarm{lane_num}                          = STR ; rx total power in  dbm (high alarm last set time)
+    rxsigpower_halarm{lane_num}                          = STR; rx signal power in dbm (high alarm last set time)
 ```
 
 ##### 2.2.5.2 Transceiver VDM low alarm flag time set data
@@ -1036,24 +1036,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_lalarm{lane_num}      = STR ; Errored frames current low alarm last set time for host input
 
     ;C-CMIS specific fields
-    biasxi_lalarm                                        = STR ; modulator bias xi in percentage (low alarm last set time)
-    biasxq_lalarm                                        = STR ; modulator bias xq in percentage (low alarm last set time)
-    biasxp_lalarm                                        = STR ; modulator bias xp in percentage (low alarm last set time)
-    biasyi_lalarm                                        = STR ; modulator bias yi in percentage (low alarm last set time)
-    biasyq_lalarm                                        = STR ; modulator bias yq in percentage (low alarm last set time)
-    biasyp_lalarm                                        = STR ; modulator bias yq in percentage (low alarm last set time)
-    cdshort_lalarm                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low alarm last set time)
-    cdlong_lalarm                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low alarm last set time)
-    dgd_lalarm                                           = STR ; differential group delay in ps (low alarm last set time)
-    sopmd_lalarm                                         = STR ; second order polarization mode dispersion in ps^2 (low alarm last set time)
-    soproc_lalarm                                        = STR ; state of polarization rate of change in krad/s (low alarm last set time)
-    pdl_lalarm                                           = STR ; polarization dependent loss in db (low alarm last set time)
-    osnr_lalarm                                          = STR ; optical signal to noise ratio in db (low alarm last set time)
-    esnr_lalarm                                          = STR ; electrical signal to noise ratio in db (low alarm last set time)
-    cfo_lalarm                                           = STR ; carrier frequency offset in Hz (low alarm last set time)
-    txcurrpower_lalarm                                   = STR ; tx current output power in dbm (low alarm last set time)
-    rxtotpower_lalarm                                    = STR ; rx total power in  dbm (low alarm last set time)
-    rxsigpower_lalarm                                    = STR; rx signal power in dbm (low alarm last set time)
+    biasxi_lalarm{lane_num}                              = STR ; modulator bias xi in percentage (low alarm last set time)
+    biasxq_lalarm{lane_num}                              = STR ; modulator bias xq in percentage (low alarm last set time)
+    biasxp_lalarm{lane_num}                              = STR ; modulator bias xp in percentage (low alarm last set time)
+    biasyi_lalarm{lane_num}                              = STR ; modulator bias yi in percentage (low alarm last set time)
+    biasyq_lalarm{lane_num}                              = STR ; modulator bias yq in percentage (low alarm last set time)
+    biasyp_lalarm{lane_num}                              = STR ; modulator bias yq in percentage (low alarm last set time)
+    cdshort_lalarm{lane_num}                             = STR ; chromatic dispersion, low granularity, short link in ps/nm (low alarm last set time)
+    cdlong_lalarm{lane_num}                              = STR ; chromatic dispersion, low granularity, long link in ps/nm (low alarm last set time)
+    dgd_lalarm{lane_num}                                 = STR ; differential group delay in ps (low alarm last set time)
+    sopmd_lalarm{lane_num}                               = STR ; second order polarization mode dispersion in ps^2 (low alarm last set time)
+    soproc_lalarm{lane_num}                              = STR ; state of polarization rate of change in krad/s (low alarm last set time)
+    pdl_lalarm{lane_num}                                 = STR ; polarization dependent loss in db (low alarm last set time)
+    osnr_lalarm{lane_num}                                = STR ; optical signal to noise ratio in db (low alarm last set time)
+    esnr_lalarm{lane_num}                                = STR ; electrical signal to noise ratio in db (low alarm last set time)
+    cfo_lalarm{lane_num}                                 = STR ; carrier frequency offset in Hz (low alarm last set time)
+    txcurrpower_lalarm{lane_num}                         = STR ; tx current output power in dbm (low alarm last set time)
+    rxtotpower_lalarm{lane_num}                          = STR ; rx total power in  dbm (low alarm last set time)
+    rxsigpower_lalarm{lane_num}                          = STR; rx signal power in dbm (low alarm last set time)
 ```
 
 ##### 2.2.5.3 Transceiver VDM high warning flag time set data
@@ -1197,24 +1197,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_halarm{lane_num}      = STR ; Errored frames current high alarm last clear time for host input
 
     ;C-CMIS specific fields
-    biasxi_halarm                                        = STR ; modulator bias xi in percentage (high alarm last clear time)
-    biasxq_halarm                                        = STR ; modulator bias xq in percentage (high alarm last clear time)
-    biasxp_halarm                                        = STR ; modulator bias xp in percentage (high alarm last clear time)
-    biasyi_halarm                                        = STR ; modulator bias yi in percentage (high alarm last clear time)
-    biasyq_halarm                                        = STR ; modulator bias yq in percentage (high alarm last clear time)
-    biasyp_halarm                                        = STR ; modulator bias yq in percentage (high alarm last clear time)
-    cdshort_halarm                                       = STR ; chromatic dispersion, high granularity, short link in ps/nm (high alarm last clear time)
-    cdlong_halarm                                        = STR ; chromatic dispersion, high granularity, long link in ps/nm (high alarm last clear time)
-    dgd_halarm                                           = STR ; differential group delay in ps (high alarm last clear time)
-    sopmd_halarm                                         = STR ; second order polarization mode dispersion in ps^2 (high alarm last clear time)
-    soproc_halarm                                        = STR ; state of polarization rate of change in krad/s (high alarm last clear time)
-    pdl_halarm                                           = STR ; polarization dependent loss in db (high alarm last clear time)
-    osnr_halarm                                          = STR ; optical signal to noise ratio in db (high alarm last clear time)
-    esnr_halarm                                          = STR ; electrical signal to noise ratio in db (high alarm last clear time)
-    cfo_halarm                                           = STR ; carrier frequency offset in Hz (high alarm last clear time)
-    txcurrpower_halarm                                   = STR ; tx current output power in dbm (high alarm last clear time)
-    rxtotpower_halarm                                    = STR ; rx total power in  dbm (high alarm last clear time)
-    rxsigpower_halarm                                    = STR; rx signal power in dbm (high alarm last clear time)
+    biasxi_halarm{lane_num}                              = STR ; modulator bias xi in percentage (high alarm last clear time)
+    biasxq_halarm{lane_num}                              = STR ; modulator bias xq in percentage (high alarm last clear time)
+    biasxp_halarm{lane_num}                              = STR ; modulator bias xp in percentage (high alarm last clear time)
+    biasyi_halarm{lane_num}                              = STR ; modulator bias yi in percentage (high alarm last clear time)
+    biasyq_halarm{lane_num}                              = STR ; modulator bias yq in percentage (high alarm last clear time)
+    biasyp_halarm{lane_num}                              = STR ; modulator bias yq in percentage (high alarm last clear time)
+    cdshort_halarm{lane_num}                             = STR ; chromatic dispersion, high granularity, short link in ps/nm (high alarm last clear time)
+    cdlong_halarm{lane_num}                              = STR ; chromatic dispersion, high granularity, long link in ps/nm (high alarm last clear time)
+    dgd_halarm{lane_num}                                 = STR ; differential group delay in ps (high alarm last clear time)
+    sopmd_halarm{lane_num}                               = STR ; second order polarization mode dispersion in ps^2 (high alarm last clear time)
+    soproc_halarm{lane_num}                              = STR ; state of polarization rate of change in krad/s (high alarm last clear time)
+    pdl_halarm{lane_num}                                 = STR ; polarization dependent loss in db (high alarm last clear time)
+    osnr_halarm{lane_num}                                = STR ; optical signal to noise ratio in db (high alarm last clear time)
+    esnr_halarm{lane_num}                                = STR ; electrical signal to noise ratio in db (high alarm last clear time)
+    cfo_halarm{lane_num}                                 = STR ; carrier frequency offset in Hz (high alarm last clear time)
+    txcurrpower_halarm{lane_num}                         = STR ; tx current output power in dbm (high alarm last clear time)
+    rxtotpower_halarm{lane_num}                          = STR ; rx total power in  dbm (high alarm last clear time)
+    rxsigpower_halarm{lane_num}                          = STR; rx signal power in dbm (high alarm last clear time)
 ```
 
 ##### 2.2.6.2 Transceiver VDM low alarm flag time clear data
@@ -1250,24 +1250,24 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     errored_frames_curr_host_input_lalarm{lane_num}      = STR ; Errored frames current low alarm last clear time for host input
 
     ;C-CMIS specific fields
-    biasxi_lalarm                                        = STR ; modulator bias xi in percentage (low alarm last clear time)
-    biasxq_lalarm                                        = STR ; modulator bias xq in percentage (low alarm last clear time)
-    biasxp_lalarm                                        = STR ; modulator bias xp in percentage (low alarm last clear time)
-    biasyi_lalarm                                        = STR ; modulator bias yi in percentage (low alarm last clear time)
-    biasyq_lalarm                                        = STR ; modulator bias yq in percentage (low alarm last clear time)
-    biasyp_lalarm                                        = STR ; modulator bias yq in percentage (low alarm last clear time)
-    cdshort_lalarm                                       = STR ; chromatic dispersion, low granularity, short link in ps/nm (low alarm last clear time)
-    cdlong_lalarm                                        = STR ; chromatic dispersion, low granularity, long link in ps/nm (low alarm last clear time)
-    dgd_lalarm                                           = STR ; differential group delay in ps (low alarm last clear time)
-    sopmd_lalarm                                         = STR ; second order polarization mode dispersion in ps^2 (low alarm last clear time)
-    soproc_lalarm                                        = STR ; state of polarization rate of change in krad/s (low alarm last clear time)
-    pdl_lalarm                                           = STR ; polarization dependent loss in db (low alarm last clear time)
-    osnr_lalarm                                          = STR ; optical signal to noise ratio in db (low alarm last clear time)
-    esnr_lalarm                                          = STR ; electrical signal to noise ratio in db (low alarm last clear time)
-    cfo_lalarm                                           = STR ; carrier frequency offset in Hz (low alarm last clear time)
-    txcurrpower_lalarm                                   = STR ; tx current output power in dbm (low alarm last clear time)
-    rxtotpower_lalarm                                    = STR ; rx total power in  dbm (low alarm last clear time)
-    rxsigpower_lalarm                                    = STR; rx signal power in dbm (low alarm last clear time)
+    biasxi_lalarm{lane_num}                              = STR ; modulator bias xi in percentage (low alarm last clear time)
+    biasxq_lalarm{lane_num}                              = STR ; modulator bias xq in percentage (low alarm last clear time)
+    biasxp_lalarm{lane_num}                              = STR ; modulator bias xp in percentage (low alarm last clear time)
+    biasyi_lalarm{lane_num}                              = STR ; modulator bias yi in percentage (low alarm last clear time)
+    biasyq_lalarm{lane_num}                              = STR ; modulator bias yq in percentage (low alarm last clear time)
+    biasyp_lalarm{lane_num}                              = STR ; modulator bias yq in percentage (low alarm last clear time)
+    cdshort_lalarm{lane_num}                             = STR ; chromatic dispersion, low granularity, short link in ps/nm (low alarm last clear time)
+    cdlong_lalarm{lane_num}                              = STR ; chromatic dispersion, low granularity, long link in ps/nm (low alarm last clear time)
+    dgd_lalarm{lane_num}                                 = STR ; differential group delay in ps (low alarm last clear time)
+    sopmd_lalarm{lane_num}                               = STR ; second order polarization mode dispersion in ps^2 (low alarm last clear time)
+    soproc_lalarm{lane_num}                              = STR ; state of polarization rate of change in krad/s (low alarm last clear time)
+    pdl_lalarm{lane_num}                                 = STR ; polarization dependent loss in db (low alarm last clear time)
+    osnr_lalarm{lane_num}                                = STR ; optical signal to noise ratio in db (low alarm last clear time)
+    esnr_lalarm{lane_num}                                = STR ; electrical signal to noise ratio in db (low alarm last clear time)
+    cfo_lalarm{lane_num}                                 = STR ; carrier frequency offset in Hz (low alarm last clear time)
+    txcurrpower_lalarm{lane_num}                         = STR ; tx current output power in dbm (low alarm last clear time)
+    rxtotpower_lalarm{lane_num}                          = STR ; rx total power in  dbm (low alarm last clear time)
+    rxsigpower_lalarm{lane_num}                          = STR; rx signal power in dbm (low alarm last clear time)
 ```
 
 ##### 2.2.6.3 Transceiver VDM high warning flag time clear data
@@ -1570,69 +1570,67 @@ This CLI shows the transceiver DOM and threshold values for a given port.
 
 ```plaintext
 CLI output format:
-LX - Represents the data for the lane number X
 Current System Time: Day Mon DD HH:MM:SS YYYY
 Update interval: SS seconds
 Last updated: Day Mon DD HH:MM:SS YYYY
 
-                              High Alarm   High Warning   Low Warning   Low Alarm
-             Paramter_Name    Threshold    Threshold      Threshold     Threshold
-Port         (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
------------  ---------------  --------     --------       --------      --------
+                                     High Alarm   High Warning   Low Warning   Low Alarm
+                    Paramter_Name    Threshold    Threshold      Threshold     Threshold
+Port         Lane   (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
+-----------  -----  ---------------  --------     --------       --------      --------
 
 Example:
 admin@sonic#show interfaces transceiver dom Ethernet1
-LX - Represents the data for the lane number X
 Current System Time: Wed Oct 17 03:46:41 2024
 Update interval: 10 seconds
 Last updated: Wed Oct 17 03:46:41 2024
 
-                              High Alarm   High Warning   Low Warning   Low Alarm
-             Temperature      Threshold    Threshold      Threshold     Threshold
-Port         (Celsius)        (Celsius)    (Celsius)      (Celsius)     (Celsius)
------------  ---------------  --------     --------       --------      --------
-Ethernet1    50              90           80             -10            -20
-                              High Alarm   High Warning   Low Warning   Low Alarm
-             Voltage          Threshold    Threshold      Threshold     Threshold
-Port         (Volts)          (Volts)      (Volts)        (Volts)       (Volts)
------------  ---------------  --------     --------       --------      --------
-Ethernet1    3.295            3.6          3.465           3.135        3.105
-             Tx Bias          High Alarm   High Warning   Low Warning   Low Alarm
-             Current          Threshold    Threshold      Threshold     Threshold
-Port         (mA)             (mA)         (mA)           (mA)          (mA)
------------  ---------------  --------     --------       --------      --------
-Ethernet1    L1 - 106.952     340.0        320.0          60.0          50.0
-             L2 - 106.952     340.0        320.0          60.0          50.0
-             L3 - 106.952     340.0        320.0          60.0          50.0
-             L4 - 106.952     340.0        320.0          60.0          50.0
-             L5 - 106.952     340.0        320.0          60.0          50.0
-             L6 - 106.952     340.0        320.0          60.0          50.0
-             L7 - 106.952     340.0        320.0          60.0          50.0
-             L8 - 106.952     340.0        320.0          60.0          50.0
-                              High Alarm   High Warning   Low Warning   Low Alarm
-             TX Power         Threshold    Threshold      Threshold     Threshold
-Port         (dBm)            (dBm)        (dBm)          (dBm)         (dBm)
------------  ---------------  --------     --------       --------      --------
-Ethernet1    L1 - 2.929       6.0          5.0            -10           -20.202
-             L2 - 2.929       6.0          5.0            -10           -20.202
-             L3 - 2.929       6.0          5.0            -10           -20.202
-             L4 - 2.929       6.0          5.0            -10           -20.202
-             L5 - 2.929       6.0          5.0            -10           -20.202
-             L6 - 2.929       6.0          5.0            -10           -20.202
-             L7 - 2.929       6.0          5.0            -10           -20.202
-             L8 - 2.929       6.0          5.0            -10           -20.202
-                              High Alarm   High Warning   Low Warning   Low Alarm
-             RX Power         Threshold    Threshold      Threshold     Threshold
-Port         (dBm)            (dBm)        (dBm)          (dBm)         (dBm)
------------  ---------------  --------     --------       --------      --------
-Ethernet1    L1 - 2.01        4.5           3.0           -3.903        -4.903
-             L2 - 2.01        4.5           3.0           -3.903        -4.903
-             L3 - 2.01        4.5           3.0           -3.903        -4.903
-             L4 - 2.01        4.5           3.0           -3.903        -4.903
-             L5 - 2.01        4.5           3.0           -3.903        -4.903
-             L6 - 2.01        4.5           3.0           -3.903        -4.903
-             L7 - 2.01        4.5           3.0           -3.903        -4.903
-             L8 - 2.01        4.5           3.0           -3.903        -4.903
+                                     High Alarm   High Warning   Low Warning   Low Alarm
+                    Temperature      Threshold    Threshold      Threshold     Threshold
+Port         Lane   (Celsius)        (Celsius)    (Celsius)      (Celsius)     (Celsius)
+-----------  -----  ---------------  --------     --------       --------      --------
+Ethernet1    N/A    50              90           80             -10           -20
+                                     High Alarm   High Warning   Low Warning   Low Alarm
+                    Temperature      Threshold    Threshold      Threshold     Threshold
+Port         Lane   (Celsius)        (Celsius)    (Celsius)      (Celsius)     (Celsius)
+-----------  -----  ---------------  --------     --------       --------      --------
+Ethernet1    N/A    3.295            3.6          3.465           3.135        3.105
+                    Tx Bias          High Alarm   High Warning   Low Warning   Low Alarm
+                    Current          Threshold    Threshold      Threshold     Threshold
+Port         Lane   (mA)             (mA)         (mA)           (mA)          (mA)
+-----------  -----  ---------------  --------     --------       --------      --------
+Ethernet1    1      106.952          340.0        320.0          60.0          50.0
+             2      106.952          340.0        320.0          60.0          50.0
+             3      106.952          340.0        320.0          60.0          50.0
+             4      106.952          340.0        320.0          60.0          50.0
+             5      106.952          340.0        320.0          60.0          50.0
+             6      106.952          340.0        320.0          60.0          50.0
+             7      106.952          340.0        320.0          60.0          50.0
+             8      106.952          340.0        320.0          60.0          50.0
+                                     High Alarm   High Warning   Low Warning   Low Alarm
+                    TX Power         Threshold    Threshold      Threshold     Threshold
+Port         Lane   (dBm)            (dBm)        (dBm)          (dBm)         (dBm)
+-----------  -----  ---------------  --------     --------       --------      --------
+Ethernet1    1      2.929            6.0          5.0            -10           -20.202
+             2      2.929            6.0          5.0            -10           -20.202
+             3      2.929            6.0          5.0            -10           -20.202
+             4      2.929            6.0          5.0            -10           -20.202
+             5      2.929            6.0          5.0            -10           -20.202
+             6      2.929            6.0          5.0            -10           -20.202
+             7      2.929            6.0          5.0            -10           -20.202
+             8      2.929            6.0          5.0            -10           -20.202
+                                       High Alarm   High Warning   Low Warning   Low Alarm
+                      RX Power         Threshold    Threshold      Threshold     Threshold
+Port         Lane     (dBm)            (dBm)        (dBm)          (dBm)         (dBm)
+-----------  -----    ---------------  --------     --------       --------      --------
+Ethernet1    1        2.01             4.5           3.0           -3.903        -4.903
+             2        2.01             4.5           3.0           -3.903        -4.903
+             3        2.01             4.5           3.0           -3.903        -4.903
+             4        2.01             4.5           3.0           -3.903        -4.903
+             5        2.01             4.5           3.0           -3.903        -4.903
+             6        2.01             4.5           3.0           -3.903        -4.903
+             7        2.01             4.5           3.0           -3.903        -4.903
+             8        2.01             4.5           3.0           -3.903        -4.903
                               High Alarm   High Warning   Low Warning   Low Alarm
              Laser Temp       Threshold    Threshold      Threshold     Threshold
 Port         (Celsius)        (Celsius)    (Celsius)      (Celsius)     (Celsius)
@@ -1660,7 +1658,6 @@ This CLI shows the transceiver DOM flags for a given port.
 
 ```plaintext
 CLI output format:
-LX - Represents the data for the lane number X
 Current System Time: Day Mon DD HH:MM:SS YYYY
 Update interval: SS seconds
 Last updated: Day Mon DD HH:MM:SS YYYY
@@ -1673,7 +1670,6 @@ Port         Parameter_Name   Last Clear Time            Last Clear Time        
 
 Example:
 admin@sonic#show interfaces transceiver dom flag Ethernet1
-LX - Represents the data for the lane number X
 Current System Time: Wed Oct 17 03:46:41 2024
 Update interval: 10 seconds
 Last updated: Wed Oct 17 03:46:41 2024
@@ -1693,99 +1689,99 @@ Ethernet1    Voltage          False/                     False/                 
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
-             L1               0/                         0/                         0/                         0/
+             Lane 1           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
-             L2               0/                         0/                         0/                         0/
+             Lane 2           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
-             L3               0/                         0/                         0/                         0/
+             Lane 3           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
-             L4               0/                         0/                         0/                         0/
+             Lane 4           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
-             L5               0/                         0/                         0/                         0/
+             Lane 5           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
-             L6               0/                         0/                         0/                         0/
+             Lane 6           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
-             L7               0/                         0/                         0/                         0/
+             Lane 7           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Bias Current  False/                     False/                     False/                     False/
-             L8               0/                         0/                         0/                         0/
+             Lane 8           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Power         False/                     False/                     False/                     False/
-             L1               0/                         0/                         0/                         0/
+             Lane 1           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Power         False/                     False/                     False/                     False/
-             L2               0/                         0/                         0/                         0/
+             Lane 2           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Power         False/                     False/                     False/                     False/
-             L3               0/                         0/                         0/                         0/
+             Lane 3           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Power         False/                     False/                     False/                     False/
-             L4               0/                         0/                         0/                         0/
+             Lane 4           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Power         False/                     False/                     False/                     False/
-             L5               0/                         0/                         0/                         0/
+             Lane 5           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Power         False/                     False/                     False/                     False/
-             L6               0/                         0/                         0/                         0/
+             Lane 6           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Power         False/                     False/                     False/                     False/
-             L7               0/                         0/                         0/                         0/
+             Lane 7           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Tx Power         False/                     False/                     False/                     False/
-             L8               0/                         0/                         0/                         0/
+             Lane 8           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Rx Power         False/                     False/                     False/                     False/
-             L1               0/                         0/                         0/                         0/
+             Lane 1           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Rx Power         False/                     False/                     False/                     False/
-             L2               0/                         0/                         0/                         0/
+             Lane 2           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Rx Power         False/                     False/                     False/                     False/
-             L3               0/                         0/                         0/                         0/
+             Lane 3           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Rx Power         False/                     False/                     False/                     False/
-             L4               0/                         0/                         0/                         0/
+             Lane 4           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Rx Power         False/                     False/                     False/                     False/
-             L5               0/                         0/                         0/                         0/
+             Lane 5           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Rx Power         False/                     False/                     False/                     False/
-             L6               0/                         0/                         0/                         0/
+             Lane 6           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Rx Power         False/                     False/                     False/                     False/
-             L7               0/                         0/                         0/                         0/
+             Lane 7           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Rx Power         False/                     False/                     False/                     False/
-             L8               0/                         0/                         0/                         0/
+             Lane 8           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never                      never                      never
 Ethernet1    Laser            False/                     False/                     False/                     False/
@@ -1803,7 +1799,6 @@ The CLI will show VDM data for observables which are supported by the module ven
 
 ```plaintext
 CLI output format:
-LX - Represents the data for the lane number X
 Current System Time: Day Mon DD HH:MM:SS YYYY
 Update interval: SS seconds
 Last updated: Day Mon DD HH:MM:SS YYYY
@@ -1814,34 +1809,33 @@ Port         (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
 
 Example:
 admin@sonic#show interfaces transceiver vdm Ethernet1
-LX - Represents the data for the lane number X
 Current System Time: Wed Oct 17 03:46:41 2024
 Update interval: 10 seconds
 Last updated: Wed Oct 17 03:46:41 2024
-             eSNR Media         High Alarm   High Warning   Low Warning   Low Alarm
-             Input              Threshold    Threshold      Threshold     Threshold
-Port         (dB)               (dB)         (dB)           (dB)          (dB)
------------  ---------------  --------     --------       --------      --------
-Ethernet1    L1 - 23.480468   0            0              0             0
-             L2 - 23.480468   0            0              0             0
-             L3 - 23.480468   0            0              0             0
-             L4 - 23.480468   0            0              0             0
-             L5 - 23.480468   0            0              0             0
-             L6 - 23.480468   0            0              0             0
-             L7 - 23.480468   0            0              0             0
-             L8 - 23.480468   0            0              0             0
-             eSNR Media         High Alarm   High Warning   Low Warning   Low Alarm
-             Output             Threshold    Threshold      Threshold     Threshold
-Port         (dB)               (dB)         (dB)           (dB)          (dB)
------------  ---------------  --------     --------       --------      --------
-Ethernet1    L1 - 23.480468   0            0              0             0
-             L2 - 23.480468   0            0              0             0
-             L3 - 23.480468   0            0              0             0
-             L4 - 23.480468   0            0              0             0
-             L5 - 23.480468   0            0              0             0
-             L6 - 23.480468   0            0              0             0
-             L7 - 23.480468   0            0              0             0
-             L8 - 23.480468   0            0              0             0
+                    eSNR Media       High Alarm   High Warning   Low Warning   Low Alarm
+                    Input            Threshold    Threshold      Threshold     Threshold
+Port         Lane   (dB)             (dB)         (dB)           (dB)          (dB)
+-----------  -----  ---------------  --------     --------       --------      --------
+Ethernet1    1      23.480468        0            0              0             0
+             2      23.480468        0            0              0             0
+             3      23.480468        0            0              0             0
+             4      23.480468        0            0              0             0
+             5      23.480468        0            0              0             0
+             6      23.480468        0            0              0             0
+             7      23.480468        0            0              0             0
+             8      23.480468        0            0              0             0
+                    eSNR Media       High Alarm   High Warning   Low Warning   Low Alarm
+                    Output           Threshold    Threshold      Threshold     Threshold
+Port         Lane   (dB)             (dB)         (dB)           (dB)          (dB)
+-----------  -----  ---------------  --------     --------       --------      --------
+Ethernet1    1      23.480468        0            0              0             0
+             2      23.480468        0            0              0             0
+             3      23.480468        0            0              0             0
+             4      23.480468        0            0              0             0
+             5      23.480468        0            0              0             0
+             6      23.480468        0            0              0             0
+             7      23.480468        0            0              0             0
+             8      23.480468        0            0              0             0
 .
 .
 .
@@ -1856,7 +1850,6 @@ The `--detail` option can be used to show the data for all lanes and observables
 
 ```plaintext
 CLI output format:
-LX - Represents the data for the lane number X
 Current System Time: Day Mon DD HH:MM:SS YYYY
 Update interval: SS seconds
 Last updated: Day Mon DD HH:MM:SS YYYY
@@ -1869,7 +1862,6 @@ Port         Observable_Name  Last Clear Time            Last Clear Time        
 
 Example:
 admin@sonic#show interfaces transceiver vdm flag Ethernet1
-LX - Represents the data for the lane number X
 Current System Time: Wed Oct 17 03:46:41 2024
 Update interval: 10 seconds
 Last updated: Wed Oct 17 03:46:41 2024
@@ -1880,13 +1872,13 @@ Last updated: Wed Oct 17 03:46:41 2024
 Port         Observable_Name  Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
 -----------  ---------------  -------------------------  -------------------------  -------------------------  -------------------------
 Ethernet1    Laser Temp Media True/                      False/                     False/                     False/
-             L1               1/                         0/                         2/                         0/
+             Lane 1           1/                         0/                         2/                         0/
                               Wed Oct 16 03:46:41 2024/  never/                     Wed Oct 16 02:46:41 2024   never/
                               never                      never/                     Wed Oct 16 03:46:41 2024   never
 Ethernet1   PAM4 Level        False                      True                       False/                     False/
             Transition        0/                         1/                         0/                         0/
             Media Input       never/                     Wed Oct 16 03:46:41 2024/  never/                     never/
-            L2                never                      never                      never                      never
+            Lane 2            never                      never                      never                      never
 .
 .
 .
@@ -1895,11 +1887,10 @@ Upto all observables with at least one lane having a flag set to true
 
 ##### 3.2.2.1 VDM flags dump using the `--detail` option
 
-With the `--detail` option, only the VDM data for observables which are supported by the module vendor will be displayed. With this option, the CLI will show data for all lanes and supported observables (irrespective of the flag status).
+With the `--detail` option, the VDM data for all types of observables will be displayed. With this option, the CLI will show data for all lanes and supported observables (irrespective of the flag status). For unsupported observables, the CLI will show `N/A` for the data.
 
 ```plaintext
 admin@sonic#show interfaces transceiver vdm flag Ethernet1 --detail
-LX - Represents the data for the lane number X
 Current System Time: Wed Oct 17 03:46:41 2024
 Update interval: 10 seconds
 Last updated: Wed Oct 17 03:46:41 2024
@@ -1910,39 +1901,35 @@ Last updated: Wed Oct 17 03:46:41 2024
 Port         Observable_Name  Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
 -----------  ---------------  -------------------------  -------------------------  -------------------------  -------------------------
 Ethernet1    Laser Temp Media True/                      False/                     False/                     False/
-             L1               1/                         0/                         2/                         0/
+             Lane 1           1/                         0/                         2/                         0/
                               Wed Oct 16 03:46:41 2024/  never/                     Wed Oct 16 02:46:41 2024   never/
                               never                      never/                     Wed Oct 16 03:46:41 2024   never
 Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             L2               0/                         0/                         0/                         0/
+             Lane 2           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never/                     never                      never
 Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             L3               0/                         0/                         0/                         0/
+             Lane 3           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never/                     never                      never
 Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             L3               0/                         0/                         0/                         0/
+             Lane 4           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never/                     never                      never
 Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             L4               0/                         0/                         0/                         0/
+             Lane 5           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never/                     never                      never
 Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             L5               0/                         0/                         0/                         0/
+             Lane 6           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never/                     never                      never
 Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             L6               0/                         0/                         0/                         0/
+             Lane 7           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never/                     never                      never
 Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             L7               0/                         0/                         0/                         0/
-                              never/                     never/                     never/                     never/
-                              never                      never/                     never                      never
-Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             L8               0/                         0/                         0/                         0/
+             Lane 8           0/                         0/                         0/                         0/
                               never/                     never/                     never/                     never/
                               never                      never/                     never                      never
 .
@@ -2034,68 +2021,67 @@ This CLI shows the various module and datapath state flags for a given port alon
 
 ```plaintext
 admin@sonic:/home/admin# show int transceiver status flag Ethernet0
-LX - Represents the data for the lane number X
 Current System Time: Wed Oct 17 03:46:41 2024
 Update interval: 10 seconds
 Last updated: Wed Oct 17 03:46:41 2024
-Port         Observable_Name              Flag Status/Change Count/Last Set Time/Last Clear Time
------------  ---------------------------  -------------------------------------------------------
-Ethernet0    Tx fault on media L1         False/  1/  Wed Oct 16 03:46:41 2024/  never
-Ethernet0    Tx fault on media L2         False/  0/  never/  never
-Ethernet0    Tx fault on media L3         False/  0/  never/  never
-Ethernet0    Tx fault on media L4         False/  0/  never/  never
-Ethernet0    Tx fault on media L5         False/  0/  never/  never
-Ethernet0    Tx fault on media L6         False/  0/  never/  never
-Ethernet0    Tx fault on media L7         False/  0/  never/  never
-Ethernet0    Tx fault on media L8         False/  0/  never/  never
-Ethernet0    Rx LOS on media L1           False/  0/  never/  never
-Ethernet0    Rx LOS on media L2           False/  0/  never/  never
-Ethernet0    Rx LOS on media L3           False/  0/  never/  never
-Ethernet0    Rx LOS on media L4           False/  0/  never/  never
-Ethernet0    Rx LOS on media L5           False/  0/  never/  never
-Ethernet0    Rx LOS on media L6           False/  0/  never/  never
-Ethernet0    Rx LOS on media L7           False/  0/  never/  never
-Ethernet0    Rx LOS on media L8           False/  0/  never/  never
-Ethernet0    Datapath firmware fault      False/  0/  never/  never
-Ethernet0    Module firmware fault        False/  0/  never/  never
-Ethernet0    Module state changed         False/  0/  never/  never
-Ethernet0    Tx LOS on host L1            False/  0/  never/  never
-Ethernet0    Tx LOS on host L2            False/  0/  never/  never
-Ethernet0    Tx LOS on host L3            False/  0/  never/  never
-Ethernet0    Tx LOS on host L4            False/  0/  never/  never
-Ethernet0    Tx LOS on host L5            False/  0/  never/  never
-Ethernet0    Tx LOS on host L6            False/  0/  never/  never
-Ethernet0    Tx LOS on host L7            False/  0/  never/  never
-Ethernet0    Tx LOS on host L8            False/  0/  never/  never
-Ethernet0    Tx CDR LOL on host L1        False/  0/  never/  never
-Ethernet0    Tx CDR LOL on host L2        False/  0/  never/  never
-Ethernet0    Tx CDR LOL on host L3        False/  0/  never/  never
-Ethernet0    Tx CDR LOL on host L4        False/  0/  never/  never
-Ethernet0    Tx CDR LOL on host L5        False/  0/  never/  never
-Ethernet0    Tx CDR LOL on host L6        False/  0/  never/  never
-Ethernet0    Tx CDR LOL on host L7        False/  0/  never/  never
-Ethernet0    Tx CDR LOL on host L8        False/  0/  never/  never
-Ethernet0    Tx EQ fault on host L1       False/  0/  never/  never
-Ethernet0    Tx EQ fault on host L2       False/  0/  never/  never
-Ethernet0    Tx EQ fault on host L3       False/  0/  never/  never
-Ethernet0    Tx EQ fault on host L4       False/  0/  never/  never
-Ethernet0    Tx EQ fault on host L5       False/  0/  never/  never
-Ethernet0    Tx EQ fault on host L6       False/  0/  never/  never
-Ethernet0    Tx EQ fault on host L7       False/  0/  never/  never
-Ethernet0    Tx EQ fault on host L8       False/  0/  never/  never
-Ethernet0    Rx CDR LOL on media L1       False/  0/  never/  never
-Ethernet0    Rx CDR LOL on media L2       False/  0/  never/  never
-Ethernet0    Rx CDR LOL on media L3       False/  0/  never/  never
-Ethernet0    Rx CDR LOL on media L4       False/  0/  never/  never
-Ethernet0    Rx CDR LOL on media L5       False/  0/  never/  never
-Ethernet0    Rx CDR LOL on media L6       False/  0/  never/  never
-Ethernet0    Rx CDR LOL on media L7       False/  0/  never/  never
-Ethernet0    Rx CDR LOL on media L8       False/  0/  never/  never
-Ethernet0    Target output power out of range  False/  0/  never/  never
-Ethernet0    Fine tuning out of range flag False/  0/  never/  never
-Ethernet0    Tuning not accepted flag    False/  0/  never/  never
-Ethernet0    Invalid channel number flag False/  0/  never/  never
-Ethernet0    Tuning complete flag        False/  0/  never/  never
+Port         Observable_Name                  Flag Status/  Change Count/  Last Set Time/  Last Clear Time
+-----------  ---------------------------      -------------------------------------------------------
+Ethernet0    Tx fault on media Lane 1         False/  1/  Wed Oct 16 03:46:41 2024/  never
+Ethernet0    Tx fault on media Lane 2         False/  0/  never/  never
+Ethernet0    Tx fault on media Lane 3         False/  0/  never/  never
+Ethernet0    Tx fault on media Lane 4         False/  0/  never/  never
+Ethernet0    Tx fault on media Lane 5         False/  0/  never/  never
+Ethernet0    Tx fault on media Lane 6         False/  0/  never/  never
+Ethernet0    Tx fault on media Lane 7         False/  0/  never/  never
+Ethernet0    Tx fault on media Lane 8         False/  0/  never/  never
+Ethernet0    Rx LOS on media Lane 1           False/  0/  never/  never
+Ethernet0    Rx LOS on media Lane 2           False/  0/  never/  never
+Ethernet0    Rx LOS on media Lane 3           False/  0/  never/  never
+Ethernet0    Rx LOS on media Lane 4           False/  0/  never/  never
+Ethernet0    Rx LOS on media Lane 5           False/  0/  never/  never
+Ethernet0    Rx LOS on media Lane 6           False/  0/  never/  never
+Ethernet0    Rx LOS on media Lane 7           False/  0/  never/  never
+Ethernet0    Rx LOS on media Lane 8           False/  0/  never/  never
+Ethernet0    Datapath firmware fault          False/  0/  never/  never
+Ethernet0    Module firmware fault            False/  0/  never/  never
+Ethernet0    Module state changed             False/  0/  never/  never
+Ethernet0    Tx LOS on host Lane 1            False/  0/  never/  never
+Ethernet0    Tx LOS on host Lane 2            False/  0/  never/  never
+Ethernet0    Tx LOS on host Lane 3            False/  0/  never/  never
+Ethernet0    Tx LOS on host Lane 4            False/  0/  never/  never
+Ethernet0    Tx LOS on host Lane 5            False/  0/  never/  never
+Ethernet0    Tx LOS on host Lane 6            False/  0/  never/  never
+Ethernet0    Tx LOS on host Lane 7            False/  0/  never/  never
+Ethernet0    Tx LOS on host Lane 8            False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host Lane 1        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host Lane 2        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host Lane 3        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host Lane 4        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host Lane 5        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host Lane 6        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host Lane 7        False/  0/  never/  never
+Ethernet0    Tx CDR LOL on host Lane 8        False/  0/  never/  never
+Ethernet0    Tx EQ fault on host Lane 1       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host Lane 2       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host Lane 3       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host Lane 4       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host Lane 5       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host Lane 6       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host Lane 7       False/  0/  never/  never
+Ethernet0    Tx EQ fault on host Lane 8       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media Lane 1       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media Lane 2       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media Lane 3       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media Lane 4       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media Lane 5       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media Lane 6       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media Lane 7       False/  0/  never/  never
+Ethernet0    Rx CDR LOL on media Lane 8       False/  0/  never/  never
+Ethernet0    Target output power out of range False/  0/  never/  never
+Ethernet0    Fine tuning out of range flag    False/  0/  never/  never
+Ethernet0    Tuning not accepted flag         False/  0/  never/  never
+Ethernet0    Invalid channel number flag      False/  0/  never/  never
+Ethernet0    Tuning complete flag             False/  0/  never/  never
 ```
 
 ## 4. SONiC CMIS diagnostic monitoring workflow
@@ -2128,7 +2114,7 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
     8. If the transceiver supports VDM monitoring, perform the following steps:
         1. Freeze the statistics by calling the CMIS API (`freeze_vdm_stats`) and wait for `FreezeDone` by calling `get_vdm_freeze_status`. Once the statistics are frozen, record the timestamp and copy the supported VDM and PM data from the transceiver.
         2. Unfreeze the statistics by calling the CMIS API (`unfreeze_vdm_stats`).
-        3. Update the `TRANSCEIVER_VDM_CURRENT_SAMPLE` and `TRANSCEIVER_PM` tables with both basic and statistic instance's data read for VDM and PM.
+        3. Update the `TRANSCEIVER_VDM_REAL_VALUE` and `TRANSCEIVER_PM` tables with both basic and statistic instance's data read for VDM and PM.
         4. Analyze the VDM flags by comparing the current data with the previous data and update the VDM flag, change count and time related tables.
 
 #### 4.2.2 Diagnostic Information Update During Link Down Event
@@ -2262,8 +2248,12 @@ The purpose of flag analysis is to track the status of various parameters and to
 
 - `TRANSCEIVER_DOM_FLAG`: This table stores flags indicating the status of various DOM parameters.
 - `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: This table keeps a count of how many times each DOM flag has changed. Upon initialization, the count is set to 0.
-- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is not set.
-- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is set.
+- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is not set. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
+  - The timestamp at which the link was down, or
+  - The polling event timestamp if the flag was set during the routine polling by the `DomInfoUpdateTask` thread.
+- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is set. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
+  - The timestamp at which the link was down, or
+  - The polling event timestamp if the flag was cleared during the routine polling by the `DomInfoUpdateTask` thread.
 
 **Example of Table Updates:**
 
