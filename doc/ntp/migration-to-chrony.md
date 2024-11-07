@@ -206,11 +206,29 @@ options that are available. The major ones of note are:
   hardware clock/RTC with the actual time, while the system time is gradually
   slewed. This will be the configuration chosen for SONiC.
 
+### Monitoring
+
+For the purpose of making time synchronization issues more visible, a Monit
+check will be added to verify that the time is currently synchronized to one or
+more NTP servers. If Monit sees that if the time is not synchronized for 3
+minutes, then a message will be printed every 5 minutes saying that the time is
+not synchronized.
+
+Sample messsage:
+
+```
+2024 Nov  7 01:36:00.154986 vlab-01 ERR monit[735]: 'ntp' status failed (1) -- NTP is not synchronized with servers
+```
+
 ## SAI API
 
 There are no changes needed in the SAI API or in the implementation by vendors.
 
 ## Configuration and management
+
+### Config DB
+
+There are no changes to the config DB schema.
 
 ### CLI
 
