@@ -51,6 +51,7 @@
 |  2.0  | 04/08/2024 |    Prince Sunny     | Schema updates for PL, PL-NSG, metering   |
 |  2.1  | 08/22/2024 | Mukesh M Velayudhan | Add local Region ID field in appliance    |
 |  2.2  | 08/28/2024 |    Lawrence Lee     | Route table `routing_type` restrictions, delete op behavior    |
+|  2.3  | 11/7/2024 | Kumaresh Perumal     | Update DASH_PA_VALIDATION_TABLE           |
 
 # About this Manual
 This document provides more detailed design of DASH APIs, DASH orchestration agent, Config and APP DB Schemas and other SONiC buildimage changes required to bring up SONiC image on an appliance card. General DASH HLD can be found at [dash_hld](https://github.com/sonic-net/DASH/tree/main/documentation/general/dash-high-level-design.md).
@@ -673,6 +674,12 @@ key                      = DASH_PA_VALIDATION_TABLE:vni; ENI and VNI as key;
 ; field                  = value
 addresses                = list of addresses used for validating underlay source ip of incoming packets. 
 ```
+
+DASH PA_VALIDATION_TABLE is used only for PL outbound direction. PA address can be either IPV4 or IPV6.
+
+Total PAs per MSEE would be 64 and if there are 64 MSEEs per region, there would be 4K PA_VALIDATION entries.
+
+For more scale numbers, please refer to the [doc]([https://https://github.com/sonic-net/DASH/blob/main/documentation/express-route-service/express-route-gateway-bypass.md])
 
 ### 3.2.14 DASH tunnel table
 
