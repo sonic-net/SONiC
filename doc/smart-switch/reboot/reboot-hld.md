@@ -95,7 +95,7 @@ will be set to false in the RebootStatusResponse. Until the services are termina
 * Next, the NPU triggers a platform vendor reboot API to initiate the reboot process for the DPU. If the DPU is stuck or unresponsive, the DPU reboot platform API should
 attempt a cold boot or power cycle to recover it.
 
-* The NPU either immediately rescans the PCI bus upon return or after a specified timeout period. This rescan is performed via the pci_rescan() vendor API or, if the vendor API is unavailable, by echoing '1' to /sys/bus/pci/rescan.
+* The NPU either immediately rescans the PCI bus upon return or after a specified timeout period. This rescan is performed via the pci_reattach() vendor API or, if the vendor API is unavailable, by echoing '1' to /sys/bus/pci/rescan.
 
 ## Switch reboot sequence ##
 
@@ -141,7 +141,7 @@ Returns:
     True
 ```
 
-pci_rescan(self):
+pci_reattach(self):
 ```
 Rescans the PCI bus and attach the DPU back to NPU. In the case of non-smart-switch chassis, no action is taken.
 
