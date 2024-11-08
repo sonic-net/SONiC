@@ -454,20 +454,30 @@ is_midplane_reachable(self):
     * For persistent storage of the DPU reboot-cause and reboot-cause-history files use the existing host storage path and mechanism under "/host/reboot-cause/module/dpux".
     * The storage and retrieval of the reboot-cause of the Switch and PDUs are shown in the sequence diagram
 
-<p align="center"><img src="./images/dpu-reboot-seq.jpg"></p>
+<p align="center"><img src="./images/dpu-reboot-seq.svg"></p>
 
 * The switch boots up. Determines the NPU reboot cause. 
 * Processes the previously stored NPU and DPU reboot-cause files and history files and updates the NPU reboot-cause into the StateDB and the DPU reboot-cause into the ChassisStateDB.
 * The above process is a one-shot event on boot up.
-* NPU-PMON chassisd comes up and looks constantly for any DPU config resulting in dpu admin_state change.
-* The NPU-PMON chassisd triggers "set_admin_state" API on a config change. The platform API not only turns on the DPU but also persists and provides the user triggered reboot-cause when queried by chassisd.
-* When the SONiC triggers a "reboot" API, the reboot API not only reboots the DPU but also persists and provides this user triggered reboot-cause when queried by chassisd.
-* The module_db_update function in the NPU-PMON chassisd is an existing function constantly updating the operational status of the DPUs.  This function looks for operational status change events and when the DPUs come out of "offline" state issues "get_reboot_cause" API to the platform.
-* The platform gathers the presence of user triggered reboot-cause and DPU self triggered reboot-cause and process the data and returns the following results.
-    * Neither of the reboot-cause is present: Returns "REBOOT_CAUSE_NO_REBOOT". No need to persist.
-    * User triggered reboot-cause is present: Returns either "REBOOT_CAUSE_SWITCH_POWERED_UP_DPU" or "REBOOT_CAUSE_SONIC_REBOOTED_DPU"
-    * DPU self reboot-cause is present: Returns the appropriate cause. The exact cause will be updated when ready.
-    * Both user triggered reboot-cause and dpu self-reboot cause are present: "REBOOT_CAUSE_MULTIPLE_REBOOTS" will be returned.
+* The module_db_update function in the NPU-PMON chassisd is an existing function constantly updating the operational status of the DPUs.  This function looks for DPU operational status change events and when the DPUs come out of "offline" state, issues "get_reboot_cause" API to the platform.
+* The platform code will extract the DPU reboot cause from the NPU hardware itself even when the DPU is not reachable.
+* The DPU reboot cause will be mapped to one of the following existing reboot causes and returned back.
+    * REBOOT_CAUSE_POWER_LOSS = "Power Loss"
+    * REBOOT_CAUSE_THERMAL_OVERLOAD_CPU = "Thermal Overload: CPU"
+    * REBOOT_CAUSE_THERMAL_OVERLOAD_ASIC = "Thermal Overload: ASIC"
+    * REBOOT_CAUSE_THERMAL_OVERLOAD_OTHER = "Thermal Overload: Other"
+    * REBOOT_CAUSE_INSUFFICIENT_FAN_SPEED = "Insufficient Fan Speed"
+    * REBOOT_CAUSE_WATCHDOG = "Watchdog"
+    * REBOOT_CAUSE_HARDWARE_OTHER = "Hardware - Other"
+    * REBOOT_CAUSE_HARDWARE_BIOS = "BIOS"
+    * REBOOT_CAUSE_HARDWARE_CPU = "CPU"
+    * REBOOT_CAUSE_HARDWARE_BUTTON = "Push button"
+    * REBOOT_CAUSE_HARDWARE_RESET_FROM_ASIC = "Reset from ASIC"
+    * REBOOT_CAUSE_NON_HARDWARE = "Non-Hardware"
+* When the platform wants to provide additional details to the reboot cause they can append it to the string with a ',' separation as shown below.
+```
+return REBOOT_CAUSE_NON_HARDWARE + ', ' + 'kernel panic'
+```
 * The switch reboot use case will follow the same sequence.
 * The pmon container restart should not affect this sequence as the states are persisted either in the DB or in the file system.
 
