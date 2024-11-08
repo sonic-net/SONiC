@@ -675,11 +675,11 @@ key                      = DASH_PA_VALIDATION_TABLE:vni; ENI and VNI as key;
 addresses                = list of addresses used for validating underlay source ip of incoming packets. 
 ```
 
-DASH PA_VALIDATION_TABLE is used only for PL outbound direction. PA address can be either IPV4 or IPV6.
+DASH_PA_VALIDATION_TABLE is used only for PL outbound direction. PA address can be either IPV4 or IPV6.
 
-Total PAs per MSEE would be 64 and if there are 64 MSEEs per region, there would be 4K PA_VALIDATION entries.
+Total PAs per MSEE would be 64 and if there are 64 MSEEs per region(based on 400G DPU), there would be 4K PA_VALIDATION entries.
 
-For more scale numbers, please refer to the [doc]([https://https://github.com/sonic-net/DASH/blob/main/documentation/express-route-service/express-route-gateway-bypass.md])
+For more scale numbers, please refer to the [doc](https://github.com/sonic-net/DASH/blob/main/documentation/express-route-service/express-route-gateway-bypass.md)
 
 ### 3.2.14 DASH tunnel table
 
