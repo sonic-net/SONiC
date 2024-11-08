@@ -447,19 +447,46 @@ is_midplane_reachable(self):
 #### 3.1.5 ModuleBase class new APIs
 
 ##### 3.1.5.1 Need for consistent storage and access of DPU reboot cause, state and health
-#### Reboot Cause
-1. The smartswitch needs to know the reboot cause for DPUs. Please refer to the CLI section for the various "show reboot-cause" options and their effects.
-    * Each DPU will update its reboot cause history in the Switch ChassisStateDB upon boot up and also persist this on the host. The recent reboot-cause is derived from that list of reboot-causes.
-    * The get_reboot_cause will return the current reboot-cause of the module.
-    * For persistent storage of the DPU reboot-cause and reboot-cause-history files use the existing host storage path and mechanism under "/host/reboot-cause/module/dpux".
-    * The storage and retrieval of the reboot-cause of the Switch and PDUs are shown in the sequence diagram
+#### 1 Reboot Cause
+The smartswitch needs to know the reboot cause for the NPU and the DPUs.
+
+#### NPU Reboot Cause
+* When the NPU undergoes a reboot the existing reboot-cause workflow for a switch still remains the same for a smartswitch as well.
+* When the NPU reboots the "determine_reboot_cause" fetches the npu reboot-cause and persists the files in "/host/reboot-cause" path.
+* The "update_reboot_cause" function updates the stateDB with reboot-cause, time, user etc as shown in the schema.
+* The existing "show reboot-cause" and "show reboot-cause history" CLIs will be backward compatible. Please refer to the CLI section.
+
+#### Schema for REBOOT_CAUSE of SWITCH on switch stateDB
+```
+  Key: "REBOOT_CAUSE|2023_06_18_14_56_12"
+
+  "REBOOT_CAUSE|2023_06_18_14_56_12": {
+    "value": {
+      "cause": "Unknown",
+      "comment": "N/A",
+      "time": "2023_06_18_14_56_12",
+      "user": "N/A"
+    }
+  }
+
+```
+#### DPU Reboot Cause
+* The smartswitch needs to know the reboot cause for all the DPUs.
+* The NPU hardware should be capable of providing the DPU reboot-cause even when the DPUs are dead.
+* The get_reboot_cause will return the current reboot-cause of the module.
+* For persistent storage of the DPU reboot-cause and reboot-cause-history files use the existing mechanism and host storage path under "/host/reboot-cause/module/dpux".
+* The storage and retrieval of the reboot-cause of the Switch and PDUs are shown in the sequence diagram
 
 <p align="center"><img src="./images/dpu-reboot-seq.svg"></p>
 
+#### Reboot workflow
 * The switch boots up. Determines the NPU reboot cause. 
-* Processes the previously stored NPU and DPU reboot-cause files and history files and updates the NPU reboot-cause into the StateDB and the DPU reboot-cause into the ChassisStateDB.
+* Processes the previously stored NPU and DPU reboot-cause files and history files.
+* Updates the NPU reboot-cause into the StateDB and the DPU reboot-cause into the ChassisStateDB.
 * The above process is a one-shot event on boot up.
-* The module_db_update function in the NPU-PMON chassisd is an existing function constantly updating the operational status of the DPUs.  This function looks for DPU operational status change events and when the DPUs come out of "offline" state, issues "get_reboot_cause" API to the platform.
+* The module_db_update function in the NPU-PMON chassisd is an existing function constantly updating the operational status of the DPUs.
+* This function looks for DPU operational status change events and when the DPUs come out of "offline" state, issues "get_reboot_cause" API to the platform.
+* The dpu operational state transition from 'offline' to 'online' guarantees the reboot of a DPU.
 * The platform code will extract the DPU reboot cause from the NPU hardware itself even when the DPU is not reachable.
 * The DPU reboot cause will be mapped to one of the following existing reboot causes and returned back.
     * REBOOT_CAUSE_POWER_LOSS = "Power Loss"
@@ -481,20 +508,6 @@ return REBOOT_CAUSE_NON_HARDWARE + ', ' + 'kernel panic'
 * The switch reboot use case will follow the same sequence.
 * The pmon container restart should not affect this sequence as the states are persisted either in the DB or in the file system.
 
-#### Schema for REBOOT_CAUSE of SWITCH on switch stateDB
-```
-  Key: "REBOOT_CAUSE|2023_06_18_14_56_12"
-
-  "REBOOT_CAUSE|2023_06_18_14_56_12": {
-    "value": {
-      "cause": "Unknown",
-      "comment": "N/A",
-      "time": "2023_06_18_14_56_12",
-      "user": "N/A"
-    }
-  }
-
-```
 #### Schema for REBOOT_CAUSE of DPUs on switch ChassisStateDB
 ```
   Key: "REBOOT_CAUSE|DPU0|2024_06_06_09_31_18"
@@ -510,8 +523,8 @@ return REBOOT_CAUSE_NON_HARDWARE + ', ' + 'kernel panic'
   }
 
 ```
-#### DPU State
-2. Though the get_oper_status(self) can get the operational status of the DPU modules, the current implementation only has limited capabilities.
+#### 2. DPU State
+Though the get_oper_status(self) can get the operational status of the DPU modules, the current implementation only has limited capabilities.
     * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progression the DPU failed. This is critical in fault isolation, DPU switchover decision, resiliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistent way of storing and accessing the information.
     * Store the state progression (dpu_midplane_link_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB using the push model specified in [section: 3.2.4 of SONiC Chassis Platform Management & Monitoring HLD](https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon-chassis-design.md)
@@ -545,8 +558,8 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
         ”dpu_data_plane_time": ”timestamp",
         ”dpu_data_plane_reason": ”Pipeline failure",
 ```
-#### DPU Health
-3. This feature is implemented in two phases.
+#### 3 DPU Health
+This feature is implemented in two phases.
 #### Phase:1
 * Each DPU has to store the health info locally and should be available on the DPU when the "show system-health ..." CLI is executed on the DPU just like the switch.
 #### Phase:2
