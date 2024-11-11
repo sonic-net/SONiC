@@ -34,6 +34,8 @@
 | 3.1 | Mar-30 2023 | Jie Feng (Arista Networks) | Update Overview, SAI API and Configuration and management section |
 | 3.2 | May-01 2023 | Jie Feng (Arista Networks) | Update Counter tables information |
 | 3.3 | Oct-31 2023 | Jie Feng (Arista Networks) | Update clear fabric counter commands |
+| 3.4 | May-05 2024 | Jie Feng (Arista Networks) | Update CLI |
+| 3.5 | Aug-12 2024 | Jie Feng (Arista Networks) | Update fabric link monitoring behavior on link down |
 
 # Scope
 
@@ -91,7 +93,7 @@ DEVICE_METADATA|localhost: {
 
 Each fabric ASIC must be assigned a unique switch_id. The SAI VOQ specification recommends that this number be assigned to be different than the switch_id assigned to the forwarding ASICs in the chassis.
 
-Fabric port is numbered as the chip fabric port number, the its status will be polled periodically and stored in table STATE_DB|FABRIC_PORT_TABLE. Typically, fabric port status about a fabric port includes:
+A fabric port is numbered as the chip fabric port number, its status will be polled periodically and stored in table STATE_DB|FABRIC_PORT_TABLE. Typically, fabric port status about a fabric port includes:
 
 - Status: Up or down
 - If port is down, we may have some more information indicating reason e.g. CRC or misaligned
@@ -219,7 +221,10 @@ The criteria can be extended to include checking other errors later.
 
 Instead of reacting to the counter changes, Orchagent adds a new poller and periodically polls status of all fabric links. By default, the total number of received cells, cells with crc errors, cells with uncorrectable errors are fetched from all serdes links periodically and the error rates are calculated using these numbers. If any one of the error rates is above the threshold for a number of consecutive polls, the link is identified as an unhealthy link. Then the link is automatically isolated to not distribute traffic.
 
-#### 2.8.1.1 Cli commands
+When a fabric port goes down and then comes back up, whether due to a peer end card power cycle or peer end Orchange restart, the previous monitoring status and decision will be cleared unless the link is shutdown manually by the user via CLI.
+
+
+#### 2.8.1.3 Cli commands
 
 Several commands will be added to set fabric link monitor config parameters.
 ```
@@ -250,8 +255,26 @@ The above command sets the number of consecutive polls in which no error is dete
 > config fabric port unisolate [port_id]
 ```
 
-Besides the fabric link monitoring algorithm, the above two commands are added. The commands can be used to manually isolate and unisolate a fabric link ( i.e. take the link out of service and put the link back into service ). The two commands can help us debug on the system as well as force isolate a fabric link.
 
+```
+> config fabric port unisolate [port_id] --force
+```
+
+Besides the fabric link monitoring algorithm, the above two commands are added. The commands can be used to manually isolate and unisolate a fabric link ( i.e. take the link out of service and put the link back into service ). The two commands can help us debug on the system as well as a force option to unisolate a fabric link.
+
+
+An additional show command is also added to show the fabric link isolation status of a system.
+
+```
+> show fabric isolation
+asic0
+  Local Link    Auto Isolated    Manual Isolated    Isolated
+------------  ---------------  -----------------  ----------
+           0                0                  1           1
+           1                0                  0           0
+           2                1                  0           1
+....
+```
 
 ### 2.8.2 Monitor Fabric Capacity
 
@@ -260,7 +283,7 @@ When the fabric link monitoring feature is enabled, fabric links may not be oper
 #### 2.8.2.1 Cli command
 
 ```
-> config fabric monitor capacity threshold <50-100>
+> config fabric monitor capacity threshold <5-100>
 ```
 The above command is used to configure a capacity threshold to trigger alerts when total fabric link capacity goes below it.
 
@@ -291,15 +314,14 @@ Monitoring traffic on fabric links is another important tool to diagnose fabric 
 The following proposed CLI is used to show the traffic among fabric links on both fabric ASICs and forwarding ASICs.
 
 ```
-> show fabric counters rate mbps
+> show fabric counters rate
 
- Asic     Link    RX         TX
-          ID
- –------  -----   ---------  ----------
- 0         1      0          36113
- ....
- 0        19      0          36107
- 0        20      0          36110
+  ASIC    Link ID    Rx Data Mbps    Tx Data Mbps
+------  ---------  --------------  --------------
+ asic0          0               0            19.8
+ asic0          1               0            19.8
+ asic0          2               0            39.8
+ asic0          3               0            39.8
  ....
 ```
 
@@ -368,22 +390,31 @@ module sonic-fabric-port{
                 }
 
                 leaf isolateStatus {
+                    description "Isolation status of a fabric port";
+                    type stypes:boolean_type;
+                    default "False";
+                }
+
+                leaf alias {
+                    description "Alias of a fabric port";
                     type string {
-                        pattern "False|True";
+                        length 1..128;
                     }
                 }
 
-               leaf alias {
-                   type string {
-                       length 1..128;
-                   }
-               }
+                leaf lanes {
+                    description "Lanes of a fabric port";
+                    mandatory true;
+                    type string {
+                        length 1..128;
+                    }
+                }
 
-               leaf lanes {
-                   type string {
-                       length 1..128;
-                   }
-               }
+                leaf forceUnisolateStatus {
+                    description "Force unisolate status of a fabric port";
+                    type uint32;
+                    default 0;
+                }
             } /* end of list FABRIC_PORT_LIST */
         } /* end of container FABRIC_PORT */
     } /* end of container sonic-fabric-port */
@@ -407,22 +438,41 @@ module sonic-fabric-monitor{
                 leaf monErrThreshCrcCells {
                     type uint32;
                     default 1;
+                    description "The number of cells with errors.";
                 }
 
                 leaf monErrThreshRxCells {
                     type uint32;
                     default 61035156;
+                    description "The number of cells received. If more than monErrThreshCrcCells out of monErrThreshRxCells seen with errors, the fabric port needs to be isolated";
                 }
 
                 leaf monPollThreshIsolation {
-                    type uint32;
+                    type uint8;
                     default 1;
+                    description "Consecutive polls with higher error rate for isolation.";
                 }
 
                 leaf monPollThreshRecovery {
-                    type uint32;
+                    type uint8;
                     default 8;
+                    description "Consecutive polls with lesser error rate for inclusion.";
                 }
+
+                leaf monCapacityThreshWarn {
+                    type uint8;
+                    default 10;
+                    description "Percentage of up fabric links.";
+                }
+
+                leaf monState {
+                    description "Configuration to set fabric link monitoring state: enable/disable";
+                    type string {
+                        length 1..32;
+                        pattern "enable|disable";
+                    }
+                }
+
             } /* end of container FABRIC_MONITOR_DATA */
         } /* end of container FABRIC_MONITOR */
     } /* end of container sonic-fabric-monitor */
