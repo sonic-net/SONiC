@@ -42,6 +42,16 @@ This document provides general information about offloading PA validation featur
 - Use existing ACL tables and ACL rules design in NPU.
 
 ## 1.2 Scale Requirements
+PA Validation configuration:
+* 4096 PA Validation entries
+
+Please refer to [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md#3213-underlay-src-ip-pa-validation) for more details regarding the PA Validation configuration requirements
+
+ACL:
+- One ACL table per each DPU
+- 4160 ACL rules:
+  - 4096 ACL forward rules (one per each PA Validation address)
+  - 64 ACL drop rules (one per each unique VNI in the configuration)
 
 # 2 Modules Design
 
@@ -135,6 +145,19 @@ Each PA Validation entry is translated into the following set of rules:
 ```
 
 <img src="images/DashOffloadAcl.svg">
+
+### 2.2.1 PA Validation Offload GNMI feedback
+To preserve the GNMI feedback behavior, the offload logic must also create an entry in the DPU's APPL_STATE_DB.
+For each PA validation processed, the PaValidationOffloadOrch creates the following entry:
+
+```
+DASH_PA_VALIDATION_TABLE:{{vni}}
+    "result": {{result}}
+```
+
+The result is 0 for success, or > 0 for error code
+
+Please refer to https://github.com/sonic-net/SONiC/pull/1759 for more details regarding GNMI feedback requirements and behavior.
 
 ## 2.3 DPU Shut/Restart
 When DPU goes down/restarts, the ACL configuration should be cleaned. It's done by the Dash Offload Manager which listens to the ChassisStateDB DPU_STATE Table. When it detects that the DPU is down (dpu_control_plane_state is down), the PaValidationOffloadOrch is deinitialized, leading to ACL configuration cleanup and ZMQ proxy subscription removal.
