@@ -739,12 +739,13 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 ```
 
 #### 3.4.1 Reboot Cause CLIs
-* There are two CLIs "show reboot-cause" and "show reboot-cause history" which are applicable to both DPUs and the Switch. However, when executed on the Switch the CLIs provide a consolidated view of reboot cause as shown below.
-* Each DPU will update its reboot cause history in the Switch ChassisStateDB upon boot up.
-* The PMON on the DPU side will be responsible to update the switch side chassisStateDB on DPU boot up, using the push model specified in [section: 3.2.4 of SONiC Chassis Platform Management & Monitoring HLD](https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon-chassis-design.md)
-* Though how DPU pmon updates this is vendor dependent, it is recommended to use the sonic telemetry agent to align with the existing SONiC implementation.
+* There are two existing CLIs "show reboot-cause" and "show reboot-cause history"
+* These two CLIs are extended to "show reboot-cause all" and "show reboot-cause history \<option\>", where the "option" could be DPUx, all or SWITCH
+* When each DPU turns online the NPU chassisd will fetch the reboot-cause using the "get_reboot_cause()" API.
+* The NPU chassisd will persist the reboot cause under "/host/reboot-cause/module/dpux" and update the chassisStateDB REBOOT_CAUSE table.
 * The DPUs will limit the number of history entries to a maximum of ten.
-* The recent reboot-cause can be derived from that list of reboot-causes. Platforms which are not capable of populating the ChassisStateDB can use the "get_reboot_cause" API to fetch the data from the DPUs. The trigger to activate the API will eventually come from the DPU state change handler.
+* The recent reboot-cause can be derived from that list of reboot-causes.
+* Platform hardware should have the DPU reboot-cause available on the NPU side and provided it to the "get_reboot_cause()" API
 
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause
