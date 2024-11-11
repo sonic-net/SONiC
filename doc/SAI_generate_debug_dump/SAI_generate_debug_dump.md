@@ -13,7 +13,6 @@
     - [Implementation](#implementation)
 	  - [generate_sai_dump bash script](#generate_sai_dump-bash-script)
 	  - [show techsupport](#show-techsupport)
-	  - [gen_sai_dbg_dump.sh](#gen_sai_dbg_dump.sh)
 	  - [DbgGenDump orchestration](#DbgGenDump-orchestration)
 	  - [SAI global API sai_dbg_generate_dump](#SAI-global-API-sai-dbg_generate_dump)
 	  - [syncd extended operation](#syncd-extended-operation)
@@ -76,7 +75,7 @@ The below diagram explains the generate debug dump file flow
 ### Implementation
 
 #### generate_sai_dump bash script
-Introduced a new script `/usr/local/bin/gen_sai_dbg_dump_lib.sh` that can be invoked from `show techsupport` or any other command
+Introduced a new script `/usr/local/bin/gen_sai_dbg_dump.sh`
 
 ```
 ###############################################################################
@@ -102,36 +101,10 @@ generate_sai_dump() {
 }
 ```
 
-#### APPL DB
-Introduced a new Tables in APPL DB :
-
+ The script also can be invoked from the CLI to generate the dump file directly under the given name (without calling `show techsupport` command):
 ```
-key    = DBG_GEN_DUMP_TABLE:DUMP    ; Unique identifier for gen dump file. 
-;field = value
-file_name   = STRING                ; full path file to save the dump file.
+/usr/local/bin/gen_sai_dbg_dump.sh -f /tmp/my_dump_file.log
 ```
-
-Example:
-```
-redis-cli -n 0 HGETALL "DBG_GEN_DUMP_TABLE:DUMP" 
-1) "file" 
-2) "/var/log/sai_dump_file.log" 
-```
-
-wait for the dump generation result example:
-```
-key    = DBG_GEN_DUMP_STAUS_TABLE:DUMP ; Unique identifier for gen dump file result
-;field = value
-status = SAI_STATUS                    ; result status of file dump generation
-```
-
-Example:
-```
-redis-cli -n 0 HGETALL "DBG_GEN_DUMP_STATUS_TABLE:DUMP" 
-1) "status" 
-2) "0"
-```
-
 
 #### show techsupport
 Introduced a new generic API, `generate_sai_dbg_dump_file`, in `generate_dump.sh` (invoked by the `show techsupport` command) to create a debug dump file:
@@ -166,18 +139,42 @@ usage:
 generate_sai_dbg_dump_file "sai_sdk_dump_$(date +"%m_%d_%Y_%I_%M_%p")"
 ```
 
-#### gen_sai_dbg_dump.sh
-Introduced a new script `/usr/local/bin/gen_sai_dbg_dump.sh` that can be invoked from the CLI to generate the dump file directly under the given name (without calling `show techsupport` command)
-
-```
-/usr/local/bin/gen_sai_dbg_dump.sh -f /tmp/my_dump_file.log
-```
 #### DbgGenDump orchestration
 - A new orchestration agent, `DbgGenDumpOrch`, has been introduced, which is triggered by updates in the APPL DB.
 
 - It updates syncd by writing to the ASIC DB and waits for a response. Once received, it writes the result back to the APPL DB, allowing the calling application to retrieve the file.
 
-#### ASIC DB
+#### DB Enhancements
+
+Introduced a new Tables in APPL DB :
+
+```
+key    = DBG_GEN_DUMP_TABLE:DUMP    ; Unique identifier for gen dump file. 
+;field = value
+file_name   = STRING                ; full path file to save the dump file.
+```
+
+Example:
+```
+redis-cli -n 0 HGETALL "DBG_GEN_DUMP_TABLE:DUMP" 
+1) "file" 
+2) "/var/log/sai_dump_file.log" 
+```
+
+wait for the dump generation result example:
+```
+key    = DBG_GEN_DUMP_STATUS_TABLE:DUMP ; Unique identifier for gen dump file result
+;field = value
+status = SAI_STATUS                    ; result status of file dump generation
+```
+
+Example:
+```
+redis-cli -n 0 HGETALL "DBG_GEN_DUMP_STATUS_TABLE:DUMP" 
+1) "status" 
+2) "0"
+```
+
 Introduced a new Tables in ASIC DB:
 
 ```
