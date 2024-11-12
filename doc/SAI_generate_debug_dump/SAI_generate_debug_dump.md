@@ -57,6 +57,8 @@ This new feature allows users to generate a SAI debug dump file using `show tech
 
 ### Architecture Design
 
+Adding a new infrastructure without changes in existing Sonic Architecture
+
 1. A user command, such as `show techsupport` triggers the `generate_sai_dump`, and creates a new table with the dump file name to create in the APPL DB.
 2. A new orchestration agent, `DbgGenDumpOrch`, is triggered to handle the request.
 3. `DbgGenDumpOrch` writes the file name to the ASIC DB and sets a new operation `REDIS_ASIC_STATE_COMMAND_DBG_GEN_DUMP` for syncd.
