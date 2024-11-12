@@ -525,7 +525,7 @@ Below are the list of MIBs suppored by snmp_ax_impl.
 |1.3.6.1.2.1.31.1 |  | InterfaceMIBObjects | All namespace DBs|
 #### 2.4.7.2. Telemetry
 
-There will be a single Telemetry service and telemetry docker for the multi asic platform which will pull needed data from the DB's of asic namespace.  More details will be provided in a separate document.
+There will be a single Telemetry service and telemetry docker for the multi asic platform which will pull needed data from the DB's of asic namespace.  More details provided in [Management Framework document](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Management%20Framework.md).
 
 #### 2.4.7.3. LLDP
 
