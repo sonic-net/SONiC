@@ -90,10 +90,8 @@ There are no changes in the current Sonic Architecture.
 
 SAI provide access to each interface the following attributes
 - SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS
-  - monotonically increasing
   - return not support if its not working for an interface
 - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES
-  - monotonically increasing
   - return not support if its not working for an interface
 
 
@@ -105,7 +103,7 @@ The following redis DB entries will be access for the BER calculations
 |--------------|-------------|------------------|--------|----------------|----------------|  
 |COUNTER_DB |COUNTERS |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS |R |number |Total number bits corrected</sub>|
 |COUNTER_DB |COUNTERS |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES |R |number |Tota number uncorrectable frame |
-|COUNTER_DB |COUNTERS_PORT_NAME_MAP |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES|R |number |Oid to name mapping |  
+|COUNTER_DB |COUNTERS_PORT_NAME_MAP | name & oid  |R |name  |Oid to name mapping |  
 |COUNTER_DB |RATES |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last | New, RW|number |Last corrected bits counts |
 |COUNTER_DB |RATES |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last |New, RW|number |Last uncorrctedble frame counts |  
 |COUNTER_DB |RATES |FEC_PRE_BER |New, RW| floating |calculated pre fec BER |  
