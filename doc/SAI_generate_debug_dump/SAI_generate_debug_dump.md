@@ -90,7 +90,7 @@ Introduced a new script `/usr/local/bin/gen_sai_dbg_dump.sh`
 #
 # Arguments:
 #  $1 - Filename for the SAI debug dump file.
-#  $2 - Optional timeout for file readiness (default: 10 seconds).
+#  $2 - Optional timeout for file readiness (default: 60 seconds).
 #
 # Returns:
 #  0 - On success
