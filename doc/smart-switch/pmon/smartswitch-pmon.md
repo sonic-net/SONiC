@@ -453,6 +453,7 @@ The smartswitch needs to know the reboot cause for the NPU and the DPUs.
 #### NPU Reboot Cause
 * When the NPU undergoes a reboot the existing reboot-cause workflow for a switch still remains the same for a smartswitch as well.
 * When the NPU reboots the "determine_reboot_cause" fetches the npu reboot-cause and persists the files in "/host/reboot-cause" path.
+* A maximum of ten reboot-cause history entries per dpu will be persisted just like the npu.
 * The "update_reboot_cause" function updates the stateDB with reboot-cause, time, user etc as shown in the schema.
 * The existing "show reboot-cause" and "show reboot-cause history" CLIs will be backward compatible. Please refer to the CLI section.
 
@@ -482,6 +483,7 @@ The smartswitch needs to know the reboot cause for the NPU and the DPUs.
 #### Reboot workflow
 * The switch boots up. Determines the NPU reboot cause. 
 * Processes the previously stored NPU and DPU reboot-cause files and history files.
+* A maximum of ten reboot-cause history entries per dpu will be persisted just like the npu.
 * Updates the NPU reboot-cause into the StateDB and the DPU reboot-cause into the ChassisStateDB.
 * The above process is a one-shot event on boot up.
 * The module_db_update function in the NPU-PMON chassisd is an existing function constantly updating the operational status of the DPUs.
@@ -750,82 +752,89 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 #### 3.4.2 Reboot Cause CLIs on the DPUs      <font>**`Executed on the DPU`**</font>
 * The "show reboot-cause" shows the most recent reboot-cause
 * The "show reboot-cause history" shows the reboot-cause history
+* The new cli extensions will not have any effect on the DPUs as shown in the example.
 ```
-root@sonic:~#show reboot-cause
+root@sonic:~#show reboot-cause
 
-Name                    Cause                       Time                                User    Comment
+Hardware - Other (NPU side powercycle)
 
-2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
+root@sonic:~#show reboot-cause history
 
-root@sonic:~#show reboot-cause history
+Name                 Cause                                   Time    User    Comment
+2024_11_12_16_09_41  Hardware - Other (NPU side powercycle)  N/A     N/A     Unknown
+2024_11_12_02_03_12  Hardware - Other (NPU side powercycle)  N/A     N/A     Unknown
 
-Name                    Cause                       Time                                User    Comment
-
-2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
-2023_10_02_18_10_00     reboot                      Sun 02 Oct 2023 06:10:00 PM UTC     admin   User issued 'reboot'
+root@sonic:~#show reboot-cause all
+root@sonic:~#show reboot-cause history all
+root@sonic:~#show reboot-cause history DPU0
 ```
+
 #### 3.4.3 Reboot Cause CLIs on the Switch      <font>**`Executed on the switch`**</font>
-* The "show reboot-cause" CLI on the switch shows the most recent rebooted device, time and the cause. The could be the NPU or any DPU
-* The "show reboot-cause history" CLI on the switch shows the history of the Switch and all DPUs
-* The "show reboot-cause history module-name" CLI on the switch shows the history of the specified module
+* The "show reboot-cause" CLI on the switch remains the same.
+* The "show reboot-cause all" CLI on the switch shows the recent reboot-cause of the Switch and the DPUs.
+* The "show reboot-cause history" CLI on the switch shows the history of the smartswitch and is the same as any switch.
+* The "show reboot-cause history \<option\>" CLI on the switch shows the history of the specified module depending on the option as show below.
 
 ```
-root@sonic:~#show reboot-cause
+root@sonic:~#show reboot-cause
+
+Power Loss
+
+root@sonic:~#show reboot-cause history
 
 Name                    Cause                       Time                                User    Comment
-
-2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
-
-
-root@sonic:~#show reboot-cause history
-
-Name                    Cause                       Time                                User    Comment
-
-2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
-2023_10_05_18_23_46     reboot                      Wed 05 Oct 2023 06:23:46 PM UTC     user    N/A
+-------------------     -------------------         -------------------------------     ------  ------
+2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
+2023_10_05_18_23_46     reboot                      Wed 05 Oct 2023 06:23:46 PM UTC     user    N/A
 
 
-root@sonic:~#show reboot-cause all
+root@sonic:~#show reboot-cause all
 
-Device          Name                    Cause                       Time                                User    Comment
+Device    Name                 Cause                                   Time                             User
+--------  -------------------  --------------------------------------  -------------------------------  ------
+SWITCH    2024_11_12_02_03_08  Power Loss                              N/A                              N/A
+DPU3      2024_11_12_02_06_01  Hardware - Other (NPU side powercycle)  Tue Nov 12 02:06:01 AM UTC 2024  N/A
+DPU2      2024_11_12_02_05_58  Hardware - Other (NPU side powercycle)  Tue Nov 12 02:05:58 AM UTC 2024  N/A
+DPU1      2024_11_12_02_05_55  Hardware - Other (NPU side powercycle)  Tue Nov 12 02:05:55 AM UTC 2024  N/A
+DPU0      2024_11_12_16_08_43  Non-Hardware, Switch rebooted DPU       Tue Nov 12 04:08:43 PM UTC 2024  N/A
 
-switch          2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
-DPU3            2023_10_03_18_23_46     Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
-DPU2            2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
+
+root@sonic:~# show reboot-cause history all
+Device    Name                 Cause                                   Time                             User    Comment
+--------  -------------------  --------------------------------------  -------------------------------  ------  ------------------------------------------------------------------------
+SWITCH    2024_11_12_02_03_08  Power Loss                              N/A                              N/A     Unknown (First boot of SONiC version master.18096-dirty-20241111.203125)
+DPU3      2024_11_12_02_06_01  Hardware - Other (NPU side powercycle)  Tue Nov 12 02:06:01 AM UTC 2024          N/A
+DPU2      2024_11_12_02_05_58  Hardware - Other (NPU side powercycle)  Tue Nov 12 02:05:58 AM UTC 2024          N/A
+DPU1      2024_11_12_02_05_55  Hardware - Other (NPU side powercycle)  Tue Nov 12 02:05:55 AM UTC 2024          N/A
+DPU0      2024_11_12_16_08_43  Non-Hardware, Switch rebooted DPU       Tue Nov 12 04:08:43 PM UTC 2024          N/A
+DPU0      2024_11_12_02_05_52  Hardware - Other (NPU side powercycle)  Tue Nov 12 02:05:52 AM UTC 2024          N/A
 
 
-root@sonic:~#show reboot-cause history all
+show reboot-cause history DPU0
+Device    Name                 Cause                                   Time                             User    Comment
+--------  -------------------  --------------------------------------  -------------------------------  ------  ---------
+DPU0      2024_11_12_16_08_43  Non-Hardware, Switch rebooted DPU       Tue Nov 12 04:08:43 PM UTC 2024          N/A
+DPU0      2024_11_12_02_05_52  Hardware - Other (NPU side powercycle)  Tue Nov 12 02:05:52 AM UTC 2024          N/A
 
-Device          Name                    Cause                       Time                                User    Comment
 
-switch          2023_10_20_18_52_28     Watchdog:1 expired;         Wed 20 Oct 2023 06:52:28 PM UTC     N/A     N/A
-switch          2023_10_05_18_23_46     reboot                      Wed 05 Oct 2023 06:23:46 PM UTC     user    N/A
-DPU3            2023_10_03_18_23_46     Watchdog: stage 1 expired;  Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
-DPU3            2023_10_02_18_23_46     Host Power-cycle            Sun 02 Oct 2023 06:23:46 PM UTC     N/A     Host lost DPU
-DPU3            2023_10_02_17_23_46     Host Reset DPU              Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
-DPU2            2023_10_02_17_20_46     reboot                      Sun 02 Oct 2023 05:20:46 PM UTC     admin   User issued 'reboot'
-
-"show reboot-cause history module-name"
-
-root@sonic:~#show reboot-cause history dpu3
-
-Device      Name                    Cause                           Time                                User    Comment 
-   
-DPU3        2023_10_03_18_23_46     Watchdog: stage 1 expired;      Mon 03 Oct 2023 06:23:46 PM UTC     N/A     N/A
-DPU3        2023_10_02_18_23_46     Host Power-cycle                Sun 02 Oct 2023 06:23:46 PM UTC     N/A     Host lost DPU
-DPU3        2023_10_02_17_23_46     Host Reset DPU                  Sun 02 Oct 2023 05:23:46 PM UTC     N/A     N/A
+root@sonic:~# show reboot-cause history SWITCH
+Device    Name                 Cause         Time    User    Comment
+--------  -------------------  ------------  ------  ------  ------------------------------------------------------------------------
+SWITCH    2024_11_12_02_03_08  Power Loss     N/A    N/A     Unknown (First boot of SONiC version master.18096-dirty-20241111.203125)
 ```
+
 #### 3.4.4 Chassis Module Status
 * The "show chassis modules status" is an existing CLI but extended to include the status of all DPUs and switch. <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
 ```
-root@sonic:~#show chassis modules status                                                                                      
-Name        Description         ID         Oper-Status     Admin-Status     Serial
-
-DPU0        SS-DPU0             1           Online          up              SN20240105
-DPU1        SS-DPU1             2           Online          up              SN20240102
-...
-SWITCH      Chassis             0           Online          N/A             FLM27000ER
+root@sonic:~#show chassis modules status
+  Name    Description    Physical-Slot    Oper-Status    Admin-Status    Serial
+------  -------------  ---------------  -------------  --------------  --------
+  DPU0            N/A              N/A        Offline            down       N/A
+  DPU1            N/A              N/A         Online              up       N/A
+  DPU2            N/A              N/A         Online              up       N/A
+  DPU3            N/A              N/A         Online              up       N/A
 ```
+
 #### 3.4.5  System health details
 #### Phase:1
 * The system health summary on switch will display only the NPU health
@@ -867,13 +876,13 @@ When the idex is "all" shows the detailed state of all DPUs
 Oper-Status definition: 
 Online : All states are up
 Offline: dpu_midplane_link_state is down
-Partial Online: dpu_midplane_link_state is up and dpu_control_plane_state or dpu_data_plane_state is down
+Fault: dpu_midplane_link_state is up and dpu_control_plane_state or dpu_data_plane_state is down
 
 There are two parts to the state detail. 1. The midplane state 2. the dpu states (control plane state, data plane state). The midplane state has to be updated by the switch side pcied. The dpu states will be updated by the DPU (redis client update) on the switch ChassisStateDB. The get_state_info() API in the moduleBase class will fetch the contents from the DB. The show CLI reads the redis table and displays the data.
-root@sonic:~#show system-health DPU all  
-            
+root@sonic:~#show system-health DPU all
+
 Name       Oper-Status          State-Detail                   State-Value     Time                               Reason                        
-DPU0       Partial Online       dpu_midplane_link_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
+DPU0       Fault                dpu_midplane_link_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
                                 dpu_control_plane_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
                                 dpu_data_plane_state           down            Wed 20 Oct 2023 06:52:28 PM UTC    Pipeline failure
 
@@ -883,7 +892,7 @@ DPU1       Online               dpu_midplane_link_state        up              W
                                 dpu_data_plane_state           up              Wed 20 Oct 2023 06:52:28 PM UTC
 
 root@sonic:~#show system-health DPU 0
- 
+
 Name       Oper-Status          State-Detail                   State-Value     Time                               Reason
 DPU0       Offline              dpu_midplane_link_state        down            Wed 20 Oct 2023 06:52:28 PM UTC    PCIe link is down
                                 dpu_control_plane_state        down            Wed 20 Oct 2023 06:52:28 PM UTC
