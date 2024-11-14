@@ -21,7 +21,6 @@ The CMIS diagnostic monitoring data is stored in the `STATE_DB` database. The `S
 - `TRANSCEIVER_DOM_FLAG_SET_TIME`: Records the last timestamp when each DOM flag was set.
 - `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: Records the last timestamp when each DOM flag was cleared.
 - `TRANSCEIVER_VDM_REAL_VALUE`: Stores VDM sample data.
-- `TRANSCEIVER_VDM_THRESHOLD`: Contains threshold values for VDM parameters.
 - `TRANSCEIVER_VDM_HALARM_THRESHOLD`: Stores the high alarm threshold values for the VDM data.
 - `TRANSCEIVER_VDM_LALARM_THRESHOLD`: Stores the low alarm threshold values for the VDM data.
 - `TRANSCEIVER_VDM_HWARN_THRESHOLD`: Stores the high warning threshold values for the VDM data.
@@ -2093,7 +2092,7 @@ The `SfpStateUpdateTask` thread is responsible for updating the static diagnosti
 The following tables are updated by the `SfpStateUpdateTask` thread:
 
 1. `TRANSCEIVER_DOM_THRESHOLD`
-2. `TRANSCEIVER_VDM_THRESHOLD`
+2. `TRANSCEIVER_VDM_XXX_THRESHOLD` where `XXX` is the threshold type (`highalarm`, `highwarning`, `lowwarning`, `lowalarm`)
 
 ### 4.2 Dynamic Diagnostic Information
 
