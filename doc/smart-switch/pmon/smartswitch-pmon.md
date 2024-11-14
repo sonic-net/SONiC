@@ -91,6 +91,7 @@ The picture below highlights the PMON vertical and its association with other lo
 * A smartswitch when configured to boot up with all the DPUs in it are powered down upon boot up is referred as DPUs in dark mode.
 * In the dark mode the platform.json file shown in section "3.1.3" will not have the dictionary for the DPUS.
 * The term dark mode is overloaded in some cases where the platform.json may have the dictionary but the config_db.json will have the admin_state of all DPU modules as "down".
+* When platform.json has DPU information, but config DB doesn't have the DPU admin state configuration, the DPUs should be in downstate.
 * Default mode on smartswitch is dark mode, unless platform.json configures it to be in light up mode.
 * The DPUs would stay power down in dark mode and will not consume power.
 
@@ -250,7 +251,6 @@ SmartSwitch PMON block diagram
 
 ### 3.1. Platform monitoring and management
 * SmartSwitch design Extends the existing chassis_base class and module_base class as described below.
-* Extend MODULE_TYPE in ModuleBase class with MODULE_TYPE_DPU to support SmartSwitch
 
 #### 3.1.1 ChassisBase class API enhancements
 is_modular_chassis(self):
@@ -529,8 +529,10 @@ return REBOOT_CAUSE_NON_HARDWARE + ', ' + 'kernel panic'
 Though the get_oper_status(self) can get the operational status of the DPU modules, the current implementation only has limited capabilities.
     * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progression the DPU failed. This is critical in fault isolation, DPU switchover decision, resiliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistent way of storing and accessing the information.
-    * Store the state progression (dpu_midplane_link_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB using the push model specified in [section: 3.2.4 of SONiC Chassis Platform Management & Monitoring HLD](https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon-chassis-design.md)
+    * Store the state progression (dpu_midplane_link_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB.
     * get_state_info(self) will return an object with the ChassisStateDB data
+    * Two more APIs get_dataplane_state(self) and get_controlplane_state(self) are available to get the dataplane_state and controlplane_state are available to access them individually.
+    * The dpu_midplane_link_state will be monitored and updated by the NPU PMON chassisd.
     * Potential consumers: HA, LB, Switch CLIs, Utils (install/repair images), Life Cycle Manager 
     * Use cases: HA, Debuggability, error recovery (reset, power cycle) and fault management, consolidated view of Switch and DPU state
 
@@ -635,9 +637,8 @@ get_state_info(self):
 * Thermal manager reads all thermal sensor data, run thermal policy and take policy action Ex. Set fan speed, set alarm, set syslog, set LEDs 
 * Platform collects fan related data such as presence, failure and then applies fan algorithm to set the new fan speed
 * The north bound CLI/Utils/App use DB data to ”show environment”, ”show platform temp” show platform fan”
-* The DPUs will update the ChassisStateDB "TEMPERATURE_INFO" tables through redis client call which in turn will be pushed into the switch StateDB.
 * The existing "TEMPERATURE_INFO" schema will be used to store the values and is shown below for convenience.
-* For phase:1 implementation the sensor values collected by DPU will not be pushed to the chassisStateDB.
+
 #### TEMPERATURE_INFO schema in StateDB
 ```
   "TEMPERATURE_INFO|DPU_0_T": {
@@ -743,8 +744,6 @@ fantray1    N/A  fantray1.fan      56%       intake     Present        OK  20230
 #### 3.4.1 Reboot Cause CLIs
 * There are two existing CLIs "show reboot-cause" and "show reboot-cause history"
 * These two CLIs are extended to "show reboot-cause all" and "show reboot-cause history \<option\>", where the "option" could be DPUx, all or SWITCH
-* When each DPU turns online the NPU chassisd will fetch the reboot-cause using the "get_reboot_cause()" API.
-* The NPU chassisd will persist the reboot cause under "/host/reboot-cause/module/dpux" and update the chassisStateDB REBOOT_CAUSE table.
 * The DPUs will limit the number of history entries to a maximum of ten.
 * The recent reboot-cause can be derived from that list of reboot-causes.
 * Platform hardware should have the DPU reboot-cause available on the NPU side and provided it to the "get_reboot_cause()" API
