@@ -92,6 +92,11 @@ Since the platform specific config.bcm is read only in docker, the design copies
 
 The design will also copy the merged config.bcm or config.yml and sai.profile to /var/run/ share folder for debugging and testing purpose
 
+## 3.1 How to enable the common config feature in Platform
+By default, the common config feature is disabled. The feature can be enabled by creating a dummy
+common_config_support file in the BSP /usr/share/sonic/platform folder. 
+
+
 ## 4 Serviceability and DEBUG
 ### 4.1 Syslogs
 During system booting syncd initialization, the Per-switching silicon common config design will log the common config merged information to the syslogs for identifying which common config be merged to the ODM config.bcm for syncd initialization.
