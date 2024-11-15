@@ -84,19 +84,19 @@
               "profile_name": "high_frequency_counters",
               "group_name": "BUFFER_POOL",
               "object_names": ["egress_lossless_pool"],
+              "object_counters": ["WATERMARK_BYTES", "XOFF_ROOM_WATERMARK_BYTES"]
+            },
+            {
+              "profile_name": "high_frequency_counters",
+              "group_name": "QUEUE",
+              "object_names": ["Ethernet0|15", "Ethernet0|3"],
               "object_counters": ["PACKETS", "WRED_ECN_MARKED_PACKETS"]
             },
             {
               "profile_name": "high_frequency_counters",
-              "group_name": "BUFFER_PG",
+              "group_name": "INGRESS_PRIORITY_GROUP",
               "object_names": ["Ethernet4|0", "Ethernet4|3"],
               "object_counters": ["CURR_OCCUPANCY_BYTES", "XOFF_ROOM_WATERMARK_BYTES"]
-            },
-            {
-              "profile_name": "high_frequency_counters",
-              "group_name": "BUFFER_QUEUE",
-              "object_names": ["Ethernet0|15", "Ethernet0|3"],
-              "object_counters": ["WATERMARK_BYTES", "XOFF_ROOM_WATERMARK_BYTES"]
             }
           ]
         }
