@@ -114,7 +114,7 @@ make all
     }
     ```
 
-* By default, each image has one default startup database\_config.json file in SONiC file system at /etc/default/sonic-db/.
+* By default, each image uses multi\_database\_config.json.j2 or database\_config.json.j2 to generate database\_config.json depending on whether enable multidb.
 
 * The users is able to use the customized database configration, what needs to do is creating a database\_config.json file and place it at /etc/sonic/
 
@@ -131,7 +131,7 @@ Detail steps as below:
 3. **database service**
     * [x] **database docker start, entrypoint docker-database-init.sh**
     * [x] **if database\_config.json is found at /etc/sonic/, that means there is customized database config, we copy this config file to /var/run/redis/sonic-db/, which is the running database config file location, all the applications will read databse information from this file**
-    * [x] **if database\_config.json is NOT found at /etc/sonic/, that means there is no customized database config, we use multi\_database\_config.json.j2 or to database\_config.json.j2 generate database\_config.json depending on whether /etc/sonic/enable\_multidb exists**
+    * [x] **if database\_config.json is NOT found at /etc/sonic/, that means there is no customized database config, we use multi\_database\_config.json.j2 or database\_config.json.j2 to generate database\_config.json depending on whether /etc/sonic/enable\_multidb exists**
     * [x] **using supervisord.conf.j2 to generate supervisord.conf**
     * [x] **execute the previous entrypoint program /usr/bin/supervisord, then all the services will start based on the new supervisord.conf, which including starting how many redis instances**
     * [x] **check if redis instances are running or NOT via ping_pong_db_insts script**
