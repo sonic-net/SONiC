@@ -4,6 +4,28 @@
 
 ​        Today SONiC only has one redis database instance created and all the databases use this unique database instance, like APPL\_DB, ASIC\_DB, CONF\_DB and so on.  We found when there are huge writes operations during a short time period (like huge routes created), this only database instance is very busy. We tried to create two database instances and separate the huge write into two database instances. The test result shows the performance (time) improved 20-30%. Also creating multiple database instances help us to separate the databases based on their operation frequency or their role in the whole SONiC system, for example, like state database and loglevel database are not key features, we can avoid them affecting read and write APPL\_DB or ASIC\_DB  via multiple database instances.
 
+## High-Level Design
+
+SONiC build system includes a new build-time flag to ENABLE_MULTIDB (Default: unset, Value: y).
+When this flag is set, a flag file is touched at /etc/sonic/ by sonic_debian_extension.j2.
+```
+## Enable MULTIDB
+{% if ENABLE_MULTIDB == "y" %}
+sudo touch $FILESYSTEM_ROOT_ETC_SONIC/enable_multidb
+{% endif %}
+```
+Example ENABLE_MULTIDB flag usage:
+
+Enable MULTIDB:
+```
+make ENABLE_MULTIDB=y all
+```
+
+Do not enable MULTIDB:
+```
+make all
+```
+
 ## Current implementation
 
 * Single Redis database instance for all databases
@@ -25,28 +47,6 @@ DUT try to load a new images
     * [x] depends on rc.local and database
     * [x] restore selected files in /etc/sonic/old\_config to /etc/sonic/, if any
     * [x] if no folder /etc/sonic/old\_config/, generate config\_db.json based on xml and etc.
-
-### High-Level Design
-
-SONiC build system includes a new build-time flag to ENABLE_MULTIDB (Default: unset, Value: y).
-When this flag is set, a flag file is touched at /etc/sonic/ by sonic_debian_extension.j2.
-```
-## Enable MULTIDB
-{% if ENABLE_MULTIDB == "y" %}
-sudo touch $FILESYSTEM_ROOT_ETC_SONIC/enable_multidb
-{% endif %}
-```
-Example ENABLE_MULTIDB flag usage:
-
-Enable MULTIDB:
-```
-make ENABLE_MULTIDB=y all
-```
-
-Do not enable MULTIDB:
-```
-make all
-```
 
 ## New Design of Database Startup
 
