@@ -55,6 +55,10 @@ This new feature allows users to generate a SAI debug dump file using `show tech
 + Generate a SAI debug dump file within the context of Syncd.
 + Maintain the existing mechanism for generating the SAI debug dump file on failure.
 
+### Assumptions
+
+The SAI global API `sai_dbg_generate_dump` operates as a blocking function.
+
 ### Architecture Design
 
 Adding a new infrastructure without changes in existing Sonic Architecture
