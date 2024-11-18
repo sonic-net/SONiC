@@ -95,7 +95,7 @@ will be set to false in the RebootStatusResponse. Until the services are termina
 * Next, the NPU triggers a platform vendor reboot API to initiate the reboot process for the DPU. If the DPU is stuck or unresponsive, the DPU reboot platform API should
 attempt a cold boot or power cycle to recover it.
 
-* The NPU either immediately rescans the PCI bus upon return or after a specified timeout period. This rescan is performed via the pci_reattach() vendor API or, if the vendor API is unavailable, by echoing '1' to /sys/bus/pci/rescan.
+* The NPU rescans the PCI bus upon return of reboot platform API. This rescan is performed via the pci_reattach() vendor API or, if the vendor API is unavailable by echoing '1' to /sys/bus/pci/rescan.
 
 ## Switch reboot sequence ##
 
@@ -350,11 +350,11 @@ upon receiving an acknowledgment.
 
 Presented below is the test plan within the ```sonic-mgmt``` framework for the smart switch reboot.
 
-###Graceful boot/reboot###
+### Graceful boot/reboot ###
 
 A graceful boot refers to a controlled and orderly startup process where the system (whether it is a device, DPU, NPU, or the entire system) powers on or reboots without any unexpected interruptions or failures. During a graceful boot, all components follow a well-defined sequence to ensure system stability and functionality.
 
-###Ungraceful boot/reboot###
+### Ungraceful boot/reboot ###
 
 An ungraceful boot occurs when the boot process is interrupted, incomplete, or initiated in a hasty or unexpected manner, leading to potential system errors or data corruption. This may result from power loss, forced shutdowns, or reboot failures.
 
