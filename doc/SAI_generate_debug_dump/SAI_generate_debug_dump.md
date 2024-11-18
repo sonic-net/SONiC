@@ -44,7 +44,7 @@ The scope of this document is to design the handling of generating a SAI debug d
 ### Overview
 SAI dump file usually includes SDK info and configuration , SAI stats, capture of SAI lower layer states like registers vales etc...
 
-Currently, the SAI dump file is generated only during SAI failures by executing a dedicated executable named "saisdkdump" (which linkage with the SAI lib during initialization and creates a new switch in redundant mode) 
+Currently, the SAI dump file is generated only during SAI failures by executing a dedicated executable named "saisdkdump" (which linkage with the SAI lib and during initialization it creates a new switch in redundant mode) 
 
 This new feature allows users to generate a SAI debug dump file using `show tech-support` command, not necessarily during failure.
 
