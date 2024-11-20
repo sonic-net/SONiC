@@ -174,6 +174,9 @@ Credentialz is for managing SSH and Console access. Changes are made through dbu
   - Modify host's keys and certificates
 
 ##### Console Mgmt (users/passwords)
+This describes the API and expected behavior of a host service module to be named console_mgmt. This handles the backend tasks needed for Credentialz.
+
+The APIs may be called in any logical order (Create must be called before Restore or Delete).
 ###### Create checkpoint
 When the console_mgmt.create_checkpoint message is received the back-end will make a copy of all password-related files. This copy will be used to restore the state of the system account credential configuration to the state it was when this message was received.
 Files to be copied:
@@ -207,6 +210,7 @@ That differs from the other DBUS calls as it has a parameter - a string that con
 When this type of message is received the back-end will replace the content of /etc/passwd and /etc/shadow files.
 
 ##### SSH Mgmt
+This describes the API and expected behavior of a host service module to be named ssh_mgmt. This handles the backend tasks needed for Credentialz.
 ###### Create checkpoint
 When ssh_mgmt.create_checkpoint message is received the backend will make a copy of all SSH-related files. This copy will be used to restore the state of the SSH configuration to the state it was when this message was received.
 Files to be copied:
@@ -303,9 +307,9 @@ No change in SAI API.
 #### gNMI
 
 New flags for gnmi server:
-- AuthzPolicy     bool   // Enable authz policy.
+- EnableAuthzPolicy     bool   // Enable authz policy.
 - AuthzPolicyFile string // Path to JSON file with authz policies.
-- PathzPolicy     bool   // Enable gNMI pathz policy.
+- EnablePathzPolicy     bool   // Enable gNMI pathz policy.
 - PathzPolicyFile string // Path to gNMI pathz policy file.
 - CertCRLConfig        string // Path to the CRL directory. Disable if empty.
 - SshCredMetaFile      string // Path to JSON file with SSH server credential metadata.
