@@ -526,8 +526,7 @@ return REBOOT_CAUSE_NON_HARDWARE + ', ' + 'kernel panic'
 
 ```
 #### 2. DPU State
-Though the get_oper_status(self) can get the operational status of the DPU modules, the current implementation only has limited capabilities.
-    * Can only state MODULE_STATUS_FAULT and can't show exactly where in the state progression the DPU failed. This is critical in fault isolation, DPU switchover decision, resiliency and recovery
+    * Added supporting fileds such as "time" and "reason" to show exactly where in the state progression the DPU failed. This will be helpful in fault isolation, DPU switchover decision, resiliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistent way of storing and accessing the information.
     * Store the state progression (dpu_midplane_link_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB.
     * get_state_info(self) will return an object with the ChassisStateDB data
