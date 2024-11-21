@@ -1,4 +1,4 @@
-# POLICER Counters Support #
+# POLICER Counter #
 
 ## Table of Content
 * [Revision](#revision)
@@ -81,7 +81,7 @@ The attributes that are being queried:
 | SAI_POLICER_STAT_YELLOW_PACKETS | Get/set yellow packet count | 
 | SAI_POLICER_STAT_YELLOW_BYTES   | Get/set yellow byte count   |
 | SAI_POLICER_STAT_RED_PACKETS | Get/set red packet count | 
-| SAI_POLICER_STAT_RED_PACKETS   | Get/set red byte count   |
+| SAI_POLICER_STAT_RED_BYTES   | Get/set red byte count   |
 
 ### Orchagent
 
@@ -132,30 +132,51 @@ Counters table in COUNTERS DB:
   - value: Get red byte count [uint64_t]
 
 ```
+; Defines information for policer counter
+    key           = "COUNTERS:counter_oid"    ; policer counter statistic
+    ;field        = value
+    SAI_POLICER_STAT_PACKETS            = 1*10DIGIT                   ; packets
+    SAI_POLICER_STAT_ATTR_BYTES         = 1*10DIGIT                   ; bytes
+    SAI_POLICER_STAT_GREEN_PACKETS      = 1*10DIGIT                   ; packets
+    SAI_POLICER_STAT_GREEN_BYTES        = 1*10DIGIT                   ; bytes
+    SAI_POLICER_STAT_YELLOW_PACKETS     = 1*10DIGIT                   ; packets
+    SAI_POLICER_STAT_YELLOW_BYTES       = 1*10DIGIT                   ; bytes
+    SAI_POLICER_STAT_RED_PACKETS        = 1*10DIGIT                   ; packets
+    SAI_POLICER_STAT_RED_BYTES          = 1*10DIGIT                   ; bytes
+```
+
+
+```
 127.0.0.1:6379[2]> hgetall COUNTERS:oid:0x100000000037a
 1) "SAI_POLICER_STAT_PACKETS"
 2) "1000"
 3) "SAI_POLICER_STAT_ATTR_BYTES"
-4) "102400"
+4) "1024000"
 5) "SAI_POLICER_STAT_GREEN_PACKETS"
 6) "600"
 7) "SAI_POLICER_STAT_GREEN_BYTES"
-8) "61440"
+8) "6144000"
 9) "SAI_POLICER_STAT_YELLOW_PACKETS"
 10) "300"
 11) "SAI_POLICER_STAT_YELLOW_BYTES"
-12) "30720"
+12) "307200"
 13) "SAI_POLICER_STAT_RED_PACKETS"
 14) "100"
 15) "SAI_POLICER_STAT_RED_BYTES"
-16) "10240"
+16) "102400"
 ```
 
 Mapping hash table in COUNTERS_DB:
-
 - "COUNTERS_POLICER_NAME_MAP"
   - key: POLICER name (e.g: "span_policer")
-  - value: VID of the POLICER counter
+  - value: OID of the POLICER counter
+
+```
+; Defines information for COUNTERS_POLICER_NAME_MAP
+    key           = COUNTERS_POLICER_NAME_MAP   ; policer name to its oid
+    ;field        = value
+    <policer_name_to_counter>        = STRING                  ; name of the policer, value is the counter OID
+```
 
 E.g:
 
@@ -185,14 +206,14 @@ E.g:
 admin@sonic:~$ policerstat 
   Name        Green Packets    Green Bytes    Yellow Packets    Yellow Bytes    Red Packets   Red Bytes
 -------      ---------------  -------------  ----------------  --------------- ------------- ------------
-span_policer     600             61440            300             30720           100           10240
+span_policer     600             6144000            300             307200           100           102400
 
 ```
 
 Added a new CLI command
 ```
 show policer counter <policer_name>
-clear policer counter <policer_name>
+sonic-clear policer counter <policer_name>
 ```
 
 ### Configuration and management 
@@ -286,6 +307,20 @@ CLI Level Tests:
 ##### sonic-swss
 
 Functional Tests: 
+
+1. TestFlexCounters::test_flex_counters (Extend existing case)
+    - Enable policer counter group
+    - Verify new entry in FLEX_COUNTER_TABLE and name map
+    - Set policer counter group interval
+    - Verify interval value in FLEX_COUNTER_GROUP_TABLE
+    - Disable trap counter group
+    - Verify the counter group is disabled and all data in DB are cleared
+
+2. TestFlexCounters::test_add_remove_counter
+    - Enable policer counter group and set policer
+    - Verify counter automatically bind
+    - Remove the policer
+    - Verify counter is automatically unbind
 
 
 #### System Test cases
