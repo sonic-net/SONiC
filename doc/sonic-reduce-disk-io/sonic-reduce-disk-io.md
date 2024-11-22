@@ -52,7 +52,7 @@ The following table summarizes the primary disk writers averaged across 100 devi
 - **monit**: Updates state file in `/var/lib/monit/`.
 - **logrotate**: Updates status file in `/var/lib/logrotate/`.
 
-Additionally, there are also various files created and deleted in the /tmp directory which contribute towards disk writes by the kernel journal.
+Additionally, there are also various files **created and deleted in the /tmp directory** by the low-priority kernel worker threads, which also contribute towards disk writes via journaling.
 
 ## Optimizations
 The following optimizations are proposed to reduce disk writes:
@@ -90,53 +90,87 @@ Disabling journaling on an EXT4 filesystem offers a few tangible benefits, but t
 ### Results with Optimizations
 Below are the disk writes in MiB per day after implementing the optimizations proposed above:
 
-| HWSKU | OS Version | Unoptimized | Optimization A | Optimization B | Optimization C |
-|-------|------------|-------------|----------------|----------------|----------------|
-| SKU1  | Version_1  | 872.89      | 66             | 135.9          | 147.4          |
-|       | Version_2  | 667.81      | 81             | 55.8           | 273.3          |
-|       | Version_3  | 719.52      | 70.4           | 87.5           | 133.2          |
-| SKU2  | Version_1  | 627.81      | 62.9           | 23.5           | 99.1           |
-|       | Version_3  | 729.14      | 77             | 8              | 43.3           |
-| SKU3  | Version_1  | 762.63      | 50             | 175.3          | 237.3          |
-|       | Version_2  | 591.26      | 52             | 94.4           | N/A            |
-|       | Version_3  | 643.14      | 59             | 206            | 96             |
+| HWSKU | OS Version | Unoptimized | Optimizations A |  Optimizations B | Optimization C |
+| ----- | ---------- | ----------- | --------------- | ---------------- | -------------- |
+| SKU1  | Version_1  | 872.89      | 147.1           | 135.9            | 66             |
+|       | Version_2  | 667.81      | 273.3           | 55.8             | 81             |
+|       | Version_3  | 719.52      | 133.2           | 87.5             | 70.4           |
+| SKU2  | Version_1  | 627.81      | 99.1            | 23.5             | 62.9           |
+|       | Version_3  | 729.14      | 43.3            | 8                | 77             |
+| SKU3  | Version_1  | 762.63      | 237.3           | 175.3            | 50             |
+|       | Version_2  | 591.26      | 160.1           | 94.4             | 52             |
+|       | Version_3  | 643.14      | 96              | 206              | 59             |
 
 ##### **Table 4**
 
 Where:
-Optimization A: All optimizations mentioned in the previous section, including disabling journaling
+Optimization A: User space modifications, journaling is enabled and **/tmp is mounted to disk**
 Optimization B: User space modifications, journaling is enabled and **/tmp is mounted to tmpfs**
-Optimization C: User space modifications, journaling is enabled and **/tmp is mounted to disk**
+Optimization C: optimization A + **kernel journaling disabled**
 
+
+Here is the summarized table showing the reduction in disk writes for each optimization technique as a percentage of the unoptimized value:
+
+| **HWSKU** | **OS Version** | **Optimization A (%)** | **Optimization B (%)** | **Optimization C (%)** |
+|-----------|----------------|------------------------|------------------------|------------------------|
+| SKU1      | Version_1      | 83.11%                 | 84.43%                 | 92.44%                 |
+| SKU1      | Version_2      | 59.08%                 | 91.64%                 | 87.87%                 |
+| SKU1      | Version_3      | 81.49%                 | 87.84%                 | 90.22%                 |
+| SKU2      | Version_1      | 84.21%                 | 96.26%                 | 89.98%                 |
+| SKU2      | Version_3      | 94.06%                 | 98.90%                 | 89.44%                 |
+| SKU3      | Version_1      | 68.88%                 | 77.01%                 | 93.44%                 |
+| SKU3      | Version_2      | 72.91%                 | 84.03%                 | 91.21%                 |
+| SKU3      | Version_3      | 85.07%                 | 67.97%                 | 90.83%                 |
+
+<br>
+<br>
+
+![Reduction in disk writes as a percentage of writes in unoptimized SONiC images vs various optimization strategies](images/Reduction_Percentage.png)
+
+
+<br>
+<br>
 
 ### Key Takeaways from Disk Write Comparisons Across Scenarios
 
-1. **Unoptimized Scenario:**
+1. **Optimization A** consistently provides the highest reduction across most configurations, often exceeding 90%.
+2. **Optimization B** shows strong reductions but with more variability, reaching a maximum of ~98.90% reduction.
+3. **Optimization C**, where applicable, generally reduces disk writes effectively but lags slightly behind the other techniques in some cases.
+
+4. **Unoptimized Scenario:**
    - The baseline disk write volumes are significantly higher across all hardware SKUs and OS versions, with values exceeding **600 MiB/day** in most cases.
    - This reflects the default behavior of the system with no mitigations applied, highlighting the impact of verbose write patterns in SONiC.
 
-2. **Optimization A (User Space + Journaling Disabled):**
-   - Shows the **greatest reduction in disk writes**, with values often below **100 MiB/day**.
-   - Journaling contributes heavily to disk writes in the unoptimized state, and disabling it leads to a dramatic reduction.
-   - **Trade-offs**: Risk of data corruption, longer recovery times, and filesystem inconsistency must be carefully considered before adopting this approach.
+5. **Optimization A (All User Space Optimizations Except `/tmp`, which is on Disk):**
+   - Results in higher disk writes compared to Optimization B, especially when `/tmp` remains on disk.
+   - Write volumes exceed **200 MiB/day** in some cases, suggesting `/tmp` contributes a substantial portion of unnecessary disk writes in the default configuration.
+   - **Advantage**: Maintains data integrity by keeping journaling enabled.
 
-3. **Optimization B (All User Space Optimizations):**
+6. **Optimization B (All User Space Optimizations):**
    - Achieves significant write reductions compared to the unoptimized state, especially in processes like `/tmp` handling, log relocation, and reduced writes from vtysh and worker threads.
    - Write reductions are generally moderate, with values staying between **50-200 MiB/day**, depending on the SKU and OS version.
    - **Advantage**: Maintains data integrity by keeping journaling enabled.
 
-4. **Optimization C (All User Space Optimizations Except `/tmp` on Disk):**
-   - Results in higher disk writes compared to Optimization B, especially when `/tmp` remains on disk.
-   - Write volumes exceed **200 MiB/day** in some cases, suggesting `/tmp` contributes a substantial portion of unnecessary disk writes in the default configuration.
+7. **Optimization C (Optimization A + Journaling Disabled):**
+   - Shows the **greatest reduction in disk writes**, with values often below **100 MiB/day**.
+   - Journaling contributes heavily to disk writes in the unoptimized state, and disabling it leads to a dramatic reduction.
+   - **Trade-offs**: Risk of data corruption, longer recovery times, and filesystem inconsistency must be carefully considered before adopting this approach.
 
-5. **Relative Importance of `/tmp` Relocation:**
-   - The comparison between Optimizations B and C highlights the critical role of relocating `/tmp` to tmpfs. 
+8. **Relative Importance of `/tmp` Relocation:**
+   - The comparison between Optimizations A and B highlights the critical role of relocating `/tmp` to tmpfs. 
    - Relocating `/tmp` alone contributes significantly to write reduction, emphasizing the priority of this optimization.
 
-6. **SKU and OS Version Variability:**
+9. **SKU and OS Version Variability:**
    - Disk writes and the impact of optimizations vary by SKU and OS version, with SKU3 generally showing higher disk writes in the unoptimized state.
    - This variability underscores the importance of tailoring optimizations to specific hardware and OS configurations.
 
-7. **Overall Effectiveness of User Space Optimizations:**
-   - Even without disabling journaling (Optimization B), user space changes like log relocation, command streamlining, and `/tmp` adjustments substantially mitigate disk writes.
+10. **Overall Effectiveness of User Space Optimizations:**
+   - Even without disabling journaling (Optimizations A,B), user space changes like log relocation, command streamlining, and `/tmp` adjustments substantially mitigate disk writes.
    - This suggests a strong case for prioritizing these optimizations as a low-risk, high-impact approach.
+
+
+### Final Recommendations
+
+1. **Performance with Reliability**: Choose Optimization B, which maintains journaling and provides a significant reduction in disk writes.
+2. **System Constraints** → Choose Optimization A if tmpfs is not viable due to memory limitations, but expect lower reductions.
+3. **Maximum Disk Write Reduction** → Choose Optimization C if and only if you can tolerate the risks associated with disabling journaling.
