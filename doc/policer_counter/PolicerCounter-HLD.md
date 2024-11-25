@@ -92,7 +92,7 @@ Counter Type:
 CounterType::POLICER
 ```
 
-PolicerOrch holds a new object of type FlexCounterManager and is initialized with ```StatsMode::READ```
+PolicerOrch holds a new object of type FlexCounterManager and is initialized to ```StatsMode::READ```
 and a default polling interval of 10 sec and disable by default:
 ```c++
 FlexCounterManager m_pc_manager;
@@ -107,7 +107,7 @@ Added POLICER FC group support in syncd/FlexCounter.cpp.
 
 ### SAI API
 
-No new SAI API is used.
+No new SAI API is needed.
 
 ### COUNTERS DB
 
@@ -135,14 +135,14 @@ Counters table in COUNTERS DB:
 ; Defines information for policer counter
     key           = "COUNTERS:counter_oid"    ; policer counter statistic
     ;field        = value
-    SAI_POLICER_STAT_PACKETS            = 1*10DIGIT                   ; packets
-    SAI_POLICER_STAT_ATTR_BYTES         = 1*10DIGIT                   ; bytes
-    SAI_POLICER_STAT_GREEN_PACKETS      = 1*10DIGIT                   ; packets
-    SAI_POLICER_STAT_GREEN_BYTES        = 1*10DIGIT                   ; bytes
-    SAI_POLICER_STAT_YELLOW_PACKETS     = 1*10DIGIT                   ; packets
-    SAI_POLICER_STAT_YELLOW_BYTES       = 1*10DIGIT                   ; bytes
-    SAI_POLICER_STAT_RED_PACKETS        = 1*10DIGIT                   ; packets
-    SAI_POLICER_STAT_RED_BYTES          = 1*10DIGIT                   ; bytes
+    SAI_POLICER_STAT_PACKETS            = number                   ; packets
+    SAI_POLICER_STAT_ATTR_BYTES         = number                   ; uint64
+    SAI_POLICER_STAT_GREEN_PACKETS      = number                   ; packets
+    SAI_POLICER_STAT_GREEN_BYTES        = number                   ; uint64
+    SAI_POLICER_STAT_YELLOW_PACKETS     = number                   ; packets
+    SAI_POLICER_STAT_YELLOW_BYTES       = number                   ; uint64
+    SAI_POLICER_STAT_RED_PACKETS        = number                   ; packets
+    SAI_POLICER_STAT_RED_BYTES          = number                   ; uint64
 ```
 
 
@@ -200,7 +200,7 @@ E.g:
 
 ### CLI
 
-*policerstat* utility is added to reads counters from the COUNTERS DB using the POLICER table in CONFIG DB and the COUNTERS_POLICER_NAME_MAP. It maps each POLICER to its VID and fetches counter values. If a map entry or VID is missing, it shows N/A, indicating either the POLICER was created without a counter, the policer/map entry isn't created yet, polling is disabled, or syncd hasn't updated the COUNTERS DB.
+The *policerstat* utility is added to reads counters from the COUNTERS DB using the POLICER table in CONFIG DB and the COUNTERS_POLICER_NAME_MAP. It maps each POLICER to its VID and fetches counter values. If a map entry or VID is missing, it shows N/A, indicating either the POLICER was created without a counter, the policer/map entry isn't created yet, polling is disabled, or syncd hasn't updated the COUNTERS DB.
 
 ```
 admin@sonic:~$ policerstat 
@@ -210,10 +210,14 @@ span_policer     600             6144000            300             307200      
 
 ```
 
-Added a new CLI command
+Added a flag in  ```show policer``` to show policer counter
 ```
-show policer counter <policer_name>
-sonic-clear policer counter <policer_name>
+show policer -c [policer_name]
+```
+
+Added a new CLI command - uses the policerstat utility
+```
+sonic-clear policercounters [policer_name]
 ```
 
 ### Configuration and management 
@@ -270,7 +274,8 @@ Flex Counter YANG model with POLICER group:
 Counter polling is delayed at system startup.
 
 ### Restrictions/Limitations  
-N/A
+* Policers must be supported
+* Color based policing must be supported
 
 ### Testing Requirements/Design  
 
@@ -296,11 +301,11 @@ CLI Level Tests:
     - Verify command output with normal format
     - Verify command output with JSON format
 
-5. TestPolicerStat::show_policer (Add new case for `show policer counter <policer_name>`)
+5. TestPolicerStat::show_policer (Add new case for `show policer -c [policer_name]`)
     - Verify command output with normal format
     - Verify command output with JSON format
 
-6. TestPolicerStat::clear_policer (Add new case for `clear policer counter <policer_name>`)
+6. TestPolicerStat::clear_policer (Add new case for `sonic-clear policercounters [policer_name]`)
     - Verify stats value can be cleared
 
 
