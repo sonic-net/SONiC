@@ -32,6 +32,7 @@
 | 0.2 | 05/29/2024 | Vasundhara Volam | Update images and APIs |
 | 0.3 | 06/10/2024 | Vasundhara Volam | Minor changes based on discussion with the community |
 | 0.4 | 07/29/2024 | Vasundhara Volam | Add PCIe daemon changes |
+| 0.5 | 11/07/2024 | Vasundhara Volam | Minor changes around PCI vendor APIs |
 
 ## Glossory ##
 
@@ -89,12 +90,12 @@ DPUs are internally connected to the NPU via PCI-E bridge. Below is the reboot s
 service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the gNOI RebootStatus RPC with STATUS_SUCCESS and 'active'
 will be set to false in the RebootStatusResponse. Until the services are terminated gracefully, 'active' will be '1' in the RebootStatusResponse.
 
-* Subsequently, the NPU detaches the DPU PCI device using the sysfs interface by executing `echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove`. This detachment is currently performed via sysfs, with future plans to implement a vendor-specific API when the DPU bus information cannot have a fixed value.
+* Subsequently, the NPU detaches the DPU PCI device via the pci_detach() vendor API, or through the sysfs interface by executing echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove, if the vendor API is unavailable.
 
 * Next, the NPU triggers a platform vendor reboot API to initiate the reboot process for the DPU. If the DPU is stuck or unresponsive, the DPU reboot platform API should
 attempt a cold boot or power cycle to recover it.
 
-* The NPU either immediately rescans the PCI bus upon return or after a specified timeout period. This rescan is performed via the sysfs interface by echoing '1' to /sys/bus/pci/rescan.
+* The NPU rescans the PCI bus upon return of reboot platform API. This rescan is performed via the pci_reattach() vendor API or, if the vendor API is unavailable by echoing '1' to /sys/bus/pci/rescan.
 
 ## Switch reboot sequence ##
 
@@ -111,7 +112,7 @@ services, excluding the gNOI server and also database, in preparation for the re
 service, continuing until the timeout is reached. Once the DPU successfully terminates all services, it responds to the gNOI RebootStatus RPC with STATUS_SUCCESS and 'active'
 will be set to false in the RebootStatusResponse. Until the services are terminated gracefully, 'active' will be '1' in the RebootStatusResponse.
 
-* Following the confirmation from the DPUs, the NPU proceeds to detach the PCI devices associated with the DPUs. This detachment is achieved through the sysfs interface by echoing '1' to the /sys/bus/pci/devices/XXXX:XX:XX.X/remove file for each DPU. While this detachment is currently performed via sysfs, there are plans to implement a vendor-specific API for cases where the DPU bus information cannot have a fixed value.
+* Following the confirmation from the DPUs, the NPU proceeds to detach the PCI devices associated with the DPUs. This detachment is achieved through the pci_detach() vendor API, or via the sysfs interface by echoing '1' to /sys/bus/pci/devices/XXXX:XX:XX.X/remove for each DPU, if the vendor API is unavailable.
 
 * With the DPUs prepared for reboot, the NPU triggers a platform vendor API to initiate the reboot process for the DPUs. Vendor API reboots a single DPU, but the NPU spawns multiple threads to reboot DPUs in parallel. If any of the the DPU is stuck or unresponsive, the DPU reboot platform API should attempt a cold boot or power cycle to recover it.
 
@@ -125,14 +126,14 @@ will be set to false in the RebootStatusResponse. Until the services are termina
 
 reboot(self, reboot_type):
 ```
-Define new reboot_type as MODULE_REBOOT_DPU for DPU only reboot and MODULE_REBOOT_SMARTSWITCH for entire switch reboot.
+Define new reboot_types as MODULE_REBOOT_DPU for DPU only reboot and MODULE_REBOOT_SMARTSWITCH for rebooting the DPU when entire switch is undergoing for a reboot.
 ```
 
 This API is defined in [smartswitch-pmon.md](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/pmon/smartswitch-pmon.md#:~:text=reboot(self%2C%20reboot_type)%3A)
 
 ### ModuleBase Class new APIs ###
 
-pci_detach(self. module_name):
+pci_detach(self):
 ```
 Detaches the DPU PCI device from the NPU. In the case of non-smart-switch chassis, no action is taken.
 
@@ -140,7 +141,7 @@ Returns:
     True
 ```
 
-pci_reattach(self, module_name):
+pci_reattach(self):
 ```
 Rescans the PCI bus and attach the DPU back to NPU. In the case of non-smart-switch chassis, no action is taken.
 
@@ -148,7 +149,7 @@ Returns:
     True
 ```
 
-get_bus_info(self, module_name):
+get_pci_bus_info(self):
 ```
 For a given DPU module name, retrieve the PCI bus information. In the case of non-smart-switch chassis, no action is taken.
 
@@ -349,11 +350,11 @@ upon receiving an acknowledgment.
 
 Presented below is the test plan within the ```sonic-mgmt``` framework for the smart switch reboot.
 
-###Graceful boot/reboot###
+### Graceful boot/reboot ###
 
 A graceful boot refers to a controlled and orderly startup process where the system (whether it is a device, DPU, NPU, or the entire system) powers on or reboots without any unexpected interruptions or failures. During a graceful boot, all components follow a well-defined sequence to ensure system stability and functionality.
 
-###Ungraceful boot/reboot###
+### Ungraceful boot/reboot ###
 
 An ungraceful boot occurs when the boot process is interrupted, incomplete, or initiated in a hasty or unexpected manner, leading to potential system errors or data corruption. This may result from power loss, forced shutdowns, or reboot failures.
 
@@ -363,10 +364,7 @@ An ungraceful boot occurs when the boot process is interrupted, incomplete, or i
 | Power-On                                  | Graceful boot       | Graceful boot       |
 | Planned cold reboot of Smart Switch       | Graceful reboot     | Graceful reboot     |
 | Planned cold reboot of DPU                | -                   | Graceful reboot     |
-| Planned power-cycle of Smart Switch       | Graceful reboot     | Graceful reboot     |
 | Planned power-cycle of DPU                | -                   | Graceful reboot     |
-| Unplanned DPU power failure               | -                   | Ungraceful reboot   |
-| Unplanned Smart Switch power failure      | Ungraceful reboot   | Ungraceful reboot   |
 | Unplanned Smart Switch System Crash       | Ungraceful reboot   | Ungraceful reboot   |
 | Unplanned DPU System Crash                | -                   | Ungraceful reboot   |
 
