@@ -114,27 +114,28 @@ In all places where a Redis Client is not used to perform a transactional operat
 In all places where a transactional operation is performed, the call will be refactored to use TransactionalRedisClient(). This will give the caller a new Redis Client that is unique. If more options need to be specified, the call will be refactored to use TransactionalRedisClientWithOpts().
 
 The calls to redis.NewClient() that will be refactored are:
-- [db.go:401](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db.go#L401): RedisClient or TransactionalRedisClient depending on the value of the `TransactionsRequired` option.
+- [db.go:401](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db.go#L401): RedisClient or TransactionalRedisClient depending on the value of the `ForceNewRedisConnection` option.
 - [db_lock.go:268](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db_lock.go#L268): TransactionalRedisClient
 - [db_stats.go:538](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db_stats.go#L538): TransactionalRedisClient
 - []
 
 Since calls to [NewDB()](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db.go#L388) will need to result in using a pool or transactional Redis Client, the caller will need to specify which one is needed. A new DB [Option](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/db.go#L164) is being introduced, called `TrasactionsRequired`. If a transactional Redis Client is needed, the caller of NewDB() needs to pass this option in, otherwise a pool client will be used.
 
-All the calls to NewDB() and their corresponding `TransactionsRequired` value are:
+All the calls to NewDB() and their corresponding `ForceNewRedisConnection` value are:
 - [cs.go:183](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/cs/cs.go#L183): TrasactionsRequired=`true`
 - [cs_getdb.go:49](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/cs/cs_getdb.go#L49): TrasactionsRequired=`true`
-- [db/subscribe.go:145](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/subscribe.go#L145): TransactionsRequired=`true`
-- [subscribe.go:176](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L176): TransactionsRequired=`true`
-- [subscribe.go:223](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L223): TransactionsRequired=`false`
-- [subscribe.go:275](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L275): TransactionsRequired=`false`
-- [subscribe.go:467](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L467): TransactionsRequired=`true`
-- [translib:go:179](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L179): TransactionsRequired=`true`
-- [translib.go:252](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L252): TransactionsRequired=`true`
-- [translib.go:326](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L326): TransactionsRequired=`true`
-- [translib.go:399](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L399): TransactionsRequired=`true`
-- [translib.go:569](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L569): TransactionsRequired=`true`
-- [translib.go:468](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L468): TransactionsRequired=`false`
+- [db/subscribe.go:145](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/db/subscribe.go#L145): ForceNewRedisConnection=`true`
+- [subscribe.go:176](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L176): ForceNewRedisConnection=`false`
+- [subscribe.go:223](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L223): ForceNewRedisConnection=`false`
+- [subscribe.go:275](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/subscribe.go#L275): ForceNewRedisConnection=`false`
+- [translib:go:179](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L179): ForceNewRedisConnection=`true`
+- [translib.go:252](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L252): ForceNewRedisConnection=`true`
+- [translib.go:326](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L326): ForceNewRedisConnection=`true`
+- [translib.go:399](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L399): ForceNewRedisConnection=`true`
+- [translib.go:524](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L524): ForceNewRedisConnection=`true`
+- [translib.go:569](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L569): ForceNewRedisConnection=`true`
+- [translib.go:468](https://github.com/sonic-net/sonic-mgmt-common/blob/b91a4df3bd0e4be97e67ab3f27b1826b1713afc5/translib/translib.go#L468): ForceNewRedisConnection=`false`
+
 
 All calls to redis.Close() will be replaced with calls to CloseRedisClient(). This will ensure that Redis Clients that use connection pools are not closed.
 
