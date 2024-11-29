@@ -75,13 +75,18 @@ Warm reboot is intended to be supported for planned system warm reboot.
 
 At the time of writing this document, FRR has been able to program the SRv6 related tables in APPL_DB through fpmsyncd.
 However, there is still one gap preventing SONiC being utilized for SRv6 SDN deployment.
-Specifically, there is no interface in the configuration framework of SONiC allowing users to directly add configuration for SRv6 without involving BGP.
+Specifically, there is no mechamism in SONiC allowing SDN controllers or users to directly add configuration for SRv6 without involving BGP.
 
 In this document, we first define a new **SRV6_MY_SID_TABLE** table in CONFIG_DB that serves as the configuration source of SRv6 in SONiC.
-Then, we design a new SRv6 Manager module in bgpcfgd to subscribe to the **SRV6_MY_SID_TABLE** table and compile information in CONFIG_DB to configurations of FRR.
+Then, we design a new SRv6 Manager module in bgpcfgd to subscribe to the **SRV6_MY_SID_TABLE** table and compile changes in CONFIG_DB to changes in the configurations of FRR.
 To verify the correctness of the aforementioned flow, we also define the relevant YANG model specification.
+The workflow of the new mechanism is shown in the following diagram.
 
-## 3.1 ConfigDB Table Definition
+![Static SRv6 Config flow](images/SRv6_bgpcfgd.png)
+
+The design details of each step is described in the following subsections.
+
+## 3.1 New Table in ConfigDB
 
 
 **SRV6_MY_SID_TABLE**
@@ -131,8 +136,8 @@ For example:
 
 ## 3.2 Bgpcfgd changes
 
-
-
+To enable automatic programming SRv6 configurations from CONFIG_DB to FRR, we need to add a new module in bgpcfgd to watch changes in **SRV6_MY_SID_TABLE** and compile the corresponding changes in FRR's configurations.
+Following the naming convention of modules in bgpcfgd, we call this new module SRv6 Manager.
 
 ## 3.3 YANG Model
 ```
