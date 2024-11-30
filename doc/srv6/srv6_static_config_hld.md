@@ -91,7 +91,7 @@ The design details of each step is described in the following subsections.
 
 **SRV6_MY_SID_TABLE**
 
-Description: New table to hold local SID definition and SID to behavior mapping. (A redefinition of SRV6_MY_SID_TABLE in [SRv6_HLD](./srv6_hld.md))
+Description: New table to hold local SID definition and SID to behavior mapping. (A simplified redefinition of SRV6_MY_SID_TABLE in [SRv6_HLD](./srv6_hld.md))
 
 Schema:
 
@@ -107,20 +107,18 @@ func_len = flen              ; bit length of function portion in address, defaul
 action = behavior            ; behaviors defined for local SID
 vrf = VRF_TABLE.key          ; VRF name for END.DT46, can be empty
 adj = address,               ; Optional, list of adjacencies for END.X
-policy = SRV6_POLICY.key     ; Optional, policy name for END.B6.ENCAP
-source  = address,           ; Optional, list of src addrs for encap for END.B6.ENCAP
 
 For example:
     "SRV6_MY_SID_TABLE" : {
         "FCBB:BBBB:20::" : {
-           "action": "end"
+           "action": "uN"
         },
         "FCBB:BBBB:20:F1::" : {
-           "action": "end.dt46",
+           "action": "uDT46",
            "vrf":  "VRF-1001"
         },
         "FCBB:BBBB:20:F2::" : {
-           "action": "end.dt46",
+           "action": "uDT46",
            "vrf":  "VRF-1001"
         },
         "FCBB:BBBB:20:F3::" : {
@@ -141,52 +139,30 @@ Following the naming convention of modules in bgpcfgd, we call this new module S
 
 ## 3.3 YANG Model
 ```
-module: sonic-srv6
-  +--rw sonic-srv6
-     +--rw SRV6_SID_LIST
-     |  +--rw SRV6_SID_LIST_LIST* [name]
-     |     +--rw name    string
-     |     +--rw path*   inet:ipv6-address
+module: sonic-srv6-config
+  +--rw sonic-srv6-config
      +--rw SRV6_MY_SID
      |  +--rw SRV6_MY_SID_LIST* [ip-address]
      |     +--rw ip-address    inet:ipv6-address
      |     +--rw block_len?    uint16
      |     +--rw node_len?     uint16
      |     +--rw func_len?     uint16
-     |     +--rw arg_len?      uint16
      |     +--rw action?       enumeration
      |     +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
      |     +--rw adj*          inet:ipv6-address
-     |     +--rw policy?       -> /sonic-srv6/SRV6_POLICY/SRV6_POLICY_LIST/name
-     |     +--rw source?       inet:ipv6-address
-     +--rw SRV6_POLICY
-     |  +--rw SRV6_POLICY_LIST* [name]
-     |     +--rw name       string
-     |     +--rw segment*   -> /sonic-srv6/SRV6_SID_LIST/SRV6_SID_LIST_LIST/name
-     +--rw SRV6_STEER
-        +--rw SRV6_STEER_LIST* [vrf-name ip-prefix]
-           +--rw vrf-name     -> /vrf:sonic-vrf/VRF/VRF_LIST/name
-           +--rw ip-prefix    union
-           +--rw policy?      -> /sonic-srv6/SRV6_POLICY/SRV6_POLICY_LIST/name
-           +--rw source?      inet:ipv6-address
 ```
 
 ## 4 Unit Test
 
-TBD
+|Test Cases (done on default instance and VRF)| Test Result |
+| :------ | :----- |
+|add config for a SID with uN action in CONFIG_DB | verify the locator config entry is created in FRR config|
+|add config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry is created in FRR config with correct parameters|
+|add config for a SID with uA action associated with two neighbors in CONFIG_DB | verify the opcode config entry is created in FRR config with correct parameters|
+|delete config for a SID with uN action in CONFIG_DB | verify the locator config entry is deleted in FRR config|
+|delete config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry for the uDT46 action is deleted in FRR config|
+|delete config for a SID with uA action in CONFIG_DB | verify the opcode config entry for the uA action is deleted in FRR config|
 
 ## 5 References
-
--  [SAI IPv6 Segment Routing Proposal for SAI 1.2.0](https://github.com/opencomputeproject/SAI/blob/1066c815ddd7b63cb9dbf4d76e06ee742bc0af9b/doc/SAI-Proposal-IPv6_Segment_Routing-1.md)
-
--  [RFC 8754](https://tools.ietf.org/html/rfc8754)
--  [RFC 8986](https://www.rfc-editor.org/rfc/rfc8986.html)
--  [draft-filsfils-spring-segment-routing-policy](https://tools.ietf.org/html/draft-filsfils-spring-segment-routing-policy-06)
-
--  [draft-ali-spring-bfd-sr-policy-06](https://tools.ietf.org/html/draft-ali-spring-bfd-sr-policy-06)
-
--  [draft-filsfils-spring-net-pgm-extension-srv6-usid](https://tools.ietf.org/html/draft-filsfils-spring-net-pgm-extension-srv6-usid-08)
-
--  [draft-cl-spring-generalized-srv6-for-cmpr](https://tools.ietf.org/html/draft-cl-spring-generalized-srv6-for-cmpr-02)  
 
 
