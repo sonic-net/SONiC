@@ -2,7 +2,6 @@
 
 # Table of Contents
 
-- [List of Tables](#list-of-tables)
 - [Revision](#revision)
 - [Definition/Abbreviation](#definitionabbreviation)
 - [About This Manual](#about-this-manual)
@@ -12,11 +11,9 @@
 - [2.2 Configuration and Managment Requirements](#22-configuration-and-management-requirements)
 - [2.3 Warm Boot Requirements](#23-warm-boot-requirements)
 - [3 Feature Design](#3-feature-design)
-- [3.1 ConfigDB Changes](#31-configdb-changes)
-- [3.2 AppDB Changes](#32-appdb-changes)
-- [3.3 Orchestration Agent Changes](#33-orchestration-agent-changes)
-- [3.4 SAI](#34-sai)
-- [3.5 YANG Model](#35-yang-model)
+- [3.1 New Table in ConfigDB](#31-new-table-in-configdb)
+- [3.2 Bgpcfgd Changes](#32-bgpcfgd-changes)
+- [3.3 YANG Model](#33-yang-model)
 - [4 Unit Test](#4-unit-test)
 - [5 References ](#5-references) 
 
