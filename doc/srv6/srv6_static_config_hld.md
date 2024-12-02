@@ -133,6 +133,8 @@ For example:
 
 To enable automatic programming SRv6 configurations from CONFIG_DB to FRR, we need to add a new module in bgpcfgd to watch changes in **SRV6_MY_SID_TABLE** and compile the corresponding changes in FRR's configurations.
 Following the naming convention of modules in bgpcfgd, we call this new module SRv6 Manager.
+The new SRv6 Manager are supposed to verify the validity of the configuration entries coming from the CONFIG_DB.
+If it gets an invalid configuration input, it should log the event in the syslog and not compile the configuration into FRR.
 
 ## 3.3 YANG Model
 ```
@@ -154,11 +156,14 @@ module: sonic-srv6-config
 |Test Cases (done on default instance and VRF)| Test Result |
 | :------ | :----- |
 |add config for a SID with uN action in CONFIG_DB | verify the locator config entry is created in FRR config|
-|add config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry is created in FRR config with correct parameters|
+|add config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry is created in FRR config with correct VRF|
+|add config for a SID with uDT46 action without VRF parameter in CONFIG_DB | verify the opcode config entry is created in FRR config with default VRF|
 |add config for a SID with uA action associated with two neighbors in CONFIG_DB | verify the opcode config entry is created in FRR config with correct parameters|
+|(Negative case) add config for a SID without action in CONFIG_DB | verify that the configuration did not get into FRR config |
 |delete config for a SID with uN action in CONFIG_DB | verify the locator config entry is deleted in FRR config|
 |delete config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry for the uDT46 action is deleted in FRR config|
 |delete config for a SID with uA action in CONFIG_DB | verify the opcode config entry for the uA action is deleted in FRR config|
+
 
 ## 5 References
 
