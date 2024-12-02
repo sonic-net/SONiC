@@ -32,11 +32,9 @@
 | -------- | ----------------------------------------- |
 | BGP  | Border Gateway Protocol |
 | SID  | Segment Identifier  |
-| SRH  | Segment Routing Header  |
 | SRv6 | Segment Routing IPv6  |
 | SDN | Software Defined Network |
 | uSID | Micro Segment |
-| VNI  | VXLAN Network Identifier  |
 | VRF  | Virtual Routing and Forwarding  |
 
 # About this Manual
@@ -101,9 +99,10 @@ key = SRV6_MY_SID_TABLE|ipv6address
 block_len = blen             ; bit length of block portion in address, default 32
 node_len = nlen              ; bit length of node ID portion in address, default 16
 func_len = flen              ; bit length of function portion in address, default 16
-action = behavior            ; behaviors defined for local SID
-vrf = VRF_TABLE.key          ; VRF name for END.DT46, can be empty
-adj = address,               ; Optional, list of adjacencies for END.X
+arg_len = alen               ; bit length of argument portion in address, default 0
+action = behavior            ; behaviors defined for the SID
+vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions
+adj = address,               ; Optional, list of adjacencies for cross-connect actions
 
 For example:
     "SRV6_MY_SID_TABLE" : {
@@ -146,6 +145,7 @@ module: sonic-srv6-config
      |     +--rw block_len?    uint16
      |     +--rw node_len?     uint16
      |     +--rw func_len?     uint16
+     |     +--rw arg_len?      uint16
      |     +--rw action?       enumeration
      |     +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
      |     +--rw adj*          inet:ipv6-address
@@ -160,6 +160,7 @@ module: sonic-srv6-config
 |add config for a SID with uDT46 action without VRF parameter in CONFIG_DB | verify the opcode config entry is created in FRR config with default VRF|
 |add config for a SID with uA action associated with two neighbors in CONFIG_DB | verify the opcode config entry is created in FRR config with correct parameters|
 |(Negative case) add config for a SID without action in CONFIG_DB | verify that the configuration did not get into FRR config |
+|(Negative case) add config for a decap SID with an invalid VRF name in CONFIG_DB | verify that the configuration did not get into FRR config |
 |delete config for a SID with uN action in CONFIG_DB | verify the locator config entry is deleted in FRR config|
 |delete config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry for the uDT46 action is deleted in FRR config|
 |delete config for a SID with uA action in CONFIG_DB | verify the opcode config entry for the uA action is deleted in FRR config|
