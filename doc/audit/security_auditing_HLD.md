@@ -13,7 +13,7 @@
     - [3.2 Audit Rules Review](#32-audit-rules-review)
     - [3.3 Configuration design](#33-configuration-design)
       - [3.3.1 ConfigDB schema](#331-configdb-schema)
-        - [3.3.1.1 AUDIT TABLE](#3311-audit-table)
+        - [3.3.1.1 AUDITD TABLE](#3311-auditd-table)
         - [3.3.1.2 Config DB JSON Sample](#3312-config-db-json-sample)
         - [3.3.1.3 Redis Entries Sample](#3313-redis-entries-sample)
       - [3.3.2 YANG model](#332-yang-model)
@@ -26,8 +26,7 @@
     - [3.6 Warmboot and Fastboot Design Impact](#36-warmboot-and-fastboot-design-impact)
     - [3.7 Timeline](#37-timeline)
     - [3.8 Performance](#38-performance)
-    - [3.9 Audit Rule Order](#39-audit-rule-order)
-    - [3.10 Security Compliance](#310-security-compliance)
+    - [3.9 Security Compliance](#39-security-compliance)
   - [4. Testing Requirements/Design](#4-testing-requirementsdesign)
     - [4.1 Unit Test cases](#41-unit-test-cases)
     - [4.2 System Test cases](#42-system-test-cases)
@@ -73,6 +72,8 @@ In SONiC, audit settings are centrally managed through a configuration file at `
   - An empty custom rules file, `custom_audit.rules`, will be provided under the `/usr/share/sonic/auditd/` directory.
   - Users will have permission to modify this file.
 - Modify the `/etc/audit/plugins.d/syslog.conf` file by setting `active = yes` to enable the forwarding of auditd logs to a syslog server.
+- Modify the `/lib/systemd/system/auditd.service` file by setting `CPUQuota=10%` to limit auditd service CPU usage.
+- Change `*_actions` to `SYSLOG` in the audit daemon configuration file (`etc/audit/auditd.conf`) to ensure that critical events (e.g., low disk space, disk full, or errors) are logged to SYSLOG
 - ConfigDB schema design, new AUDIT table in Config DB
 - YANG model
 - CLI commands to enable or disable all rules, with support for group-level fine-grained control:
@@ -90,24 +91,44 @@ In SONiC, audit settings are centrally managed through a configuration file at `
 ###### Table 2: Audit Rules Review
 These rules will be included in the image and enabled by default.
 | Rule name | Details |
-|--------------------------|--------------------------|
-| `critical_files`         | `-w /etc/passwd -p wa -k critical_files`<br>`-w /etc/shadow -p wa -k critical_files`<br>`-w /etc/group -p wa -k critical_files`<br>`-w /etc/sudoers -p wa -k critical_files`<br>`-w /etc/hosts -p wa -k critical_files` |
-| `dns_changes`            | `-w /etc/resolv.conf -p wa -k dns_changes` |
-| `time_changes`           | `-w /etc/localtime -p wa -k time_changes` |
-| `shutdown_reboot`        | `-w /var/log/wtmp -p wa -k shutdown_reboot` |
-| `cron_changes`           | `-w /etc/crontab -p wa -k cron_changes`<br>`-w /etc/cron.d -p wa -k cron_changes`<br>`-w /etc/cron.daily -p wa -k cron_changes`<br>`-w /etc/cron.hourly -p wa -k cron_changes`<br>`-w /etc/cron.weekly -p wa -k cron_changes`<br>`-w /etc/cron.monthly -p wa -k cron_changes` |
-| `modules_changes`        | `-w /sbin/insmod -p x -k modules_changes`<br>`-w /sbin/rmmod -p x -k modules_changes`<br>`-w /sbin/modprobe -p x -k modules_changes` |
-| `auth_logs`              | `-w /var/log/auth.log -p wa -k auth_logs` |
-| `bin_changes`            | `-w /bin -p wa -k bin_changes`<br>`-w /sbin -p wa -k bin_changes`<br>`-w /usr/bin -p wa -k bin_changes`<br>`-w /usr/sbin -p wa -k bin_changes` |
-| `user_group_management`  | `-a always,exit -F arch=b64 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F key=user_group_management`<br>`-a always,exit -F arch=b32 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F key=user_group_management` |
-| `file_deletion`          | `-a exit,always -F arch=b64 -S unlink -S unlinkat -F key=file_deletion`<br>`-a exit,always -F arch=b32 -S unlink -S unlinkat -F key=file_deletion` |
-| `log_changes`            | `-w /var/log -p wa -k log_changes` |
-| `docker_changes`         | `-w /usr/bin/dockerd -p wa -k docker_changes`<br>`-w /etc/docker/daemon.json -p wa -k docker_changes`<br>`-w /lib/systemd/system/docker.service -p wa -k docker_changes`<br>`-w /lib/systemd/system/docker.socket -p wa -k docker_changes`<br>`-a always,exit -F arch=b64 -S execve -F path=/usr/bin/docker -k docker_changes`<br>`-w /var/lib/docker/ -p wa -k docker_changes`<br>`-a always,exit -F arch=b64 -S setuid,setgid,bind,connect -F comm="/usr/bin/docker" -k docker_changes` |
-| `process_audit`          | `-a never,exit -F path=/usr/bin/docker  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/dockerd  -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/containerd -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/runc -F key=process_audit`<br>`-a never,exit -F path=/usr/bin/python* -F key=process_audit`<br>`-a exit,always -F arch=b64 -S execve -F key=process_audit`<br>`-a exit,always -F arch=b32 -S execve -F key=process_audit` |
-| `network_activity`       | `-a exit,always -F arch=b64 -S connect,accept,sendto,recvfrom -F key=network_activity`<br>`-a exit,always -F arch=b32 -S connect,sendto,recvfrom -F key=network_activity` |
-| `socket_activity`        | `-a always,exit -F arch=b64 -S socket -F key=socket_activity`<br>`-a always,exit -F arch=b32 -S socket -F key=socket_activity` |
+|-----------------------------------|--------------------------|
+| `network_activity.rules`          | `-a exit,always -F arch=b64 -S connect,accept,sendto,recvfrom -F auid>=1000 -F auid!=4294967295 -F key=network_activity`<br>`-a exit,always -F arch=b32 -S connect,sendto,recvfrom -F auid>=1000 -F auid!=4294967295 -F key=network_activity` |
+| `socket_activity.rules`           | `-a always,exit -F arch=b64 -S socket -F auid>=1000 -F auid!=4294967295 -F key=socket_activity`<br>`-a always,exit -F arch=b32 -S socket -F auid>=1000 -F auid!=4294967295 -F key=socket_activity` |
+| `file_deletion.rules`             | `-a always,exit -F arch=b64 -S unlink -S unlinkat -F auid>=1000 -F auid!=4294967295 -F key=file_deletion`<br>`-a always,exit -F arch=b32 -S unlink -S unlinkat -F auid>=1000 -F auid!=4294967295 -F key=file_deletion` |
+| `process_audit.rules`             | `-a always,exit -F arch=b64 -S execve -F auid>=1000 -F auid!=4294967295 -F key=process_audit`<br>`-a always,exit -F arch=b32 -S execve -F auid>=1000 -F auid!=4294967295 -F key=process_audit` |
+| `user_group_management.rules`     | `-a always,exit -F arch=b64 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F auid>=1000 -F auid!=4294967295 -F key=user_group_management`<br>`-a always,exit -F arch=b32 -S setuid,setresuid,setreuid,setfsuid,setgid,setresgid,setregid,setfsgid -F auid>=1000 -F auid!=4294967295 -F key=user_group_management` |
+| `auth_logs.rules`                 | `-w /var/log/auth.log -p wa -F auid>=1000 -F auid!=4294967295 -k auth_logs` |
+| `bin_changes.rules`               | `-w /bin -p wa -F auid>=1000 -F auid!=4294967295 -k bin_changes` |
+| `cron_changes.rules`              | `-w /etc/crontab -p wa -F auid>=1000 -F auid!=4294967295 -k cron_changes`<br>`-w /etc/cron.d -p wa -F auid>=1000 -F auid!=4294967295 -k cron_changes`<br>`-w /etc/cron.daily -p wa -F auid>=1000 -F auid!=4294967295 -k cron_changes`<br>`-w /etc/cron.hourly -p wa -F auid>=1000 -F auid!=4294967295 -k cron_changes`<br>`-w /etc/cron.weekly -p wa -F auid>=1000 -F auid!=4294967295 -k cron_changes`<br>`-w /etc/cron.monthly -p wa -F auid>=1000 -F auid!=4294967295 -k cron_changes` |
+| `dns_changes.rules`               | `-w /etc/resolv.conf -p wa -F auid>=1000 -F auid!=4294967295 -k dns_changes` |
+| `docker_commands.rules`           | `-a always,exit -F arch=b64 -S execve -F path=/usr/bin/docker -F auid>=1000 -F auid!=4294967295 -k docker_commands` |
+| `docker_config.rules`             | `-w /etc/docker/daemon.json -p wa -F auid>=1000 -F auid!=4294967295 -k docker_config` |
+| `docker_daemon.rules`             | `-w /usr/bin/dockerd -p wa -F auid>=1000 -F auid!=4294967295 -k docker_daemon` |
+| `docker_service.rules`            | `-w /lib/systemd/system/docker.service -p wa -F auid>=1000 -F auid!=4294967295 -k docker_service` |
+| `docker_socket.rules`             | `-w /lib/systemd/system/docker.socket -p wa -F auid>=1000 -F auid!=4294967295 -k docker_socket` |
+| `docker_storage.rules`            | `-w /var/lib/docker/ -p wa -F auid>=1000 -F auid!=4294967295 -k docker_storage` |
+| `group_changes.rules`             | `-w /etc/group -p wa -F auid>=1000 -F auid!=4294967295 -k group_changes` |
+| `hosts_changes.rules`             | `-w /etc/hosts -p wa -F auid>=1000 -F auid!=4294967295 -k hosts_changes` |
+| `log_changes.rules`               | `-w /var/log -p wa -F auid>=1000 -F auid!=4294967295 -k log_changes`<br>`-w /var/log.tmpfs -p wa -F auid>=1000 -F auid!=4294967295 -k log_changes` |
+| `modules_changes.rules`           | `-w /sbin/insmod -p x -F auid>=1000 -F auid!=4294967295 -k modules_changes`<br>`-w /sbin/rmmod -p x -F auid>=1000 -F auid!=4294967295 -k modules_changes`<br>`-w /sbin/modprobe -p x -F auid>=1000 -F auid!=4294967295 -k modules_changes` |
+| `passwd_changes.rules`            | `-w /etc/passwd -p wa -F auid>=1000 -F auid!=4294967295 -k passwd_changes` |
+| `sbin_changes.rules`              | `-w /sbin -p wa -F auid>=1000 -F auid!=4294967295 -k sbin_changes` |
+| `shadow_changes.rules`            | `-w /etc/shadow -p wa -F auid>=1000 -F auid!=4294967295 -k shadow_changes` |
+| `shutdown_reboot.rules`           | `-w /var/log/wtmp -p wa -F auid>=1000 -F auid!=4294967295 -k shutdown_reboot` |
+| `sudoers_changes.rules`           | `-w /etc/sudoers -p wa -F auid>=1000 -F auid!=4294967295 -k sudoers_changes` |
+| `time_changes.rules`              | `-w /etc/localtime -p wa -F auid>=1000 -F auid!=4294967295 -k time_changes` |
+| `usr_bin_changes.rules`           | `-w /usr/bin -p wa -F auid>=1000 -F auid!=4294967295 -k usr_bin_changes` |
+| `usr_sbin_changes.rules`          | `-w /usr/sbin -p wa -F auid>=1000 -F auid!=4294967295 -k usr_sbin_changes` |
+| `exclusions.rules`                | `-a always,exclude -F msgtype=EOE`<br>`-a always,exclude -F msgtype=EXECVE` |
 
-Examples:
+**a) Audit Rule Ordering**
+For best performance, it is recommended that the events that occur the most should be at the top and the exclusions should be at the bottom on the list. 
+Ref: [auditd rules ordering](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/security_guide/sec-defining_audit_rules_and_controls#sec-Defining_Audit_Rules_and_Controls_in_the_audit.rules_file)
+
+**b) 32-bit systems**
+For 32-bit systems, 64-bit rules are not supported. Any rules containing `-F arch=b64` will be excluded.
+
+**c) Log Examples**
 ```
 <14>May 10 21:18:38 STG01-0101-0111-14T1 audisp-syslog: type=SYSCALL msg=audit(1715375918.777:364628): arch=c000003e syscall=257 success=yes exit=6 a0=ffffff9c a1=565091e7cd40 a2=20902 a3=0 items=1 ppid=3076081 pid=3076082 auid=1003 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=5666 comm="usermod" exe="/usr/sbin/usermod" subj=unconfined key="passwd_changes" ARCH=x86_64 SYSCALL=openat AUID="anp_dcfx_rw1" UID="root" GID="root" EUID="root" SUID="root" FSUID="root" EGID="root" SGID="root" FSGID="root"
 
@@ -496,10 +517,7 @@ Processes in network_activity key
 | /usr/sbin/usermod | 2 |
 | /usr/bin/syncd | 2 |
 
-### 3.9 Audit Rule Order
-For best performance, it is recommended that the events that occur the most should be at the top and the exclusions should be at the bottom on the list. 
-
-### 3.10 Security Compliance
+### 3.9 Security Compliance
 The new rules will be assessed with the security team to ensure compliance.
 
 ## 4. Testing Requirements/Design
