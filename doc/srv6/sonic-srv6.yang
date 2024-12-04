@@ -1,0 +1,80 @@
+module sonic-srv6 {
+    revision 2024-12-05 {
+		description
+			"Initial revision.";
+	}
+    namespace "http://github.com/sonic-net/sonic-srv6";
+
+    import ietf-yang-types {
+		prefix yang;
+	}
+
+	import ietf-inet-types {
+		prefix inet;
+	}
+
+	import sonic-common {
+		prefix scommon;
+	}
+
+    container sonic-srv6 {
+        scommon:db-name "CONFIG_DB";
+
+        list SRV6_MY_SID_TABLE {
+            key "ip-address";
+			scommon:key-delim "|";
+			scommon:key-pattern "SRV6_MY_SID_TABLE|{ip-address}";
+
+            leaf ip-address {
+                type inet:ipv6-address;
+            }
+
+            leaf block_len {
+                type uint16 {
+					range "1..128";
+				}
+                
+                default 32;
+            }
+
+            leaf node_len {
+                type uint16 {
+					range "1..128";
+				}
+
+                default 16;
+            }
+
+            leaf func_len {
+                type uint16 {
+					range "1..128";
+				}
+
+                default 16;
+            }
+
+            leaf arg_len {
+                type uint16 {
+					range "1..128";
+				}
+
+                default 0;
+            }
+
+            leaf action {
+                type string;
+            }
+
+            leaf vrf {
+                type leafref {
+					path "/vrf:sonic-vrf/VRF/VRF_LIST/name";
+				}
+            }
+
+            leaf-list adj {
+                type inet:ipv6-address;
+                ordered-by user;
+            }
+        }
+    }
+}

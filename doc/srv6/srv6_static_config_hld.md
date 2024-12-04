@@ -136,20 +136,22 @@ The new SRv6 Manager are supposed to verify the validity of the configuration en
 If it gets an invalid configuration input, it should log the event in the syslog and not compile the configuration into FRR.
 
 ## 3.3 YANG Model
+The simplified version of the YANG model is defined below.
 ```
-module: sonic-srv6-config
-  +--rw sonic-srv6-config
+module: sonic-srv6
+  +--rw sonic-srv6
      +--rw SRV6_MY_SID
      |  +--rw SRV6_MY_SID_LIST* [ip-address]
      |     +--rw ip-address    inet:ipv6-address
-     |     +--rw block_len?    uint16
-     |     +--rw node_len?     uint16
-     |     +--rw func_len?     uint16
-     |     +--rw arg_len?      uint16
-     |     +--rw action?       enumeration
+     |     +--rw block_len?    uint8
+     |     +--rw node_len?     uint8
+     |     +--rw func_len?     uint8
+     |     +--rw arg_len?      uint8
+     |     +--rw action?       string
      |     +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
      |     +--rw adj*          inet:ipv6-address
 ```
+Refer to [sonic-srv6.yang](./sonic-srv6.yang) for the YANG model defined with standard IETF syntax.
 
 ## 4 Unit Test
 
@@ -160,6 +162,7 @@ module: sonic-srv6-config
 |add config for a SID with uDT46 action without VRF parameter in CONFIG_DB | verify the opcode config entry is created in FRR config with default VRF|
 |add config for a SID with uA action associated with two neighbors in CONFIG_DB | verify the opcode config entry is created in FRR config with correct parameters|
 |(Negative case) add config for a SID without action in CONFIG_DB | verify that the configuration did not get into FRR config |
+|(Negative case) add config for a SID with an unsupported action in CONFIG_DB | verify that the configuration did not get into FRR config |
 |(Negative case) add config for a decap SID with an invalid VRF name in CONFIG_DB | verify that the configuration did not get into FRR config |
 |delete config for a SID with uN action in CONFIG_DB | verify the locator config entry is deleted in FRR config|
 |delete config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry for the uDT46 action is deleted in FRR config|
