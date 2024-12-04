@@ -30,7 +30,7 @@ module sonic-srv6 {
             }
 
             leaf block_len {
-                type uint16 {
+                type uint8 {
 					range "1..128";
 				}
                 
@@ -38,7 +38,7 @@ module sonic-srv6 {
             }
 
             leaf node_len {
-                type uint16 {
+                type uint8 {
 					range "1..128";
 				}
 
@@ -46,7 +46,7 @@ module sonic-srv6 {
             }
 
             leaf func_len {
-                type uint16 {
+                type uint8 {
 					range "1..128";
 				}
 
@@ -54,7 +54,7 @@ module sonic-srv6 {
             }
 
             leaf arg_len {
-                type uint16 {
+                type uint8 {
 					range "1..128";
 				}
 
