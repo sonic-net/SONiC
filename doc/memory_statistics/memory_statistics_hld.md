@@ -213,20 +213,20 @@ The `memorystatsd` process will dynamically manage its configuration with the he
 
 A new table, `MEMORY_STATISTICS`, will be introduced in `ConfigDB` to store the configuration settings of the Memory Statistics feature. This table will allow for management of data collection frequency, retention period, and enable/disable status. The relevant configuration parameters and the schema for this table are detailed below.
 
-**MEMORY_STATS Configuration Parameters**
+**MEMORY_STATISTICS Configuration Parameters**
 
-| Parameter           | Type        | Description                                                    |
-|---------------------|-------------|----------------------------------------------------------------|
-| enabled             | boolean     | Enable or disable memory statistics collection.                |
-| sampling_interval   | unit8      | Interval for memory data collection.       		     |
-| retention_period    | unit8      | Duration for which memory data is retained.		     |   
+| Parameter           | Type        | Description                                                    				|
+|---------------------|-------------|-------------------------------------------------------------------------------------------|
+| enabled             | boolean     | Enable or disable memory statistics collection.                				|
+| sampling_interval   | uint8       | Interval (in minutes) for memory data collection. The range is 3–15 minutes.      	|
+| retention_period    | uint8       | Duration (in days) for which memory data is retained. The range is 1–30 days.		|   
 
 **Config DB Schema**
 ```json
 
 MEMORY_STATISTICS: {
     "memory_statistics": {
-        "enabled": "true",
+        "enabled": "false",
         "sampling_interval": "5",
         "retention_period":  "15"
     }
@@ -279,22 +279,24 @@ Below is an example of the Memory Statistics output as it appears in the CLI. Th
     admin@sonic:~$ show memory-stats 
 
 
-    Codes:	M - minutes, H - hours, D - days
+	Memory Statistics:
+	Codes:	M - minutes, H - hours, D - days
 	--------------------------------------------------------------------------------
-	Report Generated:    2024-06-15 09:00:00
-    Analysis Period:     From 2024-06-01 09:00:00 to 2024-06-15 09:00:00
-    Interval:	         2 days
-	--------------------------------------------------------------------------------
-	  Metric            Current     High       Low        D1-D3      D3-D5      D5-D7      D7-D9      D9-D11     D11-D13    D13-D15    
-	                    Value       Value      Value      01Jun24    03Jun24    05Jun24    07Jun24    09Jun24    11Jun24    13Jun24    
-	--------------      --------    --------   --------   ---------  ---------  ---------  ---------  ---------  ---------  ---------
-	Total Memory        15.6G       15.6G      15.1G      15.1G      15.2G      15.3G      15.3G      15.4G      15.5G      15.5G      
-	Used Memory         2.3G        2.5G       2.0G       2.1G       2.2G       2.2G       2.3G       2.4G       2.3G       2.2G       
-	Free Memory         11.9G       12.4G      10.6G      11.0G      11.2G      11.4G      11.5G      11.7G      11.8G      11.9G      
-	Available Memory    13.0G       14.3G      12.4G      12.6G      12.7G      12.8G      12.9G      13.0G      13.1G      13.2G      
-    Cached Memory       1.2G        1.5G       1.0G       1.1G       1.2G       1.3G       1.4G       1.3G       1.4G       1.2G       
-    Buffer Memory       0.3G        0.4G       0.2G       0.2G       0.3G       0.3G       0.4G       0.3G       0.3G       0.4G       
-	Shared Memory       0.5G        0.6G       0.4G       0.5G       0.5G       0.5G       0.4G       0.5G       0.5G       0.5G       
+	Report Generated:    2024-12-04 15:49:52
+	Analysis Period:     From 2024-11-19 15:49:52 to 2024-12-04 15:49:52
+	Interval:            2 Days
+	--------------------------------------------------------------------------------------------------------------------------------------------------
+	Metric             Current    High       Low        D19-D21     D21-D23     D23-D25     D25-D27     D27-D29     D29-D01     D01-D03     D03-D05    
+	                   Value      Value      Value      19Nov24     21Nov24     23Nov24     25Nov24     27Nov24     29Nov24     01Dec24     03Dec24    
+	--------------------------------------------------------------------------------------------------------------------------------------------------
+
+ 	total_memory       15.29GB    15.29GB    15.29GB    15.29GB     15.29GB     15.29GB     15.29GB     15.29GB    15.29GB      15.29GB     15.29GB    
+	used_memory        8.87GB     9.35GB     8.15GB     8.15GB      9.10GB      8.15GB      8.20GB      9.05GB     8.30GB       9.35GB      9.12GB     
+	free_memory        943.92MB   906.28MB   500.00MB   800.00MB    750.00MB    906.2MB     650.00MB    600.00MB   550.00MB     500.00MB    725.92MB   
+	available_memory   4.78GB     4.74GB     4.35GB     4.65GB      4.60GB      4.55GB      4.74GB      4.45GB     4.40GB       4.35GB      4.57GB     
+	cached_memory      5.17GB     5.08GB     4.96GB     5.08GB      5.06GB      5.04GB      5.02GB     5.00GB      4.98GB       4.96GB      5.05GB     
+	buffers_memory     337.83MB   333.59MB   295.00MB   325.00MB    320.00MB    315.00MB    333.59MB   305.00MB    300.00MB     295.00MB    317.84MB   
+	shared_memory      1.31GB     1.22GB     1.08GB     1.22GB      1.20GB      1.18GB      1.15GB     1.12GB      1.10GB       1.08GB      1.19GB 
 
 
 **View Memory Statistics Configuration**
@@ -311,7 +313,7 @@ Below is an example of the Memory Statistics Configuration output as it appears 
      
     Memory Statistics Configuration:
     --------------------------------
-    Enabled:            true
+    Enabled:            false
     Sampling Interval:  5
     Retention Period:   15
  
@@ -352,7 +354,7 @@ module sonic-memory-statistics {
                     }
                     units "minutes";
                     default 5;
-                    description "Time interval in minutes for sampling memory statistics. Valid range, is between 3 minutes to 30 minutes.";
+                    description "Time interval in minutes for sampling memory statistics. Valid range, is between 3 minutes to 15 minutes.";
                 }
 
                 leaf retention_period {
