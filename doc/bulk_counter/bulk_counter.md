@@ -40,7 +40,7 @@ SONiC flex counter infrastructure shall utilize bulk stats API to gain better pe
 
 For each counter group, different statistic type is allowed to choose bulk or non-bulk API based on vendor SAI implementation.
 
-![architecture](/doc/bulk_counter/bulk_counter.svg).
+![architecture](bulk_counter.svg).
 
 > Note: In the picture, pg/queue watermark statistic use bulk API and buffer watermark statistic uses non-bulk API. This is just an example to show the design idea.
 
@@ -96,13 +96,13 @@ std::map<std::vector<sai_port_stat_t>, BulkStatsContext> m_portBulkContexts;
 
 1. New object join counter group.
 
-![Add Object Flow](/doc/bulk_counter/object_join_counter_group.svg).
+![Add Object Flow](object_join_counter_group.svg).
 
 2. Existing object leave counter group, related data shall be removed from bulk context.
 
 ##### Statistic Collect
 
-![Collect Counter Flow](/doc/bulk_counter/counter_collect.svg).
+![Collect Counter Flow](counter_collect.svg).
 
 ### SAI API
 
