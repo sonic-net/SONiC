@@ -233,7 +233,7 @@ This command is used to clear DHCPv4 counter
     |Show without specifying interface and with specifying direction|Display corresponding direction counter of all interfaces|
     |Show with specifying interface without specifying direction|Display counter of specified interface|
     |Show with specifying interface with specifying direction|Display corresponding direction counter of specified interface|
-- sonic-clear dhcp_relay ipv4 counter [--dir (TX|RX)] [<interface>]
+- sonic-clear dhcp_relay ipv4 counter [--dir (TX|RX)] [\<interface\>]
     |Case Description|Expected res|
     |:-|:-|
     |clear without specifying interface and without specifying direction|clear counter of all interfaces|
