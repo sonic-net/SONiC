@@ -100,9 +100,8 @@ block_len = blen             ; bit length of block portion in address, default 3
 node_len = nlen              ; bit length of node ID portion in address, default 16
 func_len = flen              ; bit length of function portion in address, default 16
 arg_len = alen               ; bit length of argument portion in address, default 0
-action = behavior            ; behaviors defined for the SID
-vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions
-adj = address,               ; Optional, list of adjacencies for cross-connect actions
+action = behavior            ; behaviors defined for the SID, default uN
+vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, only applicable to "uDT6" and "uDT46" by now, default "default"
 
 For example:
     "SRV6_MY_SID_TABLE" : {
@@ -111,19 +110,11 @@ For example:
         },
         "FCBB:BBBB:20:F1::" : {
            "action": "uDT46",
-           "vrf":  "VRF-1001"
         },
         "FCBB:BBBB:20:F2::" : {
            "action": "uDT46",
            "vrf":  "VRF-1001"
         },
-        "FCBB:BBBB:20:F3::" : {
-           "action": "end.x",
-           "adj": [
-                FCBB:BBBB:10::1, 
-                FCBB:BBBB:10::2
-            ],
-        }
     }
 ```
 
@@ -147,9 +138,8 @@ module: sonic-srv6
      |     +--rw node_len?     uint8
      |     +--rw func_len?     uint8
      |     +--rw arg_len?      uint8
-     |     +--rw action?       string
+     |     +--rw action?       enum
      |     +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
-     |     +--rw adj*          inet:ipv6-address
 ```
 Refer to [sonic-srv6.yang](./sonic-srv6.yang) for the YANG model defined with standard IETF syntax.
 

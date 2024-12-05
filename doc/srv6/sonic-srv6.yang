@@ -62,18 +62,17 @@ module sonic-srv6 {
             }
 
             leaf action {
-                type string;
+                type enumeration {
+                    enum uN;
+                    enum uDT6;
+                    enum uDT46;
+                }
             }
 
             leaf vrf {
                 type leafref {
 					path "/vrf:sonic-vrf/VRF/VRF_LIST/name";
 				}
-            }
-
-            leaf-list adj {
-                type inet:ipv6-address;
-                ordered-by user;
             }
         }
     }
