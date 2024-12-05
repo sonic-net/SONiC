@@ -138,35 +138,6 @@ Following table changes would be added in State DB, including **DHCP_COUNTER_TAB
 }
 ```
 
-```JSON
-{
-  "DHCP_COUNTER_TABLE": {
-    "Ethernet4|RX": {
-        "Ack":"0",
-        "Decline":"0",
-        "Discover":"1",
-        "Inform":"0",
-        "Nak":"0",
-        "Offer":"0",
-        "Release":"0",
-        "Request":"0",
-        "Unknown":"0"
-    },
-    "Ethernet4|TX": {
-        "Ack":"0",
-        "Decline":"0",
-        "Discover":"1",
-        "Inform":"0",
-        "Nak":"0",
-        "Offer":"0",
-        "Release":"0",
-        "Request":"0",
-        "Unknown":"0"
-    }
-  }
-}
-```
-
 # Cli
 
 ## Show Cli
