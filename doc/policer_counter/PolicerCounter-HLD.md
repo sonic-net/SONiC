@@ -187,6 +187,34 @@ E.g:
 ```
 ### Flows
 
+The orchagent read from the CONFIG_DB the policer:
+
+Exmaple for adding policer to mirror sessions:
+
+```
+{
+    "MIRROR_SESSION": {
+        "span": {
+            "type": "SPAN",
+            "src_port": "Ethernet0",
+            "dst_port": "Ethernet1",
+            "policer": "span_policer"
+        }
+    },
+    "POLICER": {
+        "span_policer": {
+        "cbs": "700",
+        "cir": "700",
+        "color": "aware",
+        "meter_type": "packets",
+        "mode": "sr_tcm",
+        "red_packet_action": "drop" 
+        }
+    }
+}
+```
+
+
 ### POLICER counter registration in FC
 <p align=center>
 <img src="img/policer-flow-add-counter.png" alt="Figure 2. Policer counter registration flow">
