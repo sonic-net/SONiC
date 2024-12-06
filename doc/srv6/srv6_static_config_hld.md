@@ -150,13 +150,11 @@ Refer to [sonic-srv6.yang](./sonic-srv6.yang) for the YANG model defined with st
 |add config for a SID with uN action in CONFIG_DB | verify the locator config entry is created in FRR config|
 |add config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry is created in FRR config with correct VRF|
 |add config for a SID with uDT46 action without VRF parameter in CONFIG_DB | verify the opcode config entry is created in FRR config with default VRF|
-|add config for a SID with uA action associated with two neighbors in CONFIG_DB | verify the opcode config entry is created in FRR config with correct parameters|
 |(Negative case) add config for a SID without action in CONFIG_DB | verify that the configuration did not get into FRR config |
 |(Negative case) add config for a SID with an unsupported action in CONFIG_DB | verify that the configuration did not get into FRR config |
 |(Negative case) add config for a decap SID with an invalid VRF name in CONFIG_DB | verify that the configuration did not get into FRR config |
 |delete config for a SID with uN action in CONFIG_DB | verify the locator config entry is deleted in FRR config|
 |delete config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry for the uDT46 action is deleted in FRR config|
-|delete config for a SID with uA action in CONFIG_DB | verify the opcode config entry for the uA action is deleted in FRR config|
 
 
 ## 5 References
