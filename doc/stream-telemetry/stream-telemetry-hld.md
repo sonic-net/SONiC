@@ -6,7 +6,9 @@
 - [Scope](#scope)
 - [Definitions/Abbreviations](#definitionsabbreviations)
 - [Overview](#overview)
-- [Requirements](#requirements)
+- [Requirements / Constraints](#requirements--constraints)
+  - [Phase 1](#phase-1)
+  - [Phase 2](#phase-2)
 - [Architecture Design](#architecture-design)
 - [High-Level Design](#high-level-design)
   - [Modules](#modules)
@@ -25,23 +27,9 @@
     - [STREAM\_TELEMETRY\_GROUP](#stream_telemetry_group)
   - [StateDb](#statedb)
     - [STREAM\_TELEMETRY\_SESSION](#stream_telemetry_session)
+    - [STREAM\_TELEMETRY\_SESSION (deprecated)](#stream_telemetry_session-deprecated)
   - [Work Flow](#work-flow)
   - [SAI API](#sai-api)
-    - [Initialize TAM cache count for Switch](#initialize-tam-cache-count-for-switch)
-    - [Creating HOSTIF object](#creating-hostif-object)
-    - [Creating HOSTIF trap group](#creating-hostif-trap-group)
-    - [Creating HOSTIF user defined trap](#creating-hostif-user-defined-trap)
-    - [Creating Hostif table entry](#creating-hostif-table-entry)
-    - [Creating TAM transport object](#creating-tam-transport-object)
-    - [Creating TAM collector object](#creating-tam-collector-object)
-    - [Creating TAM report object](#creating-tam-report-object)
-    - [Creating TAM telemetry type object](#creating-tam-telemetry-type-object)
-    - [Creating TAM telemetry object](#creating-tam-telemetry-object)
-    - [Creating TAM counter subscription objects](#creating-tam-counter-subscription-objects)
-    - [Creating TAM object](#creating-tam-object)
-    - [Query IPFIX template](#query-ipfix-template)
-    - [Enable/Disable telemetry stream](#enabledisable-telemetry-stream)
-    - [Query stream telemetry capability](#query-stream-telemetry-capability)
 - [Configuration and management](#configuration-and-management)
   - [Manifest (if the feature is an Application Extension)](#manifest-if-the-feature-is-an-application-extension)
   - [CLI/YANG model Enhancements](#cliyang-model-enhancements)
@@ -80,7 +68,9 @@ This document outlines the high-level design of stream telemetry, focusing prima
 
 The existing telemetry solution of SONiC relies on the syncd process to proactively query stats and counters via the SAI API. This approach causes the syncd process to spend excessive time on SAI communication. The stream telemetry described in this document aims to provide a more efficient method for collecting object stats. The main idea is that selected stats will be proactively pushed from the vendor's driver to the collector via netlink.
 
-## Requirements
+## Requirements / Constraints
+
+### Phase 1
 
 - The number of SAI object types should not exceed 32,768 ($2^{15}$). This means the value of SAI_OBJECT_TYPE_MAX should be less than 32,768.
 - The number of SAI object extension types should not exceed 32,768.
@@ -91,6 +81,11 @@ The existing telemetry solution of SONiC relies on the syncd process to proactiv
 - If a polling frequency for stats cannot be supported, the vendor's SDK should return this error.
 - The vendor SDK should support querying the minimal polling interval for each counter.
 - When reconfiguring any stream settings, whether it is the polling interval or the stats list, the existing stream will be interrupted and regenerated.
+- If any of monitored objects is deleted, the existing stream will be interrupted and regenerated.
+
+### Phase 2
+
+- Supports updating configuration without interrupting the telemetry stream
 
 ## Architecture Design
 
@@ -129,17 +124,14 @@ flowchart BT
 
     config_db --STREAM_TELEMETRY_PROFILE
                 STREAM_TELEMETRY_GROUP--> st_orch
-    st_orch --SAI_OBJECT_TYPE_TAM_REPORT
-                SAI_OBJECT_TYPE_TAM_TEL_TYPE
-                SAI_OBJECT_TYPE_TAM_TRANSPORT
-                SAI_OBJECT_TYPE_TAM_COLLECTOR
-                SAI_OBJECT_TYPE_TAM_EVENT
-                SAI_OBJECT_TYPE_TAM--> syncd
+    st_orch --SAI_OBJECT_TYPE_TAM_XXXX--> syncd
     syncd --IPFIX template--> st_orch
     syncd --TAM configuration--> dma_engine
     syncd --TAM configuration--> netlink_module
     st_orch --STREAM_TELEMETRY_SESSION--> state_db
     state_db --STREAM_TELEMETRY_SESSION--> counter_syncd
+    counter_syncd -- config version --> state_db
+    state_db -- config version --> st_orch
     asic --counters--> dma_engine
     dma_engine --IPFIX record--> netlink_module
     netlink_module --IPFIX record--> counter_syncd
@@ -233,8 +225,7 @@ packet-beta
 ```
 
 - For high-frequency counters, the native IPFIX timestamp unit of seconds is insufficient. Therefore, we introduce an additional element, `observationTimeNanoseconds`, for each record to meet our requirements.
-- The enterprise bit is always set to 1 for stats records.
-- The element ID of IPFIX is derived from the object index. For example, for `Ethernet5`, the element ID will be `0x5 | 0x8000 = 0x8005`.
+- The element ID of IPFIX is derived from the object index. For example, for `Ethernet5`, the element ID will be `0x5 | 0x8000 = 0x8005`, where `0x8000` indicates that the enterprise bit is set to 1.
 - The enterprise number is derived from the combination of the [SAI_OBJECT_TYPE](https://github.com/opencomputeproject/SAI/blob/master/inc/saitypes.h) and its corresponding stats ID. The high bits are used to indicate the SAI extension flag. For example, for `SAI_QUEUE_STAT_WRED_ECN_MARKED_PACKETS=0x00000022` of `SAI_OBJECT_TYPE_QUEUE=0x00000015`, the enterprise number will be `0x00000022 << 16 | 0x00000015 = 0x00220015`.
 
 ``` mermaid
@@ -286,7 +277,7 @@ title: A snapshot of IPFIX data
 ---
 packet-beta
 0-15: "Set ID = Same as template ID"
-16-31: "Set Length = (8 + Number of stats * 8) bytes"
+16-31: "Set Length = (4 + 8 + Number of stats * 8) bytes"
 32-95: "Data 1: observationTimeNanoseconds"
 96-127: "Data 2: Stats 1"
 128-159: "..."
@@ -310,21 +301,21 @@ packet-beta
 96-127: "Observation Domain ID = 0"
 
 128-143: "Set ID = 256"
-144-159: "Set Length = 32 bytes"
+144-159: "Set Length = 36 bytes"
 160-223: "observationTimeNanoseconds = 10000"
 224-287: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 10"
 288-351: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
 352-415: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 5"
 
 416-431: "Set ID = 256"
-432-447: "Set Length = 32 bytes"
+432-447: "Set Length = 36 bytes"
 448-511: "observationTimeNanoseconds = 20000"
 512-575: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 15"
 576-639: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
 640-703: "Port 3: SAI_PORT_STAT_IF_IN_ERRORS = 6"
 
 704-719: "Set ID = 256"
-720-735: "Set Length = 32 bytes"
+720-735: "Set Length = 36 bytes"
 736-799: "observationTimeNanoseconds = 30000"
 800-863: "Port 1: SAI_PORT_STAT_IF_IN_ERRORS = 20"
 864-927: "Port 2: SAI_PORT_STAT_IF_IN_ERRORS = 0"
@@ -348,7 +339,7 @@ struct genl_multicast_group stel_mcgrps[] = {
 };
 
 // Family definition
-static struct genl_family nl_bench_family = {
+static struct genl_family stel_family = {
     .name = "sonic_stel",
     .version = 1,
     // ...
@@ -371,7 +362,7 @@ void send_msgs_to_user(/* ... */)
         nla_append(skb_out, msg->data, msg->len);
     }
 
-    genlmsg_multicast(&genl_family, skb_out, 0, 0/* group_id to ipfix group */, GFP_KERNEL);
+    genlmsg_multicast(&stel_family, skb_out, 0, 0/* group_id to ipfix group */, GFP_KERNEL);
 }
 
 ```
@@ -397,7 +388,14 @@ Any configuration changes in the config DB will interrupt the existing session a
 
 ```
 DEVICE_METADATA|localhost
-    "stream_telemetry_cache_size": number of message that can be cached.
+    "stream_telemetry_chunk_size": {{uint32}}
+    "stream_telemetry_chunk_count": {{uint32}} (Optional)
+```
+
+```
+; field                      = value
+stream_telemetry_chunk_size  = uint32; reporting byte size of chunk under the stream telemetry.
+stream_telemetry_chunk_count = uint32; chunk count under the stream telemetry. Some platforms may not support setting this value.
 ```
 
 #### STREAM_TELEMETRY_PROFILE
@@ -406,7 +404,6 @@ DEVICE_METADATA|localhost
 STREAM_TELEMETRY_PROFILE|{{profile_name}}
     "stream_state": {{enabled/disabled}}
     "poll_interval": {{uint32}}
-    "bulk_size": {{uint32}} (OPTIONAL)
 ```
 
 ```
@@ -414,7 +411,6 @@ key                = STREAM_TELEMETRY_PROFILE:profile_name a string as the ident
 ; field            = value
 stream_state       = enabled/disabled ; Enabled/Disabled stream.
 poll_interval      = uint32 ; The interval to poll counter, unit microseconds.
-bulk_size          = uint32 ; Defines the size of reporting bulk, which means TAM will report to the collector every time
 ```
 
 #### STREAM_TELEMETRY_GROUP
@@ -443,6 +439,27 @@ For the schema of `STREAM_TELEMETRY_GROUP`, please refer to its [YANG model](son
 ### StateDb
 
 #### STREAM_TELEMETRY_SESSION
+
+```
+STREAM_TELEMETRY_SESSION|{{profile_name}}|{{group_name}}
+    "session_status": {{enabled/disabled}}
+    "session_type": {{ipfix}}
+    "session_config": {{binary array}}
+    "config_version": {{uint32_t}}
+```
+
+```
+key                 = STREAM_TELEMETRY_SESSION:profile_name ; a string as the identifier of stream telemetry
+; field             = value
+session_status      = enable/disable ; Enable/Disable stream.
+session_type        = ipfix ; Specified the session type.
+session_config      = binary array; 
+                      If the session type is IPFIX, This field stores the IPFIX template to interpret the message of this session.
+config_version      = uint32_t; Indicates which version is being used. The default value is 0.
+                      This value will be increased once the new config was applied by CounterSyncd.
+```
+
+#### STREAM_TELEMETRY_SESSION (deprecated)
 
 ```
 STREAM_TELEMETRY_SESSION|{{profile_name}}
@@ -474,32 +491,39 @@ sequenceDiagram
         participant counter as counter syncd
     end
     box SWSS container
+        participant port_orch as Port Orch
         participant st_orch as Stream Telemetry Orch
     end
     box SYNCD container
         participant syncd
     end
     box Linux Kernel
-        participant dma_engine as DMA Engine
         participant netlink_module as Netlink module
+        participant dma_engine as DMA Engine
     end
     participant asic as ASIC
 
     counter --> counter: Initialize genetlink
+    st_orch ->> syncd: Initialize <br/>HOSTIF<br/>TAM_TRANSPORT<br/>TAM_collector<br/>
+
     config_db ->> st_orch: STREAM_TELEMETRY_PROFILE
-    opt Is the first telemetry profile?
-        st_orch ->> syncd: Initialize <br/>HOSTIF<br/>TAM_TRANSPORT<br/>TAM_collector<br/>.
-        syncd --) st_orch: 
-        note right of st_orch: The collector object will be reused
-    end
     config_db ->> st_orch: STREAM_TELEMETRY_GROUP
+    port_orch ->> st_orch: Port/Queue/Buffer ... object
+
     st_orch ->> syncd: Config TAM objects
+
+    syncd ->> dma_engine: Config stats
+    syncd ->> st_orch: Config was applied in the ASIC
+    syncd ->> st_orch: Query IPFIX template
+    st_orch ->> state_db: Update STREAM_TELEMETRY_SESSION
+    state_db ->> counter: Register IPFIX template
+    counter ->> state_db: Update config version
+    state_db ->> st_orch: Notify config version
+
     alt Is stream status enabled?
-        st_orch ->> syncd: Enable telemetry stream
-        syncd ->> dma_engine: Config stats
-        syncd ->> st_orch: Query IPFIX template
-        st_orch ->> state_db: Update STREAM_TELEMETRY_SESSION enabled
-        state_db ->> counter: Register IPFIX template
+
+        st_orch ->> syncd: Start telemetry stream
+
         loop Push stats until stream disabled
             loop collect a chunk of stats
                 dma_engine ->> asic: query stats from asic
@@ -509,13 +533,13 @@ sequenceDiagram
             alt counter syncd is ready to receive?
                 netlink_module ->> counter: Push a chunk of stats with IPFIX message
             else
-                netlink_module ->> netlink_module: Cache data
+                netlink_module ->> netlink_module: Save data to buffer. if buffer is full, discard
             end
         end
     else
         st_orch ->> syncd: Disable telemetry stream
         syncd ->> dma_engine: Stop stream
-        st_orch ->> state_db: Update STREAM_TELEMETRY_SESSION to disabled
+        st_orch ->> state_db: Update STREAM_TELEMETRY_SESSION
         state_db ->> counter: Unrigster IPFIX template
     end
     loop Receive IPFIX message of stats from genetlink
@@ -530,591 +554,7 @@ sequenceDiagram
 
 ### SAI API
 
-The SAI logic for stream telemetry follows the existing SAI documentation: [Granular-Counter-Subscription.md](https://github.com/opencomputeproject/SAI/blob/master/doc/TAM/Granular-Counter-Subscription.md).
-
-``` mermaid
-
----
-title: Stream Telemetry SAI Objects
----
-erDiagram
-    hostif_trap_group [HOSTIF_trap_group] {
-        SAI_ID SAI_VALUE "Comments"
-    }
-    hostif[HOSTIF] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_HOSTIF_ATTR_TYPE SAI_HOSTIF_TYPE_GENETLINK
-        SAI_HOSTIF_ATTR_OPER_STATUS true
-        SAI_HOSTIF_ATTR_NAME sonic_stel "constant variables"
-        SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME ipfix "constant variables"
-    }
-    host_table_entry [HOSTIF_table_entry] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE SAI_HOSTIF_TABLE_ENTRY_TYPE_TRAP_ID
-        SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID sai_hostif_udt_obj
-        SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE SAI_HOSTIF_TABLE_ENTRY_CHANNEL_TYPE_GENETLINK
-        SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF sai_hostif_obj
-    }
-    hostif_trap [HostIF_user_defined_trap] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_HOSTIF_USER_DEFINED_TRAP_ATTR_TYPE SAI_HOSTIF_USER_DEFINED_TRAP_TYPE_TAM
-        SAI_HOSTIF_USER_DEFINED_TRAP_ATTR_TRAP_GROUP sai_trap_group_obj
-    }
-
-    transport[TAM_transport] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_TAM_TRANSPORT_ATTR_TRANSPORT_TYPE SAI_TAM_TRANSPORT_TYPE_NONE
-    }
-    collector[TAM_collector] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_TAM_COLLECTOR_ATTR_TRANSPORT sai_tam_transport_obj
-        SAI_TAM_COLLECTOR_ATTR_LOCALHOST true
-        SAI_TAM_COLLECTOR_ATTR_HOSTIF sai_hostif_udt_obj
-        SAI_TAM_COLLECTOR_ATTR_DSCP_VALUE _0
-    }
-    report[TAM_report] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_TAM_REPORT_ATTR_TYPE SAI_TAM_REPORT_TYPE_IPFIX
-        SAI_TAM_REPORT_ATTR_REPORT_MODE SAI_TAM_REPORT_MODE_BULK
-        SAI_TAM_REPORT_ATTR_REPORT_INTERVAL poll_interval "STREAM_TELEMETRY_PROFILE:profile_name[poll_interval] on Config DB"
-        SAI_TAM_REPORT_ATTR_TEMPLATE_REPORT_INTERVAL _0 "Don't push the template, Because we hope the template can be proactively queried by orchagent"
-        SAI_TAM_REPORT_ATTR_REPORT_INTERVAL_UNIT SAI_TAM_REPORT_INTERVAL_UNIT_MSEC
-    }
-    telemetry_type[TAM_telemetry_type] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_XXXX_STATS true "Based on the STREAM_TELEMETRY_GROUP on Config DB, to enable corresponding capabilities."
-        SAI_TAM_TEL_TYPE_ATTR_REPORT_ID sai_tam_report_obj
-    }
-    telemetry[TAM_telemetry] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_TAM_TELEMETRY_ATTR_TAM_TYPE_LIST sai_tam_tel_type_obj
-        SAI_TAM_TELEMETRY_ATTR_COLLECTOR_LIST sai_tam_collector_obj
-        SAI_TAM_TELEMETRY_ATTR_REPORTING_TYPE SAI_TAM_REPORTING_TYPE_COUNT_BASED
-        SAI_TAM_TELEMETRY_ATTR_REPORTING_BULK_SIZE bulk_count "STREAM_TELEMETRY_PROFILE:profile_name[bulk_count] on Config DB"
-    }
-    counter_subscription[TAM_counter_subscription] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_TEL_TYPE sai_tam_tel_type_obj
-        SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_OBJECT_ID port_obj
-        SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STAT_ID SAI_PORT_STAT_IF_IN_OCTETS "A stats in sai_port_stat_t"
-        SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL index "Element ID of the object in the IPFIX template"
-        SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STATS_MODE SAI_STATS_MODE_READ "Set read counter mode"
-    }
-    TAM[TAM] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_TAM_ATTR_TELEMETRY_OBJECTS_LIST sai_tam_telemetry_obj
-        SAI_TAM_ATTR_TAM_BIND_POINT_TYPE_LIST SAI_TAM_BIND_POINT_TYPE_PORT
-    }
-    switch[Switch] {
-        SAI_ID SAI_VALUE "Comments"
-        SAI_SWITCH_ATTR_TAM_OBJECT_ID sai_tam_obj
-        SAI_SWITCH_ATTR_TAM_CACHE_COUNT cache_count
-    }
-
-    host_table_entry |o--|| hostif: binds
-    host_table_entry |o--|| hostif_trap: binds
-    hostif_trap |o--|| hostif_trap_group: binds
-    collector |o--|| hostif_trap: binds
-    collector |o--|| transport: binds
-    telemetry_type |o--|| report: binds
-    telemetry |o--o| telemetry_type: binds
-    telemetry }o--o{ collector: binds
-    counter_subscription }o--|| telemetry_type: binds
-    TAM |o--o| telemetry: binds
-    switch |o..o{ TAM: binds
-```
-
-| Object Type              | Scope                        |
-| ------------------------ | ---------------------------- |
-| HOSTIF                   | Global                       |
-| HOSTIF_trap_group        | Global                       |
-| HostIF_user_defined_trap | Global                       |
-| HOSTIF_table_entry       | Global                       |
-| TAM_transport            | Global                       |
-| TAM_collector            | Global                       |
-| TAM                      | per STREAM_TELEMETRY profile |
-| TAM_telemetry            | per STREAM_TELEMETRY profile |
-| TAM_telemetry_type       | per STREAM_TELEMETRY profile |
-| TAM_report               | per STREAM_TELEMETRY profile |
-| TAM_counter_subscription | per stats of object          |
-
-#### Initialize TAM cache count for Switch
-
-``` c++
-/**
- * @brief Attribute Id in sai_set_switch_attribute() and
- * sai_get_switch_attribute() calls.
- */
-typedef enum _sai_switch_attr_t
-{
-    // ...
-
-    /**
-     * @brief Tam telemetry cache count
-     *
-     * If the collector isn't ready to receive the report, this value indicates how many
-     * reports that can be cached. 0 means no cache which is the default behavior.
-     *
-     * @type sai_uint32_t
-     * @flags CREATE_ONLY
-     * @default 0
-     */
-    SAI_SWITCH_ATTR_TAM_CACHE_COUNT,
-
-    // ...
-} sai_switch_attr_t;
-
-sai_attr_list[0].id = SAI_SWITCH_ATTR_TAM_CACHE_COUNT;
-sai_attr_list[0].value.u32 = cache_count;
-
-// ...
-
-create_switch(&gSwitchId, (uint32_t)sai_attr_list.size(), sai_attr_list.data());
-
-```
-
-#### Creating HOSTIF object
-
-``` c++
-
-sai_attr_list[0].id = SAI_HOSTIF_ATTR_TYPE;
-sai_attr_list[0].value.s32 = SAI_HOSTIF_TYPE_GENETLINK;
-
-sai_attr_list[1].id = SAI_HOSTIF_ATTR_OPER_STATUS;
-sai_attr_list[1].value.boolean = true;
-
-// Set genetlink family
-sai_attr_list[2].id = SAI_HOSTIF_ATTR_NAME;
-strncpy(sai_attr_list[2].value.chardata, "sonic_stel", strlen("sonic_stel") + 1);
-
-// Set genetlink group
-sai_attr_list[3].id = SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME;
-strncpy(sai_attr_list[3].value.chardata, "ipfix", strlen("ipfix") + 1);
-
-attr_count = 4;
-create_hostif(sai_hostif_obj, switch_id, attr_count, sai_attr_list);
-
-```
-
-#### Creating HOSTIF trap group
-
-``` c++
-
-create_hostif_trap_group(sai_trap_group_obj, switch_id, 0, NULL);
-
-```
-
-#### Creating HOSTIF user defined trap
-
-``` c++
-
-sai_attr_list[0].id = SAI_HOSTIF_USER_DEFINED_TRAP_ATTR_TYPE;
-sai_attr_list[0].value.s32 = SAI_HOSTIF_USER_DEFINED_TRAP_TYPE_TAM;
-
-sai_attr_list[1].id = SAI_HOSTIF_USER_DEFINED_TRAP_ATTR_TRAP_GROUP;
-sai_attr_list[1].value.oid = sai_trap_group_obj;
-
-attr_count = 2;
-sai_create_hostif_user_defined_trap_fn(&sai_hostif_udt_obj, switch_id, attr_count, sai_attr_list);
-
-```
-
-#### Creating Hostif table entry
-
-``` c++
-
-sai_attr_list[0].id = SAI_HOSTIF_TABLE_ENTRY_ATTR_TYPE;
-sai_attr_list[0].value.s32 = SAI_HOSTIF_TABLE_ENTRY_TYPE_TRAP_ID;
-
-sai_attr_list[1].id = SAI_HOSTIF_TABLE_ENTRY_ATTR_TRAP_ID;
-sai_attr_list[1].value.oid = sai_hostif_udt_obj;
-
-sai_attr_list[2].id = SAI_HOSTIF_TABLE_ENTRY_ATTR_CHANNEL_TYPE;
-sai_attr_list[2].value.s32 = SAI_HOSTIF_TABLE_ENTRY_CHANNEL_TYPE_GENETLINK;
-
-sai_attr_list[3].id = SAI_HOSTIF_TABLE_ENTRY_ATTR_HOST_IF;
-sai_attr_list[3].value.oid = sai_hostif_obj;
-
-attr_count = 4;
-sai_create_hostif_table_entry_fn(&sai_hostif_table_entry_obj, switch_id, attr_count, sai_attr_list);
-
-```
-
-#### Creating TAM transport object
-
-``` c++
-
-sai_attr_list[0].id = SAI_TAM_TRANSPORT_ATTR_TRANSPORT_TYPE;
-sai_attr_list[0].value.s32 = SAI_TAM_TRANSPORT_TYPE_NONE;
-attr_count = 1;
-sai_create_tam_transport_fn(&sai_tam_transport_obj, switch_id, attr_count, sai_attr_list);
-
-```
-
-#### Creating TAM collector object
-
-``` c++
-
-sai_attr_list[0].id = SAI_TAM_COLLECTOR_ATTR_TRANSPORT;
-sai_attr_list[0].value.oid = sai_tam_transport_obj;
-
-sai_attr_list[1].id = SAI_TAM_COLLECTOR_ATTR_LOCALHOST;
-sai_attr_list[1].value.booldata = true;
-
-sai_attr_list[2].id = SAI_TAM_COLLECTOR_ATTR_HOSTIF_TRAP;
-sai_attr_list[2].value.oid = sai_hostif_udt_obj;
-
-sai_attr_list[3].id = SAI_TAM_COLLECTOR_ATTR_DSCP_VALUE;
-sai_attr_list[3].value.u8 = 0;
-
-attr_count = 4;
-sai_create_tam_collector_fn(&sai_tam_collector_obj, switch_id, attr_count, sai_attr_list);
-
-```
-
-#### Creating TAM report object
-
-``` c++
-
-sai_attr_list[0].id = SAI_TAM_REPORT_ATTR_TYPE;
-sai_attr_list[0].value.s32 = SAI_TAM_REPORT_TYPE_IPFIX;
-
-sai_attr_list[1].id = SAI_TAM_REPORT_ATTR_REPORT_MODE;
-sai_attr_list[1].value.s32 = SAI_TAM_REPORT_MODE_BULK;
-
-sai_attr_list[2].id = SAI_TAM_REPORT_ATTR_REPORT_INTERVAL;
-sai_attr_list[2].value.u32 = poll_interval; // STREAM_TELEMETRY_PROFILE:profile_name[poll_interval] on Config DB
-
-// sai_attr_list[].id = SAI_TAM_REPORT_ATTR_ENTERPRISE_NUMBER; Ignore this value
-
-sai_attr_list[3].id = SAI_TAM_REPORT_ATTR_TEMPLATE_REPORT_INTERVAL;
-sai_attr_list[3].value.s32 = 0; // Don't push the template, Because we hope the template can be proactively queried by orchagent
-
-sai_attr_list[4].id = SAI_TAM_REPORT_ATTR_REPORT_INTERVAL_UNIT;
-sai_attr_list[4].value.s32 = SAI_TAM_REPORT_INTERVAL_UNIT_MSEC;
-
-attr_count = 5;
-sai_create_tam_report_fn(&sai_tam_report_obj, switch_id, attr_count, sai_attr_list);
-
-```
-
-#### Creating TAM telemetry type object
-
-``` c++
-
-sai_attr_list[0].id = SAI_TAM_TEL_TYPE_ATTR_TAM_TELEMETRY_TYPE;
-sai_attr_list[0].value.s32 = SAI_TAM_TELEMETRY_TYPE_COUNTER_SUBSCRIPTION;
-
-// Based on the STREAM_TELEMETRY_GROUP on Config DB, to enable corresponding capabilities.
-sai_attr_list[1].id = SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_PORT_STATS ;
-sai_attr_list[1].value.boolean = true;
-
-sai_attr_list[2].id = SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_MMU_STATS ;
-sai_attr_list[2].value.boolean = true;
-
-// ...
-
-sai_attr_list[3].id = SAI_TAM_TEL_TYPE_ATTR_REPORT_ID;
-sai_attr_list[3].value.oid = sai_tam_report_obj;
-
-attr_count = 4;
-sai_create_tam_tel_type_fn(&sai_tam_tel_type_obj, switch_id, attr_count, sai_attr_list);
-
-```
-
-#### Creating TAM telemetry object
-
-Extern TAM telemetry attributes in SAI
-
-``` c++
-
-/**
- * @brief TAM reporting type
- */
-typedef enum _sai_tam_reporting_type_t
-{
-    /**
-     * @brief Report type is time based
-     */
-    SAI_TAM_REPORTING_TYPE_TIME_BASED,
-
-    /**
-     * @brief Report type is count based
-     */
-    SAI_TAM_REPORTING_TYPE_COUNT_BASED,
-
-} sai_tam_reporting_type_t;
-
-typedef enum _sai_tam_telemetry_attr_t
-{
-    // ...
-
-    /**
-     * @brief Tam telemetry reporting unit
-     *
-     * @type sai_tam_reporting_unit_t
-     * @flags CREATE_AND_SET
-     * @default SAI_TAM_REPORTING_UNIT_SEC
-     * @validonly SAI_TAM_TELEMETRY_ATTR_TAM_REPORTING_TYPE == SAI_TAM_REPORTING_TYPE_TIME_BASED
-     */
-    SAI_TAM_TELEMETRY_ATTR_TAM_REPORTING_UNIT,
-
-    /**
-     * @brief Tam event reporting interval
-     *
-     * defines the gap between two reports
-     *
-     * @type sai_uint32_t
-     * @flags CREATE_AND_SET
-     * @default 1
-     * @validonly SAI_TAM_TELEMETRY_ATTR_TAM_REPORTING_TYPE == SAI_TAM_REPORTING_TYPE_TIME_BASED
-     */
-    SAI_TAM_TELEMETRY_ATTR_REPORTING_INTERVAL,
-
-    /**
-     * @brief Tam telemetry reporting type
-     *
-     * @type sai_tam_reporting_type_t
-     * @flags CREATE_ONLY
-     * @default SAI_TAM_REPORTING_TYPE_TIME_BASED
-     */
-    SAI_TAM_TELEMETRY_ATTR_TAM_REPORTING_TYPE,
-
-    /**
-     * @brief Tam telemetry reporting bulk count
-     *
-     * defines the size of reporting bulk, which means TAM will report to the collector every time
-     * if the report count reaches the bulk count.
-     *
-     * @type sai_uint32_t
-     * @flags CREATE_AND_SET
-     * @default 1
-     * @validonly SAI_TAM_TELEMETRY_ATTR_TAM_REPORTING_TYPE == SAI_TAM_REPORTING_TYPE_COUNT_BASED
-     */
-    SAI_TAM_TELEMETRY_ATTR_REPORTING_BULK_COUNT,
-
-} sai_tam_telemetry_attr_t;
-
-```
-
-``` c++
-
-sai_attr_list[0].id = SAI_TAM_TELEMETRY_ATTR_TAM_TYPE_LIST;
-sai_attr_list[0].value.objlist.count = 1;
-sai_attr_list[0].value.objlist.list[0] =  sai_tam_tel_type_obj;
-
-sai_attr_list[1].id = SAI_TAM_TELEMETRY_ATTR_COLLECTOR_LIST;
-sai_attr_list[1].value.objlist.count = 1;
-sai_attr_list[1].value.objlist.list[0] = sai_tam_collector_obj;
-
-sai_attr_list[2].id = SAI_TAM_TELEMETRY_ATTR_REPORTING_TYPE;
-sai_attr_list[2].value.s32 = SAI_TAM_REPORTING_TYPE_COUNT_BASED
-
-sai_attr_list[3].id = SAI_TAM_TELEMETRY_ATTR_REPORTING_BULK_COUNT;
-sai_attr_list[3].value.u32 = bulk_count; // STREAM_TELEMETRY_PROFILE:profile_name[bulk_count] on Config DB
-
-attr_count = 4;
-
-sai_create_tam_telemetry_fn(&sai_tam_telemetry_obj, switch_id, attr_count, sai_attr_list);
-
-```
-
-#### Creating TAM counter subscription objects
-
-Based on the STREAM_TELEMETRY_GROUP on Config DB, to create corresponding counter subscription objects.
-
-``` c++
-
-/**
- * @brief Counter Subscription attributes
- */
-typedef enum _sai_tam_counter_subscription_attr_t
-{
-
-// ...
-
-    /**
-     * @brief Telemetry label
-     *
-     * Label to identify this counter in telemetry reports.
-     * If the report type is IPFIX, this label will be used as the element ID in the IPFIX template.
-     *
-     * @type sai_uint64_t
-     * @flags CREATE_ONLY
-     * @default 0
-     */
-    SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL,
-
-    /**
-     * @brief Setting of read-clear or read-only for statistics read.
-     *
-     * @type sai_stats_mode_t
-     * @flags CREATE_ONLY
-     * @default SAI_STATS_MODE_READ
-     */
-    SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STATS_MODE,
-
-// ...
-
-} sai_tam_counter_subscription_attr_t;
-
-
-// Create counter subscription list
-
-sai_attr_list[0].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_TEL_TYPE;
-sai_attr_list[0].value.oid = sai_tam_tel_type_obj;
-
-sai_attr_list[1].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_OBJECT_ID;
-sai_attr_list[1].value.oid = port_obj;
-
-sai_attr_list[2].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STAT_ID;
-sai_attr_list[2].value.oid = SAI_PORT_STAT_IF_IN_OCTETS;
-
-sai_attr_list[3].id = SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_LABEL;
-sai_attr_list[3].value.oid = index; // Element ID of the object in the IPFIX template
-
-sai_attr_list[4].id =SAI_TAM_COUNTER_SUBSCRIPTION_ATTR_STATS_MODE;
-sai_attr_list[4].value.s32 = SAI_STATS_MODE_READ;
-// sai_attr_list[4].value.s32 = SAI_STATS_MODE_READ_AND_CLEAR; // It could be read and clear for queue watermark
-
-attr_count = 5;
-
-create_tam_counter_subscription(&sai_tam_counter_subscription_obj, switch_id, attr_count, sai_attr_lis);
-// If this stats of object cannot support this poll frequency, this API should return SAI_STATUS_NOT_SUPPORTED.
-```
-
-#### Creating TAM object
-
-``` c++
-
-sai_attr_list[0].id = SAI_TAM_ATTR_TELEMETRY_OBJECTS_LIST;
-sai_attr_list[0].value.objlist.count = 1;
-sai_attr_list[0].value.objlist.list[0] = sai_tam_telemetry_obj;
-
-sai_attr_list[1].id = SAI_TAM_ATTR_TAM_BIND_POINT_TYPE_LIST;
-sai_attr_list[1].value.objlist.count = 2;
-sai_attr_list[1].value.objlist.list[0] = SAI_TAM_BIND_POINT_TYPE_PORT;
-sai_attr_list[1].value.objlist.list[0] = SAI_TAM_BIND_POINT_TYPE_QUEUE;
-
-attr_count = 2;
-sai_create_tam_fn(&sai_tam_obj, switch_id, attr_count, sai_attr_list);
-
-```
-
-#### Query IPFIX template
-
-``` c++
-/**
- * @brief Attributes for TAM report
- */
-typedef enum _sai_tam_report_attr_t
-{
-
-    // ...
-
-    /**
-     * @brief Query IPFIX template
-     *
-     * Return the IPFIX template binary buffer
-     *
-     * @type sai_u8_list_t
-     * @flags READ_ONLY
-     */
-    SAI_TAM_REPORT_ATTR_IPFIX_TEMPLATES,
-
-    // ...
-
-} sai_tam_report_attr_t;
-
-```
-
-``` c++
-
-std::vector<uint8_t> template_buffer(64*1024*10, 0);
-
-sai_attribute_t sai_attr_list;
-
-sai_attr_list[0].id = SAI_TAM_REPORT_ATTR_IPFIX_TEMPLATES;
-sai_attr_list[0].value.u8list.list = template_buffer.data();
-sai_attr_list[0].value.u8list.count = template_buffer.size();
-
-get_tam_report_attribute(&sai_tam_report_obj, 1, &sai_attr_list);
-
-```
-
-#### Enable/Disable telemetry stream
-
-``` c++
-
-sai_object_id_t obj_list[100] = { 0 };
-sai_attr.value.count = 0;
-
-sai_attribute_t sai_attr;
-sai_attr.id = SAI_SWITCH_ATTR_TAM_OBJECT_ID;
-sai_attr.value.oidlist = obj_list;
-sai_attr.value.count = 0;
-
-get_switch_attribute(switch_id, 1, &sai_attr);
-
-// Enable telemetry stream
-
-sai_attr.value.oidlist[sai_attr.value.count] = sai_tam_obj;
-sai_attr.value.count++;
-
-// Disable telemetry stream
-
-std::remove(sai_attr.value.oidlist, sai_attr.value.oidlist + sai_attr.value.count, sai_tam_obj);
-sai_attr.value.count--;
-
-set_switch_attribute(switch_id, sai_attr)
-
-```
-
-#### Query stream telemetry capability
-
-``` c++
-
-/**
- * @brief Query statistics capability for statistics bound at object level under the stream telemetry mode
- *
- * @param[in] switch_id SAI Switch object id
- * @param[in] object_type SAI object type
- * @param[inout] stats_capability List of implemented enum values, the statistics modes (bit mask) supported and minimal polling interval per value
- *
- * @return #SAI_STATUS_SUCCESS on success, #SAI_STATUS_BUFFER_OVERFLOW if lists size insufficient, failure status code on error
- */
-sai_status_t sai_query_stats_st_capability(
-        _In_ sai_object_id_t switch_id,
-        _In_ sai_object_type_t object_type,
-        _Inout_ sai_stat_st_capability_list_t *stats_capability);
-
-/**
- * @brief Stat capability under the stream telemetry mode
- */
-typedef struct _sai_stat_st_capability_t
-{
-    /**
-     * @brief Typical stat capability
-     */
-    sai_stat_capability_t capability;
-
-    /**
-     * @brief Minimal polling interval in nanoseconds
-     *
-     * If polling interval is less than this value, it will be unacceptable.
-     */
-    uint32_t minimal_polling_interval;
-
-} sai_stat_st_capability_t;
-
-typedef struct _sai_stat_st_capability_list_t
-{
-    uint32_t count;
-    sai_stat_st_capability_t *list;
-
-} sai_stat_st_capability_list_t;
-
-```
+[SAI-Proposal-TAM-stream-telemetry.md](https://github.com/opencomputeproject/SAI/blob/master/doc/TAM/SAI-Proposal-TAM-stream-telemetry.md)
 
 ## Configuration and management
 
@@ -1167,7 +607,7 @@ $Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Cache Size} \times {Chunk
 
 ### Restrictions/Limitations
 
-[Requirements](#requirements)
+[Requirements / Constraints](#requirements--constraints)
 
 ### Testing Requirements/Design
 
