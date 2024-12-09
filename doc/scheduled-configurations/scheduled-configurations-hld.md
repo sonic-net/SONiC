@@ -17,6 +17,7 @@
         - [CONFIG\_DB](#config_db)
         - [STATE\_DB](#state_db)
       - [SWSS](#swss)
+    - [Subscription to APPL\_DB](#subscription-to-appl_db)
     - [Flow Diagrams](#flow-diagrams)
       - [Set](#set)
       - [Delete](#delete)
@@ -110,7 +111,11 @@ The Scheduled Configurations feature enhances the existing SONiC architecture by
 
 - **timerangemgrd**: This application will monitor and manage `TIME_RANGE` table in the `CONFIG_DB`. It will parse, validate, and create a new entry under the `TIME_RANGE_STATUS_TABLE` in the `STATE_DB`, as well as create crontab files that manage the statuses of `TIME_RANGE_STATUS_TABLE`.
 - **cron**: This application will manage the `TIME_RANGE_STATUS_TABLE` for each entry, and update the status based on the scheduled time.
-- **scheduledconfigmgrd**: This application subscribes to `TIME_RANGE_STATUS_TABLE` in the `STATE_DB`, updated by the `cron` application. When the time range becomes *active*, It will be responsible for applying configurations given by `SCHEDULED_CONFIGURATIONS` in `CONFIG_DB`, by publishing them to the `CONFIG_DB`. When the time range status becomes *inactive* (or deleted entirely) it will applying a new set of configurations or simply remove the previously defined configurations.
+- **scheduledconfigmgrd**: This application subscribes to `TIME_RANGE_STATUS_TABLE` in the `STATE_DB`, updated by the `cron` application. When the time range is becomed *active*, It will be responsible for applying configurations given by `SCHEDULED_CONFIGURATIONS` in `CONFIG_DB`, by publishing them to the `APPL_DB`. When the time range status becomes *inactive* (or deleted entirely) it will applying a new set of configurations or simply remove the previously defined configurations.
+
+### Subscription to APPL_DB
+
+In order to fully integrate with the new scheduled configurations feature, all switch components desiring to utilize this functionality must subscribe to the `APPL_DB`. The table schema will be the same as the schema used in `CONFIG_DB` to apply new configurations, all that is needed is to add the new subscription to the orchagent subcomponents and config managers. This is done in order to distinguish between administrator configurations, and configurations applied due to an application (ie. *Scheduled Configurations*).
 
 ### Flow Diagrams
 
@@ -118,22 +123,20 @@ The following diagrams illustrate the interactions between the databases and app
 
 #### Set
 
-![time range flow -- set](images/time-range-flow-set.png)
+![time range flow -- set](images/time-range-flow-set-appl-db.png)
 
 1. Apply time range configuration to `TIME_RANGE` in `CONFIG_DB` through sonic-cfggen or other management tool
 2. Changes to the `TIME_RANGE` table will cause a subscription notification to be sent to `timerangemgrd`
 3. `timerangemgrd` will create a new entry in the `TIME_RANGE_STATUS_TABLE` table found in the `STATE_DB` defaulting to *active* or *inactive* status based on the current time
-4. `timerangemgrd` will then create the crontab files used by the `cron` application to activate, or deactivate the status of the `TIME_RANGE_STATUS_TABLE`
-5. The new `TIME_RANGE_STATUS_TABLE` will cause a subscription notification picked up by `scheduledconfigmgrd`
-6. `scheduledconfigmgrd` will loop over all *unbound scheduled configurations* (configurations who's time range does not exist), and attach all configurations that are bound to the newly create time range
-7. If the time range is *active*, all bound scheduled configurations will apply their configuration to `CONFIG_DB`, if it *inactive*, it will instead apply the deactivation_config
+4. `timerangemgrd` will then create the crontab files used by the `cron` application to manage the activation and deactivation of the status field in `TIME_RANGE_STATUS_TABLE`
+5. The creation (or update) of the `TIME_RANGE_STATUS_TABLE` will cause a subscription notification picked up my `scheduledconfigmgrd`
+6. If the time range is *active*, all bound scheduled configurations will apply their **configuration** to `CONFIG_DB`, if inactive it will instead apply the **deactivation_config** if present, otherwise delete
 
-![scheduled configuration flow -- set](images/scheduled-configuration-flow-set.png)
+![scheduled configuration flow -- set](images/scheduled-configuration-flow-set-appl-db.png)
 
 1. Apply scheduled configurations to the `SCHEDULED_CONFIGURATIONS` table in `CONFIG_DB`
 2. Changes to `SCHEDULED_CONFIGURATIONS` will cause a subscription notification to `scheduledconfigmgrd`
-3. If the bound time range of this configuration is already *active*, it will publish this new configuration to the `CONFIG_DB`, if *inactive* it will apply this scheduled configuration's deactivation_configuration.
-4. `scheduledconfigmgrd` saves the configuration internally
+3. If the time range this configuration is already active, it will publish this new configuration to the `APPL_DB`, if inactive but the scheduled configuration has a deactivation configuration, then publish this configuration instead.
 
 #### Delete
 
@@ -204,7 +207,7 @@ key           = SCHEDULED_CONFIGURATIONS|name    ; Unique identifier for each sc
 ;field        = value
 time_range    = name                              ; Reference to the name of the time range in TIME_RANGE table.
 configuration = JSON_STRING                       ; The actual configuration data in JSON string format.
-deactivation_configuration = "remove"/JSON_STRING ; The configuration to apply upon deactivation of bound time range. May also be the string "remove" in order to delete the configuration
+deactivation_configuration = JSON_STRING          ; The configuration to apply upon deactivation of bound time range. Optional
 
 ;value annotations
 name          = 1*64VCHAR                         ; Unique time range name.
@@ -360,12 +363,12 @@ module sonic-timerange {
                 }
 
                 leaf start_year {
-                    type integer;
+                    type uint16;
                     description "Indicates what year this time range will begin running";
                 }
 
                 leaf end_year {
-                    type integer;
+                    type uint16;
                     description "Indicates what year this time range will end";
                 }
             } /* end of list TIME_RANGE_LIST */
@@ -423,8 +426,7 @@ module sonic-scheduled-configurations {
                     description "Configuration to be applied to CONFIG_DB in JSON format";
                 }
 
-                leaf deactivation_configuration {
-                    mandatory true;
+                leaf deactivation_configurations {
                     type string;
                     description "A configuration to be applied at deactivation, or the string 'remove' to simply remove the configuration at deactivation";
 
