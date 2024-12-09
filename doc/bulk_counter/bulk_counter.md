@@ -7,6 +7,7 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Junchao Chen  | Initial version                   |
+ | 0.2 | Dec 6, 2024 |        Stephen Sun | Support setting bulk chunk size   |
 
 ### Scope
 
@@ -35,18 +36,29 @@ SONiC flex counter infrastructure shall utilize bulk stats API to gain better pe
 - In phase 1, the change is limited to syncd only, no CLI/swss change. Syncd shall deduce the bulk stats mode according to the stats mode defined in FLEX DB:
   - SAI_STATS_MODE_READ -> SAI_STATS_MODE_BULK_READ
   - SAI_STATS_MODE_READ_AND_CLEAR -> SAI_STATS_MODE_BULK_READ_AND_CLEAR
+- Support setting bulk chunk size for the whole counter group or a sub set of counters.
+
+  Sometimes it can be time consuming to poll a large group of counters for all ports in one shot, which can impact other counters. In that case, the bulk counter polling can be split into smaller chunk sizes which makes it faster.
+  Furthermore, different counters within a same counter group can be split into different chunk sizes.
+- Provide an accurate timestamp when counters are polled
 
 ### Architecture Design
 
-For each counter group, different statistic type is allowed to choose bulk or non-bulk API based on vendor SAI implementation.
+For each counter group
+
+1. different statistic type is allowed to choose bulk or non-bulk API based on vendor SAI implementation.
+2. bulk chunk size can be configure for the group of a set of counters in the group
 
 ![architecture](bulk_counter.svg).
 
-> Note: In the picture, pg/queue watermark statistic use bulk API and buffer watermark statistic uses non-bulk API. This is just an example to show the design idea.
+> Note: In the picture,
+> 1. PG/queue watermark statistic use bulk API and buffer watermark statistic uses non-bulk API.
+> 2. Ports statistic counters are split into smaller chunks: IF_OUT_QLEN counter is polled for all ports and the rest counters are polled for each 32-port group
+> 3. This is just an example to show the design idea.
 
 ### High-Level Design
 
-Changes shall be made to sonic-sairedis to support this feature. No CLI change. No DB schema change.
+Changes shall be made to sonic-sairedis to support this feature. No CLI change.
 
 > Note: Code present in this design document is only for demonstrating the design idea, it is not production code.
 
@@ -73,6 +85,8 @@ struct BulkStatsContext
     std::vector<sai_stat_id_t> counter_ids;
     std::vector<sai_status_t> object_statuses;
     std::vector<uint64_t> counters;
+    std::string name;
+    uint32_t default_bulk_chunk_size;
 };
 ```
 - object_type: object type.
@@ -81,6 +95,8 @@ struct BulkStatsContext
 - counter_ids: SAI statistic IDs that will be queried/cleared by the bulk call.
 - object_statuses: SAI bulk API return value for each object.
 - counters: counter values that will be fill by vendor SAI.
+- name: name of the context for pushing accurate timestamp into the COUNTER_DB.
+- default_bulk_chunk_size: the bulk chunk size of this context.
 
 The flow of how to updating bulk context will be discussed in following section.
 
@@ -92,6 +108,27 @@ std::map<std::vector<sai_port_stat_t>, BulkStatsContext> m_portBulkContexts;
 
 ```
 
+##### Set bulk chunk size per counter ID
+
+The bulk chunk size can be configured for a counter group. Once configured, each bulk will poll counters of no more than the configured number of ports.
+
+The bulk chunk size can be configured on a per counter ID basis using string in format `<COUNTER_NAME_PREFIX>:<bulk_chunk_size>{,<COUNTER_NAME_PREFIX_I>:<bulk_chunk_size_i>}`.
+
+Eg. `SAI_PORT_STAT_IF_IN_FEC:32,SAI_PORT_STAT_IF_OUT_QLEN:0` represents
+
+1. the bulk chunk size of all counter IDs starting with prefix `SAI_PORT_STAT_IF_IN_FEC` is 32
+2. the bulk chunk size of counter `SAI_PORT_STAT_IF_OUT_QLEN` is 0, which mean 1 bulk will fetch the counter of all ports
+3. the bulk chunk size of rest counter IDs is the counter group's bulk chunk size.
+
+The counter IDs will be break into a partition which consists of a group of sub sets `{{all FEC counters starting with SAI_PORT_STAT_IF_IN_FEC}, {SAI_PORT_STAT_IF_OUT_QLEN}, {the rest counters}}`.
+The counter IDs in each sub set share the unified bulk chunk size and will be poll together.
+To simplify the logic, it is not supported to change the partition, which means it does not allow to split counter IDs into a differet sub sets once they have been split.
+
+In the above example, once the bulk chunk size is set in the way, a customer can only changes the bulk size of each group but can not change the way the sub sets are split. Eg.
+
+1. `SAI_PORT_STAT_IF_IN_FEC:16,SAI_PORT_STAT_IF_OUT_QLEN:0` can be used to set the bulk chunk size to 16 and 0 for of all FEC counters and counter `SAI_PORT_STAT_IF_OUT_QLEN` respectively.
+2. `SAI_PORT_STAT_IF_IN_FEC:16,SAI_PORT_STAT_IF_OUT_QLEN:0,SAI_PORT_STAT_ETHER_STATS:64` is not supported because it changes the partition.
+
 ##### Update Bulk Context
 
 1. New object join counter group.
@@ -99,6 +136,10 @@ std::map<std::vector<sai_port_stat_t>, BulkStatsContext> m_portBulkContexts;
 ![Add Object Flow](object_join_counter_group.svg).
 
 2. Existing object leave counter group, related data shall be removed from bulk context.
+
+3. A customer break the chunk size of bulk counter polling into different smaller sizes per counter IDs.
+
+![Set chunk size per counter ID](set_chunk_size_per_counter_ID.svg).
 
 ##### Statistic Collect
 
@@ -113,7 +154,45 @@ SAI APIs shall be used in this feature:
 
 ### Configuration and management
 
-N/A
+#### YANG model Enhancements
+
+##### Yang model of flex counter group
+
+The following new types will be introduced in `container FLEX_COUNTER_TABLE` of the flex counter group
+
+```
+    container sonic-flex_counter {
+        container FLEX_COUNTER_TABLE {
+
+            typedef bulk_chunk_size {
+                type uint32 {
+                    range 0..4294967295;
+                }
+            }
+
+            typedef bulk_chunk_size_per_prefix {
+                type string;
+                description "Bulk chunk size per counter name prefix";
+            }
+
+        }
+    }
+```
+
+In the yang model, each flex counter group is an independent countainer. We will define leaf in the countainer `PG_DROP`, `PG_WATERMARK`, `PORT`, `QUEUE`, `QUEUE_WATERMARK`.
+The update of `PG_DROP` is shown as below
+
+```
+            container PG_DROP {
+                /* PG_DROP_STAT_COUNTER_FLEX_COUNTER_GROUP */
+                leaf BULK_CHUNK_SIZE {
+                    type bulk_chunk_size;
+                }
+                leaf BULK_CHUNK_SIZE_PER_PREFIX {
+                    type bulk_chunk_size_per_prefix;
+                }
+            }
+```
 
 ### Warmboot and Fastboot Design Impact
 
