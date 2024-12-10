@@ -92,7 +92,7 @@ For example, an administrator may create a time range to run every weekday from 
 
 The Scheduled Configurations feature enhances the existing SONiC architecture by introducing two new managers within the swss container, alongside the established `cron` utility. This approach not only ensures seamless integration with the current system but also maintains flexibility for future adaptations, as `cron` can be substituted with other scheduling utilities if more advanced or different functionality is required.
 
-![Architecture Design](images/scheduled-configuration-architecture-no-connections.png)
+![Architecture Design](images/scheduled-configuration-architecture-no-connections-appl-db.png)
 
 ### New Components
 
@@ -130,7 +130,7 @@ The following diagrams illustrate the interactions between the databases and app
 3. `timerangemgrd` will create a new entry in the `TIME_RANGE_STATUS_TABLE` table found in the `STATE_DB` defaulting to *active* or *inactive* status based on the current time
 4. `timerangemgrd` will then create the crontab files used by the `cron` application to manage the activation and deactivation of the status field in `TIME_RANGE_STATUS_TABLE`
 5. The creation (or update) of the `TIME_RANGE_STATUS_TABLE` will cause a subscription notification picked up my `scheduledconfigmgrd`
-6. If the time range is *active*, all bound scheduled configurations will apply their **configuration** to `CONFIG_DB`, if inactive it will instead apply the **deactivation_config** if present, otherwise delete
+6. If the time range is *active*, all bound scheduled configurations will apply their **configuration** to `APPL_DB`, if inactive it will instead apply the **deactivation_config** if present, otherwise delete
 
 ![scheduled configuration flow -- set](images/scheduled-configuration-flow-set-appl-db.png)
 
@@ -140,33 +140,33 @@ The following diagrams illustrate the interactions between the databases and app
 
 #### Delete
 
-![time range flow -- delete](images/time-range-flow-del.png)
+![time range flow -- delete](images/time-range-flow-del-appl-db.png)
 
 1. A time range is deleted from the `TIME_RANGE` table in `CONFIG_DB`
 2. A subscription notification is sent to `timerangemgrd` with the op *delete*
 3. `timerangemgrd` deletes the crontab files associated with this time range
 4. `timerangemgrd` deletes the time range entry from the `TIME_RANGE_STATUS_TABLE` table found in the `STATE_DB`
 5. A subscription notification is sent to `scheduledconfigmgrd` the op *delete*
-6. `scheduledconfigmgrd` checks if the time range is *active*, if yes, it will apply the deactivation_configuration of all the scheduled configurations bound to this time range to the `CONFIG_DB`.
+6. `scheduledconfigmgrd` checks if the time range is *active*, if yes, it will apply the deactivation_configuration of all the scheduled configurations bound to this time range to the `APPL_DB` if it exists.
 7. Finally, `scheduledconfigmgrd` deletes the time range internally, and the scheduled configurations will be unbound.
 
-![scheduled configuration flow -- delete](images/scheduled-configuration-flow-del.png)
+![scheduled configuration flow -- delete](images/scheduled-configuration-flow-del-appl-db.png)
 
 1. A scheduled configuration is deleted form the `SCHEDULED_CONFIGURATIONS` table in `CONFIG_DB`
 2. A subscription notification is sent to `scheduledconfigmgrd` with the op *delete*
-3. `scheduledconfigmgrd` checks if the time range that the scheduled configuration is bound to is *active*. If yes, it will apply the deactivation_configuration to the `CONFIG_DB`
+3. `scheduledconfigmgrd` checks if the time range that the scheduled configuration is bound to is *active*. If yes, it will apply the deactivation_configuration to the `APPL_DB` if it exists
 4. Finally, `scheduledconfigmgrd` deletes the scheduled configuration internally
 
 #### Events
 
-![scheduled configuration flow -- events](images/scheduled-configuration-flow-events.png)
+![scheduled configuration flow -- events](images/scheduled-configuration-flow-events-appl-db.png)
 
 1. During the scheduled activation time, `cron` updates the **status** field in the `TIME_RANGE_STATUS_TABLE` found in the `STATE_DB` to *active*
 2. A subscription notification is sent to `scheduledconfigmgrd`
-3. `scheduledconfigmgrd` applies all the configurations bound to the time range by publishing to the `CONFIG_DB`
+3. `scheduledconfigmgrd` applies all the configurations bound to the time range by publishing to the `APPL_DB`
 4. During the scheduled deactivation time, `cron` updates the **status** field in the `TIME_RANGE_STATUS_TABLE` found in the `STATE_DB` to *inactive*
 5. A subscription notification is sent to `scheduledconfigmgrd`
-6. `scheduledconfigmgrd` will go over each configuration bound to the time range, and apply the deactivation_configuration to the `CONFIG_DB`.
+6. `scheduledconfigmgrd` will go over each configuration bound to the time range, and apply the deactivation_configuration to the `APPL_DB`.
 
 ## High-Level Design
 
@@ -279,7 +279,7 @@ status-str     = "active"/"inactive"      ; String representing the current stat
                 // Configuration goes here
             },
             "deactivation_configuration": 
-            // Configuration to be set, or "remove" to delete the configuration, when deactivated
+            // Optional Configuration to be set when deactivated, can be omitted in order to delete configuration instead
         }
     }
 }
@@ -288,7 +288,7 @@ status-str     = "active"/"inactive"      ; String representing the current stat
 - `<CONFIG_NAME>`: A unique identifier for the scheduled configuration.
 - `<TIME_RANGE_NAME>`: The reference to the time interval defined in the `TIME_RANGE` table.
 - `configuration`: The actual configuration data to be applied during the specified time range. It takes in a json formatted string.
-- `deactivation_configuration`: Either "remove", or the configuration to be set when bound time range is deactived in json format.
+- `deactivation_configuration`: Optional. Configuration to be set when bound time range is deactived in json format. If does not exists, then will delete the configuration instead
 
 ##### Example
 
@@ -300,13 +300,19 @@ status-str     = "active"/"inactive"      ; String representing the current stat
             "configuration": {
                 "ACL_TABLE": {
                     "ACL_TABLE_NAME": {
-                    "policy_desc": "Night Time Access Control",
-                    "type": "L3",
-                    "ports": ["Ethernet0", "Ethernet4"]
+                        "policy_desc": "Night Time Access Control",
+                        "type": "L3",
+                        "ports": ["Ethernet0", "Ethernet4"]
                     }
                 }
             },
-            "deactivation_configuration": "remove"
+            "deactivation_configuration": {
+                    "ACL_TABLE_NAME": {
+                        "policy_desc": "Night Time Access Control",
+                        "type": "L3",
+                        "ports": ["Ethernet0"]
+                    }
+            }
         }
     }
 }
@@ -426,9 +432,9 @@ module sonic-scheduled-configurations {
                     description "Configuration to be applied to CONFIG_DB in JSON format";
                 }
 
-                leaf deactivation_configurations {
+                leaf deactivation_configuration {
                     type string;
-                    description "A configuration to be applied at deactivation, or the string 'remove' to simply remove the configuration at deactivation";
+                    description "Optional. Configuration to be set when bound time range is deactived in json format. If does not exists, then will delete the configuration instead.";
 
                 }
             } /* end of list SCHEDULED_CONFIGURATIONS_LIST */
@@ -444,7 +450,7 @@ module sonic-scheduled-configurations {
 
 #### Config Scheduled Configuration
 
-This new configuration command, `config scheduled-configuration` will take a JSON file, containing scheduled configuration changes, as an argument, and will validate the configuration using YANG, as well as the internal configurations (`configuration` and `deactivation_configuration`) before applying the changes to the `CONFIG_DB`. You can also add the optional flag `-d` or `--dry-run` to only validate the configuration, and not apply it.
+This new configuration command, `config scheduled-configuration` will take a JSON file, containing scheduled configuration changes, as an argument, and will validate the configuration using YANG, as well as the internal configurations (`configuration` and `deactivation_configuration`) before applying the changes to the `APPL_DB`. You can also add the optional flag `-d` or `--dry-run` to only validate the configuration, and not apply it.
 
 The following is the syntax:
 
@@ -454,7 +460,7 @@ config scheduled-configuration [-d] <JSON-FILE>
 
 #### Config Time Range
 
-This new configuration command, `config time-range` will take a JSON file containing time range(s), as an argument, and will validate the configuration using YANG before applying to `CONFIG_DB`. You can also add the optional flag `-d` or `--dry-run` to only validate the configuration, and not apply it.
+This new configuration command, `config time-range` will take a JSON file containing time range(s), as an argument, and will validate the configuration using YANG before applying to `APPL_DB`. You can also add the optional flag `-d` or `--dry-run` to only validate the configuration, and not apply it.
 
 The following is the syntax:
 
