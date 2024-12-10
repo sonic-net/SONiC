@@ -73,7 +73,7 @@ However, there is still one gap preventing SONiC being utilized for SRv6 SDN dep
 Specifically, there is no mechamism in SONiC allowing SDN controllers or users to directly add configuration for SRv6 without involving BGP.
 
 In this document, we first define a new **SRV6_MY_SID_TABLE** table in CONFIG_DB that serves as the configuration source of SRv6 in SONiC.
-Then, we design a new SRv6 Manager module in bgpcfgd to subscribe to the **SRV6_MY_SID_TABLE** table and compile changes in CONFIG_DB to changes in the configurations of FRR.
+Then, we design a new SRv6 Manager module in bgpcfgd to subscribe to the **SRV6_MY_SID_TABLE** table and compile changes in CONFIG_DB to changes in the configurations of FRR (Note: the new SRv6 Manager relies on the new configuration CLI brought in by [FRR PR#16894](https://github.com/FRRouting/frr/pull/16894)).
 To verify the correctness of the aforementioned flow, we also define the relevant YANG model specification.
 The workflow of the new mechanism is shown in the following diagram.
 
