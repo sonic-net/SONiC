@@ -53,6 +53,8 @@ This new feature allows users to generate a SAI debug dump file using `show tech
 + Add infrastructure to generate a SAI debug dump file upon user request
 + generate a SAI debug dump file from 'show techsupport' command.
 + Generate a SAI debug dump file within the context of Syncd.
++ By default the operation will be blocking but also support configuration of making the action non blocking
++ In the case of a blocking operation, the timeout for file readiness will be configurable.
 + Maintain the existing mechanism for generating the SAI debug dump file on failure.
 
 ### Assumptions
@@ -69,7 +71,7 @@ Adding a new infrastructure without changes in existing Sonic Architecture
 4. Syncd calls the global SAI API `dbgGenerateDump` to generate the debug dump file, which is saved in syncd's file system.
 5. Syncd sends a reply back to `DbgGenDumpOrch`.
 6. `DbgGenDumpOrch` analyzes the response.
-7. `DbgGenDumpOrch` updates the result in the APPL DB.
+7. `DbgGenDumpOrch` updates the result in the APPL STATE DB.
 8. The user command retrieves the result.
 9. The debug dump file is pulled on success.
 
@@ -91,7 +93,7 @@ Introduced a new script `/usr/local/bin/gen_sai_dbg_dump.sh`
 #  This function
 #  it ensures that the `syncd` container is running before initiating the dump.
 #  triggers the generation of a SAI debug dump file through Redis APPL DB.
-#  it waits for the file by Polling (with timeout) the APPL DB for the result.
+#  it waits for the file by Polling (with timeout) the APPL STATE DB for the result.
 #  it removes the table from the DB when done.
 #
 # Arguments:
@@ -103,7 +105,7 @@ Introduced a new script `/usr/local/bin/gen_sai_dbg_dump.sh`
 #  1 - On failure
 ###############################################################################
 generate_sai_dump() {
-
+...
 }
 ```
 
@@ -148,7 +150,7 @@ generate_sai_dbg_dump_file "sai_sdk_dump_$(date +"%m_%d_%Y_%I_%M_%p")"
 #### DbgGenDump orchestration
 - A new orchestration agent, `DbgGenDumpOrch`, has been introduced, which is triggered by updates in the APPL DB.
 
-- It updates syncd by writing to the ASIC DB and waits for a response. Once received, it writes the result back to the APPL DB, allowing the calling application to retrieve the file.
+- It updates syncd by writing to the ASIC DB and waits for a response. Once received, it writes the result back to the APPL STATE DB, allowing the calling application to retrieve the file.
 
 #### DB Enhancements
 
@@ -166,6 +168,8 @@ redis-cli -n 0 HGETALL "DBG_GEN_DUMP_TABLE:DUMP"
 1) "file" 
 2) "/var/log/sai_dump_file.log" 
 ```
+
+Introduced a new Tables in APPL STATE DB :
 
 wait for the dump generation result example:
 ```
