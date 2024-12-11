@@ -118,6 +118,14 @@ For example:
     }
 ```
 
+Since SONiC and SAI do not have full support for every SRv6 behaviors, we plan to add supported SRv6 behaviors in the system gradually.
+The current list of supported SRv6 behaviors allowed to be define in CONFIG_DB is as follows:
+
+| Alias | SRv6 Behaviors |
+| :------ | :----- |
+| uN | End with NEXT-CSID |
+| uDT46 | End.DT46 with CSID |
+| uDT6 | End.DT6 with CSID |
 
 ## 3.2 Bgpcfgd changes
 
