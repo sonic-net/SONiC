@@ -38,9 +38,14 @@ SONiC flex counter infrastructure shall utilize bulk stats API to gain better pe
   - SAI_STATS_MODE_READ_AND_CLEAR -> SAI_STATS_MODE_BULK_READ_AND_CLEAR
 - Support setting bulk chunk size for the whole counter group or a sub set of counters.
 
-  Sometimes it can be time consuming to poll a large group of counters for all ports in one shot, which can impact other counters. In that case, the bulk counter polling can be split into smaller chunk sizes which makes it faster.
-  Furthermore, different counters within a same counter group can be split into different chunk sizes.
-- Provide an accurate timestamp when counters are polled
+  Sometimes it can be time consuming to poll a group of counters for all ports in one shot, which can impact other counter groups polling if they compete a critical section in vendor's SAI/SDK.
+  In that case, the bulk counter polling can be split into smaller chunk sizes. Furthermore, different counters within a same counter group can be split into different chunk sizes.
+
+  By doing so, all the counters of all ports will still be polled in each interval but it will be done by a lot of smaller bulk counter polling API calls, which makes it faster and mitgates the impaction.
+- Provide an accurate timestamp when counters are polled.
+
+  Currently, the timestamps are collected in the Lua plugin for time-sensitive counter groups, like PFC watchdog. However, there can be a delay between the time when the counters were polled and the timestamps were collected.
+  We can collect timestamps immediately after polling counters in sairedis and push them into the COUNTER_DB.
 
 ### Architecture Design
 
@@ -108,11 +113,15 @@ std::map<std::vector<sai_port_stat_t>, BulkStatsContext> m_portBulkContexts;
 
 ```
 
-##### Set bulk chunk size per counter ID
+##### Set bulk chunk size per counter IDs
 
 The bulk chunk size can be configured for a counter group. Once configured, each bulk will poll counters of no more than the configured number of ports.
 
-The bulk chunk size can be configured on a per counter ID basis using string in format `<COUNTER_NAME_PREFIX>:<bulk_chunk_size>{,<COUNTER_NAME_PREFIX_I>:<bulk_chunk_size_i>}`.
+Furthermore, the bulk chunk size can be configured on a per counter IDs set basis using string in format `<COUNTER_NAME_PREFIX>:<bulk_chunk_size>{,<COUNTER_NAME_PREFIX_I>:<bulk_chunk_size_i>}`.
+Each `COUNTER_NAME_PREFIX` defines a set of counter IDs by matching the counter IDs with the prefix. All the counter IDs in each set share a unified bulk chunk size and will be polled in a series of bulk counter polling API calls with the same counter IDs set but different port set.
+All such sets of counter IDs form a partition of counter IDs of the flex counter group. The partition of a flex counter group is represented by the keys of map `m_portBulkContexts`.
+
+To simplify the logic, it is not supported to change the partition, which means it does not allow to split counter IDs into a differet sub sets once they have been split.
 
 Eg. `SAI_PORT_STAT_IF_IN_FEC:32,SAI_PORT_STAT_IF_OUT_QLEN:0` represents
 
@@ -120,11 +129,10 @@ Eg. `SAI_PORT_STAT_IF_IN_FEC:32,SAI_PORT_STAT_IF_OUT_QLEN:0` represents
 2. the bulk chunk size of counter `SAI_PORT_STAT_IF_OUT_QLEN` is 0, which mean 1 bulk will fetch the counter of all ports
 3. the bulk chunk size of rest counter IDs is the counter group's bulk chunk size.
 
-The counter IDs will be break into a partition which consists of a group of sub sets `{{all FEC counters starting with SAI_PORT_STAT_IF_IN_FEC}, {SAI_PORT_STAT_IF_OUT_QLEN}, {the rest counters}}`.
+The counter IDs will be split to a partition which consists of a group of sub sets `{{all FEC counters starting with SAI_PORT_STAT_IF_IN_FEC}, {SAI_PORT_STAT_IF_OUT_QLEN}, {the rest counters}}`.
 The counter IDs in each sub set share the unified bulk chunk size and will be poll together.
-To simplify the logic, it is not supported to change the partition, which means it does not allow to split counter IDs into a differet sub sets once they have been split.
 
-In the above example, once the bulk chunk size is set in the way, a customer can only changes the bulk size of each group but can not change the way the sub sets are split. Eg.
+In the above example, once the bulk chunk size is set in the way, a customer can only changes the bulk size of each set but can not change the way the sub sets are split. Eg.
 
 1. `SAI_PORT_STAT_IF_IN_FEC:16,SAI_PORT_STAT_IF_OUT_QLEN:0` can be used to set the bulk chunk size to 16 and 0 for of all FEC counters and counter `SAI_PORT_STAT_IF_OUT_QLEN` respectively.
 2. `SAI_PORT_STAT_IF_IN_FEC:16,SAI_PORT_STAT_IF_OUT_QLEN:0,SAI_PORT_STAT_ETHER_STATS:64` is not supported because it changes the partition.
@@ -137,7 +145,7 @@ In the above example, once the bulk chunk size is set in the way, a customer can
 
 2. Existing object leave counter group, related data shall be removed from bulk context.
 
-3. A customer break the chunk size of bulk counter polling into different smaller sizes per counter IDs.
+3. A customer split the chunk size of bulk counter polling to different smaller sizes per counter IDs.
 
 ![Set chunk size per counter ID](set_chunk_size_per_counter_ID.svg).
 
