@@ -69,17 +69,12 @@ module sonic-srv6 {
                 }
             }
 
-            leaf vrf {
-                type leafref {
-					path "/vrf:sonic-vrf/VRF/VRF_LIST/name";
-				}
-            }
-
             leaf dscp_mode {
                 type enumeration {
                     enum uniform;
                     enum pipe;
                 }
+                when "../action = uDT6 or ../action = uDT46]";
             }
         }
     }

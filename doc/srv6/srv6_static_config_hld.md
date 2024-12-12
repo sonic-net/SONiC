@@ -101,8 +101,7 @@ node_len = nlen              ; bit length of node ID portion in address, default
 func_len = flen              ; bit length of function portion in address, default 16
 arg_len = alen               ; bit length of argument portion in address, default 0
 action = behavior            ; behaviors defined for the SID, default uN
-vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, only applicable to "uDT6" and "uDT46" by now, default "default"
-dscp_mode = dscp_decap_mode  ; Optional, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation, default "uniform"
+dscp_mode = dscp_decap_mode  ; Optional, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation, default "uniform", only applicable to uDT4/uDT46/uDT6 actions
 
 For example:
     "SRV6_MY_SID_TABLE" : {
@@ -111,11 +110,7 @@ For example:
         },
         "FCBB:BBBB:20:F1::" : {
            "action": "uDT46",
-        },
-        "FCBB:BBBB:20:F2::" : {
-           "action": "uDT46",
-           "vrf":  "VRF-1001"
-        },
+        }
     }
 ```
 
@@ -148,23 +143,20 @@ module: sonic-srv6
      |     +--rw func_len?     uint8
      |     +--rw arg_len?      uint8
      |     +--rw action?       enum
-     |     +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
      |     +--rw dscp_mode     enum
 ```
 Refer to [sonic-srv6.yang](./sonic-srv6.yang) for the YANG model defined with standard IETF syntax.
 
 ## 4 Unit Test
 
-|Test Cases (done on default instance and VRF)| Test Result |
+|Test Cases | Test Result |
 | :------ | :----- |
 |add config for a SID with uN action in CONFIG_DB | verify the locator config entry is created in FRR config|
-|add config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry is created in FRR config with correct VRF|
-|add config for a SID with uDT46 action without VRF parameter in CONFIG_DB | verify the opcode config entry is created in FRR config with default VRF|
+|add config for a SID with uDT46 action in CONFIG_DB | verify the opcode config entry is created in FRR config with default VRF|
 |(Negative case) add config for a SID without action in CONFIG_DB | verify that the configuration did not get into FRR config |
 |(Negative case) add config for a SID with an unsupported action in CONFIG_DB | verify that the configuration did not get into FRR config |
-|(Negative case) add config for a decap SID with an invalid VRF name in CONFIG_DB | verify that the configuration did not get into FRR config |
 |delete config for a SID with uN action in CONFIG_DB | verify the locator config entry is deleted in FRR config|
-|delete config for a SID with uDT46 action associated with VRF-1001 in CONFIG_DB | verify the opcode config entry for the uDT46 action is deleted in FRR config|
+|delete config for a SID with uDT46 action in CONFIG_DB | verify the opcode config entry for the uDT46 action is deleted in FRR config|
 
 
 ## 5 References
