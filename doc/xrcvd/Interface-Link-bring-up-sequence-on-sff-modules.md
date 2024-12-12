@@ -71,7 +71,9 @@ According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp
 According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis/Interface-Link-bring-up-sequence.md#objective), have a determistic approach for Interface link bring-up sequence for SFF compliant modules (100G/40G) i.e. below sequence to be followed:
   1. Initialize and enable NPU Tx and Rx path
   2. For system with 'External' PHY: Initialize and enable PHY Tx and Rx on both line and host sides; ensure host side link is up
-  3. Then perform optics Tx enable
+  3. Enable high power class if module's power class is greater or equal to 5
+  4. Turn off lpmode
+  5. Then perform optics Tx enable
 
 # Plan
 
@@ -86,16 +88,16 @@ Refer to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmi
 
 # Feature enablement
 
-  This feature (optics Interface Link bring-up sequence) would be enabled on per platform basis.
+  Optics Interface Link bring-up sequence would be enabled on per platform basis.
   There could be cases where vendor(s)/platform(s) may take time to shift from existing codebase to the model (work-flows) described in this document.
-- By default, sff_mgr feature is disabled.
-- In order to enable sff_mgr feature, the platform would set ‘enable_xcvrd_sff_mgr’ to ‘true’ in their respective pmon_daemon_control.json. Xcvrd would parse ‘enable_xcvrd_sff_mgr’ and if found 'true', it would launch SFF task manager (sff_mgr).
+- sff_mgr thread is always spawned, handling lpmode and high power class setting. But by default, sff_mgr doesn't controll module Tx.
+- In order to enable sff_mgr's controlling for module Tx, the platform would set ‘enable_xcvrd_sff_mgr_controlled_tx’ to ‘true’ in their respective pmon_daemon_control.json. Xcvrd would parse ‘enable_sff_mgr_controlled_tx’ and if found 'true', it would launch SFF task manager (sff_mgr).
 
 # Pre-requisite
 
 In addition to parent HLD's [pre-requisite](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis/Interface-Link-bring-up-sequence.md#pre-requisite),
 
-> **_Pre-requisite for enabling sff_mgr:_**
+> **_Pre-requisite for enabling sff_mgr_controlled_tx:_**
 Platform needs to leave the transceiver (if capable of disabling Tx) in Tx disabled state when an module inserted or during boot-up. This is to make sure the transceiver is not transmitting with Tx enabled before host_tx_ready is True.
 
 # Proposed Work-Flows
@@ -112,21 +114,6 @@ Platform needs to leave the transceiver (if capable of disabling Tx) in Tx disab
   A --> B
   B --> C
   C --> D
-  D --> End
-  ```
-  - ### Feature enablment flow -- how xcvrd spawns sff_mgr thread based on enable_sff_mgr flag
-  ```mermaid
-  graph TD;
-  A[wait for PortConfigDone]
-  B[check if enable_sff_mgr flag exists and is set to true]
-  C[spawn sff_mgr]
-  D[proceed to other thread spawning and tasks]
-
-  Start --> A
-  A --> B
-  B -- true --> C
-  C --> D
-  B -- false --> D
   D --> End
   ```
   - ### Flow of calculating target tx_disable value:
@@ -160,6 +147,10 @@ Platform needs to leave the transceiver (if capable of disabling Tx) in Tx disab
   F[calculate target tx_disable value based on host_tx_ready and admin_status]
   G[check if tx_disable status on module is already the target value]
   H[go ahead to enable/disable Tx based on the target tx_disable value]
+  I[enable high power class if module's power class is greater or equal to 5]
+  J[toggle off lpmode]
+  K[check if it's insertion event]
+  L[check if flag sff_mgr_controlled_tx is True]
 
   Start --> A
   A --> B
@@ -168,9 +159,11 @@ Platform needs to leave the transceiver (if capable of disabling Tx) in Tx disab
   C -- if neither event happened --> B
   E --> E2
   E2 --> D
-  D -- true --> F
+  D -- true --> K -- true --> I --> J --> L
   D -- false --> B
-  F --> G
+  K -- false --> L
+  L -- true --> F --> G
+  L -- false --> B
   G -- true --> B
   G -- false --> H
   H --> B
