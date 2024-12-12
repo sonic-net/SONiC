@@ -102,6 +102,7 @@ func_len = flen              ; bit length of function portion in address, defaul
 arg_len = alen               ; bit length of argument portion in address, default 0
 action = behavior            ; behaviors defined for the SID, default uN
 vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, only applicable to "uDT6" and "uDT46" by now, default "default"
+dscp_mode = dscp_decap_mode  ; Optional, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation, default "uniform"
 
 For example:
     "SRV6_MY_SID_TABLE" : {
@@ -148,6 +149,7 @@ module: sonic-srv6
      |     +--rw arg_len?      uint8
      |     +--rw action?       enum
      |     +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
+     |     +--rw dscp_mode     enum
 ```
 Refer to [sonic-srv6.yang](./sonic-srv6.yang) for the YANG model defined with standard IETF syntax.
 

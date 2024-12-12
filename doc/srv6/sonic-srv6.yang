@@ -74,6 +74,13 @@ module sonic-srv6 {
 					path "/vrf:sonic-vrf/VRF/VRF_LIST/name";
 				}
             }
+
+            leaf dscp_mode {
+                type enumeration {
+                    enum uniform;
+                    enum pipe;
+                }
+            }
         }
     }
 }
