@@ -71,7 +71,7 @@ According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp
 According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis/Interface-Link-bring-up-sequence.md#objective), have a determistic approach for Interface link bring-up sequence for SFF compliant modules (100G/40G) i.e. below sequence to be followed:
   1. Initialize and enable NPU Tx and Rx path
   2. For system with 'External' PHY: Initialize and enable PHY Tx and Rx on both line and host sides; ensure host side link is up
-  3. Enable high power class if module's power class is greater or equal to 5
+  3. Enable high power class if module's power class is greater or equal to 5 (Refer to SFF-8636 spec `6.2.6 Control Functions (Page 00h, Bytes 86-99)` for byte 93 definition)
   4. Turn off lpmode
   5. Then perform optics Tx enable
 
