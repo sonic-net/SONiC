@@ -7,6 +7,7 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 | Dec 03 2024 |      Stephen Sun   | Initial version                   |
+ | 0.2 | Dec 13 2024 |      Stephen Sun   | Supply benchmark data             |
 
 ### Scope
 
@@ -58,6 +59,10 @@ However, it is time-consuming to check whether bulk counter-polling API is suppo
     There can be several counter groups attached to each object.
 
 2. Flex counter needs to check whether the bulk operation is supported by calling SAI bulk counter polling API per object per counter group basis.
+
+In addition, counter initialization can block port state change handling which means the orchagent can handles port up notification only after counter initialization has been done.
+
+According to a benchmark we did, 98% of time was spent on vendor's SAI implementation. So, the key is to reduce the number of SAI bulk counter polling API calls during initialization.
 
 In this design, we improve the counter initialization by checking whether bulk operation is supported on a group of objects altogether. By doing so, the number of SAI API calls is significantly reduced and the time is shortened.
 
@@ -175,3 +180,11 @@ N/A
 #### Unit Test cases
 
 TBD
+
+### Appendix
+
+#### Benchmark
+
+On a system with 257 ports, it took 6 minutes and 10 seconds for counters to be ready and all ports to be up before optimization, and 2 minutes and 23 seconds after optimization.
+
+During the benchmark we added log messages before/after the vendor's SAI implementation's API call to understand how long it spent on it. We sampled 84 such SAI API calls, the accumulative time spent on SAI API calls was 5.67 seconds and the E2E time to initialization the corresponding counters was 5.78 seconds. This means 98% time was spent on vendor's SAI implementation.
