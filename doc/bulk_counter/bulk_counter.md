@@ -38,13 +38,13 @@ SONiC flex counter infrastructure shall utilize bulk stats API to gain better pe
   - SAI_STATS_MODE_READ_AND_CLEAR -> SAI_STATS_MODE_BULK_READ_AND_CLEAR
 - Support setting bulk chunk size for the whole counter group or a sub set of counters.
 
-  Sometimes it can be time consuming to poll a group of counters for all ports in one shot, which can impact other counter groups polling if they compete a critical section in vendor's SAI/SDK.
-  In that case, the bulk counter polling can be split into smaller chunk sizes. Furthermore, different counters within a same counter group can be split into different chunk sizes.
+  Sometimes it can be time consuming to poll a group of counters for all ports in a single bulk counter polling API, which can cause time-sensitive counter groups polling miss deadline if both counter groups compete a critical section in vendor's SAI/SDK.
+  To address the issue, the bulk counter polling can be split into smaller chunk sizes. Furthermore, different counters within a same counter group can be split into different chunk sizes.
 
-  By doing so, all the counters of all ports will still be polled in each interval but it will be done by a lot of smaller bulk counter polling API calls, which makes it faster and mitgates the impaction.
+  By doing so, all the counters of all ports will still be polled in each interval but it will be done by a lot of smaller bulk counter polling API calls, which makes it faster and the time-sensitive counter group have more chance to be scheduled on time.
 - Provide an accurate timestamp when counters are polled.
 
-  Currently, the timestamps are collected in the Lua plugin for time-sensitive counter groups, like PFC watchdog. However, there can be a delay between the time when the counters were polled and the timestamps were collected.
+  Currently, the timestamps are collected in the Lua plugin for time-sensitive counter groups, like PFC watchdog. However, there can be a gap between the time when the counters were polled and the timestamps were collected.
   We can collect timestamps immediately after polling counters in sairedis and push them into the COUNTER_DB.
 
 ### Architecture Design
@@ -113,7 +113,7 @@ std::map<std::vector<sai_port_stat_t>, BulkStatsContext> m_portBulkContexts;
 
 ```
 
-##### Set bulk chunk size per counter IDs
+##### Set bulk chunk size for a counter group and per counter IDs
 
 The bulk chunk size can be configured for a counter group. Once configured, each bulk will poll counters of no more than the configured number of ports.
 
@@ -144,6 +144,8 @@ In the above example, once the bulk chunk size is set in the way, a customer can
 ![Add Object Flow](object_join_counter_group.svg).
 
 2. Existing object leave counter group, related data shall be removed from bulk context.
+
+![Remove Object Flow](object_leave_counter_group.svg).
 
 3. A customer split the chunk size of bulk counter polling to different smaller sizes per counter IDs.
 
@@ -237,3 +239,15 @@ As this feature does not introduce any new function, unit test shall be good eno
   - support bulk with different counter IDs
   - support bulk -> not support bulk
   - not support bulk but counter IDs change
+
+### Appendix
+
+#### An example shows how smaller bulk chunk size helps
+
+![Smaller bulk chunk size](smaller_chunk_size.svg)
+
+An example shows how smaller bulk chunk size helps PFC watchdog counter polling thread to be scheduled in time.
+
+In the upper chart, the port counters are polled in a single bulk call which takes longer time. The PFC watchdog counter polling thread can not procceed until the long bulk call exits the critical section.
+
+In the lower chart, the port counters are polled in a series of bulk call with smaller bulk chunk sizes. The PFC watchdog counter polling thread has more chance to be scheduled in time.
