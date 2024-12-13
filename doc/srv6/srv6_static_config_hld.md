@@ -145,7 +145,7 @@ module: sonic-srv6
      |     +--rw action?       enum
      |     +--rw dscp_mode     enum
 ```
-Refer to [sonic-srv6.yang](./sonic-srv6.yang) for the YANG model defined with standard IETF syntax.
+Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models) for the YANG model defined with standard IETF syntax.
 
 ## 4 Unit Test
 
