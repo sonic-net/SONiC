@@ -91,7 +91,7 @@ Refer to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmi
   Optics Interface Link bring-up sequence would be enabled on per platform basis.
   There could be cases where vendor(s)/platform(s) may take time to shift from existing codebase to the model (work-flows) described in this document.
 - sff_mgr thread is always spawned, handling lpmode and high power class setting. But by default, sff_mgr doesn't controll module Tx.
-- In order to enable sff_mgr's controlling for module Tx, the platform would set ‘enable_xcvrd_sff_mgr_controlled_tx’ to ‘true’ in their respective pmon_daemon_control.json. Xcvrd would parse ‘enable_sff_mgr_controlled_tx’ and if found 'true', it would launch SFF task manager (sff_mgr).
+- In order to enable sff_mgr's controlling for module Tx, the platform would set ‘enable_xcvrd_sff_mgr_controlled_tx’ to ‘true’ in their respective pmon_daemon_control.json. Xcvrd would parse ‘enable_xcvrd_sff_mgr_controlled_tx’ and if found 'true', it would launch SFF task manager (sff_mgr).
 
 # Pre-requisite
 
