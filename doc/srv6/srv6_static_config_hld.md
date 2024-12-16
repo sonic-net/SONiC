@@ -101,6 +101,7 @@ node_len = nlen              ; bit length of node ID portion in address, default
 func_len = flen              ; bit length of function portion in address, default 16
 arg_len = alen               ; bit length of argument portion in address, default 0
 action = behavior            ; behaviors defined for the SID, default uN
+vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, default "default", only applicable to uDT4/uDT46/uDT6 actions
 dscp_mode = dscp_decap_mode  ; Optional, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation, default "uniform", only applicable to uDT4/uDT46/uDT6 actions
 
 For example:
@@ -121,7 +122,6 @@ The current list of supported SRv6 behaviors allowed to be define in CONFIG_DB i
 | :------ | :----- |
 | uN | End with NEXT-CSID |
 | uDT46 | End.DT46 with CSID |
-| uDT6 | End.DT6 with CSID |
 
 ## 3.2 Bgpcfgd changes
 
@@ -143,6 +143,7 @@ module: sonic-srv6
      |     +--rw func_len?     uint8
      |     +--rw arg_len?      uint8
      |     +--rw action?       enum
+           +--rw vrf           -> /vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name
      |     +--rw dscp_mode     enum
 ```
 Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models) for the YANG model defined with standard IETF syntax.
