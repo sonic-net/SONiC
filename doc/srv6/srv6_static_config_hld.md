@@ -135,16 +135,16 @@ The simplified version of the YANG model is defined below.
 ```
 module: sonic-srv6
   +--rw sonic-srv6
-     +--rw SRV6_MY_SID
-     |  +--rw SRV6_MY_SID_LIST* [ip-address]
-     |     +--rw ip-address    inet:ipv6-address
-     |     +--rw block_len?    uint8
-     |     +--rw node_len?     uint8
-     |     +--rw func_len?     uint8
-     |     +--rw arg_len?      uint8
-     |     +--rw action?       enum
-           +--rw vrf           -> /vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name
-     |     +--rw dscp_mode     enum
+     +--rw SRV6_MY_SID_TABLE
+        +--rw SRV6_MY_SID_TABLE_LIST* [ip_address]
+           +--rw ip_address    inet:ipv6-address
+           +--rw block_len?    uint8
+           +--rw node_len?     uint8
+           +--rw func_len?     uint8
+           +--rw arg_len?      uint8
+           +--rw action?       enumeration
+           +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
+           +--rw dscp_mode?    enumeration
 ```
 Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models) for the YANG model defined with standard IETF syntax.
 
