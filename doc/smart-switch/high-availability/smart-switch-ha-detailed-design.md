@@ -161,9 +161,9 @@ flowchart LR
    NPU_SWSS --> NPU_SYNCD
 
    %% NPU tables --> hamgrd:
+   NPU_DASH_HA_GLOBAL_CONFIG --> |SubscribeStateTable| NPU_HAMGRD
    NPU_DPU --> |SubscribeStateTable| NPU_HAMGRD
    NPU_VDPU --> |SubscribeStateTable| NPU_HAMGRD
-   NPU_DASH_HA_GLOBAL_CONFIG --> |SubscribeStateTable| NPU_HAMGRD
    NPU_DASH_HA_SET_CONFIG --> |zmq| NPU_HAMGRD
    NPU_DASH_ENI_PLACEMENT --> |zmq| NPU_HAMGRD
    NPU_DASH_HA_SCOPE_CONFIG --> |zmq| NPU_HAMGRD
