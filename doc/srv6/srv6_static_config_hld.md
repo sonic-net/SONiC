@@ -22,6 +22,7 @@
 | Rev  |   Date    |           Author           | Change Description      |
 | :--: | :-------: | :------------------------: | :---------------------: |
 | 0.1  | 12/5/2024 |       Changrong Wu         |  Initial version        |
+| 0.2  | 12/20/2024 |      Changrong Wu         | Update to use two tables per SONiC Routing WG discussion |
 
 
 # Definition/Abbreviation
@@ -44,8 +45,10 @@ This document provides general information about the design of the enhancements 
 # 1 Introuduction and Scope
 
 This document describes the high-level design of the new features in SONiC to support SRv6 SDN.
-The new features include the addtion of a new table in CONFIG_DB to allow static configuration of SRv6 and the enhancement of bgpcfgd to program FRR with input from CONFIG_DB.
+The new features include the addtion of a new table in CONFIG_DB to enable configuration of SRv6 and the enhancement of bgpcfgd to program FRR with input from CONFIG_DB.
 Besides, this document also define new YANG model specification and unit-test cases used to validate the aforementioned features.
+
+Note: frrcfgd in SONiC is also able to program SRv6 configurations to FRR but it is designed for scenarios where BGP is used to propagate SRv6 SIDs. SONiC users can choose either bgpcfgd or frrcfgd to program FRR configurations according to their own use cases freely.
 
 
 # 2 Feature Requirements
@@ -72,9 +75,9 @@ At the time of writing this document, FRR has been able to program the SRv6 rela
 However, there is still one gap preventing SONiC being utilized for SRv6 SDN deployment.
 Specifically, there is no mechamism in SONiC allowing SDN controllers or users to directly add configuration for SRv6 without involving BGP.
 
-In this document, we first define a new **SRV6_MY_SID_TABLE** table in CONFIG_DB that serves as the configuration source of SRv6 in SONiC.
-Then, we design a new SRv6 Manager module in bgpcfgd to subscribe to the **SRV6_MY_SID_TABLE** table and compile changes in CONFIG_DB to changes in the configurations of FRR (Note: the new SRv6 Manager relies on the new configuration CLI brought in by [FRR PR#16894](https://github.com/FRRouting/frr/pull/16894)).
-To verify the correctness of the aforementioned flow, we also define the relevant YANG model specification.
+In this document, we define two new tables in CONFIG_DB, i.e. **SRV6_MY_LOCATOR_TABLE** and **SRV6_MY_SID_TABLE**, which serves as the configuration source of SRv6 in SONiC.
+Then, we design a new SRv6 Manager module in bgpcfgd to subscribe to the two tables and compile changes in CONFIG_DB to changes in the configurations of FRR (Note: the new SRv6 Manager relies on the new configuration CLI brought in by [FRR PR#16894](https://github.com/FRRouting/frr/pull/16894)).
+To verify the correctness of the aforementioned flow, we also define the corresponding YANG model specification.
 The workflow of the new mechanism is shown in the following diagram.
 
 ![Static SRv6 Config flow](images/SRv6_bgpcfgd.png)
@@ -83,10 +86,29 @@ The design details of each step is described in the following subsections.
 
 ## 3.1 New Table in ConfigDB
 
+**SRV6_MY_LOCATOR_TABLE**
+
+Description: New table to hold the locators configured to the node.
+
+Schema:
+
+```
+; New table
+; holds SRv6 locators configured to the local node.
+
+key = SRV6_MY_LOCATOR_TABLE|locator_name
+; field = value
+block_len = blen             ; bit length of block portion in address, default 32
+node_len = nlen              ; bit length of node ID portion in address, default 16
+func_len = flen              ; bit length of function portion in address, default 16
+arg_len = alen               ; bit length of argument portion in address, default 0
+vrf = VRF_TABLE.key          ; the VRF that the locator belongs to, default "default"
+```
+
 
 **SRV6_MY_SID_TABLE**
 
-Description: New table to hold local SID definition and SID to behavior mapping. (A simplified redefinition of SRV6_MY_SID_TABLE in [SRv6_HLD](./srv6_hld.md))
+Description: New table to hold local SID definition and SID to behavior mapping.
 
 Schema:
 
@@ -96,10 +118,7 @@ Schema:
 
 key = SRV6_MY_SID_TABLE|ipv6address
 ; field = value
-block_len = blen             ; bit length of block portion in address, default 32
-node_len = nlen              ; bit length of node ID portion in address, default 16
-func_len = flen              ; bit length of function portion in address, default 16
-arg_len = alen               ; bit length of argument portion in address, default 0
+locator = locator_name       ; the name of the locator that the SID belongs to
 action = behavior            ; behaviors defined for the SID, default uN
 vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, default "default", only applicable to uDT4/uDT46/uDT6 actions
 dscp_mode = dscp_decap_mode  ; Optional, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation, default "uniform", only applicable to uDT4/uDT46/uDT6 actions
@@ -125,7 +144,7 @@ The current list of supported SRv6 behaviors allowed to be define in CONFIG_DB i
 
 ## 3.2 Bgpcfgd changes
 
-To enable automatic programming SRv6 configurations from CONFIG_DB to FRR, we need to add a new module in bgpcfgd to watch changes in **SRV6_MY_SID_TABLE** and compile the corresponding changes in FRR's configurations.
+To enable automatic programming SRv6 configurations from CONFIG_DB to FRR, we need to add a new module in bgpcfgd to watch changes in **SRV6_MY_LOCATOR_TABLE** and **SRV6_MY_SID_TABLE** and compile the corresponding changes in FRR's configurations.
 Following the naming convention of modules in bgpcfgd, we call this new module SRv6 Manager.
 The new SRv6 Manager are supposed to verify the validity of the configuration entries coming from the CONFIG_DB.
 If it gets an invalid configuration input, it should log the event in the syslog and not compile the configuration into FRR.
@@ -134,17 +153,20 @@ If it gets an invalid configuration input, it should log the event in the syslog
 The simplified version of the YANG model is defined below.
 ```
 module: sonic-srv6
-  +--rw sonic-srv6
-     +--rw SRV6_MY_SID_TABLE
+    +--rw sonic-srv6
+        +--rw SRV6_MY_SID_TABLE_LIST* [locator_name]
+            +--rw locator_name  string
+            +--rw block_len?    uint8
+            +--rw node_len?     uint8
+            +--rw func_len?     uint8
+            +--rw arg_len?      uint8
+            +--rw vrf?          union
         +--rw SRV6_MY_SID_TABLE_LIST* [ip_address]
-           +--rw ip_address    inet:ipv6-address
-           +--rw block_len?    uint8
-           +--rw node_len?     uint8
-           +--rw func_len?     uint8
-           +--rw arg_len?      uint8
-           +--rw action?       enumeration
-           +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
-           +--rw dscp_mode?    enumeration
+            +--rw ip_address    inet:ipv6-address
+            +--rw locator       -> /srv6:sonic-srv6/SRV6_MY_SID_TABLE/SRV6_MY_SID_TABLE_LIST/locator_name
+            +--rw action?       enumeration
+            +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
+            +--rw dscp_mode?    enumeration
 ```
 Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models) for the YANG model defined with standard IETF syntax.
 
