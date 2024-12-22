@@ -98,6 +98,7 @@ Schema:
 
 key = SRV6_MY_LOCATORS|locator_name
 ; field = value
+prefix = locator_prefix      ; ipv6 address that represents the locator, which is also the IPv6 prefix for all SIDs under the locator
 block_len = blen             ; bit length of block portion in address, default 32
 node_len = nlen              ; bit length of node ID portion in address, default 16
 func_len = flen              ; bit length of function portion in address, default 16
