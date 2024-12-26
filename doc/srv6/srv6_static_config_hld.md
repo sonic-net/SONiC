@@ -115,7 +115,7 @@ Schema:
 
 ```
 ; New table
-; holds local SID to behavior mapping, allow 1:1 or n:1 mapping
+; holds local SID to behavior mapping, the keys are full IPv6 addresses of the SIDs
 
 key = SRV6_MY_SIDS|ipv6address
 ; field = value
@@ -135,7 +135,7 @@ For example:
     }
 ```
 
-Since SONiC and SAI do not have full support for every SRv6 behaviors, we plan to add supported SRv6 behaviors in the system gradually.
+We plan to support the staic configurations of the SRv6 behaviors in the system gradually.
 The current list of supported SRv6 behaviors allowed to be define in CONFIG_DB is as follows:
 
 | Alias | SRv6 Behaviors |
@@ -157,6 +157,7 @@ module: sonic-srv6
     +--rw sonic-srv6
         +--rw SRV6_MY_LOCATORS_LIST* [locator_name]
             +--rw locator_name  string
+            +--rw prefix        inet:ipv6-address
             +--rw block_len?    uint8
             +--rw node_len?     uint8
             +--rw func_len?     uint8
