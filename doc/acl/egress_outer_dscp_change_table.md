@@ -302,7 +302,7 @@ The interface association of this table can be implemented in two ways.
 
 ##### Pros
 
-This approach has the benifit of providing a uniform interface to the user. The management and efficient utilization of resources is done by the Orchagent.
+This approach has the benefit of providing a uniform interface to the user. The management and efficient utilization of resources is done by the Orchagent.
 
 
 ##### Cons
@@ -503,3 +503,21 @@ There is no impact on warmboot or fastboot.
   * UNDERLAY_SET_DSCP/V6 multi-creation test with traffic.
     - Verfiy metadata value leak doesnt happen by creating and removing UNDERLAY_SET_DSCP/V6 entries multiple times in differnet order. Ensure proper function in each iteration with traffic.
 
+### Addendum
+### Changes proposed by the Community to be introduced in the next iteration
+The following changes have been proposed by the community and would be incorporated in the next iteration of implementation.
+These changes do not conflict with the Option C chosen for the current design implementation and would be incorporated as an enhancement.
+Some of these changes can be hidden in the Orchagent implementation and would not require user API change.
+Following are the changes.
+
+1. A single Egress ACL table to match L3 v4/v6 inner payload fields (or separate V4, V6 tables) and change the outer DSCP field of encapsulated packet on platforms supporting this capability.
+2. A single Ingress ACL table to match L3 v4/v6 inner payload fields and an egress set DSCP table to change the outer DSCP field of encapsulated packet on platforms supporting this capability.
+3. Support for ACL binding to switch instead of ports.
+4. (TODO) Request the SAI community to create a capability check to expose the ability to use either Single V4V6 or separate V4V6 Egress tables which can match inner header fields.
+
+Based on these proposals, the Orchagent would try to create the tables in the following order and would attempt the next option if it fails with the first one.
+
+1) Egress single V4V6 inner header match-Outer DSCP change table if possible for the platform.
+2) Egress V4 or V6 inner header match-Outer DSCP change table if possible for the platform.
+3) Single Ingress V4V6 inner header match table with metadata support and Single Egress Outer DSCP change table if possible for the platform.
+4) Ingress V4 or V6 inner header match table with metadata support and Single Egress Outer DSCP change table. (Current design option C.)
