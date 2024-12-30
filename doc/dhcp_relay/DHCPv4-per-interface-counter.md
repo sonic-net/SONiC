@@ -29,7 +29,7 @@ This document describes the high level design details about how **DHCPv4 Relay p
 |--------------------------|----------------------------------|
 | dhcrelay | Open source DHCP relay process distributed by ISC  |
 | dhcpmon | DHCPv4 relay monitor process |
-| Context interface | downstream, upstream and mgmt intfs specified in dhcpmon parameters: /usr/sbin/dhcpmon -id **Vlan1000** -iu **PortChannel101** -iu **PortChannel102** -iu **PortChannel103** -iu **PortChannel104** -im **eth0** |
+| Context interface | downlink, uplink and mgmt intfs specified in dhcpmon parameters: /usr/sbin/dhcpmon -id **Vlan1000** -iu **PortChannel101** -iu **PortChannel102** -iu **PortChannel103** -iu **PortChannel104** -im **eth0** |
 
 # Overview
 
@@ -90,27 +90,27 @@ Below picture shows work flow for counting.
 
 1. Get physical interface name
 2. Get context interface name by physical interface
-3. Update physical interface counter
+3. If physical interface is not uplink context interface, update physical interface counter (This logic is for the scenario that uplink interface is single physical interface rather than PortChannel)
 4. Update context interface counter with above logic
 
 ### Alert Logic
 
 Libevent timer would check whehther all packets are relayed expected periodicly when there are packets received. When the unhealthy status is found after ten consecutive times checks, dhcpmon should report an alarm in syslog. Below is how dhcpmon determine unhealthy situation:
 
-1. For packets sent by client (Discover / Request / Decline / Release / Inform), the expected TX count depends on the number of DHCP server configured. Take below picture as example, there are 2 DHCP servers configured. If there is 1 RX Discover packet, then there should 2 TX Discover packets be found. Hence when **`[RX number] * [DHCP server number] > [TX number]`**, dhcpmon would treat it as unhealthy.
+1. For packets sent by client (Discover / Request / Decline / Release / Inform), the expected TX count depends on the number of DHCP server configured. Take below picture as example, there are 2 DHCP servers configured. If there is 1 RX Discover packet in Vlan1000, then there should total 2 TX Discover packets be found in PortChannel1 and Port Channel2. Hence when **`[RX number of downlink context intf] * [DHCP server number] > [TX number of uplink context interface]`**, dhcpmon would treat it as unhealthy.
 
 <div align="center"> <img src=images/client_to_server.png width=800 /> </div>
 
-2. For packets sent by server (Offer / Ack / Nak), the expected TX count should be equal to RX count. Hence when **`[RX number] > [TX number]`**, dhcpmon would treat it as unhealthy.
+2. For packets sent by server (Offer / Ack / Nak), the expected TX count in context intf should be equal to RX count in context intf. Hence when **`[RX number of uplink context intf] > [TX number of downlink context intf]`**, dhcpmon would treat it as unhealthy.
 <div align="center"> <img src=images/server_to_client.png width=800 /> </div>
 
-3. TX packets are expected to go through downstream or upstream route, but if there is issue with default route, TX packets maybe go through management port. Hence when **`TX number of management port is increasing`**, dhcpmon would treat it as unhealthy.
+3. TX packets are expected to go through downlink or uplink route, but if there is issue with default route, TX packets maybe go through management port. Hence when **`TX number of management port is increasing`**, dhcpmon would treat it as unhealthy.
 
 ## Counter aging
 
 * Container restart
-  * One dhcpmon process would only listen on one downstream Vlan interface, hence dhcpmon process restart will initialize (counter set to zero) for interface in below list:
-    * Downstream / Upstream context interfaces given by startup parameter
+  * One dhcpmon process would only listen on one downlink Vlan interface, hence dhcpmon process restart will initialize (counter set to zero) for interface in below list:
+    * Downlink / Uplink context interfaces given by startup parameter
     * Related Vlan member interfaces from CONFIG_DB table `VLAN_MEMBER|Vlanxxx`
     * Related PortChannel member interfaces from CONFIG_DB table`
 * Vlan add/del
