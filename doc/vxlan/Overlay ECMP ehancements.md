@@ -133,7 +133,7 @@ state                    = STRING                    ; up/down indicating the li
 ```
 
 
-# 3 Enhancemernts
+# 3 Enhancements
 
 ## 3.1 Vxlan tunnel Routes with Primary/seconday switch over. 
 
@@ -173,6 +173,10 @@ The following diagram depicts the scenario where Endpoint 1 and 2 are primary in
 ## 3.2 Custom monitoring for VTEP liveness detection.
 In the orignal design of Overlay-ECMP, BFD was used for livness detection fo VTEP. But BFD may not be supported by all types of VTEPs. In some cases a user may want to use their own custom protocol for livness detection. This enhacement allows for such a mechanism. The Orchagent creates an entry in the VNET_MONITOR_TABLE in APP DB if it recieves the "monitoring" = "custom" attribute in the VNET_ROUTE_TUNNEL_TABLE entry. The orchaagent then listens on VNET_MONITOR_TABLE in the STATE DB to monitor the livness of the VTEP.
 The optional overlay_dmac field is  provided in the VNET table and is passed to the custom monitor via VNET_MONITOR_TABLE in APP DB.
+
+The following module interaction diagram shows how the custom monitoring routes are handled.
+
+![](https://github.com/sonic-net/SONiC/blob/5299343e188ef8f09e3abce234a0d5ed65a76feb/images/vxlan_hld/overlay-ecmp-module-interaction-with-custom-monitoring.png)
 
 
 ## 3.3 BFD Tx, Rx interval parameter and support for directly connected nexthops
@@ -225,3 +229,8 @@ The below cases are executed first for IPv4 and repeat the same for IPv6.
 | Perform switch over testing by starting-stopping BFD sessions. |Switchover from 2 to 1 next hop and vice versa with both directly and non-directly connected next hop. | Encapsulated packets should arrive at active endpoints. using syslog verify that prefix P is advertised. |
 | Create a tunnel route with 2 primary and 2 secondary endpoints with bfd. one primary and one secondary is directly connected. |Test failure |Route creation should fail. |
 | Create a tunnel route with 2 primary and 2 secondary endpoints with bfd. Secondary is directly connected. Change BFD tx and RX intervals. |BFD intervals change test | Verify BFD packet rate change. |
+
+
+# TODO
+
+Based on the community suggestions, the VNET_MONITOR_TABLE key should be enhanced to include the vnet name in the next iteration.
