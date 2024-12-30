@@ -95,7 +95,7 @@ Below picture shows work flow for counting.
 
 ### Alert Logic
 
-When the unhealthy situation persists for a period of time, dhcpmon should report an alarm in syslog. Below is how dhcpmon determine unhealthy situation:
+Libevent timer would check whehther all packets are relayed expected periodicly when there are packets received. When the unhealthy status is found after ten consecutive times checks, dhcpmon should report an alarm in syslog. Below is how dhcpmon determine unhealthy situation:
 
 1. For packets sent by client (Discover / Request / Decline / Release / Inform), the expected TX count depends on the number of DHCP server configured. Take below picture as example, there are 2 DHCP servers configured. If there is 1 RX Discover packet, then there should 2 TX Discover packets be found. Hence when **`[RX number] * [DHCP server number] > [TX number]`**, dhcpmon would treat it as unhealthy.
 
@@ -213,4 +213,5 @@ This command is used to clear DHCPv4 counter
     |clear with specifying interface with specifying direction|clear corresponding direction counter of specified interface|
 
 ## sonic-mgmt
-Enhance current test cases and add new test cases for per-interface counter.
+1. Basic counter functionatility test
+2. Stress test for counter
