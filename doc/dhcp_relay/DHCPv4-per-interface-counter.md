@@ -48,18 +48,21 @@ Currently, DHCPv4 counter in dhcpmon mainly focus on Vlan / PortChannel interfac
 
 ## Design Overview
 
-To address above 2 issues, we propose below design, it could be devided into 3 parts: `Init`, `Per-interface counting` and `Persist`
+To address above 2 issues, we propose below design, it could be devided into 4 parts: `Init`, `Per-interface counting`, `Persist` and `clear counter`.
 
 ### Init
 
-<div align="center"> <img src=images/init.png width=530 /> </div>
+<div align="center"> <img src=images/init_multi_thread.png width=550 /> </div>
 
 1. There are **2 sockets for all interfaces** to capture DHCPv4 packets. We bind callback to the network events to process packets.
 2. Read from `PORTCHANNEL_MEMBER` and `VLAN_MEMBER` table CONFIG_DB to construct mapping between physical interface and PortChannel/Vlan. It's used to query context interface by physical interface.
 3. We have 2 kinds of counters, one is persisted in STATE_DB, another is stored in process memory, they are initialized when process startup.
-4. Initialize a timer to periodically sync counter data from cache counter to DB counter.
+4. A signal callback would be added to listen for counter cleaning signal to clear counter in process memory.
+5. Initialize a timer to periodically sync counter data from cache counter to DB counter in another thread.
 
-### Per-interface counting
+With above structure, packets processing and all write actions to cache counter in process memory would be done in **main thread**, and all write actions to STATE_DB would be done in **DB update thread**.
+
+### Per-interface counting (Main thread)
 
 <div align="center"> <img src=images/per_intf_counting.png width=600 /> </div>
 
@@ -67,11 +70,19 @@ To address above 2 issues, we propose below design, it could be devided into 3 p
 * Context interface name could be obtained by querying context interface counter.
 * Then cache counter for corresponding physical interface and context would increase **immediately**.
 
-### Persist
+### Persist (DB update thread)
 
-<div align="center"> <img src=images/persist.png width=450 /> </div>
+<div align="center"> <img src=images/persist_multi_thread.png width=400 /> </div>
 
-DB update timer would be invoked periodically (**every 20s**), it will obtain the counter data increased during the statistical period from the cache counter
+DB update timer would be invoked periodically (**every 20s**) in another thread which is different with main thread. It would sync **all data** from cache couonter to STATE_DB.
+
+### Clear Counter
+
+<div align="center"> <img src=images/clear_counter.png width=440 /> </div>
+
+When user invokes SONiC Cli to clear counter, it would directly clear corresponding data in STATE_DB, then write a temp file which contains counters of specified direction / packet type / interface need to be cleared, then a signal to clear cache counter would be sent to dhcpmon process.
+
+After receiving signal to clear cache, dhcpmon process would clear counter in process memory in `DB update thread`.
 
 ## Counter Logic
 
