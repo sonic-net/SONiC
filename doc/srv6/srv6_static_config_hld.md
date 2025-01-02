@@ -117,19 +117,19 @@ Schema:
 ; New table
 ; holds local SID to behavior mapping, the keys are full IPv6 addresses of the SIDs
 
-key = SRV6_MY_SIDS|ipv6address
+key = SRV6_MY_SIDS|vrf|ip_address
 ; field = value
 locator = locator_name       ; the name of the locator that the SID belongs to
 action = behavior            ; behaviors defined for the SID, default uN
-vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, default "default", only applicable to uDT4/uDT46/uDT6 actions
+decap_vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, default "default", only applicable to uDT4/uDT46/uDT6 actions
 dscp_mode = dscp_decap_mode  ; Optional, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation, default "uniform", only applicable to uDT4/uDT46/uDT6 actions
 
 For example:
     "SRV6_MY_SIDS" : {
-        "FCBB:BBBB:20::" : {
+        "default|FCBB:BBBB:20::" : {
            "action": "uN"
         },
-        "FCBB:BBBB:20:F1::" : {
+        "default|FCBB:BBBB:20:F1::" : {
            "action": "uDT46",
         }
     }
@@ -154,21 +154,24 @@ If it gets an invalid configuration input, it should log the event in the syslog
 The simplified version of the YANG model is defined below.
 ```
 module: sonic-srv6
-    +--rw sonic-srv6
-        +--rw SRV6_MY_LOCATORS_LIST* [locator_name]
-            +--rw locator_name  string
-            +--rw prefix        inet:ipv6-address
-            +--rw block_len?    uint8
-            +--rw node_len?     uint8
-            +--rw func_len?     uint8
-            +--rw arg_len?      uint8
-            +--rw vrf?          union
-        +--rw SRV6_MY_SIDS_LIST* [ip_address]
-            +--rw ip_address    inet:ipv6-address
-            +--rw locator       -> /srv6:sonic-srv6/SRV6_MY_SIDS/SRV6_MY_SIDS_LIST/locator_name
-            +--rw action?       enumeration
-            +--rw vrf?          union
-            +--rw dscp_mode?    enumeration
+  +--rw sonic-srv6
+     +--rw SRV6_MY_LOCATORS
+     |  +--rw SRV6_MY_LOCATORS_LIST* [locator_name]
+     |     +--rw locator_name    string
+     |     +--rw prefix?         inet:ipv6-address
+     |     +--rw block_len?      uint8
+     |     +--rw node_len?       uint8
+     |     +--rw func_len?       uint8
+     |     +--rw arg_len?        uint8
+     |     +--rw vrf?            union
+     +--rw SRV6_MY_SIDS
+        +--rw SRV6_MY_SIDS_LIST* [vrf ip_address]
+           +--rw vrf           union
+           +--rw ip_address    inet:ipv6-address
+           +--rw locator?      -> /sonic-srv6/SRV6_MY_LOCATORS/SRV6_MY_LOCATORS_LIST/locator_name
+           +--rw action?       enumeration
+           +--rw decap_vrf?    union
+           +--rw dscp_mode?    enumeration
 ```
 Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models) for the YANG model defined with standard IETF syntax.
 
