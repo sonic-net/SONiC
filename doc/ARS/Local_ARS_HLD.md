@@ -33,15 +33,15 @@ This high-level design document describes the implementation for Local ARS in SO
 
 **Existing Forwarding Decision Model**
 
-Today, the routing protocol or SDN controller decides the reachability of a given destination and finds all possible paths. These paths may be equal cost or unequal cost. Decision to choose one of the paths from all available paths is done in the switch pipeline based on a computed hash. This path selection is static in nature based on the packet fields. Hash based selection doesn't take into account the dynamic state of the local or end-to-end path.
+Today, the routing protocol or SDN controller decides the reachability of a given destination and finds all possible paths. These paths may be equal cost or unequal cost. The decision to choose of one the paths from all available paths is done in the switch pipeline based on a computed hash. This path selection is static in nature based on the packet fields. Hash based selection doesn't take into account the dynamic state of the local or end-to-end path.
 
-Control plane protocols exist for traffic engineering a path but involves a control plane decision that is very slow to react to changing traffic patterns in the network or state of interfaces.
+Control plane protocols exist for traffic engineering paths, but involves control plane decisions that are very slow to react to changing traffic patterns in the network or state of interfaces.
 
-Adaptive Routing System (ARS) allows dynamically selection of the best available path for data packets based on real-time network conditions. This approach helps to mitigate congestion, optimize resource utilization, and improve overall network performance.
+Adaptive Routing System (ARS) allows dynamic selections of the best available path for data packets based on real-time network conditions. This approach helps to mitigate congestion, optimize resource utilization, and improve overall network performance.
 
-No standard exists, but there are industry consesus for general approach.
+No standard exists, but there is an industry consensus for general approach.
 
-Following illustrates common operation of ARS, in which two paths are considered - one shortest (minimal) and another (non-minimal), when forwarding trafficto the destination. When shortest path becomes congested, alternative will be used.
+The following illustrates the common operation of ARS, in which two paths are considered - one shortest (minimal) and another (non-minimal), when forwarding traffic to the destination. When shortest path becomes congested, the alternative will be used.
 
 __Figure 1: ARS in direct topology__<br>
 ![ARS flow](images/ARS_topology.png "Figure 1: ARS in direct topology")
@@ -72,8 +72,8 @@ __Figure 4: Path quality__
 ### Requirements
 
 1. Support different ARS modes:
-	- Flowlet-based port selection
-	- Per packet port selection
+    - Flowlet-based port selection
+    - Per packet port selection
 2. Support enabling ARS over NHG or LAG
 3. Support path quality configuration
 4. Support ACL action to disable ARS 
@@ -89,7 +89,7 @@ __Figure 5: Orchestration agents__
 arsorch - it is an orchestration agent that handles the configuration requests from CONFIG_DB or APPL_DB. It is responsible for creating the SAI ARS profile and configuring SAI ARS object.
 
 #### Orchdaemon
-orchdaemon - it is the main orchestration agent, which handles all Redis DB's updates, then calls appropriate orchagent, the new arsorch should be registered inside an orchdaemon.
+orchdaemon - it is the main orchestration agent, which handles all Redis DB's updates, then calls appropriate orchagent, the new arsorch should be registered inside the orchdaemon.
 
 #### RouteOrch
 routeOrch monitors operations on Route related tables in APPL_DB and converts those operations in SAI commands to manage IPv4/IPv6 route and nexthops. New functionality for quering and configuring ARS-enabled NHG.
@@ -151,298 +151,318 @@ SAI usage and supported attributes:
 
 #### YANG model Enhancements 
 
-##### ARS_PORIFLE
+##### ARS_PROFILE
 
 ```
-	container ARS_PORIFLE {
+    container ARS_PROFILE {
 
-		list ARS_PROFILE_LIST {
+        list ARS_PROFILE_LIST {
 
-			key "profile_name";
-			max-elements 1;
+            key "profile_name";
+            max-elements 1;
 
-			leaf profile_name {
-				description "ARS Profile Name";
-				type string;
+            leaf profile_name {
+                description "ARS Profile Name";
+                type string;
 			}
-
-			leaf max_flows {
-				type uint32;
-				description  "Maximum number of flows that can be maintained per ARS profile.";
-			}
-
-			leaf sampling_interval {
-				type uint32;
-				description  "Sampling interval in microseconds for quality measure computation.";
-			}
-
-			container path_metrics {
-				container past_load {
-					description "Past load values.";
-					leaf min_value {
-						type uint16;
-					}
-					leaf max_value {
-						type uint16;
-					}
-					leaf weight {
-						type uint16;
+			leaf algorithm {
+				description "ARS quality algorithm";
+				type enumeration {
+					enum ewma {
+						description "Exponentially Weighted Moving Average algorithm";
 					}
 				}
-				container future_load {
-					description "Future load values.";
-					leaf min_value {
-						type uint16;
-					}
-					leaf max_value {
-						type uint16;
-					}
-					leaf weight {
-						type uint16;
-					}
-				}
-				container current_load {
-					description "Current load values.";
-					leaf min_value {
-						type uint16;
-					}
-					leaf max_value {
-						type uint16;
-					}
-				}
-				list QUANTIZATION_BANDS_LIST {
-					description "Quantization process bands. Values in Mbps.";
-					key "index";
+            }
 
-					leaf "index" {
-						type uint8;
-						description "Index of the qunatization band";
-						max-elements 8;
-					}
-					leaf min_value {
-						type uint16;
-					}
-					leaf max_value {
-						type uint16;
-					}
-				}
-			}
+            leaf max_flows {
+                type uint32;
+                description  "Maximum number of flows that can be maintained per ARS profile.";
+            }
 
-			leaf ipv4_enable {
-				type boolean;
-				description "Whether ARS is enabled over IPv4 packets";
-			}
+            leaf sampling_interval {
+                type uint32;
+                description  "Sampling interval in microseconds for quality measure computation.";
+            }
 
-			leaf ipv6_enable {
-				type boolean;
-				description "Whether ARS is enabled over IPv6 packets";
-			}
-		}
+			leaf past_load_min_value {
+                        type uint16;
+				description "Past load min value.";
+                    }
+			leaf past_load_max_value {
+                        type uint16;
+				description "Past load max value.";
+                    }
+			leaf past_load_weight {
+                        type uint16;
+				description "Past load weight.";
+                }
+
+			leaf future_load_min_value {
+                        type uint16;
+				description "Future load min value.";
+                    }
+			leaf future_load_max_value {
+                        type uint16;
+				description "Future load max value.";
+                    }
+			leaf future_load_weight {
+                        type uint16;
+				description "Future load weight.";
+                    }
+			leaf current_load_min_value {
+                        type uint16;
+				description "Current load min value.";
+
+                    }
+
+			leaf current_load_max_value {
+                        type uint16;
+				description "Current load max value.";
+            }
+
+            leaf ipv4_enable {
+                type boolean;
+                description "Whether ARS is enabled over IPv4 packets";
+            }
+
+            leaf ipv6_enable {
+                type boolean;
+                description "Whether ARS is enabled over IPv6 packets";
+            }
+        }
 		/* end of list ARS_PORIFLE_LIST */
-	}
+    }
 	/* end of container ARS_PORIFLE */
 ```
-
-##### ARS_OBJECT
-
+##### ARS_QUANTIZATION_BANDS
 ```
-	container ARS_OBJECT {
-
-		list ARS_OBJECT_LIST {
-			key "profile_name ars_name";
-
+	container ARS_QUANTIZATION_BANDS {
+		list ARS_QUANTIZATION_BANDS_LIST {
+			key "profile_name band_index";
+			max-elements 8;
 			leaf profile_name {
 				description "ARS profile Name";
 				type leafref {
 					path "/sars:sonic-ars/sars:ARS_PROFILE/sars:ARS_PROFILE_LIST/sars:profile_name";
 				}
 			}
-
-			leaf ars_name {
-				description "ARS object Name";
-				type string;
+			leaf band_index {
+				type uint8;
+				description "Index of the qunatization band";
 			}
-
-			leaf assign_mode {
-				type enumeration {
-					enum per_flowlet_quality{
-						description "Per flow-let assignment based on flow quality";
-					}
-					enum per_packet {
-						description "Per packet flow assignment based on port load";
-					}
-				}
-			}
-
-			leaf flowlet_idle_time {
+			leaf min_value {
 				type uint16;
-				description  "Idle duration in microseconds. This duration is to classifying a flow-let in a macro flow.";
+				description "Minimum value in Mbps to use for the qunatization band creation";
 			}
-
-			leaf max_flows {
-				type uint32;
-				description  "Maximum number of flow states that can be maintained per ARS object.";
-			}
-
-			container quality_threshold {
-				description  "Path quality measure metrics";
-				leaf primary_path {
-					type uint16;
-					description  "Primary path metric";
-				}
-				leaf alternative_path_cost {
-					type uint16;
-					description  "Alternative path cost";
-				}
+			leaf max_value {
+				type uint16;
+				description "Minimum value in Mbps to use for the qunatization band creation";
 			}
 		}
-		/* end of list ARS_OBJECT_LIST */
+		/* end of list ARS_QUANTIZATION_BANDS_LIST */
 	}
-	/* end of container ARS_OBJECT */
+	/* end of container ARS_QUANTIZATION_BANDS */
+```
+
+##### ARS_OBJECT
+
+```
+    container ARS_OBJECT {
+
+        list ARS_OBJECT_LIST {
+            key "profile_name ars_name";
+
+            leaf profile_name {
+                description "ARS profile Name";
+                type leafref {
+                    path "/sars:sonic-ars/sars:ARS_PROFILE/sars:ARS_PROFILE_LIST/sars:profile_name";
+                }
+            }
+
+            leaf ars_name {
+                description "ARS object Name";
+                type string;
+            }
+
+            leaf assign_mode {
+                type enumeration {
+                    enum per_flowlet_quality{
+                        description "Per flow-let assignment based on flow quality";
+                    }
+                    enum per_packet {
+                        description "Per packet flow assignment based on port load";
+                    }
+                }
+            }
+
+            leaf flowlet_idle_time {
+                type uint16;
+                description  "Idle duration in microseconds. This duration is to classifying a flow-let in a macro flow.";
+            }
+
+            leaf max_flows {
+                type uint32;
+                description  "Maximum number of flow states that can be maintained per ARS object.";
+            }
+
+			leaf primary_path_threshold {
+				type uint32;
+                    description  "Primary path metric";
+                }
+                leaf alternative_path_cost {
+				type uint32;
+                    description  "Alternative path cost";
+            }
+        }
+        /* end of list ARS_OBJECT_LIST */
+    }
+    /* end of container ARS_OBJECT */
 ```
 
 ##### ARS_INTERFACE
 
 ```
-	container ARS_INTERFACE {
+    container ARS_INTERFACE {
 
-		list ARS_INTERFACE_LIST {
-			description  "List of interfaces participating in ARS";
-			key "if_name";
+        list ARS_INTERFACE_LIST {
+            description  "List of interfaces participating in ARS";
+            key "if_name";
 
-			leaf if_name {
-				type union {
-					type leafref {
-						path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
-					}
-					type leafref {
-						path "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name";
-					}
-				}
-				description "ARS-enabled interface name";
-			}
-		}
-		/* end of list ARS_INTERFACE_LIST */
-	}
-	/* end of container ARS_INTERFACE */
+            leaf if_name {
+                type union {
+                    type leafref {
+                        path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
+                    }
+                    type leafref {
+                        path "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name";
+                    }
+                }
+                description "ARS-enabled interface name";
+            }
+        }
+        /* end of list ARS_INTERFACE_LIST */
+    }
+    /* end of container ARS_INTERFACE */
 ```
 
 ##### ARS_NEXTHOP_GROUP
 
 ```
-	container ARS_NEXTHOP_GROUP {
+    container ARS_NEXTHOP_GROUP {
 
-		description "ARS-enabled Nexthop Groups";
+        description "ARS-enabled Nexthop Groups";
 
-		list ARS_NEXTHOP_GROUP_LIST {
+        list ARS_NEXTHOP_GROUP_LIST {
 
-			key "ip_prefix vrf_name";
+            key "ip_prefix vrf_name";
 
-			leaf ip_prefix{
-				type stypes:sonic-ip-prefix;
-				description "Ip prefix which identifies nexthop group for which ARS behavior is desired";
-			}
+            leaf ip_prefix{
+                type stypes:sonic-ip-prefix;
+                description "Ip prefix which identifies nexthop group for which ARS behavior is desired";
+            }
 
-			leaf vrf_name {
-				type union {
-					type string {
-						pattern "default";
-					}
-					type leafref {
-						path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
-					}
-				}
-				description "VRF name";
-			} 
+            leaf vrf_name {
+                type union {
+                    type string {
+                        pattern "default";
+                    }
+                    type leafref {
+                        path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
+                    }
+                }
+                description "VRF name";
+            } 
 
-			leaf ars_name{
-				type leafref {
-					path "/sars:sonic-ars/sars:ARS_OBJECT/sars:ARS_OBJECT_LIST/sars:ars_name";
-				}
-				mandatory true;
-				description "ARS object name that bound to this NHG";
-			}
+            leaf ars_name{
+                type leafref {
+                    path "/sars:sonic-ars/sars:ARS_OBJECT/sars:ARS_OBJECT_LIST/sars:ars_name";
+                }
+                mandatory true;
+                description "ARS object name that bound to this NHG";
+            }
 
-			leaf-list alternative_path_members {
-				type inet:ip-address;
-				description "NHG members participating in alternative path";
-			}
-		}
-		/* end of list ARS_NEXTHOP_GROUP_LIST */
-	}
-	/* end of container ARS_NEXTHOP_GROUP */
+            leaf-list alternative_path_members {
+                type inet:ip-address;
+                description "NHG members participating in alternative path";
+            }
+        }
+        /* end of list ARS_NEXTHOP_GROUP_LIST */
+    }
+    /* end of container ARS_NEXTHOP_GROUP */
 ```
 
 ##### ARS_PORTCHANNEL
 
 ```
-	container ARS_PORTCHANNEL {
+    container ARS_PORTCHANNEL {
 
-		description "ARS-enabled LAGs";
+        description "ARS-enabled LAGs";
 
-		list ARS_PORTCHANNEL_LIST {
+        list ARS_PORTCHANNEL_LIST {
 
-			key "if_name";
+            key "if_name";
 
-			leaf if_name{
+            leaf if_name{
+                type leafref {
+                    path "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name";
+                }
+                description "Interface name which identifies LAG for which ARS behavior is desired";
+            }
+
+            leaf ars_name{
+                type leafref {
+                    path "/sars:sonic-ars/sars:ARS_OBJECT/sars:ARS_OBJECT_LIST/sars:ars_name";
+                }
+                mandatory true;
+                description "ARS object name that bound to this LAG";
+            }
+
+            leaf-list alternative_path_members {
 				type leafref {
-					path "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name";
+					path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
 				}
-				description "Interface name which identifies LAG for which ARS behavior is desired";
-			}
-
-			leaf ars_name{
-				type leafref {
-					path "/sars:sonic-ars/sars:ARS_OBJECT/sars:ARS_OBJECT_LIST/sars:ars_name";
-				}
-				mandatory true;
-				description "ARS object name that bound to this LAG";
-			}
-
-			leaf-list alternative_path_members {
-				type if_name;
-				description "Members of the LAG participating in alternative path";
-			}
-		}
-		/* end of list ARS_PORTCHANNEL_LIST */
-	}
-	/* end of container ARS_PORTCHANNEL */
+                description "Members of the LAG participating in alternative path";
+            }
+        }
+        /* end of list ARS_PORTCHANNEL_LIST */
+    }
+    /* end of container ARS_PORTCHANNEL */
 
 ```
 
 ##### ACL_RULE changes
 
 ```
-	container sonic-acl {
+    container sonic-acl {
 
-		container ACL_RULE {
+        container ACL_RULE {
 
-			description "ACL_RULE part of config_db.json";
+            description "ACL_RULE part of config_db.json";
 
-			list ACL_RULE_LIST {
+            list ACL_RULE_LIST {
 
-				key "ACL_TABLE_NAME RULE_NAME";
+                key "ACL_TABLE_NAME RULE_NAME";
 
-				leaf ACL_TABLE_NAME {
-					type leafref {
-						path "/acl:sonic-acl/acl:ACL_TABLE/acl:ACL_TABLE_LIST/acl:ACL_TABLE_NAME";
-					}
-				}
+                leaf ACL_TABLE_NAME {
+                    type leafref {
+                        path "/acl:sonic-acl/acl:ACL_TABLE/acl:ACL_TABLE_LIST/acl:ACL_TABLE_NAME";
+                    }
+                }
 
-				leaf RULE_NAME {
-					type string {
-						length 1..255;
-					}
-				} 
+                leaf RULE_NAME {
+                    type string {
+                        length 1..255;
+                    }
+                } 
 ...
-				leaf DISABLE_ARS_FORWARDING {
-					description "Disable ARS forwarding on matching packets";
-					type boolean;
-					default false;
-				}
-			}
- 		}
-	}
+                leaf DISABLE_ARS_FORWARDING {
+                    description "Disable ARS forwarding on matching packets";
+                    type boolean;
+                    default false;
+                }
+            }
+         }
+    }
 ```
 
 #### Config DB Enhancements  
@@ -455,57 +475,58 @@ key                     = ARS_PROFILE|profile_name
 
 ;field                  = value
 
-max_flows             	= uint32   		;Maximum number of flows that can be maintained for ARS
-sampling_interval		= uint32		;Sampling interval in microseconds
-path_metrics
-	past_load							;Container existence assumes Past load is supported
-		min_value           = uint16            ;Minimum value of Past load range.
-		max_value           = uint16            ;Maximum value of Past load range.
-		weight				= uint16			;Weight of the past load
-	future_load							;Container existence assumes Future load is supported
-		min_value           = uint16            ;Minimum value of Future load range.
-		max_value           = uint16            ;Maximum value of Future load range.
-		weight				= uint16			;Weight of the future load
-	current_load
-		min_value           = uint16            ;Minimum value of Current load range.
-		max_value           = uint16            ;Maximum value of Current load range.
-ipv4_enable				= boolean		;Whether ARS is enabled over IPv4 packets
-ipv6_enable				= boolean		;Whether ARS is enabled over IPv6 packets
-list QUANTIZATION_BANDS					;List of the quantization bands. Values in Mpbs.
-key index				
-	min_value 			= uint16			;Minimum value for this quantization band
-	max_value 			= uint16			;Maximum value for this quantization band
+algorithm               = "ewma"        ;Path quality calculation algorithm
+max_flows               = uint32        ;Maximum number of flows that can be maintained for ARS
+sampling_interval       = uint32        ;Sampling interval in microseconds
+past_load_min_value     = uint16        ;Minimum value of Past load range.
+past_load_max_value     = uint16        ;Maximum value of Past load range.
+past_load_weight        = uint16        ;Weight of the past load
+future_load_min_value   = uint16        ;Minimum value of Future load range.
+future_load_max_value   = uint16        ;Maximum value of Future load range.
+future_load_weight      = uint16        ;Weight of the future load
+current_load_min_value  = uint16        ;Minimum value of Current load range.
+current_load_max_value  = uint16        ;Maximum value of Current load range.
+ipv4_enable             = boolean       ;Whether ARS is enabled over IPv4 packets
+ipv6_enable             = boolean       ;Whether ARS is enabled over IPv6 packets
 
 
 Configuration exmaple:
 
 "ARS_PROFILE": {
-	"default": {
-		"max_flows" : 512,
-		"sampling_interval": 10,
-		"path_metrics" : {
-			"past_load": {
-				"min_value" : 0,
-				"max_value" : 100,
-				"weight": 1
-			},
-			"future_load": {
-				"min_value" : 0,
-				"max_value" : 1000,
-				"weight": 5
-			},
-			"ipv4_enable" : "true",
-			"ipv6_enable" : "true"
-		}
-		"QUANTIZATION_BANDS|0": {
-			"min_value" : 0,
-			"max_value" : 100
-		},
-		"QUANTIZATION_BANDS|1": {
-			"min_value" : 100,
-			"max_value" : 200
-		}
+    "default": {
+		"algorithm": "ewma",
+        "max_flows" : 512,
+        "sampling_interval": 10,
+		"past_load_min_value" : 0,
+		"past_load_max_value" : 100,
+		"past_load_weight": 1,
+		"future_load_min_value" : 0,
+		"future_load_max_value" : 1000,
+		"future_load_weight": 5.
+            "ipv4_enable" : "true",
+            "ipv6_enable" : "true"
+        }
+}
+```
+```
+; New table ARS_QUANTIZATION_BANDS_TABLE
+; ARS path quality quantization configuration
+key                     = ARS_QUANTIZATION_BANDS|profile_name|band_index
+;field                  = value
+min_value           = uint16            ;Minimum value for this quantization band
+max_value           = uint16            ;Maximum value for this quantization band
+Configuration exmaple:
+"QUANTIZATION_BANDS": {
+	"default|0": {
+            "min_value" : 0,
+            "max_value" : 100
 	}
+        },
+""QUANTIZATION_BANDS": {
+	"default|1": {
+            "min_value" : 100,
+            "max_value" : 200
+    }
 }
 ```
 
@@ -515,24 +536,26 @@ Configuration exmaple:
 
 key                     = ARS_OBJECT|ars_name
 
-;field                  = value
-assign_mode             = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
-flowlet_idle_time       = uint16                   				;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows               = uint16                   				;Max number of flows supported for ARS
-container quality_threshold
-	primary_path		= uint16								;Quality threshold for primary path 
+;field                    = value
+
+assign_mode               = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
+flowlet_idle_time         = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows                 = uint16                                ;Max number of flows supported for ARS
+primary_path_threshold	= uint16                                ;Quality threshold for primary path 
+    alternative_path_cost = uint16                                ;Cost of switching to alternative path
 
 Configuration exmaple:
 
 "ARS_OBJECT" {
-	"flowlet_based": {
-		"assign_mode" : "per_flowlet_quality",
-		"flowlet_idle_time" : 256,
-		"max_flows" : 512,
-		"quality_threshold" : {
-			"primary_path" : 10000
-		}
-	}
+    "flowlet_based": {
+        "assign_mode" : "per_flowlet_quality",
+        "flowlet_idle_time" : 256,
+        "max_flows" : 512,
+        "quality_threshold" : {
+			"primary_path_threshold" : 100,
+			"alternative_path_cost": 250
+        }
+    }
 }
 
 ```
@@ -541,13 +564,13 @@ Configuration exmaple:
 ; New table ARS_INTERFACE_TABLE
 ; ARS interfaces configuration
 
-key                     = ARS_INTERFACE|ars_name|if_name 	;ifname is the name of the ARS-enabled interface
+key                     = ARS_INTERFACE|ars_name|if_name     ;ifname is the name of the ARS-enabled interface
 
 Configuration exmaple:
 
 "ARS_INTERFACE": {
-	"flowlet-based | Ethernet0" : {},
-	"flowlet-based | Ethernet8" : {}
+    "flowlet-based | Ethernet0" : {},
+    "flowlet-based | Ethernet8" : {}
 }
 ```
 
@@ -558,15 +581,16 @@ Configuration exmaple:
 key                     = ARS_NEXTHOP_GROUP|ip_prefix|vrf_name    ;Route prefix identifing nexhop-group 
 
 ;field                  = value
-ars_name            	= string                   ;ARS object name
+ars_name                = string                                  ;ARS object name
+alternative_path_members = inet-address             ;Alternative path members address
 
 Configuration exmaple:
 
 "ARS_NEXTHOP_GROUP": {
-	"192.168.0.100/32|default" : {
-		"ars_name" : "flowlet-based",
-		"alternative_path_members": {"1.1.1.1", "2.2.2.2"}
-	}
+    "192.168.0.100/32|default" : {
+        "ars_name" : "flowlet-based",
+        "alternative_path_members": {"1.1.1.1", "2.2.2.2"}
+    }
 }
 ```
 
@@ -577,14 +601,16 @@ Configuration exmaple:
 key                     = ARS_PORTCHANNEL|if_name    ;Interface name identifing LAG 
 
 ;field                  = value
-ars_name                = string                   ;ARS object name
+ars_name                = string                     ;ARS object name
+alternative_path_members = string                   ;Members of the LAG participating in alternative path
 
 Configuration exmaple:
 
 "ARS_PORTCHANNEL": {
-	"PortChannel1" : {
-		"ars_name" : "flowlet-based"
-	}
+    "PortChannel1" : {
+		"ars_name" : "flowlet-based",
+		"alternative_path_members": {"Ethernet0", "Ethernet10"}
+    }
 }
 ```
 
@@ -601,9 +627,9 @@ DISABLE_ARS_FORWARDING  = boolean                   ;ARS operation disabled on m
 Configuration example:
 
 "ACL_RULE": {
-	"ACL_ALL|NO_ARS" : {
-		"DISABLE_ARS_FORWARDING" : "true"
-	}
+    "ACL_ALL|NO_ARS" : {
+        "DISABLE_ARS_FORWARDING" : "true"
+    }
 }
 ```
 
@@ -618,26 +644,29 @@ key                     = ARS_PROFILE_TABLE:profile_name
 
 ;field                  = value
 
-max_flows             	= uint32   		;Maximum number of flows that can be maintained for ARS
-sampling_interval		= uint32		;Sampling interval in microseconds
-path_metrics
-	past_load							;Container existence assumes Past load is supported
-		min_value           = uint16            ;Minimum value of Past load range.
-		max_value           = uint16            ;Maximum value of Past load range.
-		weight				= uint16			;Weight of the past load
-	future_load							;Container existence assumes Future load is supported
-		min_value           = uint16            ;Minimum value of Future load range.
-		max_value           = uint16            ;Maximum value of Future load range.
-		weight				= uint16			;Weight of the future load
-	current_load
-		min_value           = uint16            ;Minimum value of Current load range.
-		max_value           = uint16            ;Maximum value of Current load range.
-ipv4_enable				= boolean		;Whether ARS is enabled over IPv4 packets
-ipv6_enable				= boolean		;Whether ARS is enabled over IPv6 packets
-list QUANTIZATION_BANDS					;List of the quantization bands. Values in Mpbs.
-key index				
-	min_value 			= uint16			;Minimum value for this quantization band
-	max_value 			= uint16			;Maximum value for this quantization band
+algorithm               = "ewma"        ;Path quality calculation algorithm
+max_flows                 = uint32       ;Maximum number of flows that can be maintained for ARS
+sampling_interval         = uint32       ;Sampling interval in microseconds
+past_load_min_value     = uint16        ;Minimum value of Past load range.
+past_load_max_value     = uint16        ;Maximum value of Past load range.
+past_load_weight        = uint16        ;Weight of the past load
+future_load_min_value   = uint16        ;Minimum value of Future load range.
+future_load_max_value   = uint16        ;Maximum value of Future load range.
+future_load_weight      = uint16        ;Weight of the future load
+current_load_min_value  = uint16        ;Minimum value of Current load range.
+current_load_max_value  = uint16        ;Maximum value of Current load range.
+ipv4_enable               = boolean      ;Whether ARS is enabled over IPv4 packets
+ipv6_enable               = boolean      ;Whether ARS is enabled over IPv6 packets
+```
+
+
+```
+; New table ARS_QUANTIZATION_BANDS_TABLE
+; ARS path quality quantization configuration
+key                     = ARS_QUANTIZATION_BANDS_TABLE:profile_name:band_index
+;field                  = value
+    min_value             = uint16       ;Minimum value for this quantization band
+    max_value             = uint16       ;Maximum value for this quantization band
 ```
 
 ```
@@ -646,12 +675,13 @@ key index
 
 key                     = ARS_OBJECT_TABLE:ars_name
 
-;field                  = value
-assign_mode             = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
-flowlet_idle_time       = uint16                   				;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows               = uint16                   				;Max number of flows supported for ARS
-container quality_threshold
-	primary_path		= uint16								;Quality threshold for primary path 
+;field                    = value
+
+assign_mode               = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
+flowlet_idle_time         = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows                 = uint16                                ;Max number of flows supported for ARS
+primary_path_threshold	= uint16                                ;Quality threshold for primary path 
+    alternative_path_cost = uint16                                ;Cost of switching to alternative path
 
 ```
 
@@ -659,7 +689,7 @@ container quality_threshold
 ; New table ARS_INTERFACE_TABLE
 ; ARS interfaces configuration
 
-key                     = ARS_INTERFACE_TABLE:ars_name:if_name 	;ifname is the name of the ARS-enabled interface
+key                     = ARS_INTERFACE_TABLE:ars_name:if_name     ;ifname is the name of the ARS-enabled interface
 
 ```
 
@@ -670,7 +700,7 @@ key                     = ARS_INTERFACE_TABLE:ars_name:if_name 	;ifname is the n
 key                     = ARS_NEXTHOP_GROUP_TABLE:ip_prefix:vrf_name    ;Route prefix identifing nexhop-group 
 
 ;field                  = value
-ars_name            	= string                   ;ARS object name
+ars_name                = string                           ;ARS object name
 
 ```
 
@@ -681,7 +711,7 @@ ars_name            	= string                   ;ARS object name
 key                     = ARS_PORTCHANNEL_TABLE:if_name    ;Interface name identifing LAG 
 
 ;field                  = value
-ars_name                = string                   ;ARS object name
+ars_name                = string                           ;ARS object name
 
 ```
 
@@ -693,10 +723,15 @@ ars_name                = string                   ;ARS object name
 key                     = ACL_RULE_TABLE:table_name:rule_name
 
 ;field                  = value
-DISABLE_ARS_FORWARDING  = boolean                   ;ARS operation disabled on matching packets
+DISABLE_ARS_FORWARDING  = boolean                          ;ARS operation disabled on matching packets
 
 ```
-
+### Counters
+Following counters defined in SAI and will be supported via FlexCounters:
+| Level | Supported SAI counters |
+| ---------------- | ----------------------- |
+|lag | SAI_LAG_ATTR_ARS_PACKET_DROPS<br>SAI_LAG_ATTR_ARS_PORT_REASSIGNMENTS
+| nexthop group|SAI_NEXT_HOP_GROUP_ATTR_ARS_PACKET_DROPS<br>SAI_NEXT_HOP_GROUP_ATTR_ARS_NEXT_HOP_REASSIGNMENTS<br>SAI_NEXT_HOP_GROUP_ATTR_ARS_PORT_REASSIGNMENTS|
 
 ### Warmboot and Fastboot Design Impact  
 
@@ -724,9 +759,5 @@ Example sub-sections for unit test cases and system test cases are given below.
 * ACL ARS monitoring
 * Samplepacket binding
 * CLI commands
-* Counters support
 
-| Level | Supported SAI counters |
-| ---------------- | ----------------------- |
-|lag | SAI_LAG_ATTR_ARS_PACKET_DROPS<br>SAI_LAG_ATTR_ARS_PORT_REASSIGNMENTS
-| nexthop group|SAI_NEXT_HOP_GROUP_ATTR_ARS_PACKET_DROPS<br>SAI_NEXT_HOP_GROUP_ATTR_ARS_NEXT_HOP_REASSIGNMENTS<br>SAI_NEXT_HOP_GROUP_ATTR_ARS_PORT_REASSIGNMENTS|
+
