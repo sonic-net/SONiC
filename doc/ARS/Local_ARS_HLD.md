@@ -156,15 +156,16 @@ SAI usage and supported attributes:
 ```
     container ARS_PROFILE {
 
-        list ARS_PROFILE_LIST {
+		list ARS_PROFILE_LIST {
 
-            key "profile_name";
-            max-elements 1;
+			key "profile_name";
+			max-elements 1;
 
-            leaf profile_name {
-                description "ARS Profile Name";
-                type string;
+			leaf profile_name {
+				description "ARS Profile Name";
+				type string;
 			}
+
 			leaf algorithm {
 				description "ARS quality algorithm";
 				type enumeration {
@@ -172,88 +173,96 @@ SAI usage and supported attributes:
 						description "Exponentially Weighted Moving Average algorithm";
 					}
 				}
-            }
+			}
 
-            leaf max_flows {
-                type uint32;
-                description  "Maximum number of flows that can be maintained per ARS profile.";
-            }
+			leaf max_flows {
+				type uint32;
+				description  "Maximum number of flows that can be maintained per ARS profile.";
+			}
 
-            leaf sampling_interval {
-                type uint32;
-                description  "Sampling interval in microseconds for quality measure computation.";
-            }
+			leaf sampling_interval {
+				type uint32;
+				description  "Sampling interval in microseconds for quality measure computation.";
+			}
 
 			leaf past_load_min_value {
-                        type uint16;
+				type uint16;
 				description "Past load min value.";
-                    }
+			}
+
 			leaf past_load_max_value {
-                        type uint16;
+				type uint16;
 				description "Past load max value.";
-                    }
+			}
+
 			leaf past_load_weight {
-                        type uint16;
+				type uint16;
 				description "Past load weight.";
-                }
+			}
 
 			leaf future_load_min_value {
-                        type uint16;
+				type uint16;
 				description "Future load min value.";
-                    }
+			}
 			leaf future_load_max_value {
-                        type uint16;
+				type uint16;
 				description "Future load max value.";
-                    }
-			leaf future_load_weight {
-                        type uint16;
-				description "Future load weight.";
-                    }
-			leaf current_load_min_value {
-                        type uint16;
-				description "Current load min value.";
+			}
 
-                    }
+			leaf future_load_weight {
+				type uint16;
+				description "Future load weight.";
+			}
+
+			leaf current_load_min_value {
+				type uint16;
+				description "Current load min value.";
+			}
 
 			leaf current_load_max_value {
-                        type uint16;
+				type uint16;
 				description "Current load max value.";
-            }
+			}
 
-            leaf ipv4_enable {
-                type boolean;
-                description "Whether ARS is enabled over IPv4 packets";
-            }
+			leaf ipv4_enable {
+				type boolean;
+				description "Whether ARS is enabled over IPv4 packets";
+			}
 
-            leaf ipv6_enable {
-                type boolean;
-                description "Whether ARS is enabled over IPv6 packets";
-            }
-        }
+			leaf ipv6_enable {
+				type boolean;
+				description "Whether ARS is enabled over IPv6 packets";
+			}
+		}
 		/* end of list ARS_PORIFLE_LIST */
-    }
+	}
 	/* end of container ARS_PORIFLE */
 ```
 ##### ARS_QUANTIZATION_BANDS
 ```
 	container ARS_QUANTIZATION_BANDS {
+
 		list ARS_QUANTIZATION_BANDS_LIST {
 			key "profile_name band_index";
 			max-elements 8;
+
 			leaf profile_name {
 				description "ARS profile Name";
 				type leafref {
 					path "/sars:sonic-ars/sars:ARS_PROFILE/sars:ARS_PROFILE_LIST/sars:profile_name";
 				}
 			}
+
 			leaf band_index {
 				type uint8;
 				description "Index of the qunatization band";
 			}
+
 			leaf min_value {
 				type uint16;
 				description "Minimum value in Mbps to use for the qunatization band creation";
 			}
+
 			leaf max_value {
 				type uint16;
 				description "Minimum value in Mbps to use for the qunatization band creation";
@@ -267,56 +276,57 @@ SAI usage and supported attributes:
 ##### ARS_OBJECT
 
 ```
-    container ARS_OBJECT {
+	container ARS_OBJECT {
 
-        list ARS_OBJECT_LIST {
-            key "profile_name ars_name";
+		list ARS_OBJECT_LIST {
+			key "profile_name ars_name";
 
-            leaf profile_name {
-                description "ARS profile Name";
-                type leafref {
-                    path "/sars:sonic-ars/sars:ARS_PROFILE/sars:ARS_PROFILE_LIST/sars:profile_name";
-                }
-            }
+			leaf profile_name {
+				description "ARS profile Name";
+				type leafref {
+					path "/sars:sonic-ars/sars:ARS_PROFILE/sars:ARS_PROFILE_LIST/sars:profile_name";
+				}
+			}
 
-            leaf ars_name {
-                description "ARS object Name";
-                type string;
-            }
+			leaf ars_name {
+				description "ARS object Name";
+				type string;
+			}
 
-            leaf assign_mode {
-                type enumeration {
-                    enum per_flowlet_quality{
-                        description "Per flow-let assignment based on flow quality";
-                    }
-                    enum per_packet {
-                        description "Per packet flow assignment based on port load";
-                    }
-                }
-            }
+			leaf assign_mode {
+				type enumeration {
+					enum per_flowlet_quality{
+						description "Per flow-let assignment based on flow quality";
+					}
+					enum per_packet {
+						description "Per packet flow assignment based on port load";
+					}
+				}
+			}
 
-            leaf flowlet_idle_time {
-                type uint16;
-                description  "Idle duration in microseconds. This duration is to classifying a flow-let in a macro flow.";
-            }
+			leaf flowlet_idle_time {
+				type uint16;
+				description  "Idle duration in microseconds. This duration is to classifying a flow-let in a macro flow.";
+			}
 
-            leaf max_flows {
-                type uint32;
-                description  "Maximum number of flow states that can be maintained per ARS object.";
-            }
+			leaf max_flows {
+				type uint32;
+				description  "Maximum number of flow states that can be maintained per ARS object.";
+			}
 
 			leaf primary_path_threshold {
 				type uint32;
-                    description  "Primary path metric";
-                }
-                leaf alternative_path_cost {
+				description  "Primary path metric";
+			}
+
+			leaf alternative_path_cost {
 				type uint32;
-                    description  "Alternative path cost";
-            }
-        }
-        /* end of list ARS_OBJECT_LIST */
-    }
-    /* end of container ARS_OBJECT */
+				description  "Alternative path cost";
+			}
+		}
+		/* end of list ARS_OBJECT_LIST */
+	}
+	/* end of container ARS_OBJECT */
 ```
 
 ##### ARS_INTERFACE
@@ -493,19 +503,19 @@ ipv6_enable             = boolean       ;Whether ARS is enabled over IPv6 packet
 Configuration exmaple:
 
 "ARS_PROFILE": {
-    "default": {
+	"default": {
 		"algorithm": "ewma",
-        "max_flows" : 512,
-        "sampling_interval": 10,
+		"max_flows" : 512,
+		"sampling_interval": 10,
 		"past_load_min_value" : 0,
 		"past_load_max_value" : 100,
 		"past_load_weight": 1,
 		"future_load_min_value" : 0,
 		"future_load_max_value" : 1000,
 		"future_load_weight": 5.
-            "ipv4_enable" : "true",
-            "ipv6_enable" : "true"
-        }
+		"ipv4_enable" : "true",
+		"ipv6_enable" : "true"
+	}
 }
 ```
 ```
@@ -547,15 +557,13 @@ primary_path_threshold	= uint16                                ;Quality threshol
 Configuration exmaple:
 
 "ARS_OBJECT" {
-    "flowlet_based": {
-        "assign_mode" : "per_flowlet_quality",
-        "flowlet_idle_time" : 256,
-        "max_flows" : 512,
-        "quality_threshold" : {
-			"primary_path_threshold" : 100,
-			"alternative_path_cost": 250
-        }
-    }
+	"flowlet_based": {
+		"assign_mode" : "per_flowlet_quality",
+		"flowlet_idle_time" : 256,
+		"max_flows" : 512,
+		"primary_path_threshold" : 100,
+		"alternative_path_cost": 250
+	}
 }
 
 ```
@@ -663,10 +671,13 @@ ipv6_enable               = boolean      ;Whether ARS is enabled over IPv6 packe
 ```
 ; New table ARS_QUANTIZATION_BANDS_TABLE
 ; ARS path quality quantization configuration
+
 key                     = ARS_QUANTIZATION_BANDS_TABLE:profile_name:band_index
+
 ;field                  = value
-    min_value             = uint16       ;Minimum value for this quantization band
-    max_value             = uint16       ;Maximum value for this quantization band
+
+min_value           = uint16            ;Minimum value for this quantization band
+max_value           = uint16            ;Maximum value for this quantization band
 ```
 
 ```
