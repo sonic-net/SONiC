@@ -10,7 +10,7 @@
 
 # About this Manual
 
-This document describes the design details of DHCPv4 Relay per-interface counter feature. It provides capability to count DHCPv4 relay packets based on packets type and ingress / egress interface.
+This document describes the design details of DHCPv4 Relay per-interface counter feature. It provides capability to count DHCPv4 packets based on packets type and ingress / egress interface.
 
 # Scope
 
@@ -27,17 +27,16 @@ This document describes the high level design details about how **DHCPv4 Relay p
 ###### Table 2: Definitions
 | Definitions             | Description                        |
 |--------------------------|----------------------------------|
-| dhcrelay | Open source DHCP relay process distributed by ISC  |
-| dhcpmon | DHCPv4 relay monitor process |
-| Context interface | downlink, uplink and mgmt intfs specified in dhcpmon parameters: /usr/sbin/dhcpmon -id **Vlan1000** -iu **PortChannel101** -iu **PortChannel102** -iu **PortChannel103** -iu **PortChannel104** -im **eth0** |
+| dhcpmon | DHCPv4 monitor process |
+| Context interface | downlink, uplink intfs specified in dhcpmon parameters: /usr/sbin/dhcpmon -id **Vlan1000** -iu **PortChannel101** -iu **PortChannel102** -iu **PortChannel103** -iu **PortChannel104** -im **eth0** |
 
 # Overview
 
 ## Problem Statement
 
-Currently, DHCPv4 counter in dhcpmon mainly focus on Vlan / PortChannel interface packet statistics and it store count statics in memory. Also dhcpmon only reports issue in syslog for DHCPv4 packets relayed disparity. It has below disadvantages:
+Currently, DHCPv4 counter in dhcpmon mainly focus on Vlan / PortChannel interface packet data and it store count data in process memory. Also dhcpmon only reports issue in syslog for DHCPv4 packets relayed disparity. It has below disadvantages:
 1. The counting granularity is Vlan/PortChannel, the data for physical interface is missing.
-2. There is no API for User to actively query packets count. When issue like DHCP client cannot get ip happens, we need to do some packets capture and analyze to fingure out whether the packets received in switch and whether the packets has been relayed.
+2. There is no API for User to actively query packets count. When issue like DHCP client cannot get ip happens, we need to do some packets capture and analyze to fingure out whether the packets received in switch and whether the packets have been relayed.
 
 ## Functional Requirements
 
@@ -48,15 +47,15 @@ Currently, DHCPv4 counter in dhcpmon mainly focus on Vlan / PortChannel interfac
 
 ## Design Overview
 
-To address above 2 issues, we propose below design, it could be devided into 4 parts: `Init`, `Per-interface counting`, `Persist` and `clear counter`.
+To address above 2 issues, we propose below design, it could be divided into 4 parts: `Init`, `Per-interface counting`, `Persist` and `clear counter`.
 
 ### Init
 
-<div align="center"> <img src=images/init_multi_thread.png width=550 /> </div>
+<div align="center"> <img src=images/init_multi_thread.png width=700 /> </div>
 
 1. There are **2 sockets for all interfaces** to capture DHCPv4 packets. We bind callback to the network events to process packets.
-2. Read from `PORTCHANNEL_MEMBER` and `VLAN_MEMBER` table CONFIG_DB to construct mapping between physical interface and PortChannel/Vlan. It's used to query context interface by physical interface.
-3. We have 2 kinds of counters, one is persisted in STATE_DB, another is stored in process memory, they are initialized when process startup.
+2. Read from `PORTCHANNEL_MEMBER` and `VLAN_MEMBER` table from CONFIG_DB to construct mapping between physical interface and PortChannel/Vlan. It's used to query context interface by physical interface.
+3. There are 2 kinds of counters, one is persisted in STATE_DB, another is stored in process memory, they are initialized when process startup.
 4. A signal callback would be added to listen for counter cleaning signal to clear counter in process memory.
 5. Initialize a timer to periodically sync counter data from cache counter to DB counter in another thread.
 
@@ -64,45 +63,52 @@ With above structure, packets processing and all write actions to cache counter 
 
 ### Per-interface counting (Main thread)
 
-<div align="center"> <img src=images/per_intf_counting.png width=600 /> </div>
+<div align="center"> <img src=images/per_intf_counting.png width=620 /> </div>
 
 * From socket, we can fingure out which physical interface does the packet came from.
 * Context interface name could be obtained by querying context interface counter.
-* Then cache counter for corresponding physical interface and context would increase **immediately**.
+* Then cache counter for corresponding physical interface and context interface would increase **immediately**.
 
 ### Persist (DB update thread)
 
-<div align="center"> <img src=images/persist_multi_thread.png width=400 /> </div>
+<div align="center"> <img src=images/persist_multi_thread.png width=440 /> </div>
 
 DB update timer would be invoked periodically (**every 20s**) in another thread which is different with main thread. It would sync **all data** from cache couonter to STATE_DB.
 
 ### Clear Counter
 
-<div align="center"> <img src=images/clear_counter.png width=440 /> </div>
+<div align="center"> <img src=images/clear_counter.png width=480 /> </div>
 
 When user invokes SONiC Cli to clear counter, it would directly clear corresponding data in STATE_DB, then write a temp file which contains counters of specified direction / packet type / interface need to be cleared, then a signal to clear cache counter would be sent to dhcpmon process.
 
-After receiving signal to clear cache, dhcpmon process would clear counter in process memory in `DB update thread`.
+After receiving signal to clear cache, dhcpmon process would clear counter in process memory in `main thread`.
 
 ## Counter Logic
 
 ### Overview
 
+dhcpmon would mainly focus on comparing below 3 fields in packet when counting packets. Point 1 and point 2 is used for counting context interface, **we only count client-sent packets which come from downlink Vlan and server-sent packets which come from uplink interfaces**. And point 3 is used to get packet type.
+1. `Option 53` in **DHCPv4 header**
+2. `Destination ip Address` in **IP header**
+3. `Gateway IP Address` in **DHCPv4 header**
+
+The point 1 is used to get packet type. Point 2 and point 3 are used for counting interface, **we only count when below 2 conditions are all matched**
+1. client-sent packets which come from downlink Vlan or server-sent packets which come from uplink interfaces.
+2. If packets are relayed to DHCP server or received from DHCP server, the gateway ip configred in DHCP header should match gateway in device.
+
 Below pictures are samples for expected counter increasing for both directions.
 
-<div align="center"> <img src=images/counter_sample.png width=600 /> </div>
+- For traffic flow from DHCP client to DHCP server, the egress packets count in context interface should be aligned with dhcp server number configured.
+- For traffic flow from DHCP server to DHCP client, the egress packets count should be equal to ingress packet counts.
 
-dhcpmon would main focus on comparing below 3 fields in packet when counting packets. Point 1 and point 2 is used for counting context interface, **we only count client-sent packets which come from downlink Vlan and server-sent packets which come from uplink interfaces**. And point 3 is used to get packet type.
-1. `Destination ip Address` in **IP header**
-2. `Gateway IP Address` in **DHCPv4 header**
-3. `Option 53` in **DHCPv4 header**
+<div align="center"> <img src=images/counter_sample.png width=630 /> </div>
 
-Counter for context interface should be increased in below scenarios, and they can correspond to the above picture.
+Counter for interface should be increased in below scenarios, and they can be corresponded to the above picture.
 
-|              | Packets sent by DHCP client | Packets sent by DHCP server |
+|              | DHCP client -> DHCP server | DHCP server -> DHCP client |
 |--------------------------|----------------------------------|--|
-| RX packet | **A**: If context interface is not uplink (Vlan) | **B**: If dst ip in ip header equals to context gateway and context interface is uplink (PortChannel) |
-| TX packet | **C**: If gateway ip in dhcp header equals to context gateway ip and context interface is uplink | **D**: If context interface is not uplink (Vlan) |
+| RX packet | **A**: If interface is downlink and \[destination ip in ip header is broadcast ip or gateway ip\] | **B**: If dst ip in ip header equals to gateway and ingress interface is uplink |
+| TX packet | **C**: If gateway ip in dhcp header equals to gateway ip and interface is uplink | **D**: If interface is downlink|
 
 ### Dual-ToR Specified
 
@@ -114,13 +120,13 @@ In Dual-ToR there are some behaviors different with single ToR:
 
 * Container restart
   * One dhcpmon process would only listen on one downlink Vlan interface, hence dhcpmon process restart will initialize (counter set to zero) for interface in below list:
-    * Downlink / Uplink context interfaces given by startup parameter
-    * Related Vlan member interfaces from CONFIG_DB table `VLAN_MEMBER|Vlanxxx`
-    * Related PortChannel member interfaces from CONFIG_DB table`
+    * Downlink / Uplink context interfaces given by startup parameter.
+    * Related Vlan member interfaces from CONFIG_DB table `VLAN_MEMBER|Vlanxxx`.
+    * Related PortChannel member interfaces from CONFIG_DB table `PORTCHANNEL_MEMBER|PortChannelxxx`.
 * Vlan add/del
   * For now, after vlan adding or deleting, it requires dhcp_relay container be restarted to take effect. Vlan del Cli would automatically restart dhcp_relay container, other scenarios need manually restart. Then it could be referred to above `container restart` part
 * Vlan / PortChannel member change
-  * Member add: It's expected to set add entry and set counter to zero for member interface.
+  * Member add: It's expected to add entry and set counter to zero for member interface.
   * Member del: It's expected to delete related counter entry.
   * **Note: This requires db change subscription support. In early stage, we will mainly focus on key functionality. This feature maybe be supported in future.**
 
@@ -218,7 +224,9 @@ This command is used to clear DHCPv4 counter
 
 - Usage
     ```
-    sonic-clear dhcp_relay ipv4 counter [--dir (TX|RX)] [<vlan_interface>]
+    sonic-clear dhcp_relay ipv4 counter [--dir (TX|RX)] [--type <type>] [<vlan_interface>]
+
+    Notice: dir / type / vlan_interface are all no-required parameters
     ```
 
 - Example
