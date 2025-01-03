@@ -40,7 +40,7 @@
 
 # About this Manual
 
-This document provides general information about the design of the enhancements in SONiC to support static configuration of Segmentation Routing over IPv6 protocol, which is crucial for SRv6 SDN deployment (without usage of BGP).
+This document provides general information about the design of the enhancements in SONiC to support static configuration of Segment Routing over IPv6 protocol, which is crucial for SRv6 SDN deployment (without usage of BGP).
 
 # 1 Introuduction and Scope
 
