@@ -115,14 +115,13 @@ Schema:
 
 ```
 ; New table
-; holds local SID to behavior mapping, the keys are full IPv6 addresses of the SIDs
+; holds local SID to behavior mapping, the keys are the locator name plus the full IPv6 addresses of the SIDs
 
-key = SRV6_MY_SIDS|vrf|ip_address
+key = SRV6_MY_SIDS|locator|ip_address
 ; field = value
-locator = locator_name       ; the name of the locator that the SID belongs to
 action = behavior            ; behaviors defined for the SID, default uN
 decap_vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, default "default", only applicable to uDT4/uDT46/uDT6 actions
-dscp_mode = dscp_decap_mode  ; Optional, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation, default "uniform", only applicable to uDT4/uDT46/uDT6 actions
+decap_dscp_mode = decap_dscp_mode  ; Optional, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation, default "uniform", only applicable to uDT4/uDT46/uDT6 actions
 
 For example:
     "SRV6_MY_SIDS" : {
@@ -131,6 +130,7 @@ For example:
         },
         "default|FCBB:BBBB:20:F1::" : {
            "action": "uDT46",
+           "decap_dscp_mode": "pipe"
         }
     }
 ```
