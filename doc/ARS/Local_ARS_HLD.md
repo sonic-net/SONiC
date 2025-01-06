@@ -43,8 +43,8 @@ No standard exists, but there is an industry consensus for general approach.
 
 The following illustrates the common operation of ARS, in which two paths are considered - one shortest (minimal) and another (non-minimal), when forwarding traffic to the destination. When shortest path becomes congested, the alternative will be used.
 
-__Figure 1: ARS in direct topology__<br>
-![ARS flow](images/ARS_topology.png "Figure 1: ARS in direct topology")
+__Figure 1: ARS in network__<br>
+![ARS flow](images/ARS_topology.png "Figure 1: ARS in network")
 
 
 
@@ -63,11 +63,6 @@ This diagram outlines a Logical Pipeline Flow for Adaptive Routing with ARS. Flo
 
 __Figure 3: ARS SAI Pipeline Flow__
 ![SAI model](images/ARSPipeline.png "Figure 2: ARS Pipeline Flow")
-
-The following diagram adds a few details to the SAI pipeline to illustrate the decision-making process.
-![PAth quality process](images/path_quality.png)
-__Figure 4: Path quality__
-
 
 ### Requirements
 
@@ -109,8 +104,8 @@ __Figure 6: Initilization__
 ![Init sequnece](images/init_seq.png)
 
 
-__Figure 7: Interface enable__
-![Interface enable](images/if_enable.png)
+__Figure 7: Interface update__
+![Interface update](images/if_update.png)
 
 
 __Figure 8: Nexthop group configuration__
@@ -140,8 +135,8 @@ SAI usage and supported attributes:
 
 | SAI api | Supported SAI attribute |
 | ---------------- | ----------------------- |
-|create_ars_profile | SAI_ARS_PROFILE_ATTR_PORT_LOAD_PAST<br>SAI_ARS_PROFILE_ATTR_PORT_LOAD_PAST_WEIGHT<br>SAI_ARS_PROFILE_ATTR_PORT_LOAD_FUTURE<br>SAI_ARS_PROFILE_ATTR_PORT_LOAD_FUTURE_WEIGHT<br>SAI_ARS_PROFILE_ATTR_QUANT_BANDS<br>SAI_ARS_PROFILE_ATTR_QUANT_BAND_0_MIN_THRESHOLD ... SAI_ARS_PROFILE_ATTR_QUANT_BAND_7_MIN_THRESHOLD<br>SAI_ARS_PROFILE_ATTR_QUANT_BAND_0_MAX_THRESHOLD ... SAI_ARS_PROFILE_ATTR_QUANT_BAND_7_MAX_THRESHOLD<br>SAI_ARS_PROFILE_ATTR_ENABLE_IPV4<br>SAI_ARS_PROFILE_ATTR_ENABLE_IPV6<br>SAI_ARS_PROFILE_ATTR_LOAD_PAST_MIN_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_PAST_MAX_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_FUTURE_MIN_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_FUTURE_MAX_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_CURRENT_MIN_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_CURRENT_MAX_VAL<br>SAI_ARS_PROFILE_ATTR_MAX_FLOWS<br>SAI_ARS_PROFILE_ATTR_SAMPLING_INTERVAL|
-|create_ars | SAI_ARS_MODE_FLOWLET_QUALITY<br>SAI_ARS_MODE_PER_PACKET_QUALITY<br>SAI_ARS_ATTR_IDLE_TIME<br>SAI_ARS_ATTR_MAX_FLOWS<br>SAI_ARS_ATTR_PRIMARY_PATH_QUALITY_THRESHOLD
+|create_ars_profile | SAI_ARS_PROFILE_ATTR_PORT_LOAD_PAST<br>SAI_ARS_PROFILE_ATTR_PORT_LOAD_PAST_WEIGHT<br>SAI_ARS_PROFILE_ATTR_PORT_LOAD_FUTURE<br>SAI_ARS_PROFILE_ATTR_PORT_LOAD_FUTURE_WEIGHT<br>SAI_ARS_PROFILE_ATTR_QUANT_BANDS<br>SAI_ARS_PROFILE_ATTR_QUANT_BAND_0_MIN_THRESHOLD ... SAI_ARS_PROFILE_ATTR_QUANT_BAND_7_MIN_THRESHOLD<br>SAI_ARS_PROFILE_ATTR_QUANT_BAND_0_MAX_THRESHOLD ... SAI_ARS_PROFILE_ATTR_QUANT_BAND_7_MAX_THRESHOLD<br>SAI_ARS_PROFILE_ATTR_ENABLE_IPV4<br>SAI_ARS_PROFILE_ATTR_ENABLE_IPV6<br>SAI_ARS_PROFILE_ATTR_LOAD_PAST_MIN_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_PAST_MAX_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_FUTURE_MIN_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_FUTURE_MAX_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_CURRENT_MIN_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_CURRENT_MAX_VAL<br>SAI_ARS_PROFILE_ATTR_MAX_FLOWS<br>SAI_ARS_PROFILE_ATTR_SAMPLING_INTERVAL<br>SAI_ARS_PROFILE_ATTR_ALGO|
+|create_ars | SAI_ARS_ATTR_MODE<br>SAI_ARS_MODE_FLOWLET_QUALITY<br>SAI_ARS_MODE_PER_PACKET_QUALITY<br>SAI_ARS_ATTR_IDLE_TIME<br>SAI_ARS_ATTR_MAX_FLOWS<br>SAI_ARS_ATTR_PRIMARY_PATH_QUALITY_THRESHOLD<br>SAI_ARS_ATTR_ALTERNATE_PATH_COST
 |set_port_attribute|SAI_PORT_ATTR_ARS_ENABLE<br>SAI_PORT_ATTR_ARS_PORT_LOAD_SCALING_FACTOR<br>SAI_PORT_ATTR_ARS_ALTERNATE_PATH|
 |create_next_hop_group|SAI_NEXT_HOP_GROUP_ATTR_ARS_OBJECT_ID<br>SAI_NEXT_HOP_GROUP_MEMBER_ATTR_ARS_ALTERNATE_PATH
 |create_acl_entry|SAI_ACL_ACTION_TYPE_DISABLE_ARS_FORWARDING
@@ -234,9 +229,9 @@ SAI usage and supported attributes:
                 description "Whether ARS is enabled over IPv6 packets";
             }
         }
-        /* end of list ARS_PORIFLE_LIST */
+        /* end of list ARS_PROFILE_LIST */
     }
-    /* end of container ARS_PORIFLE */
+    /* end of container ARS_PROFILE */
 ```
 
 ##### ARS_QUANTIZATION_BANDS
