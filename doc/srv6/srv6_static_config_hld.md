@@ -104,6 +104,16 @@ node_len = nlen              ; bit length of node ID portion in address, default
 func_len = flen              ; bit length of function portion in address, default 16
 arg_len = alen               ; bit length of argument portion in address, default 0
 vrf = VRF_TABLE.key          ; the VRF that the locator belongs to, default "default"
+
+For example:
+   "SRV6_MY_LOCATORS" : {
+      "loc1" : {
+         "prefix" : "FCBB:BBBB:20::"
+      },
+      "loc2" : {
+         "prefix" : "FCBB:BBBB:21::"
+      }
+   }
 ```
 
 
@@ -125,13 +135,16 @@ decap_dscp_mode = decap_dscp_mode  ; Optional, the parameter that specifies how 
 
 For example:
     "SRV6_MY_SIDS" : {
-        "default|FCBB:BBBB:20::" : {
+        "loc1|FCBB:BBBB:20::" : {
            "action": "uN"
         },
-        "default|FCBB:BBBB:20:F1::" : {
+        "loc1|FCBB:BBBB:20:F1::" : {
            "action": "uDT46",
            "decap_dscp_mode": "pipe"
-        }
+        },
+        "loc2|FCBB:BBBB:21::" : {
+           "action": "uN"
+        },
     }
 ```
 
@@ -158,20 +171,19 @@ module: sonic-srv6
      +--rw SRV6_MY_LOCATORS
      |  +--rw SRV6_MY_LOCATORS_LIST* [locator_name]
      |     +--rw locator_name    string
-     |     +--rw prefix?         inet:ipv6-address
+     |     +--rw prefix          inet:ipv6-address
      |     +--rw block_len?      uint8
      |     +--rw node_len?       uint8
      |     +--rw func_len?       uint8
      |     +--rw arg_len?        uint8
      |     +--rw vrf?            union
      +--rw SRV6_MY_SIDS
-        +--rw SRV6_MY_SIDS_LIST* [vrf ip_address]
-           +--rw vrf           union
-           +--rw ip_address    inet:ipv6-address
-           +--rw locator?      -> /sonic-srv6/SRV6_MY_LOCATORS/SRV6_MY_LOCATORS_LIST/locator_name
-           +--rw action?       enumeration
-           +--rw decap_vrf?    union
-           +--rw dscp_mode?    enumeration
+        +--rw SRV6_MY_SIDS_LIST* [locator ip_address]
+           +--rw ip_address         inet:ipv6-address
+           +--rw locator            -> /sonic-srv6/SRV6_MY_LOCATORS/SRV6_MY_LOCATORS_LIST/locator_name
+           +--rw action?            enumeration
+           +--rw decap_vrf?         union
+           +--rw decap_dscp_mode?   enumeration
 ```
 Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models) for the YANG model defined with standard IETF syntax.
 
