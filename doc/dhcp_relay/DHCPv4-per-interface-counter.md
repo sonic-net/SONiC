@@ -18,17 +18,17 @@ This document describes the high level design details about how **DHCPv4 Relay p
 
 # Definitions/Abbreviations
 
-###### Table 1: Abbreviations
+### Abbreviations
 
-| Abbreviation             | Full form                        |
+| Abbreviation             | Description                        |
 |--------------------------|----------------------------------|
-| DHCP                      | Dynamic Host Configuration Protocol      |
+| DHCP                      | Protocol to automatically assign IP address and other communication information |
 
-###### Table 2: Definitions
-| Definitions             | Description                        |
+### Definitions
+
+| Definition             | Description                        |
 |--------------------------|----------------------------------|
-| dhcpmon | DHCPv4 monitor process |
-| Context interface | downlink, uplink intfs specified in dhcpmon parameters: /usr/sbin/dhcpmon -id **Vlan1000** -iu **PortChannel101** -iu **PortChannel102** -iu **PortChannel103** -iu **PortChannel104** -im **eth0** |
+| dhcpmon                      | DHCPv4 monitor process |
 
 # Overview
 
@@ -47,27 +47,51 @@ Currently, DHCPv4 counter in dhcpmon mainly focus on Vlan / PortChannel interfac
 
 ## Design Overview
 
-To address above 2 issues, we propose below design, it could be divided into 4 parts: `Init`, `Per-interface counting`, `Persist` and `clear counter`.
+To address issue 1, we propose below design, it could be divided into 4 parts: `Init`, `Per-interface counting`, `Persist` and `clear counter`.
 
 ### Init
 
+Below picture shows initialization for dhcpmon.
+
 <div align="center"> <img src=images/init_multi_thread.png width=700 /> </div>
 
-1. There are **2 sockets for all interfaces** to capture DHCPv4 packets. We bind callback to the network events to process packets.
-2. Read from `PORTCHANNEL_MEMBER` and `VLAN_MEMBER` table from CONFIG_DB to construct mapping between physical interface and PortChannel/Vlan. It's used to query context interface by physical interface.
-3. There are 2 kinds of counters, one is persisted in STATE_DB, another is stored in process memory, they are initialized when process startup.
-4. A signal callback would be added to listen for counter cleaning signal to clear counter in process memory.
-5. Initialize a timer to periodically sync counter data from cache counter to DB counter in another thread.
+In this stage, dhcpmon would do some preparations, there are 2 points need to be highlightled:
 
-With above structure, packets processing and all write actions to cache counter in process memory would be done in **main thread**, and all write actions to STATE_DB would be done in **DB update thread**.
+1. Update context interface map
+     - Socket interface: We use socket to capture packets then count, socket interface is the interface for receiving or sending packets in socket.
+     - Context interface: downlink, uplink intfs specified in dhcpmon parameters. It can be used to filter the socket interfaces that dhcpmon is interested in.
+     - Take below picture as example. The dhcpmon running cmd is: `/usr/sbin/dhcpmon -id Vlan1000 -iu PortChannel1 -iu Ethernet42`. Hence the downlink context interface is `Vlan1000`, uplink context interfaces are `PortChannel1` and `Ethernet42`.
+       - For traffic flow A, each interfaces in this flow would be treated as socket interfaces: `Ethernet1`, `Vlan1000`, `PortChannel1`, `Ethernet40`. The context interface map would be like:
+       - And similar for traffic flow B, the socket interfaces are `Ethernet3`, `Vlan1000`, `Ethernet42`.
+        <div align="center"> <img src=images/context_socket.png width=550 /> </div>
+
+       - Hence the context interface map would be like below
+         ```JSON
+         {
+          "Vlan1000": "Vlan1000",   // Downlink
+          "Ethernet1": "Vlan1000",  // Downlink
+          "Ethernet2": "Vlan1000",  // Downlink
+          "Ethernet3": "Vlan1000",  // Downlink
+
+          "PortChannel1": "PortChannel1",  // Uplink
+          "Ethernet40": "PortChannel1",  // Uplink
+          "Ethernet41": "PortChannel1",  // Uplink
+          "Ethernet42": "Ethernet42"     // Uplink
+         }
+         ```
+
+2. Init DB/check dounter
+dhcpmon would create counter for corresponding interfaces in process memory and STATE_DB and set them to be 0.
+
+With above structure, packets processing and all writing actions to cache counter in process memory would be done in **main thread**, and all writing actions to STATE_DB would be done in **DB update thread**.
 
 ### Per-interface counting (Main thread)
 
 <div align="center"> <img src=images/per_intf_counting.png width=620 /> </div>
 
-* From socket, we can fingure out which physical interface does the packet came from.
-* Context interface name could be obtained by querying context interface counter.
-* Then cache counter for corresponding physical interface and context interface would increase **immediately**.
+* From socket, we can fingure out which interface does the packet came from.
+* Context interface name could be obtained by querying context interface map.
+* Then cache counter for corresponding socket interface and context interface would increase **immediately**.
 
 ### Persist (DB update thread)
 
@@ -75,13 +99,13 @@ With above structure, packets processing and all write actions to cache counter 
 
 DB update timer would be invoked periodically (**every 20s**) in another thread which is different with main thread. It would sync **all data** from cache couonter to STATE_DB.
 
-### Clear Counter
+### Clear Counter (Main thread)
 
-<div align="center"> <img src=images/clear_counter.png width=480 /> </div>
+<div align="center"> <img src=images/clear_counter.png width=500 /> </div>
 
-When user invokes SONiC Cli to clear counter, it would directly clear corresponding data in STATE_DB, then write a temp file which contains counters of specified direction / packet type / interface need to be cleared, then a signal to clear cache counter would be sent to dhcpmon process.
+When user invokes SONiC Cli to clear counter, it would directly clear corresponding data in STATE_DB, then a signal to clear cache counter would be sent to dhcpmon process.
 
-After receiving signal to clear cache, dhcpmon process would clear counter in process memory in `main thread`.
+After receiving signal to clear cache, dhcpmon process would sync counter data from STATE_DB into process memory. This operation is done in `main thread`.
 
 ## Counter Logic
 
@@ -101,20 +125,22 @@ Below pictures are samples for expected counter increasing for both directions.
 - For traffic flow from DHCP client to DHCP server, the egress packets count in context interface should be aligned with dhcp server number configured.
 - For traffic flow from DHCP server to DHCP client, the egress packets count should be equal to ingress packet counts.
 
-<div align="center"> <img src=images/counter_sample.png width=630 /> </div>
+<div align="center"> <img src=images/counter_sample.png width=660 /> </div>
 
 Counter for interface should be increased in below scenarios, and they can be corresponded to the above picture.
 
 |              | DHCP client -> DHCP server | DHCP server -> DHCP client |
 |--------------------------|----------------------------------|--|
 | RX packet | **A**: If interface is downlink and \[destination ip in ip header is broadcast ip or gateway ip\] | **B**: If dst ip in ip header equals to gateway and ingress interface is uplink |
-| TX packet | **C**: If gateway ip in dhcp header equals to gateway ip and interface is uplink | **D**: If interface is downlink|
+| TX packet | **C**: If gateway ip in dhcp header equals to gateway ip and interface is uplink | **D**: If interface is downlink and gateway in dhcp header equals to gateway ip|
 
 ### Dual-ToR Specified
 
 In Dual-ToR there are some behaviors different with single ToR:
-1. We wouldn't count packets come from standby interfaces (Refer to `HW_MUX_CABLE_TABLE` in STATE_DB).
-2. In above counting logic, we would compare `gateway` in DHCP packets. In single ToR, the gateway is Vlan ip, but in Dual-ToR, it's device's Loopback ip.
+1. In above counting logic, we would compare `gateway` in DHCPv4 packets. In single ToR, the gateway is Vlan ip, but in Dual-ToR, it's device's Loopback ip.
+2. In Dual-ToR, there are cacl rules to drop **ingress** DHCPv4 packets from **standby interfaces**([caclmgrd: support packet mark in DHCP chain #9131](https://github.com/sonic-net/sonic-buildimage/pull/9131)). It's shown in below picture, dhcpmon socket would capture the packets before droping, but dhcpv4 relay process cannot. Hence DHCPv4 packets come from standby interfaces wouldn't be relayed, we shouldn't count them in dhcpmon too.
+
+<div align="center"> <img src=images/ingress_drop.png width=480 /> </div>
 
 ## Counter Reset
 
@@ -142,18 +168,18 @@ Following table changes would be added in State DB, including **DHCP_COUNTER_TAB
     'Vlan1000': {
       'RX': '{"Ack":"0","Decline":"0","Discover":"1","Inform":"0","Nak":"0","Offer":"0","Release":"0","Request":"0","Unknown":"0"}',
       'TX': '{"Ack":"0","Decline":"0","Discover":"0","Inform":"0","Nak":"0","Offer":"0","Release":"0","Request":"0","Unknown":"0"}'
-    }
+    },
     'Vlan1000|Ethernet4': {
       'RX': '{"Ack":"0","Decline":"0","Discover":"1","Inform":"0","Nak":"0","Offer":"0","Release":"0","Request":"0","Unknown":"0"}',
       'TX': '{"Ack":"0","Decline":"0","Discover":"0","Inform":"0","Nak":"0","Offer":"0","Release":"0","Request":"0","Unknown":"0"}'
     }
-    'Vlan1000|PortChannel1': {
-      'RX': '{"Ack":"0","Decline":"0","Discover":"0","Inform":"0","Nak":"0","Offer":"0","Release":"0","Request":"0","Unknown":"0"}',
-      'TX': '{"Ack":"0","Decline":"0","Discover":"1","Inform":"0","Nak":"0","Offer":"0","Release":"0","Request":"0","Unknown":"0"}'
-    }
   }
 }
 ```
+
+To be noticed that key of uplink interfaces would be added with vlan prefix. It's for multi-vlans scenario to distingush shared uplink interfaces between different Vlans, below is a sample.
+
+<div align="center"> <img src=images/db_change.png width=750 /> </div>
 
 # Cli
 
