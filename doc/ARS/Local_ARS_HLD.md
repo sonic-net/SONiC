@@ -138,7 +138,8 @@ SAI usage and supported attributes:
 |create_ars_profile | SAI_ARS_PROFILE_ATTR_PORT_LOAD_PAST<br>SAI_ARS_PROFILE_ATTR_PORT_LOAD_PAST_WEIGHT<br>SAI_ARS_PROFILE_ATTR_PORT_LOAD_FUTURE<br>SAI_ARS_PROFILE_ATTR_PORT_LOAD_FUTURE_WEIGHT<br>SAI_ARS_PROFILE_ATTR_QUANT_BANDS<br>SAI_ARS_PROFILE_ATTR_QUANT_BAND_0_MIN_THRESHOLD ... SAI_ARS_PROFILE_ATTR_QUANT_BAND_7_MIN_THRESHOLD<br>SAI_ARS_PROFILE_ATTR_QUANT_BAND_0_MAX_THRESHOLD ... SAI_ARS_PROFILE_ATTR_QUANT_BAND_7_MAX_THRESHOLD<br>SAI_ARS_PROFILE_ATTR_ENABLE_IPV4<br>SAI_ARS_PROFILE_ATTR_ENABLE_IPV6<br>SAI_ARS_PROFILE_ATTR_LOAD_PAST_MIN_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_PAST_MAX_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_FUTURE_MIN_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_FUTURE_MAX_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_CURRENT_MIN_VAL<br>SAI_ARS_PROFILE_ATTR_LOAD_CURRENT_MAX_VAL<br>SAI_ARS_PROFILE_ATTR_MAX_FLOWS<br>SAI_ARS_PROFILE_ATTR_SAMPLING_INTERVAL<br>SAI_ARS_PROFILE_ATTR_ALGO|
 |create_ars | SAI_ARS_ATTR_MODE<br>SAI_ARS_MODE_FLOWLET_QUALITY<br>SAI_ARS_MODE_PER_PACKET_QUALITY<br>SAI_ARS_ATTR_IDLE_TIME<br>SAI_ARS_ATTR_MAX_FLOWS<br>SAI_ARS_ATTR_PRIMARY_PATH_QUALITY_THRESHOLD<br>SAI_ARS_ATTR_ALTERNATE_PATH_COST
 |set_port_attribute|SAI_PORT_ATTR_ARS_ENABLE<br>SAI_PORT_ATTR_ARS_PORT_LOAD_SCALING_FACTOR<br>SAI_PORT_ATTR_ARS_ALTERNATE_PATH|
-|create_next_hop_group|SAI_NEXT_HOP_GROUP_ATTR_ARS_OBJECT_ID<br>SAI_NEXT_HOP_GROUP_MEMBER_ATTR_ARS_ALTERNATE_PATH
+|create_next_hop_group|SAI_NEXT_HOP_GROUP_ATTR_ARS_OBJECT_ID
+|create_next_hop_group_member|SAI_NEXT_HOP_GROUP_MEMBER_ATTR_ARS_ALTERNATE_PATH
 |create_acl_entry|SAI_ACL_ACTION_TYPE_DISABLE_ARS_FORWARDING
 |set_lag_attribute|SAI_LAG_ATTR_ARS_OBJECT_ID
 
@@ -270,13 +271,37 @@ SAI usage and supported attributes:
     /* end of container ARS_QUANTIZATION_BANDS */
 ```
 
-##### ARS_OBJECT
+##### ARS_INTERFACE
 
 ```
-    container ARS_OBJECT {
+    container ARS_INTERFACE {
 
-        list ARS_OBJECT_LIST {
-            key "profile_name ars_name";
+        list ARS_INTERFACE_LIST {
+            description  "List of interfaces participating in ARS";
+            key "if_name";
+
+            leaf if_name {
+                type leafref {
+                    path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
+                }
+                description "ARS-enabled interface name";
+            }
+        }
+        /* end of list ARS_INTERFACE_LIST */
+    }
+    /* end of container ARS_INTERFACE */
+```
+
+##### ARS_NEXTHOP_GROUP
+
+```
+    container ARS_NEXTHOP_GROUP {
+
+        description "ARS-enabled Nexthop Groups";
+
+        list ARS_NEXTHOP_GROUP_LIST {
+
+            key "profile_name ip_prefix vrf_name";
 
             leaf profile_name {
                 description "ARS profile Name";
@@ -285,10 +310,22 @@ SAI usage and supported attributes:
                 }
             }
 
-            leaf ars_name {
-                description "ARS object Name";
-                type string;
+            leaf ip_prefix{
+                type stypes:sonic-ip-prefix;
+                description "Ip prefix which identifies nexthop group for which ARS behavior is desired";
             }
+
+            leaf vrf_name {
+                type union {
+                    type string {
+                        pattern "default";
+                    }
+                    type leafref {
+                        path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
+                    }
+                }
+                description "VRF name";
+            } 
 
             leaf assign_mode {
                 type enumeration {
@@ -320,73 +357,6 @@ SAI usage and supported attributes:
                 type uint32;
                 description  "Alternative path cost";
             }
-        }
-        /* end of list ARS_OBJECT_LIST */
-    }
-    /* end of container ARS_OBJECT */
-```
-
-##### ARS_INTERFACE
-
-```
-    container ARS_INTERFACE {
-
-        list ARS_INTERFACE_LIST {
-            description  "List of interfaces participating in ARS";
-            key "if_name";
-
-            leaf if_name {
-                type union {
-                    type leafref {
-                        path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
-                    }
-                    type leafref {
-                        path "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name";
-                    }
-                }
-                description "ARS-enabled interface name";
-            }
-        }
-        /* end of list ARS_INTERFACE_LIST */
-    }
-    /* end of container ARS_INTERFACE */
-```
-
-##### ARS_NEXTHOP_GROUP
-
-```
-    container ARS_NEXTHOP_GROUP {
-
-        description "ARS-enabled Nexthop Groups";
-
-        list ARS_NEXTHOP_GROUP_LIST {
-
-            key "ip_prefix vrf_name";
-
-            leaf ip_prefix{
-                type stypes:sonic-ip-prefix;
-                description "Ip prefix which identifies nexthop group for which ARS behavior is desired";
-            }
-
-            leaf vrf_name {
-                type union {
-                    type string {
-                        pattern "default";
-                    }
-                    type leafref {
-                        path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
-                    }
-                }
-                description "VRF name";
-            } 
-
-            leaf ars_name{
-                type leafref {
-                    path "/sars:sonic-ars/sars:ARS_OBJECT/sars:ARS_OBJECT_LIST/sars:ars_name";
-                }
-                mandatory true;
-                description "ARS object name that bound to this NHG";
-            }
 
             leaf-list alternative_path_members {
                 type inet:ip-address;
@@ -407,7 +377,7 @@ SAI usage and supported attributes:
 
         list ARS_PORTCHANNEL_LIST {
 
-            key "if_name";
+            key "profile_name if_name";
 
             leaf if_name{
                 type leafref {
@@ -416,12 +386,42 @@ SAI usage and supported attributes:
                 description "Interface name which identifies LAG for which ARS behavior is desired";
             }
 
-            leaf ars_name{
+            leaf profile_name {
+                description "ARS profile Name";
                 type leafref {
-                    path "/sars:sonic-ars/sars:ARS_OBJECT/sars:ARS_OBJECT_LIST/sars:ars_name";
+                    path "/sars:sonic-ars/sars:ARS_PROFILE/sars:ARS_PROFILE_LIST/sars:profile_name";
                 }
-                mandatory true;
-                description "ARS object name that bound to this LAG";
+            }
+
+            leaf assign_mode {
+                type enumeration {
+                    enum per_flowlet_quality{
+                        description "Per flow-let assignment based on flow quality";
+                    }
+                    enum per_packet {
+                        description "Per packet flow assignment based on port load";
+                    }
+                }
+            }
+
+            leaf flowlet_idle_time {
+                type uint16;
+                description  "Idle duration in microseconds. This duration is to classifying a flow-let in a macro flow.";
+            }
+
+            leaf max_flows {
+                type uint32;
+                description  "Maximum number of flow states that can be maintained per ARS object.";
+            }
+
+            leaf primary_path_threshold {
+                type uint32;
+                description  "Primary path metric";
+            }
+
+            leaf alternative_path_cost {
+                type uint32;
+                description  "Alternative path cost";
             }
 
             leaf-list alternative_path_members {
@@ -544,38 +544,10 @@ Configuration exmaple:
 ```
 
 ```
-; New table ARS_OBJECT_TABLE
-; ARS object configuration
-
-key                     = ARS_OBJECT|ars_name
-
-;field                  = value
-
-assign_mode             = "per_flowlet_quality" / "per_packet"     ;port selection assignment mode
-flowlet_idle_time       = uint16                                   ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows               = uint16                                   ;Max number of flows supported for ARS
-primary_path_threshold  = uint16                                   ;Quality threshold for primary path 
-alternative_path_cost   = uint16                                   ;cost of switching to alternative path
-
-Configuration exmaple:
-
-"ARS_OBJECT" {
-    "flowlet_based": {
-        "assign_mode" : "per_flowlet_quality",
-        "flowlet_idle_time" : 256,
-        "max_flows" : 512,
-        "primary_path_threshold" : 100,
-        "alternative_path_cost": 250
-    }
-}
-
-```
-
-```
 ; New table ARS_INTERFACE_TABLE
 ; ARS interfaces configuration
 
-key                      = ARS_INTERFACE|ars_name|if_name          ;ifname is the name of the ARS-enabled interface
+key                      = ARS_INTERFACE|if_name          ;ifname is the name of the ARS-enabled interface
 
 Configuration exmaple:
 
@@ -589,18 +561,26 @@ Configuration exmaple:
 ; New table ARS_NEXTHOP_GROUP_TABLE
 ; Nexhop groups enabled for ARS
 
-key                      = ARS_NEXTHOP_GROUP|ip_prefix|vrf_name    ;Route prefix identifing nexhop-group 
+key                      = ARS_NEXTHOP_GROUP|profile_name|ip_prefix|vrf_name    ;Route prefix identifing nexhop-group 
 
 ;field                   = value
 
-ars_name                 = string                                  ;ARS object name
+assign_mode             = "per_flowlet_quality" / "per_packet"     ;member selection assignment mode
+flowlet_idle_time       = uint16                                   ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows               = uint16                                   ;Max number of flows supported for ARS
+primary_path_threshold  = uint16                                   ;Quality threshold for primary path 
+alternative_path_cost   = uint16                                   ;cost of switching to alternative path
 alternative_path_members = inet-address                            ;Alternative path members address
 
 Configuration exmaple:
 
 "ARS_NEXTHOP_GROUP": {
-    "192.168.0.100/32|default" : {
-        "ars_name" : "flowlet-based",
+    "ars_profile|192.168.0.100/32|default" : {
+        "assign_mode" : "per_flowlet_quality",
+        "flowlet_idle_time" : 256,
+        "max_flows" : 512,
+        "primary_path_threshold" : 100,
+        "alternative_path_cost": 250
         "alternative_path_members": {"1.1.1.1", "2.2.2.2"}
     }
 }
@@ -610,18 +590,26 @@ Configuration exmaple:
 ; New table ARS_PORTCHANNEL_TABLE
 ; LAGs enabled for ARS
 
-key                      = ARS_PORTCHANNEL|if_name                 ;Interface name identifing LAG 
+key                      = ARS_PORTCHANNEL|profile_name|if_name    ;Interface name identifing LAG 
 
 ;field                   = value
 
-ars_name                 = string                                  ;ARS object name
-alternative_path_members = string                                  ;Members of the LAG participating in alternative path
+assign_mode             = "per_flowlet_quality" / "per_packet"     ;port selection assignment mode
+flowlet_idle_time       = uint16                                   ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows               = uint16                                   ;Max number of flows supported for ARS
+primary_path_threshold  = uint16                                   ;Quality threshold for primary path 
+alternative_path_cost   = uint16                                   ;cost of switching to alternative path
+alternative_path_members= string                                   ;Members of the LAG participating in alternative path
 
 Configuration exmaple:
 
 "ARS_PORTCHANNEL": {
-    "PortChannel1" : {
-        "ars_name" : "flowlet-based",
+    "ars_profile|PortChannel1" : {
+        "assign_mode" : "per_flowlet_quality",
+        "flowlet_idle_time" : 256,
+        "max_flows" : 512,
+        "primary_path_threshold" : 100,
+        "alternative_path_cost": 250
         "alternative_path_members": {"Ethernet0", "Ethernet10"}
     }
 }
@@ -698,6 +686,7 @@ flowlet_idle_time       = uint16                                ;idle time for d
 max_flows               = uint16                                ;Max number of flows supported for ARS
 primary_path_threshold  = uint16                                ;Quality threshold for primary path 
 alternative_path_cost   = uint16                                ;cost of switching to alternative path
+alternative_path_members= string                                ;Members of the LAG participating in alternative path
 
 ```
 
@@ -716,7 +705,12 @@ key                     = ARS_INTERFACE_TABLE:ars_name:if_name          ;ifname 
 key                     = ARS_NEXTHOP_GROUP_TABLE:ip_prefix:vrf_name    ;Route prefix identifing nexhop-group 
 
 ;field                  = value
-ars_name                = string                                        ;ARS object name
+assign_mode             = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
+flowlet_idle_time       = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows               = uint16                                ;Max number of flows supported for ARS
+primary_path_threshold  = uint16                                ;Quality threshold for primary path 
+alternative_path_cost   = uint16                                ;cost of switching to alternative path
+alternative_path_members = inet-address                         ;Alternative path members address
 
 ```
 
@@ -727,7 +721,12 @@ ars_name                = string                                        ;ARS obj
 key                     = ARS_PORTCHANNEL_TABLE:if_name                 ;Interface name identifing LAG 
 
 ;field                  = value
-ars_name                = string                                        ;ARS object name
+assign_mode             = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
+flowlet_idle_time       = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows               = uint16                                ;Max number of flows supported for ARS
+primary_path_threshold  = uint16                                ;Quality threshold for primary path 
+alternative_path_cost   = uint16                                ;cost of switching to alternative path
+alternative_path_members= string                                ;Members of the LAG participating in alternative path
 
 ```
 
@@ -739,7 +738,7 @@ ars_name                = string                                        ;ARS obj
 key                     = ACL_RULE_TABLE:table_name:rule_name
 
 ;field                  = value
-DISABLE_ARS_FORWARDING  = boolean                                       ;ARS operation disabled on matching packets
+DISABLE_ARS_FORWARDING  = boolean                               ;ARS operation disabled on matching packets
 
 ```
 
