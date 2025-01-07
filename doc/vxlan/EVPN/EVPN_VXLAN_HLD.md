@@ -40,18 +40,14 @@
     - [4.3.7 MAC Route Handling](#437-mac-route-handling)
     - [4.3.8 MACIP Route Handling](#438-mac-ip-route-handling)
     - [4.3.9 IP Prefix Route Handling](#439-ip-prefix-(type-5)-route-handling)
-    - [4.3.10 ARP and ND Suppression](#4310-arp-and-nd-suppression)
-    - [4.3.11 Tunnel Statistics](#4311-support-for-tunnel-statistics)
+    - [4.3.10 Tunnel Statistics](#4310-support-for-tunnel-statistics)
   - [4.4 Linux Kernel](#44-linux-kernel)
 - [5 CLI](#5-cli)
   - [5.1 Click CLI](#51-click-based-cli)
     - [5.1.1 Configuration Commands](#511-configuration-commands)
     - [5.1.2 Show Commands](#512-show-commands)
-  - [5.2 KLISH CLI](#52-klish-cli)
-    - [5.2.1 Configuration Commands](#521-configuration-commands)
-    - [5.2.2 Show Commands](#522-show-commands)
-  - [5.3 CONFIG DB Examples](#53-config-db-examples)
-  - [5.4 APP DB Examples](#54-app-db-examples)
+  - [5.2 CONFIG DB Examples](#53-config-db-examples)
+  - [5.3 APP DB Examples](#54-app-db-examples)
 - [6 Serviceability and Debug](#6-serviceability-and-debug)
 - [7 Warm reboot Support](#7-warm-reboot-support)
 - [8 Limitations](#8-limitations)
@@ -76,6 +72,8 @@
 | 0.9 | | Nikhil Kelhapure | Warm Reboot Section added |
 | 1.0 | | Sudharsan D.G | Using P2MP Tunnel for Layer2 functionality |
 | 1.1 | | Adam Yeung | Update Fastboot limitation |
+| 1.2 | | Adam Yeung | Remove ARP and ND Suppression |
+
 
 
 # Definition/Abbreviation
@@ -113,7 +111,7 @@ The following are the benefits of an EVPN approach for VXLAN.
  - Auto discovery of remote VTEPs, Auto provisioning of tunnels and VLANs over VXLAN tunnels.
  - Support for L2 and L3 VPN services.
  - Allows for dual homing support.
- - Control plane MAC learning and ARP suppression leads to reduced flooding over an EVPN network.
+ - Control plane MAC learning.
  - Eases planning and configuration when supporting downstream assigned VNI for DCI usecases.
  - Aids in VM mobility.
 
@@ -128,7 +126,6 @@ This feature adds the following enhancements.
 - EVPN Type 5 route support based on VRF construct.
 - Routing of L3 (IPv4 and IPv6) traffic in and out of the VXLAN tunnel.
 - Overlay ECMP support.
-- EVPN ARP and ND suppression.
 
 The following item will be added in the future. 
 - Basic OAM support for tunnels -  tunnel operational status and statistics.
@@ -166,10 +163,9 @@ Following requirements are addressed by the design presented in this document:
 9. Support Routing In and Out of VXLAN Tunnel (RIOT) (MP-BGP EVPN Based)
     - Support Asymmetric Integrated Routing and Bridging (Asymmetric IRB)
     - Support Symmetric Integrated Routing and Bridging (Symmetric IRB)
-10. Support ARP/ND suppression.
-11. Support Tunnel ECMP and underlay path failovers.
-12. Support a common VLAN-VNI map for all the EVPN tunnels.
-13. Support monitoring and display of tunnel operational status.
+10. Support Tunnel ECMP and underlay path failovers.
+11. Support a common VLAN-VNI map for all the EVPN tunnels.
+12. Support monitoring and display of tunnel operational status.
 
 
 ## 2.2 Configuration and Management Requirements
@@ -266,14 +262,6 @@ __Figure 3: Symmetric IRB packet flow__
 Both asymmetric and symmetric IRB models will be supported in SONiC.
 
 
-
-#### ARP and ND Suppression
-
-EVPN Type-2 routes make remote MAC-IP binding available on local device. This allows any ARP/ND request originated by local hosts for the remote IP to be serviced locally using the MAC-IP binding. This reduces ARP flooding in the network.
-
-
-
-
 # 4 Feature Design
 
 
@@ -297,7 +285,6 @@ To support this feature, SAI will be extended as described in the SAI PRs below:
 
 - [Support for MAC Move](https://github.com/opencomputeproject/SAI/pull/1024)
 - [Support for L2VXLAN](https://github.com/opencomputeproject/SAI/pull/1025)
-- [Support for ARP/ND Suppression](https://github.com/opencomputeproject/SAI/pull/1056)
 
 ## 4.2 DB Changes
 
@@ -326,25 +313,6 @@ key = VXLAN_EVPN_NVO|nvo_name
                           ; nvo or VTEP name as a string
 ; field = value
 source_vtep = tunnel_name ; refers to the tunnel object created with SIP only.
-```
-
-**NEIGH_SUPPRESS_CFG_VLAN_TABLE**
-
-Producer:  config manager
-
-Consumer: VlanMgr
-
-Description: New table that stores neighbor suppression per VLAN configuration.
-
-Schema:
-
-```
-;New table
-;Stores Neigh Suppress configuration per VLAN
-
-key             = SUPPRESS_VLAN_NEIGH|"Vlan"vlanid       ; VLAN with prefix "NEIGH_SUPPRESS"
-suppress_neigh  = "ON" / "OFF" ; Default "OFF"
-
 ```
 
 **VRF_TABLE**
@@ -476,24 +444,6 @@ vni_label = VRF.vni            ; New Field. zero or more separated by ',' (empty
 router_mac = mac_address       ; New Field. zero or more remote router MAC address separated by ',' (empty value for non-vxlan next-hops)
 blackhole = BIT                ; Set to 1 if this route is a blackhole (or null0)
 
-```
-
-**NEIGH_SUPPRESS_APP_VLAN_TABLE**
-
-Producer: VlanMgr
-
-Consumer: VlanOrch
-
-Description: New table for per VLAN neighbor suppression configuration.
-
-Schema:
-
-```
-; New table
-;Stores Neigh Suppress configuration per VLAN
-
-key             = SUPPRESS_VLAN_NEIGH_TABLE:"Vlan"vlanid		; VLAN with prefix "NEIGH_SUPPRESS"
-suppress_neigh  = "ON" / "OFF" ; Default "OFF"
 ```
 
 ### 4.2.3 STATE_DB changes
@@ -886,9 +836,6 @@ MAC Move from remote tunnel-1 to remote tunnel-2 is handled as follows.
 - On identifying a MAC Move, BGP deletes the old entry from APP_VXLAN_FDB_TABLE and adds the new entry pointing to the tunnel-2.
 - fdborch processing is same as for a regular remote MAC add/delete.  
 
-
-
-
 ### 4.3.8 MAC-IP route handling
 
 Local MAC-IP bindings (ARP/ND entries) will be directly learnt by BGP (Zebra) from the IP stack.
@@ -897,8 +844,6 @@ Local MAC-IP bindings (ARP/ND entries) will be directly learnt by BGP (Zebra) fr
 __Figure 11: EVPN MAC-IP Route handling__
 
 The remote MAC-IP routes will be installed by BGP (Zebra) in Linux neighbor table against Vlan netdevice. Neighsyncd subscribes to neighbor entries and will receive remote MAC-IP bindings as well. These entries will continue to go into NEIGH_TABLE in APP_DB, and neighorch will update SAI database.
-
-
 
 ### 4.3.9 IP Prefix (Type-5) route handling
 
@@ -952,42 +897,24 @@ __Figure 13: EVPN_Type5_Route_Flow__
 
 __Figure 14: Associate VRF with L3 VNI__
 
-### 4.3.10 ARP and ND Suppression
-
-When the VNI is configured to support ARP and ND Suppression, the node will start to act as proxy for the remote neigbours. Hence avoiding the Arp & ND traffic across the tunnels. This also helps in faster convergence.
 
 
-![ARP and ND Suppression](images/Neigh-Suppress.PNG "Figure 14: ARP and ND Suppression flow")
 
-__Figure 15: ARP and ND Suppression flow__
-
-ARP and ND suppression functionality is achieved in Linux kernel by updating neighbour suppress flag in VXLAN netdevice. One netdevice is created per VNI.
-
-In the above diagram, When updating the ARP/ND Suppresion per VLAN , VlanMgr will find the appropiate Netdevice for the configured VLAN. It will
-update the corresponding Netdevice Flag.This information must be passed to SAI layer to make sure that ARP/ND packets are trapped instead of copy to cpu.
-For few platforms, SAI might be required to program the ARP Suppress packets differently from Normal ARP. 
-i.e. Special CPU Queue with more CIR (Commited Information Rate) as it is acting as Proxy.
-For those cases, the ARP and ND Suppress information per VLAN will be sent to SAI layer. 
-
-Since this feature is supported in kernel, it can scale for all 4k VLANs.
-
-Kernel uses a single flag for both ARP & ND suppression, We support only one CLI for configuring both ARP & ND suppression per VLAN.
-
-### 4.3.11 Support for Tunnel Statistics
+### 4.3.10 Support for Tunnel Statistics
 
 With the L2 and L3 support over VXLAN it is useful to support tunnel statistics. 
 
-#### 4.3.11.1 Counters supported. 
+#### 4.3.10.1 Counters supported. 
 
 The Packets Rx/Tx and Octets Rx/Tx will be counted per tunnel.
 These will be stored in the counters DB for each tunnel. 
 
-####  4.3.11.2 Changes to SwSS
+####  4.3.10.2 Changes to SwSS
 
 - Flexcounter group for tunnels added with poll interval of 1 second and stat mode being STAT_MODE_READ. This is called as part of VxlanOrch constructor.
 - VxlanOrch adds and removes tunnels in the FLEX_COUNTER_DB when a tunnel gets created or destroyed. Addition to the FLEX_COUNTER_DB will be done after all the SAI calls to create the tunnel. Removal from the DB will be done before  SAI calls to delete the tunnel. 
 
-#### 4.3.11.3 Changes to syncd
+#### 4.3.10.3 Changes to syncd
 
 - Flex counter and Flex group counter processing to also include tunnels. 
 - Include Tunnel counters as part of FlexCounter::collectCounters call. 
@@ -1066,10 +993,6 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 4. VRF VNI Mapping configuration
    - config vrf add_vrf_vni_map <vrf-name> <vni>
    - config vrf del_vrf_vni_map  <vrf-name>
-5. ARP suppression
-   - config neigh-suppress vlan <vlan-id>  <"on"/"off">
-   - vlanid represents the vlan_id and on/off is enabled or disabled. By default ARP/ND suppression is disabled. 
-
 ```
 
 #### 5.1.2 Show Commands
@@ -1217,61 +1140,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
                N/A bytes  
 ```
 
-### 5.2 KLISH CLI
-
-#### 5.2.1 Configuration Commands
-
-```
-1. VTEP Source IP configuration
-   - switch(config) interface vxlan <vtepname>
-   - switch(config-if-vtep1) [no] source-ip  <src_ipv4>
-   - <src_ipv4> is an IPV4 address in dotted notation A.B.C.D
-2. VLAN VNI Mapping configuration
-   - switch(config-if-vtep1) [no] map vlan <vidstart> vni <vnistart>  count <n>
-   - <n> is the number of mappings being configured. 
-   - <vidstart>, <vnistart> are the starting VID and VNID. 
-   - count is optional and when specified maps contigous sets of VIDs to contigous VNIDs
-4. VRF VNI Mapping configuration
-   - switch(config-if-vtep1) [no] map vrf VRF-Blue vni 10001
-5. Neighbor suppression
-   - switch(config) interface Vlan <vlan-id-xxx>
-   - switch(conf-if-vlanxxx)# [no] neigh-suppress
-   - This command will suppress both ARP & ND flooding over the tunnel when Vlan is extended.
-
-```
-
-#### 5.2.2 Show Commands
-
-     The show command outputs shall be from the exec mode of the KLISH shell and has the same
-     content as the show commands in the Click show section. 
-     In addition the following commands will be supported.
-
-```
-1. show vlan id and brief will be enhanced to display DIP. (tunnel members from  APP DB)
-
-2. show mac /show mac -v will be enhanced for EVPN MACs.
-   - Port column will display DIP. (ASIC DB view)
-   - Type column will display EVPN_static/EVPN_dynamic
-
-3. show NeighbourSuppressStatus to display Neighbor suppression status.
-
-```
-
-#### 5.2.3 Validations 
-
-```
-- VLAN to be configured before map vlan vni command is executed. 
-- VLAN cannot be deleted if there is a vlan vni map. 
-- source to be configured before  map vlan vni command is executed.
-- source cannot be removed if there are mappings already present. 
-- interface vxlan cannot be deleted if evpn nvo is configured. 
-- VRF is already configured    
-- VNI VLAN map should be configured prior to VRF VNI map configuration, since VNI should be both L2 and L3.
-- VNI VLAN map cannot be deleted if there is corresponding VRF VNI map.
-
-```
-
-### 5.3 CONFIG DB examples
+### 5.2 CONFIG DB examples
 
 ```
     "VXLAN_TUNNEL": {
@@ -1303,7 +1172,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 The VXLAN_TUNNEL and VXLAN_TUNNEL_MAP are existing tables and are shown here for completeness.
 The VXLAN_EVPN_NVO table is being added as part of the EVPN VXLAN feature.
 
-### 5.4 APP DB examples
+### 5.3 APP DB examples
 
 ```
 "VXLAN_REMOTE_VNI_TABLE:Vlan5:2.2.2.2": {
