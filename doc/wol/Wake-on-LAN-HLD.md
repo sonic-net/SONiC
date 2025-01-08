@@ -16,6 +16,7 @@
 | Revision | Date       | Author     | Change Description |
 | -------- | ---------- | ---------- | ------------------ |
 | 1.0      | Nov 7 2023 | Zhijian Li | Initial proposal   |
+| 1.1      | Oct 11 2024 | Wenda Chu | Extend wol with udp packet|
 
 ## Definitions/Abbreviations 
 
@@ -59,6 +60,9 @@ A new gNOI service `SONiCWolService` will be implemented in sonic-gnmi container
 
 ## Magic Packet
 
+Although the magic pattern is fixed which is a frame has 6 bytes of 0xFF, 16 repetitions of target mac and optional password bytes, we provide two flavours for uses, one is magic pattern in ethernet payload, another is magic pattern in UDP payload.
+
+### Magic Pattern in Ethernet Payload
 **Magic Packet** is a Ethernet frame with structure:
 
 * **Ethernet Frame Header**:
@@ -70,22 +74,43 @@ A new gNOI service `SONiCWolService` will be implemented in sonic-gnmi container
   * Sixteen repetitions of the target device's MAC address. [96 bytes]
   * (Optional) A four or six byte password. [4 or 6 bytes]
 
+```mermaid
+---
+title: Ethernet packet in bytes
+---
+packet-beta
+0-5: "Destination MAC"
+6-11: "Source MAC"
+12-13: "Ethertype"
+14-19: "Repetitions of 0xff"
+20-115: "Repetitions of target MAC(16 times in total)"
+116-121: "Password(0, 4 or 6 bytes)"
 ```
-Byte     |
-Offset   |0     |1     |2     |3     |4     |5     |
----------+------+------+------+------+------+------+
-       0 |             Destination MAC             |
-         +------+------+------+------+------+------+        ETHERNET FRAME
-       6 |               Source MAC                |           HEADER
-         +------+------+---------------------------+
-      12 | 0x08 | 0x42 |   \      \      \      \
-         +------+------+------+------+------+------+------------------------------
-      14 | 0xFF | 0xFF | 0xFF | 0xFF | 0xFF | 0xFF |
-         +------+------+------+------+------+------+        ETHERNET FRAME
-      20 | Target MAC (repeat 16 times, 96 bytes)  |           PAYLOAD
-         +-----------------------------------------+
-     116 |    Password (optional, 4 or 6 bytes)    |
-         +-----------------------------------------+
+
+### Magic Pattern in UDP Payload
+**Magic Packet** structure:
+* **Ethernet Header**:
+* **IP Header**:
+  * **Destination IP**: User provided target IP address, cloud be IPv4 address or IPv6 address.
+* **UDP Header**:
+  * **Destination Port**: User provided target port.
+* **UDP Payload**:
+  * Six bytes of all `0xff`. [6 bytes]
+  * Sixteen repetitions of the target device's MAC address. [96 bytes]
+  * (Optional) A four or six byte password. [4 or 6 bytes]
+
+```mermaid
+---
+title: UDP packet in bytes
+---
+packet-beta
+0-1: "Src Port"
+2-3: "Dst Port"
+4-5: "Length"
+6-7: "Checksum"
+8-13: "Repetitions of 0xff"
+14-109: "Repetitions of target MAC(16 times in total)"
+110-115: "Password(0, 4 or 6 bytes)"
 ```
 
 ## CLI Design
@@ -95,12 +120,15 @@ The `wol` command is used to send magic packet to target device.
 ### Usage
 
 ```
-wol <interface> <target_mac> [-b] [-p password] [-c count] [-i interval]
+wol <interface> <target_mac> [-b] [-u] [-a ip-address] [-t udp-port] [-p password] [-c count] [-i interval]
 ```
 
 - `interface`: SONiC interface name.
 - `target_mac`: a list of target devices' MAC address, separated by comma.
-- `-b`: Use broadcast MAC address instead of target device's MAC address as **Destination MAC Address in Ethernet Frame Header**.
+- `-b`: Use broadcast MAC address instead of target device's MAC address as **Destination MAC Address in Ethernet Frame Header**. This parameter can't use with `-u`.
+- `-u`: Let device send magic pattern in udp payload, when this flag was used, -b won't work and destination mac is set by device's networking stack. This parameter can't use with `-b`.
+- `-a ip-address`: This parameter only work when -u flag was used. Let device send packet to the ip address, this ip address cloud IPv4 address or IPv6 address. Default value is `255.255.255.255`.
+- `-t udp-port`: This parameter only work when -u flag was used. Let device send packet to the udp port. Default value is 9.
 - `-p password`: An optional 4 or 6 byte password, in ethernet hex format or quad-dotted decimal[^3].
 - `-c count`: For each target MAC address, the `count` of magic packets to send. `count` must between 1 and 5. Default value is 1. This param must use with `-i`.
 - `-i interval`: Wait `interval` milliseconds between sending each magic packet. `interval` must between 0 and 2000. Default value is 0. This param must use with `-c`.
@@ -112,6 +140,10 @@ admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55
 admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55 -b
 admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -p 00:22:44:66:88:aa
 admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -p 192.168.1.1 -c 3 -i 2000
+admin@sonic:~$ wol Ethernet10 00:11:22:33:44:55,11:33:55:77:99:bb -u
+admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -u -c 3 -i 2000
+admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -u -a 192.168.255.255
+admin@sonic:~$ wol Vlan1000 00:11:22:33:44:55,11:33:55:77:99:bb -u -a 192.168.255.255 -t 7
 ```
 
 For the 4th example, it specifise 2 target MAC addresses and `count` is 3. So it'll send 6 magic packets in total.
@@ -161,6 +193,8 @@ message WolResponse {
 | Input valid `count` and `interval`. | Parameter validation pass, send magic packet |
 | Input value of `count` or `interval` is out of range. | Parameter validation Fail |
 | Param `count` and `interval` not appear in input together. | Parameter validation Fail |
+| Param `-b` and `-u` appear in input together. | Parameter validation Fail |
+| Param `-u` is required when using `-a ip-address` or `-t udp-port`. | Parameter validation Fail |
 | Mock a send magic packet failure (e.g., socket error) | Return user friendly error message |
 
 ### Functional Test
