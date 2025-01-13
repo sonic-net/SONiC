@@ -1,8 +1,8 @@
 # Custom ACL Based Metering
 
-### Table Of Content
+### Table Of Contents
 - [Custom ACL Based Metering](#custom-acl-based-metering)
-    - [Table Of Content](#table-of-content)
+    - [Table Of Contents](#table-of-contents)
     - [Revision](#revision)
     - [Scope](#scope)
     - [Definitions/Abbreviations](#definitionsabbreviations)
@@ -13,13 +13,13 @@
       - [CLI Requirements](#cli-requirements)
     - [Architecture Design](#architecture-design)
     - [High-Level Design](#high-level-design)
-      - [Modules and Sub-Modules](#modules-and-sub-modules)
-        - [*Image 1: Configuration Flow Overview*](#image-1-configuration-flow-overview)
+      - [Custom ACL Mechanism](#custom-acl-mechanism)
+      - [**Configuration Flow**](#configuration-flow)
     - [Configuration and Management](#configuration-and-management)
       - [Config DB Enhancements](#config-db-enhancements)
-        - [ACL table](#acl-table)
-          - [Custom ACL Table Type --\> no change](#custom-acl-table-type----no-change)
-        - [ACL rule](#acl-rule)
+        - [ACL Tables Table --\> No Change](#acl-tables-table----no-change)
+        - [ACL Table Type Table](#acl-table-type-table)
+        - [ACL Rules Table](#acl-rules-table)
       - [YANG Model Enhancements](#yang-model-enhancements)
       - [CLI Config Commands](#cli-config-commands)
       - [CLI Show Commands](#cli-show-commands)
@@ -30,6 +30,7 @@
       - [Unit Test Cases](#unit-test-cases)
       - [System Test Cases](#system-test-cases)
       - [CLI Level Tests](#cli-level-tests)
+        - [Negative Test Cases](#negative-test-cases)
       - [DB validation](#db-validation)
     - [Open/Action Items](#openaction-items)
       - [Related HLDs](#related-hlds)
@@ -60,27 +61,32 @@ This document describes the Custom ACL Based Metering (CABM) feature design in S
 ---
 ### Overview
 
-Policers in networking are responsible for **metering** (Monitoring the rate of traffic) and **marking** (Flagging traffic that exceeds defined limits) traffic based on predefined criteria.
-By applying policers to ACL rules, SONiC can effectively control the flow of network traffic, ensuring fairness, optimizing bandwidth utilization, and preventing network congestion.
+The Custom ACL-Based Metering (CABM) feature extends SONiC's capabilities to provide granular traffic management by integrating policers with ACL rules.
+Policers are essential tools for **metering** (Monitoring the rate of traffic) and **marking** (Flagging traffic that exceeds defined limits) traffic based on predefined criteria.
+
+By leveraging flexible ACL tables with customized match fields and action sets, CABM allows customers to implement smart traffic policies dedicated to their needs.
+This flexibility ensures scalability and adaptability in diverse network environments.
 
 Usage examples:
-- **Security**: Custom ACL Based Metering can be used to guard against **network storms or DDoS attacks** by limiting traffic rates.
-- **Fair Bandwidth Distribution**: Ensures bandwidth is allocated effectively across applications and services.
+- **Security**: Custom ACL Based Metering can be used to guard against **DoS attacks (such as TCP SYN attacks)**.
+  This can be done by defining rules that detect specific traffic patterns (e.g., TCP SYN packets) and applies rate-limiting policers to minimize their impact.
+- **Efficient Bandwidth Distribution**: Ensures bandwidth is allocated effectively across applications and services by rate-limiting specific traffic types (e.g., backup traffic sent with SCP or FTP), ensuring priority traffic can operate without interruption.
 
 ---
 ### Requirements
 #### Functional Requirements
-- Backward compatibility for existing ACL features - If policer is not set, the system will function as it did previously.
-- Ability to config policers with ACL entries.
-- Support existing Policer types (Policer mode, meter_type).
-- Support custom ACL type mechanism with policers.
+- Backward compatibility for existing ACL features.
+- Ability to bind policers to ACL entries.
+- Extend [ACL User Defined Table Type](https://github.com/sonic-net/SONiC/blob/master/doc/acl/ACL-Table-Type-HLD.md) (custom ACL type) mechanism with policers.
+- Ability to have customer specific table that contains a list of actions and match fields.
+- Gracefully handle unsupported or invalid configurations (e.g., rules referencing non-existent policers).
 ### Scalability Requirements:
-- Support multiple rules within ACL to be bound to one policer.
+- Support binding of multiple ACL rules to a single policer.
 - Query and validate SAI capabilities.
 #### CLI Requirements
-- Bind policers with ACL rules.
-- Unbind policer from ACL rules.
-- Show ACLs with policers
+- Extend ACL table command to support policer.
+- Extend ACl rules command to bind and unbind rule to policers.
+- Support show ACL rules command with policers.
 ---
 ### Architecture Design
 
@@ -89,50 +95,50 @@ No SONiC architecture changes are required as the existing infrastructure is bei
 ---
 ### High-Level Design
 
-#### Modules and Sub-Modules
+#### Custom ACL Mechanism
+SONiC currently supports [ACL User Defined Table Types](https://github.com/sonic-net/SONiC/blob/master/doc/acl/ACL-Table-Type-HLD.md) that enables customers to define flexible ACL tables tailored to specific operational needs.
+This mechanism extends SONiC’s ACL framework by allowing users to specify their own match fields and actions supporting a wide range of traffic management policies.
 
-- **SWSS**
-  - ACL-Orch
-    - Set or disable policer action.
-    - Query from SAI the ACL actions capability.
-    - Allow policer action only when the capability is enabled.
-    - Parse policer action fields.
-  - Policer-Orch
-    - Validate policer info.
-    - Map policer name to policer object ID.
-    - Prevent from deleting policer that bound to ACLs.
+Custom ACL Based Metering (CABM) builds directly upon this custom ACL mechanism by introducing support for policer actions within custom ACL table types, allowing customers to enforce advanced traffic management policies.
 
-##### *Image 1: Configuration Flow Overview*
+#### **Configuration Flow**
 
 ![alt text](Config_Flow.jpg)
 
+
+1. Query Capabilities on Initialization: ACL-Orch queries SAI to retrieve supported ACL actions, including SAI_ACL_ACTION_TYPE_SET_POLICER.
+2. Create Policer Object: Policer configurations are defined in POLICER_TABLE, validated, and created in SAI.
+3. Define Custom ACL Table Type: Users define custom ACL table types in ACL_TABLE_TYPE with specified matches and actions, including POLICER_ACTION.
+4. Verify Table Capabilities: ACL-Orch ensures that the custom table type's action set, including POLICER_ACTION, is supported by the queried SAI capabilities.
+5. Create ACL Table: Add an ACL table in ACL_TABLE, referencing the custom table type and validates the configuration.
+6. Create ACL Rule: Add an ACL rule in ACL_RULE, referencing actions, including policer_action.
+7. Verify Rule Compatibility: ACL-Orch validates that the rule action compatibility with the associated ACL table type.
+8. Verify and Map Policer to SAI Object: Policer-Orch maps the policer_action name if it exists from CONFIG_DB to SAI object IDs.
+9. Program ACL Rule in SAI: ACL-Orch programs ACL rule entries into SAI associating them with the policer object.
 
 ---
 
 ### Configuration and Management
 #### Config DB Enhancements
 
-##### ACL table
-- When a new ACL is created, SAI API should get a packet-action list of supported actions that could be used in the rules belonging to this table.
-- An existing mechanism allows defining **custom ACL table types** and specifying the desired combination of actions and match fields (ACL User Defined Table Type HLD).
-- To support the new policer action, the custom table type will be extended with the policer action attribute - SAI_ACL_ACTION_TYPE_SET_POLICER.
+##### ACL Tables Table --> No Change
 
-###### Custom ACL Table Type --> no change
+##### ACL Table Type Table
+When a new ACL table is created, SAI needs to receive a list of supported actions which the rules belonging to this table are allowed to use.
+To support the new policer action, the custom table types table schema will be extended with a policer action attribute - **"POLICER_ACTION"** for the actions attribute field.
+
 ```
 key: ACL_TABLE_TYPE|<TYPE_NAME>               ; key of the ACL table type entry.
                                               ; the name is arbitary name user chooses.
-; field       = value
+;field        = value
 matches       = match-list                    ; list of matches for this table.
                                               ; matches are same as in ACL_RULE table.
 actions       = action-list                   ; list of actions for this table.
-                                              ; actions are same as in ACL_RULE table.
-bind_points   = bind-points-list              ; list of bind point types for this table.
+                                              ; ["REDIRECT_ACTION", ... , "POLICER_ACTION"]
 ```
 
-##### ACL rule
-- The CONFIG_DB ACL rules table schema will be updated with a new attribute **"policer_action"** with the value of one of the existing policer object names.
-- This proposed schema is flexible and can support rules with more than a single action.
-  - The existing design of SONiC ACL allows only one action to be defined per rule, this consept will be kept.
+##### ACL Rules Table
+The CONFIG_DB ACL Rules Table schema will be updated with a new attribute field **"policer_action"** with the value of one of the existing policer object names.
 
 ```
 key: ACL_RULE|<TABLE_NAME>|<RULE_NAME>        ; key of the rule entry in the table,
@@ -146,14 +152,7 @@ priority      = 1*3DIGIT                      ; rule priority. Valid values rang
 
 packet_action = "FORWARD"/"DROP"/"DO_NOT_NAT" ; action when the fields are matched
 
-redirect_action = 1*255CHAR                   ; redirect parameter
-                                              ; This parameter defines a destination for redirected packets
-                                              ; it could be:
-                                              : name of physical port.          Example: "Ethernet10"
-                                              : name of LAG port                Example: "PortChannel5"
-                                              : next-hop ip address (in global) Example: "10.0.0.1"
-                                              : next-hop ip address and vrf     Example: "10.0.0.2@Vrf2"
-                                              : next-hop ip address and ifname  Example: "10.0.0.3@Ethernet1"
+mirror_ingress_action = 1*255VCHAR            ; refer to the mirror session
 ...
 + policer_action = 1*255VCHAR                 ; refer to the policer object name
 ```
@@ -170,6 +169,12 @@ sonic-yang-models/yang-templates/**sonic-acl**.yang.j2:
     container sonic-acl {
         container ACL_RULE {
             ...
+            leaf MIRROR_INGRESS_ACTION {
+                type leafref {
+                    path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:MIRROR_SESSION_LIST/sms:name";
+                }
+            }
+
 +           leaf POLICER_ACTION {
 +               type leafref {
 +                   path "/policer:sonic-policer/policer:POLICER/policer:POLICER_LIST/policer:name";
@@ -246,8 +251,10 @@ Two options to bind policer with ACL rules:
                 "SRC_IP",
             ],
             "ACTIONS": [
-                "POLICER_ACTION"
+             "REDIRECT_ACTION",
+          +  "POLICER_ACTION"
             ],
+          }
         }
 
         /* create ACL policer type table */
@@ -277,7 +284,7 @@ Two options to bind policer with ACL rules:
             "priority": "80",
           + "policer_action": "M_POLICER_93",
             "IP_PROTOCOL": "TCP",
-            "SRC_IP": "192.168.1/24",
+            "SRC_IP": "192.168.0/24",
             "DST_IP": "10.5.170.0/24",
             "L4_SRC_PORT_RANGE": "1024-65535",
             "L4_DST_PORT_RANGE": "80-89",
@@ -301,7 +308,7 @@ Two options to bind policer with ACL rules:
 
     # Example:
     config acl add table "MY_ACL_1" "Custom_1_POLICER"
-    config acl update full "MY_ACL_2" --policer_name "M_POLICER_7" rules_example.json
+    config acl update incremental "MY_ACL_1" --policer_name "M_POLICER_7" rules_example.json
 
     # note that these commands wrapps "AclLoader" utility script that uses the external "open_config" lib
 ```
@@ -321,26 +328,16 @@ show acl rule [OPTIONS] [TABLE_NAME] [RULE_ID]
 
 
 # Example:
-admin@sonic:~$ show acl table
-Name           Type               Binding    Description                 Stage    Status
------------    ---------------    ---------  -------------------------- -------  -----------------
-MY_ACL_1       CUSTOM_1_POLICER   Ethernet2  Limit some traffic flows    Ingress  ACTIVE
-                                  Ethernet4
-                                  Ethernet7
-
-MY_ACL_2       CUSTOM_3           Ethernet8  Limit AND redirect traffic  Ingress  ACTIVE
-
-
 admin@sonic:~$ show acl rule
 Table         Rule          Priority      Actions                    Match
 --------      ------------  ----------    -------------------------  ----------------------------
-MY_ACL_1      MY_RULE_1     70            POLICER: M_POLICER_7       IP_PROTOCOL: 17
+MY_ACL_1      MY_RULE_1     60            POLICER:  M_POLICER_7      IP_PROTOCOL: 17
 
+MY_ACL_1      MY_RULE_2     70            POLICER:  M_POLICER_93     L4_SRC_PORT: 80
 
-MY_ACL_2      MY_RULE_2     80            POLICER: M_POLICER_93      L4_SRC_PORT: 80
+MY_ACL_1      MY_RULE_3     80            POLICER:  M_POLICER_93     L4_SRC_PORT: 443
 
-
-MY_ACL_2      MY_RULE_3     90            REDIRECT: Ethernet8        L4_SRC_PORT: 25
+MY_ACL_1      MY_RULE_4     90            REDIRECT: Ethernet8        L4_SRC_PORT: 20
 ```
 
 ---
@@ -376,18 +373,27 @@ During warmboot or fastboot, both ACL rules and policers configurations are rest
 ---
 ### Testing Requirements/Design
 #### Unit Test Cases
+- Create custom acl table type with policer attribute.
+- Create acl table of the custom type and add acl rule with policer action.
+- Delete acl rule with valid policer action.
+- Create acl rule with valid policer and try to delete the policer.
+- Create acl rule with action as non-existent policer.
 - Test ACL-Orch and Policer-Orch logic for correct processing.
 #### System Test Cases
 - Ensure correct packet marking based on policer configurations.
 - Test different traffic patterns and rates to ensure consistent marking.
 - Warm/Fast reboot tests
-  - verify that policer configurations are preserved across reboots
-  - verify that ACL configurations are preserved across reboots
+  - verify that policer configurations are preserved across reboots.
+  - verify that ACL configurations are preserved across reboots.
 #### CLI Level Tests
-- Verify command run successfully with valid parameter enable/disable.
+- Verify command run successfully with valid policer parameter.
 - Verify command abort with invalid policer parameter.
-- Verify command output.
+- Verify show acl rule command display the policer parameter.
 - Verify binding and unbinding policers with ACL rules.
+##### Negative Test Cases
+  - Configure a rule with an action not listed in the custom ACL table type's action set, verify that the configuration is rejected with an appropriate error message.
+  - Configure a rule with a non-existent policer name, verify that the configuration is rejected with an appropriate error message.
+  - Attempt to delete a policer referenced by active ACL rules, verify that the deletion is blocked with an appropriate error message.
 #### DB validation
 - Verify CONFIG DB is correctly updated.
 ---
