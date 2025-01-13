@@ -93,7 +93,9 @@ routeOrch monitors operations on Route related tables in APPL_DB and converts th
 portsorch handles all ports-related configurations. New functionality for enabling ARS on ports.
 
 #### AclOrch
-aclorch is used to deal with configurations of ACL table and ACL rules. New rule action for control ARS operation.
+aclorch is used to deal with configurations of ACL table and ACL rules.
+New rule action introduced to control ARS operation.
+New ACL table type will be added - TABLE_TYPE_ARS that contains the DISABLE_ARS_FORWARDING action.
 
 
 ### High-Level Design 
@@ -127,7 +129,10 @@ New orchagent: ArsOrch responsible for
 4. Allow configuration of path metrics
 5. Disabling ARS with ACL action
 
-### SAI API 
+##### New ACL table type
+* To support the new action DISABLE_ARS_FORWARDING, a new ACL table type will be added - TABLE_TYPE_ARS that contains the DISABLE_ARS_FORWARDING action.
+
+### SAI API
 
 No new SAI apis or attributes.
 
@@ -436,6 +441,16 @@ SAI usage and supported attributes:
     /* end of container ARS_PORTCHANNEL */
 
 ```
+##### sonic_types changes
+
+````
+typedef acl_table_type {
+     type enumeration {
+...
+         enum ARS;
+     }
+ }
+ ````
 
 ##### ACL_RULE changes
 
@@ -472,29 +487,29 @@ SAI usage and supported attributes:
     }
 ```
 
-#### Config DB Enhancements  
+#### Config DB Enhancements
 
 ```
 ; New container ARS_PROFILE_TABLE
 ; ARS global configuration
 
-key                     = ARS_PROFILE|profile_name
+key                      = ARS_PROFILE|profile_name
 
-;field                  = value
+;field                   = value
 
-algorithm               = "ewma"        ;Path quality calculation algorithm
-max_flows               = uint32        ;Maximum number of flows that can be maintained for ARS
-sampling_interval       = uint32        ;Sampling interval in microseconds
-past_load_min_value     = uint16        ;Minimum value of Past load range.
-past_load_max_value     = uint16        ;Maximum value of Past load range.
-past_load_weight        = uint16        ;Weight of the past load
-future_load_min_value   = uint16        ;Minimum value of Future load range.
-future_load_max_value   = uint16        ;Maximum value of Future load range.
-future_load_weight      = uint16        ;Weight of the future load
-current_load_min_value  = uint16        ;Minimum value of Current load range.
-current_load_max_value  = uint16        ;Maximum value of Current load range.
-ipv4_enable             = boolean       ;Whether ARS is enabled over IPv4 packets
-ipv6_enable             = boolean       ;Whether ARS is enabled over IPv6 packets
+algorithm                = "ewma"        ;Path quality calculation algorithm
+max_flows                = uint32        ;Maximum number of flows that can be maintained for ARS
+sampling_interval        = uint32        ;Sampling interval in microseconds
+past_load_min_value      = uint16        ;Minimum value of Past load range.
+past_load_max_value      = uint16        ;Maximum value of Past load range.
+past_load_weight         = uint16        ;Weight of the past load
+future_load_min_value    = uint16        ;Minimum value of Future load range.
+future_load_max_value    = uint16        ;Maximum value of Future load range.
+future_load_weight       = uint16        ;Weight of the future load
+current_load_min_value   = uint16        ;Minimum value of Current load range.
+current_load_max_value   = uint16        ;Maximum value of Current load range.
+ipv4_enable              = boolean       ;Whether ARS is enabled over IPv4 packets
+ipv6_enable              = boolean       ;Whether ARS is enabled over IPv6 packets
 
 
 Configuration exmaple:
@@ -520,12 +535,12 @@ Configuration exmaple:
 ; New table ARS_QUANTIZATION_BANDS_TABLE
 ; ARS path quality quantization configuration
 
-key                 = ARS_QUANTIZATION_BANDS|profile_name|band_index
+key                      = ARS_QUANTIZATION_BANDS|profile_name|band_index
 
-;field              = value
+;field                   = value
 
-min_value           = uint16            ;Minimum value for this quantization band
-max_value           = uint16            ;Maximum value for this quantization band
+min_value                = uint16            ;Minimum value for this quantization band
+max_value                = uint16            ;Maximum value for this quantization band
 
 Configuration exmaple:
 
@@ -565,11 +580,11 @@ key                      = ARS_NEXTHOP_GROUP|profile_name|ip_prefix|vrf_name    
 
 ;field                   = value
 
-assign_mode             = "per_flowlet_quality" / "per_packet"     ;member selection assignment mode
-flowlet_idle_time       = uint16                                   ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows               = uint16                                   ;Max number of flows supported for ARS
-primary_path_threshold  = uint16                                   ;Quality threshold for primary path 
-alternative_path_cost   = uint16                                   ;cost of switching to alternative path
+assign_mode              = "per_flowlet_quality" / "per_packet"     ;member selection assignment mode
+flowlet_idle_time        = uint16                                   ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows                = uint16                                   ;Max number of flows supported for ARS
+primary_path_threshold   = uint16                                   ;Quality threshold for primary path 
+alternative_path_cost    = uint16                                   ;cost of switching to alternative path
 alternative_path_members = inet-address                            ;Alternative path members address
 
 Configuration exmaple:
@@ -594,12 +609,12 @@ key                      = ARS_PORTCHANNEL|profile_name|if_name    ;Interface na
 
 ;field                   = value
 
-assign_mode             = "per_flowlet_quality" / "per_packet"     ;port selection assignment mode
-flowlet_idle_time       = uint16                                   ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows               = uint16                                   ;Max number of flows supported for ARS
-primary_path_threshold  = uint16                                   ;Quality threshold for primary path 
-alternative_path_cost   = uint16                                   ;cost of switching to alternative path
-alternative_path_members= string                                   ;Members of the LAG participating in alternative path
+assign_mode              = "per_flowlet_quality" / "per_packet"     ;port selection assignment mode
+flowlet_idle_time        = uint16                                   ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows                = uint16                                   ;Max number of flows supported for ARS
+primary_path_threshold   = uint16                                   ;Quality threshold for primary path 
+alternative_path_cost    = uint16                                   ;cost of switching to alternative path
+alternative_path_members = string                                   ;Members of the LAG participating in alternative path
 
 Configuration exmaple:
 
@@ -620,11 +635,11 @@ Configuration exmaple:
 ; ACL action for disabling ARS
 
 
-key                     = ACL_RULE|ACL_TABLE_NAME|RULE_NAME
+key                      = ACL_RULE|ACL_TABLE_NAME|RULE_NAME
 
-;field                  = value
+;field                   = value
 
-DISABLE_ARS_FORWARDING  = boolean                                  ;ARS operation disabled on matching packets
+DISABLE_ARS_FORWARDING   = boolean                                  ;ARS operation disabled on matching packets
 
 Configuration example:
 
@@ -642,23 +657,23 @@ Configuration example:
 ; New container ARS_PROFILE_TABLE
 ; ARS global configuration
 
-key                     = ARS_PROFILE_TABLE:profile_name
+key                      = ARS_PROFILE_TABLE:profile_name
 
-;field                  = value
+;field                   = value
 
-algorithm               = "ewma"        ;Path quality calculation algorithm
-max_flows               = uint32        ;Maximum number of flows that can be maintained for ARS
-sampling_interval       = uint32        ;Sampling interval in microseconds
-past_load_min_value     = uint16        ;Minimum value of Past load range.
-past_load_max_value     = uint16        ;Maximum value of Past load range.
-past_load_weight        = uint16        ;Weight of the past load
-future_load_min_value   = uint16        ;Minimum value of Future load range.
-future_load_max_value   = uint16        ;Maximum value of Future load range.
-future_load_weight      = uint16        ;Weight of the future load
-current_load_min_value  = uint16        ;Minimum value of Current load range.
-current_load_max_value  = uint16        ;Maximum value of Current load range.
-ipv4_enable             = boolean       ;Whether ARS is enabled over IPv4 packets
-ipv6_enable             = boolean       ;Whether ARS is enabled over IPv6 packets
+algorithm                = "ewma"        ;Path quality calculation algorithm
+max_flows                = uint32        ;Maximum number of flows that can be maintained for ARS
+sampling_interval        = uint32        ;Sampling interval in microseconds
+past_load_min_value      = uint16        ;Minimum value of Past load range.
+past_load_max_value      = uint16        ;Maximum value of Past load range.
+past_load_weight         = uint16        ;Weight of the past load
+future_load_min_value    = uint16        ;Minimum value of Future load range.
+future_load_max_value    = uint16        ;Maximum value of Future load range.
+future_load_weight       = uint16        ;Weight of the future load
+current_load_min_value   = uint16        ;Minimum value of Current load range.
+current_load_max_value   = uint16        ;Maximum value of Current load range.
+ipv4_enable              = boolean       ;Whether ARS is enabled over IPv4 packets
+ipv6_enable              = boolean       ;Whether ARS is enabled over IPv6 packets
 ```
 
 
@@ -666,27 +681,27 @@ ipv6_enable             = boolean       ;Whether ARS is enabled over IPv6 packet
 ; New table ARS_QUANTIZATION_BANDS_TABLE
 ; ARS path quality quantization configuration
 
-key                 = ARS_QUANTIZATION_BANDS_TABLE:profile_name:band_index
+key                      = ARS_QUANTIZATION_BANDS_TABLE:profile_name:band_index
 
-;field              = value
+;field                   = value
 
-min_value           = uint16            ;Minimum value for this quantization band
-max_value           = uint16            ;Maximum value for this quantization band
+min_value                = uint16            ;Minimum value for this quantization band
+max_value                = uint16            ;Maximum value for this quantization band
 ```
 
 ```
 ; New table ARS_OBJECT_TABLE
 ; ARS object configuration
 
-key                     = ARS_OBJECT_TABLE:ars_name
+key                      = ARS_OBJECT_TABLE:ars_name
 
-;field                  = value
-assign_mode             = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
-flowlet_idle_time       = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows               = uint16                                ;Max number of flows supported for ARS
-primary_path_threshold  = uint16                                ;Quality threshold for primary path 
-alternative_path_cost   = uint16                                ;cost of switching to alternative path
-alternative_path_members= string                                ;Members of the LAG participating in alternative path
+;field                   = value
+assign_mode              = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
+flowlet_idle_time        = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows                = uint16                                ;Max number of flows supported for ARS
+primary_path_threshold   = uint16                                ;Quality threshold for primary path 
+alternative_path_cost    = uint16                                ;cost of switching to alternative path
+alternative_path_members = string                                ;Members of the LAG participating in alternative path
 
 ```
 
@@ -694,7 +709,7 @@ alternative_path_members= string                                ;Members of the 
 ; New table ARS_INTERFACE_TABLE
 ; ARS interfaces configuration
 
-key                     = ARS_INTERFACE_TABLE:ars_name:if_name          ;ifname is the name of the ARS-enabled interface
+key                      = ARS_INTERFACE_TABLE:ars_name:if_name          ;ifname is the name of the ARS-enabled interface
 
 ```
 
@@ -702,14 +717,14 @@ key                     = ARS_INTERFACE_TABLE:ars_name:if_name          ;ifname 
 ; New table ARS_NEXTHOP_GROUP_TABLE
 ; Nexhop groups enabled for ARS
 
-key                     = ARS_NEXTHOP_GROUP_TABLE:ip_prefix:vrf_name    ;Route prefix identifing nexhop-group 
+key                      = ARS_NEXTHOP_GROUP_TABLE:ip_prefix:vrf_name    ;Route prefix identifing nexhop-group 
 
-;field                  = value
-assign_mode             = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
-flowlet_idle_time       = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows               = uint16                                ;Max number of flows supported for ARS
-primary_path_threshold  = uint16                                ;Quality threshold for primary path 
-alternative_path_cost   = uint16                                ;cost of switching to alternative path
+;field                   = value
+assign_mode              = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
+flowlet_idle_time        = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows                = uint16                                ;Max number of flows supported for ARS
+primary_path_threshold   = uint16                                ;Quality threshold for primary path 
+alternative_path_cost    = uint16                                ;cost of switching to alternative path
 alternative_path_members = inet-address                         ;Alternative path members address
 
 ```
@@ -718,15 +733,15 @@ alternative_path_members = inet-address                         ;Alternative pat
 ; New table ARS_PORTCHANNEL_TABLE
 ; LAGs enabled for ARS
 
-key                     = ARS_PORTCHANNEL_TABLE:if_name                 ;Interface name identifing LAG 
+key                      = ARS_PORTCHANNEL_TABLE:if_name                 ;Interface name identifing LAG 
 
-;field                  = value
-assign_mode             = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
-flowlet_idle_time       = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows               = uint16                                ;Max number of flows supported for ARS
-primary_path_threshold  = uint16                                ;Quality threshold for primary path 
-alternative_path_cost   = uint16                                ;cost of switching to alternative path
-alternative_path_members= string                                ;Members of the LAG participating in alternative path
+;field                   = value
+assign_mode              = "per_flowlet_quality" / "per_packet"  ;port selection assignment mode
+flowlet_idle_time        = uint16                                ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows                = uint16                                ;Max number of flows supported for ARS
+primary_path_threshold   = uint16                                ;Quality threshold for primary path 
+alternative_path_cost    = uint16                                ;cost of switching to alternative path
+alternative_path_members = string                                ;Members of the LAG participating in alternative path
 
 ```
 
@@ -746,22 +761,20 @@ DISABLE_ARS_FORWARDING  = boolean                               ;ARS operation d
 
 Following counters defined in SAI and will be supported via FlexCounters:
 
-| Level | Supported SAI counters |
+| Level            | Supported SAI counters  |
 | ---------------- | ----------------------- |
-|lag | SAI_LAG_ATTR_ARS_PACKET_DROPS<br>SAI_LAG_ATTR_ARS_PORT_REASSIGNMENTS
-| nexthop group|SAI_NEXT_HOP_GROUP_ATTR_ARS_PACKET_DROPS<br>SAI_NEXT_HOP_GROUP_ATTR_ARS_NEXT_HOP_REASSIGNMENTS<br>SAI_NEXT_HOP_GROUP_ATTR_ARS_PORT_REASSIGNMENTS|
+|lag               | SAI_LAG_ATTR_ARS_PACKET_DROPS<br>SAI_LAG_ATTR_ARS_PORT_REASSIGNMENTS
+| nexthop group    |SAI_NEXT_HOP_GROUP_ATTR_ARS_PACKET_DROPS<br>SAI_NEXT_HOP_GROUP_ATTR_ARS_NEXT_HOP_REASSIGNMENTS<br>SAI_NEXT_HOP_GROUP_ATTR_ARS_PORT_REASSIGNMENTS|
 
 
 ### Warmboot and Fastboot Design Impact  
-
-Warmboot for SWSS container will be supported.
+During warmboot or fastboot, both ARS configurations is restored either from the CONFIG_DB or APPL_DB.
 
 ### Memory Consumption
 This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration. 
 
 ### Restrictions/Limitations
-
-Due to hw resources allocations, all ARS configuration must be done prior to routing configuration.???????????
+Due to nature of ARS hw implmentation, all ARS configuration needs to be tested for capability support.
 
 ### Testing Requirements/Design  
 Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
@@ -774,7 +787,7 @@ Example sub-sections for unit test cases and system test cases are given below.
 
 ### Open/Action items - if any 
 
-* ACL ARS enable
-* ACL ARS monitoring
-* Samplepacket binding
-* CLI commands
+* ACL ARS enable - no support (our use-case white-list ARS flow + black-list ACL)
+* ACL ARS monitoring - no support
+* Samplepacket binding - no support
+* CLI commands - for counters
