@@ -46,8 +46,8 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 1. Kernel upgraded from 6.1.38-4 to 6.1.94-1 for SONiC release.<br>
    Change log: https://cdn.kernel.org/pub/linux/kernel/v6.x/ChangeLog-6.1.94
 
-2. Docker is with 27.4.0-debian-stretch  <br>
-   Change log: https://docs.docker.com/engine/release-notes/27.0/#2740
+2. Docker is with 24.0.2-1~debian-stretch  <br>
+   Change log: https://docs.docker.com/engine/release-notes/24.0/#2402
 
 
 # Feature List
