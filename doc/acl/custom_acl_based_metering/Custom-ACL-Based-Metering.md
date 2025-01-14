@@ -17,9 +17,9 @@
       - [**Configuration Flow**](#configuration-flow)
     - [Configuration and Management](#configuration-and-management)
       - [Config DB Enhancements](#config-db-enhancements)
+        - [ACL Table Type Table --\> New Action Attribute](#acl-table-type-table----new-action-attribute)
         - [ACL Tables Table --\> No Change](#acl-tables-table----no-change)
-        - [ACL Table Type Table](#acl-table-type-table)
-        - [ACL Rules Table](#acl-rules-table)
+        - [ACL Rules Table --\> New Field](#acl-rules-table----new-field)
       - [YANG Model Enhancements](#yang-model-enhancements)
       - [CLI Config Commands](#cli-config-commands)
       - [CLI Show Commands](#cli-show-commands)
@@ -81,7 +81,7 @@ Usage examples:
 - Ability to have customer specific table that contains a list of actions and match fields.
 - Gracefully handle unsupported or invalid configurations (e.g., rules referencing non-existent policers).
 ### Scalability Requirements:
-- Support binding of multiple ACL rules to a single policer.
+- Support binding of multiple ACL rules to a single policer - the policer rates will be shared cumulatively.
 - Query and validate SAI capabilities.
 #### CLI Requirements
 - Extend ACL table command to support policer.
@@ -106,10 +106,10 @@ Custom ACL Based Metering (CABM) builds directly upon this custom ACL mechanism 
 ![alt text](Config_Flow.jpg)
 
 
-1. Query Capabilities on Initialization: ACL-Orch queries SAI to retrieve supported ACL actions, including SAI_ACL_ACTION_TYPE_SET_POLICER.
+1. Query Capabilities on Initialization: ACL-Orch queries SAI to retrieve supported ACL actions and store it in both STATE_DB and local DB, including SAI_ACL_ACTION_TYPE_SET_POLICER.
 2. Create Policer Object: Policer configurations are defined in POLICER_TABLE, validated, and created in SAI.
 3. Define Custom ACL Table Type: Users define custom ACL table types in ACL_TABLE_TYPE with specified matches and actions, including POLICER_ACTION.
-4. Verify Table Capabilities: ACL-Orch ensures that the custom table type's action set, including POLICER_ACTION, is supported by the queried SAI capabilities.
+4. Verify Table Capabilities: ACL-Orch ensures with the stored queried SAI capabilities if POLICER_ACTION is supported.
 5. Create ACL Table: Add an ACL table in ACL_TABLE, referencing the custom table type and validates the configuration.
 6. Create ACL Rule: Add an ACL rule in ACL_RULE, referencing actions, including policer_action.
 7. Verify Rule Compatibility: ACL-Orch validates that the rule action compatibility with the associated ACL table type.
@@ -121,9 +121,7 @@ Custom ACL Based Metering (CABM) builds directly upon this custom ACL mechanism 
 ### Configuration and Management
 #### Config DB Enhancements
 
-##### ACL Tables Table --> No Change
-
-##### ACL Table Type Table
+##### ACL Table Type Table --> New Action Attribute
 When a new ACL table is created, SAI needs to receive a list of supported actions which the rules belonging to this table are allowed to use.
 To support the new policer action, the custom table types table schema will be extended with a policer action attribute - **"POLICER_ACTION"** for the actions attribute field.
 
@@ -137,7 +135,16 @@ actions       = action-list                   ; list of actions for this table.
                                               ; ["REDIRECT_ACTION", ... , "POLICER_ACTION"]
 ```
 
-##### ACL Rules Table
+##### ACL Tables Table --> No Change
+```
+key: ACL_TABLE|<TABLE_NAME>             ; acl_table_name must be unique
+;field        = value
+policy_desc   = 1*255VCHAR              ; name of the ACL policy table description
+type          = 1*255VCHAR              ; type of acl table, every type of table defines
+...                                     ; the match/action a specific set of match and actions.
+```
+
+##### ACL Rules Table --> New Field
 The CONFIG_DB ACL Rules Table schema will be updated with a new attribute field **"policer_action"** with the value of one of the existing policer object names.
 
 ```
@@ -156,6 +163,9 @@ mirror_ingress_action = 1*255VCHAR            ; refer to the mirror session
 ...
 + policer_action = 1*255VCHAR                 ; refer to the policer object name
 ```
+
+Note that each ACL rule can only specify a single action due to the design of the ACLs.
+For example, a rule specifying 'packet_action = DROP' cannot also include 'policer_action = "M_POLICER_7"'.
 
 #### YANG Model Enhancements
 
@@ -193,25 +203,6 @@ sonic-yang-models/yang-templates/**sonic-acl**.yang.j2:
       }
 ```
 
-sonic-yang-models/yang-templates/**sonic-policer**.yang.j2:
-```c++
-    ...
-+   import sonic-acl {
-+       prefix acl;
-+   }
-    ...
-    container sonic-policer {
-        container POLICER {
-        ...
-+        /* prevent deletion of policer that referenced by ACL rule.
-+           Note that new policer won't be referenced by any ACL rules initially */
-+           must "not(../acl:sonic-acl/acl:ACL_RULE/acl:ACL_RULE_LIST[acl:policer_action=current()/name])" {
-+               error-message "Policer cannot be deleted when referenced by an ACL rule.";
-+           }
-        }
-    }
-```
-
 #### CLI Config Commands
 
 - **Policers configuration** - No changes (no CLI commands).
@@ -232,6 +223,7 @@ Two options to bind policer with ACL rules:
             "cir": "5000",
             "cbs": "5000",
             "green_packet_action": "forward",
+            "yellow_packet_action": "forward",
             "red_packet_action": "drop"
         },
         "POLICER_TABLE|M_POLICER_93": {
@@ -240,6 +232,8 @@ Two options to bind policer with ACL rules:
             "color": "aware",
             "cir": "73000",
             "cbs": "82000",
+            "green_packet_action": "forward",
+            "yellow_packet_action": "drop",
             "red_packet_action": "drop"
         },
 
@@ -368,7 +362,7 @@ During warmboot or fastboot, both ACL rules and policers configurations are rest
 
 - Policers must be supported.
 - PRE/POST INGRESS stage isn't supported (not supported by the existing ACL creation logic).
-- Single Action per Rule - each ACL rule performs one action due to the existing ACL-Orch implementation.
+- Single Action per Rule - each ACL rule can only specify a single action due to the ACL-Orch design and implementation.
 
 ---
 ### Testing Requirements/Design
