@@ -155,6 +155,28 @@ constants:
 
 ```
 
+- Architecture for CounterSyncd:
+
+``` mermaid
+
+flowchart LR
+    swss_act((Swss actor: Handle swss message))
+    netlink_act((Netlink actor: Receive netlink message from kernel))
+    ipfix_act((Ipfix actor: Handle IPFix message))
+    cdb_act((Counter DB actor: Store counters to counter DB))
+    otel_act((OpenTelemetry actor: Send counters to OpenTelemetry collector))
+    cdb[(Counter DB)]
+    otel(((OpenTelemetry Collector)))
+
+    swss_act -- IPFix Template --> ipfix_act
+    netlink_act -- IPFix Record --> ipfix_act
+    ipfix_act -- Counters --> cdb_act
+    ipfix_act -- Counters --> otel_act
+    cdb_act -- Redis commands --> cdb
+    otel_act -- OpenTelemetry Message --> otel
+
+```
+
 #### Stream Telemetry Orch
 
 The `Stream Telemetry Orch` is a new object within the Orchagent. It has following primary duties:
