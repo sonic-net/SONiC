@@ -172,7 +172,8 @@ flowchart LR
     netlink_act -- IPFix Record --> ipfix_act
     ipfix_act -- Counters --> cdb_act
     ipfix_act -- Counters --> otel_act
-    cdb_act -- Redis commands --> cdb
+    cdb_act -- ObjectID-Counters Pair --> cdb
+    cdb -. Lazy load: COUNTERS_*_MAP(ObjectID-Name Map) .-> cdb_act
     otel_act -- OpenTelemetry Message --> otel
 
 ```
