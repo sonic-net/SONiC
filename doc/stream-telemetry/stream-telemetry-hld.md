@@ -2,60 +2,60 @@
 
 ## Table of Content <!-- omit in toc -->
 
-- [Revision](#revision)
-- [Scope](#scope)
-- [Definitions/Abbreviations](#definitionsabbreviations)
-- [Overview](#overview)
-- [Requirements / Constraints](#requirements--constraints)
-  - [Phase 1](#phase-1)
-  - [Phase 2](#phase-2)
-- [Architecture Design](#architecture-design)
-- [High-Level Design](#high-level-design)
-  - [Modules](#modules)
-    - [Counter Syncd](#counter-syncd)
-    - [Stream Telemetry Orch](#stream-telemetry-orch)
-    - [Netlink Module and DMA Engine](#netlink-module-and-dma-engine)
-  - [Data format](#data-format)
-    - [IPFIX header](#ipfix-header)
-    - [IPFIX template](#ipfix-template)
-    - [IPFIX data](#ipfix-data)
-    - [Netlink message](#netlink-message)
-  - [Bandwidth Estimation](#bandwidth-estimation)
-  - [Config DB](#config-db)
-    - [DEVICE\_METADATA](#device_metadata)
-    - [STREAM\_TELEMETRY\_PROFILE](#stream_telemetry_profile)
-    - [STREAM\_TELEMETRY\_GROUP](#stream_telemetry_group)
-  - [StateDb](#statedb)
-    - [STREAM\_TELEMETRY\_SESSION](#stream_telemetry_session)
-    - [STREAM\_TELEMETRY\_SESSION (deprecated)](#stream_telemetry_session-deprecated)
-  - [Work Flow](#work-flow)
-  - [SAI API](#sai-api)
-- [Configuration and management](#configuration-and-management)
-  - [Manifest (if the feature is an Application Extension)](#manifest-if-the-feature-is-an-application-extension)
-  - [CLI/YANG model Enhancements](#cliyang-model-enhancements)
-    - [Config CLI](#config-cli)
-    - [Inspect stream CLI](#inspect-stream-cli)
-    - [YANG](#yang)
-  - [Config DB Enhancements](#config-db-enhancements)
-  - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
-  - [Memory Consumption](#memory-consumption)
-  - [Restrictions/Limitations](#restrictionslimitations)
-  - [Testing Requirements/Design](#testing-requirementsdesign)
-    - [Unit Test cases](#unit-test-cases)
-    - [System Test cases](#system-test-cases)
-  - [Open/Action items - if any](#openaction-items---if-any)
+- [1. Revision](#1-revision)
+- [2. Scope](#2-scope)
+- [3. Definitions/Abbreviations](#3-definitionsabbreviations)
+- [4. Overview](#4-overview)
+- [5. Requirements / Constraints](#5-requirements--constraints)
+  - [5.1. Phase 1](#51-phase-1)
+  - [5.2. Phase 2](#52-phase-2)
+- [6. Architecture Design](#6-architecture-design)
+- [7. High-Level Design](#7-high-level-design)
+  - [7.1. Modules](#71-modules)
+    - [7.1.1. Counter Syncd](#711-counter-syncd)
+    - [7.1.2. Stream Telemetry Orch](#712-stream-telemetry-orch)
+    - [7.1.3. Netlink Module and DMA Engine](#713-netlink-module-and-dma-engine)
+  - [7.2. Data format](#72-data-format)
+    - [7.2.1. IPFIX header](#721-ipfix-header)
+    - [7.2.2. IPFIX template](#722-ipfix-template)
+    - [7.2.3. IPFIX data](#723-ipfix-data)
+    - [7.2.4. Netlink message](#724-netlink-message)
+  - [7.3. Bandwidth Estimation](#73-bandwidth-estimation)
+  - [7.4. Config DB](#74-config-db)
+    - [7.4.1. DEVICE\_METADATA](#741-device_metadata)
+    - [7.4.2. STREAM\_TELEMETRY\_PROFILE](#742-stream_telemetry_profile)
+    - [7.4.3. STREAM\_TELEMETRY\_GROUP](#743-stream_telemetry_group)
+  - [7.5. StateDb](#75-statedb)
+    - [7.5.1. STREAM\_TELEMETRY\_SESSION](#751-stream_telemetry_session)
+    - [7.5.2. STREAM\_TELEMETRY\_SESSION (deprecated)](#752-stream_telemetry_session-deprecated)
+  - [7.6. Work Flow](#76-work-flow)
+  - [7.7. SAI API](#77-sai-api)
+- [8. Configuration and management](#8-configuration-and-management)
+  - [8.1. Manifest (if the feature is an Application Extension)](#81-manifest-if-the-feature-is-an-application-extension)
+  - [8.2. CLI/YANG model Enhancements](#82-cliyang-model-enhancements)
+    - [8.2.1. Config CLI](#821-config-cli)
+    - [8.2.2. Inspect stream CLI](#822-inspect-stream-cli)
+    - [8.2.3. YANG](#823-yang)
+  - [8.3. Config DB Enhancements](#83-config-db-enhancements)
+  - [8.4. Warmboot and Fastboot Design Impact](#84-warmboot-and-fastboot-design-impact)
+  - [8.5. Memory Consumption](#85-memory-consumption)
+  - [8.6. Restrictions/Limitations](#86-restrictionslimitations)
+  - [8.7. Testing Requirements/Design](#87-testing-requirementsdesign)
+    - [8.7.1. Unit Test cases](#871-unit-test-cases)
+    - [8.7.2. System Test cases](#872-system-test-cases)
+  - [8.8. Open/Action items - if any](#88-openaction-items---if-any)
 
-## Revision
+## 1. Revision
 
 | Rev | Date       | Author | Change Description |
 | --- | ---------- | ------ | ------------------ |
 | 0.1 | 09/06/2024 | Ze Gan | Initial version    |
 
-## Scope
+## 2. Scope
 
 This document outlines the high-level design of stream telemetry, focusing primarily on the internal aspects of SONiC rather than external telemetry systems.
 
-## Definitions/Abbreviations
+## 3. Definitions/Abbreviations
 
 | Abbreviation | Description                               |
 | ------------ | ----------------------------------------- |
@@ -64,13 +64,13 @@ This document outlines the high-level design of stream telemetry, focusing prima
 | TAM          | Telemetry and Monitoring                  |
 | BW           | Bandwidth                                 |
 
-## Overview
+## 4. Overview
 
 The existing telemetry solution of SONiC relies on the syncd process to proactively query stats and counters via the SAI API. This approach causes the syncd process to spend excessive time on SAI communication. The stream telemetry described in this document aims to provide a more efficient method for collecting object stats. The main idea is that selected stats will be proactively pushed from the vendor's driver to the collector via netlink.
 
-## Requirements / Constraints
+## 5. Requirements / Constraints
 
-### Phase 1
+### 5.1. Phase 1
 
 - The number of SAI object types should not exceed 32,768 ($2^{15}$). This means the value of SAI_OBJECT_TYPE_MAX should be less than 32,768.
 - The number of SAI object extension types should not exceed 32,768.
@@ -83,11 +83,11 @@ The existing telemetry solution of SONiC relies on the syncd process to proactiv
 - When reconfiguring any stream settings, whether it is the polling interval or the stats list, the existing stream will be interrupted and regenerated.
 - If any of monitored objects is deleted, the existing stream will be interrupted and regenerated.
 
-### Phase 2
+### 5.2. Phase 2
 
 - Supports updating configuration without interrupting the telemetry stream
 
-## Architecture Design
+## 6. Architecture Design
 
 ``` mermaid
 
@@ -138,11 +138,11 @@ flowchart BT
     counter_syncd -- open telemetry message --> otel
 ```
 
-## High-Level Design
+## 7. High-Level Design
 
-### Modules
+### 7.1. Modules
 
-#### Counter Syncd
+#### 7.1.1. Counter Syncd
 
 The `counter syncd` is a new module that runs within the OpenTelemetry container. Its primary responsibility is to receive counter messages via netlink and convert them into open telemetry messages for a collector. It subscribes to a socket of a specific family and multicast group of generic netlink. The configuration for generic netlink is defined as constants in `/etc/sonic/constants.yml` as follows.
 
@@ -178,7 +178,7 @@ flowchart LR
 
 ```
 
-#### Stream Telemetry Orch
+#### 7.1.2. Stream Telemetry Orch
 
 The `Stream Telemetry Orch` is a new object within the Orchagent. It has following primary duties:
 
@@ -188,13 +188,13 @@ The `Stream Telemetry Orch` is a new object within the Orchagent. It has followi
 
 `Stream Telemetry Orch` leverages `tam_counter_subscription` objects to bind monitoring objects, such as ports, buffers, or queues, to streams. Therefore, this orch must ensure that the lifecycle of `tam_counter_subscription` objects is within the lifecycle of their respective monitoring objects.
 
-#### Netlink Module and DMA Engine
+#### 7.1.3. Netlink Module and DMA Engine
 
 These two modules need to be provided by vendors. This document proposes a ring buffer communication model to support all expected TAM configurations as follows.
 
 ![netlink_dma_channel](netlink_dma_channel.drawio.svg)
 
-### Data format
+### 7.2. Data format
 
 We will use IPFIX as the report format, with all numbers in the IPFIX message in network-order (Big-endian).
 
@@ -203,7 +203,7 @@ For more information on IPFIX, refer to the following resources:
 - [Specification of the IP Flow Information Export (IPFIX) Protocol for the Exchange of Flow Information](https://datatracker.ietf.org/doc/html/rfc7011)
 - [IP Flow Information Export (IPFIX) Entities](https://www.iana.org/assignments/ipfix/ipfix.xhtml)
 
-#### IPFIX header
+#### 7.2.1. IPFIX header
 
 The `Version` and `Observation Domain ID` fields of the IPFIX header are identical for each IPFIX message.
 
@@ -221,7 +221,7 @@ packet-beta
 
 ```
 
-#### IPFIX template
+#### 7.2.2. IPFIX template
 
 ``` mermaid
 
@@ -287,7 +287,7 @@ packet-beta
 
 ```
 
-#### IPFIX data
+#### 7.2.3. IPFIX data
 
 An IPFIX data message consists of snapshots that is a binary block that can be interpreted using the IPFIX template mentioned above.
 
@@ -351,7 +351,7 @@ packet-beta
 
 The IPFIX template should be provided by vendors. This document does not restrict how to split or concatenate snapshots, but each separated snapshot must include its own `observationTimeNanoseconds`.
 
-#### Netlink message
+#### 7.2.4. Netlink message
 
 We expect all control messages and out-of-band information to be transmitted by the SAI. Therefore, it is unnecessary to read the attribute header of netlink and the message header of Genetlink from the socket. Instead, we can insert a bulk of IPFIX recordings as the payload of the netlink message. The sample code for building the message from the kernel side is as follows:
 
@@ -390,7 +390,7 @@ void send_msgs_to_user(/* ... */)
 
 ```
 
-### Bandwidth Estimation
+### 7.3. Bandwidth Estimation
 
 We estimate the bandwidth based only on the effective data size, not the actual data size. The extra information in a message, such as the IPFIX header (16 bytes), data prefix (4 bytes), and observation time milliseconds (8 bytes), is negligible. For example, a IPFIX message could include $The Maximal Number Of Counters In One Message = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Milliseconds Bytes}}{8_{bytes}} \approx 8188$, So $The Percentage Of Effective Data = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Milliseconds Bytes}} {0xFFFF_{Max LengthBytes}} \approx 99.9\%$ .
 
@@ -403,11 +403,11 @@ The following table is an example of telemetry bandwidth of one cluster
 - ${Total BW Per Switch} = \frac{{\verb|#| Of Stats Per Port} \times 8_{bytes} \times {\verb|#| Of Ports Per Switch} \times {Frequency} \times 1,000 \times 8}{1,000,000}$
 - ${Total BM} = {Total BW Per Switch} \times {\verb|#| Of Switch}$
 
-### Config DB
+### 7.4. Config DB
 
 Any configuration changes in the config DB will interrupt the existing session and initiate a new one.
 
-#### DEVICE_METADATA
+#### 7.4.1. DEVICE_METADATA
 
 ```
 DEVICE_METADATA|localhost
@@ -421,7 +421,7 @@ stream_telemetry_chunk_size  = uint32; reporting byte size of chunk under the st
 stream_telemetry_chunk_count = uint32; chunk count under the stream telemetry. Some platforms may not support setting this value.
 ```
 
-#### STREAM_TELEMETRY_PROFILE
+#### 7.4.2. STREAM_TELEMETRY_PROFILE
 
 ```
 STREAM_TELEMETRY_PROFILE|{{profile_name}}
@@ -436,7 +436,7 @@ stream_state       = enabled/disabled ; Enabled/Disabled stream.
 poll_interval      = uint32 ; The interval to poll counter, unit microseconds.
 ```
 
-#### STREAM_TELEMETRY_GROUP
+#### 7.4.3. STREAM_TELEMETRY_GROUP
 
 ```
 STREAM_TELEMETRY_GROUP|{{profile_name}}|{{group_name}}
@@ -459,9 +459,9 @@ object_counters = A list of stats of object;
 
 For the schema of `STREAM_TELEMETRY_GROUP`, please refer to its [YANG model](sonic-stream-telemetry.yang).
 
-### StateDb
+### 7.5. StateDb
 
-#### STREAM_TELEMETRY_SESSION
+#### 7.5.1. STREAM_TELEMETRY_SESSION
 
 ```
 STREAM_TELEMETRY_SESSION|{{profile_name}}|{{group_name}}
@@ -482,7 +482,7 @@ config_version      = uint32_t; Indicates which version is being used. The defau
                       This value will be increased once the new config was applied by CounterSyncd.
 ```
 
-#### STREAM_TELEMETRY_SESSION (deprecated)
+#### 7.5.2. STREAM_TELEMETRY_SESSION (deprecated)
 
 ```
 STREAM_TELEMETRY_SESSION|{{profile_name}}
@@ -499,7 +499,7 @@ session_type        = ipfix ; Specified the session type.
 session_template    = binary array; The IPFIX template to interpret the message of this session.
 ```
 
-### Work Flow
+### 7.6. Work Flow
 
 ``` mermaid
 
@@ -575,19 +575,19 @@ sequenceDiagram
 
 ```
 
-### SAI API
+### 7.7. SAI API
 
 [SAI-Proposal-TAM-stream-telemetry.md](https://github.com/opencomputeproject/SAI/blob/master/doc/TAM/SAI-Proposal-TAM-stream-telemetry.md)
 
-## Configuration and management
+## 8. Configuration and management
 
-### Manifest (if the feature is an Application Extension)
+### 8.1. Manifest (if the feature is an Application Extension)
 
 N/A
 
-### CLI/YANG model Enhancements
+### 8.2. CLI/YANG model Enhancements
 
-#### Config CLI
+#### 8.2.1. Config CLI
 
 ``` shell
 
@@ -602,7 +602,7 @@ sudo config stream_telemetry group "$profile|$group_name" --object_names="$objec
 
 ```
 
-#### Inspect stream CLI
+#### 8.2.2. Inspect stream CLI
 
 Fetch all counters on the stream-telemetry
 
@@ -610,38 +610,38 @@ Fetch all counters on the stream-telemetry
 sudo stream-telemetry $profile_name --json/--table --duration=$duration
 ```
 
-#### YANG
+#### 8.2.3. YANG
 
 [sonic-stream-telemetry.yang](sonic-stream-telemetry.yang)
 
-### Config DB Enhancements
+### 8.3. Config DB Enhancements
 
 [Config DB](#config-db)
 
-### Warmboot and Fastboot Design Impact
+### 8.4. Warmboot and Fastboot Design Impact
 
 Warmboot/fastboot support is not required.
 
-### Memory Consumption
+### 8.5. Memory Consumption
 
 In addition to constant memory consumption, dynamic memory consumption can be adjusted by configuring the chunk size and cache size of the stream-telemetry profile table in the config DB.
 
 $Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Cache Size} \times {Chunk Size} \times 8_{bytes} \times \sum_{Group} ({Object Count} \times {Stat Count}))$
 
-### Restrictions/Limitations
+### 8.6. Restrictions/Limitations
 
 [Requirements / Constraints](#requirements--constraints)
 
-### Testing Requirements/Design
+### 8.7. Testing Requirements/Design
 
-#### Unit Test cases
+#### 8.7.1. Unit Test cases
 
 - Test that the `STREAM_TELEMETRY_GROUP` can be correctly converted to the SAI objects and their corresponding SAI STAT IDs by the Orchagent.
 
-#### System Test cases
+#### 8.7.2. System Test cases
 
 - Test that the counter can be correctly monitored by the counter syncd.
 - Verify that the bulk size is accurate when reading messages from the netlink socket.
 - Ensure that counters can be correctly retrieved using the telemetry stream CLI.
 
-### Open/Action items - if any
+### 8.8. Open/Action items - if any
