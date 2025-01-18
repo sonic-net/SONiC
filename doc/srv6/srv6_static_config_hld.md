@@ -127,23 +127,25 @@ Schema:
 ; New table
 ; holds local SID to behavior mapping, the keys are the locator name plus the full IPv6 addresses of the SIDs
 
-key = SRV6_MY_SIDS|locator|ip_address
+key = SRV6_MY_SIDS|locator|ip_prefix
 ; field = value
 action = behavior            ; behaviors defined for the SID, default uN
+decap_dscp_mode = decap_dscp_mode  ; Mandatory, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation
 decap_vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, default "default", only applicable to uDT4/uDT46/uDT6 actions
-decap_dscp_mode = decap_dscp_mode  ; Optional, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation, default "uniform", only applicable to uDT4/uDT46/uDT6 actions
 
 For example:
     "SRV6_MY_SIDS" : {
-        "loc1|FCBB:BBBB:20::" : {
-           "action": "uN"
+        "loc1|FCBB:BBBB:20::/48" : {
+           "action": "uN",
+           "decap_dscp_mode": "pipe"
         },
-        "loc1|FCBB:BBBB:20:F1::" : {
+        "loc1|FCBB:BBBB:20:F1::/64" : {
            "action": "uDT46",
            "decap_dscp_mode": "pipe"
         },
-        "loc2|FCBB:BBBB:21::" : {
-           "action": "uN"
+        "loc2|FCBB:BBBB:21::/48" : {
+           "action": "uN",
+           "decap_dscp_mode": "uniform"
         },
     }
 ```
@@ -178,8 +180,8 @@ module: sonic-srv6
      |     +--rw arg_len?        uint8
      |     +--rw vrf?            union
      +--rw SRV6_MY_SIDS
-        +--rw SRV6_MY_SIDS_LIST* [locator ip_address]
-           +--rw ip_address         inet:ipv6-address
+        +--rw SRV6_MY_SIDS_LIST* [locator ip_prefix]
+           +--rw ip_prefix          inet:ipv6-prefix
            +--rw locator            -> /sonic-srv6/SRV6_MY_LOCATORS/SRV6_MY_LOCATORS_LIST/locator_name
            +--rw action?            enumeration
            +--rw decap_vrf?         union
