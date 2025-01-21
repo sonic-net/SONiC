@@ -474,8 +474,8 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | | | pending_operation_ids | GUIDs of pending operation IDs, connected by "," |
-| | | pending_operation_types | Type of pending operations, e.g. "switchover", "activate_role", "flow_reconcile", "brainsplit_recover". Connected by "," |
-| | | pending_operation_list_last_updated_time | Last updated time of the pending operation list. |
+| | | pending_operation_types | Type of pending operations, e.g. "switchover", "activaterole", "flowreconcile", "brainsplitrecover". Connected by "," |
+| | | pending_operation_list_last_updated_time_in_ms | Last updated time of the pending operation list. |
 | | | switchover_id | Switchover ID (GUID). |
 | | | switchover_state | Switchover state. It can be "pendingapproval", "approved", "inprogress", "completed", "failed" |
 | | | switchover_start_time_in_ms | The time when operation is created. |
