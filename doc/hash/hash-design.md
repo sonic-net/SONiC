@@ -223,6 +223,7 @@ i.e. configuration is tunnel-agnostic
 | SAI_NATIVE_HASH_FIELD_INNER_SRC_IP      |                                |
 | SAI_NATIVE_HASH_FIELD_INNER_L4_DST_PORT |                                |
 | SAI_NATIVE_HASH_FIELD_INNER_L4_SRC_PORT |                                |
+| SAI_NATIVE_HASH_FIELD_IPV6_FLOW_LABEL   |                                |
 
 **SAI hash algorithms which shall be used for GH:**
 
@@ -360,6 +361,7 @@ hash-field      = "IN_PORT"
                 / "INNER_SRC_IP"
                 / "INNER_L4_DST_PORT"
                 / "INNER_L4_SRC_PORT"
+                / "IPV6_FLOW_LABEL"
 hash-field-list = hash-field [ 1*( "," hash-field ) ]
 hash-algorithm  = "CRC"
                 / "XOR"
@@ -408,6 +410,7 @@ hash-field      = ""
                 / "INNER_SRC_IP"
                 / "INNER_L4_DST_PORT"
                 / "INNER_L4_SRC_PORT"
+                / "IPV6_FLOW_LABEL"
 hash-field-list = hash-field [ 1*( "," hash-field ) ]
 hash-algorithm  = ""
                 / "N/A"
@@ -427,10 +430,10 @@ hash-algorithm  = ""
 redis-cli -n 4 HGETALL 'SWITCH_HASH|GLOBAL'
 1) "ecmp_hash@"
 2) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
-INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
+INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL"
 3) "lag_hash@"
 4) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
-INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
+INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL"
 5) "ecmp_hash_algorithm"
 6) "CRC"
 7) "lag_hash_algorithm"
@@ -447,7 +450,7 @@ redis-cli -n 6 HGETALL 'SWITCH_CAPABILITY|switch'
  5) "HASH|NATIVE_HASH_FIELD_LIST"
  6) "IN_PORT,DST_MAC,SRC_MAC,ETHERTYPE,VLAN_ID,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP, \
-INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
+INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL"
  7) "ECMP_HASH_ALGORITHM_CAPABLE"
  8) "true"
  9) "LAG_HASH_ALGORITHM_CAPABLE"
@@ -481,7 +484,8 @@ INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
                 "INNER_DST_IP",
                 "INNER_SRC_IP",
                 "INNER_L4_DST_PORT",
-                "INNER_L4_SRC_PORT"
+                "INNER_L4_SRC_PORT",
+                "IPV6_FLOW_LABEL"
             ],
             "lag_hash": [
                 "DST_MAC",
@@ -499,7 +503,8 @@ INNER_L4_DST_PORT,INNER_L4_SRC_PORT"
                 "INNER_DST_IP",
                 "INNER_SRC_IP",
                 "INNER_L4_DST_PORT",
-                "INNER_L4_SRC_PORT"
+                "INNER_L4_SRC_PORT",
+                "IPV6_FLOW_LABEL"
             ],
             "ecmp_hash_algorithm": "CRC",
             "lag_hash_algorithm": "CRC"
@@ -580,7 +585,8 @@ config switch-hash global ecmp-hash \
 'INNER_DST_IP' \
 'INNER_SRC_IP' \
 'INNER_L4_DST_PORT' \
-'INNER_L4_SRC_PORT'
+'INNER_L4_SRC_PORT' \
+'IPV6_FLOW_LABEL'
 config switch-hash global lag-hash \
 'DST_MAC' \
 'SRC_MAC' \
@@ -597,7 +603,8 @@ config switch-hash global lag-hash \
 'INNER_DST_IP' \
 'INNER_SRC_IP' \
 'INNER_L4_DST_PORT' \
-'INNER_L4_SRC_PORT'
+'INNER_L4_SRC_PORT' \
+'IPV6_FLOW_LABEL'
 ```
 
 **The following command updates switch hash algorithm global:**
@@ -633,6 +640,7 @@ root@sonic:/home/admin# show switch-hash global
 |        | | INNER_SRC_IP      |             | |
 |        | | INNER_L4_DST_PORT |             | |
 |        | | INNER_L4_SRC_PORT |             | |
+|        | | IPV6_FLOW_LABEL   |             | |
 |        | +-------------------+-------------+ |
 +--------+-------------------------------------+
 | LAG    | +-------------------+-------------+ |
@@ -654,6 +662,7 @@ root@sonic:/home/admin# show switch-hash global
 |        | | INNER_SRC_IP      |             | |
 |        | | INNER_L4_DST_PORT |             | |
 |        | | INNER_L4_SRC_PORT |             | |
+|        | | IPV6_FLOW_LABEL   |             | |
 |        | +-------------------+-------------+ |
 +--------+-------------------------------------+
 ```
@@ -685,6 +694,7 @@ root@sonic:/home/admin# show switch-hash capabilities
 |        | | INNER_SRC_IP      |             | |
 |        | | INNER_L4_DST_PORT |             | |
 |        | | INNER_L4_SRC_PORT |             | |
+|        | | IPV6_FLOW_LABEL   |             | |
 |        | +-------------------+-------------+ |
 +--------+-------------------------------------+
 | LAG    | +-------------------+-------------+ |
@@ -708,6 +718,7 @@ root@sonic:/home/admin# show switch-hash capabilities
 |        | | INNER_SRC_IP      |             | |
 |        | | INNER_L4_DST_PORT |             | |
 |        | | INNER_L4_SRC_PORT |             | |
+|        | | IPV6_FLOW_LABEL   |             | |
 |        | +-------------------+-------------+ |
 +--------+-------------------------------------+
 ```
@@ -744,6 +755,7 @@ will be extended with a new common type.
             enum INNER_SRC_IPV6;
             enum INNER_L4_DST_PORT;
             enum INNER_L4_SRC_PORT;
+            enum IPV6_FLOW_LABEL;
         }
     }
 
@@ -804,6 +816,7 @@ module sonic-hash {
             enum INNER_SRC_IP;
             enum INNER_L4_DST_PORT;
             enum INNER_L4_SRC_PORT;
+            enum IPV6_FLOW_LABEL;
         }
     }
 
