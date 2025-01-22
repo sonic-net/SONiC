@@ -187,6 +187,7 @@ module: openconfig-system
     * boot-time & up-time
     * software-version
     * timezone
+    * last-configuration-timestamp
     * dns
     * ntp
     * ssh-server
@@ -194,6 +195,11 @@ module: openconfig-system
     * aaa
     * processes
     * messages
+    * alarms
+    * mount-points
+    * memory
+    * cpus
+    * grpc-servers
 
 ### 1.1.2 Configuration and Management Requirements
 The System configuration/management can be done via REST and gNMI. The implementation will return an error if configuration is not allowed due to misconfiguration or un-supported node is accessed.
