@@ -521,7 +521,7 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 | | | version | Config version. |
 | | | disabled | If true, disable this vDPU. It can only be `false` or `true`. |
-| | | ha_role | The HA role for this scope. It can only be `dead`, `active`, `standby`, `standalone`, `switching_to_active`. |
+| | | ha_role | The HA role for this scope. It can only be `dead`, `active`, `standby`, `standalone`, `switchingtoactive`. |
 | | | flow_reconcile_requested | If true, flow reconcile will be initiated. (Message Only. Not saved in DB.) |
 | | | activate_role_requested | If true, HA role will be activated. (Message Only. Not saved in DB.) |
 
