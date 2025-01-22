@@ -161,9 +161,9 @@ INSTALL := /usr/bin/install
 BUILD_DIR := build/bin
 BAZEL_OPTS := --verbose_failures
 
-all: init sonic-telemetry clients
+all: init sonic-gnmi clients
 
-sonic-telemetry: $(MAKEFILE_LIST) $(GO_DEPS)
+sonic-gnmi: $(MAKEFILE_LIST) $(GO_DEPS)
  bazel build $(BAZEL_OPTS) telemetry:telemetry --verbose_failures
 
 clients:
