@@ -76,6 +76,7 @@
 | 0.9 | | Nikhil Kelhapure | Warm Reboot Section added |
 | 1.0 | | Sudharsan D.G | Using P2MP Tunnel for Layer2 functionality |
 | 1.1 | | Adam Yeung | Update Fastboot limitation |
+| 1.2 | 2025-01-22 | Brad House | Record p2mp vxlan remote vteps in state table |
 
 
 # Definition/Abbreviation
@@ -521,7 +522,7 @@ key             = VXLAN_TUNNEL:name    ; tunnel name
 SRC_IP          = ipv4                 ; tunnel sip
 DST_IP          = ipv4                 ; tunnel dip 
 tnl_src         = "CLI"/"EVPN"  
-operstatus      = "oper_up"/"oper_down"  
+operstatus      = "oper_up"/"oper_down"/"oper_p2mp"
 ```
 
 ### 4.2.4 COUNTER_DB changes
@@ -690,11 +691,11 @@ VxlanOrch will be enhanced to support the above two requirements.
 
 ### 4.3.4 VXLAN State DB changes
 
-In the current implementation there is an entry for every tunnel in the STATE_VXLAN_TABLE. This is populated by the vxlanmgr when the necessary kernel programming is completed. This occurs when CFG_VNET_TABLE is populated with an entry. This entry reflects the kernel programming status and is typically associated with the VTEP (SIP only tunnel).
+In the current implementation there is an entry for every tunnel in the STATE_VXLAN_TABLE. This is populated by the vxlanmgr when the necessary kernel programming is completed. This occurs when CFG_VNET_TABLE is populated with an entry. This entry reflects the kernel programming status and is typically associated with the VTEP.
 
-Since BGP EVPN tunnels are auto-discovered there needs to be a mechanism available to list all the auto-discovered tunnels. Multiple BGP EVPN tunnels are associated with the same VTEP (SIP only tunnel) which is not reflected in the current table.
+Since BGP EVPN tunnels are auto-discovered there needs to be a mechanism available to list all the auto-discovered tunnels.
 
-In addition there is a need to display the operstatus of the tunnel.  The operstatus is reflective of the dataplane forwarding status of the tunnel. The operstatus can toggle depending on the dataplane state. 
+In addition there is a need to display the operstatus of the tunnel.  The operstatus is reflective of the dataplane forwarding status of the tunnel. The operstatus can toggle depending on the dataplane state.  For P2MP tunnels, the state is always `p2mp`.  Otherwise `up` and `down` are used on P2P tunnels.
 
 A new table STATE_VXLAN_TUNNEL_TABLE is used for the above purposes.
 
@@ -702,7 +703,7 @@ A new field "tunnel source" - EVPN or CLI will be added to indicate the source o
 
 The tunnel source (EVPN, CLI), SIP, DIP can be filled in during creation time. 
 
-The operstatus of a tunnel  will be updated based on notification from SAI through a notification channel similar to port oper status. 
+The operstatus of a tunnel will be updated based on notification from SAI through a notification channel similar to port oper status for p2p tunnels.
 
 Applications within orchagent can subscribe to the operstatus changes of the tunnel through a subject/observer class model. 
 
@@ -1120,8 +1121,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 5. show vxlan remotevtep
    - lists all the discovered tunnels.  
    - SIP, DIP, Creation Source, OperStatus are the columns.
-   - Since P2P tunnels are not created in the hardware on the flow where P2MP tunnel itself is used flooding using L2MC group, this table will not be populated.
-
+   - OperStatus is `up` or `down` for P2P, or `p2mp` for P2MP tunnels.
    +---------+---------+-------------------+--------------+
    | SIP     | DIP     | Creation Source   | OperStatus   |
    +=========+=========+===================+==============+
