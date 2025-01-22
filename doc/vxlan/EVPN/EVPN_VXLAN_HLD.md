@@ -2,7 +2,7 @@
 
 # EVPN VXLAN HLD
 
-#### Rev 1.0
+#### Rev 1.2
 
 # Table of Contents
 
