@@ -2,17 +2,17 @@
 
 - [DB Design for multi-ASIC scenarios](#db-design-for-multi-asic-scenarios)
 - [Revision](#revision)
-- [1.    BACKGROUND](#1----background)
-- [2.    SCOPE](#2----scope)
-- [3.    DESIGN OVERVIEW](#3----design-overview)
-- [4. DB Schema Design](#4-db-schema-design)
-- [5 Requirements](#5-requirements)
+- [1.BACKGROUND](#1----background)
+- [2.SCOPE](#2----scope)
+- [3.DESIGN OVERVIEW](#3----design-overview)
+- [4.DB Schema Design](#4-db-schema-design)
+- [5.Requirements](#5-requirements)
   * [5.1 config reload <filename\>](#51-config-reload--filename--)
   * [5.2 config override](#52-config-override)
   * [5.3 config apply-patch](#53-config-apply-patch)
   * [5.4 show runningconfiguration all](#54-show-runningconfiguration-all)
   * [5.5 config save](#55-config-save)
-- [6. Conclusion](#6-conclusion)
+- [6.Conclusion](#6-conclusion)
 
 # Revision
 
@@ -80,7 +80,7 @@ To support the single Golden Config JSON file described earlier, SONiC should be
 
 **SCENARIOS**
 
-1.Existing support for single ASIC:
+1. Existing support for single ASIC:
 
 - `config reload`
 
@@ -90,7 +90,7 @@ It will reload the default config file: /etc/sonic/config_db.json
 
 It will reload the tmp_config_db.json
 
-2.Existing support for multi-ASIC:
+2. Existing support for multi-ASIC:
 
 - `config reload`
 
@@ -100,7 +100,7 @@ It will reload the default config file: `/etc/sonic/config_db.json, /etc/sonic/c
 
 It will reload the specified list of tmp config files.
 
-3.Extra support for multi-ASIC:
+3. Extra support for multi-ASIC:
 
 - `config reload golden_config_db.json`
 
@@ -204,7 +204,7 @@ Example of patch.json. This patch is to change asic0 and asic1’s k to “value
 Current config save will generate N config files, where N is the sum of host and ASICs. The CLI will keep the same behavior as before. 
 SCENARIOS (for Repave?)
 
-1.Existing support for single ASIC:
+1. Existing support for single ASIC:
 
 - `config save`
 
@@ -214,7 +214,7 @@ It will save to the default config file: /etc/sonic/config_db.json
 
 It will save config to the tmp_config_db.json
 
-2.Existing support for multi-ASIC:
+2. Existing support for multi-ASIC:
 
 - `config save`
 
@@ -224,7 +224,7 @@ It will save to the default config file: /etc/sonic/config_db.json, /etc/sonic/c
 
 It will save to the specified list of tmp config files.
 
-3.Extra support for multi-ASIC:
+3. Extra support for multi-ASIC:
 
 - `config save all_config_db.json`
 
