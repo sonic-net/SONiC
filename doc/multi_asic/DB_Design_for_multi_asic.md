@@ -202,7 +202,7 @@ Example of patch.json. This patch is to change asic0 and asic1’s k to “value
 
 ## 5.5 config save
 Current config save will generate N config files, where N is the sum of host and ASICs. The CLI will keep the same behavior as before. 
-SCENARIOS (for Repave?)
+SCENARIOS 
 
 1. Existing support for single ASIC:
 
