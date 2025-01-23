@@ -47,11 +47,12 @@
 
 ## Revision
 
-| Rev | Date       | Author         | Description                     |
-|:---:|:----------:|:--------------:|:--------------------------------|
-| 0.1 | 12/09/2022 | Nazarii Hnydyn | Initial version                 |
-| 0.2 | 05/12/2022 | Nazarii Hnydyn | Capabilities validation         |
-| 0.3 | 25/09/2023 | Nazarii Hnydyn | Hashing algorithm configuration |
+| Rev | Date       | Author         | Description                                     |
+|:---:|:----------:|:--------------:|:------------------------------------------------|
+| 0.1 | 12/09/2022 | Nazarii Hnydyn | Initial version                                 |
+| 0.2 | 05/12/2022 | Nazarii Hnydyn | Capabilities validation                         |
+| 0.3 | 25/09/2023 | Nazarii Hnydyn | Hashing algorithm configuration                 |
+| 0.4 | 23/01/2025 | Andriy Yurkiv  | Add 'IPv6 flow label' field for hashing packets |
 
 ## About this manual
 
