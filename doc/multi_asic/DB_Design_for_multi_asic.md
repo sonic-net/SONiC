@@ -2,17 +2,17 @@
 
 - [DB Design for multi-ASIC scenarios](#db-design-for-multi-asic-scenarios)
 - [Revision](#revision)
-- [1.BACKGROUND](#1----background)
-- [2.SCOPE](#2----scope)
-- [3.DESIGN OVERVIEW](#3----design-overview)
-- [4.DB Schema Design](#4-db-schema-design)
-- [5.Requirements](#5-requirements)
+- [1.BACKGROUND](#1background)
+- [2.SCOPE](#2scope)
+- [3.DESIGN OVERVIEW](#3design-overview)
+- [4.DB Schema Design](#4db-schema-design)
+- [5.Requirements](#5requirements)
   * [5.1 config reload <filename\>](#51-config-reload--filename--)
   * [5.2 config override](#52-config-override)
   * [5.3 config apply-patch](#53-config-apply-patch)
   * [5.4 show runningconfiguration all](#54-show-runningconfiguration-all)
   * [5.5 config save](#55-config-save)
-- [6.Conclusion](#6-conclusion)
+- [6.Conclusion](#6conclusion)
 
 # Revision
 
