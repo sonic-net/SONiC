@@ -40,7 +40,7 @@ Currently, DHCPv4 counter in dhcpmon mainly focus on Vlan / PortChannel interfac
 
 ## Functional Requirements
 
-1. Count ingress and egress DHCPv4 packets based on interface and store it in STATE_DB.
+1. Count ingress and egress DHCPv4 packets based on interface and store it in COUNTERS_DB.
 2. SONiC CLI to show / clear counter.
 
 # Design
@@ -81,9 +81,9 @@ In this stage, dhcpmon would do some preparations, there are 2 points need to be
          ```
 
 2. Init DB/check dounter
-dhcpmon would create counter for corresponding interfaces in process memory and STATE_DB and set them to be 0.
+dhcpmon would create counter for corresponding interfaces in process memory and COUNTERS_DB and set them to be 0.
 
-With above structure, packets processing and all writing actions to cache counter in process memory would be done in **main thread**, and all writing actions to STATE_DB would be done in **DB update thread**.
+With above structure, packets processing and all writing actions to cache counter in process memory would be done in **main thread**, and all writing actions to COUNTERS_DB would be done in **DB update thread**.
 
 ### Per-interface counting (Main thread)
 
@@ -97,15 +97,15 @@ With above structure, packets processing and all writing actions to cache counte
 
 <div align="center"> <img src=images/persist_multi_thread.png width=440 /> </div>
 
-DB update timer would be invoked periodically (**every 20s**) in another thread which is different with main thread. It would sync **all data** from cache couonter to STATE_DB.
+DB update timer would be invoked periodically (**every 20s**) in another thread which is different with main thread. It would sync **all data** from cache couonter to COUNTERS_DB.
 
 ### Clear Counter (Main thread)
 
 <div align="center"> <img src=images/clear_counter.png width=500 /> </div>
 
-When user invokes SONiC Cli to clear counter, it would directly clear corresponding data in STATE_DB, then a signal to clear cache counter would be sent to dhcpmon process.
+When user invokes SONiC Cli to clear counter, it would directly clear corresponding data in COUNTERS_DB, then a signal to clear cache counter would be sent to dhcpmon process.
 
-After receiving signal to clear cache, dhcpmon process would sync counter data from STATE_DB into process memory. This operation is done in `main thread`.
+After receiving signal to clear cache, dhcpmon process would sync counter data from COUNTERS_DB into process memory. This operation is done in `main thread`.
 
 ## Counter Logic
 
@@ -145,22 +145,27 @@ In Dual-ToR there are some behaviors different with single ToR:
 ## Counter Reset
 
 * Container restart
+  * We would add clear all counter data logic in startup script `start.sh` inside dhcp_relay container. Then When dhcp_relay containter restarting, all counter data would be cleared.
+* Process restart
   * One dhcpmon process would only listen on one downlink Vlan interface, hence dhcpmon process restart will initialize (counter set to zero) for interface in below list:
     * Downlink / Uplink context interfaces given by startup parameter.
     * Related Vlan member interfaces from CONFIG_DB table `VLAN_MEMBER|Vlanxxx`.
     * Related PortChannel member interfaces from CONFIG_DB table `PORTCHANNEL_MEMBER|PortChannelxxx`.
 * Vlan add/del
   * For now, after vlan adding or deleting, it requires dhcp_relay container be restarted to take effect. Vlan del Cli would automatically restart dhcp_relay container, other scenarios need manually restart. Then it could be referred to above `container restart` part
-* Vlan / PortChannel member change
+* Vlan / PortChannel member change 
   * Member add: It's expected to add entry and set counter to zero for member interface.
   * Member del: It's expected to delete related counter entry.
+  * **Note: This requires db change subscription support. In early stage, we will mainly focus on key functionality. This feature maybe be supported in future.**
+* PortChannel change 
+  * It's expected to add entry and set counter to zero for adding portchannel and delete related counter entry for deleting portchannel.
   * **Note: This requires db change subscription support. In early stage, we will mainly focus on key functionality. This feature maybe be supported in future.**
 
 ## DB Change
 
-### State DB
+### Counters DB
 
-Following table changes would be added in State DB, including **DHCP_COUNTER_TABLE** table.
+Following table changes would be added in Counters DB, including **DHCP_COUNTER_TABLE** table.
 
 ```
 {
@@ -206,40 +211,41 @@ This command is used to show dhcp_relay counter.
     Packet type Abbr: Un - Unknown, Dis - Discover, Off - Offer, Req - Request,
                       Ack - Acknowledge, Rel - Release, Inf - Inform,
                       Dec - Decline
-    +-----------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
-    | Vlan1000 (TX)         | Un  | Dis | Off | Req | Ack | Rel | Inf | Dec | Nak |
-    ------------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
-    | Downlink - Ethernet1  | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
-    | Downlink - Ethernet2  | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
-    | Uplink - Ethernet46   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
-    | Uplink - Ethernet47   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
-    | Uplink - PortChannel1 | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
-    | Uplink - PortChannel2 | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
-    +-----------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    Interface type Abbr: D - Downlink, U - Uplink
+    +---------------+-----------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    | Vlan1000 (TX) | Intf Type | Un  | Dis | Off | Req | Ack | Rel | Inf | Dec | Nak |
+    ----------------+-----------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    | Ethernet1     | Downlink  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
+    | Ethernet2     | Downlink  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
+    | Ethernet46    | Uplink    | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   | 0   |
+    | Ethernet47    | Uplink    | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   | 0   |
+    | PortChannel1  | Uplink    | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   | 0   |
+    | PortChannel2  | Uplink    | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   | 0   |
+    +---------------+-----------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
 
     show dhcp_relay ipv4 counter Vlan1000 --type Discover
-    +----------------------+----+----+
-    |Vlan1000 (Discover)   | TX | RX |
-    +----------------------+----+----+
-    |Downlink - Ethernet1  | 0  | 2  |
-    |Downlink - Ethernet2  | 0  | 0  |
-    |Uplink - Ethernet46   | 2  | 0  |
-    |Uplink - Ethernet47   | 0  | 0  |
-    |Uplink - PortChannel1 | 2  | 0  |
-    |Uplink - PortChannel2 | 0  | 0  |
-    +----------------------+----+----+
+    +--------------------+-----------+----+----+
+    |Vlan1000 (Discover) | Intf Type | TX | RX |
+    +--------------------+-----------+----+----+
+    |Ethernet1           | Downlink  | 0  | 2  |
+    |Ethernet2           | Downlink  | 0  | 0  |
+    |Ethernet46          | Uplink    | 2  | 0  |
+    |Ethernet47          | Uplink    | 0  | 0  |
+    |PortChannel1        | Uplink    | 2  | 0  |
+    |PortChannel2        | Uplink    | 0  | 0  |
+    +--------------------+-----------+----+----+
 
     show dhcp_relay ipv4 counter Vlan1000 --type Discover --dir TX
-    +----------------------+----+
-    |Vlan1000 (Discover)   | TX |
-    +----------------------+----+
-    |Downlink - Ethernet1  | 0  |
-    |Downlink - Ethernet2  | 0  |
-    |Uplink - Ethernet46   | 2  |
-    |Uplink - Ethernet47   | 0  |
-    |Uplink - PortChannel1 | 2  |
-    |Uplink - PortChannel2 | 0  |
-    +----------------------+----+
+    +--------------------+-----------+----+
+    |Vlan1000 (Discover) | Intf Type | TX |
+    +--------------------+-----------+----+
+    |Ethernet1           | Downlink  | 0  |
+    |Ethernet2           | Downlink  | 0  |
+    |Ethernet46          | Uplink    | 2  |
+    |Ethernet47          | Uplink    | 0  |
+    |PortChannel1        | Uplink    | 2  |
+    |PortChannel2        | Uplink    | 0  |
+    +--------------------+-----------+----+
     ```
 
 ## Clear Cli
@@ -280,4 +286,5 @@ This command is used to clear DHCPv4 counter
 
 ## sonic-mgmt
 1. Basic counter functionatility test
-2. Stress test for counter
+2. Test to verify conter table initialization and reseting
+3. Stress test for counter
