@@ -82,8 +82,7 @@ Boot time analysis on a 48-port device with a dual-core ARM-v8.2 Cortex-A55 CPU 
 ```
 Initialization performance analysis revealed that supervisord and supervisorctl contribute significantly to boot time, consuming roughly 20% of the total initialization period. This suggests that migrating away from these Python-based tools might offer a performance improvement. Generally, Python applications can exhibit slower startup times in these types of scenarios.
 
-![alt text](image-1.png)
-
+![alt text](perf-supervisorctl.png)
 
 Potential replacement supervisors will be evaluated based on criteria such as speed, resource consumption, and ease of integration with SONiC:
 * **runit:**  Simple, robust, and performant.
@@ -124,8 +123,8 @@ Replacing supervisord with runit on a 48-port device featuring a dual-core ARM-v
 | Show Interface with Link Up   | 09:45              | 03:00              | 11:45              | 04:00              |
 ```
 
-![
-](image-2.png)
+![alt text](perf-runit.png)
+
 
 ### 4.4 Service Transition
 
