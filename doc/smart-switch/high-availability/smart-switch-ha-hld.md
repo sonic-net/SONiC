@@ -8,6 +8,7 @@
 | 0.4 | 08/17/2023 | Riff Jiang | Redesigned HA control plane data channel |
 | 0.5 | 10/14/2023 | Riff Jiang | Merged resource placement and topology section and moved detailed design out for better readability |
 | 0.6 | 10/22/2023 | Riff Jiang | Added ENI leak detection |
+| 0.7 | 10/13/2024 | Riff Jiang | Update HA control plane components graph to match with latest design update on database and gNMI. |
 
 1. [1. Background](#1-background)
 2. [2. Terminology](#2-terminology)
@@ -153,6 +154,8 @@
           2. [11.5.2.2. Flow tracking in steady state](#11522-flow-tracking-in-steady-state)
           3. [11.5.2.3. Tracking phase](#11523-tracking-phase)
           4. [11.5.2.4. Syncing phase](#11524-syncing-phase)
+       3. [11.5.3. Multi-channel problem](#1153-multi-channel-problem)
+          1. [11.5.3.1. Per-flow version number](#11531-per-flow-version-number)
     6. [11.6. Flow re-simulation support](#116-flow-re-simulation-support)
 12. [12. Debuggability](#12-debuggability)
     1. [12.1. ENI leak detection](#121-eni-leak-detection)
@@ -1462,7 +1465,7 @@ Once the HA pair starts to run as standalone setup, the inline sync will stop wo
 
 1. New flows can be created on one side, but not the other.
 2. Existing flows can be terminated on one side, but not the other.
-3. Existing flows can be aged out on one side, but not the other, depending on how we manage the lifetime of the lows.
+3. Existing flows can be aged out on one side, but not the other, depending on how we manage the lifetime of the flows.
 4. Due to policy updates, the same flow might get different packet transformations now, e.g., flow resimulation or flow recreation after policy update.
 
 And during recovery, we need to merge these 2 sets of flows back to one using "[bulk sync](#115-bulk-sync)".
@@ -1879,6 +1882,24 @@ Whenever any flow is created or updated (flow re-simulation), update the flow ve
     2. For flow deletions, only delete the flow if the flow exists and flow version matches.
 4. Handle bulk sync done event from ASIC, which will be sent after all flow change events are notified.
 5. Call bulk sync completed SAI API, so ASIC can delete all tracked flow deletion records. Also reset `ToSyncFlowVerMin` and `ToSyncFlowVerMax` to 0, because there is nothing to sync anymore.
+
+#### 11.5.3. Multi-channel problem
+
+During bulk sync, there would be two sync channels now: inline sync and bulk sync. As the 2 channels work independently, if a flow uses both channels to sync states from active to standby, the sync messages received by standby may be out-of-order and thus cause problems.
+
+The following illustration demonstrates one problematic case: the inline sync first writes a newer state to standby data plane and then bulk sync writes an older state. Finally, the synchronized state in the standby is the older state, rather than the desired newer one.
+
+<p align="center"><img alt="Out of order in bulk sync" src="./images/ha-bulk-sync-multichannel-ooo.svg"></p>
+
+##### 11.5.3.1. Per-flow version number
+
+Per-flow version number algorithm is proposed to solve the issue.
+
+The algorithm is to attach a per-flow-wise unique version number to a flow’s every state. Therefore, the standby can decide which state is newer based on the unique version number.
+
+The timing graph of per-flow version number algorithm is illustrated below. When the standby receives the older state with version number X, it will reject it as the local stored version number of the flow is X + 1 which is greater than X, meaning that the current state is newer.
+
+<p align="center"><img alt="Per-flow version number" src="./images/ha-bulk-sync-multichannel-per-flow-version.svg"></p>
 
 ### 11.6. Flow re-simulation support
 
