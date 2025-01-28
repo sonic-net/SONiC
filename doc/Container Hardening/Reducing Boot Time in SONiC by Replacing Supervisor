@@ -1,0 +1,123 @@
+# Reducing Boot Time in SONiC by Replacing Supervisor #
+
+## Table of Content
+- [Supervisor Replacement for Faster Boot Times](#supervisor-replacement-for-faster-boot-times)
+    - [Table of Content](#table-of-content)
+    - [List of Tables](#list-of-tables)
+    - [Revision](#revision)
+    - [Scope](#scope)
+    - [Definitions/Abbreviations](#definitionsabbreviations)
+    - [1. Overview](#1-overview)
+    - [2. Requirements](#2-requirements)
+    - [3. Architecture Design](#3-architecture-design)
+    - [4. High-Level Design](#4-high-level-design)
+        - [4.1 Candidate Supervisors](#41-candidate-supervisors)
+        - [4.2 Service Transition](#42-service-transition)
+        - [4.3 Configuration and State Management](#43-configuration-and-state-management)
+        - [4.4 Error Handling and Logging](#44-error-handling-and-logging)
+    - [5. SAI API](#5-sai-api)
+    - [6. Configuration and management](#6-configuration-and-management)
+        - [6.1. Manifest (if the feature is an Application Extension)](#61-manifest-if-the-feature-is-an-application-extension)
+        - [6.2. CLI/YANG model Enhancements](#62-cliyang-model-enhancements)
+        - [6.3. Config DB Enhancements](#63-config-db-enhancements)
+    - [7. Warmboot and Fastboot Design Impact](#7-warmboot-and-fastboot-design-impact)
+    - [8. Restrictions/Limitations](#8-restrictionslimitations)
+    - [9. Testing Requirements/Design](#9-testing-requirementsdesign)
+        - [9.1 Unit Test cases](#91-unit-test-cases)
+        - [9.2 System Test cases](#92-system-test-cases)
+    - [10. Open/Action items - if any](#10-openaction-items---if-any)
+
+
+## List of Tables
+* [Table 1: Revision](#table-1-revision)
+* [Table 2: Abbreviations](#table-2-abbreviations)
+
+
+## Revision
+###### Table 1: Revision
+| Rev |     Date    |       Author       | Change Description                |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.1 |             |                    | Initial version                   |
+
+
+## Scope
+This document outlines the high-level design for replacing the current process supervisor (e.g., `supervisord`) in SONiC with a more efficient alternative to reduce boot times.
+
+## Definitions/Abbreviations
+###### Table 2: Abbreviations
+| Definitions/Abbreviation | Description                                |
+|--------------------------|--------------------------------------------|
+| SONiC                    | Software for Open Networking in the Cloud    |
+
+
+## 1. Overview
+Rapid network availability is essential, and SONiC's boot time directly impacts this. To improve startup speed, this project focuses on optimizing service initialization by replacing the existing process supervisor with a higher-performance alternative. This is particularly crucial for switches leveraging the ASIC's internal CPU to run SONiC.
+
+## 2. Requirements
+* Minimize SONiC boot time.
+* Maintain compatibility with existing SONiC services and configurations.
+* Ensure the stability and reliability of the new supervisor.
+* Implement a seamless transition with minimal disruption.
+
+## 3. Architecture Design
+To enhance performance, the current process supervisor inside docker will be replaced with runit. Existing service configurations will be converted to the runit format, and the system's init process will be modified to use runit.
+
+## 4. High-Level Design
+
+### 4.1 Boot time measurement using supervisor method
+```
+| Operation                     | Total Time (mm:ss) | Time Delta (mm:ss) |
+|-------------------------------|------------------- |--------------------|
+| Reboot to BIOS Print          | 02:09              |                    |
+| BIOS Print to SONiC Login     | 02:45              | 00:36              |
+| SONiC System Up Time          | 07:45              | 05:00              |
+| Show Interface with Link Up   | 11:45              | 04:00              |
+```
+Above time is measured in 48 port device with below CPU 
+
+Potential replacement supervisors will be evaluated based on criteria such as speed, resource consumption, and ease of integration with SONiC:
+* **systemd:**  Leverages parallelization and dependency management for faster startups.
+* **s6:**  Lightweight and fast, focusing on simplicity and robustness.
+* **tini:** Minimalistic, ideal for containerized environments, if applicable to SONiC's services.
+* **runit:**  Simple, robust, and performant.
+
+Benchmarking will determine the optimal choice.
+
+### 4.2 Service Transition
+A conversion tool or script will be developed to translate existing supervisor configurations (e.g., `supervisord` configuration files) to the format required by the new supervisor.  This will automate the migration process.
+
+### 4.3 Configuration and State Management
+The chosen supervisor's configuration mechanisms will be integrated with SONiC's existing configuration management system.  This ensures consistent and automated service management.
+
+### 4.4 Error Handling and Logging
+Robust error handling and logging will be implemented to ensure issues are detected and addressed promptly.  Integration with SONiC's existing logging infrastructure will be maintained.
+
+
+## 5. SAI API
+N/A - This change is not directly related to the SAI API.
+
+## 6. Configuration and management
+### 6.1. Manifest (if the feature is an Application Extension)
+N/A -  Not applicable if not implemented as an application extension.
+
+### 6.2. CLI/YANG model Enhancements
+Any necessary CLI commands for managing the new supervisor will be defined and implemented.  Corresponding YANG models will be updated or created.
+
+### 6.3. Config DB Enhancements
+Any changes required to the configuration database schema will be documented and implemented.
+
+## 7. Warmboot and Fastboot Design Impact
+The impact on warmboot and fastboot functionalities will be analyzed and addressed.  The goal is to minimize any negative impact on boot performance.
+
+## 8. Restrictions/Limitations
+Any limitations or restrictions imposed by the chosen supervisor will be documented.
+
+## 9. Testing Requirements/Design
+### 9.1 Unit Test cases
+Unit tests will be developed to validate the configuration conversion process and the functionality of the new supervisor.
+
+### 9.2 System Test cases
+Comprehensive system tests will be conducted to measure boot time improvements and ensure the stability and functionality of SONiC with the new supervisor.
+
+## 10. Open/Action items - if any
+Any open issues or action items will be tracked here.  This may include tasks like benchmarking different supervisors, developing the configuration conversion tool, and updating the init process.
