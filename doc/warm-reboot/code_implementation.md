@@ -33,11 +33,11 @@ WARM_RESTART system enable false
 
 ## swss docker upgrade
 
-`sonic_installer upgrade_docker` command line may be used to upgrade swss docker to a new docker image without affect data plane traffic.
+`sonic-installer upgrade_docker` command line may be used to upgrade swss docker to a new docker image without affect data plane traffic.
 
 ```
-sonic_installer upgrade_docker --help
-Usage: sonic_installer upgrade_docker [OPTIONS] <container_name> <tag> URL
+sonic-installer upgrade_docker --help
+Usage: sonic-installer upgrade_docker [OPTIONS] <container_name> <tag> URL
 
   Upgrade docker image from local binary or URL
 
@@ -71,7 +71,7 @@ docker-dhcp-relay          latest                                cf68d734ec21   
 docker-dhcp-relay          warm-reboot.0-dirty-20180709.225823   cf68d734ec21        2 days ago          293.1 MB
 docker-router-advertiser   latest                                8e69dcfe794d        2 days ago          289.4 MB
 docker-router-advertiser   warm-reboot.0-dirty-20180709.225823   8e69dcfe794d        2 days ago          289.4 MB
-root@sonic:~# sonic_installer upgrade_docker swss test_v03  docker-orchagent-brcm_v03.gz --cleanup_image
+root@sonic:~# sonic-installer upgrade_docker swss test_v03  docker-orchagent-brcm_v03.gz --cleanup_image
 New docker image will be installed, continue? [y/N]: y
 Command: systemctl stop swss
 
@@ -123,7 +123,7 @@ docker-router-advertiser   warm-reboot.0-dirty-20180709.225823   8e69dcfe794d   
 
 
 
-`systemctl restart swss`  or ` sonic_installer upgrade_docker` won't affect data plane traffic and new provisioning works well.
+`systemctl restart swss`  or ` sonic-installer upgrade_docker` won't affect data plane traffic and new provisioning works well.
 
 ```
 127.0.0.1:6379> keys WAR*
@@ -203,19 +203,19 @@ jipan@sonic-build:~/igbpatch/vs/sonic-buildimage/src/sonic-swss/tests$
 ```
 
 # Separate syncd and swss services, and warm start configDB support
-https://github.com/Azure/sonic-buildimage/compare/master...jipanyang:warm-reboot
+https://github.com/sonic-net/sonic-buildimage/compare/master...jipanyang:warm-reboot
 
 # swss-flushdb script support
-https://github.com/Azure/sonic-utilities/compare/master...jipanyang:swss-warm-restart
+https://github.com/sonic-net/sonic-utilities/compare/master...jipanyang:swss-warm-restart
 
 # swss data restore
-https://github.com/Azure/sonic-swss/compare/master...jipanyang:idempotent
+https://github.com/sonic-net/sonic-swss/compare/master...jipanyang:idempotent
 
 # RedisClient  hmset and hgetallordered library support.
-https://github.com/Azure/sonic-swss-common/compare/master...jipanyang:idempotent
+https://github.com/sonic-net/sonic-swss-common/compare/master...jipanyang:idempotent
 
 # libsari redis API idempotency support
-https://github.com/Azure/sonic-sairedis/compare/master...jipanyang:idempotent
+https://github.com/sonic-net/sonic-sairedis/compare/master...jipanyang:idempotent
 
 
 

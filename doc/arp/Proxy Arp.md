@@ -57,14 +57,14 @@ The following flow diagram captures two example, one for user configuration and 
 
 ## Kernel config
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/proxy_arp_kernel.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/proxy_arp_kernel.png)
 
 ## SAI config
 
 For requirement #2, the proposal is to disable flooding for the specific Vlan so that ARP packets shall not get flooded in hardware.
 By default in Sonic, it is a copy action for ARP packets which means, packets gets flooded in hardware. In the event of enabling proxy-arp, flooding must be disabled. This enables the switch to respond to ARP requests within this subnet to be responded with its SVI mac. ```Intforch``` must invoke "Vlan flood" disable during the RIF creation based on "prxoy_arp" attribute.
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/proxy_arp_flood.png)
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/proxy_arp_flood.png)
 
 # Additional Notes
 1. The flooding is disabled only for those interfaces that has proxy_arp setting. The implementation shall not modify the existing behavior and shall be backward compatible. 

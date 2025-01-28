@@ -172,7 +172,7 @@ Management framework is a SONiC application which is responsible for providing v
 * Must provide support for:
 
     1. Standard [YANG](https://tools.ietf.org/html/rfc7950) models (e.g. OpenConfig, IETF, IEEE)
-    2. Custom YANG models ([SONiC YANG](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md))
+    2. Custom YANG models ([SONiC YANG](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md))
     3. Industry-standard CLI / Cisco like CLI
 
 * Must provide support for [OpenAPI spec](http://spec.openapis.org/oas/v3.0.3) to generate REST server side code
@@ -735,7 +735,7 @@ Supported RPC Operations:
 
 Example Client Operations:
 --------------------------
-Using opensource clients, these are example client operations. The .json test payload files are available here: https://github.com/project-arlo/sonic-mgmt-common/tree/master/src/Translib/test
+Using opensource clients, these are example client operations. The .json test payload files are available here: https://github.com/sonic-net/sonic-mgmt-common/tree/master/translib/test
 
 Get:
 ----
@@ -1469,6 +1469,292 @@ Notes:
     1. SetEntry(), CreateEntry(), ModEntry() with empty fields in v, will map to
        DeleteEntry(). [ There may be an option to disable this in the future. ]
 
+####### 3.2.2.6.5.1 Config Session Changes
+
+Currently, the main task of the database as mentioned in [Management Framework] under the [DB Access Layer] section is to implement a wrapper over the go-redis package and enhance the functionality in the following ways:
+
+* Provide a sonic-py-swsssdk like API in Go
+
+* Enable support for concurrent access via Redis CAS (Check-And-Set) transactions.
+
+* Invoke the CVL for validation before write operations to the Redis DB
+
+This will be enhanced for the following:
+
+* Provide a way for querying a *candidate-datastore*, instead of the redis server's CONFIG_DB database selection. This can be supported in one of several ways:
+
+  - [ ] Use a different database number for CONFIG_DB than the one specified by the default (4, per the default database_config.json) on the redis-server for querying a *candidate-datastore*. This will require additional changes to the database docker (to support additional database numbers), and more memory resources (the CONFIG_DB is essentially duplicated). Increasing the number of supported *candidate-datastore* 's may result in an additional duplication of the memory resources, since each *candidate-datastore* will have to be implemented as a separate database number on the redis-server.
+
+  - [x] Use the existing behavior of the DB Access Layer (with the recent support added for reflecting the CAS Transaction cache in Get queries on a DB connection, by checking the CAS Transaction cache before returning entries to the caller). No additional resources (like memory) are needed.
+
+* Provide a way for querying the *running-datastore*. This is already supported in the Management Framework as in the current, and past SONiC releases, by opening a new DB Access Layer connection.
+
+* Nested transactions will be used to mark the beginning and end of each request. This is to be used to rollback the state of the Config Session in case a Set/CRUD request results in a failure. Any changes in the current Set/CRUD request need to be rolled back, but changes made by previous Set/CRUD requests in the same Config Session need to be preserved.
+
+| API       | Description                                                     |
+|:----------|-----------------------------------------------------------------|
+|           |                                                                 |
+|DeclareSP  | Define the Savepoint                                            |
+|           |                                                                 |
+|ReleaseSP  | Destroys the Savepoint                                          |
+|           |                                                                 |
+|Rollback2SP| Roll back all commands executed after the Savepoint             |
+|           |                                                                 |
+
+* Keep a count of the Transaction size, i.e. the number of redis operations that are pending commit in the *candidate-configuration*.
+
+######## 3.2.2.6.5.1.1 Locking
+
+* Synchronize *configure-session*, *configure-terminal*, and CRUD/Set/Write operations from non-KLISH clients (RESTCONF, gNMI). Thus, while a *configure-session* remains active, all other KLISH CLI, RESTCONF, and gNMI requests for Set will be disallowed/rejected indicating that a Resource is Locked, or a similar error message. Redis provides a locking mechanism through the use of *SETNX* command, which sets a key only if the value does not exist. Redis locking will be the preferred choice.
+
+* Exclusive *configure-session* behavior, i.e. only one KLISH session can be in the un-named *configure-session* at a time. This should be able to detect cases where a KLISH session has exited out of a *configure-session* either due to explicit admin command *exit*, or implicitly if the KLISH session was terminated due to connectivity issues, or an idle-timeout.
+
+* Synchronize access to the *candidate-datastore* DB connection. Multiple go-routines/threads can make DB Layer calls using that DB connection because:
+
+  - Config Session KLISH CLI could be making Set/CRUD requests.
+  - Another admin session could be requesting `show config session diff`
+  - Another admin session could be requesting `clear config session`
+
+######## 3.2.2.6.5.1.2 Transaction Size Limit
+
+Each KLISH CLI *configure-session* command can result in one or more redis commands being added to the *candidate-datastore*. The size of the redis commands in the *candidate-datastore* will be limited to ccDbTxCmdsLim (currently 10000).
+
+######## 3.2.2.6.5.1.3 DB Stretch Goal
+
+* Provide a way for querying an arbitrary datastore, as specified by either a *snapshot*, a *commit-id*, or a *target-datastore* specified in the form of a json (or equivalent format) file. Some Restrictions:
+
+  + IsWriteDisabled is true.
+  + IsOnChangeCache, and IsCacheEnabled are false.
+  + ScanCursor, PubSubRpcDB are not supported.
+  + Only CONFIG_DB-like datastores supported.
+  + Statistics (only some of which are applicable, i.e. no PCC (per-connection-cache)) may be recorded under a alternate DB no (internally known as PSEUDO_DB)
+
+###### 3.2.2.6.6 Config Session State
+
+The ConfigSession Object is created in Translib to manage the lifetime of a KLISH *configure session*. It is only supported for KLISH clients.
+
+Following are some of fields in this object:
+
+- name: Name of the Config Session (Future Release)
+
+- token: Unique Session Token
+
+- state: Config Session State
+
+- username: Name of the User
+
+- pid: The identifying PID of the KLISH Config Session
+
+
+Following is a set of tables which represents the state transitions for the ConfigSession Object in translib.
+
+
+#### cs_STATE_None
+
+Initially the ConfigSession Object is in the *None* state. Upon receipt of the internal ConfigSessionStart(OrResume) RPC, a transition is made to the *ACTIVE* state, and the actions under "Entry Action" column are executed.
+
+Table: cs_STATE_None
+
+
+|   RPC    |     Conditions    |    State    |       Entry Action             |
+|:---------|:-----------------:|:------------|:------------------------------:|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Start   |                   |   ACTIVE    |                                |
+|          |                   |             | c = NewConfigSession()         |
+|          |                   |             |                                |
+|          |                   |             | c.name = req.Name              |
+|          |                   |             | c.token = token.Generate()     |
+|          |                   |             | c.username = req.User          |
+|          |                   |             | c.cInfo.pid = req.CInfo.Pid    |
+|          |                   |             |                                |
+|          |                   |             | c.ccDB = NewDB()               |
+|          |                   |             | c.ccDB.StartTx()               |
+|          |                   |             |                                |
+|          |                   |             | rsp.Token = c.Token            |
+|          |                   |             | rsp.Status = CreatedSession    |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|   Exit   |                   |    None     | rsp.Status = Error             |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Abort   |                   |    None     | rsp.Status = Error             |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Commit  |                   |    None     | rsp.Status = Error             |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|   Kill   |                   |    None     | rsp.Status = Error             |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+
+
+
+#### cs_STATE_ACTIVE
+
+Once in the *ACTIVE* state, transitions can be made to *INACTIVE*, or *None*, or back to *ACTIVE*.
+
+Table: cs_STATE_ACTIVE
+
+|   RPC    |     Conditions    |    State    |       Entry Action             |
+|:---------|:-----------------:|:------------|:------------------------------:|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Start   |                   |             |                                |
+|          | req.User ==       |             |                                |
+|          |       c.User      |             |                                |
+|          | (Ensure same user)|             |                                |
+|          |                   |             |                                |
+|          | c.cInfo.pid is    |             |                                |
+|          | inactive          |             |                                |
+|          | (Verify Stale pid)|             |                                |
+|          |                   |   ACTIVE    |                                |
+|          |                   |             |  c.cInfo.pid = req.CInfo.Pid   |
+|          |                   |             |                                |
+|          |                   |             |  rsp.Token = c.Token           |
+|          |                   |             |  rsp.Status = ResumedSession   |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Exit    |                   |             |                                |
+|          | req.Token ==      |             |                                |
+|          |       c.Token     |             |                                |
+|          | (Ensure same sess)|             |                                |
+|          |                   |             |                                |
+|          | req.User ==       |             |                                |
+|          |       c.User      |             |                                |
+|          | (Ensure same user)|             |                                |
+|          |                   |             |                                |
+|          | req.CInfo.Pid ==  |             |                                |
+|          |      c.cInfo.pid  |             |                                |
+|          | (Verify same pid) |             |                                |
+|          |                   |  INACTIVE   |                                |
+|          |                   |             | c.CInfo.pid = 0                |
+|          |                   |             |                                |
+|          |                   |             | rsp.Status = ExitedSession     |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Abort   |                   |             |                                |
+|          | req.Token ==      |             |                                |
+|          |       c.Token     |             |                                |
+|          | (Ensure same sess)|             |                                |
+|          |                   |             |                                |
+|          | req.User ==       |             |                                |
+|          |       c.User      |             |                                |
+|          | (Ensure same user)|             |                                |
+|          |                   |             |                                |
+|          | req.CInfo.Pid ==  |             |                                |
+|          |      c.cInfo.pid  |             |                                |
+|          | (Verify same pid) |             |                                |
+|          |                   |    None     |                                |
+|          |                   |             | rsp.Status = AbortedSession    |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Commit  |                   |             |                                |
+|          | req.Token ==      |             |                                |
+|          |       c.Token     |             |                                |
+|          | (Ensure same sess)|             |                                |
+|          |                   |             |                                |
+|          | req.User ==       |             |                                |
+|          |       c.User      |             |                                |
+|          | (Ensure same user)|             |                                |
+|          |                   |             |                                |
+|          | req.CInfo.Pid ==  |             |                                |
+|          |      c.cInfo.pid  |             |                                |
+|          | (Verify same pid) |             |                                |
+|          |                   |             |                                |
+|          |                   |    None     |                                |
+|          |                   |             | c.ccDB.CommitTx()              |
+|          |                   |             |   recordCommitTx()             |
+|          |                   |             | c.ccDB.DeleteDB()              |
+|          |                   |             |                                |
+|          |                   |             |rsp.Status = CommittedSession   |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|   Kill   |                   |    None     |                                |
+|          |                   |             | c.ccDB.AbortTx()               |
+|          |                   |             | c.ccDB.DeleteDB()              |
+|          |                   |             |                                |
+|          |                   |             | rsp.Status = KilledSession     |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+
+
+#### cs_STATE_INACTIVE
+
+In the *INACTIVE* state, transitions can be made to *ACTIVE*, or *None* states.
+
+Table: cs_STATE_INACTIVE
+
+|   RPC    |     Conditions    |    State    |       Entry Action             |
+|:---------|:-----------------:|:------------|:------------------------------:|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Start   |                   |             |                                |
+|          | req.User ==       |             |                                |
+|          |       c.User      |             |                                |
+|          | (Ensure same user)|             |                                |
+|          |                   |   ACTIVE    |                                |
+|          |                   |             |  c.cInfo.pid = req.CInfo.Pid   |
+|          |                   |             |                                |
+|          |                   |             |  rsp.Token = c.Token           |
+|          |                   |             |  rsp.Status = ResumedSession   |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|   Exit   |                   |   INACTIVE  | rsp.Status = Error             |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Abort   |                   |   INACTIVE  | rsp.Status = Error             |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|  Commit  |                   |   INACTIVE  | rsp.Status = Error             |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+|          |                   |             |                                |
+|          |                   |             |                                |
+|   Kill   |                   |    None     |                                |
+|          |                   |             | c.ccDB.AbortTx()               |
+|          |                   |             | c.ccDB.DeleteDB()              |
+|          |                   |             |                                |
+|          |                   |             | rsp.Status = KilledSession     |
+|          |                   |             |                                |
+|          |                   |             |                                |
+|----------|-------------------|-------------|--------------------------------|
+
 
 ##### 3.2.2.7 Transformer
 
@@ -1843,19 +2129,19 @@ module openconfig-acl-annot {
 
 ##### 3.2.2.8 Config Validation Library (CVL)
 
-Config Validation Library (CVL) is an independent library to validate ABNF schema based SONiC (Redis) configuration. This library can be used by component like [Cfg-gen](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-config-engine/sonic-cfggen), Translib, [ZTP](https://github.com/Azure/SONiC/blob/master/doc/ztp/ztp.md) etc. to validate SONiC configuration data before it is written to Redis DB. Ideally, any component importing config_db.json file into Redis DB can invoke CVL API to validate the configuration. 
+Config Validation Library (CVL) is an independent library to validate ABNF schema based SONiC (Redis) configuration. This library can be used by component like [Cfg-gen](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-config-engine/sonic-cfggen), Translib, [ZTP](https://github.com/sonic-net/SONiC/blob/master/doc/ztp/ztp.md) etc. to validate SONiC configuration data before it is written to Redis DB. Ideally, any component importing config_db.json file into Redis DB can invoke CVL API to validate the configuration. 
 
 CVL uses SONiC YANG models written based on ABNF schema along with various constraints. These native YANG models are simple and have a very close mapping to the associated ABNF schema. Custom YANG extensions (annotations) are used for custom validation purpose. Specific YANG extensions (rather metadata) are used to translate ABNF data to YANG data. In the context of CVL these YANG models are called CVL YANG models and generated from SONiC YANG during build time. Opensource [libyang](https://github.com/CESNET/libyang) library is used to perform YANG data validation.
 
 SONiC YANG can be used as Northbound YANG for management interface by adding other data definitions such as state data (read only data), RPC or Notification as needed.Such YANG models are called SONiC NBI YANG models. Since CVL validates configuration data only, these data definition statements are ignored by CVL. During build time CVL YANG is actually generated from SONiC NBI YANG models with the help of CVL specific pyang plugin. 
 
-CVL supports multiple user-defined Redis database instances based on the [Multi DB instance HLD](https://github.com/Azure/SONiC/blob/master/doc/database/multi_database_instances.md) specification. During CVL initialization time, the DB configuration file is read from the predefined location and details are stored in internal data structure. CVL implements internal API for connecting to a Redis DB instance using the details stored in its internal data structure.
+CVL supports multiple user-defined Redis database instances based on the [Multi DB instance HLD](https://github.com/sonic-net/SONiC/blob/master/doc/database/multi_database_instances.md) specification. During CVL initialization time, the DB configuration file is read from the predefined location and details are stored in internal data structure. CVL implements internal API for connecting to a Redis DB instance using the details stored in its internal data structure.
 
 ###### 3.2.2.8.1 Architecture
 
 ![CVL architecture](images/CVL_Arch.jpg)
 
-1. During build time, developer writes SONiC YANG schema based on ABNF schema following [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) and adds metadata and constraints as needed. Custom YANG extensions are defined for this purpose.
+1. During build time, developer writes SONiC YANG schema based on ABNF schema following [SONiC YANG Guidelines](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) and adds metadata and constraints as needed. Custom YANG extensions are defined for this purpose.
 2. The YANG models are compiled using Pyang compiler. CVL specific YIN schema files are derived from SONiC YANG with the help of CVL specific pyang plugin. Finally, generated YIN files are packaged in the build.
 3. During boot up/initialization sequence, YIN schemas generated from SONiC YANG models are parsed and schema tree is build using libyang API.
 4. Application calls CVL APIs to validate the configuration. In case of Translib library DB Access layer calls appropriate CVL APIs to validate the configuration.
@@ -2219,7 +2505,7 @@ Redis schema needs to be expressed in SONiC proprietary YANG model with all data
 
 Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
 
-Please refer to [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) for detiailed guidelines on writing SONiC YANG.
+Please refer to [SONiC YANG Guidelines](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) for detiailed guidelines on writing SONiC YANG.
 
 #### 5.1.2 Generation of REST server stubs and Client SDKs for YANG based APIs
 
@@ -2284,7 +2570,7 @@ Redis schema needs to be expressed in SONiC YANG model with all data types and c
 
 Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
 
-Please refer to [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) for detiailed guidelines on writing SONiC YANG.
+Please refer to [SONiC YANG Guidelines](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) for detiailed guidelines on writing SONiC YANG.
 
 #### 5.2.4 Generation of REST server stubs and Client SDKs for YANG based APIs
 
@@ -2552,7 +2838,7 @@ Following are the list of Open source tools used in Management framework
 ## 12 Appendix B
 
 Following are the list of Open source libraries used in telemetry container. 
-Always refer to the [Makefile](https://github.com/Azure/sonic-telemetry/blob/master/Makefile) for the sonic-telemetry container for current package list.
+Always refer to the [Makefile](https://github.com/sonic-net/sonic-gnmi/blob/master/Makefile) for the sonic-gnmi container for current package list.
 
 
 1. [GRPC](https://google.golang.org/grpc)

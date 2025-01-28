@@ -64,7 +64,7 @@ The support of explicit recycle ports requires the minimal changes to SAI as lon
 
 Recirculation ports are configured in port_config.ini or platform.json just like front panel ports. In order to distinguish recirculation from front panel ports, the appropriate port role must be set for recirculation ports. The port role must indicate the intended use of a recirculation port. SONiC can discover all configured recirculation ports, based on their port roles, and use them appropriately.
 
-As of now, there are two use cases of recirculation ports: inband port [here](https://github.com/Azure/SONiC/blob/master/doc/voq/architecture.md), or features like Everflow that needs to recycle encapsulated packets to be routed to the egress ASIC [here](https://github.com/Azure/SONiC/pull/716/files). In order to ensure the right recirculation ports are used, we introduce two port roles, Inb and Rec, for the two use cases respectively.
+As of now, there are two use cases of recirculation ports: inband port [here](https://github.com/sonic-net/SONiC/blob/master/doc/voq/architecture.md), or features like Everflow that needs to recycle encapsulated packets to be routed to the egress ASIC [here](https://github.com/sonic-net/SONiC/pull/716/files). In order to ensure the right recirculation ports are used, we introduce two port roles, Inb and Rec, for the two use cases respectively.
 
 Two recirculation ports, Ethernet-Rec0 and Ethernet-IB0, are configured in the example port_config.ini below. Ethernet-Rec0 is used by Everflow, which has port role Rec. Ethernet-IB0 is used as an inband port and thus its port role is set to Inb. The recirculation port's lanes, used to discover the corresponding SAI ports, must be provided in port_config.ini as well.
 

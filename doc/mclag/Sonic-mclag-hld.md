@@ -430,7 +430,7 @@ Flow 8: After configure/update APP_DB, OrchAgent monitors and procesess the rela
 
 Jason definition is exactly the same as acl_table and acl_rule_table in config-db. MCLAG uses acl to isolate peer-link from mclag-enabled port-channel. so We add acl_table and acl_rule_table in app-db. Other apps which need to configure acl dynamically can reuse this mechanism.
 
-The acl hld has defined app_acl_table and app_acl_rule_table but did not implement it. Please refer [acl_hld](https://github.com/Azure/SONiC/blob/master/doc/acl/ACL-High-Level-Design.md#31211-acl-tables-table) for detail.
+The acl hld has defined app_acl_table and app_acl_rule_table but did not implement it. Please refer [acl_hld](https://github.com/sonic-net/SONiC/blob/master/doc/acl/ACL-High-Level-Design.md#31211-acl-tables-table) for detail.
 
 ```jason
     "ACL_TABLE": {
@@ -582,7 +582,7 @@ Config loglevel success!
 
 ## 9.4. aclorch changes
 
-Adding the following logic:([PR#810](https://github.com/Azure/sonic-swss/pull/810))
+Adding the following logic:([PR#810](https://github.com/sonic-net/sonic-swss/pull/810))
 
 - ACL table can be matched with OUT_PORTS.
 - Aclorch as the consumer to monitor the events of APP_ACL_TABLE_NAME and APP_ACL_RULE_TABLE_NAME tables in APP_DB . The definition of APP_ACL_TABLE_NAME and APP_ACL_RULE_TABLE_NAME are in sonic-swss-common/common/schema.h.
@@ -598,8 +598,8 @@ Adding the following logics:
 
 Adding the following logics:
 
-- Listening new APP_DB events, enable or disable to learn interface MACs. If ‘learn_mode’ attribute of one port is set to ‘disabled’, the MAC learning of this port is disbled.([PR#809](https://github.com/Azure/sonic-swss/pull/809))
-- Add LAG name map to counter table, so that ‘show mac’ can display the MACs learned from LAG ports. ([PR#808](https://github.com/Azure/sonic-swss/pull/808))
+- Listening new APP_DB events, enable or disable to learn interface MACs. If ‘learn_mode’ attribute of one port is set to ‘disabled’, the MAC learning of this port is disbled.([PR#809](https://github.com/sonic-net/sonic-swss/pull/809))
+- Add LAG name map to counter table, so that ‘show mac’ can display the MACs learned from LAG ports. ([PR#808](https://github.com/sonic-net/sonic-swss/pull/808))
 
 ## 9.7. intfmgr changes
 
@@ -611,14 +611,14 @@ Adding the following logics:
 
 Adding the following logics:
 
-- Listening MAC modification of L3 interfaces,  updating it to ASIC.([PR#814](https://github.com/Azure/sonic-swss/pull/814))
-- Removing the function of adding/delete direct connected network FIB update triggered by creation of L3 interface in orchAgent. (Such direct connected network FIB does not respond to the state change, which is wrong, it only responds to the ip address addition or deletion）[PR#878](https://github.com/Azure/sonic-swss/pull/878))
+- Listening MAC modification of L3 interfaces,  updating it to ASIC.([PR#814](https://github.com/sonic-net/sonic-swss/pull/814))
+- Removing the function of adding/delete direct connected network FIB update triggered by creation of L3 interface in orchAgent. (Such direct connected network FIB does not respond to the state change, which is wrong, it only responds to the ip address addition or deletion）[PR#878](https://github.com/sonic-net/sonic-swss/pull/878))
 
 ## 9.9. routeorch changes
 
 Adding the following logics:
 
-- For the creation of the directly connected network, the code is moved from intfsorch to routeorch. Like other types of route, the direct connect network is informed by Zebra. This is to fix a common issue, not only for MC-LAG support.([PR#878](https://github.com/Azure/sonic-swss/pull/878))
+- For the creation of the directly connected network, the code is moved from intfsorch to routeorch. Like other types of route, the direct connect network is informed by Zebra. This is to fix a common issue, not only for MC-LAG support.([PR#878](https://github.com/sonic-net/sonic-swss/pull/878))
 
 ## 9.10. fdborch changes
 
@@ -626,7 +626,7 @@ Adding the following logics:
 
 - If the FDB entry is already exist when the event is ADD, remove the entry first, then add the entry.
 - FDB MAC can be learnt from or set to VXLAN tunnel in ASIC.
-([PR#877](https://github.com/Azure/sonic-swss/pull/877))
+([PR#877](https://github.com/sonic-net/sonic-swss/pull/877))
 
 ## 9.11. vxlanmgr changes
 

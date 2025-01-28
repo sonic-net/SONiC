@@ -11,7 +11,7 @@
 ## About This Manual ##
 
 This document is intend to provide general information about the Transceiver and Sensor Monitoring implementation.
-The requirement is described in [Sensor and Transceiver Info Monitoring Requirement.](https://github.com/Azure/SONiC/blob/master/doc/xrcvd/OIDsforSensorandTransciver.MD)
+The requirement is described in [Sensor and Transceiver Info Monitoring Requirement.](https://github.com/sonic-net/SONiC/blob/master/doc/xrcvd/OIDsforSensorandTransciver.MD)
 
 ## 1. Xcvrd design ##
 
@@ -237,7 +237,7 @@ A thread will be started to periodically refresh the DOM sensor information.
 
 Detailed flow as showed in below chart:
 
-![](https://github.com/keboliu/SONiC/blob/master/images/xcvrd-flow.svg)
+![](https://github.com/sonic-net/SONiC/blob/d1159ca728112f10319fa47de4df89c445a27efc/images/transceiver_monitoring_hld/xcvrd_flow.svg)
 
 #### 1.4.1 State machine of sfp\_state\_update\_task process ####
 
@@ -368,7 +368,7 @@ Another entPhySensorTable which is defined in [Entity Sensor MIB(RFC3433)](https
 | 1.3.6.1.2.1.99.1.1.1.4.index | entPhySensorValue | Same as above | 7998 |
 | 1.3.6.1.2.1.47.1.1.1.1.2.index | entPhysicalDescr | Show interfaces alias | DOM RX Power Sensor for DOM RX Power Sensor for Ethernet29/1 |
 
-More detailed information about new table and new OIDs are described in [Sensor and Transceiver Info Monitoring Requirement](https://github.com/Azure/SONiC/blob/master/doc/xrcvd/OIDsforSensorandTransciver.MD#transceiver-requirements-entity-mib).
+More detailed information about new table and new OIDs are described in [Sensor and Transceiver Info Monitoring Requirement](https://github.com/sonic-net/SONiC/blob/master/doc/xrcvd/OIDsforSensorandTransciver.MD#transceiver-requirements-entity-mib).
 
 ## 3. CLI change ##
 

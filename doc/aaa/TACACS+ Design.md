@@ -307,7 +307,7 @@ The following figure show how Auditd config an TACACS+ config update by ConfigDB
 
 
 ## 4.3 ConfigDB Schema
- - Existing tables, for more detail please check [TACACS+ Authentication](https://github.com/Azure/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md#aaa-table-schema)
+ - Existing tables, for more detail please check [TACACS+ Authentication](https://github.com/sonic-net/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md#aaa-table-schema)
    - TACPLUS Table
    - TACPLUS_SERVER Table.
    - AAA Table (updated).
@@ -319,7 +319,7 @@ login                = LIST(1*32VCHAR)   ; AAA protocol, now only support (local
 fallback             = "True" / "False"  ; fallback mechanism for pam modules
 failthrough          = "True" / "False"  ; failthrough mechanism for pam modules
 ```
-* According to [TACACS+ Authentication](https://github.com/Azure/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md#aaa-table-schema), the 'login' attribute should be 'protocol' attribute , But in current SONiC [yang model](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-system-aaa.yang), this attribute name is 'login'. Because change the attribute name may break backward compatibility, so keep will use 'login' as attribute name.
+* According to [TACACS+ Authentication](https://github.com/sonic-net/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md#aaa-table-schema), the 'login' attribute should be 'protocol' attribute , But in current SONiC [yang model](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-system-aaa.yang), this attribute name is 'login'. Because change the attribute name may break backward compatibility, so keep will use 'login' as attribute name.
 
 ## 4.4 CLI
  - The existing TACACS+ server config command will not change.
@@ -547,7 +547,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
 ## RFC8907
 https://datatracker.ietf.org/doc/html/rfc8907
 ## TACACS+ Authentication
-https://github.com/Azure/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md
+https://github.com/sonic-net/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md
 ## Bash
 https://www.gnu.org/software/bash/html
 ## pam_tacplus

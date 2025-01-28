@@ -76,7 +76,7 @@ This document describes the algorithm of patch ordering described in [SONiC Gene
 # 1 Feature Overview
 Please make sure you have reviewed SONiC Generic Configuration Update and Rollback design document especially [Patch Orderer](SONiC_Generic_Config_Update_and_Rollback_Design.md#3114-patch-orderer).
 
-In this design document, we are going to explore using YANG models to order a given JsonPatch of updates. The idea is to make sure the transitions applied to the configurations all result in valid configs according to [SONiC YANG models](https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models).
+In this design document, we are going to explore using YANG models to order a given JsonPatch of updates. The idea is to make sure the transitions applied to the configurations all result in valid configs according to [SONiC YANG models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models).
 
 YANG models has multiple constrains that can affect ordering (check [YANG 1.1 (RFC7950)](https://tools.ietf.org/html/rfc7950)):
 * leafref built-in type
@@ -333,7 +333,7 @@ Next we recursively go up the tree, this includes at the level of `/ACL_RULE` ta
 - There can be other moves as the quality of the moves will determine if there is a path to get to the Target Config from the Current Config.
 
 ### 2.2.4 Validating config and move
-- Validates result config after applying the move against [SONiC YANG models](https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models).
+- Validates result config after applying the move against [SONiC YANG models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models).
 - Validates the operation itself
   - If we don't validate the operation, then we can always just replace the whole current_config with the whole target_config in one operation. This will always produce a valid result config.
   - Validating the operation makes sure it does not contain 2 changes that have dependency as JsonChange appliers do not take of ordering.
@@ -383,13 +383,13 @@ SONiC YANG models are going to be used for the following:
 - Host flags/configs for move validation
 
 ### 3.1.1 Using YANG Models to Validate Config State
-This is a straightforward task and can be done using [SONiC Libynag wrapper](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-mgmt/sonic_yang.py), specifically `validate_data_tree`.
+This is a straightforward task and can be done using [SONiC Libynag wrapper](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-mgmt/sonic_yang.py), specifically `validate_data_tree`.
 
 ### 3.1.2 Using YANG models to Generate Other Moves
 Check [2.2.3 Generating all possible moves](#223-generating-all-possible-moves) to learn more about what are the possible moves.
 
 YANG models can help with:
-- Lines getting removed which have references, can be substituted by deleting their references first as it is required anyway (check [2.2.3.3 Generating Other Moves](#2233-generating-other-moves) for details). Getting the dependency of some data can be done using [SONiC Libynag wrapper](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-mgmt/sonic_yang.py), specifically `find_data_dependencies`.
+- Lines getting removed which have references, can be substituted by deleting their references first as it is required anyway (check [2.2.3.3 Generating Other Moves](#2233-generating-other-moves) for details). Getting the dependency of some data can be done using [SONiC Libynag wrapper](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-mgmt/sonic_yang.py), specifically `find_data_dependencies`.
 - Any other moves should be generated using YANG models, if YANG models data are not enough an extension to YANG models can be added to help with generating new moves.
 
 ### 3.1.3 Using YANG models to Host Flags for Move Validation
@@ -405,7 +405,7 @@ Some fields are not allowed to be modified and can only be created, such as `/PO
     SAI_PORT_ATTR_HW_LANE_LIST,
 ```
 
-The new extension `create-only` will be added to [YANG models SONiC extensions](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-extension.yang):
+The new extension `create-only` will be added to [YANG models SONiC extensions](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-extension.yang):
 ```
 extension create-only {
     description "During apply-patch operation the field can only be created (i.e. added) or re-created (i.e. removed then added) but cannot be modified (i.e. replaced).";
@@ -431,7 +431,7 @@ Let's take the example [A.2 Dynamic Port Breakout 1 to 4](#a2-dynamic-port-break
 ```
 But the field `lanes` is `create-only` and cannot be modified i.e. replaced. The only way to update the `lanes` field is through deleting then adding its parent the `/PORT/Ethernet0`.
 
-In [port YANG model](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-port.yang), let's mark `lanes` with `create-only`:
+In [port YANG model](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-port.yang), let's mark `lanes` with `create-only`:
 ```diff
  leaf lanes {
      mandatory true;
@@ -522,9 +522,9 @@ N/A
 | 11        | Remove 2 items that depends on each other in the same table e.g. /INTERFACE/INTERFACE_LIST and /INTERFACE/INTERFACE_PREFIX_LIST. |
 | 12        | Add 2 items that depends on each other in the same table e.g. /INTERFACE/INTERFACE_LIST and /INTERFACE/INTERFACE_PREFIX_LIST. |
 | 13        | Replace a mandatory item e.g. type under ACL_TABLE. |
-| 14        | Dynamic port breakout as described [here](https://github.com/Azure/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
+| 14        | Dynamic port breakout as described [here](https://github.com/sonic-net/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
 | 15        | Remove an item that has a default value. |
-| 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
+| 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
 
 <br>
 

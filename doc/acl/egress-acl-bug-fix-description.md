@@ -68,7 +68,7 @@ To have both mirror action supported, we need to extend AclRuleMirror and the cr
  
 - flow chart after add the new flow
 
-   ![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_mirror_rule_flow.svg)
+   ![](https://github.com/sonic-net/SONiC/blob/master/images/acl_hld/acl_mirror_rule_flow.svg)
 
 ### 3. New SWSS virtual test Added to cover the egress ACL support
 

@@ -857,7 +857,7 @@ http://man7.org/linux/man-pages/man5/nsswitch.conf.5.html
 
 ## TACPLUS Authentication
 
-https://github.com/Azure/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md
+https://github.com/sonic-net/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md
 
 ## pam_radius
 

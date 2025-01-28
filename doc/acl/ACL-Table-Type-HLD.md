@@ -99,7 +99,7 @@ match            = 1*64VCHAR
 match-list       = [1-max-matches]*match
 action           = 1*64VCHAR
 action-list      = [1-max-actions]*action
-bind-point       = port/lag
+bind-point       = port/portchannel
 bind-points-list = [1-max-bind-points]*bind-point
 ```
 
@@ -119,7 +119,7 @@ Example:
             ],
             "BIND_POINTS": [
                 "PORT",
-                "LAG"
+                "PORTCHANNEL"
             ]
         }
     },
@@ -168,7 +168,7 @@ container ACL_TABLE_TYPE {
             mandatory true;
             type enumeration {
                 enum PORT;
-                enum LAG;
+                enum PORTCHANNEL;
             }
         }
     }

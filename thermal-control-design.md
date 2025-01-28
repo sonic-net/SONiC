@@ -52,7 +52,7 @@ In most case fan is the device to cool down the switch when the temperature is r
 
 Fan target speed and speed tolerance was defined, by examining them we can know whether the fan reached at the desired speed.
 
-same as the temperature info, a [table for fan](https://github.com/Azure/SONiC/blob/master/doc/pmon/pmon-enhancement-design.md#153-fan-table) also defined as below:
+same as the temperature info, a [table for fan](https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon-enhancement-design.md#153-fan-table) also defined as below:
 
     ; Defines information for a fan
     key                     = FAN_INFO|fan_name              ; information for the fan

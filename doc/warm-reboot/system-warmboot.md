@@ -74,13 +74,13 @@ Assumptions:
 2. Focus on whole system reboot, in future will extend it to container level warm restart
 3. Focus on one image warm reboot, and version upgrading warm reboot. No version downgrading warm reboot.
 
-Structure of testbed: [design doc](https://github.com/Azure/sonic-mgmt/blob/master/docs/testbed/README.testbed.Overview.md#sonic-testbed-overview)
+Structure of testbed: [design doc](https://github.com/sonic-net/sonic-mgmt/blob/master/docs/testbed/README.testbed.Overview.md#sonic-testbed-overview)
 ![Physical topology](img/testbed.png)
 ![Testbed server](img/testbed-server.png)
 
 Architect:
-  - Both warm-reboot and fast-reboot are written in ansible playbook [advanced-reboot.yml](https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/advanced-reboot.yml)
-  - The playbook will deploy a master python script [advanced-reboot.py](https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/files/ptftests/advanced-reboot.py) to PTF docker container and all the steps are running there
+  - Both warm-reboot and fast-reboot are written in ansible playbook [advanced-reboot.yml](https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/roles/test/tasks/advanced-reboot.yml)
+  - The playbook will deploy a master python script [advanced-reboot.py](https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/roles/test/files/ptftests/advanced-reboot.py) to PTF docker container and all the steps are running there
   - The master python script will
     - ssh into DUT to execute reboot command
     - ssh into Arist EOS VM to observe and operate port, port channel and BGP sessions

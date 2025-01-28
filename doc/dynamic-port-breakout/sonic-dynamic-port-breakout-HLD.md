@@ -48,6 +48,7 @@
     - [Syncd changes](#syncd-changes)
   - [libSAI requirements](#libsai-requirements)
 - [Warm reboot support](#warm-reboot-support)
+- [Port breakout workflow additions](#port-breakout-workflow-additions)
 - [Unit test -TBD](#unit-test--tbd)
 - [System test -TBD](#system-test--tbd)
 - [Scalability - TBD](#scalability---tbd)
@@ -62,6 +63,7 @@
 | 0.4 | 12/20/2019  | Zhenggen Xu           | platform.json changes, dependency check changes etc       |
 | 0.5 | 3/5/2019    | Zhenggen Xu           | Clarification of port naming and breakout modes       |
 | 0.6 | 2/3/2021    | Zhenggen Xu           | Support more flexible port aliases       |
+| 0.7 | 3/14/2023   | Shyam Kumar           | Port Breakout workflow updates considering CMIS |
 
 # Scope
 This document is the design document for dynamic port-breakout feature on SONiC. This includes the requirements, the scope of the design, HW capability considerations, software architecture and scope of changes for different modules.
@@ -1061,7 +1063,7 @@ There are some special cases where queue, scheduler group and priority group obj
 If they are not at default state, that means user has configured them, sai-redis will fail the delete port action. This means, user should remove the configured objects before deleting the port. I,E, User should bring queues/ingress priority groups/scheduler groups that belong to the port to default state (will remove all assigned objects like buffer profile etc).
 
 PR in Sairedis and Syncd is available already:
-https://github.com/Azure/sonic-sairedis/pull/500
+https://github.com/sonic-net/sonic-sairedis/pull/500
 
 
 ### Syncd changes
@@ -1075,12 +1077,12 @@ However, due to the consumer tables for different objects with batch size, this 
 
 We will ignore some dependencies check to avoid the crash in syncd, and also add retry logic in syncd to avoid above timing issue.
 PRs:
-https://github.com/Azure/sonic-sairedis/pull/464
-https://github.com/Azure/sonic-sairedis/pull/483
+https://github.com/sonic-net/sonic-sairedis/pull/464
+https://github.com/sonic-net/sonic-sairedis/pull/483
 
 Another issue with syncd today is to support dynamic port breakout feature with warm-reboot. We need dynamically update the port map in syncd for comparison logic to support warm-reboot.
 PR is available as below:
-https://github.com/Azure/sonic-sairedis/pull/515
+https://github.com/sonic-net/sonic-sairedis/pull/515
 
 ## libSAI requirements
 We need the HW to initialize with the profile that is breakout capable.
@@ -1189,6 +1191,73 @@ All thee attribute that coud be changed in orchagent should be able to be brough
 
 # Warm reboot support
 Syncd changes are required as mentioned above. The PR need to be merged and tested.
+
+# Port breakout workflow additions 
+xcvrd (transceiver daemon) running as part of PMON docker container, detects optical module (transceiver) presence.
+If transceiver is found as QSFP-DD, it initiates and orchestrates entire CMIS FSM until module ready state.
+As part of enabling CMIS FSM with port breakout, found out that port breakout feature is not supported for QSFP-DD optical modules.
+
+**Few key things to take into account prior to getting into workFlow**
+
+A NxS breakout cable inserted implies following
+- A physical port is broken down into N subports (logical ports)
+  - subports are numbered as 8/N i.e.
+  - For 4x100G breakout optical module inserted in physcial Ethernet port 1 (etp1), implies: Ethernet8, Ethernet10, Ethernet12, Ethernet14
+  - Note: This is done in this manner to keep such assignments uniform across various breakout modes viz.1x, 2x, 4x, 8x
+- Speed of each subport is S Gpbs
+- Unique subport# is assigned to each of the N sub-port starting with subport# 1 (and sequentially incrementing with each sub-port)
+
+**Following is the new design (workflow) for 'port breakout' to work end-to-end with 'CMIS enabled' (in SONiC):**
+
+!['port breakout feature workflow with CMIS'(3)](https://user-images.githubusercontent.com/69485234/229310167-85b1222a-2172-4ae6-b90a-d4648581c2d1.png)
+
+['port breakout feature workflow with CMIS'.pdf](https://github.com/shyam77git/SONiC/files/11130409/port.breakout.feature.workflow.with.CMIS.pdf)
+
+
+- Configure a unique subport# for each broken-down (logical) port in platform's port_config.ini
+   - subport# to start with 1 (and increment sequentailly for each logical port) under the same physcial port
+   - subport# sequence may repeat for logical ports under another physcial port 
+   - subport# as 0 (on a port) implies physical port itself (i.e. no port breakout on it)
+- These subport#s are then parsed and updated in PORT_TABLE of CONFIG redisDB
+  - There would be a unique PORT_TABLE for each logical port
+- xcvrd (as subscriber to PORT_TABLE of CONFIG DB), would read these subport#s and perform 'Host side' Lanes assignment as per the following logic
+  - A physical port is broken down into N subports (logical ports)
+  - 8/N ‘Host side’ Lanes are assigned to each subport#
+  - Consider '4x100G breakout' optical module use-case
+    It would be 2 lanes per subport. Refer to 8/N mentioned-above.
+    Total 4 subports and Lane Count is 2
+    - subport 1: Lanes 1,2
+    - subport 2: Lanes 3,4
+    - subport 3: Lanes 5,6
+    - subport 4: Lanes 7,8
+
+     ![Screenshot 2023-03-31 at 6 38 02 PM](https://user-images.githubusercontent.com/69485234/229259596-4fc3f024-f98e-4458-afe0-4a5b9af29b30.png)
+
+  - Consider '2x100G breakout' optical module use-case
+    It would be 4 lanes per subport. Refer to 8/N mentioned-above.
+    Total 2 subports and Lane Count is 4
+    - subport 1: Lanes 1,2,3,4
+    - subport 2: Lanes 5,6,7,8
+    
+- Next, xcvrd to initiate CMIS FSM (state machine) initilization for each logical port. 
+  Prior to this, xcvrd to perform following steps:
+  - xcvrd to determine Active Lanes (per subport) from the App Advertisement Table of CMIS Spec.
+    - xcvrd to read 'speed', 'subport' and lanes information (of a logical/sub-port) from the PORT_TABLE of CONFIG DB to perform look-up in appl_dict
+    - xcvrd to check Table 6.1 (of CMIS v5.2) to find the desired application (for the inserted optical module) via get_cmis_application_desired() subroutine
+        - get_application_advertisement() in xcvrd codebase (cmis.py), which eventually formualtes appl_dict
+        - Use the following criteria to determine the right 'key' in appl_dict dictionary for App\<X\>
+          - Use 'speed' and compare it to transeiver's EEPROM HostInterfaceID for App\<X\> (First Byte of Table 6.1)
+          - Use '# of lanes' (i.e. host_lane_count per subport) as determined above and compare it to HostLaneCount for App\<X\> (Third Byte of Table 6.1)
+        - The matched 'key' is the desired application
+    - Determine HostLaneMask per logical port (via get_cmis_host_lanes_mask())
+        - Use the matched 'key' to infer HostLaneAssignmentOptions
+        - In turn, use HostLaneAssignmentOptions along with 'subport' and 'host_lane_count' to determine HostLaneMask
+    - HostLaneMask is the Active Lanes for the specified subport
+  - xcvrd to use the the Active Lanes (per subport) to kick start CMIS FSM for that logical port
+  - xcvrd to follow the existing CMIS FSM workflow all the way to CMIS_STATE_READY and ensure that each logical port link reaches 'opertionally up' state   
+    
+ **Note**: At present, this utilizes the static method to configure port breakouts (i.e. port_config.ini or mini-graph).<br/><br/>
+ **Enhancement**: In near future, this would be enhanced to configure and funnel the required port breakout attributes (on an interface) in a dynamic fashion as well i.e. via  sonic's #config interface breakout CLI. However, once the breakout mode/data is made into CONFIG DB (be it via static or dynamic mode), above-mentioned xcvrd workflow with CMIS FSM would continue to be exercised.
 
 # Unit test -TBD
 At high level, We will leverage the vs test environment to test:

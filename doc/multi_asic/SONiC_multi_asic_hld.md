@@ -228,7 +228,7 @@ For multi asic platform, the bgp, lldp, teamd, swss, syncd and database dockers 
 Systemd allows starting of multiple instances of a systemd service using service template. If foo@.service is a template service, we can start N number of foo service by starting foo@0.service, foo@1.service etc.
 The instance number is passed to service template itself as a parameter %i which is used to identify the instance number that is being passed.
 
-Example: `https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/per_namespace/teamd.service.j2 `
+Example: `https://github.com/sonic-net/sonic-buildimage/blob/master/files/build_templates/per_namespace/teamd.service.j2 `
 
 Each service file uses a start up script to start/stop corresponding docker. This script is updated to use the instance number. The changes are done so that the number of asics do not need to be defined during build-time and is identified during run-time.
 Systemd-generator binary runs during boot-up, before systemd runs and identifies the number of asics by reading /usr/share/sonic/device/<platform>/asic.conf file. 
@@ -453,7 +453,7 @@ A new template file database_global.json.j2 is introduced which is used to gener
 #### 2.4.4.1. Infrastructure changes
 
 The dbconnector classes present in the sonic-py-swsssdk submodule viz. SoncV2Connector, ConfigDBConnector is enhanced to accept the namespace parameter  to connect to the DB in a particular namesapce. The dbconnector in the sonic-swsscommon submodule viz DBConnector too will be enhanced to accept the namespace parameter.  
-Please refer [multi namespace db instance implementation document](https://github.com/Azure/SONiC/blob/master/doc/database/multi_namespace_db_instances.md) for more details. 
+Please refer [multi namespace db instance implementation document](https://github.com/sonic-net/SONiC/blob/master/doc/database/multi_namespace_db_instances.md) for more details. 
 
 ### 2.4.5. Configuration CLIs
 

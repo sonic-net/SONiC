@@ -15,7 +15,7 @@
 
 
 **Related documents**
-[LACP Fallback Design Document](https://github.com/Azure/SONiC/blob/gh-pages/doc/LACP%20Fallback%20Feature%20for%20SONiC_v0.3.docx)
+[LACP Fallback Design Document](https://github.com/sonic-net/SONiC/blob/gh-pages/doc/lag/LACP%20Fallback%20Feature%20for%20SONiC_v0.5.md)
 
 # Overview
 This feature test suite is targeting on testing LACP fallback feature on SONiC. In our testbed, 't0' and 't1-lag' have LAG configurations. Each test covers a basic functionality of LACP fallback feature and ensures the switch works as expected under production scenarios.
@@ -41,8 +41,8 @@ sai_remove_lag_member
 DUT configuration is done via minigraph. See more information below
 
 # Setup configuration
-![LACP_fallback_testbed.png](https://github.com/Azure/SONiC/blob/gh-pages/images/LACP_fallback_testbed.png)
-https://github.com/Azure/SONiC/blob/gh-pages/images/LACP_fallback_testbed.png
+![LACP_fallback_testbed.png](https://github.com/sonic-net/SONiC/blob/gh-pages/images/LACP_fallback_testbed.png)
+https://github.com/sonic-net/SONiC/blob/gh-pages/images/LACP_fallback_testbed.png
 
 * 8 LAGs per switch from the DUT to 8 vEOS devices.
 * Each of the LAG contains 2 members.
@@ -57,7 +57,7 @@ https://github.com/Azure/SONiC/blob/gh-pages/images/LACP_fallback_testbed.png
 
 sonic-mgmt uses minigraph files to described VM set (Arista vEOS devices) and the DUT switch.
 We will need to create a new minigraph file, describing VMs and the switch, with LAGs.
-The switch file will be named switch-lacp-fallback.yml, and located at [https://github.com/Azure/sonic-mgmt/blob/master/ansible/minigraph](https://github.com/Azure/sonic-mgmt/blob/master/ansible/minigraph).
+The switch file will be named switch-lacp-fallback.yml, and located at [https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/minigraph](https://github.com/sonic-net/sonic-mgmt/blob/master/ansible/minigraph).
 
 ### LAG related minigraph data
 
@@ -82,7 +82,7 @@ Sample:
 </PortChannelInterfaces>
 ```
 
-This information will be consumed by teamd.j2 template introduced in [LAG testbed Pull Reqeust](https://github.com/Azure/sonic-mgmt/pull/69) (see port_channel variable) to produce LAG json configuration for teamd.
+This information will be consumed by teamd.j2 template introduced in [LAG testbed Pull Reqeust](https://github.com/sonic-net/sonic-mgmt/pull/69) (see port_channel variable) to produce LAG json configuration for teamd.
 see [Setup of DUT switch](#setup-of-dut-switch) for details on teamd json.
 
 ### LAG route information file

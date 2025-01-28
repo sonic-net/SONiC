@@ -14,7 +14,7 @@
 
 ## The existing test plan and scripts
 
-The existing test plan: https://github.com/Azure/SONiC/wiki/ACL-test-plan
+The existing test plan: https://github.com/sonic-net/SONiC/wiki/ACL-test-plan
 
 The existing acl test scripts covered ingress ACL on SONiC switch. Supported topo: t1, t1-lag, t1-64-lag
 

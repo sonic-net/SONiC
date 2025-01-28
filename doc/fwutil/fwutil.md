@@ -576,7 +576,7 @@ New component api is introduced to support the component firmware auto-update as
         """
         raise NotImplementedError
 ```
-The return_code of auto_update_firmware() which indicates the firmware auto-update  status, will be logged in "fw_au_status" under "/var/platform/" directory by fwutil and the status file will be used for the `fwutil show update status` command. 
+The return_code of auto_update_firmware() which indicates the firmware auto-update  status, will be logged in "fw_au_status" under "/var/firmwareupdate/" directory by fwutil and the status file will be used for the `fwutil show update status` command. 
 
 In case that a firmware update needs any additional step to complete the firmware update but the installation time is longer than the boot time requirement, auto-update platform api is expected to install the firmware and perform the complete action during the reboot via `platform_fw_au_reboot_handle` or `platform_reboot` plugin.
 For example, some cpld update needs a power cycle to complete the firmware update and some cpld update needs a register triggered power-cycle to give some refresh time for the new firmware to be effective on the system.
@@ -602,7 +602,7 @@ In this example, BIOS firmware got updated, CPLD firmware got installed but powe
 *powercycle can be triggered by cold reboot script in this case.
 
 ```bash
-admin@sonic:~/fwutil$ cat /var/platform/fw_au_status
+admin@sonic:~/fwutil$ cat /var/firmwareupdate/fw_au_status
 {
     "MSN2700/BIOS":
         {
@@ -634,7 +634,7 @@ And the components available for the update are BIOS, and SSD.
 In this example, BIOS firmware got updated, CPLD firmware update was skipped since the update completion can not be done for warm, and SSD firmware update is scheduled during warm boot.
 
 ```bash
-admin@sonic:~/fwutil$ cat /var/platform/fw_au_status
+admin@sonic:~/fwutil$ cat /var/firmwareupdate/fw_au_status
 {
     "MSN2700/BIOS":
         {
@@ -668,9 +668,9 @@ Automatic FW installation requires default platform_components.json to be create
 _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 Recommended image path is "/lib/firmware/<vendor>".
 
-Here is the /var/platform directory structure while fwutil handles the `fwutil update all fw` and `fwutil show update status` command.
+Here is the /var/firmwareupdate directory structure while fwutil handles the `fwutil update all fw` and `fwutil show update status` command.
 ```
-/var/platform/
+/var/firmwareupdate/
           |--- fw_au_status
           |--- <boot_type>_fw_au_task*
 ```
@@ -940,7 +940,7 @@ During the sonic image upgrade, all available platform component firmware can be
 ```bash
 PLATFORM_FW_UPDATE="/usr/bin/fwutil"
 
-CURRENT_FW=`sonic_installer list |grep "Current" |awk '{print $2}'`
+CURRENT_FW=`sonic-installer list |grep "Current" |awk '{print $2}'`
 
 if grep -q aboot /host/machine.conf; then
     TARGET_FW=`unzip -p /tmp/$FILENAME boot0 |grep -m 1 "image_name" |sed -n "s/.*image-\(.*\)\".*/\1/p"`
@@ -948,7 +948,7 @@ else
     TARGET_FW=`cat -v /tmp/$FILENAME |grep -m 1 "image_version" | sed -n "s/.*image_version=\"\(.*\)\".*/\1/p"`
 fi
 
-sonic_installer install -y /tmp/$FILENAME || FAILED=1
+sonic-installer install -y /tmp/$FILENAME || FAILED=1
 sync;sync;sync || exit 14
 
 

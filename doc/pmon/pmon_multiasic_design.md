@@ -184,7 +184,7 @@ Here are the pros and cons of both the approaches,
 The swss-common::DBconnector class needs to be enhanced to use the **&quot;namespace&quot;** context information to connect to the DB instance in that namespace.
 
 The DB connector classes will have capability to parse the new &quot;database\_global.json&quot; file and retrieve the namespaces present in the platform and the database instances in each namespace. 
-Please refer [multi_namespace_db_instances design document](https://github.com/Azure/SONiC/blob/master/doc/database/multi_namespace_db_instances.md) for more details.
+Please refer [multi_namespace_db_instances design document](https://github.com/sonic-net/SONiC/blob/master/doc/database/multi_namespace_db_instances.md) for more details.
 
 ##
 
@@ -213,4 +213,4 @@ The snmp agent needs to connect to the STATE\_DB in different namespaces dependi
 
 1. Which daemon in Sonic takes care of the **system/unit** LED&#39;s?
 
-- It is being planned [https://github.com/Azure/sonic-buildimage/pull/4835](https://github.com/Azure/sonic-buildimage/pull/4835)
+- It is being planned [https://github.com/sonic-net/sonic-buildimage/pull/4835](https://github.com/sonic-net/sonic-buildimage/pull/4835)

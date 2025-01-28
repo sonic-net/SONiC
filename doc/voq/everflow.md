@@ -31,7 +31,7 @@ This document provides an overview of the SONiC support for everflow configurati
 
 # Scope
 
-This document builds on top of the VOQ chassis architecture discussed [here](https://github.com/Azure/SONiC/blob/master/doc/voq/architecture.md) and the Everflow design discussed [here](https://github.com/Azure/SONiC/wiki/Everflow-High-Level-Design#3138-mirror-api). The goal of this document is to describe the configuration and design for everflow mirroring sessions for a VOQ-based chassis.
+This document builds on top of the VOQ chassis architecture discussed [here](https://github.com/sonic-net/SONiC/blob/master/doc/voq/architecture.md) and the Everflow design discussed [here](https://github.com/sonic-net/SONiC/wiki/Everflow-High-Level-Design#3138-mirror-api). The goal of this document is to describe the configuration and design for everflow mirroring sessions for a VOQ-based chassis.
 
 # Definitions/Abbreviations
 

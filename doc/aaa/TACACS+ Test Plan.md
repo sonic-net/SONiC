@@ -4,7 +4,7 @@ Related documents
 
 | **Document Name** | **Link** |
 |-------------------|----------|
-| AAA_with_SONiC_v2 | [https://github.com/Azure/SONiC/blob/gh-pages/doc/AAA_with_SONiC_v2.docx](https://github.com/Azure/SONiC/blob/gh-pages/doc/AAA_with_SONiC_v2.docx) |
+| AAA_with_SONiC_v2 | [https://github.com/sonic-net/SONiC/blob/gh-pages/doc/aaa/AAA_with_SONiC_v2.docx](https://github.com/sonic-net/SONiC/blob/gh-pages/doc/aaa/AAA_with_SONiC_v2.docx) |
 | pam_tacplus | [https://github.com/jeroennijhof/pam_tacplus/blob/master/README.md](https://github.com/jeroennijhof/pam_tacplus/blob/master/README.md) |
 | tacacs+ daemon | [http://manpages.ubuntu.com/manpages/xenial/man8/tac_plus.8.html](http://manpages.ubuntu.com/manpages/xenial/man8/tac_plus.8.html) |
 
