@@ -123,6 +123,8 @@ Replacing supervisord with runit on a 48-port device featuring a dual-core ARM-v
 | Show Interface with Link Up   | 09:45              | 03:00              | 11:45              | 04:00              |
 ```
 
+Runit, usage is very minimal it didnt show up in the perf run.
+
 ![alt text](perf-runit.png)
 
 
