@@ -12,7 +12,9 @@ The current scope of the CMIS diagnostic monitoring feature in SONiC includes th
 
 ## 2. STATE_DB Schema for CMIS Diagnostic Monitoring
 
-The CMIS diagnostic monitoring data is stored in the `STATE_DB` database. The `STATE_DB` schema for the CMIS diagnostic monitoring feature includes the following tables:
+The CMIS diagnostic monitoring data is stored in the `STATE_DB` database. Each logical port on the switch has a corresponding entry in the `STATE_DB` schema unless the device is configured in breakout mode. For devices configured in breakout mode, only the first port of the breakout group will have the diagnostic monitoring data stored in the `STATE_DB` schema since the diagnostic monitoring data is the same for all ports in the breakout group.
+
+The `STATE_DB` schema for the CMIS diagnostic monitoring feature includes the following tables:
 
 - `TRANSCEIVER_DOM_SENSOR`: Stores real-time DOM data for the optical transceivers.
 - `TRANSCEIVER_DOM_THRESHOLD`: Contains threshold values for DOM parameters.
@@ -60,6 +62,7 @@ lane_num: Represents the lane number of the field. The lane number is an integer
     ; Defines Transceiver DOM sensor information for a port
     key                          = TRANSCEIVER_DOM_SENSOR|ifname    ; information module DOM sensors on port
     ; field                      = value
+    table_last_update_time       = STR                              ; last update time for diagnostic data
     temperature                  = FLOAT                            ; temperature value in Celsius
     voltage                      = FLOAT                            ; voltage value in V
     tx{lane_num}power            = FLOAT                            ; tx power in dBm for each lane
@@ -80,6 +83,7 @@ The `TRANSCEIVER_DOM_THRESHOLD` table stores the threshold values for the DOM da
     ; Defines Transceiver DOM threshold info for a port
     key                          = TRANSCEIVER_DOM_THRESHOLD|ifname ; DOM threshold information for module on port
     ; field                      = value
+    table_last_update_time       = STR                              ; last update time for diagnostic data
     temphighalarm                = FLOAT                            ; temperature high alarm threshold in Celsius
     temphighwarning              = FLOAT                            ; temperature high warning threshold in Celsius
     templowalarm                 = FLOAT                            ; temperature low alarm threshold in Celsius
@@ -116,6 +120,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver DOM flags for a port
     key                          = TRANSCEIVER_DOM_FLAG|ifname    ; information module DOM flags on port
     ; field                      = value
+    table_last_update_time           = STR                ; last update time for diagnostic data
     temphighalarm                    = BOOLEAN            ; temperature high alarm flag 
     temphighwarning                  = BOOLEAN            ; temperature high warning flag
     templowalarm                     = BOOLEAN            ; temperature low alarm flag
@@ -262,6 +267,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM sample for a port
     key                                            = TRANSCEIVER_VDM_REAL_VALUE|ifname    ; information module VDM sample on port
     ; field                                        = value
+    table_last_update_time                         = STR                    ; last update time for diagnostic data
     laser_temperature_media{lane_num}              = FLOAT                  ; laser temperature value in Celsius for media input
     esnr_media_input{lane_num}                     = FLOAT                  ; eSNR value in dB for media input
     esnr_host_input{lane_num}                      = FLOAT                  ; eSNR value in dB for host input
@@ -317,6 +323,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM high alarm threshold for a port
     key                                            = TRANSCEIVER_VDM_HALARM_THRESHOLD|ifname    ; information module VDM high alarm threshold on port
     ; field                                        = value
+    table_last_update_time                               = STR            ; last update time for diagnostic data
     laser_temperature_media_halarm{lane_num}             = FLOAT          ; laser temperature high alarm value in Celsius for media input
     esnr_media_input_halarm{lane_num}                    = FLOAT          ; eSNR high alarm value in dB for media input
     esnr_host_input_halarm{lane_num}                     = FLOAT          ; eSNR high alarm value in dB for host input
@@ -370,6 +377,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low alarm threshold for a port
     key                                            = TRANSCEIVER_VDM_LALARM_THRESHOLD|ifname    ; information module VDM low alarm threshold on port
     ; field                                        = value
+    table_last_update_time                               = STR            ; last update time for diagnostic data
     laser_temperature_media_lalarm{lane_num}             = FLOAT          ; laser temperature low alarm value in Celsius for media input
     esnr_media_input_lalarm{lane_num}                    = FLOAT          ; eSNR low alarm value in dB for media input
     esnr_host_input_lalarm{lane_num}                     = FLOAT          ; eSNR low alarm value in dB for host input
@@ -423,6 +431,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM high warning threshold for a port
     key                                            = TRANSCEIVER_VDM_HWARN_THRESHOLD|ifname    ; information module VDM high warning threshold on port
     ; field                                        = value
+    table_last_update_time                              = STR            ; last update time for diagnostic data
     laser_temperature_media_hwarn{lane_num}             = FLOAT          ; laser temperature high warning value in Celsius for media input
     esnr_media_input_hwarn{lane_num}                    = FLOAT          ; eSNR high warning value in dB for media input
     esnr_host_input_hwarn{lane_num}                     = FLOAT          ; eSNR high warning value in dB for host input
@@ -476,6 +485,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low warning threshold for a port
     key                                            = TRANSCEIVER_VDM_LWARN_THRESHOLD|ifname    ; information module VDM low warning threshold on port
     ; field                                        = value
+    table_last_update_time                              = STR            ; last update time for diagnostic data
     laser_temperature_media_lwarn{lane_num}             = FLOAT          ; laser temperature low warning value in Celsius for media input
     esnr_media_input_lwarn{lane_num}                    = FLOAT          ; eSNR low warning value in dB for media input
     esnr_host_input_lwarn{lane_num}                     = FLOAT          ; eSNR low warning value in dB for host input
@@ -529,6 +539,7 @@ The `TRANSCEIVER_VDM_HALARM_FLAG` table stores the flag status for the VDM data.
     ;Defines Transceiver VDM high alarm flag for a port
     key                          = TRANSCEIVER_VDM_HALARM_FLAG|ifname
     ; field                      = value
+    table_last_update_time                               = STR     ; last update time for diagnostic data
     laser_temperature_media_halarm{lane_num}             = BOOLEAN ; laser temperature high alarm flag for media input
     esnr_media_input_halarm{lane_num}                    = BOOLEAN ; eSNR high alarm flag for media input
     esnr_host_input_halarm{lane_num}                     = BOOLEAN ; eSNR high alarm flag for host input
@@ -584,6 +595,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low alarm flag for a port
     key                          = TRANSCEIVER_VDM_LALARM_FLAG|ifname
     ; field                      = value
+    table_last_update_time                               = STR     ; last update time for diagnostic data
     laser_temperature_media_lalarm{lane_num}             = BOOLEAN ; laser temperature low alarm flag for media input
     esnr_media_input_lalarm{lane_num}                    = BOOLEAN ; eSNR low alarm flag for media input
     esnr_host_input_lalarm{lane_num}                     = BOOLEAN ; eSNR low alarm flag for host input
@@ -637,6 +649,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM high warning flag for a port
     key                          = TRANSCEIVER_VDM_HWARN_FLAG|ifname
     ; field                      = value
+    table_last_update_time                              = STR     ; last update time for diagnostic data
     laser_temperature_media_hwarn{lane_num}             = BOOLEAN ; laser temperature high warning flag for media input
     esnr_media_input_hwarn{lane_num}                    = BOOLEAN ; eSNR high warning flag for media input
     esnr_host_input_hwarn{lane_num}                     = BOOLEAN ; eSNR high warning flag for host input
@@ -690,6 +703,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low warning flag for a port
     key                          = TRANSCEIVER_VDM_LWARN_FLAG|ifname
     ; field                      = value
+    table_last_update_time                              = STR     ; last update time for diagnostic data
     laser_temperature_media_lwarn{lane_num}             = BOOLEAN ; laser temperature low warning flag for media input
     esnr_media_input_lwarn{lane_num}                    = BOOLEAN ; eSNR low warning flag for media input
     esnr_host_input_lwarn{lane_num}                     = BOOLEAN ; eSNR low warning flag for host input
@@ -1390,8 +1404,8 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     cmis_state                              = 1*255VCHAR        ; Software CMIS state of the module
     status                                  = 1*255VCHAR        ; code of the module status (plug in, plug out)
     error                                   = 1*255VCHAR        ; module error (N/A or a string consisting of error descriptions joined by "|", like "error1 | error2" )
-    dom_update_interval                     = INTEGER           ; DOM thread update interval in seconds
-    dom_last_update_time                    = STR               ; last update time for diagnostic data
+    diagnostics_update_interval             = INTEGER           ; DOM thread update interval in seconds
+    table_last_update_time                  = STR               ; last update time for diagnostic data
     module_state                            = 1*255VCHAR        ; current module state (ModuleLowPwr, ModulePwrUp, ModuleReady, ModulePwrDn, Fault)
     module_fault_cause                      = 1*255VCHAR        ; reason of entering the module fault state
     DP{lane_num}State                       = 1*255VCHAR        ; data path state indicator on host lane {lane_num}
@@ -1416,6 +1430,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ; Defines Transceiver Status info for a port
     key                                     = TRANSCEIVER_STATUS_FLAG|ifname        ; Flag information for module on port
     ; field                                 = value
+    table_last_update_time                  = STR               ; last update time for diagnostic data
     datapath_firmware_fault                 = BOOLEAN           ; datapath (DSP) firmware fault
     module_firmware_fault                   = BOOLEAN           ; module firmware fault
     module_state_changed                    = BOOLEAN           ; module state changed
@@ -1518,6 +1533,7 @@ The `TRANSCEIVER_PM` table stores the performance monitoring data of the transce
     ; Defines Transceiver PM information for a port
     key                          = TRANSCEIVER_PM|ifname            ; information of PM on port
     ; field                      = value 
+    table_last_update_time       = STR                              ; last update time for diagnostic data
     prefec_ber_avg               = FLOAT                            ; prefec ber avg
     prefec_ber_min               = FLOAT                            ; prefec ber min
     prefec_ber_max               = FLOAT                            ; prefec ber max
@@ -1560,6 +1576,8 @@ The `TRANSCEIVER_PM` table stores the performance monitoring data of the transce
 ```
 
 ## 3. CLI Commands for CMIS Diagnostic Monitoring
+
+For devices with breakout ports, the CLI handler will always fetch diagnostic monitoring data from the first port of the breakout group.
 
 ### 3.1 CLI Commands for DOM Monitoring
 
@@ -2096,35 +2114,76 @@ The following tables are updated by the `SfpStateUpdateTask` thread:
 
 ### 4.2 Dynamic Diagnostic Information
 
-The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnostic information for all the transceivers in the system. The `DomInfoUpdateTask` thread is triggered by a timer (`DOM_INFO_UPDATE_PERIOD_SECS`), which is set to 60 seconds by default. The `DomInfoUpdateTask` thread reads the diagnostic information from the transceiver and updates the relevant tables in `redis-db`.
+The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnostic information for all the transceivers in the system. The following events drive the dynamic update of the diagnostic information:
+
+1. **Periodic update of the diagnostic information:**
+    - The `DomInfoUpdateTask` thread periodically updates the diagnostic information for all the ports.
+    - The update period interval can be retrieved by reading the `dom_info_update_periodic_secs` field from the `/usr/share/sonic/device/{platform}/{hwsku}/pmon_daemon_control.json` file.
+    - If this field or the file is absent, the default timer value is 0 seconds.
+
+2. **Link change event:**
+    - Only the **flag-related diagnostic information** is updated for a port when a link change event is detected by the `DomInfoUpdateTask` thread. Further details on the tables updated during a link change event are provided in the `Diagnostic Information Update During Link Change Event` section.
+    - This ensures that the flag change time is updated during a link change event, as the periodic update through the `DomInfoUpdateTask` thread can take more time to update the diagnostic information since it reads the diagnostic information for all the ports in a sequential manner.
 
 #### 4.2.1 High-Level Steps for Updating Dynamic Diagnostic Information
 
 1. The `DomInfoUpdateTask` thread is created by the `xcvrd` process.
-2. A timer (`DOM_INFO_UPDATE_PERIOD_SECS`) is set to read the diagnostic information from the transceiver every 60 seconds.
-3. With every timer expiry, the `DomInfoUpdateTask` thread reads the diagnostic information from the transceiver and updates the relevant tables in `redis-db` for all the ports. The steps performed to update the diagnostic information for a port are as follows:
-    1. Ensure DOM monitoring is enabled for the port. If DOM monitoring is disabled, skip updating the diagnostic information for the port.
-    2. If the current port is the first port from its breakout port group to be polled, clear the cached diagnostic information. For all subsequent ports in the breakout port group, use the cached diagnostic information to update the `redis-db`.
-    3. Read the transceiver firmware information from the module and update the `TRANSCEIVER_FIRMWARE_INFO` table.
-    4. Read the transceiver DOM sensor data from the module and update the `TRANSCEIVER_DOM_SENSOR` table.
-    5. Read the transceiver DOM flag data from the module, record the timestamp, and update the `TRANSCEIVER_DOM_FLAG` table.
-    6. Analyze the transceiver DOM flag data by comparing the current flag data with the previous flag data and update the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables.
-    7. Read the transceiver status data from the module and update the `TRANSCEIVER_STATUS` table.
-    8. If the transceiver supports VDM monitoring, perform the following steps:
-        1. Freeze the statistics by calling the CMIS API (`freeze_vdm_stats`) and wait for `FreezeDone` by calling `get_vdm_freeze_status`. Once the statistics are frozen, record the timestamp and copy the supported VDM and PM data from the transceiver.
-        2. Unfreeze the statistics by calling the CMIS API (`unfreeze_vdm_stats`).
-        3. Update the `TRANSCEIVER_VDM_REAL_VALUE` and `TRANSCEIVER_PM` tables with both basic and statistic instance's data read for VDM and PM.
-        4. Analyze the VDM flags by comparing the current data with the previous data and update the VDM flag, change count and time related tables.
+2. The `dom_info_update_periodic_secs` value is retrieved from the `pmon_daemon_control.json` file to determine the interval for updating the diagnostic information for all the ports. If the `dom_info_update_periodic_secs` field is absent or set to 0, the diagnostic information will be updated continuously without any delay between updates.
+3. The `DomInfoUpdateTask` thread starts polling for the diagnostic information of the ports in a sequential manner:
+    - It first checks if the `dom_info_update_periodic_secs` value is set. If not, it defaults to 0 seconds.
+    - The thread then enters a loop that continues until the `task_stopping_event` is set.
+    - Within the loop, it checks if the current time has exceeded the `expired_time`. If so, it sets a flag to update all diagnostic information in the database.
+    - It iterates over all physical ports, handling any port update events for ports that have undergone a link change and updating the flag-related tables accordingly.
+    - If the flag to update all diagnostic information is set, it reads the diagnostic information for the current port.
+    - After processing all ports, it resets the flag and updates the `expired_time` to the current time plus the `dom_info_update_periodic_secs` interval.
 
-#### 4.2.2 Diagnostic Information Update During Link Down Event
+The following steps are performed to update all diagnostic information for a port:
 
-When a link down event is detected by the `DomInfoUpdateTask` thread, a specific subset of the diagnostic information fields are updated in the `redis-db`. This is done to ensure that the diagnostic information is up-to-date and accurate during a link down event since the periodic update through the `DomInfoUpdateTask` thread can take more than 60 seconds to update the diagnostic information.
+1. Ensure DOM monitoring is enabled for the port. If DOM monitoring is disabled, skip updating the diagnostic information for the port.
+2. If the current port is the first port from its breakout port group to be polled, clear the cached diagnostic information. For all subsequent ports in the breakout port group, use the cached diagnostic information to update the `redis-db`.
+3. Read the transceiver firmware information from the module and update the `TRANSCEIVER_FIRMWARE_INFO` table.
+4. Read the transceiver DOM sensor data from the module and update the `TRANSCEIVER_DOM_SENSOR` table.
+5. Read the transceiver DOM flag data from the module, record the timestamp, and update the `TRANSCEIVER_DOM_FLAG` table (update the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables as well).
+6. Read the transceiver status data from the module and update the `TRANSCEIVER_STATUS` table.
+7. Read the transceiver status flag data from the module, record the timestamp, and update the `TRANSCEIVER_STATUS_FLAG` table (update the `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT`, `TRANSCEIVER_STATUS_FLAG_SET_TIME`, and `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` tables as well).
+8. If the transceiver supports VDM monitoring, perform the following steps:
+    1. Freeze the statistics by calling the CMIS API (`freeze_vdm_stats`) and wait for `FreezeDone` by calling `get_vdm_freeze_status`.
+    2. Once the statistics are frozen, read the VDM real values, flags, and PM data from the module and update the `TRANSCEIVER_VDM_REAL_VALUE`, `TRANSCEIVER_VDM_FLAG`, and `TRANSCEIVER_PM` tables respectively.
+    3. Update the VDM flag, change count, and time-related tables by comparing the current data with the previous data.
+    4. Unfreeze the statistics by calling the CMIS API (`unfreeze_vdm_stats`).
 
-The following tables are updated during a link down event:
+Pseudo code:
+
+```python
+# Retrieve the update period interval
+dom_info_update_periodic_secs = parse_field_from_pmon_daemon_control('dom_info_update_periodic_secs')
+if dom_info_update_periodic_secs is None:
+    dom_info_update_periodic_secs = 0
+
+expired_time = time.time()
+
+while not dom_mgr.task_stopping_event.is_set():
+    if expired_time <= time.time():
+        update_all_diagnostic_info_in_db = True
+    
+    for current_pport in range(1, last_physical_port + 1):
+        if handle_port_update_event_for_all_link_changed_ports():
+            update_flag_related_tables(ports_going_through_link_change)
+        
+        if update_all_diagnostic_info_in_db:
+            read_diagnostic_info(current_pport)
+    
+    update_all_diagnostic_info_in_db = False
+    expired_time = time.time() + dom_info_update_periodic_secs
+```
+
+#### 4.2.2 Diagnostic Information Update During Link Change Event
+
+The following tables are updated during a link change event:
 
 ##### 4.2.2.1 DOM Related Fields
 
-The flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link down event:
+The DOM flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link change event:
 
 - `temperature`
 - `voltage`
@@ -2135,7 +2194,7 @@ The flags, change count, and their set/clear time for the following fields are u
 
 Example
 
-The following fields related to `temperature` are updated in the `redis-db` during a link down event:
+The following fields related to `temperature` are updated in the `redis-db` during a link change event:
 
 - `temphighalarm` in `TRANSCEIVER_DOM_FLAG` table
 - `temphighwarning` in `TRANSCEIVER_DOM_FLAG` table
@@ -2156,7 +2215,7 @@ The following fields related to `temperature` are updated in the `redis-db` duri
 
 ##### 4.2.2.2 VDM Related Fields
 
-The flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link down event:
+The VDM flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link change event:
 
 - `laser_temperature_media{lane_num}`
 - `esnr_media_input`
@@ -2182,7 +2241,7 @@ The flags, change count, and their set/clear time for the following fields are u
 
 Example
 
-The following fields related to `esnr_media_input` are updated in the `redis-db` during a link down event:
+The following fields related to `esnr_media_input` are updated in the `redis-db` during a link change event:
 
 - `esnr_media_input_halarm{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG` table
 - `esnr_media_input_lalarm{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG` table
@@ -2203,7 +2262,7 @@ The following fields related to `esnr_media_input` are updated in the `redis-db`
 
 ##### 4.2.2.3 Transceiver Status Related Fields
 
-The following fields of the `TRANSCEIVER_STATUS` table are updated in the `redis-db` during a link down event:
+The following fields of the `TRANSCEIVER_STATUS` table are updated in the `redis-db` during a link change event:
 
 - `tx_disabled_channel`
 - `module_state`
@@ -2214,7 +2273,7 @@ The following fields of the `TRANSCEIVER_STATUS` table are updated in the `redis
 - `config_state_hostlane{lane_num}`
 - `dpdeinit_hostlane{lane_num}`
 
-The flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link down event:
+The transceive status flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link change event:
 
 - `datapath_firmware_fault`
 - `module_firmware_fault`
@@ -2228,7 +2287,7 @@ The flags, change count, and their set/clear time for the following fields are u
 
 Example
 
-The following fields related to `datapath_firmware_fault` are updated in the `redis-db` during a link down event:
+The following fields related to `datapath_firmware_fault` are updated in the `redis-db` during a link change event:
 
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS` table
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT` table
@@ -2237,7 +2296,7 @@ The following fields related to `datapath_firmware_fault` are updated in the `re
 
 #### 4.2.3 Details of Flag Analysis of Tables
 
-**Note**: For simplicity, this section uses DOM as an example. However, the same analysis is applicable for VDM and STATUS related flags as well.
+**Note**: For simplicity, this section uses DOM as an example. However, the same analysis is applicable for VDM and Status related flags as well.
 
 **Purpose of Flag Analysis:**
 
@@ -2248,10 +2307,10 @@ The purpose of flag analysis is to track the status of various parameters and to
 - `TRANSCEIVER_DOM_FLAG`: This table stores flags indicating the status of various DOM parameters.
 - `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: This table keeps a count of how many times each DOM flag has changed. Upon initialization, the count is set to 0.
 - `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is not set. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
-  - The timestamp at which the link was down, or
+  - The timestamp at which the link status was changed, or
   - The polling event timestamp if the flag was set during the routine polling by the `DomInfoUpdateTask` thread.
 - `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is set. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
-  - The timestamp at which the link was down, or
+  - The timestamp at which the link status was changed, or
   - The polling event timestamp if the flag was cleared during the routine polling by the `DomInfoUpdateTask` thread.
 
 **Example of Table Updates:**
@@ -2259,9 +2318,9 @@ The purpose of flag analysis is to track the status of various parameters and to
 - **TRANSCEIVER_DOM_FLAG_CHANGE_COUNT:**
   - Each time a flag in the `TRANSCEIVER_DOM_FLAG` table changes (either set or cleared), the corresponding count in this table is incremented.
 - **TRANSCEIVER_DOM_FLAG_SET_TIME:**
-  - When a flag is set in the `TRANSCEIVER_DOM_FLAG` table, the current timestamp (based on local timezone) is recorded in this table.
+  - When a flag is set in the `TRANSCEIVER_DOM_FLAG` table, the current timestamp (in local timezone) is recorded in this table.
 - **TRANSCEIVER_DOM_FLAG_CLEAR_TIME:**
-  - When a flag is cleared in the `TRANSCEIVER_DOM_FLAG` table, the current timestamp (based on local timezone) is recorded in this table.
+  - When a flag is cleared in the `TRANSCEIVER_DOM_FLAG` table, the current timestamp (in local timezone) is recorded in this table.
 
 ##### 4.2.3.1 Flag Change Count and Time Set/Clear Behavior During `xcvrd` Restart
 
@@ -2275,24 +2334,42 @@ When the transceiver is inserted back, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, 
 
 #### 4.2.4 Diagnostic Information Last Update Timestamp and Interval Period by `DomInfoUpdateTask`
 
-The `TRANSCEIVER_STATUS` table contains the following fields to capture the last update timestamp and interval period for the diagnostic information:
+All the diagnostic tables (except for the metadata tables storing change count and last set/clear time) contain the `table_last_update_time` field to capture the last update timestamp.
+Specifically, the `TRANSCEIVER_STATUS` table contains the `diagnostics_update_interval` field to capture the interval period at which the diagnostic information is updated by the `DomInfoUpdateTask` thread for a port. This field is not present in the other diagnostic tables since the diagnostic information is updated for all ports in a sequential manner.
 
-1. **`dom_last_update_time`**:
-   - This field records the timestamp (in local timezone) when the diagnostic information was last updated.
+1. **`table_last_update_time`**:
+   - This field records the timestamp (in local timezone) at which the corresponding diagnostic information was last updated by the `DomInfoUpdateTask` thread for a port.
    - The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`.
-   - This timestamp is updated by the `DomInfoUpdateTask` thread after the last diagnostic information is read from the transceiver for a port.
 
-2. **`dom_update_interval`**:
+2. **`diagnostics_update_interval`**:
    - This field records the interval period (in seconds) at which the diagnostic information is updated by the `DomInfoUpdateTask` thread for a port.
-   - Unlike the `DOM_INFO_UPDATE_PERIOD_SECS` timer value, this field is updated dynamically to reflect the actual time taken to update the diagnostic information for a port in the `redis-db`.
+   - Unlike the `dom_info_update_periodic_secs` value, this field is updated dynamically to reflect the actual time taken to update the diagnostic information for a port in the `redis-db`.
    - The time taken to read the diagnostic information from the transceiver can vary between successive polls based on:
      - Transceiver type
      - Number of diagnostic parameters supported by the transceiver
      - Device platform (which can affect I2C read/write speed)
-     - Number of ports with the transceiver plugged in
+     - Number of ports with transceivers plugged in
      - Number of ports in the breakout port group
+     - Number of link change events between successive polls
 
-**Behavior of `dom_update_interval` Field**:
+#### Calculation of `diagnostics_update_interval` Using EWMA
 
-- Initially, the `dom_update_interval` field is set to `0` (as part of the `TRANSCEIVER_STATUS` table creation) to indicate that the diagnostic information has not been updated yet.
-- After the second diagnostic information update for a port by the `DomInfoUpdateTask` thread post `xcvrd` boot-up or transceiver insertion, the `dom_update_interval` field is set to the actual time taken to read the diagnostic information from the transceiver for that port. Specifically, the `dom_update_interval` field is updated with the difference between the current timestamp and the `dom_last_update_time`.
+The Exponentially Weighted Moving Average (EWMA) is used to calculate the `diagnostics_update_interval`, providing a smooth and responsive average of the update intervals. An alpha value of 0.1 is used for the EWMA calculation to give more weight to historical intervals.
+
+**Formula:**
+
+$
+\text{EWMA}_t = \alpha \cdot x_t + (1 - \alpha) \cdot \text{EWMA}_{t-1}
+$
+
+Where:
+
+- $\text{EWMA}_t$ is the current `diagnostics_update_interval`.
+- $x_t$ is the current update interval (time taken to read the diagnostic information).
+- $\text{EWMA}_{t-1}$ is the previous `diagnostics_update_interval`.
+- $\alpha$ is the smoothing factor (0 < α ≤ 1).
+
+**Steps:**
+
+1. **Initial Update**: The `diagnostics_update_interval` is initially set to `0` during table creation.
+2. **Subsequent Updates**: After the second diagnostic information update for a port, the `diagnostics_update_interval` is updated using the EWMA formula.
