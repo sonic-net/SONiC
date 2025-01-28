@@ -2123,7 +2123,8 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
 
 2. **Link change event:**
     - Only the **flag-related diagnostic information** is updated for a port when a link change event is detected by the `DomInfoUpdateTask` thread. Further details on the tables updated during a link change event are provided in the `Diagnostic Information Update During Link Change Event` section.
-    - This ensures that the flag change time is updated during a link change event, as the periodic update through the `DomInfoUpdateTask` thread can take more time to update the diagnostic information since it reads the diagnostic information for all the ports in a sequential manner.
+    - Updating flag information during a link change event ensures that the flag change time is captured in a timely manner. The periodic update can take more time to update the diagnostic information since it reads the diagnostic information for all the ports in a sequential manner.
+    - Since the flag registers are clear-on-read latched values, the `DomInfoUpdateTask` thread will require two reads to update the flag value, last clear time, and change count once the flagged condition is no longer present. Hence, it is expected that the flag status change in the database will be delayed by two update cycles when the flagged condition is no longer present on the module.
 
 #### 4.2.1 High-Level Steps for Updating Dynamic Diagnostic Information
 
@@ -2139,14 +2140,13 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
 
 The following steps are performed to update all diagnostic information for a port:
 
-1. Ensure DOM monitoring is enabled for the port. If DOM monitoring is disabled, skip updating the diagnostic information for the port.
-2. If the current port is the first port from its breakout port group to be polled, clear the cached diagnostic information. For all subsequent ports in the breakout port group, use the cached diagnostic information to update the `redis-db`.
-3. Read the transceiver firmware information from the module and update the `TRANSCEIVER_FIRMWARE_INFO` table.
-4. Read the transceiver DOM sensor data from the module and update the `TRANSCEIVER_DOM_SENSOR` table.
-5. Read the transceiver DOM flag data from the module, record the timestamp, and update the `TRANSCEIVER_DOM_FLAG` table (update the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables as well).
-6. Read the transceiver status data from the module and update the `TRANSCEIVER_STATUS` table.
-7. Read the transceiver status flag data from the module, record the timestamp, and update the `TRANSCEIVER_STATUS_FLAG` table (update the `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT`, `TRANSCEIVER_STATUS_FLAG_SET_TIME`, and `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` tables as well).
-8. If the transceiver supports VDM monitoring, perform the following steps:
+1. Ensure DOM monitoring is enabled for the port (in case of breakout port, port refers to the first subport of the breakout port group). If DOM monitoring is disabled, skip updating the diagnostic information for the port.
+2. Read the transceiver firmware information from the module and update the `TRANSCEIVER_FIRMWARE_INFO` table.
+3. Read the transceiver DOM sensor data from the module and update the `TRANSCEIVER_DOM_SENSOR` table.
+4. Read the transceiver DOM flag data from the module, record the timestamp, and update the `TRANSCEIVER_DOM_FLAG` table (update the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables as well).
+5. Read the transceiver status data from the module and update the `TRANSCEIVER_STATUS` table.
+6. Read the transceiver status flag data from the module, record the timestamp, and update the `TRANSCEIVER_STATUS_FLAG` table (update the `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT`, `TRANSCEIVER_STATUS_FLAG_SET_TIME`, and `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` tables as well).
+7. If the transceiver supports VDM monitoring, perform the following steps:
     1. Freeze the statistics by calling the CMIS API (`freeze_vdm_stats`) and wait for `FreezeDone` by calling `get_vdm_freeze_status`.
     2. Once the statistics are frozen, read the VDM real values, flags, and PM data from the module and update the `TRANSCEIVER_VDM_REAL_VALUE`, `TRANSCEIVER_VDM_FLAG`, and `TRANSCEIVER_PM` tables respectively.
     3. Update the VDM flag, change count, and time-related tables by comparing the current data with the previous data.
@@ -2192,7 +2192,7 @@ The DOM flags, change count, and their set/clear time for the following fields a
 - `tx{lane_num}bias`
 - `laser_temperature`
 
-Example
+**Example:**
 
 The following fields related to `temperature` are updated in the `redis-db` during a link change event:
 
@@ -2239,7 +2239,7 @@ The VDM flags, change count, and their set/clear time for the following fields a
 - `errored_frames_avg_host_input`
 - `errored_frames_curr_host_input`
 
-Example
+**Example:**
 
 The following fields related to `esnr_media_input` are updated in the `redis-db` during a link change event:
 
@@ -2250,7 +2250,7 @@ The following fields related to `esnr_media_input` are updated in the `redis-db`
 - `esnr_media_input_halarm{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG_CHANGE_COUNT` table
 - `esnr_media_input_lalarm{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG_CHANGE_COUNT` table
 - `esnr_media_input_hwarn{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG_CHANGE_COUNT` table
-- `esnr_media_input_lwarn{lane_num}` in `TRANSCEIVER_VDM_LWARN_FLAG_CHANGE_COUNT` tables
+- `esnr_media_input_lwarn{lane_num}` in `TRANSCEIVER_VDM_LWARN_FLAG_CHANGE_COUNT` table
 - `esnr_media_input_halarm{lane_num}` in `TRANSCEIVER_VDM_HALARM_FLAG_SET_TIME` table
 - `esnr_media_input_lalarm{lane_num}` in `TRANSCEIVER_VDM_LALARM_FLAG_SET_TIME` table
 - `esnr_media_input_hwarn{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG_SET_TIME` table
@@ -2273,7 +2273,7 @@ The following fields of the `TRANSCEIVER_STATUS` table are updated in the `redis
 - `config_state_hostlane{lane_num}`
 - `dpdeinit_hostlane{lane_num}`
 
-The transceive status flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link change event:
+The transceiver status flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link change event:
 
 - `datapath_firmware_fault`
 - `module_firmware_fault`
@@ -2285,7 +2285,7 @@ The transceive status flags, change count, and their set/clear time for the foll
 - `tx_eq_fault{lane_num}`
 - `rxcdrlol{lane_num}`
 
-Example
+**Example:**
 
 The following fields related to `datapath_firmware_fault` are updated in the `redis-db` during a link change event:
 
@@ -2358,9 +2358,9 @@ The Exponentially Weighted Moving Average (EWMA) is used to calculate the `diagn
 
 **Formula:**
 
-$
+$$
 \text{EWMA}_t = \alpha \cdot x_t + (1 - \alpha) \cdot \text{EWMA}_{t-1}
-$
+$$
 
 Where:
 
