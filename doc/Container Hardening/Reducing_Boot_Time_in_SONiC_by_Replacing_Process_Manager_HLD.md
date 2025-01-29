@@ -1,7 +1,14 @@
-# Reducing Boot Time in SONiC by Replacing Supervisord #
+# Reducing Boot Time in SONiC by Replacing Process manager #
+
+
+## Revision
+###### Table 1: Revision
+| Rev |     Date    |       Author       | Change Description                |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.1 |             |                    | Initial version                   |
 
 ## Table of Content
-- [Docker Process Manager Replacement for Faster Boot Times](#docker-process-manager-replacement-for-faster-boot-times)
+-
     - [Table of Content](#table-of-content)
     - [List of Tables](#list-of-tables)
     - [Revision](#revision)
@@ -37,11 +44,6 @@
 * [Table 2: Abbreviations](#table-2-abbreviations)
 
 
-## Revision
-###### Table 1: Revision
-| Rev |     Date    |       Author       | Change Description                |
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 |             |                    | Initial version                   |
 
 
 ## Scope
