@@ -199,10 +199,6 @@ module: openconfig-system
      +--rw oc-sys-grpc:grpc-servers
      |  +--rw oc-sys-grpc:grpc-server* [name]
      |     +--rw oc-sys-grpc:name                            -> ../config/name
-     |     +--rw oc-sys-grpc:config
-     |     |  +--rw oc-sys-grpc:name?                      string
-     |     |  +--rw oc-sys-grpc:enable?                    boolean
-     |     |  +--rw oc-sys-grpc:port?                      oc-inet:port-number
      |     +--ro oc-sys-grpc:state
      |     |  +--ro oc-sys-grpc:name?                                              string
      |     |  +--ro oc-sys-grpc:enable?                                            boolean
