@@ -43,7 +43,7 @@ Table of Contents
 # Introduction
 SONiC is an open source network operating system based on Linux that runs on switches from multiple vendors and ASICs. SONiC offers a full-suite of network functionality, like BGP and RDMA, that has been production-hardened in the data centers of some of the largest cloud-service providers. It offers teams the flexibility to create the network solutions they need while leveraging the collective strength of a large ecosystem and community.
 
-SONiC software shall be loaded in these [supported devices](https://github.com/sonic-net/SONiC/wiki/Supported-Devices-and-Platforms) and this User guide explains the basic steps for using the SONiC in those platforms.
+SONiC software shall be loaded in these [supported devices](https://github.com/sonic-net/SONiC/blob/sonic_image_md_update/supported_devices_platforms.md) and this User guide explains the basic steps for using the SONiC in those platforms.
 
 Connect the console port of the device and use the 9600 baud rate to access the device. Follow the [Quick Start Guide](https://github.com/sonic-net/SONiC/wiki/Quick-Start) to boot the device in ONIE mode and install the SONiC software using the steps specified in the document and reboot the device. In some devices that are pre-loaded with SONiC software, this step can be skipped. 
 Users shall use the default username/password "admin/YourPaSsWoRd" to login to the device through the console port.
