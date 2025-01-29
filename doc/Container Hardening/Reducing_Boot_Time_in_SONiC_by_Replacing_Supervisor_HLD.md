@@ -11,7 +11,7 @@
     - [2. Requirements](#2-requirements)
     - [3. Architecture Design](#3-architecture-design)
     - [4. High-Level Design](#4-high-level-design)
-        - [4.1 Boot time measurement using supervisor method](#41-boot-time-measurement-using-supervisor-method)
+        - [4.1 Supervisord Boot time measurement using Flamegraph](#41-Supervisord-Boot-time-measurement-using-Flamegraph)
         - [4.2 Comparison between Different supervisors](#42-comparison-between-different-supervisors)
         - [4.3 Boot time improvement using runit method](#43-boot-time-improvement-using-runit-method)
         - [4.4 Service Transition](#44-service-transition)
@@ -68,7 +68,7 @@ To enhance performance, the current process supervisor inside docker will be rep
 
 ## 4. High-Level Design
 
-### 4.1 Boot time measurement using supervisor method
+### 4.1 Supervisord Boot time measurement using Flamegraph
 Boot time analysis on a 48-port device with a dual-core ARM-v8.2 Cortex-A55 CPU cluster revealed the following breakdown:
 
 
