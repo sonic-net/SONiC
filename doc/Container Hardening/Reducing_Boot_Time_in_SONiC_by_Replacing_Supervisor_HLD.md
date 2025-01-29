@@ -1,7 +1,7 @@
-# Reducing Boot Time in SONiC by Replacing Supervisor #
+# Reducing Boot Time in SONiC by Replacing Supervisord #
 
 ## Table of Content
-- [Supervisor Replacement for Faster Boot Times](#supervisor-replacement-for-faster-boot-times)
+- [Docker Process Manager Replacement for Faster Boot Times](#docker-process-manager-replacement-for-faster-boot-times)
     - [Table of Content](#table-of-content)
     - [List of Tables](#list-of-tables)
     - [Revision](#revision)
@@ -11,14 +11,14 @@
     - [2. Requirements](#2-requirements)
     - [3. Architecture Design](#3-architecture-design)
     - [4. High-Level Design](#4-high-level-design)
-        - [4.1 Supervisord Boot time measurement using Flamegraph](#41-Supervisord-Boot-time-measurement-using-Flamegraph)
-        - [4.2 Comparison between Different supervisors](#42-comparison-between-different-supervisors)
+        - [4.1 Supervisord Boot time measurement using Flamegraph](#41-supervisord-boot-time-measurement-using-flamegraph)
+        - [4.2 Comparison between Different process manager](#42-comparison-between-different-process-manager)
         - [4.3 Boot time improvement using runit method](#43-boot-time-improvement-using-runit-method)
-        - [4.4 Service Transition](#44-service-transition)
-        - [4.5 Enabling runit as supervisor](#45-enabling-runit-as-supervisor)
+        - [4.4 Supervisord to Runit config translation](#44-supervisord-to-runit-config-translation)
+        - [4.5 Enabling Runit as the process manager](#45-enabling-runit-as-the-process-manager)
         - [4.6 Managing Critical Processes with runit](#46-managing-critical-processes-with-runit)
         - [4.7 System Health Monitoring](#47-system-health-monitoring)
-        - [4.8 Disabling runit and Re-enabling Supervisor](#48-disabling-runit-and-re-enabling-supervisor)
+        - [4.8 Disabling runit and Re-enabling Supervisord](#48-disabling-runit-and-re-enabling-supervisord)
     - [5. SAI API](#5-sai-api)
     - [6. Configuration and management](#6-configuration-and-management)
         - [6.1. Manifest (if the feature is an Application Extension)](#61-manifest-if-the-feature-is-an-application-extension)
@@ -45,7 +45,7 @@
 
 
 ## Scope
-This document outlines the high-level design for replacing the current process supervisor (e.g., `supervisord`) in SONiC with a more efficient alternative to reduce boot times.
+This document outlines the high-level design for replacing the current process manager (e.g., `supervisord`) in SONiC with a more efficient alternative to reduce boot times.
 
 ## Definitions/Abbreviations
 ###### Table 2: Abbreviations
@@ -55,16 +55,16 @@ This document outlines the high-level design for replacing the current process s
 
 
 ## 1. Overview
-Rapid network availability is essential, and SONiC's boot time directly impacts this. To improve startup speed, this project focuses on optimizing service initialization by replacing the existing process supervisor with a higher-performance alternative. This is particularly crucial for switches leveraging the ASIC's internal CPU to run SONiC.
+Rapid network availability is essential, and SONiC's boot time directly impacts this. To improve startup speed, this project focuses on optimizing service initialization by replacing the existing process manager with a higher-performance alternative. This is particularly crucial for switches leveraging the ASIC's internal CPU to run SONiC.
 
 ## 2. Requirements
 * Minimize SONiC boot time.
 * Maintain compatibility with existing SONiC services and configurations.
-* Ensure the stability and reliability of the new supervisor.
+* Ensure the stability and reliability of the new process manager.
 * Implement a seamless transition with minimal disruption.
 
 ## 3. Architecture Design
-To enhance performance, the current process supervisor inside docker will be replaced with runit. Existing service configurations will be converted to the runit format, and the system's init process will be modified to use runit.
+To enhance performance, the current process manager inside docker will be replaced with runit. Existing service configurations will be converted to the runit format, and the system's init process will be modified to use runit.
 
 ## 4. High-Level Design
 
@@ -84,13 +84,13 @@ Initialization performance analysis revealed that supervisord and supervisorctl 
 
 ![alt text](perf-supervisorctl.png)
 
-Potential replacement supervisors will be evaluated based on criteria such as speed, resource consumption, and ease of integration with SONiC:
+Potential replacement process managers will be evaluated based on criteria such as speed, resource consumption, and ease of integration with SONiC:
 * **runit:**  Simple, robust, and performant.
 * **tini:** Minimalistic, ideal for containerized environments, if applicable to SONiC's services.
 
 
 
-### 4.2 Comparison between Different supervisors
+### 4.2 Comparison between Different process managers
 
 ```
 | Feature                       | Supervisord                             | Runit                               |
@@ -98,9 +98,9 @@ Potential replacement supervisors will be evaluated based on criteria such as sp
 | Language                      | Python                                  | C                                   |
 | Goal                          | Feature-rich process management   	  | Simple & robust service supervision |
 | Resource                      | Low overhead                            | High overhead                       |
-| Boot time                     | Fast                                    | Slow                                |
-| Configuration                 | Directory based                         | File based                          |
-| Process Control               | Service Monitoring                      | Extensive process control           |
+| Boot time                     | Slow                                    | Fast                                |
+| Configuration                 | File based                              | Directory based                     |
+| Process Control               | Extensive process control               | Service Monitoring                  |
 
 ```
 
@@ -128,12 +128,12 @@ Runit, usage is very minimal it didnt show up in the perf run.
 ![alt text](perf-runit.png)
 
 
-### 4.4 Service Transition
+### 4.4 Supervisord to Runit config translation
 
-A Python script automates the conversion of existing Supervisor (specifically supervisord) configurations into the runit format. This script, executed as part of a Docker entrypoint, transforms the provided supervisord configuration into runit service directories. This approach facilitates migration for Docker applications utilizing Jinja2 templated configuration files alongside traditional supervisord.conf files.
+One option we are choosing is to use a Python script to automate the conversion of existing process manager (specifically supervisord) configurations into the runit format. This script, executed as part of a Docker entrypoint, transforms the provided supervisord configuration into runit service directories. This approach facilitates migration for Docker applications utilizing Jinja2 templated configuration files alongside traditional supervisord.conf files. There can be other options as well like static sv scripts etc.
 
 ```
-A Supervisor configuration defines a program named orchagent. This program, /usr/bin/orchagent.sh, depends on the portsyncd service. The conversion script translates this dependency into a runit run script for the orchagent service. The generated /etc/service/orchagent/run script waits for portsyncd to reach a running state before executing /usr/bin/orchagent.sh. This ensures the dependency is met before the orchagent process starts.
+A Supervisord configuration defines a program named orchagent. This program, /usr/bin/orchagent.sh, depends on the portsyncd service. The conversion script translates this dependency into a runit run script for the orchagent service. The generated /etc/service/orchagent/run script waits for portsyncd to reach a running state before executing /usr/bin/orchagent.sh. This ensures the dependency is met before the orchagent process starts.
 
 Example 1:
 
@@ -156,7 +156,8 @@ while ! sv status portsyncd | grep -q 'run:'; do
 done
 
 exec /usr/bin/orchagent.sh
-
+```
+```
 Example 2:
 
 neighsyncd has to be started only after swssconfig is exited is handled as follows.
@@ -182,9 +183,9 @@ exec /usr/bin/neighsyncd
 ```
 
 
-### 4.5 Enabling Runit as supervisor
+### 4.5 Enabling Runit as the process manager
 
-To enable runit as the process supervisor, create an empty file named /etc/runit-manager and then trigger a configuration reload. This can be achieved by executing the command config reload or by reloading the device.
+To enable runit as the process manager, create an empty file named /etc/runit-manager and then trigger a configuration reload. This can be achieved by executing the command config reload or by reloading the device.
 
 ```
 touch /etc/runit-manager
@@ -194,8 +195,13 @@ config reload [or] reload the device
 This process triggers the following:
 
 1. When the service is restarted using systemctl, the existing Docker service is removed.
-2. A new Docker service is created with the Docker label sonic_docker_config="runit" and the Docker environment variable sonic_docker_config="runit".
-3. When Docker starts, it verifies the above environment variable and chooses whether to execute the Docker process with runit or supervisord as the supervisor.
+2. A new Docker service is created with the Docker label sonic_docker_config="runit" and the Docker environment variable sonic_docker_config="runit". sonic_docker_config label has 2 purposes
+```
+a) This option marks the container instances as "runit" instead of "supervisord," allowing further enable/disable operations to skip removing the container if it is already configured to run with the specified process manager.
+
+b) This label option is also used to determine the process health status. Please refer to section 4.7 for more details.
+```
+3. When Docker starts, it verifies the above environment variable and chooses whether to execute the Docker process with runit or supervisord as the process manager.
 
 ### 4.6 Managing Critical Processes with runit
 SONiC includes a feature to restart the Docker container if a critical process exits due to system signals (such as SIGTERM, SIGSEGV, etc.). This is managed by /usr/bin/supervisor-proc-exit-listener running inside the container.
@@ -233,8 +239,8 @@ run: /etc/service/orchagent: (pid 99) 2394s
 ```
 
 
-### 4.8 Disabling runit and Re-enabling Supervisor
-Removing /etc/runit-manager and then rebooting (or executing config reload) will restore Supervisor as the process manager. The system will then launch containers configured to use supervisord, effectively reversing the migration to runit.
+### 4.8 Disabling runit and Re-enabling Supervisord
+Removing /etc/runit-manager and then rebooting (or executing config reload) will restore Supervisord as the process manager. The system will then launch containers configured to use supervisord, effectively reversing the migration to runit.
 
 
 ```
@@ -250,7 +256,7 @@ N/A - This change is not directly related to the SAI API.
 N/A -  Not applicable if not implemented as an application extension.
 
 ### 6.2. CLI/YANG model Enhancements
-Any necessary CLI commands for managing the new supervisor will be defined and implemented.  Corresponding YANG models will be updated or created.
+Any necessary CLI commands for managing the new process manager will be defined and implemented.  Corresponding YANG models will be updated or created.
 
 ### 6.3. Config DB Enhancements
 Any changes required to the configuration database schema will be documented and implemented.
@@ -259,29 +265,29 @@ Any changes required to the configuration database schema will be documented and
 N/A
 
 ## 8. Restrictions/Limitations
-Any limitations or restrictions imposed by the chosen supervisor will be documented.
+Any limitations or restrictions imposed by the chosen process manager will be documented.
 
 ## 9. Testing Requirements/Design
 ### 9.1 Unit Test cases
-1. Verify whether all process starts up in all dockers - PASS
-2. Verify when critical process exits docker are restarted - PASS
-3. Verify system-healthd command works fine with runit - PASS
-4. Verify moving from supervisor to runit works fine - PASS
-5. Verify moving from runit to supervisor works fine - PASS
-6. Verify boot time improved with runit - PASS (15-25% improvement)
-7. config reload and system reboot works fine - PASS
+1. Verify whether all process starts up in all dockers
+2. Verify when critical process exits docker are restarted
+3. Verify system-healthd command works fine with runit
+4. Verify moving from supervisord to runit works fine
+5. Verify moving from runit to supervisord works fine
+6. Verify boot time improved with runit
+7. config reload and system reboot works fine
+8. Verify traffic loss improvement with runit after device reload.
+9. Verify warmboot and fastboot works fine with runit.
 
 ### 9.2 System Test cases
-Comprehensive system tests will be conducted to measure boot time improvements and ensure the stability and functionality of SONiC with the new supervisor.
+Comprehensive system tests will be conducted to measure boot time improvements and ensure the stability and functionality of SONiC with the new process manager.
 
 ## 10. Open/Action items - if any
-Any open issues or action items will be tracked here.  This may include tasks like benchmarking different supervisors, developing the configuration conversion tool, and updating the init process.
+Any open issues or action items will be tracked here.  This may include tasks like benchmarking different process managers, developing the configuration conversion tool, and updating the init process.
 
-1. For low end CPU systems python performance is impacting the overall system readiness need to optimize the following without using python
-   a) Implementing pmon docker in pypy3 is a start (since all pmon process are dependent on C/C++ library libswsscommon.so) pypy3 does not support C-API integration , need to explore further
-   b) Independent scripts like 
-      /usr/local/bin/procdockerstatsd
-      /usr/bin/monit - C or Rust based implementation will help
+```
+Currently, runit doesn't offer equivalent functionality to Supervisord supervisor-proc-exit-listener for syslog alerting based on process states. This is a gap in functionality we need to address.
+```
 
 
 
