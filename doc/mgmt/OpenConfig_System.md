@@ -65,6 +65,15 @@ module: openconfig-system
      |  +--ro up-time?                        oc-types:timeticks64
      |  +--ro boot-time?                      oc-types:timeticks64
      |  +--ro software-version?               string
+     |  +--ro last-configuration-timestamp?   oc-types:timeticks64
+     +--ro mount-points
+     |  +--ro mount-point* [name]
+     |     +--ro name     -> ../state/name
+     |     +--ro state
+     |        +--ro name?                string
+     |        +--ro size?                uint64
+     |        +--ro available?           uint64
+     |        +--ro type?                string
      +--rw aaa
      |  +--rw authentication
      |  |  +--rw config
@@ -102,6 +111,17 @@ module: openconfig-system
      |                 |  +--rw secret-key?            oc-types:routing-password
      |                 |  +--rw source-address?        oc-inet:ip-address
      |                 |  +--rw retransmit-attempts?   uint8
+     +--ro alarms
+     |  +--ro alarm* [id]
+     |     +--ro id        -> ../state/id
+     |     +--ro config
+     |     +--ro state
+     |        +--ro id?             string
+     |        +--ro resource?       string
+     |        +--ro text?           string
+     |        +--ro time-created?   oc-types:timeticks64
+     |        +--ro severity?       identityref
+     |        +--ro type-id?        union
      +--rw logging
      |  +--rw remote-servers
      |  |  +--rw remote-server* [host]
@@ -136,9 +156,24 @@ module: openconfig-system
      +--rw clock
      |  +--rw config
      |  |  +--rw timezone-name?   timezone-name-type
+     +--ro cpus
+     |  +--ro cpu* [index]
+     |     +--ro index    -> ../state/index
+     |     +--ro state
+     |        +--ro index?                union
+     |        +--ro total
      +--rw dns
      |  +--rw config
      |  |  +--rw search*   oc-inet:domain-name
+     +--rw memory
+     |  +--rw config
+     |  +--ro state
+     |     +--ro counters
+     |     |  +--ro correctable-ecc-errors?     uint64
+     |     |  +--ro uncorrectable-ecc-errors?   uint64
+     |     +--ro physical?   uint64
+     |     +--ro used?       uint64
+     |     +--ro free?       uint64
      +--rw ntp
      |  +--rw config
      |  |  +--rw enabled?           boolean
@@ -161,6 +196,61 @@ module: openconfig-system
      |        |  +--rw key-id?      ->    ../../../ntp-keys/ntp-key/key-id
      |        |  +--rw network-instance?   oc-ni:network-instance-ref
      |        |  +--rw source-address?     oc-inet:ip-address
+     +--rw oc-sys-grpc:grpc-servers
+     |  +--rw oc-sys-grpc:grpc-server* [name]
+     |     +--rw oc-sys-grpc:name                            -> ../config/name
+     |     +--rw oc-sys-grpc:config
+     |     |  +--rw oc-sys-grpc:name?                      string
+     |     |  +--rw oc-sys-grpc:enable?                    boolean
+     |     |  +--rw oc-sys-grpc:port?                      oc-inet:port-number
+     |     +--ro oc-sys-grpc:state
+     |     |  +--ro oc-sys-grpc:name?                                              string
+     |     |  +--ro oc-sys-grpc:enable?                                            boolean
+     |     |  +--ro oc-sys-grpc:port?                                              oc-inet:port-number
+     |     |  +--ro oc-sys-grpc:certificate-id?                                    string
+     |     |  +--ro oc-gnsi-certz:certificate-version?                             version
+     |     |  +--ro oc-gnsi-certz:certificate-created-on?                          created-on
+     |     |  +--ro oc-gnsi-certz:ca-trust-bundle-version?                         version
+     |     |  +--ro oc-gnsi-certz:ca-trust-bundle-created-on?                      created-on
+     |     |  +--ro oc-gnsi-certz:certificate-revocation-list-bundle-version?      version
+     |     |  +--ro oc-gnsi-certz:certificate-revocation-list-bundle-created-on?   created-on
+     |     +--ro oc-sys-grpc:connections
+     |     |  +--ro oc-sys-grpc:connection* [address port]
+     |     |     +--ro oc-sys-grpc:address    -> ../state/address
+     |     |     +--ro oc-sys-grpc:port       -> ../state/port
+     |     |     +--ro oc-sys-grpc:state
+     |     |        +--ro oc-sys-grpc:address?    oc-inet:ip-address
+     |     |        +--ro oc-sys-grpc:port?       oc-inet:port-number
+     |     |        +--ro oc-sys-grpc:counters
+     |     |           +--ro oc-sys-grpc:bytes-sent?        oc-yang:counter64
+     |     |           +--ro oc-sys-grpc:packets-sent?      oc-yang:counter64
+     |     |           +--ro oc-sys-grpc:data-send-error?   oc-yang:counter64
+     |     +--ro oc-gnsi-pathz:gnmi-pathz-policy-counters
+     |     |  +--ro oc-gnsi-pathz:paths
+     |     |     +--ro oc-gnsi-pathz:path* [name]
+     |     |        +--ro oc-gnsi-pathz:name     -> ../state/name
+     |     |        +--ro oc-gnsi-pathz:state
+     |     |           +--ro oc-gnsi-pathz:name?     string
+     |     |           +--ro oc-gnsi-pathz:reads
+     |     |           |  +--ro oc-gnsi-pathz:access-rejects?       oc-yang:counter64
+     |     |           |  +--ro oc-gnsi-pathz:last-access-reject?   oc-types:timeticks64
+     |     |           |  +--ro oc-gnsi-pathz:access-accepts?       oc-yang:counter64
+     |     |           |  +--ro oc-gnsi-pathz:last-access-accept?   oc-types:timeticks64
+     |     |           +--ro oc-gnsi-pathz:writes
+     |     |              +--ro oc-gnsi-pathz:access-rejects?       oc-yang:counter64
+     |     |              +--ro oc-gnsi-pathz:last-access-reject?   oc-types:timeticks64
+     |     |              +--ro oc-gnsi-pathz:access-accepts?       oc-yang:counter64
+     |     |              +--ro oc-gnsi-pathz:last-access-accept?   oc-types:timeticks64
+     |     +--ro oc-gnsi-authz:authz-policy-counters
+     |        +--ro oc-gnsi-authz:rpcs
+     |           +--ro oc-gnsi-authz:rpc* [name]
+     |              +--ro oc-gnsi-authz:name     -> ../state/name
+     |              +--ro oc-gnsi-authz:state
+     |                 +--ro oc-gnsi-authz:name?                 string
+     |                 +--ro oc-gnsi-authz:access-rejects?       oc-yang:counter64
+     |                 +--ro oc-gnsi-authz:last-access-reject?   oc-types:timeticks64
+     |                 +--ro oc-gnsi-authz:access-accepts?       oc-yang:counter64
+     |                 +--ro oc-gnsi-authz:last-access-accept?   oc-types:timeticks64
 ```
 
 # Definition/Abbreviation
