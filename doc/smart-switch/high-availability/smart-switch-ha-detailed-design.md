@@ -161,9 +161,9 @@ flowchart LR
    NPU_SWSS --> NPU_SYNCD
 
    %% NPU tables --> hamgrd:
+   NPU_DASH_HA_GLOBAL_CONFIG --> |SubscribeStateTable| NPU_HAMGRD
    NPU_DPU --> |SubscribeStateTable| NPU_HAMGRD
    NPU_VDPU --> |SubscribeStateTable| NPU_HAMGRD
-   NPU_DASH_HA_GLOBAL_CONFIG --> |SubscribeStateTable| NPU_HAMGRD
    NPU_DASH_HA_SET_CONFIG --> |zmq| NPU_HAMGRD
    NPU_DASH_ENI_PLACEMENT --> |zmq| NPU_HAMGRD
    NPU_DASH_HA_SCOPE_CONFIG --> |zmq| NPU_HAMGRD
@@ -362,7 +362,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | | owner | Owner/Driver of HA state machine. It can be `dpu`, `switch`. |
 | | | scope | HA scope. It can be `dpu`, `eni`. |
 | | | vdpu_ids | The ID of the vDPUs. |
-| | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be "" (none), `up` or `down`. |
+| | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be `none`, `up` or `down`. |
 | | | preferred_vdpu_id | When preferred vDPU ID is set, the traffic will be forwarded to this vDPU when both BFD probes are up. |
 | | | preferred_standalone_vdpu_index | (scope = `eni` only)<br><br>Preferred vDPU index to be standalone when entering into standalone setup. |
 
@@ -378,7 +378,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 | | | version | Config version. |
 | | | disabled | If true, disable this vDPU. It can only be `false` or `true`. |
-| | | desired_ha_state | The desired state for this vDPU. It can only be "" (none), `dead`, `active` or `standalone`. |
+| | | desired_ha_state | The desired state for this vDPU. It can only be `none`, `dead`, `active` or `standalone`. |
 | | | approved_pending_operation_ids | Approved pending HA operation id list, connected by "," |
 
 ##### 2.1.2.3. ENI placement table (scope = `eni` only)
@@ -395,7 +395,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | | version | Config version. |
 | | | eni_mac | ENI mac address. Used to create the NPU side ACL rules to match the incoming packets and forward to the right DPUs. |
 | | | ha_set_id | The HA set ID that this ENI is allocated to. |
-| | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI traffic forwarding rule. "" = Not set. |
+| | | pinned_next_hop_index | The index of the pinned next hop DPU for this ENI traffic forwarding rule, or `none` for not set. |
 
 #### 2.1.3. DPU_APPL_DB (per-DPU)
 
@@ -474,8 +474,8 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | | | pending_operation_ids | GUIDs of pending operation IDs, connected by "," |
-| | | pending_operation_types | Type of pending operations, e.g. "switchover", "activate_role", "flow_reconcile", "brainsplit_recover". Connected by "," |
-| | | pending_operation_list_last_updated_time | Last updated time of the pending operation list. |
+| | | pending_operation_types | Type of pending operations, e.g. "switchover", "activaterole", "flowreconcile", "brainsplitrecover". Connected by "," |
+| | | pending_operation_list_last_updated_time_in_ms | Last updated time of the pending operation list. |
 | | | switchover_id | Switchover ID (GUID). |
 | | | switchover_state | Switchover state. It can be "pendingapproval", "approved", "inprogress", "completed", "failed" |
 | | | switchover_start_time_in_ms | The time when operation is created. |
@@ -521,7 +521,7 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 | | | version | Config version. |
 | | | disabled | If true, disable this vDPU. It can only be `false` or `true`. |
-| | | ha_role | The HA role for this scope. It can only be `dead`, `active`, `standby`, `standalone`, `switching_to_active`. |
+| | | ha_role | The HA role for this scope. It can only be `dead`, `active`, `standby`, `standalone`, `switchingtoactive`. |
 | | | flow_reconcile_requested | If true, flow reconcile will be initiated. (Message Only. Not saved in DB.) |
 | | | activate_role_requested | If true, HA role will be activated. (Message Only. Not saved in DB.) |
 
@@ -547,7 +547,7 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | vdpu_ids | The list vDPU IDs hosting this ENI. | /{/{vdpu_id1/},/{vdpu_id2/},.../} |
 | | | primary_vdpu | The primary vDPU id. | /{/{dpu_id/}/} |
 | | | outbound_vni | (Optional) Outbound VNI used by this ENI, if different from the one in VNET. Each ENI can have its own VNI, such ExpressRoute Gateway Bypass case. | /{/{vni/}/} |
-| | | outbound_eni_mac_lookup | (Optional) Specify which MAC address to use to lookup the ENI for the outbound traffic. | "" (default), "dst", "src" |
+| | | outbound_eni_mac_lookup | (Optional) Specify which MAC address to use to lookup the ENI for the outbound traffic. | "none", "dst", "src" |
 
 #### 2.3.3. CHASSIS_STATE_DB (per-NPU)
 
