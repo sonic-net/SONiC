@@ -21,8 +21,8 @@
         - [4.1 Supervisord Boot time measurement using Flamegraph](#41-supervisord-boot-time-measurement-using-flamegraph)
         - [4.2 Comparison between Different process manager](#42-comparison-between-different-process-manager)
         - [4.3 Boot time improvement using runit method](#43-boot-time-improvement-using-runit-method)
-        - [4.4 Supervisord to Runit config translation](#44-supervisord-to-runit-config-translation)
-        - [4.5 Enabling Runit as the process manager](#45-enabling-runit-as-the-process-manager)
+        - [4.5 Supervisord to Runit config translation](#45-supervisord-to-runit-config-translation)
+        - [4.5 Enabling Runit as the process manager](#46-enabling-runit-as-the-process-manager)
         - [4.6 Managing Critical Processes with runit](#46-managing-critical-processes-with-runit)
         - [4.7 System Health Monitoring](#47-system-health-monitoring)
         - [4.8 Disabling runit and Re-enabling Supervisord](#48-disabling-runit-and-re-enabling-supervisord)
@@ -129,8 +129,17 @@ Runit, usage is very minimal it didnt show up in the perf run.
 
 ![alt text](perf-runit.png)
 
+### 4.4 Traffic resumption time using runit method
+Measured the time taken for data traffic to resume after reboot in a  dual-core ARM-v8.2 Cortex-A55 CPU cluster. Runit data traffic loss time measure as below
 
-### 4.4 Supervisord to Runit config translation
+--------------------------------------------------------------------------------------------------------------------
+| Operation                     | Frames sent | Frames Received | Frame difference  | Recovery time (secs) |
+|-------------------------------|------------------- |--------------------|------------------- |--------------------|
+|Runit          | 120000000             |     93983209               | 26016904             |    26                |
+| Supervisor    |  120000000             |82543323             | 37456737            | 37              |
+|
+```
+### 4.5 Supervisord to Runit config translation
 
 One option we are choosing is to use a Python script to automate the conversion of existing process manager (specifically supervisord) configurations into the runit format. This script, executed as part of a Docker entrypoint, transforms the provided supervisord configuration into runit service directories. This approach facilitates migration for Docker applications utilizing Jinja2 templated configuration files alongside traditional supervisord.conf files. There can be other options as well like static sv scripts etc.
 
@@ -185,7 +194,7 @@ exec /usr/bin/neighsyncd
 ```
 
 
-### 4.5 Enabling Runit as the process manager
+### 4.6 Enabling Runit as the process manager
 
 To enable runit as the process manager, create an empty file named /etc/runit-manager and then trigger a configuration reload. This can be achieved by executing the command config reload or by reloading the device.
 
@@ -205,7 +214,7 @@ b) This label option is also used to determine the process health status. Please
 ```
 3. When Docker starts, it verifies the above environment variable and chooses whether to execute the Docker process with runit or supervisord as the process manager.
 
-### 4.6 Managing Critical Processes with runit
+### 4.7 Managing Critical Processes with runit
 SONiC includes a feature to restart the Docker container if a critical process exits due to system signals (such as SIGTERM, SIGSEGV, etc.). This is managed by /usr/bin/supervisor-proc-exit-listener running inside the container.
 
 This functionality is achieved using a runit finish script for critical processes, which terminates the Docker container by sending a signal to process ID 1, as shown below:
@@ -218,7 +227,7 @@ exec kill -s SIGTERM 1
 exit 0                     
 ```
 
-### 4.7 System Health Monitoring
+### 4.8 System Health Monitoring
 SONiC continuously monitors Docker health status using a system-health checker script. This script executes supervisorctl status inside the Docker container to fetch the running status of each process, as shown below:
 
 ```
@@ -241,7 +250,7 @@ run: /etc/service/orchagent: (pid 99) 2394s
 ```
 
 
-### 4.8 Disabling runit and Re-enabling Supervisord
+### 4.9 Disabling runit and Re-enabling Supervisord
 Removing /etc/runit-manager and then rebooting (or executing config reload) will restore Supervisord as the process manager. The system will then launch containers configured to use supervisord, effectively reversing the migration to runit.
 
 
