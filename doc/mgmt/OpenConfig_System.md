@@ -203,7 +203,6 @@ module: openconfig-system
      |     |  +--ro oc-sys-grpc:name?                                              string
      |     |  +--ro oc-sys-grpc:enable?                                            boolean
      |     |  +--ro oc-sys-grpc:port?                                              oc-inet:port-number
-     |     |  +--ro oc-sys-grpc:certificate-id?                                    string
      |     |  +--ro oc-gnsi-certz:certificate-version?                             version
      |     |  +--ro oc-gnsi-certz:certificate-created-on?                          created-on
      |     |  +--ro oc-gnsi-certz:ca-trust-bundle-version?                         version
@@ -604,7 +603,10 @@ Example list of xpaths which can be used for subscription
 
 # 4 Flow Diagrams
 Mapping attributes between OpenConfig YANG and SONiC YANG:
-![openconfig to sonic mapping](images/Openconfig_system_SONiC_mapping.png)
+![openconfig to sonic mapping (1)](images/Openconfig_system_SONiC_mapping_1.png)
+![openconfig to sonic mapping (2)](images/Openconfig_system_SONiC_mapping_2.png)
+![openconfig to sonic mapping (3)](images/Openconfig_system_SONiC_mapping_3.png)
+![openconfig to sonic mapping (4)](images/Openconfig_system_SONiC_mapping_4.png)
 
 Translation Notes:  
 1. current-datetime, up-time & boot-time nodes are directly fetched from system using syscall.
