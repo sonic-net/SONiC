@@ -1,4 +1,4 @@
-﻿# SONiC Fine Grained ECMP 
+# SONiC Fine Grained ECMP 
 # High Level Design Document
 ### Rev 1.4
 
@@ -42,21 +42,26 @@
 | 1.2 | 10/21/2020  |    Kavin Kamaraj   | Add fgnhg CLI output format       |
 | 1.3 | 10/23/2020  |    Anish Narsian   | Interface nh oper state handler   |
 | 1.4 | 12/21/2020  |    Anish Narsian   | Match Mode changes                |
+| 1.5 | 09/16/2024  | Ashutosh Agrawal/Manas Mandal | Added dynamic mode     |
 
 # About this Manual
 This document provides the high level design for the Fine Grained ECMP feature implementation in SONiC
 Associated SAI proposal: https://github.com/opencomputeproject/SAI/blob/master/doc/ECMP/Ordered_and_Fine_Grained_ECMP.md
 # Scope
-This document describes the high level design of a staic Fine Grained ECMP feature as implemented in the application layer. 
-- In-scope: Modifying the behavior of ECMP to achieve fine grained handling of ECMP for a specifically identified prefix and associated next-hops in configuration
-- Out of scope: Dynamic ways to enable and use fine grained ECMP in a way that enables consistent ECMP for all possible prefixes
+This document describes the high level design of both static and dynamic Fine Grained ECMP feature as implemented in the application layer. 
+- In-scope: Modifying the behavior of ECMP to achieve fine grained handling of ECMP for a configured prefix. In the static mode, 
+  the associated next-hops are explicitly listed through the configuration while in the dynamic mode, nexthops will be learnt from route updates.
+- Out of scope: Dynamic ways to enable and use fine grained ECMP in a way that enables consistent ECMP for all possible prefixes.
 # Use case
 ![](../../images/ecmp/use_case.png)
 
 Firewall or other applications running on loadbalanced VMs which maintain state of flows running through them, such that:
-- There is shared state amongst some set of firewalls so that flows can be recovered if a flow transistions from 1 firewall to another in the same firewall set(bank). Flow transistions can occur when next-hops are added/withdrawn. In this example Firewall 1,2,3 form a firewall set(bank)
+- There is shared state amongst some set of firewalls so that flows can be recovered if a flow transistions from 1 firewall to another. In dynamic
+  mode, there is only 1 bank of firewalls and either all the firewalls share the same state or none of them do. In static mode, the number of
+  banks can be configured and all the firewalls in the same firewall set(bank) will share state. Flow transistions can occur when next-hops 
+  are added/withdrawn. In this examplefor the static case, Firewall 1,2,3 form a firewall set(bank)
 - Flow recovery is expensive so we should limit the flow redistributions which occur during next-hop addition and removal
-- Given that not all firewalls share state, there is a need to redistribute flows only amongst the firewalls which share state
+- Given that not all firewalls may share state, there is a need to redistribute flows only amongst the firewalls which share state
 - An entire firewall set can go down
 
 
@@ -78,9 +83,9 @@ At a high level the following should be supported:
 Phase #1
 - Should be able to configure a Fine Grained ECMP group which defines a static means of redistribution of ECMP upon next-hop modifications based upon the fine grained ECMP SAI proposal
 - Standard route modifications should enable special ECMP behavior for those prefixes/nexthops which desire Fine Grained ECMP. For all other prefixes/nexthops the standard ECMP behavior should apply. 
-- Ability to enable consistent hashing via Fine grained ECMP for a statically defined ECMP group
+- Ability to enable consistent hashing via Fine grained ECMP for a prefix or a statically defined ECMP group.
 - Ability to specify a group(bank) in which ECMP redistribution should be performed out of a set of available next-hops
-- Warm restart support
+- Warm restart support.
 - Handling linkdown scenarios by evoking nexthop withdrawal/addition based on link operational status changes.
 
 Phase #2
@@ -89,7 +94,7 @@ Phase #2
 ## 1.2 Orchagent requirements
 ### FgNhg orchagent:
  - Should be able to create Fine Grained Next-hop groups
- - Should be able to control ECMP for a route in the special way as defined in next-hop group definitions
+ - Should be able to control ECMP for a route in the special way as defined in Fine Grained configuration.
  - Should continue to be compatible with existing routeorch functionality
 
 ### Route orchagent:
@@ -115,11 +120,14 @@ Warm restart is required for this design since the solution would benefit from h
 # 2 Modules Design
 
 ## 2.1 Config DB
-Following new tables will be added to Config DB. Unless otherwise stated, the attributes are mandatory.
+Following new tables will be added to Config DB. Unless otherwise stated, the attributes are mandatory. FG_NHG_MEMBER 
+table is not used or required for dynamic-nhg mode.
 ```
 FG_NHG|{{fg-nhg-group-name}}:
-    "bucket_size": {{hash_bucket_size}}
-    "match_mode" : {{route-based/nexthop-based}}
+    "bucket_size"   : {{hash_bucket_size}}
+    "match_mode"    : {{route-based/nexthop-based}}
+    "nhg_mode:      : {{static-nhg/dynamic-nhg}} (Optional)
+    "max-next-hops" : {{max_next_hops for dynamic nhg}} (Optional)
 
 FG_NHG_PREFIX|{{IPv4 OR IPv6 prefix}}:
     "FG_NHG":{{fg-nhg-group-name}}
@@ -137,7 +145,9 @@ FG_NHG_MEMBER|{{next-hop-ip(IPv4 or IPv6 address)}}:
 key                                   = FG_NHG|fg-nhg-group-name      ; FG_NHG group name
 ; field                               = value
 BUCKET_SIZE                           = hash_bucket_size              ; total hash bucket size desired, recommended value of Lowest Common Multiple of 1..{max # of next-hops}
-MATCH_MODE                            = mode                          ; The filtering method used to identify when to use Fine Grained vs regular route handling. nexthop-based looks to next-hop IP to filter routes and uses fine grained ecmp when nexthop IPs matches FG_NHG_MEMBER IPs. route-based looks to prefix to filter routes, and uses fine grained ecmp when the route prefix matches the FG_NHG_PREFIX prefix. 
+MATCH_MODE                            = match_mode                    ; The filtering method used to identify when to use Fine Grained vs regular route handling. nexthop-based looks to next-hop IP to filter routes and uses fine grained ecmp when nexthop IPs matches FG_NHG_MEMBER IPs. route-based looks to prefix to filter routes, and uses fine grained ecmp when the route prefix matches the FG_NHG_PREFIX prefix.
+NHG_MODE                              = nhg_mode                      ; Applicable only when match mode is set to route-based. In static-nhg mode, the list of nexthops is statically specified in FG_NHG_MEMBER table. In the dynamic-nhg mode, nexthops are dynamically discovered from the route updates.
+MAX_NEXT_HOPS                         = max_next_hops                 ; Maximum number of nexthops that can be learned from route updates in dynamic-nhg mode. This field is not used in static-nhg mode.
 ```
 
 ```
@@ -185,10 +195,12 @@ INDEX                                 = next-hop-key                            
 Commands summary (Phase #2):
 CLI commands:
 ```
-	config fg nhg <add/del> <fg-nhg-group-name> type <static/dynamic> size <hash_bucket_size>
-	config fg nhg prefix <add/del> <fg-nhg-group-name> <prefix>
-	config fg nhg member <add/del> <fg-nhg-group-name>  <next-hop-ip>
-	show fg nhg group <fg-nhg-group-name/all>
+	config fg-nhg <add/del> <fg-nhg-group-name> --nhg-mode <static-nhg/dynamic-nhg> --match-mode <prefix-based/nexthop-based> --bucket-size <hash_bucket_size> --max-next-hops <max_next_hops>
+	config fg-nhg-prefix <add/del> <prefix> --fg-nhg <fg-nhg-group-name> 
+	config fg-nhg-member <add/del> <fg-nhg-group-name>  <next-hop-ip>
+	show fg-nhg <fg-nhg-group-name/all>
+	show fg-nhg-prefix <fg-nhg-prefix/all>
+	show fg-nhg-member <fg-nhg-member/all>
 	show fgnhg hash-view <fg-nhg-group-name> (shows the current hash bucket view of fg nhg)
 	show fgnhg active-hops <fg-nhg-group-name> (shows which set of next-hops are active) 
 ```
@@ -336,8 +348,8 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 # 4 Details
 - A key idea in achieving consistent ecmp and limiting redistributions to a bank(group) is the creation of many hash buckets(SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER) associated with an ecmp group and having a next-hop repeated multiple times within it. 
 - Now if a next-hop were to go down we would only change the hash buckets which are affected by the next-hop down event. This allows us to ensure that all flows are not affected by a next-hop change, thereby achieving consistent hashing
-- Further, by pushing configuration with next-hop bank membership, we can ensure that we only refill the affected hash buckets with those next-hops within the same bank. Thus achieving consistent hashing within a bank itself and meeting the requirement/use case above.  
-- A distiction is made between Kernel routes and hardware routes for fine grained ECMP. The kernel route contains the prefix along with standard next-hops as learnt via BGP or any other means. Fine Grained ECMP takes that standard route(as pushed via APP DB + routeorch) and then creates a fine grained ECMP group by expanding it into the hash bucket membership. Further the kernel route and hw route are not equivalent due to the special redistribution behavior with respect to the bank defintion. Special logic is also present to ensure that any next-hops which don't match the static FG_NHG next-hop set for a prefix will cause the next-hop to be ignored to maintain consistency with the desired hw route and hashing state defined in FG_NHG. FG_NHG drives the final state of next-hop groups in the ASIC given a user programs the config_db entry for it.
+- Further, in the static mode, by pushing configuration with next-hop bank membership, we can ensure that we only refill the affected hash buckets with those next-hops within the same bank. Thus achieving consistent hashing within a bank itself and meeting the requirement/use case above.  
+- A distiction is made between Kernel routes and hardware routes for fine grained ECMP. The kernel route contains the prefix along with standard next-hops as learnt via BGP or any other means. Fine Grained ECMP takes that standard route(as pushed via APP DB + routeorch) and then creates a fine grained ECMP group by expanding it into the hash bucket membership. Further the kernel route and hw route are not equivalent due to the special redistribution behavior with respect to the bank defintion. Special logic is also present in static-nhg mode to ensure that any next-hops which don't match the static FG_NHG next-hop set for a prefix will cause the next-hop to be ignored to maintain consistency with the desired hw route and hashing state defined in FG_NHG. FG_NHG drives the final state of next-hop groups in the ASIC given a user programs the config_db entry for it.
 - Given that fgnhgorch can ignore next-hops in route addition in order to maintain consistency with FG_NHG, special syslog error messages will be displayed whenever fgnhgorch skips propagation of a next-hop to the ASIC.
 - A guideline for the hash bucket size is to define a bucket size which will allow equal distribution of traffic regardless of the number of next-hops which are active. For example with 2 Firewall sets, each set containing 3 firewall members: each set can have equal redistribution by finding the lowest common multiple of 3 next-hops which is 3x2x1(this is equivalent to us saying that if there were 3 or 2 or 1 next-hop active, we could distribute the traffic equally amongst the next-hops). With 2 such sets we get a total of 3x2x1 + 3x2x1 = 12 hash buckets.
 - fgnhgorch is an observer for SUBJECT_TYPE_PORT_OPER_STATE_CHANGE events, these events are used in conjunction with the IP to interface mapping(INTERFACE attribute of the FG NHG member table), to trigger next-hop withdrawal/addition depending on which interface's operational state transitioned to down/up. The next-hop withdrawal/addition is performed per consistent and layered hashing rules. The INTERFACE attribute is optional, so this functionality is activated based on user configuration.
@@ -351,7 +363,8 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 - Firewall VM set 2 next-hops: 1.1.1.4, 1.1.1.5, 1.1.1.6	
 
 ### ConfigDB objects:
-#### Match mode route-based
+
+#### NHG Mode = static, Match mode = route-based
 ```
 {
 	"FG_NHG": {
@@ -399,7 +412,9 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 	}
 }
 ```
-#### Match mode nexthop-based
+
+#### NHG Mode = static, Match mode = nexthop-based
+
 ```
 {
 	"FG_NHG": {
@@ -438,6 +453,26 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 			"FG_NHG": "2-VM-Sets",
 			"bank": 1,
 			"link": "Ethernet24"
+		}
+	}
+}
+```
+
+#### NHG Mode = dynamic
+
+```
+{
+	"FG_NHG": {
+		"6-VM-DYNAMIC": {
+			"bucket_size": 24,
+			"match_mode": "route-based",
+			"nhg_mode": "dynamic-nhg",
+			"max_next_hops": "6"
+		}
+	},
+	"FG_NHG_PREFIX": {
+		"172.17.10.10/32": {
+			"FG_NHG": "6-VM-DYNAMIC"
 		}
 	}
 }
@@ -486,6 +521,7 @@ The following testing is planned for this feature:
 A new test called test_fgnhg.py will be created to test FG_NHG configurations. The test will check if the ASIC_DB state matches the expected hash bucket state upon creation/modification of FG_NHG entries and dynamic change in APP_DB route/ARP/interfaces as would occur in typical runtime scenarios. 
 
 Test details:
+### Static NHG Mode
 - Create FG_NHG config_db entry with 2 banks, 3 members per bank
 - Create 6 interfaces with IPs, and program an APP_DB route with IP prefix + 6 next-hops matching above config_db entry: check if hash buckets are created as expected adhereing to the bank defintions
 - APP_DB route modified to reduce some number of next-hops: check if ASIC_DB hash bucket members show that the swss code maintains layered and consistent hashing
@@ -498,6 +534,17 @@ Test details:
 - Test warm reboot and ensure that Fine Grained ECMP entries in the ASIC are identical post warm reboot. Ensure that nexthop modifications post warm reboot yeild expected changes in hash buckets.
 - Run the above set of tests for both nexthop-based and route-based match_modes. Additionally, for nexthop-based matchmode, validate changes in asic objects for route transitions from fine grained ecmp to regular ecmp and vice-versa. The route transition can occur because a route points to one set of nexthops which are fine grained, and the route may change later to point to nexthops which are non-fine grained and vice-versa. We validate these cases and the resulting ASIC DB objects.
 
+### Dynamic NHG Mode
+- Create FG_NHG config db entry with FG_NHG and FG_NHG_PREFIX table entries in dynamic mode with max_next_hops value of 6
+- Create 6 interfaces with IPs, and program an APP_DB route with IP prefix + 3 next-hops: check if hash buckets are created as expected.
+- APP_DB route modified to remove a next-hop: check if ASIC_DB hash bucket members show that the swss code maintains layered and consistent hashing.
+- APP_DB route modified to add two next-hops and remove a next-hop: check if ASIC_DB hash bucket members show that the swss code maintains layered and consistent hashing.
+- Test warm reboot and ensure that Fine Grained ECMP entries in the ASIC are identical post warm reboot. Ensure that nexthop modifications post warm reboot yeild expected changes in hash buckets.
+- Create another FG_NHG config_db entry with a different prefix, bucket_size and max_next_hops_value.
+- Add an APP_DB route for the 2nd prefix that shares a next-hop with the 1st prefix: ensure the hash buckets for hardware nexthop groups corresponding to both prefixes are created correctly.
+- Bring down and then bring up a next-hop common to both prefixes: Check that ASIC_DB hash buckets are updated correctly and only the minimum number of buckets changed in both groups.
+- Bring down 3 nethops that are unique to each prefix and verify that hash buckets are updated correctly.
+  
 ## Data Plane community tests via pytest + PTF
 A new Pytest and PTF test will be created for Fine Grained ECMP testing. The Pytest is responsible for creating/deploying the device configuration, and will invoke PTF test to run the data plane scenario test
 
