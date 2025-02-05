@@ -10,7 +10,22 @@ The current scope of the CMIS diagnostic monitoring feature in SONiC includes th
 - **VDM (Versatile Diagnostics Monitoring) data:** Offers versatile diagnostic information for enhanced monitoring and troubleshooting.
 - **PM (Performance Monitoring) data:** Applicable only for C-CMIS transceivers, this includes performance metrics such as error counts and signal quality indicators.
 
-## 2. STATE_DB Schema for CMIS Diagnostic Monitoring
+## 2. Requirements
+
+The CMIS diagnostic monitoring feature in SONiC requires the following:
+
+1. Capturing the diagnostic monitoring data from the optical transceivers and storing it in the database at regular intervals.
+2. Providing a way to retrieve the diagnostic monitoring data using the SONiC CLI as well as by querying the database directly.
+3. Optimizing the periodic update time for the diagnostic monitoring data by storing diagnostic information for only 1 subport from a breakout port group.
+4. Storing the flag change count, last flag set and clear time for each flag in the database during a link change event. This is necessary because the periodic update time for the diagnostic monitoring data may not be frequent enough to capture the flag change event.
+5. Updating the last table update time in the database whenever the diagnostic monitoring data is updated.
+6. Capturing the real diagnostic update interval in the database for each port since this time can vary with multiple factors such as the number of optics plugged in, I2C latency, host handling of diagnostic data and various other factors.
+
+### Future Enhancements
+
+1. Creating a mechanism to store the flag change count and last flag set and clear time in the database so that this data is not lost during `xcvrd` warm restart or during device warm reboots. The current implementation deletes this data as part of the `xcvrd` shutdown process.
+
+## 3. STATE_DB Schema for CMIS Diagnostic Monitoring
 
 The CMIS diagnostic monitoring data is stored in the `STATE_DB` database. Each logical port on the switch has a corresponding entry in the `STATE_DB` schema unless the device is configured in breakout mode. For devices configured in breakout mode, only the first port of the breakout group will have the diagnostic monitoring data stored in the `STATE_DB` schema since the diagnostic monitoring data is the same for all ports in the breakout group.
 
@@ -50,9 +65,9 @@ The `STATE_DB` schema for the CMIS diagnostic monitoring feature includes the fo
 - `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME`: Records the timestamp when the transceiver status flag was cleared.
 - `TRANSCEIVER_PM`: Stores performance monitoring data.
 
-### 2.1 Transceiver DOM
+### 3.1 Transceiver DOM
 
-#### 2.1.1 Transceiver DOM sensor data
+#### 3.1.1 Transceiver DOM sensor data
 
 The `TRANSCEIVER_DOM_SENSOR` table stores the real-time DOM data for the optical transceivers.
 
@@ -75,7 +90,7 @@ lane_num: Represents the lane number of the field. The lane number is an integer
     tx_config_power              = FLOAT                            ; configured tx output power in dbm
 ```
 
-#### 2.1.2 Transceiver DOM threshold data
+#### 3.1.2 Transceiver DOM threshold data
 
 The `TRANSCEIVER_DOM_THRESHOLD` table stores the threshold values for the DOM data.
 
@@ -110,7 +125,7 @@ The `TRANSCEIVER_DOM_THRESHOLD` table stores the threshold values for the DOM da
     lasertemplowwarning          = FLOAT                            ; laser temperature low warning threshold in Celsius
 ```
 
-#### 2.1.3 Transceiver DOM flag data
+#### 3.1.3 Transceiver DOM flag data
 
 The `TRANSCEIVER_DOM_FLAG` table stores the flag status for the DOM data.
 
@@ -147,7 +162,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     lasertemplowwarning              = BOOLEAN            ; laser temperature low warning flag
 ```
 
-#### 2.1.4 Transceiver DOM flag change count data
+#### 3.1.4 Transceiver DOM flag change count data
 
 The `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT` table stores the flag change count for the DOM flags.
 
@@ -183,7 +198,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     lasertemplowwarning           = INTEGER           ; laser temperature low warning change count
 ```
 
-#### 2.1.5 Transceiver DOM flag time set data
+#### 3.1.5 Transceiver DOM flag time set data
 
 The `TRANSCEIVER_DOM_FLAG_SET_TIME` table stores the last set time for the corresponding DOM flag.
 
@@ -219,7 +234,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     lasertemplowwarning           = STR           ; laser temperature low warning last set time
 ```
 
-#### 2.1.6 Transceiver DOM flag time clear data
+#### 3.1.6 Transceiver DOM flag time clear data
 
 The `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` table stores the last clear time for the corresponding DOM flag.
 
@@ -255,9 +270,9 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     lasertemplowwarning          = STR          ; laser temperature low warning last clear time
 ```
 
-### 2.2 Transceiver VDM
+### 3.2 Transceiver VDM
 
-#### 2.2.1 Transceiver VDM sample data
+#### 3.2.1 Transceiver VDM sample data
 
 The `TRANSCEIVER_VDM_REAL_VALUE` table stores the real time VDM data
 
@@ -311,9 +326,9 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower{lane_num}                           = FLOAT                  ; rx signal power in dbm
 ```
 
-#### 2.2.2 Transceiver VDM threshold data
+#### 3.2.2 Transceiver VDM threshold data
 
-##### 2.2.2.1 Transceiver VDM high alarm threshold data
+##### 3.2.2.1 Transceiver VDM high alarm threshold data
 
 The `TRANSCEIVER_VDM_HALARM_THRESHOLD` table stores the high alarm threshold values for the VDM data
 
@@ -367,7 +382,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_halarm{lane_num}                         = FLOAT         ; rx signal power in dbm (high alarm)
 ```
 
-##### 2.2.2.2 Transceiver VDM low alarm threshold data
+##### 3.2.2.2 Transceiver VDM low alarm threshold data
 
 The `TRANSCEIVER_VDM_LALARM_THRESHOLD` table stores the low alarm threshold values for the VDM data
 
@@ -421,7 +436,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lalarm{lane_num}                         = FLOAT         ; rx signal power in dbm (low alarm)
 ```
 
-##### 2.2.2.3 Transceiver VDM high warning threshold data
+##### 3.2.2.3 Transceiver VDM high warning threshold data
 
 The `TRANSCEIVER_VDM_HWARN_THRESHOLD` table stores the high warning threshold values for the VDM data
 
@@ -475,7 +490,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_hwarn{lane_num}                         = FLOAT         ; rx signal power in dbm (high warning)
 ```
 
-##### 2.2.2.4 Transceiver VDM low warning threshold data
+##### 3.2.2.4 Transceiver VDM low warning threshold data
 
 The `TRANSCEIVER_VDM_LWARN_THRESHOLD` table stores the low warning threshold values for the VDM data
 
@@ -529,9 +544,9 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lwarn{lane_num}                         = FLOAT         ; rx signal power in dbm (low warning)
 ```
 
-#### 2.2.3 Transceiver VDM flag data
+#### 3.2.3 Transceiver VDM flag data
 
-##### 2.2.3.1 Transceiver VDM high alarm flag data
+##### 3.2.3.1 Transceiver VDM high alarm flag data
 
 The `TRANSCEIVER_VDM_HALARM_FLAG` table stores the flag status for the VDM data.
 
@@ -585,7 +600,7 @@ The `TRANSCEIVER_VDM_HALARM_FLAG` table stores the flag status for the VDM data.
 
 lane_num: Represents lane number of the field. The lane number is an integer value that ranges from 1 to 8.
 
-##### 2.2.3.2 Transceiver VDM low alarm flag data
+##### 3.2.3.2 Transceiver VDM low alarm flag data
 
 The `TRANSCEIVER_VDM_LALARM_FLAG` table stores the flag status for the VDM data.
 
@@ -639,7 +654,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lalarm{lane_num}                          = BOOLEAN; rx signal power in dbm (low alarm flag)
 ```
 
-##### 2.2.3.3 Transceiver VDM high warning flag data
+##### 3.2.3.3 Transceiver VDM high warning flag data
 
 The `TRANSCEIVER_VDM_HWARN_FLAG` table stores the flag status for the VDM data.
 
@@ -693,7 +708,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_hwarn{lane_num}                          = BOOLEAN; rx signal power in dbm (high warning flag)
 ```
 
-##### 2.2.3.4 Transceiver VDM low warning flag data
+##### 3.2.3.4 Transceiver VDM low warning flag data
 
 The `TRANSCEIVER_VDM_LWARN_FLAG` table stores the flag status for the VDM data.
 
@@ -747,9 +762,9 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lwarn{lane_num}                          = BOOLEAN; rx signal power in dbm (low warning flag)
 ```
 
-#### 2.2.4 Transceiver VDM flag change count data
+#### 3.2.4 Transceiver VDM flag change count data
 
-##### 2.2.4.1 Transceiver VDM high alarm flag change count data
+##### 3.2.4.1 Transceiver VDM high alarm flag change count data
 
 The `TRANSCEIVER_VDM_HALARM_FLAG_CHANGE_COUNT` table stores the flag change count for high alarm flag for the VDM data.
 
@@ -802,7 +817,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_halarm{lane_num}                          = INTEGER; rx signal power in dbm (high alarm flag change count)
 ```
 
-##### 2.2.4.2 Transceiver VDM low alarm flag change count data
+##### 3.2.4.2 Transceiver VDM low alarm flag change count data
 
 The `TRANSCEIVER_VDM_LALARM_FLAG_CHANGE_COUNT` table stores the flag change count for low alarm flag for the VDM data.
 
@@ -855,7 +870,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lalarm{lane_num}                          = INTEGER; rx signal power in dbm (low alarm flag change count)
 ```
 
-##### 2.2.4.3 Transceiver VDM high warning flag change count data
+##### 3.2.4.3 Transceiver VDM high warning flag change count data
 
 The `TRANSCEIVER_VDM_HWARN_FLAG_CHANGE_COUNT` table stores the flag change count for high warning flag for the VDM data.
 
@@ -908,7 +923,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_hwarn                                    = INTEGER; rx signal power in dbm (high warning flag change count)
 ```
 
-##### 2.2.4.4 Transceiver VDM low warning flag change count data
+##### 3.2.4.4 Transceiver VDM low warning flag change count data
 
 The `TRANSCEIVER_VDM_LWARN_FLAG_CHANGE_COUNT` table stores the flag change count for low warning flag for the VDM data.
 
@@ -961,9 +976,9 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lwarn                                    = INTEGER; rx signal power in dbm (low warning flag change count)
 ```
 
-#### 2.2.5 Transceiver VDM flag time set data
+#### 3.2.5 Transceiver VDM flag time set data
 
-##### 2.2.5.1 Transceiver VDM high alarm flag time set data
+##### 3.2.5.1 Transceiver VDM high alarm flag time set data
 
 The `TRANSCEIVER_VDM_HALARM_FLAG_SET_TIME` table stores the last set time for the VDM high alarm flag.
 
@@ -1016,7 +1031,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_halarm{lane_num}                          = STR; rx signal power in dbm (high alarm last set time)
 ```
 
-##### 2.2.5.2 Transceiver VDM low alarm flag time set data
+##### 3.2.5.2 Transceiver VDM low alarm flag time set data
 
 The `TRANSCEIVER_VDM_LALARM_FLAG_SET_TIME` table stores the last set time for the VDM low alarm flag.
 
@@ -1069,7 +1084,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lalarm{lane_num}                          = STR; rx signal power in dbm (low alarm last set time)
 ```
 
-##### 2.2.5.3 Transceiver VDM high warning flag time set data
+##### 3.2.5.3 Transceiver VDM high warning flag time set data
 
 The `TRANSCEIVER_VDM_HWARN_FLAG_SET_TIME` table stores the last set time for the VDM high warning flag.
 
@@ -1122,7 +1137,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_hwarn                                    = STR; rx signal power in dbm (high warning last set time)
 ```
 
-##### 2.2.5.4 Transceiver VDM low warning flag time set data
+##### 3.2.5.4 Transceiver VDM low warning flag time set data
 
 The `TRANSCEIVER_VDM_LWARN_FLAG_SET_TIME` table stores the last set time for the VDM low warning flag.
 
@@ -1175,9 +1190,9 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lwarn                                    = STR; rx signal power in dbm (low warning last set time)
 ```
 
-#### 2.2.6 Transceiver VDM flag time clear data
+#### 3.2.6 Transceiver VDM flag time clear data
 
-##### 2.2.6.1 Transceiver VDM high alarm flag time clear data
+##### 3.2.6.1 Transceiver VDM high alarm flag time clear data
 
 The `TRANSCEIVER_VDM_HALARM_FLAG_CLEAR_TIME` table stores the last clear time for the VDM high alarm flag.
 
@@ -1230,7 +1245,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_halarm{lane_num}                          = STR; rx signal power in dbm (high alarm last clear time)
 ```
 
-##### 2.2.6.2 Transceiver VDM low alarm flag time clear data
+##### 3.2.6.2 Transceiver VDM low alarm flag time clear data
 
 The `TRANSCEIVER_VDM_LALARM_FLAG_CLEAR_TIME` table stores the last clear time for the VDM low alarm flag.
 
@@ -1283,7 +1298,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lalarm{lane_num}                          = STR; rx signal power in dbm (low alarm last clear time)
 ```
 
-##### 2.2.6.3 Transceiver VDM high warning flag time clear data
+##### 3.2.6.3 Transceiver VDM high warning flag time clear data
 
 The `TRANSCEIVER_VDM_HWARN_FLAG_CLEAR_TIME` table stores the last clear time for the VDM high warning flag.
 
@@ -1336,7 +1351,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_hwarn                                    = STR; rx signal power in dbm (high warning last clear time)
 ```
 
-##### 2.2.6.4 Transceiver VDM low warning flag time clear data
+##### 3.2.6.4 Transceiver VDM low warning flag time clear data
 
 The `TRANSCEIVER_VDM_LWARN_FLAG_CLEAR_TIME` table stores the last clear time for the VDM low warning flag.
 
@@ -1389,9 +1404,9 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower_lwarn                                    = STR; rx signal power in dbm (low warning last clear time)
 ```
 
-### 2.3 Transceiver status data
+### 3.3 Transceiver status data
 
-#### 2.3.1 Transceiver status data to store module and data path status
+#### 3.3.1 Transceiver status data to store module and data path status
 
 The `TRANSCEIVER_STATUS` table stores the status of the transceiver.
 
@@ -1418,9 +1433,11 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     dpinit_pending_hostlane{lane_num}       = BOOLEAN           ; data path configuration updated on host lane {lane_num}
     tuning_in_progress                      = BOOLEAN           ; tuning in progress status
     wavelength_unlock_status                = BOOLEAN           ; laser unlocked status
+    vdm_support                             = BOOLEAN           ; VDM support status
+    vdm_fine_interval_length                = INTEGER           ; VDM fine interval length
 ```
 
-#### 2.3.2 Transceiver status data to store module and data path flag status
+#### 3.3.2 Transceiver status data to store module and data path flag status
 
 The `TRANSCEIVER_STATUS_FLAG` table stores the status of the transceiver flag.
 
@@ -1447,7 +1464,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tuning_complete                         = BOOLEAN           ; tuning complete flag
 ```
 
-#### 2.3.3 Transceiver status data to store module and data path change count
+#### 3.3.3 Transceiver status data to store module and data path change count
 
 The `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT` table stores the change count for the transceiver flag.
 
@@ -1473,7 +1490,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tuning_complete                   = INTEGER           ; tuning complete flag change count
 ```
 
-#### 2.3.4 Transceiver status data to store module and data path flag set time
+#### 3.3.4 Transceiver status data to store module and data path flag set time
 
 The `TRANSCEIVER_STATUS_FLAG_SET_TIME` table stores the last set time for the transceiver flag.
 
@@ -1499,7 +1516,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tuning_complete              = STR           ; tuning complete flag set time
 ```
 
-#### 2.3.5 Transceiver status data to store module and data path flag clear time
+#### 3.3.5 Transceiver status data to store module and data path flag clear time
 
 The `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` table stores the last clear time for the transceiver flag.
 
@@ -1525,7 +1542,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tuning_complete                   = STR           ; tuning complete flag clear time
 ```
 
-### 2.4 Transceiver PM data
+### 3.4 Transceiver PM data
 
 The `TRANSCEIVER_PM` table stores the performance monitoring data of the transceiver. This table is exists only for C-CMIS transceivers.
 
@@ -1575,13 +1592,13 @@ The `TRANSCEIVER_PM` table stores the performance monitoring data of the transce
     rx_sig_power_max             = FLOAT                            ; rx signal power max 
 ```
 
-## 3. CLI Commands for CMIS Diagnostic Monitoring
+## 4. CLI Commands for CMIS Diagnostic Monitoring
 
 For devices with breakout ports, the CLI handler will always fetch diagnostic monitoring data from the first port of the breakout group.
 
-### 3.1 CLI Commands for DOM Monitoring
+### 4.1 CLI Commands for DOM Monitoring
 
-#### 3.1.1 `show interfaces transceiver dom PORT`
+#### 4.1.1 `show interfaces transceiver dom PORT`
 
 This CLI shows the transceiver DOM and threshold values for a given port.
 
@@ -1669,7 +1686,7 @@ Port         (dBm)            (dBm)        (dBm)          (dBm)         (dBm)
 Ethernet1    195.5            N/A          N/A            N/A           N/A
 ```
 
-#### 3.1.2 `show interfaces transceiver dom flag PORT`
+#### 4.1.2 `show interfaces transceiver dom flag PORT`
 
 This CLI shows the transceiver DOM flags for a given port.
 
@@ -1807,9 +1824,9 @@ Ethernet1    Laser            False/                     False/                 
                               never                      never                      never                      never
 ```
 
-### 3.2 CLI Commands for VDM Monitoring
+### 4.2 CLI Commands for VDM Monitoring
 
-#### 3.2.1 `show interfaces transceiver vdm PORT`
+#### 4.2.1 `show interfaces transceiver vdm PORT`
 
 This CLI shows the transceiver VDM and threshold values for a given port.
 The CLI will show VDM data for observables which are supported by the module vendor. If the module vendor does not support a particular observable, the CLI will not show data for that observable.
@@ -1859,7 +1876,7 @@ Ethernet1    1      23.480468        0            0              0             0
 Upto all observables supported by the module vendor
 ```
 
-#### 3.2.2 `show interfaces transceiver vdm flag PORT`
+#### 4.2.2 `show interfaces transceiver vdm flag PORT`
 
 This CLI shows the transceiver VDM flags for a given port.
 For a given observable, the CLI will show data only for only 1 lane if one or more lanes has a flag set to true. If none of the lanes have a flag set to true, no data will be shown for that observable.
@@ -1902,7 +1919,7 @@ Ethernet1   PAM4 Level        False                      True                   
 Upto all observables with at least one lane having a flag set to true
 ```
 
-##### 3.2.2.1 VDM flags dump using the `--detail` option
+##### 4.2.2.1 VDM flags dump using the `--detail` option
 
 With the `--detail` option, the VDM data for all types of observables will be displayed. With this option, the CLI will show data for all lanes and supported observables (irrespective of the flag status). For unsupported observables, the CLI will show `N/A` for the data.
 
@@ -1955,9 +1972,9 @@ Ethernet1    Laser Temp Media False/                     False/                 
 Upto all observables for all lanes
 ```
 
-### 3.3 CLI Commands for transceiver status monitoring
+### 4.3 CLI Commands for transceiver status monitoring
 
-#### 3.3.1 `show interfaces transceiver status PORT`
+#### 4.3.1 `show interfaces transceiver status PORT`
 
 Shows the module and datapath state data along with various flags related to it. Also stores various Tx and Rx related flags.
 
@@ -2030,9 +2047,11 @@ Ethernet0:
         Data path configuration updated on host lane 8: False
         Tuning in progress status: False
         Laser unlocked status: True
+        VDM Support: True
+        VDM Fine Interval Length: 10000
 ```
 
-#### 3.3.2 `show interfaces transceiver status flag PORT`
+#### 4.3.2 `show interfaces transceiver status flag PORT`
 
 This CLI shows the various module and datapath state flags for a given port along with the change count and set/clear time.
 
@@ -2101,9 +2120,9 @@ Ethernet0    Invalid channel number flag      False/  0/  never/  never
 Ethernet0    Tuning complete flag             False/  0/  never/  never
 ```
 
-## 4. SONiC CMIS diagnostic monitoring workflow
+## 5. SONiC CMIS diagnostic monitoring workflow
 
-### 4.1 Static Diagnostic Information
+### 5.1 Static Diagnostic Information
 
 The `SfpStateUpdateTask` thread is responsible for updating the static diagnostic information for all the transceivers in the system. The static diagnostic information, such as threshold values for DOM, VDM and PM, are read from the transceiver and updated in the `redis-db` during `xcvrd` boot-up and during transceiver removal and insertion.
 
@@ -2112,13 +2131,13 @@ The following tables are updated by the `SfpStateUpdateTask` thread:
 1. `TRANSCEIVER_DOM_THRESHOLD`
 2. `TRANSCEIVER_VDM_XXX_THRESHOLD` where `XXX` is the threshold type (`highalarm`, `highwarning`, `lowwarning`, `lowalarm`)
 
-### 4.2 Dynamic Diagnostic Information
+### 5.2 Dynamic Diagnostic Information
 
 The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnostic information for all the transceivers in the system. The following events drive the dynamic update of the diagnostic information:
 
 1. **Periodic update of the diagnostic information:**
     - The `DomInfoUpdateTask` thread periodically updates the diagnostic information for all the ports.
-    - The update period interval can be retrieved by reading the `dom_info_update_periodic_secs` field from the `/usr/share/sonic/device/{platform}/{hwsku}/pmon_daemon_control.json` file.
+    - The update period interval can be retrieved by reading the `dom_info_update_periodic_secs` field from the `/usr/share/sonic/device/{platform}/pmon_daemon_control.json` file.
     - If this field or the file is absent, the default timer value is 0 seconds.
 
 2. **Link change event:**
@@ -2126,7 +2145,7 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
     - Updating flag information during a link change event ensures that the flag change time is captured in a timely manner. The periodic update can take more time to update the diagnostic information since it reads the diagnostic information for all the ports in a sequential manner.
     - Since the flag registers are clear-on-read latched values, the `DomInfoUpdateTask` thread will require two reads to update the flag value, last clear time, and change count once the flagged condition is no longer present. Hence, it is expected that the flag status change in the database will be delayed by two update cycles when the flagged condition is no longer present on the module.
 
-#### 4.2.1 High-Level Steps for Updating Dynamic Diagnostic Information
+#### 5.2.1 High-Level Steps for Updating Dynamic Diagnostic Information
 
 1. The `DomInfoUpdateTask` thread is created by the `xcvrd` process.
 2. The `dom_info_update_periodic_secs` value is retrieved from the `pmon_daemon_control.json` file to determine the interval for updating the diagnostic information for all the ports. If the `dom_info_update_periodic_secs` field is absent or set to 0, the diagnostic information will be updated continuously without any delay between updates.
@@ -2177,11 +2196,17 @@ while not dom_mgr.task_stopping_event.is_set():
     expired_time = time.time() + dom_info_update_periodic_secs
 ```
 
-#### 4.2.2 Diagnostic Information Update During Link Change Event
+#### 5.2.2 Link Change Event detection
+
+The `DomInfoUpdateTask` thread subscribes to the `PORT_TABLE` in the `STATE_DB` and monitors the `natdev_oper_status` field to detect link change events. Before reading diagnostic information, the `DomInfoUpdateTask` addresses any pending link change events. As the link change handling in `DomInfoUpdateTask` is not interrupt-driven, there might be a delay in updating the flag information if the thread is occupied with updating diagnostics when a link change event occurs.
+If multiple link change events occur for a port while the `DomInfoUpdateTask` thread is busy, the thread will act only if there is a difference in the link status between the last (before the thread was busy) and the current link change events. If the link status is the same, the thread will not update the diagnostic information for the port.
+When handling pending link change events for more than one subport of a breakout port group in a single iteration, the filtering logic ensures that flag related diagnostic information is updated only for the first subport of the breakout port group and not for the other subports.
+
+#### 5.2.3 Diagnostic Information Update During Link Change Event
 
 The following tables are updated during a link change event:
 
-##### 4.2.2.1 DOM Related Fields
+##### 5.2.3.1 DOM Related Fields
 
 The DOM flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link change event:
 
@@ -2213,7 +2238,7 @@ The following fields related to `temperature` are updated in the `redis-db` duri
 - `templowwarning` in `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` table
 - `templowalarm` in `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` table
 
-##### 4.2.2.2 VDM Related Fields
+##### 5.2.3.2 VDM Related Fields
 
 The VDM flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link change event:
 
@@ -2260,7 +2285,7 @@ The following fields related to `esnr_media_input` are updated in the `redis-db`
 - `esnr_media_input_hwarn{lane_num}` in `TRANSCEIVER_VDM_HWARN_FLAG_CLEAR_TIME` table
 - `esnr_media_input_lwarn{lane_num}` in `TRANSCEIVER_VDM_LWARN_FLAG_CLEAR_TIME` table
 
-##### 4.2.2.3 Transceiver Status Related Fields
+##### 5.2.3.3 Transceiver Status Related Fields
 
 The following fields of the `TRANSCEIVER_STATUS` table are updated in the `redis-db` during a link change event:
 
@@ -2294,7 +2319,7 @@ The following fields related to `datapath_firmware_fault` are updated in the `re
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_SET_TIME` table
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` table
 
-#### 4.2.3 Details of Flag Analysis of Tables
+#### 5.2.3 Details of Flag Analysis of Tables
 
 **Note**: For simplicity, this section uses DOM as an example. However, the same analysis is applicable for VDM and Status related flags as well.
 
@@ -2318,21 +2343,21 @@ The purpose of flag analysis is to track the status of various parameters and to
 - **TRANSCEIVER_DOM_FLAG_CHANGE_COUNT:**
   - Each time a flag in the `TRANSCEIVER_DOM_FLAG` table changes (either set or cleared), the corresponding count in this table is incremented.
 - **TRANSCEIVER_DOM_FLAG_SET_TIME:**
-  - When a flag is set in the `TRANSCEIVER_DOM_FLAG` table, the current timestamp (in local timezone) is recorded in this table.
+  - When a flag is set for the first time since it was cleared in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in local timezone) is recorded in the corresponding value field of the table.
 - **TRANSCEIVER_DOM_FLAG_CLEAR_TIME:**
-  - When a flag is cleared in the `TRANSCEIVER_DOM_FLAG` table, the current timestamp (in local timezone) is recorded in this table.
+  - When a flag is cleared for the first time since it was set in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in local timezone) is recorded in the corresponding value field of the table.
 
-##### 4.2.3.1 Flag Change Count and Time Set/Clear Behavior During `xcvrd` Restart
+##### 5.2.3.1 Flag Change Count and Time Set/Clear Behavior During `xcvrd` Restart
 
 During `xcvrd` stop, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are deleted by the `xcvrd` process. When `xcvrd` is restarted, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are recreated and the flag change count and set/clear time are updated based on the current flag status (i.e. the value of these fields are not cached between `xcvrd` restarts).
 
-##### 4.2.3.2 Flag Change Count and Time Set/Clear Behavior During Transceiver Removal and Insertion
+##### 5.2.3.2 Flag Change Count and Time Set/Clear Behavior During Transceiver Removal and Insertion
 
 When a transceiver is removed, `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are deleted by the `SfpStateUpdateTask` thread.
 
 When the transceiver is inserted back, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, `TRANSCEIVER_DOM_FLAG_SET_TIME`, and `TRANSCEIVER_DOM_FLAG_CLEAR_TIME` tables are recreated through the periodic polling routine of `DomInfoUpdateTask` and the flag change count and set/clear time are updated based on the current flag status.
 
-#### 4.2.4 Diagnostic Information Last Update Timestamp and Interval Period by `DomInfoUpdateTask`
+#### 5.2.4 Diagnostic Information Last Update Timestamp and Interval Period by `DomInfoUpdateTask`
 
 All the diagnostic tables (except for the metadata tables storing change count and last set/clear time) contain the `table_last_update_time` field to capture the last update timestamp.
 Specifically, the `TRANSCEIVER_STATUS` table contains the `diagnostics_update_interval` field to capture the interval period at which the diagnostic information is updated by the `DomInfoUpdateTask` thread for a port. This field is not present in the other diagnostic tables since the diagnostic information is updated for all ports in a sequential manner.
@@ -2352,22 +2377,20 @@ Specifically, the `TRANSCEIVER_STATUS` table contains the `diagnostics_update_in
      - Number of ports in the breakout port group
      - Number of link change events between successive polls
 
-#### Calculation of `diagnostics_update_interval` Using EWMA
+#### Calculation of `diagnostics_update_interval`
 
-The Exponentially Weighted Moving Average (EWMA) is used to calculate the `diagnostics_update_interval`, providing a smooth and responsive average of the update intervals. An alpha value of 0.1 is used for the EWMA calculation to give more weight to historical intervals.
+Since diagnostic monitoring is a frequent event, retrieving the average diagnostic interval would require the `DomInfoUpdateTask` to maintain a large cache of last update times for every poll. To reduce the overhead of maintaining such a large cache, we use the Exponentially Weighted Moving Average (EWMA) to calculate the `diagnostics_update_interval`. This approach provides a smooth and responsive average of the update intervals, allowing us to store a single `diagnostics_update_interval` and retrieve the average diagnostic update interval efficiently. An alpha value of 0.1 is used for the EWMA calculation to provide a smooth average while still being responsive to changes in the udpate intervals.
 
 **Formula:**
 
-$$
-\text{EWMA}_t = \alpha \cdot x_t + (1 - \alpha) \cdot \text{EWMA}_{t-1}
-$$
+`EWMA = ALPHA * VALUE + (1 - ALPHA) * EWMA_last`
 
 Where:
 
-- $\text{EWMA}_t$ is the current `diagnostics_update_interval`.
-- $x_t$ is the current update interval (time taken to read the diagnostic information).
-- $\text{EWMA}_{t-1}$ is the previous `diagnostics_update_interval`.
-- $\alpha$ is the smoothing factor (0 < α ≤ 1).
+- `EMA` is the current `diagnostics_update_interval`.
+- `VALUE` is the current update interval (time taken to read the diagnostic information).
+- `EWMA_last` is the previous `diagnostics_update_interval`.
+- `ALPHA` is the smoothing factor (0 < α ≤ 1).
 
 **Steps:**
 
