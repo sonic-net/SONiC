@@ -315,15 +315,15 @@ key = SWITCH_TRIMMING|GLOBAL ; switch trimming global. Must be unique
 
 ; field           = value
 size              = 1*10DIGIT   ; size (in bytes) to trim eligible packet
-dscp_value        = 1*3DIGIT    ; DSCP value assigned to a packet after trimming
+dscp_value        = 1*2DIGIT    ; DSCP value assigned to a packet after trimming
 queue_index       = queue-index ; queue index to use for transmission of a packet after trimming
 
 ; value annotations
-queue-index = 1*3DIGIT / "auto"
+queue-index = 1*3DIGIT / "dynamic"
 ```
 
 **Note:**
-* when `queue_index` is set to `auto`, the `dscp_value` is used for mapping to queue
+* when `queue_index` is set to `dynamic`, the `dscp_value` is used for mapping to queue
 * field removal is not supported
 * configuration removal is not supported
 
@@ -619,21 +619,31 @@ ACL           1000                enable
 
 **The following command shows switch trimming statistics:**
 ```bash
-root@r-r640-03-135:/home/admin# portstat -i Ethernet0
-    IFACE    STATE    RX_OK    RX_BPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR    TRIM
----------  -------  -------  --------  ---------  --------  --------  --------  -------  --------  ---------  --------  --------  --------  ------
-Ethernet0        U      100  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0       100         0     100
+root@sonic:/home/admin# show interfaces counters -i Ethernet0 -a
+    IFACE    STATE    RX_OK    RX_BPS    RX_PPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_PPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR    TRIM
+---------  -------  -------  --------  --------  ---------  --------  --------  --------  -------  --------  --------  ---------  --------  --------  --------  ------
+Ethernet0        U      100  0.00 B/s    0.00/s      0.00%         0         0         0        0  0.00 B/s  0.00 B/s      0.00%         0       100         0     100
 
-root@r-r640-03-135:/home/admin# portstat -i Ethernet0 --trim
+root@sonic:/home/admin# portstat -i Ethernet0 -a
+    IFACE    STATE    RX_OK    RX_BPS    RX_PPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_PPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR    TRIM
+---------  -------  -------  --------  --------  ---------  --------  --------  --------  -------  --------  --------  ---------  --------  --------  --------  ------
+Ethernet0        U      100  0.00 B/s    0.00/s      0.00%         0         0         0        0  0.00 B/s  0.00 B/s      0.00%         0       100         0     100
+
+root@sonic:/home/admin# show interfaces counters trim Ethernet0
     IFACE    STATE    TRIM
 ---------  -------  ------
 Ethernet0        U     100
 
-root@r-r640-03-135:/home/admin# queuestat -p Ethernet0
+root@sonic:/home/admin# portstat -i Ethernet0 --trim
+    IFACE    STATE    TRIM
+---------  -------  ------
+Ethernet0        U     100
+
+root@sonic:/home/admin# show queue counters Ethernet0 --all
      Port    TxQ    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Trim/pkts
 ---------  -----  --------------  ---------------  -----------  ------------  -----------
-Ethernet0    UC0             N/A              N/A          100          6400          100
-Ethernet0    UC1             N/A              N/A          N/A           N/A          N/A
+Ethernet0    UC0             N/A              N/A          N/A           N/A          N/A
+Ethernet0    UC1             N/A              N/A          100          6400          100
 Ethernet0    UC2             N/A              N/A          N/A           N/A          N/A
 Ethernet0    UC3             100             6400          N/A           N/A          N/A
 Ethernet0    UC4             N/A              N/A          N/A           N/A          N/A
@@ -641,11 +651,35 @@ Ethernet0    UC5             N/A              N/A          N/A           N/A    
 Ethernet0    UC6             N/A              N/A          N/A           N/A          N/A
 Ethernet0    UC7             N/A              N/A          N/A           N/A          N/A
 
-root@r-r640-03-135:/home/admin# queuestat -p Ethernet0 --trim
+root@sonic:/home/admin# queuestat -p Ethernet0 --all
+     Port    TxQ    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Trim/pkts
+---------  -----  --------------  ---------------  -----------  ------------  -----------
+Ethernet0    UC0             N/A              N/A          N/A           N/A          N/A
+Ethernet0    UC1             N/A              N/A          100          6400          100
+Ethernet0    UC2             N/A              N/A          N/A           N/A          N/A
+Ethernet0    UC3             100             6400          N/A           N/A          N/A
+Ethernet0    UC4             N/A              N/A          N/A           N/A          N/A
+Ethernet0    UC5             N/A              N/A          N/A           N/A          N/A
+Ethernet0    UC6             N/A              N/A          N/A           N/A          N/A
+Ethernet0    UC7             N/A              N/A          N/A           N/A          N/A
+
+root@sonic:/home/admin# show queue counters Ethernet0 --trim
      Port    TxQ    Trim/pkts
 ---------  -----  -----------
-Ethernet0    UC0          100
-Ethernet0    UC1          N/A
+Ethernet0    UC0          N/A
+Ethernet0    UC1          100
+Ethernet0    UC2          N/A
+Ethernet0    UC3          N/A
+Ethernet0    UC4          N/A
+Ethernet0    UC5          N/A
+Ethernet0    UC6          N/A
+Ethernet0    UC7          N/A
+
+root@sonic:/home/admin# queuestat -p Ethernet0 --trim
+     Port    TxQ    Trim/pkts
+---------  -----  -----------
+Ethernet0    UC0          N/A
+Ethernet0    UC1          100
 Ethernet0    UC2          N/A
 Ethernet0    UC3          N/A
 Ethernet0    UC4          N/A
@@ -749,7 +783,7 @@ module sonic-trimming {
                     type union {
                         type uint8;
                         type string {
-                            pattern "auto";
+                            pattern "dynamic";
                         }
                     }
                 }
