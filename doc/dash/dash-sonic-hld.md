@@ -510,6 +510,7 @@ DASH_APPLIANCE_TABLE:{{appliance_id}}
     "sip": {{ip_address}}
     "vm_vni": {{vni}}
     "local_region_id": {{region_id}}
+    "outbound_direction_lookup": {{dst_mac/src_mac}}
     "trusted_vni": {{vni list}} (OPTIONAL)
 ```
 
@@ -519,6 +520,7 @@ key                      = DASH_APPLIANCE_TABLE:id ; attributes specific for the
 sip                      = source ip address, to be used in encap
 vm_vni                   = VM VNI that is used for setting direction. Also used for inbound encap to VM
 local_region_id          = Region where this appliance is located
+outbound_direction_lookup= dst_mac or src_mac; Default is src_mac. This attribute overrides to dst_mac
 trusted_vni              = list of global trusted VNIs, 'comma' seperated or "-" for range both inclusive.
 ```
 
