@@ -51,7 +51,9 @@
 |  2.0  | 04/08/2024 |    Prince Sunny     | Schema updates for PL, PL-NSG, metering   |
 |  2.1  | 08/22/2024 | Mukesh M Velayudhan | Add local Region ID field in appliance    |
 |  2.2  | 08/28/2024 |    Lawrence Lee     | Route table `routing_type` restrictions, delete op behavior    |
-|  2.3  | 11/7/2024 | Kumaresh Perumal     | Update DASH_PA_VALIDATION_TABLE           |
+|  2.3  | 11/07/2024 | Kumaresh Perumal    | Update DASH_PA_VALIDATION_TABLE           |
+|  2.4  | 02/05/2025 |    Prince Sunny     | Update DASH_TUNNEL, FNIC, minor clarifications  |
+
 
 # About this Manual
 This document provides more detailed design of DASH APIs, DASH orchestration agent, Config and APP DB Schemas and other SONiC buildimage changes required to bring up SONiC image on an appliance card. General DASH HLD can be found at [dash_hld](https://github.com/sonic-net/DASH/tree/main/documentation/general/dash-high-level-design.md).
@@ -69,6 +71,7 @@ This document provides more detailed design of DASH APIs, DASH orchestration age
 | vPORT | VM's NIC. Eni, Vnic, VPort are used interchangeably |
 | ST    | Service Tunnel                                      |
 | PL    | Private Link                                        |
+| FNIC  | Floating NIC                                        |
 
 # 1 Requirements Overview
 
@@ -185,6 +188,7 @@ DASH Sonic implementation is targeted for appliance scenarios and must handles m
 13. During a bulk operation, if any part/subset of API fails, implementation shall return *error* for the entire API. Sonic implementation shall validate the entire API as pre-checks before applying and return accordingly.
 14. Implementation must have flexible memory allocation for ENI and not reserve max scale during initial create (e.g 100k routes). This is to allow oversubscription.
 15. Implementation must not have silent failures for APIs. E.g accepting an API from controller, returning success and failing in the backend. This is orthogonal to the idempotency of APIs described above for ADD and Delete operations. Intent is to ensure SDN controller and Sonic implementation is in-sync
+16. An ENI can be modeled as FNIC or regular VM at create time only. 
 
 ## 1.7 ACL requirements
 
@@ -312,8 +316,8 @@ Reference Yang model for DASH Vnet is [here](https://github.com/sonic-net/sonic-
 ```
 "DEVICE_METADATA": {
     "localhost": {
-        "subtype": "Appliance",
-        "type": "SonicHost",
+        "subtype": "SmartSwitch",
+        "type": "SonicDpu",
         "switch_type": "dpu",
         "sub_role": "None"
      }
@@ -368,6 +372,8 @@ DASH_ENI_TABLE:{{eni}}
     "v4_meter_policy_id": {{string}} (OPTIONAL)
     "v6_meter_policy_id": {{string}} (OPTIONAL)
     "disable_fast_path_icmp_flow_redirection": {{bool}} (OPTIONAL)
+    "floating_nic_mode": {{enabled/disabled}} (OPTIONAL)
+    "trusted_vni": {{vni list}} (OPTIONAL)
 ```
 ```
 key                      = DASH_ENI_TABLE:eni ; ENI MAC as key
@@ -382,6 +388,8 @@ pl_underlay_sip          = Underlay SIP (ST GW VIP) to be used for all private l
 v4_meter_policy_id	     = IPv4 meter policy ID
 v6_meter_policy_id	     = IPv6 meter policy ID
 disable_fast_path_icmp_flow_redirection     = Disable handling fast path ICMP flow redirection packets
+floating_nic_mode            = floating nic mode enabled or disabled. Default is disabled
+trusted_vni                  = list of trusted VNIs for this ENI, 'comma' seperated. MSEE VNIs can added here
 ```
 
 ### 3.2.4 TAG
@@ -482,6 +490,7 @@ DASH_ROUTING_APPLIANCE_TABLE:{{appliance_id}}:
         "addresses": {{list of addresses}} 
         "encap_type": {{encap type}}
         "vni": {{vni}}
+        "region_id": {{local region id}}
 ```
 
 ```
@@ -490,6 +499,7 @@ key                      = DASH_ROUTING_APPLIANCE_TABLE:appliance_id; Used for P
 addresses                = list of addresses used for ECMP across appliances
 encap_type               = encap type depends on the action_type - {vxlan, nvgre}
 vni                      = vni value associated with the corresponding action.
+region_id                = local region id
 ```
 
 ### 3.2.8 APPLIANCE
@@ -542,6 +552,7 @@ DASH_ROUTE_TABLE:{{group_id}}:{{prefix}}
     "metering_policy_en": {{bool}} (OPTIONAL)  (OBSOLETED)
     "metering_class_or": {{uint32}} (OPTIONAL)
     "metering_class_and": {{uint32}} (OPTIONAL)
+    "tunnel": {{string}} (OPTIONAL)
 ```
   
 ```
@@ -550,7 +561,7 @@ key                      = DASH_ROUTE_TABLE:group_id:prefix ; Route route table 
 action_type              = routing_type              ; reference to routing type (DEPRECATED)
 routing_type             = routing_type              ; replacement for the deprecated `action_type` field. Must be one of {vnet, vnet_direct, direct, servicetunnel, drop}.
 vnet                     = vnet name                 ; destination vnet name if routing_type is {vnet, vnet_direct}, a vnet other than eni's vnet means vnet peering
-appliance                = appliance id              ; appliance id if routing_type is {appliance} 
+appliance                = appliance id              ; appliance id if routing_type is {appliance} (DEPRECATED, Use tunnel attribute)
 overlay_ip               = ip_address                ; overly_ip to lookup if routing_type is {vnet_direct}, use dst ip from packet if not specified
 overlay_sip_prefix       = ip_prefix                 ; overlay ipv6 src ip if routing_type is {servicetunnel}, transform last 32 bits from packet (src ip)
 overlay_dip_prefix       = ip_prefix                 ; overlay ipv6 dst ip if routing_type is {servicetunnel}, transform last 32 bits from packet (dst ip) 
@@ -559,6 +570,7 @@ underlay_dip             = ip_address                ; underlay ipv4 dst ip to o
 metering_policy_en	 = bool                      ; Metering policy lookup enable (optional), default = false  (OBSOLETED). If aggregated or/and bits is 0, metering policy is applied
 metering_class_or        = uint32                    ; Metering class-id 'or' bits
 metering_class_and       = uint32                    ; Metering class-id 'and' bits
+tunnel                   = string                    ; Nexthop tunnel for ECMP or single nexthop. 
 ```
 
 ### 3.2.10 ROUTE RULE TABLE - INBOUND
@@ -672,12 +684,12 @@ DASH_PA_VALIDATION_TABLE:{{vni}}
 ```
 key                      = DASH_PA_VALIDATION_TABLE:vni; ENI and VNI as key;
 ; field                  = value
-addresses                = list of addresses used for validating underlay source ip of incoming packets. 
+addresses                = list of prefixes used for validating underlay source ip of incoming packets. 
 ```
 
-DASH_PA_VALIDATION_TABLE is used only for PL outbound direction. PA address can be either IPV4 or IPV6.
+DASH_PA_VALIDATION_TABLE is used only for PL outbound direction. PA prefix can be either IPV4 or IPV6.
 
-Total PAs per MSEE would be 64 and if there are 64 MSEEs per region(based on 400G DPU), there would be 4K PA_VALIDATION entries.
+Expected max number of 4K PA_VALIDATION entries. For Floating NIC case, PA validation is implicit as the packet goes through inbound pipeline. 
 
 For more scale numbers, please refer to the [doc](https://github.com/sonic-net/DASH/blob/main/documentation/express-route-service/express-route-gateway-bypass.md)
 
@@ -696,9 +708,11 @@ key                      = DASH_TUNNEL_TABLE:tunnel_name; tunnel name used for r
 ; field                  = value
 endpoints                = list of addresses for ecmp tunnel
 encap_type               = vxlan or nvgre
-vni                      = vni value for encap
+vni                      = vni value for encap, create only attribute
 metering_class_or        = uint32
 ```
+
+DASH_TUNNEL_TABLE shall have one or more endpoints. One endpoint is treated as single nexthop and 
 
 ### 3.2.15 DASH orchagent (Overlay)
 
