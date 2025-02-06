@@ -1,6 +1,6 @@
 # SONiC-DASH HLD
 ## High Level Design Document
-### Rev 2.2
+### Rev 2.4
 
 # Table of Contents
 
@@ -92,6 +92,7 @@ At a high level the following should be supported:
     - Telemetry and Monitoring
     - Private Link
     - Private Link NSG
+    - Express Route GW Bypass
 
   Phase 2
     - Service Tunnel
@@ -389,7 +390,7 @@ v4_meter_policy_id	     = IPv4 meter policy ID
 v6_meter_policy_id	     = IPv6 meter policy ID
 disable_fast_path_icmp_flow_redirection     = Disable handling fast path ICMP flow redirection packets
 floating_nic_mode            = floating nic mode enabled or disabled. Default is disabled
-trusted_vni                  = list of trusted VNIs for this ENI, 'comma' seperated. MSEE VNIs can added here
+trusted_vni                  = list of trusted VNIs for this ENI, 'comma' seperated or "-" for range both inclusive. MSEE VNIs can added here
 ```
 
 ### 3.2.4 TAG
@@ -509,6 +510,7 @@ DASH_APPLIANCE_TABLE:{{appliance_id}}
     "sip": {{ip_address}}
     "vm_vni": {{vni}}
     "local_region_id": {{region_id}}
+    "trusted_vni": {{vni list}} (OPTIONAL)
 ```
 
 ```
@@ -517,6 +519,7 @@ key                      = DASH_APPLIANCE_TABLE:id ; attributes specific for the
 sip                      = source ip address, to be used in encap
 vm_vni                   = VM VNI that is used for setting direction. Also used for inbound encap to VM
 local_region_id          = Region where this appliance is located
+trusted_vni              = list of global trusted VNIs, 'comma' seperated or "-" for range both inclusive.
 ```
 
 ### 3.2.9 ROUTE LPM TABLE - OUTBOUND
@@ -570,7 +573,7 @@ underlay_dip             = ip_address                ; underlay ipv4 dst ip to o
 metering_policy_en	 = bool                      ; Metering policy lookup enable (optional), default = false  (OBSOLETED). If aggregated or/and bits is 0, metering policy is applied
 metering_class_or        = uint32                    ; Metering class-id 'or' bits
 metering_class_and       = uint32                    ; Metering class-id 'and' bits
-tunnel                   = string                    ; Nexthop tunnel for ECMP or single nexthop. 
+tunnel                   = string                    ; Nexthop tunnel for ECMP or single nexthop, routing_type is {direct}
 ```
 
 ### 3.2.10 ROUTE RULE TABLE - INBOUND
@@ -687,11 +690,9 @@ key                      = DASH_PA_VALIDATION_TABLE:vni; ENI and VNI as key;
 addresses                = list of prefixes used for validating underlay source ip of incoming packets. 
 ```
 
-DASH_PA_VALIDATION_TABLE is used only for PL outbound direction. PA prefix can be either IPV4 or IPV6.
+DASH_PA_VALIDATION_TABLE is used only for additional PA validation. PA prefix can be either IPV4 or IPV6. Used for fastpath or other explicit PA validation cases
 
-Expected max number of 4K PA_VALIDATION entries. For Floating NIC case, PA validation is implicit as the packet goes through inbound pipeline. 
-
-For more scale numbers, please refer to the [doc](https://github.com/sonic-net/DASH/blob/main/documentation/express-route-service/express-route-gateway-bypass.md)
+Expected max number of 4K PA_VALIDATION entries. For more scale numbers, please refer to the [doc](https://github.com/sonic-net/DASH/blob/main/documentation/express-route-service/express-route-gateway-bypass.md)
 
 ### 3.2.14 DASH tunnel table
 
@@ -712,7 +713,12 @@ vni                      = vni value for encap, create only attribute
 metering_class_or        = uint32
 ```
 
-DASH_TUNNEL_TABLE shall have one or more endpoints. One endpoint is treated as single nexthop and 
+DASH_TUNNEL_TABLE shall have one or more endpoints. Encap type, VNI are create only attributes. A change on encap would require deleting and creating new tunnel objects. 
+One endpoint is treated as single nexthop and comma separated multiple endpoints shall be treated as ECMP nexthop.
+
+For single endpoint, implmentation shall simply create a sai_dash_tunnel object with ```SAI_DASH_TUNNEL_ATTR_DIP=endpoint IP``` and ```SAI_DASH_TUNNEL_ATTR_MAX_MEMBER_SIZE=1```
+
+For ECMP, implementation shall create ```sai_dash_tunnel_member``` and ```sai_dash_tunnel_next_hop``` with appropriate ```SAI_DASH_TUNNEL_ATTR_MAX_MEMBER_SIZE```
 
 ### 3.2.15 DASH orchagent (Overlay)
 
@@ -1002,6 +1008,8 @@ SONiC for DASH shall have a lite swss initialization without the heavy-lift of e
 |                | SAI_SWITCH_ATTR_TYPE                             |
 |                | SAI_SWITCH_ATTR_VXLAN_DEFAULT_PORT               |
 |                | SAI_SWITCH_ATTR_VXLAN_DEFAULT_ROUTER_MAC         |
+|                | SAI_SWITCH_TUNNEL_ATTR_VXLAN_UDP_SPORT           |
+|                | SAI_SWITCH_TUNNEL_ATTR_VXLAN_UDP_SPORT_MASK      |
 
 ### 3.3.5 Underlay Routing
 DASH Appliance shall establish BGP session with the connected Peer and advertise the prefixes (VIP PA). In turn, the Peer (e.g, Network device or SmartSwitches) shall advertise default route to appliance. With two Peers connected, the appliance shall have route with gateway towards both Peers and does ECMP routing. Orchagent install the route and resolves the neighbor (GW) mac and programs the underlay route/nexthop and neighbor.
