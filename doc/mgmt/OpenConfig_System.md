@@ -78,9 +78,23 @@ module: openconfig-system
      |  +--rw authentication
      |  |  +--rw config
      |  |  |  +--rw authentication-method*   union
+     |  |  +--rw users
+     |  |     +--rw user* [username]
+     |  |        +--rw username    -> ../config/username
+     |  |        +--ro state
+     |  |           +--ro username?                                              string
+     |  |           +--ro oc-gnsi-credz:password-version?                        version
+     |  |           +--ro oc-gnsi-credz:password-created-on?                     created-on
+     |  |           +--ro oc-gnsi-credz:authorized-principals-list-version?      version
+     |  |           +--ro oc-gnsi-credz:authorized-principals-list-created-on?   created-on
+     |  |           +--ro oc-gnsi-credz:authorized-keys-list-version?            version
+     |  |           +--ro oc-gnsi-credz:authorized-keys-list-created-on?         created-on
      |  +--rw authorization
      |  |  +--rw config
      |  |  |  +--rw authorization-method*   union
+     |  |  +--ro state
+     |  |  |  +--ro oc-gnsi-authz:grpc-authz-policy-version?      version
+     |  |  |  +--ro oc-gnsi-authz:grpc-authz-policy-created-on?   created-on
      |  +--rw accounting
      |  |  +--rw config
      |  |  |  +--rw accounting-method*   union
@@ -153,6 +167,14 @@ module: openconfig-system
      +--rw ssh-server
      |  +--rw config
      |  |  +--rw timeout?            uint16
+     |  +--ro state
+     |     +--ro oc-gnsi-credz:active-trusted-user-ca-keys-version?      version
+     |     +--ro oc-gnsi-credz:active-trusted-user-ca-keys-created-on?   created-on
+     |     +--ro oc-gnsi-credz:counters
+     |        +--ro oc-gnsi-credz:access-rejects?       oc-yang:counter64
+     |        +--ro oc-gnsi-credz:last-access-reject?   oc-types:timeticks64
+     |        +--ro oc-gnsi-credz:access-accepts?       oc-yang:counter64
+     |        +--ro oc-gnsi-credz:last-access-accept?   oc-types:timeticks64
      +--rw clock
      |  +--rw config
      |  |  +--rw timezone-name?   timezone-name-type
@@ -246,6 +268,14 @@ module: openconfig-system
      |                 +--ro oc-gnsi-authz:last-access-reject?   oc-types:timeticks64
      |                 +--ro oc-gnsi-authz:access-accepts?       oc-yang:counter64
      |                 +--ro oc-gnsi-authz:last-access-accept?   oc-types:timeticks64
+     +--ro gnmi-pathz-policies
+     | +--ro policies
+     |    +--ro policy* [instance]
+     |       +--ro instance    -> ../state/instance
+     |       +--ro state
+     |          +--ro instance?     enumeration
+     |          +--ro version?      version
+     |          +--ro created-on?   created-on
 ```
 
 # Definition/Abbreviation
@@ -285,6 +315,7 @@ module: openconfig-system
     * memory
     * cpus
     * grpc-servers
+    * gnmi-pathz-policies
 
 ### 1.1.2 Configuration and Management Requirements
 The System configuration/management can be done via REST and gNMI. The implementation will return an error if configuration is not allowed due to misconfiguration or un-supported node is accessed.
@@ -630,15 +661,21 @@ Operations:
 gNMI - (Create/Update/Delete/Replace/Get/Subscribe)  
 REST - POST/PATCH/DELETE/PUT/GET  
 1. Verify that operations supported for gNMI/REST works fine for hostname.
+1. Verify that operations supported for gNMI/REST works fine for last-configuration-timestamp.
 2. Verify that operations supported for gNMI/REST works fine for clock/timezone-name.
 3. Verify that operations supported for gNMI/REST works fine for DNS nameserver.
 4. Verify that operations supported for gNMI/REST works fine for NTP nodes.
-5. Verify that operations supported for gNMI/REST works fine for ssh-server timeout.
+5. Verify that operations supported for gNMI/REST works fine for ssh-server nodes.
 6. Verify that operations supported for gNMI/REST works fine for logging and messages nodes.
 7. Verify that operations supported for gNMI/REST works fine for AAA (TACACS & RADIUS) nodes.
 8. Verify that operations supported for gNMI/REST works fine for login & motd banners.
 9. Verify that operations supported for gNMI/REST works fine for up-time, boot-time, current-datetime & software-version.
 10. Verify that operations supported for gNMI/REST works fine for processes nodes.
+11. Verify that operations supported for gNMI/REST works fine for alarms nodes.
+12. Verify that operations supported for gNMI/REST works fine for memory nodes.
+13. Verify that operations supported for gNMI/REST works fine for cpu nodes.
+14. Verify that operations supported for gNMI/REST works fine for grpc-servers nodes.
+15. Verify that operations supported for gNMI/REST works fine for gnmi-pathz-policies nodes.
 
 ## 6.2 Negative Test Cases
 1. Verify that any operation on unsupported nodes give a proper error.
