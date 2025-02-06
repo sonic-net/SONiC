@@ -10,7 +10,9 @@ The current scope of the CMIS diagnostic monitoring feature in SONiC includes th
 - **VDM (Versatile Diagnostics Monitoring) data:** Offers versatile diagnostic information for enhanced monitoring and troubleshooting.
 - **PM (Performance Monitoring) data:** Applicable only for C-CMIS transceivers, this includes performance metrics such as error counts and signal quality indicators.
 
-## 2. Requirements
+## 2. Requirements, future enhancements Non-goals
+
+### Requirements
 
 The CMIS diagnostic monitoring feature in SONiC requires the following:
 
@@ -24,6 +26,49 @@ The CMIS diagnostic monitoring feature in SONiC requires the following:
 ### Future Enhancements
 
 1. Creating a mechanism to store the flag change count and last flag set and clear time in the database so that this data is not lost during `xcvrd` warm restart or during device warm reboots. The current implementation deletes this data as part of the `xcvrd` shutdown process.
+
+### Non-goals (Exceptions and Scope Beyond the Current Implementation)
+
+1. **Handling Multiple Link Flaps In a Short Period to Update Flag Metadata**:
+   - In the event of multiple link flaps occurring in a short period, the flag change count and the last flag set and clear time may not be accurate.
+   - The short period refers to a scenario where the periodic update time for the diagnostic monitoring data is not frequent enough to capture the link change events through the `DomInfoUpdateTask` thread.
+   - This behavior is due to the flags being clear-on-read latched values and the `DomInfoUpdateTask` thread being a single-threaded process that updates the flag metadata during link change events and periodically reads diagnostic data from the optics.
+
+    **Example**
+
+    The following table illustrates an example scenario where the last flag set time is not updated in line with link flap events:
+
+    **Table 1: Example Scenario of Flag Metadata Update During Link Flap Events and Periodic Update Time**
+
+    `X` refers to a specific type of flag on the module.  
+    `DB` means database.
+
+    | Time Event Number | Timestamp of Event            | DB Update Trigger (Periodic Polling or Link Change Event Handler) | Flag X Value on Module - Before SW Read | Flag X Value on Module - After SW Read | Flag X Value in DB After Reading from Module | Flag X Set Time in DB After Reading from Module | Flag X Clear Time in DB After Reading from Module | Flag X Change Count in DB After Reading from Module | Link Flap Count in APPL_DB |
+    |-------------------|-------------------------------|------------------------------------------------------------------|-----------------------------------------|----------------------------------------|------------------------------------------------|-------------------------------------------------|--------------------------------------------------|----------------------------------------------------|----------------------------|
+    | T1                | Wed Oct 16 03:46:41 2024      | Link DOWN event                                                  | Set                                     | Set                                    | Set                                            | Wed Oct 16 03:46:41 2024                        | Never                                            | 1                                                  | 1                          |
+    | T2                | Wed Oct 16 03:46:42 2024      | Link UP event                                                    | Set                                     | Clear                                  | Set                                            | Wed Oct 16 03:46:41 2024                        | Never                                            | 1                                                  | 2                          |
+    | T3                | Wed Oct 16 03:46:42 2024      | Link DOWN event                                                  | Set                                     | Set                                    | Set                                            | Wed Oct 16 03:46:41 2024                        | Never                                            | 1                                                  | 3                          |
+    | T4                | Wed Oct 16 03:46:43 2024      | Link UP event                                                    | Set                                     | Clear                                  | Set                                            | Wed Oct 16 03:46:41 2024                        | Never                                            | 1                                                  | 4                          |
+    | T5                | Wed Oct 16 03:46:44 2024      | Link DOWN event                                                  | Set                                     | Set                                    | Set                                            | Wed Oct 16 03:46:41 2024                        | Never                                            | 1                                                  | 5                          |
+    | T6                | Wed Oct 16 03:46:55 2024      | Link UP event                                                    | Set                                     | Clear                                  | Set                                            | Wed Oct 16 03:46:41 2024                        | Never                                            | 1                                                  | 6                          |
+    | T7                | Wed Oct 16 03:47:01 2024      | Periodic polling                                                 | Clear                                   | Clear                                  | Clear                                          | Wed Oct 16 03:46:41 2024                        | Wed Oct 16 03:47:01 2024                        | 2                                                  | 6                          |
+
+    **Explanation**:
+
+    - In the Table 1 scenario, the flag X value on the module is set during the link down event at time T1.
+    - However, the flag set time is not updated even though, multiple link change events were detected.
+    - The flag clear time in the database is updated during the periodic polling event at time T7 and not during all the link up events at times T2, T4, and T6.
+    - The flag change count in the database is updated to 2 during the periodic polling event at time T7, even though the flag changed on the module 6 times.
+
+2. **Flag Clear Time Update**:
+   - The clear time of the flag in the database will be updated after the second read of the flag register.
+   - This is because the flag registers are clear-on-read latched values.
+
+    **Example**:
+
+    - In Table 1, consider the time events T6 and T7.
+    - The flag X value on the module is cleared during the link up event at time T6.
+    - The flag clear time in the database is updated during the periodic polling event at time T7.
 
 ## 3. STATE_DB Schema for CMIS Diagnostic Monitoring
 
@@ -2143,7 +2188,8 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
 2. **Link change event:**
     - Only the **flag-related diagnostic information** is updated for a port when a link change event is detected by the `DomInfoUpdateTask` thread. Further details on the tables updated during a link change event are provided in the `Diagnostic Information Update During Link Change Event` section.
     - Updating flag information during a link change event ensures that the flag change time is captured in a timely manner. The periodic update can take more time to update the diagnostic information since it reads the diagnostic information for all the ports in a sequential manner.
-    - Since the flag registers are clear-on-read latched values, the `DomInfoUpdateTask` thread will require two reads to update the flag value, last clear time, and change count once the flagged condition is no longer present. Hence, it is expected that the flag status change in the database will be delayed by two update cycles when the flagged condition is no longer present on the module.
+    - The `DomInfoUpdateTask` thread may fail to update flag metadata and flag status if there are mutiple link change events happening in a short period of time. Please refer to the Non-goals section for more details.
+    - Since the flag registers are clear-on-read latched values, the `DomInfoUpdateTask` thread will require two reads to update the flag value, last clear time, and change count once the flagged condition is no longer present. Hence, it is expected that the flag status change in the database will be delayed by two update cycles when the flagged condition is no longer present on the module. Please refer to the Non-goals section for more details.
 
 #### 5.2.1 High-Level Steps for Updating Dynamic Diagnostic Information
 
@@ -2186,7 +2232,7 @@ while not dom_mgr.task_stopping_event.is_set():
         update_all_diagnostic_info_in_db = True
     
     for current_pport in range(1, last_physical_port + 1):
-        if handle_port_update_event_for_all_link_changed_ports():
+        if has_link_status_changed_for_any_port():
             update_flag_related_tables(ports_going_through_link_change)
         
         if update_all_diagnostic_info_in_db:
@@ -2196,11 +2242,23 @@ while not dom_mgr.task_stopping_event.is_set():
     expired_time = time.time() + dom_info_update_periodic_secs
 ```
 
-#### 5.2.2 Link Change Event detection
+#### 5.2.2 Link Change Event Detection
 
-The `DomInfoUpdateTask` thread subscribes to the `PORT_TABLE` in the `STATE_DB` and monitors the `natdev_oper_status` field to detect link change events. Before reading diagnostic information, the `DomInfoUpdateTask` addresses any pending link change events. As the link change handling in `DomInfoUpdateTask` is not interrupt-driven, there might be a delay in updating the flag information if the thread is occupied with updating diagnostics when a link change event occurs.
-If multiple link change events occur for a port while the `DomInfoUpdateTask` thread is busy, the thread will act only if there is a difference in the link status between the last (before the thread was busy) and the current link change events. If the link status is the same, the thread will not update the diagnostic information for the port.
-When handling pending link change events for more than one subport of a breakout port group in a single iteration, the filtering logic ensures that flag related diagnostic information is updated only for the first subport of the breakout port group and not for the other subports.
+This section details how the `DomInfoUpdateTask` thread detects link change events and handles them. It expands on the logic of the `has_link_status_changed_for_any_port` function described earlier.
+
+The `DomInfoUpdateTask` thread monitors the `flap_count` field in the `PORT_TABLE` within the `APPL_DB` to detect link changes:
+
+- **Detection**:  
+  The thread periodically reads the `flap_count` for all logical ports and caches these values. On each iteration, it compares the current `flap_count` to the cached value. If there is a difference between the current value and the cached value, a link change event is detected for that port.
+
+- **Event Handling**:  
+  When a link change is detected, the thread updates the flag-related diagnostic data for the affected ports. For breakout port groups, if multiple subports have an updated `flap_count` in a single iteration, the handler updates the flag information only once for the entire breakout group rather than individually for each subport.
+
+- **Cache Update**:  
+  After processing every port, the cached `flap_count` value is updated. This ensures that the thread correctly captures any link changes that occur during processing and prevents missing events.
+
+- **Cache Initialization**:  
+  The cache is initialized with the current `flap_count` values for all logical ports at the start of the thread. This ensures that the thread can detect link changes that occur before the first iteration.
 
 #### 5.2.3 Diagnostic Information Update During Link Change Event
 
