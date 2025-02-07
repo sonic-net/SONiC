@@ -2246,7 +2246,7 @@ while not dom_mgr.task_stopping_event.is_set():
 
 This section details how the `DomInfoUpdateTask` thread detects link change events and handles them. It expands on the logic of the `has_link_status_changed_for_any_port` function described earlier.
 
-The `DomInfoUpdateTask` thread monitors the `flap_count` field in the `PORT_TABLE` within the `APPL_DB` to detect link changes:
+The `DomInfoUpdateTask` thread periodically monitors the `flap_count` field in the `PORT_TABLE` within the `APPL_DB` to detect link changes:
 
 - **Detection**:  
   The thread periodically reads the `flap_count` for all logical ports and caches these values. On each iteration, it compares the current `flap_count` to the cached value. If there is a difference between the current value and the cached value, a link change event is detected for that port.
@@ -2259,6 +2259,18 @@ The `DomInfoUpdateTask` thread monitors the `flap_count` field in the `PORT_TABL
 
 - **Cache Initialization**:  
   The cache is initialized with the current `flap_count` values for all logical ports at the start of the thread. This ensures that the thread can detect link changes that occur before the first iteration.
+
+**Reason for not relying on PORT_TABLE notifications for link change detection:**
+
+An alternative mechanism to detect link changes is to subscribe to updates of the `natdev_oper_status` field in the `PORT_TABLE` within the `STATE_DB`. However, this method has significant limitations:
+
+- **Delayed Processing**:  
+  If the `DomInfoUpdateTask` thread is busy processing diagnostics for a port when multiple link flaps occur, it may miss some link change events. This is because:
+  - The thread does not process `PORT_TABLE` changes in real-time while it is occupied.
+  - By the time the thread resumes processing, it only detects a link change if the `natdev_oper_status` value differs from the last value read before it went busy.
+
+- **Limited Subscription Granularity**:  
+  The current database subscription mechanism supports monitoring changes to entire tables rather than specific fields. This means that the `DomInfoUpdateTask` thread would receive notifications for any modification in the `PORT_TABLE` rather than exclusively for link status changes.
 
 #### 5.2.3 Diagnostic Information Update During Link Change Event
 
