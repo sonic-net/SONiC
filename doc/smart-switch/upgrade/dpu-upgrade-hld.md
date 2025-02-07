@@ -247,5 +247,7 @@ Integration tests are also needed for the individual components.
   * with `Containerz.*` RPCs.
   * Test offloader can start, stops, deploy and list the offloaded containers on the NPU.
 
+#### 13.4. Full Integration tests
+Full integration tests will be added to `sonic-mgmt` to test the individual DPU upgrade process.
 
 ### 14. Open/Action items - if any
