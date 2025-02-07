@@ -2212,10 +2212,10 @@ The following steps are performed to update all diagnostic information for a por
 5. Read the transceiver status data from the module and update the `TRANSCEIVER_STATUS` table.
 6. Read the transceiver status flag data from the module, record the timestamp, and update the `TRANSCEIVER_STATUS_FLAG` table (update the `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT`, `TRANSCEIVER_STATUS_FLAG_SET_TIME`, and `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` tables as well).
 7. If the transceiver supports VDM monitoring, perform the following steps:
-    1. Freeze the statistics by calling the CMIS API (`freeze_vdm_stats`) and wait for `FreezeDone` by calling `get_vdm_freeze_status`.
+    1. Freeze the statistics by calling the CMIS API (`freeze_vdm_stats`) and wait for `FreezeDone` by calling `get_vdm_freeze_status`. The wait will continue until 1s (defined through `MAX_VDM_FREEZE_UNFREEZE_TIME_MSECS`) or until the `FreezeDone` bit is set. If the `FreezeDone` bit is not set within the timeout, the unfreeze operation will performed along with displaying an error message.
     2. Once the statistics are frozen, read the VDM real values, flags, and PM data from the module and update the `TRANSCEIVER_VDM_REAL_VALUE`, `TRANSCEIVER_VDM_FLAG`, and `TRANSCEIVER_PM` tables respectively.
     3. Update the VDM flag, change count, and time-related tables by comparing the current data with the previous data.
-    4. Unfreeze the statistics by calling the CMIS API (`unfreeze_vdm_stats`).
+    4. Unfreeze the statistics by calling the CMIS API (`unfreeze_vdm_stats`) and wait for `UnfreezeDone` by calling `get_vdm_unfreeze_status`. The wait will continue until 1s (defined through `MAX_VDM_FREEZE_UNFREEZE_TIME_MSECS`) or until the `UnfreezeDone` bit is set. If the `UnfreezeDone` bit is not set within the timeout, an error message will be displayed.
 
 Pseudo code:
 
