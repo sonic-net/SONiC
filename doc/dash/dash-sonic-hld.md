@@ -710,7 +710,7 @@ DASH_TUNNEL_TABLE:{{tunnel_name}}
 key                      = DASH_TUNNEL_TABLE:tunnel_name; tunnel name used for referencing in mapping table
 ; field                  = value
 endpoints                = list of addresses for ecmp tunnel
-encap_type               = vxlan or nvgre
+encap_type               = vxlan or nvgre, create only attribute
 vni                      = vni value for encap, create only attribute
 metering_class_or        = uint32
 ```
@@ -720,7 +720,7 @@ One endpoint is treated as single nexthop and comma separated multiple endpoints
 
 For single endpoint, implmentation shall simply create a sai_dash_tunnel object with ```SAI_DASH_TUNNEL_ATTR_DIP=endpoint IP``` and ```SAI_DASH_TUNNEL_ATTR_MAX_MEMBER_SIZE=1```
 
-For ECMP, implementation shall create ```sai_dash_tunnel_member``` and ```sai_dash_tunnel_next_hop``` with appropriate ```SAI_DASH_TUNNEL_ATTR_MAX_MEMBER_SIZE```
+For ECMP, implementation shall create ```sai_dash_tunnel_member``` and ```sai_dash_tunnel_next_hop``` with appropriate ```SAI_DASH_TUNNEL_ATTR_MAX_MEMBER_SIZE```. Since MAX_MEMBER_SIZE is set during creation, it is expected that adding new member will be a new DASH_TUNNEL object creation. However, implementation shall support removing members.
 
 ### 3.2.15 DASH orchagent (Overlay)
 
