@@ -27,88 +27,225 @@ This document describes the high-level design of the sequence to independently u
 Smart Switch offers comprehensive network functionality similar to traditional devices, combined with the flexibility and scalability of cloud services. It includes one switch ASIC (NPU) and multiple DPUs, with DPU ASICs connected only to the NPU, and all front panel ports linked to the NPU.
 
 The individual DPU upgrade process is designed to minimize the impact on the network, the NPU and other DPUs. It is orchestrated by external clients through the gNOI API. The upgrade process mainly consists of the following steps:
-* Download/Transfer the new firmware image to the DPU.
-* Install and activate the new firmware image on the DPU.
-* Reboot the DPU to apply the new firmware image.
+* Download/Transfer the new SONiC image to the DPU.
+* Install and activate the new SONiC image on the DPU.
+* Reboot the DPU to apply the new SONiC image.
 
 The main chanllege of the DPU upgrade is that several DPU containers, such as Database, GNMI and HA are offloaded to the NPU. The upgrade process will also need to upgrade these offloaded containers. In addition, since the DPU is only connected to the NPU, additional systems are also needed to facilitate the communication between the external client and the DPU.
 
-### 5. Requirements
+### 5. Goals and Requirements
 
+The main goals and requirements of the DPU upgrade process are:
 1. External client should be able to drive the DPU upgrade process through the gNOI API.
 2. The upgrade process should have minimal impact on the network, the NPU and other DPUs.
 3. The upgrade process should be able to upgrade the offloaded containers on the DPU.
-4. The offloaded containers should always be in sync with the DPU firmware version.
+4. The offloaded containers versions should always be in sync with the DPU SONiC version, i.e. the offloaded containers should be upgraded when the DPU SONiC is upgraded.
+
+Non-goals:
+1. DPU fatal error recovery: This feature does not address the recovery of the DPU from fatal errors, say the DPU is in a nonresponsive state and requires a new image be loaded from BIOS. Such a recovery should be address in a different process.
+2. Bootstrapping GNMI: The upgrade process relies on the GNMI service running on the DPU and NPU. The bootstrapping of the GNMI service is out of scope of this document.
+3. DPU and NPU image compatibility: The upgrade process assumes that the DPU and NPU images are compatible with each other. It is up to the client to ensure the compatibility of the images.
+4. Eliminating human intervention: The upgrade process may require human intervention to resolve issues that cannot be handled automatically, in particular, when both the upgrade process fails and the rollback process fails, the system may be left in an inconsistent state that requires manual intervention.
 
 ### 6. Architecture Design
 
-This section covers the changes that are required in the SONiC architecture. In general, it is expected that the current architecture is not changed.
-This section should explain how the new feature/enhancement (module/sub-module) fits in the existing architecture.
+The key components involved in the DPU upgrade process are:
+* External Client: The client that drives the DPU upgrade process through the gNOI API.
+* DPU: The Data Processing Unit that needs to be upgraded.
+  * DPU Host Services: The system service running on DPU that interact with the OS to execute the upgrade process.
+  * DPU GNMI Server: Running inside the GNMI container, it is responsible for handling GNOI requests for upgrades.
+  * Offloader: Running a GNOI Client, it is responsible for upgrading and monitoring the offloaded containers on the NPU.
+* NPU: The Network Processing Unit that is connected to the DPU.
+  * Offloaded Containers: The containers that are offloaded from the DPU to the NPU, e.g. Database, GNMI and HA.
+  * NPU GNMI Server: Running inside the GNMI container, it is responsible for handling GNOI requests for managing the offloaded containers.
+  * GNMI/GNOI Splitter: Running inside the GNMI container, it is responsible for splitting the GNMI and GNOI requests and forwarding them to the corresponding GNMI/GNOI servers, i.e. GNOI requests to DPU GNMI Server and GNMI requests to NPU GNMI Server.
 
-If this feature is a SONiC Application Extension mention which changes (if any) needed in the Application Extension infrastructure to support new feature.
+The architecture of the DPU upgrade process is shown in the following diagram:
+![DPU Upgrade Architecture](component.png)
 
 ### 7. High-Level Design
 
-This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
+#### 7.1. Upgrade Sequence
 
-	- Is it a built-in SONiC feature or a SONiC Application Extension?
-	- What are the modules and sub-modules that are modified for this design?
-	- What are the repositories that would be changed?
-	- Module/sub-module interfaces and dependencies.
-	- SWSS and Syncd changes in detail
-	- DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB)
-	- Sequence diagram if required.
-	- Linux dependencies and interface
-	- Warm reboot requirements/dependencies
-	- Fastboot requirements/dependencies
-	- Scalability and performance requirements/impact
-	- Memory requirements
-	- Docker dependency
-	- Build dependency if any
-	- Management interfaces - SNMP, CLI, RestAPI, etc.,
-	- Serviceability and Debug (logging, counters, trace etc) related design
-	- Is this change specific to any platform? Are there dependencies for platforms to implement anything to make this feature work? If yes, explain in detail and inform community in advance.
-	- SAI API requirements, CLI requirements, ConfigDB requirements. Design is covered in following sections.
+Here are the detailed steps of the DPU upgrade process. The upgrade process is initiated by the external client through the gNOI API.
+
+1. **Prepare Relevant Images**: The external client downloads the new SONiC image and the offloaded container images from the image repository. The images are then transferred to the DPU and NPU respectively.
+   * Description:
+     * Deploy the new SONiC image to the DPU.
+	 * Activate the new SONiC image on the DPU.
+	 * (Offloader) Deploy the new offloaded container images to the NPU.
+   * GNOI API:
+     * 'System.SetPackage'
+	 * 'OS.Activate'
+	 * 'Containerz.Deploy'
+   * Rollback:
+     * Rollback the new SONiC image on the DPU. Client issues 'OS.Activate' with the old SONiC image.
+	 * Rollback the new offloaded container images on the NPU. Client issues 'Containerz.Deploy' with the old container images.
+
+2. **Upgrade DPU**: The external client triggers the DPU upgrade process.
+   * Description:
+	 * Reboot the DPU to apply the new SONiC image.
+       * Check the reboot status of the DPU.
+	 * Update the offloaded containers on the NPU.
+	   * Confirm the new container images on the NPU.
+	   * Stop the old offloaded containers.
+	   * Start the new offloaded containers.
+   * GNOI API:
+	 * 'System.Reboot'
+	 * 'System.RebootStatus'
+	 * 'Containerz.ListImage'
+	 * 'Containerz.StopContainer'
+	 * 'Containerz.StartContainer'
+   * Rollback:
+	 * Rollback the new SONiC image on the DPU.
+	   * Client issues 'OS.Activate' with the old SONiC image.
+	   * Client issues 'System.Reboot' to reboot the DPU.
+	   * Client issues 'System.RebootStatus' to check the reboot status of the DPU.
+	 * Rollback the new offloaded container images on the NPU.
+	   * Client issues 'Containerz.ListImage' to confirm the old container images on the NPU.
+	     * If not, client issues 'Containerz.Deploy' with the old container images.
+	   * Client issues 'Containerz.StopContainer' to stop the current offloaded containers.
+	   * Client issues 'Containerz.StartContainer' to start the old offloaded containers.
+
+The upgrade sequence is shown in the following diagram:
+![DPU Upgrade Sequence](sequence.png)
+
+3. **Verify the upgrade result**
+   * Description:
+	 * Check the DPU SONiC version.
+	 * Check the offloaded container versions on the NPU.
+   * GNOI API:
+	 * 'OS.Verify'
+	 * 'Containerz.ListContainer'
+   * Rollback:
+	 * Rollback the new SONiC image on the DPU.
+	   * Client issues 'OS.Activate' with the old SONiC image.
+	   * Client issues 'System.Reboot' to reboot the DPU.
+	   * Client issues 'System.RebootStatus' to check the reboot status of the DPU.
+	 * Rollback the new offloaded container images on the NPU.
+	   * Client issues 'Containerz.ListImage' to confirm the old container images on the NPU.
+	     * If not, client issues 'Containerz.Deploy' with the old container images.
+	   * Client issues 'Containerz.StopContainer' to stop the current offloaded containers.
+	   * Client issues 'Containerz.StartContainer' to start the old offloaded containers.
+
+#### 7.2. GNMI/GNOI Splitter
+
+Per smartswitch architecture, the GNMI service is offloaded to the NPU due to DPU resource constraints. But the GNOI service is still running on the DPU. The GNMI/GNOI Splitter is responsible for splitting the GNMI and GNOI requests and forwarding them to the corresponding GNMI/GNOI servers, i.e. GNOI requests to DPU GNMI Server and GNMI requests to NPU GNMI Server.
+
+#### 7.3. Offloader
+
+One major challenge of the DPU upgrade is that several DPU containers, such as Database, GNMI and HA are offloaded to the NPU. The offloader is a service on DPU that allows other services to manage the offloaded containers on the NPU as if they are running on the DPU. More specifically, other processes, or humans logging into the DPU, can interact with the offloaded containers on the NPU through the offloader service. Interactions with the offloaded containers are done through the GNOI interface.
+
+##### 7.3.1. Offloader Architecture.
+
+The offloader consists of a single GNOI client connected to the GNOI server on NPU, through which it manages the offloaded containers on the NPU.
+
+##### 7.3.2. Offloader Services.
+
+The offloader can perform the following management operations to the offloaded containers on the NPU:
+* Start a container on the NPU.
+* Stop a container on the NPU.
+* List the containers on the NPU.
+* List the container images on the NPU.
+* Deploy a container image to the NPU.
+* Remove a container image from the NPU.
+
+The offloader provides a command line interface to interact with the offloaded containers on the NPU.
+* Get the status of the offloaded container.
+* Start the offloaded container.
+* Stop the offloaded container.
+* List the offloaded containers.
+* List the container images on the NPU.
+* Deploy a container image to the NPU.
+
+The offloader will also provide a mode to automatically manage the offloaded containers on the NPU:
+* On services start, check the health of the offloaded containers on the NPU.
+  * If the offloaded containers are not running, start them.
+  * If the offloaded containers have different versions from the DPU SONiC, upgrade them.
+* When the service is running, subscribe to lifetime events of the offloaded containers on the NPU.
+  * If the offloaded containers are stopped, start them.
+  * If the offloaded containers have different versions from the DPU SONiC, upgrade them.
 
 ### 8. SAI API
 
 No change to SAI API is required for this feature.
 
-### 9. Configuration and management
-This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
-If there is breaking change which may impact existing platforms, please call out in the design and get platform vendors reviewed.
+### 9. Configuration
 
-#### 9.1. Manifest (if the feature is an Application Extension)
+The main goal of the feature is to provide an API for external clients to drive the DPU upgrade process, which is currently driven manually or through host agent via command line interface `sonic-installer`. The feature does not require any new configuration change.
 
-Paste a preliminary manifest in a JSON format.
+### 10. CLI Enhancements
 
-#### 9.2. CLI/YANG model Enhancements
+As mentioned above, the offloader provides a command line interface to interact with the offloaded containers on the NPU. The offloader CLI commands are:
+* `offloadctl status <container>`: Get the status of the offloaded container.
+* `offloadctl start <container>`: Start the offloaded container.
+* `offloadctl stop <container>`: Stop the offloaded container.
+* `offloadctl list`: List the offloaded containers.
+* `offloadctl list-image`: List the container images on the NPU.
+* `offloadctl deploy <image>`: Deploy a container image to the NPU.
 
-This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented.
-This should also explain the CLICK and/or KLISH related configuration/show in detail.
-https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md needs be updated with the corresponding CLI change.
+### 11. Implementation Roadmap
 
-#### 9.3. Config DB Enhancements
+The implementation consists of new features in different SONiC components.
 
-This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change.
+#### 11.1. SONiC Host Services
 
-### 10. Warmboot and Fastboot Design Impact
-Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
+The SONiC host services are responsible for interacting with the OS to execute the upgrade process, on behalf of the GNOI server inside the containerized environment. The host services should provides the following:
+* Service for managing the DPU SONiC image.
+  * Download the new SONiC image.
+  * Install the new SONiC image.
+  * Activate the new SONiC image.
+  * List the SONiC images on the DPU.
+* Service for managing the offloaded container images on the NPU.
+  * Deploy the new container images.
+  * List the container images on the NPU.
+  * List the containers on the NPU.
+  * Start a container on the NPU.
+  * Stop a container on the NPU.
 
-### 11. Memory Consumption
-This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration.
-### 12. Restrictions/Limitations
+#### 11.2. SONiC GNMI
+This is the GNOI service running on the DPU, which is responsible for handling GNOI requests for upgrades. The GNMI service should provide the following:
+* `OS` module.
+  * `Activate` RPC. (new)
+  * `Verify` RPC (new)
+* `System` module.
+  * `SetPackage` RPC (new)
+  * `Reboot` RPC. (implemented)
+  * `RebootStatus` RPC. (implemented)
+* `Containerz` module.
+  * `Deploy` RPC. (new)
+  * `ListImage` RPC. (new)
+  * `ListContainer` RPC. (new)
+  * `StartContainer` RPC. (new)
+  * `StopContainer` RPC. (new)
+
+#### 11.3. SONiC GNMI Splitter
+The GNMI/GNOI Splitter is responsible for splitting the GNMI and GNOI requests and forwarding them to the corresponding GNMI/GNOI servers, i.e. GNOI requests to DPU GNMI Server and GNMI requests to NPU GNMI Server. The implementation will be in the NPU GNMI container.
+
+#### 11.4. SONiC Offloader
+This will create a new repository. The implementation will includes:
+* GNOI Client interface.
+* Command line interface for offloader.
+* Redis interface for monitoring the offloaded containers on the NPU.
 
 ### 13. Testing Requirements/Design
-Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
-Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
-Example sub-sections for unit test cases and system test cases are given below.
 
-#### 13.1. Unit Test cases
+#### 13.1. Unit Tests
+Individual units test will be written for each feature added to `sonic-host-services`, `sonic-gnmi` and `sonic-offloader`.
 
-#### 13.2. System Test cases
+#### 13.2. Integration Tests for GNOI API
+For each GNOI API added, integration tests will be added to `sonic-mgmt` to test stress the API with different outputs.
+
+#### 13.3. Integration tests for individual component.
+Integration tests are also needed for the individual components.
+* Generic switch upgrade test.
+  * with `System.SetPackage`, `OS.Activate`, `System.Reboot`, `System.RebootStatus` and `OS.Verify` RPCs.
+  * Test the upgrade process with different SONiC images.
+* GNOI/GNMI Splitter test (smartswitch specific).
+  * Test the splitter with different GNMI and GNOI requests.
+* Offloader test (smartswitch specific).
+  * with `Containerz.*` RPCs.
+  * Test offloader can start, stops, deploy and list the offloaded containers on the NPU.
+
 
 ### 14. Open/Action items - if any
-
-
-NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
