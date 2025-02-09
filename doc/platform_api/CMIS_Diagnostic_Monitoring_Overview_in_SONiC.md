@@ -2413,9 +2413,9 @@ The purpose of flag analysis is to track the status of various parameters and to
 - **TRANSCEIVER_DOM_FLAG_CHANGE_COUNT:**
   - Each time a flag in the `TRANSCEIVER_DOM_FLAG` table changes (either set or cleared), the corresponding count in this table is incremented.
 - **TRANSCEIVER_DOM_FLAG_SET_TIME:**
-  - When a flag is set for the first time since it was cleared in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in local timezone) is recorded in the corresponding value field of the table.
+  - When a flag is set for the first time since it was cleared in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in local timezone) is recorded in the corresponding value field of the table. Please note that this timestamp indicates when `xcvrd` detected the flag change, not the actual time when the module set the flag.
 - **TRANSCEIVER_DOM_FLAG_CLEAR_TIME:**
-  - When a flag is cleared for the first time since it was set in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in local timezone) is recorded in the corresponding value field of the table.
+  - When a flag is cleared for the first time since it was set in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in local timezone) is recorded in the corresponding value field of the table. Please note that this timestamp indicates when `xcvrd` detected the flag change, not the actual time when the module cleared the flag.
 
 ##### 5.2.3.1 Flag Change Count and Time Set/Clear Behavior During `xcvrd` Restart
 
