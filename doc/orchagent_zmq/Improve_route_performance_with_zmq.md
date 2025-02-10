@@ -60,20 +60,24 @@ SONiC BGP loading/withdrawing workflow is shown in the figure below:
 6. `syncd` consumes `ASIC_DB`
 7. `syncd` invokes `SAI` SDK APIs to inject routing data to the hardware asic.
 
-## BGP route Optimization by Alibaba
-Alibaba identify following issue and provide improvement:
-Doc: https://github.com/a114j0y/SONiC/blob/master/doc/bgp_loading_optimization/bgp-loading-optimization-hld.md
-1. Orchagent consumer execute workflow is single-threaded
-   Alibaba already improve this with a ringbuffer.
-2. Syncd is too strictly locked
-3. Redundant APPL_DB I/O traffic: producerstatetable publishes every command and fpmsyncd flushes on every select event, APPL_DB does redundant housekeeping.
-   Our proposal is replace Redis based producer/consumer with ZMQ based producer/consumer, whihc is much faster.
-5. Slow Routes decode and kernel thread overhead in zebra
-6. Synchronous sairedis API usage
+## BGP route performance issue
+Alibaba analyze and identify performance issues with this document:
+ - BGP Loading Optimization for SONiC: https://github.com/a114j0y/SONiC/blob/eruan-new/doc/bgp_loading_optimization/bgp-loading-optimization-hld.md
+
+Issue:
+ - Orchagent consumer execute workflow is single-threaded
+    - Alibaba add async ringbuffer to router consumer:
+    https://github.com/sonic-net/sonic-swss/pull/3242
+ - Syncd is too strictly locked, It also has a single-threaded workflow to pop data from the upstream redis tables.
+ - Redundant APPL_DB I/O traffic: producerstatetable publishes every command and fpmsyncd flushes on every select event, APPL_DB does redundant housekeeping.
+ - Slow Routes decode and kernel thread overhead in zebra
+ - Synchronous sairedis API usage
 
 ## High-Level Proposal
 
-Orchagent subscribe data with redis based ConsumerStateTable, sonic-swss-common has ZMQ based ZmqProducerStateTable/ZmqConsumerStateTable, here are compare with redis based tables:
+This HLD aims to enhance the performance between fpmsyncd and orchagent by replace Redis based channel to ZMQ based channel.
+
+Orchagent subscribe data with redis based ConsumerStateTable, sonic-swss-common has ZMQ based ZmqConsumerStateTable, here are compare with redis based tables:
 <img src="./zmq-diagram.png" style="zoom:100%;" />
 
 Orchagent already integrated with ZMQ:
@@ -83,13 +87,13 @@ Orchagent already integrated with ZMQ:
 <img src="./OrchagenZmq.png" style="zoom:100%;" />
 
 Pros:
-1. 100+ times faster than redis based table, ZMQ table can transfer 100K route entry per-second, redis table can only transfer 3.7K route entry per-second.
+1. 30 times faster than Redis based table, ZMQ table can transfer 100K route entry per-second, redis table can only transfer 3.7K route entry per-second.
 2. Fully compatible with ProducerStateTable/ConsumerStateTable.
 3. Asynchronous update redis DB with background thread.
 
 Cons:
 1. Performance depends on network bandwidth.
-2. Server side need start before client side. If server side crash, client side need handle retry failed.
+2. Server side need start before client side. Client side need handle server side crash issue.
 
 ## Low-Level Implementation
 
