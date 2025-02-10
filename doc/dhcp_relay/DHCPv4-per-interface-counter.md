@@ -196,31 +196,31 @@ This command is used to show dhcp_relay counter.
 
 - Usage
     ```
-    show dhcp_relay ipv4 counter [--dir (TX|RX)] [--type <type>] <vlan_interface>
+    show dhcp_relay ipv4 counter [--dir (TX|RX)] [--type <type>] [-j/--json] <vlan_interface>
 
     Options:
         dir: Specify egress or ingress
         type: Specify DHCP packet type
+        json: Show output with JSON format
     
     Note: At least one of dir and type must be specified
     ```
 
 - Example
     ```
-    show dhcp_relay ipv4 counter Vlan1000 --dir TX
+    show dhcp_relay ipv4 counter Vlan1000 --dir RX
     Packet type Abbr: Un - Unknown, Dis - Discover, Off - Offer, Req - Request,
                       Ack - Acknowledge, Rel - Release, Inf - Inform,
                       Dec - Decline
-    Interface type Abbr: D - Downlink, U - Uplink
     +---------------+-----------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
-    | Vlan1000 (TX) | Intf Type | Un  | Dis | Off | Req | Ack | Rel | Inf | Dec | Nak |
+    | Vlan1000 (RX) | Intf Type | Un  | Dis | Off | Req | Ack | Rel | Inf | Dec | Nak |
     ----------------+-----------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
     | Ethernet1     | Downlink  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
     | Ethernet2     | Downlink  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
-    | Ethernet46    | Uplink    | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   | 0   |
-    | Ethernet47    | Uplink    | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   | 0   |
-    | PortChannel1  | Uplink    | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   | 0   |
-    | PortChannel2  | Uplink    | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   | 0   |
+    | Ethernet46    | Uplink    | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
+    | Ethernet47    | Uplink    | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
+    | PortChannel1  | Uplink    | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
+    | PortChannel2  | Uplink    | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
     +---------------+-----------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
 
     show dhcp_relay ipv4 counter Vlan1000 --type Discover
@@ -246,6 +246,40 @@ This command is used to show dhcp_relay counter.
     |PortChannel1        | Uplink    | 2  |
     |PortChannel2        | Uplink    | 0  |
     +--------------------+-----------+----+
+
+    show dhcp_relay ipv4 counter Vlan1000 --json --dir RX
+    {
+      "Vlan1000" {
+        "RX": {
+          "downlink": {
+            "Ethernet1": {
+              "Unknown": 0,
+              "Discover": 2,
+              "Offer": 0,
+              "Request": 2,
+              "Acknowledge": 0
+              "Release": 0,
+              "Inform": 0,
+              "Decline": 0,
+              "Nak": 0
+            }
+          },
+          "uplink": {
+            "Ethernet1": {
+              "Unknown": 0,
+              "Discover": 0,
+              "Offer": 2,
+              "Request": 0,
+              "Acknowledge": 2
+              "Release": 0,
+              "Inform": 0,
+              "Decline": 0,
+              "Nak": 0
+            }
+          }
+        }
+      }
+    }
     ```
 
 ## Clear Cli
