@@ -24,22 +24,18 @@ This document describes the high-level design of the sequence to independently u
 | HA	| High Availability                         |
 
 ### 4. Overview
-Smart Switch offers comprehensive network functionality similar to traditional devices, combined with the flexibility and scalability of cloud services. It includes one switch ASIC (NPU) and multiple DPUs, with DPU ASICs connected only to the NPU, and all front panel ports linked to the NPU.
+Smart Switch offers comprehensive network functionality similar to traditional devices, combined with the flexibility and scalability of cloud services. It includes one switch ASIC (NPU) and multiple DPUs, with DPU ASICs connected only to the NPU, and all front panel ports linked to the NPU. DPUs are mostly independent SONiC devices, with their own SONiC image, and are connected to the NPU through a high-speed interface. Due to resource constraint on the DPU, some SONiC services are offloaded to the NPU, such as Database, GNMI and HA.
 
-The individual DPU upgrade process is designed to minimize the impact on the network, the NPU and other DPUs. It is orchestrated by external clients through the gNOI API. The upgrade process mainly consists of the following steps:
-* Download/Transfer the new SONiC image to the DPU.
-* Install and activate the new SONiC image on the DPU.
-* Reboot the DPU to apply the new SONiC image.
+One use case for the DPUs is to provide additional capacity for invidividual customers. As such, SONiC should supports the ability to independently manage each DPU, with minimal impact to the network, the NPU and other DPUs. This document describes the high-level design of the sequence to independently upgrade a SmartSwitch DPU with minimal impact to other DPUs and the NPU, through GNOI API.
 
-The main chanllege of the DPU upgrade is that several DPU containers, such as Database, GNMI and HA are offloaded to the NPU. The upgrade process will also need to upgrade these offloaded containers. In addition, since the DPU is only connected to the NPU, additional systems are also needed to facilitate the communication between the external client and the DPU.
+<img src="https://www.mermaidchart.com/raw/4fa5921d-23e4-4956-8fe6-bf8db7869943?theme=light&version=v0.1&format=svg" alt="Smart Switch Architecture" width="50%">
 
 ### 5. Goals and Requirements
 
 The main goals and requirements of the DPU upgrade process are:
-1. External client should be able to drive the DPU upgrade process through the gNOI API.
-2. The upgrade process should have minimal impact on the network, the NPU and other DPUs.
+1. The upgrade process should have minimal impact on the network, the NPU and other DPUs.
+2. External client should be able to drive the DPU upgrade process through the gNOI API.
 3. The upgrade process should be able to upgrade the offloaded containers on the DPU.
-4. The offloaded containers versions should always be in sync with the DPU SONiC version, i.e. the offloaded containers should be upgraded when the DPU SONiC is upgraded.
 
 Non-goals:
 1. DPU fatal error recovery: This feature does not address the recovery of the DPU from fatal errors, say the DPU is in a nonresponsive state and requires a new image be loaded from BIOS. Such a recovery should be address in a different process.
@@ -60,8 +56,7 @@ The key components involved in the DPU upgrade process are:
   * NPU GNMI Server: Running inside the GNMI container, it is responsible for handling GNOI requests for managing the offloaded containers.
   * GNMI/GNOI Splitter: Running inside the GNMI container, it is responsible for splitting the GNMI and GNOI requests and forwarding them to the corresponding GNMI/GNOI servers, i.e. GNOI requests to DPU GNMI Server and GNMI requests to NPU GNMI Server.
 
-The architecture of the DPU upgrade process is shown in the following diagram:
-![DPU Upgrade Architecture](component.png)
+<img src="https://www.mermaidchart.com/raw/bb62a98d-3505-4722-92a2-81113b1040cf?theme=light&version=v0.1&format=svg" alt="DPU Upgrade Architecture" width="50%">
 
 ### 7. High-Level Design
 
@@ -108,7 +103,7 @@ Here are the detailed steps of the DPU upgrade process. The upgrade process is i
 	   * Client issues 'Containerz.StartContainer' to start the old offloaded containers.
 
 The upgrade sequence is shown in the following diagram:
-![DPU Upgrade Sequence](sequence.png)
+<img src="https://www.mermaidchart.com/raw/7797d125-08e3-4f00-9bfc-8e3cfa5757a0?theme=light&version=v0.1&format=svg" alt="DPU Upgrade Sequence" width="50%">
 
 3. **Verify the upgrade result**
    * Description:
@@ -131,6 +126,8 @@ The upgrade sequence is shown in the following diagram:
 #### 7.2. GNMI/GNOI Splitter
 
 Per smartswitch architecture, the GNMI service is offloaded to the NPU due to DPU resource constraints. But the GNOI service is still running on the DPU. The GNMI/GNOI Splitter is responsible for splitting the GNMI and GNOI requests and forwarding them to the corresponding GNMI/GNOI servers, i.e. GNOI requests to DPU GNMI Server and GNMI requests to NPU GNMI Server.
+
+<img src="https://www.mermaidchart.com/raw/3e126a79-0049-4051-ba30-a18251829504?theme=light&version=v0.1&format=svg" alt="Mermaid Chart" width="30%">
 
 #### 7.3. Offloader
 
