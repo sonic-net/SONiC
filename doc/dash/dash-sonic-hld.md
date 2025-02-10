@@ -131,6 +131,7 @@ Following are the minimal scaling requirements
 | Total active connections      | 32M (Bidirectional)           |
 | Metering Buckets per ENI      | 4000                          |
 | CPS                           | 3M                            |
+| Max PA validation entries     | 4k                            |
 
 \* Number of VNET is a software limit as VNET by itself does not take hardware resources. This shall be limited to number of VNI hardware can support
 
@@ -491,7 +492,6 @@ DASH_ROUTING_APPLIANCE_TABLE:{{appliance_id}}:
         "addresses": {{list of addresses}} 
         "encap_type": {{encap type}}
         "vni": {{vni}}
-        "region_id": {{local region id}}
 ```
 
 ```
@@ -500,7 +500,6 @@ key                      = DASH_ROUTING_APPLIANCE_TABLE:appliance_id; Used for P
 addresses                = list of addresses used for ECMP across appliances
 encap_type               = encap type depends on the action_type - {vxlan, nvgre}
 vni                      = vni value associated with the corresponding action.
-region_id                = local region id
 ```
 
 ### 3.2.8 APPLIANCE
@@ -693,8 +692,6 @@ addresses                = list of prefixes used for validating underlay source 
 ```
 
 DASH_PA_VALIDATION_TABLE is used only for additional PA validation. PA prefix can be either IPV4 or IPV6. Used for fastpath or other explicit PA validation cases
-
-Expected max number of 4K PA_VALIDATION entries. For more scale numbers, please refer to the [doc](https://github.com/sonic-net/DASH/blob/main/documentation/express-route-service/express-route-gateway-bypass.md)
 
 ### 3.2.14 DASH tunnel table
 
