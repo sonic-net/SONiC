@@ -45,6 +45,31 @@ table{
 | FPM                      | Forwarding Plane Manager                |
 | ZMQ                      | ZeroMQ                                  |
 
+## Overview
+SONiC BGP loading/withdrawing workflow is shown in the figure below:
+<figure align="center">
+    <img src="images/sonic-workflow.png" width="45%" height=auto>
+    <figcaption>SONiC BGP loading/withdrawing workflow</figcaption>
+</figure>
+
+1. `bgpd` parses the packets received on the socket, notifies `zebra`
+2. `zebra` delivers this route to `fpmsyncd`
+3. `fpmsyncd` uses redis pipeline to flush routes to `APPL_DB`
+4. `orchagent` consumes `APPL_DB`
+5. `orchagent` calls `sairedis` APIs to write into `ASIC_DB`
+6. `syncd` consumes `ASIC_DB`
+7. `syncd` invokes `SAI` SDK APIs to inject routing data to the hardware asic.
+
+## BGP route Optimization by Alibaba
+Alibaba identify following issue and provide improvement:
+Doc: https://github.com/a114j0y/SONiC/blob/master/doc/bgp_loading_optimization/bgp-loading-optimization-hld.md
+1. Orchagent consumer execute workflow is single-threaded
+   Alibaba already improve this with a ringbuffer.
+2. Syncd is too strictly locked
+3. Redundant APPL_DB I/O traffic: producerstatetable publishes every command and fpmsyncd flushes on every select event, APPL_DB does redundant housekeeping.
+   Our proposal is replace Redis based producer/consumer with ZMQ based producer/consumer, whihc is much faster.
+5. Slow Routes decode and kernel thread overhead in zebra
+6. Synchronous sairedis API usage
 
 ## High-Level Proposal
 
