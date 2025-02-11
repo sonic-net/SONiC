@@ -12,6 +12,13 @@
 
 This document describes the high-level design of the sequence to independently upgrade a SmartSwitch DPU with minimal impact to other DPUs and the NPU, through GNOI API.
 
+#### 2.1 Depenedencies
+The individual DPU upgrade process depends on the following components:
+* Healthy DPU and NPU SONiC Host Services: The system service running on DPU that interact with the OS to execute the upgrade process.
+* Healthy DPU and NPU SONiC GNMI: The GNOI service running on the DPU, which is responsible for handling GNOI requests for upgrades.
+
+In other words, the DPU upgrade process cannot be used to recover a DPU or NPU that is in a nonresponsive state. The DPU upgrade process assumes that the DPU and NPU are healthy and running. Manual intervention or other recovery process may be required to recover a DPU or NPU that is in a nonresponsive state.
+
 ### 3. Definitions/Abbreviations
 
 | Term  | Meaning                                   |
@@ -132,11 +139,13 @@ Per smartswitch architecture, the GNMI service is offloaded to the NPU due to DP
 
 #### 7.3. Offloader
 
-One major challenge of the DPU upgrade is that several DPU containers, such as Database, GNMI and HA are offloaded to the NPU. The offloader is a service on DPU that allows other services to manage the offloaded containers on the NPU as if they are running on the DPU. More specifically, other processes, or humans logging into the DPU, can interact with the offloaded containers on the NPU through the offloader service. Interactions with the offloaded containers are done through the GNOI interface.
+One major challenge of the DPU upgrade is that several DPU containers, such as Database, GNMI and HA are offloaded to the NPU. The offloader is a service on the DPU that provides *local* management access to the offloaded containers on NPU. For example, the offloader can start, stop, deploy and list the offloaded containers on the NPU.
 
 ##### 7.3.1. Offloader Architecture.
 
-The offloader consists of a single GNOI client connected to the GNOI server on NPU, through which it manages the offloaded containers on the NPU.
+The offloader consists of a single GNOI client connected to the GNOI server on NPU, through which it manages the offloaded containers on the NPU. To facilitate remote management of offloaded containers, we will also implement the containerz module in GNOI service.
+
+<img src="https://www.mermaidchart.com/raw/eed55057-8dda-4f1b-8bf9-3046e2910497?theme=light&version=v0.1&format=svg" alt="Offloader Architecture" width="30%">
 
 ##### 7.3.2. Offloader Services.
 
