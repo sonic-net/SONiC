@@ -82,7 +82,7 @@ Here are the detailed steps of the DPU upgrade process. The upgrade process is i
 	 * 'Containerz.Deploy'
    * Rollback:
      * Rollback the new SONiC image on the DPU. Client issues 'OS.Activate' with the old SONiC image.
-	   * Rollback the new offloaded container images on the NPU. Client issues 'Containerz.Deploy' with the old container images.
+	   * Rollback the new offloaded container images on the NPU. Client issues 'Containerz.RemoveImage' with the old container images.
 
 2. **Upgrade DPU**: The external client triggers the DPU upgrade process.
    * Description:
@@ -101,6 +101,7 @@ Here are the detailed steps of the DPU upgrade process. The upgrade process is i
    * Rollback:
 	 * Rollback the new SONiC image on the DPU.
 	   * Client issues 'OS.Activate' with the old SONiC image.
+       * If the DPU does not have the old SONiC image, the client should use 'System.SetPackage' to deploy the old SONiC image.
 	   * Client issues 'System.Reboot' to reboot the DPU.
 	   * Client issues 'System.RebootStatus' to check the reboot status of the DPU.
 	 * Rollback the new offloaded container images on the NPU.
