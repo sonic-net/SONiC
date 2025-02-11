@@ -1478,8 +1478,6 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     dpinit_pending_hostlane{lane_num}       = BOOLEAN           ; data path configuration updated on host lane {lane_num}
     tuning_in_progress                      = BOOLEAN           ; tuning in progress status
     wavelength_unlock_status                = BOOLEAN           ; laser unlocked status
-    vdm_support                             = BOOLEAN           ; VDM support status
-    vdm_fine_interval_length                = INTEGER           ; VDM fine interval length
 ```
 
 #### 3.3.2 Transceiver status data to store module and data path flag status
@@ -2400,7 +2398,7 @@ The purpose of flag analysis is to track the status of various parameters and to
 **Tables Used for Flag Analysis:**
 
 - `TRANSCEIVER_DOM_FLAG`: This table stores flags indicating the status of various DOM parameters.
-- `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: This table keeps a count of how many times each DOM flag has changed. Upon initialization, the count is set to 0.
+- `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: This table keeps a count of how many times each DOM flag has changed. Upon initialization of `xcvrd`, the count is set to 0.
 - `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is not set. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
   - The timestamp at which the link status was changed, or
   - The polling event timestamp if the flag was set during the routine polling by the `DomInfoUpdateTask` thread.
