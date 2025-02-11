@@ -50,7 +50,7 @@ Non-goals:
 3. DPU and NPU image compatibility: The upgrade process assumes that the DPU and NPU images are compatible with each other. It is up to the client to ensure the compatibility of the images.
 4. Eliminating human intervention: The upgrade process may require human intervention to resolve issues that cannot be handled automatically, in particular, when both the upgrade process fails and the rollback process fails, the system may be left in an inconsistent state that requires manual intervention.
 
-### 6. Architecture Design
+### 6. Architecture Degn
 
 The key components involved in the DPU upgrade process are:
 * External Client: The client that drives the DPU upgrade process through the gNOI API.
