@@ -82,7 +82,7 @@ Here are the detailed steps of the DPU upgrade process. The upgrade process is i
 	 * 'Containerz.Deploy'
    * Rollback:
      * Rollback the new SONiC image on the DPU. Client issues 'OS.Activate' with the old SONiC image.
-	 * Rollback the new offloaded container images on the NPU. Client issues 'Containerz.Deploy' with the old container images.
+	   * Rollback the new offloaded container images on the NPU. Client issues 'Containerz.Deploy' with the old container images.
 
 2. **Upgrade DPU**: The external client triggers the DPU upgrade process.
    * Description:
@@ -257,4 +257,10 @@ Integration tests are also needed for the individual components.
 #### 13.4. Full Integration tests
 Full integration tests will be added to `sonic-mgmt` to test the individual DPU upgrade process.
 
-### 14. Open/Action items - if any
+### 14. Open Items
+
+#### 14.1. OS Image Cleanup
+GNOI does not have a service for cleaning up non-current images. This is potentially a useful feature to clean up old images that are no longer needed.
+
+#### 14.2. Post Upgrade Actions
+Formally supports post-upgrade actions, such as running a script after the upgrade process is completed.
