@@ -1629,3 +1629,128 @@ The same principle applies to `overlay_dip_prefix` and the final overlay destina
 final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
                         | overlay_dip_prefix.addr
 ```
+
+### 3.6.4 ER GW Bypass - Private Link
+
+```
+[
+    {
+        DASH_APPLIANCE_TABLE:dpu_guid_22: {
+            "sip":"10.250.20.19",
+            "vm_vni": "20",
+            "local_region_id": "2",
+            "outbound_direction_lookup": "dst_mac",
+            "trusted_vni": "100"
+        },
+        "OP": "SET"
+    },
+    {
+        "DASH_ROUTING_TYPE_TABLE:privatelink": [
+        {
+            "name": "action1",
+            "action_type": "4to6",
+        },
+        {
+            "name": "action2",
+            "action_type": "staticencap",
+            "encap_type": "gre",
+            "vni":"100"
+        } ],
+        "OP": "SET",
+    },
+    {
+        "DASH_ENI_TABLE:F4939FEFC47E": {
+	    "eni_id": "497f23d7-f0ac-4c99-a98f-59b470e8c7bd",
+	    "mac_address": "F4-93-9F-EF-C4-7E",
+	    "underlay_ip": "25.1.1.1",
+	    "admin_state": "enabled",
+	    "vnet": "Vnet1",
+            "pl_sip_encoding": "::cb3a:16e5:ff71:0:0/::ffff:ffff:ffff:0:0"
+	    "floating_nic_mode": "enabled",
+	    "trusted_vni": "1000"
+        },
+        "OP": "SET"
+    },
+    {
+        "DASH_ENI_ROUTE_TABLE:F4939FEFC47E": {
+	    "group_id":"group_id_4"
+        },
+        "OP": "SET"
+    },
+    {
+        "DASH_ROUTE_GROUP_TABLE:group_id_4": {
+	    "guid":"group_id_4-test",
+            "version":"1"
+        },
+        "OP": "SET"
+    },
+    {
+        "DASH_ROUTE_TABLE:group_id_4:10.0.2.4/32": {
+            "routing_type":"vnet",
+            "vnet":"Vnet1",
+            "metering_class_or":"0x60"
+            "metering_class_and":"0x77"
+        },
+        "OP": "SET"
+    },
+    {
+        "DASH_VNET_MAPPING_TABLE:Vnet1:10.0.2.4": {
+            "routing_type":"privatelink",
+            "mac_address":"F9-22-83-99-22-A2",
+            "underlay_ip":"50.1.2.3",
+            "overlay_sip_prefix":"fd41:108:20:abc:abc::0/ffff:ffff:ffff:ffff:ffff:ffff::",
+            "overlay_dip_prefix":"2603:10e1:100:2::3401:203/ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            "metering_class_or":"0x06",
+        },
+        "OP": "SET"
+    },
+    {
+        "DASH_ROUTE_TABLE:group_id_4:10.0.0.4/32": {
+            "routing_type":"direct",
+            "tunnel":""exgw_tunnel_1"
+        },
+        "OP": "SET"
+    },
+    {
+        "DASH_TUNNEL_TABLE:"exgw_tunnel_1": {
+            "endpoints":"100.8.1.2,10.79:14:7",
+            "encap_type":"vxlan",
+            "vni":1000
+        }
+        "OP": "SET"
+    },
+    {
+        "DASH_ROUTE_RULE_TABLE:F4939FEFC47E:1000:10.79.14.7": {
+            "action_type":"decap",
+            "priority":"1"
+            "region":"5"
+        },
+        "OP": "SET"
+    },
+]
+```
+
+For the example configuration above, the following is a brief explanation of lookup behavior in the floating nic inbound/outbound direction:
+
+*Intentionally omitting the details of flow creation, flow match etc. The below steps are for reference and not capturing all details.
+
+1. Packet destined to DST_CA:10.0.2.4 from (SRC_CA:10.0.0.4, SRC_PA:10.79:14:7, VNI:1000):
+    1. Floating nic mode enabled for ENI
+    2. Lookup inbound route rule and hits for entry 10.79.14.7
+    3. The action in this case is 'decap'
+    4. After decap, the outbound pipeline is taken (VNI 1000 is marked as trusted VNI)
+    5. LPM lookup hits for entry 10.0.2.4/32
+    6. The action in this case is "vnet"
+    7. Next lookup is in the mapping table and mapping table action here is "privatelink"
+    8. First Action for "privatelink" is 4to6 transposition
+    9. As per **3.6.3.2**, the final overlay SIP is `fd41:108:20:cb3a:16e5:ff71:a00:204`:
+    10. Similarly, the final overlay DIP is `2603:10e1:100:2::3401:203`:
+    11. Second Action is Static NVGRE encap with GRE key '100'.
+    12. Underlay DIP shall be 50.1.2.3 (from mapping), Since 'pl_underlay_sip' is not provided in ENI, Underlay SIP shall be 10.250.20.19 (from APPLIANCE)
+
+2. Return Packet destined to DST_CA:10.0.0.4 from SRC_CA:10.0.2.4:
+    1. This packet shall be transformed IPv6 packet from PL endpoint
+    2. Outer SRC_PA:50.1.2.3, Outer DST_PA:10.250.20.19
+    3. Reverse transpositions applied (v6->v4)
+    4. Transformed packet tunneled to one of ER GW endpoint IP as configured in DASH_TUNNEL_TABLE
+    5. Underlay SRC_PA:10.250.20.19, Underlay DST_PA:100.8.1.2, Outer VNI:1000
