@@ -713,7 +713,7 @@ metering_class_or        = uint32
 ```
 
 DASH_TUNNEL_TABLE shall have one or more endpoints. Encap type, VNI are create only attributes. A change on encap would require deleting and creating new tunnel objects. 
-One endpoint is treated as single nexthop and comma separated multiple endpoints shall be treated as ECMP nexthop.
+One endpoint is treated as single nexthop and comma separated multiple endpoints shall be treated as ECMP nexthop. For return packet from the tunnel, expectation is to have the same encap type.
 
 For single endpoint, implmentation shall simply create a sai_dash_tunnel object with ```SAI_DASH_TUNNEL_ATTR_DIP=endpoint IP``` and ```SAI_DASH_TUNNEL_ATTR_MAX_MEMBER_SIZE=1```
 
@@ -1713,7 +1713,7 @@ final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
     },
     {
         "DASH_TUNNEL_TABLE:"exgw_tunnel_1": {
-            "endpoints":"100.8.1.2,10.79:14:7",
+            "endpoints":"100.8.1.2,10.79.14.7",
             "encap_type":"vxlan",
             "vni":1000
         }
@@ -1734,7 +1734,7 @@ For the example configuration above, the following is a brief explanation of loo
 
 *Intentionally omitting the details of flow creation, flow match etc. The below steps are for reference and not capturing all details.
 
-1. Packet destined to DST_CA:10.0.2.4 from (SRC_CA:10.0.0.4, SRC_PA:10.79:14:7, VNI:1000):
+1. Packet destined to DST_CA:10.0.2.4 from (SRC_CA:10.0.0.4, SRC_PA:10.79.14.7, VNI:1000):
     1. Floating nic mode enabled for ENI
     2. Lookup inbound route rule and hits for entry 10.79.14.7
     3. The action in this case is 'decap'
