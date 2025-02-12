@@ -487,8 +487,8 @@ To support hardware bfd offload for bgp,need to run two daemons inside bgp conta
  bfdd --dplaneaddr ipv4c:127.0.0.1
  bfdsyncd
 ```
-But the logic to launch is outside of the scope of this document. 
-Here is an example to configure it in config_db:
+But the logic to launch these to daemons is outside of the scope of this document. 
+Here is an example to do it through config_db and frr supervisord:
 
 /etc/sonic/config_db.json
 ```
