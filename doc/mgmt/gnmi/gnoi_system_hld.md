@@ -1,4 +1,4 @@
-# gNOI HLD for Reboot APIs #
+# gNOI HLD for System APIs #
 
 # High Level Design Document
 
