@@ -104,88 +104,78 @@ service OS {
 
 ![gnoi_install](https://github.com/user-attachments/assets/6f3c40b1-c0bc-4ea9-a991-8d0deea05a53)
 
-Step 1. OS Install on the primary and secondary controller cards.
+Step 1: OS Install on the primary and secondary controller cards.
 
-Install and activate a new software version on primary supervisor.
+	Install and activate a new software version on primary supervisor.
+ 
+	a) Issue gnoi.os.Install RPC to the chassis with InstallRequest.TransferRequest message. The message should set the version to the desired new version image, and standby_supervisor to FALSE.
+		* Wait for the switch to respond with InstallResponse. Expect it to return TransferReady.
 
-a. Issue gnoi.os.Install RPC to the chassis with InstallRequest.TransferRequest message. The message should set the version to the desired new version image, and standby_supervisor to FALSE.
+	b) Transfer the content by issuing gnoi.os.Install rpc with InstallRequest.transfer_content message. 
+  		* Expect it to return InstallResponse with a TransferProgress status asynchronously at certain intervals.
 
-Wait for the switch to respond with InstallResponse. Expect it to return TransferReady.
+	c) End the transfer of software by issuing gnoi.os.Install rpc with InstallRequest.TransferEnd message. 
+ 		* Expect the switch to return InstallResponse with a Validated message. The version in the message should be set to the one which was transferred above.
 
-b. Transfer the content by issuing gnoi.os.Install rpc with InstallRequest.transfer_content message. 
-  * Expect it to return InstallResponse with a TransferProgress status asynchronously at certain intervals.
+	d) Activate the software by issuing gnoi.os.Activate rpc. 
+ 		* Set the version field of the ActivateRequest message to be the same as the version specified in the TransferRequest message above.
+  		* Set the no_reboot flag to true.
+  		* Set the standby_supervisor to FALSE.
 
-c. End the transfer of software by issuing gnoi.os.Install rpc with InstallRequest.TransferEnd message. 
-  * Expect the switch to return InstallResponse with a Validated message. The version in the message should be set to the one which was transferred above.
+Step 2: Install and activate the same new software version on standby supervisor:
 
-d. Activate the software by issuing gnoi.os.Activate rpc. 
-  * Set the version field of the ActivateRequest message to be the same as the version specified in the TransferRequest message above.
-  * Set the no_reboot flag to true.
-  * Set the standby_supervisor to FALSE.
+	a) Repeat the above process of TransferRequest. This time set the standby_supervisor to TRUE.
+		* Expect the switch to return a InstallResponse with a SyncProgress message. The switch should sync the software image from primary SUP to standby.
+		* Expect the sync to return a value of 100 for percentage_transferred field.
+		* At the end, expect the switch to return InstallResponse with a Validated message. The version in the message should be set to the one which was transferred above.
 
-2. Install and activate the same new software version on standby supervisor:
+Step 3: Activate the software by issuing gnoi.os.Activate rpc as in the case of primary supervisor.
 
-a. Repeat the above process of TransferRequest. This time set the standby_supervisor to TRUE.
+	a) Set the version field of the ActivateRequest message to be the same as the version specified in the TransferRequest message above.
+ 
+	b) Set the no_reboot flag to true. This is done to first set the standby_supervisor to TRUE and then rebooting the switch through gNOI System Reboot.
+ 
+	c) Set the standby_supervisor to TRUE this time.
 
-* Expect the switch to return a InstallResponse with a SyncProgress message. The switch should sync the software image from primary SUP to standby.
-* Expect the sync to return a value of 100 for percentage_transferred field.
-* At the end, expect the switch to return InstallResponse with a Validated message. The version in the message should be set to the one which was transferred above.
+Step 4: Reboot the switch.
 
-3. Activate the software by issuing gnoi.os.Activate rpc as in the case of primary supervisor.
+	a) Issue gnoi.system.Reboot
 
-a. Set the version field of the ActivateRequest message to be the same as the version specified in the TransferRequest message above.
+Step 5: Verify that the supervisor image has moved to the new image.
 
-b. Set the no_reboot flag to true. This is done to first set the standby_supervisor to TRUE and then rebooting the switch through gNOI System Reboot.
-
-c. Set the standby_supervisor to TRUE this time.
-
-4. Reboot the switch:
-
-a. Issue gnoi.system.Reboot
-
-5. Verify that the supervisor image has moved to the new image:
-
-a. Verify that the supervisor has a valid image by issuing gnoi.os.Verify rpc.
-
-* Expect a VerifyResponse with the version field set to the version specified in messages above eventually.
-* Verify the standby supervisor version.
-* Expect that the VerifyResponse.verify_standby has the same version in messages above.
+	a) Verify that the supervisor has a valid image by issuing gnoi.os.Verify rpc.
+		* Expect a VerifyResponse with the version field set to the version specified in messages above eventually.
+		* Verify the standby supervisor version.
+		* Expect that the VerifyResponse.verify_standby has the same version in messages above.
 
 ##### Configuration push verification post OS update.
 
-Push a test configuration  using gNMI.Set() RPC with "replace operation".
-If the configuration push is successful, make a gNMI.Get() RPC call and compare the configuration received with the originally pushed configuration and check if the configuration is a match. Test is a failure if either the gNMI.Get() operation fails or the configuration do not match with the one that was pushed.
+Push a test configuration  using gNMI.Set() RPC with Set Replace operation.
+
+- If the configuration push is successful, make a gNMI.Get() RPC call and compare the configuration received with the originally pushed configuration and check if the configuration is a match. 
+
+- Test is a failure if either the gNMI.Get() operation fails or the configuration do not match with the one that was pushed.
+
+#### DBUS Endpoints
 
 The front end implementation calls the host service via the module `gnoi_os_mgmt` to remove the file on the target. HostQuery calls the corresponding D-Bus endpoint on the host and returns any error and the response body.
 ```
 // ActivateOS initiates the operations for activating the OS (via DBUS).
-// Input is the request message in JSON format.
-// Back end is expected to return the response message in JSON format.
 func ActivateOS(reqStr string) (string, error) {
-	osMu.Lock()
-	defer osMu.Unlock()
+	...
 	r := HostQuery("gnoi_os_mgmt.activate", reqStr)
-	return checkQueryOutput(r)
 }
 
 // VerifyOS initiates the operations for verifying the OS (via DBUS).
-// Input is the request message in JSON format.
-// Back end is expected to return the response message in JSON format.
 func VerifyOS(reqStr string) (string, error) {
-	osMu.Lock()
-	defer osMu.Unlock()
+	...
 	r := HostQuery("gnoi_os_mgmt.verify", reqStr)
-	return checkQueryOutput(r)
 }
 
 // InstallOS initiates the operations for transferring the image (via DBUS).
-// Input is the request message in JSON format.
-// Back end is expected to return the response message in JSON format.
 func InstallOS(reqStr string) (string, error) {
-	osMu.Lock()
-	defer osMu.Unlock()
+	...
 	r := HostQuery("gnoi_os_mgmt.install", reqStr)
-	return checkQueryOutput(r)
 }
 ```
 
@@ -205,14 +195,32 @@ No effect on warm/fast boot
 In this section, we discuss both manual and automated testing strategies.
 
 #### Manual Tests
-CLI
-UMF has a gnoi_client CLI tool which can be used to invoke service RPCs on the switch. This would include adding support for both JSON and proto formats of requests.
+
+- CLI
+    - UMF has a gnoi_client CLI tool which can be used to invoke service RPCs on the switch. This would include adding support for both JSON and proto formats of requests.
 
 #### Automated Tests
-Component Tests
-For gNOI logic implementation in UMF, we will use the existing component test infrastructure for testing by adding UTs for individual API per supported gNOI service.
 
-End-to-End Tests
-These tests would invoke gNOI requests from the client to verify expected behaviour for gNOI services and are implemented on the Thinkit testing infrastructure.
+- Unit Tests
+For gNOI logic implementation in UMF, we will use the existing unit test and component test infrastructure for testing by adding unit tests for individual API per supported gNOI service.
+    - TestOSInstallSucceeds
+    - TestOSInstallFailsIfTransferRequestIsMissingVersion
+    - TestOSInstallFailsForConcurrentOperations
+    - TestOSInstallFailsIfWrongMessageIsSent
+    - TestOSInstallAbortedImmediately
+    - TestOSInstallFailsIfImageExistsWhenTransferBegins
+    - TestOSInstallFailsIfStreamClosesInTheMiddleOfTransfer
+    - TestOSInstallFailsIfWrongMsgIsSentInTheMiddleOfTransfer
+    - TestOSActivateSucceeds
+    - TestOSActivateFailsWrongVersion
+    - TestOSVerifySucceeds
+    - TestOSVerifyFailsWrongVersion
+
+- End-to-End Tests
+These tests would invoke gNOI requests from the client to verify expected behaviour for gNOI services and are implemented on the Ondatra and Thinkit testing infrastructure.
+    - Run an end-to-end workflow with the OS Sequence flow as detailed above with
+    	1) Calling gNOI OS Install,
+  	2) Activating the image by running gNOI OS Activate, and
+  	3) Verifying the image by calling gNOI OS Verify.
 
 ### Open/Action items - if any
