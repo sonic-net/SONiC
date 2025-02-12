@@ -1,7 +1,7 @@
 # Configurable Drop Counters in SONiC
 
 # High Level Design Document
-#### Rev 1.0
+#### Rev 1.1
 
 # Table of Contents
 * [List of Tables](#list-of-tables)
@@ -15,6 +15,8 @@
         - [1.1.1 A flexible "drop filter"](#111-a-flexible-"drop-filter")
         - [1.1.2 A helpful debugging tool](#112-a-helpful-debugging-tool)
         - [1.1.3 More sophisticated monitoring schemes](#113-more-sophisticated-monitoring-schemes)
+        - [1.1.4 Alerting on persistent drops](#114-alerting-on-persistent-drops)
+
 * [2 Requirements](#2-requirements)
     - [2.1 Functional Requirements](#21-functional-requirements)
     - [2.2 Configuration and Management Requirements](#22-configuration-and-management-requirements)
@@ -27,6 +29,7 @@
         - [3.1.3 Displaying the current counts](#313-displaying-the-current-counts)
         - [3.1.4 Clearing the counts](#314-clearing-the-counts)
         - [3.1.5 Configuring counters from the CLI](#315-configuring-counters-from-the-CLI)
+        - [3.1.6 Configuring persistent drop counters from the CLI](#316-configuring-persistent-drop-counters-from-the-CLI)
     - [3.2 Config DB](#32-config-db)
         - [3.2.1 DEBUG_COUNTER Table](#321-debug_counter-table)
         - [3.2.2 PACKET_DROP_COUNTER_REASON Table](#322-packet_drop_counter_reason-table)
@@ -60,6 +63,7 @@
 | 0.2 | 09/03/19 | Danny Allen | Review updates            |
 | 0.3 | 09/19/19 | Danny Allen | Community meeting updates |
 | 1.0 | 11/19/19 | Danny Allen | Code review updates       |
+| 1.1 | 09/24/24 | Hetav Pandya | Persistent drop counter monitoring added |
 
 # About this Manual
 This document provides an overview of the implementation of configurable packet drop counters in SONiC.
@@ -104,6 +108,9 @@ Some have suggested other deployment schemes to try to sample the specific types
 - Periodically (e.g. every 30s) cycling through different sets of drop counters on a given device
 - "Striping" drop counters across different devices in the system (e.g. these 3 switches are tracking VLAN drops, these 3 switches are tracking ACL drops, etc.)
 - An automatic version of [1.1.2](#112-a-helpful-debugging-tool) that adapts the drop counter configuration based on which counters are incrementing
+
+### 1.1.4 Alerting on persistent drops
+To debug packet loss issues, drop counters can help identify persistent drops, which are reported through syslogs. Details on persistent drops and how to configure persistent drop alerting are provided in [3.1.6](#316-configuring-persistent-drop-counters-from-the-CLI)
 
 # 2 Requirements
 
@@ -233,10 +240,76 @@ admin@sonic:~$ sudo config dropcounters remove_reasons DEBUG_2 [SIP_CLASS_E]
 admin@sonic:~$ sudo config dropcounters delete DEBUG_2
 ```
 
+### 3.1.6 Configuring persistent drop counters from the CLI
+Persistent packet drops are defined as packet drops that do not occur singularly, but instead occur intermittently and persistently over a period of time. For example, a persistent packet drop may occur every few minutes. To help identify these drops, it would be useful to automate detection via software using a windowing scheme with the following attributes:
+
+```
+admin@sonic:~$ sudo config dropcounters monitor --help
+Usage: config dropcounters monitor [OPTIONS]
+
+  Update configurations of drop counter monitor
+
+Options:
+  -s, --status TEXT               Status can be set to enabled/disabled
+  -w, --window INTEGER            Window size in seconds
+  -dct, --drop-count-threshold INTEGER
+                                  Minimum threshold for drop counts to be
+                                  classified as an incident
+  -ict, --incident-count-threshold INTEGER
+                                  Minimum number of incidents to trigger a
+                                  syslog entry
+  -v, --verbose                   Enable verbose output
+  -n, --namespace TEXT            Namespace name or all
+  -?, -h, --help                  Show this message and exit.
+```
+
+By default the persistent drop monitor feature will be disabled. There are four parameters that can be modified to configure the persistent drop counter monitor feature.
+- status:
+    - The status can be either set to enabled/disabled (case sensitive)
+    - Argument: -s / --status
+    - Default: disabled
+- window:
+    - The sliding time window defined in seconds. Drops outside this window are ignored.
+    - Argument: -w / --window
+    - Default: 900 (15 minutes)
+- drop_count_threshold:
+    - The minimum number of drops that have to occur per window for it to be registered as an incident.
+    - Argument: -dct / --drop-count-threshold
+    - Default: 100
+- incident_count_threshold:
+    - The minimum number of incidents that will trigger a syslog entry
+    - Argument: -ict / --incident-count-threshold
+    - Default: 2
+
+When enabled, the persistent drop counter monitor tracks all configured drop counters. These configurations apply globally to all drop counters.
+
+For example, consider a counter configured with a 300-second `window`, a `drop_count_threshold` of 100, and an `incident_count_threshold` of 1. Within each five-minute time window, if the counter experiences more than 100 drop counts at least twice, a syslog will be emitted.
+
+In the figure below, the height of the vertical line represents the number of drop counts detected. The drop counts are polled at a predefined 60-second interval. Drop counts exceeding the drop_count_threshold are highlighted in red and classified as "incidents". Three time windows (W1/W2/W3) are shown in the figure. Given the five-minute window size, it is expected to observe five drop counts (vertical lines) per window. If the number of incidents exceeds the incident_count_threshold, a syslog error is raised.
+
+![image](https://github.com/user-attachments/assets/cf42e38d-dd6b-42fe-8dc8-c816b51764c3)
+
+```
+admin@sonic:~$ sudo config dropcounters monitor -s enabled -w 300 -dct 100 -ict 2
+Successfully updated the DEBUG_DROP_MONITOR config
+admin@sonic:~$ sudo show dropcounters monitor
+Current configuration of debug drop monitor
+The status:  enabled
+The window size:  300
+The drop_count_threshold:  100
+The incident_count_threshold:  2
+```
+
+Sample of the syslog error that will be generated:
+```
+2025 Jan 20 23:57:04.180014 nfc420-7 ERR swss#orchagent: :- doTask: DEBUG_0: Persistent packet drops detected on Ethernet152
+```
+
 ## 3.2 Config DB
 Two new tables will be added to Config DB:
 * DEBUG_COUNTER to store general debug counter metadata
 * DEBUG_COUNTER_DROP_REASON to store drop reasons for debug counters that have been configured to track packet drops
+* DEBUG_DROP_MONITOR to store the configuration of persistent drop counter monitors
 
 ### 3.2.1 DEBUG_COUNTER Table
 Example:
@@ -274,6 +347,21 @@ Example:
         "DEBUG_0|INGRESS_VLAN_FILTER": {},
         "DEBUG_1|EGRESS_VLAN_FILTER": {},
         "DEBUG_2|TTL": {},
+    }
+}
+```
+
+### 3.2.3 DEBUG_DROP_MONITOR Table
+Example:
+```
+{
+    "DEBUG_DROP_MONITOR": {
+        "CONFIG": {
+            "status": "disabled",
+            "window": 900,
+            "drop_count_threshold": 100,
+            "incident_count_threshold": 2
+        }
     }
 }
 ```
