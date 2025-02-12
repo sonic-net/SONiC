@@ -83,7 +83,7 @@ This structure is created because:
 
 ```cpp
 struct BulkStatsContext
-{
+/{
     sai_object_type_t object_type;
     std::vector<sai_object_id_t> object_vids;
     std::vector<sai_object_key_t> object_keys;
@@ -92,7 +92,7 @@ struct BulkStatsContext
     std::vector<uint64_t> counters;
     std::string name;
     uint32_t default_bulk_chunk_size;
-};
+/};
 ```
 - object_type: object type.
 - object_vids: virtual IDs.
@@ -117,7 +117,7 @@ std::map<std::vector<sai_port_stat_t>, BulkStatsContext> m_portBulkContexts;
 
 The bulk chunk size can be configured for a counter group. Once configured, each bulk will poll counters of no more than the configured number of ports.
 
-Furthermore, the bulk chunk size can be configured on a per counter IDs set basis using string in format `<COUNTER_NAME_PREFIX>:<bulk_chunk_size>{,<COUNTER_NAME_PREFIX_I>:<bulk_chunk_size_i>}`.
+Furthermore, the bulk chunk size can be configured on a per counter IDs set basis using string in format `<COUNTER_NAME_PREFIX>:<bulk_chunk_size>/{,<COUNTER_NAME_PREFIX_I>:<bulk_chunk_size_i>/}`.
 Each `COUNTER_NAME_PREFIX` defines a set of counter IDs by matching the counter IDs with the prefix. All the counter IDs in each set share a unified bulk chunk size and will be polled in a series of bulk counter polling API calls with the same counter IDs set but different port set.
 All such sets of counter IDs form a partition of counter IDs of the flex counter group. The partition of a flex counter group is represented by the keys of map `m_portBulkContexts`.
 
@@ -129,7 +129,7 @@ Eg. `SAI_PORT_STAT_IF_IN_FEC:32,SAI_PORT_STAT_IF_OUT_QLEN:0` represents
 2. the bulk chunk size of counter `SAI_PORT_STAT_IF_OUT_QLEN` is 0, which mean 1 bulk will fetch the counter of all ports
 3. the bulk chunk size of rest counter IDs is the counter group's bulk chunk size.
 
-The counter IDs will be split to a partition which consists of a group of sub sets `{{all FEC counters starting with SAI_PORT_STAT_IF_IN_FEC}, {SAI_PORT_STAT_IF_OUT_QLEN}, {the rest counters}}`.
+The counter IDs will be split to a partition which consists of a group of sub sets /`/{/{all FEC counters starting with SAI_PORT_STAT_IF_IN_FEC/}, /{SAI_PORT_STAT_IF_OUT_QLEN/}, /{the rest counters/}/}/`.
 The counter IDs in each sub set share the unified bulk chunk size and will be poll together.
 
 In the above example, once the bulk chunk size is set in the way, a customer can only changes the bulk size of each set but can not change the way the sub sets are split. Eg.
@@ -171,37 +171,37 @@ SAI APIs shall be used in this feature:
 The following new types will be introduced in `container FLEX_COUNTER_TABLE` of the flex counter group
 
 ```
-    container sonic-flex_counter {
-        container FLEX_COUNTER_TABLE {
+    container sonic-flex_counter /{
+        container FLEX_COUNTER_TABLE /{
 
-            typedef bulk_chunk_size {
-                type uint32 {
+            typedef bulk_chunk_size /{
+                type uint32 //{
                     range 0..4294967295;
-                }
-            }
+                /}
+            /}
 
-            typedef bulk_chunk_size_per_prefix {
+            typedef bulk_chunk_size_per_prefix /{
                 type string;
                 description "Bulk chunk size per counter name prefix";
-            }
+            /}
 
-        }
-    }
+        /}
+    /}
 ```
 
 In the yang model, each flex counter group is an independent countainer. We will define leaf in the countainer `PG_DROP`, `PG_WATERMARK`, `PORT`, `QUEUE`, `QUEUE_WATERMARK`.
 The update of `PG_DROP` is shown as below
 
 ```
-            container PG_DROP {
+            container PG_DROP /{
                 /* PG_DROP_STAT_COUNTER_FLEX_COUNTER_GROUP */
-                leaf BULK_CHUNK_SIZE {
+                leaf BULK_CHUNK_SIZE /{
                     type bulk_chunk_size;
-                }
-                leaf BULK_CHUNK_SIZE_PER_PREFIX {
+                /}
+                leaf BULK_CHUNK_SIZE_PER_PREFIX /{
                     type bulk_chunk_size_per_prefix;
-                }
-            }
+                /}
+            /}
 ```
 
 ### Warmboot and Fastboot Design Impact
