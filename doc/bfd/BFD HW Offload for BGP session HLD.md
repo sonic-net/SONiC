@@ -483,8 +483,10 @@ no new CLI introduced for this feature
 
 # 3 Configuration
 To support hardware bfd offload for bgp,need to run two daemons inside bgp container:
+```
  bfdd --dplaneaddr ipv4c:127.0.0.1
  bfdsyncd
+```
 But the logic to launch is outside of the scope of this document. 
 Here is an example to configure it in config_db:
 
@@ -492,7 +494,9 @@ Here is an example to configure it in config_db:
 ```
     "FEATURE": {
         "bgp": {
-            "bfd_hw_offload": "true",
+            "bfd_hw_offload": "true"
+        }
+    },
 ```
 dockers/docker-fpm-frr/frr/supervisord/supervisord.conf.j2
 ```
