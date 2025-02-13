@@ -6,13 +6,14 @@ _Rev v0.1_
 
 ### Revision
 
-| Rev  | Rev Date   | Author(s)          | Change Description |
-|------|------------|--------------------|--------------------|
-| v0.1 | 1/15/2025  | Ryan Lucus (Google)|  Initial version   |
+| Rev  | Rev Date   | Author(s)          | Change Description      |
+|------|------------|--------------------|-------------------------|
+| v0.1 | 1/15/2025  | Ryan Lucus (Google)|  Initial version        |
+| v0.2 | 2/13/2025  | Ryan Lucus (Google)|  Make sonic-gnmi only   |
 
 ### Scope
 
-Migrate the build system for sonic-gnmi and sonic-mgmt-common to Bazel.
+Migrate the build system for sonic-gnmi and to Bazel.
 
 ### Definitions/Abbreviations
 
@@ -32,6 +33,8 @@ This feature does not change the SONiC Architecture.
 The primary Make file in each repository will be modified to point to new Bazel build targets and a build file added to each package.
 
 Gazelle is used to keep build files and dependencies up to date with commands like `gazelle fix` and `gazelle update-repos`
+
+As part of this migration we will also provide a number of documents for setting up a developer environment and basic tasks with Bazel such as adding new components, maintaining dependencies, or debugging build issues.
 
 #### Improvements
 
