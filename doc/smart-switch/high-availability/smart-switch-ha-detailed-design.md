@@ -474,15 +474,15 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | | | pending_operation_ids | GUIDs of pending operation IDs, connected by "," |
-| | | pending_operation_types | Type of pending operations, e.g. "switchover", "activaterole", "flowreconcile", "brainsplitrecover". Connected by "," |
+| | | pending_operation_types | Type of pending operations, e.g. "switchover", "activate_role", "flow_reconcile", "brainsplit_recover". Connected by "," |
 | | | pending_operation_list_last_updated_time_in_ms | Last updated time of the pending operation list. |
 | | | switchover_id | Switchover ID (GUID). |
-| | | switchover_state | Switchover state. It can be "pendingapproval", "approved", "inprogress", "completed", "failed" |
+| | | switchover_state | Switchover state. It can be "pending_approval", "approved", "in_progress", "completed", "failed" |
 | | | switchover_start_time_in_ms | The time when operation is created. |
 | | | switchover_end_time_in_ms | The time when operation is ended. |
 | | | switchover_approved_time_in_ms | The time when operation is approved. |
 | | | flow_sync_session_id | Flow sync session ID. |
-| | | flow_sync_session_state | Flow sync session state. It can be  "inprogress", "completed", "failed" |
+| | | flow_sync_session_state | Flow sync session state. It can be  "in_progress", "completed", "failed" |
 | | | flow_sync_session_start_time_in_ms | Flow sync start time in milliseconds. |
 | | | flow_sync_session_target_server | The IP endpoint of the server that flow records are sent to. |
 
@@ -521,7 +521,7 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 | | | version | Config version. |
 | | | disabled | If true, disable this vDPU. It can only be `false` or `true`. |
-| | | ha_role | The HA role for this scope. It can only be `dead`, `active`, `standby`, `standalone`, `switchingtoactive`. |
+| | | ha_role | The HA role for this scope. It can only be `dead`, `active`, `standby`, `standalone`, `switching_to_active`. |
 | | | flow_reconcile_requested | If true, flow reconcile will be initiated. (Message Only. Not saved in DB.) |
 | | | activate_role_requested | If true, HA role will be activated. (Message Only. Not saved in DB.) |
 
@@ -601,7 +601,7 @@ DPU state table stores the health states of each DPU. These data are collected b
 | --- | --- | --- | --- |
 | DASH_FLOW_SYNC_SESSION_STATE | | |  |
 | | \<SESSION_ID\> | | Flow sync session id. |
-| | | state | Flow sync session state. It can be "created", "inprogress", "completed", "failed". |
+| | | state | Flow sync session state. It can be "created", "in_progress", "completed", "failed". |
 | | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
 | | | last_state_start_time_in_ms | Flow sync session last state start time in milliseconds. |
 
