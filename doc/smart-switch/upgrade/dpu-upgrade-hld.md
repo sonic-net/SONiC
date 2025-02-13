@@ -50,7 +50,7 @@ Non-goals:
 3. DPU and NPU image compatibility: The upgrade process assumes that the DPU and NPU images are compatible with each other. It is up to the client to ensure the compatibility of the images.
 4. Eliminating human intervention: The upgrade process may require human intervention to resolve issues that cannot be handled automatically, in particular, when both the upgrade process fails and the rollback process fails, the system may be left in an inconsistent state that requires manual intervention.
 
-### 6. Architecture Degn
+### 6. Architecture
 
 The key components involved in the DPU upgrade process are:
 * External Client: The client that drives the DPU upgrade process through the gNOI API.
@@ -82,7 +82,7 @@ Here are the detailed steps of the DPU upgrade process. The upgrade process is i
 	 * 'Containerz.Deploy'
    * Rollback:
      * Rollback the new SONiC image on the DPU. Client issues 'OS.Activate' with the old SONiC image.
-	   * Rollback the new offloaded container images on the NPU. Client issues 'Containerz.RemoveImage' with the old container images.
+	   * (optional) Rollback the new offloaded container images on the NPU. Client issues 'Containerz.RemoveImage' with the old container images.
 
 2. **Upgrade DPU**: The external client triggers the DPU upgrade process.
    * Description:
@@ -109,6 +109,7 @@ Here are the detailed steps of the DPU upgrade process. The upgrade process is i
 	     * If not, client issues 'Containerz.Deploy' with the old container images.
 	   * Client issues 'Containerz.StopContainer' to stop the current offloaded containers.
 	   * Client issues 'Containerz.StartContainer' to start the old offloaded containers.
+     * (optional) Rollback the new offloaded container images on the NPU. Client issues 'Containerz.RemoveImage' with the old container images.
 
 The upgrade sequence is shown in the following diagram:
 
@@ -131,6 +132,7 @@ The upgrade sequence is shown in the following diagram:
 	     * If not, client issues 'Containerz.Deploy' with the old container images.
 	   * Client issues 'Containerz.StopContainer' to stop the current offloaded containers.
 	   * Client issues 'Containerz.StartContainer' to start the old offloaded containers.
+     * (optional) Rollback the new offloaded container images on the NPU. Client issues 'Containerz.RemoveImage' with the old container images.
 
 #### 7.2. GNMI/GNOI Splitter
 
