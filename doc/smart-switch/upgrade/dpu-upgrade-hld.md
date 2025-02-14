@@ -35,7 +35,7 @@ Smart Switch offers comprehensive network functionality similar to traditional d
 
 One use case for the DPUs is to provide additional capacity for invidividual customers. As such, SONiC should supports the ability to independently manage each DPU, with minimal impact to the network, the NPU and other DPUs. This document describes the high-level design of the sequence to independently upgrade a SmartSwitch DPU with minimal impact to other DPUs and the NPU, through GNOI API.
 
-<img src="https://www.mermaidchart.com/raw/4fa5921d-23e4-4956-8fe6-bf8db7869943?theme=light&version=v0.1&format=svg" alt="Smart Switch Architecture" width="50%">
+<img src="https://www.mermaidchart.com/raw/4fa5921d-23e4-4956-8fe6-bf8db7869943?theme=light&version=v0.1&format=svg" alt="Smart Switch Architecture" width="80%">
 
 ### 5. Goals and Requirements
 
@@ -63,7 +63,7 @@ The key components involved in the DPU upgrade process are:
   * NPU GNMI Server: Running inside the GNMI container, it is responsible for handling GNOI requests for managing the offloaded containers.
   * GNMI/GNOI Splitter: Running inside the GNMI container, it is responsible for splitting the GNMI and GNOI requests and forwarding them to the corresponding GNMI/GNOI servers, i.e. GNOI requests to DPU GNMI Server and GNMI requests to NPU GNMI Server.
 
-<img src="https://www.mermaidchart.com/raw/bb62a98d-3505-4722-92a2-81113b1040cf?theme=light&version=v0.1&format=svg" alt="DPU Upgrade Architecture" width="50%">
+<img src="https://www.mermaidchart.com/raw/bb62a98d-3505-4722-92a2-81113b1040cf?theme=light&version=v0.1&format=svg" alt="DPU Upgrade Architecture" width="80%">
 
 ### 7. High-Level Design
 
@@ -138,7 +138,7 @@ The upgrade sequence is shown in the following diagram:
 
 Per smartswitch architecture, the GNMI service is offloaded to the NPU due to DPU resource constraints. But the GNOI service is still running on the DPU. The GNMI/GNOI Splitter is responsible for splitting the GNMI and GNOI requests and forwarding them to the corresponding GNMI/GNOI servers, i.e. GNOI requests to DPU GNMI Server and GNMI requests to NPU GNMI Server.
 
-<img src="https://www.mermaidchart.com/raw/3e126a79-0049-4051-ba30-a18251829504?theme=light&version=v0.1&format=svg" alt="Mermaid Chart" width="30%">
+<img src="https://www.mermaidchart.com/raw/3e126a79-0049-4051-ba30-a18251829504?theme=light&version=v0.1&format=svg" alt="Mermaid Chart" width="80%">
 
 #### 7.3. Offloader
 
@@ -148,7 +148,7 @@ One major challenge of the DPU upgrade is that several DPU containers, such as D
 
 The offloader consists of a single GNOI client connected to the GNOI server on NPU, through which it manages the offloaded containers on the NPU. To facilitate remote management of offloaded containers, we will also implement the containerz module in GNOI service.
 
-<img src="https://www.mermaidchart.com/raw/eed55057-8dda-4f1b-8bf9-3046e2910497?theme=light&version=v0.1&format=svg" alt="Offloader Architecture" width="30%">
+<img src="https://www.mermaidchart.com/raw/eed55057-8dda-4f1b-8bf9-3046e2910497?theme=light&version=v0.1&format=svg" alt="Offloader Architecture" width="80%">
 
 ##### 7.3.2. Offloader Services.
 
