@@ -77,20 +77,20 @@ The following new fields have been added the **VNET_ROUTE_TUNNEL_TABLE**
 
 ```
 
-VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}  
-    “endpoint”: {{ip_address1},{ip_address2},...} 
-    “endpoint_monitor”: {{ip_address1},{ip_address2},...} (OPTIONAL) 
-    “mac_address”: {{mac_address1},{mac_address2},...} (OPTIONAL) 
-    “monitoring”: {{“custom”}} (OPTIONAL)                                  <<<< New Field
-    “vni”: {{vni1},{vni2},...} (OPTIONAL) 
-    “weight”: {{w1},{w2},...} (OPTIONAL) 
-    “profile”: {{profile_name}} (OPTIONAL) 
-    “primary”: {{ip_address1}, {ip_address2}} (OPTIONAL)                   <<<< New Field    
-    “profile”: {{profile_name}} (OPTIONAL)  
-    “adv_prefix”: {{prefix}} (OPTIONAL)                                    <<<< New Field
-    “rx_monitor_timer”: {time in milliseconds} (OPTIONAL)                  <<<< New Field
-    “tx_monitor_timer”: {time in milliseconds} (OPTIONAL)                  <<<< New Field
-    “check_directly_connected”: {{true|false}} (OPTIONAL)                  <<<< New Field
+VNET_ROUTE_TUNNEL_TABLE:/{/{vnet_name/}/}:/{/{prefix/}/}  
+    “endpoint”: /{/{ip_address1/},/{ip_address2/},.../} 
+    “endpoint_monitor”: /{/{ip_address1/},/{ip_address2/},.../} (OPTIONAL) 
+    “mac_address”: /{/{mac_address1/},/{mac_address2/},.../} (OPTIONAL) 
+    “monitoring”: /{/{“custom”/}/} (OPTIONAL)                                  <<<< New Field
+    “vni”: /{/{vni1/},/{vni2/},.../} (OPTIONAL) 
+    “weight”: /{/{w1/},/{w2/},.../} (OPTIONAL) 
+    “profile”: /{/{profile_name/}/} (OPTIONAL) 
+    “primary”: /{/{ip_address1/}, /{ip_address2/}/} (OPTIONAL)                   <<<< New Field    
+    “profile”: /{/{profile_name/}/} (OPTIONAL)  
+    “adv_prefix”: /{/{prefix/}/} (OPTIONAL)                                    <<<< New Field
+    “rx_monitor_timer”: /{time in milliseconds/} (OPTIONAL)                  <<<< New Field
+    “tx_monitor_timer”: /{time in milliseconds/} (OPTIONAL)                  <<<< New Field
+    “check_directly_connected”: /{/{true|false/}/} (OPTIONAL)                  <<<< New Field
 ```
 
 
