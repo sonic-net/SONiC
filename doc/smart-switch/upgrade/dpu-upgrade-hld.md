@@ -113,7 +113,7 @@ Here are the detailed steps of the DPU upgrade process. The upgrade process is i
 
 The upgrade sequence is shown in the following diagram:
 
-<img src="https://www.mermaidchart.com/raw/7797d125-08e3-4f00-9bfc-8e3cfa5757a0?theme=light&version=v0.1&format=svg" alt="DPU Upgrade Sequence" width="50%">
+<img src="https://www.mermaidchart.com/raw/7797d125-08e3-4f00-9bfc-8e3cfa5757a0?theme=light&version=v0.1&format=svg" alt="DPU Upgrade Sequence" width="100%">
 
 3. **Verify the upgrade result**
    * Description:
