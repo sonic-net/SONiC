@@ -20,8 +20,9 @@ Table of Contents
       * [3.2 Software version &amp; Upgrade](#32-software-version--upgrade)
          * [3.2.1 Show Versions](#321-show-versions)
       * [3.2.2 Check features available in this version](#322-check-features-available-in-this-version)
-      * [3.2.3 Upgrade Or Downgrade Version](#323-upgrade-or-downgrade-version)
+      * [3.2.3 Installing a New Version of SONiC](#323-installing-a-new-version-of-sonic)
          * [3.2.3.1 SONiC Installer](#3231-sonic-installer)
+         * [3.2.3.2 Migrating from one version of SONiC to another](#3232-migrating-from-one-version-of-sonic-to-another)
       * [3.3 Startup Configuration](#33-startup-configuration)
          * [3.3.1 Default Startup Configuration](#331-default-startup-configuration)
          * [3.3.2 Modify Configuration](#332-modify-configuration)
@@ -52,6 +53,7 @@ After logging into the device, SONiC software can be configured in following thr
  1) [Command Line Interface](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md)
  2) [config_db.json](https://github.com/sonic-net/SONiC/wiki/Configuration) 
  3) [minigraph.xml](https://github.com/sonic-net/SONiC/wiki/Configuration-with-Minigraph-(~Sep-2017))
+    - NOTE: Configuration with Minigraph is a legacy method and has been deprecated, according to the [Configuration Documentation](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/doc/Configuration.md#configuration)
  
 Users can use all of the above methods or choose either one method to configure and to view the status of the device.
 This user manual explains the common commands & related configuration/show examples on how to use the SONiC device. Refer the above documents for more detailed information.
@@ -332,7 +334,7 @@ Note that SONiC does not support management VRF and hence it is not possible to 
       
    
    3) use minigraph.xml and configure "ManagementIPInterfaces" tag inside "DpgDesc" tag as given at the [page](https://github.com/sonic-net/SONiC/wiki/Configuration-with-Minigraph-(~Sep-2017))
-   
+   - NOTE: Configuration with Minigraph is a legacy method and has been deprecated, according to the [Configuration Documentation](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/doc/Configuration.md#configuration)
 Once the IP address is configured, the same can be verified using "/sbin/ifconfig eth0" linux command.
 Users can SSH login to this management interface IP address from their management network.
 
@@ -348,12 +350,8 @@ The same method shall be used to configure the loopback interface address as fol
 2) Add the key LOOPBACK_INTERFACE & value in config_db.json and load it, OR,
 3) use minigraph.xml and configure LoopbackIPInterfaces tag inside the "DpgDesc" tag.
 
-   
-Go Back To [Beginning of the document](#SONiC-COMMAND-LINE-INTERFACE-GUIDE) or [Beginning of this section](#Basic-Configuration-And-Show)
 
-
-
-## 3.2 Software version & Upgrade  
+## 3.2 Software Version & Upgrade  
 This section explains how to check the current version of the software running in the device, how to check the features available in the version and how to upgrade/downgrade to different versions.
 
 ### 3.2.1 Show Versions 
@@ -399,7 +397,6 @@ This command displays relevant information as the SONiC and Linux kernel version
   docker-fpm-quagga          latest              546036fe6838        282MB
 
   ```
-Go Back To [Beginning of the document](#SONiC-COMMAND-LINE-INTERFACE-GUIDE) or [Beginning of this section](#Basic-Configuration-And-Show)
 
 ## 3.2.2 Check features available in this version
 
@@ -407,11 +404,11 @@ Go Back To [Beginning of the document](#SONiC-COMMAND-LINE-INTERFACE-GUIDE) or [
 TBD: Is this enough? Need information from Xin.
 
 
-## 3.2.3 Upgrade Or Downgrade Version 
+## 3.2.3 Installing a New Version of SONiC 
 
 SONiC software can be installed in two methods, viz, using "ONIE Installer" or by using "sonic-installer tool".
-"ONIE Installer" shall be used as explained in the [QuickStartGuide](#Quick-Start-Guide)
-"sonic-installer" shall be used as given below.
+"ONIE Installer" usage is explained in the [QuickStartGuide](#Quick-Start-Guide)
+"sonic-installer" usage is as follows.
 
 
 ### 3.2.3.1 SONiC Installer
@@ -520,10 +517,21 @@ This command is used to remove the unused SONiC image from the disk. Note that i
 
   Image removed
   ```
- 
-Go Back To [Beginning of the document](#SONiC-COMMAND-LINE-INTERFACE-GUIDE) or [Beginning of this section](#Software-Installation-Commands)
 
+### 3.2.3.2 Migrating from one version of SONiC to another
 
+When installing a new version of SONiC using the ONIE method, the entire file system is replaced. 
+It is up to the user to migrate file contents pertaining to system configuration, like the Startup Configuration from `/etc/sonic/config_db.json` -- see the section [Startup Configuration](#33-Startup-Configuration)
+    - Note: Config DB schemas may differ between SONiC versions, so compatibility is not guaranteed. You may make use of a [migration script](https://github.com/sonic-net/sonic-utilities/blob/master/scripts/db_migrator.py). 
+
+When installing a new version of SONiC using the `sonic-installer` tool, some migration is handled by the tool, including migrating the CONFIG DB via `/etc/sonic/config_db.json`. 
+
+When using either method to install SONiC, the user must take care to migrate other custom files that pertain to system configuration, like:
+- Host SSH keys
+- Locally configured users and groups from `/etc/passwd`, `/etc/shadow`, and `/etc/groups`, as well as other preferences/configs stored in `/etc`
+- Custom hand-edited platform files like fan curves, buffer settings, `port_config.ini`, etc.
+- Home directory contents (e.g. shell customization, user SSH keys, other preferences files, etc.)
+- Utilities installed through `apt`
 
 ## 3.3 Startup Configuration
 
@@ -555,7 +563,7 @@ Following are some of the keys that are configured by default in the config_db.j
 
 
 SONiC provides an alternate method for loading the startup configuration from minigraph.xml from a remote server when DHCP is used. SONiC contains a file /etc/sonic/updategraph.conf that contains a flag "enabled" which is set to "false" by default. Similarly, management interface is configured to use DHCP by default for getting the management interface IP address from the DHCP server. Users can modify this flag to "true" and then reboot the device. SONiC will use DHCP to get the management IP address as well as the details about the configuration file minigraph.xml (DHCP server should have been configured to provide the details like management interface IP address, default route, configuration file name and the server IP address from this the configuration file should be fetched). SONiC shall contact the remote server and get the minigraph.xml and loads the same.
-
+- NOTE: Configuration with Minigraph is a legacy method and has been deprecated, according to the [Configuration Documentation](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/doc/Configuration.md#configuration)
 
 ### 3.3.2 Modify Configuration  
 
@@ -569,7 +577,7 @@ User can either do "config reload" command to load this new configuration, or us
 Users can directly edit & modify the file /etc/sonic/mingraph.xml or do a SCP and copy this file from a remote server. 
 User can either do "config load_minigraph" command to load this new configuration, or users can simply reboot to make it effective.
 Or, users can modify the "enabled" flag in /etc/sonic/updategraph.conf to true and then reboot the device as explained above.
-
+- NOTE: Configuration with Minigraph is a legacy method and has been deprecated, according to the [Configuration Documentation](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/doc/Configuration.md#configuration)
 
 # 4 Detailed Configuration & Show  
 
