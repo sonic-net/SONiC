@@ -131,7 +131,7 @@ Counter for interface should be increased in below scenarios, and they can be co
 
 |              | DHCP client -> DHCP server | DHCP server -> DHCP client |
 |--------------------------|----------------------------------|--|
-| RX packet | **A**: If interface is downlink and \[destination ip in ip header is broadcast ip or gateway ip\] | **B**: If dst ip in ip header equals to gateway and ingress interface is uplink |
+| RX packet | **A**: If interface is downlink and \[destination ip in ip header is broadcast ip or gateway ip\] and gateway in dhcp header is zero | **B**: If dst ip in ip header equals to gateway and ingress interface is uplink and gateway in dhcp header equals to gateway ip|
 | TX packet | **C**: If gateway ip in dhcp header equals to gateway ip and interface is uplink | **D**: If interface is downlink and gateway in dhcp header equals to gateway ip|
 
 ### Dual-ToR Specified
