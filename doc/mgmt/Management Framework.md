@@ -88,6 +88,7 @@
 	* [4.3 Translib Initialization flow](#43-Translib-initialization-flow)
 	* [4.4 gNMI flow](#44-gNMI-flow)
 	* [4.5 CVL flow](#45-CVL-flow)
+    * [4.6 Bulk flow](#46-Bulk-flow)
 * [5 Developer Work flow](#5-Developer-Work-flow)
     * [5.1 Developer work flow for custom (SONiC/CVL) YANG](#51-Developer-work-flow-for-custom-SONiCCVL-YANG)
         * [5.1.1 Define Config Validation YANG schema](#511-Define-Config-Validation-YANG-schema)
@@ -2612,7 +2613,7 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 
 ### 4.6 Bulk flow
 
-![CVL flow](images/bulk_mdb.jpg)
+![Bulk flow](images/bulk_mdb.jpg)
 
 1. REST client can send any of the write commands such as POST, PUT, PATCH or DELETE and it will be handled by the REST Gateway.
 2. All handlers in the REST gateway will invoke a command request handler.
