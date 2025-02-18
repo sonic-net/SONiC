@@ -1282,7 +1282,7 @@ type appInterface interface {
         initialize(data appData)
         .
         .
-        getNamespace(path string) ([]string, error)
+        getNamespace(path string, payload []byte) ([]string, error)
 }
 
 ###### 3.2.2.6.2 Translib Request Handler
@@ -1837,6 +1837,8 @@ Transformer has a built-in default transformer method to perform static, simple 
 Additionally, for more complex translations of non-ABNF YANG models, i.e. OpenConfig models, Transformer also allows developers to overload the default method by specifying a callback fucntion in YANG extensions, to perform translations with developer-supplied translation codes as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer callback must be defined to support two-way translation, i.e, YangToDb_<transformer_callback> and DbToYang_<transformer_callback>, which are invoked by Transformer core.
 
 Transformer also has callback funtion in YANG extensions to get namespace associated with the uri path. This will be mainly useful in case of Multi ASIC platform with multiple Redis DBs. The namespace callback function will be specific to every YANG model defined with its annotations. Translib/transformer shall use "HOST" DB as default for YANG models without namespace extension defined.
+Note: getNameSpace can be defined at any subpath level, however it is not recommended to override/terminate at its descendant objects.
+
 ###### 3.2.2.7.3 Process
 
 CRUD requests (configuration) are processed via the following steps:
@@ -1986,32 +1988,47 @@ func init () {
     XlateFuncBind("oc_name_get_namespace_xfmr", oc_name_get_namespace_xfmr)
 }
 
-var oc_name_get_namespace_xfmr GetNamespaceFunc = func(inParams XfmrParams) ([]string, error) {
-        var response []string
-        var err error
-        var ockey string
+var oa_name_get_namespace_xfmr GetNamespaceFunc = func(inParams XfmrParams) ([]string, error) {
+    // Initialize the map to store namespaces and payloads (now using a slice of byte arrays)
+    var nameSpaceList []string
+    var err error
+    var key, keyField string
 
-        pathInfo := NewPathInfo(inParams.uri)
+    log.V(3).Infof("oa_name_get_namespace_xfmr: inParams: %v", inParams)
 
-        if strings.Contains(inParams.uri, "/amplifier") {
-                ockey = pathInfo.Var("name")
+    // Parse URI path to determine key and keyField
+    pathInfo := NewPathInfo(inParams.uri)
 
-        } else if strings.Contains(inParams.uri, "/supervisory-channel") {
-                ockey = pathInfo.Var("interface")
-        }
+    switch {
+    case strings.Contains(inParams.uri, "/amplifier"):
+        key = pathInfo.Var("name")
+        keyField = "name"
+    case strings.Contains(inParams.uri, "/supervisory-channel"):
+        key = pathInfo.Var("interface")
+        keyField = "interface"
+    }
 
-        // If Key is present in the xpath add the associated namespace and return
-        if ockey != "" {
-		        //db.GetMDBNameFromEntity converts the slot number in the key to namespace
-                dbName := db.GetMDBNameFromEntity(ockey) 
-                response = append(response,  dbName)
+    // Process the payload if it exists
+    if len(inParams.payload) != 0  && len(key) ==0 {
+            nameSpaceList, err = ProcessPayload(inParams.payload, key, keyField)
+            if err != nil {
+                    return nil, err
+            }
+            return nameSpaceList, err
+    }
 
-        } else {
-        // If Key is not present in the xpath return "*", 
-		// all DB's will be looked in translib
-                response = append(response,  "*")
-        }
-        return response, err
+    // If key is found, assign dbName directly
+    if key != "" && key != "*"  && len(nameSpaceList) == 0 {
+            dbName := db.GetMDBNameFromEntity(key)
+            nameSpaceList = append(nameSpaceList, dbName)
+            return nameSpaceList, nil
+    } else {
+            // For Get requests without key in xpath * is returned.
+            log.Infof("No specific key found, using '*' to include all DBs.")
+            nameSpaceList = append(nameSpaceList, "*")
+    }
+
+    return nameSpaceList, nil
 }
 ```
 ----------
@@ -2040,7 +2057,7 @@ func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interfa
 
 func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
 
-func GetNameSpace(path string) ([]string, error) {}
+func GetNameSpace(path string, payload []byte) ([]string, error) {}
 ```
 
 ###### 3.2.2.7.7 Overloaded Methods
@@ -2477,10 +2494,10 @@ mechanism for the app specific configuration.
 5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation
 6. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
 7. Translib infra gets the App module corresponding to the incoming URI.
-8. Translib infra invoke App module getNamespace API (introduced in app interface) to get namespace associated with the uri
+8. Translib infra invoke App module getNamespace API (introduced in app interface) to get namespace associated with the uri/payload
 9. App module invokes transformer service getNamespaceMapping to retrieve namespace based on Yang model
-10. Transformer invokes Yang model based exception to retrieve the namespace associated with uri
-11. Transformer returns namespace associated with the uri
+10. Transformer invokes Yang model based exception to retrieve the namespace associated with uri/payload
+11. Transformer returns namespace associated with the uri/payload
 12. Appmodule returns namespace
 13. Compare retured Namespace, Check that Set operation is restricted to single Namespace  
 14. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
