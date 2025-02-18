@@ -497,11 +497,11 @@ The existing interface-level STP commands as below will re-used for configuring 
  
 ## Show Commands
 
-- show spanning_tree mst
+- show spanning_tree
 
     The output of this command would be as follows for 'mstp':
 ```
-admin@sonic: show spanning_tree mst
+admin@sonic: show spanning_tree
 
 Spanning-tree Mode: MSTP
 #######  MST0 (CIST)       Vlans mapped : 1, 4-8, 202-4094
@@ -665,7 +665,7 @@ PortChannel15     30          6           4          1
 ```
 
 ## Clear Commands
-- sonic-clear spanning_tree mst statistics
+- sonic-clear spanning_tree statistics
 
 - sonic-clear spanning_tree mst statistics instance \<instance-id\>
 
@@ -684,7 +684,7 @@ The following debug commands will be supported to enable additional logging, whi
 
 The following debug commands will be supported for displaying internal data structures:
 
-- debug spanning_tree dump mst global
+- debug spanning_tree dump global
 
 - debug spanning_tree dump mst instance \<instance-id\>
 
