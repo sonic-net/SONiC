@@ -132,6 +132,8 @@ Following are the minimal scaling requirements
 | Metering Buckets per ENI      | 4000                          |
 | CPS                           | 3M                            |
 | Max PA validation entries     | 4k                            |
+| Max TUNNEL entries            | 4k                            |
+| Max TUNNEL members per group  | 128                           |
 
 \* Number of VNET is a software limit as VNET by itself does not take hardware resources. This shall be limited to number of VNI hardware can support
 
@@ -509,7 +511,7 @@ DASH_APPLIANCE_TABLE:{{appliance_id}}
     "sip": {{ip_address}}
     "vm_vni": {{vni}}
     "local_region_id": {{region_id}}
-    "outbound_direction_lookup": {{dst_mac/src_mac}}
+    "outbound_direction_lookup": {{dst_mac/src_mac}} (OPTIONAL)
     "trusted_vni": {{vni list}} (OPTIONAL)
 ```
 
@@ -1752,5 +1754,5 @@ For the example configuration above, the following is a brief explanation of loo
     1. This packet shall be transformed IPv6 packet from PL endpoint
     2. Outer SRC_PA:50.1.2.3, Outer DST_PA:10.250.20.19
     3. Reverse transpositions applied (v6->v4)
-    4. Transformed packet tunneled to one of ER GW endpoint IP as configured in DASH_TUNNEL_TABLE
+    4. Transformed packet ECMP tunneled to one of ER GW endpoint IP as configured in DASH_TUNNEL_TABLE
     5. Underlay SRC_PA:10.250.20.19, Underlay DST_PA:100.8.1.2, Outer VNI:1000
