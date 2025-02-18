@@ -165,11 +165,11 @@ In Dual-ToR there are some behaviors different with single ToR:
 
 ### Counters DB
 
-Following table changes would be added in Counters DB, including **DHCP_COUNTER_TABLE** table.
+Following table changes would be added in Counters DB, including **DHCPV4_COUNTER_TABLE** table.
 
 ```
 {
-  'DHCP_COUNTER_TABLE': {
+  'DHCPV4_COUNTER_TABLE': {
     'Vlan1000': {
       'RX': '{"Ack":"0","Decline":"0","Discover":"1","Inform":"0","Nak":"0","Offer":"0","Release":"0","Request":"0","Unknown":"0"}',
       'TX': '{"Ack":"0","Decline":"0","Discover":"0","Inform":"0","Nak":"0","Offer":"0","Release":"0","Request":"0","Unknown":"0"}'
