@@ -81,6 +81,8 @@ module: openconfig-system
      |  |  +--rw users
      |  |     +--rw user* [username]
      |  |        +--rw username    -> ../config/username
+     |  |        +--rw config
+     |  |        |  +--rw username?                                              string
      |  |        +--ro state
      |  |           +--ro username?                                              string
      |  |           +--ro oc-gnsi-credz:password-version?                        version
@@ -221,10 +223,10 @@ module: openconfig-system
      +--rw oc-sys-grpc:grpc-servers
      |  +--rw oc-sys-grpc:grpc-server* [name]
      |     +--rw oc-sys-grpc:name                            -> ../config/name
+     |     +--rw oc-sys-grpc:config
+     |     |  +--rw oc-sys-grpc:name?                       string
      |     +--ro oc-sys-grpc:state
      |     |  +--ro oc-sys-grpc:name?                                              string
-     |     |  +--ro oc-sys-grpc:enable?                                            boolean
-     |     |  +--ro oc-sys-grpc:port?                                              oc-inet:port-number
      |     |  +--ro oc-gnsi-certz:certificate-version?                             version
      |     |  +--ro oc-gnsi-certz:certificate-created-on?                          created-on
      |     |  +--ro oc-gnsi-certz:ca-trust-bundle-version?                         version
@@ -669,10 +671,11 @@ REST - POST/PATCH/DELETE/PUT/GET
 9. Verify that operations supported for gNMI/REST works fine for up-time, boot-time, current-datetime & software-version.
 10. Verify that operations supported for gNMI/REST works fine for processes nodes.
 11. Verify that operations supported for gNMI/REST works fine for alarms nodes.
-12. Verify that operations supported for gNMI/REST works fine for memory nodes.
-13. Verify that operations supported for gNMI/REST works fine for cpu nodes.
-14. Verify that operations supported for gNMI/REST works fine for grpc-servers nodes.
-15. Verify that operations supported for gNMI/REST works fine for gnmi-pathz-policies nodes.
+12. Verify that operations supported for gNMI/REST works fine for mount-points nodes.
+13. Verify that operations supported for gNMI/REST works fine for memory nodes.
+14. Verify that operations supported for gNMI/REST works fine for cpus nodes.
+15. Verify that operations supported for gNMI/REST works fine for grpc-servers nodes.
+16. Verify that operations supported for gNMI/REST works fine for gnmi-pathz-policies nodes.
 
 ## 6.2 Negative Test Cases
 1. Verify that any operation on unsupported nodes give a proper error.
@@ -682,3 +685,11 @@ REST - POST/PATCH/DELETE/PUT/GET
 5. Verify that invalid NTP source address returns proper error.
 6. Verify that AAA server source-address accepts only valid IP.
 7. Verify that GET on processes with non-existing pid returns an empty data.
+8. Verify that GET on alarms with non-existing alarm-id returns an empty data.
+9. Verify that GET on mount-points with non-existing mount-point returns an empty data.
+10. Verify that GET on cpus with non-existing cpu returns an empty data.
+11. Verify that GET on grpc-servers with non-existing grpc-server returns an empty data.
+12. Verify that GET on grpc-servers/connections with non-existing address:port returns an empty data.
+13. Verify that GET on grpc-servers/gnmi-pathz-policy-counters with non-existing path returns an empty data.
+14. Verify that GET on grpc-servers/authz-policy-counters with non-existing rpc returns an empty data.
+15. Verify that GET on gnmi-pathz-policies with non-existing instance returns an empty data.
