@@ -17,6 +17,7 @@
 	- [3.1 SAI ATTRIBUTES](#31-sai-attributes)
 	- [3.2 orchagent](#32-orchagent)
 	- [3.3 SAI implementation](#33-sai-implementation)
+- [4 Prototyping](#4-prototyping)
 
 ###### Revision
 
@@ -221,3 +222,23 @@ index 00318f90..e06e34e6 100644
 
 ## 3.3 SAI implementation
   SAI implementation is vendor dependent, it is out of scope of this document.
+
+# 4 Prototyping 
+
+SAI redis record for BFD session creation and next hop update when shutdown/startup interface.
+
+```
+17:24:14.400492|c|SAI_OBJECT_TYPE_BFD_SESSION:oid:0x45000000000680|SAI_BFD_SESSION_ATTR_TYPE=SAI_BFD_SESSION_TYPE_ASYNC_ACTIVE|SAI_BFD_SESSION_ATTR_LOCAL_DISCRIMINATOR=1|SAI_BFD_SESSION_ATTR_UDP_SRC_PORT=49152|SAI_BFD_SESSION_ATTR_REMOTE_DISCRIMINATOR=0|SAI_BFD_SESSION_ATTR_BFD_ENCAPSULATION_TYPE=SAI_BFD_ENCAPSULATION_TYPE_NONE|SAI_BFD_SESSION_ATTR_IPHDR_VERSION=4|SAI_BFD_SESSION_ATTR_SRC_IP_ADDRESS=20.0.1.6|SAI_BFD_SESSION_ATTR_DST_IP_ADDRESS=20.0.1.1|SAI_BFD_SESSION_ATTR_MIN_TX=50000|SAI_BFD_SESSION_ATTR_MIN_RX=50000|SAI_BFD_SESSION_ATTR_MULTIPLIER=3|SAI_BFD_SESSION_ATTR_TOS=192|SAI_BFD_SESSION_ATTR_USE_NEXT_HOP=true|SAI_BFD_SESSION_ATTR_NEXT_HOP_ID=oid:0x0
+17:24:14.405572|n|bfd_session_state_change|[{"bfd_session_id":"oid:0x45000000000680","session_state":"SAI_BFD_SESSION_STATE_DOWN"}]|
+17:26:24.478784|s|SAI_OBJECT_TYPE_BFD_SESSION:oid:0x45000000000680|SAI_BFD_SESSION_ATTR_NEXT_HOP_ID=oid:0x4000000000920
+17:26:25.379457|n|bfd_session_state_change|[{"bfd_session_id":"oid:0x45000000000680","session_state":"SAI_BFD_SESSION_STATE_UP"}]|
+19:40:14.290770|n|bfd_session_state_change|[{"bfd_session_id":"oid:0x45000000000680","session_state":"SAI_BFD_SESSION_STATE_DOWN"}]|
+19:43:39.413722|n|bfd_session_state_change|[{"bfd_session_id":"oid:0x45000000000680","session_state":"SAI_BFD_SESSION_STATE_UP"}]|
+23:46:11.373693|n|bfd_session_state_change|[{"bfd_session_id":"oid:0x45000000000680","session_state":"SAI_BFD_SESSION_STATE_DOWN"}]|
+23:46:11.936482|s|SAI_OBJECT_TYPE_BFD_SESSION:oid:0x45000000000680|SAI_BFD_SESSION_ATTR_NEXT_HOP_ID=oid:0x0
+23:57:23.253017|s|SAI_OBJECT_TYPE_BFD_SESSION:oid:0x45000000000680|SAI_BFD_SESSION_ATTR_NEXT_HOP_ID=oid:0x400000000132e
+23:57:23.400633|n|bfd_session_state_change|[{"bfd_session_id":"oid:0x45000000000680","session_state":"SAI_BFD_SESSION_STATE_UP"}]|
+00:02:17.198325|n|bfd_session_state_change|[{"bfd_session_id":"oid:0x45000000000680","session_state":"SAI_BFD_SESSION_STATE_DOWN"}]|
+00:02:17.833350|s|SAI_OBJECT_TYPE_BFD_SESSION:oid:0x45000000000680|SAI_BFD_SESSION_ATTR_NEXT_HOP_ID=oid:0x0
+
+```
