@@ -23,7 +23,7 @@
 
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1|  02/20/2025  |     Baorong Liu    | Initial proposal                  |
+| 0.1|  02/20/2025  |     Baorong Liu    | Initial version                  |
 
 
 
@@ -166,6 +166,31 @@ bfdorch changes:
         //configure BFD session with port_id and mac address
     }
   ```
+
+bfdorch provide a function to update next hop when a next hop is created or deleted.
+
+```
+void BfdOrch::updateNextHopId(string alias, IpAddress peer_address, sai_object_id_t next_hop_id)
+{
+    const string key = get_app_db_key("default", alias, peer_address);
+    if (bfd_inject_next_hop_lookup.find(key) == bfd_inject_next_hop_lookup.end())
+    {
+        SWSS_LOG_DEBUG("BFD session %s does not exist or not inject_next_hop", key.c_str());
+        return;
+    }
+    auto bfd_session_id = bfd_inject_next_hop_lookup[key].bfd_session_id;
+    sai_attribute_t attr;
+    attr.id = SAI_BFD_SESSION_ATTR_NEXT_HOP_ID;
+    attr.value.oid = next_hop_id;
+    sai_status_t status = sai_bfd_api->set_bfd_session_attribute(bfd_session_id, &attr);
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("Failed to update bfd session attribute %s, rv:%d", key.c_str(), status);
+        return;
+    }
+    bfd_inject_next_hop_lookup[key].next_hop_id = next_hop_id;
+}
+```
 
 neighorch changes:
 
