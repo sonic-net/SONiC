@@ -1,7 +1,7 @@
-# BFD HW Offload for BGP session
+# Creating BFD HW Offload session using next hop
 
 # Table of Content
-- [BFD HW Offload for BGP session](#bfd-hw-offload-for-bgp-session)
+- [Creating BFD HW Offload session using next hop](#creating-bfd-hw-offload-session-using-next-hop)
 - [Table of Content](#table-of-content)
 					- [Revision](#revision)
 - [Definitions/Abbreviation](#definitionsabbreviation)
