@@ -134,6 +134,8 @@ Following are the minimal scaling requirements
 | Max PA validation entries     | 4k                            |
 | Max TUNNEL entries            | 4k                            |
 | Max TUNNEL members per group  | 128                           |
+| Max trusted VNIs per ENI      | 16                            |
+| Max trusted VNIs              | 1k Per Card                   |
 
 \* Number of VNET is a software limit as VNET by itself does not take hardware resources. This shall be limited to number of VNI hardware can support
 
@@ -315,13 +317,13 @@ Reference Yang model for DASH Vnet is [here](https://github.com/sonic-net/sonic-
 
 ## 3.1 Config DB
 
-### 3.1.1 DEVICE Metadata Table
+### 3.1.1 DEVICE Metadata Table for SmartSwitch DPU.
 
 ```
 "DEVICE_METADATA": {
     "localhost": {
-        "subtype": "SmartSwitch",
         "type": "SonicDpu",
+        "subtype": "SmartSwitch",
         "switch_type": "dpu",
         "sub_role": "None"
      }
@@ -376,7 +378,7 @@ DASH_ENI_TABLE:{{eni}}
     "v4_meter_policy_id": {{string}} (OPTIONAL)
     "v6_meter_policy_id": {{string}} (OPTIONAL)
     "disable_fast_path_icmp_flow_redirection": {{bool}} (OPTIONAL)
-    "floating_nic_mode": {{enabled/disabled}} (OPTIONAL)
+    "mode": {{floating_nic_mode/vm_mode}} (OPTIONAL)
     "trusted_vni": {{vni list}} (OPTIONAL)
 ```
 ```
@@ -389,11 +391,11 @@ admin_state              = Enabled after all configurations are applied.
 vnet                     = Vnet that ENI belongs to
 pl_sip_encoding          = Privatelink encoding for IPv6 SIP transformation; Format `field_value/full_mask` where both `field_value` and `full_mask` must be given as IPv6 addresses. See "3.6.3.2 PL IPv6 Address Transformation" for details.
 pl_underlay_sip          = Underlay SIP (ST GW VIP) to be used for all private link transformation for this ENI
-v4_meter_policy_id	     = IPv4 meter policy ID
-v6_meter_policy_id	     = IPv6 meter policy ID
-disable_fast_path_icmp_flow_redirection     = Disable handling fast path ICMP flow redirection packets
-floating_nic_mode            = floating nic mode enabled or disabled. Default is disabled
-trusted_vni                  = list of trusted VNIs for this ENI, 'comma' seperated or "-" for range both inclusive. MSEE VNIs can added here
+v4_meter_policy_id	 = IPv4 meter policy ID
+v6_meter_policy_id	 = IPv6 meter policy ID
+disable_fast_path_icmp_flow_redirection = Disable handling fast path ICMP flow redirection packets
+mode                     = floating nic mode or vm mode. Default is 'vm_mode'
+trusted_vni              = list of trusted VNIs for this ENI, 'comma' seperated or "-" for range both inclusive. MSEE VNIs can added here
 ```
 
 ### 3.2.4 TAG
@@ -582,7 +584,7 @@ tunnel                   = string                    ; Nexthop tunnel for ECMP o
 ### 3.2.10 ROUTE RULE TABLE - INBOUND
 
 ``` 
-DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix}} 
+DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix/tag}}
     "action_type": {{routing_type}} 
     "priority": {{priority}}
     "protocol": {{protocol_value}} (OPTIONAL)
@@ -594,7 +596,7 @@ DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix}}
 ```
   
 ```
-key                      = DASH_ROUTE_RULE_TABLE:eni:vni:prefix ; ENI Inbound route table with VNI and optional SRC PA prefix
+key                      = DASH_ROUTE_RULE_TABLE:eni:vni:prefix ; ENI Inbound route table with VNI and optional SRC PA prefix or prefix tag defined by DASH_PREFIX_TAG_TABLE
 ; field                  = value 
 action_type              = routing_type              ; reference to routing type, action can be decap or drop
 priority                 = INT32 value               ; priority of the rule, lower the value, higher the priority
@@ -1668,7 +1670,7 @@ final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
 	    "admin_state": "enabled",
 	    "vnet": "Vnet1",
             "pl_sip_encoding": "::cb3a:16e5:ff71:0:0/::ffff:ffff:ffff:0:0"
-	    "floating_nic_mode": "enabled",
+	    "mode": "floating_nic_mode",
 	    "trusted_vni": "1000"
         },
         "OP": "SET"
@@ -1722,13 +1724,27 @@ final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
         "OP": "SET"
     },
     {
-        "DASH_ROUTE_RULE_TABLE:F4939FEFC47E:1000:10.79.14.7": {
+        "DASH_ROUTE_RULE_TABLE:F4939FEFC47E:1000:10.79.14.7/32": {
             "action_type":"decap",
-            "priority":"1"
+            "priority":"1",
             "region":"5"
         },
         "OP": "SET"
     },
+    {
+        "DASH_ROUTE_RULE_TABLE:F4939FEFC47E:1000:us_region_tag": {
+            "action_type":"decap",
+            "priority":"2"
+        },
+        "OP": "SET"
+    },
+    {
+        "DASH_PREFIX_TAG_TABLE::1000:us_region_tag": {
+            "ip_version":"ipv4",
+            "prefix_list":"10.20.1.59/32,10.0.1.0/24"
+        },
+        "OP": "SET"
+    }
 ]
 ```
 
