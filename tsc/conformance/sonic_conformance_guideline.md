@@ -51,6 +51,10 @@ A SONiC distribution that intends to run on bare metal must use PMON for platfor
 
 A SONiC distribution must have the following 3 containers
 
+<p align=center>
+<img src="containers.png" alt="">
+</p>
+
 #### 2.2.1. Switch State Service Container 
 
 The Switch State Service (SwSS) container comprises a collection of processes to allow effective communication among SONiC modules. The Orchagent within the SwSS container receives and processes state information from corresponding syncd daemons, publishes state information into ASIC_DB for syncd container. SwSS facilitates the exchange of state information between application and data plane layers.  
