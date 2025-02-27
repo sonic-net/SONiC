@@ -1282,7 +1282,7 @@ type appInterface interface {
         initialize(data appData)
         .
         .
-        getNamespace(path string, payload []byte) ([]string, error)
+        getNamespace(path string) ([]string, error)
 }
 
 ###### 3.2.2.6.2 Translib Request Handler
@@ -1989,40 +1989,25 @@ func init () {
 }
 
 var oa_name_get_namespace_xfmr GetNamespaceFunc = func(inParams XfmrParams) ([]string, error) {
-    // Initialize the map to store namespaces and payloads (now using a slice of byte arrays)
     var nameSpaceList []string
-    var err error
-    var key, keyField string
 
-    log.V(3).Infof("oa_name_get_namespace_xfmr: inParams: %v", inParams)
+    log.Info("oa_name_get_namespace_xfmr: ", inParams.ygRoot, inParams.uri)
 
-    // Parse URI path to determine key and keyField
-    pathInfo := NewPathInfo(inParams.uri)
+    oa := getAmplifierRootObj(inParams.ygRoot)
 
-    switch {
-    case strings.Contains(inParams.uri, "/amplifier"):
-        key = pathInfo.Var("name")
-        keyField = "name"
-    case strings.Contains(inParams.uri, "/supervisory-channel"):
-        key = pathInfo.Var("interface")
-        keyField = "interface"
+    if strings.Contains(inParams.uri, "/amplifier") && oa.Amplifiers != nil {
+        for key := range oa.Amplifiers.Amplifier {
+            log.Info("oa_name_get_namespace_xfmr: keys ", key)
+            nameSpaceList = append(nameSpaceList, db.GetMDBNameFromEntity(key))
+        }
+    } else if strings.Contains(inParams.uri, "/supervisory-channel") && oa.Amplifiers != nil {
+        for key := range oa.Amplifiers.SupervisoryChannels {
+            log.Info("oa_name_get_namespace_xfmr: keys ", key)
+            nameSpaceList = append(nameSpaceList, db.GetMDBNameFromEntity(key))
+        }
     }
 
-    // Process the payload if it exists
-    if len(inParams.payload) != 0  && len(key) ==0 {
-            nameSpaceList, err = ProcessPayload(inParams.payload, key, keyField)
-            if err != nil {
-                    return nil, err
-            }
-            return nameSpaceList, err
-    }
-
-    // If key is found, assign dbName directly
-    if key != "" && key != "*"  && len(nameSpaceList) == 0 {
-            dbName := db.GetMDBNameFromEntity(key)
-            nameSpaceList = append(nameSpaceList, dbName)
-            return nameSpaceList, nil
-    } else {
+    if len(nameSpaceList) == 0 {
             // For Get requests without key in xpath * is returned.
             log.Infof("No specific key found, using '*' to include all DBs.")
             nameSpaceList = append(nameSpaceList, "*")
@@ -2030,6 +2015,7 @@ var oa_name_get_namespace_xfmr GetNamespaceFunc = func(inParams XfmrParams) ([]s
 
     return nameSpaceList, nil
 }
+
 ```
 ----------
 
@@ -2057,7 +2043,7 @@ func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interfa
 
 func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
 
-func GetNameSpace(path string, payload []byte) ([]string, error) {}
+func GetNameSpace(path string) ([]string, error) {}
 ```
 
 ###### 3.2.2.7.7 Overloaded Methods
