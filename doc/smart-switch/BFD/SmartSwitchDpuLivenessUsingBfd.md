@@ -122,10 +122,10 @@ Multihop BFD sessions are created between NPU and a remote DPU.
 
 HA manager(hamgrd) in NPU creates DPU routing rules for DPU-level HA using VNET_ROUTE_TUNNEL_TABLE which will trigger bfdOrch to create BFD Active session with local and peer information. NPU supports BFD hardware offload, so hardware starts generating BFD packets to the peer.
 
-HA manager also creates another BFD passive multihop session in DPU using BFD_SESSION_TABLE in APP_DB with local DPU PA and peer NPU PAs. BfdOrch checks switch_type in DEVICE_METADATA table of CONFIG_DB and if it's dpu, FRR is configured to trigger BFD sessions. BfdOrch creates BFD_SOFTWARE_SESSION_TABLE entry in STATE_DB with same field-value as passed from BFD_SESSION_TABLE. This allows flexibiliy in setting session type and other parameters from hamgrd.
+HA manager also creates another BFD passive multihop session in DPU using BFD_SESSION_TABLE in APP_DB with local DPU PA and peer NPU PAs. BfdOrch checks the platform SAI capability for BFD offload support and if it's unsupported, FRR is configured to trigger BFD sessions. BfdOrch creates BFD_SOFTWARE_SESSION_TABLE entry in STATE_DB with same field-value as passed from BFD_SESSION_TABLE. This allows flexibiliy in setting session type and other parameters from hamgrd.
 There is no support for TSA with software BFD sessions.
 
-A new manager called BfdMgr is added in bgpcfgd and is instantiated only if switch_type is dpu in DEVICE_METADATA. It monitors for changes in BFD_SOFTWARE_SESSION_TABLE in STATE_DB, and adds or removes BFD sessions in FRR if entries are added or removed in STATE_DB. The keys used in STATE_DB (vrf, interface, peer address) are different from keys used in FRR (vrf, interface, multihop, peer, local). If multihop or local-addr fields are modified in STATE_DB entry, then existing BFD session in and a new one added. Changes to any other fields simply update the existing BFD session in FRR without removing/re-adding. The only supported session type in STATE_DB is async_active. If this session type is set then an active sessions is created in FRR. If "type" field is not set or set to any other value (eg: async_passive) then a passive BFD session is created in FRR.
+A new manager called BfdMgr is added in bgpcfgd and is instantiated only if software_bfd is enabled in the FEATURE table. It monitors for changes in BFD_SOFTWARE_SESSION_TABLE in STATE_DB, and adds or removes BFD sessions in FRR if entries are added or removed in STATE_DB. The keys used in STATE_DB (vrf, interface, peer address) are different from keys used in FRR (vrf, interface, multihop, peer, local). If multihop or local-addr fields are modified in STATE_DB entry, then existing BFD session in and a new one added. Changes to any other fields simply update the existing BFD session in FRR without removing/re-adding. The only supported session type in STATE_DB is async_active. If this session type is set then an active sessions is created in FRR. If "type" field is not set or set to any other value (eg: async_passive) then a passive BFD session is created in FRR.
 
 Trigger for HA manager to create BFD sessions will be detailed in HA HLD.
 
@@ -143,8 +143,8 @@ action is taken.
 ## 2.4 DPU FRR Changes
 
 Update FRR supervisor config file to automatically start python script 
-(bfdmon) to monitor for BFD session states in FRR if switch_type is
-dpu in DEVICE_METADATA. BFD Daemon will automatically be started by 
+(bfdmon) to monitor for BFD session states in FRR if software_bfd is
+enabled in the FEATURE table. BFD Daemon will automatically be started by 
 BfdMgr running as part of bgpcfgd.
 
 ## 2.5 DPU Linux IPTables
