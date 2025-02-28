@@ -76,6 +76,16 @@ This sub-section covers the addition/deletion/modification of config DB changes 
 ### 10. Warmboot and Fastboot Design Impact  
 Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
 
+### Warmboot and Fastboot Performance Impact
+This sub-section must cover the impact of the functionality on warmboot and fastboot performance, that is control plane and data plane downtime.
+As part of the analysis cover the flowing:
+
+- Does this feature add any stalls/sleeps/IO operations to the boot critical chain? Does it change when this feature is disabled/unused? 
+- Does this feature add any additional CPU heavy processing (e.g. rendering Jinja templates) in the boot path (process, library or utility used during boot up)? Does it change when this feature is disabled/unused?
+- In case this feature updates a third party dependency does it cause any impact on boot time performance?
+- Can the feature (service or docker) be delayed?
+- What are the possible optimizations and what is the expected boot time degradation if, by the nature of the feature, additional CPU/IO costs can't be avoided?
+
 ### 11. Memory Consumption
 This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration. 
 ### 12. Restrictions/Limitations  
