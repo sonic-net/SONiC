@@ -82,6 +82,7 @@ As part of the analysis cover the flowing:
 
 - Does this feature add any stalls/sleeps/IO operations to the boot critical chain? Does it change when this feature is disabled/unused? 
 - Does this feature add any additional CPU heavy processing (e.g. rendering Jinja templates) in the boot path (process, library or utility used during boot up)? Does it change when this feature is disabled/unused?
+- In case this feature updates a third party dependency does it cause any impact on boot time performance?
 - Can the feature (service or docker) be delayed?
 - What are the possible optimizations and what is the expected boot time degradation if, by the nature of the feature, additional CPU/IO costs can't be avoided?
 
