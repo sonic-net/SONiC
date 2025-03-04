@@ -274,11 +274,21 @@ N/A - This change is not directly related to the SAI API.
 ### 6.1. Manifest (if the feature is an Application Extension)
 N/A -  Not applicable if not implemented as an application extension.
 
-### 6.2. CLI/YANG model Enhancements
-Any necessary CLI commands for managing the new process manager will be defined and implemented.  Corresponding YANG models will be updated or created.
+### 6.2. CLI Enhancements
+#config process-manager runit <enabled/disabled>
+#show process-manager runit 
 
 ### 6.3. Config DB Enhancements
-Any changes required to the configuration database schema will be documented and implemented.
+New table PROCESS-MANAGER will be introduced to hold if runit is enabled or disabled.
+```
+{
+    "PROCESS_MANAGER": {
+        "runit": {
+            "enabled": "true" 
+        }
+      }
+}
+```
 
 ## 7. Warmboot and Fastboot Design Impact
 N/A
