@@ -277,6 +277,7 @@ N/A -  Not applicable if not implemented as an application extension.
 ### 6.2. CLI Enhancements
 ```
 config process-manager runit <enabled/disabled>
+
 show process-manager runit 
 ```
 
