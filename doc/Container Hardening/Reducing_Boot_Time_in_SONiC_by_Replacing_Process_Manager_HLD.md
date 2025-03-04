@@ -275,8 +275,11 @@ N/A - This change is not directly related to the SAI API.
 N/A -  Not applicable if not implemented as an application extension.
 
 ### 6.2. CLI Enhancements
-#config process-manager runit <enabled/disabled>
-#show process-manager runit 
+```
+config process-manager runit <enabled/disabled>
+
+show process-manager runit 
+```
 
 ### 6.3. Config DB Enhancements
 New table PROCESS-MANAGER will be introduced to hold if runit is enabled or disabled.
