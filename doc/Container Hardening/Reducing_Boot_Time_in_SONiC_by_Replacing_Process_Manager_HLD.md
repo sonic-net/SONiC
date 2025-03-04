@@ -306,6 +306,8 @@ Any open issues or action items will be tracked here.  This may include tasks li
 
 ```
 Currently, runit doesn't offer equivalent functionality to Supervisord supervisor-proc-exit-listener for syslog alerting based on process states. This is a gap in functionality we need to address.
+
+Restart of docker derived based on auto-restart attribute in Feature table is not currently handled and will be handled later.
 ```
 
 
