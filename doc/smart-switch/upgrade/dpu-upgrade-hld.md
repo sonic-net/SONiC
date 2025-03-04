@@ -176,15 +176,22 @@ The offloader will also provide a mode to automatically manage the offloaded con
   * If the offloaded containers are stopped, start them.
   * If the offloaded containers have different versions from the DPU SONiC, upgrade them.
 
-### 8. SAI API
+### 8. GNOI Specific Features
 
-No change to SAI API is required for this feature.
+#### 8.1. `System.SetPackage` RPC.
+
+##### 8.1.1. Path Validation
+The `System.SetPackage` RPC is used to deploy a new SONiC image to the DPU. This RPC allowed the client to transfer a new SONiC image to a client specific path on the DPU. Without proper validation, this can lead to a security risk that the client can transfer a malicious file to sensitive paths on the DPU. The `System.SetPackage` RPC should validate the path to ensure that the file is transferred to a client specific path on the DPU. Any path specified by the client should satisfy either of the following conditions:
+
+1. The path is all writable directories, such as `/tmp`, `/var/tmp`, etc.
+2. The path is under the `/lib/firmware` directory, which is a common location for firmware files.
+
 
 ### 9. Configuration
 
 The main goal of the feature is to provide an API for external clients to drive the DPU upgrade process, which is currently driven manually or through host agent via command line interface `sonic-installer`. The feature does not require any new configuration change.
 
-### 10. CLI Enhancements
+### 10. CLI
 
 As mentioned above, the offloader provides a command line interface to interact with the offloaded containers on the NPU. The offloader CLI commands are:
 * `offloadctl status <container>`: Get the status of the offloaded container.
@@ -238,15 +245,15 @@ This will create a new repository. The implementation will includes:
 * Command line interface for offloader.
 * Redis interface for monitoring the offloaded containers on the NPU.
 
-### 13. Testing Requirements/Design
+### 12. Testing Requirements/Design
 
-#### 13.1. Unit Tests
+#### 12.1. Unit Tests
 Individual units test will be written for each feature added to `sonic-host-services`, `sonic-gnmi` and `sonic-offloader`.
 
-#### 13.2. Integration Tests for GNOI API
+#### 12.2. Integration Tests for GNOI API
 For each GNOI API added, integration tests will be added to `sonic-mgmt` to test stress the API with different outputs.
 
-#### 13.3. Integration tests for individual component.
+#### 12.3. Integration tests for individual component.
 Integration tests are also needed for the individual components.
 * Generic switch upgrade test.
   * with `System.SetPackage`, `OS.Activate`, `System.Reboot`, `System.RebootStatus` and `OS.Verify` RPCs.
@@ -257,13 +264,13 @@ Integration tests are also needed for the individual components.
   * with `Containerz.*` RPCs.
   * Test offloader can start, stops, deploy and list the offloaded containers on the NPU.
 
-#### 13.4. Full Integration tests
+#### 12.4. Full Integration tests
 Full integration tests will be added to `sonic-mgmt` to test the individual DPU upgrade process.
 
-### 14. Open Items
+### 13. Open Items
 
-#### 14.1. OS Image Cleanup
+#### 13.1. OS Image Cleanup
 GNOI does not have a service for cleaning up non-current images. This is potentially a useful feature to clean up old images that are no longer needed.
 
-#### 14.2. Post Upgrade Actions
+#### 13.2. Post Upgrade Actions
 Formally supports post-upgrade actions, such as running a script after the upgrade process is completed.
