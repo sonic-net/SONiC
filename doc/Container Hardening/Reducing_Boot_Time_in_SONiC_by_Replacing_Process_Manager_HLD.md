@@ -100,7 +100,7 @@ Potential replacement process managers will be evaluated based on criteria such 
 |-------------------------------|-----------------------------------------|-------------------------------------|
 | Language                      | Python                                  | C                                   |
 | Goal                          | Feature-rich process management   	  | Simple & robust service supervision |
-| Resource                      | Low overhead                            | High overhead                       |
+| Resource                      | High overhead                            | Low overhead                       |
 | Boot time                     | Slow                                    | Fast                                |
 | Configuration                 | File based                              | Directory based                     |
 | Process Control               | Extensive process control               | Service Monitoring                  |
