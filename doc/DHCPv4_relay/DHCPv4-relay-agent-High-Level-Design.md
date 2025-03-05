@@ -23,15 +23,22 @@
   - [DHCPv4 relay](#dhcpv4-relay)
   - [DHCPv4 Packet Forwarding with relay](#dhcpv4-packet-forwarding-with-relay)
   - [Requirements](#requirements)
-  - [Design Considerations](#design-considerations)
+- [Design Considerations](#design-considerations)
+  - [Co-existence with ISC-DHCP Code](#co-existence-with-isc-dhcp-code)
+  - [Alignment with DHCPv6 Relay](#alignment-with-dhcpv6-relay)
+  - [Interop with Port-Based DHCP Server](#interop-with-port-based-dhcp-server)
+  - [DCHP Monitor](#dchp-monitor)
+  - [Dual-Tor Support](#dual-tor-support)
 - [Detailed Design](#detailed-design)
-    - [Config Manager](#config-manager)
+    - [DHCPv4 Config Manager](#dhcpv4-config-manager)
     - [Relay Main](#relay-main)
+      - [Client->Server Packet Handling](#client-server-packet-handling)
+      - [Server->Client Packet Handling](#server-client-packet-handling)
     - [Stats Manager](#stats-manager)
 - [Yang Model](#yang-model)
 - [DB Changes](#db-changes)
   - [Config-DB](#config-db)
-  - [State-DB](#state-db)
+  - [Counter-DB](#counter-db)
 - [CLI and Usage](#cli-and-usage)
   - [Configuration CLI](#configuration-cli)
   - [Show CLI](#show-cli)
@@ -53,36 +60,34 @@ DORA: Discovery, Offer, Request, and Acknowledgement
 
 # Overview
 
-SONiC currently supports DHCPv4 Relay functionality using the open-source ISC DHCP package. Since 2022, ISC has stopped development and maintenance of the ISC DHCP implementation and transitioned to a new DHCP server called Kea, which does not include a relay for either IPv4 or IPv6. The ISC DHCP relay agent (herafter referred to as ISC-DHCP) used in SONiC has several limitations:
+SONiC currently implements DHCPv4 Relay functionality using the open-source ISC DHCP package. However, since 2022, ISC has ceased development and maintenance of the ISC DHCP software, transitioning to a new DHCP server called Kea, which does not include relay functionality for either IPv4 or IPv6. The ISC DHCP relay agent (hereafter referred to as ISC-DHCP) used in SONiC has several limitations:
+- **Lack of VLAN and VRF Awareness:** The ISC-DHCP implementation requires a distinct process for each VLAN because it lacks native support for VLAN or VRF separation. This limitation imposes significant scalability constraints on the number of VLANs a system can effectively manage. Running a separate process per VLAN increases resource consumption and complexity, making it difficult for a SONiC device to support a large number of VLANs.
+- **Configuration Model:** The ISC-DHCP implementation employs a command-line configuration model, which requires the DHCP container to be relaunched whenever configuration changes are made. This process can be cumbersome and disruptive, as it interrupts DHCP services during the restart, potentially affecting client connectivity while the container is restarting. Also these scheme doesn't allow for any config validation.
+- **Lack of Monitoring and Debugging Tools:** ISC-DHCP does not provide any statistics, making it challenging to monitor and debug.
+- **Limited Support for DHCP Options:** ISC-DHCP lacks support for various DHCP options and sub-options essential for features like EVPN and Static Anycast Gateway.
+- **Complex Patch Management:** Over the years, approximately 20 patches have been applied to the open-source ISC package in the SONiC implementation to address feature enhancements and security concerns. This patching process is error-prone, difficult to manage, and cumbersome when adding new features and capabilities to the relay agent.
 
-- ISC-DHCP is not VLAN or VRF aware, requiring a separate process for each VLAN.
-- ISC-DHCP uses a command-line configuration model that necessitates relaunching the DHCP container after any configuration changes.
-- ISC-DHCP does not provide any statistics for debugging for monitoring.
-- ISC-DHCP lacks support for many DHCP options and sub-options needed for features like EVPN and Static Anycast Gateway.
-- In the SONiC implementation, about 20 patches have been applied to the open-source ISC package over the years for feature enhancements and security concerns. This patching mechanism is error-prone, difficult to understand, and cumbersome for adding new features and capabilities to the relay agent.
-
-For IPv6, the SONiC community has developed a new relay agent to address some of these limitations. This document describes a similar effort to implement a DHCPv4 relay agent that will replace the current ISC-DHCP relay agent with a new SONiC-native implementation. This new implementation will interact with Redis-DB to download configuration and upload statistics.
+To address some of these limitations for DHCPv6, the SONiC community has developed a new relay agent. This document outlines a similar initiative to implement a DHCPv4 relay agent that will replace the current ISC-DHCP relay agent with a SONiC-native solution. This new implementation will interact with Redis-DB to download configurations and upload statistics. It will also add support for the features required for a DHCPv4 relay to operate in an EVPN topology.
 
 ## DHCPv4 relay
 
-DHCP (Dynamic Host Configuration Protocol) is essential in network management, facilitating the automatic assignment of IP addresses to devices within a network. In IPv4 networks, DHCP relay functionality plays a crucial role, especially when the DHCP server is not in the same subnet as the client devices. Network devices like switches and routers, can be configured to act as DHCP relays to ensure seamless IP address allocation across different subnets.
+DHCP (Dynamic Host Configuration Protocol) is a key component in network management, enabling the automatic allocation of IP addresses to devices within a network. In IPv4 environments, DHCP relay functionality becomes particularly important when the DHCP server is located on a different subnet than the client devices. To facilitate seamless IP address distribution across various subnets, network devices such as switches and routers can be configured to function as DHCP relays.
 
-When a DHCP client sends out a broadcast request for an IP address, that request is limited to its local subnet due to the nature of broadcast traffic. In scenarios where the DHCP server resides in a different subnet, the request would never reach it without assistance. Here, the network switch with DHCP relay functionality comes into play. The switch intercepts the broadcast DHCP request and forwards it as a unicast message to the specified DHCP server, often using the IP address of its own interface on the client's subnet as the source.
+When a DHCP client broadcasts a request for an IP address, the nature of broadcast traffic confines this request to its local subnet. If the DHCP server is situated on a different subnet, the request would not reach the server without intervention. This is where a network switch with DHCP relay capabilities is essential. The switch intercepts the broadcast DHCP request and forwards it as a unicast message to the designated DHCP server, often using the IP address of its own interface on the client's subnet as the source address.
 
-This process involves encapsulating the original DHCP request within a new IP packet, adding essential information, such as the 'giaddr' (gateway IP address) field, which helps the DHCP server identify the subnet from which the request originated. Once the DHCP server allocates an IP address, the switch relays the response back to the client, thus completing the DHCP transaction. This relay functionality is vital for maintaining efficient and organized IP address distribution in complex network environments with multiple subnets.
-
+The relay process involves adding crucial information, such as the 'giaddr' (gateway IP address) field in the packet, which aids the DHCP server in identifying the subnet from which the request originated. Once the DHCP server assigns an IP address, the switch relays the server's response back to the client, completing the DHCP transaction. This relay functionality is crucial for ensuring efficient and organized IP address allocation in complex network environments with multiple subnets, thereby supporting seamless network operations and management.
 
 ## DHCPv4 Packet Forwarding with relay
 
-A DHCP relay agent is a crucial component in networks where clients and DHCP servers reside on different subnets. It facilitates the communication between clients and servers by forwarding DHCP messages across subnet boundaries. Here's how a DHCP relay agent handles the four basic DHCP messages:
+A DHCP relay agent is an essential component in networks where clients and DHCP servers are on different subnets, enabling communication by forwarding DHCP messages across subnet boundaries. Here's how a DHCP relay agent manages the four basic DHCP messages:
 
-1.	**DHCP Discover**: When a DHCP client broadcasts a Discover message to find available DHCP servers, the message is limited to the local subnet. The DHCP relay agent, typically configured on a router or a Layer 3 switch, intercepts this broadcast. It then encapsulates the Discover message in a unicast packet directed towards the DHCP server. The relay agent updates the 'giaddr' (gateway IP address) field in the message with its own IP address on the subnet from which the message originated. This helps the DHCP server identify the appropriate subnet for IP allocation. It also replaces source IP field with it's own IP address, so that response from the server will be routed back to the relay. The relay agent will also inserts DHCP relay agent option 82 in the packet if configured to do so.
-<br>
-2.	**DHCP Offer**: The DHCP server, by referring to the relay agent IP address (giaddr) in a DHCP Discover message, selects an IP address to allocate to the DHCP client from an IP pool, and sends a DHCP Offer message with the destination IP address set as the relay agent IP address. The relay agent receives this unicast Offer and decapsulates it, then forwards it as a broadcast message on the local subnet where the client resides. This ensures the client receives the Offer message, even though the server is on a different subnet.
-<br>
-3.	**DHCP Request**: The DHCP client which received the DHCP Offer message broadcasts a DHCP Request message on the physical Ethernet subnet to request network information data such as IP addresses. The DHCP relay agent, upon receiving this message, replaces the values in the fields (same as in the DHCP Discover message) of the packets, and then unicasts the message to the DHCP server.
-<br>
-4.	**DHCP Acknowledgment (ACK)**: The DHCP server sends a DHCP Ack message with the destination IP address set as the relay agent IP address (giaddr). The DHCP relay agent, upon receiving this message, replaces the values in the fields of the packets similar to Offer packet, and then unicasts the message to the DHCP client.
+- **DHCP Discover:** When a DHCP client broadcasts a Discover message to locate available DHCP servers, the message is confined to the local subnet. The DHCP relay agent, typically configured on a router or Layer 3 switch, intercepts this broadcast. It encapsulates the Discover message in a unicast packet directed to the DHCP server and updates the 'giaddr' (gateway IP address) field with its own IP address on the originating subnet. This helps the DHCP server identify the correct subnet for IP allocation. The relay agent also replaces the source IP field with its own IP address to ensure the server's response is routed back to the relay. Additionally, the relay agent can insert DHCP relay agent option 82 into the packet if configured to do so.
+
+- **DHCP Offer:** The DHCP server, using the relay agent's IP address in the giaddr field of the DHCP Discover message, selects an IP address from its pool to allocate to the client and sends a DHCP Offer message to the relay agent's IP address. The relay agent receives this unicast Offer, decapsulates it, and forwards it as a broadcast message on the local subnet where the client is located. This ensures the client receives the Offer message, even though the server resides on a different subnet.
+
+- **DHCP Request:** The DHCP client, upon receiving the DHCP Offer, broadcasts a DHCP Request message on the local Ethernet subnet to request network configuration information such as an IP address. The DHCP relay agent intercepts this message, updates the fields as it did in the DHCP Discover message, and unicasts the packet to the DHCP server.
+
+- **DHCP Acknowledgment (ACK):** The DHCP server responds with a DHCP Ack message, setting the destination IP address to the relay agent's IP address (giaddr). Upon receiving this message, the DHCP relay agent updates the packet's fields similar to the Offer message and forwards it as a unicast message to the DHCP client, completing the DHCP transaction.
 
 <div align="center"> <img src=images/DHCPv4_Relay_Basic_Flow.png width=600 /> </div>
 
@@ -135,11 +140,26 @@ A DHCP relay agent is a crucial component in networks where clients and DHCP ser
 -  **R13:** This proposed DHCP relay agent will need to support all the functionality that has been added over the years in the community through various patches. The complete backward compatibitlity with ISC DHCP is an aspirational goal.
 
 
-## Design Considerations
+# Design Considerations
 
-- Co-existence with ISC-DHCP code. In order to allow users to seamlessly migrate from isc-dchp to sonic-dhcpv4-relay, both designs will be present in the SONiC codebase for some time. A new flag called ```has_sonic_dhcpv4_relay``` will be added to ```dhcp_relay``` feature in the config-db for the users to select one of the designs and default will be set to existing isc-dchp. Once the new design is proven to be a functional superset of isc-dhcp, both the feature flag and isc-dhcp can be deprecated.
-- Alignment with DHCPv6 relay - The new DHCPv4 relay design will try to follow the same design structure as existing dhcp6 relay as much as possible but the code will be added in a new repository https://github.com/sonic-net/sonic-dhcpv4-relay
-- Interop with port-based DHCP server - TBD
+## Co-existence with ISC-DHCP Code
+To facilitate a smooth transition for users migrating from ISC-DHCP to the new SONiC-DHCPv4-Relay, both implementations will coexist within the SONiC codebase for a period of time. A new configuration flag, has_sonic_dhcpv4_relay, will be introduced in the dhcp_relay feature within the config-db. This flag will allow users to select either the ISC-DHCP or the SONiC-DHCPv4-Relay implementation, with the default set to the existing ISC-DHCP. Once the new design has been validated as a functional superset of ISC-DHCP, both the feature flag and the ISC-DHCP implementation will be deprecated.
+
+## Alignment with DHCPv6 Relay
+The new DHCPv4 relay design will aim to mirror the design structure of the existing DHCPv6 relay as closely as possible, ensuring consistency and ease of integration. However, the code for the DHCPv4 relay will be maintained in a new repository: https://github.com/sonic-net/sonic-dhcpv4-relay.
+
+## Interop with Port-Based DHCP Server
+In the current ISC-DHCP design, a daemon process named `dhcprelayd` operates within the dhcp_relay container. If `dhcp_server` feature is enabled, this daemon is responsible for monitoring the `dhcpv4_server` configuration and managing the lifecycle of the `dhcrelay` process, including actions such as starting, stopping, and restarting it.
+
+The new DHCPv4 Relay design aims to continue this integration with the port-based DHCPv4 server feature by not requiring the need for explicit relay configuration. Instead of depending on an external daemon, the new design will rely on a DHCPv4 CfgMgr thread (described later in this document), which will continuously monitor both the ConfigDb and StateDb for any port-based DHCP server configurations. This thread will dynamically configure the relay functionality as needed, ensuring that changes in server configurations are seamlessly integrated without extra configuration.
+
+## DCHP Monitor
+The existing DHCP monitor will be enhanced in-order to support monitoring of DHCPv4 packets being handled by the new implementation.
+
+## Dual-Tor Support
+In a dual-TOR (Top-of-Rack) architecture, it's possible for DHCP request packets from a client to reach the server through one TOR, while the server's response might arrive at the peer TOR. If the peer TOR has its link in standby mode, it won't be able to relay the response back to the originating client. This issue can be addressed by configuring the DHCPv4 relay with the link-selection and source-interface options.
+
+By enabling the link-selection option, the DHCP relay will use the interface specified by the source-interface option to populate the giaddr field in the packet. When the loopback interface is set as the source-interface, the DHCP request packet sent from the client will have the loopback IP of the originating TOR in the giaddr field. If the DHCP response arrives at the peer TOR, which is in standby mode, it will simply route the packet to the originating ToR. Once the originating TOR receives the response, it can forward the packet to the client through its active interface, as it normally would.
 
 # Detailed Design
 
@@ -147,38 +167,97 @@ DHCPv4 relay process will run in the DHCP container along with DHCPv6 processes 
 
 <div align="center"> <img src=images/DHCPv4_Relay_sequence_diagram.png width=700 /> </div>
 
-### Config Manager
+### DHCPv4 Config Manager
 
-The Config Manager thread will subscribe to redis-DB for updates to any required configurations and then synchronize the updates with the main thread. It will monitor the following tables:
-- DHCPV4_RELAY table for relay configuration on VLAN interface
-- INTF table for source interface to IP address mapping when source-interface paramenter is enabled in the relay configuration.
-- VRF table for creating sockets to send packets to Server.
+The Config Manager thread is responsible for subscribing to the Redis database to receive updates on necessary configurations and synchronizing these updates with the main thread. The following is a non-exhaustive list of the tables monitored by the Config Manager thread.:
+- **DHCPV4_RELAY Table**: For relay configuration on VLAN interfaces
+- **INTF Table:** For mapping source interfaces to IP addresses when the source-interface parameter is enabled in the relay configuration.
+- **VRF Table:** For creating sockets to send packets to Server.
+- **FEATURE Table:** To check if port based `dhcp_server` feature is enabled.
+- **DEVICE_METADATA Table:** To populate hostname and deivce mac in circuit-id/remote-id and also to check if device is a smartSwitch.
+- **DHCP_SERVER_IPV4_SERVER_IP Table:** From StateDB to get server-IP for port-based dhcp_server.
+- **DHCP_SERVER_IPV4 Table:** For per-VLAN port-based DHCP server configuration
+- **VLAN Table:** To ensure that VLAN exists before starting any DHCPv4 relay functionality and get associated VRF id.
 
 ### Relay Main
 
-The DHCPv4 relay main thread handles both Rx and Tx packets from the DHCP client and server. It interacts with the Config Manager for VLAN/VRF/L3-Interface updates and with Stats Manager to export stats.
+The DHCPv4 relay main thread manages both the reception and transmission of packets between the DHCP client and server. It coordinates with the Config Manager for updates on VLAN, VRF, and L3-Interface configurations and interacts with the Stats Manager to export statistics.
 
-Based on configurations, the Relay Main creates these sockets to receive and inject packets from the Kernel:
+Depending on the configurations, Relay Main establishes sockets to receive and transmit packets from the kernel:
 
 <div align="center"> <img src=images/DHCPv4_Relay_Rx_and_Tx_Sockets.png width=700 /> </div>
 
-- Capture Rx Packets: It opens a socket listening on UDP port 67 with the ETH_ALL option to capture DHCPv4 packets on all the interfaces. This socket will capture packets from both server and client.
+- **Capturing Rx Packets:** It opens a socket listening on UDP port 67 with the ETH_ALL option to capture DHCPv4 packets on all the interfaces. This socket will capture packets from both server and client.
 
-- Sending packets to server: For transmitting packets to server, the Relay Main opens and binds a socket for server VRF. If server VRF is not speficied as part of DHCP4_RELAY table, then client and server are assumed to be in the same VRF.
+- **Sending Packets to the Server:** For transmitting packets to the server, Relay Main opens and binds a socket for the server VRF. If no server VRF is specified in the DHCPV4_RELAY table, the client and server are assumed to be in the same VRF and client-side VLAN_interface table's VRF field is used to bind the socket.
 
-- Sending packets to client: A socket is opened on the client-side VLAN to forward DHCPv4 packets to the client.
+- **Sending Packets to the Client:** A socket is opened on the client-side VLAN to forward DHCPv4 packets to the client. This socket is used to broadcast DHCP Offer and Ack packets in the client's VLAN.
+
+When the DHCPv4 relay feature is enabled, the Control Plane Policing (CoPP) manager will configure appropriate trap rules, ensuring that DHCPv4 packets are trapped and rate-limited by the Network Processing Unit (NPU). Once these packets reach the kernel, the DHCP relay main process captures them through the previously described socket mechanisms.
+
+The relay process first inspects the Opcode in the DHCP header to decide how to handle the packet:
+- **BOOTREQUEST:** If the Opcode indicates a BOOTREQUEST, the packet is processed through the Client-to-Server packet handling pathway. This involves forwarding the client's DHCP request to the appropriate DHCP server, potentially adding relay information options as configured.
+- **BOOTREPLY :** If the Opcode is not a BOOTREQUEST, the packet is assumed to be a response from a DHCP server and is processed through the Server-to-Client packet handling pathway. This involves relaying the DHCP server's response back to the client on the originating subnet.
+
+#### Client->Server Packet Handling
+
+The processing steps are as follows:
+-	**Packet Validation:** The relay process parses the packet headers to check for any invalid fields, such as hlen or hop_count.
+-	**Interface Identification:** It identifies the incoming interface from the socket structure and retrieves the associated VLAN and DHCPv4 relay configuration.
+-	**Configuration Check:** If the interface IP is absent or there is no DHCPv4 relay configuration, the packet is returned to the kernel.
+-   **giaddr selection:** If source-interface is programmed in the ConfigDB entry, corresponding interface IP is used as the giaddr of the relayed packet. Otherwise, giaddr is set to the incoming interface IP address.
+-	**Adding Relay Sub-options:** Depending on the configuration, various relay sub-options are added to the packet:
+    - Circuit-ID: Always inserted, it includes the `hostname` from the Device Metadata table, interface alias from the Port Table, and VLAN ID, all separated by a colon. If `hostname` is not present in the Device Metadata table, `sonic` is used as hostname instead.
+
+
+        | Subopt | Len | Circuit ID |
+        | -------|-----|-------------------------------|
+        |    1   |  n  | hostname:interface_alias:vlan |
+
+    - Remote-ID: Also always inserted, this option carries the MAC address from the localhost|mac field in the DEVICE_METADATA table.
+
+        | Subopt | Len | Remote ID |
+        | -------|-----|-----------|
+        |    2   |  6  | my_mac |
+
+    - Link-Selection: If the corresponding flag is enabled in the ConfigDB entry, the link-selection sub-option (0x5) is added, carrying the client-side subnet IP. The server is expected to use this value to assign an IP address instead of relying on the giaddr value.
+
+        | Subopt | Len | Subnet IP Address |
+        | -------|-----|-------------------|
+        |    5   |  4  | Client-Subnet-IP |
+
+    - Server-ID Override: If enabled, this sub-option carries the interface IP of the client VLAN.
+
+        | Subopt | Len | Overriding Server Identified Address |
+        | -------|-----|--------------------
+        |    11   |  4  | Client-Interface-IP   |
+
+    - Virtual Subnet Selection (VSS): If enabled, this option carries the VRF of the client VLAN. Please note that RFC6607 has slightly different format for this sub-option and includes a `type` field Len and VSS Info. The exact format for this sub-option will be updated after further testing.
+
+        | Subopt | Len | VSS Info  |
+        | -------|-----|-----------|
+        |  151   |  len  | vrf-name |
+
+#### Server->Client Packet Handling
+
+For packets arriving with an Opcode of BOOTREPLY, the DHCP relay agent undertakes the following steps to ensure proper handling and forwarding:
+- **Parse Relay Sub-options:** The relay agent parses and extracts all relay sub-options from the packet, which may include information such as Circuit-ID, Remote-ID, and other relevant details.
+- **Identify Downstream Interface**
+		- Using Circuit-ID: If the packet contains a Circuit-ID sub-option, the relay agent uses the VLAN portion of the Circuit-ID to identify the appropriate downstream interface through which to forward the packet to the client. This method provides a direct and efficient way to determine the correct path for the packet.
+		- Fallback to giaddr: If the Circuit-ID is absent, the relay agent falls back on the giaddr (gateway IP address) field. It loops through each interface IP and compares it with the giaddr value to identify the corresponding downstream interface. This ensures that even without a Circuit-ID, the packet can still be accurately directed to the client.
+
 
 ### Stats Manager
 
-The stats manager runs as a separate thread within the DHCPV4 relay process and periodicallys updates the per-VLAN relay statistics in the State DB. Additionally, an optional CLI/signal handler allows for on-demand stats to be updated to the State DB as well.
+The Stats Manager operates as a separate thread within the DHCPv4 relay process and periodically updates per-VLAN relay statistics in the Counters DB. Additionally, an optional CLI or signal handler allows for on-demand updates to the Counters DB.
 
-The stats manager will count packets in the context of client-side VLAN only. For client-to-server traffic, Both Rx and Tx counters will increment for the incoming VLAN only. If multiple dhcpv4 servers are configured on a VLAN, then Rx count will increment once and TX count will increment multiple times (once for each server copy). For server-to-client traffic, first the client side VLAN interface will be identified from DHCP header and then RX/TX counters will incremented in the context of the client-side VLAN.
+The Stats Manager focuses on packet counting within the context of the client-side VLAN only. For client-to-server traffic, both Rx and Tx counters increase for the incoming VLAN. If multiple DHCPv4 servers are configured on a VLAN, the Rx count increases once, while the Tx count increments multiple times (once for each server copy). For server-to-client traffic, the client-side VLAN interface is identified from the DHCP header, and then the Rx/Tx counters are updated in the context of the client-side VLAN.
 
-Note that DHCPv4 relay process uses Kernel for forwarding of packets and is not aware of the destination physical interface. So, there is no support for per physical interface counters. Also, DHCP server may not be directly attached to the switch and may require a VXLAN tunnel for reachability in EVPN topologies. In this case, packets are sent/received on a L3VNI interface and relay process will not provide any counters in the context of server-side interface.
+It's important to note that the DHCPv4 relay process relies on the kernel for packet forwarding and is unaware of the destination physical interface, thus lacking support for per-physical interface counters. Additionally, if the DHCP server is not directly attached to the switch and requires a VXLAN tunnel for reachability in EVPN topologies, packets are sent/received on an L3VNI interface, and the relay process does not provide counters for the server-side interface context.
 
-A proposed enhancement detailed in the [DHCPv4 Relay Per-Interface Counter](https://github.com/sonic-net/SONiC/blob/d0180d8e5ddefbbe50aad4e3b21f56f173f446cd/doc/dhcp_relay/DHCPv4-per-interface-counter.md) will take care of per-interface and other counters deemed necessary for DHCPv4 relay monitoring and debugging needs.
+A proposed enhancement, as outlined in the DHCPv4 Relay Per-Interface Counter document, aims to address the need for detailed per-interface and additional counters necessary for monitoring and debugging the DHCPv4 relay process.
 
-- Example 1: Vlan10 has a DHCPv4 relay configuration with a single server IP. After the initial DORA exchange has been completed, `show dhcpv4relay_counter` would display a count of 1 in both Rx and Tx directions for Discover/Offer/Request/Ack on Vlan 10. There will be no counter increments on the server facing vlan interface.
+- **Example 1:** Consider a scenario where Vlan10 is configured with a DHCPv4 relay pointing to a single server IP. Upon the completion of the initial DORA (Discover, Offer, Request, Acknowledgment) exchange, executing the command show dhcpv4relay_counter would display a count of 1 in both the Rx and Tx directions for each of the DORA messages on Vlan10. Importantly, there would be no increment in counters on the server-facing VLAN interface, as the counters are specific to the client-facing interface interactions.
 
         +-------------+-------+-------+-------+-------+
         | Vlan (RX)   |   Dis |   Off |   Req |   Ack |
@@ -192,7 +271,7 @@ A proposed enhancement detailed in the [DHCPv4 Relay Per-Interface Counter](http
         | Vlan10      |    1  |    1  |    1  |    1  |
         +-------------+-------+-------+-------+-------+
 
-- Example 2: Vlan11 has a DHCPv4 relay configuration with there servers. In this case, relay will send a copy of the discover packet to each of the three servers and assuming all 3 responds, this is what `show dhcpv4relay_counters` will print after the initial DORA exchange has been completed,.
+- **Example 2:** In the case where Vlan11 is configured with a DHCPv4 relay pointing to three servers, the relay will send a copy of the Discover packet to each of the three servers. Assuming all three servers respond, the command show dhcpv4relay_counters would display the following counts after the initial DORA exchange is completed:
 
         +-------------+-------+-------+-------+-------+
         | Vlan (RX)   |   Dis |   Off |   Req |   Ack |
@@ -208,11 +287,11 @@ A proposed enhancement detailed in the [DHCPv4 Relay Per-Interface Counter](http
 
 # Yang Model
 
-A new yang-model for DHCPv4 will be added. This will be in addition to existing sonic-dhcpv6-relay yang model that has a table named DHCP_RELAY for DHCPv6. The existing DHCP_RELAY can be potentially renamed to DHCPV6_RELAY for more clarity and conistent naming.
+A new YANG model for DHCPv4 will be introduced, complementing the existing sonic-dhcpv6-relay YANG model, which includes a table named DHCP_RELAY for DHCPv6. To enhance clarity and ensure consistent naming conventions, the existing DHCP_RELAY table could potentially be renamed to DHCPV6_RELAY.
 
 sonic-dhcpv4-relay.yang
 
-```JSON
+```
 module sonic-dhcpv4-relay {
 
     namespace "http://github.com/sonic-net/sonic-dhcpv4-relay";
@@ -282,10 +361,9 @@ module sonic-dhcpv4-relay {
                     type leafref {
                         path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
                     }
-                    must "current()/../vrf_selection = 'enable' and
-                          current()/../server_id_override = 'enable' and
+                    must "current()/../server_id_override = 'enable' and
                           current()/../link_selection = 'enable')" {
-                        description "when server_vrf is set, link_selection, vrf_selection and server_id_override must be enabled";
+                        description "when server_vrf is set, link_selection and server_id_override must be enabled";
                     }
                 }
 
@@ -359,10 +437,9 @@ module sonic-dhcpv4-relay {
 
 ## Config-DB
 
-A new table will be added in config-db to specify the dhcp-relay configuration on a vlan. The DHCPV4 relay table will serve as the authoritative source for DHCPv4 relay configurations. For backward compatibility, configurations via VLAN mode are still supported. The existing VLAN based CLI that adds a ```dhcpv4_servers``` field to VLAN table will continue to be supported for now. Once ISC-DHCP code is deprecated, this CLI will be be updated to add the server information to DHCPV4_RELAY table. Similarily, a VLAN show command will fetch the relevant dhcpv4 configuration from DHCPV4_table.
+A new table, named DHCPV4_RELAY, will be introduced in the config-db to define DHCP relay configurations on a VLAN. This table will act as the authoritative source for DHCPv4 relay settings. For backward compatibility, existing configurations through VLAN mode will remain supported. The current VLAN-based CLI, which adds a dhcpv4_servers field to the VLAN table, will continue to function temporarily. The existing config CLI will be enhanced to add dhcpv4 server configuration to both VLAN and DHCPv4 tables. Once the ISC-DHCP code is deprecated, this CLI will be updated to record server information in the DHCPV4_RELAY table only. Similarly, a VLAN show command will retrieve the relevant DHCPv4 configuration from the DHCPV4_RELAY table instead of the VLAN table, ensuring that users can seamlessly transition to the new configuration model without disruption.
 
-
-```JSON
+```
 {
     "DHCPV4_RELAY": {
         "Vlan11": {
@@ -378,11 +455,11 @@ A new table will be added in config-db to specify the dhcp-relay configuration o
 }
 ```
 
-## State-DB
+## Counter-DB
 
-A new DHCPV4_RELAY_COUNTER table will be added in the State DB.
+A new DHCPV4_RELAY_COUNTER table will be added in the Counter DB.
 
-```JSON
+```
 {
   'DHCPV4_RELAY_COUNTER_TABLE': {
     'Vlan1000': {
@@ -470,7 +547,7 @@ sudo config dhcp_relay ipv4 helper del 1000 7.7.7.7
     - Add a dhcpv4 server configuration where server and clients are in different VRFs. VRF of the DHCP Server is specified through CLI and Client VRF is derived from the interface on which dhcp_relay is configured. Specifying server-vrf also requires link-selection, vrf-selection and server-id-override sub-options to be enabled and source-interface to be listed.
 
         ```CMD
-        sudo config dhcpv4-relay add Vlan12 --dhcpv4-servers 192.168.12.1 --server-vrf Vrf01         --link-selection enable --server-id-override enable --vrf-selection enable         --source-interface Loopback0
+        sudo config dhcpv4-relay add Vlan12 --dhcpv4-servers 192.168.12.1 --server-vrf Vrf01 --link-selection enable --server-id-override enable --vrf-selection enable --source-interface Loopback0
         ```
 
     - Update max-hop-count to limit the number of dhcp relays that a packet can go through after which it's dropped.
