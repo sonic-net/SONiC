@@ -105,6 +105,17 @@ This file will contain sections based on lane speed and port number. Inside the 
 0 - Short mode
 1 - Long mode
 
+Example of App Code advertised in module eeprom
+```
+Application Advertisement: 
+400GAUI-4-L C2M (Annex 120G) - Host Assign (0x11) - 400G-FR4/400GBASE-FR4 (Cl 151) - Media Assign (0x11)
+200GAUI-4 C2M (Annex 120E) - Host Assign (0x11) - 200GBASE-FR4 (Cl 122) - Media Assign (0x11)
+100GAUI-1-L C2M (Annex 120G) - Host Assign (0xff) - 100G-FR/100GBASE-FR1 (Cl 140) - Media Assign (0xff)
+CAUI-4 C2M (Annex 83E) with RS(528,514) FEC - Host Assign (0x11) - 100G CWDM4 MSA Spec - Media Assign (0x11)
+400GAUI-4-S C2M (Annex 120G) - Host Assign (0x11) - 400G-FR4/400GBASE-FR4 (Cl 151) - Media Assign (0x11)
+100GAUI-1-S C2M (Annex 120G) - Host Assign (0xff) - 100G-FR/100GBASE-FR1 (Cl 140) - Media Assign (0xff)
+
+```
 ### 3.1 CMIS Control of App Sel Mode:
 Current CMIS implementation:
 1. The host device selects the desired mode using CMIS registers.
