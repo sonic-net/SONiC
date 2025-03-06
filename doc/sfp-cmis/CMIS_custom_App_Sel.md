@@ -1,4 +1,4 @@
-# Custom SI settings for CMIS modules #
+# Custom APP SEL for CMIS modules #
 
 #### Rev 0.1
 
@@ -9,17 +9,13 @@
 - [References](#references)
 - [About This Manual](#about-this-manual)
 - [1 Introduction and Scope](#1-introduction-and-scope)
-  - [1.1 IEEE 802.3ck Requirements](#11-IEEE-802p3ck-Requirements)
-  - [1.2 Short and Long Modes](#12-clause-from-cmis5p0-spec-for-explicit-control)
-  - [1.3 TP4](#12-clause-from-cmis5p0-spec-for-explicit-control)
+  - [1.1 IEEE 802p3ck Requirements](#11-ieee-802p3ck-requirements)
+  - [1.2 TP4](#12-tp4)
 - [2 Requirements](#2-requirements)
 - [3 Architecture Design](#3-architecture-design)
-  - [3.1 TX_SETTING](#31-tx_setting)
-  - [3.2 RX_SETTING](#32-rx_setting)
-  - [3.3 GLOBAL_MEDIA_SETTINGS](#33-global_media_settings)
-  - [3.4 PORT_MEDIA_SETTINGS](#34-port_media_settings)
-  - [3.5 List of standard TX RX SI parameters](#35-list-of-standard-tx-rx-si-parameters)
-  - [3.6 Sample Optics SI setting file](#36-sample-optics-si-setting-file)
+  - [3.1 CMIS Control of App Sel Mode](#31-cmis-control-of-app-sel-mode)
+  - [3.2 Custom CMIS App Sel](#32-custom-cmis-app-sel)
+  - [3.3 Sample Optics SI APP Sel file](#33-sample-optics-si-app-sel-file)
 - [4 High-Level Design](#4-high-level-design)
 - [5 SAI API](#5-sai-api)
 - [6 Configuration and management](#6-configuration-and-management)
@@ -47,31 +43,29 @@
 | DPInit         | Data-Path Initialization                         |
 | QSFP-DD        | QSFP-Double Density (i.e. 400G) optical module   |
 | SI             | Signal Integrity                                 |
-| EC             | Explicit Control                                 |
-| TX             | Transmit                                         |
-| RX             | Recieve                                          |
-| EQ             | Equalizer                                        |
 
 #### Table 2: References
-
 | **Document**                                            | **Location**  |
 |---------------------------------------------------------|---------------|
 | CMIS v5 | [CMIS5p0.pdf](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf) |
-| IEEE_802 | [IEEE 802_3.pdf](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9999414) |
+| IEEE 802 | [IEEE802.pdf](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9999414) |
 
 ### About This Manual
 This is a high-level design document describing the way to apply custom APP SEL for CMIS supported modules. 
 
 ## 1 Introduction and Scope
 Different electrical link lengths require different module settings.  
-Short mode: Lower output voltage, used for C2M (Chip-to-Module) short-reach links
-Long mode: Higher output voltage, used for C2M long-reach links
-This will have impact on performance and helps avoid signal degradation for long-reach connections
+Short mode: Lower output voltage, used for C2M (Chip-to-Module) short-reach links.
+Long mode: Higher output voltage, used for C2M long-reach links.
+This impacts performance and helps avoid signal degradation for long-reach connections.
 
-### 1.1 IEEE 802.3ck Requirements
-IEEE Standard for Ethernet: Physical Layer Specifications and Management Parameters for 100 Gb/s, 200 Gb/s, and 400 Gb/s Electrical Interfaces Based on 100 Gb/s Signaling
-It alo defines 100Gb/s per lane electrical interface and specifies TP4 output characteristics for signal integrity.
+### 1.1 IEEE 802p3ck Requirements
+IEEE Standard for Ethernet: Physical Layer Specifications and Management Parameters for 100 Gb/s, 200 Gb/s, and 400 Gb/s Electrical Interfaces Based on PAM4 signaling for 100 Gb/s.
+It also defines 100Gb/s per lane electrical interface and specifies TP4 output characteristics for signal integrity.
 
+Reference from IEEE 
+
+![image](https://github.com/user-attachments/assets/c082e321-d020-4c1c-992b-00b590759e78)
 
 
 ### 1.2 TP4
@@ -87,185 +81,99 @@ TP4 is the measurement point at the output of the module, where the signal is se
 4. TP3 – Optical output of the module (before optical fiber transmission).
 5. TP4 – Electrical output of the module (signal going to the host receiver).
 
+```
++----------------+                     +----------------------+
+|   Host ASIC    |                     |   Optical Module     |
+| (Electrical    |                     | (Electrical + Optical|
+|    Side)       |                     |       Side)          |
+|                |                     |                      |
+|   TX  -------> |  ------TP0--------> |  RX                  |
+|   RX  <------- |  <-----TP4--------- |  TX                  |
++----------------+                     +----------------------+
+```
 
 ## 2 Requirements
-This feature would be enabled per platform basis. If platform wants to use this feature, they would need to provide optics_si_setting.json file during init for XCVRD to parse it. The SI parameters can be vendor and module specific. The vendor can populate desired SI param values in a JSON file. Provide an approach in the CMIS state machine to generate and apply host defined SI parameters to module eeprom. The Modules that do not support CMIS and not part of CMIS state machine are not in the scope of this document. 
+This feature would be enabled on a per-platform basis. If a platform wants to use this feature, it must provide the optics_si_app_sel.json file during initialization for XCVRD to parse. The mode value will depend on the platform's TP4 measurement points. The CMIS state machine will be modified to support host-defined APP SEL and program the module EEPROM accordingly.
 
-![image](https://user-images.githubusercontent.com/115578705/236575703-aea7f377-ba5e-4e96-b18e-920f93e19774.png)
+Modules that do not support CMIS and are not part of the CMIS state machine are out of the scope of this document.
 
 ## 3 Architecture Design
-The SI media setting file optics_si_setting.json needs to be defined by each platform_vendor that will need SI settings. All SKUs of the platform will share the same optics_si_setting.json file. If no file is found, then this mechanism will be ignored.
+Each platform vendor that requires custom APP code settings must define the optics_si_app_sel.json file. All SKUs of the platform will share the same optics_si_app_sel.json file. If no file is found, this mechanism will be ignored.
 
-This file will have two blocks: the first is global level setting and the next is port level setting. These blocks will contain subblocks of range or indiviual ports. Inside this port block, there will be subblocks for different lane speeds which will eventuall have per-lane SI parameter setting values based on the type of vendor that are expected to be programmed. The SI settings will not depend on cable length.
+This file will contain sections based on lane speed and port number. Inside the port block, there will be a mode with values:
 
-### 3.1 TX_SETTING:   
-TX EQ (TX input equalizer control) setting can be FIXED or ADAPTIVE. Only adaptive EQ should be used for TX input, and it's enabled as the default setting in module. Fixed EQ is not recommended for TX direction and will not work until the SI/Hardware team explicitly recommends it.
+0 - Short mode
+1 - Long mode
 
-If the TxInputEqFixedManualControlSupported flag is set, then the TX SI params will be applied and we need to disable AdaptiveInputEqEnableTx.
+### 3.1 CMIS Control of App Sel Mode:
+Current CMIS implementation:
+1. The host device selects the desired mode using CMIS registers.
+2. Modules report supported application modes via App Advertisements.
+3. The host writes the desired mode into the Application Select field in CMIS.
+4. The module applies the corresponding Tx/Rx equalization, power levels, and signal conditioning settings.
 
-TX SI Control Advertisement: Page 01h Byte 161 -
-Bit 2 - TxInputEqFixedManualControlSupported
-Bit 3 - TxInputAdaptiveEqSupported 
-
-![image](https://github.com/AnoopKamath/SONiC/assets/115578705/be63096a-ee4e-4749-9698-707f54fe595f)
-
-TX Input EQ register control: Page 10h Byte 153 – 159
-
-| **Byte**       | **Field Name**                            |
-| -------------- | ----------------------------------------- |
-| 153            | AdaptiveInputEqEnableTx1..8 (lane 1-8)    |
-| 154 - 155      | AdaptiveInputEqRecallTx1..8 (lane 1-8)    |
-| 156 - 159      | FixedInputEqTargetTx1..8    (lane 1-8)    |
-
-### 3.2 RX_SETTING:   
-The RX_SETTING SI settings can be directly written and applied for RX output equalization if RX Output Controls are Supported.
-
-TX SI Control Advertisement: Page 01h Byte 162 -
-Bit 2 - RxOutputAmplitudeControlSupported
-Bit 3-4 - RxOutputEqControlSupported
-
-![image](https://github.com/AnoopKamath/SONiC/assets/115578705/ce986f24-13bb-494f-a2b0-64e6d2f8b76b)
-
-The RX Output EQ register control: Page 10h Byte 162 – 173
-
-| **Byte**       | **Field Name**                            |
-| -------------- | ----------------------------------------- |
-| 162 - 165      | OutputEqPreCursorTargetRx1..8 (lane 1-8)  |
-| 166 - 169      | OutputEqPostCursorTargetRx1..8 (lane 1-8) |
-| 170 - 173      | OutputAmplitudeTargetRx1..8    (lane 1-8) |
-
-
-
-### 3.3 GLOBAL_MEDIA_SETTINGS:  
-This block's first level of identification will be the range of port numbers. The ports can be defined as a range of 0-31 or a list of multiple ports: 1, 2, 3, or a list of ports in the range of 5–10, 25–31, matching the index number in the port_config.ini file. This port range will have a unique defined lane speed, which will have unique vendor and vendor part number entries supporting this speed. Module key will be created based on speed and vendor details.
-
-Each vendor will have per-lane SI param attribute entries applicable for the identified port + speed for the platform vendor. This value will be searched through the module key.
-
-### 3.4 PORT_MEDIA_SETTINGS:  
-The entries in this block will be unique single port numbers. The control of SI attribute list generation search will reach the PORT_MEDIA_SETTINGS block only when no attribute list is generated in the GLOBAL_MEDIA_SETTINGS block.   
-
-There will be unique speed and vendor/vendor_PN entries in each identified port block.
-
-Default values can be platform defaults for multiple vendors in each section.
-
-### 3.5 List of standard TX RX SI parameters
--  FixedInputEqTargetTx 
--  OutputEqPreCursorTargetRx 
--  OutputEqPostCursorTargetRx 
--  OutputAmplitudeTargetRx
-
-### 3.6 Sample Optics SI setting file:
+### 3.2 Custom CMIS App Sel:   
+1. Generate an optics_si_app_sel.json file containing the desired app sel mode for different speeds, individual ports, or port ranges.
+2. The port block will have mode values (0 - Short, 1 - Long). The file will be parsed during XCVRD initialization.
+3. Similar to the existing flow where the device selects the desired app code, the new logic will determine the app sel code based on mode.
+4. If a mode-based app sel is not found for a given speed/lane configuration, it will revert to the existing logic to select the first best match.
+ 
+### 3.3 Sample Optics SI APP Sel file:
 ```
 {
         "GLOBAL_MEDIA_SETTINGS": {
                 "0-17,19-24": {
                         "100G_SPEED": {
-                                "CREDO-CAC82X321MXYXYHW": {
-                                        "OutputEqPreCursorTargetRx": {
-                                                "OutputEqPreCursorTargetRx1": 5,
-                                                "OutputEqPreCursorTargetRx2": 5,
-                                                "OutputEqPreCursorTargetRx3": 5,
-                                                "OutputEqPreCursorTargetRx4": 5,
-                                                "OutputEqPreCursorTargetRx5": 5,
-                                                "OutputEqPreCursorTargetRx6": 5,
-                                                "OutputEqPreCursorTargetRx7": 5,
-                                                "OutputEqPreCursorTargetRx8": 5
-                                        }
-                                },
-                                "CISCO-INNOLIGHT-T-DXXNT-NCI": {
-                                        "OutputEqPostCursorTargetRx": {
-                                                "OutputEqPostCursorTargetRx1": 8,
-                                                "OutputEqPostCursorTargetRx2": 8,
-                                                "OutputEqPostCursorTargetRx3": 8,
-                                                "OutputEqPostCursorTargetRx4": 8,
-                                                "OutputEqPostCursorTargetRx5": 8,
-                                                "OutputEqPostCursorTargetRx6": 8,
-                                                "OutputEqPostCursorTargetRx7": 8,
-                                                "OutputEqPostCursorTargetRx8": 8
-                                        }
-                                }
-                        }
-                },
+                                "Mode": 0
+                         }
+                }
                 "25,28,30": {
                         "100G_SPEED": {
-                                "Default": {
-                                        "OutputAmplitudeTargetRx": {
-                                                "OutputAmplitudeTargetRx1": 7,
-                                                "OutputAmplitudeTargetRx2": 7,
-                                                "OutputAmplitudeTargetRx3": 7,
-                                                "OutputAmplitudeTargetRx4": 7,
-                                                "OutputAmplitudeTargetRx5": 7,
-                                                "OutputAmplitudeTargetRx6": 7,
-                                                "OutputAmplitudeTargetRx7": 7,
-                                                "OutputAmplitudeTargetRx8": 7
-                                        }
-                                }
+                                "Mode": 1
                         }
                 }
-        },
-        "PORT_MEDIA_SETTINGS": {
-                "18": {
-                        "100G_SPEED": {
-                                "Default": {
-                                        "OutputEqPostCursorTargetRx": {
-                                                "OutputEqPostCursorTargetRx1": 5,
-                                                "OutputEqPostCursorTargetRx2": 5,
-                                                "OutputEqPostCursorTargetRx3": 5,
-                                                "OutputEqPostCursorTargetRx4": 5,
-                                                "OutputEqPostCursorTargetRx5": 5,
-                                                "OutputEqPostCursorTargetRx6": 5,
-                                                "OutputEqPostCursorTargetRx7": 5,
-                                                "OutputEqPostCursorTargetRx8": 5
-                                        }
-                                }
-                        }
-                }
+                   
         }
 }
 ```
 
 ## 4 High-Level Design
-Please refer below points in line with flow diagram.
 
-1. When CMIS-supported module insertion happens in XCVRD, the module will progress to the AP_CONFIG state (after DP_DEINIT state applying app code, EC = 0)) in the CMIS state machine. During which, when the module is in DataPathDeactivated or Disabled state, the desired AppSel code is applied. When the Config Success is validated and before DP_INIT state, check if the optics_si_setting.json file is parsed successfully and if lane speed needs special Signal Integrity (SI) settings. The lane speed is generated based on the module speed and the host lane count.
+1.  When a CMIS-supported module is inserted in XCVRD, the module transitions to the CMIS_INSERTED state.
+2. The get_cmis_application_desired() API loops through available App codes.
+3. In the current design, the code selects the first best match based on Host Lane and Host Speed.
+4. The proposed change introduces logic to check the app code and match the best App code, incorporating the mode parsed from the JSON file.
 
-2. If both of the above conditions are met, then proceed to generate the key (module key) and retrieve the SI attribute list.  
-  2.1. Generate module key based on Data Path(DP) lane speed + module vendor name, + module vendor part number.    
-  2.2. Using this module key (2.1), the search begins for the detected port in the GLOBAL_MEDIA_SETTINGS section. If the module key matches any entries or any search that matches for (2.3) to (2.5) sections, then SI attributes from this section are copied to the SI param attribute list (2.7).   
-  2.3. If no match happens in 2.2, reduce the search to module default + speed of the detected port in GLOBAL_MEDIA_SETTINGS  
-  2.4. If no match happens in 2.3, reduce the search to the speed of the detected port in GLOBAL_MEDIA_SETTINGS  
-  2.5. If no match happens in the GLOBAL_MEDIA_SETTINGS block, the search now begins in the PORT_MEDIA_SETTINGS block for the detected port. If no match happens in the PORT_MEDIA_SETTINGS block, the final search for the default block is done.  
-  2.6. If no match happens to the default block, then an empty attribute list (2.8) is returned.
+Current CMIS FSM :
 
-3. Get the attribute list and validate if the list is not empty, then proceed to process the SI setting param list. If the list is empty, continue with the DP_INIT state in the CMIS state machine.
+ ```
+CMIS_INSERTED → CMIS_DP_DEINIT → CMIS_STATE_AP_CONF → CMIS_STATE_DP_INIT → CMIS_TX_ON → CMIS_READY
+       |                                 |
+       V                                 V
+[get desired mode]          [Write selected APP code to EEPROM]
+           |
+           V
+[Best match from the available App codes]
 
-4. After applying the application code to the configuration with Explicit Control (EC) = 0, and committed to the activate state, now read and cache the default or active TX/RX SI settings. We need to cache the default values of the module. It's possible that we may not modify all the parameters. In such cases, we need to apply new SI values along with the default values that were already present. If we only apply the new values in Staged Control Set, the other values will be set to 0 in the Active Control Set.  
-Reference Register: Upper Page 10h bytes 145 –152 (desired ApSel Code)  
-Reference Register: Upper Page 11h bytes 214 to 234
-
-5. Update the new values from the attribute list (3) to the cached SI list (5).
-  
-6. Write new EQ settings to Staged Control Set 0. EQ settings include: new SI attribute list from (5) - Validate this against SI Controls Advertisement, disabling adaptive TX input EQ settings if applicable. Apply application code to config with EC = 1 and commit to the active set.   
-Reference Register: Upper Page 01h bytes 161 - 162 (TX/RX SI Controls Advertisement)  
-Reference Register: Upper Page 10h bytes 143 (Applying APSel Config using ApplyDPInit, Copying from Staged Control Set to Active Control Set)    
-Reference Register: Upper Page 10h bytes 145 – 152 (desired ApSel Code)     
-Reference Register: Upper page 10h byte 153 - 173 (desired Host defined SI settings for EC=1 mode)  
-
-7. Validate the config_status code, if the status is not config success, then force CMIS to reinit and retry. If the configuration fails after 3 retry attempts, print an error message and exit from initializing this port. If config_status is successful, then continue with the DP_INIT state in the CMIS state machine.  
-Reference Register: Upper Page 11h Byte 202-205 (config_status register)  
-
-CMIS FSM change:
-
-![CMIS_FSM drawio (1)](https://github.com/AnoopKamath/SONiC/assets/115578705/36fc90a7-37f9-4c63-b073-034943daa517)
+```
 
 
+Propsed CMIS FSM:
 
-SI attribute generation flow:
+ ```
+PARSE optics_si_app_sel.json -> SAVE PARSED DATA IN port_appl_sel_data
 
+CMIS_INSERTED → CMIS_DP_DEINIT → CMIS_STATE_AP_CONF → CMIS_STATE_DP_INIT → CMIS_TX_ON → CMIS_READY
+       |                                 |
+       V                                 V
+[get desired mode]          [Write selected APP code to EEPROM]
+           |
+           V
+[Implement new logic to read the port_appl_sel_data and determine the mode.]
+[Iterate through all available application codes to match the host speed, host lane, and media lane with either L or S mode.]
+[If no match is found, revert to the previous logic to select the best match.]
 
-![CMIS_SI drawio](https://github.com/AnoopKamath/SONiC/assets/115578705/eb21718a-be04-441e-8d4c-321592fed9ee)
-
-
+```
 
 ## 5 SAI API
 There are no changes to SAI API
@@ -282,6 +190,6 @@ If transceiver is not present:
 Modules that do not support CMIS and not part of CMIS state machine are not in the scope of this document.
 
 ## 9 Unit Test cases
-1. Check XCVRD/CMIS log if optics SI settings are succesfully applied for module which expect the SI settings.
-2. Check XCVRD/CMIS log if optics SI settings are ignored for modules that dont expect the SI settings.
-3. Validate no link flaps or link down once SI settings are applied
+1. Check XCVRD/CMIS log if optics App sel settings are succesfully applied for module which expect the mode settings.
+2. Check XCVRD/CMIS log if optics App settings are ignored for modules that dont expect the App mode settings.
+3. Validate no link flaps or link down once App settings are applied
