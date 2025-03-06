@@ -160,10 +160,10 @@ bfdorch changes:
             attr.value.oid = next_hop_id;
             attrs.emplace_back(attr);
         }
-    }
-    else
-    {
-        //configure BFD session with port_id and mac address
+        else
+        {
+            //configure BFD session with port_id and mac address
+        }
     }
   ```
 
