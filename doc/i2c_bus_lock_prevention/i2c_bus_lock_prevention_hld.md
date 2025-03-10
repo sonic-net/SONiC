@@ -13,7 +13,7 @@
     * [6.2. I2C Isolated Region](#62-i2c-isolated-region)
     * [6.3. I2C Isolation List](#63-i2c-isolation-list)
     * [6.4. Syslog Messages](#64-syslog-messages)
-        * [6.4.1. The Timing to Write Syslog] (#641-the-timing-to write-syslog)
+        * [6.4.1. The Timing to Write Syslog](#641-the-timing-to-write-syslog)
         * [6.4.2. The Format of the Syslog Messages](#642-the-format-of-the-syslog-messages)
         * [6.4.3. The Exausted List of the Syslog Messages](#643-the-exausted-list-of-the-syslog-messages)
     * [6.5. Platform Driver](#65-platform-driver)
@@ -172,7 +172,7 @@ An example syslog message: [I2CHEALTH-001] i2c bus lock is detected.
 ###### Table 4: I2C Bus Lock Prevention Syslog Messages
 |Message ID|Log Level|Message Template|Example Message(Empty when it's the same as template)|Suggested Action|
 |----------|---------|----------------|-----------------------------------------------------|----------------|
-|0|ERROR|Internal Error: invalid msg id:{}.|Internal Error: invalid msg id:0.|Run 'show techsupport' and provide the dump file to tech support.|
+|0|ERROR|Internal Error: invalid msg id:{}.|Internal Error: invalid msg id:0.|Run 'show techsupport' and provide the dump file to the community with the reported issue.|
 |1|ERROR|I2c bus lock is detected.| |Find out the isolated device and remove it.|
 |2|NOTICE|I2c bus lock is recovered.| |None|
 |3|NOTICE|Isolate i2c device: {} ({}:{}).|Isolate i2c devices: Ethernet1(77-2-72-1:25-0050).|Replace the transceiver inserted in the port mentioned by the message.|
@@ -183,20 +183,20 @@ An example syslog message: [I2CHEALTH-001] i2c bus lock is detected.
 |8|NOTICE|Start scanning for i2c faulty devices.| |None|
 |9|NOTICE|Finish scanning for i2c faulty devices.The isolation list is updated.| |None|
 |10|NOTICE|Resume all i2c daemons.| |None|
-|11|ERROR|Fatal error! Fail to stop all i2c daemons.| |Run 'show techsupport' and provide the dump file to tech support.|
-|12|ERROR|Fatal error! Fail to reset all i2c mux devices.| |Run 'show techsupport' and provide the dump file to tech support.|
-|13|ERROR|Fatal error! Fail to set all of the fans to full speed.| |Run 'show techsupport' and provide the dump file to tech support.|
-|14|WARNING|Init representative devices list error.| |Run 'show techsupport' and provide the dump file to tech support.|
+|11|ERROR|Fatal error! Fail to stop all i2c daemons.| |Run 'show techsupport' and provide the dump file to the community with the reported issue.|
+|12|ERROR|Fatal error! Fail to reset all i2c mux devices.| |Run 'show techsupport' and provide the dump file to the community with the reported issue.|
+|13|ERROR|Fatal error! Fail to set all of the fans to full speed.| |Run 'show techsupport' and provide the dump file to the community with the reported issue.|
+|14|WARNING|Init representative devices list error.| |Run 'show techsupport' and provide the dump file to the community with the reported issue.|
 |15|INFO|Detect i2c bus health with I2C cmd '{}'.|Detect i2c bus health with I2C cmd 'sudo i2cget -f -y 0 0x77 0x0|None|
 |16|DEBUG|{}: i2c get successfully on attempt {}/{}.|EEPROM: i2c get successfully on attempt 1/3.|None|
 |17|NOTICE|{}: i2c get failed on attempt {}/{}.|EEPROM: i2c get failed on attempt 1/3.|None|
-|18|WARNING|{}: an internal error occurs on attempt {}/{}.|EEPROM: an internal error occurs on attempt 1/3.|Run 'show techsupport' and provide the dump file to tech support.|
+|18|WARNING|{}: an internal error occurs on attempt {}/{}.|EEPROM: an internal error occurs on attempt 1/3.|Run 'show techsupport' and provide the dump file to the community with the reported issue.|
 |19|NOTICE|Execute cmd to stop i2c daemon: '{}'.|Execute cmd to stop i2c daemon: 'sudo systemctl stop as9716-32d-platform-monitor-fan.service'.|None|
-|20|ERROR|Failed to execute cmd to stop i2c daemon: '{}'.|Failed to execute cmd to stop i2c daemon: 'sudo systemctl stop as9716-32d-platform-monitor-fan.service'.|Run 'show techsupport' and provide the dump file to tech support.|
+|20|ERROR|Failed to execute cmd to stop i2c daemon: '{}'.|Failed to execute cmd to stop i2c daemon: 'sudo systemctl stop as9716-32d-platform-monitor-fan.service'.|Run 'show techsupport' and provide the dump file to the community with the reported issue.|
 |21|NOTICE|Execute cmd to start i2c daemon: '{}'.|Execute cmd to start i2c daemon: 'sudo systemctl start as9716-32d-platform-monitor-fan.service'.|None|
-|22|ERROR|Failed to execute cmd to start i2c daemon: '{}'.|Failed to execute cmd to start i2c daemon: 'sudo systemctl start as9716-32d-platform-monitor-fan.service'.|Run 'show techsupport' and provide the dump file to tech support.|
-|23|ERROR|Failed to add {}({}:{}) into the isolation list.|Failed to add Ethernet1(77-2-72-1:25-0050) into the isolation list.|1. Replace the transceiver inserted in the port mentioned by the message. 2. Run 'show techsupport' and provide the dump file to tech support.|
-|24|ERROR|Failed to remove {}({}:{}) into the isolation list.|Failed to remove Ethernet1(77-2-72-1:25-0050) into the isolation list.|1-a. First option: remove the transceiver inserted in the port mentioned in the message. 1-b. Second option: reboot the device. 2. Run 'show techsupport' and provide the dump file to tech support."|
+|22|ERROR|Failed to execute cmd to start i2c daemon: '{}'.|Failed to execute cmd to start i2c daemon: 'sudo systemctl start as9716-32d-platform-monitor-fan.service'.|Run 'show techsupport' and provide the dump file to the community with the reported issue.|
+|23|ERROR|Failed to add {}({}:{}) into the isolation list.|Failed to add Ethernet1(77-2-72-1:25-0050) into the isolation list.|1. Replace the transceiver inserted in the port mentioned by the message. 2. Run 'show techsupport' and provide the dump file to the community with the reported issue.|
+|24|ERROR|Failed to remove {}({}:{}) into the isolation list.|Failed to remove Ethernet1(77-2-72-1:25-0050) into the isolation list.|1-a. First option: remove the transceiver inserted in the port mentioned in the message. 1-b. Second option: reboot the device. 2. Run 'show techsupport' and provide the dump file to the community with the reported issue."|
 
 
 #### 6.5. Platform Driver
@@ -281,8 +281,8 @@ When the i2c bus lock happens, the CPU triggers the reset signal to i2c mux devi
     - After the isolation list is generated and the i2c bus health is back to normal. Recover the execution of the daemons that need to access i2c bus.
 
 * Fault Tolerance Design on the i2c-access daemons. ("i2c-access daemons" means the daemon that will issue i2c transactions in the background)
-    - Assumes that the isolation list is only generated after the occurrence of a i2c bus lock event. I2c-access daemons will be stopped when the i2c bus hang event happens.
-    - When a faulty device is deteced by i2c healthd, i2c healthd will call platform API to set the faulty state to the device.
+    - The isolation list is only generated after the occurrence of a i2c bus lock event. I2c-access daemons will be stopped when the i2c bus lock event happens.
+    - When a faulty device is detected by i2c healthd, i2c healthd will call platform API to set the faulty state to the device.
     - When a daemon starts, it calls platform API to access the i2c device. The platform API shall not issue any i2c command against the i2c device when it is marked as faulty.
     - For the i2c device that is swappable, there must be a mechanism that is responsible to detect the present status of the i2c device. Take 'xcvrd' as an example, it is resposnible to monitor the presence state of transceivers. In this design, the daemon like 'xcvrd' is responsible to update the isolation list for the device that it keeps monitoring for the presence status. When a faulty device presence status is changed(i.e. the device might be swapped as a good one), it shall remove the device from the isolation list.
 
@@ -300,7 +300,8 @@ class ChassisBase:
         is a list of devices in that region.
 
         Returns:
-            dict: A dictionary mapping regions to their respective list of devices.
+            dict: A dictionary which contains isolated regions as keys and the list of devices in the corresponding region as value.
+
         """
         pass
 
@@ -360,11 +361,13 @@ class ChassisBase:
 The i2c faulty devices detected by the i2c healthd will be written to the 'I2C_ISOLATION_LIST' table in STATE DB.
 
 Table Name: I2C_ISOLATION_LIST
-Key: I2C_ISOLATION_LIST|I2C Isolated Region ID|Isolated I2C Device Name
+
+Key: I2C_ISOLATION_LIST|I2C Isolated Region ID|Isolated I2C Device Address
+
 Field: "device_name"
 
 Refer to [6.2. I2C Isolated Region](#62-i2c-isolated-region) for the consistent of the name in "I2C Isolated Region ID".
-"Isolated I2C Device Name" is the name of the isolated i2c device. The name is got from the platform API. The platform
+"Isolated I2C Device Address" is the address of the isolated i2c device. The address is got from the platform API. The platform
 API may output the corresponding i2c device name under '/sys/bus/i2c/devices/'.
 
 Here is an example for the record in "I2C_ISOLATION_LIST" table in STATE DB.
@@ -400,9 +403,9 @@ The I2C bus lock prevention only works when the swappable faulty device is locat
 
 #### 12.1. Minimum Interval to Detect the Presence State Change of Swapable Modules like Transceivers, PSUs and FAN Modules
 
-Due to the implemenation of xcvrd, psud and thermalctld, they polls for the presence state at fixed interval. If an inserted module is removed and replaces with a new module in a short time, the daemon might not be able to realize the presence state has ever been changed to not present becaus it does not poll the presence state when the module is removed.
+Due to the implemenation of xcvrd, psud and thermalctld, they polls for the presence state at fixed interval. If an inserted module is removed and replaces with a new module in a short time, the daemon might not be able to realize the presence state has ever been changed to not present because it does not poll the presence state when the module is removed.
 
-The mechanism to remove the devices from the isolation state depends on the presence state change. So, in order to let I2C health daemon realize the presence state change, it is required to remove the module for longer than the time mentioned below to ensure the "not present" state can be realized.
+The mechanism for removing devices from isolation depends on the presence state change. Therefore, for the I2C health daemon to detect the presence state change, it must remove the module and wait for the detection interval to elapse to ensure that the "not present" state can be detected.
 
 ### 13. Testing Requirements/Design  
 
