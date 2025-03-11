@@ -322,7 +322,7 @@ Reference Yang model for DASH Vnet is [here](https://github.com/sonic-net/sonic-
 ```
 "DEVICE_METADATA": {
     "localhost": {
-        "type": "SonicDpu",
+        "type": "SmartSwitchDPU",
         "subtype": "SmartSwitch",
         "switch_type": "dpu",
         "sub_role": "None"
@@ -395,7 +395,7 @@ v4_meter_policy_id	 = IPv4 meter policy ID
 v6_meter_policy_id	 = IPv6 meter policy ID
 disable_fast_path_icmp_flow_redirection = Disable handling fast path ICMP flow redirection packets
 mode                     = floating nic mode or vm mode. Default is 'vm_mode'
-trusted_vni              = list of trusted VNIs for this ENI, 'comma' seperated or "-" for range both inclusive. MSEE VNIs can added here
+trusted_vni              = list of trusted VNIs for this ENI, single value or "-" for range both inclusive. MSEE VNIs can added here temporarily.
 ```
 
 ### 3.2.4 TAG
@@ -488,7 +488,7 @@ encap_type               = encap type depends on the action_type - {vxlan, nvgre
 vni                      = vni value to be used as the key for encapsulation. Applicable if encap_type is specified. 
 ```
 
-### 3.2.7 ROUTING APPLIANCE
+### 3.2.7 ROUTING APPLIANCE (DEPRECATED, Use DASH_TUNNEL)
 	
 ```
 DASH_ROUTING_APPLIANCE_TABLE:{{appliance_id}}:
@@ -514,7 +514,7 @@ DASH_APPLIANCE_TABLE:{{appliance_id}}
     "vm_vni": {{vni}}
     "local_region_id": {{region_id}}
     "outbound_direction_lookup": {{dst_mac/src_mac}} (OPTIONAL)
-    "trusted_vni": {{vni list}} (OPTIONAL)
+    "trusted_vnis": {{vni list}} (OPTIONAL)
 ```
 
 ```
@@ -524,7 +524,7 @@ sip                      = source ip address, to be used in encap
 vm_vni                   = VM VNI that is used for setting direction. Also used for inbound encap to VM
 local_region_id          = Region where this appliance is located
 outbound_direction_lookup= dst_mac or src_mac; Default is src_mac. This attribute overrides to dst_mac
-trusted_vni              = list of global trusted VNIs, 'comma' seperated or "-" for range both inclusive.
+trusted_vnis             = list of global trusted VNIs, single value or "-" for range both inclusive.
 ```
 
 ### 3.2.9 ROUTE LPM TABLE - OUTBOUND
@@ -692,7 +692,7 @@ DASH_PA_VALIDATION_TABLE:{{vni}}
 ```
 key                      = DASH_PA_VALIDATION_TABLE:vni; ENI and VNI as key;
 ; field                  = value
-addresses                = list of prefixes used for validating underlay source ip of incoming packets. 
+prefixes                 = list of prefixes used for validating underlay source ip of incoming packets. 
 ```
 
 DASH_PA_VALIDATION_TABLE is used only for additional PA validation. PA prefix can be either IPV4 or IPV6. Used for fastpath or other explicit PA validation cases
