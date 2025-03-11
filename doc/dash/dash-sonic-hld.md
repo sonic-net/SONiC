@@ -1739,7 +1739,7 @@ final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
         "OP": "SET"
     },
     {
-        "DASH_PREFIX_TAG_TABLE::1000:us_region_tag": {
+        "DASH_PREFIX_TAG_TABLE:us_region_tag": {
             "ip_version":"ipv4",
             "prefix_list":"10.20.1.59/32,10.0.1.0/24"
         },
