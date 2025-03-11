@@ -368,11 +368,11 @@ Field: "device_name"
 
 Refer to [6.2. I2C Isolated Region](#62-i2c-isolated-region) for the consistent of the name in "I2C Isolated Region ID".
 "Isolated I2C Device Address" is the address of the isolated i2c device. The address is got from the platform API. The platform
-API may output the corresponding i2c device name under '/sys/bus/i2c/devices/'.
+API may output the corresponding i2c device address under '/sys/bus/i2c/devices/'.
 
 Here is an example for the record in "I2C_ISOLATION_LIST" table in STATE DB.
 The table below contains one faulty device. The I2C Isolated Region ID of the device is "77-2-77-6"
-The isolated region i2c device name is "30-0050".
+The isolated i2c device address in the region is "30-0050".
 The device name of the isolated i2c device is "Ethernet40". That means the transceiver inserted in
 the port Ethernet40 is being isolated.
 ```
