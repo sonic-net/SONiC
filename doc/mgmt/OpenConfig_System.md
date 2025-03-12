@@ -350,7 +350,17 @@ For software-version, new table will be added, namely VERSIONS|SOFTWARE.
 There are no changes to APP DB schema definition.
 
 ### 3.2.3 STATE DB
-There are no changes to STATE DB schema definition.
+There are no changes to STATE DB schema definition.  
+New tables will be added along with support for some paths. These are:
+- AUTHZ_TABLE|*
+- CREDENTIALS|AUTHZ_POLICY
+- CREDENTIALS|CERT
+- CREDENTIALS|PATHZ_POLICY
+- CREDENTIALS|SSH_ACCOUNT
+- CREDENTIALS|SSH_HOST
+- COMPONENT_STATE_TABLE|*
+- HOST_STATS|CONFIG
+- PATHZ_TABLE|*
 
 ### 3.2.4 ASIC DB
 There are no changes to ASIC DB schema definition.
