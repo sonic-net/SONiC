@@ -137,7 +137,7 @@ sequenceDiagram
 
 ### DPU APPL STATE DB
 
-DASH state table in DPU APPL STATE DB, table name is the same as DASH table, key is the same, and fields are result and version ID if it's not a child object.
+Any entry in DPU APPL STATE DB will be mapped to an entry in DPU APPL DB. Their key are totally same. But the value of entry in DPU APPL STATE DB may include its version ID and its result if it's an parent objects or only includes its result to child objects. Typically, a result of 0 indicates the object was successfully applied to the DPU, otherwise it indicates some kind of error occurred.
 
 #### Example 1 DASH_ROUTE_TABLE
 
