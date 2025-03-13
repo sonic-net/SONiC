@@ -11,7 +11,7 @@
   - [Get](#get)
   - [Subscribe](#subscribe)
 - [Table](#table)
-  - [APPL STATE DB](#appl-state-db)
+  - [DPU APPL STATE DB](#dpu-appl-state-db)
     - [Example 1 DASH\_ROUTE\_TABLE](#example-1-dash_route_table)
     - [Example 2 DASH\_ROUTING\_APPLIANCE\_TABLE](#example-2-dash_routing_appliance_table)
 
@@ -39,7 +39,6 @@ The controller communicates with SmartSwitch via the GNMI interface. To enhance 
 | DASH_ROUTE_RULE   |
 | DASH_VNET_MAPPING |
 
-
 ## Sequence flow
 
 ### Set/Remove
@@ -50,8 +49,8 @@ sequenceDiagram
     participant GC as GNMI Client
     box NPU SONiC
         participant GS as GNMI Server
-        participant AD as APP DB
-        participant ASD as APP STATE DB
+        participant AD as DPU APPL DB
+        participant ASD as DPU APPL STATE DB
     end
     Note over AD, ASD: DPUx Redis
     box DPU SONiC
@@ -93,7 +92,7 @@ sequenceDiagram
     participant GC as GNMI Client
     box NPU SONiC
         participant GS as GNMI Server
-        participant ASD as APP STATE DB
+        participant ASD as DPU APPL STATE DB
     end
     Note over ASD: DPUx Redis
 
@@ -111,7 +110,7 @@ sequenceDiagram
     participant GC as GNMI Client
     box NPU SONiC
         participant GS as GNMI Server
-        participant ASD as APP STATE DB
+        participant ASD as DPU APPL STATE DB
     end
     Note over ASD: DPUx Redis
     participant DPU as DPU
@@ -136,9 +135,9 @@ sequenceDiagram
 
 ## Table
 
-### APPL STATE DB
+### DPU APPL STATE DB
 
-DASH state table in APPL STATE DB, table name is the same as DASH table, key is the same, and fields are result and version ID if it's not a child object.
+DASH state table in DPU APPL STATE DB, table name is the same as DASH table, key is the same, and fields are result and version ID if it's not a child object.
 
 #### Example 1 DASH_ROUTE_TABLE
 
