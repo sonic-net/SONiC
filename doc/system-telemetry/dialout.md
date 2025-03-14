@@ -19,7 +19,7 @@ It is useful in some scenarios. A few typical examples:
 
 # SONiC system telemetry software architecture
 System telemetry in SONiC supports both dial-in mode and dial-out mode. The DB client takes care of retrieving data from SONiC redis databases, while non-DB client serves data outside of redis databases. gRPC dial-out client is described in this document,
-![SOFTWARE ARCHITECTURE](img/dial_in_out.png)
+![SOFTWARE ARCHITECTURE](img/GNMI_Server.png)
 
 # Services provided in dialout mode
 gNMIDialout service is defined for telemetry in dialout mode. It has one streaming RPC: Publish. The message from client to collector reuses [SubscribeResponse](https://github.com/openconfig/gnmi/blob/f6185680be3b63e2b17e155f06bfc892f74fc3e7/proto/gnmi/gnmi.proto#L216) from gNMI spec, while the PublishResponse message is optional and skipped by default.
