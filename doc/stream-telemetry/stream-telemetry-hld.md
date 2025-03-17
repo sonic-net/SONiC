@@ -15,11 +15,13 @@
     - [7.1.1. Counter Syncd](#711-counter-syncd)
     - [7.1.2. Stream Telemetry Orch](#712-stream-telemetry-orch)
     - [7.1.3. Netlink Module and DMA Engine](#713-netlink-module-and-dma-engine)
+    - [7.1.4. OpenTelemetry Collector](#714-open-telemetry-collector)
   - [7.2. Data format](#72-data-format)
     - [7.2.1. IPFIX header](#721-ipfix-header)
     - [7.2.2. IPFIX template](#722-ipfix-template)
     - [7.2.3. IPFIX data](#723-ipfix-data)
     - [7.2.4. Netlink message](#724-netlink-message)
+    - [7.2.5. OTLP message](#725-otlp-message)
   - [7.3. Bandwidth Estimation](#73-bandwidth-estimation)
   - [7.4. Config DB](#74-config-db)
     - [7.4.1. DEVICE\_METADATA](#741-device_metadata)
@@ -50,6 +52,7 @@
 | Rev | Date       | Author | Change Description |
 | --- | ---------- | ------ | ------------------ |
 | 0.1 | 09/06/2024 | Ze Gan | Initial version    |
+| 0.1 | 03/01/2025 | Janet Cui | Initial version    |
 
 ## 2. Scope
 
@@ -63,6 +66,7 @@ This document outlines the high-level design of stream telemetry, focusing prima
 | IPFIX        | Internet Protocol Flow Information Export |
 | TAM          | Telemetry and Monitoring                  |
 | BW           | Bandwidth                                 |
+| OTLP         | The OpenTelemetry Protocol                |
 
 ## 4. Overview
 
@@ -193,6 +197,21 @@ The `Stream Telemetry Orch` is a new object within the Orchagent. It has followi
 These two modules need to be provided by vendors. This document proposes a ring buffer communication model to support all expected TAM configurations as follows.
 
 ![netlink_dma_channel](netlink_dma_channel.drawio.svg)
+
+#### 7.1.4. Open Telemetry Collector
+The OpenTelemetry Collector serves as a critical component in modern observability pipelines, acting as a vendor-agnostic middleware that receives, processes, and exports telemetry data. One of OpenTelemetry Collector's key strengths is its flexibility in supporting various open-source telemetry data formats, such as Jaeger and Prometheus, and exporting them to multiple open-source or commercial back-ends.
+
+The collector is deployed as a Docker container with the following responsibilities:
+- Receivers: Accepts OTLP metrics via OTLP/gRPC protocol
+- Processors: Batches metrics for efficient transmission
+- Exporters: Forwards metrics to backend databases for storage and visualization
+
+![Open Telemetry Collector Workflow](opentelemetry_collector.drawio.svg)
+
+For further details on OpenTelemetry and OpenTelemetry Collector, please refer to the official documentation:
+- [What is OpenTelemetry?](https://opentelemetry.io/docs/what-is-opentelemetry/)
+- [OpenTelemtry Collector](https://opentelemetry.io/docs/collector/)
+
 
 ### 7.2. Data format
 
@@ -389,6 +408,40 @@ void send_msgs_to_user(/* ... */)
 }
 
 ```
+#### 7.2.5. OTLP message
+OTLP gauge metrics represent a measurement at a specific point in time. Unlike counters, gauges can increase and decrease, making them suitable for metrics like buffer occupancy, port status, and other instantaneous measurements.
+
+Gauge metrics in OTLP usually consist of:
+- Metric Name: Unique identifier (e.g., buffer_pool.dropped_packets)
+- Data Points: A single metric (identified by name) can contain multiple data points. Each data point includes:
+    - Attributes: Key-value pairs providing context (e.g., object_name="Ethernet1|3")
+    - Timestamp(time_unix_nano): When the measurement was taken
+    - Value: The actual measurement
+
+Example of a simplified OTLP metric:
+```
+Metric {
+  name: "buffer_pool.dropped_packets",
+  description: "SAI counter statistic",
+  unit: "",
+  data: Gauge {
+    data_points: [
+      {
+        attributes: [
+          { key: "object_name", value: "Ethernet1|3" }
+        ],
+        time_unix_nano: 2,
+        value: 2
+      }
+    ]
+  }
+}
+```
+
+For design goals, requirements, and specification of the OTLP, please refer to the official documentation: [OpenTelemetry Protocol (OTLP)](https://github.com/open-telemetry/opentelemetry-proto/tree/main/docs).
+
+For practical OTLP message examples and implementation patterns, see the examples in the OpenTelemetry repository: [OpenTelemetry Protocol Examples](https://github.com/open-telemetry/opentelemetry-proto/tree/main/examples).
+
 
 ### 7.3. Bandwidth Estimation
 
@@ -476,7 +529,7 @@ key                 = STREAM_TELEMETRY_SESSION:profile_name ; a string as the id
 ; field             = value
 session_status      = enable/disable ; Enable/Disable stream.
 session_type        = ipfix ; Specified the session type.
-session_config      = binary array; 
+session_config      = binary array;
                       If the session type is IPFIX, This field stores the IPFIX template to interpret the message of this session.
 config_version      = uint32_t; Indicates which version is being used. The default value is 0.
                       This value will be increased once the new config was applied by CounterSyncd.
@@ -550,7 +603,7 @@ sequenceDiagram
         loop Push stats until stream disabled
             loop collect a chunk of stats
                 dma_engine ->> asic: query stats from asic
-                asic --) dma_engine: 
+                asic --) dma_engine:
                 dma_engine ->> netlink_module: Push stats
             end
             alt counter syncd is ready to receive?
