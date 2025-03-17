@@ -206,7 +206,22 @@ The collector is deployed as a Docker container with the following responsibilit
 - Processors: Batches metrics for efficient transmission
 - Exporters: Forwards metrics to backend databases for storage and visualization
 
-![Open Telemetry Collector Workflow](opentelemetry_collector.drawio.svg)
+``` mermaid
+graph TD;
+   A[CounterSyncd] -->|OTLP/gRPC| B[OpenTelemetry Collector]
+   subgraph OpenTelemetry Collector
+       C[Receivers] --> D[Processors] --> E[Exporters]
+   end
+   E -->|HTTP/API| F[Backend Options]
+   subgraph Backend Options
+       G[InfluxDB]
+       H[Prometheus]
+       I[Other Options]
+   end
+   F --> G
+   F --> H
+   F --> I
+```
 
 For further details on OpenTelemetry and OpenTelemetry Collector, please refer to the official documentation:
 - [What is OpenTelemetry?](https://opentelemetry.io/docs/what-is-opentelemetry/)
