@@ -15,6 +15,7 @@
   - [Fpmsyncd](#fpmsyncd)
   - [Orchagent](#orchagent)
   - [Multi-namespace](#multi-namespace)
+  - [ConfigDB Schema](#configdb-schema)
 - [WarmRestart scenario](#warmrestart-scenario)
 - [Debugability](#debugability)
 - [Performance improve result](#performance-improve-result)
@@ -173,6 +174,23 @@ Each orchagent should listen on a unique ZMQ port, which configured on database_
 
 The ZMQ port for default namespace is '8100'
 For each asic namespace, the ZMQ port is '8100 + asic_index'
+
+#### ConfigDB Schema
+ - Feature flag in DEVICE_METADATA table:
+```
+    container DEVICE_METADATA {
+
+        description "DEVICE_METADATA part of config_db.json";
+
+        container localhost{
+        ...
+            leaf route_zmq_enabled {
+                type boolean;
+                description "Enable ZMQ for ROUTE_TABLE.";
+                default "false";
+            }
+        ...
+```
 
 ## WarmRestart scenario
 Orchagent support warm-reboot by ConsumerBase::refillToSync() method. ZmqConsumer inherit from ConsumerBase, so switch to ZmqOrch and ZmqConsumer will support warm-reboot.
