@@ -76,14 +76,14 @@ The gNMI/gNOI Splitter does not use any SAI APIs.
 The gNMI/gNOI Splitter is configured using the following parameters:
 - `gRPC server port` (new)
   The port on which the splitter listens for incoming requests.
-- `Offloaded server address`
-  The address of the offloaded gNMI server.
-- `Offloaded server port`
-  The port on which the offloaded gNMI server listens for incoming requests.
-- `DPU server address`
-  The address of the local gNOI server.
-- `DPU server port`
-  The port on which the local gNOI server listens for incoming requests.
+- per-DPU configuration
+  The splitter is configured per DPU, and each DPU has its own configuration. The configuration includes the following parameters:
+  - `Offloaded server port`
+    The port on which the offloaded gNMI server listens for incoming requests. Requests that are bounded for the offloaded gNMI server will be forwarded to this port on the NPU (locally).
+  - `DPU server address`
+    The address to which the splitter forwards the gNOI requests that are not handled by the DPU gNOI server. This is typically the management IP address of the DPU.
+  - `DPU server port`
+    The port on which the DPU gNOI server listens for incoming requests.
 
 ### 7. Testing
 
