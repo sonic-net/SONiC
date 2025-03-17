@@ -323,6 +323,8 @@ queue-index = 1*3DIGIT / "dynamic"
 ```
 
 **Note:**
+* when packet length is less than `size`, the original full packet will be transmitted out
+* both IPv4/IPv6 packets are updated with `dscp_value` after DSCP remapping
 * when `queue_index` is set to `dynamic`, the `dscp_value` is used for mapping to queue
 * field removal is not supported
 * configuration removal is not supported
