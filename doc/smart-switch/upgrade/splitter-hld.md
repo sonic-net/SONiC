@@ -67,7 +67,18 @@ The gNMI/gNOI Splitter is a gRPC server that listens on the NPU and forwards the
 - Forwards the request to the appropriate server.
 
 #### 4.3 Containers and Ports
-The splitter is running as a seperate gRPC server on the offloaded gNMI container on the NPU (`gnmidpu[x]`), and listens on a different port than the offloaded gNMI server.
+The splitter is running as a seperate gRPC server on the gNMI container on the NPU (`gnmi`), and listens on a different port than the offloaded gNMI server. Noting that the splitter is not running any of the offloaded gNMI containers, but the gNMI container serving the NPU itself.
+
+#### 4.4 Forwarding Logic
+When receiving a gNOI/gNMI request targetting a DPU, the splitter needs to determine the following:
+- To which DPU the request is targetting.
+- Whether the request should be served by the offloaded gNMI server (local) or the DPU gNOI server (remote).
+
+The splitter uses the following logic to determine the target DPU and the server to which the request should be forwarded:
+- The address and port of each DPU can be determined from the `GNMI` table in `CONFIG_DB`.
+- The logic of deciding whether the request should be forwarded to the offloaded gNMI server or the DPU gNOI server is based on the request type and the target DPU. The logic should not be configurable but instead hardcoded in `sonic-gnmi` codebase which also implements both the offloaded and DPU gNMI servers.
+  - This is to ensure the splitter's logic is consistent with the implementation of the offloaded gNMI server and the DPU gNOI server.
+
 
 ### 5. SAI API
 The gNMI/gNOI Splitter does not use any SAI APIs.
