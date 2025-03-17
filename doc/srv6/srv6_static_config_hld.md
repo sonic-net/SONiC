@@ -23,6 +23,7 @@
 | :--: | :-------: | :------------------------: | :---------------------: |
 | 0.1  | 12/5/2024 |       Changrong Wu         |  Initial version        |
 | 0.2  | 12/20/2024 |      Changrong Wu         | Update to use two tables per SONiC Routing WG discussion |
+| 0.3  | 03/17/2025 |      Changrong Wu         | Add Bgpcfgd configuration compilation examples |
 
 
 # Definition/Abbreviation
