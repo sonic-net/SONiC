@@ -1,4 +1,4 @@
-# Static Configuration of SRv6 in SONiC HLD  
+# Static Configuration of SRv6 in SONiC HLD
 
 # Table of Contents
 
@@ -15,7 +15,7 @@
 - [3.2 Bgpcfgd Changes](#32-bgpcfgd-changes)
 - [3.3 YANG Model](#33-yang-model)
 - [4 Unit Test](#4-unit-test)
-- [5 References ](#5-references) 
+- [5 References ](#5-references)
 
 # Revision
 
@@ -67,7 +67,7 @@ Provide ability to statically configure SRv6 SIDs for block IDs, locators and lo
 
 Warm reboot is intended to be supported for planned system warm reboot.
 
- 
+
 
 # 3 Feature Design
 
@@ -164,6 +164,51 @@ To enable automatic programming SRv6 configurations from CONFIG_DB to FRR, we ne
 Following the naming convention of modules in bgpcfgd, we call this new module SRv6 Manager.
 The new SRv6 Manager are supposed to verify the validity of the configuration entries coming from the CONFIG_DB.
 If it gets an invalid configuration input, it should log the event in the syslog and not compile the configuration into FRR.
+To help users understand how bgpcfgd programs the configuration, we show two examples of the configuration respectively for locator and SIDs.
+
+## 3.2.1 Bgpcfgd Locator Configuration Compilation
+
+For the following locator configuration entry in CONFIG_DB:
+```
+"SRV6_MY_LOCATORS" : {
+   "loc1" : {
+      "prefix" : "FCBB:BBBB:20::"
+   }
+}
+```
+Bgpcfgd will compile the following configuration in FRR:
+```
+segment-routing
+   srv6
+      locators
+         locator loc1
+            prefix fcbb:bbbb:20::/48 block-len 32 node-len 32 func-bits 16
+            behavior usid
+```
+
+## 3.2.2 Bgpcfgd Static SIDs Configuration Compilation
+For the following SIDs configuration entries in CONFIG_DB:
+```
+"SRV6_MY_SIDS" : {
+   "loc1|FCBB:BBBB:20::/48" : {
+      "action": "uN",
+      "decap_dscp_mode": "pipe"
+   },
+   "loc1|FCBB:BBBB:20:F1::/64" : {
+      "action": "uDT46",
+      "decap_vrf": "Vrf1",
+      "decap_dscp_mode": "pipe"
+   },
+}
+```
+Bgpcfgd will compile the following configuration in FRR:
+```
+segment-routing
+   srv6
+      static-sids
+         sid fcbb:bbbb:20::/48 locator loc1 behavior uN
+         sid fcbb:bbbb:20:f1::/64 locator loc1 behavior uDT46 vrf Vrf1
+```
 
 ## 3.3 YANG Model
 The simplified version of the YANG model is defined below.
