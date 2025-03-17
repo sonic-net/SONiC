@@ -208,19 +208,19 @@ The collector is deployed as a Docker container with the following responsibilit
 
 ``` mermaid
 graph TD;
-   A[CounterSyncd] -->|OTLP/gRPC| B[OpenTelemetry Collector]
+   CS[CounterSyncd] -->|OTLP/gRPC| OTC[OpenTelemetry Collector]
    subgraph OpenTelemetry Collector
-       C[Receivers] --> D[Processors] --> E[Exporters]
+       R[Receivers] --> P[Processors] --> E[Exporters]
    end
-   E -->|HTTP/API| F[Backend Options]
+   E -->|HTTP/API| BO[Backend Options]
    subgraph Backend Options
-       G[InfluxDB]
-       H[Prometheus]
-       I[Other Options]
+       IDB[InfluxDB]
+       PM[Prometheus]
+       OTH[Other Options]
    end
-   F --> G
-   F --> H
-   F --> I
+   BO --> IDB
+   BO --> PM
+   BO --> OTH
 ```
 
 For further details on OpenTelemetry and OpenTelemetry Collector, please refer to the official documentation:
