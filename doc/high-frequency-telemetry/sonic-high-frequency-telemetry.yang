@@ -47,13 +47,6 @@ module sonic-high-frequency-telemetry {
                     type uint32;
                 }
 
-                leaf bulk_size {
-                    type uint32 {
-                        range "1..4294967295";
-                    }
-                    default 1;
-                }
-
             }
         }
 
