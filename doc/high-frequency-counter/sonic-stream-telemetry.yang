@@ -1,9 +1,9 @@
-module sonic-stream-telemetry {
+module sonic-high-frequency-telemetry {
     yang-version 1.1;
 
-    namespace "http://github.com/sonic-net/sonic-stream-telemetry";
+    namespace "http://github.com/sonic-net/sonic-high-frequency-telemetry";
 
-    prefix sonic-stream-telemetry;
+    prefix sonic-high-frequency-telemetry;
 
     import sonic-port {
         prefix port;
@@ -21,10 +21,10 @@ module sonic-stream-telemetry {
         prefix bql;
     }
 
-    container sonic-stream-telemetry {
-        container STREAM_TELEMETRY_PROFILE {
-            description "STREAM_TELEMETRY_PROFILE part of config_db.json";
-            list STREAM_TELEMETRY_PROFILE_LIST {
+    container sonic-high-frequency-telemetry {
+        container HIGH_FREQUENCY_TELEMETRY_PROFILE {
+            description "HIGH_FREQUENCY_TELEMETRY_PROFILE part of config_db.json";
+            list HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST {
 
                 key "name";
 
@@ -57,14 +57,14 @@ module sonic-stream-telemetry {
             }
         }
 
-        container STREAM_TELEMETRY_GROUP {
-            description "STREAM_TELEMETRY_GROUP part of config_db.json";
-            list STREAM_TELEMETRY_GROUP_LIST {
+        container HIGH_FREQUENCY_TELEMETRY_GROUP {
+            description "HIGH_FREQUENCY_TELEMETRY_GROUP part of config_db.json";
+            list HIGH_FREQUENCY_TELEMETRY_GROUP_LIST {
                 key "profile_name group_name";
 
                 leaf profile_name {
                     type leafref {
-                        path "/sonic-stream-telemetry:sonic-stream-telemetry/STREAM_TELEMETRY_PROFILE/STREAM_TELEMETRY_PROFILE_LIST/name";
+                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_PROFILE/HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST/name";
                     }
                 }
 

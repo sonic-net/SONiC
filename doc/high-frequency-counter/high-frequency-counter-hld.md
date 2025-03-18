@@ -1,4 +1,4 @@
-# Stream telemetry high level design <!-- omit in toc -->
+# High frequency telemetry high level design <!-- omit in toc -->
 
 ## Table of Content <!-- omit in toc -->
 
@@ -13,7 +13,7 @@
 - [7. High-Level Design](#7-high-level-design)
   - [7.1. Modules](#71-modules)
     - [7.1.1. Counter Syncd](#711-counter-syncd)
-    - [7.1.2. Stream Telemetry Orch](#712-stream-telemetry-orch)
+    - [7.1.2. High frequency telemetry Orch](#712-high-frequency-telemetry-orch)
     - [7.1.3. Netlink Module and DMA Engine](#713-netlink-module-and-dma-engine)
   - [7.2. Data format](#72-data-format)
     - [7.2.1. IPFIX header](#721-ipfix-header)
@@ -23,11 +23,10 @@
   - [7.3. Bandwidth Estimation](#73-bandwidth-estimation)
   - [7.4. Config DB](#74-config-db)
     - [7.4.1. DEVICE\_METADATA](#741-device_metadata)
-    - [7.4.2. STREAM\_TELEMETRY\_PROFILE](#742-stream_telemetry_profile)
-    - [7.4.3. STREAM\_TELEMETRY\_GROUP](#743-stream_telemetry_group)
+    - [7.4.2. HIGH\_FREQUENCY\_TELEMETRY\_PROFILE](#742-high_frequency_telemetry_profile)
+    - [7.4.3. HIGH\_FREQUENCY\_TELEMETRY\_GROUP](#743-high_frequency_telemetry_group)
   - [7.5. StateDb](#75-statedb)
-    - [7.5.1. STREAM\_TELEMETRY\_SESSION](#751-stream_telemetry_session)
-    - [7.5.2. STREAM\_TELEMETRY\_SESSION (deprecated)](#752-stream_telemetry_session-deprecated)
+    - [7.5.1. HIGH\_FREQUENCY\_TELEMETRY\_SESSION](#751-high_frequency_telemetry_session)
   - [7.6. Work Flow](#76-work-flow)
   - [7.7. SAI API](#77-sai-api)
 - [8. Configuration and management](#8-configuration-and-management)
@@ -53,7 +52,7 @@
 
 ## 2. Scope
 
-This document outlines the high-level design of stream telemetry, focusing primarily on the internal aspects of SONiC rather than external telemetry systems.
+This document outlines the high-level design of high frequency telemetry, focusing primarily on the internal aspects of SONiC rather than external telemetry systems.
 
 ## 3. Definitions/Abbreviations
 
@@ -66,7 +65,7 @@ This document outlines the high-level design of stream telemetry, focusing prima
 
 ## 4. Overview
 
-The existing telemetry solution of SONiC relies on the syncd process to proactively query stats and counters via the SAI API. This approach causes the syncd process to spend excessive time on SAI communication. The stream telemetry described in this document aims to provide a more efficient method for collecting object stats. The main idea is that selected stats will be proactively pushed from the vendor's driver to the collector via netlink.
+The existing telemetry solution of SONiC relies on the syncd process to proactively query stats and counters via the SAI API. This approach causes the syncd process to spend excessive time on SAI communication. The high frequency telemetry described in this document aims to provide a more efficient method for collecting object stats. The main idea is that selected stats will be proactively pushed from the vendor's driver to the collector via netlink.
 
 ## 5. Requirements / Constraints
 
@@ -80,19 +79,19 @@ The existing telemetry solution of SONiC relies on the syncd process to proactiv
 - The vendor SDK should support publishing stats in IPFIX format and its IPFIX template.
 - If a polling frequency for stats cannot be supported, the vendor's SDK should return this error.
 - The vendor SDK should support querying the minimal polling interval for each counter.
-- When reconfiguring any stream settings, whether it is the polling interval or the stats list, the existing stream will be interrupted and regenerated.
-- If any of monitored objects is deleted, the existing stream will be interrupted and regenerated.
+- When reconfiguring any high frequency telemetry settings, whether it is the polling interval or the stats list, the existing high frequency telemetry will be interrupted and regenerated.
+- If any of monitored objects is deleted, the existing high frequency telemetry will be interrupted and regenerated.
 
 ### 5.2. Phase 2
 
-- Supports updating configuration without interrupting the telemetry stream
+- Supports updating configuration without interrupting the stream of high frequency telemetry
 
 ## 6. Architecture Design
 
 ``` mermaid
 
 ---
-title: Stream telemetry architecture
+title: High frequency stream architecture
 ---
 flowchart BT
     subgraph Redis
@@ -107,7 +106,7 @@ flowchart BT
     end
     subgraph SWSS container
     subgraph Orchagent
-        st_orch(Stream Telemetry Orch)
+        hft_orch(High frequency stream Orch)
     end
     end
     subgraph SYNCD container
@@ -122,16 +121,16 @@ flowchart BT
 
     asic[\ASIC\]
 
-    config_db --STREAM_TELEMETRY_PROFILE
-                STREAM_TELEMETRY_GROUP--> st_orch
-    st_orch --SAI_OBJECT_TYPE_TAM_XXXX--> syncd
-    syncd --IPFIX template--> st_orch
+    config_db --HIGH_FREQUENCY_TELEMETRY_PROFILE
+                HIGH_FREQUENCY_TELEMETRY_GROUP--> hft_orch
+    hft_orch --SAI_OBJECT_TYPE_TAM_XXXX--> syncd
+    syncd --IPFIX template--> hft_orch
     syncd --TAM configuration--> dma_engine
     syncd --TAM configuration--> netlink_module
-    st_orch --STREAM_TELEMETRY_SESSION--> state_db
-    state_db --STREAM_TELEMETRY_SESSION--> counter_syncd
+    hft_orch --HIGH_FREQUENCY_TELEMETRY_SESSION--> state_db
+    state_db --HIGH_FREQUENCY_TELEMETRY_SESSION--> counter_syncd
     counter_syncd -- config version --> state_db
-    state_db -- config version --> st_orch
+    state_db -- config version --> hft_orch
     asic --counters--> dma_engine
     dma_engine --IPFIX record--> netlink_module
     netlink_module --IPFIX record--> counter_syncd
@@ -148,7 +147,7 @@ The `counter syncd` is a new module that runs within the OpenTelemetry container
 
 ``` yaml
 constants:
-    stream_telemetry:
+    high_frequency_telemetry:
         genl_family: "sonic_stel"
         genl_multicast_group: "ipfix"
 }
@@ -178,15 +177,15 @@ flowchart LR
 
 ```
 
-#### 7.1.2. Stream Telemetry Orch
+#### 7.1.2. High frequency telemetry Orch
 
-The `Stream Telemetry Orch` is a new object within the Orchagent. It has following primary duties:
+The `High frequency telemetry Orch` is a new object within the Orchagent. It has following primary duties:
 
-1. Maintain the TAM SAI objects according to the stream telemetry configuration in the config DB.
-2. Generate a unique template ID for each stream telemetry profile to ensure distinct identification and management.
+1. Maintain the TAM SAI objects according to the high frequency telemetry configuration in the config DB.
+2. Generate a unique template ID for each high frequency telemetry profile to ensure distinct identification and management.
 3. Register and activate streams on counter syncd.
 
-`Stream Telemetry Orch` leverages `tam_counter_subscription` objects to bind monitoring objects, such as ports, buffers, or queues, to streams. Therefore, this orch must ensure that the lifecycle of `tam_counter_subscription` objects is within the lifecycle of their respective monitoring objects.
+`High frequency telemetry Orch` leverages `tam_counter_subscription` objects to bind monitoring objects, such as ports, buffers, or queues, to streams. Therefore, this orch must ensure that the lifecycle of `tam_counter_subscription` objects is within the lifecycle of their respective monitoring objects.
 
 #### 7.1.3. Netlink Module and DMA Engine
 
@@ -411,43 +410,43 @@ Any configuration changes in the config DB will interrupt the existing session a
 
 ```
 DEVICE_METADATA|localhost
-    "stream_telemetry_chunk_size": {{uint32}}
-    "stream_telemetry_chunk_count": {{uint32}} (Optional)
+    "high_frequency_telemetry_chunk_size": {{uint32}}
+    "high_frequency_telemetry_chunk_count": {{uint32}} (Optional)
 ```
 
 ```
 ; field                      = value
-stream_telemetry_chunk_size  = uint32; reporting byte size of chunk under the stream telemetry.
-stream_telemetry_chunk_count = uint32; chunk count under the stream telemetry. Some platforms may not support setting this value.
+high_frequency_telemetry_chunk_size  = uint32; reporting byte size of chunk under the high frequency telemetry.
+high_frequency_telemetry_chunk_count = uint32; chunk count under the high frequency telemetry. Some platforms may not support setting this value.
 ```
 
-#### 7.4.2. STREAM_TELEMETRY_PROFILE
+#### 7.4.2. HIGH_FREQUENCY_TELEMETRY_PROFILE
 
 ```
-STREAM_TELEMETRY_PROFILE|{{profile_name}}
+HIGH_FREQUENCY_TELEMETRY_PROFILE|{{profile_name}}
     "stream_state": {{enabled/disabled}}
     "poll_interval": {{uint32}}
 ```
 
 ```
-key                = STREAM_TELEMETRY_PROFILE:profile_name a string as the identifier of stream telemetry
+key                = HIGH_FREQUENCY_TELEMETRY_PROFILE:profile_name a string as the identifier of high freuqncy telemetry
 ; field            = value
 stream_state       = enabled/disabled ; Enabled/Disabled stream.
 poll_interval      = uint32 ; The interval to poll counter, unit microseconds.
 ```
 
-#### 7.4.3. STREAM_TELEMETRY_GROUP
+#### 7.4.3. HIGH_FREQUENCY_TELEMETRY_GROUP
 
 ```
-STREAM_TELEMETRY_GROUP|{{profile_name}}|{{group_name}}
+HIGH_FREQUENCY_TELEMETRY_GROUP|{{profile_name}}|{{group_name}}
     "object_names": {{list of object name}}
     "object_counters": {{list of stats of object}}
 ```
 
 ```
-key             = STREAM_TELEMETRY_GROUP:group_name:profile_name
+key             = HIGH_FREQUENCY_TELEMETRY_GROUP:group_name:profile_name
                     ; group_name is the object type, like PORT, BUFFER_PG or BUFFER_POOL.
-                    ; Multiple groups can be bound to a same stream telemetry profile.
+                    ; Multiple groups can be bound to a same high frequency telemetry profile.
 ; field         = value
 object_names    = A list of object name.
                     ; The syntax of object name is top_object_name|index.
@@ -457,14 +456,14 @@ object_names    = A list of object name.
 object_counters = A list of stats of object;
 ```
 
-For the schema of `STREAM_TELEMETRY_GROUP`, please refer to its [YANG model](sonic-stream-telemetry.yang).
+For the schema of `HIGH_FREQUENCY_TELEMETRY_GROUP`, please refer to its [YANG model](sonic-stream-telemetry.yang).
 
 ### 7.5. StateDb
 
-#### 7.5.1. STREAM_TELEMETRY_SESSION
+#### 7.5.1. HIGH_FREQUENCY_TELEMETRY_SESSION
 
 ```
-STREAM_TELEMETRY_SESSION|{{profile_name}}|{{group_name}}
+HIGH_FREQUENCY_TELEMETRY_SESSION|{{profile_name}}|{{group_name}}
     "session_status": {{enabled/disabled}}
     "session_type": {{ipfix}}
     "session_config": {{binary array}}
@@ -472,7 +471,7 @@ STREAM_TELEMETRY_SESSION|{{profile_name}}|{{group_name}}
 ```
 
 ```
-key                 = STREAM_TELEMETRY_SESSION:profile_name ; a string as the identifier of stream telemetry
+key                 = HIGH_FREQUENCY_TELEMETRY_SESSION:profile_name ; a string as the identifier of high frequency telemetry
 ; field             = value
 session_status      = enable/disable ; Enable/Disable stream.
 session_type        = ipfix ; Specified the session type.
@@ -480,23 +479,6 @@ session_config      = binary array;
                       If the session type is IPFIX, This field stores the IPFIX template to interpret the message of this session.
 config_version      = uint32_t; Indicates which version is being used. The default value is 0.
                       This value will be increased once the new config was applied by CounterSyncd.
-```
-
-#### 7.5.2. STREAM_TELEMETRY_SESSION (deprecated)
-
-```
-STREAM_TELEMETRY_SESSION|{{profile_name}}
-    "session_status": {{enabled/disabled}}
-    "session_type": {{ipfix}}
-    "session_template": {{binary array}}
-```
-
-```
-key                 = STREAM_TELEMETRY_SESSION:profile_name ; a string as the identifier of stream telemetry
-; field             = value
-session_status      = enable/disable ; Enable/Disable stream.
-session_type        = ipfix ; Specified the session type.
-session_template    = binary array; The IPFIX template to interpret the message of this session.
 ```
 
 ### 7.6. Work Flow
@@ -515,7 +497,7 @@ sequenceDiagram
     end
     box SWSS container
         participant port_orch as Port Orch
-        participant st_orch as Stream Telemetry Orch
+        participant hft_orch as High Frequency Telemetry Orch
     end
     box SYNCD container
         participant syncd
@@ -527,25 +509,25 @@ sequenceDiagram
     participant asic as ASIC
 
     counter --> counter: Initialize genetlink
-    st_orch ->> syncd: Initialize <br/>HOSTIF<br/>TAM_TRANSPORT<br/>TAM_collector<br/>
+    hft_orch ->> syncd: Initialize <br/>HOSTIF<br/>TAM_TRANSPORT<br/>TAM_collector<br/>
 
-    config_db ->> st_orch: STREAM_TELEMETRY_PROFILE
-    config_db ->> st_orch: STREAM_TELEMETRY_GROUP
-    port_orch ->> st_orch: Port/Queue/Buffer ... object
+    config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_PROFILE
+    config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_GROUP
+    port_orch ->> hft_orch: Port/Queue/Buffer ... object
 
-    st_orch ->> syncd: Config TAM objects
+    hft_orch ->> syncd: Config TAM objects
 
     syncd ->> dma_engine: Config stats
-    syncd ->> st_orch: Config was applied in the ASIC
-    syncd ->> st_orch: Query IPFIX template
-    st_orch ->> state_db: Update STREAM_TELEMETRY_SESSION
+    syncd ->> hft_orch: Config was applied in the ASIC
+    syncd ->> hft_orch: Query IPFIX template
+    hft_orch ->> state_db: Update HIGH_FREQUENCY_TELEMETRY_SESSION
     state_db ->> counter: Register IPFIX template
     counter ->> state_db: Update config version
-    state_db ->> st_orch: Notify config version
+    state_db ->> hft_orch: Notify config version
 
     alt Is stream status enabled?
 
-        st_orch ->> syncd: Start telemetry stream
+        hft_orch ->> syncd: Start telemetry stream
 
         loop Push stats until stream disabled
             loop collect a chunk of stats
@@ -560,9 +542,9 @@ sequenceDiagram
             end
         end
     else
-        st_orch ->> syncd: Disable telemetry stream
+        hft_orch ->> syncd: Disable telemetry stream
         syncd ->> dma_engine: Stop stream
-        st_orch ->> state_db: Update STREAM_TELEMETRY_SESSION
+        hft_orch ->> state_db: Update HIGH_FREQUENCY_TELEMETRY_SESSION
         state_db ->> counter: Unrigster IPFIX template
     end
     loop Receive IPFIX message of stats from genetlink
@@ -592,22 +574,22 @@ N/A
 ``` shell
 
 # Add a new profile
-sudo config stream_telemetry profile add $profile_name --stream_state=$stream_state --poll_interval=$poll_interval --chunk_size=$chunk_size --cache_size=$cache_size
+sudo config high_frequency_telemetry profile add $profile_name --stream_state=$stream_state --poll_interval=$poll_interval --chunk_size=$chunk_size --cache_size=$cache_size
 
 # Change stream state
-sudo config stream_telemetry profile set $profile_name --stream_state=$stream_state
+sudo config high_frequency_telemetry profile set $profile_name --stream_state=$stream_state
 
 # Remove a existing profile
-sudo config stream_telemetry group "$profile|$group_name" --object_names="$object1,$object2" --object_counters="$object_counters1,$object_counters2"
+sudo config high_frequency_telemetry group "$profile|$group_name" --object_names="$object1,$object2" --object_counters="$object_counters1,$object_counters2"
 
 ```
 
 #### 8.2.2. Inspect stream CLI
 
-Fetch all counters on the stream-telemetry
+Fetch all counters on the high-frequency-telemetry
 
 ``` shell
-sudo stream-telemetry $profile_name --json/--table --duration=$duration
+sudo high-frequency-telemetry $profile_name --json/--table --duration=$duration
 ```
 
 #### 8.2.3. YANG
@@ -624,7 +606,7 @@ Warmboot/fastboot support is not required.
 
 ### 8.5. Memory Consumption
 
-In addition to constant memory consumption, dynamic memory consumption can be adjusted by configuring the chunk size and cache size of the stream-telemetry profile table in the config DB.
+In addition to constant memory consumption, dynamic memory consumption can be adjusted by configuring the chunk size and cache size of the high frequency telemetry profile table in the config DB.
 
 $Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Cache Size} \times {Chunk Size} \times 8_{bytes} \times \sum_{Group} ({Object Count} \times {Stat Count}))$
 
@@ -636,12 +618,12 @@ $Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Cache Size} \times {Chunk
 
 #### 8.7.1. Unit Test cases
 
-- Test that the `STREAM_TELEMETRY_GROUP` can be correctly converted to the SAI objects and their corresponding SAI STAT IDs by the Orchagent.
+- Test that the `HIGH_FREQUENCY_TELEMETRY_GROUP` can be correctly converted to the SAI objects and their corresponding SAI STAT IDs by the Orchagent.
 
 #### 8.7.2. System Test cases
 
 - Test that the counter can be correctly monitored by the counter syncd.
 - Verify that the bulk size is accurate when reading messages from the netlink socket.
-- Ensure that counters can be correctly retrieved using the telemetry stream CLI.
+- Ensure that counters can be correctly retrieved using the high frequency stream CLI.
 
 ### 8.8. Open/Action items - if any

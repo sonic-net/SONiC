@@ -1,5 +1,5 @@
 {
-    "STREAM_TELEMETRY_VALID_CASE": {
+    "HIGH_FREQUENCY_TELEMETRY_VALID_CASE": {
       "sonic-port:sonic-port": {
         "sonic-port:PORT": {
           "PORT_LIST": [
@@ -62,9 +62,9 @@
           ]
         }
       },
-      "sonic-stream-telemetry:sonic-stream-telemetry": {
-        "sonic-stream-telemetry:STREAM_TELEMETRY_PROFILE": {
-          "STREAM_TELEMETRY_PROFILE_LIST": [
+      "sonic-high-frequency-telemetry:sonic-high-frequency-telemetry": {
+        "sonic-high-frequency-telemetry:HIGH_FREQUENCY_TELEMETRY_PROFILE": {
+          "HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST": [
             {
               "name": "high_frequency_counters",
               "stream_state": "enabled",
@@ -72,8 +72,8 @@
             }
           ]
         },
-        "sonic-stream-telemetry:STREAM_TELEMETRY_GROUP": {
-          "STREAM_TELEMETRY_GROUP_LIST": [
+        "sonic-high-frequency-telemetry:HIGH_FREQUENCY_TELEMETRY_GROUP": {
+          "HIGH_FREQUENCY_TELEMETRY_GROUP_LIST": [
             {
               "profile_name": "high_frequency_counters",
               "group_name": "PORT",
