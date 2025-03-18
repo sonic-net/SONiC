@@ -97,25 +97,26 @@ The existing telemetry solution of SONiC relies on the syncd process to proactiv
 ---
 title: High frequency telemetry architecture
 ---
-flowchart BT
+flowchart LR
     subgraph Redis
         config_db[(CONFIG_DB)]
         state_db[(STATE_DB)]
+        counter_db[(COUNTER_DB)]
     end
 
     subgraph SONiC service
-    subgraph OpenTelemetry container
-        otel(OpenTelemetry Collector)
-        counter_syncd(Counter Syncd)
-    end
-    subgraph SWSS container
-    subgraph Orchagent
-        hft_orch(High frequency telemetry Orch)
-    end
-    end
-    subgraph SYNCD container
-        syncd(Syncd)
-    end
+        subgraph OpenTelemetry container
+            otel(OpenTelemetry Collector)
+        end
+        subgraph SWSS container
+            counter_syncd(Counter Syncd)
+            subgraph Orchagent
+                hft_orch(High frequency telemetry Orch)
+            end
+        end
+        subgraph SYNCD container
+            syncd(Syncd)
+        end
     end
 
     subgraph Linux Kernel
@@ -127,18 +128,17 @@ flowchart BT
 
     config_db --HIGH_FREQUENCY_TELEMETRY_PROFILE
                 HIGH_FREQUENCY_TELEMETRY_GROUP--> hft_orch
+    state_db --HIGH_FREQUENCY_TELEMETRY_SESSION--> counter_syncd
+    hft_orch --HIGH_FREQUENCY_TELEMETRY_SESSION--> state_db
     hft_orch --SAI_OBJECT_TYPE_TAM_XXXX--> syncd
-    syncd --IPFIX template--> hft_orch
     syncd --TAM configuration--> dma_engine
     syncd --TAM configuration--> netlink_module
-    hft_orch --HIGH_FREQUENCY_TELEMETRY_SESSION--> state_db
-    state_db --HIGH_FREQUENCY_TELEMETRY_SESSION--> counter_syncd
-    counter_syncd -- config version --> state_db
-    state_db -- config version --> hft_orch
-    asic --counters--> dma_engine
+    counter_syncd -- counters --> counter_db
+    counter_syncd -- OpenTelemetry message --> otel
     dma_engine --IPFIX record--> netlink_module
     netlink_module --IPFIX record--> counter_syncd
-    counter_syncd -- OpenTelemetry message --> otel
+    asic --counters--> dma_engine
+    syncd --IPFIX template--> hft_orch
 ```
 
 ## 7. High-Level Design
@@ -147,7 +147,7 @@ flowchart BT
 
 #### 7.1.1. Counter Syncd
 
-The `counter syncd` is a new module that runs within the OpenTelemetry container. Its primary responsibility is to receive counter messages via netlink and convert them into open telemetry messages for a collector. It subscribes to a socket of a specific family and multicast group of generic netlink. The configuration for generic netlink is defined as constants in `/etc/sonic/constants.yml` as follows.
+The `counter syncd` is a new process that runs within the swss container. Its primary responsibility is to receive counter messages via netlink and push them into the OpenTelemetry collector and Counter DB. It subscribes to a socket of a specific family and multicast group of generic netlink. The configuration for generic netlink is defined as constants in `/etc/sonic/constants.yml` as follows.
 
 ``` yaml
 
