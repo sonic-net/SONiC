@@ -456,7 +456,7 @@ object_names    = A list of object name.
 object_counters = A list of stats of object;
 ```
 
-For the schema of `HIGH_FREQUENCY_TELEMETRY_GROUP`, please refer to its [YANG model](sonic-stream-telemetry.yang).
+For the schema of `HIGH_FREQUENCY_TELEMETRY_GROUP`, please refer to its [YANG model](sonic-high-frequency-telemetry.yang).
 
 ### 7.5. StateDb
 
@@ -594,7 +594,7 @@ sudo high-frequency-telemetry $profile_name --json/--table --duration=$duration
 
 #### 8.2.3. YANG
 
-[sonic-stream-telemetry.yang](sonic-stream-telemetry.yang)
+[sonic-high-frequency-telemetry.yang](sonic-high-frequency-telemetry.yang)
 
 ### 8.3. Config DB Enhancements
 
