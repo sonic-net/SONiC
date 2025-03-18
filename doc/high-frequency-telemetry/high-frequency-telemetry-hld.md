@@ -682,9 +682,9 @@ Warmboot/fastboot support is not required.
 
 ### 8.5. Memory Consumption
 
-In addition to constant memory consumption, dynamic memory consumption can be adjusted by configuring the chunk size and cache size of the high frequency telemetry profile table in the config DB.
+In addition to constant memory consumption, dynamic memory consumption can be adjusted by configuring the chunk size and chunk count of the high frequency telemetry profile table in the config DB.
 
-$Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Cache Size} \times {Chunk Size} \times 8_{bytes} \times \sum_{Group} ({Object Count} \times {Stat Count}))$
+$Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Chunk count} \times {Chunk Size} \times 8_{bytes} \times \sum_{Group} ({Object Count} \times {Stat Count}))$
 
 ### 8.6. Restrictions/Limitations
 
