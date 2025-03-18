@@ -699,7 +699,8 @@ $Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Chunk count} \times {Chun
 #### 8.7.2. System Test cases
 
 - Test that the counter can be correctly monitored by the counter syncd.
-- Verify that the bulk size is accurate when reading messages from the netlink socket.
+- Verify that the chunk size is accurate when reading messages from the netlink socket.
+- By restarting counter syncd, verify whether the cached data during the restart corresponds to the chunk count.
 - Ensure that counters can be correctly retrieved using the high frequency telemetry CLI.
 
 ### 8.8. Open/Action items - if any
