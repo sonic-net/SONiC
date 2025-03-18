@@ -15,7 +15,7 @@
     - [7.1.1. Counter Syncd](#711-counter-syncd)
     - [7.1.2. High frequency telemetry Orch](#712-high-frequency-telemetry-orch)
     - [7.1.3. Netlink Module and DMA Engine](#713-netlink-module-and-dma-engine)
-    - [7.1.4. OpenTelemetry Collector](#714-open-telemetry-collector)
+    - [7.1.4. OpenTelemetry Collector (Existing open source solution)](#714-opentelemetry-collector-existing-open-source-solution)
   - [7.2. Data format](#72-data-format)
     - [7.2.1. IPFIX header](#721-ipfix-header)
     - [7.2.2. IPFIX template](#722-ipfix-template)
@@ -51,7 +51,7 @@
 | Rev | Date       | Author | Change Description |
 | --- | ---------- | ------ | ------------------ |
 | 0.1 | 09/06/2024 | Ze Gan | Initial version    |
-| 0.1 | 03/01/2025 | Janet Cui | Initial version    |
+| 0.2 | 03/01/2025 | Janet Cui | Initial version    |
 
 ## 2. Scope
 
@@ -95,7 +95,7 @@ The existing telemetry solution of SONiC relies on the syncd process to proactiv
 ``` mermaid
 
 ---
-title: High frequency stream architecture
+title: High frequency telemetry architecture
 ---
 flowchart BT
     subgraph Redis
@@ -110,7 +110,7 @@ flowchart BT
     end
     subgraph SWSS container
     subgraph Orchagent
-        hft_orch(High frequency stream Orch)
+        hft_orch(High frequency telemetry Orch)
     end
     end
     subgraph SYNCD container
@@ -138,7 +138,7 @@ flowchart BT
     asic --counters--> dma_engine
     dma_engine --IPFIX record--> netlink_module
     netlink_module --IPFIX record--> counter_syncd
-    counter_syncd -- open telemetry message --> otel
+    counter_syncd -- OpenTelemetry message --> otel
 ```
 
 ## 7. High-Level Design
@@ -150,11 +150,11 @@ flowchart BT
 The `counter syncd` is a new module that runs within the OpenTelemetry container. Its primary responsibility is to receive counter messages via netlink and convert them into open telemetry messages for a collector. It subscribes to a socket of a specific family and multicast group of generic netlink. The configuration for generic netlink is defined as constants in `/etc/sonic/constants.yml` as follows.
 
 ``` yaml
+
 constants:
     high_frequency_telemetry:
         genl_family: "sonic_stel"
         genl_multicast_group: "ipfix"
-}
 
 ```
 
@@ -197,35 +197,40 @@ These two modules need to be provided by vendors. This document proposes a ring 
 
 ![netlink_dma_channel](netlink_dma_channel.drawio.svg)
 
-#### 7.1.4. Open Telemetry Collector
+#### 7.1.4. OpenTelemetry Collector (Existing open source solution)
+
 The OpenTelemetry Collector serves as a critical component in modern observability pipelines, acting as a vendor-agnostic middleware that receives, processes, and exports telemetry data. One of OpenTelemetry Collector's key strengths is its flexibility in supporting various open-source telemetry data formats, such as Jaeger and Prometheus, and exporting them to multiple open-source or commercial back-ends.
 
 The collector is deployed as a Docker container with the following responsibilities:
+
 - Receivers: Accepts OTLP metrics via OTLP/gRPC protocol
 - Processors: Batches metrics for efficient transmission
 - Exporters: Forwards metrics to backend databases for storage and visualization
 
 ``` mermaid
-graph TD;
-   CS[CounterSyncd] -->|OTLP/gRPC| OTC[OpenTelemetry Collector]
-   subgraph OpenTelemetry Collector
-       R[Receivers] --> P[Processors] --> E[Exporters]
-   end
-   E -->|HTTP/API| BO[Backend Options]
-   subgraph Backend Options
-       IDB[InfluxDB]
-       PM[Prometheus]
-       OTH[Other Options]
-   end
-   BO --> IDB
-   BO --> PM
-   BO --> OTH
+
+flowchart TD;
+    CS[CounterSyncd] -->|OTLP/gRPC| R
+    subgraph OpenTelemetry Collector
+        R[Receivers] --> P[Processors] --> E[Exporters]
+    end
+    BS@{ shape: fork, label: "Backend service" }
+    subgraph Backend Service
+        IDB[InfluxDB]
+        PM[Prometheus]
+        OTH[Other Options]
+    end
+    E --> |HTTP/API|BS
+    BS --> IDB
+    BS --> PM
+    BS --> OTH
+
 ```
 
 For further details on OpenTelemetry and OpenTelemetry Collector, please refer to the official documentation:
-- [What is OpenTelemetry?](https://opentelemetry.io/docs/what-is-opentelemetry/)
-- [OpenTelemtry Collector](https://opentelemetry.io/docs/collector/)
 
+- [What is OpenTelemetry?](https://opentelemetry.io/docs/what-is-opentelemetry/)
+- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)
 
 ### 7.2. Data format
 
@@ -422,17 +427,21 @@ void send_msgs_to_user(/* ... */)
 }
 
 ```
+
 #### 7.2.5. OTLP message
+
 OTLP gauge metrics represent a measurement at a specific point in time. Unlike counters, gauges can increase and decrease, making them suitable for metrics like buffer occupancy, port status, and other instantaneous measurements.
 
 Gauge metrics in OTLP usually consist of:
+
 - Metric Name: Unique identifier (e.g., buffer_pool.dropped_packets)
 - Data Points: A single metric (identified by name) can contain multiple data points. Each data point includes:
-    - Attributes: Key-value pairs providing context (e.g., object_name="Ethernet1|3")
-    - Timestamp(time_unix_nano): When the measurement was taken
-    - Value: The actual measurement
+  - Attributes: Key-value pairs providing context (e.g., object_name="Ethernet1|3")
+  - Timestamp(time_unix_nano): When the measurement was taken
+  - Value: The actual measurement
 
 Example of a simplified OTLP metric:
+
 ```
 Metric {
   name: "buffer_pool.dropped_packets",
@@ -456,10 +465,9 @@ For design goals, requirements, and specification of the OTLP, please refer to t
 
 For practical OTLP message examples and implementation patterns, see the examples in the OpenTelemetry repository: [OpenTelemetry Protocol Examples](https://github.com/open-telemetry/opentelemetry-proto/tree/main/examples).
 
-
 ### 7.3. Bandwidth Estimation
 
-We estimate the bandwidth based only on the effective data size, not the actual data size. The extra information in a message, such as the IPFIX header (16 bytes), data prefix (4 bytes), and observation time milliseconds (8 bytes), is negligible. For example, a IPFIX message could include $The Maximal Number Of Counters In One Message = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Milliseconds Bytes}}{8_{bytes}} \approx 8188$, So $The Percentage Of Effective Data = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Milliseconds Bytes}} {0xFFFF_{Max LengthBytes}} \approx 99.9\%$ .
+We estimate the bandwidth based only on the effective data size, not the actual data size. The extra information in a message, such as the IPFIX header (16 bytes), data prefix (4 bytes), and observation time nanoseconds (8 bytes), is negligible. For example, a IPFIX message could include $The Maximal Number Of Counters In One Message = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Nanoseconds Bytes}}{8_{bytes}} \approx 8188$, So $The Percentage Of Effective Data = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Nanoseconds Bytes}} {0xFFFF_{Max LengthBytes}} \approx 99.9\%$ .
 
 The following table is an example of telemetry bandwidth of one cluster
 
@@ -497,7 +505,7 @@ HIGH_FREQUENCY_TELEMETRY_PROFILE|{{profile_name}}
 ```
 
 ```
-key                = HIGH_FREQUENCY_TELEMETRY_PROFILE:profile_name a string as the identifier of high freuqncy telemetry
+key                = HIGH_FREQUENCY_TELEMETRY_PROFILE|profile_name a string as the identifier of high frequency telemetry
 ; field            = value
 stream_state       = enabled/disabled ; Enabled/Disabled stream.
 poll_interval      = uint32 ; The interval to poll counter, unit microseconds.
@@ -512,7 +520,7 @@ HIGH_FREQUENCY_TELEMETRY_GROUP|{{profile_name}}|{{group_name}}
 ```
 
 ```
-key             = HIGH_FREQUENCY_TELEMETRY_GROUP:group_name:profile_name
+key             = HIGH_FREQUENCY_TELEMETRY_GROUP|group_name|profile_name
                     ; group_name is the object type, like PORT, BUFFER_PG or BUFFER_POOL.
                     ; Multiple groups can be bound to a same high frequency telemetry profile.
 ; field         = value
@@ -600,7 +608,7 @@ sequenceDiagram
         loop Push stats until stream disabled
             loop collect a chunk of stats
                 dma_engine ->> asic: query stats from asic
-                asic --) dma_engine:
+                asic --) dma_engine: stats
                 dma_engine ->> netlink_module: Push stats
             end
             alt counter syncd is ready to receive?
@@ -642,7 +650,7 @@ N/A
 ``` shell
 
 # Add a new profile
-sudo config high_frequency_telemetry profile add $profile_name --stream_state=$stream_state --poll_interval=$poll_interval --chunk_size=$chunk_size --cache_size=$cache_size
+sudo config high_frequency_telemetry profile add $profile_name --stream_state=$stream_state --poll_interval=$poll_interval --chunk_size=$chunk_size --chunk_count=$chunk_count
 
 # Change stream state
 sudo config high_frequency_telemetry profile set $profile_name --stream_state=$stream_state
@@ -692,6 +700,6 @@ $Dynamic Memory Consumption_{bytes} = \sum_{Profile} ({Cache Size} \times {Chunk
 
 - Test that the counter can be correctly monitored by the counter syncd.
 - Verify that the bulk size is accurate when reading messages from the netlink socket.
-- Ensure that counters can be correctly retrieved using the high frequency stream CLI.
+- Ensure that counters can be correctly retrieved using the high frequency telemetry CLI.
 
 ### 8.8. Open/Action items - if any
