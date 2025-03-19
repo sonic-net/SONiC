@@ -1,7 +1,7 @@
 # OpenConfig support for Platform Transceiver.
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -30,6 +30,7 @@
 	  * [3.3.1 Data Models](#331-data-models)
 	  * [3.3.2 REST API Support](#332-rest-api-support)
 	  * [3.3.3 gNMI Support](#333-gnmi-support)
+	* [3.4 Behavior for breakout ports.](#34-behavior-for-breakout-ports)
   * [4 Mapping between Openconfig YANG and Redis DB](#4-mapping-between-openconfig-yang-and-redis-db)
   * [5 Error Handling](#5-error-handling)
   * [6 Unit Test Cases](#6-unit-test-cases)
@@ -45,6 +46,7 @@
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
 | 0.1 | 11/22/2024  | Kanji Nakano / Koji Sugisono | Initial version                   |
+| 0.2 | 1/28/2025  | Kanji Nakano / Koji Sugisono | Adding a support for CRITICAL/WARNING threshold parameters         |
 
 # About this Manual
 This document provides general information about the OpenConfig telemetry for state information corresponding to openconfig-platform-transceiver.yang and its sub-modules for transceiver components.
@@ -55,37 +57,50 @@ This document provides general information about the OpenConfig telemetry for st
 - This does not cover the SONiC KLISH CLI.
 - This covers openconfig-platform-transceiver.yang and its sub-modules.
 - This does not cover gNMI SUBSCIRBE STREAM ON_CHANGE and TARGET_DEFINED.
+- This does not ensure to show the information on breakout ports and physical channels mapped to each port(e.g.,100G -> 25x4G 4 ports). 
 - Supported attributes in OpenConfig YANG tree:
 
 ```  
 module: openconfig-platform
   +--rw components
-     +--rw component* [name]
-        +--ro state
-        |  +--ro serial-no?                             string
-        +--rw oc-transceiver:transceiver
-           +--ro oc-transceiver:state
-           |  +--ro oc-transceiver:connector-type?      identityref
-           |  +--ro oc-transceiver:vendor?              string
-           |  +--ro oc-transceiver:vendor-part?         string
-           |  +--ro oc-transceiver:serial-no?           string
-           |  +--ro oc-transceiver:date-code?           oc-yang:date-and-time
-           |  +--ro oc-transceiver:supply-voltage
-           |  |  +--ro oc-transceiver:instant?          decimal64
-           |  +--ro oc-transceiver:laser-bias-current
-           |     +--ro oc-transceiver:instant?          decimal64
-           +--rw oc-transceiver:physical-channels
-              +--rw oc-transceiver:channel* [index]
-                 +--ro oc-transceiver:state
-                    +--ro oc-transceiver:laser-temperature
-                    |  +--ro oc-transceiver:instant?    decimal64
-                    +--ro oc-transceiver:output-power
-                    |  +--ro oc-transceiver:avg?        decimal64
-                    +--ro oc-transceiver:input-power
-                    |  +--ro oc-transceiver:instant?    decimal64
-                    +--ro oc-transceiver:laser-bias-current
-                       +--ro oc-transceiver:instant?    decimal64
+	 +--rw component* [name]
+		+--ro state
+		|  +--ro serial-no?                             string
+		+--rw oc-transceiver:transceiver
+		   +--ro oc-transceiver:state
+		   |  +--ro oc-transceiver:connector-type?      identityref
+		   |  +--ro oc-transceiver:vendor?              string
+		   |  +--ro oc-transceiver:vendor-part?         string
+		   |  +--ro oc-transceiver:serial-no?           string
+		   |  +--ro oc-transceiver:date-code?           oc-yang:date-and-time
+		   |  +--ro oc-transceiver:supply-voltage
+		   |  |  +--ro oc-transceiver:instant?          decimal64
+		   |  +--ro oc-transceiver:laser-bias-current
+		   |     +--ro oc-transceiver:instant?          decimal64
+		   +--rw oc-transceiver:physical-channels
+		   |  +--rw oc-transceiver:channel* [index]
+		   |     +--ro oc-transceiver:state
+		   |        +--ro oc-transceiver:laser-temperature
+		   |        |  +--ro oc-transceiver:instant?    decimal64
+		   |        +--ro oc-transceiver:output-power
+		   |        |  +--ro oc-transceiver:avg?        decimal64
+		   |        +--ro oc-transceiver:input-power
+		   |       |  +--ro oc-transceiver:instant?    decimal64
+		   |        +--ro oc-transceiver:laser-bias-current
+		   |           +--ro oc-transceiver:instant?    decimal64
+		   +--rw oc-transceiver:thresholds
+		   |  +--rw oc-transceiver:threshold [severity *1]
+		   |     +--ro oc-transceiver:state
+		   |        +--ro oc-transceiver:severity		identityref
+		   |        +--ro oc-transceiver:output-power-upper decimal64
+		   |        +--ro oc-transceiver:output-power-lower decimal64
+		   |        +--ro oc-transceiver:input-power-upper decimal64
+		   |        +--ro oc-transceiver:input-power-lower decimal64
+		   |        +--ro oc-transceiver:laser-bias-current-uppwer decimal64
+		   |        +--ro oc-transceiver:laser-bias-current-lower decimal64
 ```  
+
+*1: The latest version supports CRITICAL and WARNING as the severity level.
 
 # Definition/Abbreviation
 ### Table 1: Abbreviations
@@ -110,7 +125,11 @@ module: openconfig-platform
 - laser-temperature
 - output-power
 - input-power
-- laser-bias-current
+- laser-bias-current 
+- thresholds
+  - output-power-upper/lower
+  - input-power-upper/lower
+  - laser-bias-current-upper/lower
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
@@ -172,20 +191,20 @@ Sample GET output for platform/components/component/transceiver/state/supply-vol
 $ gnmic get -a <ip:port> --skip-verify --path "/openconfig-platform:components/component[name=transceiver_Ethernet0]/openconfig-platform-transceiver:transceiver/state/supply-voltage/instant" --target OC-YANG
 [
   {
-    "source": " <ip:port>",
-    "timestamp": 1732080919120211411,
-    "time": "2024-11-20T14:35:19.120211411+09:00",
-    "target": "OC-YANG",
-    "updates": [
-      {
-        "Path": "openconfig-platform:components/component[name=transceiver_Ethernet0]/openconfig-platform-transceiver:transceiver/state/supply-voltage/instant",
-        "values": {
-          "openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/supply-voltage/instant": {
-            "openconfig-platform-transceiver:instant": "3.29"
-          }
-        }
-      }
-    ]
+	"source": " <ip:port>",
+	"timestamp": 1732080919120211411,
+	"time": "2024-11-20T14:35:19.120211411+09:00",
+	"target": "OC-YANG",
+	"updates": [
+	  {
+		"Path": "openconfig-platform:components/component[name=transceiver_Ethernet0]/openconfig-platform-transceiver:transceiver/state/supply-voltage/instant",
+		"values": {
+		  "openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/supply-voltage/instant": {
+			"openconfig-platform-transceiver:instant": "3.29"
+		  }
+		}
+	  }
+	]
   }
 ]
 ```
@@ -202,12 +221,12 @@ gnmic sub -a <ip:port> --skip-verify --path "/openconfig-platform:components/com
   "prefix": "openconfig-platform:components/component[name=transceiver_Ethernet0]/openconfig-platform-transceiver:transceiver/state/supply-voltage",
   "target": "OC-YANG",
   "updates": [
-    {
-      "Path": "instant",
-      "values": {
-        "instant": 3.29
-      }
-    }
+	{
+	  "Path": "instant",
+	  "values": {
+		"instant": 3.29
+	  }
+	}
   ]
 }
 ```
@@ -221,12 +240,12 @@ gnmic sub -a <ip:port> --skip-verify --path "/openconfig-platform:components/com
   "prefix": "openconfig-platform:components/component[name=transceiver_Ethernet0]/openconfig-platform-transceiver:transceiver/state/supply-voltage",
   "target": "OC-YANG",
   "updates": [
-    {
-      "Path": "instant",
-      "values": {
-        "instant": 3.3
-      }
-    }
+	{
+	  "Path": "instant",
+	  "values": {
+		"instant": 3.3
+	  }
+	}
   ]
 }
 {
@@ -239,12 +258,12 @@ received sync response 'true' from '<ip:port>'
   "prefix": "openconfig-platform:components/component[name=transceiver_Ethernet0]/openconfig-platform-transceiver:transceiver/state/supply-voltage",
   "target": "OC-YANG",
   "updates": [
-    {
-      "Path": "instant",
-      "values": {
-        "instant": 3.3
-      }
-    }
+	{
+	  "Path": "instant",
+	  "values": {
+		"instant": 3.3
+	  }
+	}
   ]
 }
 ```
@@ -264,12 +283,12 @@ gnmic sub -a <ip:port> --skip-verify --path "/openconfig-platform:components/com
   "prefix": "openconfig-platform:components/component[name=transceiver_Ethernet0]/openconfig-platform-transceiver:transceiver/state/supply-voltage",
   "target": "OC-YANG",
   "updates": [
-    {
-      "Path": "instant",
-      "values": {
-        "instant": 3.3
-      }
-    }
+	{
+	  "Path": "instant",
+	  "values": {
+		"instant": 3.3
+	  }
+	}
   ]
 }
 {
@@ -280,16 +299,18 @@ gnmic sub -a <ip:port> --skip-verify --path "/openconfig-platform:components/com
   "prefix": "openconfig-platform:components/component[name=transceiver_Ethernet0]/openconfig-platform-transceiver:transceiver/state/supply-voltage",
   "target": "OC-YANG",
   "updates": [
-    {
-      "Path": "instant",
-      "values": {
-        "instant": 3.3
-      }
-    }
+	{
+	  "Path": "instant",
+	  "values": {
+		"instant": 3.3
+	  }
+	}
   ]
 }
 ```
 
+## 3.4 The behavior for breakout ports.
+As of the timing this HLD is published, this code returns some information on specified breaktout port. However, the information does not include the physical channel the breakout port uses. As of the moment this HLD is published, SONiC does not have the function to show the mapping between a breakout port and the used physical channel. Then, the information on a breakout port this code provides relates to a physical channel and there is no method which physical channel the breakout port uses.
 
 # 4 Mapping between Openconfig YANG and Redis DB
 ### Table 2: Mapping attributes between OpenConfig YANG and RedisDB:
@@ -424,6 +445,108 @@ gnmic sub -a <ip:port> --skip-verify --path "/openconfig-platform:components/com
 		<td>State_DB</td>
 		<td>TRANSCEIVER_DOM_SENSOR</td>
 		<td>tx1bias, tx2bias, tx3bias, tx4bias</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left: 4em;">thresholds</th>
+		<td></td>
+		<td></td>
+		<td></td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left: 5em;">threshold[WARNING]</th>
+		<td></td>
+		<td></td>
+		<td></td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left: 6em;">state</th>
+		<td></td>
+		<td></td>
+		<td></td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">output-power-upper</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>txpowerhighwarning</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">output-power-lower</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>txpowerlowwarming</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">input-power-upper</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>rxpowerhighwarning</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">input-power-lower</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>rxpowerlowwarning</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">laser-bias-current-upper</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>txbiashighwarning</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">laser-bias-current-lower</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>txbiaslowwarning</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left: 5em;">threshold[CRITICAL]</th>
+		<td></td>
+		<td></td>
+		<td></td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left: 6em;">state</th>
+		<td></td>
+		<td></td>
+		<td></td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">output-power-upper</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>txpowerhighalarm</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">output-power-lower</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>txpowerlowalarm</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">input-power-upper</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>rxpowerhighalarm</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">input-power-lower</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>rxpowerlowalarm</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">laser-bias-current-upper</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>txbiashighalarm</td>
+	</tr>
+	<tr>
+		<th align="left" style="padding-left:7em;">laser-bias-current-lower</th>
+		<td>State_DB</td>
+		<td>TRANSCEIVER_DOM_THRESHOLD</td>
+		<td>txbiaslowalarm</td>
 	</tr>
 </table>
 
