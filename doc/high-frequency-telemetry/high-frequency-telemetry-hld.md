@@ -69,7 +69,7 @@ This document outlines the high-level design of high frequency telemetry, focusi
 
 ## 4. Overview
 
-The existing telemetry solution of SONiC relies on the syncd process to proactively query stats and counters via the SAI API. This approach causes the syncd process to spend excessive time on SAI communication. The high frequency telemetry described in this document aims to provide a more efficient method for collecting object stats. The main idea is that selected stats will be proactively pushed from the vendor's driver to the collector via netlink.
+In the context of AI scenarios, we are encountering challenges with switches that have a higher number of ports, such as 512, and the need for more time-sensitive statistics fetching. The existing telemetry solution is unable to fully meet these requirements. This document aims to address these challenges by proposing a high-frequency telemetry solution that enhances the efficiency and accuracy of statistics collection in SONiC. Because the traditional telemetry solution of SONiC relies on the syncd process to proactively query stats and counters via the SAI API. This approach causes the syncd process to spend excessive time on SAI communication. The high frequency telemetry described in this document aims to provide a more efficient method for collecting object stats. The main idea is that selected stats will be proactively pushed from the vendor's driver to the collector via netlink.
 
 ## 5. Requirements / Constraints
 
