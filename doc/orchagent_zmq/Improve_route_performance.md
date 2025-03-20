@@ -1,10 +1,10 @@
-# Improve Orchagent Route performance with ZMQ
+# Improve Orchagent Route performance
 
 ### Revision
 
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 1.1 | Mar  4 2024 |   Hua Liu          | Improve Orchagent with ZMQ        |
+| 1.1 | Mar  4 2024 |   Hua Liu          | Improve route performance         |
 
 ## Table of Contents
 
@@ -24,7 +24,7 @@
 
 The goal of this project is improve route operation performance between fpmsyncd and orchagent.
 
-Following change will be make to archive this goal:
+This document will test and compare performance improvement of following feature:
 1. Enable ZMQ between fpmsyncd and orchanget.
 2. Enable Ring Buffer for route table, this feature develop by Alibaba.
 3. Enable multiple-db support.
