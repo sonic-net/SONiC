@@ -10,10 +10,9 @@
 - [6. Architecture Design](#6-architecture-design)
 - [7. High-Level Design](#7-high-level-design)
   - [7.1 SWSS Design](#71-swss-design)
-  - [7.2 CoPP Capability Query Flow](#72-copp-capability-query-flow)
+  - [7.2 CoPP Trap WorkFlow](#72-copp-trap-workflow)
   - [7.3 CoPP Default Configuration Changes](#73-copp-default-configuration-changes)
-  - [7.4 Vslib Changes](#74-vslib-changes)
-  - [7.5 Schema Changes](#75-schema-changes)
+  - [7.4 Schema Changes](#74-schema-changes)
 - [8. SAI API](#8-sai-api)
 - [9. Yang Model](#9-yang-model)
 - [10. CLI Design](#10-cli-design)
@@ -54,7 +53,7 @@ In today’s SONIC system, CoPP for neighbor miss traffic is undefined. A surge 
 
 Currently, trap types are applied to SAI without verifying their support, leading to exceptions in orchagent. Additionally, the current configuration lacks visibility of the trap types supported by SAI, and there is no CoPP CLI support available to display configured CoPP groups and trap types.
 
-This design proposes solution to the to the aforementioned problem. By introducing management support for neighbor miss trap type, which allows independent policing for neighbor miss packets. This ensures that surges in neighbor miss traffic will not impact other critical CPU-bound traffic and Prevents CPU starvation by controlling neighbor miss traffic independently. SAI also supports a trap type, SAI_HOSTIF_TRAP_TYPE_NEIGHBOR_MISS, to specifically identify and control neighbor miss traffic.
+This design proposes solution to the aforementioned problem. By introducing management support for neighbor miss trap type, which allows independent policing for neighbor miss packets. This ensures that surges in neighbor miss traffic will not impact other critical CPU-bound traffic and Prevents CPU starvation by controlling neighbor miss traffic independently. SAI also supports a trap type, SAI_HOSTIF_TRAP_TYPE_NEIGHBOR_MISS, to specifically identify and control neighbor miss traffic.
 
 Additionally this design proposes an enhancement in orchagent to perform an SAI enum capability query to identify supported trap types in the system and prevent exceptions caused by unsupported trap types.
 
@@ -63,7 +62,7 @@ To improve manageability and troubleshooting capabilities, the design introduces
 ## 5. Implementation Goals
 
 1. This design introduces support for configuring the neighbor miss trap type, along with its default configuration.
-2. Perform an SAI enum capability query to identify supported trap types and configure them only if they are supported.
+2. Perform an SAI enum capability query to identify supported trap types and configure neighbor_miss only if they are supported.
 3. Publish the supported trap types to STATE_DB.
 4. Implement CoPP CLI support to display the trap CoPP configuration.
 
@@ -89,10 +88,11 @@ When CoPP trap configuration is received from APPL_DB:
 2. The trap configuration will be applied only if the trap is supported.
 3. If the trap is not supported, a syslog error is logged.
 
-### 7.2 CoPP Capability Query Flow
+### 7.2 CoPP Trap WorkFlow
 
-__Figure 1: CoPP Capability Query Flow__
-![CoPP Capability Query Flow](images/copp_capability_query_flow.png "Figure 1: CoPP Capability Query Flow")
+__Figure 1: CoPP Trap WorkFlow__
+
+![CoPP Trap WorkFlow](images/CoPP_Trap_WorkFlow.png "Figure 1: CoPP Trap WorkFlow")
 
 ### 7.3 CoPP Default Configuration Changes
 
@@ -193,8 +193,9 @@ No changes. Yang model for CoPP is defined in [sonic-copp.yang](https://github.c
 
 A new CLI command, `show copp configuration`, is being introduced. The purpose of this command is to display the CoPP configuration applied to SAI. The command will retrieve configuration from copp_cfg.json and CONFIG_DB. Additionally, the command will display the operational status of the trap types retrieved from STATE_DB.
 
-__Figure 2: CoPP CLI Flow__
-![CoPP Capability Query Flow](images/copp_cli_flow.png "Figure 2: CoPP CLI Flow")
+__Figure 2: CoPP CLI WorkFlow__
+
+![CoPP CLI WorkFlow](images/CoPP_CLI_WorkFlow.png "Figure 2: CoPP CLI WorkFlow")
 
 #### 10.1.1 Command structure
 
@@ -277,7 +278,7 @@ No warmboot and fastboot impact is expected for this feature.
 
 #### 12.1.2. CLI UT Test Cases
 
-* New CLI UT cases will be added to verify the CoPP CLI show command. Test cases will verify the output of the show command with input from mock_copp_cfg.json and mock COPP tables in CONFIG_DB and STATE_DB test data.
+* New CLI UT cases will be added to verify the CoPP CLI show command. Test cases will verify the output of the show command with input from mock_copp_cfg.json and mock CoPP tables in CONFIG_DB and STATE_DB test data.
 
 ## 13. System Test Plan
 
