@@ -29,7 +29,7 @@ The scope of this document includes the design and implementation of the gNMI/gN
 - Configuration
   - gRPC server configuration
 
-#### 2.3 Dependencies###
+#### 2.3 Dependencies
 - gNMI/gNOI Servers
   The splitter relies on the GNMI and GNOI servers to handle incoming requests. The servers must be properly configured and running for the splitter to function correctly.
 - Network Configuration
@@ -56,7 +56,9 @@ The offloaded gNMI server is running on the NPU and is responsible for the follo
 
 The original/local `gNMI` container on the DPU is responsible for the remaining of `gNOI` requests.
 
-![Architecture Diagram](https://www.mermaidchart.com/raw/3e126a79-0049-4051-ba30-a18251829504?theme=light&version=v0.1&format=svg){ width=40% }
+<div>
+  <img src="https://www.mermaidchart.com/raw/3e126a79-0049-4051-ba30-a18251829504?theme=light&version=v0.1&format=svg" alt="Architecture Diagram" style="width:40%;">
+</div>
 
 #### 4.2 gNMI/gNOI Splitter
 
