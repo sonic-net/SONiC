@@ -81,7 +81,7 @@ This HLD discusses three potential ways in which orchagent behavior today can be
 
 2. Detect missed notifications from APP_DB to orchagent
 
-    There have been instances where orchagent missed certain APP_DB table entry notifications in a race condition with a rather innocuous logrotate event. This caused those notifications to linger in the redis channel between APP_DB and orchagent without being consumed atll by Orchagent. It is quite obvious that this can be quite detrimental for entries which undergo lots of updates under normal circumstances. For eg: a link down event on a portchannel member may not be synced to ASIC-DB due to this resulting in traffic blackhole. While the root cause of that was a bug in code which was fixed later, it was understood that such conditions are painfully difficult to debug and mitigate without proper failsafe mechanisms. One of the mechanisms that we propose to alleviate this problem is to have a script that monitors APP_DB for unconsumed entries periodically using monit framework and nudge the notifications down to orchagent using sonic-db-cli PUBLISH command so they get consumed right away.
+    There have been instances where orchagent missed certain APP_DB table entry notifications in a race condition with a rather innocuous logrotate event. This caused those notifications to linger in the redis channel between APP_DB and orchagent without being consumed atll by Orchagent. It is quite obvious that this can be quite detrimental for entries which undergo lots of updates under normal circumstances. For eg: a link down event on a portchannel member may not be synced to ASIC-DB due to this resulting in traffic blackhole. While the root cause of that was a bug in code which was fixed later, it was understood that such conditions are painfully difficult to debug and mitigate without proper failsafe mechanisms. One of the mechanisms that we propose to alleviate this problem is to have a script that monitors APP_DB for unconsumed entries periodically using monit framework and raise an alert if such missed notifications are detected.
 
 3. Detect out-of-sync entries between APP_DB and ASIC_DB
 
@@ -98,11 +98,9 @@ one of three actions will be performed in one of the handleSai<Op>Status() funct
 
  a. If the error is something that can resolve itself with subsequent retries like for eg: SAI_STATUS_OBJECT_IN_USE or SAI_STATUS_TABLE_FULL, handleSai<Op>Status() will return task_need_retry. In this case, the entry is not removed from the m_toSync map. No errors are logged in such cases as it can potentially cause log flooding in case of repeated retries. Such errors are highlighted in yellow in the table below.
 
- b. If the error is something that is unlikely to be resolved with a subsequent attempt like for eg: SAI_STATUS_NOT_SUPPORTED, orchagent will call handleSaiFailure() with abort_on_failure set to false by default so orchagent does not exit and handleSaiFailure() will instead throw a custom AddToFailed exception. The exception handler in the approrpiate orch's doTask() will then remove the entry from m_toSync map and move it to a newly introduced m_failed_toSync map if the entry already does not exists there. This will also log an ERROR syslog message and also generate an eventd alert via structured-events channel. Entries in m_failed_toSync map will be removed when a corresponding "DEL" operation is received for the entry.
+ b. If the error is something that something that is unlikely to be resolved with a subsequent attempt like for eg: SAI_STATUS_NOT_SUPPORTED, orchagent will call handleSaiFailure() with abort_on_failure set to false by default so orchagent does not exit. This will log an ERROR syslog message and also generate an eventd alert via structured-events channel. Such errors are highlighted in red in the table below.
 
- Such errors are highlighted in red in the table below.
-
- c. If the error is rather harmless like SAI_STATUS_ITEM_ALREADY_EXISTS, orchagent will return task_success. In such cases, the entry is removed from m_toSync map and therefore no retries will be attempted.  An INFO log message will also be logged in syslog. In addition, when handling SAI_STATUS_ITEM_NOT_EXISTS status for "DEL" operation, orchagent will also call handleSaiFailure() with abort_on_failure set to false which in turn throws a custom exception RemoveFromFailed to be handled by the appropriate orch's doTask()function. The exception handler will remove the entry from m_failed_toSync map if it exists there. Such errors are highlighted in green in the table below.
+ c. If the error is rather harmless like SAI_STATUS_ITEM_ALREADY_EXISTS, orchagent will return task_success. In such cases, the entry is removed from m_toSync map and therefore no retries will be attempted.  An INFO log message will also be logged in syslog. Such errors are highlighted in green in the table below.
 
 ![sai status handling](images/sai_status_handling.png)
 
@@ -141,7 +139,7 @@ Call flow:
 
 3. At the end of Orchagent's main while loop after doTask() for all orchs have been called, orchagent will call getPendingEntries() function to retrieve the entries that have yet to be programmed to ASIC_DB only if switchorch's m_getPendingEntries is set to True. This ensures that every orchagent loop does not incur an additional cost of processing pending entries. Pending entries can be obtained from the m_toSync maps associated with each orch's consumer.
 
-4. getPendingEntries() will call the existing getTaskToSync() which returns all the entries to be synced in m_toSync map as a vector of strings. getPendingEntries() will also call a new function getFailedEntries() which returns all the failed entries in m_failed_toSync map as a vector of strings. Entries in m_toSync map and m_failed_toSync map together form the pending entries that are present in APP_DB, but missing in ASIC_DB.
+4. getPendingEntries() will call the existing getTaskToSync() which returns all the entries to be synced in m_toSync map as a vector of strings. These are the entries that are present in APP_DB, but missing in ASIC_DB.
 
 5. getPendingEntries() will then call gsWitchOrch->sendPendingEntriesResponse() which will  send the pending entries to query_orchagent process using ORCHAGENTQUERYREPLY notification channel and subsequently set m_getPendingEntries to False. Subsequent orchagent main loop iterations will not retrive pending entries until query_orchagent sends another notification after a specified period of time.
 
@@ -167,7 +165,7 @@ There is no config DB change needed for this functionality.
 ### Warmboot and Fastboot Design Impact
 
 This error handling improvement does not have any requirements or dependencies w.r.t warmboot or fastboot.
-In the going down path, warm reboot does not currently go through when there are pending orchagent entries that have yet to be programmed to ASIC_DB and that behavior will stay as-is. In the going up path after SWSS state restoration, there should be no pending entries in m_toSync map as well as m_failedtoSync map.
+In the going down path, warm reboot does not currently go through when there are pending orchagent entries that have yet to be programmed to ASIC_DB and that behavior will stay as-is. In the going up path after SWSS state restoration, there should be no pending entries in m_toSync map.
 
 
 ### Memory Consumption
@@ -217,5 +215,6 @@ The unit test plan for orchagent error handling is documented below.
 ### Open items/Future enhancements
 
 1. Change the retry logic so that it follows an exponential backoff mechanism to save CPU cycles rather than the current static retry mechanism in SONiC. This will be considered as part of phase-2.
-2. Leverage ERROR_DB that is already available to escalate the errors from Orchagent to upper layers/applications.
+2. Introduce m_failed_toSync map to keep track of all entries that have failed to be synced to ASIC_DB due to errors discussed in section 1b (errors which do not warrant retries). As this requires a chance in all orchs, this will be considered separately in phase-2.
+3. Leverage ERROR_DB that is already available to escalate the errors from Orchagent to upper layers/applications.
 
