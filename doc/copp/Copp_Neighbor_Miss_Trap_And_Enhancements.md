@@ -10,6 +10,8 @@
 - [6. Architecture Design](#6-architecture-design)
 - [7. High-Level Design](#7-high-level-design)
   - [7.1 SWSS Design](#71-swss-design)
+    - [7.1.1 CoPP Init FlowChart](#711-copp-init-flowchart)
+    - [7.1.2 CoPP Config FlowChart](#712-copp-config-flowchart)
   - [7.2 CoPP Trap WorkFlow](#72-copp-trap-workflow)
   - [7.3 CoPP Default Configuration Changes](#73-copp-default-configuration-changes)
   - [7.4 Schema Changes](#74-schema-changes)
@@ -34,7 +36,7 @@
 
 ## 2. Scope  
 
-This document presents the high-level design for supporting the Neighbor Miss CoPP trap type. It also covers the SAI enum capability query for the trap type attribute, CLI show command support for CoPP, and other CoPP enhancements.
+This document presents the high-level design for supporting the Neighbor Miss CoPP trap type. It also covers the SAI enum capability query for the trap type attribute, CLI show command support for CoPP.
 
 ## 3. Abbreviations 
 
@@ -44,14 +46,13 @@ This document presents the high-level design for supporting the Neighbor Miss Co
 | __SWSS__      | Switch State Service            |
 | __CLI__       | Command Line interface          |
 | __SAI__       | Switch Abstraction Interface    |
-| __DVS__       | Docker Virtual Switch           |
 | __ARP__       | Address Resolution Protocol     |
 
 ## 4. Overview 
 
 In today’s SONIC system, CoPP for neighbor miss traffic is undefined. A surge in such IP packets sent to the CPU for ARP resolution can potentially impact other CPU traffic, starving critical traffic such as IP2ME. Therefore, it is crucial to police neighbor miss traffic separately.
 
-Currently, trap types are applied to SAI without verifying their support, leading to exceptions in orchagent. Additionally, the current configuration lacks visibility of the trap types supported by SAI, and there is no CoPP CLI support available to display configured CoPP groups and trap types.
+Furthermore, the current implementation applies trap types to SAI without verifying their support, leading to exceptions in orchagent. Additionally, the current configuration lacks visibility of the trap types supported by SAI, and there is no CoPP CLI support available to display configured CoPP groups and trap types.
 
 This design proposes solution to the aforementioned problem. By introducing management support for neighbor miss trap type, which allows independent policing for neighbor miss packets. This ensures that surges in neighbor miss traffic will not impact other critical CPU-bound traffic and Prevents CPU starvation by controlling neighbor miss traffic independently. SAI also supports a trap type, SAI_HOSTIF_TRAP_TYPE_NEIGHBOR_MISS, to specifically identify and control neighbor miss traffic.
 
@@ -88,9 +89,17 @@ When CoPP trap configuration is received from APPL_DB:
 2. The trap configuration will be applied only if the trap is supported.
 3. If the trap is not supported, a syslog error is logged.
 
+#### 7.1.1 CoPP Init FlowChart
+__Figure 1: CoPP Init FlowChart__
+
+![CoPP Init FlowChart](images/CoPP_Init_FlowChart.png "Figure 1: CoPP Init FlowChart")
+#### 7.1.2 CoPP Config FlowChart
+__Figure 2: CoPP Config FlowChart__
+
+![CoPP Config FlowChart](images/CoPP_Config_FlowChart.png "Figure 2: CoPP Config FlowChart")
 ### 7.2 CoPP Trap WorkFlow
 
-__Figure 1: CoPP Trap WorkFlow__
+__Figure 3: CoPP Trap WorkFlow__
 
 ![CoPP Trap WorkFlow](images/CoPP_Trap_WorkFlow.png "Figure 1: CoPP Trap WorkFlow")
 
@@ -193,7 +202,7 @@ No changes. Yang model for CoPP is defined in [sonic-copp.yang](https://github.c
 
 A new CLI command, `show copp configuration`, is being introduced. The purpose of this command is to display the CoPP configuration applied to SAI. The command will retrieve configuration from copp_cfg.json and CONFIG_DB. Additionally, the command will display the operational status of the trap types retrieved from STATE_DB.
 
-__Figure 2: CoPP CLI WorkFlow__
+__Figure 4: CoPP CLI WorkFlow__
 
 ![CoPP CLI WorkFlow](images/CoPP_CLI_WorkFlow.png "Figure 2: CoPP CLI WorkFlow")
 
