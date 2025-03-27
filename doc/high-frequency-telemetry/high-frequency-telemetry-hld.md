@@ -503,6 +503,8 @@ high_frequency_telemetry_chunk_count = uint32; chunk count under the high freque
 HIGH_FREQUENCY_TELEMETRY_PROFILE|{{profile_name}}
     "stream_state": {{enabled/disabled}}
     "poll_interval": {{uint32}}
+    "otel_endpoint": {{string of endpoint}} (Optional)
+    "otel_certs": {{string of path}} (Optional)
 ```
 
 ```
@@ -510,6 +512,10 @@ key                = HIGH_FREQUENCY_TELEMETRY_PROFILE|profile_name a string as t
 ; field            = value
 stream_state       = enabled/disabled ; Enabled/Disabled stream.
 poll_interval      = uint32 ; The interval to poll counter, unit microseconds.
+otel_endpoint      = string ; The endpoint of OpenTelemetry collector. E.G. 192.168.0.100:4318.
+                     It will use the local OpenTelemetry collector if this value isn't provided.
+otel_certs         = string ; The path of certificates for OpenTelemetry collector. E.G. /etc/sonic/otel/cert.private
+                     If this value isn't provided, we will use a non-secure channel.
 ```
 
 #### 7.4.3. HIGH_FREQUENCY_TELEMETRY_GROUP
