@@ -122,7 +122,7 @@ module: openconfig-file-mgmt-private
        +---w input
        |  +---w source?            filename-uri-type
        |  +---w destination?       filename-uri-type
-       |  +---w (operation)?       enumeration: replace
+       |  +---w (operation)?       enumeration
        +--ro output
           +--ro status?          int32
           +--ro status-detail?   string
@@ -159,6 +159,14 @@ YANG file: openconfig-file-mgmt-private.yang
                description
                   "The copy config options applicable only when destination is running-configuration";
                type enumeration {
+                  enum MERGE {
+                     description
+                        "The new configuration is merged to the running, i.e. 'config load'";
+                  }
+                  enum OVERWRITE {
+                     description
+                        "The new configuration is imported after all the services stop/restart, i.e. 'config reload'";
+                  }
                   enum REPLACE {
                      description
                         "The new configuration replace the current running without the services stop/restart";
