@@ -71,14 +71,12 @@ scope                                 = STRING
 
 If scope is specified to be "ha "ACL rule to match TUNNEL_TERM flag to be added. 
 
-ACL Rule for inbound traffic with Tunnel Termination
 ```
 {
     "ACL_RULE": {
-        "<vnet_name>_<inner_dst_mac>_IN_TERM": {
+        "<vnet_name>_<inner_dst_mac>_TUNN_TERM": {
             "PRIORITY": "9998",
             "DST_IP": "1.1.1.1/32",
-            "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
             "TUNN_TERM": "true",
             "REDIRECT": "<local nexthop oid>"
         }
@@ -86,18 +84,3 @@ ACL Rule for inbound traffic with Tunnel Termination
 }
 ```
 
-ACL Rule for outbound traffic with Tunnel Termination
-```
-{  
-    "ACL_RULE": {
-        "<vnet_name>_<inner_dst_mac>_OUT_TERM": {
-            "PRIORITY": "9999",
-            "TUNNEL_VNI": "4000",
-            "DST_IP": "1.1.1.1/32",
-            "INNER_SRC_MAC/INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
-            "TUNN_TERM": "true",
-            "REDIRECT": "<local nexthop oid>"
-        }
-    }
-}
-```
