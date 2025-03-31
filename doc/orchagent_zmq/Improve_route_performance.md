@@ -134,6 +134,20 @@ table{
 | Multiple DB + Ring buffer       |  12                |
 | Multiple DB + Ring buffer + ZMQ |  7                 |
 
+## Pros and Cons
+
+
+<!-- <style>
+table{
+  margin:auto;
+}
+</style> -->
+| Feature     |  Pros                                                            |  Cons                                    |
+| ----------- | -----------------------------------------------------------------|------------------------------------------|
+| Multiple DB | No code change, performance improve is acceptable.               | Increase CPU and memory utilzation.      |
+| Ring buffer | Still using Redis, feature is ready, only enable a feature flag. | Poor performance, almost no improvement. |
+| ZMQ         | Best performance.                                                | Need code change in multiple daemon.     |
+
 ## Ring Buffer
  - Ring buffer feature enable/disable flag in CONFIG_DB:
  
@@ -240,6 +254,27 @@ sudo touch $FILESYSTEM_ROOT_ETC_SONIC/enable_multidb
 ```
 
  - Multiple-db design doc: https://github.com/sonic-net/SONiC/blob/master/doc/database/multi_database_instances.md
+
+ - Compare of enable/disable Multiple-db
+     - Disable
+```
+d50451ae9424   database       7.44%     104.1MiB / 7.648GiB   1.33%     0B / 0B   0B / 0B     20
+
+redis         42  7.3  0.3  93696 26204 pts/0    Sl   07:52   0:09 /usr/bin/redis-server 127.0.0.1:6379
+redis         43  0.1  0.2  61952 16304 pts/0    Sl   07:52   0:00 /usr/bin/redis-server 127.0.0.1:6400
+```
+
+    - Enable
+```
+3d6af74c6202   database         10.16%    157.2MiB / 7.648GiB   2.01%     0B / 0B   0B / 0B     40
+
+redis         60  1.5  0.2  80384 21740 pts/0    Sl   07:43   0:05 /usr/bin/redis-server 127.0.0.1:6379
+redis         61  2.9  0.3  75264 24628 pts/0    Sl   07:43   0:10 /usr/bin/redis-server 127.0.0.1:6378
+redis         62  1.2  0.2  71168 23144 pts/0    Sl   07:43   0:04 /usr/bin/redis-server 127.0.0.1:6377
+redis         65  4.1  0.2  67584 21768 pts/0    Sl   07:43   0:13 /usr/bin/redis-server 127.0.0.1:6376
+redis         67  0.1  0.2  64512 18076 pts/0    Sl   07:43   0:00 /usr/bin/redis-server 127.0.0.1:6375
+redis         71  0.1  0.2  64512 17940 pts/0    Sl   07:43   0:00 /usr/bin/redis-server 127.0.0.1:6400
+```
 
 ## ZMQ
  - The route operation performance between fpmsyncd and orchagent can be improved by switch to ZMQ producer/consumer table.
