@@ -130,6 +130,7 @@ lane_num: Represents the lane number of the field. The lane number is an integer
     tx{lane_num}bias             = FLOAT                            ; tx bias in mA for each lane
     laser_temperature            = FLOAT                            ; laser temperature value in Celsius
 
+    ;C-CMIS specific fields
     laser_config_freq            = FLOAT                            ; laser configured frequency in MHz
     laser_curr_freq              = FLOAT                            ; laser current frequency in MHz
     tx_config_power              = FLOAT                            ; configured tx output power in dbm
@@ -1471,11 +1472,13 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     module_state                            = 1*255VCHAR        ; current module state (ModuleLowPwr, ModulePwrUp, ModuleReady, ModulePwrDn, Fault)
     module_fault_cause                      = 1*255VCHAR        ; reason of entering the module fault state
     DP{lane_num}State                       = 1*255VCHAR        ; data path state indicator on host lane {lane_num}
-    txoutput_status{lane_num}               = BOOLEAN           ; tx output status on media lane {lane_num}
-    rxoutput_status_hostlane{lane_num}      = BOOLEAN           ; rx output status on host lane {lane_num}
+    tx{lane_num}OutputStatus                = BOOLEAN           ; tx output status on media lane {lane_num}
+    rx{lane_num}OutputStatusHostlane        = BOOLEAN           ; rx output status on host lane {lane_num}
     config_state_hostlane{lane_num}         = 1*255VCHAR        ; configuration status for the data path of host line {lane_num}
     dpdeinit_hostlane{lane_num}             = BOOLEAN           ; data path deinitialized status on host lane {lane_num}
     dpinit_pending_hostlane{lane_num}       = BOOLEAN           ; data path configuration updated on host lane {lane_num}
+
+    ;C-CMIS specific fields
     tuning_in_progress                      = BOOLEAN           ; tuning in progress status
     wavelength_unlock_status                = BOOLEAN           ; laser unlocked status
 ```
@@ -1500,6 +1503,8 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tx{lane_num}cdrlol_hostlane             = BOOLEAN           ; tx clock and data recovery loss of lock flag on host lane {lane_num}
     tx{lane_num}_eq_fault                   = BOOLEAN           ; tx equalization fault flag on host lane {lane_num}
     rx{lane_num}cdrlol                      = BOOLEAN           ; rx clock and data recovery loss of lock flag on media lane {lane_num}
+
+    ;C-CMIS specific fields
     target_output_power_oor                 = BOOLEAN           ; target output power out of range flag
     fine_tuning_oor                         = BOOLEAN           ; fine tuning out of range flag
     tuning_not_accepted                     = BOOLEAN           ; tuning not accepted flag
@@ -1526,6 +1531,8 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tx{lane_num}cdrlol_hostlane       = INTEGER           ; tx clock and data recovery loss of lock flag on host lane {lane_num} change count
     tx{lane_num}_eq_fault             = INTEGER           ; tx equalization fault flag on host lane {lane_num} change count
     rx{lane_num}cdrlol                = INTEGER           ; rx clock and data recovery loss of lock flag on media lane {lane_num} change count
+
+    ;C-CMIS specific fields
     target_output_power_oor           = INTEGER           ; target output power out of range flag change count
     fine_tuning_oor                   = INTEGER           ; fine tuning out of range flag change count
     tuning_not_accepted               = INTEGER           ; tuning not accepted flag change count
@@ -1552,6 +1559,8 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tx{lane_num}cdrlol_hostlane       = STR           ; tx clock and data recovery loss of lock flag on host lane {lane_num} set time
     tx{lane_num}_eq_fault             = STR           ; tx equalization fault flag on host lane {lane_num} set time
     rx{lane_num}cdrlol                = STR           ; rx clock and data recovery loss of lock flag on media lane {lane_num} set time
+
+    ;C-CMIS specific fields
     target_output_power_oor           = STR           ; target output power out of range flag set time
     fine_tuning_oor                   = STR           ; fine tuning out of range flag set time
     tuning_not_accepted               = STR           ; tuning not accepted flag set time
@@ -1578,6 +1587,8 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tx{lane_num}cdrlol_hostlane       = STR           ; tx clock and data recovery loss of lock flag on host lane {lane_num} clear time
     tx{lane_num}_eq_fault             = STR           ; tx equalization fault flag on host lane {lane_num} clear time
     rx{lane_num}cdrlol                = STR           ; rx clock and data recovery loss of lock flag on media lane {lane_num} clear time
+
+    ;C-CMIS specific fields
     target_output_power_oor           = STR           ; target output power out of range flag clear time
     fine_tuning_oor                   = STR           ; fine tuning out of range flag clear time
     tuning_not_accepted               = STR           ; tuning not accepted flag clear time
@@ -2399,10 +2410,10 @@ The purpose of flag analysis is to track the status of various parameters and to
 
 - `TRANSCEIVER_DOM_FLAG`: This table stores flags indicating the status of various DOM parameters.
 - `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: This table keeps a count of how many times each DOM flag has changed. Upon initialization of `xcvrd`, the count is set to 0.
-- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is not set. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
+- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never`. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
   - The timestamp at which the link status was changed, or
   - The polling event timestamp if the flag was set during the routine polling by the `DomInfoUpdateTask` thread.
-- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never` if the flag is set. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
+- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never`. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
   - The timestamp at which the link status was changed, or
   - The polling event timestamp if the flag was cleared during the routine polling by the `DomInfoUpdateTask` thread.
 
