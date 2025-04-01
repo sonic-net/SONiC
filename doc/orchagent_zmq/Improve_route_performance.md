@@ -142,11 +142,11 @@ table{
   margin:auto;
 }
 </style> -->
-| Feature     |  Pros                                                            |  Cons                                    |
-| ----------- | -----------------------------------------------------------------|------------------------------------------|
-| Multiple DB | No code change, performance improve is acceptable.               | Increase CPU and memory utilzation.      |
-| Ring buffer | Still using Redis, feature is ready, only enable a feature flag. | Poor performance, almost no improvement. |
-| ZMQ         | Best performance.                                                | Need code change in multiple daemon.     |
+| Feature     |  Pros                                                            |  Cons                                                       |
+| ----------- | -----------------------------------------------------------------|-------------------------------------------------------------|
+| Multiple DB | No code change, performance improve is acceptable: 14s -> 8s     | Increase CPU and memory utilzation.                         |
+| Ring buffer | Still using Redis, feature is ready, only enable a feature flag. | Poor performance, almost no improvement.                    |
+| ZMQ         | Best performance: 14s -> 6                                       | Need code change in multiple daemon. using TCP connect.     |
 
 ## Ring Buffer
  - Ring buffer feature enable/disable flag in CONFIG_DB:
