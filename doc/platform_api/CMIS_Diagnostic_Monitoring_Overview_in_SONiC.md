@@ -60,7 +60,15 @@ The CMIS diagnostic monitoring feature in SONiC requires the following:
     - The flag clear time in the database is updated during the periodic polling event at time T7 and not during all the link up events at times T2, T4, and T6.
     - The flag change count in the database is updated to 2 during the periodic polling event at time T7, even though the flag changed on the module 6 times.
 
-2. **Flag Clear Time Update**:
+2. **Updating Diagnostic Information During the CMIS Initialization Phase**:
+    - Diagnostic information will not be updated if the port (even if only one subport of a breakout port group) is not in a [CMIS terminal state](https://github.com/sonic-net/sonic-platform-daemons/blob/0b0ea3b2a3ed60ef00f25305631a30314f59a6fe/sonic-xcvrd/xcvrd/xcvrd.py#L68). 
+
+    - This behavior adheres to the CMIS specification, which recommends:  
+        > "It is recommended that hosts minimize management operations while in this state. Dynamic Memory Map content may be unreliable while in this state and should not be read or written."
+
+    - By following this guideline, SONiC ensures data reliability and avoids potential issues caused by accessing unstable diagnostic data during the initialization phase.
+
+3. **Flag Clear Time Update**:
    - The clear time of the flag in the database will be updated after the second read of the flag register.
    - This is because the flag registers are clear-on-read latched values.
 
@@ -109,6 +117,10 @@ The `STATE_DB` schema for the CMIS diagnostic monitoring feature includes the fo
 - `TRANSCEIVER_STATUS_FLAG_SET_TIME`: Records the timestamp when the transceiver status flag was set.
 - `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME`: Records the timestamp when the transceiver status flag was cleared.
 - `TRANSCEIVER_PM`: Stores performance monitoring data.
+
+**Note**  
+
+Tables with a `_FLAG` suffix store flag statuses for the corresponding data. All of these flags are clear-on-read latched registers, except for the SFF-8472 `TRANSCEIVER_STATUS_FLAG` table, which stores non-latched registers. Metadata tables (e.g., `_FLAG_CHANGE_COUNT`, `_FLAG_SET_TIME`, `_FLAG_CLEAR_TIME`) provide additional information about flag changes.
 
 ### 3.1 Transceiver DOM
 
