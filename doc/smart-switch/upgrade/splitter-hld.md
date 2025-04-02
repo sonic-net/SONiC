@@ -62,7 +62,7 @@ The original/local `gNMI` container on the DPU is responsible for the remaining 
 
 #### 4.2 gNMI/gNOI Splitter
 
-The gNMI/gNOI Splitter is a gRPC server that listens on the NPU and forwards the requests to the appropriate servers. The splitter is responsible for the following tasks:
+The gNMI/gNOI Splitter is an augmentation to the gNMI/gNOI server on NPU that will make it forward the request if the request is intended for any of the smartswitch's DPU. The splitter is responsible for the following tasks:
 - Receiving incoming gRPC requests.
 - Determines whether the request is a gNMI or gNOI request.
   - If it is a gNOI request, whether it is a request that can only be served by the NPU.
@@ -87,8 +87,6 @@ The gNMI/gNOI Splitter does not use any SAI APIs.
 
 ### 6. Configuration
 The gNMI/gNOI Splitter is configured using the following parameters:
-- `gRPC server port` (new)
-  The port on which the splitter listens for incoming requests.
 - per-DPU configuration
   The splitter is configured per DPU, and each DPU has its own configuration. The configuration includes the following parameters:
   - `Offloaded server port`
