@@ -98,8 +98,8 @@ The following redis DB entries will be accessed for the FEC FLR calculations
 |Redis DB |Table|Entries|New, RW| Format | Description|
 |--------------|-------------|------------------|--------|----------------|----------------|
 |COUNTER_DB |COUNTERS_PORT_NAME_MAP | oid  |R |string |Name to oid mapping |
-|COUNTER_DB |COUNTERS |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES |R |number |Total number of uncorrected codewords |
-|COUNTER_DB |COUNTERS |SAI_PORT_STAT_IF_IN_FEC_CORRECTABLE_FRAMES |R |number |Total number of corrected codewords |
+|COUNTER_DB |COUNTERS |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES |R |number |Total number of uncorrectable codewords |
+|COUNTER_DB |COUNTERS |SAI_PORT_STAT_IF_IN_FEC_CORRECTABLE_FRAMES |R |number |Total number of correctable codewords |
 |COUNTER_DB |COUNTERS |SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_S0 |R |number |Total number of codewords without any errors |
 |COUNTER_DB |RATES |FEC_FLR |New, RW| floating |calculated FEC FLR |
 |COUNTER_DB |RATES |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last |NEW, RW |number |Last uncorrectable codewords |
@@ -120,7 +120,7 @@ For X=4, FEC_FLR = 4.125 * CER
 
 By default we consider "no interleaving" and thus FEC_FLR will be computed as "1.125 * CER".
 
-To include the interleaving factor in FEC_FLR computation, a new SAI port attribute will be needed to retrieve the underlying interleaving factor. We could have a CLI configurable to determine whether the interleaving factor should be considered (in the absence of support for this new SAI attribute).
+To include the interleaving factor in FEC_FLR computation, a new SAI port attribute will be needed to retrieve the underlying interleaving factor.
 
 ### 4.5 Calculation Formulas
 
