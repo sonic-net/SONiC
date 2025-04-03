@@ -67,7 +67,7 @@ For data not available in DBs, Target name "OTHERS" is designated for that categ
 
 # SONiC system telemetry software architecture
 System telemetry in SONiC supports both dial-in mode and dial-out mode. The DB client takes care of retrieving data from SONiC redis database, while non-DB client serves data outside of redis databases. gRPC dial-in server (gNMI server) is described in this document,
-![SOFTWARE ARCHITECTURE](img/dial_in_out.png)
+![SOFTWARE ARCHITECTURE](img/GNMI_Server.png)
 # gRPC operations for system telemetry in SONiC
 As mentioned at the beginning, SONiC gRPC data telemetry is largely based on gNMI protocol,  the GetRquest/GetResponse and SubscribeRequest/SubscribeResponse RPC have been implemented. Since SONiC doesn't have complete YANG data model yet, the DB, TABLE, KEY and Field path hierarchy is used as path to uniquely identify the configuration/state and counter data.
 
