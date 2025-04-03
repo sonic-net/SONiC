@@ -29,7 +29,8 @@ This document describes high level design details of SONiC's ICMP Hardware Offlo
       - [Session GUID handling](#session-guid-handling)
       - [Peer session handling](#peer-session-handling)
       - [Timer considerations](#timer-considerations)
-      - [Link State transition](#link-state-transition)
+      - [Link Prober State transitions](#link-prober-state-transitions)
+      - [TLV generation considerations](#tlv-generation-considerations)
     - [Orchagent](#orchagent)
       - [IcmpOrch](#icmporch)
       - [MuxOrch](#muxorch)
@@ -41,7 +42,6 @@ This document describes high level design details of SONiC's ICMP Hardware Offlo
   - [State-DB](#state-db)
 - [Command Line](#command-line)
 - [Limitations](#limitations)
-- [Warm Reboot Support](#warm-reboot-support)
 - [Testing](#testing)
 
 <!-- /code_chunk_output -->
@@ -62,17 +62,22 @@ Following diagram shows the cluster topology of Dual-ToR architecture for refere
 ### Requirement
 Current link state detection time with software based ICMP sessions is in the order of 200-400 milliseconds. Requirement for ICMP Hardware Offload is to bring this down to < 10 milliseconds.
 
-Currently switching time after link state change is detected is around 25-50 milliseconds. Note this depends on route scale. Requirement for FRR protection switching using Nexthop Protection Group is to keep it consistently below 25 milliseconds irrespective of the route scale.
+Currently switching time after link state change is detected, is around 25-50 milliseconds. Note this depends on route scale. Requirement for FRR protection switching using Nexthop Protection Group is to keep it consistent irrespective of the route scale.
 
 ### High Level Component and Requirements
 #### LinkMgrd Requirements
-LinkMgrd is the central component that runs in MUX docker and is responsible for managing ICMP echo sessions and link state. Link prober sub-component in Linkmgrd is responsible for the ICMP echo sessions. 
+LinkMgrd is the central component that runs in MUX docker and is responsible for managing ICMP echo sessions and link state. Link prober sub-component in Linkmgrd is responsible for the ICMP echo sessions.
 * Requirements
    * Add / Remove Hardware ICMP echo session in App DB based on mux cable and link prober config entries.
    * Consume ICMP echo session state from State DB produced by Orchagent and update mux state.
+   * Create two hardware sessions per mux port / interface one for self and another one to monitor the peer replies.
+   * Generate and handle ICMP packets with TLVs in software.
+
+Following diagram shows the hardware ICMP echo sessions between the TORs and Server.
+<div align="center"> <img src=image/hw_icmp_echo_sessions.png width=600 /> </div>
 
 #### Orchagent Requirement
-Currently orchagent creates tunnel at initialization and add / removes routes to forward traffic to peer ToR via a IpinIP tunnel when linkmgrd switches state to standby / active. 
+Currently orchagent creates tunnel at initialization and add / removes routes to forward traffic to peer ToR via a IpinIP tunnel when linkmgrd switches state to standby / active.
 * Requirements
    * Create / Remove hardware ICMP echo sessions by consuming entries in App DB.
    * Consume ICMP echo session notification from SAI and update session state in State DB.
@@ -108,14 +113,17 @@ Hardware Link prober needs to know the peer session GUID to set the peer session
 * **ICMP echo session tx_interval setting:**
     * tx_interval = probing interval
     * Positive probing timer value = probing interval x positive signal count.
-    * LinkMgrd will start positive probing timer after receiving the first UP state notification for a session from State DB and move the link state from unknown to wait state. After this when positive timer expires it will transition the Link from wait state to Active state.
+    * LinkMgrd will start positive probing timer after receiving the first UP state notification for a session from State DB and link prober will conitnue to remain in unknown state until the expiry of this positive timer at which it will transition the Link prober to Active state.
 * **ICMP echo session rx_interval setting:**
     * rx_interval = probing interval x negative signal count.
-    * LinkMgrd will directly transition the link to unknown state avoiding the wait state as opposed to what was done in case of software probing.
+    * LinkMgrd will directly transition the link prober to unknown state avoiding the negative probing timer as opposed to what was done in case of software probing.
 
-#### Link State transitions
-Following table shows the mux state transitions based on event when link_prober mode is set as hardware and icmp echo session is offloaded to NPU.
+#### Link Prober State transitions
+Following table shows the link prober state transitions based on event when link_prober mode is set as hardware and icmp echo session is offloaded to NPU.
 <div align="center"> <img src=image/link_state_transition.png width=600 /> </div>
+
+#### TLV generation considerations
+ICMP packets with TLVs will not be generated by the hardware/NPU and LinkMgrd will generate these packets in software using the software cookie as currently done by software prober. Using the software cookie for TLV generation will make sure peer NPU will not consume these ICMP packets in hardware and LinkMgrd running on peer ToR will be able to receive and handle these TLV packets.
 
 ### Orchagent
 #### IcmpOrch
@@ -139,23 +147,23 @@ Vrf-name : Interface Alias : Session GUID : Session Type
 * Interface Alias 'default' will set the SAI atttribute hw_lookup to true and NPU will perform forwarding lookup basd on dst_ip to determine the outgoing interface.
 
 #### MuxOrch
-This feature introduces a new config knob **switching_mode** to differentiate between normal software based switching and FRR protection switching that uses next hop protection group to switch traffic. MuxOrch will create next hop protection group for each mux port and maintain a mapping of mux port and next hop protection group based on this config knob.
+This feature introduces a new config knob **switching_mode** to differentiate between normal software based switching and FRR protection switching that will use next hop protection group to switch traffic. MuxOrch will create next hop protection group for each mux port and maintain a mapping of mux port and next hop protection group based on this config knob.
 MuxOrch creates the IPinIP tunnel based on the peer_switch configuration. Currently IPinIP tunnel destination next hop is created when mux state changes to standby however with frr_protection switching_mode it will create the IPinIP tunnel destination next hop in advance and add this as the backup member of the next hop protection group.
 
 #### MuxCableOrch
-MuxCableOrch in orchagent is the component responsible for consuming mux state from App DB APP_MUX_CABLE_TABLE_NAME and switching traffic. Currently this component updates all routes whenever a traffic switchover is needed. When **switching_mode** will be set to **frr-protection** in MuxOrch, MuxCableOrch will program the routes with the nexthop protection group as destination. With frr-protection mode in the event of traffic switching, SONiC will just toggle the members of nexthop protection group and will no longer need to reprogram all routes. 
+MuxCableOrch in orchagent is the component responsible for consuming mux state from App DB MUX_CABLE_TABLE and switching traffic. Currently this component updates all routes whenever a traffic switchover is needed. When **switching_mode** will be set to **frr-protection** in MuxOrch, MuxCableOrch will program the routes with the nexthop protection group as destination. With frr-protection mode in the event of traffic switching, SONiC will just toggle the members of nexthop protection group and will no longer need to reprogram all routes.
 
 Following diagram shows component level flow for traffic switching.
 <div align="center"> <img src=image/traffic_switching_flow.png width=700 /> </div>
 
 #### MuxNbrHandler
-Currently when FDB changes or neighbor changes, neighbors are updated based on the state of mux. With frr-protection neighbor updates will always disable the original neighbor and create a route using the prefix from the neighbor pointing to the protection next hop group.
+Currently when FDB changes or neighbor changes, neighbors are updated based on the state of mux. With frr-protection neighbor destination will change based on toggling of protection group.
 
 ### DB Schema Changes
 
 #### Config-DB
 Two new knobs in MUX_CABLE config table to support these features:
-  * **link_prober_type** 
+  * **link_prober_type**
     * software : create software based icmp echo session. This is default value.
     * hardware : create hardware based icmp echo session.
   * **switching_mode**
@@ -179,7 +187,7 @@ Two new knobs in MUX_CABLE config table to support these features:
 ```
 
 #### App-DB
-A new table, named **ICMP_ECHO_SESSION_TABLE**, will be introduced in the App DB to create hardware based icmp echo sessions. Entries in this table will be produced by LinkMgrd and consumed by Orchagent. 
+A new table, named **ICMP_ECHO_SESSION_TABLE**, will be introduced in the App DB to create hardware based icmp echo sessions. Entries in this table will be produced by LinkMgrd and consumed by Orchagent.
 
 ```
 {
@@ -233,8 +241,8 @@ A new table **ICMP_ECHO_SESSION_TABLE** will be added in the State DB. Entries i
   * `state`: mux mode configuration
     * `auto`: enable failover logics for both self and peer
     * `manual`: disable failover logics for both self and peer
-    * `active`: if current mux status is not `active`, toggle the mux to `active` once, then work in `manual` mode
-    * `standby`: if current mux status is not `standby`, toggle the mux `standby` once, then work in `manual` mode
+    * `active`: if current mux status is not `active`, toggle the mux to `active` once
+    * `standby`: if current mux status is not `standby`, toggle the mux `standby` once
     * `detach`: enable failover logics only for self
   * `ipv4`: mux server ipv4 address
   * `ipv6`: mux server ipv6 address
@@ -258,7 +266,7 @@ $ show mux config
 SWITCH_NAME        PEER_TOR
 -----------------  ----------
 lab-switch-2  10.1.0.33
-port        state    ipv4             ipv6               cable_type     soc_ipv4         link_prober_type  switching_mode    
+port        state    ipv4             ipv6               cable_type     soc_ipv4         link_prober_type  switching_mode
 ----------  -------  ---------------  -----------------  -------------  ---------------  ----------------  --------------
 Ethernet4   auto     192.168.0.2/32   fc02:1000::2/128   active-active  192.168.0.3/32   hardware          frr-protection
 Ethernet8   auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32   hardware          frr-protection
@@ -269,9 +277,6 @@ Ethernet8   auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.
 ## Limitations
 
 - Software and Hardware link prober sessions are not supported together.
-
-## Warm Reboot Support
-TBD
 
 ## Testing
 - Unit tests for LinkMgrd
