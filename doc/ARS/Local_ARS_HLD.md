@@ -386,7 +386,7 @@ Following table lists SAI usage and supported attributes with division to phase 
             }
 
             leaf scaling_factor {
-                type uint16;
+                type uint32;
                 default "10000";
                 description "This factor used to normalize load measurements across ports with different speeds.";
             }
@@ -444,8 +444,9 @@ Following table lists SAI usage and supported attributes with division to phase 
             }
 
             leaf flowlet_idle_time {
-                type uint16;
-                range 2..2047;
+                type uint16 {
+                    range 2..2047;
+                }
                 description  "Idle duration in microseconds. This duration is to classifying a flow-let in a macro flow.";
             }
 
@@ -511,8 +512,9 @@ Following table lists SAI usage and supported attributes with division to phase 
             }
 
             leaf flowlet_idle_time {
-                type uint16;
-                range 2..2047;
+                type uint16 {
+                    range 2..2047;
+                }
                 description  "Idle duration in microseconds. This duration is to classifying a flow-let in a macro flow.";
             }
 
@@ -609,14 +611,14 @@ Configuration example:
 "ARS_PROFILE": {
     "default": {
         "algorithm": "ewma",
-        "max_flows" : 512,
-        "sampling_interval": 10,
-        "past_load_min_value" : 0,
-        "past_load_max_value" : 100,
-        "past_load_weight": 1,
-        "future_load_min_value" : 0,
-        "future_load_max_value" : 1000,
-        "future_load_weight": 5,
+        "max_flows" : "512",
+        "sampling_interval": "10",
+        "past_load_min_value" : "0",
+        "past_load_max_value" : "100",
+        "past_load_weight": "1",
+        "future_load_min_value" : "0",
+        "future_load_max_value" : "1000",
+        "future_load_weight": "5",
         "ipv4_enable" : "true",
         "ipv6_enable" : "true"
     }
@@ -637,7 +639,7 @@ Configuration example:
 
 "ARS_INTERFACE": {
     "Ethernet0" : {
-        "scaling_factor": 100
+        "scaling_factor": "100"
     },
     "Ethernet8" : {}
 }
@@ -665,10 +667,10 @@ Configuration example:
     "default|192.168.0.100/32" : {
         "profile_name": "ars_profile",
         "assign_mode" : "per_flowlet_quality",
-        "flowlet_idle_time" : 256,
-        "max_flows" : 512,
-        "primary_path_threshold" : 100,
-        "alternative_path_cost": 250,
+        "flowlet_idle_time" : "256",
+        "max_flows" : "512",
+        "primary_path_threshold" : "100",
+        "alternative_path_cost": "250",
         "alternative_path_members": {"1.1.1.1", "2.2.2.2"}
     }
 }
@@ -696,10 +698,10 @@ Configuration example:
     "PortChannel1" : {
         "profile_name": "ars_profile",
         "assign_mode" : "per_flowlet_quality",
-        "flowlet_idle_time" : 256,
-        "max_flows" : 512,
-        "primary_path_threshold" : 100,
-        "alternative_path_cost": 250,
+        "flowlet_idle_time" : "256",
+        "max_flows" : "512",
+        "primary_path_threshold" : "100",
+        "alternative_path_cost": "250",
         "alternative_path_members": {"Ethernet0", "Ethernet10"}
     }
 }
@@ -719,7 +721,7 @@ key                     = ACL_TABLE_TYPE|TYPE_NAME
 matches                 = match-list                    ; list of matches for this table.
                                                         ; matches are same as in ACL_RULE table.
 actions                 = action-list                   ; list of actions for this table.
-                                                        ; [ ... , "ARS_ACTION"]
+                                                        ; [ ... , "DISABLE_ARS_FORWARDING"]
 
 Configuration example:
 
@@ -729,19 +731,20 @@ Configuration example:
             "SRC_IP",
         ],
         "ACTIONS": [
-            "ARS_ACTION"
+            "DISABLE_ARS_FORWARDING"
         ],
     }
 }
-"ACL_TABLE|MY_ACL_1": {
-    "policy_desc": "Disable ARS operation",
-    "type": "CUSTOM_1_ARS",
-    "ports": [
-        "Ethernet2",
-        "Ethernet4",
-        "Ethernet7"
-    ],
-    "OP": "SET"
+"ACL_TABLE": {
+    "MY_ACL_1": {
+        "policy_desc": "Disable ARS operation",
+        "type": "CUSTOM_1_ARS",
+        "ports": [
+            "Ethernet2",
+            "Ethernet4",
+            "Ethernet7"
+        ]
+    }
 },
 ```
 
@@ -759,10 +762,9 @@ DISABLE_ARS_FORWARDING  = boolean                       ;ARS operation disabled 
 Configuration example:
 
 "ACL_RULE": {
-    "CUSTOM_1_ARS|NO_ARS" : {
+    "MY_ACL_1|NO_ARS" : {
         "SRC_IP": "10.2.130.0/24",
-        "DISABLE_ARS_FORWARDING" : "true",
-        "OP": "SET"
+        "DISABLE_ARS_FORWARDING" : "true"
     }
 }
 ```
