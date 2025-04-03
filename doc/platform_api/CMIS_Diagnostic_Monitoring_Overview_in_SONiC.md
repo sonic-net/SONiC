@@ -134,7 +134,7 @@ lane_num: Represents the lane number of the field. The lane number is an integer
     ; Defines Transceiver DOM sensor information for a port
     key                          = TRANSCEIVER_DOM_SENSOR|ifname    ; information module DOM sensors on port
     ; field                      = value
-    table_last_update_time       = STR                              ; last update time for diagnostic data
+    last_update_time             = STR                              ; last update time for diagnostic data
     temperature                  = FLOAT                            ; temperature value in Celsius
     voltage                      = FLOAT                            ; voltage value in V
     tx{lane_num}power            = FLOAT                            ; tx power in dBm for each lane
@@ -156,7 +156,7 @@ The `TRANSCEIVER_DOM_THRESHOLD` table stores the threshold values for the DOM da
     ; Defines Transceiver DOM threshold info for a port
     key                          = TRANSCEIVER_DOM_THRESHOLD|ifname ; DOM threshold information for module on port
     ; field                      = value
-    table_last_update_time       = STR                              ; last update time for diagnostic data
+    last_update_time             = STR                              ; last update time for diagnostic data
     temphighalarm                = FLOAT                            ; temperature high alarm threshold in Celsius
     temphighwarning              = FLOAT                            ; temperature high warning threshold in Celsius
     templowalarm                 = FLOAT                            ; temperature low alarm threshold in Celsius
@@ -193,7 +193,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver DOM flags for a port
     key                          = TRANSCEIVER_DOM_FLAG|ifname    ; information module DOM flags on port
     ; field                      = value
-    table_last_update_time           = STR                ; last update time for diagnostic data
+    last_update_time                 = STR                ; last update time for diagnostic data
     tempHAlarm                       = BOOLEAN            ; temperature high alarm flag 
     tempHWarn                        = BOOLEAN            ; temperature high warning flag
     tempLAlarm                       = BOOLEAN            ; temperature low alarm flag
@@ -340,7 +340,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM sample for a port
     key                                            = TRANSCEIVER_VDM_REAL_VALUE|ifname    ; information module VDM sample on port
     ; field                                        = value
-    table_last_update_time                         = STR                    ; last update time for diagnostic data
+    last_update_time                               = STR                    ; last update time for diagnostic data
     laser_temperature_media{lane_num}              = FLOAT                  ; laser temperature value in Celsius for media input
     esnr_media_input{lane_num}                     = FLOAT                  ; eSNR value in dB for media input
     esnr_host_input{lane_num}                      = FLOAT                  ; eSNR value in dB for host input
@@ -396,7 +396,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM high alarm threshold for a port
     key                                            = TRANSCEIVER_VDM_HALARM_THRESHOLD|ifname    ; information module VDM high alarm threshold on port
     ; field                                        = value
-    table_last_update_time                               = STR            ; last update time for diagnostic data
+    last_update_time                              = STR            ; last update time for diagnostic data
     laser_temperature_media{lane_num}             = FLOAT          ; laser temperature high alarm value in Celsius for media input
     esnr_media_input{lane_num}                    = FLOAT          ; eSNR high alarm value in dB for media input
     esnr_host_input{lane_num}                     = FLOAT          ; eSNR high alarm value in dB for host input
@@ -450,7 +450,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low alarm threshold for a port
     key                                            = TRANSCEIVER_VDM_LALARM_THRESHOLD|ifname    ; information module VDM low alarm threshold on port
     ; field                                        = value
-    table_last_update_time                               = STR            ; last update time for diagnostic data
+    last_update_time                              = STR            ; last update time for diagnostic data
     laser_temperature_media{lane_num}             = FLOAT          ; laser temperature low alarm value in Celsius for media input
     esnr_media_input{lane_num}                    = FLOAT          ; eSNR low alarm value in dB for media input
     esnr_host_input{lane_num}                     = FLOAT          ; eSNR low alarm value in dB for host input
@@ -504,7 +504,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM high warning threshold for a port
     key                                            = TRANSCEIVER_VDM_HWARN_THRESHOLD|ifname    ; information module VDM high warning threshold on port
     ; field                                        = value
-    table_last_update_time                              = STR            ; last update time for diagnostic data
+    last_update_time                              = STR            ; last update time for diagnostic data
     laser_temperature_media{lane_num}             = FLOAT          ; laser temperature high warning value in Celsius for media input
     esnr_media_input{lane_num}                    = FLOAT          ; eSNR high warning value in dB for media input
     esnr_host_input{lane_num}                     = FLOAT          ; eSNR high warning value in dB for host input
@@ -558,7 +558,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low warning threshold for a port
     key                                            = TRANSCEIVER_VDM_LWARN_THRESHOLD|ifname    ; information module VDM low warning threshold on port
     ; field                                        = value
-    table_last_update_time                              = STR            ; last update time for diagnostic data
+    last_update_time                              = STR            ; last update time for diagnostic data
     laser_temperature_media{lane_num}             = FLOAT          ; laser temperature low warning value in Celsius for media input
     esnr_media_input{lane_num}                    = FLOAT          ; eSNR low warning value in dB for media input
     esnr_host_input{lane_num}                     = FLOAT          ; eSNR low warning value in dB for host input
@@ -612,7 +612,7 @@ The `TRANSCEIVER_VDM_HALARM_FLAG` table stores the flag status for the VDM data.
     ;Defines Transceiver VDM high alarm flag for a port
     key                          = TRANSCEIVER_VDM_HALARM_FLAG|ifname
     ; field                      = value
-    table_last_update_time                               = STR     ; last update time for diagnostic data
+    last_update_time                              = STR     ; last update time for diagnostic data
     laser_temperature_media{lane_num}             = BOOLEAN ; laser temperature high alarm flag for media input
     esnr_media_input{lane_num}                    = BOOLEAN ; eSNR high alarm flag for media input
     esnr_host_input{lane_num}                     = BOOLEAN ; eSNR high alarm flag for host input
@@ -668,7 +668,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low alarm flag for a port
     key                          = TRANSCEIVER_VDM_LALARM_FLAG|ifname
     ; field                      = value
-    table_last_update_time                               = STR     ; last update time for diagnostic data
+    last_update_time                              = STR     ; last update time for diagnostic data
     laser_temperature_media{lane_num}             = BOOLEAN ; laser temperature low alarm flag for media input
     esnr_media_input{lane_num}                    = BOOLEAN ; eSNR low alarm flag for media input
     esnr_host_input{lane_num}                     = BOOLEAN ; eSNR low alarm flag for host input
@@ -722,7 +722,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM high warning flag for a port
     key                          = TRANSCEIVER_VDM_HWARN_FLAG|ifname
     ; field                      = value
-    table_last_update_time                              = STR     ; last update time for diagnostic data
+    last_update_time                              = STR     ; last update time for diagnostic data
     laser_temperature_media{lane_num}             = BOOLEAN ; laser temperature high warning flag for media input
     esnr_media_input{lane_num}                    = BOOLEAN ; eSNR high warning flag for media input
     esnr_host_input{lane_num}                     = BOOLEAN ; eSNR high warning flag for host input
@@ -776,7 +776,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ;Defines Transceiver VDM low warning flag for a port
     key                          = TRANSCEIVER_VDM_LWARN_FLAG|ifname
     ; field                      = value
-    table_last_update_time                              = STR     ; last update time for diagnostic data
+    last_update_time                              = STR     ; last update time for diagnostic data
     laser_temperature_media{lane_num}             = BOOLEAN ; laser temperature low warning flag for media input
     esnr_media_input{lane_num}                    = BOOLEAN ; eSNR low warning flag for media input
     esnr_host_input{lane_num}                     = BOOLEAN ; eSNR low warning flag for host input
@@ -1474,7 +1474,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ; Defines Transceiver Status info for a port
     key                                     = TRANSCEIVER_STATUS|ifname        ; Error information for module on port
     ; field                                 = value
-    table_last_update_time                  = STR               ; last update time for diagnostic data
+    last_update_time                        = STR               ; last update time for diagnostic data
     diagnostics_update_interval             = INTEGER           ; DOM thread update interval in seconds
     cmis_state                              = 1*255VCHAR        ; Software CMIS state of the module
     status                                  = 1*255VCHAR        ; code of the module status (plug in, plug out)
@@ -1505,7 +1505,7 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ; Defines Transceiver Status info for a port
     key                                     = TRANSCEIVER_STATUS_FLAG|ifname        ; Flag information for module on port
     ; field                                 = value
-    table_last_update_time                  = STR               ; last update time for diagnostic data
+    last_update_time                        = STR               ; last update time for diagnostic data
     datapath_firmware_fault                 = BOOLEAN           ; datapath (DSP) firmware fault
     module_firmware_fault                   = BOOLEAN           ; module firmware fault
     module_state_changed                    = BOOLEAN           ; module state changed
@@ -1616,7 +1616,7 @@ The `TRANSCEIVER_PM` table stores the performance monitoring data of the transce
     ; Defines Transceiver PM information for a port
     key                          = TRANSCEIVER_PM|ifname            ; information of PM on port
     ; field                      = value 
-    table_last_update_time       = STR                              ; last update time for diagnostic data
+    last_update_time             = STR                              ; last update time for diagnostic data
     prefec_ber_avg               = FLOAT                            ; prefec ber avg
     prefec_ber_min               = FLOAT                            ; prefec ber min
     prefec_ber_max               = FLOAT                            ; prefec ber max
@@ -2450,10 +2450,10 @@ When the transceiver is inserted back, the `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`, 
 
 #### 5.2.4 Diagnostic Information Last Update Timestamp and Interval Period by `DomInfoUpdateTask`
 
-All the diagnostic tables (except for the metadata tables storing change count and last set/clear time) contain the `table_last_update_time` field to capture the last update timestamp.
+All the diagnostic tables (except for the metadata tables storing change count and last set/clear time) contain the `last_update_time` field to capture the last update timestamp.
 Specifically, the `TRANSCEIVER_STATUS` table contains the `diagnostics_update_interval` field to capture the interval period at which the diagnostic information is updated by the `DomInfoUpdateTask` thread for a port. This field is not present in the other diagnostic tables since the diagnostic information is updated for all ports in a sequential manner.
 
-1. **`table_last_update_time`**:
+1. **`last_update_time`**:
    - This field records the timestamp (in local timezone) at which the corresponding diagnostic information was last updated by the `DomInfoUpdateTask` thread for a port.
    - The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`.
 
