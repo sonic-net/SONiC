@@ -2422,10 +2422,10 @@ The purpose of flag analysis is to track the status of various parameters and to
 
 - `TRANSCEIVER_DOM_FLAG`: This table stores flags indicating the status of various DOM parameters.
 - `TRANSCEIVER_DOM_FLAG_CHANGE_COUNT`: This table keeps a count of how many times each DOM flag has changed. Upon initialization of `xcvrd`, the count is set to 0.
-- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in local timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never`. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
+- `TRANSCEIVER_DOM_FLAG_SET_TIME`: This table records the timestamp (in UTC timezone) when each DOM flag was set. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never`. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
   - The timestamp at which the link status was changed, or
   - The polling event timestamp if the flag was set during the routine polling by the `DomInfoUpdateTask` thread.
-- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in local timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never`. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
+- `TRANSCEIVER_DOM_FLAG_CLEAR_TIME`: This table records the timestamp (in UTC timezone) when each DOM flag was cleared. The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`. During initialization, the timestamp is set to `never`. Since SONiC does not support flag-based interrupt handling, the timestamp refers to either:
   - The timestamp at which the link status was changed, or
   - The polling event timestamp if the flag was cleared during the routine polling by the `DomInfoUpdateTask` thread.
 
@@ -2434,9 +2434,9 @@ The purpose of flag analysis is to track the status of various parameters and to
 - **TRANSCEIVER_DOM_FLAG_CHANGE_COUNT:**
   - Each time a flag in the `TRANSCEIVER_DOM_FLAG` table changes (either set or cleared), the corresponding count in this table is incremented.
 - **TRANSCEIVER_DOM_FLAG_SET_TIME:**
-  - When a flag is set for the first time since it was cleared in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in local timezone) is recorded in the corresponding value field of the table. Please note that this timestamp indicates when `xcvrd` detected the flag change, not the actual time when the module set the flag.
+  - When a flag is set for the first time since it was cleared in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in UTC timezone) is recorded in the corresponding value field of the table. Please note that this timestamp indicates when `xcvrd` detected the flag change, not the actual time when the module set the flag.
 - **TRANSCEIVER_DOM_FLAG_CLEAR_TIME:**
-  - When a flag is cleared for the first time since it was set in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in local timezone) is recorded in the corresponding value field of the table. Please note that this timestamp indicates when `xcvrd` detected the flag change, not the actual time when the module cleared the flag.
+  - When a flag is cleared for the first time since it was set in the `TRANSCEIVER_DOM_FLAG` table, the relevant timestamp (in UTC timezone) is recorded in the corresponding value field of the table. Please note that this timestamp indicates when `xcvrd` detected the flag change, not the actual time when the module cleared the flag.
 
 ##### 5.2.3.1 Flag Change Count and Time Set/Clear Behavior During `xcvrd` Restart
 
@@ -2454,7 +2454,7 @@ All the diagnostic tables (except for the metadata tables storing change count a
 Specifically, the `TRANSCEIVER_STATUS` table contains the `diagnostics_update_interval` field to capture the interval period at which the diagnostic information is updated by the `DomInfoUpdateTask` thread for a port. This field is not present in the other diagnostic tables since the diagnostic information is updated for all ports in a sequential manner.
 
 1. **`last_update_time`**:
-   - This field records the timestamp (in local timezone) at which the corresponding diagnostic information was last updated by the `DomInfoUpdateTask` thread for a port.
+   - This field records the timestamp (in UTC timezone) at which the corresponding diagnostic information was last updated by the `DomInfoUpdateTask` thread for a port.
    - The timestamp is recorded in the format `Day Mon DD HH:MM:SS YYYY`.
 
 2. **`diagnostics_update_interval`**:
