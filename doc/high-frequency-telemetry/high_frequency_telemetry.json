@@ -1,0 +1,105 @@
+{
+    "HIGH_FREQUENCY_TELEMETRY_VALID_CASE": {
+      "sonic-port:sonic-port": {
+        "sonic-port:PORT": {
+          "PORT_LIST": [
+            {
+              "name": "Ethernet0",
+              "lanes": "0",
+              "speed": 25000
+            },
+            {
+              "name": "Ethernet4",
+              "lanes": "4",
+              "speed": 25000
+            }
+          ]
+        }
+      },
+      "sonic-buffer-pool:sonic-buffer-pool": {
+        "sonic-buffer-pool:BUFFER_POOL": {
+          "BUFFER_POOL_LIST": [
+            {
+              "name": "egress_lossless_pool",
+              "mode": "static",
+              "size": "300",
+              "type": "ingress"
+            }
+          ]
+        }
+      },
+      "sonic-buffer-profile:sonic-buffer-profile": {
+        "sonic-buffer-profile:BUFFER_PROFILE": {
+          "BUFFER_PROFILE_LIST": [
+            {
+              "name": "lossless_buffer_profile",
+              "size": "1518",
+              "dynamic_th": "2",
+              "pool": "egress_lossless_pool"
+            }
+          ]
+        }
+      },
+      "sonic-buffer-pg:sonic-buffer-pg": {
+        "sonic-buffer-pg:BUFFER_PG": {
+          "BUFFER_PG_LIST": [
+            {
+              "port": "Ethernet4",
+              "pg_num": "3",
+              "profile": "lossless_buffer_profile"
+            }
+          ]
+        }
+      },
+      "sonic-buffer-queue:sonic-buffer-queue": {
+        "sonic-buffer-queue:BUFFER_QUEUE": {
+          "BUFFER_QUEUE_LIST": [
+            {
+              "port": "Ethernet0",
+              "qindex": "15",
+              "profile": "lossless_buffer_profile"
+            }
+          ]
+        }
+      },
+      "sonic-high-frequency-telemetry:sonic-high-frequency-telemetry": {
+        "sonic-high-frequency-telemetry:HIGH_FREQUENCY_TELEMETRY_PROFILE": {
+          "HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST": [
+            {
+              "name": "high_frequency_counters",
+              "stream_state": "enabled",
+              "poll_interval": 100
+            }
+          ]
+        },
+        "sonic-high-frequency-telemetry:HIGH_FREQUENCY_TELEMETRY_GROUP": {
+          "HIGH_FREQUENCY_TELEMETRY_GROUP_LIST": [
+            {
+              "profile_name": "high_frequency_counters",
+              "group_name": "PORT",
+              "object_names": ["Ethernet0", "Ethernet4"],
+              "object_counters": ["IF_IN_OCTETS", "OUT_CURR_OCCUPANCY_BYTES"]
+            },
+            {
+              "profile_name": "high_frequency_counters",
+              "group_name": "BUFFER_POOL",
+              "object_names": ["egress_lossless_pool"],
+              "object_counters": ["WATERMARK_BYTES", "XOFF_ROOM_WATERMARK_BYTES"]
+            },
+            {
+              "profile_name": "high_frequency_counters",
+              "group_name": "QUEUE",
+              "object_names": ["Ethernet0|15", "Ethernet0|3"],
+              "object_counters": ["PACKETS", "WRED_ECN_MARKED_PACKETS"]
+            },
+            {
+              "profile_name": "high_frequency_counters",
+              "group_name": "INGRESS_PRIORITY_GROUP",
+              "object_names": ["Ethernet4|0", "Ethernet4|3"],
+              "object_counters": ["CURR_OCCUPANCY_BYTES", "XOFF_ROOM_WATERMARK_BYTES"]
+            }
+          ]
+        }
+      }
+    }
+  }
