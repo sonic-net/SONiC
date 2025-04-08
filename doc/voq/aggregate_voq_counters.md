@@ -8,7 +8,6 @@
    * [Architecture Design](#architecture-design)
    * [High-Level Design](#high-level-design)
       * [Repositories that need to be changed](#repositories-that-need-to-be-changed)
-   * [SAI API](#sai-api)
    * [Configuration and management](#configuration-and-management)
       * [CLI](#cli)
    * [Testing Requirements/Design](#testing-requirementsdesign)
@@ -45,7 +44,8 @@ redis-cli -h $ip -p $port config rewrite
 This gives us access to each ASIC's redis instance from the supervisor. Then queuestat script can access the counters data and provide the user an aggregated view of the VOQ counters.
 
 #### sonic-buildimage changes
-`docker_image_ctl.j2` needs to be modified to encorporate changes in order expose namespace redis instances on linecards over midplane network.
+`docker_image_ctl.j2` needs to be modified to incorporate changes in order expose namespace redis instances on linecards over midplane network.
+
 PR: https://github.com/sonic-net/sonic-buildimage/pull/20803
 
 #### sonic-swss-common changes
@@ -56,7 +56,14 @@ Same rationale as sonic-swss-common applies here as well. Also we would like to 
 
 #### sonic-utilities changes
 We would leverage the existing `show queue counters --voq` on the supervisor to connect to various forwarding ASIC's database instances and do a summation of VOQ counters corresponding to each system port.
+
 PR: https://github.com/sonic-net/sonic-utilities/pull/3617
+
+#### Repositories that need to be changed
+   * sonic-buildimage 
+   * sonic-swss-common 
+   * sonic-py-swsssdk
+   * sonic-utilities 
 
 ### Configuration and management 
 #### CLI
@@ -114,12 +121,3 @@ cmp217-5|asic1|Ethernet256   VOQ7              52            15809            0 
 ### Testing Requirements/Design  
 #### System Test cases
 Send traffic across different ASICs and ensure aggregate counters are correctly displayed.
-
-
-
-
-
-
-
-
-
