@@ -44,7 +44,75 @@ redis-cli -h $ip -p $port config rewrite
 
 This gives us access to each ASIC's redis instance from the supervisor. Then queuestat script can access the counters data and provide the user an aggregated view of the VOQ counters.
 
+#### sonic-buildimage changes
+`docker_image_ctl.j2` needs to be modified to encorporate changes in order expose namespace redis instances on linecards over midplane network.
+PR: https://github.com/sonic-net/sonic-buildimage/pull/20803
 
+#### sonic-swss-common changes
+A new API will be added to sonicv2connector.cpp which can take the db name and host IP as an argument and connect us to the redis instance. The existing [API](https://github.com/sonic-net/sonic-swss-common/blob/202411/common/sonicv2connector.cpp#L18-L30) needs the db_name and the host_ip and port (or unix_socket) is decoded using [database_config.json](https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-database/database_config.json.j2). This API is tailored for use cases when you want to connect to the namespace redis instances from the same device. Our use case involves connecting to a redis instances over midplane IP hence the new API is needed. 
+
+#### sonic-py-swsssdk changes
+Same rationale as sonic-swss-common applies here as well. Also we would like to maintain parity between dbconnector.py between swsscommon and swsssdk so that we can write a unit test for this feature or even otherwise.
+
+#### sonic-utilities changes
+We would leverage the existing `show queue counters --voq` on the supervisor to connect to various forwarding ASIC's database instances and do a summation of VOQ counters corresponding to each system port.
+PR: https://github.com/sonic-net/sonic-utilities/pull/3617
+
+$ show VOQ counters [interface] --voq
+
+From linecard - cmp217-5 for asic0 (existing CLI)
+```
+admin@cmp217-5:~$ show queue counters -n asic0 "cmp217-5|asic1|Ethernet256" --voq
+For namespace asic0:
+                      Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Credit-WD-Del/pkts
+--------------------------  -----  --------------  ---------------  -----------  ------------  --------------------
+cmp217-5|asic1|Ethernet256   VOQ0             123             6150            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ1              12              600            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ2            1000            50000            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ3             456            22800            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ4             211            10550            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ5              45             2250            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ6              24             1200            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ7               0                0            0             0                     0
+```
+
+From linecard - cmp217-5 for asic1 (existing CLI)
+```
+admin@cmp217-5:~$ show queue counters -n asic1 "cmp217-5|asic1|Ethernet256" --voq
+For namespace asic1:
+                      Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Credit-WD-Del/pkts
+--------------------------  -----  --------------  ---------------  -----------  ------------  --------------------
+cmp217-5|asic1|Ethernet256   VOQ0            1111            55550            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ1              45             2250            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ2               9              450            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ3              91             4550            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ4              55             2750            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ5              88             4400            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ6              21             1050            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ7              48            14437            0             0                     0
+
+```
+
+From supervisor (same command extended for sup.)
+
+```
+admin@cmp217:~$ show queue counters "cmp217-5|asic1|Ethernet256" --voq
+                      Port    Voq    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Credit-WD-Del/pkts
+--------------------------  -----  --------------  ---------------  -----------  ------------  --------------------
+cmp217-5|asic1|Ethernet256   VOQ0            1234            61700            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ1              57             2850            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ2            1009            50450            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ3             547            27350            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ4             266            13300            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ5             133             6650            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ6              45             2250            0             0                     0
+cmp217-5|asic1|Ethernet256   VOQ7              52            15809            0             0                     0
+
+```
+
+### Testing Requirements/Design  
+#### System Test cases
+Send traffic across different ASICs and ensure aggregate counters are correctly displayed.
 
 
 
