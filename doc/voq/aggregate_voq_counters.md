@@ -58,7 +58,8 @@ Same rationale as sonic-swss-common applies here as well. Also we would like to 
 We would leverage the existing `show queue counters --voq` on the supervisor to connect to various forwarding ASIC's database instances and do a summation of VOQ counters corresponding to each system port.
 PR: https://github.com/sonic-net/sonic-utilities/pull/3617
 
-$ show VOQ counters [interface] --voq
+### Configuration and management 
+#### CLI
 
 From linecard - cmp217-5 for asic0 (existing CLI)
 ```
