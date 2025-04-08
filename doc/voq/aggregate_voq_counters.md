@@ -7,7 +7,6 @@
    * [Requirements](#requirements)
    * [Architecture Design](#architecture-design)
    * [High-Level Design](#high-level-design)
-      * [Database changes](#database-changes)
       * [Repositories that need to be changed](#repositories-that-need-to-be-changed)
    * [SAI API](#sai-api)
    * [Configuration and management](#configuration-and-management)
@@ -33,6 +32,23 @@ Provide aggregate VOQ counters in a distributed VOQ architecture.
 No new architecture changes are required to SONiC. 
 
 ### High-Level Design
+
+On multi-asic systems (fixed system or linecard) the redis databases corresponding to each namespace are exposed on the docker network (non-loopback IP): https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-database/docker-database-init.sh. And when the IP to be bound to redis instance is not loopback IP we start redis server in unprotected mode: https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-database/supervisord.conf.j2#L38
+
+We can leverage this property to expose redis instances that correspond to each ASIC over midplane IP addresses in addition to docker network in case of a chassis based system using the shell script docker-database.sh by simple redis-commands.
+
+```
+redis-cli -h $ip -p $port config set bind "$bound_ips $midplane_ip"
+redis-cli -h $ip -p $port config rewrite
+```
+
+This gives us access to each ASIC's redis instance from the supervisor. Then queuestat script can access the counters data and provide the user an aggregated view of the VOQ counters.
+
+
+
+
+
+
 
 
 
