@@ -9,7 +9,6 @@
    * [High-Level Design](#high-level-design)
       * [Repositories that need to be changed](#repositories-that-need-to-be-changed)
    * [Configuration and management](#configuration-and-management)
-      * [CLI](#cli)
    * [Testing Requirements/Design](#testing-requirementsdesign)
       * [System Test cases](#system-test-cases)  
 
