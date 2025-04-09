@@ -1122,12 +1122,23 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    - lists all the discovered tunnels.  
    - SIP, DIP, Creation Source, OperStatus are the columns.
    - OperStatus is `up` or `down` for P2P, or `p2mp` for P2MP tunnels.
+   - If ASIC implements P2P tunnels:
    +---------+---------+-------------------+--------------+
    | SIP     | DIP     | Creation Source   | OperStatus   |
    +=========+=========+===================+==============+
    | 2.2.2.2 | 4.4.4.4 | EVPN              | oper_up      |
    +---------+---------+-------------------+--------------+
    | 2.2.2.2 | 3.3.3.3 | EVPN              | oper_up      |
+   +---------+---------+-------------------+--------------+
+   Total count : 2
+
+   - If ASIC implements P2MP tunnels:
+   +---------+---------+-------------------+--------------+
+   | SIP     | DIP     | Creation Source   | OperStatus   |
+   +=========+=========+===================+==============+
+   | 2.2.2.2 | 4.4.4.4 | EVPN              | oper_p2mp    |
+   +---------+---------+-------------------+--------------+
+   | 2.2.2.2 | 3.3.3.3 | EVPN              | oper_p2mp    |
    +---------+---------+-------------------+--------------+
    Total count : 2
 
