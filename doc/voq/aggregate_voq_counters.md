@@ -10,7 +10,8 @@
       * [Repositories that need to be changed](#repositories-that-need-to-be-changed)
    * [Configuration and management](#configuration-and-management)
    * [Testing Requirements/Design](#testing-requirementsdesign)
-      * [System Test cases](#system-test-cases)  
+      * [System Test cases](#system-test-cases)
+   * [Limitations and future work](#limitations-and-future-work)  
 
 ### Revision 
 | Rev |     Date    |       Author                                                                       | Change Description                |
@@ -50,8 +51,12 @@ PR: https://github.com/sonic-net/sonic-buildimage/pull/20803
 #### sonic-swss-common changes
 A new API will be added to sonicv2connector.cpp which can take the db name and host IP as an argument and connect us to the redis instance. The existing [API](https://github.com/sonic-net/sonic-swss-common/blob/202411/common/sonicv2connector.cpp#L18-L30) needs the db_name and the host_ip and port (or unix_socket) is decoded using [database_config.json](https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-database/database_config.json.j2). This API is tailored for use cases when you want to connect to the namespace redis instances from the same device. Our use case involves connecting to a redis instances over midplane IP hence the new API is needed. 
 
+PR: https://github.com/sonic-net/sonic-swss-common/pull/1003
+
 #### sonic-py-swsssdk changes
 Same rationale as sonic-swss-common applies here as well. Also we would like to maintain parity between dbconnector.py between swsscommon and swsssdk so that we can write a unit test for this feature or even otherwise.
+
+PR: https://github.com/sonic-net/sonic-py-swsssdk/pull/147
 
 #### sonic-utilities changes
 We would leverage the existing `show queue counters --voq` on the supervisor to connect to various forwarding ASIC's database instances and do a summation of VOQ counters corresponding to each system port.
@@ -120,3 +125,7 @@ cmp217-5|asic1|Ethernet256   VOQ7              52            15809            0 
 ### Testing Requirements/Design  
 #### System Test cases
 Send traffic across different ASICs and ensure aggregate counters are correctly displayed.
+
+### Limitations and future work
+1. Currently we are not exposing redis instance over midplane IP for single ASIC linecards as redis runs in protected mode.
+2. Clear functionality is not supported as of now for aggregate VOQ counters.
