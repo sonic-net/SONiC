@@ -616,35 +616,114 @@ saistatus = saiv6sr_api->create_my_sid_entry(&my_sid_entry, 2, my_sid_attr)
 
 
 ## 3.6 YANG Model
-```
-module: sonic-srv6
-  +--rw sonic-srv6
-     +--rw SRV6_SID_LIST
-     |  +--rw SRV6_SID_LIST_LIST* [name]
-     |     +--rw name    string
-     |     +--rw path*   inet:ipv6-address
-     +--rw SRV6_MY_SID
-     |  +--rw SRV6_MY_SID_LIST* [ip-address]
-     |     +--rw ip-address    inet:ipv6-address
-     |     +--rw block_len?    uint16
-     |     +--rw node_len?     uint16
-     |     +--rw func_len?     uint16
-     |     +--rw arg_len?      uint16
-     |     +--rw action?       enumeration
-     |     +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
-     |     +--rw adj*          inet:ipv6-address
-     |     +--rw policy?       -> /sonic-srv6/SRV6_POLICY/SRV6_POLICY_LIST/name
-     |     +--rw source?       inet:ipv6-address
-     +--rw SRV6_POLICY
-     |  +--rw SRV6_POLICY_LIST* [name]
-     |     +--rw name       string
-     |     +--rw segment*   -> /sonic-srv6/SRV6_SID_LIST/SRV6_SID_LIST_LIST/name
-     +--rw SRV6_STEER
-        +--rw SRV6_STEER_LIST* [vrf-name ip-prefix]
-           +--rw vrf-name     -> /vrf:sonic-vrf/VRF/VRF_LIST/name
-           +--rw ip-prefix    union
-           +--rw policy?      -> /sonic-srv6/SRV6_POLICY/SRV6_POLICY_LIST/name
-           +--rw source?      inet:ipv6-address
+```yang
+
+container SRV6_MY_LOCATORS {
+    list SRV6_MY_LOCATORS_LIST {
+        key "locator_name";
+
+        leaf locator_name {
+            type string;
+        }
+
+        leaf prefix {
+            type inet:ipv6-address;
+            mandatory true;
+        }
+
+        leaf block_len {
+            type uint8 {
+                range "1..128";
+            }
+
+            default 32;
+        }
+
+        leaf node_len {
+            type uint8 {
+                range "1..128";
+            }
+
+            default 16;
+        }
+
+        leaf func_len {
+            type uint8 {
+                range "0..128";
+            }
+
+            default 16;
+        }
+
+        leaf arg_len {
+            type uint8 {
+                range "0..128";
+            }
+
+            default 0;
+        }
+
+        must 'block_len + node_len + func_len + arg_len <= 128';
+
+        leaf vrf {
+            type union {
+                type leafref {
+                    path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
+                }
+                type string {
+                    pattern 'default';
+                }
+            }
+            description "VRF name";
+
+            default "default";
+        }
+    }
+}
+
+container SRV6_MY_SIDS {
+    list SRV6_MY_SIDS_LIST {
+        key "locator ip_prefix";
+
+        leaf ip_prefix {
+            type inet:ipv6-prefix;
+        }
+
+        leaf locator {
+            type leafref {
+                path "/srv6:sonic-srv6/srv6:SRV6_MY_LOCATORS/srv6:SRV6_MY_LOCATORS_LIST/srv6:locator_name";
+            }
+        }
+
+        leaf action {
+            type enumeration {
+                enum uN;
+                enum uDT46;
+            }
+        }
+
+        leaf decap_vrf {
+            type union {
+                type leafref {
+                    path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
+                }
+                type string {
+                    pattern 'default';
+                }
+            }
+            description "VRF name used for decapsulation";
+
+            default "default";
+        }
+
+        leaf decap_dscp_mode {
+            type enumeration {
+                enum uniform;
+                enum pipe;
+            }
+        }
+    }
+}
 ```
 
 The sonic-flex_counter.yang is extended to support SRv6 counters configuration:
