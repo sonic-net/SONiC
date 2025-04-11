@@ -27,7 +27,7 @@
 
 ## Scope
 
-This document describes the high level design of adding the capability to support gNOI APIs for OS services in the telemetry server. 
+This document describes the high level design of adding the capability to support gNOI APIs for OS services in the gNMI server. 
 It provides the definition as well as the front end and back end implementation for the gNOI services needed in the SONIC framework. The details of the underlying gNMI server design are captured [here](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md) and the host service DBUS communication is captured in a separate [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md).
 
 The gNOI OS RPCs covered in this doc include: Activate, Install, Verify
@@ -54,7 +54,7 @@ Any client should be able to connect to these gNOI services at the IP of the tar
 
 ## Architecture Design
 
-This feature does not change the SONiC Architecture but leverages the existing gNMI/telemetry server interface design. gNOI requests made by clients are verified and serviced by the gNMI UMF server after which they are sent to the corresponding Backend entity to process through DBUS communication to the host service. The details of the Docker to Host communication through DBUS are added [here](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md)
+This feature does not change the SONiC Architecture but leverages the existing gNMI server interface design. gNOI requests made by clients are verified and serviced by the gNMI UMF server after which they are sent to the corresponding Backend entity to process through DBUS communication to the host service. The details of the Docker to Host communication through DBUS are added [here](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md)
 
 ![gnoi_dbus](https://github.com/user-attachments/assets/2b33a978-36b7-439f-810f-65339d0355f7)
 
@@ -197,7 +197,7 @@ In this section, we discuss both manual and automated testing strategies.
 #### Manual Tests
 
 - CLI
-    - UMF has a gnoi_client CLI tool which can be used to invoke service RPCs on the switch. This would include adding support for both JSON and proto formats of requests.
+    - The gNMI server has a [gnoi_client](https://github.com/sonic-net/sonic-gnmi/tree/master/gnoi_client) CLI tool which can be used to invoke service RPCs on the switch. This would include adding support for both JSON and proto formats of requests.
 
 #### Automated Tests
 
