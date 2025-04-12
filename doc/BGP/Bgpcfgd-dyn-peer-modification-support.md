@@ -86,6 +86,8 @@ BGP_PEER_CONFIGURED_TABLE|{{VRF/VNET-name}}|{{Peer-name}}:
     "src_address": {{Src IP to initiate session}} (Optional)
 ```
 
+While the above shows the State DB schema for a dynamic peer, the schema for static peers bear the same table name format of ```BGP_PEER_CONFIGURED_TABLE|{{VRF/VNET-name}}|{{Peer-name}}```, but the key value pairs under the table will be those which are used to configure static peers.
+
 ## 2.3 CLI
 The following CLIs will be added and will work identically to their default VRF counterparts which already exist in the SONiC image:
 ```
