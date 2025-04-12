@@ -28,7 +28,7 @@
 | 0.1 | 04/09/2025  |    Anish Narsian   | Initial version                   |
 
 # About this Manual
-This document provides the high level design to support enhanced CRUD operations on dynamic bgp peers(ie: bgp listen ranges) using a standard template-based mechanism.
+This document provides the high level design to support enhanced CRUD operations on dynamic bgp peers(ie: bgp listen ranges) using a standard template-based mechanism, as well as the CLI design for some useful per VRF BGP commands.
 
 # Use case
 SDN(Software Defined Networking) is used to program SONiC devices for various use cases, and we intend to extend this to BGP configurations, specifically dynamic BGP peers. To that extent we intend to support enhanced CRUD operations on dynamic peer types, including adding new dynamic peers, modifying peer ranges and deleting dynamic peers. Beyond updating and deleting peers, we will also support modifying and deleteing their associated configurations like route maps, prefix lists and peer groups using the standard template mechanism.
@@ -89,7 +89,7 @@ BGP_PEER_CONFIGURED_TABLE|{{VRF/VNET-name}}|{{Peer-name}}:
 While the above shows the State DB schema for a dynamic peer, the schema for static peers bear the same table name format of ```BGP_PEER_CONFIGURED_TABLE|{{VRF/VNET-name}}|{{Peer-name}}```, but the key value pairs under the table will be those which are used to configure static peers.
 
 ## 2.3 CLI
-The following CLIs will be added and will work identically to their default VRF counterparts which already exist in the SONiC image:
+The following CLIs will be added, each of these will have similar CLI outputs to their ```default VRF``` counterparts which are widely in use today:
 ```
 1. Show ip bgp summary vrf <vrf/vnet name>
 2. Show ip bgp neighbors vrf <vrf/vnet name>
