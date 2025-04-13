@@ -623,7 +623,7 @@ sequenceDiagram
             loop collect a chunk of stats
                 dma_engine ->> asic: query stats from asic
                 asic --) dma_engine: stats
-                dma_engine ->> netlink_module: Push stats
+                dma_engine ->> netlink_module: Push stats in IPFIX format
             end
             alt counter syncd is ready to receive?
                 netlink_module ->> counter: Push a chunk of stats with IPFIX message
@@ -664,12 +664,12 @@ N/A
 ``` shell
 
 # Add a new profile
-sudo config high_frequency_telemetry profile add $profile_name --stream_state=$stream_state --poll_interval=$poll_interval --chunk_size=$chunk_size --chunk_count=$chunk_count
+sudo config high_frequency_telemetry profile add $profile_name --stream_state=$stream_state --poll_interval=$poll_interval --chunk_size=$chunk_size --chunk_count=$chunk_count --otel_endpoint=$otel_endpoint --otel_certs=$otel_certs
 
 # Change stream state
 sudo config high_frequency_telemetry profile set $profile_name --stream_state=$stream_state
 
-# Remove a existing profile
+# Add a monitor group
 sudo config high_frequency_telemetry group "$profile|$group_name" --object_names="$object1,$object2" --object_counters="$object_counters1,$object_counters2"
 
 ```
