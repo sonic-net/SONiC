@@ -17,37 +17,40 @@
         - [1.2.4 Event logging](#124-event-logging)
 - [2 Design](#2-design)
     - [2.1 Overview](#21-overview)
-    - [2.2 SAI API](#22-sai-api)
-    - [2.3 Orchestration agent](#23-orchestration-agent)
-        - [2.3.1 Overview](#231-overview)
-        - [2.3.2 Switch orch](#232-switch-orch)
-        - [2.3.3 Buffer orch](#233-buffer-orch)
-        - [2.3.4 ACL orch](#234-acl-orch)
-        - [2.3.5 Flexcounter orch](#235-flexcounter-orch)
-    - [2.4 DB schema](#24-db-schema)
-        - [2.4.1 Config DB](#241-config-db)
-            - [2.4.1.1 Switch OA](#2411-switch-oa)
-            - [2.4.1.2 Buffer OA](#2412-buffer-oa)
-            - [2.4.1.3 ACL OA](#2413-acl-oa)
-        - [2.4.2 State DB](#242-state-db)
-            - [2.4.2.1 Switch trimming capabilities](#2421-switch-trimming-capabilities)
-        - [2.4.3 Data sample](#243-data-sample)
-        - [2.4.4 Configuration sample](#244-configuration-sample)
-        - [2.4.5 Initial configuration](#245-initial-configuration)
-        - [2.4.6 Configuration migration](#246-configuration-migration)
-    - [2.5 Flows](#25-flows)
-        - [2.5.1 Config section](#251-config-section)
-            - [2.5.1.1 Switch trimming update](#2511-switch-trimming-update)
-            - [2.5.1.2 Buffer profile update](#2512-buffer-profile-update)
-        - [2.5.2 Show section](#252-show-section)
-            - [2.5.2.1 Switch trimming show](#2521-switch-trimming-show)
-    - [2.6 CLI](#26-cli)
-        - [2.6.1 Command structure](#261-command-structure)
-        - [2.6.2 Usage examples](#262-usage-examples)
-            - [2.6.2.1 Config command group](#2621-config-command-group)
-            - [2.6.2.2 Show command group](#2622-show-command-group)
-    - [2.7 YANG model](#27-yang-model)
-    - [2.8 Warm/Fast boot](#28-warmfast-boot)
+    - [2.2 Symmetric DSCP](#22-symmetric-dscp)
+    - [2.3 Asymmetric DSCP](#23-asymmetric-dscp)
+    - [2.4 SAI API](#24-sai-api)
+    - [2.5 Orchestration agent](#25-orchestration-agent)
+        - [2.5.1 Overview](#251-overview)
+        - [2.5.2 Switch orch](#252-switch-orch)
+        - [2.5.3 Buffer orch](#253-buffer-orch)
+        - [2.5.4 QoS orch](#254-qos-orch)
+        - [2.5.5 ACL orch](#255-acl-orch)
+        - [2.5.6 Flexcounter orch](#256-flexcounter-orch)
+    - [2.6 DB schema](#26-db-schema)
+        - [2.6.1 Config DB](#261-config-db)
+            - [2.6.1.1 Switch OA](#2611-switch-oa)
+            - [2.6.1.2 Buffer OA](#2612-buffer-oa)
+            - [2.6.1.3 ACL OA](#2613-acl-oa)
+        - [2.6.2 State DB](#262-state-db)
+            - [2.6.2.1 Switch trimming capabilities](#2621-switch-trimming-capabilities)
+        - [2.6.3 Data sample](#263-data-sample)
+        - [2.6.4 Configuration sample](#264-configuration-sample)
+        - [2.6.5 Initial configuration](#265-initial-configuration)
+        - [2.6.6 Configuration migration](#266-configuration-migration)
+    - [2.7 Flows](#27-flows)
+        - [2.7.1 Config section](#271-config-section)
+            - [2.7.1.1 Switch trimming update](#2711-switch-trimming-update)
+            - [2.7.1.2 Buffer profile update](#2712-buffer-profile-update)
+        - [2.7.2 Show section](#272-show-section)
+            - [2.7.2.1 Switch trimming show](#2721-switch-trimming-show)
+    - [2.8 CLI](#28-cli)
+        - [2.8.1 Command structure](#281-command-structure)
+        - [2.8.2 Usage examples](#282-usage-examples)
+            - [2.8.2.1 Config command group](#2821-config-command-group)
+            - [2.8.2.2 Show command group](#2822-show-command-group)
+    - [2.9 YANG model](#29-yang-model)
+    - [2.10 Warm/Fast boot](#210-warmfast-boot)
 - [3 Test plan](#3-test-plan)
     - [3.1 Unit tests via VS](#31-unit-tests-via-vs)
     - [3.2 Data plane tests via PTF](#32-data-plane-tests-via-ptf)
@@ -57,6 +60,7 @@
 | Rev | Date       | Author         | Description     |
 |:---:|:----------:|:--------------:|:----------------|
 | 0.1 | 01/11/2024 | Nazarii Hnydyn | Initial version |
+| 0.2 | 07/04/2025 | Nazarii Hnydyn | Asymmetric DSCP |
 
 ## About this manual
 
@@ -95,11 +99,12 @@ This document describes the high level design of PT feature in SONiC
 
 ## List of figures
 
-[Figure 1: PT design](#figure-1-pt-design)  
-[Figure 2: PT OA design](#figure-2-pt-oa-design)  
-[Figure 3: PT switch update flow](#figure-3-switch-trimming-update-flow)  
-[Figure 4: PT buffer update flow](#figure-4-buffer-profile-update-flow)  
-[Figure 5: PT switch show flow](#figure-5-switch-trimming-show-flow)  
+[Figure 1: PT symmetric DSCP design](#figure-1-pt-symmetric-dscp-design)  
+[Figure 2: PT asymmetric DSCP design](#figure-2-pt-asymmetric-dscp-design)  
+[Figure 3: PT OA design](#figure-3-pt-oa-design)  
+[Figure 4: PT switch update flow](#figure-4-switch-trimming-update-flow)  
+[Figure 5: PT buffer update flow](#figure-5-buffer-profile-update-flow)  
+[Figure 6: PT switch show flow](#figure-6-switch-trimming-show-flow)  
 
 ## List of tables
 
@@ -125,8 +130,11 @@ and try sending it on a different queue to deliver a packet drop notification to
 
 **This feature will support the following functionality:**
 1. Global switch trimming configuration with per buffer profile control
-2. ACL disable trimming control policy
-3. Port/Queue trimming statistics
+2. Trimming size management
+3. Symmetric/Asymmetric DSCP remapping
+4. Static/Dynamic queue resolution
+5. ACL disable trimming control policy
+6. Port/Queue trimming statistics
 
 ### 1.2.2 Command interface
 
@@ -195,10 +203,6 @@ and try sending it on a different queue to deliver a packet drop notification to
 
 ## 2.1 Overview
 
-![PT design](images/pt_design.svg "Figure 1: PT design")
-
-###### Figure 1: PT design
-
 Eligibility for trimming will be defined in the Buffer Profile and applied to a Queue associated  
 with this Buffer Profile. It means that packets sent via these Queues are eligible for trimming  
 when they are dropped on admission to Shared Buffer.
@@ -213,7 +217,27 @@ The feature will use SAI Switch/Buffer/ACL API to configure desired behavior to 
 Fine-grained PT control can be achieved using ACL rules with disable trimming action.  
 Trimmed packets statistics will be displayed at both Port/Queue levels.
 
-## 2.2 SAI API
+## 2.2 Symmetric DSCP
+
+![PT symmetric design](images/pt_sym_design.svg "Figure 1: PT symmetric DSCP design")
+
+###### Figure 1: PT symmetric DSCP design
+
+Symmetric DSCP allows having a single DSCP value for a trimmed packets sent out via different ports.  
+This mode stands for basic trimming configuration. In this case receiver cannot identify the source  
+of congestion due to lack of information.
+
+## 2.3 Asymmetric DSCP
+
+![PT asymmetric design](images/pt_asym_design.svg "Figure 2: PT asymmetric DSCP design")
+
+###### Figure 2: PT asymmetric DSCP design
+
+Asymmetric DSCP allows having a different DSCP value for a trimmed packets sent out via different ports.  
+This mode stands for advanced trimming configuration. Such a mechanism allows reciver to to distinguish  
+where the congestion happened - on downlinks to servers or in the fabric.
+
+## 2.4 SAI API
 
 **SAI port/queue statistics which shall be used for PT:**
 
@@ -234,29 +258,34 @@ Trimmed packets statistics will be displayed at both Port/Queue levels.
 | API    | Function                       | Attribute                                            |
 |:-------|:-------------------------------|:-----------------------------------------------------|
 | OBJECT | sai_query_attribute_capability | SAI_SWITCH_ATTR_PACKET_TRIM_SIZE                     |
+|        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE     |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE               |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE    |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX              |
 |        |                                | SAI_BUFFER_PROFILE_ATTR_PACKET_ADMISSION_FAIL_ACTION |
+| QOSMAP | create_qos_map                 | SAI_QOS_MAP_ATTR_TYPE                                |
+|        | set_qos_map_attribute          | SAI_QOS_MAP_TYPE_TC_AND_COLOR_TO_DSCP                |
+|        |                                | SAI_QOS_MAP_ATTR_MAP_TO_VALUE_LIST                   |
 | BUFFER | set_buffer_profile_attribute   | SAI_BUFFER_PROFILE_ATTR_PACKET_ADMISSION_FAIL_ACTION |
 | SWITCH | set_switch_attribute           | SAI_SWITCH_ATTR_PACKET_TRIM_SIZE                     |
+|        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE     |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE               |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE    |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX              |
 
-## 2.3 Orchestration agent
+## 2.5 Orchestration agent
 
-### 2.3.1 Overview
+### 2.5.1 Overview
 
-![PT OA design](images/pt_swss_design.svg "Figure 2: PT OA design")
+![PT OA design](images/pt_swss_design.svg "Figure 3: PT OA design")
 
-###### Figure 2: PT OA design
+###### Figure 3: PT OA design
 
 OA will be extended with a new PT Config DB schema and SAI Switch/Buffer/ACL API support.  
 Switch trimming updates will be processed by OA based on Config DB changes.  
 Some updates will be handled and some will be considered as invalid.
 
-### 2.3.2 Switch orch
+### 2.5.2 Switch orch
 
 Class `SwitchOrch` holds a set of methods matching generic `Orch` class pattern to handle Config DB updates.  
 For that purpose a producer-consumer mechanism (implemented in `sonic-swss-common`) is used.  
@@ -277,7 +306,7 @@ Switch trimming capabilities are stored under `SWITCH_CAPABILITY|switch` key in 
 The vendor specific data is being queried by switch OA on init and pushed to both internal cache and DB.  
 Any further switch trimming update is being validated using vendor specific trimming capabilities.
 
-### 2.3.3 Buffer orch
+### 2.5.3 Buffer orch
 
 Buffer configuration infrastructure is represented with `buffermgrd` and `bufferorch`.
 
@@ -292,7 +321,22 @@ Buffer profile trimming configuration is represented with `BUFFER_PROFILE|name|p
 On `BUFFER_PROFILE|name` update, method `BufferOrch::processBufferProfile` will be called to process the change.  
 Regular buffer profile trimming update will refresh the internal class structures and appropriate SAI objects.
 
-### 2.3.4 ACL orch
+### 2.5.4 QoS orch
+
+Existing infrastructure will be reused.
+
+QoS OA already provides support for TC to DSCP map configuration handling.  
+The last one is used by PT to enable asymmetric DSCP remapping for various interfaces.
+
+QoS TC to DSCP map trimming configuration is stored under `TC_TO_DSCP_MAP|name` key in Config DB.  
+On `TC_TO_DSCP_MAP|name` update, method `QosOrch::handleTcToDscpTable` will be called to process the change.  
+Regular QoS TC to DSCP map trimming update will refresh the internal class structures and appropriate SAI objects.
+
+QoS port map trimming configuration is represented with `PORT_QOS_MAP|name|tc_to_dscp_map` field.  
+On `PORT_QOS_MAP|name` update, method `QosOrch::handlePortQosMapTable` will be called to process the change.  
+Regular QoS port map trimming update will refresh the internal class structures and appropriate SAI objects.
+
+### 2.5.5 ACL orch
 
 Existing infrastructure will be reused.
 
@@ -301,39 +345,42 @@ The new action will be handled as part of existing `PACKET_ACTION`.
 
 In order to use trimming configuration in ACL rule, a dedicated ACL table type must be defined.
 
-### 2.3.5 Flexcounter orch
+### 2.5.6 Flexcounter orch
 
 Existing infrastructure will be reused.
 
 Flex counter groups `port/queue` will be extended with a new SAI attributes  
 `SAI_PORT_STAT_TRIM_PACKETS/SAI_QUEUE_STAT_TRIM_PACKETS` respectively.
 
-## 2.4 DB schema
+## 2.6 DB schema
 
-### 2.4.1 Config DB
+### 2.6.1 Config DB
 
-#### 2.4.1.1 Switch OA
+#### 2.6.1.1 Switch OA
 ```abnf
 ; defines schema for switch trimming configuration attributes
 key = SWITCH_TRIMMING|GLOBAL ; switch trimming global. Must be unique
 
-; field           = value
-size              = 1*10DIGIT   ; size (in bytes) to trim eligible packet
-dscp_value        = 1*2DIGIT    ; DSCP value assigned to a packet after trimming
-queue_index       = queue-index ; queue index to use for transmission of a packet after trimming
+; field     = value
+size        = 1*10DIGIT   ; size (in bytes) to trim eligible packet
+dscp_value  = dscp-value  ; DSCP value assigned to a packet after trimming
+tc_value    = 1*3DIGIT    ; TC value assigned to a packet after trimming
+queue_index = queue-index ; queue index to use for transmission of a packet after trimming
 
 ; value annotations
+dscp-value = 1*2DIGIT / "from-tc"
 queue-index = 1*3DIGIT / "dynamic"
 ```
 
 **Note:**
 * when packet length is less than `size`, the original full packet will be transmitted out
 * both IPv4/IPv6 packets are updated with `dscp_value` after DSCP remapping
+* when `dscp_value` is set to `from-tc`, the `tc_value` is used for mapping to DSCP
 * when `queue_index` is set to `dynamic`, the `dscp_value` is used for mapping to queue
 * field removal is not supported
 * configuration removal is not supported
 
-#### 2.4.1.2 Buffer OA
+#### 2.6.1.2 Buffer OA
 ```abnf
 ; defines schema for buffer profile trimming configuration attributes
 key = BUFFER_PROFILE|buffer_profile_name ; buffer profile name. Must be unique
@@ -348,7 +395,7 @@ discard-action = "drop" / "trim"
 **Note:**
 * field removal is not supported
 
-#### 2.4.1.3 ACL OA
+#### 2.6.1.3 ACL OA
 ```abnf
 ; defines schema for ACL rule trimming configuration attributes
 key = ACL_RULE|table_name|rule_name ; ACL rule name. Must be unique
@@ -363,24 +410,27 @@ packet-action = "DISABLE_TRIM"
 **Note:**
 * field removal is not supported
 
-### 2.4.2 State DB
+### 2.6.2 State DB
 
-#### 2.4.2.1 Switch trimming capabilities
+#### 2.6.2.1 Switch trimming capabilities
 ```abnf
 ; defines schema for switch trimming configuration capabilities
 key = SWITCH_CAPABILITY|switch ; must be unique
 
 ; field                                      = value
 SWITCH_TRIMMING_CAPABLE                      = capability-knob ; specifies whether switch is trimming capable
+SWITCH|PACKET_TRIMMING_DSCP_RESOLUTION_MODE  = dscp-mode-list  ; DSCP mapping mode capabilities
 SWITCH|PACKET_TRIMMING_QUEUE_RESOLUTION_MODE = queue-mode-list ; queue mapping mode capabilities
 
 ; value annotations
 capability-knob = "true" / "false"
+dscp-mode       = "DSCP_VALUE" / "FROM_TC"
+dscp-mode-list  = "" / "N/A" / dscp-mode [ 1*( "," dscp-mode ) ]
 queue-mode      = "STATIC" / "DYNAMIC"
 queue-mode-list = "" / "N/A" / queue-mode [ 1*( "," queue-mode ) ]
 ```
 
-### 2.4.3 Data sample
+### 2.6.3 Data sample
 
 **Config DB:**
 ```bash
@@ -392,9 +442,27 @@ redis-cli -n 4 HGETALL 'SWITCH_TRIMMING|GLOBAL'
 5) "queue_index"
 6) "6"
 
+redis-cli -n 4 HGETALL 'SWITCH_TRIMMING|GLOBAL'
+1) "size"
+2) "128"
+3) "dscp_value"
+4) "from-tc"
+5) "tc_value"
+6) "5"
+7) "queue_index"
+8) "6"
+
 redis-cli -n 4 HGETALL 'BUFFER_PROFILE|q_lossy_trim_profile'
 1) "packet_discard_action"
 2) "trim"
+
+redis-cli -n 4 HGETALL "TC_TO_DSCP_MAP|host_trim_map"
+1) "5"
+2) "3"
+
+redis-cli -n 4 HGETALL "PORT_QOS_MAP|Ethernet0"
+1) "tc_to_dscp_map"
+2) "host_trim_map"
 
 redis-cli -n 4 HGETALL 'ACL_RULE|TRIM_TABLE|TRIM_RULE'
 1) "PACKET_ACTION"
@@ -404,17 +472,29 @@ redis-cli -n 4 HGETALL 'ACL_RULE|TRIM_TABLE|TRIM_RULE'
 **State DB:**
 ```bash
 redis-cli -n 6 HGETALL 'SWITCH_CAPABILITY|switch'
- 1) "SWITCH_TRIMMING_CAPABLE"
- 2) "true"
- 3) "SWITCH|PACKET_TRIMMING_QUEUE_RESOLUTION_MODE"
- 4) "STATIC,DYNAMIC"
+1) "SWITCH_TRIMMING_CAPABLE"
+2) "true"
+3) "SWITCH|PACKET_TRIMMING_DSCP_RESOLUTION_MODE"
+4) "DSCP_VALUE,FROM_TC"
+5) "SWITCH|PACKET_TRIMMING_QUEUE_RESOLUTION_MODE"
+6) "STATIC,DYNAMIC"
 ```
 
-### 2.4.4 Configuration sample
+### 2.6.4 Configuration sample
 
-**Packet trimming and filtering:**
+**ACL packet trimming disable policy:**
 ```json
 {
+    "PORT": {
+        "Ethernet0": {
+            "admin_status": "up",
+            "alias": "etp1",
+            "index": "1",
+            "lanes": "0,1,2,3",
+            "mtu": "9100",
+            "speed": "100000"
+        }
+    },
     "ACL_TABLE_TYPE": {
         "TRIMMING_L3": {
             "MATCHES": [
@@ -443,6 +523,22 @@ redis-cli -n 6 HGETALL 'SWITCH_CAPABILITY|switch'
             "PRIORITY": "999",
             "SRC_IP": "1.1.1.1/32",
             "PACKET_ACTION": "DISABLE_TRIM"
+        }
+    }
+}
+```
+
+**Packet trimming with symmetric DSCP:**
+```json
+{
+    "PORT": {
+        "Ethernet0": {
+            "admin_status": "up",
+            "alias": "etp1",
+            "index": "1",
+            "lanes": "0,1,2,3",
+            "mtu": "9100",
+            "speed": "100000"
         }
     },
     "BUFFER_POOL": {
@@ -474,41 +570,111 @@ redis-cli -n 6 HGETALL 'SWITCH_CAPABILITY|switch'
 }
 ```
 
-### 2.4.5 Initial configuration
+**Packet trimming with asymmetric DSCP:**
+```json
+{
+    "PORT": {
+        "Ethernet0": {
+            "admin_status": "up",
+            "alias": "etp1",
+            "index": "1",
+            "lanes": "0,1,2,3",
+            "mtu": "9100",
+            "speed": "100000"
+        },
+        "Ethernet4": {
+            "admin_status": "up",
+            "alias": "etp2",
+            "index": "2",
+            "lanes": "4,5,6,7",
+            "mtu": "9100",
+            "speed": "100000"
+        }
+    },
+    "TC_TO_DSCP_MAP": {
+        "host_trim_map": {
+            "5": "3"
+        },
+        "spine_trim_map": {
+            "5": "7"
+        }
+    },
+    "PORT_QOS_MAP": {
+        "Ethernet0": {
+            "tc_to_dscp_map": "host_trim_map"
+        },
+        "Ethernet4": {
+            "tc_to_dscp_map": "spine_trim_map"
+        }
+    },
+    "BUFFER_POOL": {
+        "egress_lossy_pool": {
+            "mode": "dynamic",
+            "type": "egress"
+        }
+    },
+    "BUFFER_PROFILE": {
+        "q_lossy_trim_profile": {
+            "dynamic_th": "3",
+            "pool": "egress_lossy_pool",
+            "size": "0",
+            "packet_discard_action": "trim"
+        }
+    },
+    "BUFFER_QUEUE": {
+        "Ethernet0|3": {
+            "profile": "q_lossy_trim_profile"
+        },
+        "Ethernet4|3": {
+            "profile": "q_lossy_trim_profile"
+        }
+    },
+    "SWITCH_TRIMMING": {
+        "GLOBAL": {
+            "size": "128",
+            "dscp_value": "from-tc",
+            "tc_value": "5",
+            "queue_index": "6"
+        }
+    }
+}
+```
+
+### 2.6.5 Initial configuration
 
 No special handling is required: disabled by default
 
-### 2.4.6 Configuration migration
+### 2.6.6 Configuration migration
 
 No special handling is required: adding new and extending the existing schema
 
-## 2.5 Flows
+## 2.7 Flows
 
-### 2.5.1 Config section
+### 2.7.1 Config section
 
-### 2.5.1.1 Switch trimming update
+### 2.7.1.1 Switch trimming update
 
-![Switch trimming update flow](images/pt_switch_flow.svg "Figure 3: Switch trimming update flow")
+![Switch trimming update flow](images/pt_switch_flow.svg "Figure 4: Switch trimming update flow")
 
-###### Figure 3: Switch trimming update flow
+###### Figure 4: Switch trimming update flow
 
-### 2.5.1.2 Buffer profile update
+### 2.7.1.2 Buffer profile update
 
-![Buffer profile update flow](images/pt_buffer_profile_flow.svg "Figure 4: Buffer profile update flow")
+![Buffer profile update flow](images/pt_buffer_profile_flow.svg "Figure 5: Buffer profile update flow")
 
-###### Figure 4: Buffer profile update flow
+###### Figure 5: Buffer profile update flow
 
-### 2.5.2 Show section
+### 2.7.2 Show section
 
-#### 2.5.2.1 Switch trimming show
+#### 2.7.2.1 Switch trimming show
 
-![Switch trimming show flow](images/pt_show_flow.svg "Figure 5: Switch trimming show flow")
+![Switch trimming show flow](images/pt_show_flow.svg "Figure 6: Switch trimming show flow")
 
-###### Figure 5: Switch trimming show flow
+###### Figure 6: Switch trimming show flow
 
-## 2.6 CLI
+## 2.8 CLI
 
-### 2.6.1 Command structure
+### 2.8.1 Command structure
 
 **User interface**:
 ```
@@ -530,7 +696,8 @@ show
 _config switch-trimming global_
 1. `-s|--size` - size (in bytes) to trim eligible packet
 2. `-d|--dscp` - DSCP value assigned to a packet after trimming
-3. `-q|--queue` - queue index to use for transmission of a packet after trimming
+3. `-t|--tc` - TC value assigned to a packet after trimming
+4. `-q|--queue` - queue index to use for transmission of a packet after trimming
 
 _config mmu_
 1. `-t` - set packet trimming eligibility
@@ -538,14 +705,16 @@ _config mmu_
 _show switch-trimming global_
 1. `-j|--json` - display in JSON format
 
-### 2.6.2 Usage examples
+### 2.8.2 Usage examples
 
-#### 2.6.2.1 Config command group
+#### 2.8.2.1 Config command group
 
 **The following command updates switch trimming global configuration:**
 ```bash
 config switch-trimming global --size 128 --dscp 48 --queue 6
 config switch-trimming global --size 128 --dscp 48 --queue dynamic
+config switch-trimming global --size 128 --dscp from-tc --tc 5 --queue 6
+config switch-trimming global --size 128 --dscp from-tc --tc 5 --queue dynamic
 ```
 
 **The following command updates switch trimming buffer eligibility configuration:**
@@ -565,7 +734,7 @@ counterpoll queue interval 1000
 counterpoll acl interval 1000
 ```
 
-#### 2.6.2.2 Show command group
+#### 2.8.2.2 Show command group
 
 **The following command shows switch trimming global configuration:**
 ```bash
@@ -577,13 +746,35 @@ root@sonic:/home/admin# show switch-trimming global
 +---------------------------------------+---------+
 | Packet trimming DSCP value            | 48      |
 +---------------------------------------+---------+
+| Packet trimming TC value              | N/A     |
++---------------------------------------+---------+
 | Packet trimming queue index           | 6       |
 +---------------------------------------+---------+
-
 root@sonic:/home/admin# show switch-trimming global --json
 {
     "size": "128",
     "dscp_value": "48",
+    "tc_value": "N/A",
+    "queue_index": "6"
+}
+
+root@sonic:/home/admin# show switch-trimming global
++---------------------------------------+---------+
+| Configuration                         | Value   |
++=======================================+=========+
+| Packet trimming size                  | 128     |
++---------------------------------------+---------+
+| Packet trimming DSCP value            | from-tc |
++---------------------------------------+---------+
+| Packet trimming TC value              | 5       |
++---------------------------------------+---------+
+| Packet trimming queue index           | 6       |
++---------------------------------------+---------+
+root@sonic:/home/admin# show switch-trimming global --json
+{
+    "size": "128",
+    "dscp_value": "from-tc",
+    "tc_value": "5",
     "queue_index": "6"
 }
 ```
@@ -710,7 +901,7 @@ RULE NAME    TABLE NAME      PRIO  PACKETS COUNT    BYTES COUNT
 TRIM_RULE    TRIM_TABLE       999  100              6400
 ```
 
-## 2.7 YANG model
+## 2.9 YANG model
 
 Existing YANG model `sonic-buffer-profile.yang` at `sonic-buildimage/src/sonic-yang-models/yang-models`  
 will be extended with a new schema in order to provide support for PT.
@@ -768,6 +959,10 @@ module sonic-trimming {
 
     description "TRIMMING YANG Module for SONiC OS";
 
+    revision 2025-04-07 {
+        description "Asymmetric DSCP";
+    }
+
     revision 2024-11-01 {
         description "First Revision";
     }
@@ -787,12 +982,22 @@ module sonic-trimming {
 
                 leaf dscp_value {
                     description "DSCP value assigned to a packet after trimming";
-                    type uint8 {
-                        range "0..63" {
-                            error-message "Invalid DSCP value";
-                            error-app-tag dscp-invalid;
+                    type union {
+                        type uint8 {
+                            range "0..63" {
+                                error-message "Invalid DSCP value";
+                                error-app-tag dscp-invalid;
+                            }
+                        }
+                        type string {
+                            pattern "from-tc";
                         }
                     }
+                }
+
+                leaf tc_value {
+                    description "TC value assigned to a packet after trimming";
+                    type uint8;
                 }
 
                 leaf queue_index {
@@ -815,7 +1020,7 @@ module sonic-trimming {
 /* end of module sonic-trimming */
 ```
 
-## 2.8 Warm/Fast boot
+## 2.10 Warm/Fast boot
 
 No special handling is required
 
@@ -826,8 +1031,9 @@ No special handling is required
 PT basic configuration test:
 1. Verify ASIC DB object state after switch trimming size update
 2. Verify ASIC DB object state after switch trimming DSCP value update
-3. Verify ASIC DB object state after switch trimming queue index update
-4. Verify ASIC DB object state after buffer profile discard packet action update
+3. Verify ASIC DB object state after switch trimming TC value update
+4. Verify ASIC DB object state after switch trimming queue index update
+5. Verify ASIC DB object state after buffer profile discard packet action update
 
 ## 3.2 Data plane tests via PTF
 
