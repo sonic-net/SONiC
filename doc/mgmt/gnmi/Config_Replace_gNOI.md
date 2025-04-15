@@ -130,17 +130,16 @@ module: openconfig-file-mgmt-private
 ```python
 YANG file: openconfig-file-mgmt-private.yang
     typedef filename-uri-type {
-       type string {
-            pattern "((config|coredump|home|tech-support|ftp|http|scp|log):.*)" {
-                error-message "Invalid folder name.";
+    	type union {
+            type enumeration {
+            	enum "running-configuration";
+            	enum "startup-configuration";
             }
-            pattern "running-configuration";
-            pattern "startup-configuration";
-       }
-       description
-            "Pattern for safe access to the file system";
+            type string {
+            	pattern "((config|coredump|home|tech-support|ftp|http|scp|log):.*)";
+            }
+    	}
     }
-
     rpc copy {
         description
             "This procedure is used to copy a file from an external server to the switch, or from the switch to an external server.";
