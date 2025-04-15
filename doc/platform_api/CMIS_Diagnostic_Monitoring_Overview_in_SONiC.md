@@ -1462,7 +1462,9 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower{lane_num}                                    = STR; rx signal power in dbm (low warning last clear time)
 ```
 
-### 3.3 Transceiver status data
+### 3.3 Transceiver status data (Hardware)
+
+This section describes the tables used to store data primarily retrieved from the transceiver hardware.
 
 #### 3.3.1 Transceiver status data to store module and data path status
 
@@ -1476,9 +1478,6 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ; field                                 = value
     last_update_time                        = STR               ; last update time for diagnostic data
     diagnostics_update_interval             = INTEGER           ; DOM thread update interval in seconds
-    cmis_state                              = 1*255VCHAR        ; Software CMIS state of the module
-    status                                  = 1*255VCHAR        ; code of the module status (plug in, plug out)
-    error                                   = 1*255VCHAR        ; module error (N/A or a string consisting of error descriptions joined by "|", like "error1 | error2" )
     tx{lane_num}disable                     = BOOLEAN           ; TX disable state on media lane {lane_num}
     tx_disabled_channel                     = INTEGER           ; TX disable field
     module_state                            = 1*255VCHAR        ; current module state (ModuleLowPwr, ModulePwrUp, ModuleReady, ModulePwrDn, Fault)
@@ -1608,7 +1607,26 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tuning_complete                   = STR           ; tuning complete flag clear time
 ```
 
-### 3.4 Transceiver PM data
+### 3.4 Transceiver Status Data (Software)
+
+#### 3.4.1 Transceiver Status Data Maintained by the `xcvrd` Daemon
+
+The `TRANSCEIVER_STATUS_SW` table stores the status of the transceiver as maintained by the `xcvrd` daemon.
+
+Unlike other tables in the HLD, which are controlled by a single thread, the `TRANSCEIVER_STATUS_SW` table is controlled by multiple threads (`SfpStateUpdateTask` and `CmisManagerTask`). Adding a `last_update_time` field to this table could cause concurrency issues since multiple threads update the same field. To avoid this, the `last_update_time` field is not included in the `TRANSCEIVER_STATUS_SW` table.
+
+Additionally, this table exists for all subports of a port breakout group, unlike other tables which exist only for the first subport of a port breakout group.
+
+```plaintext
+    ; Defines Transceiver Status info for a port
+    key                                     = TRANSCEIVER_STATUS_SW|ifname; 
+    ; field                                 = value
+    cmis_state                              = 1*255VCHAR        ; Software CMIS state of the module
+    status                                  = 1*255VCHAR        ; code of the module status (plug in, plug out)
+    error                                   = 1*255VCHAR        ; module error (N/A or a string consisting of error descriptions joined by "|", like "error1 | error2" )
+```
+
+### 3.5 Transceiver PM data
 
 The `TRANSCEIVER_PM` table stores the performance monitoring data of the transceiver. This table is exists only for C-CMIS transceivers.
 
