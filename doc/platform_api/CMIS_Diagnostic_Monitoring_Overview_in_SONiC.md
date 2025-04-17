@@ -2413,12 +2413,12 @@ The transceiver status flags, change count, and their set/clear time for the fol
 - `datapath_firmware_fault`
 - `module_firmware_fault`
 - `module_state_changed`
-- `txfault{lane_num}`
-- `rxlos{lane_num}`
-- `txlos_hostlane{lane_num}`
-- `txcdrlol_hostlane{lane_num}`
-- `tx_eq_fault{lane_num}`
-- `rxcdrlol{lane_num}`
+- `tx{lane_num}fault`
+- `rx{lane_num}los`
+- `tx{lane_num}los_hostlane`
+- `tx{lane_num}cdrlol_hostlane`
+- `tx{lane_num}_eq_fault`
+- `rx{lane_num}cdrlol`
 
 **Example:**
 
