@@ -26,6 +26,7 @@
 | Revision | Date        | Author           | Change Description |
 | -------- | ----------- | ---------------- | ------------------ |
 | 1.0      | Jul 17 2024 | Wenda Chu        | Initial proposal   |
+| 1.1      | April 17 2025| Wenda Chu       | Update the output shcema of CLI|
 
 ## Definitions/Abbreviations
 
@@ -233,7 +234,7 @@ For every aggregated address, we track its state in state DB, it has two states 
 
 
 ### Bgp Container Behavior
-The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` in config DB. The possible events and related process are:
+The process bgpcfgd in bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` in config DB. The possible events and related process are:
 1. Add address in config DB:
     - if BRR requirement is satisfied, generate aggregated address in the bgp container and add address in state DB with active state and prefix list names.
         - if aggregate-address-prefix-list provided, append aggregated address to the prefix list.
@@ -250,11 +251,11 @@ The bgp container will subscribe the keys `BGP_AGGREGATE_ADDRESS` and `BGP_BBR` 
     - In config DB, find out all addresses that has bbr-required equals true and remove aggregated addresses in the bgp container then update state DB with inactive state.
         - if aggregate-address-prefix-list is not empty string, remove aggregated address from the prefix list.
         - if contributing-address-prefix-list is not empty string, remove aggregated address from the prefix list.
-5. The bgp container restarted:
-    - First, the bgp container will clean the addresses in state DB and then the bgp container will process all existed config one by one according to 1~4.
+5. The bgp container restarted or start up:
+    - The bgp container will remove all the addresses in state DB before processing any address in config DB.
 6. Update parameter of address in config DB:
-    - First remove the address according to 2
-    - Then add the address back according to 1
+    - First remove the address according to the behavior 2.
+    - Then add the address according to the behavior 1.
 
 #### UML Sequence Diagrams
 ![](img/add-aggregated-address.png)
@@ -289,13 +290,12 @@ This command is used to show aggregate address in ipv4 address family
 - Example
   ```
   > show ip bgp aggregate-address
-  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
-  |Prefix          |State    |Summary Only |BBR Required |As Set Enabled |Aggregate Address Prefix List|Contributing Address Prefix List|
-  |----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
-  |192.168.0.0/24  |Active   |False        |False        |True           |AGG_ROUTES_V4                |AGG_CONTRIBUTING_ROUTES_V4      |
-  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
-  |10.0.0.0/24     |Inactive |True         |True         |False          |                             |                                |
-  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
+  Flags: A - As Set, B - BBR Required, S - Summary Only
+
+  Prefix           State      Option Flags  Aggregate Address Prefix List   Contributing Address Prefix List
+  --------------   --------   ------------  -----------------------------   --------------------------------
+  192.168.0.0/24   Active     S             AGG_ROUTES_V4                   AGG_CONTRIBUTING_ROUTES_V4
+  10.0.0.0/24      Inactive   A,B,S
   ```
 
 **show ipv6 bgp aggregate-address**
@@ -309,13 +309,12 @@ This command is used to show aggregate address in ipv6 address family
 - Example
   ```
   > show ipv6 bgp aggregate-address
-  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
-  |Prefix          |State    |Summary Only |BBR Required |As Set Enabled |Aggregate Address Prefix List|Contributing Address Prefix List|
-  |----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
-  |fc00:1::/64     |Active   |False        |False        |True           |AGG_ROUTES_V6                |AGG_CONTRIBUTING_ROUTES_V6      |
-  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
-  |fc00:3::/64     |Inactive |True         |True         |False          |                             |                                |
-  +----------------+---------+-------------+-------------+---------------+-----------------------------+--------------------------------+
+  Flags: A - As Set, B - BBR Required, S - Summary Only
+
+  Prefix           State      Option Flags  Aggregate Address Prefix List   Contributing Address Prefix List
+  --------------   --------   ------------  -----------------------------   --------------------------------
+  fc00:1::/64      Active     A             AGG_ROUTES_V6                   AGG_CONTRIBUTING_ROUTES_V6
+  fc00:3::/64      Inactive   B,S
   ```
 
 #### Config CLI
@@ -353,7 +352,7 @@ This command is used to remove aggregate address
 ### Test Plan Design
 First we will implement unit test in sonic-buildimage repo to test basic functionality.
 
-Then we will implement test in sonic-mgmt repo to test if this feature works including scenarios like: 
+Then we will implement test in sonic-mgmt repo to test if this feature works including but not limited to scenarios like:
 1. Add aggregated address with bbr-required equals true and check whether the address will be generated when switch the state of BBR feature.
 2. Add aggregated address with bbr-required equals false and check whether the address will be generated when switch the state of BBR feature.
 3. Remove aggregated address in config db and check whether the address will be removed from state db and bgp container.
