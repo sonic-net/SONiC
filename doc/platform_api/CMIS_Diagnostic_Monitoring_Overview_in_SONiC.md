@@ -2237,10 +2237,10 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
 3. The `DomInfoUpdateTask` thread starts polling for the diagnostic information of the ports in a sequential manner:
     - It first checks if the `dom_info_update_periodic_secs` value is set. If not, it defaults to 0 seconds.
     - The thread then enters a loop that continues until the `task_stopping_event` is set.
-    - Within the loop, it checks if the current time has exceeded the `expired_time`. If so, it sets a flag to update all diagnostic information in the database.
+    - Within the loop, it checks if the current time has exceeded the `expiration_time`. If so, it sets a flag to update all diagnostic information in the database.
     - It iterates over all physical ports, handling any port update events for ports that have undergone a link change and updating the flag-related tables accordingly.
     - If the flag to update all diagnostic information is set, it reads the diagnostic information for the current port.
-    - After processing all ports, it resets the flag and updates the `expired_time` to the current time plus the `dom_info_update_periodic_secs` interval.
+    - After processing all ports, it resets the flag and updates the `expiration_time` to the current time plus the `dom_info_update_periodic_secs` interval.
 
 The following steps are performed to update all diagnostic information for a port:
 
@@ -2264,21 +2264,24 @@ dom_info_update_periodic_secs = parse_field_from_pmon_daemon_control('dom_info_u
 if dom_info_update_periodic_secs is None:
     dom_info_update_periodic_secs = 0
 
-expired_time = time.time()
+next_periodic_db_update_time = time.time() + dom_info_update_periodic_secs
 
 while not dom_mgr.task_stopping_event.is_set():
-    if expired_time <= time.time():
-        update_all_diagnostic_info_in_db = True
-    
-    for current_pport in range(1, last_physical_port + 1):
+    if next_periodic_db_update_time <= time.time():
+        is_periodic_db_update_needed = True
+
+    for physical_port, logical_ports in self.port_mapping.physical_to_logical.items():
         if has_link_status_changed_for_any_port():
+            # After 1s post link change event, update the flag-related tables
+            # for the affected ports
             update_flag_related_tables(ports_going_through_link_change)
-        
-        if update_all_diagnostic_info_in_db:
-            read_diagnostic_info(current_pport)
-    
-    update_all_diagnostic_info_in_db = False
-    expired_time = time.time() + dom_info_update_periodic_secs
+
+        if is_periodic_db_update_needed:
+            read_diagnostic_info(physical_port)
+
+    if is_periodic_db_update_needed:
+        next_periodic_db_update_time = time.time() + dom_info_update_periodic_secs
+        is_periodic_db_update_needed = False
 ```
 
 #### 5.2.2 Link Change Event Detection
@@ -2292,6 +2295,12 @@ The `DomInfoUpdateTask` thread periodically monitors the `flap_count` field in t
 
 - **Event Handling**:  
   When a link change is detected, the thread updates the flag-related diagnostic data for the affected ports. For breakout port groups, if multiple subports have an updated `flap_count` in a single iteration, the handler updates the flag information only once for the entire breakout group rather than individually for each subport.
+
+  This is achieved by maintaining a dictionary (`link_change_affected_ports`) where:
+  - **Key**: The physical port.
+  - **Value**: The time at which the database update is planned.
+
+  The database update time is set to **1 second** after the link change event is detected. This delay ensures that the module has sufficient time to update the relevant flag registers before the database update occurs.
 
 - **Cache Update**:  
   After processing every port, the cached `flap_count` value is updated. This ensures that the thread correctly captures any link changes that occur during processing and prevents missing events.
@@ -2312,6 +2321,9 @@ An alternative mechanism to detect link changes is to subscribe to updates of th
   The current database subscription mechanism supports monitoring changes to entire tables rather than specific fields. This means that the `DomInfoUpdateTask` thread would receive notifications for any modification in the `PORT_TABLE` rather than exclusively for link status changes.
 
 #### 5.2.3 Diagnostic Information Update During Link Change Event
+
+**Note:**  
+All diagnostic tables planned to be updated as part of link change event handling will be updated 1 second after the link change event is processed. This delay allows the module to update the relevant flag registers post link change event.
 
 The following tables are updated during a link change event:
 
@@ -2396,17 +2408,6 @@ The following fields related to `esnr_media_input` are updated in the `redis-db`
 
 ##### 5.2.3.3 Transceiver Status Related Fields
 
-The following fields of the `TRANSCEIVER_STATUS` table are updated in the `redis-db` during a link change event:
-
-- `tx_disabled_channel`
-- `module_state`
-- `module_fault_cause`
-- `DP{lane_num}State`
-- `txoutput_status{lane_num}`
-- `rxoutput_status_hostlane{lane_num}`
-- `config_state_hostlane{lane_num}`
-- `dpdeinit_hostlane{lane_num}`
-
 The transceiver status flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link change event:
 
 - `datapath_firmware_fault`
@@ -2423,7 +2424,7 @@ The transceiver status flags, change count, and their set/clear time for the fol
 
 The following fields related to `datapath_firmware_fault` are updated in the `redis-db` during a link change event:
 
-- `datapath_firmware_fault` in `TRANSCEIVER_STATUS` table
+- `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG` table
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT` table
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_SET_TIME` table
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` table
