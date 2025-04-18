@@ -14,7 +14,7 @@
         - [State DB Sample](#state-db-sample)
         - [State Transition Diagram](#state-transition-diagram)
     - [Bgp Container Behavior](#bgp-container-behavior)
-        - [UML Sequence Diagrams](#uml-sequence-diagrams)
+        - [Sequence Diagrams](#sequence-diagrams)
     - [CLI Design](#cli-design)
         - [Show CLI](#show-cli)
         - [Config CLI](#config-cli)
@@ -26,7 +26,7 @@
 | Revision | Date        | Author           | Change Description |
 | -------- | ----------- | ---------------- | ------------------ |
 | 1.0      | Jul 17 2024 | Wenda Chu        | Initial proposal   |
-| 1.1      | April 17 2025| Wenda Chu       | Update the output shcema of CLI|
+| 1.1      | April 17 2025| Wenda Chu       | Update the output shcema of CLI and state transition diagram|
 
 ## Definitions/Abbreviations
 
@@ -257,7 +257,7 @@ The process bgpcfgd in bgp container will subscribe the keys `BGP_AGGREGATE_ADDR
     - First remove the address according to the behavior 2.
     - Then add the address according to the behavior 1.
 
-#### UML Sequence Diagrams
+#### Sequence Diagrams
 ![](img/add-aggregated-address.png)
 
 *Fig.1 Add Address*
