@@ -1462,7 +1462,9 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     rxsigpower{lane_num}                                    = STR; rx signal power in dbm (low warning last clear time)
 ```
 
-### 3.3 Transceiver status data
+### 3.3 Transceiver status data (Hardware)
+
+This section describes the tables used to store data primarily retrieved from the transceiver hardware.
 
 #### 3.3.1 Transceiver status data to store module and data path status
 
@@ -1476,9 +1478,6 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     ; field                                 = value
     last_update_time                        = STR               ; last update time for diagnostic data
     diagnostics_update_interval             = INTEGER           ; DOM thread update interval in seconds
-    cmis_state                              = 1*255VCHAR        ; Software CMIS state of the module
-    status                                  = 1*255VCHAR        ; code of the module status (plug in, plug out)
-    error                                   = 1*255VCHAR        ; module error (N/A or a string consisting of error descriptions joined by "|", like "error1 | error2" )
     tx{lane_num}disable                     = BOOLEAN           ; TX disable state on media lane {lane_num}
     tx_disabled_channel                     = INTEGER           ; TX disable field
     module_state                            = 1*255VCHAR        ; current module state (ModuleLowPwr, ModulePwrUp, ModuleReady, ModulePwrDn, Fault)
@@ -1608,7 +1607,26 @@ lane_num: Represents lane number of the field. The lane number is an integer val
     tuning_complete                   = STR           ; tuning complete flag clear time
 ```
 
-### 3.4 Transceiver PM data
+### 3.4 Transceiver Status Data (Software)
+
+#### 3.4.1 Transceiver Status Data Maintained by the `xcvrd` Daemon
+
+The `TRANSCEIVER_STATUS_SW` table stores the status of the transceiver as maintained by the `xcvrd` daemon.
+
+Unlike other tables in the HLD, which are controlled by a single thread, the `TRANSCEIVER_STATUS_SW` table is controlled by multiple threads (`SfpStateUpdateTask` and `CmisManagerTask`). Adding a `last_update_time` field to this table could cause concurrency issues since multiple threads update the same field. To avoid this, the `last_update_time` field is not included in the `TRANSCEIVER_STATUS_SW` table.
+
+Additionally, this table exists for all subports of a port breakout group, unlike other tables which exist only for the first subport of a port breakout group.
+
+```plaintext
+    ; Defines Transceiver Status info for a port
+    key                                     = TRANSCEIVER_STATUS_SW|ifname; 
+    ; field                                 = value
+    cmis_state                              = 1*255VCHAR        ; Software CMIS state of the module
+    status                                  = 1*255VCHAR        ; code of the module status (plug in, plug out)
+    error                                   = 1*255VCHAR        ; module error (N/A or a string consisting of error descriptions joined by "|", like "error1 | error2" )
+```
+
+### 3.5 Transceiver PM data
 
 The `TRANSCEIVER_PM` table stores the performance monitoring data of the transceiver. This table is exists only for C-CMIS transceivers.
 
@@ -2219,10 +2237,10 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
 3. The `DomInfoUpdateTask` thread starts polling for the diagnostic information of the ports in a sequential manner:
     - It first checks if the `dom_info_update_periodic_secs` value is set. If not, it defaults to 0 seconds.
     - The thread then enters a loop that continues until the `task_stopping_event` is set.
-    - Within the loop, it checks if the current time has exceeded the `expired_time`. If so, it sets a flag to update all diagnostic information in the database.
+    - Within the loop, it checks if the current time has exceeded the `expiration_time`. If so, it sets a flag to update all diagnostic information in the database.
     - It iterates over all physical ports, handling any port update events for ports that have undergone a link change and updating the flag-related tables accordingly.
     - If the flag to update all diagnostic information is set, it reads the diagnostic information for the current port.
-    - After processing all ports, it resets the flag and updates the `expired_time` to the current time plus the `dom_info_update_periodic_secs` interval.
+    - After processing all ports, it resets the flag and updates the `expiration_time` to the current time plus the `dom_info_update_periodic_secs` interval.
 
 The following steps are performed to update all diagnostic information for a port:
 
@@ -2246,21 +2264,24 @@ dom_info_update_periodic_secs = parse_field_from_pmon_daemon_control('dom_info_u
 if dom_info_update_periodic_secs is None:
     dom_info_update_periodic_secs = 0
 
-expired_time = time.time()
+next_periodic_db_update_time = time.time() + dom_info_update_periodic_secs
 
 while not dom_mgr.task_stopping_event.is_set():
-    if expired_time <= time.time():
-        update_all_diagnostic_info_in_db = True
-    
-    for current_pport in range(1, last_physical_port + 1):
+    if next_periodic_db_update_time <= time.time():
+        is_periodic_db_update_needed = True
+
+    for physical_port, logical_ports in self.port_mapping.physical_to_logical.items():
         if has_link_status_changed_for_any_port():
+            # After 1s post link change event, update the flag-related tables
+            # for the affected ports
             update_flag_related_tables(ports_going_through_link_change)
-        
-        if update_all_diagnostic_info_in_db:
-            read_diagnostic_info(current_pport)
-    
-    update_all_diagnostic_info_in_db = False
-    expired_time = time.time() + dom_info_update_periodic_secs
+
+        if is_periodic_db_update_needed:
+            read_diagnostic_info(physical_port)
+
+    if is_periodic_db_update_needed:
+        next_periodic_db_update_time = time.time() + dom_info_update_periodic_secs
+        is_periodic_db_update_needed = False
 ```
 
 #### 5.2.2 Link Change Event Detection
@@ -2274,6 +2295,12 @@ The `DomInfoUpdateTask` thread periodically monitors the `flap_count` field in t
 
 - **Event Handling**:  
   When a link change is detected, the thread updates the flag-related diagnostic data for the affected ports. For breakout port groups, if multiple subports have an updated `flap_count` in a single iteration, the handler updates the flag information only once for the entire breakout group rather than individually for each subport.
+
+  This is achieved by maintaining a dictionary (`link_change_affected_ports`) where:
+  - **Key**: The physical port.
+  - **Value**: The time at which the database update is planned.
+
+  The database update time is set to **1 second** after the link change event is detected. This delay ensures that the module has sufficient time to update the relevant flag registers before the database update occurs.
 
 - **Cache Update**:  
   After processing every port, the cached `flap_count` value is updated. This ensures that the thread correctly captures any link changes that occur during processing and prevents missing events.
@@ -2294,6 +2321,9 @@ An alternative mechanism to detect link changes is to subscribe to updates of th
   The current database subscription mechanism supports monitoring changes to entire tables rather than specific fields. This means that the `DomInfoUpdateTask` thread would receive notifications for any modification in the `PORT_TABLE` rather than exclusively for link status changes.
 
 #### 5.2.3 Diagnostic Information Update During Link Change Event
+
+**Note:**  
+All diagnostic tables planned to be updated as part of link change event handling will be updated 1 second after the link change event is processed. This delay allows the module to update the relevant flag registers post link change event.
 
 The following tables are updated during a link change event:
 
@@ -2378,34 +2408,23 @@ The following fields related to `esnr_media_input` are updated in the `redis-db`
 
 ##### 5.2.3.3 Transceiver Status Related Fields
 
-The following fields of the `TRANSCEIVER_STATUS` table are updated in the `redis-db` during a link change event:
-
-- `tx_disabled_channel`
-- `module_state`
-- `module_fault_cause`
-- `DP{lane_num}State`
-- `txoutput_status{lane_num}`
-- `rxoutput_status_hostlane{lane_num}`
-- `config_state_hostlane{lane_num}`
-- `dpdeinit_hostlane{lane_num}`
-
 The transceiver status flags, change count, and their set/clear time for the following fields are updated in the `redis-db` during a link change event:
 
 - `datapath_firmware_fault`
 - `module_firmware_fault`
 - `module_state_changed`
-- `txfault{lane_num}`
-- `rxlos{lane_num}`
-- `txlos_hostlane{lane_num}`
-- `txcdrlol_hostlane{lane_num}`
-- `tx_eq_fault{lane_num}`
-- `rxcdrlol{lane_num}`
+- `tx{lane_num}fault`
+- `rx{lane_num}los`
+- `tx{lane_num}los_hostlane`
+- `tx{lane_num}cdrlol_hostlane`
+- `tx{lane_num}_eq_fault`
+- `rx{lane_num}cdrlol`
 
 **Example:**
 
 The following fields related to `datapath_firmware_fault` are updated in the `redis-db` during a link change event:
 
-- `datapath_firmware_fault` in `TRANSCEIVER_STATUS` table
+- `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG` table
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_CHANGE_COUNT` table
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_SET_TIME` table
 - `datapath_firmware_fault` in `TRANSCEIVER_STATUS_FLAG_CLEAR_TIME` table
