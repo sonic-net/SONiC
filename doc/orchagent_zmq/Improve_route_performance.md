@@ -134,6 +134,61 @@ table{
 | Multiple DB + Ring buffer       |  12                |
 | Multiple DB + Ring buffer + ZMQ |  7                 |
 
+## The performance on chassis
+
+Performance test on Cisco 8800 chassis device with 'sudo config bgp startup all':
+```
+$ show ip bgp summary
+IPv4 Unicast Summary:
+asic0: BGP router identifier 3.3.3.9, local AS number 65100 vrf-id 0
+BGP table version 103312
+asic1: BGP router identifier 3.3.3.10, local AS number 65100 vrf-id 0
+BGP table version 85519
+asic2: BGP router identifier 3.3.3.11, local AS number 65100 vrf-id 0
+BGP table version 119695
+RIB entries 308037, using 69000288 bytes of memory
+Peers 48, using 35614848 KiB of memory
+Peer groups 18, using 1152 bytes of memory
+
+Neighbhor      V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
+-----------  ---  -----  ---------  ---------  --------  -----  ------  ---------  --------------  --------------
+10.0.0.1       4  65200        277         12         0      0       0  00:03:52                1  ARISTA01T3
+10.0.0.5       4  65200        297         12         0      0       0  00:04:29                1  ARISTA03T3
+10.0.0.9       4  65200        275          8         0      0       0  00:03:56                1  ARISTA05T3
+10.0.0.13      4  65200        277         10         0      0       0  00:03:54            33793  ARISTA07T3
+10.0.0.17      4  65200        275          8         0      0       0  00:03:52                1  ARISTA09T3
+10.0.0.21      4  65200        275          8         0      0       0  00:03:57                1  ARISTA11T3
+10.0.0.25      4  65200        275          8         0      0       0  00:03:50            33793  ARISTA18T3
+10.0.0.29      4  65200        275          8         0      0       0  00:03:59                1  ARISTA15T3
+10.0.0.33      4  65200        276          9         0      0       0  00:04:07                1  ARISTA13T3
+10.0.0.35      4  65200        276          9         0      0       0  00:04:04                1  ARISTA17T3
+10.0.0.37      4  65200        276          9         0      0       0  00:04:05            33793  ARISTA19T3
+10.0.0.39      4  65200        275          8         0      0       0  00:03:57            33793  ARISTA20T3
+10.0.0.41      4  65200        275          8         0      0       0  00:03:47            33793  ARISTA21T3
+10.0.0.43      4  65200        276          9         0      0       0  00:04:06            33793  ARISTA22T3
+10.0.0.45      4  65200        275          8         0      0       0  00:03:58            33793  ARISTA23T3
+10.0.0.47      4  65200        276          9         0      0       0  00:04:06            33793  ARISTA24T3
+10.0.0.49      4  65200        275          8         0      0       0  00:04:00                1  ARISTA25T3
+10.0.0.51      4  65200        276          9         0      0       0  00:04:01                1  ARISTA26T3
+10.0.0.53      4  65200        276          9         0      0       0  00:04:01                1  ARISTA27T3
+10.0.0.55      4  65200        275          8         0      0       0  00:03:47                1  ARISTA28T3
+10.0.0.57      4  65200        275          8         0      0       0  00:03:51            33793  ARISTA29T3
+10.0.0.59      4  65200        275          8         0      0       0  00:03:53            33793  ARISTA30T3
+10.0.0.61      4  65200        275          8         0      0       0  00:04:00            33793  ARISTA31T3
+10.0.0.63      4  65200        275          8         0      0       0  00:03:56            33793  ARISTA32T3
+```
+
+<!-- <style>
+table{
+  margin:auto;
+}
+</style> -->
+| Combination                     |  Time (seconds)    |
+| ------------------------------- | -------------------|
+| Without any feature             |  115               |
+| Multiple DB                     |  80                |
+| ZMQ                             |  50                |
+
 ## Pros and Cons
 
 
@@ -274,6 +329,49 @@ redis         62  1.2  0.2  71168 23144 pts/0    Sl   07:43   0:04 /usr/bin/redi
 redis         65  4.1  0.2  67584 21768 pts/0    Sl   07:43   0:13 /usr/bin/redis-server 127.0.0.1:6376
 redis         67  0.1  0.2  64512 18076 pts/0    Sl   07:43   0:00 /usr/bin/redis-server 127.0.0.1:6375
 redis         71  0.1  0.2  64512 17940 pts/0    Sl   07:43   0:00 /usr/bin/redis-server 127.0.0.1:6400
+```
+
+ - Compare of enable/disable Multiple-db on chassis
+     - Disable
+```
+0780122b63db   database2   3.48%     64.57MiB / 30.52GiB   0.21%     4.1MB / 12.2MB   0B / 0B     13
+87715b509b4b   database0   4.10%     67.9MiB / 30.52GiB    0.22%     4.17MB / 13MB    0B / 0B     13
+39da62270557   database1   3.81%     66.1MiB / 30.52GiB    0.21%     4.18MB / 13MB    0B / 0B     13
+7c70e507008c   database    0.16%     92.07MiB / 30.52GiB   0.29%     0B / 0B          0B / 0B     13
+
+uuidd       1896  0.5  0.0  71168 18588 pts/0    Sl   06:36   0:03 /usr/bin/redis-server 127.0.0.1:6379
+uuidd       2674  3.7  0.0  93696 26200 pts/0    Sl   06:37   0:20 /usr/bin/redis-server 127.0.0.1:6379
+uuidd       2684  3.6  0.0  93696 26048 pts/0    Sl   06:37   0:20 /usr/bin/redis-server 127.0.0.1:6379
+uuidd       2689  3.7  0.0  93696 26112 pts/0    Sl   06:37   0:21 /usr/bin/redis-server 127.0.0.1:6379
+```
+
+    - Enable
+```
+ce282d50da16   database1   1.73%     93.11MiB / 30.52GiB   0.30%     1.35MB / 5.48MB   0B / 0B     35
+8030e1db9371   database0   1.53%     95MiB / 30.52GiB      0.30%     1.41MB / 5.65MB   0B / 0B     35
+d150671bf18d   database2   1.66%     94.96MiB / 30.52GiB   0.30%     1.34MB / 5.42MB   0B / 0B     35
+b8bd66d579be   database    0.93%     120.6MiB / 30.52GiB   0.39%     0B / 0B           0B / 0B     35
+
+uuidd       1615  0.5  0.0  64512 17848 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6379
+uuidd       1616  0.1  0.0  64512 17452 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6378
+uuidd       1617  0.1  0.0  64512 17956 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6377
+uuidd       1618  0.1  0.0  64512 17676 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6376
+uuidd       1621  0.1  0.0  64512 17480 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6375
+uuidd       2489  1.0  0.0  80384 21708 pts/0    Sl   06:28   0:01 /usr/bin/redis-server 127.0.0.1:6379
+uuidd       2490  0.2  0.0  71168 18692 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6378
+uuidd       2491  0.8  0.0  64512 19108 pts/0    Sl   06:28   0:01 /usr/bin/redis-server 127.0.0.1:6377
+uuidd       2493  0.1  0.0  67584 18580 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6376
+uuidd       2495  0.1  0.0  64512 16804 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6375
+uuidd       2498  1.0  0.0  80384 20984 pts/0    Sl   06:28   0:01 /usr/bin/redis-server 127.0.0.1:6379
+uuidd       2502  0.2  0.0  71168 18992 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6378
+uuidd       2505  0.8  0.0  64512 19168 pts/0    Sl   06:28   0:01 /usr/bin/redis-server 127.0.0.1:6377
+uuidd       2508  0.1  0.0  67584 18452 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6376
+uuidd       2511  0.1  0.0  64512 16396 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6375
+uuidd       2559  1.0  0.0  80384 22080 pts/0    Sl   06:28   0:01 /usr/bin/redis-server 127.0.0.1:6379
+uuidd       2560  0.3  0.0  71168 19004 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6378
+uuidd       2561  0.8  0.0  64512 19304 pts/0    Sl   06:28   0:01 /usr/bin/redis-server 127.0.0.1:6377
+uuidd       2562  0.1  0.0  67584 18604 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6376
+uuidd       2564  0.1  0.0  64512 16832 pts/0    Sl   06:28   0:00 /usr/bin/redis-server 127.0.0.1:6375
 ```
 
 ## ZMQ
