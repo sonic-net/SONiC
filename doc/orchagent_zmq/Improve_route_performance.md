@@ -1,4 +1,4 @@
-# Improve Orchagent Route performance
+![image](https://github.com/user-attachments/assets/cec626d9-e1eb-4129-8268-04dbbdf900a4)# Improve Orchagent Route performance
 
 ### Revision
 
@@ -199,9 +199,9 @@ table{
 </style> -->
 | Feature     |  Pros                                                            |  Cons                                                       |
 | ----------- | -----------------------------------------------------------------|-------------------------------------------------------------|
-| Multiple DB | No code change, performance improve 40%, on single asic device from 14s improved to 8s, on multi-asic device from 120s improved to 80s.     | Increase 50% CPU and memory utilzation.                     |
+| Multiple DB | No code change, performance improve 40%, on single asic device from 14s improved to 8s, on multi-asic device from 120s improved to 80s.     | Increase 50% CPU and memory utilization.                     |
 | Ring buffer | Still using Redis, feature is ready, only enable a feature flag. | Poor performance, almost no improvement.                    |
-| ZMQ         | Best performance, performance improve 60%, on single asic device from 14s improved to 6s, on multi-asic device from 120s improved to 50s.                                     | Need code change in multiple daemon. using TCP connection. Introduce a depency between orchagent and fpmsyncd, as ZMQ server side, orchagent must start before fpmsyncd. |
+| ZMQ         | Best performance, performance improve 60%, on single asic device from 14s improved to 6s, on multi-asic device from 120s improved to 50s.                                     | Need code change in multiple daemons. using TCP connection. Introduce a dependency between orchagent and fpmsyncd, as ZMQ server side, orchagent must start before fpmsyncd. |
 
 ## Ring Buffer
  - Ring buffer feature enable/disable flag in CONFIG_DB:
