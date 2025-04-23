@@ -199,9 +199,9 @@ table{
 </style> -->
 | Feature     |  Pros                                                            |  Cons                                                       |
 | ----------- | -----------------------------------------------------------------|-------------------------------------------------------------|
-| Multiple DB | No code change, performance improve is acceptable: 14s -> 8s     | Increase CPU and memory utilzation.                         |
+| Multiple DB | No code change, performance improve is acceptable: 14s -> 8s     | Increase 50% CPU and memory utilzation.                     |
 | Ring buffer | Still using Redis, feature is ready, only enable a feature flag. | Poor performance, almost no improvement.                    |
-| ZMQ         | Best performance: 14s -> 6                                       | Need code change in multiple daemon. using TCP connect.     |
+| ZMQ         | Best performance: 14s -> 6                                       | Need code change in multiple daemon. using TCP connection. Introduce a depency between orchagent and fpmsyncd, as ZMQ server side, orchagent must start before fpmsyncd. |
 
 ## Ring Buffer
  - Ring buffer feature enable/disable flag in CONFIG_DB:
