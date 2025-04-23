@@ -135,7 +135,7 @@ A new trap group queue1_group3 will be added to the default configuration with t
 ### 7.4 Schema Changes
 
 State DB will have a new table called COPP_TRAP_CAPABILITY_TABLE which will have the supported trap types. 
-Introducing new value pair "oper_status" field in existing COPP_TRAP_TABLE, to track the operational status of the trap type.
+Introducing new value pair "hw_status" field in existing COPP_TRAP_TABLE, to track the operational status of the trap type.
 
 #### State-DB Schema
 
@@ -147,13 +147,13 @@ New COPP_TRAP_CAPABILITY_TABLE
  trap_ids              = STRING
  ```
 
-oper_status field in COPP_TRAP_TABLE
+hw_status field in COPP_TRAP_TABLE
 
 ```
  key                   = "COPP_TRAP_TABLE|<trap_name>"
  ; field               = value
  state                 = STRING
- oper_status           = STRING
+ hw_status             = STRING
 ```
 
 #### Example
@@ -163,7 +163,7 @@ oper_status field in COPP_TRAP_TABLE
     "type": "hash",
     "value": {
       "state": "ok",
-      "oper_status": "installed"
+      "hw_status": "installed"
     },
     "ttl": -0.001,
     "expireat": 1741187975.7037652
@@ -173,7 +173,7 @@ oper_status field in COPP_TRAP_TABLE
   "COPP_TRAP_CAPABILITY_TABLE|traps": {
 	"type": "hash",
 	"value": {
-	  "trap_id_list": "stp,lacp,eapol,lldp,pvrst,igmp_query,igmp_leave,igmp_v1_report,igmp_v2_report,igmp_v3_report,sample_packet,udld,arp_req,arp_resp,dhcp,ospf,pim,vrrp,dhcpv6,ospfv6,vrrpv6,neigh_discovery,mld_v1_v2,mld_v1_report,mld_v1_done,mld_v2_report,src_nat_miss,dest_nat_miss,isis,ip2me,ssh,snmp,bgp,bgpv6,bfd,bfdv6,bfd_micro,bfdv6_micro,ldp,l3_mtu_error,ttl_error"
+	  "trap_ids": "stp,lacp,eapol,lldp,pvrst,igmp_query,igmp_leave,igmp_v1_report,igmp_v2_report,igmp_v3_report,sample_packet,udld,arp_req,arp_resp,dhcp,ospf,pim,vrrp,dhcpv6,ospfv6,vrrpv6,neigh_discovery,mld_v1_v2,mld_v1_report,mld_v1_done,mld_v2_report,src_nat_miss,dest_nat_miss,isis,ip2me,ssh,snmp,bgp,bgpv6,bfd,bfdv6,bfd_micro,bfdv6_micro,ldp,l3_mtu_error,ttl_error"
 	},
 	"ttl": -0.001,
 	"expireat": 1738645275.8970804
@@ -220,44 +220,45 @@ show
 In below example BGP and BGPv6 traps are not installed as feature is disabled.
 
 ```bash
-root@0ed93b5ee13c:/# show copp configuration
-TrapId           Trap Group       CBS    CIR  mode     meter_type    oper_status
----------------  -------------  -----  -----  -------  ------------  ------------
-arp_req          queue4_group2    600    600  packets  sr_tcm        installed
-arp_resp         queue4_group2    600    600  packets  sr_tcm        installed
-bgp              queue4_group1   6000   6000  packets  sr_tcm        not_installed
-bgpv6            queue4_group1   6000   6000  packets  sr_tcm        not_installed
-dest_nat_miss    queue1_group2    600    600  packets  sr_tcm        installed
-dhcp             queue4_group3    100    100  packets  sr_tcm        installed
-dhcpv6           queue4_group3    100    100  packets  sr_tcm        installed
-eapol            queue4_group1   6000   6000  packets  sr_tcm        installed
-ip2me            queue1_group1   6000   6000  packets  sr_tcm        installed
-lacp             queue4_group1   6000   6000  packets  sr_tcm        installed
-lldp             queue4_group3    100    100  packets  sr_tcm        installed
-neigh_discovery  queue4_group2    600    600  packets  sr_tcm        installed
-neighbor_miss    queue1_group3    600    600  packets  sr_tcm        not_installed
-src_nat_miss     queue1_group2    600    600  packets  sr_tcm        installed
-udld             queue4_group3    100    100  packets  sr_tcm        installed
+admin@sonic:~$ show copp configuration
+TrapId           Trap Group     Action      CBS    CIR  Meter Type    Mode    HW Status
+---------------  -------------  --------  -----  -----  ------------  ------  -------------
+arp_req          queue4_group2  copy        600    600  packets       sr_tcm  installed
+arp_resp         queue4_group2  copy        600    600  packets       sr_tcm  installed
+bgp              queue4_group1  trap       6000   6000  packets       sr_tcm  not-installed
+bgpv6            queue4_group1  trap       6000   6000  packets       sr_tcm  not-installed
+dest_nat_miss    queue1_group2  trap        600    600  packets       sr_tcm  installed
+dhcp             queue4_group3  trap        100    100  packets       sr_tcm  installed
+dhcpv6           queue4_group3  trap        100    100  packets       sr_tcm  installed
+eapol            queue4_group1  trap       6000   6000  packets       sr_tcm  installed
+ip2me            queue1_group1  trap       6000   6000  packets       sr_tcm  installed
+lacp             queue4_group1  trap       6000   6000  packets       sr_tcm  installed
+lldp             queue4_group3  trap        100    100  packets       sr_tcm  installed
+neigh_discovery  queue4_group2  copy        600    600  packets       sr_tcm  installed
+neighbor_miss    queue1_group3  trap        200    200  packets       sr_tcm  installed
+sample_packet    queue2_group1  trap       1000   1000  packets       sr_tcm  not-installed
+src_nat_miss     queue1_group2  trap        600    600  packets       sr_tcm  installed
+udld             queue4_group3  trap        100    100  packets       sr_tcm  installed
 ```
 
 **Detailed View Example**:
 
 ```bash
-root@0ed93b5ee13c:/# show copp configuration detailed --trapid neighbor_miss
+admin@sonic:~$ show copp configuration detailed --trapid neighbor_miss
 Trap Group.................. queue1_group3
-queue....................... 1
-Trap Priority............... 1
 Trap Action................. trap
-Meter Type.................. packets
-Mode........................ sr_tcm
+Trap Priority............... 1
+Queue....................... 1
 CBS......................... 200
 CIR......................... 200
-Green Action................ forward
+Meter Type.................. packets
+Mode........................ sr_tcm
 Yellow Action............... forward
+Green Action................ forward
 Red Action.................. drop
-Oper Status................. not_installed
+HW Status................... installed
 
-root@0ed93b5ee13c:/# show copp configuration detailed --group queue1_group3
+admin@sonic:~$ show copp configuration detailed --group queue1_group3
 Trap Id(s).................. neighbor_miss
 queue....................... 1
 Trap Priority............... 1
@@ -282,7 +283,7 @@ No warmboot and fastboot impact is expected for this feature.
 #### 12.1.1. SWSS Unit Test Cases
 
 * **Neighbor Miss default configuration verification:** Default copp group and trap configuration of neighbor miss will be added to test_copp.py to verify the default configuration.
-* **Trap oper_status verification:** Existing test cases currently verify trap configuration by SET/DEL on CONFIG_DB and vaidating the configuration by GET on ASIC_DB. These test cases will be extended to also verify the oper_status field in STATE_DB.
+* **Trap hw_status verification:** Existing test cases currently verify trap configuration by SET/DEL on CONFIG_DB and vaidating the configuration by GET on ASIC_DB. These test cases will be extended to also verify the hw_status field in STATE_DB.
 * **STATE_DB capability table verification:** New test cases will be added to verify the COPP_TRAP_CAPABILITY_TABLE table in STATE_DB. Test case will perform GET operation and verify trap_id_list field in the table is not empty.
 
 #### 12.1.2. CLI UT Test Cases
