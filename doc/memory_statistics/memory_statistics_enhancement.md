@@ -4,7 +4,7 @@
 
 | Revision No. | Description       | Editor                                   | Date          |
 |-------------|------------------|--------------------------------------------|---------------|
-| 1.0         | Document Creation | Hamza Hashmi, Arham Nasir and Kanza Latif | 09 April 2025 |
+| 1.0         | Document Creation | Kanza Latif, Hamza Hashmi and Arham Nasir | 09 April 2025 |
 
 ## Table of Contents
 
@@ -70,9 +70,9 @@ This section outlines the functional requirements necessary for implementing thi
 The enhancement fits within the existing framework without altering its core structure. The memorystatsd daemon is extended to collect additional metrics and detect leaks, interfacing with hostcfgd for ConfigDB updates. A new gNMI server processes logs into JSON and serves them remotely. This integrates seamlessly with SONiC’s modular design, leveraging existing daemons and adding gNMI capabilities.
 
 <p align="center">
-  <img src="./images/mem_stats_architecture_diagram_v2.svg" alt="Architecture Diagram v2">
-  <br>
-  <em>Figure 1: Architecture Diagram</em>
+    <img src="./images/architecture_diagram_v2.svg" alt="architecture diagram for memory data" width="80%"/>
+    <br>
+	Figure 1: Feature architecture diagram showing the unix socket, daemon, ConfigDB, data file and gNMI
 </p>
 
 ---
@@ -100,26 +100,26 @@ Users view stats, configure settings (reusing `enable/disable`, `sampling_interv
 - **View Memory Usage**:  
   - **Description**: Shows the CLI-based retrieval of memory metrics (system, Docker, process, CPU).  
   - **Diagram**:
-    <p align="center">  
-        <img src="./images/view_memory_usage.svg" alt="View Memory Usage" width="80%"/>  
+  <p align="center">  
+        <img src="./images/view_memory_usage.svg" alt="Leak Detection Sequence" width="80%"/>  
         <br>  
         <em>Figure 2: View Memory Usage</em>  
     </p> 
 - **Memory Leak Detection**:  
   - **Description**: Depicts the process of trend analysis and leak reporting.  
   - **Diagram**:  
-    <p align="center">  
-        <img src="./images/view_memory_usage.svg" alt="Leak Detection Sequence" width="80%"/>  
-        <br>  
-        <em>Figure 3: Sequence for memory leak detection</em>  
-    </p>  
+  <p align="center">  
+      <img src="./images/view_memory_usage.svg" alt="Leak Detection Sequence" width="80%"/>  
+      <br>  
+      <em>Figure 3: Sequence for memory leak detection</em>  
+  </p>  
 - **gNMI Log Retrieval**:  
   - **Description**: Outlines remote log access.  
   - **Diagram**:  
-    <p align="center">  
+   <p align="center">  
         <img src="images/gnmi_sequence_diagram.svg" alt="gNMI Log Retrieval Sequence" width="80%"/>  
         <br>  
-        <em>Figure 4: Sequence for gNMI log retrieval and cleanup</em>  
+        <em>Figure 4: Sequence for gNMI log retrieval</em>  
     </p>
 
 ---
@@ -131,39 +131,37 @@ No SAI API changes are required.
 ---
 
 ## Configuration and Management
-### CLI/YANG Model Enhancements
+## CLI/YANG Model Enhancements
 
-#### CLI Commands
-
+### CLI Commands
 
 #### Config Commands
-
-##### Config Commands
 The following configuration commands are reused from [v1](https://github.com/Arham-Nasir/SONiC/blob/4cf0b5d0bc973cf3a72f91b7f0a9567fd42eeccd/doc/memory_statistics/memory_statistics_hld.md) without modification:  
-1. **`config memory-stats enable/disable`**  
+1. ##### config memory-stats enable/disable
    - Enables or disables monitoring (default: disabled).  
    - Example: `config memory-stats enable` → "Memory statistics monitoring enabled."  
-2. **`config memory-stats sampling-interval <interval>`**  
+2. ##### config memory-stats sampling-interval <interval>
    - Sets sampling interval (3–15 minutes, default: 5).  
    - Example: `config memory-stats sampling-interval 10` → "Sampling interval set to 10 minutes."  
-3. **`config memory-stats retention-period <period>`**  
+3. ##### config memory-stats retention-period <period>
    - Sets retention period (1–30 days, default: 15).  
    - Example: `config memory-stats retention-period 20` → "Retention period set to 20 days."
 
-##### Show Commands
+#### Show Commands
 Below are all upgraded CLI commands with their definitions and sample outputs, covering system, Docker, process, CPU metrics, and memory leak analysis.
 
-1. **View Memory Statistics**
-   - **Command:** `show memory-stats [--type <system|docker|process|cpu>] [--from <date-time>] [--to <date-time>] [--select <metric>] [--leak-analysis]`
-   - **Description:**
+1. ##### View Memory Statistics
+   ##### Command:
+   `show memory-stats [--type <system|docker|process|cpu>] [--from <date-time>] [--to <date-time>] [--select <metric>] [--leak-analysis]`
+   - ##### Description:
      - Displays memory statistics for the specified type (system, Docker, process, or CPU; default: system, last 15 days).
      - `--type <system|docker|process|cpu>`: Specifies the metric type.
      - `--from/--to`: Defines the time range (ISO format or relative, e.g., "5 days ago").
      - `--select <metric>`: Filters specific metrics (e.g., total_memory, used_memory, or process/container name/ID).
      - `--leak-analysis`: Enables leak detection mode.
-   - **Sample Outputs:**
+   - ##### Sample Outputs:
 
-     **System Memory Statistics (Default):**
+     ##### System Memory Statistics (Default):
      ```
      admin@sonic:~$ show memory-stats --type system
      Memory Statistics (System):
@@ -185,7 +183,7 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
      shared_memory      1.31GB     1.22GB     1.08GB     1.22GB     1.20GB     1.18GB     1.15GB     1.12GB     1.10GB     1.08GB     1.31GB
      ```
 
-     **System Memory Statistics (Filtered with Time Range):**
+     ##### System Memory Statistics (Filtered with Time Range):
      ```
      admin@sonic:~$ show memory-stats --type system --from "5 days ago" --to "now" --select used_memory
      Memory Statistics (System):
@@ -201,7 +199,7 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
      used_memory        8.87GB     9.35GB     8.40GB     8.40GB     8.50GB     9.35GB     8.90GB     8.87GB
      ```
 
-     **Docker Memory Statistics (Default):**
+     ##### Docker Memory Statistics (Default):
      ```
      admin@sonic:~$ show memory-stats --type docker
      Memory Statistics (Docker):
@@ -219,7 +217,7 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
      telemetry(b752462) 31.9MB     32.8MB     31.9MB     31.9MB     32.0MB     32.1MB     32.2MB     32.3MB     32.5MB     32.8MB     31.9MB
      ```
 
-     **Docker Memory Statistics (Filtered with Time Range):**
+     ##### Docker Memory Statistics (Filtered with Time Range):
      ```
      admin@sonic:~$ show memory-stats --type docker --from "23 hours ago" --to "now" --select swss
      Memory Statistics (Docker):
@@ -235,7 +233,7 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
      swss(7ef9d6a)      52.3MB     52.5MB     52.2MB     52.2MB     52.3MB     52.4MB     52.5MB     52.4MB     52.3MB     52.3MB     52.3MB
      ```
 
-     **Process Memory Statistics (Default):**
+     ##### Process Memory Statistics (Default):
      ```
      admin@sonic:~$ show memory-stats --type process
      Memory Statistics (Process):
@@ -253,7 +251,7 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
      python3(14573)     20.3MB     20.3MB     20.3MB     20.3MB     20.3MB     20.3MB     20.3MB     20.3MB     20.3MB     20.3MB     20.3MB
      ```
 
-     **Process Memory Statistics (Filtered with Time Range):**
+     ##### Process Memory Statistics (Filtered with Time Range):
      ```
      admin@sonic:~$ show memory-stats --type process --from "12 hours ago" --to "now" --select bgpd
      Memory Statistics (Process):
@@ -269,7 +267,7 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
      bgpd(6284)         19.2MB     19.2MB     19.1MB     19.1MB     19.1MB     19.2MB     19.2MB     19.2MB     19.2MB
      ```
 
-     **CPU Memory Statistics (Default):**
+     ##### CPU Memory Statistics (Default):
      ```
      admin@sonic:~$ show memory-stats --type cpu
      Memory Statistics (CPU):
@@ -285,7 +283,7 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
      cpu_memory         2.5GB      2.7GB      2.2GB      2.2GB      2.3GB      2.4GB      2.5GB      2.6GB      2.7GB      2.6GB      2.5GB
      ```
 
-     **CPU Memory Statistics (Filtered with Time Range):**
+     ##### CPU Memory Statistics (Filtered with Time Range):
      ```
      admin@sonic:~$ show memory-stats --type cpu --from "20 hours ago" --to "now"
      Memory Statistics (CPU):
@@ -301,7 +299,7 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
      cpu_memory         2.5GB      2.7GB      2.4GB      2.4GB      2.5GB      2.6GB      2.7GB      2.6GB      2.5GB      2.5GB
      ```
 
-    - **Process Memory Statistics with Leak Analysis (Default):**
+     ##### Process Memory Statistics with Leak Analysis (Default):
     
       ```
       admin@sonic:~$ show memory-stats --type process --leak-analysis
@@ -320,7 +318,7 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
       syncd(32734)       5.6MB      5.6MB      752.0KB    752.0KB    1.2MB      2.0MB      3.0MB      4.0MB      4.8MB      5.2MB      5.6MB      4.8 MB     Potential Leak Detected
       ```
 
-     - **Process Memory Statistics with Leak Analysis (Filtered with Time Range):**
+      ##### Process Memory Statistics with Leak Analysis (Filtered with Time Range)
         ```
         admin@sonic:~$ show memory-stats --type process --from "20 minutes ago" --to "now" --select syncd --leak-analysis
         Memory Statistics (Process Leak Analysis):
