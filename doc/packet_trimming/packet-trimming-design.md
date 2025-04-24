@@ -131,8 +131,12 @@ and try sending it on a different queue to deliver a packet drop notification to
 ### 1.2.2 Command interface
 
 **This feature will support the following commands:**
-1. config: set switch trimming global configuration
-2. show: display switch trimming global configuration
+1. config section
+    * set switch trimming global configuration
+    * set buffer profile packet trimming eligibility configuration
+2. show section
+    * display switch trimming global configuration
+    * display buffer profile packet trimming eligibility configuration
 
 ### 1.2.3 Error handling
 
@@ -510,11 +514,15 @@ No special handling is required: adding new and extending the existing schema
 ```
 config
 |--- switch-trimming
-     |--- global [OPTIONS]
+|    |--- global [OPTIONS]
+|
+|--- mmu [OPTIONS]
 
 show
 |--- switch-trimming
-     |--- global [OPTIONS]
+|    |--- global [OPTIONS]
+|
+|--- mmu
 ```
 
 **Options:**
@@ -523,6 +531,9 @@ _config switch-trimming global_
 1. `-s|--size` - size (in bytes) to trim eligible packet
 2. `-d|--dscp` - DSCP value assigned to a packet after trimming
 3. `-q|--queue` - queue index to use for transmission of a packet after trimming
+
+_config mmu_
+1. `-t` - set packet trimming eligibility
 
 _show switch-trimming global_
 1. `-j|--json` - display in JSON format
@@ -533,10 +544,14 @@ _show switch-trimming global_
 
 **The following command updates switch trimming global configuration:**
 ```bash
-config switch-trimming global \
---size 128 \
---dscp 48 \
---queue 6
+config switch-trimming global --size 128 --dscp 48 --queue 6
+config switch-trimming global --size 128 --dscp 48 --queue dynamic
+```
+
+**The following command updates switch trimming buffer eligibility configuration:**
+```bash
+config mmu -p q_lossy_trim_profile -t on
+config mmu -p q_lossy_trim_profile -t off
 ```
 
 **The following command updates switch trimming counter configuration:**
@@ -575,7 +590,7 @@ root@sonic:/home/admin# show switch-trimming global --json
 
 **The following command shows switch trimming buffer configuration:**
 ```bash
-root@sonic:/home/admin# show buffer configuration
+root@sonic:/home/admin# show mmu
 Lossless traffic pattern:
 ------------------  -
 default_dynamic_th  0
@@ -816,4 +831,5 @@ PT basic configuration test:
 
 ## 3.2 Data plane tests via PTF
 
-1. [Packet Trimming Test Plan](https://github.com/sonic-net/sonic-mgmt/pull/ "Test Plan")
+1. [Packet Trimming Test Plan](https://github.com/sonic-net/sonic-mgmt/pull/17850 "Test Plan")
+2. [Packet Trimming Test Case](https://github.com/sonic-net/sonic-mgmt/pull/18051 "Test Case")
