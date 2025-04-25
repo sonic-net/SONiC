@@ -76,8 +76,8 @@ BGP_PEER_RANGE|{{VRF/VNET-name}}|{{Peer-name}}:
 ```
 
 ## 2.2 State DB
-Following new table will be added to State DB. Unless otherwise stated, the attributes are mandatory.
-FG_ROUTE_TABLE is used for some of the show commands associated with this feature as well as for warm boot support.
+Following new table will be added to State DB.
+Use case: The SDN controller which programs neighbors will query the following state DB entry to confirm if the required entry is processed by bgpcfgd and programmed successfully. 
 ```
 BGP_PEER_CONFIGURED_TABLE|{{VRF/VNET-name}}|{{Peer-name}}:
     "ip_range": [{{Range of IPs to add to listen range}}],
@@ -85,18 +85,19 @@ BGP_PEER_CONFIGURED_TABLE|{{VRF/VNET-name}}|{{Peer-name}}:
     "peer_asn": {{Peer's ASN number}}, (Optional)
     "src_address": {{Src IP to initiate session}} (Optional)
 ```
+Unless otherwise stated, the attributes are mandatory.
 
 While the above shows the State DB schema for a dynamic peer, the schema for static peers bear the same table name format of ```BGP_PEER_CONFIGURED_TABLE|{{VRF/VNET-name}}|{{Peer-name}}```, but the key value pairs under the table will be those which are used to configure static peers.
 
 ## 2.3 CLI
 The following CLIs will be added, each of these will have similar CLI outputs to their ```default VRF``` counterparts which are widely in use today:
 ```
-1. Show ip bgp summary vrf <vrf/vnet name>
-2. Show ip bgp neighbors vrf <vrf/vnet name>
-3. Show ip bgp network vrf <vrf/vnet name>
-4. Show ipv6 bgp summary vrf <vrf/vnet name>
-5. Show ipv6 bgp neighbors vrf <vrf/vnet name>
-6. Show ipv6 bgp network vrf <vrf/vnet name>
+1. show ip bgp vrf {vrf_name} summary
+2. show ip bgp vrf {vrf_name} network
+3. show ip bgp vrf {vrf_name} neighbors
+4. show ipv6 bgp vrf {vrf_name} summary
+5. show ipv6 bgp vrf {vrf_name} network
+6. show ipv6 bgp vrf {vrf_name} neighbors
 ```
 
 ## 2.4 Bgpcfgd
