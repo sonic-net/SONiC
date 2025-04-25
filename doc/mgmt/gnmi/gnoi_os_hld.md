@@ -158,24 +158,24 @@ Push a test configuration  using gNMI.Set() RPC with Set Replace operation.
 
 #### DBUS Endpoints
 
-The front end implementation calls the host service via the module `gnoi_os_mgmt` to remove the file on the target. HostQuery calls the corresponding D-Bus endpoint on the host and returns any error and the response body.
+There is an existing interface to sonic-installer https://github.com/sonic-net/sonic-host-services/blob/master/host_modules/image_service.py which can be used to consolidate all OS operations in one place. The front end implementation can call the host service via the module `image_service` to remove the file on the target. HostQuery calls the corresponding D-Bus endpoint on the host and returns any error and the response body.
 ```
 // ActivateOS initiates the operations for activating the OS (via DBUS).
 func ActivateOS(reqStr string) (string, error) {
 	...
-	r := HostQuery("gnoi_os_mgmt.activate", reqStr)
+	r := HostQuery("image_service.activate", reqStr)
 }
 
 // VerifyOS initiates the operations for verifying the OS (via DBUS).
 func VerifyOS(reqStr string) (string, error) {
 	...
-	r := HostQuery("gnoi_os_mgmt.verify", reqStr)
+	r := HostQuery("image_service.verify", reqStr)
 }
 
 // InstallOS initiates the operations for transferring the image (via DBUS).
 func InstallOS(reqStr string) (string, error) {
 	...
-	r := HostQuery("gnoi_os_mgmt.install", reqStr)
+	r := HostQuery("image_service.install", reqStr)
 }
 ```
 
