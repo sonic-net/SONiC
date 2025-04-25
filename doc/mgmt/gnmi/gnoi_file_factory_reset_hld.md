@@ -68,6 +68,8 @@ In the above picture “SONiC Host Service” and “DBUS” are entities execut
 
 The [file](https://github.com/openconfig/gnoi/blob/main/file/file.proto) proto defines a gNOI API used for file specific services on the target. The following is described for the Remove API which is supported.
 
+Currently we only support removing the config_db.json file. A string match for `rm ..../etc/sonic/config_db.json` validates the request in the host service backend, else it fails.
+
 ```
 service File {
   // Remove removes the specified file from the target. An error is
