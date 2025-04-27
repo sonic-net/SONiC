@@ -184,11 +184,10 @@ For each asic namespace, the ZMQ port is '8100 + asic_index'
 
         container localhost{
         ...
-            leaf route_zmq_enabled {
-                type boolean;
-                description "Enable ZMQ for ROUTE_TABLE.";
-                default "false";
-            }
+                leaf-list orch_zmq_tables {
+                    type string;
+                    description "Orchagent ZMQ enabled table list";
+                }
         ...
 ```
 
