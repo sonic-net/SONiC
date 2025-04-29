@@ -32,8 +32,8 @@
 - [Detailed Design](#detailed-design)
     - [DHCPv4 Config Manager](#dhcpv4-config-manager)
     - [Relay Main](#relay-main)
-      - [Client->Server Packet Handling](#client-server-packet-handling)
-      - [Server->Client Packet Handling](#server-client-packet-handling)
+      - [Client-\>Server Packet Handling](#client-server-packet-handling)
+      - [Server-\>Client Packet Handling](#server-client-packet-handling)
     - [Stats Manager](#stats-manager)
 - [Yang Model](#yang-model)
 - [DB Changes](#db-changes)
@@ -42,6 +42,8 @@
 - [CLI and Usage](#cli-and-usage)
   - [Configuration CLI](#configuration-cli)
   - [Show CLI](#show-cli)
+- [Configuration Migration](#configuration-migration)
+    - [Configuration Migration](#configuration-migration-1)
 - [Performance](#performance)
 - [Limitations](#limitations)
 - [Testing](#testing)
@@ -119,7 +121,7 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 
     - **Virtual Subnet Selection option** [RFC 6607](https://datatracker.ietf.org/doc/html/rfc6607): Specifies the VRF/VPN from which the DHCP request came from
 
-- **R9:** Support configuration of the source interface to specify the source IP address for relayed packets.
+- **R9:** Support configuration of the source interface for the relayed packets.
 
 - **R10:** Support handling of DHCP packets that have already been relayed by other agents. Three options are available:
 
@@ -131,13 +133,15 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 
 - **R11:** Support Dual-TOR use case
 
-- **R12:** Scalability: The relay agent must be able to handle a large number of DHCP clients and servers. It should be able to support:
+- **R12:** Support multiple subnets/interfaces on a VLAN. If multiple interfaces are configured on a vlan, DHCP4 relay will insert only the primary address as giaddr in dchp request packets.
+
+- **R13:** Scalability: The relay agent must be able to handle a large number of DHCP clients and servers. It should be able to support:
 
     - Number of VRFs - 1024
     - Number of VLANs - 4096
     - Number of DHCP Servers per VLAN - 32
 
--  **R13:** This proposed DHCP relay agent will need to support all the functionality that has been added over the years in the community through various patches. The complete backward compatibitlity with ISC DHCP is an aspirational goal.
+-  **R14:** This proposed DHCP relay agent will need to support all the functionality that has been added over the years in the community through various patches. The complete backward compatibitlity with ISC DHCP is an aspirational goal.
 
 
 # Design Considerations
@@ -146,7 +150,7 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 To facilitate a smooth transition for users migrating from ISC-DHCP to the new SONiC-DHCPv4-Relay, both implementations will coexist within the SONiC codebase for a period of time. A new configuration flag, has_sonic_dhcpv4_relay, will be introduced in the dhcp_relay feature within the config-db. This flag will allow users to select either the ISC-DHCP or the SONiC-DHCPv4-Relay implementation, with the default set to the existing ISC-DHCP. Once the new design has been validated as a functional superset of ISC-DHCP, both the feature flag and the ISC-DHCP implementation will be deprecated.
 
 ## Alignment with DHCPv6 Relay
-The new DHCPv4 relay design will aim to mirror the design structure of the existing DHCPv6 relay as closely as possible, ensuring consistency and ease of integration. However, the code for the DHCPv4 relay will be maintained in a new repository: https://github.com/sonic-net/sonic-dhcpv4-relay.
+The new DHCPv4 relay design will aim to mirror the design structure of the existing DHCPv6 relay as closely as possible, ensuring consistency and ease of integration. Code for the DHCPv4 relay will be maintained in a new sub-directory in the existing dhcp relay repository: https://github.com/sonic-net/sonic-dhcpv-relay. Also, current DHCPv6 relay code will be moved to a parallel subddirectory.
 
 ## Interop with Port-Based DHCP Server
 In the current ISC-DHCP design, a daemon process named `dhcprelayd` operates within the dhcp_relay container. If `dhcp_server` feature is enabled, this daemon is responsible for monitoring the `dhcpv4_server` configuration and managing the lifecycle of the `dhcrelay` process, including actions such as starting, stopping, and restarting it.
@@ -476,7 +480,7 @@ A new DHCPV4_RELAY_COUNTER table will be added in the Counter DB.
 
 DHCPv4 relay configurations can be established using VLAN mode or directly through DHCPV4_RELAY settings.
 
-**Existing manual CLI to add/del relay configuration in the VLAN table**
+**Existing CLI to add/del relay configuration in the VLAN table**
 
 These existing CLIs can be used to ```add``` or ```delete``` DHCPv4 Relay helper address to a VLAN. Note that the `update` operation is not supported. Also, these CLIs can be used to only add a list of server IP addresses. They will not allow configuration of any DHCP relay suboptions or other optional parameters that were introduced in sonic-dchpv4-relay.
 
@@ -494,83 +498,81 @@ sudo config vlan dhcp_relay del 1000 7.7.7.7
 sudo config dhcp_relay ipv4 helper del 1000 7.7.7.7
 ```
 
-**New Yang-model validated CLI to write into a DHCPV4_RELAY table with VLAN as the key**
+**New CLI to write into a DHCPV4_RELAY table with VLAN as the key**
 - **Usage**<br>
 
     -  Add dhcpv4 relay configuration on a VLAN<br>
 
         ```CMD
-        root@sonic:/home/cisco# config dhcpv4-relay add -h
-        Usage: config dhcpv4-relay add [OPTIONS] Vlan<vlan_num>
+        root@sonic:/home/cisco# config dhcpv4_relay ipv4 helper add -h
+        Usage: config dhcp_relay ipv4 helper add [OPTIONS] NAME
 
           Add object in DHCPV4_RELAY.
 
         Options:
-          --server-vrf         <VrfName>                        Server VRF
-          --source-interface   <ifname>                         Used to determine the source IP         address of the
-                                                                relayed packet
-          --link-selection     <enable|disable>                 Enable link selection
-          --vrf-selection      <enable|disable>                 Enable VRF selection
-          --server-id-override <enable|disable>                 Enable server id override
-          --agent-relay-mode   <forward_and_append|
-                                forward_and_replace|
-                                forward_untouched|
-                                discard>                        How to forward packets that         already have a relay
-                                                                option
-          --max-hop-count      <hop-cnt>                        Maximum hop count for relayed         packets
-          --dhcpv4-servers     <comma-separated-ipv4-list>      Server IPv4 address list
+          --server-vrf TEXT          Server VRF
+          --source-interface TEXT    Used to determine the source IP address of the
+                                     relayed packet
+          --link-selection TEXT      Enable link selection
+          --vrf-selection TEXT       Enable VRF selection
+          --server-id-override TEXT  Enable server id override
+          --agent-relay-mode TEXT    How to forward packets that already have a relay
+                                     option
+          --max-hop-count TEXT       Maximum hop count for relayed packets
+          --dhcpv4-servers TEXT      Server IPv4 address list
+          -h, -?, --help             Show this message and exit.
         ```
 
     - Delete an existing relay configuration<br>
         ```
-        sudo config dhcpv4-relay del Vlan<vlan_num>
+        sudo config dhcp_relay ipv4 helper del Vlan<vlan_num>
         ```
 
     - Update relay configuration for an existing entry<br>
 
         ```
-        sudo config dhcpv4-relay update Vlan<vlan_num> [OPTIONS]
+        sudo config dhcpv_relay ipv4 helper update Vlan<vlan_num> [OPTIONS]
         ```
 
 - **Examples**
     * Add a list of dhcpv4 servers to Vlan11<br>
         ```
-        config dhcpv4-relay add Vlan11 --dhcpv4-servers 192.168.11.1,192.168.11.2
+        config dhcp_relay ipv4 helper add Vlan11 --dhcpv4-servers 192.168.11.1,192.168.11.2
         ```
 
-    * Specify Source Interface to change the source IP of DHCP relay agent<br>
+    * Specify Source Interface of the DHCP relay agent<br>
 
         ```CMD
-        sudo config dhcpv4-relay update Vlan11 --source-interface Loopback0
+        sudo config dhcp_relay ipv4 helper update Vlan11 --source-interface Loopback0
         ```
 
     - Add a dhcpv4 server configuration where server and clients are in different VRFs. VRF of the DHCP Server is specified through CLI and Client VRF is derived from the interface on which dhcp_relay is configured. Specifying server-vrf also requires link-selection, vrf-selection and server-id-override sub-options to be enabled and source-interface to be listed.
 
         ```CMD
-        sudo config dhcpv4-relay add Vlan12 --dhcpv4-servers 192.168.12.1 --server-vrf Vrf01 --link-selection enable --server-id-override enable --vrf-selection enable --source-interface Loopback0
+        sudo config dhcp_relay ipv4 helper add Vlan12 --dhcpv4-servers 192.168.12.1 --server-vrf Vrf01 --link-selection enable --server-id-override enable --vrf-selection enable --source-interface Loopback0
         ```
 
     - Update max-hop-count to limit the number of dhcp relays that a packet can go through after which it's dropped.
 
         ```CMD
-        sudo config dhcpv4-relay update Vlan12 --max-hop-count 4
+        sudo config dhcp_relay ipv4 helper update Vlan12 --max-hop-count 4
         ```
 
     - Update the list of dhcp servers configure on a VLAN
 
         ```CMD
-        sudo config dhcpv4-relay update Vlan12 --dhcpv4-servers 192.168.12.1,192.168.12.2
+        sudo config dhcp_relay ipv4 helper update Vlan12 --dhcpv4-servers 192.168.12.1,192.168.12.2
         ```
 
     - Update dhcpv4 relay configuration to replace relay-options if it receives a packet that already contains relay-options
 
         ```
-        sudo config dhcpv4-relay update Vlan12 --agent-relay-mode forward_and_replace
+        sudo config dhcp_relay ipv4 helper update Vlan12 --agent-relay-mode forward_and_replace
         ```
 
 ## Show CLI
 
-**Existing CLI to show dhcpv4 relay configuration**
+**Existing show CLI output for dhcpv4 relay configuration**
 
 - Show dhcpv4 relay configuration for a VLAN
 
@@ -592,10 +594,10 @@ root@sonic:/home/cisco# show dhcp_relay ipv4 helper
 +-------------+----------------------+
 ```
 
-**New CLI to show dhcpv4 relay configuration**
+**New show CLI output for dhcpv4 relay configuration**
 
 ```
-root@sonic:/home/cisco# show dhcpv4-relay
+root@sonic:/home/cisco# show dhcp_relay ipv4 helper
 NAME    SERVER VRF    SOURCE INTERFACE    LINK SELECTION    VRF SELECTION    SERVER ID OVERRIDE    AGENT RELAY MODE       MAX HOP COUNT  DHCPV4 SERVERS
 ------  ------------  ------------------  ----------------  ---------------  --------------------  -------------------  ---------------  ----------------
 Vlan12  Vrf01         Loopback0           enable            enable           enable                forward_and_replace                4  192.168.12.1
@@ -610,8 +612,8 @@ These CLIs show the number of DCHPv4 packets received and transmitted in the con
 
     * Show counters syntax
         ```
-        # show dhcp4relay_counters --help
-        Usage: show dhcp4relay counters [OPTIONS] VLAN_INTERFACE
+        # show dhcp4relay_counters counts --help
+        Usage: show dhcp4relay counters counts [OPTIONS] VLAN_INTERFACE
 
         Options:
           -d, --direction [TX|RX]         Specify TX(egress) or RX(ingress)
@@ -623,9 +625,21 @@ These CLIs show the number of DCHPv4 packets received and transmitted in the con
     * Clear counters syntax
         ```
         # sonic-clear dhcp4relay counters --help
-        Usage: sonic-clear dhcp_relay counters [OPTIONS] [VLAN_INTERFACE]
+        Usage: sonic-clear dhcp4relay counters [OPTIONS] [VLAN_INTERFACE]
 
           Clear dhcp4relay message counts
+
+        Options:
+          -d, --direction [TX|RX]         Specify TX(egress) or RX(ingress)
+          -t, --type [Unkown|Discover|Offer|Request|Acknowledge|Release|Inform|Decline|Malformed]
+                                          Specify DHCP packet counter type
+          -?, -h, --help                  Show this message and exit.
+        ```
+
+   * Alternate Show counters syntax
+        ```
+        # show dhcp_relay ipv4 counters --help
+        Usage: show dhcp_relay ipv4 counters [OPTIONS] VLAN_INTERFACE
 
         Options:
           -d, --direction [TX|RX]         Specify TX(egress) or RX(ingress)
@@ -674,6 +688,27 @@ These CLIs show the number of DCHPv4 packets received and transmitted in the con
         ```
         show dhcpv4relay_counter counts Vlan10 --direction RX --t Dis
         ```
+
+# Configuration Migration
+
+In the current isc-dhcp based design, dhcp relay configuration is achieved through a combination of the VLAN table in ConfigDb and command line arguments supplied to isc-dhcrelay process itself. In the new design, all the configuration will be consolidated to DHCPV4_RELAY table in the ConfigDB. Following table illustrates how the existing configuration will be migrated to the new schema.
+
+### Configuration Migration
+The table below lists the various isc-dhcp command-line options currently used in SONiC and outlines how they will be migrated in the new design.
+
+| Existing isc cmd line arg | New Configuration | Comments |
+|-|-|-|
+| -m discard | --agent-relay-mode with the same default value| |
+| -a %%h:%%p | Not required | Always insert agent-relay-options in hostname:int-alias:vlan-id format |
+| %%P | Not Required | Always insert remote-id in the agent-relay-options |
+| --name-alias-map-file | Not Required | Interface Alias is dynamically retrieved from ConfigDB |
+| -id <vlan_name> | Not required | Not needed anymore since a common process is used for all the VLANs |
+| -U <Loopback0> | --source-interface Loopback0 | TODO: If DualToR flag is set in the DEVICE_METADATA, set source_interface to Loopback 0 |
+| -dt | None | New design will take DualToR config from the DEVICE_METADATA table |
+| -si | | |
+| -iu <interface_name> | None | No need to separate out upstream/downstream interfaces |
+| -pg <primary_gateway_ip> | None | New design will automatically pick up the primary gateway IP from VLAN_INTERFACE table |
+| dhcp_server | --dhcpv4-servers \<server-list> |db_migrator.py will migrate dhcp_server list from VLAN table to DHCPV4_TABLE in the ConfigDB|
 
 
 # Performance
