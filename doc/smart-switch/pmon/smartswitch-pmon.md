@@ -6,6 +6,7 @@
 | 0.2 | 01/08/2024 | Ramesh Raghupathy | Updated API, CPI sections and addressed review comments |
 | 0.3 | 02/26/2024 | Ramesh Raghupathy | Addressed review comments |
 | 0.4 | 06/06/2024 | Ramesh Raghupathy | Added schema for DPU health-info and called out phase:1 and phase:2 activities for DPU health-info. Added key suffix to module reboot-cause to avoid key conflicts |
+| 0.5 | 04/30/2025 | Gagan Punathil Ellath | Added Post Startup and Pre shutdown sections for DPU |
 
 ## Definitions / Abbreviations
 
