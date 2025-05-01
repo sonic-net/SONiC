@@ -270,6 +270,15 @@ PCIE_DETACH_INFO STATE_DB TABLE
   }
 }
 ```
+```
+Sample Ignore configuration ignore_DPU0.conf
+
+bus "i2c-xx" "i2c-1-mux (chan_id xx)"
+    chip "xxxx-i2c-xx-xx"
+        ignore in1
+        ignore in2
+        ignore in3
+```
 
 These functions are called by chassisd when we perform admin state changes by changing config_db. The platform implementation should call these functions at the appropriate times during the admin state change process.
 
