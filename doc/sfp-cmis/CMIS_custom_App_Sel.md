@@ -55,8 +55,8 @@ This is a high-level design document describing the way to apply custom APP SEL 
 
 ## 1 Introduction and Scope
 Different electrical link lengths require different module settings.  
-Short mode: Lower output voltage, used for C2M (Chip-to-Module) short-reach links.
-Long mode: Higher output voltage, used for C2M long-reach links.
+Short mode: Lower output voltage, used for C2M (Chip-to-Module) short-reach links.  
+Long mode: Higher output voltage, used for C2M long-reach links.  
 This impacts performance and helps avoid signal degradation for long-reach connections.
 
 ### 1.1 IEEE 802p3ck Requirements
@@ -97,8 +97,14 @@ This feature would be enabled on a per-platform basis. If a platform wants to us
 
 Modules that do not support CMIS and are not part of the CMIS state machine are out of the scope of this document.
 
+NOTE:  
+This feature modifies the TP4 settings, which can also be achieved by providing the optics_si_settings.json file. Consequently, it will modify the TX/RX Signal Integrity Controls on page 10h with the Explicit Control bit set.   
+If the optics_si_settings.json file is found, the Custom App Sel feature will be disabled. 
+
+
 ## 3 Architecture Design
-Each platform vendor that requires custom APP code settings must define the optics_si_app_sel.json file. All SKUs of the platform will share the same optics_si_app_sel.json file. If no file is found, this mechanism will be ignored.
+Each platform vendor that requires custom APP code settings must define the optics_si_app_sel.json file. All SKUs of the platform will share the same optics_si_app_sel.json file. If no file is found, this mechanism will be ignored.  
+``` eg: /usr/share/sonic/device/{platform}/optics_si_app_sel.json  ```
 
 This file will contain sections based on lane speed and port number. Inside the port block, there will be a mode with values:
 
@@ -130,7 +136,7 @@ Current CMIS implementation:
 4. If a mode-based app sel is not found for a given speed/lane configuration, it will revert to the existing logic to select the first best match.
  
 ### 3.3 Sample Optics SI APP Sel file:
-```
+```json
 {
         "GLOBAL_MEDIA_SETTINGS": {
                 "0-17,19-24": {
