@@ -55,32 +55,59 @@ flowchart LR
     AclOrch --> SAI/SDK
 ```
 
-To distinguish HA from other use cases (so we can avoid creating tunnel terminated ACL for all scenarios), a new field in `VNET_ROUTE_TUNNEL_TABLE` is added: 
+To distinguish HA from other use cases (so we can avoid creating tunnel terminated ACL for all scenarios), and to get the VIP associated with the DPU, a new field in `VNET_ROUTE_TUNNEL_TABLE` is added: 
 
 ```
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
-    "scope"  = {{ha}} (OPTIONAL)
+    "local_endpoint"  = /{/{ip_address1/},/{ip_address2/},.../}  (OPTIONAL)
 ```
 
 ```
 ; Defines schema for VNet Route tunnel table attributes
 key                                   = VNET_ROUTE_TUNNEL_TABLE:vnet_name:prefix ; Vnet route tunnel table with prefix
 ; field                               = value
-scope                                 = STRING
+local_endpoint                        = STRING
 ```
 
-If scope is specified to be "ha "ACL rule to match TUNNEL_TERM flag to be added. 
+If local_endpoint is specified, ACL rule to match TUNNEL_TERM flag to be added.
 
 ```
 {
+    "ACL_TABLE_TYPE": {
+        "DPU_REDIRECT": {
+            "MATCHES": [
+                "TUNNEL_VNI",
+                "DST_IP",
+                "DST_IPV6",
+                "INNER_DST_MAC",
+                "TUNNEL_TERM"
+            ],
+            "ACTIONS": [
+                "REDIRECT_ACTION",
+            ],
+            "BIND_POINTS": [
+                "PORT",
+                "PORTCHANNEL"
+            ]
+        }
+    },
+    "ACL_TABLE": {
+        "DPU": {
+            "STAGE": "INGRESS",
+            "TYPE": "DPU_REDIRECT",
+            "PORTS": [
+                "<Ingress front panel ports>"
+            ]
+        }
+    },
     "ACL_RULE": {
-        "<vnet_name>_<inner_dst_mac>_TUNN_TERM": {
+        "DPU:<vnet_name>_<inner_dst_mac>_IN_TERM": {
             "PRIORITY": "9998",
             "DST_IP": "1.1.1.1/32",
+            "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
             "TUNN_TERM": "true",
             "REDIRECT": "<local nexthop oid>"
         }
     }
 }
 ```
-
