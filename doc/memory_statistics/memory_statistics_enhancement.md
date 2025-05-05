@@ -50,24 +50,24 @@ This High-Level Design (HLD) document enhances the existing Memory Statistics fe
 ---
 
 ## Overview
-This High-Level Design (HLD) enhances SONiC’s Memory Statistics feature, originally limited to system-level memory monitoring via CLI, into a comprehensive solution that now includes Docker containers, individual processes, and CPU memory metrics. It introduces memory leak detection to prevent resource exhaustion and integrates gNMI for remote log access, reducing local dependency. This upgrade provides complete visibility across memory metrics, early memory leak detection, with customizable sampling and retention periods and efficient remote retrieval.
+This High-Level Design (HLD) enhances SONiC’s Memory Statistics feature, originally limited to system-level memory monitoring via CLI, into a comprehensive solution that now includes Docker containers, individual processes, and CPU memory metrics. It introduces memory leak detection to prevent resource exhaustion and integrates gNMI for remote log access, reducing local dependency. This upgrade provides complete visibility across memory metrics with user-defined sampling and retention periods. Moreover, it also helps with early memory leak detection and efficient remote retrieval.
 
 ---
 
 ## Functional Requirements
-This section outlines the functional requirements necessary for implementing this HLD in SONiC.
+This section outlines the functional requirements necessary for implementing this HLD in SONiC:
 
 - **Monitoring Capabilities:** The system must monitor memory metrics for system (Total, Used, Free, Available, Cached, Buffers, Shared), Docker containers, individual processes, and CPU usage.
-- **Memory Leak Detection:** The feature must analyze memory usage trends over time to detect potential leaks, reporting them via CLI.
+- **Memory Leak Detection:** The feature must analyze memory usage trends over time to detect potential leaks and report them via CLI.
 - **Configurability:** The system must allow configuration of sampling intervals (3–15 minutes) and retention periods (1–30 days) via CLI.
-- **CLI Enhancements:** The CLI must support displaying new metrics and leak analysis outputs with filtering options.
+- **CLI Enhancements:** The CLI must support displaying new metrics and leak analysis with filtering options.
 - **Remote Log Access:** gNMI integration must enable retrieval of memory logs from remote systems.
 
 ---
 
 ## Architecture Design
 
-The enhancement fits within the existing framework without altering its core structure. The memorystatsd daemon is extended to collect additional metrics and detect leaks, interfacing with hostcfgd for ConfigDB updates. A new gNMI server processes logs into JSON and serves them remotely. This integrates seamlessly with SONiC’s modular design, leveraging existing daemons and adding gNMI capabilities.
+The enhancement fits within the existing framework without altering its core structure. The memorystatsd is extended to collect additional metrics and detect leaks, interfacing with hostcfgd for ConfigDB updates. Enhancements were made to the existing gNMI server which processes logs into JSON and makes them remotely accessible. This integrates seamlessly with SONiC’s modular design, leveraging existing daemons and adding gNMI capabilities.
 
 <p align="center">
     <img src="./images/architecture_diagram_v2.svg" alt="architecture diagram for memory data" width="80%"/>
@@ -82,23 +82,23 @@ The enhancement fits within the existing framework without altering its core str
 ### Core Functionalities
 
 #### Data Collection and Storage
-The `memorystatsd` daemon collects system (Total, Used, Free, Available, Cached, Buffers, Shared), Docker, process, and CPU memory metrics using `psutil` and Docker API, storing them as compressed log files for efficiency.
+The `memorystatsd` collects system, Docker, process, and CPU memory metrics using `psutil` and Docker APIs, storing them as compressed log files for optimized memory usage.
 
 #### Log Processing and Storage
-Logs are processed into JSON for gNMI retrieval, with low overhead.
+Logs are processed into JSON for gNMI retrieval with low overhead.
 
 #### Memory Leak Detection
-Analyzes memory trends by comparing usage over time to detect steady increases, reported via `show memory-stats --type process --leak-analysis` (e.g., "Potential Leak Detected").
+This feature analyzes memory trends by comparing usage over time to detect steady increases reported via `show memory-stats --type process --leak-analysis` (e.g., "Potential Leak Detected").
 
 #### Remote Access via gNMI
-The gNMI server, potentially within `memorystatsd`, serves JSON logs via `Get` requests, supporting snapshots or intervals based on time range parameters.
+The gNMI server, running inside SONiC’s built-in gNMI container, retrieves JSON-formatted memory logs placed by memorystatsd and serves them to the clients.
 
 #### User Interaction
-Users view stats, configure settings (reusing `enable/disable`, `sampling_interval` and `retention_period` from [v1](https://github.com/Arham-Nasir/SONiC/blob/4cf0b5d0bc973cf3a72f91b7f0a9567fd42eeccd/doc/memory_statistics/memory_statistics_hld.md)), and analyze leaks via CLI; logs are fetched remotely via gNMI.
+Users view statistics, configure settings (reusing `enable/disable`, `sampling_interval` and `retention_period` from [v1](https://github.com/Arham-Nasir/SONiC/blob/4cf0b5d0bc973cf3a72f91b7f0a9567fd42eeccd/doc/memory_statistics/memory_statistics_hld.md)) and analyze leaks via CLI. Logs can also be fetched remotely via gNMI.
 
 ### Sequence Diagrams
 - **View Memory Usage**:  
-  - **Description**: Shows the CLI-based retrieval of memory metrics (system, Docker, process, CPU).  
+  - **Description**: It shows the CLI-based retrieval of memory metrics (system, Docker, process, CPU).  
   - **Diagram**:
   <p align="center">  
         <img src="./images/view_memory_usage.svg" alt="Leak Detection Sequence" width="80%"/>  
@@ -106,7 +106,7 @@ Users view stats, configure settings (reusing `enable/disable`, `sampling_interv
         <em>Figure 2: View Memory Usage</em>  
     </p> 
 - **Memory Leak Detection**:  
-  - **Description**: Depicts the process of trend analysis and leak reporting.  
+  - **Description**: It tracks memory usage over time, detects unusual growth trends and warns about possible leaks.
   - **Diagram**:  
   <p align="center">  
       <img src="./images/view_memory_usage.svg" alt="Leak Detection Sequence" width="80%"/>  
@@ -114,7 +114,7 @@ Users view stats, configure settings (reusing `enable/disable`, `sampling_interv
       <em>Figure 3: Sequence for memory leak detection</em>  
   </p>  
 - **gNMI Log Retrieval**:  
-  - **Description**: Outlines remote log access.  
+  - **Description**: This diagram outlines remote log access.  
   - **Diagram**:  
    <p align="center">  
         <img src="images/gnmi_sequence_diagram.svg" alt="gNMI Log Retrieval Sequence" width="80%"/>  
@@ -148,13 +148,13 @@ The following configuration commands are reused from [v1](https://github.com/Arh
    - Example: `config memory-stats retention-period 20` → "Retention period set to 20 days."
 
 #### Show Commands
-Below are all upgraded CLI commands with their definitions and sample outputs, covering system, Docker, process, CPU metrics, and memory leak analysis.
+Below are all the upgraded CLI commands with their definitions and sample outputs. These commands cover memory metrics for the system, Docker, process, CPU and leak analysis.
 
 1. ##### View Memory Statistics
    ##### Command:
    `show memory-stats [--type <system|docker|process|cpu>] [--from <date-time>] [--to <date-time>] [--select <metric>] [--leak-analysis]`
    - ##### Description:
-     - Displays memory statistics for the specified type (system, Docker, process, or CPU; default: system, last 15 days).
+     - Displays memory statistics for the specified type (system, Docker, process, or CPU | default: system, last 15 days).
      - `--type <system|docker|process|cpu>`: Specifies the metric type.
      - `--from/--to`: Defines the time range (ISO format or relative, e.g., "5 days ago").
      - `--select <metric>`: Filters specific metrics (e.g., total_memory, used_memory, or process/container name/ID).
@@ -336,9 +336,6 @@ Below are all upgraded CLI commands with their definitions and sample outputs, c
         --------------------------------------------------------------------------------------------------------------------------------------------------
         ```
 
-### Daemon Configuration Management
-(Reuse original configuration management from [v1](https://github.com/Arham-Nasir/SONiC/blob/4cf0b5d0bc973cf3a72f91b7f0a9567fd42eeccd/doc/memory_statistics/memory_statistics_hld.md))
-
 ### Config DB Enhancements
 
 No Config DB enhancements required (Reused from [v1](https://github.com/Arham-Nasir/SONiC/blob/4cf0b5d0bc973cf3a72f91b7f0a9567fd42eeccd/doc/memory_statistics/memory_statistics_hld.md))
@@ -356,20 +353,18 @@ No impact on warmboot/fastboot functionalities.
 ### Unit Test Cases
 | Test Case ID | Description                                                                 |
 |--------------|-----------------------------------------------------------------------------|
-| UT11         | Verify CLI to show Docker memory stats                                      |
-| UT12         | Verify CLI to show process memory stats with leak analysis                  |
-| UT13         | Verify CLI to show CPU memory stats                                         |
-| UT14         | Verify leak detection for a process exceeding threshold                     |
-| UT15         | Verify gNMI log retrieval for all metric types                              |
+| UT1         | Verify CLI to show Docker, process and CPU memory stats                                      |
+| UT2         | Verify CLI to show Docker, process and CPU memory stats with leak analysis                  |                                        |
+| UT3         | Verify leak detection for a process exceeding threshold                     |
+| UT4         | Verify gNMI log retrieval for all metric types                              |
 
 ### System Test Cases
 | Test Case ID | Description                                                                 |
 |--------------|-----------------------------------------------------------------------------|
-| ST2          | Validate end-to-end functionality including gNMI retrieval and log cleanup  |
-| ST3          | Validate memory leak detection accuracy over a 7-day period                 |
+| ST1          | Validate end-to-end functionality, including gNMI and CLI retrieval  |
 
 ---
 
 ## Future Work
 - Add alerting for memory leaks via email/syslog.
-- Extend metrics to include GPU memory (if applicable).
+- Extend support to additional memory-related metrics.
