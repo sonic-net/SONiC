@@ -34,7 +34,7 @@
 
 ## Scope
 
-This High-Level Design (HLD) document enhances the existing Memory Statistics feature in SONiC by extending memory metrics to include Docker, process, and CPU memory, adding memory leak detection, and enabling remote log access via gNMI.
+This High-Level Design (HLD) document enhances the existing Memory Statistics feature in SONiC by extending memory metrics to include Docker and process memory, adding memory leak detection, and enabling remote log access via gNMI.
 
 ---
 
@@ -50,14 +50,14 @@ This High-Level Design (HLD) document enhances the existing Memory Statistics fe
 ---
 
 ## Overview
-This High-Level Design (HLD) enhances SONiC’s Memory Statistics feature, originally limited to system-level memory monitoring via CLI, into a comprehensive solution that now includes Docker containers, individual processes, and CPU memory metrics. It introduces memory leak detection to prevent resource exhaustion and integrates gNMI for remote log access, reducing local dependency. This upgrade provides complete visibility across memory metrics with user-defined sampling and retention periods. Moreover, it also helps with early memory leak detection and efficient remote retrieval.
+This High-Level Design (HLD) enhances SONiC’s Memory Statistics feature, originally limited to system-level memory monitoring via CLI, into a comprehensive solution that now includes Docker containers and individual processes memory metrics. It introduces memory leak detection to prevent resource exhaustion and integrates gNMI for remote log access, reducing local dependency. This upgrade provides complete visibility across memory metrics with user-defined sampling and retention periods. Moreover, it also helps with early memory leak detection and efficient remote retrieval.
 
 ---
 
 ## Functional Requirements
 This section outlines the functional requirements necessary for implementing this HLD in SONiC:
 
-- **Monitoring Capabilities:** The system must monitor memory metrics for system (Total, Used, Free, Available, Cached, Buffers, Shared), Docker containers, individual processes, and CPU usage.
+- **Monitoring Capabilities:** The system must monitor memory metrics for system (Total, Used, Free, Available, Cached, Buffers, Shared), Docker containers and individual processes.
 - **Memory Leak Detection:** The feature must analyze memory usage trends over time to detect potential leaks and report them via CLI.
 - **Configurability:** The system must allow configuration of sampling intervals (3–15 minutes) and retention periods (1–30 days) via CLI.
 - **CLI Enhancements:** The CLI must support displaying new metrics and leak analysis with filtering options.
@@ -82,7 +82,7 @@ The enhancement fits within the existing framework without altering its core str
 ### Core Functionalities
 
 #### Data Collection and Storage
-The `memorystatsd` collects system, Docker, process, and CPU memory metrics using `psutil` and Docker APIs, storing them as compressed log files for optimized memory usage.
+The `memorystatsd` collects system, Docker and process memory metrics using `psutil` and Docker APIs, storing them as compressed log files for optimized memory usage.
 
 #### Log Processing and Storage
 Logs are processed into JSON for gNMI retrieval with low overhead.
@@ -98,7 +98,7 @@ Users view statistics, configure settings (reusing `enable/disable`, `sampling_i
 
 ### Sequence Diagrams
 - **View Memory Usage**:  
-  - **Description**: It shows the CLI-based retrieval of memory metrics (system, Docker, process, CPU).  
+  - **Description**: It shows the CLI-based retrieval of memory metrics (system, Docker and process).  
   - **Diagram**:
   <p align="center">  
         <img src="./images/view_memory_usage.svg" alt="Leak Detection Sequence" width="80%"/>  
@@ -148,14 +148,14 @@ The following configuration commands are reused from [v1](https://github.com/Arh
    - Example: `config memory-stats retention-period 20` → "Retention period set to 20 days."
 
 #### Show Commands
-Below are all the upgraded CLI commands with their definitions and sample outputs. These commands cover memory metrics for the system, Docker, process, CPU and leak analysis.
+Below are all the upgraded CLI commands with their definitions and sample outputs. These commands cover memory metrics and leak analysis for the system, Docker and process.
 
 1. ##### View Memory Statistics
    ##### Command:
-   `show memory-stats [--type <system|docker|process|cpu>] [--from <date-time>] [--to <date-time>] [--select <metric>] [--leak-analysis]`
+   `show memory-stats [--type <system|docker|process>] [--from <date-time>] [--to <date-time>] [--select <metric>] [--leak-analysis]`
    - ##### Description:
-     - Displays memory statistics for the specified type (system, Docker, process, or CPU | default: system, last 15 days).
-     - `--type <system|docker|process|cpu>`: Specifies the metric type.
+     - Displays memory statistics for the specified type (system, Docker or process | default: system, last 15 days).
+     - `--type <system|docker|process>`: Specifies the metric type.
      - `--from/--to`: Defines the time range (ISO format or relative, e.g., "5 days ago").
      - `--select <metric>`: Filters specific metrics (e.g., total_memory, used_memory, or process/container name/ID).
      - `--leak-analysis`: Enables leak detection mode.
@@ -267,38 +267,6 @@ Below are all the upgraded CLI commands with their definitions and sample output
      bgpd(6284)         19.2MB     19.2MB     19.1MB     19.1MB     19.1MB     19.2MB     19.2MB     19.2MB     19.2MB
      ```
 
-     ##### CPU Memory Statistics (Default):
-     ```
-     admin@sonic:~$ show memory-stats --type cpu
-     Memory Statistics (CPU):
-     Codes: M - minutes, H - hours, D - days
-     --------------------------------------------------------------------------------
-     Report Generated:    2025-03-10 14:30:00
-     Analysis Period:     From 2025-02-23 14:30:00 to 2025-03-10 14:30:00
-     Interval:            2 Days
-     --------------------------------------------------------------------------------------------------------------------------------------------------
-     Metric             Current    High       Low        D23-D25    D25-D27    D27-D01    D01-D03    D03-D05    D05-D07    D07-D09    D09-D10
-                        Value      Value      Value      23Feb25    25Feb25    27Feb25    01Mar25    03Mar25    05Mar25    07Mar25    09Mar25
-     --------------------------------------------------------------------------------------------------------------------------------------------------
-     cpu_memory         2.5GB      2.7GB      2.2GB      2.2GB      2.3GB      2.4GB      2.5GB      2.6GB      2.7GB      2.6GB      2.5GB
-     ```
-
-     ##### CPU Memory Statistics (Filtered with Time Range):
-     ```
-     admin@sonic:~$ show memory-stats --type cpu --from "20 hours ago" --to "now"
-     Memory Statistics (CPU):
-     Codes: M - minutes, H - hours, D - days
-     --------------------------------------------------------------------------------
-     Report Generated:    2025-03-10 14:30:00
-     Analysis Period:     From 2025-03-09 18:30:00 to 2025-03-10 14:30:00
-     Interval:            3 Hours
-     --------------------------------------------------------------------------------------------------------------------------------------------------
-     Metric             Current    High       Low        H18-H21    H21-H00    H00-H03    H03-H06    H06-H09    H09-H12    H12-H14
-                        Value      Value      Value      09Mar25    09Mar25    10Mar25    10Mar25    10Mar25    10Mar25    10Mar25
-     --------------------------------------------------------------------------------------------------------------------------------------------------
-     cpu_memory         2.5GB      2.7GB      2.4GB      2.4GB      2.5GB      2.6GB      2.7GB      2.6GB      2.5GB      2.5GB
-     ```
-
      ##### Process Memory Statistics with Leak Analysis (Default):
     
       ```
@@ -353,9 +321,9 @@ No impact on warmboot/fastboot functionalities.
 ### Unit Test Cases
 | Test Case ID | Description                                                                 |
 |--------------|-----------------------------------------------------------------------------|
-| UT1         | Verify CLI to show Docker, process and CPU memory stats                                      |
-| UT2         | Verify CLI to show Docker, process and CPU memory stats with leak analysis                  |                                        |
-| UT3         | Verify leak detection for a process exceeding threshold                     |
+| UT1         | Verify CLI to show Docker and process memory stats                                      |
+| UT2         | Verify CLI to show Docker and process memory stats with leak analysis                  |                                        |
+| UT3         | Verify leak detection for a Docker and process memory exceeding threshold                     |
 | UT4         | Verify gNMI log retrieval for all metric types                              |
 
 ### System Test Cases
