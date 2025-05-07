@@ -212,16 +212,15 @@ Mapping attributes between OpenConfig YANG and SONiC YANG:
 Invalid configurations will report an error.
 # 6 Unit Test cases
 ## 6.1 Functional Test Cases
-1. Verify that GET, PATCH and DELETE for mtu works as expected via REST and gNMI.
-2. Verify that GET, PATCH and DELETE for description works as expected via REST and gNMI.
-3. Verify that GET, PATCH and DELETE for enabled works as expected via REST and gNMI.
-4. Verify that GET, PATCH and DELETE IPv4 and IPv6 addresses at subinterfaces level works as expected via REST and gNMI.
-5. Verify that GET, PATCH and DELETE IPv4 and IPv6 addresses at subinterface ID 0 level works as expected via REST and gNMI.
-6. Verify that GET, PATCH and DELETE IPv4 and IPv6 addresses at subinterface level works as expected via REST and gNMI.
-7. Verify that GET, PATCH, DELETE IPv4 and IPv6 addresses at addresses level works as expected via REST and gNMI.
-8. Verify that GET, PATCH, DELETE IPv4 and IPv6 addresses at address level works as expected via REST and gNMI.
-9. Verify that GET, PATCH, DELETE IPv4 and IPv6 addresses at address/config level works as expected via REST and gNMI. GET at config level should return Resource Not Found when there is no configuration.
-10. Verify that Enable and disabling of ipv6/config/enabled works as expected via REST and gNMI.
+1. Verify that GET, PATCH and DELETE for description works as expected via REST and gNMI.
+2. Verify that GET, PATCH and DELETE for enabled works as expected via REST and gNMI.
+3. Verify that GET, PATCH and DELETE IPv4 and IPv6 addresses at subinterfaces level works as expected via REST and gNMI.
+4. Verify that GET, PATCH and DELETE IPv4 and IPv6 addresses at subinterface ID 0 level works as expected via REST and gNMI.
+5. Verify that GET, PATCH and DELETE IPv4 and IPv6 addresses at subinterface level works as expected via REST and gNMI.
+6. Verify that GET, PATCH, DELETE IPv4 and IPv6 addresses at addresses level works as expected via REST and gNMI.
+7. Verify that GET, PATCH, DELETE IPv4 and IPv6 addresses at address level works as expected via REST and gNMI.
+8. Verify that GET, PATCH, DELETE IPv4 and IPv6 addresses at address/config level works as expected via REST and gNMI. GET at config level should return Resource Not Found when there is no configuration.
+9. Verify that Enable and disabling of ipv6/config/enabled works as expected via REST and gNMI.
 
 ## 6.2 Negative Test Cases
 1. Verify DELETE at interfaces, interface, and interface name container is not allowed.
