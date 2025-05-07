@@ -92,10 +92,11 @@ When a DPU module's admin state is changed from "down" to "up", the following po
 
 1. **PCI Device Rescan**: The `handle_pci_rescan()` function is called to rescan and reattach PCI devices.
 
-    This function calls  the platform specific `pci_reattach()` is called first, and then `get_pci_bus_info()` to get all the PCIe devices associated with the specific DPU, and removes `PCIE_DETACH_INFO` key in STATE_DB relevant to the device.  If either `get_pci_bus_info()` or `pci_reattach()` is not implemented for the specific platform, there is a fallback implemented to obtain the `bus_info` from platform.json file and remove the relevant information to STATE_DB and perform platform independent pcie rescan  (`echo 1 > /sys/bus/pci/rescan`)
+    This function calls  the platform specific `pci_reattach()` is called first, and then `get_pci_bus_info()` to get all the PCIe devices associated with the specific DPU, and removes `PCIE_DETACH_INFO` key in STATE_DB relevant to the device.
+
 2. **Sensor Addition**: The `handle_sensor_addition()` function is called to handle sensor-related setup.
 
-    If sensors ignore configuration exists in the sensord folder  `/etc/sensors.d/ignore_{module_name}.conf` , the relevant sensord ignore configuration has to be removed and then we restart the sensord, if such file does not exist, the sensord restart for this module is skipped
+    If sensors ignore configuration exists in the sensord folder  `/etc/sensors.d/ignore_sensors_{module_name}.conf` , the relevant sensord ignore configuration has to be removed and then we restart the sensord, if such file does not exist, the sensord restart for this module is skipped
  
 ##### Function Signatures
 
@@ -205,10 +206,10 @@ When a DPU module's admin state is set to "down", the following pre-shutdown pro
 
 * **PCI Device Removal**: The `handle_pci_removal()` function is called to properly detach PCI devices from the system.
 
-    This function calls `get_pci_bus_info()` to get all the PCIe devices associated with the specific DPU, and adds `PCIE_DETACH_INFO` key in STATE_DB relevant to the device, after all the device information is added to STATE_DB, the platform specific `pci_detach()` is called.  If either `get_pci_bus_info()` or `pci_detach()` is not implemented for the specific platform, there is a fallback implemented to obtain the `bus_info` from platform.json file and add the relevant information to STATE_DB and perform platform independent pcie detachment  (`echo 1 > /sys/bus/pci/devices/{pci_bus}/remove`)
+    This function calls `get_pci_bus_info()` to get all the PCIe devices associated with the specific DPU, and adds `PCIE_DETACH_INFO` key in STATE_DB relevant to the device, after all the device information is added to STATE_DB, the platform specific `pci_detach()` is called.  
 * **Sensor Removal**: The `handle_sensor_removal()` function is called to handle sensor-related cleanup.
 
-    If sensors have to be ignored on DPU shutdown, the relevant sensord ignore configuration has to be added to the device folder in sonic-buildimage, `sonic-buildimage/device/<Platform>/<device>/dpu_ignore_conf`, after build this is moved to the following folder in PMON: `/usr/share/sonic/platform/dpu_ignore_conf`. The ignore configuration for a specific DPU should follow the following format: `ignore_<Module_Name>.conf`. If this file exists for a specific DPU Module, then this is copied to `/etc/sensors.d/ignore_{module_name}.conf` and then we restart sensord. If the file does not exist, then we skip further processing for this function 
+    If sensors have to be ignored on DPU shutdown, the relevant sensord ignore configuration has to be added to the device folder in sonic-buildimage, `sonic-buildimage/device/<Platform>/<device>/module_sensor_ignore_conf`, after build this is moved to the following folder in PMON: `/usr/share/sonic/platform/module_sensor_ignore_conf`. The ignore configuration for a specific DPU should follow the following format: `ignore_sensors_<Module_Name>.conf`. If this file exists for a specific DPU Module, then this is copied to `/etc/sensors.d/ignore_sensors_{module_name}.conf` and then we restart sensord. If the file does not exist, then we skip further processing for this function 
 
 ##### Function Signatures
 
@@ -238,7 +239,7 @@ def handle_sensor_removal(self):
     """
     Handles sensor removal by copying ignore configuration file from platform folder
     looks for ignore configuration in: 
-    /usr/share/sonic/platform/dpu_ignore_conf/ignore_{module_name}.conf
+    /usr/share/sonic/platform/module_sensor_ignore_conf/ignore_sensors_{module_name}.conf
     to sensors.d directory and restarting sensord if the file exists.
 
     Returns:
@@ -291,8 +292,8 @@ def set_admin_state(self, up):
         module.handle_pci_rescan()
         self.handle_sensor_addition()
     else:
-        self.handle_pci_removal()
         self.handle_sensor_removal()
+        self.handle_pci_removal()
         module.set_admin_state(down)
     return
 ```
@@ -302,7 +303,7 @@ def set_admin_state(self, up):
 * The GNOI server runs on the DPU even after the DPU is pre-shutdown and listens until the graceful shutdown finishes.
 * The host sends a GNOI signal to shutdown the DPU. The DPU does a graceful-shutdown if not already done and sends an ack back to the host.
 * Upon receiving the ack or on a timeout the host may trigger the switch PMON vendor API to shutdown the DPU.
-* The PCIE device is added to `PCIE_DETACH_INFO` table and we remove the pcie device. If a vendor specific API is not defined, detachment is done via sysfs (echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove).
+* The PCIE device is added to `PCIE_DETACH_INFO` table and we remove the pcie device. 
 * sensord is restarted if we need to ignore some sensors
 * Vendor specific DPU shutdown is initiated
 * The DPU upon receiving the shutdown message will do a graceful shutdown and send an ack back. The DPU graceful shutdown is vendor specific. The DPU power will be turned off after the graceful shutdown. In case of timeout the platform will force power down.
