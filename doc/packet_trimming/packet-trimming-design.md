@@ -234,7 +234,7 @@ of congestion due to lack of information.
 ###### Figure 2: PT asymmetric DSCP design
 
 Asymmetric DSCP allows having a different DSCP value for a trimmed packets sent out via different ports.  
-This mode stands for advanced trimming configuration. Such a mechanism allows reciver to to distinguish  
+This mode stands for advanced trimming configuration. Such a mechanism allows receiver to to distinguish  
 where the congestion happened - on downlinks to servers or in the fabric.
 
 ## 2.4 SAI API
@@ -260,6 +260,7 @@ where the congestion happened - on downlinks to servers or in the fabric.
 | OBJECT | sai_query_attribute_capability | SAI_SWITCH_ATTR_PACKET_TRIM_SIZE                     |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE     |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE               |
+|        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_TC_VALUE                 |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE    |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX              |
 |        |                                | SAI_BUFFER_PROFILE_ATTR_PACKET_ADMISSION_FAIL_ACTION |
@@ -270,6 +271,7 @@ where the congestion happened - on downlinks to servers or in the fabric.
 | SWITCH | set_switch_attribute           | SAI_SWITCH_ATTR_PACKET_TRIM_SIZE                     |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE     |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE               |
+|        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_TC_VALUE                 |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE    |
 |        |                                | SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX              |
 
@@ -377,6 +379,7 @@ queue-index = 1*3DIGIT / "dynamic"
 * both IPv4/IPv6 packets are updated with `dscp_value` after DSCP remapping
 * when `dscp_value` is set to `from-tc`, the `tc_value` is used for mapping to DSCP
 * when `queue_index` is set to `dynamic`, the `dscp_value` is used for mapping to queue
+* supports runtime `symmetric<->asymmetric` DSCP configuration with `TC_TO_DSCP` map attached to the egress port
 * field removal is not supported
 * configuration removal is not supported
 
@@ -1034,6 +1037,8 @@ PT basic configuration test:
 3. Verify ASIC DB object state after switch trimming TC value update
 4. Verify ASIC DB object state after switch trimming queue index update
 5. Verify ASIC DB object state after buffer profile discard packet action update
+6. Verify ASIC DB object state after switching `symmetric<->asymmetric` DSCP mode
+7. Verify error handling with negative test cases
 
 ## 3.2 Data plane tests via PTF
 
