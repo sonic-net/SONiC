@@ -153,7 +153,7 @@ module: openconfig-interfaces
            |  +--rw oc-lag:min-links?   uint16
            +--ro oc-lag:state
               +--ro oc-lag:min-links?   uint16
-
+```
 
 # Definition/Abbreviation
 ### Table 1: Abbreviations
