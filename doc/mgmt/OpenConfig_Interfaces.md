@@ -58,7 +58,7 @@ This document provides general information about the OpenConfig configuration of
 - This does not cover secondary IP configuration.
 - Supported attributes in OpenConfig YANG tree:
   ```  
-module: openconfig-interfaces
+  module: openconfig-interfaces
   +--rw interfaces
      +--rw interface* [name]
         +--rw name                  -> ../config/name
@@ -153,7 +153,7 @@ module: openconfig-interfaces
            |  +--rw oc-lag:min-links?   uint16
            +--ro oc-lag:state
               +--ro oc-lag:min-links?   uint16
-```
+
 
 # Definition/Abbreviation
 ### Table 1: Abbreviations
