@@ -1,4 +1,4 @@
-# SSW HA - Local DPU Forwarding (DPU HA)
+# VNET Local Endpoint Forwarding
 
 ## Overview
 
@@ -74,12 +74,11 @@ If local_endpoint is specified, ACL rule to match TUNNEL_TERM flag to be added.
 ```
 {
     "ACL_TABLE_TYPE": {
-        "DPU_REDIRECT": {
+        "VNET_LOCAL_ENDPOINT_REDIRECT": {
             "MATCHES": [
                 "TUNNEL_VNI",
                 "DST_IP",
                 "DST_IPV6",
-                "INNER_DST_MAC",
                 "TUNNEL_TERM"
             ],
             "ACTIONS": [
@@ -92,16 +91,16 @@ If local_endpoint is specified, ACL rule to match TUNNEL_TERM flag to be added.
         }
     },
     "ACL_TABLE": {
-        "DPU": {
+        "VNET_LOCAL_ENDPOINT": {
             "STAGE": "INGRESS",
-            "TYPE": "DPU_REDIRECT",
+            "TYPE": "VNET_LOCAL_ENDPOINT_REDIRECT",
             "PORTS": [
                 "<Ingress front panel ports>"
             ]
         }
     },
     "ACL_RULE": {
-        "DPU:<vnet_name>_<inner_dst_mac>_IN_TERM": {
+        "VNET_LOCAL_ENDPOINT:<vnet_name>_<inner_dst_mac>_TUNN_TERM": {
             "PRIORITY": "9998",
             "DST_IP": "1.1.1.1/32",
             "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
