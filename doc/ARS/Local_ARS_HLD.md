@@ -11,9 +11,25 @@
 - [Architecture Design](#architecture-design)
 - [High Level Design](#high-level-design)
 - [Sequence diagrams](#sequence-diagrams)
+  - [Initialization Flow](#figure-4-initilization-flow)
+  - [Interface Update Flow](#figure-5-interface-update-flow)
+  - [Nexthop group table created by RouteOrch flow](#figure-6-nexthop-group-table-created-by-routeorch-flow)
+  - [Nexthop group table created by NhgOrch flow](#figure-7-nexthop-group-table-created-by-nhgorch-flow)
+  - [ARS LAG Table Creation Flow](#figure-8-ars-lag-table-creation-flow)
+  - [LAG Table Creation Flow](#figure-9-lag-creation-flow)
+  - [LAG Member Addition Flow](#figure-10-lag-member-addition-flow)
+  - [ACL Configuration Flow](#figure-11-acl-configuration-flow)
 - [SAI API](#sai-api)
-- [CLI/YANG model Enhancements](#yang-model-enhancements)
+- [CLI/YANG model Enhancements](#configuration-and-management)
+- [Yang mode Enchancements](#yang-model-enhancements)
+  - [ARS_PROFILE table](#ars_profile)
+  - [ARS_INTERFACE table](#ars_interface)
+  - [ARS_NEXTHOP_GROUP table](#ars_nexthop_group)
+  - [ARS_NEXTHOP_GROUP_MEMBER table](#ars_nexthop_group_member)
+  - [ARS_PORTCHANNEL table](#ars_portchannel)
+  - [ACL_RULE table](#acl_rule)
 - [Config DB Enhancement](#config-db-enhancements)
+- [State Db Enhancement](#state-db-enhancements)
 - [Counters](#counters)
 - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
 - [Restrictions/Limitations](#restrictionslimitations)
@@ -22,21 +38,23 @@
 
 ### Revision  
 
-| Revision | Date        | Author           | Change Description |
-| -------- | ----------- | ---------------- | ------------------ |
-| 1.0      | Dec 01 2024 | Vladimir Kuk     | Initial proposal   |
+| Revision | Date        | Author           | Change Description            |
+| -------- | ----------- | ---------------- | ----------------------------- |
+| 1.0      | Dec 01 2024 | Vladimir Kuk     | Initial proposal              |
+| 1.1      | Apr 21 2025 | Vladimir Kuk     | Review comments update        |
+| 1.2      | May 12 2025 | Vladimir Kuk     | Addressing community comments |
 
 ### Definitions/Abbreviations 
 
 | Definitions/Abbreviation | Description |
 | ------------------------ | ----------- |
-| ARS  | Adaptive Routing and Switching |
-| NHG  | Nexthop Group |
-| ECMP | Equal Cost MultiPath |
-| LAG  | Link Aggregation Group |
-| ACL  | Access List |
-| SAI  | Switch Abstraction Layer |
-| VRF  | Virtual routing and forwarding |
+| ARS  | Adaptive Routing and Switching  |
+| NHG  | Nexthop Group                   |
+| ECMP | Equal Cost MultiPath            |
+| LAG  | Link Aggregation Group          |
+| ACL  | Access List                     |
+| SAI  | Switch Abstraction Layer        |
+| VRF  | Virtual routing and forwarding  |
 
 ### Scope
 
@@ -46,11 +64,11 @@ This high-level design document describes the implementation for Local ARS in SO
 
 **Existing Forwarding Decision Model**
 
-Today, the routing protocol or SDN controller decides the reachability of a given destination and finds all possible paths. These paths may be equal cost or unequal cost. The decision to choose of one the paths from all available paths is done in the switch pipeline based on a computed hash. This path selection is static in nature based on the packet fields. Hash based selection doesn't take into account the dynamic state of the local or end-to-end path.
+Today, routing protocols or SDN controllers establish destination reachability and compute all possible paths, whether equal-cost or unequal-cost. However, the selection of a specific path from the available ECMP paths is performed statically in the switch data plane, driven by a hash computed over packet header fields. This static hashing mechanism does not account for real-time path conditions of the local or end-to-end path, as a result, once a path is chosen, the packet flow remains locked to that path, leading to inefficient load balancing and potential network hotspots.
 
 Control plane protocols exist for traffic engineering paths, but involves control plane decisions that are very slow to react to changing traffic patterns in the network or state of interfaces.
 
-Adaptive Routing System (ARS) allows dynamic selections of the best available path for data packets based on real-time network conditions. This approach helps to mitigate congestion, optimize resource utilization, and improve overall network performance.
+Adaptive Routing and Switching (ARS) allows dynamic selections of the best available path for data packets based on real-time network conditions. This approach helps to mitigate congestion, optimize resource utilization, and improve overall network performance.
 
 No standard exists, but there is an industry consensus for general approach.
 
@@ -83,12 +101,12 @@ __Figure 2: ARS SAI Pipeline Flow__
 1. Support different ARS modes:
     - Flowlet-based port selection
     - Per packet port selection
-2. Support enabling ARS over NHG
-3. Support path quality configuration
-4. Support ACL action to disable ARS 
+2. Support path quality configuration
+3. Support ACL action to disable ARS 
 
 * Phase 2
     - Support enabling ARS over LAG
+    - Support NhgOrch added NHGs
     - Alternative path support
     - Statistics
 
@@ -109,111 +127,140 @@ orchdaemon - it is the main orchestration agent, which handles all Redis DB's up
 #### RouteOrch
 routeOrch monitors operations on Route related tables in APPL_DB and converts those operations in SAI commands to manage IPv4/IPv6 route and nexthops. New functionality for nexthop group change notification and configuring ARS-enabled NHG.
 
+#### NhgOrch
+nhgOrch monitors operations on Nexthop Group related tables in APPL_DB and converts those operations in SAI commands to optimize performance when multiple routes using same NHG. New functionality for nexthop group change notification and configuring ARS-enabled NHG.
+
 #### PortsOrch
 portsorch handles all ports-related configurations. New functionality for enabling ARS on ports.
 
 #### AclOrch
 aclorch is used to deal with configurations of ACL table and ACL rules. New rule action for control ARS operation.
 
-
-ARS is closely tied to vendor-specific hardware implementations, requiring thorough validation of all configurations using SAI capabilities.
+```
+ARS is closely tied to vendor-specific hardware implementations, requiring thorough validation of all configurations (apis and attributes) using SAI capabilities.
+```
 
 ### High-Level Design 
 
-- A standard ARS configuration consists of creating an ARS profile and enabling ARS on the designated ports. This process also includes activating ARS for nexthop groups (Adaptive Routing) and LAGs (Adaptive Switching). At present, configurations are carried out manually via CONFIG_DB, with potential future enhancements to incorporate management through an external controller or routing protocol extensions.
+ARS configuration consists of creating an ARS profile and enabling ARS on the designated ports. This process also includes activating ARS for nexthop groups (Adaptive Routing) and LAGs (Adaptive Switching). At present, configurations are carried out manually via CONFIG_DB, with potential future enhancements to incorporate management through an external controller or routing protocol extensions.
 
 
-- New orchagent: ArsOrch responsible for 
+- New orchagent is introduced: ArsOrch responsible for 
 1. Creating/Updating ARS profile 
 2. Enable interfaces for ARS
-3. Enable ARS over nexthop group
+3. Enable ARS over nexthop groups
 4. Allow configuration of path metrics
 
 - ACL changes<br>
 When a new ACL table is created, SAI needs to receive a list of supported actions which the rules belonging to this table are allowed to use.
-To support the new ARS disable action, the custom table types table schema will be extended with a ARS action attribute - "ARS_ACTION" for the actions attribute field.
+To support the new ARS disable action, the custom table types table schema will be extended with an ARS action attribute - "ARS_ACTION" for the actions attribute field.
+
+
+Table interactions:
+
+1. ARS_PROFILE defines the ARS global configuration parameters. ArsOrch uses this to create the ARS SAI profile. 
+
+   Currently, only a single profile is supported. If multiple profiles are required, the SAI implementation must also be enhanced to accommodate this functionality.
+
+2. ARS_INTERFACE holds list of L2 interfaces which are ARS-enabled.
+
+3. ARS_NEXTHOP_GROUP table used to specify ARS nexthop configuration parameters. ArsOrch uses this to create the ARS SAI L3 object.
+
+4. ARS_PORTCHANNEL table used to specify ARS lag configuration parameters. ArsOrch uses this to create the ARS SAI L2 object.
+
+5. ARS_NEXTHOP_GROUP_MEMBER table specifies which nexthops are used for identifying ARS nexthop group. NHG is will be ARS-enabled when all its nexthops match configured ARS_NEXTHOP_GROUP_MEMBER entries and pointing to L2 ARS-enabled interfaces. 
+
+There are different options for NHG creation. Two modes of operation are supported:
+
+1. NHG created by RouteOrch. APPL_DB adds entry to ROUTE_TABLE with explicit set of nexthops.
+
+2. NHG created by NhgOrch. APPL_DB first adds an entry to the NEXTHOP_GROUP_TABLE and later adds an entry to the ROUTE_TABLE with a reference to the previously created NHG. This mode of operation will be supported only when the Nexthop group's SAI ARS object id attribute "set" capability is supported, to prevent NHG recreations when multiple routes point to the updated NHG.
 
 The diagrams below illustrate the typical sequences for ARS configuration, showcasing key workflows for both Adaptive Routing and Adaptive Switching.
 
 #### Sequence diagrams
 
-__Figure 4: Initilization flow__
+##### __Figure 4: Initilization flow__
 ![](images/init_seq.png)
 
 1. Bind to Events
-The ArsOrch component binds to relevant events to start monitoring and processing ARS-related interfaces.
+    - Events from PortOrch
+        * The ArsOrch component binds to following events to start monitoring and processing ARS-related interfaces:
+            - Port operational status
+            - Port change
+            - Lag member change
+    - Events from RouteOrch
+        * The ArsOrch component binds to route updates to monitor nexthop group changes.
+    - Events from NhgOrch
+        * The ArsOrch component binds to nexthop group updates.
 
 2. Get ARS SAI Capabilities
-ArsOrch retrieves ARS capabilities from the SAI layer and saves them in STATE_DB.
+    * ArsOrch retrieves ARS capabilities from the SAI layer and saves them in STATE_DB.
 
 3. Add ARS_PROFILE Table
-The CONFIG_DB adds the ARS_PROFILE table, which defines the ARS configuration parameters.
-ArsOrch uses this to create the ARS SAI profile.
+    * The CONFIG_DB adds the ARS_PROFILE table, which defines the ARS configuration parameters. ArsOrch uses this to create the ARS SAI profile.
 
-4. Add ARS_INTERFACE Table
-The CONFIG_DB adds the ARS_INTERFACE table, causing ArsOrch to enable ARS on the corresponding ports.
+4. Add ARS_NEXTHOP_GROUP Table
+    * The CONFIG_DB adds the ARS_NEXTHOP_GROUP table, which defines the ARS specific nexthop configuration parameters. ArsOrch uses this to create the ARS SAI object.
 
-__Figure 5: Interface update flow__
+5. ARS_NEXTHOP_GROUP_MEMBER Table
+    * The CONFIG_DB adds the ARS_NEXTHOP_GROUP_MEMBER table, which specifies which nexthops are used for identifying ARS nexthop group. If all of nexthops in added NHG, exist in ARS_NEXTHOP_GROUP_MEMBER and are pointing to ARS-enabled L2 interface, that NHG is eligible for ARS.
+
+6. Add ARS_INTERFACE Table
+    * The CONFIG_DB adds the ARS_INTERFACE table, causing ArsOrch to enable ARS on the corresponding ports.
+
+##### __Figure 5: Interface update flow__
 ![](images/if_update.png)
 
 1. Link UP Notification
-The PortsOrch component detects a link state change and notifies ArsOrch when a port transitions to the "UP" state.
+    * The PortsOrch component detects a link state change and notifies ArsOrch when a port transitions to the "UP" state.
 
 2. Set Port Scaling Factor
-Based on the port's speed, PortsOrch determines the appropriate scaling factor.
-The scaling factor is then set in the SAI layer through the syncd component to adjust the port's behavior accordingly.
+    * Based on the port's speed, PortsOrch determines the appropriate scaling factor. <br>The scaling factor is then set in the SAI layer through the syncd component to adjust the port's behavior accordingly.
 
-__Figure 6: ARS Nexthop group table creation flow__
-![](images/ars_nhg_create.png)
+##### __Figure 6: Nexthop group table created by RouteOrch flow__
+![](images/nhg_create_by_ro.png)
 
-1. Add ARS_NEXTHOP_GROUP Table
-    * The CONFIG_DB adds the ARS_NEXTHOP_GROUP table, triggering the process.
-2. Create SAI ARS Object
-    * The ArsOrch component receives the update and creates the SAI ARS object.
-3. ArsOrch binds to events from RouteOrch related to the newly created NHG.
-4. Notification
-    * RouteOrch component will notify ArsOrch of NHG update.
+1. Add ROUTE_TABLE Table
+    * The APPL_DB adds the ROUTE_TABLE table, triggering the process.
+2. Notification
+    * RouteOrch component will notify ArsOrch of NHG change.
+    * ArsOrch will verify that received notification matches the nexthops in ARS_NEXTHOP_GROUP_MEMBER and that nexthops are defined over ARS-enabled ports
 3. Nexthop group's SAI attributes handling:
-    * If nexthop group's ARS object ID, "set" capability is supported:
+    * If the "set" capability for the nexthop group's ARS object ID is supported:
         - The nexthop group is updated with the ARS object ID.
     * If "set" capability is not supported - implement via "create" functionality:
         - Create a new nexthop group with the ARS object ID.
-        - Redirect routes to use new nexthop group
+        - Redirect existing routes to use the new nexthop group
         - Remove original nexthop group.
-    * If an alternative path is defined
-        - Set the relevant nexthops as part of the alternative path.
+    * If an alternative path is defined:
+        - Identify the relevant nexthops by matching them against the entries in the ARS_NEXTHOP_GROUP_MEMBER table with the role set to "alternative_path."
+        - Set these nexthops as part of the alternative path by updating the SAI attributes for the nexthop group or member accordingly.
 
-__Figure 7: Nexthop group creation flow__
-![](images/nhg_create.png)
+##### __Figure 7: Nexthop group table created by NhgOrch flow__
+![](images/nhg_create_by_nhgo.png)
 
-1. Nexthop group creation
-    * RouteOrch receives route from APPL_DB, triggering the process.
-    * Nexthop group is created
-2. Notification
-    * RouteOrch component will notify ArsOrch of NHG update.
-3. Nexthop group's SAI attributes handling:
-    * If nexthop group's ARS object ID, "set" capability is supported:
-        - The nexthop group is updated with the ARS object ID.
-    * If "set" capability is not supported - implement via "create" functionality:
-        - Create a new nexthop group with the ARS object ID.
-        - Redirect routes to use new nexthop group
-        - Remove original nexthop group.
-    * If an alternative path is defined
-        - Set the relevant nexthops as part of the alternative path.
-
-__Figure 8: Nexthop group update flow__
-![](images/nhg_update.png)
-
-1. Nexthop group update
-    * RouteOrch receives route update from APPL_DB, triggering the process.
-    * Nexthop group is updated with new member
-2. Notification
-    * RouteOrch component will notify ArsOrch of NHG update.
+1. Add NEXTHOP_GROUP_TABLE Table
+    * The APPL_DB adds the NEXTHOP_GROUP_TABLE table, triggering the process.
+2. Nexthop group creation
+    * NhgOrch receives NHG data from APPL_DB and creates sai nexthop group.
+3. Notification from NhgOrch
+    * NhgOrch component notifies ArsOrch of NHG update.
 4. Nexthop group's SAI attributes handling:
-    * If an alternative path is defined
-        - Set the relevant nexthops as part of the alternative path.
+    * If nexthop group's ARS object ID "set" capability is supported:
+        - The nexthop group is updated with the ARS object ID.
+    * If "set" capability is not supported - ignore NHG update.
+    * If an alternative path is defined:
+        - Identify the relevant nexthops by matching them against the entries in the ARS_NEXTHOP_GROUP_MEMBER table with the role set to "alternative_path."
+        - Set these nexthops as part of the alternative path by updating the SAI attributes for the nexthop group or member accordingly.
+5. Add ROUTE_TABLE Table
+    * The APPL_DB adds the ROUTE_TABLE table, triggering the process.
+6. Route creation
+    * RouteOrch creates/updates route with NHG reference.
+7. Notification from RouteOrch
+    * RouteOrch component will notify ArsOrch of NHG update. ArsOrch will check if the NHG is implicit, meaning it was created by NhgOrch and will ignore notification
 
-__Figure 9:ARS LAG table creation flow__
+##### __Figure 8: ARS LAG table creation flow__
 ![](images/ars_lag_create.png)
 
 1. Add ARS_PORTCHANNEL Table
@@ -224,7 +271,7 @@ __Figure 9:ARS LAG table creation flow__
     * If LAG was created:
         - It is updated with the ARS object ID.
 
-__Figure 10:LAG creation flow__
+##### __Figure 9: LAG creation flow__
 ![](images/lag_create.png)
 
 1. LAG creation
@@ -234,7 +281,7 @@ __Figure 10:LAG creation flow__
 4. LAG's SAI attributes handling:
     * LAG is updated with the ARS object ID.
 
-__Figure 11:LAG member addition flow__
+##### __Figure 10: LAG member addition flow__
 ![](images/lag_update.png)
 
 1. LAG change
@@ -245,7 +292,7 @@ __Figure 11:LAG member addition flow__
     * If an alternative path is defined
         - Set the relevant port as part of the alternative path.
 
-__Figure 12:ACL configuration flow__
+##### __Figure 11: ACL configuration flow__
 ![](images/acl_config.png)
 
 1. Users define custom ACL table type in ACL_TABLE_TYPE with ARS_ACTION type.
@@ -303,64 +350,77 @@ Following table lists SAI usage and supported attributes with division to phase 
                         description "Exponentially Weighted Moving Average algorithm";
                     }
                 }
+                default "ewma";
             }
 
             leaf max_flows {
                 type uint32;
+                default 0;
                 description  "Maximum number of flows that can be maintained per ARS profile.";
             }
 
             leaf sampling_interval {
                 type uint32;
+                default 16;
                 description  "Sampling interval in microseconds for quality measure computation.";
             }
 
             leaf past_load_min_value {
                 type uint16;
+                default 0;
                 description "Past load min value.";
             }
 
             leaf past_load_max_value {
                 type uint16;
+                default 0;
                 description "Past load max value.";
             }
 
             leaf past_load_weight {
                 type uint16;
+                default 16;
                 description "Past load weight.";
             }
 
             leaf future_load_min_value {
                 type uint16;
+                default 0;
                 description "Future load min value.";
             }
             leaf future_load_max_value {
                 type uint16;
+                default 0;
                 description "Future load max value.";
             }
 
             leaf future_load_weight {
                 type uint16;
+                default 16;
                 description "Future load weight.";
             }
 
             leaf current_load_min_value {
                 type uint16;
+                default 0;
                 description "Current load min value.";
             }
 
             leaf current_load_max_value {
                 type uint16;
+                default 0;
                 description "Current load max value.";
             }
 
             leaf ipv4_enable {
                 type boolean;
+                default true;
                 description "Whether ARS is enabled over IPv4 packets";
             }
 
             leaf ipv6_enable {
                 type boolean;
+                default true;
                 description "Whether ARS is enabled over IPv6 packets";
             }
         }
@@ -387,7 +447,7 @@ Following table lists SAI usage and supported attributes with division to phase 
 
             leaf scaling_factor {
                 type uint32;
-                default "10000";
+                default 10000;
                 description "This factor used to normalize load measurements across ports with different speeds.";
             }
 
@@ -406,27 +466,16 @@ Following table lists SAI usage and supported attributes with division to phase 
 
         list ARS_NEXTHOP_GROUP_LIST {
 
-            key "vrf_name ip_prefix";
+            key "nhg_name";
 
-            leaf vrf_name {
-                type union {
-                    type string {
-                        pattern "default";
-                    }
-                    type leafref {
-                        path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
-                    }
-                }
-                description "VRF name";
+            leaf nhg_name {
+                type string;
+                description "ARS nexthop group name";
             } 
-
-            leaf ip_prefix{
-                type stypes:sonic-ip-prefix;
-                description "Ip prefix which identifies nexthop group for which ARS behavior is desired";
-            }
 
             leaf profile_name {
                 description "ARS profile Name";
+                mandatory true;
                 type leafref {
                     path "/sars:sonic-ars/sars:ARS_PROFILE/sars:ARS_PROFILE_LIST/sars:profile_name";
                 }
@@ -441,38 +490,92 @@ Following table lists SAI usage and supported attributes with division to phase 
                         description "Per packet flow assignment based on port load";
                     }
                 }
+                default "per_flowlet_quality";
             }
 
             leaf flowlet_idle_time {
                 type uint16 {
                     range 2..2047;
                 }
+                default 256;
                 description  "Idle duration in microseconds. This duration is to classifying a flow-let in a macro flow.";
             }
 
             leaf max_flows {
                 type uint32;
+                default 512;
                 description  "Maximum number of flow states that can be maintained per ARS object.";
             }
 
             leaf primary_path_threshold {
                 type uint32;
+                default 16;
                 description  "Primary path metric";
             }
 
             leaf alternative_path_cost {
                 type uint32;
+                default 0;
                 description  "Alternative path cost";
-            }
-
-            leaf-list alternative_path_members {
-                type inet:ip-address;
-                description "NHG members participating in alternative path";
             }
         }
         /* end of list ARS_NEXTHOP_GROUP_LIST */
     }
     /* end of container ARS_NEXTHOP_GROUP */
+```
+
+##### ARS_NEXTHOP_GROUP_MEMBER
+
+```
+    container ARS_NEXTHOP_GROUP_MEMBER {
+
+        description "ARS-enabled Nexthop Groups based on matching members";
+
+        list ARS_NEXTHOP_GROUP_MEMBER_LIST {
+
+            key "vrf_name nexthop_ip";
+
+            leaf vrf_name {
+                type union {
+                    type string {
+                        pattern "default";
+                    }
+                    type leafref {
+                        path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
+                    }
+                }
+                description "VRF name";
+            } 
+
+            leaf nexthop_ip {
+                type inet:ip-address;
+                description "Nexthop-IP which is a member if nexthop group for which ARS behavior is desired";
+            }
+
+            leaf ars_nhg_name {
+                description "ARS nexthop group name";
+                mandatory true;
+                type leafref {
+                    path "/sars:sonic-ars/sars:ARS_NEXTHOP_GROUP/sars:ARS_NEXTHOP_GROUP_LIST/sars:nhg_name";
+                }
+            }
+
+            leaf role {
+                type enumeration {
+                    enum primary_path{
+                        description "Member is participating in primary path";
+                    }
+                    enum alternative_path {
+                        description "Member is participating in alternative path";
+                    }
+                }
+                default primary_path;
+                description "NHG member's role";
+            }
+        }
+        /* end of list ARS_NEXTHOP_GROUP_MEMBER_LIST */
+    }
+    /* end of container ARS_NEXTHOP_GROUP_MEMBER */
 ```
 
 ##### ARS_PORTCHANNEL
@@ -509,27 +612,32 @@ Following table lists SAI usage and supported attributes with division to phase 
                         description "Per packet flow assignment based on port load";
                     }
                 }
+                default "per_flowlet_quality";
             }
 
             leaf flowlet_idle_time {
                 type uint16 {
                     range 2..2047;
                 }
+                default 256;
                 description  "Idle duration in microseconds. This duration is to classifying a flow-let in a macro flow.";
             }
 
             leaf max_flows {
                 type uint32;
+                default 512;
                 description  "Maximum number of flow states that can be maintained per ARS object.";
             }
 
             leaf primary_path_threshold {
                 type uint32;
+                default 16;
                 description  "Primary path metric";
             }
 
             leaf alternative_path_cost {
                 type uint32;
+                default 0;
                 description  "Alternative path cost";
             }
 
@@ -546,7 +654,7 @@ Following table lists SAI usage and supported attributes with division to phase 
 
 ```
 
-##### ACL_RULE changes
+##### ACL_RULE
 
 ```
     container sonic-acl {
@@ -649,29 +757,54 @@ Configuration example:
 ; New table ARS_NEXTHOP_GROUP_TABLE
 ; Nexhop groups enabled for ARS
 
-key                      = ARS_NEXTHOP_GROUP|vrf_name|ip_prefix     ;Route prefix identifing nexhop-group 
+key                       = ARS_NEXTHOP_GROUP|nhg_name                        ;Name which identifies ARS-nexhop-group 
 
-;field                   = value
+;field                    = value
 
-profile_name             = string                                   ;ARS profile Name
-assign_mode              = "per_flowlet_quality" / "per_packet"     ;member selection assignment mode
-flowlet_idle_time        = uint16                                   ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows                = uint16                                   ;Max number of flows supported for ARS
-*primary_path_threshold   = uint16                                   ;Quality threshold for primary path 
-*alternative_path_cost    = uint16                                  ;cost of switching to alternative path
-*alternative_path_members = inet-address                            ;Alternative path members address
+profile_name              = string                                            ;ARS profile Name
+assign_mode               = "per_flowlet_quality" / "per_packet"              ;member selection assignment mode
+flowlet_idle_time         = uint16                                            ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows                 = uint16                                            ;Max number of flows supported for ARS
+*primary_path_threshold   = uint16                                            ;Quality threshold for primary path 
+*alternative_path_cost    = uint16                                            ;cost of switching to alternative path
 
 Configuration example:
 
 "ARS_NEXTHOP_GROUP": {
-    "default|192.168.0.100/32" : {
+    "ars_path" : {
         "profile_name": "ars_profile",
         "assign_mode" : "per_flowlet_quality",
         "flowlet_idle_time" : "256",
         "max_flows" : "512",
         "primary_path_threshold" : "100",
-        "alternative_path_cost": "250",
-        "alternative_path_members": {"1.1.1.1", "2.2.2.2"}
+        "alternative_path_cost": "250"
+    }
+}
+```
+
+```
+; New table ARS_NEXTHOP_GROUP_MEMBER_TABLE
+; Nexthop IPs associated with ARS-enabled Nexthop group
+
+key                      = ARS_NEXTHOP_GROUP_MEMBER|vrf_name|nexthop_ip      ;Nextop IP identifing nexhop-group member 
+
+;field                   = value
+
+ars_nhg_name             = string                                            ;ARS nexthop group Name
+*role                    = "primary_path"/"alternative_path"                 ;Whether this memeber is part of primary or alternative path
+
+Configuration example:
+
+"ARS_NEXTHOP_GROUP_MEMBER": {
+    "default|1.1.1.10" : {
+        "ars_nhg_name": "ars_path"
+    },
+    "default|2.2.2.20" : {
+        "ars_nhg_name": "ars_path",
+        "role": "alternative_path"
+    },
+    "default|3.3.3.30" : {
+        "ars_nhg_name": "ars_path"
     }
 }
 ```
@@ -684,11 +817,11 @@ key                      = ARS_PORTCHANNEL|if_name                  ;Interface n
 
 ;field                   = value
 
-profile_name             = string                                   ;ARS profile Name
-assign_mode              = "per_flowlet_quality" / "per_packet"     ;port selection assignment mode
-flowlet_idle_time        = uint16                                   ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
-max_flows                = uint16                                   ;Max number of flows supported for ARS
-primary_path_threshold   = uint16                                   ;Quality threshold for primary path 
+profile_name             = string                                  ;ARS profile Name
+assign_mode              = "per_flowlet_quality" / "per_packet"    ;port selection assignment mode
+flowlet_idle_time        = uint16                                  ;idle time for decting flowlet in macro flow. Relevant only for assign_mode=pre_flowlet
+max_flows                = uint16                                  ;Max number of flows supported for ARS
+primary_path_threshold   = uint16                                  ;Quality threshold for primary path 
 alternative_path_cost    = uint16                                  ;cost of switching to alternative path
 alternative_path_members = string                                  ;Members of the LAG participating in alternative path
 
@@ -769,6 +902,27 @@ Configuration example:
 }
 ```
 
+#### State DB Enhancements  
+
+Following new tables will be added to State DB for ARS capability storing.
+ARS_CAPABILITY_TABLE|{{ARS-SAI-feature-name}}|{{SAI-attribute-name}}:
+    "get": "true"/"false",
+    "create": "true"/"false",
+    "set": "true"/"false"
+
+Entry examples:
+
+```
+"SAI_OBJECT_TYPE_ARS_PROFILE|SAI_ARS_PROFILE_ATTR_ALGO":
+"get": "true"
+"create": "true"
+"set": "false"
+
+"SAI_OBJECT_TYPE_LAG|SAI_LAG_ATTR_ARS_OBJECT_ID":
+"get": "false"
+"create": "false"
+"set": "false"
+```
 
 ### Counters
 
@@ -821,19 +975,21 @@ Flex counter group will be created for each level.
  PortChannel001     10           100
 ```
 
-    * show ars_nexthop_group_counters default 192.168.0.10/24
+    * show ars_nexthop_group_counters default 192.168.0.0/24
 ```
  Name                          Drops   Nexhop reassignments     Port reassignments
 --------------------------     -----   ---------------------    -------------------
- default | 192.168.0.10/24      10             50                      100
+ default | 192.168.0.0/24        10             50                      100
 ```
 
 ### Warmboot and Fastboot Design Impact
+
 During warmboot or fastboot, both ARS and ACL rules configurations are restored from the CONFIG_DB.
 Counter polling is delayed at system startup.
 
 
 #### Restrictions/Limitations
+
 Implementation will be done in two phases. 
 1. Phase 1 will support: 
     - Primary path only
@@ -860,7 +1016,10 @@ Tests separated into two groups - mandatory and optional (only if supported by v
 
 3. ARS for Nexthop Groups (L3 traffic)
     * Confirm that ARS correctly applies to nexthop groups for Adaptive Routing.
-    * Validate ARS enable on new/existing nexthop groupss.
+    * Validate per nexthop matching when port is enabled for ARS.
+    * Validate per nexthop not-matching when port is disabled for ARS.
+    * Validate NHG creation via routeorch and nhgorch.
+    * Validate ARS enable on new/existing nexthop groups.
     * Check load balancing when overload single member
     * Test failover scenario on link down.
     * Check load balancing when adding/removing Nexthop Group member
