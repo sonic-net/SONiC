@@ -153,7 +153,7 @@ ARS configuration consists of creating an ARS profile and enabling ARS on the de
 
 - ACL changes<br>
 When a new ACL table is created, SAI needs to receive a list of supported actions which the rules belonging to this table are allowed to use.
-To support the new ARS disable action, the custom table types table schema will be extended with an ARS action attribute - "ARS_ACTION" for the actions attribute field.
+To support the new ARS disable action, the custom table types table schema will be extended with an ARS action attribute - "DISABLE_ARS_FORWARDING" for the actions attribute field.
 
 
 Table interactions:
@@ -295,7 +295,7 @@ The diagrams below illustrate the typical sequences for ARS configuration, showc
 ##### __Figure 11: ACL configuration flow__
 ![](images/acl_config.png)
 
-1. Users define custom ACL table type in ACL_TABLE_TYPE with ARS_ACTION type.
+1. Users define custom ACL table type in ACL_TABLE_TYPE with DISABLE_ARS_FORWARDING type.
 2. ACL table added, referencing the custom table type.
 3. ACL rule added, referencing ARS disable action.
 
@@ -995,6 +995,7 @@ Implementation will be done in two phases.
     - Primary path only
     - Quality parameters
 2. Phase 2 will support:
+    - Support NhgOrch added NHGs
     - Alternative path
     - LAG support
     - Statistics
