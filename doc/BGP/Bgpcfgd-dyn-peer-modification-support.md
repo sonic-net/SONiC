@@ -31,7 +31,7 @@
 This document provides the high level design to support enhanced CRUD operations on dynamic bgp peers(ie: bgp listen ranges) using a standard template-based mechanism, as well as the CLI design for some useful per VRF BGP commands.
 
 # Use case
-SDN(Software Defined Networking) is used to program SONiC devices for various use cases, and we intend to extend this to BGP configurations, specifically dynamic BGP peers. To that extent we intend to support enhanced CRUD operations on dynamic peer types, including adding new dynamic peers, modifying peer ranges and deleting dynamic peers. Beyond updating and deleting peers, we will also support modifying and deleteing their associated configurations like route maps, prefix lists and peer groups using the standard template mechanism.
+SDN(Software Defined Networking) is used to program SONiC devices for various use cases, and we intend to extend this to BGP configurations, specifically dynamic BGP peers. To that extent we intend to support enhanced CRUD operations on dynamic peer types, including modifying peer ranges and supporting modification and deletion of their associated configurations like route maps, prefix lists and peer groups using the standard template mechanism.
 
 
 # Definitions/Abbreviation
@@ -49,7 +49,6 @@ SDN(Software Defined Networking) is used to program SONiC devices for various us
 This section describes the SONiC requirements for supporting enhanced CRUD operations for dynamic bgp peers:
 - Configurable in VNET/VRFs, but equally applicable to default VRF
 - Dynamic peers' listen ranges must be modifiable at runtime such that ranges can be added and removed(changing today's behavior of being a create only attribute)
-- Dynamic peers should be deletable at runtime(changing today's behavior where deletes can only occur upon a full device/config reload)
 - Dynamic peer updates/deletes should allow for changes to associated configurations like route-maps, peer-groups, prefix-lists etc
 - Ability to track the configuration of a dynamic BGP peer via a State DB entry which is queryable by the SDN controller
 - CLI commands to show VRF/VNET BGP neighbors
