@@ -71,11 +71,9 @@ This document provides general information about the OpenConfig configuration of
         +--rw name               -> ../config/name
         +--rw config
         |  +--rw name?          string
-        |  +--rw description?   string
         |  +--rw enabled?       boolean
         +--ro state
         |  +--ro name?           string
-        |  +--ro description?    string
         |  +--ro enabled?        boolean
         |  +--ro admin-status    enumeration
         +--rw subinterfaces
@@ -83,12 +81,8 @@ This document provides general information about the OpenConfig configuration of
         |     +--rw index         -> ../config/index
         |     +--rw config
         |     |  +--rw index?         uint32
-        |     |  +--rw description?   string
-        |     |  +--rw enabled?       boolean
         |     +--ro state
         |     |  +--ro index?         uint32
-        |     |  +--ro description?   string
-        |     |  +--ro enabled?       boolean
         |     |  +--ro name?          string
         |     +--rw oc-ip:ipv4
         |     |  +--rw oc-ip:addresses
@@ -125,7 +119,7 @@ This document provides general information about the OpenConfig configuration of
 ## 1.1 Requirements
 ### 1.1.1 Functional Requirements
 1. Provide support for OpenConfig YANG models.
-2. Replace translib App based implementation with a Transformer based implementation of:
+2. Implement transformer support for Openconfig Interface model to have following supports:
     Configure/ Set Loopback interface attributes.
     Get Loopback interface attributes.
     Delete Loopback interface attributes.
@@ -136,7 +130,7 @@ The Loopback interface configurations can be done via REST and gNMI. The impleme
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-SONiC already supports Loopback interfaces configurations such as Get, Patch and Delete via REST and gNMI. This feature adds support for OpenConfig based YANG models using transformer based implementation instead of translib infra.
+SONiC already supports framework for Get, Patch and Delete via REST and gNMI. This feature adds support for OpenConfig based YANG models using transformer based implementation for Loopback Interface feature.
 ### 1.2.2 Container
 The code changes for this feature are part of *Management Framework* container which includes the REST server and *gnmi* container for gNMI support in *sonic-mgmt-common* repository.
 
@@ -207,6 +201,9 @@ Mapping attributes between OpenConfig YANG and SONiC YANG:
 |   description           |      description                    |
 |   enabled               |      admin\_status                  |
 |   prefix-length         |       ip-prefix                     |
+
+Translation Notes: 
+1. For enabled  leaf, value with false should return error message "Disable is not supported on Loopback interface
 
 # 5 Error Handling
 Invalid configurations will report an error.
