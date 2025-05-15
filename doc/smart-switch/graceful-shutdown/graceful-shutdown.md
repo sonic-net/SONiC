@@ -34,7 +34,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 ## Explanation of the Flow
    * chassisd: Initiates the shutdown process by invoking set_admin_state(down) in module.py.
 
-   * module.py: Requests dpu_base.py to issue a gNOI reboot request for DPUx.
+   * module.py: Requests dpu_base.py to issue a gNOI reboot request for DPUx with 'HALT' reboot method.
 
    * dpu_base.py: Writes a JSON message to the host's named pipe at /host/gnoi_reboot.pipe.
 
@@ -42,7 +42,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
    * gnoi_reboot_daemon.py: Executes the gnoi_client with the provided parameters.
 
-   * gnmi container: Sends the gNOI Reboot RPC to DPUx.
+   * gnmi container: Sends the gNOI Reboot RPC to sysmgr container inside the DPUx which receives the client request and then issue "reboot -p" command through DBUS to halt the services on DPUx.
 
    * DPUx: Acknowledges the reboot request.
 
