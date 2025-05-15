@@ -29,10 +29,8 @@ The check_directly_connected can be set to true or false.
 VnetOrch shall check all the next hops in the ARP table to verify if directly connected. For such next hops, a regular ECMP route shall be employed instead of a tunnel route. This regular ECMP route would be updated based on the BFD liveness as is done for a regular vxlan ECMP route.
 
 ## Handling transient state during failovers 
-During an HA failover, the HA pair briefly enters a transitional state: the previously active becomes standby, while the standby remains the same. This transient state can cause packet drops on the switch**. 
+During an HA failover, the HA pair briefly enters a transient state: the previously active becomes standby, while the standby remains the same. This transient state can cause packet drops on the switch. 
 To handle this scenario, **high-priority** ACL rules matching tunnel termination flag are used to ensure redirects always go to the local nexthop.
-
-TODO: How the drop happens?
 
 ### VnetOrch programs the ACL rule
 
@@ -51,22 +49,22 @@ flowchart LR
     VnetOrch --> acl_rule_table
 
     acl_rule_table --> AclOrch
-    AclOrch --> |get tunnel object| VnetOrch
+    IntfOrch --> |get local endpoint intf alias| VnetOrch
     AclOrch --> SAI/SDK
 ```
 
-To distinguish HA from other use cases (so we can avoid creating tunnel terminated ACL for all scenarios), and to get the VIP associated with the DPU, a new field in `VNET_ROUTE_TUNNEL_TABLE` is added: 
+To distinguish the local endpoints from the endpoint list, (so we can avoid creating tunnel terminated ACL for all scenarios) a new field in `VNET_ROUTE_TUNNEL_TABLE` is added: 
 
 ```
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
-    "local_endpoint"  = /{/{ip_address1/},/{ip_address2/},.../}  (OPTIONAL)
+    "local_endpoint"  = /{/{true|false/},/{true|false/},.../}  (OPTIONAL)
 ```
 
 ```
 ; Defines schema for VNet Route tunnel table attributes
 key                                   = VNET_ROUTE_TUNNEL_TABLE:vnet_name:prefix ; Vnet route tunnel table with prefix
 ; field                               = value
-local_endpoint                        = STRING
+local_endpoint                        = BOOL
 ```
 
 If local_endpoint is specified, ACL rule to match TUNNEL_TERM flag to be added.
@@ -76,7 +74,6 @@ If local_endpoint is specified, ACL rule to match TUNNEL_TERM flag to be added.
     "ACL_TABLE_TYPE": {
         "VNET_LOCAL_ENDPOINT_REDIRECT": {
             "MATCHES": [
-                "TUNNEL_VNI",
                 "DST_IP",
                 "DST_IPV6",
                 "TUNNEL_TERM"
@@ -100,12 +97,11 @@ If local_endpoint is specified, ACL rule to match TUNNEL_TERM flag to be added.
         }
     },
     "ACL_RULE": {
-        "VNET_LOCAL_ENDPOINT:<vnet_name>_<inner_dst_mac>_TUNN_TERM": {
+        "VNET_LOCAL_ENDPOINT:<vnet_name>_<prefix>_IN_TUNN_TERM": {
             "PRIORITY": "9998",
             "DST_IP": "1.1.1.1/32",
-            "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
             "TUNN_TERM": "true",
-            "REDIRECT": "<local nexthop oid>"
+            "REDIRECT": "<local nexthop interface>"
         }
     }
 }
