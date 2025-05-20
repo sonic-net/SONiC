@@ -29,7 +29,7 @@ SmartSwitch supports graceful reboot of the DPUs. Given this, it is quiet natura
 
 The following sequence diagram illustrates the detailed steps involved in the graceful shutdown of a DPU:
 
-<p align="center"><img src="./images/dpu-graceful-shutdown.svg"></p>
+<p align="center"><img src="./images/dpu-graceful-shutdown-pipe.svg"></p>
 
 ## Sequence of Operations
 
@@ -44,42 +44,38 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
    * module.py delegates the shutdown request to module_base.py, which handles lower-level operations.
 
-4. IPC via Redis STATE_DB:
+4. IPC via Named Pipe:
 
-   * module_base.py writes an entry to the GNOI_REBOOT_REQUEST table in Redis STATE_DB, signaling the intent to reboot DPUx.
+   * module_base.py writes a JSON-formatted reboot request to the named pipe located at /host/gnoi_reboot.pipe.
 
-5. Daemon Subscribes to Redis Table:
+5. Daemon Receives Request:
 
-   * gnoi_reboot_daemon.py subscribes to the GNOI_REBOOT_REQUEST table to monitor for new reboot requests.
+   * The gnoi_reboot_daemon.py monitors /var/run/gnoi_reboot.pipe and detects the new reboot request.
 
-6. Daemon Receives Notification:
-
-   * Upon detecting a new entry, the daemon is notified and proceeds to process the reboot request.
-
-7. gNOI Reboot RPC Execution:
+6. gNOI Reboot RPC Execution:
 
    * The daemon sends a gNOI Reboot RPC with the method HALT to the sysmgr in DPUx.
    * The sysmgr, in turn, issues a DBUS request reboot -p to initiate the reboot process on DPUx.
 
-8. Reboot Status Verification:
+7. Reboot Status Verification:
 
    * Since the initial RPC returns an immediate acknowledgment without confirming the reboot status, the daemon executes gnoi_client -rpc RebootStatus to query the current reboot status of DPUx.
 
-9. Status Response Handling:
+8. Status Response Handling:
 
    * DPUx responds with its current reboot status.
-   
-   * The daemon writes the reboot result to the GNOI_REBOOT_RESULT table in Redis STATE_DB
 
-10. Module Base Subscribes to Result Table:
+   * The daemon logs the result using sonic_py_common.logger.
 
-   * module_base.py subscribes to the GNOI_REBOOT_RESULT table to monitor for the reboot result.
+   * The daemon writes the reboot result to /var/run/gnoi_reboot_response.pipe.
 
-11. Module Base Receives Notification:
+9. Result Retrieval:
 
-   * Upon detecting a new entry, module_base.py is notified and retrieves the reboot result.
+   * module_base.py reads the reboot result from /host/gnoi_reboot_response.pipe.
 
-12. Final Shutdown Procedure:
+   * The result is returned to module.py.
+
+10. Final Shutdown Procedure:
 
    * Based on the reboot result, module.py proceeds to shut down DPUx via the platform API.
 
@@ -97,7 +93,7 @@ This design enables the `chassisd` process running in the PMON container to invo
 
 ## Design Overview
 
-In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe mechanism to facilitate inter-process communication between components. When a DPU shutdown is initiated, the module_base.py writes a reboot request to the GNOI_REBOOT_REQUEST table in STATE_DB. The gnoi_reboot_daemon.py, subscribed to this table, receives the notification, processes the reboot via gNOI RPC, and writes the result to the GNOI_REBOOT_RESULT table. Subsequently, module_base.py, also subscribed to the result table, receives the reboot status and proceeds with the shutdown operation. This event-driven design ensures decoupled and reliable communication between components.
+The solution uses a **named pipe (FIFO)** created on the host and bind-mounted into the PMON container. PMON writes structured reboot requests (as JSON) into the pipe. A lightweight daemon running on the host listens for messages on this pipe, and executes the appropriate `docker exec` command using `gnoi_client`.
 
 ## Parallel Execution
 
