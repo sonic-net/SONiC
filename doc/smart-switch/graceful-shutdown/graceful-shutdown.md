@@ -92,31 +92,9 @@ This design enables the `chassisd` process running in the PMON container to invo
 
 In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe mechanism to facilitate inter-process communication between components. This event-driven design ensures decoupled and reliable communication between components.
 
-### GNOI_REBOOT_REQUEST Table
-   **Database:** STATE_DB
-   
-   **Purpose:** Signals a reboot request for a specific DPU.
+Note: There is no need of a GNOI_REBOOT_REQUEST table as the platform API set_admin_state(down) is triggered on the event.
 
-   **Key Format:** GNOI_REBOOT_REQUEST|<DPU_ID>
-
-   **Fields:**
-
-   | Field       | Type   | Description                                   |
-   | ----------- | ------ | --------------------------------------------- |
-   | `method`    | string | Reboot method (e.g., `HALT`, `COLD`, `WARM`). |
-   | `timestamp` | string | ISO 8601 formatted timestamp of the request.  |
-   | `reason`    | string | Optional reason for the reboot.               |
-
-**Example:**
-```
-  {
-    "method": "HALT",
-    "timestamp": "2025-05-19T18:57:06Z",
-    "reason": "Scheduled maintenance"
-  }
-```
-
-### GNOI_REBOOT_RESULT Table
+### GNOI_REBOOT_RESULT Table schema
    **Database:** STATE_DB
    
    **Purpose:** Stores the result of the reboot operation for a specific DPU.
@@ -127,7 +105,7 @@ In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe me
 
    | Field       | Type   | Description                                       |
    | ----------- | ------ | ------------------------------------------------- |
-   | `status`    | string | Result status (e.g., `SUCCESS`, `FAILURE`).       |
+   | `status`    | string | Result status (e.g., `SUCCESS`, `FAILURE`, `UNINITIALIZED`).       |
    | `timestamp` | string | ISO 8601 formatted timestamp of the result entry. |
    | `message`   | string | Detailed message or error description.            |
 
