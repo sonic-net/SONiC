@@ -562,14 +562,15 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
         ”dpu_data_plane_reason": ”Pipeline failure",
 ```
 #### DPU State Management Default Implementation
+This imeplementation is valid only for platforms which use PMON to update the midplane, control plane and data plane states.
 The DPU state management is implemented through a combination of classes that handle state updates, monitoring and persistence:
 
 1. **DPU State updates from the switch**
-   * The switch updates the midplane state after querying the `is_midplane_reachable` platform API for the corresponding DPU
+   * The switch updates the midplane state after querying the `is_midplane_reachable` platform API for the corresponding DPU. This is an universal implementation for all platforms
    * The midplane state is updated at a specific frequency by the chassisd running on the switch
    * If the midplane state is down (which means that the DPU is no longer accessible through the midplane) This means that the state information which is present is no longer valid at the current instant, so the state information is updated along with the timestamp, but the data plane and the control plane reasons are kept as is for further debugging.
 
-2. **DpuStateManagerTask Class - present in Chassisd on DPU**
+2. **DpuStateManagerTask Class - present in Chassisd on DPU - Platform specific, Dependent on chassisd being enabled on DPU**
    * Monitors state changes through multiple database tables:
      - PORT_TABLE in APPL_DB (This is queried for updating the data_plane_state of the DPU)
      - SYSTEM_READY in STATE_DB  (This is queried for updating the control_plane_state of the DPU)
@@ -578,7 +579,7 @@ The DPU state management is implemented through a combination of classes that ha
    * Avoids unnecessary updates when states haven't changed
    * Triggers state updates through DpuStateUpdater when changes are detected
 
-3. **DpuChassisdDaemon Class the daemon class for the DPU**
+3. **DpuChassisdDaemon Class the daemon class for the DPU - Platform specific, Dependent on chassisd being enabled on DPU**
    * Main daemon class that orchestrates DPU state management
    * Supports two modes of operation:
      - Polling mode: Directly polls platform APIs for state changes
