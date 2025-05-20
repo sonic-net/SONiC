@@ -6,6 +6,7 @@
 | 0.2 | 01/08/2024 | Ramesh Raghupathy | Updated API, CPI sections and addressed review comments |
 | 0.3 | 02/26/2024 | Ramesh Raghupathy | Addressed review comments |
 | 0.4 | 06/06/2024 | Ramesh Raghupathy | Added schema for DPU health-info and called out phase:1 and phase:2 activities for DPU health-info. Added key suffix to module reboot-cause to avoid key conflicts |
+| 0.5 | 04/30/2025 | Gagan Punathil Ellath | Added Post Startup and Pre shutdown sections for DPU |
 
 ## Definitions / Abbreviations
 
@@ -82,10 +83,48 @@ The picture below highlights the PMON vertical and its association with other lo
 * The switch PMON gets the admin up notification from the configDB
 * The switch PMON invokes the platform API to power on the DPU
 * DPU boots up and attaches itself to the midplane.
+* If there is ignore configuration relevant to the DPU then we remove the file and restart sensord. The ignore configuration here refers to the sensors which have to be ignored upon the DPU power off by the sensord running on the switch. Example configuration is shown in the `Sample Ignore configuration ignore_module_DPU0.conf` section
+* PCIe rescan is performed, The relevant bus information is removed from STATE_DB if it exists
 * Once SONiC is up, the state progression is updated for every state transition on the DPU_STATE table in the chassisStateDB
 
+#### DPU post-startup handling
+
+When a DPU module's admin state is changed from "down" to "up", the following post-startup procedures are executed:
+
+1. **PCI Device Rescan**: The `handle_pci_rescan()` function is called to rescan and reattach PCI devices.
+
+    This function calls  the platform specific `pci_reattach()` is called first, and then `get_pci_bus_info()` to get all the PCIe devices associated with the specific DPU, and removes `PCIE_DETACH_INFO` key in STATE_DB relevant to the device. If `pci_reattach()` is not implemented in the specific platform, then no operations are performed in this function
+
+2. **Sensor Addition**: The `handle_sensor_addition()` function is called to handle sensor-related setup.
+
+    If sensors ignore configuration exists in the sensord folder  `/etc/sensors.d/ignore_sensors_{module_name}.conf` , the relevant sensord ignore configuration has to be removed and then we restart the sensord, if such file does not exist, the sensord restart for this module is skipped
+ 
+##### Function Signatures
+These functions are added to the `module_base` implementation
+
+```python
+def handle_pci_rescan(self):
+    """
+    Handles PCI device rescan by updating state database and reattaching device.
+    Returns:
+        bool: True if operation was successful, False otherwise
+    """
+```
+
+```python
+def handle_sensor_addition(self):
+    """
+    Handles sensor addition by removing the ignore configuration file from
+    sensors.d directory and restarting sensord.
+
+    Returns:
+        bool: True if operation was successful, False otherwise
+    """
+```
+
+
 ### DPU startup sequence diagram
-<p align="center"><img src="./images/dpu-startup-seq.svg"></p>
+<p align="center"><img src="./images/dpu-startup-seq.png"></p>
 
 #### 2.1.1 DPUs in dark mode
 * A smartswitch when configured to boot up with all the DPUs in it are powered down upon boot up is referred as DPUs in dark mode.
@@ -153,19 +192,120 @@ Key: "CHASSIS_MODULE|DPU0"
 #### Use case
 * Switch: Maintenance, Critical alarm, RMA
 * DPU: Maintenance, Critical alarm, Service migration, RMA
+
+#### DPU Power-Off Handling During Graceful Shutdown
+
+When the admin state of the DPU is set to "down" the following actions are taken
+The switch has to prepare for the DPUs being powered off. For a graceful shutdown of the DPU, the following events occur:
+* The PCIe devices associated with the DPU are removed - This is done as part of the shutdown procedure, the pcie device attached to the DPU is removed
+* The sensors which are attached to the DPU (reporting its values to the switch) are no longer functional.
+
+Since the DPU specific PCI devices are removed, the PCIeDaemon which is running on the switch should not create warning logs pertaining to these PCI IDs, the sensord daemon should not create new error logs.
+During the graceful shutdown procedure, We need to notify pciedaemon that the PCIE devices have been removed, and sensord should ignore the relevant sensors so that we can remove 
+This procedure should only be performed in case of module implementation specific to smartswitch platforms, as this is not relevant for other platforms. As we are only implementing new functions in the module base implementation, it would be only called by chassisd/reboot implementation in case of smartswitch platforms, this distinction should be done in chassisd/reboot script
+
+When a DPU module's admin state is set to "down", the following pre-shutdown procedures are executed:
+
+* **PCI Device Removal**: The `handle_pci_removal()` function is called to properly detach PCI devices from the system.
+
+    This function calls `get_pci_bus_info()` to get all the PCIe devices associated with the specific DPU, and adds `PCIE_DETACH_INFO` key in STATE_DB relevant to the device, after all the device information is added to STATE_DB, the platform specific `pci_detach()` is called. If `pci_detach()` is not implemented, then we just return false for this function (we do not perform any operation)
+
+* **Sensor Removal**: The `handle_sensor_removal()` function is called to handle sensor-related cleanup.
+
+    If sensors have to be ignored on DPU shutdown, the relevant sensord ignore configuration has to be added to the device folder in sonic-buildimage, `sonic-buildimage/device/<Platform>/<device>/module_sensor_ignore_conf`, after build this is moved to the following folder in PMON: `/usr/share/sonic/platform/module_sensor_ignore_conf`. The ignore configuration for a specific DPU should follow the following format: `ignore_sensors_<Module_Name>.conf`. If this file exists for a specific DPU Module, then this is copied to `/etc/sensors.d/ignore_sensors_{module_name}.conf` and then we restart sensord. If the file does not exist, then we skip further processing for this function 
+
+##### Function Signatures
+These functions are added to the `module_base` implementation
+
+
+```python
+def get_pci_bus_info(self):
+        """
+        Retrieves the bus information.
+
+        Returns:
+            Returns the PCI bus information in list of BDF format like "[DDDD:]BB:SS:F"
+        """
+```
+
+```python
+def handle_pci_removal(self):
+    """
+    Handles PCI device removal by updating state database and detaching device.
+    Returns:
+        bool: True if operation was successful, False otherwise
+    """
+```
+
+```python
+def handle_sensor_removal(self):
+    """
+    Handles sensor removal by copying ignore configuration file from platform folder
+    looks for ignore configuration in: 
+    /usr/share/sonic/platform/module_sensor_ignore_conf/ignore_sensors_{module_name}.conf
+    to sensors.d directory and restarting sensord if the file exists.
+
+    Returns:
+        bool: True if operation was successful, False otherwise
+    """
+```
+
+
+#### Implementation Details
+
+```
+PCIE_DETACH_INFO STATE_DB TABLE 
+
+"PCIE_DETACH_INFO|[DDDD:]BB:SS.F": {
+  "value": {
+    "dpu_state": "detaching",
+    "bus_info" : "[DDDD:]BB:SS.F"
+  }
+}
+```
+```
+Sample Ignore configuration ignore_module_DPU0.conf
+
+bus "i2c-xx" "i2c-1-mux (chan_id xx)"
+    chip "xxxx-i2c-xx-xx"
+        ignore in1
+        ignore in2
+        ignore in3
+```
+
+These functions are called by chassisd when we perform admin state changes by changing config_db. The platform implementation should call these functions at the appropriate times during the admin state change process.
+
+The implementation in chassisd will follow this sequence:
+
+```python
+def set_admin_state(self, up):
+    if up:
+        module.set_admin_state(up) 
+        module.handle_pci_rescan() # No action taken if it is not implemented
+        self.handle_sensor_addition() # No action taken  if there is no ignore sensord configuration
+    else:
+        self.handle_sensor_removal()# No action taken if there is no ignore sensor configuration
+        self.handle_pci_removal() # No action taken if there is no ignore sensord configuration
+        module.set_admin_state(down)
+    return
+```
 #### DPU shutdown sequence
-* There could be two possible sources for DPU shutdown. 1. A configuration change to DPU "admin_status: down" 2. The GNOI logic can trigger it.
+* In the first option the "admin_status: down" configDB status change event will trigger chassisd as it is subscribed to the event
+* The switch PMON will invoke the module class API "set_admin_state(self, up):" with the state being "down" and the platform in turn will call its API to gracefully shutdown the DPU.  
 * The GNOI server runs on the DPU even after the DPU is pre-shutdown and listens until the graceful shutdown finishes.
 * The host sends a GNOI signal to shutdown the DPU. The DPU does a graceful-shutdown if not already done and sends an ack back to the host.
 * Upon receiving the ack or on a timeout the host may trigger the switch PMON vendor API to shutdown the DPU.
-* If a vendor specific API is not defined, detachment is done via sysfs (echo 1 > /sys/bus/pci/devices/XXXX:XX:XX.X/remove).
-* NPU-DPU (GNOI) soft reboot workflow is captured in [reboot-hld.md](https://github.com/sonic-net/SONiC/blob/26f3f4e282f3d2bd4a5c684608897850354f5c30/doc/smart-switch/reboot/reboot-hld.md)
-* In the first option the "admin_status: down" configDB status change event will send a message to the switch PMON.
-* The switch PMON will invoke the module class API "set_admin_state(self, up):" with the state being "down" and the platform in turn will call its API to gracefully shutdown the DPU.  
+* The PCIE device is added to `PCIE_DETACH_INFO` table and we remove the pcie device. This is only done if the `pcie_detach` function is implemented in the platform
+* sensord is restarted if we need to ignore some sensors
+* Vendor specific DPU shutdown is initiated
 * The DPU upon receiving the shutdown message will do a graceful shutdown and send an ack back. The DPU graceful shutdown is vendor specific. The DPU power will be turned off after the graceful shutdown. In case of timeout the platform will force power down.
 * The switch upon receiving the ack or on a timeout will remove the DPU from the bridge and PCIe tree.
+* NPU-DPU (GNOI) soft reboot workflow is captured in [reboot-hld.md](https://github.com/sonic-net/SONiC/blob/26f3f4e282f3d2bd4a5c684608897850354f5c30/doc/smart-switch/reboot/reboot-hld.md)
+
 ### DPU shutdown sequence diagram
-<p align="center"><img src="./images/dpu-shutdown-seq.svg"></p>
+<p align="center"><img src="./images/dpu-shutdown-seq.png"></p>
+
+
 
 ### Restart
 #### Definition
@@ -1174,6 +1314,8 @@ Note:
     --image and --fw-image cannot be supported at the same time
     Progress of FPD operation and any failures would be displayed on the console with appropriate levels of severity
 ```
+
+
 
 ## 4.   Test Plan
 [Test Plan](https://github.com/nissampa/sonic-mgmt_dpu_test/blob/dpu_test_plan_draft_pr/docs/testplan/Smartswitch-test-plan.md)
