@@ -97,7 +97,7 @@ This design enables the `chassisd` process running in the PMON container to invo
 
 ## Design Overview
 
-In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe mechanism to facilitate inter-process communication between components. When a DPU shutdown is initiated, the module_base.py writes a reboot request to the GNOI_REBOOT_REQUEST table in STATE_DB. The gnoi_reboot_daemon.py, subscribed to this table, receives the notification, processes the reboot via gNOI RPC, and writes the result to the GNOI_REBOOT_RESULT table. Subsequently, module_base.py, also subscribed to the result table, receives the reboot status and proceeds with the shutdown operation. This event-driven design ensures decoupled and reliable communication between components.
+In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe mechanism to facilitate inter-process communication between components. This event-driven design ensures decoupled and reliable communication between components.
 
 ## Parallel Execution
 
@@ -109,14 +109,14 @@ The following sequence diagram illustrates the parallel execution of graceful sh
 
 ## IPC Method Comparison: Redis STATE_DB vs. Named Pipe
 
-| Aspect                          | Redis `STATE_DB` IPC                                                                                            | Named Pipe IPC                                                                               |                 |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------- |
-| **Mechanism**                   | Utilizes Redis Pub/Sub model with subscription handlers for event-driven communication.                         | Employs file-based FIFO (First-In-First-Out) special files for direct process communication. |                 |
-| **Event Handling**              | Subscription handlers wait for events; suitable for frequent events.                                            | Processes block until the other end is ready; efficient for infrequent events.               |                 |
-| **Overhead**                    | Introduces additional load on Redis, especially with multiple tables; impact in large-scale systems is unknown. | Minimal overhead; relies on the operating system's file system mechanisms.                   |                 |
-| **Message Persistence**         | Messages are transient; if no subscriber is listening, messages are lost.                                       | Data remains in the pipe until read; ensures delivery if the reader is available.            |                 |
-| **Complexity**                  | Requires Redis setup and management; adds complexity to the system.                                             | Simple to implement; uses standard OS features without additional dependencies.              |                 |
-| **Suitability for Rare Events** | May be overkill for rare events like DPU shutdowns; the persistent subscription may not be justified.           | Well-suited for rare events; resources are utilized only during the event occurrence.        | ([LinkedIn][1]) |
+| Aspect                          | Redis `STATE_DB` IPC                                                                                            | Named Pipe IPC                                                                               |  
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Mechanism**                   | Utilizes Redis Pub/Sub model with subscription handlers for event-driven communication.                         | Employs file-based FIFO (First-In-First-Out) special files for direct process communication. |
+| **Event Handling**              | Subscription handlers wait for events; suitable for frequent events.                                            | Processes block until the other end is ready; efficient for infrequent events.               |
+| **Overhead**                    | Introduces additional load on Redis, especially with multiple tables; impact in large-scale systems is unknown. | Minimal overhead; relies on the operating system's file system mechanisms.                   |
+| **Message Persistence**         | Messages are transient; if no subscriber is listening, messages are lost.                                       | Data remains in the pipe until read; ensures delivery if the reader is available.            |
+| **Complexity**                  | Requires Redis setup and management; adds complexity to the system.                                             | Simple to implement; uses standard OS features without additional dependencies.              |
+| **Suitability for Rare Events** | May be overkill for rare events like DPU shutdowns; the persistent subscription may not be justified.           | Well-suited for rare events; resources are utilized only during the event occurrence.        |
 
 ## Summary
 
