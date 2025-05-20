@@ -10,17 +10,10 @@
 | Term | Meaning |
 | --- | ---- |
 | PMON | Platform Monitor |
-| DLM | Device Lifecycle Manager |
-| NPU | Network Processing Unit |
 | DPU | Data Processing Unit |
-| PDK | Platform Development Kit |
-| SAI | Switch Abstraction Interface |
-| GPIO | General Purpose Input Output |
-| PSU | Power Supply Unit |
-| I2C | Inter-integrated Circuit communication protocol |
-| SysFS | Virtual File System provided by the Linux Kernel |
-| CP | Control Plane |
-| DP | Data Plane |
+| gRPC | Generic Remote Procedure Calls |
+| gNOI | gRPC Network Operations Interface |
+| gNMI  | gRPC Network Management Interface |
 
 ## Introduction
 SmartSwitch supports graceful reboot of the DPUs. Given this, it is quiet natural that we provide support for graceful shutdown of the DPUs. Though it may sound like that the graceful shutdown is the first half of graceful reboot, it is not so because the way it is invoked, the code path for the shutdown are different making the implementation little complex. Besides this, the limitation of the absence of docker, the container separation, and the platform agnostic implementation adds to the challenge of invoking the gnoi call from this code path. Graceful shutdown on each DPU happens in parallel.
