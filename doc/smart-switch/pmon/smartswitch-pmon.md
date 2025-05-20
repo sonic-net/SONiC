@@ -87,7 +87,7 @@ The picture below highlights the PMON vertical and its association with other lo
 * PCIe rescan is performed, The relevant bus information is removed from STATE_DB if it exists
 * Once SONiC is up, the state progression is updated for every state transition on the DPU_STATE table in the chassisStateDB
 
-#### Post-startup Procedures
+#### DPU post-startup handling
 
 When a DPU module's admin state is changed from "down" to "up", the following post-startup procedures are executed:
 
@@ -193,8 +193,9 @@ Key: "CHASSIS_MODULE|DPU0"
 * Switch: Maintenance, Critical alarm, RMA
 * DPU: Maintenance, Critical alarm, Service migration, RMA
 
-#### Pre-shutdown Procedure
+#### DPU Power-Off Handling During Graceful Shutdown
 
+When the admin state of the DPU is set to "down" the following actions are taken
 The switch has to prepare for the DPUs being powered off. For a graceful shutdown of the DPU, the following events occur:
 * The PCIe devices associated with the DPU are removed - This is done as part of the shutdown procedure, the pcie device attached to the DPU is removed
 * The sensors which are attached to the DPU (reporting its values to the switch) are no longer functional.
@@ -253,17 +254,6 @@ def handle_sensor_removal(self):
 #### Implementation Details
 
 ```
-Sample platform.json configuration
-
-"DPUS": {
-    "DPU0": {
-        "bus_info": "XXXX:XX:XX.X"
-    },
-    "DPU1": {
-    }
-},
-```
-```
 PCIE_DETACH_INFO STATE_DB TABLE 
 
 "PCIE_DETACH_INFO|[DDDD:]BB:SS.F": {
@@ -290,12 +280,12 @@ The implementation in chassisd will follow this sequence:
 ```python
 def set_admin_state(self, up):
     if up:
-        module.set_admin_state(up)
-        module.handle_pci_rescan()
-        self.handle_sensor_addition()
+        module.set_admin_state(up) 
+        module.handle_pci_rescan() # No action taken if it is not implemented
+        self.handle_sensor_addition() # No action taken  if there is no ignore sensord configuration
     else:
-        self.handle_sensor_removal()
-        self.handle_pci_removal()
+        self.handle_sensor_removal()# No action taken if there is no ignore sensor configuration
+        self.handle_pci_removal() # No action taken if there is no ignore sensord configuration
         module.set_admin_state(down)
     return
 ```
@@ -305,7 +295,7 @@ def set_admin_state(self, up):
 * The GNOI server runs on the DPU even after the DPU is pre-shutdown and listens until the graceful shutdown finishes.
 * The host sends a GNOI signal to shutdown the DPU. The DPU does a graceful-shutdown if not already done and sends an ack back to the host.
 * Upon receiving the ack or on a timeout the host may trigger the switch PMON vendor API to shutdown the DPU.
-* The PCIE device is added to `PCIE_DETACH_INFO` table and we remove the pcie device. 
+* The PCIE device is added to `PCIE_DETACH_INFO` table and we remove the pcie device. This is only done if the `pcie_detach` function is implemented in the platform
 * sensord is restarted if we need to ignore some sensors
 * Vendor specific DPU shutdown is initiated
 * The DPU upon receiving the shutdown message will do a graceful shutdown and send an ack back. The DPU graceful shutdown is vendor specific. The DPU power will be turned off after the graceful shutdown. In case of timeout the platform will force power down.
