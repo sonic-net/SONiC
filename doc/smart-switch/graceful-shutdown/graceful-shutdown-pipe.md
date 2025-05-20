@@ -123,7 +123,7 @@ This JSON-formatted message is written to the named pipe (e.g., /host/gnoi_reboo
 
 ### Reboot Response Message Format
 After processing the reboot request, the response is written to another named pipe (e.g., /host/gnoi_reboot_response.pipe) to convey the outcome>
-
+```
 {
   "dpu_id": "DPU0",
   "status": "SUCCESS",
@@ -150,13 +150,13 @@ The following sequence diagram illustrates the parallel execution of graceful sh
 
 ## IPC Method Comparison: Redis STATE_DB vs. Named Pipe
 
-| Aspect                          | Redis `STATE_DB` IPC                                                                                            | Named Pipe IPC                                                                               |                 |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------- |
-| **Mechanism**                   | Utilizes Redis Pub/Sub model with subscription handlers for event-driven communication.                         | Employs file-based FIFO (First-In-First-Out) special files for direct process communication. |                 |
-| **Event Handling**              | Subscription handlers wait for events; suitable for frequent events.                                            | Processes block until the other end is ready; efficient for infrequent events.               |                 |
-| **Overhead**                    | Introduces additional load on Redis, especially with multiple tables; impact in large-scale systems is unknown. | Minimal overhead; relies on the operating system's file system mechanisms.                   |                 |
-| **Message Persistence**         | Messages are transient; if no subscriber is listening, messages are lost.                                       | Data remains in the pipe until read; ensures delivery if the reader is available.            |                 |
-| **Suitability for Rare Events** | May be overkill for rare events like DPU shutdowns; the persistent subscription may not be justified.           | Well-suited for rare events; resources are utilized only during the event occurrence.        | ([LinkedIn][1]) |
+| Aspect                          | Redis `STATE_DB` IPC                                                                                            | Named Pipe IPC                                                                               |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Mechanism**                   | Utilizes Redis Pub/Sub model with subscription handlers for event-driven communication.                         | Employs file-based FIFO (First-In-First-Out) special files for direct process communication. |
+| **Event Handling**              | Subscription handlers wait for events; suitable for frequent events.                                            | Processes block until the other end is ready; efficient for infrequent events.               |
+| **Overhead**                    | Introduces additional load on Redis, especially with multiple tables; impact in large-scale systems is unknown. | Minimal overhead; relies on the operating system's file system mechanisms.                   |
+| **Message Persistence**         | Messages are transient; if no subscriber is listening, messages are lost.                                       | Data remains in the pipe until read; ensures delivery if the reader is available.            |
+| **Suitability for Rare Events** | May be overkill for rare events like DPU shutdowns; the persistent subscription may not be justified.           | Well-suited for rare events; resources are utilized only during the event occurrence.        |
 
 ## Summary
 

@@ -108,11 +108,11 @@ In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe me
 
    **Fields:**
 
-   | Field       | Type   | Description                                   |   |
-   | ----------- | ------ | --------------------------------------------- | - |
-   | `method`    | string | Reboot method (e.g., `HALT`, `COLD`, `WARM`). |   |
-   | `timestamp` | string | ISO 8601 formatted timestamp of the request.  |   |
-   | `reason`    | string | Optional reason for the reboot.               |   |
+   | Field       | Type   | Description                                   |
+   | ----------- | ------ | --------------------------------------------- |
+   | `method`    | string | Reboot method (e.g., `HALT`, `COLD`, `WARM`). |
+   | `timestamp` | string | ISO 8601 formatted timestamp of the request.  |
+   | `reason`    | string | Optional reason for the reboot.               |
 
 **Example:**
 ```
@@ -132,11 +132,11 @@ In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe me
 
    **Fields:**
 
-   | Field       | Type   | Description                                       |   |
-   | ----------- | ------ | ------------------------------------------------- | - |
-   | `status`    | string | Result status (e.g., `SUCCESS`, `FAILURE`).       |   |
-   | `timestamp` | string | ISO 8601 formatted timestamp of the result entry. |   |
-   | `message`   | string | Detailed message or error description.            |   |
+   | Field       | Type   | Description                                       |
+   | ----------- | ------ | ------------------------------------------------- |
+   | `status`    | string | Result status (e.g., `SUCCESS`, `FAILURE`).       |
+   | `timestamp` | string | ISO 8601 formatted timestamp of the result entry. |
+   | `message`   | string | Detailed message or error description.            |
 
 **Example:**
 ```
