@@ -27,7 +27,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 ## Sequence of Operations
 
 1. CLI Command Execution:
-   * The user issues the command config chassis module shutdown DPUx.
+   * The user issues the command "config chassis module shutdown DPUx".
 
 2. Chassis Daemon Invocation:
 
@@ -35,7 +35,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
 3. Module Shutdown Request:
 
-   * module.py delegates the shutdown request to module_base.py, which handles lower-level operations.
+   * module.py delegates the graceful shutdown request to module_base.py, to complete the graceful pre-shutdown process in a platform agnostic way.
 
 4. IPC via Named Pipe:
 
@@ -48,7 +48,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 6. gNOI Reboot RPC Execution:
 
    * The daemon sends a gNOI Reboot RPC with the method HALT to the sysmgr in DPUx.
-   * The sysmgr, in turn, issues a DBUS request reboot -p to initiate the reboot process on DPUx.
+   * The sysmgr, in turn, issues a DBUS request "reboot -p" to initiate the reboot process on DPUx.
 
 7. Reboot Status Verification:
 

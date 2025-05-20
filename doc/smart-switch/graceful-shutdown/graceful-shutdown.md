@@ -27,7 +27,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 ## Sequence of Operations
 
 1. CLI Command Execution:
-   * The user issues the command config chassis module shutdown DPUx.
+   * The user issues the command "config chassis module shutdown DPUx".
 
 2. Chassis Daemon Invocation:
 
@@ -35,15 +35,15 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
 3. Module Shutdown Request:
 
-   * module.py delegates the shutdown request to module_base.py, which handles lower-level operations.
+   * module.py delegates the graceful shutdown request to module_base.py, to complete the graceful pre-shutdown process ina platform agnostic way.
 
 4. IPC via Redis STATE_DB:
 
-   * module_base.py writes an entry to the GNOI_REBOOT_REQUEST table in Redis STATE_DB, signaling the intent to reboot DPUx.
+   * module_base.py writes an entry to the GNOI_REBOOT_REQUEST table in Redis STATE_DB, signaling the intent to reboot DPUx using 'HALT' method.
 
-5. Daemon Subscribes to Redis Table:
+5. Daemon Subscribed to Redis Table:
 
-   * gnoi_reboot_daemon.py subscribes to the GNOI_REBOOT_REQUEST table to monitor for new reboot requests.
+   * gnoi_reboot_daemon.py subscribed to the GNOI_REBOOT_REQUEST table to monitor for new reboot requests.
 
 6. Daemon Receives Notification:
 
@@ -52,7 +52,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 7. gNOI Reboot RPC Execution:
 
    * The daemon sends a gNOI Reboot RPC with the method HALT to the sysmgr in DPUx.
-   * The sysmgr, in turn, issues a DBUS request reboot -p to initiate the reboot process on DPUx.
+   * The sysmgr, in turn, issues a DBUS request "reboot -p" to initiate the reboot process on DPUx.
 
 8. Reboot Status Verification:
 
