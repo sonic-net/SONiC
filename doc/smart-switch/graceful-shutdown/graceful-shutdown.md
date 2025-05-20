@@ -99,6 +99,53 @@ This design enables the `chassisd` process running in the PMON container to invo
 
 In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe mechanism to facilitate inter-process communication between components. This event-driven design ensures decoupled and reliable communication between components.
 
+### GNOI_REBOOT_REQUEST Table
+   **Database:** STATE_DB
+   
+   **Purpose:** Signals a reboot request for a specific DPU.
+
+   **Key Format:** GNOI_REBOOT_REQUEST|<DPU_ID>
+
+   **Fields:**
+
+   | Field       | Type   | Description                                   |   |
+   | ----------- | ------ | --------------------------------------------- | - |
+   | `method`    | string | Reboot method (e.g., `HALT`, `COLD`, `WARM`). |   |
+   | `timestamp` | string | ISO 8601 formatted timestamp of the request.  |   |
+   | `reason`    | string | Optional reason for the reboot.               |   |
+
+**Example:**
+```
+  {
+    "method": "HALT",
+    "timestamp": "2025-05-19T18:57:06Z",
+    "reason": "Scheduled maintenance"
+  }
+```
+
+### GNOI_REBOOT_RESULT Table
+   **Database:** STATE_DB
+   
+   **Purpose:** Stores the result of the reboot operation for a specific DPU.
+
+   **Key Format:** GNOI_REBOOT_RESULT|<DPU_ID>
+
+   **Fields:**
+
+   | Field       | Type   | Description                                       |   |
+   | ----------- | ------ | ------------------------------------------------- | - |
+   | `status`    | string | Result status (e.g., `SUCCESS`, `FAILURE`).       |   |
+   | `timestamp` | string | ISO 8601 formatted timestamp of the result entry. |   |
+   | `message`   | string | Detailed message or error description.            |   |
+
+**Example:**
+```
+  {
+    "status": "SUCCESS",
+    "timestamp": "2025-05-19T19:00:00Z",
+    "message": "Reboot completed successfully."
+  }
+```
 ## Parallel Execution
 
 The following sequence diagram illustrates the parallel execution of graceful shutdown of multiple DPUs:
@@ -115,7 +162,6 @@ The following sequence diagram illustrates the parallel execution of graceful sh
 | **Event Handling**              | Subscription handlers wait for events; suitable for frequent events.                                            | Processes block until the other end is ready; efficient for infrequent events.               |
 | **Overhead**                    | Introduces additional load on Redis, especially with multiple tables; impact in large-scale systems is unknown. | Minimal overhead; relies on the operating system's file system mechanisms.                   |
 | **Message Persistence**         | Messages are transient; if no subscriber is listening, messages are lost.                                       | Data remains in the pipe until read; ensures delivery if the reader is available.            |
-| **Complexity**                  | Requires Redis setup and management; adds complexity to the system.                                             | Simple to implement; uses standard OS features without additional dependencies.              |
 | **Suitability for Rare Events** | May be overkill for rare events like DPU shutdowns; the persistent subscription may not be justified.           | Well-suited for rare events; resources are utilized only during the event occurrence.        |
 
 ## Summary

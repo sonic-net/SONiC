@@ -95,6 +95,51 @@ This design enables the `chassisd` process running in the PMON container to invo
 
 The solution uses a **named pipe (FIFO)** created on the host and bind-mounted into the PMON container. PMON writes structured reboot requests (as JSON) into the pipe. A lightweight daemon running on the host listens for messages on this pipe, and executes the appropriate `docker exec` command using `gnoi_client`.
 
+### Reboot Request Message Format
+This JSON-formatted message is written to the named pipe (e.g., /host/gnoi_reboot.pipe) to initiate a reboot request for a specific DPU.
+```
+{
+  "dpu_id": "DPU0",
+  "method": "HALT",
+  "ip": "192.168.100.10",
+  "port": "9339",
+  "timestamp": "2025-05-19T18:57:06Z",
+  "reason": "Scheduled maintenance"
+}
+```
+**Fields:**
+   * **dpu_id:** Identifier of the target DPU (e.g., "DPU0").
+
+   * **method:** Reboot method, such as HALT, COLD, or WARM.
+
+   * **ip:** IP address of the target DPU.
+
+   * **port:** Port number for the gNOI service on the DPU.
+
+   * **timestamp:** ISO 8601 formatted timestamp indicating when the request was made.
+
+   * **reason:** Optional field providing the reason for the reboot.
+
+
+### Reboot Response Message Format
+After processing the reboot request, the response is written to another named pipe (e.g., /host/gnoi_reboot_response.pipe) to convey the outcome>
+
+{
+  "dpu_id": "DPU0",
+  "status": "SUCCESS",
+  "timestamp": "2025-05-19T19:00:00Z",
+  "message": "Reboot completed successfully."
+}
+```
+**Fields:**
+   * **dpu_id:** Identifier of the target DPU.
+
+   * **status:** Result status of the reboot operation, such as SUCCESS or FAILURE.
+   
+   * **timestamp:** ISO 8601 formatted timestamp indicating when the request was made.
+
+   * **message:** Detailed message or error description related to the reboot operation.
+
 ## Parallel Execution
 
 The following sequence diagram illustrates the parallel execution of graceful shutdown of multiple DPUs:
@@ -111,7 +156,6 @@ The following sequence diagram illustrates the parallel execution of graceful sh
 | **Event Handling**              | Subscription handlers wait for events; suitable for frequent events.                                            | Processes block until the other end is ready; efficient for infrequent events.               |                 |
 | **Overhead**                    | Introduces additional load on Redis, especially with multiple tables; impact in large-scale systems is unknown. | Minimal overhead; relies on the operating system's file system mechanisms.                   |                 |
 | **Message Persistence**         | Messages are transient; if no subscriber is listening, messages are lost.                                       | Data remains in the pipe until read; ensures delivery if the reader is available.            |                 |
-| **Complexity**                  | Requires Redis setup and management; adds complexity to the system.                                             | Simple to implement; uses standard OS features without additional dependencies.              |                 |
 | **Suitability for Rare Events** | May be overkill for rare events like DPU shutdowns; the persistent subscription may not be justified.           | Well-suited for rare events; resources are utilized only during the event occurrence.        | ([LinkedIn][1]) |
 
 ## Summary
