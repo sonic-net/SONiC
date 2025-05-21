@@ -180,9 +180,11 @@ The following sequence diagram illustrates the parallel execution of graceful sh
 
 ## Summary
 
-**Redis STATE_DB IPC:** Offers an event-driven model suitable for frequent and scalable inter-process communications. However, it introduces additional overhead and complexity, which might not be justified for rare events like DPU shutdowns.
+**Redis STATE_DB IPC:** Offers an event-driven model well-suited for scalable inter-process communications. While it introduces some overhead, its integration with SONiC's architecture ensures consistency and maintainability across components.
 
-**Named Pipe IPC:** Provides a straightforward and efficient mechanism for IPC, especially apt for infrequent events. Its simplicity and low overhead make it a practical choice for scenarios where events are rare.
+**Named Pipe IPC:** Provides a straightforward and efficient mechanism for IPC, particularly apt for infrequent events. However, it lacks the scalability and integration benefits provided by Redis in the SONiC ecosystem.
+
+Considering the alignment with SONiC's architecture and the benefits of a unified, event-driven communication model, we've chosen to utilize Redis STATE_DB IPC for handling DPU reboot requests and responses. This approach ensures better integration with existing SONiC components, facilitates scalability, and provides a consistent framework for managing inter-process communications.
 
 ---
 
