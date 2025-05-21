@@ -152,11 +152,11 @@ The `start` field is:
   }
 ```
 ### Updated set_admin_state(down) in module.py
-This function calls the pre_shutdown_hook before proceeding to set the administrative state to down.
+This function calls the graceful_shutdown_handler before proceeding to set the administrative state to down.
 ```
    def set_admin_state(self, state):
       if state == "down":
-         self.pre_shutdown_hook()
+         self.graceful_shutdown_handler()
          # Proceed to set the admin state to down using platform API
          platform_api.set_admin_state(self.name, "down")
 ```
