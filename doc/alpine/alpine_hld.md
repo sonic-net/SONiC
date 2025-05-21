@@ -3,7 +3,7 @@
 ## Table of Content
 - [Revision](#revision)
 - [Scope](#scope)
-- [Definitions/Abbreviations](#definitions-abbreviations)
+- [Definitions/Abbreviations](#definitionsabbreviations)
 - [Overview](#overview)
 - [Requirements](#requirements)
 - [Architecture Design](#architecture-design)
@@ -12,7 +12,7 @@
     + [SwitchStack Container](#switchstack-container)
     + [ASIC Simulation Container](#asic-simulation-container)
     + [Ports](#ports)
-    + [Why 2-containers](#why-2-containers)
+    + [Why 2-containers?](#why-2-containers)
   * [Alpine KNE Deployment](#alpine-kne-deployment)
     + [Nodes](#nodes)
     + [Links](#links)
@@ -20,9 +20,9 @@
 - [Configuration and management](#configuration-and-management)
 - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
 - [Memory Consumption](#memory-consumption)
-- [Restrictions/Limitations](#restrictions-limitations)
-- [Testing Requirements/Design](#testing-requirements-design)
-- [Open/Action items - if any](#open-action-items---if-any)
+- [Restrictions/Limitations](#restrictionslimitations)
+- [Testing Requirements/Design](#testing-requirementsdesign)
+- [Open/Action items - if any](#openaction-items-if-any)
 
 ## Revision
 Rev | Rev	Date	| Author	| Change Description
@@ -94,11 +94,11 @@ To implement a virtual switch with dataplane, ALViS uses a â€œVendor Separationâ
 
 In this section, we will go over the internals of ALViS and how vendor simulations can be integrated in Alpine.
 
-### Alpine Virtual Switch (ALViS)
+### Alpine Virtual Switch
 
 ![alt_text](img/alvis-vendor-architecture.png)
 
-At a high level, the ALViS is composed of 2 foundational Docker containers:
+At a high level, the Alpine Virtual Switch (ALViS) is composed of 2 foundational Docker containers:
 
 1. SwitchStack Container which runs a SONiC VM, and
 2. ASIC Simulation Container which runs the virtual ASIC.
@@ -129,7 +129,7 @@ To achieve the connectivity within the AVS and outside the switch, there are fol
 2. Management Port: Used for communication between containers and also to external test runners.
 3. HostIFs in the VM provide packets In and Out from the ASIC to the CPU. This is handled by sending and receiving through the linux netdevs. Special ports like genetlink and send to ingress are also supported.
 
-#### Why is AVS deployed as 2 containers?
+#### Why 2 containers?
 
 The primary reason for deploying AVS as two containers is to closely model the behavior of real hardware, by keeping the simulation pipeline separate. This separation enables advanced feature simulation, such as warm-reboot, where the VM is restarted while the virtual data plane container maintains traffic forwarding. This capability is crucial for SAI/SDK reconciliation development and testing during warm-reboot scenarios on a virtual ASIC, even before the actual hardware is available.
 
@@ -141,9 +141,9 @@ Additionally, the 2 container design provides other benefits, including:
 
 3. Replaceable Simulation: This is provided in the form of a docker registry location which is pulled at runtime during deployment. For example, to use a Lucius simulation container, Alpine topology adds following in the vendor_data with image path us-west1-docker.pkg.dev/openconfig-lemming/test/lucius:ga 
 
-### Alpine KNE Deployment (AKD)
+### Alpine KNE Deployment
 
-Alpine KNE Deployment is the default environment for instantiating AVS. [KNE](https://github.com/openconfig/kne/tree/main) provides the emulated network topology in Kubernetes that connects the data plane ports of different AVS instances. Topologies for deployment in KNE are defined as protobufs consisting of nodes and links. KNE provides built-in Cloud integration and Ondatra support.
+Alpine KNE Deployment (AKD) is the default environment for instantiating AVS. [KNE](https://github.com/openconfig/kne/tree/main) provides the emulated network topology in Kubernetes that connects the data plane ports of different AVS instances. Topologies for deployment in KNE are defined as protobufs consisting of nodes and links. KNE provides built-in Cloud integration and Ondatra support.
 
 Here is a simple topology diagram where 2 AVS are connected using KNE links.
 
