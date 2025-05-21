@@ -92,7 +92,35 @@ This design enables the `chassisd` process running in the PMON container to invo
 
 In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe mechanism to facilitate inter-process communication between components. This event-driven design ensures decoupled and reliable communication between components.
 
-Note: There is no need of a GNOI_REBOOT_REQUEST table as the platform API set_admin_state(down) is triggered on the event.
+### GNOI_REBOOT_REQUEST Table
+   **Database:** STATE_DB
+
+   **Purpose:** Signals a reboot request for a specific DPU.
+
+   **Key Format:** GNOI_REBOOT_REQUEST|<DPU_ID>
+
+   **Fields:**
+
+   | Field       | Type   | Description                                   |
+   | ----------- | ------ | --------------------------------------------- |
+   | `start`     | string | "true" or "false"                             |
+   | `method`    | string | Reboot method code (e.g., "3" for HALT)       |
+   | `timestamp` | string | ISO 8601 formatted timestamp of the request.  |
+   | `message`   | string | Optional reason for the reboot.               |
+
+The `start` field is:
+   * **Set to** "true": When a reboot is requested for a DPU, the start field is set to "true". This change is detected by the gnoi-reboot-daemon, which then initiates the reboot process.
+   * **Set to** "false": After the gnoi-reboot-daemon processes the request (regardless of success or failure), it resets the start field to "false" to indicate that the request has been handled.
+
+**Example:**
+```
+  {
+    "start": "true",
+    "method": "HALT",
+    "timestamp": "2025-05-19T18:57:06Z",
+    "message": "Scheduled maintenance"
+  }
+```
 
 ### GNOI_REBOOT_RESULT Table schema
    **Database:** STATE_DB
@@ -105,17 +133,32 @@ Note: There is no need of a GNOI_REBOOT_REQUEST table as the platform API set_ad
 
    | Field       | Type   | Description                                       |
    | ----------- | ------ | ------------------------------------------------- |
-   | `status`    | string | Result status (e.g., `SUCCESS`, `FAILURE`, `UNINITIALIZED`).       |
+   | `start`     | string | "true" or "false"                                 |
+   | `status`    | string | Result status "success", "failure", or "timeout"  |
    | `timestamp` | string | ISO 8601 formatted timestamp of the result entry. |
    | `message`   | string | Detailed message or error description.            |
+
+The `start` field is:
+   * **Set to** "true": Upon completion of the reboot process, the gnoi-reboot-daemon writes the result to this table and sets the start field to "true". This change notifies any subscribers (e.g., module_base.py) that the reboot result is available.
+   * **Set to** "false": After the subscriber processes the result, it resets the start field to "false" to acknowledge receipt and processing of the result.
 
 **Example:**
 ```
   {
+    "start": "true",
     "status": "SUCCESS",
     "timestamp": "2025-05-19T19:00:00Z",
     "message": "Reboot completed successfully."
   }
+```
+### Updated set_admin_state(down) in module.py
+This function calls the pre_shutdown_hook before proceeding to set the administrative state to down.
+```
+   def set_admin_state(self, state):
+      if state == "down":
+         self.pre_shutdown_hook()
+         # Proceed to set the admin state to down using platform API
+         platform_api.set_admin_state(self.name, "down")
 ```
 ## Parallel Execution
 
