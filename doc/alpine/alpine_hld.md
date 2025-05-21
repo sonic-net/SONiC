@@ -1,6 +1,5 @@
 # ALPINE High Level Design
 
-## Table of Contents
 ## Table of Content
 - [Revision](#revision)
 - [Scope](#scope)
@@ -25,10 +24,10 @@
 - [Testing Requirements/Design](#testing-requirements-design)
 - [Open/Action items - if any](#open-action-items---if-any)
 
-## 1. Revision
+## Revision
 Rev | Rev	Date	| Author	| Change Description
 ---------|--------------|-----------|-------------------
-|v0.1 |05/01/2019  |Sonika Jindal | Initial version
+|v0.1 |05/20/2025  |Sonika Jindal | Initial version
 
 ## Scope
 This document captures the high-level design of an Alpine Virtual Switch (ALViS). ALViS is part of ALPINE - a switchstack simulation framework which also consists of a deployment model (AKD).
