@@ -4,7 +4,7 @@
 ## Table of Content
 - [Revision](#revision)
 - [Scope](#scope)
-- [Definitions/Abbreviations]
+- [Definitions/Abbreviations](#definitions-abbreviations)
 - [Overview](#overview)
 - [Requirements](#requirements)
 - [Architecture Design](#architecture-design)
