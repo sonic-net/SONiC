@@ -84,6 +84,7 @@ The current design covers the internals of an Alpine Virtual Switch and its uniq
 ## Architecture Design
 
 SONiC Hardware Switch architecture can be viewed as below layers:
+
 ![alt_text](img/sonic-hardware-switch.png)
 
 To implement a virtual switch with dataplane, ALViS uses a “Vendor Separation” model where the virtual ASIC pipeline runs independently in a separate container outside of the SONiC Software Stack.
