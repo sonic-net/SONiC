@@ -38,43 +38,49 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
    * `chassisd` receives the shutdown command and invokes set_admin_state(down) on `module_base.py`.
 
-4. **SmartSwitch NPU Check:**
-
    * Within `module_base.py`, the system checks if the device subtype is `"SmartSwitch"` and not a DPU.
 
-   * If both conditions are met, it proceeds with the graceful shutdown process.
+   * If both conditions are met, it proceeds with the graceful shutdown process, else calls `module.py` `set_admin_state(down)`
 
-5. **Subscription to Reboot Result:**
-
-   * `module_base.py` subscribes to the `GNOI_REBOOT_RESULT` table in Redis STATE_DB to receive notifications about reboot results.
-
-6. **Graceful Shutdown Handler Invocation:**
+4. **Graceful Shutdown Handler Invocation:**
 
    * `module_base.py` calls the `graceful_shutdown_handler()` method to initiate the graceful shutdown sequence.
 
-7. **Reboot Request Entry Creation:**
+5. **Reboot Request Entry Creation:**
 
    * Within the `graceful_shutdown_handler()`, an entry is written to the `GNOI_REBOOT_REQUEST` table in Redis STATE_DB for DPUx.
 
-8. **Daemon Notification and Processing:**
+6. **Daemon Notification and Processing:**
 
    * `gnoi_reboot_daemon.py` detects the new entry in `GNOI_REBOOT_REQUEST` and sends a gNOI Reboot RPC with the method `HALT` to the sysmgr in DPUx, which in turn issues a DBUS request to execute `reboot -p` on DPUx.
 
-9. **Reboot Status Monitoring:**
+7. **Reboot Request**:
+
+   * The daemon forwards the reboot request.
+
+8. **Reboot Status Monitoring:**
 
    * The daemon sends  `gnoi_client -rpc RebootStatus` to monitor the reboot status of DPUx.
    
-   * DPUx returns the reboot status response.
+9. **DPUx Returns Status:**
 
-10. **Reboot Result Logging:**
+   * DPUx returns the reboot status response to the daemon.
+
+10. **Reboot Result Update in DB:**
 
       * The daemon writes the reboot result to the `GNOI_REBOOT_RESULT` table in Redis STATE_DB.
 
-11. **Result Notification and Logging:**
+      * In case of a reboot result failure the result gets updated after the timeout.
 
-      * `module_base.py` receives a notification of the new entry in `GNOI_REBOOT_RESULT` and logs the reboot result accordingly.
+11. **Read the Result:**
 
-12. **Final State Transition:**
+      * `module_base.py` reads the new entry in `GNOI_REBOOT_RESULT`.
+
+12. **Log the Result:**
+
+      * `module_base.py` logs the reboot result accordingly.
+
+13. **Final State Transition:**
 
       * `module_base.py` invokes `set_admin_state(down)` on `module.py`.
 
