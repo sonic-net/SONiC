@@ -63,7 +63,7 @@ This document captures the high-level design of an Alpine Virtual Switch (ALViS)
 
 ## Overview
 
-ALPINE comprises a Virtual Switch (ALViS) and a Deployment Model (AKD). ALViS is a SONiC switch that comes with a virtualized ASIC to provide dataplane switch capabilities in software. ALViS supports plugging in other vendor implementations for virtual ASIC. This document describes the internals of the ALViS design and also discusses the deployment model used for ALViS. 
+ALPINE comprises a Virtual Switch (ALViS) and a Deployment Model (AKD). ALViS is a SONiC virtual switch that comes with a virtual ASIC to provide dataplane capabilities in software. ALViS supports plugging in other vendor implementations for virtual ASIC. This document describes the internals of the ALViS design and also discusses the deployment model used for ALViS. 
 
 ## Requirements
 
@@ -105,15 +105,22 @@ At a high level, the Alpine Virtual Switch (ALViS) is composed of 2 foundational
 
 An ALViS is instantiated with a fixed set of data ports and a management port. The enabling/disabling of these ports is controlled by the SAI. More on ports later.
 
-These containers can be deployed as a Kubernetes Pod, and KNE can be used to provide connectivity between the data plane ports of multiple ALViS instances.
+These containers are deployed as a Kubernetes Pod, and KNE is used to provide connectivity between the data plane ports of multiple ALViS instances.
 
 #### SwitchStack Container
 
-This container hosts the SONiC VM with all the SONiC containers running inside the VM. On startup, the container instantiates a VM using qemu with the necessary port connectivity. This VM is the SONiC VM built with all the SONiC containers. AVS provides a SAI implementation for syncd to talk to the virtual data plane over gRPC as well as a Userspace Packet Module (UPM) to handle packet in/out from the virtual ASIC’s CPU port and the SONiC VM. 
+This container hosts the SONiC VM with all the SONiC containers running inside the VM. On startup, the container instantiates a VM using qemu with the necessary port connectivity. This VM is the SONiC VM built with all the SONiC containers. ALViS provides a SAI implementation for syncd to talk to the virtual data plane over gRPC as well as a Userspace Packet Module (UPM) to handle packet in/out from the virtual ASIC’s CPU port and the SONiC VM.
+
+A new platform is introduced to sonic-buildimage to build an ALViS image:
+
+```
+PLATFORM=alpinevs make configure
+make target/sonic-alpinevs.img.gz
+``` 
 
 #### ASIC Simulation Container
 
-This container runs the virtual dataplane for the Alpine Virtual Switch. Alpine comes with a default dataplane called Lucius, which implements a subset of the SAI pipeline today and can easily be extended as needed. Vendors can provide alternative virtual dataplanes, e.g. an ASIC simulator capable of passing traffic. To integrate into AVS, the vendor needs to provide:
+This container runs the virtual dataplane for the Alpine Virtual Switch. Alpine comes with a default dataplane called Lucius, which implements a subset of the SAI pipeline today and can easily be extended as needed. Vendors can provide alternative virtual dataplanes, e.g. an ASIC simulator capable of passing traffic. To integrate into ALViS, the vendor needs to provide:
 
 1. ASIC Simulation Container that runs their virtual data plane,
 2. SAI implementation that talks to the virtual data plane over a socket, and
@@ -123,7 +130,7 @@ In the future, there may be opportunities to generalize and standardize the remo
 
 #### Ports
 
-To achieve the connectivity within the AVS and outside the switch, there are following ports:
+To achieve the connectivity within the ALViS and outside the switch, there are following ports:
 
 1. Data Ports for traffic switching within the pipeline. These are created when an Alpine topology is deployed with links between multiple virtual switches. 
 2. Management Port: Used for communication between containers and also to external test runners.
@@ -131,7 +138,7 @@ To achieve the connectivity within the AVS and outside the switch, there are fol
 
 #### Why 2 containers?
 
-The primary reason for deploying AVS as two containers is to closely model the behavior of real hardware, by keeping the simulation pipeline separate. This separation enables advanced feature simulation, such as warm-reboot, where the VM is restarted while the virtual data plane container maintains traffic forwarding. This capability is crucial for SAI/SDK reconciliation development and testing during warm-reboot scenarios on a virtual ASIC, even before the actual hardware is available.
+The primary reason for deploying ALViS as two containers is to closely model the behavior of real hardware, by keeping the simulation pipeline separate. This separation enables advanced feature simulation, such as warm-reboot, where the VM is restarted while the virtual data plane container maintains traffic forwarding. This capability is crucial for SAI/SDK reconciliation development and testing during warm-reboot scenarios on a virtual ASIC, even before the actual hardware is available.
 
 Additionally, the 2 container design provides other benefits, including:
 
@@ -143,9 +150,9 @@ Additionally, the 2 container design provides other benefits, including:
 
 ### Alpine KNE Deployment
 
-Alpine KNE Deployment (AKD) is the default environment for instantiating AVS. [KNE](https://github.com/openconfig/kne/tree/main) provides the emulated network topology in Kubernetes that connects the data plane ports of different AVS instances. Topologies for deployment in KNE are defined as protobufs consisting of nodes and links. KNE provides built-in Cloud integration and Ondatra support.
+Alpine KNE Deployment (AKD) is the default environment for instantiating ALViS. [KNE](https://github.com/openconfig/kne/tree/main) provides the emulated network topology in Kubernetes that connects the data plane ports of different ALViS instances. Topologies for deployment in KNE are defined as protobufs consisting of nodes and links. KNE provides built-in Cloud integration and Ondatra support.
 
-Here is a simple topology diagram where 2 AVS are connected using KNE links.
+Here is a simple topology diagram where 2 ALViS are connected using KNE links.
 
 ![alt_text](img/alpine-twodut-topo.png)
 
@@ -230,7 +237,7 @@ The default implementation of Alpine with Lucius comes with a libsai-grpc which 
 
 ## Configuration and management
 
-An AlpineVS image is built with the capability of deploying as different platform types. This is achieved by passing bootstrap config (`config_db.json`) at runtime and using a service (alpinevs-init) to select the respective platform on init.
+An ALViS image is built with the capability of deploying as different platform types. This is achieved by passing bootstrap config (`config_db.json`) at runtime and using a service (alpinevs-init) to select the respective platform on init.
 
 1. Runtime Bootstrap config is passed using the topology param as follows (eg: twodut-alpine-brixia.pb.txt):
 
@@ -264,9 +271,13 @@ ASIC: alpinevs
 
 ## Warmboot and Fastboot Design Impact
 
-Warmboot and Fastboot Design are unaffected. AVS offers a useful tool for Warmboot development and testing.
+Warmboot and Fastboot Design are unaffected. ALViS offers a useful tool for Warmboot development and testing.
 
 ## Memory Consumption
+
+The VM is created with 32GB RAM and 12 vCPUS using qemu parameters: `-m 32768` and `-smp 12`.
+
+Following is an example usage from a running system for the VM and Lucius dataplane:
 
 ```
 PID USER         PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND                                                                                                              
@@ -277,18 +288,18 @@ PID USER         PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
 ## Restrictions/Limitations
 
 Following are the known restrictions with Alpine:
-1. AVS currently runs only in AKD
+1. ALViS currently runs only in AKD
 2. Anything else?
 
 ## Testing Requirements/Design
 
-Following are the requirements for running AVS based testing:
-1. A KVM-enabled host device. If the host device is a VM, it should have nested-virtualization enabled because AVS runs a VM.
+Following are the requirements for running ALViS based testing:
+1. A KVM-enabled host device. If the host device is a VM, it should have nested-virtualization enabled because ALViS runs a VM.
 2. Kubernetes Network Emulation: https://github.com/openconfig/kne/tree/main 
 
 Steps to bring up a topology:
 
-1. Build a topology: Following is an example where an AVS is connected to a simple ubuntu host container:
+1. Build a topology: Following is an example where an ALViS is connected to a simple ubuntu host container:
 
 ```
 name: "twodut-alpine"
@@ -341,7 +352,7 @@ kne deploy deploy/kne/kind-bridge.yaml
 kne create examples/alpine/alpine.pb.txt
 ```
 
-3. SSH to AVS
+3. SSH to ALViS
 
 ```
 IPDUT="$(kubectl get svc -n twodut-alpine service-alpine-dut -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
@@ -350,5 +361,7 @@ ssh admin@${IPDUT}
 
 ## Open/Action items
 
-1. AVS outside of AKD: Team is exploring ways of deploying an AVS independent of AKD. This can be a standalone virtual switch running in a SONiC t0 topology.
-2. AVS-lite: Similar to docker-sonic-vs, the team is exploring an alternative AVS Switch Container, called docker-sonic-alpinevs, that runs apps directly without running a VM.
+Following are some suggestions for further exploration:
+
+1. ALViS outside of AKD: Team is exploring ways of deploying an ALViS independent of AKD. This can be a standalone virtual switch or in the well known SONiC topologies like t0/t1.
+2. ALViS-lite: Similar to docker-sonic-vs, the team is exploring an alternative ALViS Switch Container, called docker-sonic-alpinevs, that runs apps (and dataplane) directly without running a VM.
