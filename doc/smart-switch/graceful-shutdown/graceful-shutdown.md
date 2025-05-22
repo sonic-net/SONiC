@@ -26,55 +26,69 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
 ## Sequence of Operations
 
-1. CLI Command Execution:
-   * The user issues the command "config chassis module shutdown DPUx".
+1. **Daemon Initialization:**
 
-2. Chassis Daemon Invocation:
+   * Upon startup, `gnoi_reboot_daemon.py` subscribes to the `GNOI_REBOOT_REQUEST` table in Redis STATE_DB to monitor incoming reboot requests.
 
-   * chassisd receives the command and calls set_admin_state(down) on module.py to initiate the shutdown process for DPUx.
+2. **CLI Command Execution:**
 
-3. Module Shutdown Request:
+   * The user executes the command `config chassis module shutdown DPUx` via the CLI.
 
-   * module.py delegates the graceful shutdown request to module_base.py, to complete the graceful pre-shutdown process ina platform agnostic way.
+3. **Chassis Daemon Processing:**
 
-4. IPC via Redis STATE_DB:
+   * `chassisd` receives the shutdown command and invokes set_admin_state(down) on `module_base.py`.
 
-   * module_base.py writes an entry to the GNOI_REBOOT_REQUEST table in Redis STATE_DB, signaling the intent to reboot DPUx using 'HALT' method.
+4. **SmartSwitch NPU Check:**
 
-5. Daemon Subscribed to Redis Table:
+   * Within `module_base.py`, the system checks if the device subtype is `"SmartSwitch"` and not a DPU.
 
-   * gnoi_reboot_daemon.py subscribed to the GNOI_REBOOT_REQUEST table to monitor for new reboot requests.
+   * If both conditions are met, it proceeds with the graceful shutdown process.
 
-6. Daemon Receives Notification:
+5. **Subscription to Reboot Result:**
 
-   * Upon detecting a new entry, the daemon is notified and proceeds to process the reboot request.
+   * `module_base.py` subscribes to the `GNOI_REBOOT_RESULT` table in Redis STATE_DB to receive notifications about reboot results.
 
-7. gNOI Reboot RPC Execution:
+6. **Graceful Shutdown Handler Invocation:**
 
-   * The daemon sends a gNOI Reboot RPC with the method HALT to the sysmgr in DPUx.
-   * The sysmgr, in turn, issues a DBUS request "reboot -p" to initiate the reboot process on DPUx.
+   * `module_base.py` calls the `graceful_shutdown_handler()` method to initiate the graceful shutdown sequence.
 
-8. Reboot Status Verification:
+7. **Reboot Request Entry Creation:**
 
-   * Since the initial RPC returns an immediate acknowledgment without confirming the reboot status, the daemon executes gnoi_client -rpc RebootStatus to query the current reboot status of DPUx.
+   * Within the `graceful_shutdown_handler()`, an entry is written to the `GNOI_REBOOT_REQUEST` table in Redis STATE_DB for DPUx.
 
-9. Status Response Handling:
+8. **Daemon Notification and Processing:**
 
-   * DPUx responds with its current reboot status.
+   * `gnoi_reboot_daemon.py` detects the new entry in `GNOI_REBOOT_REQUEST` and sends a gNOI Reboot RPC with the method `HALT` to the sysmgr in DPUx, which in turn issues a DBUS request to execute `reboot -p` on DPUx.
+
+9. **Reboot Status Monitoring:**
+
+   * The daemon sends  `gnoi_client -rpc RebootStatus` to monitor the reboot status of DPUx.
    
-   * The daemon writes the reboot result to the GNOI_REBOOT_RESULT table in Redis STATE_DB
+   * DPUx returns the reboot status response.
 
-10. Module Base Subscribes to Result Table:
+10. **Reboot Result Logging:**
 
-   * module_base.py subscribes to the GNOI_REBOOT_RESULT table to monitor for the reboot result.
+      * The daemon writes the reboot result to the `GNOI_REBOOT_RESULT` table in Redis STATE_DB.
 
-11. Module Base Receives Notification:
+11. **Result Notification and Logging:**
 
-   * Upon detecting a new entry, module_base.py is notified and retrieves the reboot result.
+      * `module_base.py` receives a notification of the new entry in `GNOI_REBOOT_RESULT` and logs the reboot result accordingly.
 
-12. Final Shutdown Procedure:
+12. **Final State Transition:**
 
-   * Based on the reboot result, module.py proceeds to shut down DPUx via the platform API.
+      * `module_base.py` invokes `set_admin_state(down)` on `module.py`.
+
+      * `module.py` calls the platform API to power down the module.
+
+13. **Alternate Path for UP State:**
+
+      * If the desired state is UP:
+
+      * `chassisd` invokes `set_admin_state(up)` on `module_base.py`.
+
+      * `module_base.py` directly calls `set_admin_state(up)` on `module.py`.
+
+      * `module.py` uses the platform API to bring the module up.
 
 ## Objective
 
