@@ -80,16 +80,6 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
       * `module.py` calls the platform API to power down the module.
 
-13. **Alternate Path for UP State:**
-
-      * If the desired state is UP:
-
-      * `chassisd` invokes `set_admin_state(up)` on `module_base.py`.
-
-      * `module_base.py` directly calls `set_admin_state(up)` on `module.py`.
-
-      * `module.py` uses the platform API to bring the module up.
-
 ## Objective
 
 This design enables the `chassisd` process running in the PMON container to invoke a **gNOI-based reboot** when it triggers the "set_admin_state(down)" API of a DPU module, without relying on `docker`, `bash`, or `hostexec` within the container.
@@ -173,24 +163,3 @@ The following sequence diagram illustrates the parallel execution of graceful sh
 <p align="center"><img src="./images/parallel-execution.svg"></p>
 
 ---
-
-## IPC Method Comparison: Redis STATE_DB vs. Named Pipe
-
-| Aspect                          | Redis `STATE_DB` IPC                                                                                            | Named Pipe IPC                                                                               |  
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Mechanism**                   | Utilizes Redis Pub/Sub model with subscription handlers for event-driven communication.                         | Employs file-based FIFO (First-In-First-Out) special files for direct process communication. |
-| **Event Handling**              | Subscription handlers wait for events; suitable for frequent events.                                            | Processes block until the other end is ready; efficient for infrequent events.               |
-| **Overhead**                    | Introduces additional load on Redis, especially with multiple tables; impact in large-scale systems is unknown. | Minimal overhead; relies on the operating system's file system mechanisms.                   |
-| **Message Persistence**         | Messages are transient; if no subscriber is listening, messages are lost.                                       | Data remains in the pipe until read; ensures delivery if the reader is available.            |
-| **Suitability for Rare Events** | May be overkill for rare events like DPU shutdowns; the persistent subscription may not be justified.           | Well-suited for rare events; resources are utilized only during the event occurrence.        |
-
-## Summary
-
-**Redis STATE_DB IPC:** Offers an event-driven model well-suited for scalable inter-process communications. While it introduces some overhead, its integration with SONiC's architecture ensures consistency and maintainability across components.
-
-**Named Pipe IPC:** Provides a straightforward and efficient mechanism for IPC, particularly apt for infrequent events. However, it lacks the scalability and integration benefits provided by Redis in the SONiC ecosystem.
-
-Considering the alignment with SONiC's architecture and the benefits of a unified, event-driven communication model, we've chosen to utilize Redis STATE_DB IPC for handling DPU reboot requests and responses. This approach ensures better integration with existing SONiC components, facilitates scalability, and provides a consistent framework for managing inter-process communications.
-
----
-
