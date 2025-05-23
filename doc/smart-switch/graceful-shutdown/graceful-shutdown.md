@@ -74,7 +74,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
 11. **Read the Result:**
 
-      * `module_base.py` reads the new entry in `GNOI_REBOOT_RESULT`.
+      * `module_base.py` in a loop reads the new entry in `GNOI_REBOOT_RESULT` every 5 secs.
 
 12. **Log the Result:**
 
