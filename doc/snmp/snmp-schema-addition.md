@@ -33,7 +33,7 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
          "Location":"<SNMP_LOCATION_STRING>"
       },
       "CONTACT":{
-         "<CONTACT_NAME>":"<SNMP_CONTACT_STRING>"
+         "Contact":"<SNMP_CONTACT_STRING>"
       }
    }
 }
