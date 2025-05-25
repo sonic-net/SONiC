@@ -342,6 +342,7 @@ Following diagram captures the object reference model.
 DASH_VNET_TABLE:{{vnet_name}}
     "vni": {{vni}} 
     "guid": {{"string"}}
+    "version": {{"string"}}
     "address_spaces": {{[list of addresses]}} (OPTIONAL)
     "peer_list": {{vnet_name_list}} (OPTIONAL)
 ```
@@ -436,6 +437,7 @@ v6_acl_group_id             = IPv6 ACL group ID
 DASH_ACL_GROUP_TABLE:{{group_id}}
     "ip_version": {{ipv4/ipv6}}
     "guid": {{string}}
+    "version": {{"string"}}
 ```
 
 ```
@@ -1079,6 +1081,7 @@ Refer DASH documentation for the test plan.
         "DASH_VNET_TABLE:Vnet1": {
             "vni": "45654",
             "guid": "559c6ce8-26ab-4193-b946-ccc6e8f930b2"
+            "version": "1"
         },
         "OP": "SET"
     },
