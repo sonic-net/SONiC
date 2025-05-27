@@ -13,6 +13,7 @@
     * [1.1 Requirements](#11-requirements)
       * [1.1.1 Functional Requirements](#111-functional-requirements)
       * [1.1.2 Configuration and Management Requirements](#112-configuration-and-management-requirements)
+      * [1.1.3 Scalability Requirements](#113-scalability-requirements)
     * [1.2 Design Overview](#12-design-overview)
       * [1.2.1 Basic Approach](#121-basic-approach)
       * [1.2.2 Container](#122-container)
@@ -27,8 +28,9 @@
       * [3.2.4 ASIC DB](#324-asic-db)
       * [3.2.5 COUNTER DB](#325-counter-db)
     * [3.3 User Interface](#33-user-interface)
-      * [3.3.1 REST API Support](#332-rest-api-support)
-      * [3.3.2 gNMI Support](#333-gnmi-support)
+      * [3.3.1 REST API Support](#331-rest-api-support)
+      * [3.3.2 gNMI Support](#332-gnmi-support)
+      * [3.3.3 gNMI Subscription Support](#333-gnmi-subscription-support)
   * [4 Flow Diagrams](#4-flow-diagrams)
   * [5 Error Handling](#5-error-handling)
   * [6 Unit Test Cases](#6-unit-test-cases)
@@ -52,7 +54,7 @@ This document provides general information about the OpenConfig configuration of
 - This does not cover the SONiC KLISH CLI.
 - This covers only the VLAN interface/member configuration.
 - This does not support subinterfaces configuration.
-- Supported attributes in OpenConfig YANG tree:
+- Supported attributes in OpenConfig YANG tree (new attributes bolded):
 
 <pre>
 module: openconfig-interfaces
@@ -1066,7 +1068,7 @@ Mapping attributes between OpenConfig YANG and Community SONiC YANG:
 |----------------------------------------------|------------------------------------|
 |                                              |    *container VLAN_MEMBER*         |
 |   name                                       |    name                            |
-|   interface-mode                             |    tagging_mode                    |
+|                                              |    tagging_mode (derived)          |
 |   name (openconfig-interfaces.yang)          |    port                            |
 
 
