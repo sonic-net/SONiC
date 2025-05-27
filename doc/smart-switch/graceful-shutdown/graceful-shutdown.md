@@ -168,4 +168,37 @@ The following sequence diagram illustrates the parallel execution of graceful sh
 
 <p align="center"><img src="./images/parallel-execution.svg"></p>
 
+## Interoperability between DPU Graceful Shutdown & gNOI Reboot
+
+<p align="center"><img src="./images/reboot-interoperability.svg"></p>
+
+The diagram above illustrates two scenarios where both module_base.py and smartswitch_reboot_helper might attempt to initiate a reboot simultaneously. By utilizing the shared RedisDB table GNOI_REBOOT_REQUEST, the system ensures that only the first trigger is honored, and subsequent attempts during an ongoing reboot are effectively ignored.
+
+**Scenario 1:** smartswitch_reboot_helper **triggers first**
+
+* smartswitch_reboot_helper writes an entry to GNOI_REBOOT_REQUEST with start=true.
+
+* gnoi_reboot_daemon.py, already subscribed to this table, is notified of the new entry.
+
+* The daemon sends a gNOI Reboot RPC with the method HALT to the sysmgr in DPUx, initiating the reboot process.
+
+* The daemon writes the reboot result to the GNOI_REBOOT_RESULT table.
+
+* If module_base.py attempts to write to GNOI_REBOOT_REQUEST with start=true during this process, the operation has no effect since the start field is already true.
+
+* However, when the "GNOI_REBOOT_RESULT" is ready the module_base.py will still consume the result and the shutdown of the DPU completes as well.
+**Scenario 2:** module_base.py **triggers first**
+
+* module_base.py writes an entry to GNOI_REBOOT_REQUEST with start=true.
+
+* gnoi_reboot_daemon.py is notified of the new entry and proceeds to send a gNOI Reboot RPC with the method HALT to the sysmgr in DPUx.
+
+* The daemon writes the reboot result to the GNOI_REBOOT_RESULT table.
+
+* If smartswitch_reboot_helper attempts to write to GNOI_REBOOT_REQUEST with start=true during this process, the operation has no effect since the start field is already true.
+
+* The graceful shutdown completes as planned.
+
+This design ensures that only one reboot process is initiated, regardless of which component triggers it first, thereby preventing race conditions and ensuring system stability.
+
 ---
