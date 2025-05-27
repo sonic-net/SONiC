@@ -1,4 +1,4 @@
-# OpenConfig support for VLAN interface.
+# OpenConfig support for VLAN interface and VLAN member.
 
 # High Level Design Document
 #### Rev 0.1
@@ -37,12 +37,12 @@
   
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
-[Table 2: OC YANG SONiC YANG Mapping](#4-flow-diagrams)
+[Table 2: OpenConfig YANG SONiC YANG Mapping](#4-flow-diagrams)
 
 # Revision
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
-| 0.1 | 05/13/2025  | Allen Ting | Initial version                   |
+| 0.1 | 05/13/2025  | Allen Ting | Initial version                              |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration of VLAN interface & VLAN member in SONiC.
@@ -55,7 +55,7 @@ This document provides general information about the OpenConfig configuration of
 - Supported attributes in OpenConfig YANG tree:
 
 <pre>
-<b>module: openconfig-interfaces</b>
+module: openconfig-interfaces
 +--rw interfaces
    +--rw interface* [name]
       +--rw name               -> ../config/name
@@ -70,6 +70,8 @@ This document provides general information about the OpenConfig configuration of
       |  +--ro description?    string
       |  +--ro enabled?        boolean
       |  +--ro admin-status    enumeration
+      |  +--ro counters
+      +--rw subinterfaces
       +--rw oc-eth:ethernet
       <b>|  +--rw oc-vlan:switched-vlan
       |  |  +--rw oc-vlan:config
@@ -102,16 +104,9 @@ This document provides general information about the OpenConfig configuration of
       |  |  |     +--rw oc-ip:config
       |  |  |     |  +--rw oc-ip:ip?              oc-inet:ipv4-address
       |  |  |     |  +--rw oc-ip:prefix-length?   uint8
-      |  |  |     |  +--rw oc-ip:secondary?       boolean
       |  |  |     +--ro oc-ip:state
       |  |  |     |  +--ro oc-ip:ip?              oc-inet:ipv4-address
       |  |  |     |  +--ro oc-ip:prefix-length?   uint8
-      |  |  |     |  +--ro oc-ip:secondary?       boolean
-      |  |  +--rw oc-ip:proxy-arp
-      |  |  |  +--rw oc-ip:config
-      |  |  |  |  +--rw oc-ip:mode?   enumeration
-      |  |  |  +--ro oc-ip:state
-      |  |  |     +--ro oc-ip:mode?   enumeration
       |  +--rw oc-ip:ipv6
       |     +--rw oc-ip:addresses
       |     |  +--rw oc-ip:address* [ip]
@@ -125,12 +120,7 @@ This document provides general information about the OpenConfig configuration of
       |     +--rw oc-ip:config
       |     |  +--rw oc-ip:enabled?           boolean
       |     +--ro oc-ip:state
-      |     |  +--ro oc-ip:enabled?           boolean
-      |     +--rw oc-ip:nd-proxy
-      |     |  +--rw oc-ip:config
-      |     |  |  +--rw oc-ip:mode?             enumeration
-      |     |  +--ro oc-ip:state
-      |     |     +--ro oc-ip:mode?             enumeration</b>
+      |     |  +--ro oc-ip:enabled?           boolean</b>
 </pre>
 
 # Definition/Abbreviation
@@ -149,10 +139,12 @@ This document provides general information about the OpenConfig configuration of
 2. Configure/Set, GET, and Delete VLAN interface attributes.
 3. Support addition/deletion of Ethernet and PortChannel interfaces as VLAN members.
 4. Support IPv4 and IPv6 address configuration on VLAN interfaces via REST and gNMI.
-5. Support CVL custom validations to prevent unsupported combinations of L2 and L3 configurations.
 
 ### 1.1.2 Configuration and Management Requirements
 The VLAN interface and member configurations can be done via REST and gNMI. The implementation will return an error if a configuration is not allowed. No new configuration commands or methods are added beyond what already exists.
+
+### 1.1.3 Scalability Requirements
+To be added.
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
@@ -162,7 +154,7 @@ The code changes for this feature are part of *Management Framework* container w
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-1. REST client through which the user can perform POST, PUT, PATCH, DELETE, GET operations on the supported YANG paths.
+1. REST client through which the user can perform PATCH, DELETE, POST, PUT, and GET operations on the supported YANG paths.
 2. gNMI client with support for capabilities get and set based on the supported YANG models.
 
 # 3 Design
@@ -188,11 +180,11 @@ Supported at leaf level as well.
 Sample GET output on VLAN interface without IP configuration: 
 ```
 curl -X GET -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Vlan10" -H "accept: application/yang-data+json"
-{"openconfig-interfaces:interface":[{"config":{"enabled":true,"name":"Vlan10"},"name":"Vlan10","openconfig-vlan:routed-vlan":{"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}}},"state":{"admin-status":"UP","enabled":true,"ifindex":30010,"mtu":9100,"name":"Vlan10"}}]}
+{"openconfig-interfaces:interface":[{"config":{"enabled":true,"name":"Vlan10"},"name":"Vlan10","openconfig-vlan:routed-vlan":{"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}}},"state":{"admin-status":"UP","enabled":true,"mtu":9100,"name":"Vlan10"}}]}
 ```
 With IPv4 configuration: 
 ```
-{"openconfig-interfaces:interface":[{"config":{"enabled":true,"name":"Vlan10"},"name":"Vlan10","openconfig-vlan:routed-vlan":{"config":{"vlan":"Vlan10"},"openconfig-if-ip:ipv4":{"addresses":{"address":[{"config":{"ip":"133.3.3.4","prefix-length":24,"secondary":false},"ip":"133.3.3.4","state":{"ip":"133.3.3.4","prefix-length":24,"secondary":false}}]}},"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}},"state":{"vlan":"Vlan10"}},"state":{"admin-status":"UP","enabled":true,"mtu":9100,"name":"Vlan10"}}]}
+{"openconfig-interfaces:interface":[{"config":{"enabled":true,"name":"Vlan10"},"name":"Vlan10","openconfig-vlan:routed-vlan":{"config":{"vlan":"Vlan10"},"openconfig-if-ip:ipv4":{"addresses":{"address":[{"config":{"ip":"133.3.3.4","prefix-length":24},"ip":"133.3.3.4","state":{"ip":"133.3.3.4","prefix-length":24}}]}},"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}},"state":{"vlan":"Vlan10"}},"state":{"admin-status":"UP","enabled":true,"mtu":9100,"name":"Vlan10"}}]}
 ```
 With IPv6 configuration: 
 ```
@@ -200,28 +192,28 @@ With IPv6 configuration:
 ```
 Sample GET output on Ethernet interface as a member of VLAN (trunk): 
 ```
-curl -X GET -k -u "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan" -H "accept: application/yang-data+json"
+curl -X GET -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan" -H "accept: application/yang-data+json"
 {"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"TRUNK","trunk-vlans":[10]},"state":{"interface-mode":"TRUNK","trunk-vlans":[10]}}}
 ```
-Sample GET output on Ethernet interface as a member of VLAN (trunk): 
+Sample GET output on Ethernet interface as a member of VLAN (trunk, multiple VLANs):
 ```
-curl -X GET -k -u "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan" -H "accept: application/yang-data+json"
+curl -X GET -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan" -H "accept: application/yang-data+json"
 {"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"TRUNK","trunk-vlans":[10,20,30]},"state":{"interface-mode":"TRUNK","trunk-vlans":[10,20,30]}}}
 ```
 Sample GET output on PortChannel interface as a member of VLAN (access): 
 ```
-curl -X GET -k -u "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=PortChannel100/openconfig-if-aggregate:aggregation/openconfig-vlan:switched-vlan" -H "accept: application/yang-data+json"
+curl -X GET -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=PortChannel100/openconfig-if-aggregate:aggregation/openconfig-vlan:switched-vlan" -H "accept: application/yang-data+json"
 {"openconfig-vlan:switched-vlan":{"config":{"access-vlan":10,"interface-mode":"ACCESS"},"state":{"access-vlan":10,"interface-mode":"ACCESS"}}}
 ```
 Sample GET output on Ethernet interface as a member of VLAN (access + trunk): 
 ```
-curl -X GET -k -u "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan" -H "accept: application/yang-data+json"
+curl -X GET -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan" -H "accept: application/yang-data+json"
 {"openconfig-vlan:switched-vlan":{"config":{"access-vlan":10,"interface-mode":"TRUNK","trunk-vlans":[20,30]},"state":{"access-vlan":10,"interface-mode":"TRUNK","trunk-vlans":[20,30]}}}
 ```
 Sample GET output for multiple VLAN interfaces (top level): 
 ```
-curl -X GET -k -u admin:dellsonic "https://100.94.113.29/restconf/data/openconfig-interfaces:interfaces" -H "accept: application/yang-data+json"
-{"openconfig-interfaces:interfaces":{"interface":[{"config":{"enabled":true,"mtu":9200,"name":"Vlan10"},"name":"Vlan10","openconfig-vlan:routed-vlan":{"config":{"vlan":"Vlan10"},"openconfig-if-ip:ipv4":{"addresses":{"address":[{"config":{"ip":"133.3.3.4","prefix-length":24,"secondary":false},"ip":"133.3.3.4","state":{"ip":"133.3.3.4","prefix-length":24,"secondary":false}}]}},"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}},"state":{"vlan":"Vlan10"}},"state":{"admin-status":"UP","enabled":true,"mtu":9200,"name":"Vlan10"}},{"config":{"enabled":true,"name":"Vlan20"},"name":"Vlan20","openconfig-vlan:routed-vlan":{"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}}},"state":{"admin-status":"UP","enabled":true,"mtu":9100,"name":"Vlan20"}},{"config":{"enabled":true,"name":"Vlan30"},"name":"Vlan30","openconfig-vlan:routed-vlan":{"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}}},"state":{"admin-status":"UP","enabled":true,"mtu":9100,"name":"Vlan30"}},{"config":{"description":"test_vlan","enabled":true,"mtu":9000,"name":"Vlan40"},"name":"Vlan40","openconfig-vlan:routed-vlan":{"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}}},"state":{"admin-status":"UP","description":"test_vlan","enabled":true,"mtu":9000,"name":"Vlan40"}}]}}
+curl -X GET -k "https://100.94.113.29/restconf/data/openconfig-interfaces:interfaces" -H "accept: application/yang-data+json"
+{"openconfig-interfaces:interfaces":{"interface":[{"config":{"enabled":true,"mtu":9200,"name":"Vlan10"},"name":"Vlan10","openconfig-vlan:routed-vlan":{"config":{"vlan":"Vlan10"},"openconfig-if-ip:ipv4":{"addresses":{"address":[{"config":{"ip":"133.3.3.4","prefix-length":24},"ip":"133.3.3.4","state":{"ip":"133.3.3.4","prefix-length":24}}]}},"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}},"state":{"vlan":"Vlan10"}},"state":{"admin-status":"UP","enabled":true,"mtu":9200,"name":"Vlan10"}},{"config":{"enabled":true,"name":"Vlan20"},"name":"Vlan20","openconfig-vlan:routed-vlan":{"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}}},"state":{"admin-status":"UP","enabled":true,"mtu":9100,"name":"Vlan20"}},{"config":{"enabled":true,"name":"Vlan30"},"name":"Vlan30","openconfig-vlan:routed-vlan":{"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}}},"state":{"admin-status":"UP","enabled":true,"mtu":9100,"name":"Vlan30"}},{"config":{"description":"test_vlan","enabled":true,"mtu":9000,"name":"Vlan40"},"name":"Vlan40","openconfig-vlan:routed-vlan":{"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}}},"state":{"admin-status":"UP","description":"test_vlan","enabled":true,"mtu":9000,"name":"Vlan40"}}]}}
 ```
 
 #### 3.3.1.2 PUT
@@ -238,7 +230,7 @@ curl -X GET -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interf
 #### 3.3.1.2 POST
 Supported at leaf level as well. Sample POST to update an existing VLAN Interface:
 ```
-curl -X POST -k -u admin:dellsonic "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Vlan40" -H "accept: */*" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-interfaces:config\":{\"name\":\"Vlan40\",\"mtu\":9000,\"description\":\"test_vlan\",\"enabled\":true}}"
+curl -X POST -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Vlan40" -H "accept: */*" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-interfaces:config\":{\"name\":\"Vlan40\",\"mtu\":9000,\"description\":\"test_vlan\",\"enabled\":true}}"
 ```
 Sample Verify VLAN POST with GET:
 ```
@@ -293,15 +285,245 @@ curl -X DELETE -k "https://100.94.113.12/restconf/data/openconfig-interfaces:int
 
 ### 3.3.2 gNMI Support
 #### 3.3.2.1 GET
-Supported
+VLAN interface GET:
+```
+gnmi_get -insecure -logtostderr -username USER -password PASSWORD -target_addr localhost:8080 -xpath /openconfig-interfaces:interfaces/interface[name=Vlan10]/config
+```
+Response:
+```
+== getResponse:
+notification: <
+  timestamp: 1748360651441367172
+  prefix: <
+  >
+  update: <
+    path: <
+      elem: <
+        name: "openconfig-interfaces:interfaces"
+      >
+      elem: <
+        name: "interface"
+        key: <
+          key: "name"
+          value: "Vlan10"
+        >
+      >
+      elem: <
+        name: "config"
+      >
+    >
+    val: <
+      json_ietf_val: "{\"openconfig-interfaces:config\":{\"enabled\":true,\"mtu\":9100,\"name\":\"Vlan10\"}}"
+    >
+  >
+>
+```
+
+VLAN member GET:
+```
+gnmi_get -insecure -logtostderr -username USER -password PASSWORD -target_addr localhost:8080 -xpath /openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config/access-vlan
+```
+Response:
+```
+== getResponse:
+notification: <
+  timestamp: 1748360933199402296
+  prefix: <
+  >
+  update: <
+    path: <
+      elem: <
+        name: "openconfig-interfaces:interfaces"
+      >
+      elem: <
+        name: "interface"
+        key: <
+          key: "name"
+          value: "Ethernet0"
+        >
+      >
+      elem: <
+        name: "openconfig-if-ethernet:ethernet"
+      >
+      elem: <
+        name: "openconfig-vlan:switched-vlan"
+      >
+      elem: <
+        name: "config"
+      >
+      elem: <
+        name: "access-vlan"
+      >
+    >
+    val: <
+      json_ietf_val: "{\"openconfig-vlan:access-vlan\":20}"
+    >
+  >
+>
+```
+
 #### 3.3.2.2 SET
-Supported
+VLAN interface SET:
+```
+gnmi_set -insecure -logtostderr -username USER -password PASSWORD -target_addr localhost:8080 -xpath_target OC-YANG -update /openconfig-interfaces:interfaces/interface[name=Vlan10]/config/mtu:@/host_home/admin/vlanParams.json
+
+vlanParams.json:
+{
+  "openconfig-interfaces:mtu": 9000
+}
+```
+GET response:
+```
+== getResponse:
+notification: <
+  timestamp: 1748361538102868503
+  prefix: <
+  >
+  update: <
+    path: <
+      elem: <
+        name: "openconfig-interfaces:interfaces"
+      >
+      elem: <
+        name: "interface"
+        key: <
+          key: "name"
+          value: "Vlan10"
+        >
+      >
+      elem: <
+        name: "config"
+      >
+      elem: <
+        name: "mtu"
+      >
+    >
+    val: <
+      json_ietf_val: "{\"openconfig-interfaces:mtu\":9000}"
+    >
+  >
+>
+```
+
+VLAN member SET:
+```
+gnmi_set -insecure -logtostderr -username USER -password PASSWORD -target_addr localhost:8080 -xpath_target OC-YANG -update /openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config:@/host_home/admin/vlanParams.json
+
+vlanParams.json:
+{
+  "openconfig-vlan:config": {
+    "interface-mode": "TRUNK",
+    "access-vlan": 10,
+    "trunk-vlans": [
+      20,30
+    ]
+  }
+}
+```
+GET response:
+```
+== getResponse:
+notification: <
+  timestamp: 1748361802519711977
+  prefix: <
+  >
+  update: <
+    path: <
+      elem: <
+        name: "openconfig-interfaces:interfaces"
+      >
+      elem: <
+        name: "interface"
+        key: <
+          key: "name"
+          value: "Ethernet0"
+        >
+      >
+      elem: <
+        name: "openconfig-if-ethernet:ethernet"
+      >
+      elem: <
+        name: "openconfig-vlan:switched-vlan"
+      >
+      elem: <
+        name: "config"
+      >
+    >
+    val: <
+      json_ietf_val: "{\"openconfig-vlan:config\":{\"access-vlan\":10,\"interface-mode\":\"TRUNK\",\"trunk-vlans\":[20,30]}}"
+    >
+  >
+>
+```
+
 #### 3.3.2.3 DELETE
-Supported
+VLAN member DELETE:
+```
+gnmi_set -insecure -logtostderr -username USER -password PASSWORD -target_addr localhost:8080 -xpath_target OC-YANG -delete /openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config
+```
+GET Response:
+```
+== getResponse:
+notification: <
+  timestamp: 1748362174006779453
+  prefix: <
+  >
+  update: <
+    path: <
+      elem: <
+        name: "openconfig-interfaces:interfaces"
+      >
+      elem: <
+        name: "interface"
+        key: <
+          key: "name"
+          value: "Ethernet0"
+        >
+      >
+      elem: <
+        name: "openconfig-if-ethernet:ethernet"
+      >
+      elem: <
+        name: "openconfig-vlan:switched-vlan"
+      >
+      elem: <
+        name: "config"
+      >
+    >
+    val: <
+      json_ietf_val: "{}"
+    >
+  >
+>
+```
+VLAN interface DELETE:
+```
+gnmi_set -insecure -logtostderr -username USER -password PASSWORD -target_addr localhost:8080 -xpath_target OC-YANG -delete /openconfig-interfaces:interfaces/interface[name=Vlan10]
+```
+GET Response:
+```
+== getRequest:
+prefix: <
+>
+path: <
+  elem: <
+    name: "openconfig-interfaces:interfaces"
+  >
+  elem: <
+    name: "interface"
+    key: <
+      key: "name"
+      value: "Vlan10"
+    >
+  >
+>
+encoding: JSON_IETF
+
+Get failed: rpc error: code = NotFound desc = Resource not found
+```
 
 ### 3.3.3 gNMI Subscription Support
 #### 3.3.3.1 On Change
-
 VLAN interface config (config level):
 ```
 gnmi_cli -insecure -logtostderr -target OC_YANG -address localhost:8080 -query_type streaming -streaming_type ON_CHANGE -query /openconfig-interfaces:interfaces/interface[name=Vlan10]/config --with_user_pass
@@ -731,29 +953,6 @@ Example Output:
               "addresses": {
                 "address": {
                   "133.3.3.4": {
-                    "config": {
-                      "secondary": false
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-{
-  "OC_YANG": {
-    "openconfig-interfaces:interfaces": {
-      "interface": {
-        "Vlan10": {
-          "openconfig-vlan:routed-vlan": {
-            "openconfig-if-ip:ipv4": {
-              "addresses": {
-                "address": {
-                  "133.3.3.4": {
                     "state": {
                       "ip": "133.3.3.4"
                     }
@@ -854,7 +1053,7 @@ Example Output:
 # 4 Flow Diagrams
 Mapping attributes between OpenConfig YANG and Community SONiC YANG:
 
-|   OC YANG (openconfig-interfaces.yang)       |    SONiC YANG (sonic-vlan.yang)    |
+|   OpenConfig YANG (openconfig-interfaces.yang)       |    SONiC YANG (sonic-vlan.yang)    |
 |----------------------------------------------|------------------------------------|
 |                                              |    *container VLAN*                |
 |   name                                       |    name                            |
@@ -863,7 +1062,7 @@ Mapping attributes between OpenConfig YANG and Community SONiC YANG:
 |   vlan-id (openconfig-vlan.yang)             |    vlanid                          |
 
 
-|   OC YANG (openconfig-vlan.yang)             |    SONiC YANG (sonic-vlan.yang)    |
+|   OpenConfig YANG (openconfig-vlan.yang)             |    SONiC YANG (sonic-vlan.yang)    |
 |----------------------------------------------|------------------------------------|
 |                                              |    *container VLAN_MEMBER*         |
 |   name                                       |    name                            |
@@ -871,27 +1070,25 @@ Mapping attributes between OpenConfig YANG and Community SONiC YANG:
 |   name (openconfig-interfaces.yang)          |    port                            |
 
 
-|   OC YANG (openconfig-if-ip.yang)            |  SONiC YANG (sonic-vlan.yang)      |
+|   OpenConfig YANG (openconfig-if-ip.yang)            |  SONiC YANG (sonic-vlan.yang)      |
 |----------------------------------------------|------------------------------------|
 |                                              |  *container VLAN_INTERFACE*        |
 |   name                                       |    name                            |
 |   enabled                                    |    ipv6_use_link_local_only        | 
 |   ip + prefix-length                         |    ip-prefix                       |
-|   secondary                                  |    secondary                       |
-|   mode                                       |    proxy_arp                       |
 
 
 # 5 Error Handling
 Invalid configurations will report an error.
 # 6 Unit Test cases
 ## 6.1 Functional Test Cases
-1. Create and verify new VLAN interface using PUT, PATCH, and POST and GET via REST/gNMI.
-2. Verify GET, PATCH, PUT, POST and DELETE for L3 configurations (ip address, prefix-length, secondary, and ipv6 enabled) on VLAN interface works as expected via REST/gNMI.
-3. Verify that enable/disable of ipv6 enabled works as expected via REST and gNMI.
-3. Verify GET, PATCH, PUT, and DELETE for VLAN interface mtu works as expected via REST/gNMI.
-4. Verify GET, PATCH, PUT, and DELETE for VLAN interface admin_status works as expected via REST/gNMI.
-5. Verify GET, PATCH, PUT, POST, and DELETE for VLAN members (physical Ethernet and PortChannel, trunk and access).
-6. Verify gNMI subscription (on change, sample, target defined) for VLAN interface and member configurations works as expected.
+1. Create, verify, and delete VLAN interface using PUT, PATCH, POST, GET, and DELETE via REST/gNMI.
+2. Verify GET, PATCH, PUT, POST and DELETE for L3 configurations (ip address, prefix-length, and ipv6 enabled) on VLAN interface works as expected via REST/gNMI.
+3. Verify that enable/disable of attribute **ipv6 enabled** works as expected via REST and gNMI.
+4. Verify GET, PATCH, PUT, and DELETE for VLAN interface attribute **mtu** works as expected via REST/gNMI.
+5. Verify GET, PATCH, PUT, and DELETE for VLAN interface attribute **admin_status** works as expected via REST/gNMI.
+6. Verify GET, PATCH, PUT, POST, and DELETE for VLAN members (physical Ethernet and PortChannel, trunk and access).
+7. Verify gNMI subscription (on change, sample, target defined) for VLAN interface and member configurations works as expected.
 
 ## 6.2 Negative Test Cases
 1. Verify GET after DELETE returns a "Resource Not Found" error.
@@ -901,36 +1098,4 @@ GET deleted VLAN interface:
 curl -X GET -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Vlan10" -H "accept: application/yang-data+json"
 
 {"ietf-restconf:errors":{"error":[{"error-type":"application","error-tag":"invalid-value","error-message":"Resource not found"}]}}
-```
-
-2. (CVL) Block configuration of VLAN member when physical interface has existing IP or PO configuration.
-
-PATCH add VLAN member with existing L3 config:
-```
-curl -X PATCH -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config" -H "accept: */*" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-vlan:config\":{\"interface-mode\":\"ACCESS\",\"access-vlan\":10}}"
-
-{"ietf-restconf:errors":{"error":[{"error-type":"application","error-tag":"invalid-value","error-message":"VLAN configuration not allowed. Ethernet0 has L3 configuration.","error-info":{"cvl-error":{"error-code":1002,"description":"Config Validation Error","table-name":"PORT","key-values":["PORT","Ethernet0"]}}}]}}
-```
-
-PATCH add VLAN member with existing PO config:
-```
-curl -X PATCH -k "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config" -H "accept: */*" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-vlan:config\":{\"interface-mode\":\"ACCESS\",\"access-vlan\":10}}"
-
-{"ietf-restconf:errors":{"error":[{"error-type":"application","error-tag":"invalid-value","error-app-tag":"Config Validation Error","error-message":"Vlan configuration not allowed. Ethernet0 already member of PortChannel12","error-info":{"cvl-error":{"error-code":1002,"table-name":"PORT","key-values":["PORT","Ethernet0"]}}}]}}
-```
-
-3. (CVL) Block IP or PO configuration when physical interface has VLAN member configuration.
-
-PATCH add interface with VLAN config to PortChannel:
-```
-curl -X PATCH -k -u admin:dellsonic "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id" -H "accept: */*" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-if-aggregate:aggregate-id\":\"PortChannel12\"}"
-
-{"ietf-restconf:errors":{"error":[{"error-type":"application","error-tag":"invalid-value","error-app-tag":"Config Validation Error","error-message":"PortChannel configuration not allowed. Access VLAN:10 configuration exists on interface Ethernet0.","error-info":{"cvl-error":{"error-code":1002,"table-name":"PORTCHANNEL_MEMBER","key-values":["PORTCHANNEL_MEMBER","PortChannel12","Ethernet0"]}}}]}}
-```
-
-PATCH configure IP address on interface with VLAN config:
-```
-curl -X PATCH -k -u admin:dellsonic "https://100.94.113.12/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/subinterfaces/subinterface=0/openconfig-if-ip:ipv4/addresses" -H "accept: */*" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-if-ip:addresses\": {\"address\": [{\"ip\": \"133.3.3.4\", \"openconfig-if-ip:config\": {\"ip\": \"133.3.3.4\", \"prefix-length\": 24}}]}}"
-
-{"ietf-restconf:errors":{"error":[{"error-type":"application","error-tag":"invalid-value","error-app-tag":"Config Validation Error","error-message":"L3 configuration not allowed. Access VLAN:10 configuration exists on interface Ethernet0.","error-info":{"cvl-error":{"error-code":1002,"table-name":"INTERFACE","key-values":["INTERFACE","Ethernet0"]}}}]}}
 ```
