@@ -203,3 +203,10 @@ The diagram above illustrates two scenarios where both module_base.py and smarts
 This design ensures that only one reboot process is initiated, regardless of which component triggers it first, thereby preventing race conditions and ensuring system stability.
 
 ---
+
+## References
+
+- [PMON HLD](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/pmon/smartswitch-pmon.md)
+- [Smart Switch Reboot HLD](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/reboot/reboot-hld.md)
+
+---
