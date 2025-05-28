@@ -186,7 +186,7 @@ The diagram above illustrates two scenarios where both module_base.py and smarts
 
 * If module_base.py attempts to write to GNOI_REBOOT_REQUEST with start=true during this process, the operation has no effect since the start field is already true.
 
-* However, when the "GNOI_REBOOT_RESULT" is ready the module_base.py will still consume the result and the shutdown of the DPU completes as well.
+* However, when the "GNOI_REBOOT_RESULT" is ready the module_base.py will still consume the result and the shutdown of the DPU completes as well, but the `reboot` request will not proceed further as it sees the DPU state to be `admin down`.
 
 **Scenario 2:** module_base.py **triggers first**
 
@@ -198,7 +198,7 @@ The diagram above illustrates two scenarios where both module_base.py and smarts
 
 * If smartswitch_reboot_helper attempts to write to GNOI_REBOOT_REQUEST with start=true during this process, the operation has no effect since the start field is already true.
 
-* The graceful shutdown completes as planned. Ignoring a reboot of a module that is being shutdown has no significance.
+* The graceful shutdown completes as planned. However, the `reboot` request will not proceed further as it sees the DPU state to be `admin down`.
 
 This design ensures that only one reboot process is initiated, regardless of which component triggers it first, thereby preventing race conditions and ensuring system stability.
 
