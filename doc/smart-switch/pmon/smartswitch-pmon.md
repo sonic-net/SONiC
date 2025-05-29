@@ -1,4 +1,4 @@
- SmartSwitch PMON High Level Design
+# SmartSwitch PMON High Level Design
 
 | Rev | Date | Author | Change Description |
 | --- | ---- | ------ | ------------------ |
@@ -568,7 +568,7 @@ The DPU state management is implemented through a combination of classes that ha
 1. **DPU State updates from the switch**
    * The switch updates the midplane state after querying the `is_midplane_reachable` platform API for the corresponding DPU. This is an universal implementation for all platforms
    * The midplane state is updated at a specific frequency by the chassisd running on the switch (The frequency is once every 10 seconds - as per `CHASSIS_INFO_UPDATE_PERIOD_SECS` in chassisd)
-   * If the midplane state is down (which means that the DPU is no longer accessible through the midplane) This means that the state information which is present is no longer valid at the current instant, so the state information for control plane and data plane is set to 'down' along with the timestamp, but the data plane and the control plane reasons are retained as is for further debugging.
+   * If the midplane state is down (which means that the DPU is no longer accessible through the midplane) This means that the state information which is present is no longer valid at the current instant, so the state information for control plane and data plane is set to 'down' but the data plane and the control plane reasons and the timestamps are retained as is for further debugging.
 
 2. **DpuStateManagerTask Class - present in Chassisd on DPU - Platform specific, Dependent on chassisd being enabled on DPU**
    * Monitors state changes through multiple database tables:
