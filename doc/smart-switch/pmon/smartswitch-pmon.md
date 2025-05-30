@@ -562,7 +562,7 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
         ”dpu_data_plane_reason": ”Pipeline failure",
 ```
 #### DPU State Management Default Implementation
-This implementation is valid only for platforms which use PMON to update the midplane, control plane and data plane states.
+This implementation is valid for all smartswitch platforms (the midplane state updates from switch chassisd are generic, but the control plane and data plane state updates mentioned here is valid for platforms which run chassisd for state updates on DPU)
 The DPU state management is implemented through a combination of classes that handle state updates, monitoring and persistence:
 
 1. **DPU State updates from the switch**
@@ -595,7 +595,6 @@ The state management implementation ensures:
 * Support for both polling and event-driven state updates. The polling mode is only relevant when the `get_dataplane_state` and the `get_controlplane_state` functions are implemented for the specific DPU platform. If not by default event driven mode is used by default
 
 
-#### 3.1.5.4 Need for consistent storage and access of DPU reboot cause, state and health
 #### 3 DPU Health
 This feature is implemented in two phases.
 #### Phase:1
