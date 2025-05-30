@@ -323,6 +323,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | | vip_ipv6 | IPv6 virtual IP address of the DPU. | abcd::1 |
 | | | pa_ipv4 | IPv4 address. | 10.0.1.1 |
 | | | pa_ipv6 | IPv6 address. | aaaa:bbbb:1:1 |
+| | | midplane_ipv4 | Midplane IPv4 address. | 169.254.0.1 |
 | | | dpu_id | Id of the DPU. Integer starting from 0. | 0 |
 | | | vdpu_id | Id of the vDPU. | vdpu1 |
 | | | gnmi_port | TCP listening port for gNMI service on DPU. | 50051 |
