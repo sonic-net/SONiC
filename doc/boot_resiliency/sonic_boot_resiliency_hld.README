@@ -92,6 +92,16 @@ In the single partitioned SONiC disk, /host is the NOS partition and lot of SONi
 
     Once SONiC is installed and booted, the SONiC CLI commands that manage images would need to be aware that there are 2 different partitions in order to enable image upgrades, downgrades, set-next-boot etc. sonic-utilities REPO will be modified to add appropriate support.
 
+* Grub Config Changes:
+
+    Grub on each partition will configured to boot either of the SONiC images. When a user configured the CLI next-boot or default-boot option, the grub's default/next-boot will be updated to boot the right image. Both partition grub will be updated with the correct pointers.
+
+* Boot Recovery:
+
+    Each of the partitions are fully independant and can boot any of the images in either of the partitions. Below is a diagram that explains the image pointers. BIOS can boot either EFI-A or EFI-B. EFI-A/EFI-B can boot either IMAGE-A or IMAGE-B. The final grub configuration in the SONiC image of IMAGE-A or IMAGE-B will determine which SONiC will boot. Below diagram shows the details
+
+
+![alt_text](img/boot_resiliency.png)
 
 ### SAI API
 None
