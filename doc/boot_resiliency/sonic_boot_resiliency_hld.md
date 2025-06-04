@@ -1,4 +1,4 @@
-# Enhancing SONiC Boot Resiliency High Level Design#
+# Enhancing SONiC Boot Resiliency High Level Design
 
 ## Table of Content
 - [Revision](#revision)
@@ -103,7 +103,7 @@ In the single partitioned SONiC disk, /host is the NOS partition and lot of SONi
 
 * Boot Recovery:
 
-    Each of the partitions are fully independant and can boot any of the images in either of the partitions. Below is a diagram that explains the image pointers. BIOS can boot either EFI-A or EFI-B. EFI-A/EFI-B can boot either IMAGE-A or IMAGE-B. The final grub configuration in the IMAGE-A/IMAGE-B partition will determine which SONiC will boot. This is the grub config that sonic-installer CLI will edit in both image partitions. 
+    Each of the partitions are fully independant and can boot any of the images in either of the partitions. Below is a diagram that explains the image pointers. BIOS can boot either EFI-A or EFI-B. EFI-A/EFI-B can boot either IMAGE-A or IMAGE-B. The final grub configuration in the IMAGE-A/IMAGE-B partition will determine which SONiC will boot. This is the grub config that sonic-installer CLI will edit in both image partitions.
 
 <p align="center">
 <img src="img/boot_resiliency.png" />
@@ -120,7 +120,7 @@ None
 
 #### CLI/YANG model Enhancements
 
-sonic-installer CLI would change how the images get displayed in the "sonic-installer list" command. Images will be tagged with with IMAGE-A and IMAGE-B along with the SONiC image version. A example CLI output would look like below
+sonic-installer CLI would change how the images get displayed in the "sonic-installer list" command. Images will be tagged with IMAGE-A and IMAGE-B along with the SONiC image version. A example CLI output would look like below
 
 ```
 root@sonic-device:~# sonic-installer list
