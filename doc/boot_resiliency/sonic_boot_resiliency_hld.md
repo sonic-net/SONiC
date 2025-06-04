@@ -56,7 +56,9 @@ Disk failures, filesystem corruptions, partition corruptions on disks are a comm
 
 Below is an overview of how the Partitions look like. A corruption in either EFI partition or SONiC partition will render the box offline until a recovery is performed.
 
-![alt_text](img/current_partitioning.png)
+<p align="center">
+<img src="img/current_partitioning.png" />
+</p>
 
 #### New Partition Scheme
 
@@ -66,11 +68,14 @@ Below is an overview of how the Partitions look like. A corruption in either EFI
 * IMAGE-B: A completely self-reliant copy SONiC NOS of a specific version.
 * DATA-A/DATA-B: Optional Partitions for application data that need disk redundancy.
 
-![alt_text](img/ab_partitioning.png)
+
+<p align="center">
+<img src="img/ab_partitioning.png" />
+</p>
 
 The /host partition was a single partition in the traditional SONiC deployments. With A/B partitioned disk, /host will point to the active partition either IMAGE-A or the IMAGE-B partition. This change needs to be handled appropriately at all the places where /host is used as a common location for all SONiC images.
 
-Given that each SONiC version will be an independant partition, any of the SONiC images can recover the other partition SONiC image in case one of the partitions is corrupted. With this ability, SONiC can now be independant of needing ONIE on the device to recovery.
+Given that each SONiC version will be an independant partition, any of the SONiC images can recover the other partition SONiC image in case one of the partitions is corrupted. With this ability, SONiC can now be independant of needing ONIE on the device to recover it in the field.
 
 #### "/host" Partition:
 
@@ -98,10 +103,13 @@ In the single partitioned SONiC disk, /host is the NOS partition and lot of SONi
 
 * Boot Recovery:
 
-    Each of the partitions are fully independant and can boot any of the images in either of the partitions. Below is a diagram that explains the image pointers. BIOS can boot either EFI-A or EFI-B. EFI-A/EFI-B can boot either IMAGE-A or IMAGE-B. The final grub configuration in the IMAGE-A/IMAGE-B partition will determine which SONiC will boot. This is the grub config that sonic-installer CLI will edit in both image partitions.
+    Each of the partitions are fully independant and can boot any of the images in either of the partitions. Below is a diagram that explains the image pointers. BIOS can boot either EFI-A or EFI-B. EFI-A/EFI-B can boot either IMAGE-A or IMAGE-B. The final grub configuration in the IMAGE-A/IMAGE-B partition will determine which SONiC will boot. This is the grub config that sonic-installer CLI will edit in both image partitions. 
 
+<p align="center">
+<img src="img/boot_resiliency.png" />
+</p>
 
-![alt_text](img/boot_resiliency.png)
+In the above, the short vertical arrows represent the default decision paths. Only if that path is corrupted or inaccessible, the longer paths are traversed to reach the SONiC version that a user wants to boot.
 
 ### SAI API
 None
