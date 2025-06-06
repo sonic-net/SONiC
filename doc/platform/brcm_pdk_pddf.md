@@ -1172,6 +1172,7 @@ $ tree --filesfirst /sys/kernel/pddf/devices/multifpgapci
 │       ├── ch_size
 │       ├── del_i2c_adapter
 │       ├── new_i2c_adapter
+│       ├── num_virt_ch
 │       └── virt_bus
 └── 0000:04:00.0
     ├── dev_ops
@@ -1180,6 +1181,7 @@ $ tree --filesfirst /sys/kernel/pddf/devices/multifpgapci
         ├── ch_size
         ├── del_i2c_adapter
         ├── new_i2c_adapter
+        ├── num_virt_ch
         └── virt_bus
 ```
 This structure shows:
@@ -1248,7 +1250,15 @@ echo '0x200' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/i2c/ch_base_of
 echo '0x200' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/i2c/ch_size
 ```
 
-4.  **`new_i2c_adapter` (Write-only)**:
+4.  **`num_virt_ch`**:
+    * **Purpose**: Specifies the number of I2C buses controlled by this FPGA.
+    * **Usage**: Write a hexadecimal value.
+    * **Example**:
+```bash
+echo '0x8' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/i2c/num_virt_ch
+```
+
+5.  **`new_i2c_adapter` (Write-only)**:
     * **Purpose**: Creates a new I2C bus adapter managed by the FPGA's I2C IP.
     * **Usage**: Write a decimal `$INDEX` value. The new I2C bus will be numbered `virt_bus + $INDEX`. Its control block will be located at `ch_base_offset + $INDEX * ch_size`.
     * **Result**: A new I2C bus entry (e.g. `i2c-19`, `i2c-20`, etc.) will appear under `/sys/bus/i2c/devices/`, and I2C client devices can then be instantiated on this bus.
@@ -1259,7 +1269,7 @@ echo 1 > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/i2c/new_i2c_adapter
 # ... and so on for all desired channels
 ```
 
-5.  **`del_i2c_adapter` (Write-only)**:
+6.  **`del_i2c_adapter` (Write-only)**:
     * **Purpose**: Deletes an existing I2C bus adapter previously created by this FPGA.
     * **Usage**: Write the `$INDEX` of the I2C adapter to be removed.
     * **Example**:
