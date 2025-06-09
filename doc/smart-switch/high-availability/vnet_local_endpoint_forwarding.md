@@ -53,21 +53,9 @@ flowchart LR
     AclOrch --> SAI/SDK
 ```
 
-To distinguish the local endpoints from the endpoint list, (so we can avoid creating tunnel terminated ACL for all scenarios) a new field in `VNET_ROUTE_TUNNEL_TABLE` is added: 
+We will leverage `check_directly_connected`, to distinguish the local endpoints from the endpoint list, (so we can avoid creating tunnel terminated ACL for all scenarios),
 
-```
-VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
-    "local_endpoint"  = /{/{true|false/},/{true|false/},.../}  (OPTIONAL)
-```
-
-```
-; Defines schema for VNet Route tunnel table attributes
-key                                   = VNET_ROUTE_TUNNEL_TABLE:vnet_name:prefix ; Vnet route tunnel table with prefix
-; field                               = value
-local_endpoint                        = BOOL
-```
-
-If local_endpoint is specified, ACL rule to match TUNNEL_TERM flag to be added.
+If `check_directly_connected` flag is enabled, and an endpoint can be confirmed as a neighbor, ACL rule to match TUNNEL_TERM flag to be added accordingly.
 
 ```
 {
