@@ -29,6 +29,7 @@
 | 0.4| 03/20/2024 | Kumaresh Perumal | Update ACL usage |
 | 1.0| 03/26/2024| Kumaresh Perumal| Update with BFD Trap, Rx/Tx timers in APP_DB|
 |1.1| 05/28/2024 | Kumaresh Perumal | BFD session state updates to HA Scope state DB|
+|1.2| 12/01/2024 | Abdel Baig | Update DPU session state, FRR changes, orchagent changes|
 
 # About this Manual
 This document provides general information about the NPU-DPU liveness detection using BFD probes between NPU and DPU.
@@ -119,12 +120,12 @@ Multihop BFD sessions are created between NPU and a remote DPU.
 
 ## 2.3 BFD Active-Passive mode
 
-HA manager(hamgrd) in NPU creates DPU routing rules for DPU-level HA using VNET_ROUTE_TUNNEL_TABLE which will trigger bfdOrch to create BFD Active session with local and peer information. NPU supports BFD hardware offload, so hardware starts
-generating BFD packets to the peer. HA manager also creates another
-BFD passive session in DPU using BFD_SESSION table with local DPU PA and peer NPU PAs. BfdOrch checks for SAI object platform capability for h/w offload. In DPU, if h/w offload is not supported, FRR is configured to trigger BFD sessions. BfdOrch creates SOFTWARE_BFD_SESSION_TABLE entry in STATE_DB with 'passive' mode and BgpCfgd checks for the entries in the STATE_DB and configures BFD passive sessions in
-FRR stack with local and peer information.
+HA manager(hamgrd) in NPU creates DPU routing rules for DPU-level HA using VNET_ROUTE_TUNNEL_TABLE which will trigger bfdOrch to create BFD Active session with local and peer information. NPU supports BFD hardware offload, so hardware starts generating BFD packets to the peer.
 
-SOFTWARE_BFD_SESSION_TABLE entry in STATE_DB has all the key fields and values from BFD_SESSION_TABLE.
+HA manager also creates another BFD passive multihop session in DPU using BFD_SESSION_TABLE in APP_DB with local DPU PA and peer NPU PAs. BfdOrch checks the platform SAI capability for BFD offload support and if it's unsupported, FRR is configured to trigger BFD sessions. BfdOrch creates BFD_SOFTWARE_SESSION_TABLE entry in STATE_DB with same field-value as passed from BFD_SESSION_TABLE. This allows flexibiliy in setting session type and other parameters from hamgrd.
+There is no support for TSA with software BFD sessions.
+
+A new manager called BfdMgr is added in bgpcfgd and is instantiated only if software_bfd is enabled in the FEATURE table. It monitors for changes in BFD_SOFTWARE_SESSION_TABLE in STATE_DB, and adds or removes BFD sessions in FRR if entries are added or removed in STATE_DB. The keys used in STATE_DB (vrf, interface, peer address) are different from keys used in FRR (vrf, interface, multihop, peer, local). If multihop or local-addr fields are modified in STATE_DB entry, then existing BFD session in and a new one added. Changes to any other fields simply update the existing BFD session in FRR without removing/re-adding. The only supported session type in STATE_DB is async_active. If this session type is set then an active sessions is created in FRR. If "type" field is not set or set to any other value (eg: async_passive) then a passive BFD session is created in FRR.
 
 Trigger for HA manager to create BFD sessions will be detailed in HA HLD.
 
@@ -141,37 +142,10 @@ action is taken.
 
 ## 2.4 DPU FRR Changes
 
-By default BFD Daemon is not enabled in FRR. FRR supervisor config file
-has to be updated to start BFDD during FRR initialization.
-
-To configure BFD passive sessions, a profile with 'passive' mode is
-created and used for all sessions created in FRR. BgpCfgd configures FRR
-stack using vtysh.
-
-```
-
-bfd
-
-profile passive
-
-passive-mode
-
-receive-interval 100
-
-transmit-interval 100
-
-detect multiplier 3
-
-exit
-
-!
-
-peer \<Local/Remote NPU IP\> local-address \<DPU PA\>
-
-profile passive
-
-exit
-```
+Update FRR supervisor config file to automatically start python script 
+(bfdmon) to monitor for BFD session states in FRR if software_bfd is
+enabled in the FEATURE table. BFD Daemon will automatically be started by 
+BfdMgr running as part of bgpcfgd.
 
 ## 2.5 DPU Linux IPTables
 
@@ -204,10 +178,19 @@ When HA manager receives HA config update, it will create VNET Route tunnel tabl
 | Table                 | Key   | Field              | Description |
 | :-------------------: | :---: | :----------------: |:-----------:
 | DASH_BFD_PROBE_STATE  |       |                    | Per-DPU state DB Table                |
-|                       | DPU_ID| v4_bfd_up_sessions | List of V4 BFD session IPs in UP state|
+|                       |    N/A| v4_bfd_up_sessions | List of V4 BFD session IPs in UP state|
 |                       |       | v6_bfd_up_sessions | List of V6 BFD session IPs in UP state|
 
-This per-DPU state_db table stores all the V4 and V6 BFD sessions that are in up state. New python timer routine created within BGPCfgd queries all BFD 'UP' sessions in FRR and updates the DASH_BFD_PROBE_STATE table with all the peer NPU IPs in 'v4_bfd_up_sessions' and 'v6_bfd_up_sessions' fields.
+This state_db table stores all the V4 and V6 BFD sessions that are in up state. New python module called bfdmon is created in BGPCfgd which continuously queries (every 2 seconds by default) all BFD 'UP' sessions in FRR and updates the DASH_BFD_PROBE_STATE table with all the peer NPU IPs in 'v4_bfd_up_sessions' and 'v6_bfd_up_sessions' fields.
+
+Example table:
+```
+redis-cli -n 6 hgetall "DASH_BFD_PROBE_STATE"
+1) "v4_bfd_up_sessions"
+2) "[\"1.0.2.2\", \"1.0.3.2\"]"
+3) "v6_bfd_up_sessions"
+4) "[\"1:0:3::2\", \"1:0:2::2\"]"
+``` 
 
 HA Manager maintains an external facing state table(DASH_HA_SCOPE_STATE) in NPU to publish all the required state information per VDPU that can be queried by the controller. To provide state of BFD sessions established between the local DPU and NPUs, HA manager queries DASH_BFD_PROBE_STATE table per-DPU and updates DASH_HA_SCOPE_STATE fields(local_vdpu_up_bfd_sessions_v4 and local_vdpu_up_bfd_sessions_v6)
 
