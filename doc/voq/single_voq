@@ -1,0 +1,52 @@
+Standalone VOQ (Single VOQ)
+In current sonic switch systems, there's an inherent assumption that VOQ switch type is a chassis. This assumption is not valid for single-chip systems like Q3D which can function as a VOQ switch as it has 8 packet processing cores connected to each other over an internal fabric.
+
+To support Q3D switch in VOQ mode, chassis and VOQ need to be decoupled.
+Sonic Modules in VOQ
+Below sonic modules assume chassis DB for the VOQ system. 
+Bgpcfgd connects to chassis db for switch type VOQ
+Orchagent connects to chassis db for switch type VOQ
+CLI command needs chassis DB 
+show chassis {modules|system-lags|system-neighbors|system-ports}
+Note: This command is currently present in non-chassis switches also. Erroring out due to no chassis DB.
+
+Below sonic modules invoke sonic-py-common/device_info.is_chassis() function (which checks for VOQ switch type).
+bgpcfgd (to create ChassisAppDbMgr)
+sonic-utilities/rcli supports linecard extensions (rexec, rcli)
+sonic-host-services/cacl-manager
+sonic-py-common: is_bgp_session_internal
+sonic-utilities/reboot scripts: linecard_reboot_notify_supervisor
+sonic-utilities/bgputils.py: get_bgp_summary_from_all_bgp_instances
+sonic-utilities/multiasic
+sonic-utilities/common/show/bgp_common.py
+sonic-utilities/ portstat.py
+system health/ sysmonitor.py retrieves chassis metadata for VOQ switch type
+
+Below modules use VOQ switch type to generate configurations from j2 templates (chassis configs, BGP multi instance configs)
+frr/bgpd/bgpd.main.conf.j2
+build_templates/buffers_config.j2
+build_templates/qos_config.j2
+vpp/frr/bgpd.main.conf.j2
+sonic-config-engine/minigraph.py
+yang models (sonic-port.yang, sonic-queue.yang)
+
+There are a couple of approaches to support VOQ mode in Q3D switches.
+Switch type VOQ, and Check for Chassis DB config:
+Decouple VOQ switch type and chassis DB. Use chassis db config file (/usr/share/sonic/device/$platform/chassisdb.conf) to check if chassis DB is present or not.
+
+Containers can check for the presence of this file in addition to switch type VOQ.
+
+Changes Needed:
+Copy chassisdb.conf to Orchagent, Bgpconfd containers
+Orchagent, Bgpconfd will check for VOQ and chassis config file and connect to Chassis DB if present
+Update is_chassis()/is_voq_chassis() functions to check for Chassis DB config file
+Display “show chassis” command output only if is_chassis/is_voq_chassis() true.
+All the FRR, BGP, buffers, QOS j2 templates need to check for chassis (Need a way to check for chassis config from a j2 template) 
+
+New Switch Type for Single VOQ:
+Keep the coupling between VOQ switch type and chassis DB, and add a new switch type for non chassis based VOQ systems (SingleVOQ). 
+
+Changes needed:
+Orchagent, Bgpconfd (or any other container impacted by VOQ) will handle SingleVOQ same as VOQ. And connect to Chassis DB only for VOQ switch type.
+Update “show chassis” command to support only for VOQ
+Add SingleVOQ switch type to port/queue yang models
