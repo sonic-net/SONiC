@@ -1,6 +1,6 @@
 # ACL in SONiC
 # High Level Design Document
-### Rev 0.4
+### Rev 1.1
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -33,6 +33,7 @@
         * [3.1.2.3 ACL Rule](#3123-acl-rule)
         * [3.1.2.4 Table of type "L3"](#3124-table-of-type-l3)
         * [3.1.2.5 Table of type "Mirror"](#3125-table-of-type-mirror)
+        * [3.1.2.6 A Custom Table to perform inner src mac rewrite](#3126-a-custom-table-to-perform-inner-src-mac-rewrite)
       * [3.1.3 Orchestration Agent](#313-orchestration-agent)
         * [3.1.3.1 Class AclOrch](#3131-class-aclorch)
         * [3.1.3.2 Acl Table Create or Delete](#3132-acl-table-create-or-delete)
@@ -80,13 +81,13 @@
 * [Table 8: Json file keywords](#table-8-json-file-keywords)
 
 ###### Revision
-| Rev |     Date    |       Author       | Change Description                |
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 |             | Andriy Moroz       | Initial version                   |
-| 0.2 | 4-Nov-2016  | Andriy Moroz       | Fixes after pre-DR                |
-| 0.3 | 10-Nov-2016 | Andriy Moroz       | Updated according to the comments |
-| 0.4 | 20-Dec-2016 | Oleksandr Ivantsiv | Update data structures            |
-
+| Rev |     Date    |       Author       | Change Description                  |
+|:---:|:-----------:|:------------------:|-------------------------------------|
+| 0.1 |             | Andriy Moroz       | Initial version                     |
+| 0.2 | 4-Nov-2016  | Andriy Moroz       | Fixes after pre-DR                  |
+| 0.3 | 10-Nov-2016 | Andriy Moroz       | Updated according to the comments   |
+| 0.4 | 20-Dec-2016 | Oleksandr Ivantsiv | Update data structures              |
+| 1.1 | 08-Apr-2025 | Anish Narsian      | VXLAN inner src mac rewrite support |
 # About this Manual
 This document provides general information about the ACL feature implementation in SONiC.
 # Scope
@@ -135,10 +136,13 @@ ACL table has predefined type, each type defines the a set of match fields and a
 - Support packet erspan mirror action in ACL rules (M)
 - Packet counters for each acl rule (M)
 - Byte counters for each acl rule (S)
+- Support rewriting the inner src mac field of a vxlan packet by matching on an Inner Src IP prefix and VXLAN VNI
 
 ## 2.2 Scalability requirements
 - 1K ACL rules for L3 acl table
 - 256 ACL rules for mirror
+- 10K ACL rules for inner src mac rewrite
+
 ## 2.3 Requirements implementation schedule
 ###### **Table 3: Implementation schedule**
 Requirement| Implementation Phase |Comment
@@ -199,6 +203,10 @@ No update is needed to support ACL.
                                                ; (only available to mirror acl
                                                ; table type)
 
+    INNER_SRC_MAC_REWRITE_ACTION = 12HEXDIG    ; Rewrite the inner mac field of a VXLAN packet with the 
+                                               ; provided value (must also define an associated custom ACL_TABLE_TYPE
+                                               ; as per https://github.com/sonic-net/SONiC/blob/master/doc/acl/ACL-Table-Type-HLD.md)
+
     ETHER_TYPE    = h16                        ; Ethernet type field
 
     IP_TYPE       = ip_types                   ; options of the l2_protocol_type
@@ -222,6 +230,9 @@ No update is needed to support ACL.
     TCP_FLAGS     = h8/h8                      ; TCP flags field and mask
     DSCP          = h8                         ; DSCP field (only available for mirror
                                                ; table type)
+
+    TUNNEL_VNI    = DIGITS                     ; 1 to 16 million VNI values to match on
+    INNER_SRC_IP  = ipv4_prefix                ; Inner src IPv4 prefix to match on
 
     ;value annotations
     ip_types = any | ip | ipv4 | ipv4any | non_ipv4 | ipv6any | non_ipv6
@@ -299,6 +310,17 @@ L4_DST_PORT | uint16_t | Decimal unsigned integer [0..65535]
 Keyword for the action type    | Type | Description
 -------------------------------|------|------------
 MIRROR_ACTION | string | Mirror session name
+
+#### 3.1.2.6 A Custom Table to perform inner src mac rewrite
+###### **Table 8: Matches used to perform vxlan inner packet src mac rewrite**
+Keyword for the match criteria | Type | Description
+-------------------------------|------|------------
+TUNNEL_VNI | uint24_t | VXLAN VNI to match in a VXLAN packet
+INNER_SRC_IP | ip_addr/mask | A valid IPv4 subnet in format IP/Mask
+###### **Table 9: Actions used to perform vxlan inner packet src mac rewrite**
+Keyword for the action type    | Type | Description
+-------------------------------|------|------------
+INNER_SRC_MAC_REWRITE_ACTION | mac_address | Mac address to use when rewriting the inner src mac field of a vxlan packet
 
 ### 3.1.3 Orchestration Agent
 Orchestration Agent needs to be updated in order to support ACL in the AppDB and the SAI ACL API. There will be class AclOrch and a set of data structures implemented to handle ACL feature.
@@ -601,9 +623,12 @@ Ansible + PTF
 |tcp_flags     | ACL Rule property. TCP flags
 |ip_type       | ACL Rule property. IP type
 |dscp          | ACL Rule property. Dscp field. Valid for rules "mirror" tables only
+|inner_src_ip  | ACL Rule property. Inner src ip prefix to match on a VXLAN packet.
+|tunnel_vni    | ACL Rule property. VXLAN VNI field to match on.
 |              | ACTIONS
 |packet_action | ACL Rule property. Packet actions "forward" or "drop". Valid for rules in "L3" tables only
 |mirror_action | Action "mirror". Valid for rules in "mirror" tables only
+|inner_src_mac_rewrite_action | Action to rewrite the inner src mac rewrite field.
 *Keywords derived from the SAI ACL attributes.*
 # Appendix B: Sample input json file
 ```

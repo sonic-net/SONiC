@@ -65,13 +65,38 @@ module: openconfig-system
      |  +--ro up-time?                        oc-types:timeticks64
      |  +--ro boot-time?                      oc-types:timeticks64
      |  +--ro software-version?               string
+     |  +--ro last-configuration-timestamp?   oc-types:timeticks64
+     +--ro mount-points
+     |  +--ro mount-point* [name]
+     |     +--ro name     -> ../state/name
+     |     +--ro state
+     |        +--ro name?                string
+     |        +--ro size?                uint64
+     |        +--ro available?           uint64
+     |        +--ro type?                string
      +--rw aaa
      |  +--rw authentication
      |  |  +--rw config
      |  |  |  +--rw authentication-method*   union
+     |  |  +--rw users
+     |  |     +--rw user* [username]
+     |  |        +--rw username    -> ../config/username
+     |  |        +--rw config
+     |  |        |  +--rw username?                                              string
+     |  |        +--ro state
+     |  |           +--ro username?                                              string
+     |  |           +--ro oc-gnsi-credz:password-version?                        version
+     |  |           +--ro oc-gnsi-credz:password-created-on?                     created-on
+     |  |           +--ro oc-gnsi-credz:authorized-principals-list-version?      version
+     |  |           +--ro oc-gnsi-credz:authorized-principals-list-created-on?   created-on
+     |  |           +--ro oc-gnsi-credz:authorized-keys-list-version?            version
+     |  |           +--ro oc-gnsi-credz:authorized-keys-list-created-on?         created-on
      |  +--rw authorization
      |  |  +--rw config
      |  |  |  +--rw authorization-method*   union
+     |  |  +--ro state
+     |  |  |  +--ro oc-gnsi-authz:grpc-authz-policy-version?      version
+     |  |  |  +--ro oc-gnsi-authz:grpc-authz-policy-created-on?   created-on
      |  +--rw accounting
      |  |  +--rw config
      |  |  |  +--rw accounting-method*   union
@@ -102,6 +127,17 @@ module: openconfig-system
      |                 |  +--rw secret-key?            oc-types:routing-password
      |                 |  +--rw source-address?        oc-inet:ip-address
      |                 |  +--rw retransmit-attempts?   uint8
+     +--ro alarms
+     |  +--ro alarm* [id]
+     |     +--ro id        -> ../state/id
+     |     +--ro config
+     |     +--ro state
+     |        +--ro id?             string
+     |        +--ro resource?       string
+     |        +--ro text?           string
+     |        +--ro time-created?   oc-types:timeticks64
+     |        +--ro severity?       identityref
+     |        +--ro type-id?        union
      +--rw logging
      |  +--rw remote-servers
      |  |  +--rw remote-server* [host]
@@ -133,12 +169,35 @@ module: openconfig-system
      +--rw ssh-server
      |  +--rw config
      |  |  +--rw timeout?            uint16
+     |  +--ro state
+     |     +--ro oc-gnsi-credz:active-trusted-user-ca-keys-version?      version
+     |     +--ro oc-gnsi-credz:active-trusted-user-ca-keys-created-on?   created-on
+     |     +--ro oc-gnsi-credz:counters
+     |        +--ro oc-gnsi-credz:access-rejects?       oc-yang:counter64
+     |        +--ro oc-gnsi-credz:last-access-reject?   oc-types:timeticks64
+     |        +--ro oc-gnsi-credz:access-accepts?       oc-yang:counter64
+     |        +--ro oc-gnsi-credz:last-access-accept?   oc-types:timeticks64
      +--rw clock
      |  +--rw config
      |  |  +--rw timezone-name?   timezone-name-type
+     +--ro cpus
+     |  +--ro cpu* [index]
+     |     +--ro index    -> ../state/index
+     |     +--ro state
+     |        +--ro index?                union
+     |        +--ro total
      +--rw dns
      |  +--rw config
      |  |  +--rw search*   oc-inet:domain-name
+     +--rw memory
+     |  +--rw config
+     |  +--ro state
+     |     +--ro counters
+     |     |  +--ro correctable-ecc-errors?     uint64
+     |     |  +--ro uncorrectable-ecc-errors?   uint64
+     |     +--ro physical?   uint64
+     |     +--ro used?       uint64
+     |     +--ro free?       uint64
      +--rw ntp
      |  +--rw config
      |  |  +--rw enabled?           boolean
@@ -161,6 +220,64 @@ module: openconfig-system
      |        |  +--rw key-id?      ->    ../../../ntp-keys/ntp-key/key-id
      |        |  +--rw network-instance?   oc-ni:network-instance-ref
      |        |  +--rw source-address?     oc-inet:ip-address
+     +--rw oc-sys-grpc:grpc-servers
+     |  +--rw oc-sys-grpc:grpc-server* [name]
+     |     +--rw oc-sys-grpc:name                            -> ../config/name
+     |     +--rw oc-sys-grpc:config
+     |     |  +--rw oc-sys-grpc:name?                       string
+     |     +--ro oc-sys-grpc:state
+     |     |  +--ro oc-sys-grpc:name?                                              string
+     |     |  +--ro oc-gnsi-certz:certificate-version?                             version
+     |     |  +--ro oc-gnsi-certz:certificate-created-on?                          created-on
+     |     |  +--ro oc-gnsi-certz:ca-trust-bundle-version?                         version
+     |     |  +--ro oc-gnsi-certz:ca-trust-bundle-created-on?                      created-on
+     |     |  +--ro oc-gnsi-certz:certificate-revocation-list-bundle-version?      version
+     |     |  +--ro oc-gnsi-certz:certificate-revocation-list-bundle-created-on?   created-on
+     |     +--ro oc-sys-grpc:connections
+     |     |  +--ro oc-sys-grpc:connection* [address port]
+     |     |     +--ro oc-sys-grpc:address    -> ../state/address
+     |     |     +--ro oc-sys-grpc:port       -> ../state/port
+     |     |     +--ro oc-sys-grpc:state
+     |     |        +--ro oc-sys-grpc:address?    oc-inet:ip-address
+     |     |        +--ro oc-sys-grpc:port?       oc-inet:port-number
+     |     |        +--ro oc-sys-grpc:counters
+     |     |           +--ro oc-sys-grpc:bytes-sent?        oc-yang:counter64
+     |     |           +--ro oc-sys-grpc:packets-sent?      oc-yang:counter64
+     |     |           +--ro oc-sys-grpc:data-send-error?   oc-yang:counter64
+     |     +--ro oc-gnsi-pathz:gnmi-pathz-policy-counters
+     |     |  +--ro oc-gnsi-pathz:paths
+     |     |     +--ro oc-gnsi-pathz:path* [name]
+     |     |        +--ro oc-gnsi-pathz:name     -> ../state/name
+     |     |        +--ro oc-gnsi-pathz:state
+     |     |           +--ro oc-gnsi-pathz:name?     string
+     |     |           +--ro oc-gnsi-pathz:reads
+     |     |           |  +--ro oc-gnsi-pathz:access-rejects?       oc-yang:counter64
+     |     |           |  +--ro oc-gnsi-pathz:last-access-reject?   oc-types:timeticks64
+     |     |           |  +--ro oc-gnsi-pathz:access-accepts?       oc-yang:counter64
+     |     |           |  +--ro oc-gnsi-pathz:last-access-accept?   oc-types:timeticks64
+     |     |           +--ro oc-gnsi-pathz:writes
+     |     |              +--ro oc-gnsi-pathz:access-rejects?       oc-yang:counter64
+     |     |              +--ro oc-gnsi-pathz:last-access-reject?   oc-types:timeticks64
+     |     |              +--ro oc-gnsi-pathz:access-accepts?       oc-yang:counter64
+     |     |              +--ro oc-gnsi-pathz:last-access-accept?   oc-types:timeticks64
+     |     +--ro oc-gnsi-authz:authz-policy-counters
+     |        +--ro oc-gnsi-authz:rpcs
+     |           +--ro oc-gnsi-authz:rpc* [name]
+     |              +--ro oc-gnsi-authz:name     -> ../state/name
+     |              +--ro oc-gnsi-authz:state
+     |                 +--ro oc-gnsi-authz:name?                 string
+     |                 +--ro oc-gnsi-authz:access-rejects?       oc-yang:counter64
+     |                 +--ro oc-gnsi-authz:last-access-reject?   oc-types:timeticks64
+     |                 +--ro oc-gnsi-authz:access-accepts?       oc-yang:counter64
+     |                 +--ro oc-gnsi-authz:last-access-accept?   oc-types:timeticks64
+     +--ro gnmi-pathz-policies
+     | +--ro policies
+     |    +--ro policy* [instance]
+     |       +--ro instance    -> ../state/instance
+     |       +--ro state
+     |          +--ro instance?     enumeration
+     |          +--ro version?      version
+     |          +--ro created-on?   created-on
 ```
 
 # Definition/Abbreviation
@@ -187,6 +304,7 @@ module: openconfig-system
     * boot-time & up-time
     * software-version
     * timezone
+    * last-configuration-timestamp
     * dns
     * ntp
     * ssh-server
@@ -194,6 +312,12 @@ module: openconfig-system
     * aaa
     * processes
     * messages
+    * alarms
+    * mount-points
+    * memory
+    * cpus
+    * grpc-servers
+    * gnmi-pathz-policies
 
 ### 1.1.2 Configuration and Management Requirements
 The System configuration/management can be done via REST and gNMI. The implementation will return an error if configuration is not allowed due to misconfiguration or un-supported node is accessed.
@@ -226,7 +350,17 @@ For software-version, new table will be added, namely VERSIONS|SOFTWARE.
 There are no changes to APP DB schema definition.
 
 ### 3.2.3 STATE DB
-There are no changes to STATE DB schema definition.
+There are no changes to STATE DB schema definition.  
+New tables will be added along with support for some paths. These are:
+- AUTHZ_TABLE|*
+- CREDENTIALS|AUTHZ_POLICY
+- CREDENTIALS|CERT
+- CREDENTIALS|PATHZ_POLICY
+- CREDENTIALS|SSH_ACCOUNT
+- CREDENTIALS|SSH_HOST
+- COMPONENT_STATE_TABLE|*
+- HOST_STATS|CONFIG
+- PATHZ_TABLE|*
 
 ### 3.2.4 ASIC DB
 There are no changes to ASIC DB schema definition.
@@ -536,15 +670,22 @@ Operations:
 gNMI - (Create/Update/Delete/Replace/Get/Subscribe)  
 REST - POST/PATCH/DELETE/PUT/GET  
 1. Verify that operations supported for gNMI/REST works fine for hostname.
+1. Verify that operations supported for gNMI/REST works fine for last-configuration-timestamp.
 2. Verify that operations supported for gNMI/REST works fine for clock/timezone-name.
 3. Verify that operations supported for gNMI/REST works fine for DNS nameserver.
 4. Verify that operations supported for gNMI/REST works fine for NTP nodes.
-5. Verify that operations supported for gNMI/REST works fine for ssh-server timeout.
+5. Verify that operations supported for gNMI/REST works fine for ssh-server nodes.
 6. Verify that operations supported for gNMI/REST works fine for logging and messages nodes.
 7. Verify that operations supported for gNMI/REST works fine for AAA (TACACS & RADIUS) nodes.
 8. Verify that operations supported for gNMI/REST works fine for login & motd banners.
 9. Verify that operations supported for gNMI/REST works fine for up-time, boot-time, current-datetime & software-version.
 10. Verify that operations supported for gNMI/REST works fine for processes nodes.
+11. Verify that operations supported for gNMI/REST works fine for alarms nodes.
+12. Verify that operations supported for gNMI/REST works fine for mount-points nodes.
+13. Verify that operations supported for gNMI/REST works fine for memory nodes.
+14. Verify that operations supported for gNMI/REST works fine for cpus nodes.
+15. Verify that operations supported for gNMI/REST works fine for grpc-servers nodes.
+16. Verify that operations supported for gNMI/REST works fine for gnmi-pathz-policies nodes.
 
 ## 6.2 Negative Test Cases
 1. Verify that any operation on unsupported nodes give a proper error.
@@ -554,3 +695,11 @@ REST - POST/PATCH/DELETE/PUT/GET
 5. Verify that invalid NTP source address returns proper error.
 6. Verify that AAA server source-address accepts only valid IP.
 7. Verify that GET on processes with non-existing pid returns an empty data.
+8. Verify that GET on alarms with non-existing alarm-id returns an empty data.
+9. Verify that GET on mount-points with non-existing mount-point returns an empty data.
+10. Verify that GET on cpus with non-existing cpu returns an empty data.
+11. Verify that GET on grpc-servers with non-existing grpc-server returns an empty data.
+12. Verify that GET on grpc-servers/connections with non-existing address:port returns an empty data.
+13. Verify that GET on grpc-servers/gnmi-pathz-policy-counters with non-existing path returns an empty data.
+14. Verify that GET on grpc-servers/authz-policy-counters with non-existing rpc returns an empty data.
+15. Verify that GET on gnmi-pathz-policies with non-existing instance returns an empty data.
