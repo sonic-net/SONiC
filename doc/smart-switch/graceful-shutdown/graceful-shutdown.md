@@ -172,7 +172,7 @@ The following sequence diagram illustrates the parallel execution of graceful sh
 
 <p align="center"><img src="./images/reboot-interoperability.svg"></p>
 
-The diagram above illustrates two scenarios where both module_base.py and smartswitch_reboot_helper might attempt to initiate a shutdown and reboot simultaneously. By utilizing the shared RedisDB table GNOI_REBOOT_REQUEST, the system ensures that only the first trigger is honored, and subsequent attempts during an ongoing reboot are effectively ignored.
+The diagram above illustrates two scenarios where both module_base.py and smartswitch_reboot_helper might attempt to initiate a shutdown and reboot simultaneously. When there is a race condition irrespective of the order in which either the reboot logic or the shutdown logic triggers it, it is guaranteed that the shutdown logic will always win and complete a graceful shutdown. By utilizing the shared RedisDB table GNOI_REBOOT_REQUEST, the system ensures that only the first trigger is honored, and subsequent attempts during an ongoing reboot are effectively ignored. When the result is returned back the reboot logic will look for the status of the dpu admin_state and if it is down then the reboot logic will give up.  This ensures that the graceful shutdown always will be successful when both happen around the same time.
 
 **Scenario 1:** smartswitch_reboot_helper **triggers first**
 
