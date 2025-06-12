@@ -7,59 +7,60 @@
 | 0.3 | 03/28/2024 | Riff Jiang | Updated telemetry. |
 | 0.4 | 05/06/2024 | Riff Jiang | Added drop counters for pipeline monitoring. |
 | 0.5 | 06/03/2024 | Riff Jiang | Added DASH BFD probe state update workflow and DB schema. |
+| 0.6 | 03/23/2025 | Riff Jiang | Split DPU table into DPU and REMOTE_DPU. Add FEATURE table. |
 
-1. [1. High level data flow](#1-high-level-data-flow)
-   1. [1.1. Upstream config programming path](#11-upstream-config-programming-path)
-   2. [1.2. State generation and handling path](#12-state-generation-and-handling-path)
-2. [2. Database Schema](#2-database-schema)
-   1. [2.1. External facing configuration tables](#21-external-facing-configuration-tables)
-      1. [2.1.1. CONFIG\_DB (per-NPU)](#211-config_db-per-npu)
-         1. [2.1.1.1. DPU / vDPU definitions](#2111-dpu--vdpu-definitions)
-         2. [2.1.1.2. HA global configurations](#2112-ha-global-configurations)
-      2. [2.1.2. APPL\_DB (per-NPU)](#212-appl_db-per-npu)
-         1. [2.1.2.1. HA set configurations](#2121-ha-set-configurations)
-         2. [2.1.2.2. HA scope configurations](#2122-ha-scope-configurations)
-         3. [2.1.2.3. ENI placement table (scope = `eni` only)](#2123-eni-placement-table-scope--eni-only)
-      3. [2.1.3. DPU\_APPL\_DB (per-DPU)](#213-dpu_appl_db-per-dpu)
-         1. [2.1.3.1. DASH object tables](#2131-dash-object-tables)
-   2. [2.2. External facing state tables](#22-external-facing-state-tables)
-      1. [2.2.1. STATE\_DB (per-NPU)](#221-state_db-per-npu)
-         1. [2.2.1.1. HA scope state](#2211-ha-scope-state)
-            1. [2.2.1.1.1. Table key](#22111-table-key)
-            2. [2.2.1.1.2. Basic information](#22112-basic-information)
-            3. [2.2.1.1.3. HA related states](#22113-ha-related-states)
-            4. [2.2.1.1.4. Aggregated health signals for this HA scope](#22114-aggregated-health-signals-for-this-ha-scope)
-            5. [2.2.1.1.5. Ongoing HA operation state](#22115-ongoing-ha-operation-state)
-   3. [2.3. Tables used by HA internally](#23-tables-used-by-ha-internally)
-      1. [2.3.1. DPU\_APPL\_DB (per-DPU)](#231-dpu_appl_db-per-dpu)
-         1. [2.3.1.1. HA set configurations](#2311-ha-set-configurations)
-         2. [2.3.1.2. HA scope configurations](#2312-ha-scope-configurations)
-         3. [2.3.1.3. Flow sync sessions](#2313-flow-sync-sessions)
-      2. [2.3.2. APPL\_DB (per-NPU)](#232-appl_db-per-npu)
-         1. [2.3.2.1. DASH\_ENI\_FORWARD\_TABLE](#2321-dash_eni_forward_table)
-      3. [2.3.3. CHASSIS\_STATE\_DB (per-NPU)](#233-chassis_state_db-per-npu)
-         1. [2.3.3.1. DPU / vDPU state](#2331-dpu--vdpu-state)
-      4. [2.3.4. DPU\_STATE\_DB (per-DPU)](#234-dpu_state_db-per-dpu)
-         1. [2.3.4.1. HA set state](#2341-ha-set-state)
-         2. [2.3.4.2. HA scope state](#2342-ha-scope-state)
-         3. [2.3.4.3. Flow sync session states](#2343-flow-sync-session-states)
-         4. [2.3.4.4. DASH BFD probe state](#2344-dash-bfd-probe-state)
-3. [3. Telemetry](#3-telemetry)
-   1. [3.1. HA state and related health signals](#31-ha-state-and-related-health-signals)
-   2. [3.2. Traffic forwarding related](#32-traffic-forwarding-related)
-      1. [3.2.1. NPU-to-DPU probe status (Per-HA Scope)](#321-npu-to-dpu-probe-status-per-ha-scope)
-      2. [3.2.2. NPU-to-DPU tunnel counters (Per-HA Scope)](#322-npu-to-dpu-tunnel-counters-per-ha-scope)
-   3. [3.3. DPU traffic handling related](#33-dpu-traffic-handling-related)
-      1. [3.3.1. DPU level counters (Per-DPU)](#331-dpu-level-counters-per-dpu)
-      2. [3.3.2. ENI-level traffic counters (Per-ENI)](#332-eni-level-traffic-counters-per-eni)
-      3. [3.3.3. ENI-level pipeline drop counters (Per-ENI)](#333-eni-level-pipeline-drop-counters-per-eni)
-      4. [3.3.4. ENI-level flow operation counters (Per-ENI)](#334-eni-level-flow-operation-counters-per-eni)
-   4. [3.4. Flow sync counters](#34-flow-sync-counters)
-      1. [3.4.1. Data plane channel probing (Per-HA Set)](#341-data-plane-channel-probing-per-ha-set)
-      2. [3.4.2. Inline flow sync (Per-ENI)](#342-inline-flow-sync-per-eni)
-      3. [3.4.3. Bulk sync related counters (Per-HA Set)](#343-bulk-sync-related-counters-per-ha-set)
-4. [4. SAI APIs](#4-sai-apis)
-5. [5. CLI commands](#5-cli-commands)
+- [1. High level data flow](#1-high-level-data-flow)
+  - [1.1. Upstream config programming path](#11-upstream-config-programming-path)
+  - [1.2. State generation and handling path](#12-state-generation-and-handling-path)
+- [2. Database Schema](#2-database-schema)
+  - [2.1. External facing configuration tables](#21-external-facing-configuration-tables)
+    - [2.1.1. CONFIG\_DB (per-NPU)](#211-config_db-per-npu)
+      - [2.1.1.1. DPU / vDPU definitions](#2111-dpu--vdpu-definitions)
+      - [2.1.1.2. HA global configurations](#2112-ha-global-configurations)
+    - [2.1.2. APPL\_DB (per-NPU)](#212-appl_db-per-npu)
+      - [2.1.2.1. HA set configurations](#2121-ha-set-configurations)
+      - [2.1.2.2. HA scope configurations](#2122-ha-scope-configurations)
+      - [2.1.2.3. ENI placement table (scope = `eni` only)](#2123-eni-placement-table-scope--eni-only)
+    - [2.1.3. DPU\_APPL\_DB (per-DPU)](#213-dpu_appl_db-per-dpu)
+      - [2.1.3.1. DASH object tables](#2131-dash-object-tables)
+  - [2.2. External facing state tables](#22-external-facing-state-tables)
+    - [2.2.1. STATE\_DB (per-NPU)](#221-state_db-per-npu)
+      - [2.2.1.1. HA scope state](#2211-ha-scope-state)
+        - [2.2.1.1.1. Table key](#22111-table-key)
+        - [2.2.1.1.2. Basic information](#22112-basic-information)
+        - [2.2.1.1.3. HA related states](#22113-ha-related-states)
+        - [2.2.1.1.4. Aggregated health signals for this HA scope](#22114-aggregated-health-signals-for-this-ha-scope)
+        - [2.2.1.1.5. Ongoing HA operation state](#22115-ongoing-ha-operation-state)
+  - [2.3. Tables used by HA internally](#23-tables-used-by-ha-internally)
+    - [2.3.1. DPU\_APPL\_DB (per-DPU)](#231-dpu_appl_db-per-dpu)
+      - [2.3.1.1. HA set configurations](#2311-ha-set-configurations)
+      - [2.3.1.2. HA scope configurations](#2312-ha-scope-configurations)
+      - [2.3.1.3. Flow sync sessions](#2313-flow-sync-sessions)
+    - [2.3.2. APPL\_DB (per-NPU)](#232-appl_db-per-npu)
+      - [2.3.2.1. DASH\_ENI\_FORWARD\_TABLE](#2321-dash_eni_forward_table)
+    - [2.3.3. CHASSIS\_STATE\_DB (per-NPU)](#233-chassis_state_db-per-npu)
+      - [2.3.3.1. DPU / vDPU state](#2331-dpu--vdpu-state)
+    - [2.3.4. DPU\_STATE\_DB (per-DPU)](#234-dpu_state_db-per-dpu)
+      - [2.3.4.1. HA set state](#2341-ha-set-state)
+      - [2.3.4.2. HA scope state](#2342-ha-scope-state)
+      - [2.3.4.3. Flow sync session states](#2343-flow-sync-session-states)
+      - [2.3.4.4. DASH BFD probe state](#2344-dash-bfd-probe-state)
+- [3. Telemetry](#3-telemetry)
+  - [3.1. HA state and related health signals](#31-ha-state-and-related-health-signals)
+  - [3.2. Traffic forwarding related](#32-traffic-forwarding-related)
+    - [3.2.1. NPU-to-DPU probe status (Per-HA Scope)](#321-npu-to-dpu-probe-status-per-ha-scope)
+    - [3.2.2. NPU-to-DPU tunnel counters (Per-HA Scope)](#322-npu-to-dpu-tunnel-counters-per-ha-scope)
+  - [3.3. DPU traffic handling related](#33-dpu-traffic-handling-related)
+    - [3.3.1. DPU level counters (Per-DPU)](#331-dpu-level-counters-per-dpu)
+    - [3.3.2. ENI-level traffic counters (Per-ENI)](#332-eni-level-traffic-counters-per-eni)
+    - [3.3.3. ENI-level pipeline drop counters (Per-ENI)](#333-eni-level-pipeline-drop-counters-per-eni)
+    - [3.3.4. ENI-level flow operation counters (Per-ENI)](#334-eni-level-flow-operation-counters-per-eni)
+  - [3.4. Flow sync counters](#34-flow-sync-counters)
+    - [3.4.1. Data plane channel probing (Per-HA Set)](#341-data-plane-channel-probing-per-ha-set)
+    - [3.4.2. Inline flow sync (Per-ENI)](#342-inline-flow-sync-per-eni)
+    - [3.4.3. Bulk sync related counters (Per-HA Set)](#343-bulk-sync-related-counters-per-ha-set)
+- [4. SAI APIs](#4-sai-apis)
+- [5. CLI commands](#5-cli-commands)
 
 ## 1. High level data flow
 
@@ -93,6 +94,7 @@ flowchart LR
       subgraph CONFIG DB
          subgraph All NPUs
             NPU_DPU[DPU]
+            NPU_REMOTE_DPU[REMOTE_DPU]
             NPU_VDPU[VDPU]
             NPU_DASH_HA_GLOBAL_CONFIG[DASH_HA_GLOBAL_CONFIG]
          end
@@ -163,6 +165,7 @@ flowchart LR
    %% NPU tables --> hamgrd:
    NPU_DASH_HA_GLOBAL_CONFIG --> |SubscribeStateTable| NPU_HAMGRD
    NPU_DPU --> |SubscribeStateTable| NPU_HAMGRD
+   NPU_REMOTE_DPU --> |SubscribeStateTable| NPU_HAMGRD
    NPU_VDPU --> |SubscribeStateTable| NPU_HAMGRD
    NPU_DASH_HA_SET_CONFIG --> |zmq| NPU_HAMGRD
    NPU_DASH_ENI_PLACEMENT --> |zmq| NPU_HAMGRD
@@ -309,23 +312,36 @@ The following tables will be programmed either by SDN controller or by the netwo
 * These tables are imported from the SmartSwitch HLD to make the doc more convenient for reading, and we should always use that doc as the source of truth.
 * These tables should be prepopulated before any HA configuration tables below are programmed.
 
-| Table | Key | Field | Description |
-| --- | --- | --- | --- |
-| DPU | | | Physical DPU configuration. |
-| | \<DPU_ID\> | | Physical DPU ID |
-| | | type | Type of DPU. It can be "local", "cluster" or "external". |
-| | | state | Admin state of the DPU device. |
-| | | slot_id | Slot ID of the DPU. |
-| | | pa_ipv4 | IPv4 address. |
-| | | pa_ipv6 | IPv6 address. |
-| | | npu_ipv4 | IPv4 address of its owning NPU loopback. |
-| | | npu_ipv6 | IPv6 address of its owning NPU loopback. |
-| | | probe_ip | Custom probe point if we prefer to use a different one from the DPU IP address. |
-| VDPU | | | Virtual DPU configuration. |
-| | \<VDPU_ID\> | | Virtual DPU ID |
-| | | profile | The profile of the vDPU. |
-| | | tier | The tier of the vDPU. |
-| | | main_dpu_ids | The IDs of the main physical DPU. |
+| Table | Key | Field | Description | Example |
+| --- | --- | --- | --- | --- |
+| DPU | | | Physical DPU information. | |
+| | \<DPU_NAME\> | | Physical DPU Name. | dpu1 |
+| | | state | Admin state of the DPU device. Can be "up", "down" | up |
+| | | local_port | Port of the DPU. | 8080 |
+| | | vip_ipv4 | IPv4 virtual IP address of the DPU. | 50.0.1.1 |
+| | | vip_ipv6 | IPv6 virtual IP address of the DPU. | abcd::1 |
+| | | pa_ipv4 | IPv4 address. | 10.0.1.1 |
+| | | pa_ipv6 | IPv6 address. | aaaa:bbbb:1:1 |
+| | | midplane_ipv4 | Midplane IPv4 address. | 169.254.0.1 |
+| | | dpu_id | Id of the DPU. Integer starting from 0. | 0 |
+| | | vdpu_id | Id of the vDPU. | vdpu1 |
+| | | gnmi_port | TCP listening port for gNMI service on DPU. | 50051 |
+| | | orchagent_zmq_port | TCP listening port for ZMQ service on DPU orchagent. | 5555 |
+| | | swbus_port | TCP listening port of swbus. | 23606 |
+| REMOTE_DPU | | | Remote DPU information. | |
+| | \<DPU_NAME\> | | Physical DPU Name. | remote_dpu1 |
+| | | type | Type of remote DPU. Currently only "cluster" is supported. | cluster |
+| | | pa_ipv4 | IPv4 address. | 10.0.1.2 |
+| | | pa_ipv6 | IPv6 address. | aaaa:bbbb::1:2 |
+| | | npu_ipv4 | IPv4 address of its owning NPU loopback. | 10.0.0.1 |
+| | | npu_ipv6 | IPv6 address of its owning NPU loopback. | aaaa:bbbb::1 |
+| | | dpu_id | Id of the DPU. Integer starting from 0. | 0 |
+| | | swbus_port | TCP listening port of swbus. | 23606 |
+| VDPU | | | Virtual DPU configuration. | |
+| | \<VDPU_ID\> | | Virtual DPU ID | vdpu1 |
+| | | profile | The profile of the vDPU. Currently, only "default" is supported. | default |
+| | | tier | The tier of the vDPU. Currently, only "default" is supported. | default |
+| | | main_dpu_ids | The IDs of the main physical DPU. | dpu1 |
 
 ##### 2.1.1.2. HA global configurations
 
@@ -359,12 +375,11 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | | version | Config version. |
 | | | vip_v4 | IPv4 Data path VIP. |
 | | | vip_v6 | IPv6 Data path VIP. |
-| | | owner | Owner/Driver of HA state machine. It can be `dpu`, `switch`. |
-| | | scope | HA scope. It can be `dpu`, `eni`. |
 | | | vdpu_ids | The ID of the vDPUs. |
+| | | scope | HA scope. It can be `dpu`, `eni`. |
 | | | pinned_vdpu_bfd_probe_states | Pinned probe states of vDPUs, connected by ",". Each state can be `none`, `up` or `down`. |
 | | | preferred_vdpu_id | When preferred vDPU ID is set, the traffic will be forwarded to this vDPU when both BFD probes are up. |
-| | | preferred_standalone_vdpu_index | (scope = `eni` only)<br><br>Preferred vDPU index to be standalone when entering into standalone setup. |
+| | | preferred_standalone_vdpu_index | (owner = `switch` only)<br><br>Preferred vDPU index to be standalone when entering into standalone setup. |
 
 ##### 2.1.2.2. HA scope configurations
 
@@ -377,7 +392,9 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | \<VDPU_ID\> | | VDPU ID. |
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 | | | version | Config version. |
+| | | owner | Owner/Driver of HA state machine. It can be `dpu`, `switch`. |
 | | | disabled | If true, disable this vDPU. It can only be `false` or `true`. |
+| | | ha_set_id | The HA set ID that this ha scope belongs to. |
 | | | desired_ha_state | The desired state for this vDPU. It can only be `none`, `dead`, `active` or `standalone`. |
 | | | approved_pending_operation_ids | Approved pending HA operation id list, connected by "," |
 
@@ -410,6 +427,15 @@ The following tables will be programmed either by SDN controller or by the netwo
 | | | admin_state | Admin state of each DASH ENI. To support control from HA, `STATE_HA_ENABLED` is added. |
 | | | ha_scope_id | HA scope id. It can be the HA set id (scope = `dpu`) or ENI id (scope = `eni`) |
 | | | ... | see [SONiC-DASH HLD](https://github.com/sonic-net/SONiC/blob/master/doc/dash/dash-sonic-hld.md) for more details. |
+
+#### 2.1.4. FEATURE
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| FEATURE | | | Feature configuration. |
+| | dash_ha | | dash_ha feature. |
+| | | state | Admin state of dash_ha feature. It can be `enabled` or `disabled`. |
+| | | has_per_dpu_scope | Should always be `true` for dash_ha feature. |
 
 ### 2.2. External facing state tables
 
