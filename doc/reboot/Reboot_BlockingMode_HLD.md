@@ -56,7 +56,7 @@ We don't want to make a break change to SONIC reboot command, so we introduce 3 
 
 The reboot command line will be as follow:
 ```
-reboot [--blocking-mode]
+reboot [-b]
 ```
 
 ### Option 2: Config File
