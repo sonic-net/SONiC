@@ -2,7 +2,7 @@
 Docker to Host Communications
 
 # High Level Design Document
-#### Rev 0.7
+#### Rev 0.8
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -34,6 +34,9 @@ Docker to Host Communications
 | 0.7 | 04/23/2020  | Mike Lazar         | Added authentication failure      |
 |     |             |                    | log information                   |
 |:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.8 | 05/26/2022  | Gang Lv            | Added generic config updater      |
+|     |             |                    | interface                         |
+|:---:|:-----------:|:------------------:|-----------------------------------|
 
 
 
@@ -56,9 +59,9 @@ however, it does not describe the individual host-specific features.
 
 # 1 Feature Overview
 
-This document describes a means (framework) for an application executed inside a container to securely request the execution of an operation ("action") by the host OS. The components of such framework are:
+This document describes a means (framework) for an application executed on host or inside a container to securely request the execution of an operation ("action") by the host OS. The components of such framework are:
 * the host services component (executed on the host OS), 
-* the translib API component (executed insisde a container)
+* the translib API component (executed on the host OS or inside a container)
 
 This framework is intended to be used by the SONiC management and telemetry containers, but can be extended for other application containers as well.
 
@@ -93,14 +96,14 @@ N/A
 ### 1.2.1 Basic Approach
 
 The new code for the client application TransLib API  is added to the existing Translib modules to provide a D-Bus based
-API to issue requests/queries from a container based application to the host OS. 
+API to issue requests/queries from an application to the host OS. 
 
 The host service (executed as a daemon on the host OS) is a Python based
 application that listens on service-specific D-Bus endpoints.https://en.wikipedia.org/wiki/D-Bus
 
 The individual app modules extend the host service by providing a Python snippet (a "servlet") that registers against a D-Bus endpoint. New servlets can be defined and added as needed.
 
-The application client inside containers executes DBus methods (effectively remote procedure calls), using the DBus end-points provided by the servlets on the host OS.
+The application client executes DBus methods (effectively remote procedure calls), using the DBus end-points provided by the servlets on the host OS.
 
 ### 1.2.2 Container
 
@@ -123,6 +126,8 @@ requests to the host to perform "actions". For instance :
 * initiate reboot and warm reboot using existing scripts
 * create show-tech tar file using existing show-tech script
 * config save/reload using existing scripts
+* config apply-patch using existing scripts
+* config checkpoint/delete-checkpoint using existing scripts
 
 In contrast to typical DB operations - CRUD (create, read, update, delete), an "action" is an operation that does not directly modify a DB record, but triggers a host OS system request instead (such as SW image install/update).
 It is recommended that the "Host services" only be defined for this type of applications. 
@@ -143,6 +148,8 @@ Note. The Linux D-Bus implementation uses Unix domain sockets for client to D-Bu
 All containers that use D-Bus services will bind mount
 (-v /var/run/dbus:/var/run/dbus:rw) the host directory where D-Bus service sockets are created.
 This ensures that only the desired containers access the D-Bus host services.
+
+If multiple D-Bus clients simultaneously issue requests, then each request is queued and processed in the order received.
 
 D-Bus provides a reliable communication channel between client (SONiC management container) and service (native host OS) – all actions are acknowledged and can provide return values. It should be noted that acknowledgements are important for operations such as “image upgrade” or “config-save”. In addition, D-Bus methods can return values of many types – not just ACKs. For instance, they can return strings, useful to return the output of a command.
 
@@ -251,12 +258,56 @@ N/A
 N/A
 ### 3.6.3 REST API Support
 N/A
+### 3.6.4 D-Bus API
+#### 3.6.4.1 showtech.info
+This API will execute the "show techsupport" command.
+
+Input is date message, and output are return code and error message.
+
+"show techsupport" command could take a few minutes, and D-Bus client should use timeout or asynchronous request.
+
+#### 3.6.4.2 config.save
+This API will execute the "config save" command.
+
+Input is config file name, and output are return code and error message.
+
+#### 3.6.4.3 config.reload
+This API will execute the "config reload" command.
+
+Input is config file name, and output are return code and error message.
+
+"config reload" command would restart D-Bus host service, so D-Bus client might not receive the response.
+
+#### 3.6.4.4 gcu.apply_patch_db
+This API will execute the "config apply-patch" command with SONiC DB schema.
+
+Input is patch file name, and output are return code and error message.
+
+"config apply-patch" command could take a few seconds, and D-Bus client should use timeout or asynchronous request.
+
+#### 3.6.4.5 gcu.apply_patch_yang
+This API will execute the "config apply-patch" command with SONiC Yang schema.
+
+Input is patch file name, and output are return code and error message.
+
+"config apply-patch" command could take a few seconds, and D-Bus client should use timeout or asynchronous request.
+
+#### 3.6.4.6 gcu.create_checkpoint
+This API will execute the "config checkpoint" command.
+
+Input is checkpoint name, and output are return code and error message.
+
+#### 3.6.4.7 gcu.delete_checkpoint
+This API will execute the "config delete-checkpoint" command.
+
+Input is checkpoint name, and output are return code and error message.
 
 # 4 Flow Diagrams
 
 ![](images/docker-to-host-service.svg)
 
 # 5 Error Handling
+If dbus host service exited abnormally, systemd would restart this service.
 
 The `hostQuery` and `hostQueryAsync` APIs return a standard Go `error` object,
 which can be used to handle any errors that are returned by the D-Bus
@@ -272,7 +323,21 @@ N/A
 N/A
 
 # 9 Unit Test
-List unit test cases added for this feature including warm boot.
+| Test Case | Description |
+| ---- | ---- |
+| 1 | Invoke showtech.info API, and CLI command is successful. |
+| 2 | Invoke config.save API, and CLI command is successful. |
+| 3 | Invoke config.save API, and CLI command failed. |
+| 4 | Invoke config.reload API, and CLI command is successful. |
+| 5 | Invoke config.reload API, and CLI command failed. |
+| 6 | Invoke gcu.apply_patch_db API, and CLI command is successful. |
+| 7 | Invoke gcu.apply_patch_db API, and CLI command failed. |
+| 8 | Invoke gcu.apply_patch_yang API, and CLI command is successful. |
+| 9 | Invoke gcu.apply_patch_yang API, and CLI command failed. |
+| 10 | Invoke gcu.create_checkpoint API, and CLI command is successful. |
+| 11 | Invoke gcu.create_checkpoint API, and CLI command failed. |
+| 12 | Invoke gcu.delete_checkpoint API, and CLI command is successful. |
+| 13 | Invoke gcu.delete_checkpoint API, and CLI command failed. |
 
 # 10 Internal Design Information
 N/A
