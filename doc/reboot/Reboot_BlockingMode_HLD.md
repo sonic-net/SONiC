@@ -26,7 +26,7 @@ As the result, the output from user batch side will be unpredictable:
 ![MAN Reboot](./img/background-workflow.png)
 
 And the output example for the 2 situations:
-- [C] the user bash stopped by systemd before `systemctl reboot` returns and HwProxy will not see extra user prompt
+- [C] the user bash stopped by systemd before `systemctl reboot` returns and automation system will not see extra user prompt
 ```
 admin@bjw-can-7215-11:~$ sudo reboot
 Error response from daemon: Container e6a136aee372584ae6e64d1c55ae49352d842d76daff13a782a4ecfa0262d0e5 is not running
@@ -36,7 +36,7 @@ Fri 20 Oct 2023 06:03:33 AM UTC Issuing OS-level reboot ...
 admin@bjw-can-7215-11:~$ Connection to 10.150.22.134 closed by remote host.
 Connection to 10.150.22.134 closed.
 ```
-- [C'] the user bash stopped by systemd after `systemctl reboot` returns and HwProxy will see extra user prompt
+- [C'] the user bash stopped by systemd after `systemctl reboot` returns and automation system will see extra user prompt
 ```
 admin@bjw-can-7215-11:~$ sudo reboot
 Error response from daemon: Container e6a136aee372584ae6e64d1c55ae49352d842d76daff13a782a4ecfa0262d0e5 is not running
