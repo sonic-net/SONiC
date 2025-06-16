@@ -137,6 +137,9 @@ Following are the minimal scaling requirements
 | Max TUNNEL members per group  | 128                           |
 | Max trusted VNIs per ENI      | 16                            |
 | Max trusted VNIs              | 1k Per Card                   |
+| Max outbound port maps        | 2k per card                   |
+| Max outbound port map ranges  | 8k per outbound port map      |
+
 
 \* Number of VNET is a software limit as VNET by itself does not take hardware resources. This shall be limited to number of VNI hardware can support
 
@@ -233,6 +236,7 @@ Due to memory constraints, certain high-volume table entries will not be cached 
 | `DASH_ROUTE_GROUP_TABLE` | `DASH_ROUTE_TABLE` | `sai_outbound_routing_entry_t` |
 | `DASH_ACL_GROUP_TABLE`   | `DASH_ACL_RULE_TABLE` | ACL rule ID (`sai_object_id_t`) |
 | `DASH_VNET_TABLE`        | `DASH_VNET_MAPPING_TABLE` | `sai_outbound_ca_to_pa_entry_t`,<br>`sai_pa_validation_entry_t`,<br>`sai_outbound_routing_entry_t` (only if `SAI_OUTBOUND_ROUTING_ENTRY_ATTR_DST_VNET_ID` matches the deleted VNET) |
+| `DASH_OUTBOUND_PORT_MAP_TABLE` | `DASH_OUTBOUND_PORT_MAP_RANGE_TABLE` | `sai_outbound_port_map_port_range_entry_t` |
 
 # 2 Packet Flows
 	
@@ -858,8 +862,8 @@ See [PL redirect map HLD](https://github.com/sonic-net/DASH/blob/main/documentat
 | DASH_OUTBOUND_PORT_MAP_TABLE       |              |                           |                                                                                                 |                                                                                            |
 |                                    | map_id       |                           | SAI_OBJECT_TYPE_OUTBOUND_PORT_MAP                                                               |                                                                                            |
 | DASH_OUTBOUND_PORT_MAP_RANGE_TABLE |              |                           |                                                                                                 |                                                                                            |
-|                                    | map_id       |                           | SAI_OBJECT_TYPE_OUTBOUND_PORT_MAP                                                               |                                                                                            |
-|                                    | port_range   |                           | SAI_OBJECT_TYPE_OUTBOUND_PORT_MAP_RANGE_ENTRY                                                   |                                                                                            |
+|                                    | map_id       |                           | sai_outbound_port_map_port_range_entry_t.outbound_port_map_id                                                               |                                                                                            |
+|                                    | port_range   |                           | sai_outbound_port_map_port_range_entry_t                                                        |                                                                                            |
 |                                    |              | action                    | SAI_OUTBOUND_PORT_MAP_PORT_RANGE_ENTRY_ATTR_ACTION                                              |                                                                                            |
 |                                    |              | backend_ip                | SAI_OUTBOUND_PORT_MAP_PORT_RANGE_ENTRY_ATTR_BACKEND_IP                                          |                                                                                            |
 |                                    |              | backend_port_base         | SAI_OUTBOUND_PORT_MAP_PORT_RANGE_ENTRY_ATTR_BACKEND_PORT_BASE                                   |                                                                                            |
