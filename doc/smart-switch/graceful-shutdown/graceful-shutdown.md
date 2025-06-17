@@ -144,18 +144,13 @@ The diagram above illustrates two scenarios where both module_base.py and smarts
 
 * smartswitch_reboot_helper writes an entry to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True`.
 
-* gnoi_reboot_daemon.py, already subscribed to this table, is notified of the new entry.
-
-* The daemon sends a gNOI Reboot RPC with the method HALT to the sysmgr in DPUx, initiating the reboot process.
-
-* The daemon writes the reboot result to the `CHASSIS_MODULE_INFO_TABLE` by toggling `state_transition_in_progress`  to `False`.
+* Tmartswitch_reboot_helper the reboot result to the `CHASSIS_MODULE_INFO_TABLE` by toggling `state_transition_in_progress`  to `False`.
 
 * If module_base.py attempts to write to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True` during this process, the operation will fail. The user has to retry the shutdown operation again.
 
 **Scenario 2:** module_base.py **triggers first**
 
-* module_base.py writes an entry to 
-* smartswitch_reboot_helper writes an entry to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True`.
+* module_base.py writes an entry to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True`.
 
 * gnoi_reboot_daemon.py is notified of the new entry and proceeds to send a gNOI Reboot RPC with the method HALT to the sysmgr in DPUx.
 
