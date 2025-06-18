@@ -19,26 +19,28 @@ We are trying to introduce blocking mode for reboot script, which currently is i
 
 ## Background
 
-Currently the reboot script uses linux command `systemctl reboot` to reboot the SONIC system. And the linux command is asynchronous, refer to the below man page:  
-![MAN Reboot](./img/background-man-reboot.png)
+Currently the reboot script uses linux command `systemctl reboot` to reboot the SONIC system. And the linux command is asynchronous. For detail you can refer `reboot` section in [Linux Man Doc for systemctl](https://www.man7.org/linux/man-pages/man1/systemctl.1.html).
 
-As the result, the output from user batch side will be unpredictable:
-![MAN Reboot](./img/background-workflow.png)
+As the result, the output from user batch side will be unpredictable. It displays as 2 kinds of behavior randomly:
 
-And the output example for the 2 situations:
-- [C] the user bash stopped by systemd before `systemctl reboot` returns and automation system will not see extra user prompt
+- [C] The user bash stopped by systemd before `systemctl reboot` returns. Then the automation system will see extra user prompt. The time sequence is as following:
+![MAN Reboot](./img/background-C.png)
+The console output will like the following:
 ```
-admin@bjw-can-7215-11:~$ sudo reboot
+admin@sonic:~$ sudo reboot
 Error response from daemon: Container e6a136aee372584ae6e64d1c55ae49352d842d76daff13a782a4ecfa0262d0e5 is not running
 /var/log: 3.9 GiB (4138283008 bytes) trimmed on /dev/loop1
 /host: 8 GiB (8547295232 bytes) trimmed on /dev/sda2
 Fri 20 Oct 2023 06:03:33 AM UTC Issuing OS-level reboot ...
-admin@bjw-can-7215-11:~$ Connection to 10.150.22.134 closed by remote host.
+admin@sonic:~$ Connection to 10.150.22.134 closed by remote host.
 Connection to 10.150.22.134 closed.
 ```
-- [C'] the user bash stopped by systemd after `systemctl reboot` returns and automation system will see extra user prompt
+
+- [C'] The user bash stopped by systemd after `systemctl reboot` returns. Then the automation system will not see extra user prompt. The time sequence is as following:
+![MAN Reboot](./img/background-C'.png)
+The console output will like the following:
 ```
-admin@bjw-can-7215-11:~$ sudo reboot
+admin@sonic:~$ sudo reboot
 Error response from daemon: Container e6a136aee372584ae6e64d1c55ae49352d842d76daff13a782a4ecfa0262d0e5 is not running
 /var/log: 3.9 GiB (4138283008 bytes) trimmed on /dev/loop1
 /host: 8 GiB (8547295232 bytes) trimmed on /dev/sda2
@@ -46,28 +48,45 @@ Fri 20 Oct 2023 06:03:33 AM UTC Issuing OS-level reboot ...
 Connection to 10.150.22.134 closed by remote host.
 Connection to 10.150.22.134 closed.
 ```
-We want to unify the behavior to `C'` to make sure the automation system always get the same result.
+
+We want to unify the behavior to `C'` to make sure the automation system always get the same result instead of a random result.
 
 ## Function Design
 
-We don't want to make a break change to SONIC reboot command, so we introduce 3 types of inputs to identify we are trying to run on blocking-mode:
+We don't want to make a break change to SONIC reboot command, so we introduce 2 types of inputs to identify we are trying to run on blocking-mode:
 
-### Option 1: Paramter
+- Paramter: Use command parameter `-b` to enable blocking mode for reboot script. The whole command will looks like `reboot -b`.
 
-The reboot command line will be as follow:
-```
-reboot [-b]
-```
+- Config File: The reboot script will check the config file in `/etc/sonic/reboot.conf`. If the file contains the follow config, SONIC reboot will default use blocking mode.
 
-### Option 2: Config File
-The reboot command will check the config file in `/etc/sonic/reboot_cfg`. If the file contains the follow config, SONIC reboot will default use blocking mode.
 ```
-blocking-mode=true
+blocking_mode=true
 ```
 
-### Option 3: Environment Variables
-The reboot command will check the environment var `SONIC_REBOOT_BLOCKING_MODE`. If the var's value is `true`, SONIC reboot will default use blocking mode.
+And to identify the reboot script is still running, we will print dots every 10 seconds and change line every 50 dots. The console output will like the following:
 
-### Functional Test
+```
+admin@sonic:~$ sudo reboot
+Error response from daemon: Container e6a136aee372584ae6e64d1c55ae49352d842d76daff13a782a4ecfa0262d0e5 is not running
+/var/log: 3.9 GiB (4138283008 bytes) trimmed on /dev/loop1
+/host: 8 GiB (8547295232 bytes) trimmed on /dev/sda2
+Fri 20 Oct 2023 06:03:33 AM UTC Issuing OS-level reboot ...
+..................................................
+..................................................
+..............................Connection to 10.150.22.134 closed by remote host.
+Connection to 10.150.22.134 closed.
+```
+
+The first requirement to enable the dots printing is enable blocking mode. And the second requirement is one of the below options:
+- Parameter: Use command parameter `-v` to enable Verbose mode for reboot script. The whole command will looks like `reboot -v -b`
+
+- Config file: The reboot script will check the config file in `/etc/sonic/reboot.conf`. The file needs to contain the config `print_process_in_blocking_mode=true`. The whole config file will show as the following:
+
+```
+blocking_mode=true
+print_process_in_blocking_mode=true
+```
+
+## Functional Test
 
 Functional test plan will be published in [sonic-net/sonic-mgmt](https://github.com/sonic-net/sonic-mgmt).
