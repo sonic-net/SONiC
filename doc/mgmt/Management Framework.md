@@ -2358,7 +2358,7 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 25. Write lock acquired in Step 3 is released.
 26. Final response is returned from the Translib infra to REST/GNMI.
 
-### 4.3 NETCONF <get> flow
+### 4.6 NETCONF <get> flow
 
 1. NETCONF <get> request from the NETCONF client is sent to the NETCONF Server.
 2. NETCONF Server invokes a common request handler.
