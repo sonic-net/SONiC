@@ -2239,7 +2239,7 @@ A new table "NETCONF_SERVER" is introduced in ConfigDB for maintaining NETCONF s
 
 ###### 3.2.2.11.14 API Documentation
 
-NETCONF server will provide all schemas, check section 3.2.2.11.8.3.
+NETCONF server will provide all schemas, check section 3.2.2.11.8.1.
 
 ## 4 Flow Diagrams
 
