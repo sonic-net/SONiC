@@ -51,7 +51,7 @@ It aims to address following issues of sFlow:
 
 
 
-*   Lack of encryption and authentication (vulnerable to [man-in-the-middle attacks](http://b/183110882))
+*   Lack of encryption and authentication (vulnerable to man-in-the-middle attacks)
 *   Challenges with UDP-based transport (packet loss)
 *   Relies on VIP collector discovery
 
