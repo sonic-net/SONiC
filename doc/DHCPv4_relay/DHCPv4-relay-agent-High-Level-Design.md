@@ -23,7 +23,7 @@
         - [5.1.1 Co-existence with ISC-DHCP Code](#511-co-existence-with-isc-dhcp-code)
         - [5.1.2 Alignment with DHCPv6 Relay](#512-alignment-with-dhcpv6-relay)
         - [5.1.3 Interop with Port-Based DHCP Server](#513-interop-with-port-based-dhcp-server)
-        - [5.1.4 DCHP Monitor](#514-dchp-monitor)
+        - [5.1.4 DHCP Monitor](#514-dhcp-monitor)
         - [5.1.5 Dual-Tor Support](#515-dual-tor-support)
     - [6. Detailed Design](#6-detailed-design)
       - [6.1 DHCPv4 Config Manager](#61-dhcpv4-config-manager)
@@ -118,15 +118,15 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 
 - **R8:** Support the DHCP Relay Information option (Option 82), which allows network administrators to include additional information in relayed DHCP messages. Following relay sub-options will be supported.
 
-    - **Circuit ID and Remote ID sub-option**: Allows relay agent to insert specific information related to location of the client in the relay requests. **These sub-options will be inserted by default into every relay packet.
+      - **Circuit ID and Remote ID sub-option**: Allows the relay agent to insert specific information related to the location of the client in the relay requests. These sub-options will be inserted by default into every relay packet.
 
     * **Link Selection sub-option** [RFC 3527](https://datatracker.ietf.org/doc/html/rfc3527): Specifies the subnet on which the DHCP client resides, allowing servers to allocate addresses from the correct pool.
 
     * **Server ID Override sub-option** [RFC 5107](https://datatracker.ietf.org/doc/html/rfc5107): Allows the relay agent to specify a new value for the server ID option. This sub-option allows the relay agent to act as the DHCP server, ensuring that renewal requests are sent to the relay agent rather than directly to the DHCP server.
 
-    - **Virtual Subnet Selection option** [RFC 6607](https://datatracker.ietf.org/doc/html/rfc6607): Specifies the VRF/VPN from which the DHCP request came from
+      - **Virtual Subnet Selection option** [RFC 6607](https://datatracker.ietf.org/doc/html/rfc6607): Specifies the VRF/VPN from which the DHCP request came from.
 
-- **R9:** Support configuration of the source interface for the relayed packets.
+- **R9:** Support configuration of the source interface (giaddr) for the relayed packets.
 
 - **R10:** Support handling of DHCP packets that have already been relayed by other agents. Three options are available:
 
@@ -138,7 +138,7 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 
 - **R11:** Support Dual-TOR use case
 
-- **R12:** Support multiple subnets/interfaces on a VLAN. If multiple interfaces are configured on a vlan, DHCP4 relay will insert only the primary address as giaddr in dchp request packets.
+- **R12:** Support multiple subnets/interfaces on a VLAN. If multiple interfaces are configured on a vlan, DHCP4 relay will insert only the primary address as giaddr in dhcp request packets.
 
 - **R13:** Scalability: The relay agent must be able to handle a large number of DHCP clients and servers. It should be able to support:
 
@@ -155,14 +155,14 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 To facilitate a smooth transition for users migrating from ISC-DHCP to the new SONiC-DHCPv4-Relay, both implementations will coexist within the SONiC codebase for a period of time. A new configuration flag, has_sonic_dhcpv4_relay, will be introduced in the dhcp_relay feature within the config-db. This flag will allow users to select either the ISC-DHCP or the SONiC-DHCPv4-Relay implementation, with the default set to the existing ISC-DHCP. Once the new design has been validated as a functional superset of ISC-DHCP, both the feature flag and the ISC-DHCP implementation will be deprecated.
 
 ##### 5.1.2 Alignment with DHCPv6 Relay
-The new DHCPv4 relay design will aim to mirror the design structure of the existing DHCPv6 relay as closely as possible, ensuring consistency and ease of integration. Code for the DHCPv4 relay will be maintained in a new sub-directory in the existing dhcp relay repository: https://github.com/sonic-net/sonic-dhcpv-relay. Also, current DHCPv6 relay code will be moved to a parallel subddirectory.
+The new DHCPv4 relay design will aim to mirror the design structure of the existing DHCPv6 relay as closely as possible, ensuring consistency and ease of integration. Code for the DHCPv4 relay will be maintained in a new sub-directory in the existing dhcp relay repository: [https://github.com/sonic-net/sonic-dhcpv-relay](https://github.com/sonic-net/sonic-dhcpv-relay). Also, current DHCPv6 relay code will be moved to a parallel subdirectory.
 
 ##### 5.1.3 Interop with Port-Based DHCP Server
 In the current ISC-DHCP design, a daemon process named `dhcprelayd` operates within the dhcp_relay container. If `dhcp_server` feature is enabled, this daemon is responsible for monitoring the `dhcpv4_server` configuration and managing the lifecycle of the `dhcrelay` process, including actions such as starting, stopping, and restarting it.
 
 The new DHCPv4 Relay design aims to continue this integration with the port-based DHCPv4 server feature by not requiring the need for explicit relay configuration. Instead of depending on an external daemon, the new design will rely on a DHCPv4 CfgMgr thread (described later in this document), which will continuously monitor both the ConfigDb and StateDb for any port-based DHCP server configurations. This thread will dynamically configure the relay functionality as needed, ensuring that changes in server configurations are seamlessly integrated without extra configuration.
 
-##### 5.1.4 DCHP Monitor
+##### 5.1.4 DHCP Monitor
 The existing DHCP monitor will be enhanced in-order to support monitoring of DHCPv4 packets being handled by the new implementation.
 
 ##### 5.1.5 Dual-Tor Support
@@ -172,7 +172,7 @@ By enabling the link-selection option, the DHCP relay will use the interface spe
 
 ### 6. Detailed Design
 
-DHCPv4 relay process will run in the DHCP container along with DHCPv6 processes and DhcpMon. A single instance of the process will handle DHCPv4 relay functionality of all the VLANs that are configured. This process will listen to Redis for all the necessary configuration updates and will not require restarting of the container. The design is split into 3 sub-modules and the following diagram provides an overview of how they interact with each other:
+DHCPv4 relay process will run in the dhcp_relay container along with DHCPv6 processes and DhcpMon. A single instance of the process will handle DHCPv4 relay functionality of all the VLANs that are configured. This process will listen to Redis for all the necessary configuration updates and will not require restarting of the container. The design is split into 3 sub-modules and the following diagram provides an overview of how they interact with each other:
 
 <div align="center"> <img src=images/DHCPv4_Relay_sequence_diagram.png width=700 /> </div>
 
@@ -183,7 +183,7 @@ The Config Manager thread is responsible for subscribing to the Redis database t
 - **INTF Table:** For mapping source interfaces to IP addresses when the source-interface parameter is enabled in the relay configuration.
 - **VRF Table:** For creating sockets to send packets to Server.
 - **FEATURE Table:** To check if port based `dhcp_server` feature is enabled.
-- **DEVICE_METADATA Table:** To populate hostname and deivce mac in circuit-id/remote-id and also to check if device is a smartSwitch.
+- **DEVICE_METADATA Table:** To populate hostname and device mac in circuit-id/remote-id and also to check if device is a smartSwitch.
 - **DHCP_SERVER_IPV4_SERVER_IP Table:** From StateDB to get server-IP for port-based dhcp_server.
 - **DHCP_SERVER_IPV4 Table:** For per-VLAN port-based DHCP server configuration
 - **VLAN Table:** To ensure that VLAN exists before starting any DHCPv4 relay functionality and get associated VRF id.
@@ -285,13 +285,13 @@ A proposed enhancement, as outlined in the DHCPv4 Relay Per-Interface Counter do
         +-------------+-------+-------+-------+-------+
         | Vlan (RX)   |   Dis |   Off |   Req |   Ack |
         +=============+=======+=======+=======+=======+
-        | Vlan10      |    1  |    3  |    1  |    1  |
+        | Vlan11      |    1  |    3  |    1  |    1  |
         +-------------+-------+-------+-------+-------+
 
         +-------------+-------+-------+-------+-------+
         | Vlan (TX)   |   Dis |   Off |   Req |   Ack |
         +=============+=======+=======+=======+=======+
-        | Vlan10      |    3  |    3  |    1  |    1  |
+        | Vlan11      |    3  |    3  |    1  |    1  |
         +-------------+-------+-------+-------+-------+
 
 ### 7. Yang Model
@@ -370,7 +370,7 @@ module sonic-dhcpv4-relay {
                     type leafref {
                         path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
                     }
-                    must "current()/../server_id_override = 'enable' and
+                    must "(current()/../server_id_override = 'enable' and
                           current()/../link_selection = 'enable')" {
                         description "when server_vrf is set, link_selection and server_id_override must be enabled";
                     }
@@ -395,10 +395,10 @@ module sonic-dhcpv4-relay {
                 }
 
                 leaf link_selection {
-                    description "Enable link-selection sub-option 11";
+                    description "Enable link-selection sub-option 5";
                     type stypes:mode-status;
                     default disable;
-                    must "current() = 'disable' or current()/../source_interface != ''" {
+                    must "current() = 'disable' or exists(current()/../source_interface)" {
                         description "if link_selection is enabled, source_interface must be set";
                     }
                 }
@@ -407,13 +407,13 @@ module sonic-dhcpv4-relay {
                     description "Enable VRF selection sub-option 151";
                     type stypes:mode-status;
                     default disable;
-                    must "current() = 'disable' or current()/../server_vrf != ''" {
+                    must "current() = 'disable' or exists(current()/../server_vrf)" {
                         description "if vrf_selection is enabled, server_vrf must be set";
                     }
                 }
 
                 leaf server_id_override {
-                    description "Enable server id override sub-option 5";
+                    description "Enable server id override sub-option 11";
                     type stypes:mode-status;
                     default disable;
                 }
@@ -487,7 +487,7 @@ DHCPv4 relay configurations can be established using VLAN mode or directly throu
 
 ##### 9.1.1 Existing CLI to add/del relay configuration in the VLAN table
 
-These existing CLIs can be used to ```add``` or ```delete``` DHCPv4 Relay helper address to a VLAN. Note that the `update` operation is not supported. Also, these CLIs can be used to only add a list of server IP addresses. They will not allow configuration of any DHCP relay suboptions or other optional parameters that were introduced in sonic-dchpv4-relay.
+These existing CLIs can be used to ```add``` or ```delete``` DHCPv4 Relay helper address to a VLAN. Note that the `update` operation is not supported. Also, these CLIs can be used to only add a list of server IP addresses. They will not allow configuration of any DHCP relay suboptions or other optional parameters that were introduced in sonic-dhcpv4-relay.
 
 - **Usage**
 ```CMD
@@ -515,17 +515,20 @@ sudo config dhcp_relay ipv4 helper del 1000 7.7.7.7
           Add object in DHCPV4_RELAY.
 
         Options:
-          --server-vrf TEXT          Server VRF
-          --source-interface TEXT    Used to determine the source IP address of the
-                                     relayed packet
-          --link-selection TEXT      Enable link selection
-          --vrf-selection TEXT       Enable VRF selection
-          --server-id-override TEXT  Enable server id override
-          --agent-relay-mode TEXT    How to forward packets that already have a relay
-                                     option
-          --max-hop-count TEXT       Maximum hop count for relayed packets
-          --dhcpv4-servers TEXT      Server IPv4 address list
-          -h, -?, --help             Show this message and exit.
+          --server-vrf <vrf_name>                    Server VRF
+          --source-interface <interface_name>        Used to determine the source IP address of the
+                                                     relayed packet
+          --link-selection <enable|disable>          Enable link selection
+          --vrf-selection  <enable|disable>          Enable VRF selection
+          --server-id-override <enable|disable>      Enable server id override
+          --agent-relay-mode <forward_and_append|
+                              forward_and_replace|
+                              forward_untouched|
+                              discard>              How to forward packets that already have a relay
+                                                    option
+          --max-hop-count <1..16>                   Maximum hop count for relayed packets
+          --dhcpv4-servers <ipv4_address_list>      Server IPv4 address list
+          -h, -?, --help                            Show this message and exit.
         ```
 
     - Delete an existing relay configuration<br>
@@ -611,7 +614,7 @@ Vlan12  Vrf01         Loopback0           enable            enable           ena
 
 ##### 9.2.3 New Show CLI to report per-VLAN interface counters
 
-These CLIs show the number of DCHPv4 packets received and transmitted in the context of a client side VLAN interface.
+These CLIs show the number of DHCPv4 packets received and transmitted in the context of a client side VLAN interface.
 
 - Usage
 
@@ -622,7 +625,7 @@ These CLIs show the number of DCHPv4 packets received and transmitted in the con
 
         Options:
           -d, --direction [TX|RX]         Specify TX(egress) or RX(ingress)
-          -t, --type [Unkown|Discover|Offer|Request|Acknowledge|Release|Inform|Decline|Malformed]
+          -t, --type [Unknown|Discover|Offer|Request|Acknowledge|Release|Inform|Decline|Malformed]
                                           Specify DHCP packet counter type
           -?, -h, --help                  Show this message and exit.
         ```
@@ -636,7 +639,7 @@ These CLIs show the number of DCHPv4 packets received and transmitted in the con
 
         Options:
           -d, --direction [TX|RX]         Specify TX(egress) or RX(ingress)
-          -t, --type [Unkown|Discover|Offer|Request|Acknowledge|Release|Inform|Decline|Malformed]
+          -t, --type [Unknown|Discover|Offer|Request|Acknowledge|Release|Inform|Decline|Malformed]
                                           Specify DHCP packet counter type
           -?, -h, --help                  Show this message and exit.
         ```
@@ -648,7 +651,7 @@ These CLIs show the number of DCHPv4 packets received and transmitted in the con
 
         Options:
           -d, --direction [TX|RX]         Specify TX(egress) or RX(ingress)
-          -t, --type [Unkown|Discover|Offer|Request|Acknowledge|Release|Inform|Decline|Malformed]
+          -t, --type [Unknown|Discover|Offer|Request|Acknowledge|Release|Inform|Decline|Malformed]
                                           Specify DHCP packet counter type
           -?, -h, --help                  Show this message and exit.
         ```
@@ -666,7 +669,7 @@ These CLIs show the number of DCHPv4 packets received and transmitted in the con
         ```
         ```
         Packet type Abbr: Un - Unknown, Dis - Discover, Off - Offer, Req - Request,
-                  Ack - Acknowledge, Nack - NegativeAcknowledge, Rel - Release,
+                  Ack - Acknowledge, Nack - Negative Acknowledge, Rel - Release,
                   Inf - Inform, Dec - Decline, Mal - Malformed, Drp - Dropped
 
         +-------------+------+-------+-------+-------+-------+--------+-------+-------+-------+-------+-------+
@@ -681,7 +684,7 @@ These CLIs show the number of DCHPv4 packets received and transmitted in the con
         +-------------+------+-------+-------+-------+-------+--------+-------+-------+-------+-------+-------+
         | Vlan (TX)   |   Un |   Dis |   Off |   Req |   Ack |   Nack |   Rel |   Inf |   Dec |   Mal |   Drp |
         +=============+======+=======+=======+=======+=======+========+=======+=======+=======+=======+=======+
-        | Vlan10      |    0 |    10 |    10 |    10 |    10 |      0 |     0 |     0 |     0 |     0 |       |
+        | Vlan10      |    0 |    10 |    10 |    10 |    10 |      0 |     0 |     0 |     0 |     0 |     0 |
         +-------------+------+-------+-------+-------+-------+--------+-------+-------+-------+-------+-------+
         ```
 
@@ -713,7 +716,7 @@ The table below lists the various isc-dhcp command-line options currently used i
 | -si | | |
 | -iu <interface_name> | None | No need to separate out upstream/downstream interfaces |
 | -pg <primary_gateway_ip> | None | New design will automatically pick up the primary gateway IP from VLAN_INTERFACE table |
-| dhcp_server | --dhcpv4-servers \<server-list> |db_migrator.py will migrate dhcp_server list from VLAN table to DHCPV4_TABLE in the ConfigDB|
+| dhcp_server | --dhcpv4-servers \<server-list> |db_migrator.py will migrate dhcp_server list from VLAN table to DHCPV4_RELAY in the ConfigDB|
 
 
 ### 11. Performance
