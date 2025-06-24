@@ -208,8 +208,8 @@ COUNTERS_DB:
 
 
 
-*   For CONFIG_DB/APP_STATE_DB, admin_state and port are added for configuration purposes.
-*   For COUNTERS_DB, gNPSI added stats path `bytes_sent`, `packets_sent` and `packetserror` for each collector._
+*   For CONFIG_DB/APP_STATE_DB, `admin_state` and `port` fields are added for configuration purposes.
+*   For COUNTERS_DB, gNPSI added stats fields `bytes_sent`, `packets_sent` and `packetserror` for each collector.
 
 
 ### 8. Warmboot and Fastboot Design Impact
