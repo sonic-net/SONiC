@@ -145,6 +145,7 @@ The dependency of repository is shown below
 
 *   Introduces architectural complexities.
 *   Difficult to upstream and maintain the sFlow open-source C code.
+*   Cannot share a common gNPSI relay server implmentation for other protocols(NetFlow/Ipfix). 
 
 Given that the overhead of using the local loopback collector is negligible, we opted for local loopback collector solution instead of integrated processes.
 
