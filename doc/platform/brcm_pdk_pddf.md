@@ -605,7 +605,20 @@ psu_i_out
 psu_p_out
 psu_fan1_speed_rpm
 psu_temp1_input
+psu_temp1_high_threshold
 ```
+The following fields are optional and can be added via `pddf-device.json` to support up to 3 temperature sensors in the PSU.
+
+```
+psu_temp2_input
+psu_temp2_high_threshold
+psu_temp3_input
+psu_temp3_high_threshold
+```
+Checks are added in the PSU driver to:
+  * Skip creating `psu_temp*_input` and `psu_temp*_high_threshold` SysFS paths if index exceeds the `num_psu_thermals` specified in the JSON file
+  * Only create `psu_temp*_high_threshold` SysFS paths if the attribute is explicitly specified in JSON file
+
 ##### 3.4.3.2 PSU JSON Design
 PSU JSON is structured to include the access-data for all the supported SysFS attributes.
 *attr_list* is an array object which stores the array of access-data for multiple  attributes. If some of the field in the attribute object is not applicable to some particular attribute, it can be left and not filled.
