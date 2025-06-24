@@ -166,9 +166,9 @@ These paths cover the stats collection for gNPSI
 
 
 
-*   `/system/grpc-servers/grpc-server[name=gnpsi]/clients/client[address=&lt;client_ip>][port=&lt;port_num>]/state/bytes-sent`
-*   `/system/grpc-servers/grpc-server[name=gnpsi]/clients/client[address=&lt;client_ip>][port=&lt;port_num>]/state/packets-sent`
-*   `/system/grpc-servers/grpc-server[name=gnpsi]/clients/client[address=&lt;client_ip>][port=&lt;port_num>]/state/sample-send-error`
+*   `/system/grpc-servers/grpc-server[name=gnpsi]/clients/client[address=<client_ip>][port=<port_num>]/state/bytes-sent`
+*   `/system/grpc-servers/grpc-server[name=gnpsi]/clients/client[address=<client_ip>][port=<port_num>]/state/packets-sent`
+*   `/system/grpc-servers/grpc-server[name=gnpsi]/clients/client[address=<client_ip>][port=<port_num>]/state/sample-send-error`
 
 
 Server flag
