@@ -189,19 +189,19 @@ DB schema is shown as below:
 ```
 CONFIG_DB:
 	"GNPSI|global": {
-"admin_state": "ENABLE"|"DISABLE",
-"port": "<port_num>"
+      "admin_state": "ENABLE"|"DISABLE",
+      "port": "<port_num>"
 }
-	APPL_STATE_DB:
-		"GNPSI:global": {
-"admin_state": "ENABLE"|"DISABLE",
-"port": "<port_num>"
+APPL_STATE_DB:
+	"GNPSI:global": {
+      "admin_state": "ENABLE"|"DISABLE",
+      "port": "<port_num>"
 }
-	COUNTERS_DB:
-		"COUNTERS:GNPSI:<remote_ip>/<port_num>": {
-			"bytes_sent": "0",
-			"packets_sent": "0",
-			"packets_error": "0"
+COUNTERS_DB:
+   "COUNTERS:GNPSI:<remote_ip>/<port_num>": {
+      "bytes_sent": "0",
+      "packets_sent": "0",
+      "packets_error": "0"
 }
 ```
 
