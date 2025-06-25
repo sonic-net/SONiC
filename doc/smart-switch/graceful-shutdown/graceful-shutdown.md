@@ -106,11 +106,11 @@ In the Redis STATE_DB IPC approach, SONiC leverages Redis's publish-subscribe me
 
 KEY: `CHASSIS_MODULE_INFO_TABLE|<MODULE_NAME>`.
 
-| Field                          | Description                                                                                  |
-| ------------------------------ | -------------------------------------------------------------------------------------------- |
-| `state_transition_in_progress` | `"True"` indicates that a transition is ongoing; `"False"` or absence implies no transition. |
-| `transition_start_time`        | Timestamp in human-readable UTC format representing the start of the transition.             |
-| `transition_type`              | Specifies the nature of the transition: `"shutdown"`, `"reboot"`, or `"startup"`.            |
+| Field                          | Description                                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `state_transition_in_progress` | `"True"` indicates that a transition is ongoing; `"False"` or absence implies no transition.             |
+| `transition_start_time`        | Timestamp in human-readable UTC format representing the start of the transition.                         |
+| `transition_type`              | Specifies the nature of the transition: `"shutdown"`, `"none"`. `none` is default for reboot and startup |
 
 **Example:**
 ```
@@ -138,37 +138,52 @@ The following sequence diagram illustrates the parallel execution of graceful sh
 
 <p align="center"><img src="./images/reboot-interoperability.svg"></p>
 
-The diagram above illustrates two scenarios where both module_base.py and smartswitch_reboot_helper might attempt to initiate a shutdown and reboot simultaneously. When there is a race condition the one that writes the `CHASSIS_MODULE_INFO_TABLE`  `state_transition_in_progress` field wins. In case if the `state_transition_in_progress` is `True` as a result of DPU startup in progress both reboot and shutdown will fail. It is up to the requesting module to re-issue the transaction if needed.
+The diagram above illustrates scenarios where both module_base.py and smartswitch_reboot_helper might attempt to initiate a shutdown, startup and reboot simultaneously. When there is a race condition the one that writes the `CHASSIS_MODULE_INFO_TABLE`  `state_transition_in_progress` field wins. In case if the `state_transition_in_progress` is `True` as a result of DPU startup in progress both reboot and shutdown will fail. It is up to the requesting module to re-issue the transaction if needed. When the module level reboot and switch level reboot happen simultaneously, if the module level reboot has already updated the
+`state_transition_in_progress` to `True` the switch level reboot needs to be reissued.  If the switch level reboot happens first it will grab all the module
+`state_transition_in_progress` and set them to `True` as a first step and runs to completion.
 
-**Scenario 1:** smartswitch_reboot_helper **triggers first**
+**Scenario 1:** module_base issues a startup or shutdown when smartswitch_reboot_helper module reboot is in progress for the same module
 
-* smartswitch_reboot_helper writes an entry to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True`.
+* smartswitch_reboot_helper writes to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` to `True`.
 
-* Tmartswitch_reboot_helper the reboot result to the `CHASSIS_MODULE_INFO_TABLE` by toggling `state_transition_in_progress`  to `False`.
+* If module_base.py attempts to write to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True` during this process, the operation will fail. The user has to retry the shutdown operation later.
 
-* If module_base.py attempts to write to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True` during this process, the operation will fail. The user has to retry the shutdown operation again.
+* When the reboot is complete the  `CHASSIS_MODULE_INFO_TABLE` `state_transition_in_progress` will be set to `False`. The module_base.py has to retry the shutdown/startup operation as needed when the reboot is complete.
 
-**Scenario 2:** module_base.py **triggers first**
+**Scenario 2:** smartswitch_reboot_helper module issues a reboot when module_base graceful shutdown is in progress.
 
-* module_base.py writes an entry to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True`.
+* module_base.py writes to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True` and sets the `"transition_type": "shutdown"`.
 
 * gnoi_reboot_daemon.py is notified of the new entry and proceeds to send a gNOI Reboot RPC with the method HALT to the sysmgr in DPUx.
 
 * The daemon writes the reboot result to the `CHASSIS_MODULE_INFO_TABLE` by toggling `state_transition_in_progress`  to `False`.
 
-* If smartswitch_reboot_helper attempts to write to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True` during this process, the operation will fail.
+* If smartswitch_reboot_helper also attempts to write to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True` during this process, the operation will fail.
 
 * The graceful shutdown completes as planned. So, there is no need for the reboot in this situation.
 
-**Scenario 3:** chassisd DPU startup **triggers first**
+**Scenario 3:** smartswitch_reboot_helper module issues a reboot when module_base startup is in progress.
 
-* If module_base.py tries to shutdown, it will be rejected and this operation has to be retried if needed.
+* module_base.py writes to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True`.
 
-* If smartswitch_reboot_helper tries to reboot, it will be rejected and there is no need to reboot again as the DPU has been restarted just now.
+* If smartswitch_reboot_helper also attempts to write to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True` during this process, the operation will fail.
 
-**Scenario 4:** DPU reboot **triggers first followed by switch reboot**
+* The module startup completes as planned. So, the reboot may not be needed in this situation.
 
-* In this situation the reboot logic should retry shutting down the DPUx that returned a failure only if the DPUx is not admin_down.
+**Scenario 4:** module_base issues a graceful shutdown when the module startup is in progress or vice versa.
+
+* If module_base.py writes to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True indicating startup or shutdown is in progress.
+
+* If module_base.py issues another startup or shutdown to the same module that will fail and the user has to issue it again later when the previous operation is complete.
+
+**Scenario 5:** Switch level reboot is issued when module level reboot or startup or shutdown in progress.
+
+* In this situation the switch level reboot logic will check the `state_transition_in_progress` for all the modules first and grab anything that is `False` set them the `True`.  If one or more modules are already undergoing reboot or shutdown or startup it will ignore those modules and complete the remaining.  This will leave the system in the expected state. Until the switch level reboot is complete the  `state_transition_in_progress` for all modules will be maintained `True` irrespective of the type of operation.
+
+**Scenario 6:** Module level reboot or startup or shutdown is issued when switch level reboot is in progress.
+
+* The module level requests will fail as the switch level reboot has already set all the module level `state_transition_in_progress` to `True`.
+* The user needs to redo the module level operation after the switch level reboot if needed.
 
 This design ensures that only one reboot process is initiated, regardless of which component triggers it first, thereby preventing race conditions and ensuring system stability.
 
