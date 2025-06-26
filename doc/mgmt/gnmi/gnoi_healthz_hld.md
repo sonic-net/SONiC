@@ -167,6 +167,7 @@ message ComponentStatus {
   google.protobuf.Timestamp expires = 9;
 }
 ```
+![Healthz.Get](https://github.com/user-attachments/assets/199c098d-e191-42c6-9a5a-494b685ad4f3)
 
 
 Supported Paths for Get:
