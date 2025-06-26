@@ -78,9 +78,6 @@ service Healthz {
   // available for the requested path an error will be returned.
   rpc Get(GetRequest) returns (GetResponse) {}
 
-  // List returns all events for the provided component path.
-  rpc List(ListRequest) returns (ListResponse) {}
-
   // Acknowledge will set the acknowledged field for the event.
   // This is an idempotent operation.
   rpc Acknowledge(AcknowledgeRequest) returns (AcknowledgeResponse) {}
@@ -88,18 +85,25 @@ service Healthz {
   // Artifact will stream the artifact contents for the provided artifact id.
   rpc Artifact(ArtifactRequest) returns (stream ArtifactResponse) {}
 
+  // Initially unsupported.
   // Check will invoke the healthz on the provided component path. This RPC
   // can be expensive depending on the vendor implementation.
   rpc Check(CheckRequest) returns (CheckResponse) {}
+
+  // List returns all events for the provided component path.
+  rpc List(ListRequest) returns (ListResponse) {}
 }
 ```
 
-Following a health check, a caller can use the Get RPC to discover the health "events" (expressed as a ComponentStatus message) that are associated with a component and its corresponding subcomponents. Each event reflects a collection of data that is required to debug or further root cause the fault that occurs with an entity in the system.
-The Artifact RPC is used to retrieve specific artifacts that are listed by the target system in the Get RPC.
-Once retrieved, an event - which corresponds to a series of artifacts - can be 'acknowledged' by the client of the RPC. Acknowledged events are no longer returned in the list of events by default. The device may use the acknowledged status as a hint to allow garbage collection of artifacts that are no longer relevant. The device itself is responsible for garbage collection any may, if necessary, garbage collect artifacts that are not yet acknowledged. It is expected that events are persisted across restarts of the system or its hardware and software components, and they are removed only for resource management reasons.
+Sequence following a health check:
+- A caller can use the Get RPC to discover the health "events" (expressed as a ComponentStatus message) that are associated with a component and its corresponding subcomponents. Each event reflects a collection of data that is required to debug or further root cause the fault that occurs with an entity in the system.
+- The Artifact RPC is used to retrieve specific artifacts that are listed by the target system in the Get RPC.
+- Once retrieved, an event - which corresponds to a series of artifacts - can be 'acknowledged' by the client of the RPC. 
+Acknowledged events are no longer returned in the list of events by default. The device may use the acknowledged status as a hint to allow garbage collection of artifacts that are no longer relevant.
+- The device itself is responsible for garbage collection any may, if necessary, garbage collect artifacts that are not yet acknowledged. It is expected that events are persisted across restarts of the system or its hardware and software components, and they are removed only for resource management reasons.
 
 Healthz works in conjunction with telemetry streamed via gNMI. OpenConfig paths for a specific component are streamed to indicate when components become unhealthy, allowing the receiving system to determine that further inspection of the component's health is required. 
-Where a gNMI path (gnoi.types.Path) is used in Healthz, the path specified should be the complete path to a specific component, i.e., `/components/component[name=FOO]`.
+Wherever a gNMI path (gnoi.types.Path) is used in Healthz, the path specified should be the complete path to a specific component, for example, `/components/component[name=FOO]`.
 
 Example
 ```
@@ -112,7 +116,7 @@ Path: &types.Path{
         {
             Name: "component",
             Key: map[string]string{
-                "name": "Ethernet1",
+                "name": "healthz",
             },
         },
     },
@@ -163,7 +167,22 @@ message ComponentStatus {
   google.protobuf.Timestamp expires = 9;
 }
 ```
-The Get RPC translates the incoming gNMI Path to the correct component and derives the related information either from the Redis DB or a specified file.
+
+
+Supported Paths for Get:
+```
+/components/component[name=healthz]/alert-info
+/components/component[name=healthz]/critical-info
+/components/component[name=healthz]/all-info
+```
+Get Sequence Flow
+
+1. The Get RPC handler translates the incoming gNMI Path in the Get request to the correct component and derives the related information for the log level indicated. 
+2. For the above supoorted paths, a call to HealthzCollect is made through the DBUS client with the component name, log level, and a persistent_storage flag to indicate if the artifacst should be stored in persistent storage. This in turn invokes the DBUS endpoint of the host service via the module `debug_info`.
+3. The host service module `debug_info.collect` collects all the artifacts for a given board type. Depending on the log level and board type input, the relevant log files, DB snapshots, counters, record files, and various command outputs are collected for multiple components and aggregated under a specified artifact directory in the host. Once complete, the directory is compressed to a `*.tar.gz` file ready to be streamed.
+4. In. the meantime, the frontend keeps polling for the artifact to be ready with a call to HealthzCheck through the DBUS client `debug_info.check`.
+5. Once the artifact tar file is ready, the artifact details (filename, size, checksum) with the unique ID string are sent in the Get response back to the client.
+
 
 ### Healthz.Artifact
 ```
@@ -217,8 +236,8 @@ message FileArtifactType {
 }
 ```
 
-The Artifact RPC initiates the system's debugging artifact collection. The input id string is a single JSON string that contains the component name, log level, and a persistent_storage flag to indicate if the artifacst should be stored in persistent storage, in addition to volatile storage.
-Based on the platform board type, the backend collects the relevant logs, snapshots and other debugging artifacts in a single zipped `*.tar.gz` file in the host, following which the output artifact is streamed back to the caller.
+The Artifact RPC initiates the system's debugging artifact collection. The input ID string is the same unique id received from the Get Response. 
+The RPC handler packages the artifact header information and streams the file to the caller.
 
 ### Healthz.Acknowledge
 
@@ -233,11 +252,7 @@ message AcknowledgeResponse {
   ComponentStatus status = 1;
 }
 ```
-The Acknowledge RPC removes the artifact associated with the path and id provided in the backend and returns the status of the component.
-
-
-### Backend Design Considerations
-
+The Acknowledge RPC removes the artifact associated with the path and ID provided in the backend and returns the status of the component.
 
 
 ### SAI API
@@ -257,13 +272,24 @@ In this section, we discuss both manual and automated testing strategies.
 
 #### Manual Tests
 CLI
-UMF has a gnoi_client CLI tool which can be used to invoke service RPCs on the switch. This would include adding support for both JSON and proto formats of requests.
+- The gNMI server has a gnoi_client CLI tool which can be used to invoke service RPCs on the switch. This would include adding support for both JSON and proto formats of requests.
 
 #### Automated Tests
-Component Tests
-For gNOI logic implementation in UMF, we will use the existing component test infrastructure for testing by adding UTs for individual API per supported gNOI service.
+Unit Tests
+- For gNOI logic implementation in UMF, we will use the existing unit test and component test infrastructure for testing by adding unit tests for individual API per supported gNOI service.
 
-End-to-End Tests
-These tests would invoke gNOI requests from the client to verify expected behaviour for gNOI services and are implemented on the Thinkit testing infrastructure.
+- TestHealthzServer
+- HealthzGetFailsForInvalidComponent
+- HealthzGetForInvalidPaths
+- HealthzGetForDebugDataFailsForHostServiceError
+- HealthzGetForDebugDataFailsForHostServiceErrorCode
+- HealthzGetForDebugDataFailsForNotExistingFile
+- HealthzGetForDebugDataFailsForCheckError
+- HealthzArtifactForDebugDataFailsForNotExistingFile
+- HealthzAcknowledgeForDebugDataForHostServiceError
+- HealthzAcknowledgeForDebugDataForHostServiceErrorCode
+- HealthzAcknowledgeForDebugDataFailsForNotExistingFile
+- HealthzGetForDebugDataSucceeds
+
 
 ### Open/Action items - if any
