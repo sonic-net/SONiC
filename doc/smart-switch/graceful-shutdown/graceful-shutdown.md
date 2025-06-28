@@ -68,7 +68,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
 10. **Reboot Result Update in DB:**
 
-      * The daemon writes the reboot result to the `CHASSIS_MODULE_INFO_TABLE` in Redis STATE_DB by turning `state_transition_in_progress` `False`.
+      * The daemon writes the reboot result to the `CHASSIS_MODULE_INFO_TABLE` in Redis STATE_DB by turning `state_transition_in_progress` to `False` when after the platform API completes the power down operation of the modules as shown in step 13.
 
       * In case of a reboot result failure the result gets updated after the timeout.
 
@@ -125,8 +125,8 @@ CHASSIS_MODULE_INFO_TABLE|DPU0
 | Transition Type       | Who Sets the Field                                              | How It's Cleared                                    |
 | --------------------- | --------------------------------------------------------------- | --------------------------------------------------- |
 | **Startup**           | `chassisd` on a CLI or config load, before starting a DPU       | Once module reaches online state                    |
-| **Graceful Shutdown** | `chassisd` on a CLI or config load, before triggering gNOI HALT | `gnoi-reboot-daemon` upon receiving status          |
-| **gNOI Reboot**       | `smartswitch_reboot_helper`                                     | `gnoi-reboot-daemon` once reboot status is received |
+| **Shutdown**       | `chassisd` on a CLI or config load, before triggering gNOI HALT | `gnoi-reboot-daemon` upon receiving status          |
+| **Reboot**         | `smartswitch_reboot_helper`                                     | `gnoi-reboot-daemon` once reboot status is received |
 
 ## Parallel Execution
 
@@ -142,7 +142,9 @@ The diagram above illustrates scenarios where both module_base.py and smartswitc
 `state_transition_in_progress` to `True` the switch level reboot needs to be reissued.  If the switch level reboot happens first it will grab all the module
 `state_transition_in_progress` and set them to `True` as a first step and runs to completion.
 
-**Scenario 1:** module_base issues a startup or shutdown when smartswitch_reboot_helper module reboot is in progress for the same module
+**Scenario 1:** module_base issues a startup or shutdown when smartswitch_reboot_helper module reboot is in progress for the same module.
+
+ The same scenario applies if "config reload" happens when reboot is in progress.
 
 * smartswitch_reboot_helper writes to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` to `True`.
 
@@ -172,7 +174,7 @@ The diagram above illustrates scenarios where both module_base.py and smartswitc
 
 **Scenario 4:** module_base issues a graceful shutdown when the module startup is in progress or vice versa.
 
-* If module_base.py writes to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True indicating startup or shutdown is in progress.
+* If module_base.py writes to `CHASSIS_MODULE_INFO_TABLE`  with `state_transition_in_progress` `True` indicating startup or shutdown is in progress.
 
 * If module_base.py issues another startup or shutdown to the same module that will fail and the user has to issue it again later when the previous operation is complete.
 
