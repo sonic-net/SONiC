@@ -23,8 +23,10 @@ Currently the reboot script uses linux command `systemctl reboot` to reboot the 
 
 As the result, the output from user batch side will be unpredictable. It displays as 2 kinds of behavior randomly:
 
-- [C] The user bash stopped by systemd before `systemctl reboot` returns. Then the automation system will see extra user prompt. The time sequence is as following:
-![MAN Reboot](./img/background-C.png)
+- [A] The user bash stopped by systemd before `systemctl reboot` returns. Then the automation system will see extra user prompt. The time sequence is as following:
+
+![MAN Reboot](./img/background-A.png)
+
 The console output will like the following:
 ```
 admin@sonic:~$ sudo reboot
@@ -36,8 +38,10 @@ admin@sonic:~$ Connection to 10.150.22.134 closed by remote host.
 Connection to 10.150.22.134 closed.
 ```
 
-- [C'] The user bash stopped by systemd after `systemctl reboot` returns. Then the automation system will not see extra user prompt. The time sequence is as following:
-![MAN Reboot](./img/background-C'.png)
+- [B] The user bash stopped by systemd after `systemctl reboot` returns. Then the automation system will not see extra user prompt. The time sequence is as following:
+
+![MAN Reboot](./img/background-B.png)
+
 The console output will like the following:
 ```
 admin@sonic:~$ sudo reboot
@@ -49,19 +53,19 @@ Connection to 10.150.22.134 closed by remote host.
 Connection to 10.150.22.134 closed.
 ```
 
-We want to unify the behavior to `C'` to make sure the automation system always get the same result instead of a random result.
+We want to unify the behavior to `B` to make sure the automation system always get the same result instead of a random result.
 
-## Function Design
+## Design
 
-We don't want to make a break change to SONIC reboot command, so we introduce 2 types of inputs to identify we are trying to run on blocking-mode:
+### Blocking Mode
 
-- Paramter: Use command parameter `-b` to enable blocking mode for reboot script. The whole command will looks like `reboot -b`.
+We don't want to make a break change to SONIC reboot command, so we introduce 2 options as the following for user to identify that we are trying to run on blocking-mode. Blocking-mode will be enable if any of the option is enabled.
 
-- Config File: The reboot script will check the config file in `/etc/sonic/reboot.conf`. If the file contains the follow config, SONIC reboot will default use blocking mode.
+- Paramter: Use command optional parameter `-b` to enable blocking mode for reboot script. The whole command will looks like `reboot -b`.
 
-```
-blocking_mode=true
-```
+- Config file: The reboot script will check if the `blocking_mode` is enabled in `reboot.conf` config file. More details can be check in the [reboot.conf](#rebootconf) section.
+
+### Running Output
 
 And to identify the reboot script is still running, we will print dots every 10 seconds and change line every 50 dots. The console output will like the following:
 
@@ -77,14 +81,26 @@ Fri 20 Oct 2023 06:03:33 AM UTC Issuing OS-level reboot ...
 Connection to 10.150.22.134 closed.
 ```
 
-The first requirement to enable the dots printing is enable blocking mode. And the second requirement is one of the below options:
+The first requirement to enable the dots printing is enable blocking mode. And the second requirement is any one of the below options enabled:
 - Parameter: Use command parameter `-v` to enable Verbose mode for reboot script. The whole command will looks like `reboot -v -b`
 
-- Config file: The reboot script will check the config file in `/etc/sonic/reboot.conf`. The file needs to contain the config `print_process_in_blocking_mode=true`. The whole config file will show as the following:
+- Config file: The reboot script will check if the `show_timer` is enabled in `reboot.conf` config file. More details can be check in the [reboot.conf](#rebootconf) section.
 
+### reboot.conf
+
+This config file is optional. If the file not exists, all configs will be considered as default.
+
+The config file path is `/etc/sonic/reboot.conf`. Supported configs as following:
+
+| Config | Value | Default | Description |
+|-|-|-|-|
+| blocking_mode | true/false | false | <li>Enable Blocking Mode for reboot command</li>  |
+| show_timer | true/false | false | <li>Must enable `blocking_mode` first.</li><li>Enable Runing Output for blocking mode.</li> |
+
+Example for `reboot.conf` content:
 ```
 blocking_mode=true
-print_process_in_blocking_mode=true
+show_timer=true
 ```
 
 ## Functional Test
