@@ -34,13 +34,13 @@ This section lists out all the requirements for the HLD coverage and exemptions 
 
 ### 7\. High-Level Enchancements
 
-#### SFF-8024 Additions
+### 7.1 SFF-8024 Additions
 
 Changes need to be made to the SFF Api to support the required host electrical interface IDs, MMF media interface IDs, and SMF media interface IDs.
 
-### Host Electrical Interface  {#host-electrical-interface}
+#### 7.1.1 Host Electrical Interface
 
-| Host Electrical Interface |  |  |  |  |  |
+| |  |  |  |  |  |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | **ID** | **Host Electrical Interface (Specification Reference)** | **Application Bit Rate (Gb/s)** | **Lane Count** | **Lane Signaling Rate (GBd)** | **Modulation** |
 | 30 | 200GBASE-CR1 (Clause179) | 212.5 | 1 | 106.25 | PAM4 |
@@ -52,17 +52,15 @@ Changes need to be made to the SFF Api to support the required host electrical i
 | 130 | 800GAUI-4 (Annex176E) | 850 | 4 | 106.25 | PAM4 |
 | 131 | 1.6TAUI-8 (Annex176E) | 1700 | 8 | 106.25 | PAM4 |
 
-### MMF Media Interface (SFF-8024 Rev 4.12) {#mmf-media-interface-(sff-8024-rev-4.12)}
-
-| MMF Media Interface |  |  |  |  |  |
+#### 7.1.2 MMF Media Interface
+| |  |  |  |  |  |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | **ID** | **MM Media Interface (Specification Reference)** | **Application Rate** | **Lane Count** | **Lane Signaling Rate (GBd)** | **Modulation** |
 | 33 | 800G-VR4.2 | 850 | 8 | 53.125 | PAM4 |
 | 34 | 800G-SR4.2 | 850 | 8 | 53.125 | PAM4 |
 
-### SMF Media Interface (SFF-8024 Rev 4.12) {#smf-media-interface-(sff-8024-rev-4.12)}
-
-| SMF media interface |  |  |  |  |  |
+#### 7.1.3 SMF Media Interface
+| |  |  |  |  |  |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | **ID** | **SM Media Interface (Specification Reference)** | **Application Bit Rate (Gb/s)** | **Lane Count** | **Lane Signaling Rate (GBd)** | **Modulation** |
 | 115 | 200GBASE-DR1 (Clause 180\) | 212.5 | 1 | 106.25 | PAM4 |
@@ -77,6 +75,13 @@ Changes need to be made to the SFF Api to support the required host electrical i
 | 127 | 1.6TBASE-DR8 (Clause 180\) | 1700 | 8 | 106.25 | PAM4 |
 | 128 | 1.6TBASE-DR8-2 (Clause 181\) | 1700 | 8 | 113.4375 | PAM4 |
 
+### 7.2 sonic-platform-daemons Support
+sonic-platform-daemons will need to add 1.6T speed support to xcvrd.
+
+### 7.3 sonic-utilities Support
+CLI utilities will need to be updated to validate 1.6T speed tokens.
+
+### 7.4 FLR Calculation
 
 This is an enhancement 
 
