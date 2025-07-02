@@ -6,7 +6,7 @@
 
 | Rev | Date | Author | Change Description |
 | :---- | :---- | :---- | :---- |
-| 1.0 | \<date of posting\> | bobby-nexthop | Initial Version |
+| 1.0 | 2024-01-25 | bobby-nexthop | Initial Version |
 
 ### 2\. Scope
 This document describes the following enhancements to the SONiC OS:
@@ -17,12 +17,16 @@ This document describes the following enhancements to the SONiC OS:
 
 ### 3\. Definitions/Abbreviations
 
-| Rev | Date | 
+| Term | Definition | 
 | :---- | :---- |
 | SFF | Small Form Factor |
 | SerDes | Serializer/Deserializer |
-
-### 
+| PAM4 | Pulse Amplitude Modulation 4-level |
+| MMF | Multi-Mode Fiber |
+| SMF | Single-Mode Fiber |
+| GBd | Gigabaud (billion symbols per second) |
+| Gb/s | Gigabits per second |
+| FLR | Frame Loss Ratio |
 
 ### 4\. Overview
 
@@ -32,13 +36,13 @@ The IEEE P802.3dj taskforce is working on finalizing the amendment to the 802.3 
 
 This section lists out all the requirements for the HLD coverage and exemptions (not supported) if any for this design.
 
-### 7\. High-Level Enchancements
+### 6\. High-Level Enchancements
 
-### 7.1 SFF-8024 Additions
+#### 6.1 SFF-8024 Additions
 
 Changes need to be made to the SFF Api to support the required host electrical interface IDs, MMF media interface IDs, and SMF media interface IDs.
 
-#### 7.1.1 Host Electrical Interface
+##### 6.1.1 Host Electrical Interface
 
 | |  |  |  |  |  |
 | :---- | :---- | :---- | :---- | :---- | :---- |
@@ -52,14 +56,14 @@ Changes need to be made to the SFF Api to support the required host electrical i
 | 130 | 800GAUI-4 (Annex176E) | 850 | 4 | 106.25 | PAM4 |
 | 131 | 1.6TAUI-8 (Annex176E) | 1700 | 8 | 106.25 | PAM4 |
 
-#### 7.1.2 MMF Media Interface
+##### 6.1.2 MMF Media Interface
 | |  |  |  |  |  |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | **ID** | **MM Media Interface (Specification Reference)** | **Application Rate** | **Lane Count** | **Lane Signaling Rate (GBd)** | **Modulation** |
 | 33 | 800G-VR4.2 | 850 | 8 | 53.125 | PAM4 |
 | 34 | 800G-SR4.2 | 850 | 8 | 53.125 | PAM4 |
 
-#### 7.1.3 SMF Media Interface
+##### 6.1.3 SMF Media Interface
 | |  |  |  |  |  |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | **ID** | **SM Media Interface (Specification Reference)** | **Application Bit Rate (Gb/s)** | **Lane Count** | **Lane Signaling Rate (GBd)** | **Modulation** |
@@ -75,85 +79,15 @@ Changes need to be made to the SFF Api to support the required host electrical i
 | 127 | 1.6TBASE-DR8 (Clause 180\) | 1700 | 8 | 106.25 | PAM4 |
 | 128 | 1.6TBASE-DR8-2 (Clause 181\) | 1700 | 8 | 113.4375 | PAM4 |
 
-### 7.2 sonic-platform-daemons Support
+#### 6.2 sonic-platform-daemons Support
 sonic-platform-daemons will need to add 1.6T speed support to xcvrd.
 
-### 7.3 sonic-utilities Support
-CLI utilities will need to be updated to validate 1.6T speed tokens.
+#### 6.3 sonic-utilities Support
+- show interfaces status and other related commands would need to be updated to recognize and correctly display 1.6
+- The config interface speed command would need to be updated to accept 1.6T as a valid speed.
 
-### 7.4 FLR Calculation
-
-This is an enhancement 
-
-```
-- Is it a built-in SONiC feature or a SONiC Application Extension?
-- What are the modules and sub-modules that are modified for this design?
-- What are the repositories that would be changed?
-- Module/sub-module interfaces and dependencies. 
-- SWSS and Syncd changes in detail
-- DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB)
-- Sequence diagram if required.
-- Linux dependencies and interface
-- Warm reboot requirements/dependencies
-- Fastboot requirements/dependencies
-- Scalability and performance requirements/impact
-- Memory requirements
-- Docker dependency
-- Build dependency if any
-- Management interfaces - SNMP, CLI, RestAPI, etc.,
-- Serviceability and Debug (logging, counters, trace etc) related design
-- Is this change specific to any platform? Are there dependencies for platforms to implement anything to make this feature work? If yes, explain in detail and inform community in advance.
-- SAI API requirements, CLI requirements, ConfigDB requirements. Design is covered in following sections.
-```
-
-### 8\. SAI API
-
-This section covers the changes made or new API added in SAI API for implementing this feature. If there is no change in SAI API for HLD feature, it should be explicitly mentioned in this section. This section should list the SAI APIs/objects used by the design so that silicon vendors can implement the required support in their SAI. Note that the SAI requirements should be discussed with SAI community during the design phase and ensure the required SAI support is implemented along with the feature/enhancement.
-
-### 9\. Configuration and management
-
-This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required. If there is breaking change which may impact existing platforms, please call out in the design and get platform vendors reviewed.
-
-#### 9.1. Manifest (if the feature is an Application Extension)
-
-Paste a preliminary manifest in a JSON format.
-
-#### 9.2. CLI/YANG model Enhancements
-
-This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. This should also explain the CLICK and/or KLISH related configuration/show in detail. [https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md](https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md) needs be updated with the corresponding CLI change.
-
-#### 9.3. Config DB Enhancements
-
-This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change.
-
-### 10\. Warmboot and Fastboot Design Impact
-
-Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
-
-### Warmboot and Fastboot Performance Impact
-
-This sub-section must cover the impact of the functionality on warmboot and fastboot performance, that is control plane and data plane downtime. As part of the analysis cover the flowing:
-
-- Does this feature add any stalls/sleeps/IO operations to the boot critical chain? Does it change when this feature is disabled/unused?  
-- Does this feature add any additional CPU heavy processing (e.g. rendering Jinja templates) in the boot path (process, library or utility used during boot up)? Does it change when this feature is disabled/unused?  
-- In case this feature updates a third party dependency does it cause any impact on boot time performance?  
-- Can the feature (service or docker) be delayed?  
-- What are the possible optimizations and what is the expected boot time degradation if, by the nature of the feature, additional CPU/IO costs can't be avoided?
-
-### 11\. Memory Consumption
-
-This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration.
+#### 6.4 sonic-swss Support
+Orchagent will need to update the FLR calculation to support SerDes rates of 212.50.
 
 ### 12\. Restrictions/Limitations
-
-### 13\. Testing Requirements/Design
-
-Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc., Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here. Example sub-sections for unit test cases and system test cases are given below.
-
-#### 13.1. Unit Test cases
-
-#### 13.2. System Test cases
-
-### 14\. Open/Action items \- if any
-
-NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.  
+The hardware does not exist yet. This is a list of anticipated changes that will need to be made. It is possible that the final implementation and areas needed to be changedmay differ.
