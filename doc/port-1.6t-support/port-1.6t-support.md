@@ -1,6 +1,21 @@
-# SONiC 200G SerDes/1.6T Support
+# 1.6T Support in SONiC
 
 ## Table of Content
+- [1.6T Support in SONiC](#16t-support-in-sonic)
+  - [Table of Content](#table-of-content)
+    - [1. Revision](#1-revision)
+    - [2. Scope](#2-scope)
+    - [3. Definitions/Abbreviations](#3-definitionsabbreviations)
+    - [4. Overview](#4-overview)
+    - [5. High-Level Enchancements](#5-high-level-enchancements)
+      - [5.1. SFF-8024 Additions](#51-sff-8024-additions)
+        - [5.1.1. Host Electrical Interface](#511-host-electrical-interface)
+        - [5.1.2. MMF Media Interface](#512-mmf-media-interface)
+        - [5.1.3. SMF Media Interface](#513-smf-media-interface)
+      - [5.2. sonic-platform-daemons Support](#52-sonic-platform-daemons-support)
+      - [5.3. sonic-utilities Support](#53-sonic-utilities-support)
+      - [5.4. sonic-swss Support](#54-sonic-swss-support)
+    - [6. Restrictions/Limitations](#6-restrictionslimitations)
 
 ### 1\. Revision
 
@@ -85,5 +100,5 @@ sonic-platform-daemons will need to add 1.6T speed support to xcvrd.
 #### 5.4. sonic-swss Support
 Orchagent will need to update the FLR calculation to support SerDes rates of 212.50.
 
-### 6\. Restrictions/Limitations
-The hardware does not exist yet. This is a list of anticipated changes that will need to be made. It is possible that the final implementation and areas needed to be changedmay differ.
+### 6. Restrictions/Limitations
+The hardware does not exist yet. This is a list of anticipated changes that will need to be made. It is possible that the final implementation and areas needed to be changed may differ.
