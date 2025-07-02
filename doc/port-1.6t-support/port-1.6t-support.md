@@ -32,17 +32,13 @@ This document describes the following enhancements to the SONiC OS:
 
 The IEEE P802.3dj taskforce is working on finalizing the amendment to the 802.3 spec. This amendment includes Media Access Control parameters for 1.6 Tb/s and Physical Layers and management parameters for 200 Gb/s, 400 Gb/s, 800 Gb/s, and 1.6 Tb/s operation. 
 
-### 5\. Requirements
+### 5\. High-Level Enchancements
 
-This section lists out all the requirements for the HLD coverage and exemptions (not supported) if any for this design.
-
-### 6\. High-Level Enchancements
-
-#### 6.1 SFF-8024 Additions
+#### 5.1. SFF-8024 Additions
 
 Changes need to be made to the SFF Api to support the required host electrical interface IDs, MMF media interface IDs, and SMF media interface IDs.
 
-##### 6.1.1 Host Electrical Interface
+##### 5.1.1. Host Electrical Interface
 
 | |  |  |  |  |  |
 | :---- | :---- | :---- | :---- | :---- | :---- |
@@ -56,14 +52,14 @@ Changes need to be made to the SFF Api to support the required host electrical i
 | 130 | 800GAUI-4 (Annex176E) | 850 | 4 | 106.25 | PAM4 |
 | 131 | 1.6TAUI-8 (Annex176E) | 1700 | 8 | 106.25 | PAM4 |
 
-##### 6.1.2 MMF Media Interface
+##### 5.1.2. MMF Media Interface
 | |  |  |  |  |  |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | **ID** | **MM Media Interface (Specification Reference)** | **Application Rate** | **Lane Count** | **Lane Signaling Rate (GBd)** | **Modulation** |
 | 33 | 800G-VR4.2 | 850 | 8 | 53.125 | PAM4 |
 | 34 | 800G-SR4.2 | 850 | 8 | 53.125 | PAM4 |
 
-##### 6.1.3 SMF Media Interface
+##### 5.1.3. SMF Media Interface
 | |  |  |  |  |  |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | **ID** | **SM Media Interface (Specification Reference)** | **Application Bit Rate (Gb/s)** | **Lane Count** | **Lane Signaling Rate (GBd)** | **Modulation** |
@@ -79,15 +75,15 @@ Changes need to be made to the SFF Api to support the required host electrical i
 | 127 | 1.6TBASE-DR8 (Clause 180\) | 1700 | 8 | 106.25 | PAM4 |
 | 128 | 1.6TBASE-DR8-2 (Clause 181\) | 1700 | 8 | 113.4375 | PAM4 |
 
-#### 6.2 sonic-platform-daemons Support
+#### 5.2. sonic-platform-daemons Support
 sonic-platform-daemons will need to add 1.6T speed support to xcvrd.
 
-#### 6.3 sonic-utilities Support
+#### 5.3. sonic-utilities Support
 - show interfaces status and other related commands would need to be updated to recognize and correctly display 1.6
 - The config interface speed command would need to be updated to accept 1.6T as a valid speed.
 
-#### 6.4 sonic-swss Support
+#### 5.4. sonic-swss Support
 Orchagent will need to update the FLR calculation to support SerDes rates of 212.50.
 
-### 12\. Restrictions/Limitations
+### 6\. Restrictions/Limitations
 The hardware does not exist yet. This is a list of anticipated changes that will need to be made. It is possible that the final implementation and areas needed to be changedmay differ.
