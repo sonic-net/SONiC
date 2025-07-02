@@ -24,7 +24,7 @@ This document describes the following enhancements to the SONiC OS:
 | PAM4 | Pulse Amplitude Modulation 4-level |
 | MMF | Multi-Mode Fiber |
 | SMF | Single-Mode Fiber |
-| GBd | Gigabaud (billion symbols per second) |
+| GBd | Gigabaud |
 | Gb/s | Gigabits per second |
 | FLR | Frame Loss Ratio |
 
