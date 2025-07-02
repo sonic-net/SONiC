@@ -2144,7 +2144,7 @@ into YGOT bindings.
 
 ###### 3.2.2.11.5 Concurrency
 
-REST server will accept concurrent requests. Translib provides appropriate locking mechanism - parallel reads and sequential writes.
+NETCONF server will accept concurrent requests. Translib provides appropriate locking mechanism - parallel reads and sequential writes.
 
 ###### 3.2.2.11.6 Versioning
 
@@ -2152,7 +2152,7 @@ NETCONF server will Support Netconf 1.1.
 
 ###### 3.2.2.11.8 NETCONF Discovery
 
-RNETCONF server supports following RPCs for clients to discover various NETCONF data models supported by the NETCONF server as described in [RFC6022](https://tools.ietf.org/html/rfc6022), via the <get-schema> NETCONF RPC.
+NETCONF server supports following RPCs for clients to discover various NETCONF data models supported by the NETCONF server as described in [RFC6022](https://tools.ietf.org/html/rfc6022), via the <get-schema> NETCONF RPC.
 
 
 ###### 3.2.2.11.8.1 YANG module library
@@ -2211,7 +2211,7 @@ NETCONF server supports following authentication modes.
 * TACACS authenticaation.
 * No authentication
 
-Details are in [SONiC RBAC HLD](https://github.com/project-arlo/SONiC/blob/master/doc/aaa/SONiC%20RBAC%20HLD.md).
+Details are in [SONiC RBAC HLD](https://github.com/project-arlo/SONiC/blob/dell_sonic_share/doc/mgmt/SONiC_HAMD_RBAC_HLD.md).
 
 By default password authentication is enabled.
 It can be overridden through ConfigDB [NETCONF_SERVER table](#322414-db-schema) entry.
