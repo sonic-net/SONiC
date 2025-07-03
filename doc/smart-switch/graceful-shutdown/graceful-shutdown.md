@@ -38,7 +38,7 @@ The following sequence diagram illustrates the detailed steps involved in the gr
 
    * `chassisd` receives the shutdown command and invokes set_admin_state(down) on `module_base.py`.
 
-   * Within `module_base.py`, the system checks if the device subtype is `"SmartSwitch"` and not a DPU.
+   * Within `module_base.py`, the system checks if the device `subtype` is `"SmartSwitch"` and  `switch_type` is not `dpu`.
 
    * If both conditions are met, it proceeds with the graceful shutdown process, else calls `module.py` `set_admin_state(down)`
 
@@ -124,9 +124,9 @@ CHASSIS_MODULE_INFO_TABLE|DPU0
 
 | Transition Type       | Who Sets the Field                                              | How It's Cleared                                    |
 | --------------------- | --------------------------------------------------------------- | --------------------------------------------------- |
-| **Startup**           | `chassisd` on a CLI or config load, before starting a DPU       | Once module reaches online state                    |
-| **Shutdown**       | `chassisd` on a CLI or config load, before triggering gNOI HALT | `gnoi-reboot-daemon` upon receiving status          |
-| **Reboot**         | `smartswitch_reboot_helper`                                     | `gnoi-reboot-daemon` once reboot status is received |
+| **Startup**           | CLI or config load       | Once module reaches online state                    |
+| **Shutdown**       | CLI or config load  | `gnoi-reboot-daemon` upon receiving status          |
+| **Reboot**         | `smartswitch_reboot_helper`                                     |  Cleared by `smartswitch_reboot_helper` once reboot status is received |
 
 ## Parallel Execution
 
