@@ -5,7 +5,7 @@
 
 In current SONiC architecture, many containers are image-managed, which means it's packed into build image and managed by NDM Golden config. And commonly deployed and managed using `systemd` and monitored using tools like `monit`. But after KubeSonic comes into picture, this deolpyment lacks advanced orchestration and native resource management features offered by Kubernetes.
 
-This document outlines a generic approach to migrate any Image-managed Docker container to Kubernetes, providing CPU and memory resource controls, while maintaining backward compatibility with the existing `systemd` workflows. The BMP container (`docker-sonic-bmp`) is used as a concrete example.
+This document outlines a generic approach to migrate any Image-managed Docker container to Kubernetes, providing CPU and memory resource controls, while maintaining backward compatibility with the existing `systemd` workflows. The telemetry container (`docker-sonic-telemetry`) is used as a concrete example.
 
 ## Objective
 
@@ -48,8 +48,15 @@ The FEATURE table controls feature lifecycle.
 
 #### Periodic State Sync via DaemonSet Sidecar
 
+To keep FEATURE state aligned with actual runtime state:
+
+---
 ##### Rationale
 Here we leverage a sidecar container inside the `DaemonSet` to perform periodic sync logic.
+
+- The sidecar container:
+  - Detects whether the container is running (via `kubectl`, `docker`, or other APIs).
+  - Updates the `enabled` flag in FEATURE table accordingly.
 
 ##### Sidecar Design
 - Runs a simple shell script that loops with `sleep`.
@@ -60,13 +67,16 @@ Here we leverage a sidecar container inside the `DaemonSet` to perform periodic 
 ```bash
 #!/bin/bash
 while true; do
+
     # Determine version and set FEATURE state accordingly
+
     # Restore or patch systemd scripts as needed
+
     sleep 60
 done
 ```
 
-This script is embedded in the sidecar container of the `bmp` DaemonSet.
+This script is embedded in the sidecar container of the `telemetry` DaemonSet.
 
 ### Example: DaemonSet YAML
 
@@ -74,22 +84,22 @@ This script is embedded in the sidecar container of the `bmp` DaemonSet.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: bmp
+  name: telemetry
   namespace: sonic
 spec:
   selector:
     matchLabels:
-      app: bmp
+      app: telemetry
   template:
     metadata:
       labels:
-        app: bmp
+        app: telemetry
     spec:
       containers:
-      - name: bmp
-        image: ksdatatest.azurecr.io/docker-sonic-bmp:latest
+      - name: telemetry
+        image: ksdatatest.azurecr.io/docker-sonic-telemetry:latest
         command: ["/usr/local/bin/supervisord"]
-      - name: bmp-feature-sidecar
+      - name: telemetry-feature-sidecar
         image: sonicinfra/feature-sync:latest
         command: ["/bin/bash", "-c", "/scripts/feature_sync.sh"]
         volumeMounts:
@@ -113,11 +123,11 @@ data:
   feature_sync.sh: |
     #!/bin/bash
     while true; do
-        # Check if bmp container is running
-        if kubectl get pod -l app=bmp -n sonic | grep -q Running; then
-            redis-cli -n 6 HSET "FEATURE|bmp" enabled "True"
+        # Check if telemetry container is running
+        if kubectl get pod -l app=telemetry -n sonic | grep -q Running; then
+            redis-cli -n 6 HSET "FEATURE|telemetry" state "Enabled"
         else
-            redis-cli -n 6 HSET "FEATURE|bmp" enabled "False"
+            redis-cli -n 6 HSET "FEATURE|telemetry" state "Disabled"
         fi
         sleep 60
     done
@@ -126,24 +136,13 @@ data:
 ---
 
 
-#### Mirror the Real State into the Config Flag
-
-To keep FEATURE state aligned with actual runtime state:
-
-- The sidecar container:
-  - Detects whether the container is running (via `kubectl`, `docker`, or other APIs).
-  - Updates the `enabled` flag in FEATURE table accordingly.
-
-
----
-
 #### Disabling Feature via Node Taints
 
-When a feature (e.g., `bmp`) should be **disabled**:
+When a feature (e.g., `telemetry`) should be **disabled**:
 
 ##### Step 1: Taint the Node
 ```bash
-kubectl taint nodes <node-name> bmp=disabled:NoSchedule
+kubectl taint nodes <node-name> telemetry=disabled:NoSchedule
 ```
 
 This prevents the DaemonSet from scheduling the container on that node.
@@ -157,13 +156,17 @@ As long as the taint remains, the pod will not be rescheduled.
 
 ---
 
-#### Example: bmp Container Lifecycle
+#### Example: telemetry Container Lifecycle
 
 ##### FEATURE Table Snapshot
 ```json
-"bmp": {
-  "auto_restart": "disabled",
-  "enabled": "True",
+"telemetry": {
+  "auto_restart": "enabled",
+  "state": "enabled",
+  "delayed": "False",
+  "check_up_status": "False",
+  "has_per_asic_scope": "False",
+  "has_global_scope": "True",
   "high_mem_alert": "disabled"
 }
 ```
@@ -174,17 +177,20 @@ sequenceDiagram
     autonumber
     participant Sidecar
     participant K8s API
-    participant Redis
+    participant CONFIG_DB
     participant systemd
 
-    Sidecar->>K8s API: Query bmp pod status
+    Sidecar->>K8s API: Query telemetry pod status
     alt Pod Running
-        Sidecar->>Redis: HSET FEATURE|bmp enabled True
+        Sidecar->>CONFIG_DB: HSET FEATURE|telemetry state enabled
     else Pod Not Running
-        Sidecar->>Redis: HSET FEATURE|bmp enabled False
+        Sidecar->>CONFIG_DB: HSET FEATURE|telemetry state disabled
     end
     alt Version == v1
-        Sidecar->>systemd: Patch bmp.service to stub
+        Sidecar->>systemd: Patch telemetry.service to stub
+    end
+    alt Version >= v2
+        Sidecar->>systemd: cleanup telemetry.service
     end
 ```
 
@@ -196,7 +202,7 @@ To revert from Kubernetes-managed (`v1`) back to systemd-managed (`v0`):
 
 1. **Stop DaemonSet**
    ```bash
-   kubectl delete daemonset bmp -n sonic
+   kubectl delete daemonset telemetry -n sonic
    ```
 
 2. **Remove Sidecar Script Stub** (Optional if installed via ConfigMap)
@@ -206,32 +212,24 @@ To revert from Kubernetes-managed (`v1`) back to systemd-managed (`v0`):
 
 3. **Restore systemd Script**
    ```bash
-   sudo cp /tmp/bmp.service.backup /lib/systemd/system/bmp.service
+   sudo cp /tmp/telemetry.service.backup /lib/systemd/system/telemetry.service
    sudo systemctl daemon-reexec
-   sudo systemctl restart bmp.service
+   sudo systemctl restart telemetry.service
    ```
 
 4. **Update FEATURE Table**
    ```bash
-   redis-cli -n 6 HSET "FEATURE|bmp" enabled "True"
+   redis-cli -n 6 HSET "FEATURE|telemetry" state "Enabled"
    ```
 
 5. **Clean Up Taints (if any)**
    ```bash
-   kubectl taint nodes <node-name> bmp:NoSchedule-
+   kubectl taint nodes <node-name> telemetry:NoSchedule-
    ```
 
 This rollback ensures systemd regains full control and FEATURE behaves as it did in `v0`.
 
 ---
-
-#### Notes
-- This design is generic and applies to all features controlled via FEATURE table.
-- `bmp` is used here as an illustrative example.
-- The system should maintain clean upgrade and rollback support across v0/v1/v2.
-
----
-
 
 
 
@@ -251,8 +249,8 @@ To prevent breaking these expectations during the migration, a `systemd` service
 
 
 ### v0 Behavior
-- Container is fully managed by `systemd` (e.g., `bmp.service`).
-- FEATURE table controls startup (`enabled: True/False`).
+- Container is fully managed by `systemd` (e.g., `telemetry.service`).
+- FEATURE table controls startup (`state: Enabled/Disabled`).
 - Actual container starts or stops via `systemctl`.
 
 ### v1+ Behavior with Kubernetes DaemonSet
@@ -272,12 +270,12 @@ To prevent breaking these expectations during the migration, a `systemd` service
 Create a script `/usr/local/bin/k8s-wrapper.sh` that translates `systemd`-style commands to Kubernetes `kubectl` actions:
 
 ```bash
-POD_NAME=$(kubectl get pod -n sonic -l app=bmp -o jsonpath='{.items[0].metadata.name}')
+POD_NAME=$(kubectl get pod -n sonic -l app=telemetry -o jsonpath='{.items[0].metadata.name}')
 if [[ -n "$POD_NAME" ]]; then
-    echo "bmp pod running as: $POD_NAME"
+    echo "telemetry pod running as: $POD_NAME"
     kubectl get pod -n sonic "$POD_NAME"
 else
-    echo "bmp pod not found on this node."
+    echo "telemetry pod not found on this node."
     exit 1
 fi
 ```
@@ -291,18 +289,18 @@ chmod +x /usr/local/bin/k8s-wrapper.sh
 
 #### 2. Create systemd Unit File
 
-Example unit file: /etc/systemd/system/bmp.service
+Example unit file: /etc/systemd/system/telemetry.service
 
 ```
 [Unit]
-Description=Kubernetes managed container bmp
+Description=Kubernetes managed container telemetry
 After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/k8s-wrapper.sh bmp start
-ExecStop=/usr/local/bin/k8s-wrapper.sh bmp stop
-ExecReload=/usr/local/bin/k8s-wrapper.sh bmp restart
+ExecStart=/usr/local/bin/k8s-wrapper.sh telemetry start
+ExecStop=/usr/local/bin/k8s-wrapper.sh telemetry stop
+ExecReload=/usr/local/bin/k8s-wrapper.sh telemetry restart
 RemainAfterExit=yes
 
 [Install]
@@ -314,14 +312,14 @@ WantedBy=multi-user.target
 
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
-sudo systemctl enable bmp.service
+sudo systemctl enable telemetry.service
 ```
 
 ```
 
-sudo systemctl start bmp.service
-sudo systemctl status bmp.service
-sudo systemctl stop bmp.service
+sudo systemctl start telemetry.service
+sudo systemctl status telemetry.service
+sudo systemctl stop telemetry.service
 ```
 
 ### Limitations
@@ -392,27 +390,27 @@ spec:
           periodSeconds: 15
 ```
 
-#### Example: BMP Container
+#### Example: telemetry Container
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: bmp
+  name: telemetry
   namespace: sonic
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: bmp
+      app: telemetry
   template:
     metadata:
       labels:
-        app: bmp
+        app: telemetry
     spec:
       containers:
-      - name: bmp
-        image: ksdatatest.azurecr.io/docker-sonic-bmp:latest
+      - name: telemetry
+        image: ksdatatest.azurecr.io/docker-sonic-telemetry:latest
         command: ["/usr/local/bin/supervisord"]
         resources:
           requests:
@@ -425,12 +423,12 @@ spec:
         - containerPort: 5000
         livenessProbe:
           exec:
-            command: ["/usr/bin/pgrep", "openbmpd"]
+            command: ["/usr/bin/pgrep", "telemetry"]
           initialDelaySeconds: 60
           periodSeconds: 30
         readinessProbe:
           exec:
-            command: ["/usr/bin/pgrep", "openbmpd"]
+            command: ["/usr/bin/pgrep", "telemetry"]
           initialDelaySeconds: 30
           periodSeconds: 15
 ```
@@ -438,26 +436,19 @@ spec:
 
 ## Monitoring and Alerting
 
-Kubernetes supports integrated monitoring using:
-- `kubectl top pod` for resource snapshots
-- Prometheus and AlertManager for alerting
-- Fluentd, Loki, or EFK stack for logging
+Currently SONiC uses monit check memory for specific container, like below
 
-If legacy tools like `monit` must be retained temporarily, rewrite checks to use Kubernetes data (e.g., via `kubectl top`) instead of Docker or CGroup files.
+```
+###############################################################################
+## Monit configuration for telemetry container
+###############################################################################
+check program container_memory_telemetry with path "/usr/bin/memory_checker telemetry 419430400"
+    if status == 3 for 10 times within 20 cycles then exec "/usr/bin/restart_service telemetry" repeat every 2 cycles
 
----
+```
 
-## Migration Strategy
-
-1. **Deploy container in Kubernetes** in a test environment.
-2. **Verify application health, logs, and performance.**
-3. **Create `systemd` wrapper service** to mimic old interface.
-4. **Transition monitoring (if applicable).**
-5. **Gradually phase out Monit or Docker-native tools.**
-6. **Monitor and document stability in production.**
+If legacy tools like `monit` must be retained temporarily, we need to rewrite /usr/bin/memory_check to use Kubernetes data (e.g., via `kubectl top`) instead of Docker or CGroup files.
 
 ---
 
-## Conclusion
 
-This document provides a generic, reusable pattern for migrating Docker containers from `systemd` + `monit` to Kubernetes. It ensures modern resource control, while preserving backward compatibility during transition. The BMP container serves as a concrete example of this process.
