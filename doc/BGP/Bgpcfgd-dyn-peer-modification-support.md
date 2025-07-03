@@ -1,6 +1,6 @@
 # Bgpcfgd Dynamic Peer moditication support
 # High Level Design Document
-### Rev 0.1
+### Rev 1.0
 
 # Table of Contents
   * [Revision](#revision)
@@ -26,6 +26,7 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 04/09/2025  |    Anish Narsian   | Initial version                   |
+| 1.0 | 07/02/2025  |    Anish Narsian   | All comments addressed            |
 
 # About this Manual
 This document provides the high level design to support enhanced CRUD operations on dynamic bgp peers(ie: bgp listen ranges) using a standard template-based mechanism, as well as the CLI design for some useful per VRF BGP commands.
@@ -107,7 +108,7 @@ The following modifications will be made to bgpcfgd to support the new scenario:
 ```
         self.templates["update"] = self.fabric.from_file(update_template_path)
 ```
-3. If an update template is supported and the peer_type is dynamic, we will identify the set of ip_ranges which are added, and those which are deleted as part of the operation, and pass in those as additional kwargs and render the update template, sample code:
+3. If an update template is supported and the peer_type is dynamic, we will identify the set of ip_ranges which are added, and those which are deleted as part of the operation. The modified ranges will be identified in bgpcfgd by running a vtysh command to get the current bgp listen ranges configured and running a diff against the newly passed in ranges, the calculated diff will be passed in as additional kwargs(add_ranges, delete_ranges) and rendered via the update template, sample code:
 ```
         kwargs = {
             'vrf': vrf,
