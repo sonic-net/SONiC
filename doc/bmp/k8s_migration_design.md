@@ -48,8 +48,15 @@ The FEATURE table controls feature lifecycle.
 
 #### Periodic State Sync via DaemonSet Sidecar
 
+To keep FEATURE state aligned with actual runtime state:
+
+---
 ##### Rationale
 Here we leverage a sidecar container inside the `DaemonSet` to perform periodic sync logic.
+
+- The sidecar container:
+  - Detects whether the container is running (via `kubectl`, `docker`, or other APIs).
+  - Updates the `enabled` flag in FEATURE table accordingly.
 
 ##### Sidecar Design
 - Runs a simple shell script that loops with `sleep`.
@@ -60,8 +67,11 @@ Here we leverage a sidecar container inside the `DaemonSet` to perform periodic 
 ```bash
 #!/bin/bash
 while true; do
+
     # Determine version and set FEATURE state accordingly
+
     # Restore or patch systemd scripts as needed
+
     sleep 60
 done
 ```
@@ -115,9 +125,9 @@ data:
     while true; do
         # Check if bmp container is running
         if kubectl get pod -l app=bmp -n sonic | grep -q Running; then
-            redis-cli -n 6 HSET "FEATURE|bmp" enabled "True"
+            redis-cli -n 6 HSET "FEATURE|bmp" state "Enabled"
         else
-            redis-cli -n 6 HSET "FEATURE|bmp" enabled "False"
+            redis-cli -n 6 HSET "FEATURE|bmp" state "Disabled"
         fi
         sleep 60
     done
@@ -125,17 +135,6 @@ data:
 
 ---
 
-
-#### Mirror the Real State into the Config Flag
-
-To keep FEATURE state aligned with actual runtime state:
-
-- The sidecar container:
-  - Detects whether the container is running (via `kubectl`, `docker`, or other APIs).
-  - Updates the `enabled` flag in FEATURE table accordingly.
-
-
----
 
 #### Disabling Feature via Node Taints
 
@@ -162,8 +161,12 @@ As long as the taint remains, the pod will not be rescheduled.
 ##### FEATURE Table Snapshot
 ```json
 "bmp": {
-  "auto_restart": "disabled",
-  "enabled": "True",
+  "auto_restart": "enabled",
+  "state": "enabled",
+  "delayed": "False",
+  "check_up_status": "False",
+  "has_per_asic_scope": "False",
+  "has_global_scope": "True",
   "high_mem_alert": "disabled"
 }
 ```
@@ -174,17 +177,20 @@ sequenceDiagram
     autonumber
     participant Sidecar
     participant K8s API
-    participant Redis
+    participant CONFIG_DB
     participant systemd
 
     Sidecar->>K8s API: Query bmp pod status
     alt Pod Running
-        Sidecar->>Redis: HSET FEATURE|bmp enabled True
+        Sidecar->>CONFIG_DB: HSET FEATURE|bmp state enabled
     else Pod Not Running
-        Sidecar->>Redis: HSET FEATURE|bmp enabled False
+        Sidecar->>CONFIG_DB: HSET FEATURE|bmp state disabled
     end
     alt Version == v1
         Sidecar->>systemd: Patch bmp.service to stub
+    end
+    alt Version >= v2
+        Sidecar->>systemd: cleanup bmp.service
     end
 ```
 
@@ -213,7 +219,7 @@ To revert from Kubernetes-managed (`v1`) back to systemd-managed (`v0`):
 
 4. **Update FEATURE Table**
    ```bash
-   redis-cli -n 6 HSET "FEATURE|bmp" enabled "True"
+   redis-cli -n 6 HSET "FEATURE|bmp" state "Enabled"
    ```
 
 5. **Clean Up Taints (if any)**
@@ -224,14 +230,6 @@ To revert from Kubernetes-managed (`v1`) back to systemd-managed (`v0`):
 This rollback ensures systemd regains full control and FEATURE behaves as it did in `v0`.
 
 ---
-
-#### Notes
-- This design is generic and applies to all features controlled via FEATURE table.
-- `bmp` is used here as an illustrative example.
-- The system should maintain clean upgrade and rollback support across v0/v1/v2.
-
----
-
 
 
 
@@ -252,7 +250,7 @@ To prevent breaking these expectations during the migration, a `systemd` service
 
 ### v0 Behavior
 - Container is fully managed by `systemd` (e.g., `bmp.service`).
-- FEATURE table controls startup (`enabled: True/False`).
+- FEATURE table controls startup (`state: Enabled/Disabled`).
 - Actual container starts or stops via `systemctl`.
 
 ### v1+ Behavior with Kubernetes DaemonSet
@@ -438,26 +436,19 @@ spec:
 
 ## Monitoring and Alerting
 
-Kubernetes supports integrated monitoring using:
-- `kubectl top pod` for resource snapshots
-- Prometheus and AlertManager for alerting
-- Fluentd, Loki, or EFK stack for logging
+Currently SONiC uses monit check memory for specific container, like below
 
-If legacy tools like `monit` must be retained temporarily, rewrite checks to use Kubernetes data (e.g., via `kubectl top`) instead of Docker or CGroup files.
+```
+###############################################################################
+## Monit configuration for bmp container
+###############################################################################
+check program container_memory_bmp with path "/usr/bin/memory_checker bmp 419430400"
+    if status == 3 for 10 times within 20 cycles then exec "/usr/bin/docker exec bmp supervisorctl restart openbmpd"
 
----
+```
 
-## Migration Strategy
-
-1. **Deploy container in Kubernetes** in a test environment.
-2. **Verify application health, logs, and performance.**
-3. **Create `systemd` wrapper service** to mimic old interface.
-4. **Transition monitoring (if applicable).**
-5. **Gradually phase out Monit or Docker-native tools.**
-6. **Monitor and document stability in production.**
+If legacy tools like `monit` must be retained temporarily, we need to rewrite /usr/bin/memory_check to use Kubernetes data (e.g., via `kubectl top`) instead of Docker or CGroup files.
 
 ---
 
-## Conclusion
 
-This document provides a generic, reusable pattern for migrating Docker containers from `systemd` + `monit` to Kubernetes. It ensures modern resource control, while preserving backward compatibility during transition. The BMP container serves as a concrete example of this process.
