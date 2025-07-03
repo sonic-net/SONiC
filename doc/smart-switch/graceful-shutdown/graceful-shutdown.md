@@ -125,8 +125,8 @@ CHASSIS_MODULE_INFO_TABLE|DPU0
 | Transition Type       | Who Sets the Field                                              | How It's Cleared                                    |
 | --------------------- | --------------------------------------------------------------- | --------------------------------------------------- |
 | **Startup**           | CLI or config load       | Once module reaches online state                    |
-| **Shutdown**       | CLI or config load  | `gnoi-reboot-daemon` upon receiving status          |
-| **Reboot**         | `smartswitch_reboot_helper`                                     |  Cleared by `smartswitch_reboot_helper` once reboot status is received |
+| **Shutdown**       | CLI or config load  | `gnoi-reboot-daemon` upon completing the platform API (module shutdown)         |
+| **Reboot**         | `smartswitch_reboot_helper`                                     |  Cleared by `smartswitch_reboot_helper` upon completing the platform API |
 
 ## Parallel Execution
 
