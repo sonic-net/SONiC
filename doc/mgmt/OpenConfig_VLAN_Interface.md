@@ -1,4 +1,4 @@
-# OpenConfig support for VLAN interface and VLAN member.
+# Add support for VLAN interface using OpenConfig YANG.
 
 # High Level Design Document
 #### Rev 0.1
