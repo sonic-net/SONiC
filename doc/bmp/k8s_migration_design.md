@@ -192,6 +192,9 @@ sequenceDiagram
     alt Version >= v2
         Sidecar->>systemd: cleanup telemetry.service
     end
+    alt Version >= v2
+        Sidecar->>systemd: cleanup bmp.service
+    end
 ```
 
 ---
