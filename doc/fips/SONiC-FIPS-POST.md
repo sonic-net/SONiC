@@ -3,7 +3,7 @@
 ## Revision
 | Rev |     Date    |       Author       | Change Description |      
 |:---:|:-----------:|:------------------:|--------------------|
-| 1 | Jul-7 2025 | Song Yuan | Initial Version |
+| 1 | Jul-7 2025 | Song Yuan (Arista Networks) | Initial Version |
 
 ## Table of Contents
 * [Overview](#Overview)
@@ -14,7 +14,7 @@
   * [Enabling POST in SAI MACSec init](#Enabling-POST-in-SAI-MACSec-init)
   * [Checking SAI POST status](#Checking-SAI-POST-status)
   * [Handling SAI POST failure](#Handling-SAI-POST-failure)
-  * [Enforcing FIPS compliance](#Enforcing-FIPS-compliance}
+  * [Enforcing FIPS compliance](#Enforcing-FIPS-compliance)
 
 ## Overview
 
@@ -63,6 +63,7 @@ If POST is not supported in either switch or MACSec init, then SAI does not supp
 - The platform does not support MACSec. Or
 - The platform does support MACSec. But the deployment does not require FIPS compliance. Or
 - The platform does support MACSec, and the vendor incrementally supports FIPS when they can.
+
 In the above scenarios, Orchagent sets POST status to unsupported, which means POST is not required and is no-op.
 
 ### Enabling POST in SAI MACSec init
