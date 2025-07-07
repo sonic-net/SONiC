@@ -32,7 +32,7 @@ The design must meet the following requirements:
 
 The following figure depicts the data flow and SONiC components in the design. Orchagent is responsible for triggering POST via SAI calls and publishing POST status in State DB.   MACSec container, precisely MACSecMgr, is enhanced to be POST aware and only process MACSec configuration after POST has passed. 
 
-![](images/fips-post-overview.png)
+![](fips-post-overview.png)
 
 ### State DB
 
@@ -55,7 +55,7 @@ status = "in-progress"    ; POST is in-progress.
 
 Orchagent enables POST when creating SAI switch regardless of whether the MACSec feature is supported or enabled. This can avoid triggering POST after SAI switch creation, e.g., MACSec feature is enabled later. The below flow chart depicts the process.
 
-![](images/fips-post-switch-init.png)
+![](fips-post-switch-init.png)
 
 Orchagent enables POST when creating SAI switch. After SAI switch is created, Orchagent queries SAI POST capability. If POST is supported in switch init, Orchagent sets POST status to in-progress and waits for POST completion callback. Otherwise, if POST is supported only in MACSec init, Orchagent sets POST status to not-started, which informs MACSecOrch of performing POST in its initialization.
 
@@ -70,7 +70,7 @@ In the above scenarios, Orchagent sets POST status to unsupported, which means P
 
 POST is performed by MACSecOrch when POST is supported only in MACSec init. The following flow chart demonstrates the process.
 
-![](images/fips-post-macsec-init.png)
+![](fips-post-macsec-init.png)
 
 POST is triggered in MACSecOrch initialization. Since POST is enabled via SAI MACSec create API, SAI MACSec object may be created proactively and before any MACSec port is configured.
 
@@ -86,4 +86,4 @@ If SAI POST fails,  MACSecOrch reads POST status of all MACSec ports and finds o
 
 In order to be compliant to FIPS, SONiC should process MACSec configuration only after POST passes. This is achieved by enhancing MACSecMgr, running in MACSec container, to check POST status published in State DB before processing any MACSec configuration, as shown in the flow chart below:
 
-![](images/fips-post-compliance.png)
+![](fips-post-compliance.png)
