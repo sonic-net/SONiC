@@ -57,6 +57,8 @@ We want to unify the behavior to `B` to make sure the automation system always g
 
 ## Design
 
+It should be noted that when platform reboot is enabled, the blocking mode will not take effect. In this situation the script will follow the platform specific behavior.
+
 ### Blocking Mode
 
 We don't want to make a break change to SONIC reboot command, so we introduce 2 options as the following for user to identify that we are trying to run on blocking-mode. Blocking-mode will be enable if any of the option is enabled.
