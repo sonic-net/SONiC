@@ -42,10 +42,11 @@
 
 ### Revision
 
-| Rev  | Date        | Author   | Change Description             |
-| :--- | :---------- | :------- | :----------------------------- |
-| 0.1  | Aug-13-2024 | Hb-micas | Initial version                |
-| 0.2  | Nov-12-2024 | Hb-micas | Revise HLD per review feedback |
+| Rev  | Date        | Author   | Change Description                   |
+| :--- | :---------- | :------- | :----------------------------------- |
+| 0.1  | Aug-13-2024 | Hb-micas | Initial version                      |
+| 0.2  | Nov-12-2024 | Hb-micas | Revise HLD per review feedback       |
+| 0.3  | Jul-07-2025 | Hb-micas | Ignores all multicast protocol types |
 
 ### Scope
 
@@ -83,11 +84,11 @@ Multicast packets target a specific multicast address (224.0.0.0/4 for ipv4 and 
 
 The following requirements are addressed by the design presented in this document:
 
-1. Support IP multicast routing: ASM and SSM
-2. Support IPv4 and IPv6 multicast routes
-3. Support IP multicast function for routing interfaces, SVI interfaces, L3 subinterfaces, and L3 Portchannel interfaces 
-4. Support non-default VRF for IP multicast routes
-5. Support warm reboot for IP multicast routes
+1. Support IPv4 and IPv6 multicast routes
+2. Support IP multicast function for routing interfaces, SVI interfaces, L3 subinterfaces, and L3 Portchannel interfaces
+3. Support non-default VRF for IP multicast routes
+4. Support warm reboot for IP multicast routes
+5. Ignores all multicast protocol types and temporarily treats any protocol requiring forwarding-plane adaptation (e.g. PIM-ASM) as unsupported
 
 #### Configuration and Management Requirements
 
@@ -152,7 +153,7 @@ The actions taken to trap IGMP control packets to CPU when the user enables IGMP
 Special note:
 
 1. The multicast route has one more key field than other routes: the source IP address. Therefore, the multicast route cannot share the same TABLE with the original routing entries
-2. When delivering an ipv6 multicast route, assume that both the source and destination IP addresses are ipv6. If the default delimiter of APPL DB ':' is used, the two ipv6 addresses cannot be distinguished by delimiter. Therefore, the delimiter '|' is used here.
+2. When delivering an ipv6 multicast route, assume that both the source and destination IP addresses are ipv6. If the default delimiter of APPL DB ':' is used, the two ipv6 addresses cannot be distinguished by delimiter. Therefore, following NexthopGroupKey design: delimiter ',' used.
 
 MROUTE_TABLE
 
@@ -172,7 +173,7 @@ key = MROUTE_TABLE:vrf_name@source_ip,dest_ip
                                     ; APPL DB usually uses ':' as the separator, but using ':' cannot distinguish two ipv6 addresses
                                     ; Referring to 'NexthopGroupKey', the VRF uses '@' as the separator, and IP addresses use ',' as the separator
                                     vrf_name    ; The multicast route belongs to the Vrf. If this field is empty, the default global Vrf is used
-                                    source_ip   ; Source IP addresses of multicast routes, for example, IPv4 0.0.0.0(ASM), A.B.C.D(SSM)
+                                    source_ip   ; Source IP addresses of multicast routes, for example, IPv4 0.0.0.0(any-source), A.B.C.D(source-specific)
                                     dest_ip     ; Indicates the destination IP address of the multicast route
 
 ; field = value
@@ -562,7 +563,6 @@ Unit test cases for this specification are listed below:
 | :----------------- | :------------------------------------------------------------------------------------------------------------------------------------ | :------ |
 | Configuration      | Verify the Ethernet/Vlan/PortChannel interface enable IP group broadcast forwarding function                                          |         |
 | IP multicast route | Verify that the protocol plane creates/deletes/updates IP multicast routes, and the data plane can receive and process them normally  |         |
-|                    | Verify that ASM-type multicast routes are created or deleted                                                                          |         |
 |                    | The SSM type multicast route was created or deleted. Procedure                                                                        |         |
 |                    | Verify that an IP multicast route bound to a non-default Vrf is created or deleted                                                    |         |
 |                    | Verify that multicast routes containing one or more inbound interfaces are created or deleted                                         |         |
