@@ -12,6 +12,7 @@
     + [GNPSI application](#gnpsi-application)
     + [SONiC gNPSI implementation](#sonic-gnpsi-implementation)
     + [Repository and Module](#repository-and-module)
+    + [Feature enablement](#feature-enablement)
     + [Files](#files)
     + [Alternative](#alternative)
   * [7. Configuration and management](#7-configuration-and-management)
@@ -127,6 +128,20 @@ The dependency of repository is shown below
 *   `/server`: helper to start and stop relay server and the stats thread, also write to appl_state_db
 *   `/utils`: stats util, credential util and authz logger util.
 
+#### Feature enablement
+
+gNPSI functionality can be disabled/enabled via the feature table. The gNPSI process will only be active if the gNPSI feature is enabled in the `CONFIG_DB` feature table.
+
+
+```
+
+CONFIG_DB:
+...
+"FEATURE|sflow" :{
+...
+"enable_gnpsi": "True|False"
+}
+```
 
 #### Alternative
 
@@ -145,7 +160,7 @@ The dependency of repository is shown below
 
 *   Introduces architectural complexities.
 *   Difficult to upstream and maintain the sFlow open-source C code.
-*   Cannot share a common gNPSI relay server implmentation for other protocols(NetFlow/Ipfix). 
+*   Cannot share a common gNPSI relay server implementation for other protocols(NetFlow/Ipfix). 
 
 Given that the overhead of using the local loopback collector is negligible, we opted for local loopback collector solution instead of integrated processes.
 
@@ -171,6 +186,29 @@ These paths cover the stats collection for gNPSI
 *   `/system/grpc-servers/grpc-server[name=gnpsi]/clients/client[address=<client_ip>][port=<port_num>]/state/sample-send-error`
 
 
+Yang model 
+
+
+```
+module: openconfig-system
+ +--rw system
+   +--rw oc-sys-grpc:grpc-servers
+     +--rw oc-sys-grpc:grpc-server* [name]
+       +--ro oc-sys-grpc:connections
+         +--ro oc-sys-grpc:connection* [address port]
+           +--ro oc-sys-grpc:address    -> ../state/address
+           +--ro oc-sys-grpc:port       -> ../state/port
+           +--ro oc-sys-grpc:state
+             +--ro oc-sys-grpc:address?    oc-inet:ip-address
+             +--ro oc-sys-grpc:port?       oc-inet:port-number
+             +--ro oc-sys-grpc:counters
+               +--ro oc-sys-grpc:bytes-sent?       oc-yang:counter64
+               +--ro oc-sys-grpc:packets-sent?     oc-yang:counter64
+               +--ro oc-sys-grpc:data-send-error?  oc-yang:counter64
+```
+
+
+
 Server flag
 
 
@@ -181,7 +219,7 @@ Server flag
 
 #### 7.1 Config DB Enhancements
 
-gNPSI uses `CONFIG_DB`, `APPL_STATE_DB` and `COUNTERS_DB` 
+gNPSI uses `CONFIG_DB`, `STATE_DB` and `COUNTERS_DB` 
 
 DB schema is shown as below:
 
@@ -189,44 +227,46 @@ DB schema is shown as below:
 ```
 CONFIG_DB:
 	"GNPSI|global": {
-      "admin_state": "ENABLE"|"DISABLE",
-      "port": "<port_num>"
+"admin_state": "ENABLE"|"DISABLE",
+"port": "<port_num>"
 }
-APPL_STATE_DB:
-	"GNPSI:global": {
-      "admin_state": "ENABLE"|"DISABLE",
-      "port": "<port_num>"
+	STATE_DB:
+		"GNPSI:global": {
+"admin_state": "ENABLE"|"DISABLE",
+"port": "<port_num>"
 }
-COUNTERS_DB:
-   "COUNTERS:GNPSI:<remote_ip>/<port_num>": {
-      "bytes_sent": "0",
-      "packets_sent": "0",
-      "packets_error": "0"
+	COUNTERS_DB:
+		"COUNTERS:GNPSI:<remote_ip>|<port_num>": {
+			"bytes_sent": "0",
+			"packets_sent": "0",
+			"packets_error": "0"
 }
 ```
 
 
 
 
-*   For CONFIG_DB/APP_STATE_DB, `admin_state` and `port` fields are added for configuration purposes.
-*   For COUNTERS_DB, gNPSI added stats fields `bytes_sent`, `packets_sent` and `packetserror` for each collector.
+*   For `CONFIG_DB`/`STATE_DB`, admin_state and port are added for configuration purposes.
+*   For `COUNTERS_DB`, gNPSI added stats path `bytes_sent`, `packets_sent` and `packets_error` for each collector. Each stats entry would be cleared in following cases:
+    *   Disconnection of a gNPSI client.
+    *   Start/Teardown of switch gNPSI server.
 
 
 ### 8. Warmboot and Fastboot Design Impact
 
-Since gNPSI does not interact with Switch hardware, it has no impact with respect to warm reboot and fast reboot.
+Since gNPSI does not interact with Switch hardware, it has no impact with respect to warm reboot and fast reboot. And since gNPSI is a lightweight process and should not affect the boot speed a lot.
 
 
 ### 9. Memory Consumption
 
-Memory consumption is not significant based on collected stats. 
+Memory consumption is not significant based on the stat. 
 
 ![gNPSI memory usage](images/image7.png "memory usage")
 
 
 (All data is collected on Google-internal device environment)
 
-There is a ~10MB(5%) memory increase after integration of feature (even when configuration is disabled)
+There is a ~10MB(5%) memory increase after integration of feature
 
 
 ### 10. Testing Design
@@ -289,7 +329,7 @@ There is a ~10MB(5%) memory increase after integration of feature (even when con
 *   
 
 
-##### Stats
+###### Stats
 
 
 <table>
@@ -408,6 +448,24 @@ This test verifies that the DUT correctly enforces the maximum number of allowed
 
 <li>The first <code>maxClients</code> should connect without issues. The connection attempt from the extra client <strong>must fail</strong>. 
 <li>The error returned should specifically indicate that the client limit has been reached.</li></ol>
+
+   </td>
+  </tr>
+  <tr>
+   <td><code>TestGNPSIStressWithSflowBackoff</code>
+<p>
+This test verifies that the gNPSI service remains stable and continues to provide samples when the sFlow sampling mechanism is under heavy load, enough to trigger its rate-limiting (backoff) feature.<ol>
+
+<li><strong>Configure for Stress</strong>: It configures <code>sFlow</code> on the DUT with a very high sampling rate (e.g., 1-in-256) on a specific interface and sets gNPSI enabled.
+<li><strong>Create Client</strong>: It establishes a gNPSI subscription to the DUT to monitor for samples.
+<li><strong>Generate High Traffic</strong>: It uses a control device to send a high-volume stream of packets to the DUT, intentionally exceeding the configured sFlow backoff rate.
+<li><strong>Collect Samples</strong>: While traffic is flowing, the test collects all incoming samples from the gNPSI stream for a fixed duration.
+<li><strong>Verify Results</strong>: The test checks that the client connection remained stable (no errors) and that the number of received samples is reasonable, indicating that the backoff was active.</li></ol>
+
+   </td>
+   <td><ol>
+
+<li>The gNPSI client should not receive any errors during the high-traffic period. </li></ol>
 
    </td>
   </tr>
