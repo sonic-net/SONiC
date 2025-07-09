@@ -125,7 +125,7 @@ The dependency of repository is shown below
 
 *   `gnpsi.cc` : main file 
 *   `/db_monitor`: to monitor config db gnpsi-related events
-*   `/server`: helper to start and stop relay server and the stats thread, also write to appl_state_db
+*   `/server`: helper to start and stop relay server and the stats thread, also write to state_db
 *   `/utils`: stats util, credential util and authz logger util.
 
 #### Feature enablement
