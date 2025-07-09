@@ -61,6 +61,7 @@
 |:---:|:----------:|:--------------:|:----------------|
 | 0.1 | 01/11/2024 | Nazarii Hnydyn | Initial version |
 | 0.2 | 07/04/2025 | Nazarii Hnydyn | Asymmetric DSCP |
+| 0.3 | 23/06/2025 | Nazarii Hnydyn | Drop counters   |
 
 ## About this manual
 
@@ -134,7 +135,7 @@ and try sending it on a different queue to deliver a packet drop notification to
 3. Symmetric/Asymmetric DSCP remapping
 4. Static/Dynamic queue resolution
 5. ACL disable trimming control policy
-6. Port/Queue trimming statistics
+6. Switch/Port/Queue trimming statistics
 
 ### 1.2.2 Command interface
 
@@ -215,7 +216,7 @@ according to the configured QoS mapping.
 
 The feature will use SAI Switch/Buffer/ACL API to configure desired behavior to ASIC.  
 Fine-grained PT control can be achieved using ACL rules with disable trimming action.  
-Trimmed packets statistics will be displayed at both Port/Queue levels.
+Trimmed packets statistics will be displayed at Switch/Port/Queue levels.
 
 ## 2.2 Symmetric DSCP
 
@@ -241,10 +242,16 @@ where the congestion happened - on downlinks to servers or in the fabric.
 
 **SAI port/queue statistics which shall be used for PT:**
 
-| Counter                     | Comment               |
-|:----------------------------|:----------------------|
-| SAI_PORT_STAT_TRIM_PACKETS  | FlexCounter/CLI infra |
-| SAI_QUEUE_STAT_TRIM_PACKETS |                       |
+| Group  | Counter                              | Comment               |
+|:-------|:-------------------------------------|:----------------------|
+| SWITCH | SAI_SWITCH_STAT_DROPPED_TRIM_PACKETS | FlexCounter/CLI infra |
+|        | SAI_SWITCH_STAT_TX_TRIM_PACKETS      |                       |
+| QUEUE  | SAI_QUEUE_STAT_TRIM_PACKETS          |                       |
+|        | SAI_QUEUE_STAT_DROPPED_TRIM_PACKETS  |                       |
+|        | SAI_QUEUE_STAT_TX_TRIM_PACKETS       |                       |
+| PORT   | SAI_PORT_STAT_TRIM_PACKETS           |                       |
+|        | SAI_PORT_STAT_DROPPED_TRIM_PACKETS   |                       |
+|        | SAI_PORT_STAT_TX_TRIM_PACKETS        |                       |
 
 **SAI packet actions which shall be used for PT:**
 
@@ -351,8 +358,22 @@ In order to use trimming configuration in ACL rule, a dedicated ACL table type m
 
 Existing infrastructure will be reused.
 
-Flex counter groups `port/queue` will be extended with a new SAI attributes  
-`SAI_PORT_STAT_TRIM_PACKETS/SAI_QUEUE_STAT_TRIM_PACKETS` respectively.
+Flex counter groups `port/queue` will be extended with a new SAI attributes:
+* `SAI_QUEUE_STAT_TRIM_PACKETS`
+* `SAI_QUEUE_STAT_DROPPED_TRIM_PACKETS`
+* `SAI_QUEUE_STAT_TX_TRIM_PACKETS`
+* `SAI_PORT_STAT_TRIM_PACKETS`
+* `SAI_PORT_STAT_DROPPED_TRIM_PACKETS`
+* `SAI_PORT_STAT_TX_TRIM_PACKETS`
+
+Flex counter group `switch` will be created to handle switch related statistics:
+* `SAI_SWITCH_STAT_DROPPED_TRIM_PACKETS`
+* `SAI_SWITCH_STAT_TX_TRIM_PACKETS`
+
+On NVidia platform `x86_64-nvidia_sn5640-r0` calculation of `SAI_PORT_STAT_DROPPED_TRIM_PACKETS`  
+will be done using a dedicated LUA plugin.
+
+A registration of a new LUA plugin will be done using `port` flex counter group.
 
 ## 2.6 DB schema
 
@@ -459,17 +480,23 @@ redis-cli -n 4 HGETALL 'BUFFER_PROFILE|q_lossy_trim_profile'
 1) "packet_discard_action"
 2) "trim"
 
-redis-cli -n 4 HGETALL "TC_TO_DSCP_MAP|host_trim_map"
+redis-cli -n 4 HGETALL 'TC_TO_DSCP_MAP|host_trim_map'
 1) "5"
 2) "3"
 
-redis-cli -n 4 HGETALL "PORT_QOS_MAP|Ethernet0"
+redis-cli -n 4 HGETALL 'PORT_QOS_MAP|Ethernet0'
 1) "tc_to_dscp_map"
 2) "host_trim_map"
 
 redis-cli -n 4 HGETALL 'ACL_RULE|TRIM_TABLE|TRIM_RULE'
 1) "PACKET_ACTION"
 2) "DISABLE_TRIM"
+
+redis-cli -n 4 HGETALL 'FLEX_COUNTER_TABLE|SWITCH'
+1) "FLEX_COUNTER_STATUS"
+2) "enable"
+3) "POLL_INTERVAL"
+4) "10000"
 ```
 
 **State DB:**
@@ -481,6 +508,34 @@ redis-cli -n 6 HGETALL 'SWITCH_CAPABILITY|switch'
 4) "DSCP_VALUE,FROM_TC"
 5) "SWITCH|PACKET_TRIMMING_QUEUE_RESOLUTION_MODE"
 6) "STATIC,DYNAMIC"
+```
+
+**Flex Counter DB:**
+```bash
+redis-cli -n 5 HGETALL 'FLEX_COUNTER_GROUP_TABLE:SWITCH_STAT_COUNTER'
+1) "POLL_INTERVAL"
+2) "10000"
+3) "STATS_MODE"
+4) "STATS_MODE_READ"
+5) "FLEX_COUNTER_STATUS"
+6) "enable"
+
+redis-cli -n 5 HGETALL 'FLEX_COUNTER_TABLE:SWITCH_STAT_COUNTER:oid:0x21000000000000'
+1) "SWITCH_COUNTER_ID_LIST"
+2) "SAI_SWITCH_STAT_DROPPED_TRIM_PACKETS,SAI_SWITCH_STAT_TX_TRIM_PACKETS"
+```
+
+**Counters DB:**
+```bash
+redis-cli -n 2 HGETALL 'COUNTERS_SWITCH_NAME_MAP'
+1) "ASIC"
+2) "oid:0x21000000000000"
+
+redis-cli -n 2 HGETALL 'COUNTERS:oid:0x21000000000000'
+1) "SAI_SWITCH_STAT_DROPPED_TRIM_PACKETS"
+2) "100"
+3) "SAI_SWITCH_STAT_TX_TRIM_PACKETS"
+4) "100"
 ```
 
 ### 2.6.4 Configuration sample
@@ -643,6 +698,30 @@ redis-cli -n 6 HGETALL 'SWITCH_CAPABILITY|switch'
 }
 ```
 
+**Packet trimming statistics:**
+```json
+{
+    "FLEX_COUNTER_TABLE": {
+        "ACL": {
+            "FLEX_COUNTER_STATUS": "enable",
+            "POLL_INTERVAL": "10000"
+        },
+        "SWITCH": {
+            "FLEX_COUNTER_STATUS": "enable",
+            "POLL_INTERVAL": "10000"
+        },
+        "PORT": {
+            "FLEX_COUNTER_STATUS": "enable",
+            "POLL_INTERVAL": "10000"
+        },
+        "QUEUE": {
+            "FLEX_COUNTER_STATUS": "enable",
+            "POLL_INTERVAL": "10000"
+        }
+    }
+}
+```
+
 ### 2.6.5 Initial configuration
 
 No special handling is required: disabled by default
@@ -692,6 +771,15 @@ show
 |    |--- global [OPTIONS]
 |
 |--- mmu
+|
+|--- switch
+     |--- counters [OPTIONS]
+          |--- all [OPTIONS]
+          |--- trim [OPTIONS]
+          |--- detailed [OPTIONS]
+
+sonic-clear
+|--- switchcounters
 ```
 
 **Options:**
@@ -707,6 +795,22 @@ _config mmu_
 
 _show switch-trimming global_
 1. `-j|--json` - display in JSON format
+
+_show switch counters_
+1. `-p|--period` - display stats over a specified period (in seconds)
+2. `-j|--json` - display in JSON format
+
+_show switch counters all_
+1. `-p|--period` - display stats over a specified period (in seconds)
+2. `-j|--json` - display in JSON format
+
+_show switch counters trim_
+1. `-p|--period` - display stats over a specified period (in seconds)
+2. `-j|--json` - display in JSON format
+
+_show switch counters detailed_
+1. `-p|--period` - display stats over a specified period (in seconds)
+2. `-j|--json` - display in JSON format
 
 ### 2.8.2 Usage examples
 
@@ -728,10 +832,12 @@ config mmu -p q_lossy_trim_profile -t off
 
 **The following command updates switch trimming counter configuration:**
 ```bash
+counterpoll switch enable
 counterpoll port enable
 counterpoll queue enable
 counterpoll acl enable
 
+counterpoll switch interval 1000
 counterpoll port interval 1000
 counterpoll queue interval 1000
 counterpoll acl interval 1000
@@ -823,6 +929,7 @@ TRIM_TABLE  TRIM_RULE         999  DISABLE_TRIM  SRC_IP: 1.1.1.1/32  Active
 root@sonic:/home/admin# counterpoll show
 Type          Interval (in ms)    Status
 ------------  ------------------  --------
+SWITCH_STAT   1000                enable
 PORT_STAT     1000                enable
 QUEUE_STAT    1000                enable
 ACL           1000                enable
@@ -830,73 +937,101 @@ ACL           1000                enable
 
 **The following command shows switch trimming statistics:**
 ```bash
+root@sonic:/home/admin# show switch counters all
+  TrimSent/pkts    TrimDrop/pkts
+---------------  ---------------
+         20,000           10,000
+
+root@sonic:/home/admin# switchstat --all
+  TrimSent/pkts    TrimDrop/pkts
+---------------  ---------------
+         20,000           10,000
+
+root@sonic:/home/admin# show switch counters trim
+  TrimSent/pkts    TrimDrop/pkts
+---------------  ---------------
+         20,000           10,000
+
+root@sonic:/home/admin# switchstat --trim
+  TrimSent/pkts    TrimDrop/pkts
+---------------  ---------------
+         20,000           10,000
+
+root@sonic:/home/admin# show switch counters detailed
+Trimmed Sent Packets........................... 10,000
+Trimmed Dropped Packets........................ 10,000
+
+root@sonic:/home/admin# switchstat --detail
+Trimmed Sent Packets........................... 10,000
+Trimmed Dropped Packets........................ 10,000
+
 root@sonic:/home/admin# show interfaces counters -i Ethernet0 -a
-    IFACE    STATE    RX_OK    RX_BPS    RX_PPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_PPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR    TRIM
----------  -------  -------  --------  --------  ---------  --------  --------  --------  -------  --------  --------  ---------  --------  --------  --------  ------
-Ethernet0        U      100  0.00 B/s    0.00/s      0.00%         0         0         0        0  0.00 B/s  0.00 B/s      0.00%         0       100         0     100
+    IFACE    STATE    RX_OK    RX_BPS    RX_PPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_PPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR    TRIM    TRIM_TX    TRIM_DRP
+---------  -------  -------  --------  --------  ---------  --------  --------  --------  -------  --------  --------  ---------  --------  --------  --------  ------  ---------  ----------
+Ethernet0        U      100  0.00 B/s    0.00/s      0.00%         0         0         0        0  0.00 B/s  0.00 B/s      0.00%         0       100         0     100         50          50
 
 root@sonic:/home/admin# portstat -i Ethernet0 -a
-    IFACE    STATE    RX_OK    RX_BPS    RX_PPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_PPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR    TRIM
----------  -------  -------  --------  --------  ---------  --------  --------  --------  -------  --------  --------  ---------  --------  --------  --------  ------
-Ethernet0        U      100  0.00 B/s    0.00/s      0.00%         0         0         0        0  0.00 B/s  0.00 B/s      0.00%         0       100         0     100
+    IFACE    STATE    RX_OK    RX_BPS    RX_PPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_PPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR    TRIM    TRIM_TX    TRIM_DRP
+---------  -------  -------  --------  --------  ---------  --------  --------  --------  -------  --------  --------  ---------  --------  --------  --------  ------  ---------  ----------
+Ethernet0        U      100  0.00 B/s    0.00/s      0.00%         0         0         0        0  0.00 B/s  0.00 B/s      0.00%         0       100         0     100         50          50
 
 root@sonic:/home/admin# show interfaces counters trim Ethernet0
-    IFACE    STATE    TRIM
----------  -------  ------
-Ethernet0        U     100
+    IFACE    STATE    TRIM_PKTS    TRIM_TX_PKTS    TRIM_DRP_PKTS
+---------  -------  -----------  --------------  ---------------
+Ethernet0        U          100              50               50
 
 root@sonic:/home/admin# portstat -i Ethernet0 --trim
-    IFACE    STATE    TRIM
----------  -------  ------
-Ethernet0        U     100
+    IFACE    STATE    TRIM_PKTS    TRIM_TX_PKTS    TRIM_DRP_PKTS
+---------  -------  -----------  --------------  ---------------
+Ethernet0        U          100              50               50
 
 root@sonic:/home/admin# show queue counters Ethernet0 --all
-     Port    TxQ    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Trim/pkts
----------  -----  --------------  ---------------  -----------  ------------  -----------
-Ethernet0    UC0             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC1             N/A              N/A          100          6400          100
-Ethernet0    UC2             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC3             100             6400          N/A           N/A          N/A
-Ethernet0    UC4             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC5             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC6             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC7             N/A              N/A          N/A           N/A          N/A
+     Port    TxQ    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Trim/pkts    TrimSent/pkts    TrimDrop/pkts
+---------  -----  --------------  ---------------  -----------  ------------  -----------  ---------------  ---------------
+Ethernet0    UC0             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC1             N/A              N/A          100          6400          100               50               50
+Ethernet0    UC2             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC3             100             6400          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC4             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC5             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC6             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC7             N/A              N/A          N/A           N/A          N/A              N/A              N/A
 
 root@sonic:/home/admin# queuestat -p Ethernet0 --all
-     Port    TxQ    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Trim/pkts
----------  -----  --------------  ---------------  -----------  ------------  -----------
-Ethernet0    UC0             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC1             N/A              N/A          100          6400          100
-Ethernet0    UC2             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC3             100             6400          N/A           N/A          N/A
-Ethernet0    UC4             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC5             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC6             N/A              N/A          N/A           N/A          N/A
-Ethernet0    UC7             N/A              N/A          N/A           N/A          N/A
+     Port    TxQ    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes    Trim/pkts    TrimSent/pkts    TrimDrop/pkts
+---------  -----  --------------  ---------------  -----------  ------------  -----------  ---------------  ---------------
+Ethernet0    UC0             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC1             N/A              N/A          100          6400          100               50               50
+Ethernet0    UC2             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC3             100             6400          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC4             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC5             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC6             N/A              N/A          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC7             N/A              N/A          N/A           N/A          N/A              N/A              N/A
 
 root@sonic:/home/admin# show queue counters Ethernet0 --trim
-     Port    TxQ    Trim/pkts
----------  -----  -----------
-Ethernet0    UC0          N/A
-Ethernet0    UC1          100
-Ethernet0    UC2          N/A
-Ethernet0    UC3          N/A
-Ethernet0    UC4          N/A
-Ethernet0    UC5          N/A
-Ethernet0    UC6          N/A
-Ethernet0    UC7          N/A
+     Port    TxQ    Trim/pkts    TrimSent/pkts    TrimDrop/pkts
+---------  -----  -----------  ---------------  ---------------
+Ethernet0    UC0          N/A              N/A              N/A
+Ethernet0    UC1          100               50               50
+Ethernet0    UC2          N/A              N/A              N/A
+Ethernet0    UC3          N/A              N/A              N/A
+Ethernet0    UC4          N/A              N/A              N/A
+Ethernet0    UC5          N/A              N/A              N/A
+Ethernet0    UC6          N/A              N/A              N/A
+Ethernet0    UC7          N/A              N/A              N/A
 
 root@sonic:/home/admin# queuestat -p Ethernet0 --trim
-     Port    TxQ    Trim/pkts
----------  -----  -----------
-Ethernet0    UC0          N/A
-Ethernet0    UC1          100
-Ethernet0    UC2          N/A
-Ethernet0    UC3          N/A
-Ethernet0    UC4          N/A
-Ethernet0    UC5          N/A
-Ethernet0    UC6          N/A
-Ethernet0    UC7          N/A
+     Port    TxQ    Trim/pkts    TrimSent/pkts    TrimDrop/pkts
+---------  -----  -----------  ---------------  ---------------
+Ethernet0    UC0          N/A              N/A              N/A
+Ethernet0    UC1          100               50               50
+Ethernet0    UC2          N/A              N/A              N/A
+Ethernet0    UC3          N/A              N/A              N/A
+Ethernet0    UC4          N/A              N/A              N/A
+Ethernet0    UC5          N/A              N/A              N/A
+Ethernet0    UC6          N/A              N/A              N/A
+Ethernet0    UC7          N/A              N/A              N/A
 
 root@sonic:/home/admin# aclshow --all
 RULE NAME    TABLE NAME      PRIO  PACKETS COUNT    BYTES COUNT
@@ -1039,6 +1174,7 @@ PT basic configuration test:
 5. Verify ASIC DB object state after buffer profile discard packet action update
 6. Verify ASIC DB object state after switching `symmetric<->asymmetric` DSCP mode
 7. Verify error handling with negative test cases
+8. Verify `switch/port/queue` counter statistics
 
 ## 3.2 Data plane tests via PTF
 
