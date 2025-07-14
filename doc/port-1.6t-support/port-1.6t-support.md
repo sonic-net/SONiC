@@ -21,7 +21,7 @@
 
 | Rev | Date | Author | Change Description |
 | :---- | :---- | :---- | :---- |
-| 1.0 | 2024-01-25 | bobby-nexthop | Initial Version |
+| 1.0 | 2024-07-14 | bobby-nexthop | Initial Version |
 
 ### 2\. Scope
 This document describes the following enhancements to the SONiC OS:
