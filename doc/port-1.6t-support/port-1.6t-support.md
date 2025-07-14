@@ -15,7 +15,7 @@
       - [5.2. sonic-platform-daemons Support](#52-sonic-platform-daemons-support)
       - [5.3. sonic-utilities Support](#53-sonic-utilities-support)
       - [5.4. sonic-swss Support](#54-sonic-swss-support)
-    - [6. Additional Notes](#Additional-notes)
+    - [6. Additional Notes](#6-Additional-notes)
 
 ### 1\. Revision
 
