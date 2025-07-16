@@ -1,7 +1,7 @@
 # Configurable Drop Counters in SONiC
 
 # High Level Design Document
-#### Rev 1.0
+#### Rev 1.1
 
 # Table of Contents
 * [List of Tables](#list-of-tables)
@@ -15,6 +15,8 @@
         - [1.1.1 A flexible "drop filter"](#111-a-flexible-"drop-filter")
         - [1.1.2 A helpful debugging tool](#112-a-helpful-debugging-tool)
         - [1.1.3 More sophisticated monitoring schemes](#113-more-sophisticated-monitoring-schemes)
+        - [1.1.4 Alerting on persistent drops](#114-alerting-on-persistent-drops)
+
 * [2 Requirements](#2-requirements)
     - [2.1 Functional Requirements](#21-functional-requirements)
     - [2.2 Configuration and Management Requirements](#22-configuration-and-management-requirements)
@@ -27,6 +29,7 @@
         - [3.1.3 Displaying the current counts](#313-displaying-the-current-counts)
         - [3.1.4 Clearing the counts](#314-clearing-the-counts)
         - [3.1.5 Configuring counters from the CLI](#315-configuring-counters-from-the-CLI)
+        - [3.1.6 Configuring persistent drop counters from the CLI](#316-configuring-persistent-drop-counters-from-the-CLI)
     - [3.2 Config DB](#32-config-db)
         - [3.2.1 DEBUG_COUNTER Table](#321-debug_counter-table)
         - [3.2.2 PACKET_DROP_COUNTER_REASON Table](#322-packet_drop_counter_reason-table)
@@ -60,6 +63,7 @@
 | 0.2 | 09/03/19 | Danny Allen | Review updates            |
 | 0.3 | 09/19/19 | Danny Allen | Community meeting updates |
 | 1.0 | 11/19/19 | Danny Allen | Code review updates       |
+| 1.1 | 09/24/24 | Hetav Pandya | Persistent drop counter monitoring added |
 
 # About this Manual
 This document provides an overview of the implementation of configurable packet drop counters in SONiC.
@@ -104,6 +108,9 @@ Some have suggested other deployment schemes to try to sample the specific types
 - Periodically (e.g. every 30s) cycling through different sets of drop counters on a given device
 - "Striping" drop counters across different devices in the system (e.g. these 3 switches are tracking VLAN drops, these 3 switches are tracking ACL drops, etc.)
 - An automatic version of [1.1.2](#112-a-helpful-debugging-tool) that adapts the drop counter configuration based on which counters are incrementing
+
+### 1.1.4 Alerting on persistent drops
+To debug packet loss issues, drop counters can help identify persistent drops, which can be queried from the CLI. Details on persistent drops and how to configure persistent drop alerting are provided in [3.1.6](#316-configuring-persistent-drop-counters-from-the-CLI)
 
 # 2 Requirements
 
@@ -233,10 +240,115 @@ admin@sonic:~$ sudo config dropcounters remove_reasons DEBUG_2 [SIP_CLASS_E]
 admin@sonic:~$ sudo config dropcounters delete DEBUG_2
 ```
 
+### 3.1.6 Configuring port-level persistent drop counters from the CLI
+Persistent packet drops are defined as packet drops that do not occur singularly, but instead occur intermittently and persistently over a period of time. For example, a persistent packet drop may occur every few minutes. To help identify these drops on a per-port level, it would be useful to automate detection via software using a windowing scheme.
+
+The Persistent Drop Counter Monitor feature is controlled through two levels of configuration:
+
+- Global Monitor Control – Enables or disables the monitoring feature system-wide.
+```
+root@sonic:/# config dropcounters enable-monitor
+Drop counter monitor is globally enabled.
+
+root@sonic:/# config dropcounters disable-monitor
+Drop counter monitor is globally disabled.
+```
+If the Global Monitor Control is set to disabled, the monitoring status of each individual drop counter will also be set to disabled. This ensures that no counter is actively monitored when the global feature is off, while retaining their individual threshold configurations.
+
+- Per-Counter Monitor Control – Enables or disables monitoring on individual drop counters and allows fine-grained parameter tuning.
+```
+root@sonic:/# config dropcounters enable-monitor -c DEBUG_0 -w 300 -dct 20 -ict 5
+Drop counter monitor is enabled for counter DEBUG_0. The monitor is configured with:
+window: 300
+drop_count_threshold: 20
+incident_count_threshold: 5
+```
+When monitoring for a specific drop counter is disabled (via `config dropcounters disable-monitor -c <COUNTER_NAME>`), its configured thresholds (window, drop_count_threshold, incident_count_threshold) will be retained. Only its monitoring status will be turned off. This allows for quick re-enabling without re-entering parameters.
+
+A counter will only be actively monitored if both the global monitor is enabled and the per-counter monitor is enabled for that specific counter.
+By default, the global monitor and all per-counter monitors are disabled.
+If the global monitor is currently disabled, and a user attempts to enable a specific per-counter monitor (e.g., `config dropcounters enable-monitor -c DEBUG_0`), the CLI will prevent the operation and issue a warning. The per-counter monitor's status will not change until the global monitor is enabled. Example:
+```
+root@sonic:/# config dropcounters disable-monitor
+Drop counter monitor is globally disabled.
+
+root@sonic:/# config dropcounters enable-monitor -c DEBUG_0 -w 120 -dct 5 -ict 2
+Warning: Cannot enable monitoring for DEBUG_0. The Global Persistent Drop Counter Monitor is currently disabled. Please enable global monitoring first.
+```
+
+
+Each debug drop counter can be configured with the following parameters:
+
+- window:
+    - The sliding time window defined in seconds. Drops outside this window are ignored.
+    - Argument: -w / --window
+- drop_count_threshold:
+    - The minimum number of drops that have to occur per window for it to be registered as an incident.
+    - Argument: -dct / --drop-count-threshold
+- incident_count_threshold:
+    - The minimum number of incidents that will trigger a syslog entry
+    - Argument: -ict / --incident-count-threshold
+
+For example, consider a counter configured with a 300-second `window`, a `drop_count_threshold` of 100, and an `incident_count_threshold` of 1. Within each five-minute time window, if the counter experiences more than 100 drop counts at least twice, a syslog will be emitted.
+
+In the figure below, the height of the vertical line represents the number of drop counts detected. The drop counts are polled at a predefined 60-second interval. Drop counts exceeding the drop_count_threshold are highlighted in red and classified as "incidents". Three time windows (W1/W2/W3) are shown in the figure. Given the five-minute window size, it is expected to observe five drop counts (vertical lines) per window. If the number of incidents exceeds the incident_count_threshold, a syslog error is raised.
+
+![image](https://github.com/user-attachments/assets/cf42e38d-dd6b-42fe-8dc8-c816b51764c3)
+
+The drop monitor can be configured during installation
+```
+root@sonic:~$ config dropcounters install --help
+Usage: config dropcounters install [OPTIONS] COUNTER_NAME COUNTER_TYPE REASONS
+
+  Install a new drop counter
+
+Options:
+  -a, --alias TEXT                Alias for this counter
+  -g, --group TEXT                Group for this counter
+  -d, --desc TEXT                 Description for this counter
+  -w, --window INTEGER            Window size in seconds
+  -dct, --drop-count-threshold INTEGER
+                                  Minimum threshold for drop counts to be
+                                  classified as an incident
+  -ict, --incident-count-threshold INTEGER
+                                  Minimum number of incidents to trigger a
+                                  persistent drop alert
+  -v, --verbose                   Enable verbose output
+  -n, --namespace TEXT            Namespace name or all
+  -?, -h, --help                  Show this message and exit.
+
+root@sonic:/# config dropcounters install DEBUG_0 PORT_INGRESS_DROPS [SIP_LINK_LOCAL] -d "More port ingress drops" -g BAD -a BAD_DROPS -ict 4 -dct 3 -w 300
+```
+
+Note that all three arguments are needed to install a drop counter monitor
+```
+root@sonic:/# sudo config dropcounters install DEBUG_0 PORT_INGRESS_DROPS [SIP_LINK_LOCAL] -d "More port ingress drops" -g BAD -a BAD_DROPS -ict 4
+Encountered error trying to install counter: If a drop monitor is to be installed, all three arguments (window, drop_count_threshold and incident_count threshold) must be provided
+```
+
+Alternatively, the drop monitor can also be configured after it has been created
+```
+root@sonic:/# sudo config dropcounters enable-monitor -c DEBUG_0 -w 500 -ict 2 -dct 10
+Drop counter monitor is enabled for counter DEBUG_0
+root@sonic:/# sudo config dropcounters disable-monitor -c DEBUG_0
+Drop counter monitor is disabled for counter DEBUG_0
+```
+
+Persistent drops can be analyzed via the CLI:
+```
+root@up322:/# show dropcounters persistent-drops DEBUG_0
+The persistent drops recorded on DEBUG_0 are:
+2025-05-06 01:39:03: Persistent packet drops detected on Ethernet0
+2025-05-06 01:42:47: Persistent packet drops detected on Ethernet1
+```
+
+Note that the persistent drop alerts are stored in COUNTERS_DB.
+
 ## 3.2 Config DB
 Two new tables will be added to Config DB:
 * DEBUG_COUNTER to store general debug counter metadata
 * DEBUG_COUNTER_DROP_REASON to store drop reasons for debug counters that have been configured to track packet drops
+* DEBUG_DROP_MONITOR to store the status of the global drop monitor feature
 
 ### 3.2.1 DEBUG_COUNTER Table
 Example:
@@ -247,19 +359,25 @@ Example:
             "alias": "PORT_RX_LEGIT",
             "type": "PORT_INGRESS_DROPS",
             "desc": "Legitimate port-level RX pipeline drops",
-            "group": "LEGIT"
+            "group": "LEGIT",
+            "drop_monitor_status": "enabled",
+            "drop_count_threshold": "10",
+            "incident_count_threshold": "2",
+            "window": "300"
         },
         "DEBUG_1": {
             "alias": "PORT_TX_LEGIT",
             "type": "PORT_EGRESS_DROPS",
             "desc": "Legitimate port-level TX pipeline drops"
-            "group": "LEGIT"
+            "group": "LEGIT",
+            "drop_monitor_status": "disabled"
         },
         "DEBUG_2": {
             "alias": "SWITCH_RX_LEGIT",
             "type": "SWITCH_INGRESS_DROPS",
             "desc": "Legitimate switch-level RX pipeline drops"
-            "group": "LEGIT"
+            "group": "LEGIT",
+            "drop_monitor_status": "disabled"
         }
     }
 }
@@ -274,6 +392,20 @@ Example:
         "DEBUG_0|INGRESS_VLAN_FILTER": {},
         "DEBUG_1|EGRESS_VLAN_FILTER": {},
         "DEBUG_2|TTL": {},
+    }
+}
+```
+
+### 3.2.3 DEBUG_DROP_MONITOR Table
+The status here indicates whether the configurable drop monitor feature has been turned on globally.
+
+Example:
+```
+{
+    "DEBUG_DROP_MONITOR": {
+        "CONFIG": {
+            "status": "disabled"
+        }
     }
 }
 ```
