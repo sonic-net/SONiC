@@ -26,7 +26,7 @@ There are some potential options as below:
 Define a Kubernetes pre-deployment job, which is to detect and stop/remove the native container (e.g., via systemd, Docker, etc.), before enabling the Kubernetes deployment.
 Disable any native auto-restart logic (e.g., systemctl disable, docker rm -f && docker rm, etc.). But this may break some existing feature like CriticalProcessHealthChecker, featured, systemHealth, etc. Thus this option is not preferable.
 
-### Mirror the Real State into the Config Flag
+### Mirror the Real State into the Config FEATURE table
 
 This means once we enable feature via KubeSonic, we can keep updating the FEATURE table to reflect Kubernetes’ real state, by this existing service/script which depends on FEATURE table will not be broken.
 
@@ -40,7 +40,7 @@ The FEATURE table controls feature lifecycle.
 
 | Version | Container Managed By | Startup Logic                            | systemd Handling         | Kubernetes Presence |
 |---------|----------------------|------------------------------------------|--------------------------|----------------------|
-| v0      | systemd              | FEATURE sets container enabled           | Native systemd file used | None                 |
+| v0      | NDM              | FEATURE sets container enabled           | Native systemd file used | None                 |
 | v1      | Kubernetes           | FEATURE mirrors K8s container state      | Proxy/No-op service file | DaemonSet            |
 | v2+     | Kubernetes           | Full migration, enhancements             | Optional cleanup         | DaemonSet + Policies |
 
@@ -59,7 +59,7 @@ Here we leverage a sidecar container inside the `DaemonSet` to perform periodic 
   - Updates the `enabled` flag in FEATURE table accordingly.
 
 ##### Sidecar Design
-- Runs a simple shell script that loops with `sleep`.
+- Runs a simple shell script feature_sync.sh that loops with `sleep`.
 - Ensures FEATURE state is in sync with container state.
 - For `v0`, restores systemd service files.
 - For `v1`, manages FEATURE table and optionally updates systemd stub.
@@ -76,9 +76,19 @@ while true; do
 done
 ```
 
-This script is embedded in the sidecar container of the `telemetry` DaemonSet.
+#### Update NDM Golden config via GenericConfigUpdater
+Meanwhile, NDM Golden config will be updated via GenericConfigUpdater so that it could keep consistent state with KubeSonic config path after later repave.
+
+#### Possible scenario during GCU update procedure
+
+If container is by default Enabled in FEATURE table, KubeSonic rollout will update FEATURE|telemetry as Enabled equally via its sidecar container, at the same time trigger NDM Golden config update via GCU path, this is most use case which is good.
+
+If container is by default Disabled in FEATURE table, when KubeSonic rollout it will update FEATURE|telemetry as Enabled via its sidecar container, at the same time trigger NDM Golden config update via GCU path, there is possible race that NDM triggers Golden config reSync before GCU update complete, which will disable FEATURE table unexpected first, but once GCU update arrives FEATURE table will be updated as final desire state.
+
+
 
 ### Example: DaemonSet YAML
+This script is embedded in the sidecar container of the `telemetry` DaemonSet.
 
 ```yaml
 apiVersion: apps/v1
@@ -125,9 +135,9 @@ data:
     while true; do
         # Check if telemetry container is running
         if kubectl get pod -l app=telemetry -n sonic | grep -q Running; then
-            redis-cli -n 6 HSET "FEATURE|telemetry" state "Enabled"
+            redis-cli -n 4 HSET "FEATURE|telemetry" state "Enabled"
         else
-            redis-cli -n 6 HSET "FEATURE|telemetry" state "Disabled"
+            redis-cli -n 4 HSET "FEATURE|telemetry" state "Disabled"
         fi
         sleep 60
     done
@@ -193,7 +203,7 @@ sequenceDiagram
         Sidecar->>systemd: cleanup telemetry.service
     end
     alt Version >= v2
-        Sidecar->>systemd: cleanup bmp.service
+        Sidecar->>systemd: cleanup telemetry.service
     end
 ```
 
@@ -222,7 +232,7 @@ To revert from Kubernetes-managed (`v1`) back to systemd-managed (`v0`):
 
 4. **Update FEATURE Table**
    ```bash
-   redis-cli -n 6 HSET "FEATURE|telemetry" state "Enabled"
+   redis-cli -n 4 HSET "FEATURE|telemetry" state "Enabled"
    ```
 
 5. **Clean Up Taints (if any)**
@@ -265,6 +275,7 @@ To prevent breaking these expectations during the migration, a `systemd` service
    Always exits successfully. This avoids errors for `status`, `start`, or `stop`.
 2. **Proxy script to K8s**  
    Optionally, `ExecStart` may invoke a script that checks K8s pod status or uses `kubectl`.
+
 
 ### Step-by-Step Setup
 
@@ -450,7 +461,39 @@ check program container_memory_telemetry with path "/usr/bin/memory_checker tele
 
 ```
 
-If legacy tools like `monit` must be retained temporarily, we need to rewrite /usr/bin/memory_check to use Kubernetes data (e.g., via `kubectl top`) instead of Docker or CGroup files.
+memory_checker implementation
+```
+def get_memory_usage(container_id):
+    """Reads the container's memory usage from the control group subsystem's file
+    '/sys/fs/cgroup/memory/docker/<container_id>/memory.usage_in_bytes'.
+    Args:
+        container_id: A string indicates the full ID of a container.
+    Returns:
+        A string indicates memory usage (Bytes) of a container.
+    """
+    validate_container_id(container_id)
+
+    docker_memory_usage_file_path = CGROUP_DOCKER_MEMORY_DIR + container_id + "/memory.usage_in_bytes"
+
+    for attempt in range(3):
+        try:
+            with open(docker_memory_usage_file_path, 'r') as file:
+                return file.read().strip()
+        except FileNotFoundError:
+            if attempt < 2:
+                time.sleep(0.1)  # retry after short delay
+            else:
+                break
+        except IOError:
+            syslog.syslog(syslog.LOG_ERR, ERROR_CONTAINER_MEMORY_USAGE_NOT_FOUND.format(container_id))
+            sys.exit(INTERNAL_ERROR)
+
+    syslog.syslog(syslog.LOG_ERR, ERROR_CGROUP_MEMORY_USAGE_NOT_FOUND.format(docker_memory_usage_file_path, container_id))
+    sys.exit(INTERNAL_ERROR)
+```
+
+
+During transition period if `monit` must be retained temporarily, we need to rewrite /usr/bin/memory_check to use Kubernetes data (e.g., via `kubectl top`) instead of reading Docker or CGroup files like above.
 
 ---
 
