@@ -18,37 +18,101 @@ This document outlines a generic approach to migrate any Image-managed Docker co
 
 ## Standardize Kubernetes-Based container Deployment
 
-Since we need migration from a image-managed container to a Kubernetes-managed container, while preserving compatibility and avoiding dual-running instances.
+Since we need migration from a image-managed container to a Kubernetes-managed container, while avoiding dual-running instances and preserving compatibility. Meanwhile, we should not
+break any existing feature like CriticalProcessHealthChecker, featured, systemHealth, etc.
 
-There are some potential options as below:
+### Keep FEATURE table as the source of truth of feature enablement
 
-### One-Time Migration Step
-Define a Kubernetes pre-deployment job, which is to detect and stop/remove the native container (e.g., via systemd, Docker, etc.), before enabling the Kubernetes deployment.
-Disable any native auto-restart logic (e.g., systemctl disable, docker rm -f && docker rm, etc.). But this may break some existing feature like CriticalProcessHealthChecker, featured, systemHealth, etc. Thus this option is not preferable.
-
-### Mirror the Real State into the Config Flag
-
-This means once we enable feature via KubeSonic, we can keep updating the FEATURE table to reflect Kubernetes’ real state, by this existing service/script which depends on FEATURE table will not be broken.
-
+This means even after we enable feature via KubeSonic, we will still keep FEATURE table and NDM Golden as its owner, KubeSonic will update NDM via GenericConfigUpdate path. That is to say, KubeSonic will decide enable/disable as final desire state, but it will still via NDM golden config path, however, there maybe some intermediate state sync stage like GCU is in progress but config repave is triggered.
 
 
 #### Feature Ownership and Versioning
 
 The FEATURE table controls feature lifecycle.
-- in v0, NDM takes feature's ownership via golden config
-- in v1+, Kubernetes will update golden config and take over the ownership of feature table
+- v0, current version iteration in SONiC
+- v1, KubeSonic rollout feature container, but keeps fully backward compatible
+- v2, KubeSonic rollout feature container, KubeSonic owns feature life cycle which is long term plan
 
-| Version | Container Managed By | Startup Logic                            | systemd Handling         | Kubernetes Presence |
+| Version | Container Managed By | Container Installed By                   | systemd Handling         | Kubernetes Presence |
 |---------|----------------------|------------------------------------------|--------------------------|----------------------|
-| v0      | systemd              | FEATURE sets container enabled           | Native systemd file used | None                 |
-| v1      | Kubernetes           | FEATURE mirrors K8s container state      | Proxy/No-op service file | DaemonSet            |
-| v2+     | Kubernetes           | Full migration, enhancements             | Optional cleanup         | DaemonSet + Policies |
+| v0      | NDM                  | SONiCImage                               | Native systemd file used | None                 |
+| v1      | KubeSonic            | KubeSonic update FEATURE state via GCU   | stub service file        | DaemonSet            |
+| v2+     | KubeSonic            | Full migration, no FEATURE state         | Optional cleanup         | DaemonSet + Policies |
+
+
+
+#### Possible scenario for KubeSonic rollout
+
+##### FEATURE state is enabled in NDM golden config, like telemetry
+
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sidecar
+    participant K8s API
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+
+    Sidecar->>K8s API: Query telemetry pod status
+    alt Pod Running
+        Sidecar->>CONFIG_DB: Query FEATURE|telemetry state enabled
+        Sidecar->>systemd: Stop running telemetry.service
+        Sidecar->>systemd: Patch telemetry.service to stub, uses k8s-wrapper.sh
+    else Pod Not Running
+        Sidecar->>systemd: no-op
+    end
+    NDM->>CONFIG_DB: no-op since it's enabled already
+```
+
+##### FEATURE state is disabled in NDM golden config, like bmp
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sidecar
+    participant K8s API
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+
+    Sidecar->>K8s API: Query bmp pod status
+    alt Pod Running
+        Sidecar->>CONFIG_DB: Query FEATURE|bmp state disabled
+        Sidecar->>systemd: Patch bmp.service to stub which uses k8s-wrapper.sh
+    else Pod Not Running
+        Sidecar->>systemd: no-op
+    end
+    NDM->>CONFIG_DB: set FEATURE|bmp enablement, which will start stub bmp.service by featured.service
+
+```
+
+##### After KubeSonic rollout, FEATURE state is disabled in NDM golden config, like feature switch-off in some livesite issue, etc
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sidecar
+    participant K8s API
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+
+    NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
+    alt KubeSonic rollback
+        Sidecar->>systemd: restore telemetry.service to original image based version
+    else KubeSonic not rollback
+        Sidecar->>systemd: no-op
+
+```
+
 
 ---
 
 #### Periodic State Sync via DaemonSet Sidecar
 
-To keep FEATURE state aligned with actual runtime state:
+To patch systemd script aligned with actual runtime state:
 
 ---
 ##### Rationale
@@ -56,10 +120,10 @@ Here we leverage a sidecar container inside the `DaemonSet` to perform periodic 
 
 - The sidecar container:
   - Detects whether the container is running (via `kubectl`, `docker`, or other APIs).
-  - Updates the `enabled` flag in FEATURE table accordingly.
+  - Patch or restore systemd service files.
 
 ##### Sidecar Design
-- Runs a simple shell script that loops with `sleep`.
+- Runs a simple shell script patch_service.sh that loops with `sleep`.
 - Ensures FEATURE state is in sync with container state.
 - For `v0`, restores systemd service files.
 - For `v1`, manages FEATURE table and optionally updates systemd stub.
@@ -68,17 +132,17 @@ Here we leverage a sidecar container inside the `DaemonSet` to perform periodic 
 #!/bin/bash
 while true; do
 
-    # Determine version and set FEATURE state accordingly
+    # Determine version accordingly
 
     # Restore or patch systemd scripts as needed
 
-    sleep 60
+    sleep 30
 done
 ```
 
-This script is embedded in the sidecar container of the `telemetry` DaemonSet.
 
 ### Example: DaemonSet YAML
+This script is embedded in the sidecar container of the `telemetry` DaemonSet.
 
 ```yaml
 apiVersion: apps/v1
@@ -101,7 +165,7 @@ spec:
         command: ["/usr/local/bin/supervisord"]
       - name: telemetry-feature-sidecar
         image: sonicinfra/feature-sync:latest
-        command: ["/bin/bash", "-c", "/scripts/feature_sync.sh"]
+        command: ["/bin/bash", "-c", "/scripts/patch_service.sh"]
         volumeMounts:
         - name: scripts
           mountPath: /scripts
@@ -111,58 +175,18 @@ spec:
           name: feature-sync-script
 ```
 
-### ConfigMap with Sidecar Script
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: feature-sync-script
-  namespace: sonic
-data:
-  feature_sync.sh: |
-    #!/bin/bash
-    while true; do
-        # Check if telemetry container is running
-        if kubectl get pod -l app=telemetry -n sonic | grep -q Running; then
-            redis-cli -n 6 HSET "FEATURE|telemetry" state "Enabled"
-        else
-            redis-cli -n 6 HSET "FEATURE|telemetry" state "Disabled"
-        fi
-        sleep 60
-    done
-```
-
----
 
 
-#### Disabling Feature via Node Taints
+#### Disabling KubeSonic rollouted Feature via Node Taints
 
-When a feature (e.g., `telemetry`) should be **disabled**:
+When a KubeSonic rollouted feature (e.g., `telemetry`) should be **disabled**:
 
-##### Step 1: Taint the Node
-```bash
-kubectl taint nodes <node-name> telemetry=disabled:NoSchedule
-```
-
-This prevents the DaemonSet from scheduling the container on that node.
-
-##### Step 2: Delete the Running Pod
-```bash
-kubectl delete pod -n sonic <pod-name>
-```
-
-As long as the taint remains, the pod will not be rescheduled.
-
----
-
-#### Example: telemetry Container Lifecycle
-
+##### Step 1: Update NDM Golden feature state into disabled
 ##### FEATURE Table Snapshot
 ```json
 "telemetry": {
   "auto_restart": "enabled",
-  "state": "enabled",
+  "state": "disabled",
   "delayed": "False",
   "check_up_status": "False",
   "has_per_asic_scope": "False",
@@ -170,32 +194,23 @@ As long as the taint remains, the pod will not be rescheduled.
   "high_mem_alert": "disabled"
 }
 ```
+This will stop the stub systemd service from running corresondingly.
 
-##### Sequence Diagram (v1+)
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Sidecar
-    participant K8s API
-    participant CONFIG_DB
-    participant systemd
-
-    Sidecar->>K8s API: Query telemetry pod status
-    alt Pod Running
-        Sidecar->>CONFIG_DB: HSET FEATURE|telemetry state enabled
-    else Pod Not Running
-        Sidecar->>CONFIG_DB: HSET FEATURE|telemetry state disabled
-    end
-    alt Version == v1
-        Sidecar->>systemd: Patch telemetry.service to stub
-    end
-    alt Version >= v2
-        Sidecar->>systemd: cleanup telemetry.service
-    end
-    alt Version >= v2
-        Sidecar->>systemd: cleanup bmp.service
-    end
+##### Step 2: Taint the Node
+```bash
+kubectl taint nodes <node-name> telemetry=disabled:NoSchedule
 ```
+
+This prevents the DaemonSet from scheduling the container on that node.
+
+##### Step 3: Delete the Running Pod
+```bash
+kubectl delete pod -n sonic <pod-name>
+```
+
+As long as the taint remains, the pod will not be rescheduled.
+
+
 
 ---
 
@@ -219,10 +234,13 @@ To revert from Kubernetes-managed (`v1`) back to systemd-managed (`v0`):
    sudo systemctl daemon-reexec
    sudo systemctl restart telemetry.service
    ```
+   Or use patch_service.sh to restore content of systemd script.
 
-4. **Update FEATURE Table**
+4. **Restart systemd service**
    ```bash
-   redis-cli -n 6 HSET "FEATURE|telemetry" state "Enabled"
+   sudo systemctl daemon-reexec
+   sudo systemctl daemon-reload
+   sudo systemctl restart telemetry.service
    ```
 
 5. **Clean Up Taints (if any)**
@@ -254,17 +272,13 @@ To prevent breaking these expectations during the migration, a `systemd` service
 ### v0 Behavior
 - Container is fully managed by `systemd` (e.g., `telemetry.service`).
 - FEATURE table controls startup (`state: Enabled/Disabled`).
-- Actual container starts or stops via `systemctl`.
+- Actual container starts or stops via `systemctl` by featured.service
 
 ### v1+ Behavior with Kubernetes DaemonSet
-- The container is deployed via Kubernetes DaemonSet — **not** started by `systemd`.
-- The systemd service is retained as a **stub or proxy**, to avoid breaking automation or tools that query it.
+- The container is deployed via Kubernetes DaemonSet.
+- The systemd service is retained as a **stub**, to avoid breaking automation or tools that query it.
+- `ExecStart` may invoke a script that checks K8s pod status or uses `kubectl`.
 
-#### Stub Options:
-1. **No-op service**  
-   Always exits successfully. This avoids errors for `status`, `start`, or `stop`.
-2. **Proxy script to K8s**  
-   Optionally, `ExecStart` may invoke a script that checks K8s pod status or uses `kubectl`.
 
 ### Step-by-Step Setup
 
@@ -283,11 +297,6 @@ else
 fi
 ```
 
-Make the script executable:
-
-```bash
-chmod +x /usr/local/bin/k8s-wrapper.sh
-```
 
 
 #### 2. Create systemd Unit File
@@ -328,27 +337,17 @@ sudo systemctl stop telemetry.service
 ### Limitations
 
 
-systemctl status does not show process PID or exit codes—it proxies Kubernetes pod status.
+systemctl status does not show process PID or exit codes since it proxies Kubernetes pod status.
 
 Restart policies (e.g., Restart=on-failure) defined in systemd will not work—Kubernetes handles restarts via livenessProbe and restartPolicy.
-
-This assumes kubectl is installed and configured to access the correct Kubernetes cluster and namespace.
-
-### Benefits
-
-No disruption to automation or legacy tooling using systemctl.
-
-Operators familiar with systemd can continue using the same commands.
-
-Allows gradual migration to a fully Kubernetes-native setup.
-
----
 
 
 
 ### Enforce CPU and memory resource constraints natively.
 
 Kubernetes provides native resource management through the `resources` spec, allowing you to define minimum (`requests`) and maximum (`limits`) values for CPU and memory.
+
+Container can config --memory as hard limit of usable RAM, and --memory-swap as more extra usage from swap space, once memory allocated exceeds the hard limit, container will get killed by OOM Killer with ExitCode=137 (SIGKILL), --restart=on-failure is used for restarting container automatically.
 
 #### Example Deployment YAML (Generic)
 
@@ -450,7 +449,39 @@ check program container_memory_telemetry with path "/usr/bin/memory_checker tele
 
 ```
 
-If legacy tools like `monit` must be retained temporarily, we need to rewrite /usr/bin/memory_check to use Kubernetes data (e.g., via `kubectl top`) instead of Docker or CGroup files.
+memory_checker implementation
+```
+def get_memory_usage(container_id):
+    """Reads the container's memory usage from the control group subsystem's file
+    '/sys/fs/cgroup/memory/docker/<container_id>/memory.usage_in_bytes'.
+    Args:
+        container_id: A string indicates the full ID of a container.
+    Returns:
+        A string indicates memory usage (Bytes) of a container.
+    """
+    validate_container_id(container_id)
+
+    docker_memory_usage_file_path = CGROUP_DOCKER_MEMORY_DIR + container_id + "/memory.usage_in_bytes"
+
+    for attempt in range(3):
+        try:
+            with open(docker_memory_usage_file_path, 'r') as file:
+                return file.read().strip()
+        except FileNotFoundError:
+            if attempt < 2:
+                time.sleep(0.1)  # retry after short delay
+            else:
+                break
+        except IOError:
+            syslog.syslog(syslog.LOG_ERR, ERROR_CONTAINER_MEMORY_USAGE_NOT_FOUND.format(container_id))
+            sys.exit(INTERNAL_ERROR)
+
+    syslog.syslog(syslog.LOG_ERR, ERROR_CGROUP_MEMORY_USAGE_NOT_FOUND.format(docker_memory_usage_file_path, container_id))
+    sys.exit(INTERNAL_ERROR)
+```
+
+
+During transition period if `monit` must be retained temporarily, we need to rewrite /usr/bin/memory_check to use Kubernetes data (e.g., via `kubectl top`) instead of reading Docker or CGroup files like above.
 
 ---
 
