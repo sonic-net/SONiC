@@ -1041,6 +1041,45 @@ TRIM_RULE    TRIM_TABLE       999  100              6400
 
 ## 2.9 YANG model
 
+Existing YANG model `sonic-flex_counter.yang` at `sonic-buildimage/src/sonic-yang-models/yang-models`  
+will be extended with a new schema in order to provide support for PT.
+
+**Skeleton code:**
+```yang
+module sonic-flex_counter {
+
+    ...
+
+    container sonic-flex_counter {
+
+        container FLEX_COUNTER_TABLE {
+
+            ...
+
+            container SWITCH {
+                /* SWITCH_STAT_COUNTER_FLEX_COUNTER_GROUP */
+                leaf FLEX_COUNTER_STATUS {
+                    type flex_status;
+                }
+                leaf FLEX_COUNTER_DELAY_STATUS {
+                    type flex_delay_status;
+                }
+                leaf POLL_INTERVAL {
+                    type poll_interval;
+                }
+            }
+
+        }
+        /* end of container FLEX_COUNTER_TABLE */
+
+        ...
+
+    }
+    /* end of top level container */
+}
+/* end of module sonic-flex_counter */
+```
+
 Existing YANG model `sonic-buffer-profile.yang` at `sonic-buildimage/src/sonic-yang-models/yang-models`  
 will be extended with a new schema in order to provide support for PT.
 
