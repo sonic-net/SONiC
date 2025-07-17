@@ -28,16 +28,16 @@ This means even after we enable feature via KubeSonic, we will still keep FEATUR
 
 #### Feature Ownership and Versioning
 
-The FEATURE table controls feature lifecycle.
+The FEATURE controls lifecycle.
 - v0, current version iteration in SONiC
 - v1, KubeSonic rollout feature container, but keeps fully backward compatible
-- v2, KubeSonic rollout feature container, KubeSonic owns feature life cycle which is long term plan
 
-| Version | Container Managed By | Container Installed By                   | systemd Handling         | Kubernetes Presence |
-|---------|----------------------|------------------------------------------|--------------------------|----------------------|
-| v0      | NDM                  | SONiCImage                               | Native systemd file used | None                 |
-| v1      | KubeSonic            | KubeSonic update FEATURE state via GCU   | stub service file        | DaemonSet            |
-| v2+     | KubeSonic            | Full migration, no FEATURE state         | Optional cleanup         | DaemonSet + Policies |
+
+| Version | Container Installed By | Container service launched                 | systemd Handling         | Kubernetes Presence |
+|---------|------------------------|--------------------------------------------|--------------------------|----------------------|
+| v0      | SONiCImage             | NDM FEATURE table (featured monitor)       | Native systemd file used | None                 |
+| v1      | KubeSonic              | NDM FEATURE table (featured monitor)       | stub service file        | DaemonSet            |
+
 
 
 
@@ -60,6 +60,7 @@ sequenceDiagram
         Sidecar->>CONFIG_DB: Query FEATURE|telemetry state enabled
         Sidecar->>systemd: Stop running telemetry.service
         Sidecar->>systemd: Patch telemetry.service to stub, uses k8s-wrapper.sh
+        Sidecar->>systemd: Start running telemetry.service
     else Pod Not Running
         Sidecar->>systemd: no-op
     end
@@ -80,6 +81,7 @@ sequenceDiagram
     Sidecar->>K8s API: Query bmp pod status
     alt Pod Running
         Sidecar->>CONFIG_DB: Query FEATURE|bmp state disabled
+        Sidecar->>systemd: Stop running telemetry.service
         Sidecar->>systemd: Patch bmp.service to stub which uses k8s-wrapper.sh
     else Pod Not Running
         Sidecar->>systemd: no-op
@@ -102,7 +104,51 @@ sequenceDiagram
     NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
     alt KubeSonic rollback
         Sidecar->>systemd: restore telemetry.service to original image based version
-        Sidecar->>systemd: no-op, pending later service start
+        Sidecar->>CONFIG_DB: read FEATURE|telemetry
+        alt FEATURE|telemetry is disabled
+          Sidecar->>systemd: no-op, pending later service start
+        else FEATURE|telemetry is enabled
+          Sidecar->>systemd: start telemetry service
+        end
+    else KubeSonic not rollback
+        Sidecar->>systemd: no-op
+    end
+```
+
+Here need a preStop in sidecar to restore systemd script before rollback
+
+```
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", 
+      "systemctl stop telemetry.service
+       cp /tmp/telemetry.service.bak 
+       /etc/systemd/system/telemetry.service
+       systemctl daemon-reload
+       systemctl start telemetry.service
+       "]
+```
+
+##### After KubeSonic rollout, FEATURE state is still enabled in NDM golden config, but KubeSonic needs to rollback the container
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sidecar
+    participant K8s API
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+
+    alt KubeSonic rollback
+        Sidecar->>systemd: restore telemetry.service to original image based version
+        Sidecar->>CONFIG_DB: read FEATURE|telemetry
+        alt FEATURE|telemetry is disabled
+          Sidecar->>systemd: no-op, pending later service start
+        else FEATURE|telemetry is enabled
+          Sidecar->>systemd: start telemetry service
+        end
     else KubeSonic not rollback
         Sidecar->>systemd: no-op
     end
