@@ -102,7 +102,7 @@ sequenceDiagram
     NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
     alt KubeSonic rollback
         Sidecar->>systemd: restore telemetry.service to original image based version
-        Sidecar->>systemd: restart telemetry.service
+        Sidecar->>systemd: no-op, pending later service start
     else KubeSonic not rollback
         Sidecar->>systemd: no-op
     end
