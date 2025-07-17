@@ -59,9 +59,9 @@
 
 | Rev | Date       | Author         | Description     |
 |:---:|:----------:|:--------------:|:----------------|
-| 0.1 | 01/11/2024 | Nazarii Hnydyn | Initial version |
-| 0.2 | 07/04/2025 | Nazarii Hnydyn | Asymmetric DSCP |
-| 0.3 | 23/06/2025 | Nazarii Hnydyn | Drop counters   |
+| 0.1 | 11/01/2024 | Nazarii Hnydyn | Initial version |
+| 0.2 | 04/07/2025 | Nazarii Hnydyn | Asymmetric DSCP |
+| 0.3 | 06/23/2025 | Nazarii Hnydyn | Drop counters   |
 
 ## About this manual
 
@@ -371,9 +371,11 @@ Flex counter group `switch` will be created to handle switch related statistics:
 * `SAI_SWITCH_STAT_TX_TRIM_PACKETS`
 
 On NVidia platform `x86_64-nvidia_sn5640-r0` calculation of `SAI_PORT_STAT_DROPPED_TRIM_PACKETS`  
-will be done using a dedicated LUA plugin.
+will be done using a dedicated LUA plugin. A registration of a new LUA plugin will be done  
+using `port` flex counter group. This technique is relevant only for NVidia platforms.
 
-A registration of a new LUA plugin will be done using `port` flex counter group.
+For a generic use case, the stats will be fetched by flex counter infra only  
+if the relevant capabilities are supported and exposed by a vendor.
 
 ## 2.6 DB schema
 
@@ -991,7 +993,7 @@ root@sonic:/home/admin# show queue counters Ethernet0 --all
 Ethernet0    UC0             N/A              N/A          N/A           N/A          N/A              N/A              N/A
 Ethernet0    UC1             N/A              N/A          100          6400          100               50               50
 Ethernet0    UC2             N/A              N/A          N/A           N/A          N/A              N/A              N/A
-Ethernet0    UC3             100             6400          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC3              50             3200          N/A           N/A          N/A              N/A              N/A
 Ethernet0    UC4             N/A              N/A          N/A           N/A          N/A              N/A              N/A
 Ethernet0    UC5             N/A              N/A          N/A           N/A          N/A              N/A              N/A
 Ethernet0    UC6             N/A              N/A          N/A           N/A          N/A              N/A              N/A
@@ -1003,7 +1005,7 @@ root@sonic:/home/admin# queuestat -p Ethernet0 --all
 Ethernet0    UC0             N/A              N/A          N/A           N/A          N/A              N/A              N/A
 Ethernet0    UC1             N/A              N/A          100          6400          100               50               50
 Ethernet0    UC2             N/A              N/A          N/A           N/A          N/A              N/A              N/A
-Ethernet0    UC3             100             6400          N/A           N/A          N/A              N/A              N/A
+Ethernet0    UC3              50             3200          N/A           N/A          N/A              N/A              N/A
 Ethernet0    UC4             N/A              N/A          N/A           N/A          N/A              N/A              N/A
 Ethernet0    UC5             N/A              N/A          N/A           N/A          N/A              N/A              N/A
 Ethernet0    UC6             N/A              N/A          N/A           N/A          N/A              N/A              N/A
@@ -1040,6 +1042,45 @@ TRIM_RULE    TRIM_TABLE       999  100              6400
 ```
 
 ## 2.9 YANG model
+
+Existing YANG model `sonic-flex_counter.yang` at `sonic-buildimage/src/sonic-yang-models/yang-models`  
+will be extended with a new schema in order to provide support for PT.
+
+**Skeleton code:**
+```yang
+module sonic-flex_counter {
+
+    ...
+
+    container sonic-flex_counter {
+
+        container FLEX_COUNTER_TABLE {
+
+            ...
+
+            container SWITCH {
+                /* SWITCH_STAT_COUNTER_FLEX_COUNTER_GROUP */
+                leaf FLEX_COUNTER_STATUS {
+                    type flex_status;
+                }
+                leaf FLEX_COUNTER_DELAY_STATUS {
+                    type flex_delay_status;
+                }
+                leaf POLL_INTERVAL {
+                    type poll_interval;
+                }
+            }
+
+        }
+        /* end of container FLEX_COUNTER_TABLE */
+
+        ...
+
+    }
+    /* end of top level container */
+}
+/* end of module sonic-flex_counter */
+```
 
 Existing YANG model `sonic-buffer-profile.yang` at `sonic-buildimage/src/sonic-yang-models/yang-models`  
 will be extended with a new schema in order to provide support for PT.
