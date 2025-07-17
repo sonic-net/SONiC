@@ -102,9 +102,10 @@ sequenceDiagram
     NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
     alt KubeSonic rollback
         Sidecar->>systemd: restore telemetry.service to original image based version
+        Sidecar->>systemd: restart telemetry.service
     else KubeSonic not rollback
         Sidecar->>systemd: no-op
-
+    end
 ```
 
 
@@ -278,6 +279,7 @@ To prevent breaking these expectations during the migration, a `systemd` service
 - The container is deployed via Kubernetes DaemonSet.
 - The systemd service is retained as a **stub**, to avoid breaking automation or tools that query it.
 - `ExecStart` may invoke a script that checks K8s pod status or uses `kubectl`.
+
 
 
 ### Step-by-Step Setup
