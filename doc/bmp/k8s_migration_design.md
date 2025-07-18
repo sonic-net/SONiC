@@ -23,20 +23,34 @@ break any existing feature like CriticalProcessHealthChecker, featured, systemHe
 
 ### Keep FEATURE table as the source of truth of feature enablement
 
-This means even after we enable feature via KubeSonic, we will still keep FEATURE table and NDM Golden as its owner, KubeSonic will update NDM via GenericConfigUpdate path. That is to say, KubeSonic will decide enable/disable as final desire state, but it will still via NDM golden config path, however, there maybe some intermediate state sync stage like GCU is in progress but config repave is triggered.
+This means even after we enable feature via KubeSonic, we will still keep FEATURE table and NDM Golden as its owner, KubeSonic will only deploy container and manage container start/stop which coordinate with FEATURE table.
 
+#### FEATURE Table Snapshot
+```json
+"telemetry": {
+  "auto_restart": "enabled",
+  "state": "enabled",
+  "delayed": "False",
+  "check_up_status": "False",
+  "has_per_asic_scope": "False",
+  "has_global_scope": "True",
+  "high_mem_alert": "disabled",
+  "set_owner": "kube",
+  "support_syslog_rate_limit": "true"
+}
+```
 
-#### Feature Ownership and Versioning
+#### Feature|state Ownership and Versioning
 
 The FEATURE controls lifecycle.
 - v0, current version iteration in SONiC
 - v1, KubeSonic rollout feature container, but keeps fully backward compatible
 
 
-| Version | Container Installed By | Container service launched                 | systemd Handling         | Kubernetes Presence |
-|---------|------------------------|--------------------------------------------|--------------------------|----------------------|
-| v0      | SONiCImage             | NDM FEATURE table (featured monitor)       | Native systemd file used | None                 |
-| v1      | KubeSonic              | NDM FEATURE table (featured monitor)       | stub service file        | DaemonSet            |
+| Version | Container Installed By | Container service launched                                          | systemd Handling         | Kubernetes Presence |
+|---------|------------------------|---------------------------------------------------------------------|--------------------------|----------------------|
+| v0      | SONiCImage             | NDM FEATURE table (featured monitor)                                | Native systemd file used | None                 |
+| v1      | KubeSonic              | Kubernetes but NDM FEATURE table control real daemon running or not | stub service file        | DaemonSet            |
 
 
 
@@ -54,13 +68,16 @@ sequenceDiagram
     participant CONFIG_DB
     participant systemd
     participant NDM
+    participant telemetry
 
     Sidecar->>K8s API: Query telemetry pod status
     alt Pod Running
         Sidecar->>CONFIG_DB: Query FEATURE|telemetry state enabled
         Sidecar->>systemd: Stop running telemetry.service
         Sidecar->>systemd: Patch telemetry.service to stub, uses k8s-wrapper.sh
-        Sidecar->>systemd: Start running telemetry.service
+        Sidecar->>telemetry: Start telemetry container
+        telemetry->>CONFIG_DB: Query FEATURE|telemetry state enabled
+        telemetry->>telemetry: launch telemetry daemon as usual
     else Pod Not Running
         Sidecar->>systemd: no-op
     end
@@ -77,20 +94,49 @@ sequenceDiagram
     participant CONFIG_DB
     participant systemd
     participant NDM
+    participant bmp
 
     Sidecar->>K8s API: Query bmp pod status
     alt Pod Running
         Sidecar->>CONFIG_DB: Query FEATURE|bmp state disabled
-        Sidecar->>systemd: Stop running telemetry.service
+        Sidecar->>systemd: Stop running bmp.service
         Sidecar->>systemd: Patch bmp.service to stub which uses k8s-wrapper.sh
+        Sidecar->>bmp: Start bmp container
+        bmp->>CONFIG_DB: Query FEATURE|bmp state disabled
+        bmp->>bmp: launch container as idle
     else Pod Not Running
         Sidecar->>systemd: no-op
     end
     NDM->>CONFIG_DB: set FEATURE|bmp enablement, which will start stub bmp.service by featured.service
+    bmp->>bmp: launch bmp daemon as usual
 
 ```
 
-##### After KubeSonic rollout, FEATURE state is disabled in NDM golden config, like feature switch-off in some livesite issue, etc
+##### After KubeSonic rollout, use FEATURE state to disable container, like feature switch-off in some livesite issue, etc
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sidecar
+    participant K8s API
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+    participant telemetry
+
+    NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
+    alt Pod Running
+        systemd->>telemetry: kill docker container
+        telemetry->>telemetry: container restarted by k8s automatically
+        telemetry->>CONFIG_DB: read FEATURE|telemetry as disable
+        telemetry->>telemetry: launch container as idle
+    else Pod Not Running
+        Sidecar->>systemd: no-op
+    end
+```
+
+
+##### After KubeSonic rollout, rollback the container to imaged based version. (v1 -> v0)
 
 ```mermaid
 sequenceDiagram
@@ -101,7 +147,6 @@ sequenceDiagram
     participant systemd
     participant NDM
 
-    NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
     alt KubeSonic rollback
         Sidecar->>systemd: restore telemetry.service to original image based version
         Sidecar->>CONFIG_DB: read FEATURE|telemetry
@@ -130,32 +175,28 @@ lifecycle:
        "]
 ```
 
-##### After KubeSonic rollout, FEATURE state is still enabled in NDM golden config, but KubeSonic needs to rollback the container
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Sidecar
-    participant K8s API
-    participant CONFIG_DB
-    participant systemd
-    participant NDM
-
-    alt KubeSonic rollback
-        Sidecar->>systemd: restore telemetry.service to original image based version
-        Sidecar->>CONFIG_DB: read FEATURE|telemetry
-        alt FEATURE|telemetry is disabled
-          Sidecar->>systemd: no-op, pending later service start
-        else FEATURE|telemetry is enabled
-          Sidecar->>systemd: start telemetry service
-        end
-    else KubeSonic not rollback
-        Sidecar->>systemd: no-op
-    end
-```
-
-
 ---
+
+#### container startup script update
+
+Since FEATURE table still control container start/stop via featured.service, after container is rollout-ed via kubernetes, it need read from FEATURE table and determine whether it will launch daaemon or not.
+
+```bash
+#!/usr/bin/env bash
+
+STATE=$(redis-cli -n 4 HGET "FEATURE|telemetry" state)
+
+if [ "$STATE" == "enabled" ]; then
+    echo "Telemetry is enabled. Starting service..."
+    exec /usr/sbin/telemetry ${TELEMETRY_ARGS}
+else
+    echo "Telemetry is disabled. Entering idle..."
+    while true; do
+        sleep 3600
+    done
+fi
+
+```
 
 #### Periodic State Sync via DaemonSet Sidecar
 
@@ -173,8 +214,9 @@ Here we leverage a sidecar container inside the `DaemonSet` to perform periodic 
 - Runs a simple shell script patch_service.sh that loops with `sleep`.
 - Ensures FEATURE state is in sync with container state.
 - For `v0`, restores systemd service files.
-- For `v1`, manages FEATURE table and optionally updates systemd stub.
+- For `v1`, read from FEATURE table and optionally updates systemd stub.
 
+patch_service.sh
 ```bash
 #!/bin/bash
 while true; do
@@ -224,83 +266,6 @@ spec:
 
 
 
-#### Disabling KubeSonic rollouted Feature via Node Taints
-
-When a KubeSonic rollouted feature (e.g., `telemetry`) should be **disabled**:
-
-##### Step 1: Update NDM Golden feature state into disabled
-##### FEATURE Table Snapshot
-```json
-"telemetry": {
-  "auto_restart": "enabled",
-  "state": "disabled",
-  "delayed": "False",
-  "check_up_status": "False",
-  "has_per_asic_scope": "False",
-  "has_global_scope": "True",
-  "high_mem_alert": "disabled"
-}
-```
-This will stop the stub systemd service from running corresondingly.
-
-##### Step 2: Taint the Node
-```bash
-kubectl taint nodes <node-name> telemetry=disabled:NoSchedule
-```
-
-This prevents the DaemonSet from scheduling the container on that node.
-
-##### Step 3: Delete the Running Pod
-```bash
-kubectl delete pod -n sonic <pod-name>
-```
-
-As long as the taint remains, the pod will not be rescheduled.
-
-
-
----
-
-#### Rollback Flow
-
-To revert from Kubernetes-managed (`v1`) back to systemd-managed (`v0`):
-
-1. **Stop DaemonSet**
-   ```bash
-   kubectl delete daemonset telemetry -n sonic
-   ```
-
-2. **Remove Sidecar Script Stub** (Optional if installed via ConfigMap)
-   ```bash
-   kubectl delete configmap feature-sync-script -n sonic
-   ```
-
-3. **Restore systemd Script**
-   ```bash
-   sudo cp /tmp/telemetry.service.backup /lib/systemd/system/telemetry.service
-   sudo systemctl daemon-reexec
-   sudo systemctl restart telemetry.service
-   ```
-   Or use patch_service.sh to restore content of systemd script.
-
-4. **Restart systemd service**
-   ```bash
-   sudo systemctl daemon-reexec
-   sudo systemctl daemon-reload
-   sudo systemctl restart telemetry.service
-   ```
-
-5. **Clean Up Taints (if any)**
-   ```bash
-   kubectl taint nodes <node-name> telemetry:NoSchedule-
-   ```
-
-This rollback ensures systemd regains full control and FEATURE behaves as it did in `v0`.
-
----
-
-
-
 ## Maintaining `systemd` Compatibility
 
 In environments where existing operational workflows depend on managing containers via systemd, we can preserve compatibility by implementing a proxy systemd unit that interacts with Kubernetes behind the scenes. This allows existing automation tools and scripts that call systemctl to continue functioning without modification, even though the container is now orchestrated by Kubernetes.
@@ -333,16 +298,61 @@ To prevent breaking these expectations during the migration, a `systemd` service
 #### 1. Create Wrapper Script
 
 Create a script `/usr/local/bin/k8s-wrapper.sh` that translates `systemd`-style commands to Kubernetes `kubectl` actions:
+For start/stop/restart, it will just kill container simply so that kubernetes will relaunch it automatically.
+For status, it will return runtime state via kubectl.
 
 ```bash
-POD_NAME=$(kubectl get pod -n sonic -l app=telemetry -o jsonpath='{.items[0].metadata.name}')
-if [[ -n "$POD_NAME" ]]; then
-    echo "telemetry pod running as: $POD_NAME"
-    kubectl get pod -n sonic "$POD_NAME"
-else
-    echo "telemetry pod not found on this node."
+#!/usr/bin/env bash
+
+NAMESPACE="sonic"
+LABEL_SELECTOR="app=telemetry"
+NODE_NAME=$(hostname)
+
+usage() {
+    echo "Usage: $0 {start|stop|restart|status}"
     exit 1
-fi
+}
+
+get_pod_name() {
+    kubectl get pods -n "$NAMESPACE" \
+      -l "$LABEL_SELECTOR" \
+      --field-selector spec.nodeName="$NODE_NAME" \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null
+}
+
+kill_container() {
+    POD_NAME=$(get_pod_name)
+    if [[ -n "$POD_NAME" ]]; then
+        kubectl exec "$POD_NAME" -n "$NAMESPACE" -- pkill -f telemetry
+    else
+        exit 1
+    fi
+}
+
+check_status() {
+    POD_NAME=$(get_pod_name)
+    if [[ -z "$POD_NAME" ]]; then
+        exit 1
+    fi
+
+    STATUS=$(kubectl get pod "$POD_NAME" -n "$NAMESPACE" -o jsonpath='{.status.phase}')
+    if [[ "$STATUS" != "Running" ]]; then
+        exit 1
+    fi
+}
+
+case "$1" in
+    start|stop|restart)
+        kill_container "$1"
+        ;;
+    status)
+        check_status
+        ;;
+    *)
+        usage
+        ;;
+esac
+
 ```
 
 
