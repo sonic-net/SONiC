@@ -211,12 +211,12 @@ Here we leverage a sidecar container inside the `DaemonSet` to perform periodic 
   - Patch or restore systemd service files.
 
 ##### Sidecar Design
-- Runs a simple shell script patch_service.sh that loops with `sleep`.
+- Runs a simple shell script patch_systemd.sh that loops with `sleep`.
 - Ensures FEATURE state is in sync with container state.
 - For `v0`, restores systemd service files.
 - For `v1`, read from FEATURE table and optionally updates systemd stub.
 
-patch_service.sh
+patch_systemd.sh
 ```bash
 #!/bin/bash
 while true; do
@@ -254,7 +254,7 @@ spec:
         command: ["/usr/local/bin/supervisord"]
       - name: telemetry-feature-sidecar
         image: sonicinfra/feature-sync:latest
-        command: ["/bin/bash", "-c", "/scripts/patch_service.sh"]
+        command: ["/bin/bash", "-c", "/scripts/patch_systemd.sh"]
         volumeMounts:
         - name: scripts
           mountPath: /scripts
@@ -289,7 +289,9 @@ To prevent breaking these expectations during the migration, a `systemd` service
 ### v1+ Behavior with Kubernetes DaemonSet
 - The container is deployed via Kubernetes DaemonSet.
 - The systemd service is retained as a **stub**, to avoid breaking automation or tools that query it.
-- `ExecStart` may invoke a script that checks K8s pod status or uses `kubectl`.
+- For start/stop/restart, it will just kill container simply so that kubernetes will relaunch it automatically.
+- For status, it will return runtime state via kubectl.
+
 
 
 
@@ -298,8 +300,7 @@ To prevent breaking these expectations during the migration, a `systemd` service
 #### 1. Create Wrapper Script
 
 Create a script `/usr/local/bin/k8s-wrapper.sh` that translates `systemd`-style commands to Kubernetes `kubectl` actions:
-For start/stop/restart, it will just kill container simply so that kubernetes will relaunch it automatically.
-For status, it will return runtime state via kubectl.
+
 
 ```bash
 #!/usr/bin/env bash
@@ -357,7 +358,7 @@ esac
 
 
 
-#### 2. Create systemd Unit File
+#### 2. update systemd Unit File
 
 Example unit file: /etc/systemd/system/telemetry.service
 
