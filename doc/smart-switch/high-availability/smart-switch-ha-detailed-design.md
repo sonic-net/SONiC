@@ -615,8 +615,10 @@ DPU state table stores the health states of each DPU. These data are collected b
 | DASH_HA_SCOPE_STATE | | | State of each HA scope. |
 | | \<HA_SCOPE_ID\> | | HA scope ID. It can be the HA set ID or ENI ID, depending on the which HA mode is used. |
 | | | last_updated_time | The last update time of this state in milliseconds. |
-| | | ha_role | The current HA role confirmed by ASIC. Please refer to the HA states defined in HA HLD. |
+| | | ha_role | The current HA role confirmed by ASIC. Please refer to the HA roles defined in HA HLD. |
 | | | ha_role_start_time | The time when HA role is moved into current one in milliseconds. |
+| | | ha_state | Please refer to the HA states defined in HA HLD. |
+| | | ha_state_start_time | The time when HA state is moved into current one in milliseconds. |
 | | | ha_term | The current term confirmed by ASIC. |
 | | | activate_role_pending | DPU is pending on role activation. |
 | | | flow_reconcile_pending | Flow reconcile is requested and pending approval. |
