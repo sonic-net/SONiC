@@ -101,18 +101,24 @@ This section list out all the requirements for the HLD coverage and exemptions (
 - Audit logging capabilities
 
 **NFR-2**: Backward compatibility with legacy SONiC versions
-- Support upgrading older SONiC images without sonic-host-services
+- Execute host commands/instructions without depending on sonic-host-services through DBUS
+- Mount host system, share host namespace and execute commands using nsenter
+- Direct interaction with host file systems for legacy version support
 - Version-specific workaround handling through custom RPCs
 
 **NFR-3**: Container deployment flexibility
 - Support privileged container deployment in KubeSonic environments
 - Legacy deployment via upgrade scripts for non-k8s environments
 
-#### 5.3 Exemptions
+**NFR-4**: Developer experience and rapid iteration
+- Simple checkout-to-test workflow without complex sonic-buildimage dependencies
+- Standard Go tooling for build, test, and dependency management (go build, go test)
+- Clear and minimal build prerequisites documented in README
+- No requirement for sudo in development workflows
+- Modern dependency management without manual vendor patching
+- Accessible to junior developers and AI-assisted development
+- CI/CD that can run in standard GitHub Actions or similar environments
 
-**EX-1**: Real-time progress monitoring via gNMI streaming (future enhancement)
-**EX-2**: gNMI Set operations for upgrade configuration (out of scope)
-**EX-3**: Performance optimizations for large image transfers (implementation detail)
 
 ### 6. Architecture Design 
 
