@@ -250,13 +250,32 @@ graph TB
 
 #### 7.3 Module and Repository Changes
 
-**New Repository**: 
-- Enhancement to existing `sonic-gnmi-standalone` repository
-- Addition of upgrade-specific service implementations
+**Primary Repository**: `sonic-gnmi`
+- All development occurs within the existing sonic-gnmi repository
+- New sub-directory: `sonic-gnmi-standalone/` containing the standalone service
 
-**Modified Repositories**:
-- `sonic-gnmi`: Proto definition additions for custom RPCs
-- `sonic-buildimage`: Container integration for deployment
+**sonic-gnmi-standalone/ Sub-directory Structure**:
+- **Independent Go module**: Own `go.mod` and `go.sum` files
+- **Standalone build system**: Own `Makefile` independent of parent repository  
+- **Greenfield development**: No legacy build dependencies or constraints
+- **Self-contained**: Can build and test without sonic-buildimage dependencies
+- **Modern Go tooling**: Standard `go build`, `go test`, `go mod` commands work directly
+
+**Key Benefits**:
+- Developers can `git clone` sonic-gnmi and immediately work in `sonic-gnmi-standalone/`
+- No need for complex sonic-buildimage setup for development
+- Standard Go development workflow (addresses NFR-4 developer experience requirements)
+- Independent versioning and dependency management
+- CI/CD can run in standard GitHub Actions or similar environments
+- **Vendor/Platform RPC Framework**: Establishes proper directory structure and workflow for adding vendor-specific RPCs for adhoc workarounds
+- **Clear Ownership Model**: Creates framework for managing vendor-specific RPC ownership and maintenance
+- **Improved Vendor Communication**: Facilitates better collaboration between cloud providers and device vendors
+- **Enhanced Reproducibility**: Vendors can reproduce issues using the same structured RPC interfaces used in production
+
+**Repository Integration**:
+- Parent `sonic-gnmi` repository remains unchanged
+- Custom RPC proto definitions added to existing proto structure
+- Container packaging handled through sonic-buildimage when needed for deployment
 
 #### 7.4 Database and Schema Changes
 
