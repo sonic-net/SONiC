@@ -187,7 +187,7 @@ The standalone gNOI/gNMI service consists of the following components:
 
 ```mermaid
 graph TB
-    subgraph "SONiC Container"
+    subgraph "gnmi Container"
         A[gNOI/gNMI Server]
     end
     
@@ -210,48 +210,42 @@ graph TB
     style C fill:#fff3e0
 ```
 
-**Proposed Standalone gNXI Architecture (privileged container)**:
+**Proposed Architecture (privileged gnmi container)**:
 
 ```mermaid
 graph TB
-    subgraph "Privileged gNXI Container"
-        A[gNOI/gNMI Services]
-        B[Custom RPC Services]
-        C[Platform Detection]
-        D[Redis Integration]
-        E[Docker Integration]
+    subgraph "gnmi Container (privileged)"
+        A[gNOI/gNMI Server]
+        B[Standalone gNOI/gNMI Server]
     end
     
-    subgraph "Host System Access"
-        F[Host File System<br/>nsenter/bind mount]
-        G[Host Network<br/>namespace sharing]
+    subgraph "Host System"
+        C[sonic-host-services]
+        D[DBUS Interface]
+        E[CLI Tools]
+        F[systemd Services]
+        G[Host File System]
         H[sonic-installer]
-        I[Vendor Tools<br/>mlx, dell, cisco]
-        J[systemd Services]
-        K[CLI Tools]
-        L[Host Redis/Docker]
+        I[Vendor Tools]
+        J[Host Redis/Docker]
     end
     
-    A --> F
-    A --> G
-    A --> H
-    B --> I
+    A -->|DBUS calls| D
+    D --> C
+    C --> E
     C --> F
-    D --> L
-    E --> L
-    H --> F
-    I --> F
-    J --> F
-    K --> F
+    E --> G
     
-    style A fill:#e8f5e8
+    B -.->|direct access<br/>nsenter/bind mount| G
+    B -.->|direct access| H
+    B -.->|direct access| I
+    B -.->|direct access| J
+    B -.->|direct access| F
+    
+    style A fill:#e1f5fe
     style B fill:#e8f5e8
-    style C fill:#e8f5e8
-    style D fill:#e8f5e8
-    style E fill:#e8f5e8
-    style F fill:#fff3e0
-    style G fill:#fff3e0
-    style L fill:#fff3e0
+    style C fill:#fff3e0
+    style D fill:#fff3e0
 ```
 
 #### 7.3 Module and Repository Changes
