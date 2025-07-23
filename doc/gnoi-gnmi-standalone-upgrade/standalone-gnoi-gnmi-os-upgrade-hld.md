@@ -422,65 +422,61 @@ This feature is not implemented as an Application Extension but as a core servic
 
 ### 11. Testing Requirements/Design  
 
-#### 11.1. Unit Test cases  
+The testing strategy follows a layered approach from unit-level validation to full system integration:
 
-**UT-1**: gNOI System.Reboot operation validation
-- Test graceful and forced reboot scenarios
-- Verify platform validation logic
-- Test error handling for invalid parameters
+#### 11.1. Unit Tests
 
-**UT-2**: gNOI System.SetPackage operation validation  
-- Test sonic-installer wrapper functionality
-- Verify image validation and installation
-- Test rollback scenarios and cleanup
+**Scope**: Test individual Go libraries and packages in isolation
+**Coverage**: Aim for comprehensive coverage of all exported functions and methods
+**Implementation**: Standard Go testing framework (`go test`) with table-driven tests where appropriate
 
-**UT-3**: gNMI Get operation validation
-- Test system status path queries (/system/memory/free, /system/disk/host/free)
-- Verify platform information retrieval (/os/platform)
-- Test error handling for invalid paths
+Unit tests focus on business logic validation, error handling, input validation, and edge cases. Specific test cases are implementation details and will be defined during development based on the actual code structure and interfaces.
 
-**UT-4**: Custom RPC operation validation
-- Test vendor-specific operations (FlashCPLD)
-- Verify platform filtering logic
-- Test operation idempotency and reversibility
+#### 11.2. In-Memory Server-Client Loopback Tests
 
-**UT-5**: Platform detection and validation
-- Test multi-platform compatibility
-- Verify rejection of incompatible operations
-- Test platform-specific tool availability
+**Scope**: Integration testing using in-memory gRPC server and client
+**Environment**: Fake filesystem and mock host environment for platform-agnostic testing
+**Benefits**: 
+- Can run on generic Linux systems (not just SONiC)
+- Fast execution without external dependencies
+- Controlled test environment with predictable state
 
-#### 11.2. System Test cases
+**Test Coverage**:
+- Full gRPC request-response cycles
+- gNOI System operations (Reboot, SetPackage) with mock sonic-installer
+- gNMI Get operations with fake system state
+- Custom RPC operations with simulated vendor tools
+- Error propagation and structured error responses
 
-**ST-1**: End-to-end OS upgrade workflow
-- Full SONiC image upgrade via gNOI System.SetPackage
-- Verify system state before and after upgrade
-- Test upgrade across different SONiC versions
+#### 11.3. Device Integration Tests (sonic-mgmt)
 
-**ST-2**: Vendor-specific firmware upgrade workflows
-- Mellanox CPLD/ASIC firmware updates
-- Dell EMC platform-specific operations
-- Verify hardware state consistency
+**Scope**: End-to-end testing on SONiC devices using sonic-mgmt framework
+**Environment**: KVM virtual devices and real hardware platforms
+**Integration**: Leverage existing sonic-mgmt test infrastructure and patterns
 
-**ST-3**: Container deployment scenarios
-- Legacy deployment via upgrade scripts
-- KubeSonic container deployment
-- Privileged container operation validation
+**Test Coverage**:
+- Real gRPC client to SONiC device communication
+- Actual OS upgrade workflows with real images
+- Vendor-specific firmware operations on supported hardware
+- Platform compatibility validation across different device types
+- Network resilience and timeout handling
 
-**ST-4**: Error and recovery scenarios  
-- Network interruption during upgrade
-- Invalid image handling
-- Platform incompatibility detection
-- Operation rollback verification
+#### 11.4. Image Compatibility Tests
 
-**ST-5**: Security and authentication
-- TLS certificate validation
-- Authentication requirement verification
-- Unauthorized operation rejection
+**Framework**: Container Upgrade Test Framework ([sonic-mgmt container upgrade tests](https://github.com/sonic-net/sonic-mgmt/blob/master/docs/testplan/Container-Upgrade-test-plan.md))
+**Importance**: Critical for validating backward compatibility claims
 
-**ST-6**: Performance and scalability
-- Concurrent operation handling
-- Memory usage under load
-- Long-running operation behavior
+**Test Coverage**:
+- Verify service works with older SONiC images without sonic-host-services
+- Test privileged container deployment across different SONiC versions
+- Validate nsenter/bind mount access methods on legacy images
+- Confirm vendor tool accessibility across image versions
+- Test graceful degradation when certain host features are unavailable
+
+**Test Matrix**: Cover combinations of:
+- Multiple SONiC image versions (2018xx, 2019xx, 2020xx, 2023xx, 2024xx)
+- Different platform families (Mellanox, Dell, Cisco, Arista)  
+- Various deployment scenarios (legacy scripts vs KubeSonic)
 
 ### 12. Open/Action items - if any 
 
