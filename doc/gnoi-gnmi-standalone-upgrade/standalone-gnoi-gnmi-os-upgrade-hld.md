@@ -236,11 +236,11 @@ graph TB
     C --> F
     E --> G
     
-    B -.->|direct access<br/>nsenter/bind mount| G
-    B -.->|direct access| H
-    B -.->|direct access| I
-    B -.->|direct access| J
-    B -.->|direct access| F
+    B -.->|bind mount| G
+    B -.->|nsenter| H
+    B -.->|nsenter| I
+    B -.->|Redis:6379<br/>Docker socket| J
+    B -.->|nsenter| F
     
     style A fill:#e1f5fe
     style B fill:#e8f5e8
