@@ -128,51 +128,21 @@ The standalone gNOI/gNMI service introduces a new component that operates alongs
 
 #### 6.1 Current Architecture
 
-```
-┌─────────────────┐    ┌─────────────────┐
-│   Management    │    │   Legacy SSH    │
-│   Systems       │───▶│   Interface     │
-└─────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌─────────────────┐
-                       │  sonic-installer│
-                       │  + Shell Scripts│
-                       └─────────────────┘
-                                │
-                                ▼
-                       ┌─────────────────┐
-                       │   SONiC Host    │
-                       │   System        │
-                       └─────────────────┘
+```mermaid
+flowchart TD
+    A[Management Systems] --> B[Legacy SSH Interface]
+    B --> C[sonic-installer + Shell Scripts]
+    C --> D[SONiC Host System]
 ```
 
 #### 6.2 Proposed Architecture
 
-```
-┌─────────────────┐    ┌─────────────────┐
-│   Management    │    │  gNOI/gNMI      │
-│   Systems       │───▶│  Client         │
-└─────────────────┘    └─────────────────┘
-                                │ gRPC
-                                ▼
-                       ┌─────────────────┐
-                       │  Standalone     │
-                       │  gNOI/gNMI      │
-                       │  Service        │
-                       └─────────────────┘
-                                │
-                                ▼
-                       ┌─────────────────┐
-                       │  sonic-installer│
-                       │  + Vendor Tools │
-                       └─────────────────┘
-                                │
-                                ▼
-                       ┌─────────────────┐
-                       │   SONiC Host    │
-                       │   System        │
-                       └─────────────────┘
+```mermaid
+flowchart TD
+    A[Management Systems] --> B[gNOI/gNMI Client]
+    B -->|gRPC| C[Standalone gNOI/gNMI Service]
+    C --> D[sonic-installer + Vendor Tools]
+    D --> E[SONiC Host System]
 ```
 
 #### 6.3 Integration with KubeSonic
