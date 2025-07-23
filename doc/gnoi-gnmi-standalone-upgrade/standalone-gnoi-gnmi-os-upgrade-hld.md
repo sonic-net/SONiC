@@ -280,52 +280,66 @@ New gNMI paths exposed:
 #### 7.5 Sequence Diagrams
 
 **OS Upgrade Flow**:
-```
-Client          Service         sonic-installer    Host
-  │               │                    │             │
-  │──SetPackage──▶│                    │             │
-  │               │──validate platform─▶             │
-  │               │◀─────platform ok───              │
-  │               │──prepare system────▶             │
-  │               │──install image────▶│             │
-  │               │                   │──install───▶│
-  │               │                   │◀──result────│
-  │               │◀──install result──│             │
-  │◀─SetPackage──│                    │             │
-  │   Response    │                    │             │
+
+```mermaid
+sequenceDiagram
+    participant Client as Client
+    participant Service as Standalone gNXI Server
+    participant sonic_installer as sonic-installer
+    participant Host as Host
+
+    Note over Client,Host: OS Upgrade Flow
+    Client->>Service: SetPackage
+    Service->>Host: validate platform
+    Host-->>Service: platform ok
+    Service->>sonic_installer: install image
+    sonic_installer->>Host: install
+    Host-->>sonic_installer: result
+    sonic_installer-->>Service: install result
+    Service-->>Client: SetPackage Response
 ```
 
 **Custom Firmware Update Flow**:
-```
-Client          Service         Platform Tools      Host
-  │               │                    │             │
-  │─FlashCPLD────▶│                    │             │
-  │               │──validate platform─▶             │
-  │               │◀─────platform ok───              │
-  │               │──check CPLD version▶             │
-  │               │◀──current version───             │
-  │               │──start MST─────────▶             │
-  │               │──flash CPLD───────▶│             │
-  │               │                   │──cpldupdate▶│
-  │               │                   │◀──result────│
-  │               │◀──flash result────│             │
-  │◀─FlashCPLD───│                    │             │
-  │   Response    │                    │             │
+
+```mermaid
+sequenceDiagram
+    participant Client as Client
+    participant Service as Standalone gNXI Server
+    participant PlatformTools as Platform Tools
+    participant Host as Host
+
+    Note over Client,Host: Custom Firmware Update Flow
+    Client->>Service: FlashCPLD
+    Service->>Host: validate platform
+    Host-->>Service: platform ok
+    Service->>Host: check CPLD version
+    Host-->>Service: current version
+    Service->>Host: start MST
+    Service->>PlatformTools: flash CPLD
+    PlatformTools->>Host: cpldupdate
+    Host-->>PlatformTools: result
+    PlatformTools-->>Service: flash result
+    Service-->>Client: FlashCPLD Response
 ```
 
 **System Resource Management Flow**:
-```
-Client          Service         SONiC Services      Host
-  │               │                    │             │
-  │─OptimizeMemory▶│                   │             │
-  │               │──check free memory─▶             │
-  │               │◀──current usage────             │
-  │               │──disable features──▶             │
-  │               │──drop caches───────▶             │
-  │               │──verify freed memory▶            │
-  │               │◀──optimization result            │
-  │◀─OptimizeMemory│                   │             │
-  │   Response    │                    │             │
+
+```mermaid
+sequenceDiagram
+    participant Client as Client
+    participant Service as Standalone gNXI Server
+    participant SonicServices as SONiC Services
+    participant Host as Host
+
+    Note over Client,Host: System Resource Management Flow
+    Client->>Service: OptimizeMemory
+    Service->>Host: check free memory
+    Host-->>Service: current usage
+    Service->>SonicServices: disable features
+    Service->>Host: drop caches
+    Service->>Host: verify freed memory
+    Host-->>Service: optimization result
+    Service-->>Client: OptimizeMemory Response
 ```
 
 #### 7.6 Docker and Build Dependencies

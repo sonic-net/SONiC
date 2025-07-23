@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant Client as Client
+    participant Service as Standalone gNXI Server
+    participant SonicServices as SONiC Services
+    participant Host as Host
+
+    Note over Client,Host: System Resource Management Flow
+    Client->>Service: OptimizeMemory
+    Service->>Host: check free memory
+    Host-->>Service: current usage
+    Service->>SonicServices: disable features
+    Service->>Host: drop caches
+    Service->>Host: verify freed memory
+    Host-->>Service: optimization result
+    Service-->>Client: OptimizeMemory Response

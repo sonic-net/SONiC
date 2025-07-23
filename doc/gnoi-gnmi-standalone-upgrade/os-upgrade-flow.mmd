@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant Client as Client
+    participant Service as Standalone gNXI Server
+    participant sonic_installer as sonic-installer
+    participant Host as Host
+
+    Note over Client,Host: OS Upgrade Flow
+    Client->>Service: SetPackage
+    Service->>Host: validate platform
+    Host-->>Service: platform ok
+    Service->>sonic_installer: install image
+    sonic_installer->>Host: install
+    Host-->>sonic_installer: result
+    sonic_installer-->>Service: install result
+    Service-->>Client: SetPackage Response

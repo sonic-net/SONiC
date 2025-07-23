@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant Client as Client
+    participant Service as Standalone gNXI Server
+    participant PlatformTools as Platform Tools
+    participant Host as Host
+
+    Note over Client,Host: Custom Firmware Update Flow
+    Client->>Service: FlashCPLD
+    Service->>Host: validate platform
+    Host-->>Service: platform ok
+    Service->>Host: check CPLD version
+    Host-->>Service: current version
+    Service->>Host: start MST
+    Service->>PlatformTools: flash CPLD
+    PlatformTools->>Host: cpldupdate
+    Host-->>PlatformTools: result
+    PlatformTools-->>Service: flash result
+    Service-->>Client: FlashCPLD Response
