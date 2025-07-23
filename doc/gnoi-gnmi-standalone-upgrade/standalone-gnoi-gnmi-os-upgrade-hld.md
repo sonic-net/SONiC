@@ -181,34 +181,77 @@ The standalone gNOI/gNMI service consists of the following components:
 - systemd integration via gNOI.containerz or direct calls
 - Platform detection and validation logic
 
-#### 7.2 Component Diagram
+#### 7.2 Component Diagrams
 
+**Current gNOI/gNMI Architecture (via sonic-host-services)**:
+
+```mermaid
+graph TB
+    subgraph "SONiC Container"
+        A[gNOI/gNMI Server]
+    end
+    
+    subgraph "Host System"
+        B[sonic-host-services]
+        C[DBUS Interface]
+        D[CLI Tools]
+        E[systemd Services]
+        F[Host File System]
+    end
+    
+    A -->|DBUS calls| C
+    C --> B
+    B --> D
+    B --> E
+    D --> F
+    
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#fff3e0
 ```
-┌──────────────────────────────────────────────────┐
-│            Standalone gNOI/gNMI Service          │
-├──────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌───────────┐ │
-│  │    gNOI     │  │    gNMI     │  │  Custom   │ │
-│  │   System    │  │   Service   │  │    RPC    │ │
-│  │  Service    │  │             │  │ Services  │ │
-│  └─────────────┘  └─────────────┘  └───────────┘ │
-├──────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌───────────┐ │
-│  │   Redis     │  │   Docker    │  │ Platform  │ │
-│  │Integration  │  │Integration  │  │Detection  │ │
-│  └─────────────┘  └─────────────┘  └───────────┘ │
-├──────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌───────────┐ │
-│  │sonic-installer│ │ Vendor Tools│  │ systemd   │ │
-│  │   Wrapper   │  │(mlx, dell)  │  │Integration│ │
-│  └─────────────┘  └─────────────┘  └───────────┘ │
-└──────────────────────────────────────────────────┘
-                          │
-                          ▼
-                ┌─────────────────┐
-                │   SONiC Host    │
-                │    System       │
-                └─────────────────┘
+
+**Proposed Standalone gNXI Architecture (privileged container)**:
+
+```mermaid
+graph TB
+    subgraph "Privileged gNXI Container"
+        A[gNOI/gNMI Services]
+        B[Custom RPC Services]
+        C[Platform Detection]
+        D[Redis Integration]
+        E[Docker Integration]
+    end
+    
+    subgraph "Host System Access"
+        F[Host File System<br/>nsenter/bind mount]
+        G[Host Network<br/>namespace sharing]
+        H[sonic-installer]
+        I[Vendor Tools<br/>mlx, dell, cisco]
+        J[systemd Services]
+        K[CLI Tools]
+        L[Host Redis/Docker]
+    end
+    
+    A --> F
+    A --> G
+    A --> H
+    B --> I
+    C --> F
+    D --> L
+    E --> L
+    H --> F
+    I --> F
+    J --> F
+    K --> F
+    
+    style A fill:#e8f5e8
+    style B fill:#e8f5e8
+    style C fill:#e8f5e8
+    style D fill:#e8f5e8
+    style E fill:#e8f5e8
+    style F fill:#fff3e0
+    style G fill:#fff3e0
+    style L fill:#fff3e0
 ```
 
 #### 7.3 Module and Repository Changes
