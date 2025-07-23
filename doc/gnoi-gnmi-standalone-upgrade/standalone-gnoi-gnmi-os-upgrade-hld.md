@@ -418,34 +418,7 @@ This feature is not implemented as an Application Extension but as a core servic
 
 **No Config DB schema changes**. The service reads existing configuration through standard Redis binding and does not introduce new configuration tables.
 
-### 10. Warmboot and Fastboot Design Impact  
-
-**Warmboot Impact**: The service does not interfere with warmboot operations as it operates as a separate container service. During warmboot scenarios, the service may be unavailable but will not affect the warmboot process itself.
-
-**Fastboot Impact**: Similar to warmboot, fastboot operations are not affected by this service. The service may provide gRPC interfaces to trigger fastboot operations but does not modify the underlying fastboot mechanisms.
-
-### Warmboot and Fastboot Performance Impact
-
-**Performance Analysis**:
-- Does this feature add any stalls/sleeps/IO operations to the boot critical chain? **No** - The service runs as a separate container and does not participate in the boot critical path.
-- Does this feature add CPU heavy processing during boot? **No** - Service initialization is lightweight and does not perform heavy processing during boot.
-- Third party dependency impact? **No** - Uses existing gRPC libraries and platform tools.
-- Can the service be delayed? **Yes** - The service can start after core SONiC services are operational.
-- Boot time optimizations: Service startup can be deferred until after critical SONiC services are running.
-
-### 11. Memory Consumption
-
-**Memory Consumption Analysis**:
-- **Disabled by compilation**: No memory consumption when not built into the system
-- **Disabled by configuration**: Minimal memory footprint when service is not actively processing requests
-- **Active operation**: Memory usage scales with concurrent operations but includes cleanup mechanisms to prevent memory leaks
-- **Container isolation**: Memory usage is isolated within the container boundary
-
-**Estimated Memory Usage**:
-- Base service: ~50MB
-- Per active operation: ~10-20MB (temporary during operation execution)
-
-### 12. Restrictions/Limitations  
+### 10. Restrictions/Limitations  
 
 **RL-1**: Platform-specific operations require appropriate hardware and vendor tools
 **RL-2**: Requires privileged container execution for host system access
@@ -453,9 +426,9 @@ This feature is not implemented as an Application Extension but as a core servic
 **RL-4**: Vendor-specific operations limited to supported platforms (Mellanox, Dell EMC initially)
 **RL-5**: No real-time progress monitoring for long-running operations (future enhancement)
 
-### 13. Testing Requirements/Design  
+### 11. Testing Requirements/Design  
 
-#### 13.1. Unit Test cases  
+#### 11.1. Unit Test cases  
 
 **UT-1**: gNOI System.Reboot operation validation
 - Test graceful and forced reboot scenarios
@@ -482,7 +455,7 @@ This feature is not implemented as an Application Extension but as a core servic
 - Verify rejection of incompatible operations
 - Test platform-specific tool availability
 
-#### 13.2. System Test cases
+#### 11.2. System Test cases
 
 **ST-1**: End-to-end OS upgrade workflow
 - Full SONiC image upgrade via gNOI System.SetPackage
@@ -515,7 +488,7 @@ This feature is not implemented as an Application Extension but as a core servic
 - Memory usage under load
 - Long-running operation behavior
 
-### 14. Open/Action items - if any 
+### 12. Open/Action items - if any 
 
 **AI-1**: Define complete set of gNMI paths for upgrade validation information
 **AI-2**: Finalize vendor-specific custom RPC definitions beyond initial Mellanox support
