@@ -1,34 +1,33 @@
 
 # Migrating Image-Managed Docker Containers to Kubernetes with Resource Control
 
-## Background
+## 1. Background
 
 In current SONiC architecture, many containers are image-managed, which means it's packed into build image and managed by NDM Golden config. And commonly deployed and managed using `systemd` and monitored using tools like `monit`. But after KubeSonic comes into picture, this deployment lacks advanced orchestration and native resource management features offered by Kubernetes.
 
 This document outlines a generic approach to migrate any Image-managed Docker container to Kubernetes, while maintaining backward compatibility with the existing `systemd` workflows, and keeping enabled/disabled controlled by NDM golden config FEATURE table, providing CPU and memory resource controls.The telemetry container (`docker-sonic-telemetry`) is used as a concrete example.
 
-## Objective
+## 2. Objective
 
 - Standardize container deployment using Kubernetes, including the image native container which is controlled via NDM golden config FEATURE table.
 - Maintain `systemd` interface for backward compatibility, but behaves differently since Kubernetes start controlling container start/stop..
 - postupgrade and Kubernetes rollout may change the same files, any apply order should coverged into the same desired state.
 - Enforce CPU and memory resource constraints natively.
-- Optionally integrate existing monitoring systems during transition.
 
 ---
 
-## Container Upgrade Flow with version and changes
+## 3. Container Upgrade Flow with version and changes
 <img src="images/KubeSonicContainerUpgradeFlow.png" alt="Architecture Diagram" width="800">
 
 In below sections, the change part will be described in details.
 
 
-## Standardize Kubernetes-Based container Deployment
+## 4. Standardize Kubernetes-Based container Deployment
 
 Since we need migration from a image-managed container to a Kubernetes-managed container, while avoiding dual-running instances and preserving compatibility. Meanwhile, we should not
 break any existing feature like CriticalProcessHealthChecker, featured, systemHealth, etc.
 
-### Keep FEATURE table as the source of truth of feature enablement
+### 4.1 Keep FEATURE table as the source of truth of feature enablement
 
 This means even after we enable feature via KubeSonic, we will still keep FEATURE table and NDM Golden as its owner, KubeSonic will only deploy container and manage container start/stop which coordinate with FEATURE table.
 
@@ -64,9 +63,9 @@ Version description
 
 
 
-### container startup script update
+### 4.2 container startup script update
 
-Since FEATURE table still control container start/stop via featured.service, after container is rollout-ed via kubernetes, it need read from FEATURE table and determine whether it will launch daaemon or enter idle.
+Since FEATURE table still control container start/stop via featured.service, after container is rollout-ed via kubernetes, it keeps reading from FEATURE table and determines whether it will launch daaemon or enter idle.
 
 docker-entrypoint.sh
 ```bash
@@ -93,9 +92,45 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 ```
 
+### 4.3 container watchdog
+
+Since container will be installed via kubernetes, but FEATURE table still controls its enable or disable, watchdog will need to coordinate with this meanwhile. 
+watchdog needs to read FEATURE, if FEATURE is enabled, watchdog execute its normal probe and return healthcheck status; if FEATURE is diabled, watchdog will skip probe and return OK directly.
+
+telemetry-watchdog snippet code
+```rust
+fn is_telemetry_enabled() -> bool {
+    let output = Command::new("redis-cli")
+        .args(["-n", "4", "HGET", "FEATURE|telemetry", "state"])
+        .output();
+
+    if let Ok(out) = output {
+        if out.status.success() {
+            let result = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            return result == "enabled";
+        }
+    }
+    false
+}
+
+fn main() {
+    let listener = TcpListener::bind("127.0.0.1:50069")
+        .expect("Failed to bind to 127.0.0.1:50069");
+
+    if !is_telemetry_enabled() {
+        let response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 29\r\n\r\n{\"message\":\"telemetry disabled\"}";
+        stream.write_all(response.as_bytes()).ok();
+    } else {
+        // normal health check
+    }
+}
+```
 
 
-### Maintaining `systemd` Compatibility
+
+
+
+### 4.4 Maintaining `systemd` Compatibility
 
 In environments where existing operational workflows depend on managing containers via systemd, we can preserve compatibility by implementing a proxy systemd unit that interacts with Kubernetes behind the scenes. This allows existing automation tools and scripts that call systemctl to continue functioning without modification, even though the container is now orchestrated by Kubernetes.
 
@@ -179,7 +214,7 @@ esac
 ```
 
 
-### Patch systemd script via DaemonSet Sidecar
+### 4.5 Patch systemd script via DaemonSet Sidecar
 
 To patch systemd script aligned with actual runtime state, here we leverage a sidecar container inside the `DaemonSet` to perform periodic sync logic.
 
@@ -237,7 +272,7 @@ spec:
 ```
 
 
-### Desired state driven for the files patching  (like systemd patch)
+### 4.6 Desired state driven for the files patching  (like systemd patch)
 Since postupgrade and Kubernetes rollout may change the same files, which may lead to uncertain result. we propose to use desired state driven for files patching, so taht any apply order should coverged into the same desired state.
 
 ```mermaid
@@ -282,9 +317,9 @@ sequenceDiagram
 
 
 
-### Possible scenario for KubeSonic rollout
+## 5. Possible scenario for KubeSonic rollout
 
-#### FEATURE state is enabled in NDM golden config, like telemetry
+### 5.1 FEATURE state is enabled in NDM golden config, like telemetry
 
 ```mermaid
 sequenceDiagram
@@ -295,66 +330,101 @@ sequenceDiagram
     participant systemd
     participant NDM
     participant telemetry
+    participant telemetry-watchdog
 
-    K8s->>Sidecar: rollout v0
+
+    K8s->>Sidecar: rollout v1
     Sidecar->>systemd: Patch telemetry.service
-    K8s->>telemetry: rollout v1 which is telemetry + watchdog container
+    K8s->>telemetry: rollout v2 which is telemetry + watchdog container
     telemetry->>CONFIG_DB: Query FEATURE|telemetry state enabled
     telemetry->>telemetry: supervisord launch telemetry daemons as usual
-    alt watchdog is healthy
-      k8s->>telemetry: no-op
-    else watchdog is unhealthy
-      k8s->>telemetry: rollback v1 + v0
-    end
+    telemetry-watchdog->>K8s: normal detect and health check response
+
 ```
 
-#### FEATURE state is disabled in NDM golden config, like bmp
-For this case we need to enable NDM golden config first, then follow telemetry case workflow.
-
-#### After KubeSonic rollout, use FEATURE state to disable container, like feature switch-off in some livesite issue, etc
-
+### 5.2 FEATURE state is disabled in NDM golden config, like bmp
 ```mermaid
 sequenceDiagram
     autonumber
     participant Sidecar
-    participant K8s API
+    participant K8s
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+    participant bmp
+    participant bmp-watchdog
+    participant featured
+    K8s->>Sidecar: rollout v1
+    Sidecar->>systemd: Patch bmp.service
+    K8s->>bmp: rollout v2 which is bmp + watchdog container
+    bmp->>CONFIG_DB: Query FEATURE|bmp state as disabled
+    bmp->>bmp: supervisord launch and start idle
+    bmp-watchdog->>K8s: skip detect and return OK
+    NDM->>CONFIG_DB: set FEATURE|bmp enablement
+    featured->>bmp: bmp.service restart
+    bmp->>bmp: supervisord launch bmp daemons as usual
+    bmp-watchdog->>K8s: normal detect and health check response
+```
+
+### 5.3 After KubeSonic rollout, use FEATURE state to disable container, like feature switch-off in some livesite issue, etc
+
+```mermaid
+sequenceDiagram
+    autonumber
     participant CONFIG_DB
     participant systemd
     participant NDM
     participant telemetry
+    participant telemetry-watchdog
+    participant k8s
 
     NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
     systemd->>telemetry: kill docker container
     telemetry->>telemetry: container restarted by k8s automatically
     telemetry->>CONFIG_DB: read FEATURE|telemetry as disabled
     telemetry->>telemetry: launch container as idle
-    k8s->>telemetry: remove container since watchdog report failure
-    
+    telemetry-watchdog->>CONFIG_DB: read FEATURE|telemetry as disabled
+    telemetry-watchdog->>k8s: skip detect and return OK   
 ```
 
-
-#### After KubeSonic rollout, rollback the container to imaged based version. (v1 -> v0)
+### 5.4 After KubeSonic rollout, rollback the container. (v2+ -> v2)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Sidecar
-    participant K8s API
+    participant K8s
     participant CONFIG_DB
     participant systemd
     participant NDM
+    participant telemetry
+    participant telemetry-watchdog
 
-    alt KubeSonic rollback
-        Sidecar->>systemd: restore telemetry.service to original image based version
-        Sidecar->>CONFIG_DB: read FEATURE|telemetry
-        alt FEATURE|telemetry is disabled
-          Sidecar->>systemd: no-op, pending later service start
-        else FEATURE|telemetry is enabled
-          Sidecar->>systemd: start telemetry service
-        end
-    else KubeSonic not rollback
-        Sidecar->>systemd: no-op
+    K8s->>telemetry: rollout v2+ which is telemetry + watchdog container
+    telemetry->>CONFIG_DB: Query FEATURE|telemetry state enabled
+    telemetry->>telemetry: supervisord launch telemetry daemons as usual
+    telemetry-watchdog->>K8s: normal detect and health check response
+    alt telemetry-watchdog detect failed
+        K8s->>telemetry: rollback to v2
+    else  telemetry-watchdog detect successful
+        K8s->>telemetry: no-op
     end
+```
+
+### 5.4 After KubeSonic rollout, rollback the container to imaged based version. (v2 -> v0)
+
+```mermaid
+sequenceDiagram
+    participant K8s
+    participant telemetry
+    participant Sidecar
+    participant telemetry-watchdog
+    
+    K8s->>sidecar: rollout v1 sidecar container which systemd stub files
+    K8s->>telemetry: rollout v2 container which is telemetry + watchdog container
+    telemetry-watchdog->>telemetry: detect and health check failed
+    telemetry-watchdog->>K8s:  response failure
+    K8s->>telemetry: Remove v2 which is telemetry + watchdog container
+    K8s->>sidecar: Remove v1 sidecar which restores systemd script
 ```
 
 ---
@@ -363,7 +433,7 @@ sequenceDiagram
 
 
 
-### Enforce CPU and memory resource constraints natively.
+## 6. Enforce CPU and memory resource constraints natively.
 
 Kubernetes provides native resource management through the `resources` spec, allowing you to define minimum (`requests`) and maximum (`limits`) values for CPU and memory.
 
@@ -456,7 +526,7 @@ spec:
 ```
 
 
-## Monitoring and Alerting
+### Monitoring and Alerting
 
 Currently SONiC uses monit check memory for specific container, like below
 
