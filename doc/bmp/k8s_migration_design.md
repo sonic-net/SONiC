@@ -3,18 +3,25 @@
 
 ## Background
 
-In current SONiC architecture, many containers are image-managed, which means it's packed into build image and managed by NDM Golden config. And commonly deployed and managed using `systemd` and monitored using tools like `monit`. But after KubeSonic comes into picture, this deolpyment lacks advanced orchestration and native resource management features offered by Kubernetes.
+In current SONiC architecture, many containers are image-managed, which means it's packed into build image and managed by NDM Golden config. And commonly deployed and managed using `systemd` and monitored using tools like `monit`. But after KubeSonic comes into picture, this deployment lacks advanced orchestration and native resource management features offered by Kubernetes.
 
-This document outlines a generic approach to migrate any Image-managed Docker container to Kubernetes, providing CPU and memory resource controls, while maintaining backward compatibility with the existing `systemd` workflows. The telemetry container (`docker-sonic-telemetry`) is used as a concrete example.
+This document outlines a generic approach to migrate any Image-managed Docker container to Kubernetes, while maintaining backward compatibility with the existing `systemd` workflows, and keeping enabled/disabled controlled by NDM golden config FEATURE table, providing CPU and memory resource controls.The telemetry container (`docker-sonic-telemetry`) is used as a concrete example.
 
 ## Objective
 
 - Standardize container deployment using Kubernetes, including the image native container which is controlled via NDM golden config FEATURE table.
-- Maintain `systemd` interface for backward compatibility.
+- Maintain `systemd` interface for backward compatibility, but behaves differently since Kubernetes start controlling container start/stop..
+- postupgrade and Kubernetes rollout may change the same files, any apply order should coverged into the same desired state.
 - Enforce CPU and memory resource constraints natively.
 - Optionally integrate existing monitoring systems during transition.
 
 ---
+
+## Container Upgrade Flow with version and changes
+<img src="images/KubeSonicContainerUpgradeFlow.png" alt="Architecture Diagram" width="800">
+
+In below sections, the change part will be described in details.
+
 
 ## Standardize Kubernetes-Based container Deployment
 
@@ -42,236 +49,55 @@ This means even after we enable feature via KubeSonic, we will still keep FEATUR
 
 #### Feature|state Ownership and Versioning
 
-The FEATURE controls lifecycle.
+Version description
 - v0, current version iteration in SONiC
-- v1, KubeSonic rollout feature container, but keeps fully backward compatible
+- v1, KubeSonic rollout sidecar container, this version only contains systemd script changes so that rollback could be done as desire state.
+- v2+, KubeSonic rollout feature container, from v2 feature container will be iterated by its own release pace.
 
 
-| Version | Container Installed By | Container service launched                                          | systemd Handling         | Kubernetes Presence |
+| Version | Container Installed By | Container service running or not                                    | systemd Handling         | Kubernetes Presence |
 |---------|------------------------|---------------------------------------------------------------------|--------------------------|----------------------|
-| v0      | SONiCImage             | NDM FEATURE table (featured monitor)                                | Native systemd file used | None                 |
-| v1      | KubeSonic              | Kubernetes but NDM FEATURE table control real daemon running or not | stub service file        | DaemonSet            |
+| v0      | SONiCImage             | NDM FEATURE table control it via featured service monitor           | Native systemd file used | None                 |
+| v1      | KubeSonic              | Not launched as it's only a short life version to patch systemd script  | stub service file        | DaemonSet            |
+| v2+     | KubeSonic              | Service launched by Kubernetes but NDM FEATURE table controls supervisorctl managed daemon running or not | stub service file        | DaemonSet            |
 
 
 
 
-#### Possible scenario for KubeSonic rollout
+### container startup script update
 
-##### FEATURE state is enabled in NDM golden config, like telemetry
+Since FEATURE table still control container start/stop via featured.service, after container is rollout-ed via kubernetes, it need read from FEATURE table and determine whether it will launch daaemon or enter idle.
 
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Sidecar
-    participant K8s API
-    participant CONFIG_DB
-    participant systemd
-    participant NDM
-    participant telemetry
-
-    Sidecar->>K8s API: Query telemetry pod status
-    alt Pod Running
-        Sidecar->>CONFIG_DB: Query FEATURE|telemetry state enabled
-        Sidecar->>systemd: Stop running telemetry.service
-        Sidecar->>systemd: Patch telemetry.service to stub, uses k8s-wrapper.sh
-        Sidecar->>telemetry: Start telemetry container
-        telemetry->>CONFIG_DB: Query FEATURE|telemetry state enabled
-        telemetry->>telemetry: launch telemetry daemon as usual
-    else Pod Not Running
-        Sidecar->>systemd: no-op
-    end
-    NDM->>CONFIG_DB: no-op since it's enabled already
-```
-
-##### FEATURE state is disabled in NDM golden config, like bmp
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Sidecar
-    participant K8s API
-    participant CONFIG_DB
-    participant systemd
-    participant NDM
-    participant bmp
-
-    Sidecar->>K8s API: Query bmp pod status
-    alt Pod Running
-        Sidecar->>CONFIG_DB: Query FEATURE|bmp state disabled
-        Sidecar->>systemd: Stop running bmp.service
-        Sidecar->>systemd: Patch bmp.service to stub which uses k8s-wrapper.sh
-        Sidecar->>bmp: Start bmp container
-        bmp->>CONFIG_DB: Query FEATURE|bmp state disabled
-        bmp->>bmp: launch container as idle
-    else Pod Not Running
-        Sidecar->>systemd: no-op
-    end
-    NDM->>CONFIG_DB: set FEATURE|bmp enablement, which will start stub bmp.service by featured.service
-    bmp->>bmp: launch bmp daemon as usual
-
-```
-
-##### After KubeSonic rollout, use FEATURE state to disable container, like feature switch-off in some livesite issue, etc
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Sidecar
-    participant K8s API
-    participant CONFIG_DB
-    participant systemd
-    participant NDM
-    participant telemetry
-
-    NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
-    alt Pod Running
-        systemd->>telemetry: kill docker container
-        telemetry->>telemetry: container restarted by k8s automatically
-        telemetry->>CONFIG_DB: read FEATURE|telemetry as disable
-        telemetry->>telemetry: launch container as idle
-    else Pod Not Running
-        Sidecar->>systemd: no-op
-    end
-```
-
-
-##### After KubeSonic rollout, rollback the container to imaged based version. (v1 -> v0)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Sidecar
-    participant K8s API
-    participant CONFIG_DB
-    participant systemd
-    participant NDM
-
-    alt KubeSonic rollback
-        Sidecar->>systemd: restore telemetry.service to original image based version
-        Sidecar->>CONFIG_DB: read FEATURE|telemetry
-        alt FEATURE|telemetry is disabled
-          Sidecar->>systemd: no-op, pending later service start
-        else FEATURE|telemetry is enabled
-          Sidecar->>systemd: start telemetry service
-        end
-    else KubeSonic not rollback
-        Sidecar->>systemd: no-op
-    end
-```
-
-Here need a preStop in sidecar to restore systemd script before rollback
-
-```
-lifecycle:
-  preStop:
-    exec:
-      command: ["/bin/sh", "-c", 
-      "systemctl stop telemetry.service
-       cp /tmp/telemetry.service.bak 
-       /etc/systemd/system/telemetry.service
-       systemctl daemon-reload
-       systemctl start telemetry.service
-       "]
-```
-
----
-
-#### container startup script update
-
-Since FEATURE table still control container start/stop via featured.service, after container is rollout-ed via kubernetes, it need read from FEATURE table and determine whether it will launch daaemon or not.
-
+docker-entrypoint.sh
 ```bash
 #!/usr/bin/env bash
 
-STATE=$(redis-cli -n 4 HGET "FEATURE|telemetry" state)
-
-if [ "$STATE" == "enabled" ]; then
-    echo "Telemetry is enabled. Starting service..."
-    exec /usr/sbin/telemetry ${TELEMETRY_ARGS}
-else
-    echo "Telemetry is disabled. Entering idle..."
-    while true; do
-        sleep 3600
-    done
-fi
-
-```
-
-#### Periodic State Sync via DaemonSet Sidecar
-
-To patch systemd script aligned with actual runtime state:
-
----
-##### Rationale
-Here we leverage a sidecar container inside the `DaemonSet` to perform periodic sync logic.
-
-- The sidecar container:
-  - Detects whether the container is running (via `kubectl`, `docker`, or other APIs).
-  - Patch or restore systemd service files.
-
-##### Sidecar Design
-- Runs a simple shell script patch_systemd.sh that loops with `sleep`.
-- Ensures FEATURE state is in sync with container state.
-- For `v0`, restores systemd service files.
-- For `v1`, read from FEATURE table and optionally updates systemd stub.
-
-patch_systemd.sh
-```bash
-#!/bin/bash
 while true; do
 
-    # Determine version accordingly
-
-    # Restore or patch systemd scripts as needed
-
-    sleep 30
+  STATE=$(redis-cli -n 4 HGET "FEATURE|telemetry" state)
+  if [ "$STATE" == "enabled" ]; then
+    echo "Telemetry is enabled. Starting service..."
+    break
+  else
+    echo "Telemetry is disabled. Entering idle..."
+    sleep 1000
+  fi
 done
+exec /usr/local/bin/supervisord
 ```
 
-
-### Example: DaemonSet YAML
-This script is embedded in the sidecar container of the `telemetry` DaemonSet.
-
-```yaml
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: telemetry
-  namespace: sonic
-spec:
-  selector:
-    matchLabels:
-      app: telemetry
-  template:
-    metadata:
-      labels:
-        app: telemetry
-    spec:
-      containers:
-      - name: telemetry
-        image: ksdatatest.azurecr.io/docker-sonic-telemetry:latest
-        command: ["/usr/local/bin/supervisord"]
-      - name: telemetry-feature-sidecar
-        image: sonicinfra/feature-sync:latest
-        command: ["/bin/bash", "-c", "/scripts/patch_systemd.sh"]
-        volumeMounts:
-        - name: scripts
-          mountPath: /scripts
-      volumes:
-      - name: scripts
-        configMap:
-          name: feature-sync-script
+Dockerfile
+```
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 ```
 
 
 
-## Maintaining `systemd` Compatibility
+### Maintaining `systemd` Compatibility
 
 In environments where existing operational workflows depend on managing containers via systemd, we can preserve compatibility by implementing a proxy systemd unit that interacts with Kubernetes behind the scenes. This allows existing automation tools and scripts that call systemctl to continue functioning without modification, even though the container is now orchestrated by Kubernetes.
-
-### Rationale
-
 
 Many production systems have monitoring, automation, or recovery mechanisms that depend on:
 - `systemctl start <service>`
@@ -281,25 +107,21 @@ Many production systems have monitoring, automation, or recovery mechanisms that
 To prevent breaking these expectations during the migration, a `systemd` service stub can be provided.
 
 
-### v0 Behavior
+#### v0 Behavior
 - Container is fully managed by `systemd` (e.g., `telemetry.service`).
 - FEATURE table controls startup (`state: Enabled/Disabled`).
 - Actual container starts or stops via `systemctl` by featured.service
 
-### v1+ Behavior with Kubernetes DaemonSet
+#### v1+ Behavior with Kubernetes DaemonSet
 - The container is deployed via Kubernetes DaemonSet.
 - The systemd service is retained as a **stub**, to avoid breaking automation or tools that query it.
-- For start/stop/restart, it will just kill container simply so that kubernetes will relaunch it automatically.
+- For start/stop/restart, it will just kill container simply so that kubernetes will relaunch it automatically. Here is some limitation: since kubernetes takes over the container thus systemd stop will not STOP container really, unless we tint the node but that requires each container should use dedicated daemon set which is not preferrable as well.
 - For status, it will return runtime state via kubectl.
 
 
+##### Stub Systemd Script implementation
 
-
-### Step-by-Step Setup
-
-#### 1. Create Wrapper Script
-
-Create a script `/usr/local/bin/k8s-wrapper.sh` that translates `systemd`-style commands to Kubernetes `kubectl` actions:
+Create a script `/usr/local/bin/k8s-telemetry.sh` that translates `systemd`-style commands to Kubernetes `kubectl` actions:
 
 
 ```bash
@@ -357,48 +179,225 @@ esac
 ```
 
 
+### Patch systemd script via DaemonSet Sidecar
 
-#### 2. update systemd Unit File
+To patch systemd script aligned with actual runtime state, here we leverage a sidecar container inside the `DaemonSet` to perform periodic sync logic.
 
-Example unit file: /etc/systemd/system/telemetry.service
+- The sidecar container:
+  - Detects whether the container is running (via `kubectl`, `docker`, or other APIs).
+  - Patch systemd service files.
 
-```
-[Unit]
-Description=Kubernetes managed container telemetry
-After=network.target
 
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/k8s-wrapper.sh telemetry start
-ExecStop=/usr/local/bin/k8s-wrapper.sh telemetry stop
-ExecReload=/usr/local/bin/k8s-wrapper.sh telemetry restart
-RemainAfterExit=yes
+patch_systemd.sh
+```bash
+#!/bin/bash
+while true; do
 
-[Install]
-WantedBy=multi-user.target
-```
+    # Determine version accordingly
 
-#### 3. Reload systemd and Enable the Stub Service
+    # patch systemd scripts as needed
+
+    sleep 30
+done
 ```
 
-sudo systemctl daemon-reexec
-sudo systemctl daemon-reload
-sudo systemctl enable telemetry.service
+
+#### Example: DaemonSet YAML
+This script is embedded in the sidecar container of the `telemetry` DaemonSet.
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: telemetry
+  namespace: sonic
+spec:
+  selector:
+    matchLabels:
+      app: telemetry
+  template:
+    metadata:
+      labels:
+        app: telemetry
+    spec:
+      containers:
+      - name: telemetry
+        image: ksdatatest.azurecr.io/docker-sonic-telemetry:latest
+        command: ["/usr/local/bin/supervisord"]
+      - name: telemetry-feature-sidecar
+        image: sonicinfra/feature-sync:latest
+        command: ["/bin/bash", "-c", "/scripts/patch_systemd.sh"]
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+      volumes:
+      - name: scripts
+        configMap:
+          name: feature-sync-script
 ```
 
+
+### Desired state driven for the files patching  (like systemd patch)
+Since postupgrade and Kubernetes rollout may change the same files, which may lead to uncertain result. we propose to use desired state driven for files patching, so taht any apply order should coverged into the same desired state.
+
+```mermaid
+sequenceDiagram
+    participant K8s_Sidecar as K8s Sidecar
+    participant PostUpgrade as PostUpgrade Script
+    participant DesiredFile as Desired State File
+    participant SystemdScript as Systemd Script (on host)
+
+    %% K8s Sidecar reconcile
+    K8s_Sidecar->>DesiredFile: Read desired script & hash
+    K8s_Sidecar->>SystemdScript: Read current script hash
+    alt Script not up to date
+        K8s_Sidecar->>SystemdScript: Overwrite with desired script
+        K8s_Sidecar->>SystemdScript: systemctl daemon-reload
+    else Script up to date
+        K8s_Sidecar-->>SystemdScript: Do nothing
+    end
+
+    %% K8s Sidecar updates desired state (e.g., rollout)
+    opt Sidecar needs to change desired state
+        K8s_Sidecar->>DesiredFile: Overwrite desired script & update hash
+    end
+
+    %% PostUpgrade reconcile
+    PostUpgrade->>DesiredFile: Read desired script & hash
+    PostUpgrade->>SystemdScript: Read current script hash
+    alt Script not up to date
+        PostUpgrade->>SystemdScript: Overwrite with desired script
+        PostUpgrade->>SystemdScript: systemctl daemon-reload
+    else Script up to date
+        PostUpgrade-->>SystemdScript: Do nothing
+    end
+
+    %% PostUpgrade updates desired state (e.g., manual upgrade)
+    opt PostUpgrade needs to change desired state
+        PostUpgrade->>DesiredFile: Overwrite desired script & update hash
+    end
+
+    Note right of DesiredFile: "desired script" is always<br>the single source of truth.<br>All agents compare and converge to it.
 ```
 
-sudo systemctl start telemetry.service
-sudo systemctl status telemetry.service
-sudo systemctl stop telemetry.service
+
+
+### Possible scenario for KubeSonic rollout
+
+#### FEATURE state is enabled in NDM golden config, like telemetry
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sidecar
+    participant K8s
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+    participant telemetry
+
+    K8s->>Sidecar: rollout v0
+    Sidecar->>systemd: Patch telemetry.service
+    K8s->>telemetry: rollout v1 which is telemetry + watchdog container
+    telemetry->>CONFIG_DB: Query FEATURE|telemetry state enabled
+    telemetry->>telemetry: supervisord launch telemetry daemons as usual
+    alt watchdog is healthy
+      k8s->>telemetry: no-op
+    else watchdog is unhealthy
+      k8s->>telemetry: rollback v1 + v0
+    end
 ```
 
-### Limitations
+#### FEATURE state is disabled in NDM golden config, like bmp
+Here need two times rollout
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sidecar
+    participant K8s API
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+    participant bmp
+
+    K8s->>Sidecar: rollout v0
+    Sidecar->>systemd: Patch bmp.service
+    K8s->>bmp: rollout v1 which is bmp + watchdog container
+    bmp->>CONFIG_DB: Query FEATURE|bmp state disabled
+    bmp->>bmp: docker-entrypoint.sh will into sleep loop, no bmp daemons are launched by supervisord
+    alt watchdog is healthy
+      k8s->>telemetry: no-op
+    else watchdog is unhealthy
+      k8s->>telemetry: rollback v1 + v0
+    end
+
+    Sidecar->>K8s API: Query bmp pod status
+    alt Pod Running
+        Sidecar->>CONFIG_DB: Query FEATURE|bmp state disabled
+        Sidecar->>systemd: Stop running bmp.service
+        Sidecar->>systemd: Patch bmp.service to stub which uses k8s-telemetry.sh
+        Sidecar->>bmp: Start bmp container
+        bmp->>CONFIG_DB: Query FEATURE|bmp state disabled
+        bmp->>bmp: launch container as idle
+    else Pod Not Running
+        Sidecar->>systemd: no-op
+    end
+    NDM->>CONFIG_DB: set FEATURE|bmp enablement, which will start stub bmp.service by featured.service
+    bmp->>bmp: launch bmp daemon as usual
+
+```
+
+#### After KubeSonic rollout, use FEATURE state to disable container, like feature switch-off in some livesite issue, etc
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sidecar
+    participant K8s API
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+    participant telemetry
+
+    NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
+    alt Pod Running
+        systemd->>telemetry: kill docker container
+        telemetry->>telemetry: container restarted by k8s automatically
+        telemetry->>CONFIG_DB: read FEATURE|telemetry as disable
+        telemetry->>telemetry: launch container as idle
+    else Pod Not Running
+        Sidecar->>systemd: no-op
+    end
+```
 
 
-systemctl status does not show process PID or exit codes since it proxies Kubernetes pod status.
+#### After KubeSonic rollout, rollback the container to imaged based version. (v1 -> v0)
 
-Restart policies (e.g., Restart=on-failure) defined in systemd will not work—Kubernetes handles restarts via livenessProbe and restartPolicy.
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sidecar
+    participant K8s API
+    participant CONFIG_DB
+    participant systemd
+    participant NDM
+
+    alt KubeSonic rollback
+        Sidecar->>systemd: restore telemetry.service to original image based version
+        Sidecar->>CONFIG_DB: read FEATURE|telemetry
+        alt FEATURE|telemetry is disabled
+          Sidecar->>systemd: no-op, pending later service start
+        else FEATURE|telemetry is enabled
+          Sidecar->>systemd: start telemetry service
+        end
+    else KubeSonic not rollback
+        Sidecar->>systemd: no-op
+    end
+```
+
+---
+
+
 
 
 
@@ -540,7 +539,7 @@ def get_memory_usage(container_id):
 ```
 
 
-During transition period if `monit` must be retained temporarily, we need to rewrite /usr/bin/memory_check to use Kubernetes data (e.g., via `kubectl top`) instead of reading Docker or CGroup files like above.
+As section "Enforce CPU and memory resource constraints natively" mentioned, this monit functionality could be covered by Kubernetes, thus for monit we need to get rid of if from the KubeSonic rollouted container. However, during transition period if there's any case decalres that `monit` must be retained temporarily, we can also rewrite /usr/bin/memory_check to use Kubernetes data (e.g., via `kubectl top`) instead of reading Docker or CGroup files like above.
 
 ---
 
