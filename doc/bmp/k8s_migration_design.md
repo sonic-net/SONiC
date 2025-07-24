@@ -309,43 +309,7 @@ sequenceDiagram
 ```
 
 #### FEATURE state is disabled in NDM golden config, like bmp
-Here need two times rollout
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Sidecar
-    participant K8s API
-    participant CONFIG_DB
-    participant systemd
-    participant NDM
-    participant bmp
-
-    K8s->>Sidecar: rollout v0
-    Sidecar->>systemd: Patch bmp.service
-    K8s->>bmp: rollout v1 which is bmp + watchdog container
-    bmp->>CONFIG_DB: Query FEATURE|bmp state disabled
-    bmp->>bmp: docker-entrypoint.sh will into sleep loop, no bmp daemons are launched by supervisord
-    alt watchdog is healthy
-      k8s->>telemetry: no-op
-    else watchdog is unhealthy
-      k8s->>telemetry: rollback v1 + v0
-    end
-
-    Sidecar->>K8s API: Query bmp pod status
-    alt Pod Running
-        Sidecar->>CONFIG_DB: Query FEATURE|bmp state disabled
-        Sidecar->>systemd: Stop running bmp.service
-        Sidecar->>systemd: Patch bmp.service to stub which uses k8s-telemetry.sh
-        Sidecar->>bmp: Start bmp container
-        bmp->>CONFIG_DB: Query FEATURE|bmp state disabled
-        bmp->>bmp: launch container as idle
-    else Pod Not Running
-        Sidecar->>systemd: no-op
-    end
-    NDM->>CONFIG_DB: set FEATURE|bmp enablement, which will start stub bmp.service by featured.service
-    bmp->>bmp: launch bmp daemon as usual
-
-```
+For this case we need to enable NDM golden config first, then follow telemetry case workflow.
 
 #### After KubeSonic rollout, use FEATURE state to disable container, like feature switch-off in some livesite issue, etc
 
@@ -360,14 +324,12 @@ sequenceDiagram
     participant telemetry
 
     NDM->>CONFIG_DB: set FEATURE|telemetry disable, which will stop stub telemetry.service by featured.service
-    alt Pod Running
-        systemd->>telemetry: kill docker container
-        telemetry->>telemetry: container restarted by k8s automatically
-        telemetry->>CONFIG_DB: read FEATURE|telemetry as disable
-        telemetry->>telemetry: launch container as idle
-    else Pod Not Running
-        Sidecar->>systemd: no-op
-    end
+    systemd->>telemetry: kill docker container
+    telemetry->>telemetry: container restarted by k8s automatically
+    telemetry->>CONFIG_DB: read FEATURE|telemetry as disabled
+    telemetry->>telemetry: launch container as idle
+    k8s->>telemetry: remove container since watchdog report failure
+    
 ```
 
 
