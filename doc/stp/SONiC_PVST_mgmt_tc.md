@@ -1,4 +1,6 @@
-# SonicMgmt Testcases for PVST
+# Feature Name
+SonicMgmt Testcases for PVST
+# High Level Design Document
 #### Rev 1.0
 
 # Table of Contents
@@ -8,20 +10,20 @@
   * [Scope](#scope)
   * [Testing Strategy for PVST feature](#testing-strategy-for-pvst-feature)
   * [Test cases](#test-cases)
-    * [TC1: Validate SONIC DUT acting as root bridge](#tc_1-validate-sonic-dut-acting-as-root-bridge)
-    * [TC2: Validate SONIC DUT as designated bridge](#tc_2-validate-sonic-dut-as-designated-bridge)
-    * [TC3: Validate shutting down the root port on SONIC DUT](#tc_3-validate-shutting-down-the-root-port-on-sonic-dut)
-    * [TC4: Validate bridge priority configuration on SONIC DUT](#tc_4-validate-bridge-priority-configuration-on-sonic-dut)
-    * [TC5: Validate port priority change in BPDU](#tc_5-validate-port-priority-change-in-bpdu)
-    * [TC6: Validate port cost change in BPDU](#tc_6-validate-port-cost-change-in-bpdu)
-    * [TC7: Validate root guard functionality on SONIC DUT](#tc_7-validate-root-guard-functionality-on-sonic-dut)
-    * [TC8: Validate BPDU guard functionality on SONIC DUT](#tc_8-validate-bpdu-guard-functionality-on-sonic-dut)
-    * [TC9: Validate PVST timer configurations](#tc_9-validate-pvst-timer-configurations)
-    * [TC10: Validate Backup port functionality](#tc_10-validate-backup-port-functionality)
-    * [TC11: Validate Mac flush functionality](#tc_11-validate-mac-flush-functionality)
+    * [TC1: Validate SONIC DUT acting as root bridge](#tc1-validate-sonic-dut-acting-as-root-bridge)
+    * [TC2: Validate SONIC DUT as designated bridge](#tc2-validate-sonic-dut-as-designated-bridge)
+    * [TC3: Validate shutting down the root port on SONIC DUT](#tc3-validate-shutting-down-the-root-port-on-sonic-dut)
+    * [TC4: Validate bridge priority configuration on SONIC DUT](#tc4-validate-bridge-priority-configuration-on-sonic-dut)
+    * [TC5: Validate port priority change in BPDU](#tc5-validate-port-priority-change-in-bpdu)
+    * [TC6: Validate port cost change in BPDU](#tc6-validate-port-cost-change-in-bpdu)
+    * [TC7: Validate root guard functionality on SONIC DUT](#tc7-validate-root-guard-functionality-on-sonic-dut)
+    * [TC8: Validate BPDU guard functionality on SONIC DUT](#tc8-validate-bpdu-guard-functionality-on-sonic-dut)
+    * [TC9: Validate PVST timer configurations](#tc9-validate-pvst-timer-configurations)
+    * [TC10: Validate Backup port functionality](#tc10-validate-backup-port-functionality)
+    * [TC11: Validate Mac flush functionality](#tc11-validate-mac-flush-functionality)
   * [References](#references)
   * [Abbreviations](#abbreviations)
-  * [List of Tables](#list-of-tables)
+  * [Revision](#revision)
 
 
 # List of Tables
