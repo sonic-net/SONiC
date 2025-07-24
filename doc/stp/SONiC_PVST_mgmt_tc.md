@@ -1,6 +1,4 @@
-# Feature Name
-SonicMgmt Testcases for PVST
-# High Level Design Document
+# SonicMgmt Testcases for PVST
 #### Rev 1.0
 
 # Table of Contents
