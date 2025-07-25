@@ -273,7 +273,8 @@ spec:
 
 
 ### 4.6 Desired state driven for the files patching  (like systemd patch)
-Since postupgrade and Kubernetes rollout may change the same files, which may lead to uncertain result. we propose to use desired state driven for files patching, so taht any apply order should coverged into the same desired state.
+Since postupgrade and Kubernetes rollout may change the same files, which may lead to uncertain result. we propose to use desired state driven for files patching, so that any apply order should coverged into the same desired state.
+The desired state script will based on top of tree from specific code branch.
 
 ```mermaid
 sequenceDiagram
