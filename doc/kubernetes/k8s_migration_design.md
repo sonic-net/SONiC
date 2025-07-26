@@ -46,6 +46,9 @@ This means even after we enable feature via KubeSonic, we will still keep FEATUR
 }
 ```
 
+Above feature table will still controlled by NDM and monitored by featured.service. For multi-asic per asic scope container, we will need to update systemd scripts under https://github.com/sonic-net/sonic-buildimage/tree/master/files/build_templates/per_namespace
+
+
 #### Feature|state Ownership and Versioning
 
 Version description
@@ -65,7 +68,7 @@ Version description
 
 ### 4.2 container startup script update
 
-Since FEATURE table still control container start/stop via featured.service, after container is rollout-ed via kubernetes, it keeps reading from FEATURE table and determines whether it will launch daaemon or enter idle.
+Since FEATURE table still control container start/stop via featured.service, after container is rollout-ed via kubernetes, it keeps reading from FEATURE table and determines whether it will launch daemon or enter idle.
 
 docker-entrypoint.sh
 ```bash
@@ -95,7 +98,7 @@ ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 ### 4.3 container watchdog
 
 Since container will be installed via kubernetes, but FEATURE table still controls its enable or disable, watchdog will need to coordinate with this meanwhile. 
-watchdog needs to read FEATURE, if FEATURE is enabled, watchdog execute its normal probe and return healthcheck status; if FEATURE is diabled, watchdog will skip probe and return OK directly.
+watchdog needs to read FEATURE, if FEATURE is enabled, watchdog executes its normal probe and return healthcheck status; if FEATURE is disabled, watchdog will skip probe and return OK directly.
 
 telemetry-watchdog snippet code
 ```rust
@@ -113,6 +116,16 @@ fn is_telemetry_enabled() -> bool {
     false
 }
 
+fn is_port_accessible() -> bool {
+    match TcpStream::connect_timeout(
+        &"127.0.0.1:50051".parse().unwrap(),
+        Duration::from_secs(1),
+    ) {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:50069")
         .expect("Failed to bind to 127.0.0.1:50069");
@@ -121,7 +134,13 @@ fn main() {
         let response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 29\r\n\r\n{\"message\":\"telemetry disabled\"}";
         stream.write_all(response.as_bytes()).ok();
     } else {
-        // normal health check
+        if is_port_accessible() {
+            let response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 27\r\n\r\n{\"message\":\"port 50051 ok\"}";
+            stream.write_all(response.as_bytes()).ok();
+        } else {
+            let response = "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: 34\r\n\r\n{\"error\":\"port 50051 not reachable\"}";
+            stream.write_all(response.as_bytes()).ok();
+        }
     }
 }
 ```
@@ -181,7 +200,7 @@ get_pod_name() {
 kill_container() {
     POD_NAME=$(get_pod_name)
     if [[ -n "$POD_NAME" ]]; then
-        kubectl exec "$POD_NAME" -n "$NAMESPACE" -- pkill -f telemetry
+        kubectl exec "$POD_NAME" -n "$NAMESPACE" -c telemetry -- pkill -f telemetry
     else
         exit 1
     fi
@@ -223,7 +242,7 @@ To patch systemd script aligned with actual runtime state, here we leverage a si
   - Patch systemd service files.
 
 
-patch_systemd.sh
+patch_systemd.sh (example which will be implemented in golang)
 ```bash
 #!/bin/bash
 while true; do
@@ -274,7 +293,7 @@ spec:
 
 ### 4.6 Desired state driven for the files patching  (like systemd patch)
 Since postupgrade and Kubernetes rollout may change the same files, which may lead to uncertain result. we propose to use desired state driven for files patching, so that any apply order should coverged into the same desired state.
-The desired state script will based on top of tree from specific code branch.
+The desired state script will be based on top of tree from specific code branch.
 
 ```mermaid
 sequenceDiagram
@@ -298,22 +317,13 @@ sequenceDiagram
         K8s_Sidecar->>DesiredFile: Overwrite desired script & update hash
     end
 
-    %% PostUpgrade reconcile
-    PostUpgrade->>DesiredFile: Read desired script & hash
-    PostUpgrade->>SystemdScript: Read current script hash
-    alt Script not up to date
-        PostUpgrade->>SystemdScript: Overwrite with desired script
-        PostUpgrade->>SystemdScript: systemctl daemon-reload
-    else Script up to date
-        PostUpgrade-->>SystemdScript: Do nothing
-    end
+    %% PostUpgrade runs independently
+    PostUpgrade->>SystemdScript: Read current script
+    PostUpgrade->>SystemdScript: Compare & patch via current workflow like 'sed'
 
-    %% PostUpgrade updates desired state (e.g., manual upgrade)
-    opt PostUpgrade needs to change desired state
-        PostUpgrade->>DesiredFile: Overwrite desired script & update hash
-    end
-
-    Note right of DesiredFile: "desired script" is always<br>the single source of truth.<br>All agents compare and converge to it.
+    %% Notes must be placed outside of blocks
+    Note right of PostUpgrade: PostUpgrade scripts keep current implementation.
+    Note right of K8s_Sidecar: Sidecar enforces desired state PostUpgrade changes may be overwritten during reconciliation.
 ```
 
 
@@ -438,7 +448,7 @@ sequenceDiagram
 
 Kubernetes provides native resource management through the `resources` spec, allowing you to define minimum (`requests`) and maximum (`limits`) values for CPU and memory.
 
-Container can config --memory as hard limit of usable RAM, and --memory-swap as more extra usage from swap space, once memory allocated exceeds the hard limit, container will get killed by OOM Killer with ExitCode=137 (SIGKILL), --restart=on-failure is used for restarting container automatically.
+Thus after Kubernetes rollouted we will simplify the restart logic to be OOM based only, once memory allocated exceeds the hard limit, container will get killed by OOM Killer with ExitCode=137 (SIGKILL), --restart=on-failure is used for restarting container automatically.
 
 #### Example Deployment YAML (Generic)
 
@@ -507,10 +517,10 @@ spec:
         command: ["/usr/local/bin/supervisord"]
         resources:
           requests:
-            memory: "100Mi"
+            memory: "400Mi"
             cpu: "100m"
           limits:
-            memory: "800Mi"
+            memory: "400Mi"
             cpu: "500m"
         ports:
         - containerPort: 5000
