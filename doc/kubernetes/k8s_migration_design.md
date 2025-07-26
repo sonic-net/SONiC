@@ -46,6 +46,9 @@ This means even after we enable feature via KubeSonic, we will still keep FEATUR
 }
 ```
 
+Above feature table will still controlled by NDM and monitored by featured.service. For multi-asic per asic scope container, we will need to update systemd scripts under https://github.com/sonic-net/sonic-buildimage/tree/master/files/build_templates/per_namespace
+
+
 #### Feature|state Ownership and Versioning
 
 Version description
@@ -65,7 +68,7 @@ Version description
 
 ### 4.2 container startup script update
 
-Since FEATURE table still control container start/stop via featured.service, after container is rollout-ed via kubernetes, it keeps reading from FEATURE table and determines whether it will launch daaemon or enter idle.
+Since FEATURE table still control container start/stop via featured.service, after container is rollout-ed via kubernetes, it keeps reading from FEATURE table and determines whether it will launch daemon or enter idle.
 
 docker-entrypoint.sh
 ```bash
