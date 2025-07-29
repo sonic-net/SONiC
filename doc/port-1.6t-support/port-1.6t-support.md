@@ -147,5 +147,6 @@ index 917e7458..a6452071 100644
 ### 6. Additional Notes
 - The hardware does not exist yet. This is a list of anticipated changes that will need to be made. It is possible that the final implementation and areas needed to be changed may differ.
 - For links with optical transceivers w/DSP on both sides, a new inner FEC may be added. Additional SW support may be needed.
+- There are some factors that might require us to discuss more such as new link training and fec types
 
 
