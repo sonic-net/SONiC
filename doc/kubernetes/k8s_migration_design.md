@@ -169,7 +169,7 @@ To prevent breaking these expectations during the migration, a `systemd` service
 #### v1+ Behavior with Kubernetes DaemonSet
 - The container is deployed via Kubernetes DaemonSet.
 - The systemd service is retained as a **stub**, to avoid breaking automation or tools that query it.
-- For start/stop/restart, it will just kill container simply so that kubernetes will relaunch it automatically. Here is some limitation: since kubernetes takes over the container thus systemd stop will not STOP container really, unless we tint the node but that requires each container should use dedicated daemon set which is not preferrable as well.
+- For start/stop/restart, it will just kill container simply so that kubernetes will relaunch it automatically. Here is some limitation: since kubernetes takes over the container thus systemd stop will not STOP container really, unless we taint the node but that requires each container should use dedicated daemon set which is not preferrable as well.
 - For status, it will return runtime state via kubectl.
 
 
