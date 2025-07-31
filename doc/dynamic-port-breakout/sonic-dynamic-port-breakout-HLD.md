@@ -48,6 +48,7 @@
     - [Syncd changes](#syncd-changes)
   - [libSAI requirements](#libsai-requirements)
 - [Warm reboot support](#warm-reboot-support)
+- [Port breakout workflow additions](#port-breakout-workflow-additions)
 - [Unit test -TBD](#unit-test--tbd)
 - [System test -TBD](#system-test--tbd)
 - [Scalability - TBD](#scalability---tbd)
@@ -61,6 +62,9 @@
 | 0.3 | 08/16/2019  | Zhenggen Xu           | Review feedback and other changes                   |
 | 0.4 | 12/20/2019  | Zhenggen Xu           | platform.json changes, dependency check changes etc       |
 | 0.5 | 3/5/2019    | Zhenggen Xu           | Clarification of port naming and breakout modes       |
+| 0.6 | 2/3/2021    | Zhenggen Xu           | Support more flexible port aliases       |
+| 0.7 | 3/14/2023   | Shyam Kumar           | Port Breakout workflow updates considering CMIS |
+
 # Scope
 This document is the design document for dynamic port-breakout feature on SONiC. This includes the requirements, the scope of the design, HW capability considerations, software architecture and scope of changes for different modules.
 
@@ -147,15 +151,25 @@ The capability file is named `platform.json` and should be provided to each plat
 	"Ethernet0": {
 	    "index": "1,1,1,1",
 	    "lanes": "0,1,2,3",
-	    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
-	    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)"
+	    "breakout_modes": {
+	        "1x100G[40G]": ["Eth1"],
+	        "2x50G": ["Eth1/1", "Eth1/2"],
+	        "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	        "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	        "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"]
+	    }
 	 },
 
 	 "Ethernet4": {
 	    "index": "2,2,2,2",
 	    "lanes": "4,5,6,7",
-	    "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
-	    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)"
+	    "breakout_modes": {
+	        "1x100G[40G]": ["Eth1"],
+	        "2x50G": ["Eth1/1", "Eth1/2"],
+	        "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	        "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	        "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"]
+	    }
 	 }
  	 ...
  }
@@ -163,13 +177,12 @@ The capability file is named `platform.json` and should be provided to each plat
 In this file, only the parent ports (e,g, Ethernet0/4) are defined, the child ports would be generated from them. For each parent port, it defines fields as below:
 - "index": the indexes for individual lanes. This usually matches the front panel port #, and is used by platform plugins for optical module queries.
 - "lanes": This defines the physical HW lanes included in this parent port. The lanes will be used for breakout ports.
-- "alias_at_lanes": This defines the alias for individual breakout ports.
-- "breakout_modes": This defines the breakout modes available on the platform for this parent port.
+- "breakout_modes": This defines the breakout modes available on the platform for this parent port, and it maps to the alias list. The alias list presents the alias names for individual ports in order under this breakout mode.
 
     The modes in the example file is neither necessarily the full list nor a must list, the design will not tied to the example. For instance, we should be able to define 50G serdes based platforms for 400G/200G/100G/50G ports. We can also define a subset of the port modes on some platform.
 - "default_brkout_mode": This defines the default breakout mode if no mode changes were applied on the system.
 
-Syntax for breakout_modes:
+Syntax for breakout_modes key:
 - `number x speed1 [speed2, speed3]`
 
     means the parent port lanes are split equally to number of ports denoted by the `number`. And the speed for each breakout port is default to `speed1`, but is changeable to `speed2`, `speed3` etc.
@@ -199,7 +212,7 @@ The speeds usually used today are:
 `10G, 20G, 25G, 50G, 100G, 200G, 400G` etc.
 However, the design is not limited to this list.
 
-Note: In some case, the `brkout_mode` only have one mode, this means it will not allow changing to different modes, e,g `1x100G[40G]` means it only support 100G[40G[ on this port, could mean no breakout to child ports.
+Note: In some case, the `brkout_mode` only have one mode, this means it will not allow changing to different modes, e,g `1x100G[40G]` means it only support 100G[40G] on this port, could mean no breakout to child ports.
 
 We will have a new table `BREAKOUT_CFG` in configDB to present the current running breakout mode, it will be saved to configDB after the initial breakout at boot time, and also updated whenever the port breakout is changed.
 
@@ -246,8 +259,14 @@ On some platforms, there are some limitations about the number of port/mac avail
 "Ethernet0": {
     "index": "1,1,1,1,2,2,2,2",
     "lanes": "0,1,2,3,4,5,6,7",
-    "alias_at_lanes":"Eth1/1, Eth1/2, Eth1/3, Eth1/4, Eth2/1, Eth2/2, Eth2/3, Eth2/4",
-    "breakout_modes": "2x100G[40G],4x50G,1x100G[40G](4)+2x50G(4),2x50G(4)+1x100G[40G](4),4x25G[10G](4), None(4)+4x25G[10G](4)"
+    "breakout_modes": {
+        "2x100G[40G]": ["Eth1", "Eth2"],
+        "4x50G": ["Eth1/1", "Eth1/2", "Eth2/1", "Eth2/2"],
+        "1x100G[40G](4)+2x50G(4)": ["Eth1", "Eth2/1", "Eth2/2"],
+        "2x50G(4)+1x100G[40G](4)": ["Eth1/1", "Eth1/2", "Eth2"],
+        "4x25G[10G](4)": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+        "None(4)+4x25G[10G](4)": ["Eth2/1", "Eth2/2", "Eth2/3", "Eth2/4"]
+    }
  }
  ...
 ```
@@ -257,15 +276,21 @@ On some platforms, the serdes connection to front panel port might not be the as
 "Ethernet0": {
     "index": "1, 1",
     "lanes": "0,1",
-    "alias_at_lanes": "Eth1/1, Eth1/2",
-    "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]"
+    "breakout_modes": {
+        "1x50G": ["Eth1"]
+        "1x25G[10G]": ["Eth1"],
+        "2x25G[10G]": ["Eth1/1", "Eth1/2"]
+    }
  },
 
  "Ethernet2": {
     "index": "2, 2",
     "lanes": "2,3",
-    "alias_at_lanes": "Eth2/1, Eth2/1",
-    "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]"
+    "breakout_modes": {
+        "1x50G": ["Eth1"]
+        "1x25G[10G]": ["Eth1"],
+        "2x25G[10G]": ["Eth1/1", "Eth1/2"]
+    }
  }
  ...
 ```
@@ -279,8 +304,13 @@ Given example of `platform.json` to have 4 lanes on parent port Ethernet0 with E
 "Ethernet0": {
     "index": "1,1,1,1",
     "lanes": "0,1,2,3",
-    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G,2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)"
+	 "breakout_modes": {
+	     "1x100G[40G]": ["Eth1"],
+	     "2x50G": ["Eth1/1", "Eth1/2"],
+	     "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	     "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	     "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3]"
+	 }
  }
 ```
 CLI will look like below:
@@ -372,8 +402,13 @@ Show interface command should be able to show the ports capability and the curre
 "Ethernet0": {
     "index": "1,1,1,1",
     "lanes": "0,1,2,3",
-    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
+	 "breakout_modes": {
+	     "1x100G[40G]": ["Eth1"],
+	     "2x50G": ["Eth1/1", "Eth1/2"],
+	     "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	     "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	     "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"]
+	 }
     "default_brkout_mode": "1x100G[40G]",
     "brkout_mode": "4x25G[10G]"
  },
@@ -381,8 +416,13 @@ Show interface command should be able to show the ports capability and the curre
  "Ethernet4": {
     "index": "2,2,2,2",
     "lanes": "4,5,6,7",
-    "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
+	 "breakout_modes": {
+	     "1x100G[40G]": ["Eth1"],
+	     "2x50G": ["Eth1/1", "Eth1/2"],
+	     "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	     "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	     "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"]
+	 }
     "default_brkout_mode": "1x100G[40G]",
     "brkout_mode": "2x50G"
  }
@@ -1023,7 +1063,7 @@ There are some special cases where queue, scheduler group and priority group obj
 If they are not at default state, that means user has configured them, sai-redis will fail the delete port action. This means, user should remove the configured objects before deleting the port. I,E, User should bring queues/ingress priority groups/scheduler groups that belong to the port to default state (will remove all assigned objects like buffer profile etc).
 
 PR in Sairedis and Syncd is available already:
-https://github.com/Azure/sonic-sairedis/pull/500
+https://github.com/sonic-net/sonic-sairedis/pull/500
 
 
 ### Syncd changes
@@ -1037,12 +1077,12 @@ However, due to the consumer tables for different objects with batch size, this 
 
 We will ignore some dependencies check to avoid the crash in syncd, and also add retry logic in syncd to avoid above timing issue.
 PRs:
-https://github.com/Azure/sonic-sairedis/pull/464
-https://github.com/Azure/sonic-sairedis/pull/483
+https://github.com/sonic-net/sonic-sairedis/pull/464
+https://github.com/sonic-net/sonic-sairedis/pull/483
 
 Another issue with syncd today is to support dynamic port breakout feature with warm-reboot. We need dynamically update the port map in syncd for comparison logic to support warm-reboot.
 PR is available as below:
-https://github.com/Azure/sonic-sairedis/pull/515
+https://github.com/sonic-net/sonic-sairedis/pull/515
 
 ## libSAI requirements
 We need the HW to initialize with the profile that is breakout capable.
@@ -1151,6 +1191,73 @@ All thee attribute that coud be changed in orchagent should be able to be brough
 
 # Warm reboot support
 Syncd changes are required as mentioned above. The PR need to be merged and tested.
+
+# Port breakout workflow additions 
+xcvrd (transceiver daemon) running as part of PMON docker container, detects optical module (transceiver) presence.
+If transceiver is found as QSFP-DD, it initiates and orchestrates entire CMIS FSM until module ready state.
+As part of enabling CMIS FSM with port breakout, found out that port breakout feature is not supported for QSFP-DD optical modules.
+
+**Few key things to take into account prior to getting into workFlow**
+
+A NxS breakout cable inserted implies following
+- A physical port is broken down into N subports (logical ports)
+  - subports are numbered as 8/N i.e.
+  - For 4x100G breakout optical module inserted in physcial Ethernet port 1 (etp1), implies: Ethernet8, Ethernet10, Ethernet12, Ethernet14
+  - Note: This is done in this manner to keep such assignments uniform across various breakout modes viz.1x, 2x, 4x, 8x
+- Speed of each subport is S Gpbs
+- Unique subport# is assigned to each of the N sub-port starting with subport# 1 (and sequentially incrementing with each sub-port)
+
+**Following is the new design (workflow) for 'port breakout' to work end-to-end with 'CMIS enabled' (in SONiC):**
+
+!['port breakout feature workflow with CMIS'(3)](https://user-images.githubusercontent.com/69485234/229310167-85b1222a-2172-4ae6-b90a-d4648581c2d1.png)
+
+['port breakout feature workflow with CMIS'.pdf](https://github.com/shyam77git/SONiC/files/11130409/port.breakout.feature.workflow.with.CMIS.pdf)
+
+
+- Configure a unique subport# for each broken-down (logical) port in platform's port_config.ini
+   - subport# to start with 1 (and increment sequentailly for each logical port) under the same physcial port
+   - subport# sequence may repeat for logical ports under another physcial port 
+   - subport# as 0 (on a port) implies physical port itself (i.e. no port breakout on it)
+- These subport#s are then parsed and updated in PORT_TABLE of CONFIG redisDB
+  - There would be a unique PORT_TABLE for each logical port
+- xcvrd (as subscriber to PORT_TABLE of CONFIG DB), would read these subport#s and perform 'Host side' Lanes assignment as per the following logic
+  - A physical port is broken down into N subports (logical ports)
+  - 8/N ‘Host side’ Lanes are assigned to each subport#
+  - Consider '4x100G breakout' optical module use-case
+    It would be 2 lanes per subport. Refer to 8/N mentioned-above.
+    Total 4 subports and Lane Count is 2
+    - subport 1: Lanes 1,2
+    - subport 2: Lanes 3,4
+    - subport 3: Lanes 5,6
+    - subport 4: Lanes 7,8
+
+     ![Screenshot 2023-03-31 at 6 38 02 PM](https://user-images.githubusercontent.com/69485234/229259596-4fc3f024-f98e-4458-afe0-4a5b9af29b30.png)
+
+  - Consider '2x100G breakout' optical module use-case
+    It would be 4 lanes per subport. Refer to 8/N mentioned-above.
+    Total 2 subports and Lane Count is 4
+    - subport 1: Lanes 1,2,3,4
+    - subport 2: Lanes 5,6,7,8
+    
+- Next, xcvrd to initiate CMIS FSM (state machine) initilization for each logical port. 
+  Prior to this, xcvrd to perform following steps:
+  - xcvrd to determine Active Lanes (per subport) from the App Advertisement Table of CMIS Spec.
+    - xcvrd to read 'speed', 'subport' and lanes information (of a logical/sub-port) from the PORT_TABLE of CONFIG DB to perform look-up in appl_dict
+    - xcvrd to check Table 6.1 (of CMIS v5.2) to find the desired application (for the inserted optical module) via get_cmis_application_desired() subroutine
+        - get_application_advertisement() in xcvrd codebase (cmis.py), which eventually formualtes appl_dict
+        - Use the following criteria to determine the right 'key' in appl_dict dictionary for App\<X\>
+          - Use 'speed' and compare it to transeiver's EEPROM HostInterfaceID for App\<X\> (First Byte of Table 6.1)
+          - Use '# of lanes' (i.e. host_lane_count per subport) as determined above and compare it to HostLaneCount for App\<X\> (Third Byte of Table 6.1)
+        - The matched 'key' is the desired application
+    - Determine HostLaneMask per logical port (via get_cmis_host_lanes_mask())
+        - Use the matched 'key' to infer HostLaneAssignmentOptions
+        - In turn, use HostLaneAssignmentOptions along with 'subport' and 'host_lane_count' to determine HostLaneMask
+    - HostLaneMask is the Active Lanes for the specified subport
+  - xcvrd to use the the Active Lanes (per subport) to kick start CMIS FSM for that logical port
+  - xcvrd to follow the existing CMIS FSM workflow all the way to CMIS_STATE_READY and ensure that each logical port link reaches 'opertionally up' state   
+    
+ **Note**: At present, this utilizes the static method to configure port breakouts (i.e. port_config.ini or mini-graph).<br/><br/>
+ **Enhancement**: In near future, this would be enhanced to configure and funnel the required port breakout attributes (on an interface) in a dynamic fashion as well i.e. via  sonic's #config interface breakout CLI. However, once the breakout mode/data is made into CONFIG DB (be it via static or dynamic mode), above-mentioned xcvrd workflow with CMIS FSM would continue to be exercised.
 
 # Unit test -TBD
 At high level, We will leverage the vs test environment to test:

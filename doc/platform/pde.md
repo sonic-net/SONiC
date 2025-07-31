@@ -58,7 +58,7 @@ The requirements for the SONiC PDE are:
 8.  All platform drivers and device files will reside in their original SONiC locations as part of the PDE build process.
 9.  The PDE uses the base SONiC build generated Linux kernel, Debian bootstrap image, SAI, root filesystem, and other pre-compiled binaries necessary for booting the PDE ONIE image.
 10. All PDE makefiles and associated supporting files reside in the base SONiC repository as part of the "sonic-buildimage" repository and will not interfere or execute as part of the normal SONiC build process.
-11. The PDE supports the existing SONiC porting guide for adding new platform support.  Please refer to [link](https://github.com/Azure/SONiC/wiki/Porting-Guide) for more information.  
+11. The PDE supports the existing SONiC porting guide for adding new platform support.  Please refer to [link](https://github.com/sonic-net/SONiC/wiki/Porting-Guide) for more information.  
 
 As the PDE New platform changes added in the PDE are seamlessly integrated into the SONiC base repository.
 
@@ -120,9 +120,9 @@ The PDE incorporates the necessary SAI / SDK version for the ODM to bring up the
 # 3 Design
 ## 3.1 Overview
 
-The below diagram shows the build process for generating the initial PDE repository.  
+The below diagram shows the build process for generating PDE SONiC Image.  
 
-![PDE](../../images/platform/initialcreationflow.png)
+![PDE](../../images/platform/PDE_BuildGeneration_Steps.png)
 
 The below diagram depicts the normal sonic build running with its associated docker containers. The PDE container is not included / active in a regular SONiC build.
 

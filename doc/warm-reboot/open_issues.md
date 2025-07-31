@@ -63,7 +63,7 @@ Mandatory parameters: docker name,   tag for new docker image,   docker image pa
 
 Ex.
 ```
-      sonic_installer upgrade_docker --cleanup_image swss swss_test_02 ./docker-orchagent-brcm_test_02.gz
+      sonic-installer upgrade_docker --cleanup_image swss swss_test_02 ./docker-orchagent-brcm_test_02.gz
 ```
 
 More options are to be provided like whether to enforce stringent state check and validation.
@@ -92,9 +92,9 @@ Both approaches have been under development and testing. Current status:
 
 ## Idempotent libsairedis API
 ### Design doc:
-[SONiC libsairedis API idempotence support](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/sai_redis_api_idempotence.md)
+[SONiC libsairedis API idempotence support](https://github.com/sonic-net/SONiC/blob/master/doc/warm-reboot/sai_redis_api_idempotence.md)
 ### Draft code changes:
-[libsairedis code changes](https://github.com/Azure/sonic-sairedis/compare/master...jipanyang:idempotent)
+[libsairedis code changes](https://github.com/sonic-net/sonic-sairedis/compare/master...jipanyang:idempotent)
 ### Current status:
 A series of virtual switch test cases  have been implemented, and end to end integration testing as to swss docker warm restart/upgrade have been done based on this solution.
 
@@ -107,7 +107,7 @@ It is desired to be able to switch the feature on and off with one simple comman
 ### Code change:
 This file contains major part of the implementation (not complete):
 
-[syncd_applyview.cpp](https://github.com/Azure/sonic-sairedis/blob/d54977f297301f972e2839d526d8130a5f66e893/syncd/syncd_applyview.cpp)
+[syncd_applyview.cpp](https://github.com/sonic-net/sonic-sairedis/blob/d54977f297301f972e2839d526d8130a5f66e893/syncd/syncd_applyview.cpp)
 ### Design doc:
       Not available yet.
 

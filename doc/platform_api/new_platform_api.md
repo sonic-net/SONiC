@@ -196,4 +196,4 @@ print("PSU 1 presence: {}".format(presence))
 
 ### New Platform API Framework location
 
-https://github.com/Azure/sonic-platform-common/tree/master/sonic_platform_base
+https://github.com/sonic-net/sonic-platform-common/tree/master/sonic_platform_base

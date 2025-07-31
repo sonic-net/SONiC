@@ -2,7 +2,7 @@
 # SONiC 201904 Release Notes  
 
 # Branch Location  
-https://github.com/Azure/sonic-buildimage/tree/201904
+https://github.com/sonic-net/sonic-buildimage/tree/201904
 
 # Dependency Version
 
@@ -27,11 +27,11 @@ https://github.com/Azure/sonic-buildimage/tree/201904
 | 1       | [FRR as default routing stack](http://docs.frrouting.org/en/latest/) |  |
 | 2       | Upgrade each docker to stretch version | SNMPD, LLDPD, Teamd |
 | 3       | Upgrade docker engine to 18.09 |  |
-| 4       | [Everflow enhancement](https://github.com/Azure/SONiC/blob/bb4f4a3a85935a38ec7f9625ef62cbe58c0998b4/doc/SONiC_EVERFLOW_IPv6.pdf) |  |
-| 5       | [Egress ACL bug fix and ACL CLI enhancement](https://github.com/Azure/SONiC/blob/dfa7e58292deb4d7b10d1e0ca73f296cd206e9d2/doc/acl/egress-acl-bug-fix-description.md)  |  |
-| 6       | [L3 RIF counter support](https://github.com/Azure/SONiC/blob/master/doc/RIF_counters.md) [PR](https://github.com/Azure/SONiC/pull/310)  |  |
-| 7       | [PMon Refactoring](https://github.com/Azure/SONiC/tree/master/doc/pmon)  |  |
-| 8       | BGP-EVPN support (type 5) (related HLD [Fpmsyncd](https://github.com/Azure/SONiC/pull/375), [vxlanmgr](https://github.com/Azure/SONiC/pull/369), [template](https://github.com/Azure/sonic-buildimage/pull/2838/files) ) |  |
+| 4       | [Everflow enhancement](https://github.com/sonic-net/SONiC/blob/bb4f4a3a85935a38ec7f9625ef62cbe58c0998b4/doc/SONiC_EVERFLOW_IPv6.pdf) |  |
+| 5       | [Egress ACL bug fix and ACL CLI enhancement](https://github.com/sonic-net/SONiC/blob/dfa7e58292deb4d7b10d1e0ca73f296cd206e9d2/doc/acl/egress-acl-bug-fix-description.md)  |  |
+| 6       | [L3 RIF counter support](https://github.com/sonic-net/SONiC/blob/master/doc/RIF_counters.md) [PR](https://github.com/sonic-net/SONiC/pull/310)  |  |
+| 7       | [PMon Refactoring](https://github.com/sonic-net/SONiC/tree/master/doc/pmon)  |  |
+| 8       | BGP-EVPN support (type 5) (related HLD [Fpmsyncd](https://github.com/sonic-net/SONiC/pull/375), [vxlanmgr](https://github.com/sonic-net/SONiC/pull/369), [template](https://github.com/sonic-net/sonic-buildimage/pull/2838/files) ) |  |
 
 
 # Security Updates  
