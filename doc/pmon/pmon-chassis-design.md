@@ -23,8 +23,8 @@
       * [3.2.4 Disaggregated vs Global DB](#324-disaggregated-vs-global-db)
     * [3.3 Peripheral Management](#33-peripheral-management)
       * [3.3.1 PSUd](#331-psud)
-      * [3.3.2 Thermalctld](#332-thermalctld)
-        * [3.3.2.1 Interface Optics temeprature and fan algorithm](#3321-interface-optics-temeprature-and-fan-algorithm)
+      * [3.3.2 Thermalctld](#332-thermalctld)        
+        * [3.3.2.1 Interface Optics temeprature](#3321-interface-optics-temeprature)
       * [3.3.3 Xcvrd/SFP](#333-xcvrdsfp)
       * [3.3.4 LEDd](#334-ledd)
       * [3.3.5 Syseepromd](#335-syseepromd)
@@ -38,7 +38,7 @@
  |:---:|:-----------:|:-----------------------------------------------------------------------:|-----------------------------------|
  | 1.0 |             |  Manjunath Prabhu, Sureshkannan Duraisamy, Marty Lok, Marc Snider       | Initial version                   |
  | 1.1 | 06/18/2021  |  Vedavinayagam Ganesan                                                  | chassis_modules command change    |
-
+ 
 # About this Manual
 This document provides design requirements and interactions between platform drivers and PMON for SONiC on VOQ chassis with line-card CPUs.
 
@@ -418,31 +418,49 @@ Thermal 5        59           68         0             N/A            N/A       
 
 #### 3.3.2.1 Interface Optics temeprature
 
-The optics temperature infromation is retrieved by the xcvrd/dom_mgr in the respective Linecards and stored in the TRANSCEIVER_DOM_SENSOR|Ethernet<> table in STATE_DB. The threshold data is stored in TRANSCEIVER_DOM_THRESHOLD|Ethernet<> table in STATE_DB. This temperature information should be used in the cooling/fan algorithm.
+The optics temperature infromation is retrieved by the xcvrd/dom_mgr in the respective Linecards and stored in the TRANSCEIVER_DOM_SENSOR|Ethernet<> table in STATE_DB. The temperature thresholds are stored in TRANSCEIVER_DOM_THRESHOLD|Ethernet<> table in STATE_DB. This temperature information should be used in the cooling/fan algorithm.
 
-Assuming the cooling/fan algorithm is run in the context of thermalctld in the Supervisor, there are two options for thermalctld in Linecard to pass the optics temeprature information to Supervisor DB.
+In the chassis architectures (voq and packet) the cooling/fan algorithm is run in the context of thermalctld in the Supervisor. There are two options for thermalctld in Linecard to pass the optics temeprature information to Supervisor.
 
-**Option 1 with Centralized architecture**
+**Option 1**
 
-In Linecard thermalctld will collect the optics temperature information and push it to Supervisor card. Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STATE_DB.
+ This case where thermalctld in each Linecard/module **don't** process thermal data locally, instead just send each optics Temperature_info to Supervisor CHASSIS_STATE_DB. The Supervisor/thermalctld use this dirrctly ss input to cooling algorithm. In Linecard thermalctld will collect the optics temperature information (along with the other thermals) and push it to Supervisor card. 
+ 
+ Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STATE_DB. The Sensor-Name will be interface name.
+ 
+ #### CHASSIS_STATE_DB Schema for Temperature_Info
+ ```
+ key                                   = TEMPERATURE_INFO_<card-index>|<Sensor-Name>; 
+ ; field                               = value
+ temperature_high_alarm                = float;
+ temperature_low_alarm                 = float;   
+ temperature_high_warning              = float;
+ temperature_low_warning               = float;
+ temperature                           = float;
+ ```
 
-#### CHASSIS_STATE_DB Schema for Temperature_Info
-```
-key                                   = TEMPERATURE_INFO_<card-index> | <Sensor-Name>; 
-; field                               = value
-temperature_high_alarm                = float;
-temperature_low_alarm                 = float;   
-temperature_high_warning              = float;
-temperature_low_warning               = float;
-temperature                           = float;
-```
+**Option 2**
 
-**Option 2 with Distributed architecture**
+ This case where thermalctld in each Linecard/module processes thermal data locally and sends the thermal algorithm result to Supervisor CHASSIS_STATE_DB.
+ 
+ The thermalctld daemon in the Linecard will fetch the temperature values and thresolds from TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table in local STATE_DB, process it locally along with other thermal sensor data, sends the thermal algorithm result to Supervisor. The Supervisor/thermalctld will use this data as input to cooling algorithm.
 
-The thermalctld daemon in the Linecard will fetch the temperature values and thresolds from TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table in local STATE_DB, process it locally, send a result per Linecard to Supervisor DB.
+ Following schema could be used to atore the TEMPERATURE_INFO per card. This will contain attributes like fan speed, any of the sensors which are having high/low alrams etc.
+ 
+ #### CHASSIS_STATE_DB Schema for Temperature_Info
+ ```
+ key                                   = TEMPERATURE_INFO_<card-index>|THERMAL_ALGO_RESULT; 
+ ; field                               = value
+ fan_speed                             = float
+ <sensor_name_alarm_type>              = "High/Low"
+ <sensor_name_temperature>             = float
+ ..
+ <sensor_name_alarm_type>              = "High/Low"
+ <sensor_name_temperature>             = float
+ ```
 
+Irrespective of the approach, the above processing could be done by the ThermalMonitor/TemperatureUpdater infrastructure in thermalctld, which does push thermal data from Lincard module to Supervisor.
 
-Preferable approach is **Option 1**
 
 #### 3.3.3 Xcvrd/SFP
 
