@@ -24,6 +24,7 @@
     * [3.3 Peripheral Management](#33-peripheral-management)
       * [3.3.1 PSUd](#331-psud)
       * [3.3.2 Thermalctld](#332-thermalctld)
+        * [3.3.2.1 Interface Optics temeprature and fan algorithm](#3321-interface-optics-temeprature-and-fan-algorithm)
       * [3.3.3 Xcvrd/SFP](#333-xcvrdsfp)
       * [3.3.4 LEDd](#334-ledd)
       * [3.3.5 Syseepromd](#335-syseepromd)
@@ -415,10 +416,33 @@ Thermal 4        32           68         0             N/A            N/A       
 Thermal 5        59           68         0             N/A            N/A        False     20200529 01:49:39
 ```
 
-#### 3.3.2.1 Interface Optics temeprature and fan algorithm
+#### 3.3.2.1 Interface Optics temeprature
+
+The optics temperature infromation is retrieved by the xcvrd/dom_mgr in the respective Linecards and stored in the TRANSCEIVER_DOM_SENSOR|Ethernet<> table in STATE_DB. The threshold data is stored in TRANSCEIVER_DOM_THRESHOLD|Ethernet<> table in STATE_DB. This temperature information should be used in the cooling/fan algorithm.
+
+Assuming the cooling/fan algorithm is run in the context of thermalctld in the Supervisor, there are two options for thermalctld in Linecard to pass the optics temeprature information to Supervisor DB.
+
+**Option 1 with Centralized architecture**
+
+In Linecard thermalctld will collect the optics temperature information and push it to Supervisor card. Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STATE_DB.
+
+#### CHASSIS_STATE_DB Schema for Temperature_Info
+```
+key                                   = TEMPERATURE_INFO_<card-index> | <Sensor-Name>; 
+; field                               = value
+temperature_high_alarm                = float;
+temperature_low_alarm                 = float;   
+temperature_high_warning              = float;
+temperature_low_warning               = float;
+temperature                           = float;
+```
+
+**Option 2 with Distributed architecture**
+
+The thermalctld daemon in the Linecard will fetch the temperature values and thresolds from TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table in local STATE_DB, process it locally, send a result per Linecard to Supervisor DB.
 
 
-
+Preferable approach is **Option 1**
 
 #### 3.3.3 Xcvrd/SFP
 
