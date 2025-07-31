@@ -24,7 +24,7 @@
     * [3.3 Peripheral Management](#33-peripheral-management)
       * [3.3.1 PSUd](#331-psud)
       * [3.3.2 Thermalctld](#332-thermalctld)        
-        * [3.3.2.1 Interface Optics temeprature](#3321-interface-optics-temeprature)
+        * [3.3.2.1 Interface Optical module temperature](#3321-interface-optical-module-temperature)
       * [3.3.3 Xcvrd/SFP](#333-xcvrdsfp)
       * [3.3.4 LEDd](#334-ledd)
       * [3.3.5 Syseepromd](#335-syseepromd)
@@ -416,7 +416,7 @@ Thermal 4        32           68         0             N/A            N/A       
 Thermal 5        59           68         0             N/A            N/A        False     20200529 01:49:39
 ```
 
-#### 3.3.2.1 Interface Optical module temeprature
+#### 3.3.2.1 Interface Optical module temperature
 
 The optics temperature infromation is retrieved by the xcvrd/dom_mgr in the respective Linecards and stored in the TRANSCEIVER_DOM_SENSOR|Ethernet<> table in STATE_DB. The temperature thresholds are stored in TRANSCEIVER_DOM_THRESHOLD|Ethernet<> table in STATE_DB. This temperature information should be used in the cooling/fan algorithm.
 
