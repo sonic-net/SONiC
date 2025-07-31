@@ -416,15 +416,15 @@ Thermal 4        32           68         0             N/A            N/A       
 Thermal 5        59           68         0             N/A            N/A        False     20200529 01:49:39
 ```
 
-#### 3.3.2.1 Interface Optics temeprature
+#### 3.3.2.1 Interface Optical module temeprature
 
 The optics temperature infromation is retrieved by the xcvrd/dom_mgr in the respective Linecards and stored in the TRANSCEIVER_DOM_SENSOR|Ethernet<> table in STATE_DB. The temperature thresholds are stored in TRANSCEIVER_DOM_THRESHOLD|Ethernet<> table in STATE_DB. This temperature information should be used in the cooling/fan algorithm.
 
-In the chassis architectures (voq and packet) the cooling/fan algorithm is run in the context of thermalctld in the Supervisor. There are two options for thermalctld in Linecard to pass the optics temeprature information to Supervisor.
+In the chassis architectures (voq and packet) the cooling/fan algorithm is run in the context of thermalctld in the Supervisor. There are two options for thermalctld in Linecard to pass the optics temperature information to Supervisor.
 
 **Option 1**
 
- This case where thermalctld in each Linecard/module **don't** process thermal data locally, instead just send each optics Temperature_info to Supervisor CHASSIS_STATE_DB. The Supervisor/thermalctld use this dirrctly ss input to cooling algorithm. In Linecard thermalctld will collect the optics temperature information (along with the other thermals) and push it to Supervisor card. 
+ This case where thermalctld in each Linecard/module **don't** process thermal data locally, instead just send each optics Temperature_info(along with the other thermals) to Supervisor CHASSIS_STATE_DB. The Supervisor/thermalctld use this directly as input to cooling algorithm.
  
  Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STATE_DB. The Sensor-Name will be interface name.
  
@@ -443,15 +443,15 @@ In the chassis architectures (voq and packet) the cooling/fan algorithm is run i
 
  This case where thermalctld in each Linecard/module processes thermal data locally and sends the thermal algorithm result to Supervisor CHASSIS_STATE_DB.
  
- The thermalctld daemon in the Linecard will fetch the temperature values and thresolds from TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table in local STATE_DB, process it locally along with other thermal sensor data, sends the thermal algorithm result to Supervisor. The Supervisor/thermalctld will use this data as input to cooling algorithm.
+ The thermalctld daemon in the Linecard will fetch the optical module temperature and thresolds from TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD tables in the local STATE_DB. It will process this locally along with other thermal sensor data and send the thermal algorithm result to Supervisor. The Supervisor/thermalctld will use this data as input to cooling algorithm.
 
- Following schema could be used to atore the TEMPERATURE_INFO per card. This will contain attributes like fan speed, any of the sensors which are having high/low alrams etc.
+ Following schema could be used to store the TEMPERATURE_INFO which is per Linecard module. This will contain attributes like recommended fan speed, any of the sensors which are having high/low alrams etc.
  
  #### CHASSIS_STATE_DB Schema for Temperature_Info
  ```
  key                                   = TEMPERATURE_INFO_<card-index>|THERMAL_ALGO_RESULT; 
  ; field                               = value
- fan_speed                             = float
+ recommended_fan_speed                 = float
  <sensor_name_alarm_type>              = "High/Low"
  <sensor_name_temperature>             = float
  ..
@@ -459,7 +459,7 @@ In the chassis architectures (voq and packet) the cooling/fan algorithm is run i
  <sensor_name_temperature>             = float
  ```
 
-Irrespective of the approach, the above processing could be done by the ThermalMonitor/TemperatureUpdater infrastructure in thermalctld, which does push thermal data from Lincard module to Supervisor.
+Irrespective of the approach, the above processing could be done by the ThermalMonitor/TemperatureUpdater infrastructure in thermalctld, which does push thermal data from Linecard module to Supervisor.
 
 
 #### 3.3.3 Xcvrd/SFP
