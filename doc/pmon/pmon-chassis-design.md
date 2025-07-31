@@ -415,6 +415,11 @@ Thermal 4        32           68         0             N/A            N/A       
 Thermal 5        59           68         0             N/A            N/A        False     20200529 01:49:39
 ```
 
+#### 3.3.2.1 Interface Optics temeprature and fan algorithm
+
+
+
+
 #### 3.3.3 Xcvrd/SFP
 
 #### Requirements
