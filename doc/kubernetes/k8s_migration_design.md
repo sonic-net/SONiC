@@ -539,6 +539,32 @@ spec:
 
 ### Monitoring and Alerting
 
+#### container_checker
+
+Refer https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/monit/container_checker, now container_checker was used widely like CPHC, SystemHealth, as well as mgmt test.
+
+Brief container_checker implementation
+```
+    expected_running_containers, always_running_containers = get_expected_running_containers()
+    current_running_containers = get_current_running_containers(always_running_containers)
+
+    expected_running_containers |= always_running_containers
+    not_running_containers = expected_running_containers.difference(current_running_containers)
+    if not_running_containers:
+        publish_events(not_running_containers)
+        print("Expected containers not running: " + ", ".join(not_running_containers))
+        sys.exit(3)
+```
+
+we need to update the implementation of get_current_running_containers() since after Kubernetes rollout container name will not equal to feature name any more. like ksdatatest.azurecr.io/docker-sonic-telemetry, we need to add label into docker run procedure, so that container_checker could query running container status via name from FEATURE table.
+
+```
+docker run -d --label telemetry docker-sonic-telemetry
+docker ps -a --filter "label=telemetry"
+```
+
+#### memory_checker
+
 Currently SONiC uses monit check memory for specific container, like below
 
 ```
