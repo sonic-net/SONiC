@@ -242,17 +242,19 @@ To patch systemd script aligned with actual runtime state, here we leverage a si
   - Patch systemd service files.
 
 
-patch_systemd.sh (example which will be implemented in golang)
-```bash
-#!/bin/bash
-while true; do
+patch_systemd
+```rust
+fn main() {
+    let hash: &str = "d2d2d2a0cddb9be830c3767eaa78ef8b0f720b8c63aefc50f3f5f2aab2b8e2f4";
+    loop {
+        // 1. read script and hash calculation
 
-    # Determine version accordingly
+        // 2. overwrite systemd script
 
-    # patch systemd scripts as needed
+        // 3. systemctl daemon-reload & restart service
 
-    sleep 30
-done
+    }
+}
 ```
 
 
@@ -280,7 +282,7 @@ spec:
         command: ["/usr/local/bin/supervisord"]
       - name: telemetry-feature-sidecar
         image: sonicinfra/feature-sync:latest
-        command: ["/bin/bash", "-c", "/scripts/patch_systemd.sh"]
+        command: ["scripts/patch_systemd"]
         volumeMounts:
         - name: scripts
           mountPath: /scripts
@@ -449,49 +451,6 @@ sequenceDiagram
 Kubernetes provides native resource management through the `resources` spec, allowing you to define minimum (`requests`) and maximum (`limits`) values for CPU and memory.
 
 Thus after Kubernetes rollouted we will simplify the restart logic to be OOM based only, once memory allocated exceeds the hard limit, container will get killed by OOM Killer with ExitCode=137 (SIGKILL), --restart=on-failure is used for restarting container automatically.
-
-#### Example Deployment YAML (Generic)
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: <container-name>
-  namespace: <namespace>
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: <container-name>
-  template:
-    metadata:
-      labels:
-        app: <container-name>
-    spec:
-      containers:
-      - name: <container-name>
-        image: <container-image>
-        command: ["<startup-command>"]
-        resources:
-          requests:
-            memory: "100Mi"
-            cpu: "100m"
-          limits:
-            memory: "800Mi"
-            cpu: "500m"
-        ports:
-        - containerPort: <port>
-        livenessProbe:
-          exec:
-            command: ["/usr/bin/pgrep", "<main-process>"]
-          initialDelaySeconds: 60
-          periodSeconds: 30
-        readinessProbe:
-          exec:
-            command: ["/usr/bin/pgrep", "<main-process>"]
-          initialDelaySeconds: 30
-          periodSeconds: 15
-```
 
 #### Example: telemetry Container
 
