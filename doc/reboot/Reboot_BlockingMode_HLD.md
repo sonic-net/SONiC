@@ -63,9 +63,13 @@ It should be noted that when platform reboot is enabled, the blocking mode will 
 
 We don't want to make a break change to SONIC reboot command, so we introduce 2 options as the following for user to identify that we are trying to run on blocking-mode. Blocking-mode will be enable if any of the option is enabled.
 
-- Paramter: Use command optional parameter `-b` to enable blocking mode for reboot script. The whole command will looks like `reboot -b`.
+- Parameter: Use command optional parameter `-b` to enable blocking mode for reboot script. The whole command will looks like `reboot -b`.
 
 - Config file: The reboot script will check if the `blocking_mode` is enabled in `reboot.conf` config file. More details can be check in the [reboot.conf](#rebootconf) section.
+
+If the systemctl reboot failed, the deadloop might block the console thread. So we introduce the timeout config to exit when reboot takes too long. The command line don't needs this because user can manual use `Ctrl + C` to interrupt the script.
+
+- Config file: The reboot script will check the value of `blocking_mode_timeout` in `reboot.conf` config file. More details can be check in the [reboot.conf](#rebootconf) section.
 
 ### Running Output
 
@@ -96,12 +100,15 @@ The config file path is `/etc/sonic/reboot.conf`. Supported configs as following
 
 | Config | Value | Default | Description |
 |-|-|-|-|
-| blocking_mode | true/false | false | <li>Enable Blocking Mode for reboot command</li>  |
+| blocking_mode | true/false | false | Enable Blocking Mode for reboot command  |
+| blocking_mode_timeout | int (seconds) | 180 | The timeout for enable Blocking Mode. |
 | show_timer | true/false | false | <li>Must enable `blocking_mode` first.</li><li>Enable Runing Output for blocking mode.</li> |
+
 
 Example for `reboot.conf` content:
 ```
 blocking_mode=true
+blocking_mode_timeout=10
 show_timer=true
 ```
 
