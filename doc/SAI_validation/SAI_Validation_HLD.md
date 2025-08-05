@@ -48,8 +48,6 @@ Figure 2 illustrates the High-Level Design (HLD) of SAI Validation, which consis
 <img width="1590" height="1506" alt="sai_validation_hld" src="https://github.com/user-attachments/assets/95f21e17-79f9-4a11-95cf-00f608631cc3" />
 <p align="center"><em>Figure 2. SAI Validation HLD</em></p>
 
-![comparison](./sai_validation_comparison.png)
-
 #### 6.1 SAI Validation Design Features
 
 ##### 6.1.1 Single DUT Test Environment
