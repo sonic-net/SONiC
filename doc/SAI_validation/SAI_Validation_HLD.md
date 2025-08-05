@@ -25,7 +25,7 @@ The Switch Abstration Interface (SAI) defines a standardized API that decouples 
 
 To meet this demand, there is a desire for a unified, lightweight test platform to verify SAI functionality against ASIC behavior. There are existing tools to achieve this purpose, such as PTF and SAI Challenger. What we propose here is an even more lightweight tool that requires only a single switch, without additional RPC or RedisDB layers between the test code and the SAI APIs. Figure 1 highlights the difference between the proposed SAI validation and existing solutions — PTF and SAI Challenger.
 
-![Figure 1. Comparison of PTF, SAI Challenger and SAI Validation](./sai_validation_comparison.png)
+<img width="1770" height="1222" alt="sai_validation_comparison" src="https://github.com/user-attachments/assets/0153f7e4-6781-41e1-bf81-d01d5df70e04" />
 <p align="center"><em>Figure 1. Comparison of PTF, SAI Challenger and SAI Validation</em></p>
 
 ### 5. Requirement / Goals
@@ -45,7 +45,7 @@ Figure 2 illustrates the High-Level Design (HLD) of SAI Validation, which consis
 - PySAI: Accepts Python SAI API and sends C SAI API calls to the ASIC
 - Interaction: Provides interactive shell for debugging
 
-![Figure 2. SAI Validation HLD](./sai_validation_hld.png)
+<img width="1590" height="1506" alt="sai_validation_hld" src="https://github.com/user-attachments/assets/95f21e17-79f9-4a11-95cf-00f608631cc3" />
 <p align="center"><em>Figure 2. SAI Validation HLD</em></p>
 
 ![comparison](./sai_validation_comparison.png)
@@ -66,7 +66,7 @@ SAI Validation allows testing of notification functions such as sai_fdb_event_no
 
 #### 6.2 PySAI
 PySAI provides a concise set of Python APIs, which helps SAI Validaiton avoid invoking complicated SAI API in C
-![Figure 3. SAI Code VS PySAI Code](./pysai_code.png)
+<img width="2548" height="1028" alt="pysai_code" src="https://github.com/user-attachments/assets/d30b22cd-3168-4d85-8664-33e7ef28c490" />
 <p align="center"><em>Figure 4. SAI Code VS PySAI Code</em></p>
 
 
@@ -75,7 +75,7 @@ PySAI provides a concise set of Python APIs, which helps SAI Validaiton avoid in
 2. Documentation: yaml_doc.py serializes the parsed models into YAML files, which contain structured SAI API definition, with index.yml serving as an entry point for lookups and tool integration.
 3. Code Generation: Jinja2 template transforms the YAML data into Python class definitions and accessors that reflect the original SAI constructs. 
 
-![Figure 4. SAI Code VS PySAI Code](./pysai_code_gen.png)
+<img width="1540" height="592" alt="pysai_code_gen" src="https://github.com/user-attachments/assets/e2aa966f-4fa3-4318-81d4-3d636e4c3e78" />
 <p align="center"><em>Figure 4. PySAI Codegen Workflow</em></p>
 
 ### 7. Open/Action items
