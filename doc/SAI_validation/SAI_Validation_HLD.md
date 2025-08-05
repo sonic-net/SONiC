@@ -1,22 +1,5 @@
 # SAI Validation and PySAI HLD
 
-
-- [SAI Validation and PySAI HLD](#sai-validation-and-pysai-hld)
-    - [1. Revision](#1-revision)
-    - [2. Scope](#2-scope)
-    - [3. Definitions / Abbreviations](#3-definitions--abbreviations)
-    - [4. Overview](#4-overview)
-    - [5. Requirement / Goals](#5-requirement--goals)
-    - [6. High-Level Design](#6-high-level-design)
-      - [6.1. SAI Validation Design Features](#61-sai-validation-design-features)
-        - [6.1.1. Single DUT Test Environment](#611-single-dut-test-environment)
-        - [6.1.2. Performance Test Capability](#612-performance-test-capability)
-        - [6.1.3. Interactive Mode](#613-interactive-mode)
-        - [6.1.4. Record and Replay Functionality](#614-record-and-replay-functionality)
-        - [6.1.5. Support for Notification Callback Test](#615-support-for-notification-callback-test)
-      - [6.2. PySAI](#62-pysai)
-        - [6.2.1 PySAI Code-gen](#621-pysai-code-gen)
-    - [7. Open/Action items](#7-openaction-items)
 ### 1. Revision  
 
 | Revision | Date        | Author           | Change Description |
