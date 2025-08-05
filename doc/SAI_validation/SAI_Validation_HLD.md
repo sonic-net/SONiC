@@ -43,7 +43,7 @@ The Switch Abstration Interface (SAI) defines a standardized API that decouples 
 To meet this demand, there is a desire for a unified, lightweight test platform to verify SAI functionality against ASIC behavior. There are existing tools to achieve this purpose, such as PTF and SAI Challenger. What we propose here is an even more lightweight tool that requires only a single switch, without additional RPC or RedisDB layers between the test code and the SAI APIs. Figure 1 highlights the difference between the proposed SAI validation and existing solutions — PTF and SAI Challenger.
 
 <p align="center">
-  <img src="sai-validation-comparison.png" alt="Figure 1. Comparison of PTF, SAI Challenger and SAI Validation" width="600">
+  <img src="./sai_validation_comparison.png" alt="Figure 1. Comparison of PTF, SAI Challenger and SAI Validation" width="600">
   </p>
 <p align="center"><em>Figure 1. Comparison of PTF, SAI Challenger and SAI Validation</em></p>
 
@@ -65,7 +65,7 @@ Figure 2 illustrates the High-Level Design (HLD) of SAI Validation, which consis
 - Interaction: Provides interactive shell for debugging
 
 <p align="center">
-  <img src="sai-validation-hld.png" alt="Figure 2. SAI Validation HLD" width="600">
+  <img src="./sai_validation_hld.png" alt="Figure 2. SAI Validation HLD" width="600">
   </p>
 <p align="center"><em>Figure 2. SAI Validation HLD</em></p>
 
@@ -88,7 +88,7 @@ SAI Validation allows testing of notification functions such as sai_fdb_event_no
 #### 6.2 PySAI
 PySAI provides a concise set of Python APIs, which helps SAI Validaiton avoid invoking complicated SAI API in C
 <p align="center">
-  <img src="pysai_code.png" alt="Figure 3. SAI Code VS PySAI Code" width="600">
+  <img src="./pysai_code.png" alt="Figure 3. SAI Code VS PySAI Code" width="600">
   </p>
 <p align="center"><em>Figure 3. SAI Code VS PySAI Code</em></p>
 
@@ -98,7 +98,7 @@ PySAI provides a concise set of Python APIs, which helps SAI Validaiton avoid in
 3. Code Generation: Jinja2 template transforms the YAML data into Python class definitions and accessors that reflect the original SAI constructs. 
 
 <p align="center">
-  <img src="pysai_code_gen.png" alt="Figure 4. PySAI Codegen Workflow" width="600">
+  <img src="./pysai_code_gen.png" alt="Figure 4. PySAI Codegen Workflow" width="600">
   </p>
 <p align="center"><em>Figure 4. PySAI Codegen Workflow</em></p>
 
