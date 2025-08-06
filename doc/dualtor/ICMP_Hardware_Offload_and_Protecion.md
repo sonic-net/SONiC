@@ -74,6 +74,9 @@ LinkMgrd is the central component that runs in MUX docker and is responsible for
    * Consume ICMP echo session state from State DB produced by Orchagent and update mux state.
    * Create two hardware sessions per mux port / interface one for self and another one to monitor the peer replies.
    * Generate and handle ICMP packets with TLVs in software.
+   * Support dual timer configuration (self_interval and peer_interval) for asymmetric timing control.
+   * Eliminate deadline timer for hardware prober due to low timer values which would otherwise wake up the thread unnecessarily too often, improving overall performance.
+   * Maintain hybrid processing with hardware offload for regular ICMP packets and software processing for TLV packets.
 
 Following diagram shows the hardware ICMP echo sessions between the TORs and Server.
 <div align="center"> <img src=image/hw_icmp_echo_sessions.png width=600 /> </div>
@@ -98,6 +101,14 @@ Following diagram describes high level interaction of components in SONiC.
 ### LinkMgrd
 With introduction of ICMP hardware offload a new config knob **[prober_type]** is added to differentiate between software and hardware based link probing. When hardware prober is configued LinkMgrd will create the offload session based on capability of the platform. Hardware based Link Prober is added in LinkMgrd to support hardware based probing that produces the ICMP echo sessions entries in App DB ICMP_ECHO_SESSION_TABLE that gets consumed by orchagent. LinkMgrd will consume icmp echo session entries from State DB ICMP_ECHO_SESSION_TABLE to determine the hardware prober state and trigger events for Link state machines.
 
+**Key LinkMgrd Changes for Hardware Offload:**
+
+* **Dual Timer Support:** LinkMgrd now supports separate timer configurations (self_interval and peer_interval) that allow asymmetric timing for self-generated ICMP packets versus peer monitoring
+* **Deadline Timer Elimination:** When operating in hardware mode, LinkMgrd eliminates the deadline timer mechanism due to the low timer values (3ms) which would otherwise cause excessive thread wake-ups, negatively impacting system performance
+* **Hybrid Processing Model:** LinkMgrd maintains a hybrid approach where regular ICMP packets are offloaded to hardware while TLV packets are processed by a dedicated software thread
+* **Enhanced Session Management:** LinkMgrd creates and manages both NORMAL sessions (for sending ICMP requests) and RX sessions (for monitoring peer responses) with different timer configurations
+* **Hardware Capability Detection:** LinkMgrd detects platform hardware offload capabilities before creating hardware sessions, falling back to software mode if hardware support is unavailable
+
 #### Session cookie
 Session cookie is used by NPU to distinguish between software ICMP packets and ICMP packets that needs to be handled by the offload engine in NPU. LinkMgrd will use separate cookies for software and hardware based sessions.
 
@@ -111,12 +122,28 @@ Hardware Link prober needs to know the peer session GUID to set the peer session
 
 #### Timer considerations
 * **Minimum timer value:** Minimum allowed timer value for software session will be set to 100 msec and for hardware session will be 3 msec.
+
+* **Dual Timer Configuration:** With ICMP hardware offload, linkmgrd introduces two separate timer configurations:
+    * **self_interval:** Timer value for ICMP echo requests sent by the local ToR to monitor its own link state
+    * **peer_interval:** Timer value for monitoring ICMP echo replies received from the peer ToR
+    * This dual timer approach allows for asymmetric timing configurations where self and peer monitoring can operate at different intervals based on network requirements
+
+* **Deadline Timer Elimination:** When prober_type is set to "hardware", the traditional deadline timer mechanism in linkmgr is eliminated due to the low timer values (3ms minimum) which would otherwise cause the thread to wake up unnecessarily too often, leading to performance degradation. Hardware-based ICMP processing provides deterministic timing guarantees, making software-based deadline timers redundant.
+
+* **TLV Packet Processing:** While regular ICMP packets are processed in hardware, TLV (Type-Length-Value) packets continue to be processed in software by a separate thread. This ensures that control plane messages embedded in TLV payloads are properly handled by linkmgrd even when hardware offload is enabled.
+
 * **ICMP echo session tx_interval setting:**
-    * tx_interval = probing interval
-    * Positive probing timer value = probing interval x positive signal count.
+    * tx_interval = probing_interval (no self_interval configured)
+    * tx_interval = self_interval (probing_interval setting is overriden when self_interval is configured)
+    * For peer monitoring sessions: tx_interval set to 0 (RX only mode)
+    * Positive probing timer value = tx_interval x positive signal count.
     * LinkMgrd will start positive probing timer after receiving the first UP state notification for a session from State DB and link prober will continue to remain in unknown state until the expiry of this positive timer at which it will transition the Link prober to Active state.
+
 * **ICMP echo session rx_interval setting:**
-    * rx_interval = probing interval x negative signal count.
+    * Self session rx_interval = probing_interval x negative signal count (when self_interval not configured)
+    * Self session rx_interval = self_interval x negative signal count (when self_interval is configured)
+    * Peer monitoring session: rx_interval = probing_interval x negative signal count (when peer_interval not configured)
+    * Peer monitoring session: rx_interval = peer_interval x negative signal count (when peer_interval configured)
     * LinkMgrd will directly transition the link prober to unknown state avoiding the negative probing timer as opposed to what was done in case of software probing.
 
 #### Link Prober State transitions
@@ -155,16 +182,32 @@ A new knob will be added in MUX_LINKMGR|LINK_PROBER to distinguish between hardw
     * software : create software based icmp echo session. This is default value.
     * hardware : create hardware based icmp echo session.
 
+Additionally, two new timer configuration fields are introduced in the MUX_CABLE table to support dual timer functionality:
+  * **self_interval:** Timer interval in milliseconds for ICMP echo requests sent by the local ToR (default: 100ms for software, 3ms for hardware)
+  * **peer_interval:** Timer interval in milliseconds for monitoring ICMP echo replies from peer ToR (default: 100ms for software, 3ms for hardware)
+
 ```
 {
     "MUX_CABLE": {
-        "Ethernet4": {
+        "Ethernet0": {
 	    "cable_type": "active-active",
             "server_ipv4": "192.168.0.2/32",
-            "server_ipv6": "fc02:1000::30/128",
+            "server_ipv6": "fc02:1000::2/128",
             "soc_ipv4": "192.168.0.3/32",
             "state": "auto",
-            "prober_type": "software/hardware",
+            "prober_type": "hardware",
+            "self_interval": "3",
+            "peer_interval": "5"
+        },
+        "Ethernet8": {
+	    "cable_type": "active-active",
+            "server_ipv4": "192.168.0.4/32",
+            "server_ipv6": "fc02:1000::4/128",
+            "soc_ipv4": "192.168.0.5/32",
+            "state": "auto",
+            "prober_type": "hardware",
+            "self_interval": "4",
+            "peer_interval": "6"
         }
     }
 }
@@ -250,10 +293,10 @@ $ show mux config
 SWITCH_NAME    PEER_TOR
 -------------  ----------
 tor40-2        10.1.0.33
-port         state    ipv4             ipv6               cable_type     soc_ipv4         soc_ipv6    prober_type
------------  -------  ---------------  -----------------  -------------  ---------------  ----------  -------------
-Ethernet0    auto     192.168.0.2/32   fc02:1000::2/128   active-active  192.168.0.3/32               hardware
-Ethernet8    auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32               hardware
+port         state    ipv4             ipv6               cable_type     soc_ipv4         soc_ipv6    prober_type   self_interval  peer_interval
+-----------  -------  ---------------  -----------------  -------------  ---------------  ----------  ------------  -------------  -------------
+Ethernet0    auto     192.168.0.2/32   fc02:1000::2/128   active-active  192.168.0.3/32               hardware      3ms            5ms
+Ethernet8    auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32               hardware      4ms            6ms
 ```
 
 **New CLI to show hardware icmp sessions**
