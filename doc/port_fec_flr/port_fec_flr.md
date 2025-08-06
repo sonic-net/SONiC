@@ -17,6 +17,7 @@
   - [4.5 Observed FEC FLR](#45-observed-fec-flr)
   - [4.6 Predicted FEC FLR](#46-predicted-fec-flr)
 - [5 Sample output](#5-sample-output)
+- [6 Acknowledgements](#6-Acknowledgements)
 
 ### Revision
 
@@ -27,7 +28,7 @@
 
 ### Scope
 
-This document provides information about the implementation of Port Forward Error Correction (FEC) Frame Loss Ratio (FLR) support in SONiC.
+This document describes the implementation of Port Forward Error Correction (FEC) Frame Loss Ratio (FLR) support in SONiC.
 
 ### Definitions/Abbreviations
 
@@ -47,16 +48,19 @@ Based on the Forward Error Correction (FEC) data, receiver device can compute an
 
 ## 2 Requirements
 ### 2.1 Functional Requirements
-  This HLD is to
-  - Calculate the FEC FLR at an interval 120 secs.
-  - Add FEC FLR per interface into Redis DB for telemetry streaming.
-  - Enhance the current "show interfaces counters fec-stats" to include FEC FLR statistics as a new column.
+  This HLD introduces the following enhancements:
+  - Calculation of FEC FLR at a configurable interval.
+  - Storing per-interface FEC FLR in the Redis DB for telemetry streaming.
+  - Enhancement of the `show interfaces counters fec-stats` CLI to include FEC FLR statistics.
 
 ### 2.2 CLI Requirements
 
-The existing "show interfaces counters fec-stats" will be enhanced to include FEC FLR columns.
- - FEC_FLR
- - FEC_FLR_PREDICTED
+ * The existing `show interfaces counters fec-stats` command will be enhanced to include the following FEC FLR columns:
+   - FEC_FLR
+   - FEC_FLR_PREDICTED
+ * A new `counterpoll port` sub-command will be introduced to configure FEC FLR interval factor:
+   - `counterpoll port fec-flr-interval-factor FEC_FLR_INTERVAL_FACTOR`
+     - The default value of FEC_FLR_INTERVAL_FACTOR will be 120.
 
 ## 3 Architecture Design
 
@@ -65,20 +69,54 @@ There are no changes to the current SONiC Architecture.
 ## 4 High-Level Design
 
  * SWSS changes:
-   + port_rates.lua
 
-      Enhance to collect and compute the FEC FLR on each port at an interval of 120 secs.
+   + port_flr.lua
 
-     - Access the COUNTER_DB for already available counters for SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES, SAI_PORT_STAT_IF_IN_FEC_CORRECTABLE_FRAMES,
-       and SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si representing codewords with i symbol errors where i ranges from 0 to 15 in case of RS-544 FEC.
-     - Store the computed FEC FLR (observed and predicted) and previous redis counter values back to the redis DB.
+     This new lua script will
+       - Access the COUNTER_DB for already available counters for SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES, SAI_PORT_STAT_IF_IN_FEC_CORRECTABLE_FRAMES,
+         and SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si representing codewords with i symbol errors where i ranges from 0 to 15 in case of RS-544 FEC.
+       - Compute both observed and predicted FEC FLR per port.
+       - Store the computed FEC FLR values and the previous Redis counter values back into the Redis DB.
+       - Perform the FEC FLR computation on each port once every `port_stat POLL_INTERVAL * FEC_FLR_INTERVAL_FACTOR` seconds, where FEC_FLR_INTERVAL_FACTOR is retrieved from the FLEX_COUNTER_DB.
+
+   + portsorch.cpp
+     - Link the new "port_flr.lua" script as a plugin to the existing PORT_STAT_COUNTER_FLEX_COUNTER_GROUP, alongside "port_rates.lua".
+
+   + flexcounterorch.cpp
+     - Enhance "FlexCounterOrch" to propagate FEC_FLR_INTERVAL_FACTOR from CONFIG_DB to FLEX_COUNTER_DB.
 
  * Utilities Common changes:
 
    + portstat.py:
+     - Enhance the `portstat` command with the `-f` option (used by the CLI command `show interfaces counters fec-stats`) to include the FEC_FLR and FEC_FLR_PREDICTED columns.
 
-     The portstat command with -f, representing the cli "show interfaces counters fec-stats" will be enhanced to add FEC_FLR and FEC_FLR_PREDICTED columns.
+   + counterpoll/main.py:
+     - Add a new argument `fec-flr-interval-factor` to the exisiting `counterpoll port` command.
 
+     ```
+     root@sonic:~$ counterpoll port --help
+     Usage: counterpoll port [OPTIONS] COMMAND [ARGS]...
+
+       Port counter commands
+
+     Options:
+       --help  Show this message and exit.
+
+     Commands:
+       disable                  Disable port counter query
+       enable                   Enable port counter query
+       interval                 Set port counter query interval
+       fec-flr-interval-factor  Set port fec flr interval factor
+
+
+     root@sonic:~$ counterpoll port fec-flr-interval-factor --help
+     Usage: counterpoll port fec-flr-interval-factor [OPTIONS] FEC_FLR_INTERVAL_FACTOR
+
+       Set port fec flr interval factor
+
+     Options:
+       --help  Show this message and exit.
+     ```
 
 ### 4.1 Assumptions
 
@@ -119,14 +157,24 @@ For X=1 (no interleaving), FEC_FLR = 1.125 * CER <br>
 For X=2, FEC_FLR = 2.125 * CER <br>
 For X=4, FEC_FLR = 4.125 * CER
 
-By default we consider "no interleaving" and thus FEC FLR will be computed as "1.125 * CER".
+To include the interleaving factor in the FEC FLR computation, a new SAI port attribute will be required to retrieve the underlying port interleaving factor.
+Until such an attribute is available, the interleaving factor can be derived based on the following port speed to interleaving factor mapping:
 
-To include the interleaving factor in FEC FLR computation, a new SAI port attribute will be needed to retrieve the underlying interleaving factor.
+| Port Speed | No. of lanes | FEC interleaving factor(X) |
+|------------|--------------|----------------------------|
+|      1600G |            8 |                          4 |
+|       800G |            8 |                          4 |
+|       400G |            8 |                          2 |
+|       400G |            4 |                          2 |
+|       200G |            4 |                          2 |
+|       200G |            2 |                          2 |
+|       100G |            2 |                          2 |
+|       100G |            1 |    1 or 2 (autonegotiated) |
 
 ### 4.5 Observed FEC FLR
 
 ```
-Step 1: calculate observed CER per poll interval
+Step 1: calculate observed CER per interval
     Observed CER is expressed as, CER = Uncorrectable FEC codewords / Total FEC codewords Received, which can be expanded to
 
     CER = Uncorrectable FEC codewords / (Uncorrectable FEC codewords + Codewords with no symbol errors + Correctable FEC codewords)
@@ -156,7 +204,8 @@ Step 1: Prepare codeword error index vector (x)
 
     where, max_correctable_cw_symbol_errors = 15 in case of RS-544
 
-    For each index i in vector x, codeword_errors[i] represents number of codewords with i symbol errors i.e SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si.
+    For each index i in vector x, codeword_errors[i] represents number of codewords with i symbol errors in the current interval
+    i.e SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si - SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si_last.
 
 
 Step 2: Compute logarithm codeword error ratio vector (y)
@@ -167,7 +216,7 @@ Step 2: Compute logarithm codeword error ratio vector (y)
     For each index i in vector x, compute logarithm of codeword error ratio y[i] as follows
 
     y[i] = log10( codeword_errors[i] / total_codewords )
-    where, total_codewords is total number of codewords i.e Σ from i=0 to 15 of SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si
+    where, total_codewords is total number of codewords i.e Σ from i=0 to 15 of (SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si - SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si_last)
 
 
 Step 3: Perform linear regresion to arrive at slope and intercept
@@ -196,31 +245,28 @@ Step 5: Compute FLR from extrapolated CER by considering interleaving factor
 Step 6: Store FEC_FLR_PREDICTED in the COUNTER_DB:RATES table
 ```
 
-## 5 Sample Output
+## 5 Sample CLI Output
 ```
-admin@qsd220:~$ portstat -f
+root@sonic:~$ portstat -f
       IFACE    STATE    FEC_CORR    FEC_UNCORR    FEC_SYMBOL_ERR    FEC_PRE_BER    FEC_POST_BER    FEC_FLR    FEC_FLR_PREDICTED
 -----------  -------  ----------  ------------  ----------------  -------------  --------------  ---------  -------------------
-  Ethernet0        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
-  Ethernet8        U           0             0                 0    0.00e+00       0.00e+00	  0.00e+00             0.00e+00
- Ethernet16        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet24        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet32        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet40        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet48        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet56        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet64        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet72        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet80        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet88        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
- Ethernet96        U           0             0                 0    0.00e+00       0.00e+00       0.00e+00             0.00e+00
+  Ethernet0        U           0             0                 0       0.00e+00        0.00e+00          0                    0
+  Ethernet8        U           0             0                 0       0.00e+00        0.00e+00          0                    0
+ Ethernet16        X           0             0                 0       0.00e+00        0.00e+00          0                    0
+ Ethernet24        X           0             0                 0       0.00e+00        0.00e+00          0                    0
+ Ethernet32        U           0             0                 0       0.00e+00        0.00e+00          0                    0
+ Ethernet40        D          21             0                 0       0.00e+00        0.00e+00          0                    0
+ Ethernet48        X           0             0                 0       0.00e+00        0.00e+00          0                    0
+ Ethernet56        X           0             0                 0       0.00e+00        0.00e+00          0                    0
+ Ethernet64        U       1,334             0                 4       0.00e+00        0.00e+00          0                    0
+ Ethernet72        U      28,531             0                31       0.00e+00        0.00e+00          0             2.68e-09
+ Ethernet80        U      25,890             0                25       0.00e+00        0.00e+00          0             6.03e-09
+ Ethernet88        U      21,909             0                49       0.00e+00        0.00e+00          0                    0
+ Ethernet96        U       5,635             0                 8       0.00e+00        0.00e+00          0                    0
+Ethernet104        U      21,141             0                 7       0.00e+00        0.00e+00          0             7.08e-09
 ```
 
-In case FEC is not supported, FEC_FLR and FEC_FLR_PREDICTED fields will display "N/A" in the corresponding entry.
+If FEC is not supported for an interface, the FEC_FLR and FEC_FLR_PREDICTED fields will display `N/A` for the corresponding entry. If there is insufficient data to compute the FEC FLR (e.g., when the link is performing well), these fields will display `0` (note that `0` is shown instead of `0.00e+00` for better readability).
 
-## 6 Unit Test cases
-
-## 7 System Test cases
-
-## 8 Open/Action items - if any
-
+## 6 Acknowledgements
+Thanks to Prince and Cameron from Microsoft for sharing the details of the predicted FEC FLR algorithm and the mapping of port speed to interleaving factor.
