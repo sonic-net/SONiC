@@ -42,6 +42,7 @@ This document provides the high level design of SONiC dual toR solution, support
   - [3.4 Orchagent](#34-orchagent)
     - [3.4.1 IPinIP tunnel](#341-ipinip-tunnel)
     - [3.4.2 Flow Diagram and Orch Components](#342-flow-diagram-and-orch-components)
+    - [3.4.3 Neighborch Prefix-Based Neighbors](#343-neighborch-prefix-based-neighbors)
   - [3.5 Transceiver Daemon](#35-transceiver-daemon)
     - [3.5.1 Cable Control through gRPC](#351-cable-control-through-grpc)
   - [3.6 State Transition Flow](#36-state-transition-flow)
@@ -428,6 +429,36 @@ TunnelOrch will subscribe to `MUX_TUNNEL` table and create tunnel, tunnel termin
 MuxOrch will listen to state changes from linkmgrd and does the following at a high-level:
     * Enable / disable neighbor entry.   
     * Add / remove tunnel routes.
+
+#### 3.4.3 Neighborch Prefix-Based Neighbors
+The Neighborch component has been modified to use prefix-based neighbors for mux port neighbors using the SAI attribute `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE`. This optimization eliminates the need to add/remove neighbor entries during mux state transitions.
+
+**Key Changes:**
+* **Prefix-based neighbor creation**: When creating neighbors for mux ports, Neighborch now uses the `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE` attribute to create prefix-based neighbors instead of traditional host-based neighbors.
+* **Simplified state transitions**: Switching between active and standby states now only involves updating the neighbor prefix route's nexthop, rather than adding/removing entire neighbor entries.
+* **Performance improvement**: This approach reduces the overhead during mux state transitions by avoiding neighbor entry manipulation.
+
+**Prefix-Based Neighbor Architecture:**
+In the traditional approach, adding a neighbor involved creating a SAI neighbor and a nexthop, which implicitly creates a host route (/32 for IPv4, /128 for IPv6) in the SDK that points directly to the neighbor nexthop. With prefix-based neighbors:
+
+* **Neighbor Entry**: The neighbor entry is created with `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE=true`, which prevents automatic host route creation.
+* **Separate Prefix Route**: A separate /32 (IPv4) or /128 (IPv6) prefix route is explicitly created that points to the neighbor as its nexthop.
+* **Nexthop Flexibility**: The prefix route's nexthop can be dynamically updated between:
+  - **Direct neighbor nexthop**: Points directly to the neighbor entry (active state)
+  - **Tunnel nexthop**: Points to the IPinIP tunnel nexthop (standby state)
+
+**Implementation Details:**
+* When a mux port neighbor is created, the `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE` attribute is set to prevent automatic host route creation.
+* A corresponding prefix route (server_ip/32 or server_ipv6/128) is created separately with the neighbor as the initial nexthop.
+* **During active to standby transition**: The prefix route's nexthop is updated from the direct neighbor nexthop to the tunnel nexthop, redirecting traffic through the IPinIP tunnel to the peer ToR.
+* **During standby to active transition**: The prefix route's nexthop is updated from the tunnel nexthop back to the direct neighbor nexthop, allowing direct traffic forwarding to the server.
+* The neighbor entry itself remains persistent throughout state transitions, improving stability and performance.
+
+**Traffic Forwarding Behavior:**
+* **Active State**: Server traffic flows: `Incoming packet → Prefix route lookup → Direct neighbor nexthop → Server`
+* **Standby State**: Server traffic flows: `Incoming packet → Prefix route lookup → Tunnel nexthop → IPinIP tunnel → Peer ToR → Server`
+
+This optimization maintains the same traffic forwarding behavior while significantly reducing the complexity and overhead of mux state transitions by eliminating the need for neighbor entry add/remove operations.
 
 ### 3.5 Transceiver Daemon
 #### 3.5.1 Cable Control through gRPC  
