@@ -23,7 +23,7 @@ Currently the reboot script uses linux command `systemctl reboot` to reboot the 
 
 As the result, the output from user batch side will be unpredictable. It displays as 2 kinds of behavior randomly:
 
-- [A] The user bash stopped by systemd before `systemctl reboot` returns. Then the automation system will see extra user prompt. The time sequence is as following:
+- [A] The user bash stopped by systemd after `systemctl reboot` returns. Then the automation system will see extra user prompt. The time sequence is as following:
 
 ![MAN Reboot](./img/background-A.png)
 
@@ -38,7 +38,7 @@ admin@sonic:~$ Connection to 10.150.22.134 closed by remote host.
 Connection to 10.150.22.134 closed.
 ```
 
-- [B] The user bash stopped by systemd after `systemctl reboot` returns. Then the automation system will not see extra user prompt. The time sequence is as following:
+- [B] The user bash stopped by systemd before `systemctl reboot` returns. Then the automation system will not see extra user prompt. The time sequence is as following:
 
 ![MAN Reboot](./img/background-B.png)
 
