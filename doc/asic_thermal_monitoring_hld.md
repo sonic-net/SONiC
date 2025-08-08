@@ -8,6 +8,8 @@ Rev | Rev	Date	| Author	| Change Description
 |v0.1 |01/10/2019  |Padmanabhan Narayanan | Initial version
 |v0.2 |10/07/2020  |Padmanabhan Narayanan | Update based on review comments and addess Multi ASIC scenario.
 |v0.3 |10/15/2020  |Padmanabhan Narayanan | Update Section 6.3 to indicate no change in thermalctld or Platform API definitions.
+|v0.4 |10/29/2024  |Judy Joseph | Add section 6.3.1 to propose a way to generate the asic_sensor config in DB
+
 
 ## 2. Scope
 ASICs typically have multiple internal thermal sensors. This document describes the high level design of a poller for ASIC thermal sensors. It details how the poller may be configured and the export of thermal values from SAI to the state DB.
@@ -112,6 +114,18 @@ where ASIC0, ASIC1 and ASIC2 have N0, N1 and N2 internal sensors respectively.
 The implementation of the APIs get_high_threshold(), get_low_threshold(), get_high_critical_threshold(), get_name(), get_presence() etc.. are platform (ASIC) specific. The get_temperature() should retrieve the temperature from the ASIC_TEMPERATURE_INFO table of the stateDB from the concerned ASIC's DB instance (which is populated by the SwitchOrch poller as described [above](#62-switchorch-changes)).
 
 The thermalctld's TemperatureUpdater::_refresh_temperature_status() retreives the temperatures of the ASIC internal sensors from the get_temperature() API - just as it would for any external sensor. Only that in the case of ASIC internal sensors, the get_temperature() API is going to retrieve and return the value from from ASIC_TEMPERATURE_INFO table. The thermalctld also updates these values to the TEMPERATURE_INFO table in the globalDB's stateDB. Thus, there is no change in the existing thermalctld infrastructure.
+
+#### 6.3.1 Generate the config in the config_db
+
+Platform owners can define the following in the respective platform.json file, which could be parsed during config load_minigraph/reload to push the ASIC_SENSORS ConfigDB table entry in the DB
+
+```
+    "asic_sensors": {
+        "poll_interval": "10",
+        "poll_admin_status": "enable"
+    }
+```
+
 
 ## 7 Virtual Switch
 
