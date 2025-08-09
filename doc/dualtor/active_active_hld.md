@@ -42,7 +42,7 @@ This document provides the high level design of SONiC dual toR solution, support
   - [3.4 Orchagent](#34-orchagent)
     - [3.4.1 IPinIP tunnel](#341-ipinip-tunnel)
     - [3.4.2 Flow Diagram and Orch Components](#342-flow-diagram-and-orch-components)
-    - [3.4.3 Neighborch Prefix-Based Neighbors](#343-neighborch-prefix-based-neighbors)
+    - [3.4.3 Prefix Based Neighbor Architecture](#343-prefix-based-neighbor-architecture)
   - [3.5 Transceiver Daemon](#35-transceiver-daemon)
     - [3.5.1 Cable Control through gRPC](#351-cable-control-through-grpc)
   - [3.6 State Transition Flow](#36-state-transition-flow)
@@ -427,18 +427,9 @@ TunnelOrch will subscribe to `MUX_TUNNEL` table and create tunnel, tunnel termin
 
 1. MuxOrch   
 MuxOrch will listen to state changes from linkmgrd and does the following at a high-level:
-    * Enable / disable neighbor entry.   
-    * Add / remove tunnel routes.
+    * Update neighbor prefix routes with neighbor nexthop or tunnel nexthop.   
 
-#### 3.4.3 Neighborch Prefix-Based Neighbors
-The Neighborch component has been modified to use prefix-based neighbors for mux port neighbors using the SAI attribute `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE`. This optimization eliminates the need to add/remove neighbor entries during mux state transitions.
-
-**Key Changes:**
-* **Prefix-based neighbor creation**: When creating neighbors for mux ports, Neighborch now uses the `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE` attribute to create prefix-based neighbors instead of traditional host-based neighbors.
-* **Simplified state transitions**: Switching between active and standby states now only involves updating the neighbor prefix route's nexthop, rather than adding/removing entire neighbor entries.
-* **Performance improvement**: This approach reduces the overhead during mux state transitions by avoiding neighbor entry manipulation.
-
-**Prefix-Based Neighbor Architecture:**
+#### 3.4.3 Prefix Based Neighbor Architecture
 In the traditional approach, adding a neighbor involved creating a SAI neighbor and a nexthop, which implicitly creates a host route (/32 for IPv4, /128 for IPv6) in the SDK that points directly to the neighbor nexthop. With prefix-based neighbors:
 
 * **Neighbor Entry**: The neighbor entry is created with `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE=true`, which prevents automatic host route creation.
