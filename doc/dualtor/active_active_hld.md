@@ -427,16 +427,7 @@ TunnelOrch will subscribe to `MUX_TUNNEL` table and create tunnel, tunnel termin
 
 1. MuxOrch   
 MuxOrch will listen to state changes from linkmgrd and does the following at a high-level:
-    * Enable / disable neighbor entry.   
-    * Add / remove tunnel routes.
-
-#### 3.4.3 Neighborch Prefix-Based Neighbors
-The Neighborch component has been modified to use prefix-based neighbors for mux port neighbors using the SAI attribute `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE`. This optimization eliminates the need to add/remove neighbor entries during mux state transitions.
-
-**Key Changes:**
-* **Prefix-based neighbor creation**: When creating neighbors for mux ports, Neighborch now uses the `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE` attribute to create prefix-based neighbors instead of traditional host-based neighbors.
-* **Simplified state transitions**: Switching between active and standby states now only involves updating the neighbor prefix route's nexthop, rather than adding/removing entire neighbor entries.
-* **Performance improvement**: This approach reduces the overhead during mux state transitions by avoiding neighbor entry manipulation.
+    * Update neighbor prefix routes with neighbor nexthop or tunnel nexthop.   
 
 **Prefix-Based Neighbor Architecture:**
 In the traditional approach, adding a neighbor involved creating a SAI neighbor and a nexthop, which implicitly creates a host route (/32 for IPv4, /128 for IPv6) in the SDK that points directly to the neighbor nexthop. With prefix-based neighbors:
