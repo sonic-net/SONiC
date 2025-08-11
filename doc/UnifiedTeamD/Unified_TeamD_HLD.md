@@ -5,16 +5,16 @@
 # Revision
 | Rev |     Date    |         Author               |          Change Description      |
 |:---:|:-----------:|:----------------------------:|:--------------------------------:|
-| 1.0 | 09/05/2025  | Praveen HM, Ashutosh Agrawal | Initial Version                  |
-
+| 1.0 | 21/07/2025  | Praveen HM, Venkata Gouri Rajesh Etla, Ashutosh Agrawal                  | Initial Version                  |
+                                                            
 ## Table of Contents
 
 - [Unified Teamd Process for PortChannels](#unified-teamd-process-for-portchannels)
 - [High Level Design Document](#high-level-design-document)
 - [Revision](#revision)
-  - [Table of Contents](#table-of-contents)
-  - [Scope](#scope)
-  - [Definitions](#definitions)
+- [Table of Contents](#table-of-contents)
+- [Scope](#scope)
+- [Definitions](#definitions)
 - [Overview](#overview)
   - [Teamd](#teamd)
   - [Current Design](#current-design)
@@ -22,11 +22,15 @@
   - [Requirements](#requirements)
 - [Detailed Design](#detailed-design)
   - [Architecture Overview](#architecture-overview)
+  - [Warmboot](#warmboot)
   - [TeamD](#teamd-1)
   - [Libteam](#libteam)
+  - [FD Optimization and Wheel Timers](#fd-optimization-and-wheel-timers)
+    - [Overview: What Is a Wheel Timer?](#overview-what-is-a-wheel-timer)
+    - [Key Components of a Wheel Timer](#key-components-of-a-wheel-timer)
   - [Teamd Config Manager](#teamd-config-manager)
   - [Teamsyncd](#teamsyncd)
-  - [tlm\_teamd](#tlm_teamd)
+  - [tlm_teamd](#tlm_teamd)
   - [Interaction Flow](#interaction-flow)
     - [Portchannel Add/Del Configuration Flow](#portchannel-adddel-configuration-flow)
     - [Portchannel Member Add/Del Configuration Flow](#portchannel-member-adddel-configuration-flow)
@@ -37,6 +41,7 @@
       - [Config DB](#config-db)
       - [CLI](#cli)
       - [YANG](#yang)
+- [Performance numbers](#performance-numbers)
 - [Testing](#testing)
   - [Test Cases](#test-cases)
 - [References](#references)
@@ -50,7 +55,6 @@ This document describes the high-level design for optimizing the teamd implement
 - **TEAMD**: Team Daemon, a user-space application part of the Libteam project that manages network interface bonding.
 - **LAG**: Link Aggregation Group, a method of combining multiple physical network connections into a single logical link.
 - **LACP**: Link Aggregation Control Protocol, a protocol that controls the bundling of several physical ports to form a single logical channel.
-- **AVL**: Adelson-Velsky and Landis, a self-balancing binary search tree used for efficient data management.
 - **IPC**: Inter-Process Communication, methods for the exchange of data between multiple threads in one or more processes.
 
 # Overview
@@ -124,26 +128,30 @@ The new architecture implements a single teamd process that manages multiple por
 The redesigned architecture focuses on improving resource efficiency and scalability through the following mechanisms:
 
 - A single teamd process will manage all PortChannels, replacing the need for multiple per-instance processes.
-- An AVL tree data structure will be used internally to enable fast and efficient lookups, insertions, and deletions.
+- A Hash table will be used internally to enable fast and efficient lookups, insertions, and deletions.
 - Shared resources such as netlink sockets will be reused across all managed PortChannels to reduce system overhead.
 - Configuration updates from teammgrd will be handled via IPC messages.
-- A new CLI command will be added to notify teamd to operate in multi-process (legacy) mode 
+- A new CLI command will be added to notify teamd to operate in multi-process (legacy) mode
+- The file descriptor usage will be optimized by implementing wheel timers and using global pipe instead of per portchannel pipe.
+
+## Warmboot
+The existing warmboot behavior continues to be supported, and no explicit changes are required to enable warmboot with this enhancement.
 
 ## TeamD
-teamd shall support both unified and multi-process (legacy) operation modes. Upon startup, teammgrd determines the current mode of operation. If the mode is unified, teammgrd launches a single teamd instance using the following command:
+teamd shall support both unified and multi-process (legacy) operation modes. Upon startup, teammgrd determines the current mode of operation. If the mode is not set, teammgrd launches a single teamd instance using the following command:
 ```
 /usr/bin/teamd -t teamd-unified -L /var/warmboot/teamd/ -g -d
 ```
 In multi-process mode (the legacy behavior), teammgrd will spawn a separate teamd process for each PortChannel as they are created.
 
-Refer section <PHM> for more details on how to set the mode.
+Refer section [teamd operating mode](#teamd-operating-mode) for more details on how to set the mode.
 
 During initialization, 
 - The -t option and the argument to it is used to differentiate between single-process and multi-process modes of operation.
 - When -t option with value "teamd-unified" is specified, the process runs in single-process mode, managing multiple PortChannels within a single teamd instance.
 - When -t option with value "portdevname" is provided (e.g., -t PortChannel01), it runs in multi-process mode, where each PortChannel is managed by its own separate teamd process.
 
-- A new global_context structure will be defined to store global configuration and state relevant to the entire teamd process. It maintains an AVL tree data structure for efficiently managing and accessing multiple team devices (portchannels).
+- A new global_context structure will be defined to store global configuration and state relevant to the entire teamd process. It maintains a Hash table for efficiently managing and accessing multiple team devices (portchannels).
 - Common netlink sockets are created to handle all interface events from kernel.
 - A single event loop will be defined to handle kernel events for all portchannels.
 - A new unix socket is created for IPC communication with teammgrd and tlm_teamd. 
@@ -154,7 +162,7 @@ Once initialized, teamd can dynamically manage port channels based on configurat
 
 When the system starts, teamd operates in the new design where it runs in single-process mode and manages all PortChannels through IPC. To downgrade to the legacy design, the mode must be explicitly set to "multi-process" and the Docker container must be restarted. Similarly, to upgrade back to the new design, the "multi-process" mode configuration should be removed, followed by a Docker restart. Therefore, the mode setting must be correctly configured before restarting the container to ensure the system comes up in the desired operation mode.
 
-Refer section <PHM> for more details on how to set the mode.
+Refer section [teamd operating mode](#teamd-operating-mode) for more details on how to set the mode.
 
 ## Libteam
 
@@ -168,6 +176,33 @@ A new structure "team_netlink" will be defined in the libteam layer to hold all 
 
 A shared set of netlink sockets will be created once and used for communication with the kernel. These sockets will handle team-related control messages and events for all team (portchannel) devices, by maintaining a map between ifindex to corresponding portchannels.
 
+**Netlink buffer size**
+
+As multiple LAGs are handled by single teamd daemon in case of unified-mode, the netlink buffer size is increased from current 960kB to 3MB to handle the increased number of netlink messages.
+
+## FD Optimization and Wheel Timers 
+
+Currently each LAG uses 1 timerfd and 2 fds for pipe, each member port uses 3 timer fds and 1 fd for socket used for packet processing. The pipe is used for internal communication while doing LACP port aggregator selection and for active port selection with active-backup runner. With single unified teamd process, as there will be multiple LAGs in single teamd process this can lead to hitting the FD limit of 1024 for the process when scaled. To address this, following changes are made:
+
+- Instead of one pipe for each LAG, a single pipe will be used in global context and used across all LAGs 
+- 2 timer fds will be created, one for timers with granularity of seconds and another for 100ms granularity. These timers will then be used to add support for existing timers in teamd using hashed wheel timer. 
+
+### Overview: What Is a Wheel Timer? 
+
+A wheel timer organizes timers in a circular buffer structure where: 
+
+- Each slot in the "wheel" represents a time interval (e.g., 100ms, 1sec). 
+- Timers are inserted into future slots based on their timeout. 
+- The wheel rotates like a clock — advancing by one slot at fixed time intervals. 
+- When the wheel lands on a slot, it fires or checks all timers in that slot. 
+
+### Key Components of a Wheel Timer
+- Tick interval – Smallest unit of time. 100ms and 1sec interval timers will be used.  
+- Number of slots – Size of the wheel, for 100ms timer 20 slots will be used and for 1sec timer 120 slots will be used. 
+- Current slot index – Rotates at each tick (like a second hand). 
+- Timer entries – Each slot holds a list of timer callbacks to fire. The existing timer callbacks will be used to handle the timer expiry. 
+
+<div align="center"> <img src=images/wheel_timers.jpg width=600 /> </div>
 
 ### Teamd Config Manager
 
@@ -192,7 +227,7 @@ Alternatively, now tlm_teamd communicates with teamd over a Unix socket to retri
 ### Portchannel Add/Del Configuration Flow
 
 When a new PortChannel is configured in the system, an entry is created in the CONFIG_DB, which teammgrd monitors. teammgrd sends PortChannelAdd IPC meesage to the teamd process.
-Upon receiving this request, teamd communicates with the kernel to create the appropriate team network device interface. This involves several steps: first, teamd requests the kernel to create the team netdev interface, then it retrieves the ifindex from the kernel. Once the interface is created, teamd adds team-context data to the AVL tree with the retrieved ifindex and team device name as keys. After successful completion of these operations, teamd sends a REPLY_SUCCESS message back to teammgrd. If an error occurs during this process, the system is designed to retry the operation.
+Upon receiving this request, teamd communicates with the kernel to create the appropriate team network device interface. This involves several steps: first, teamd requests the kernel to create the team netdev interface, then it retrieves the ifindex from the kernel. Once the interface is created, teamd adds team-context data to the hash table with the retrieved ifindex and team device name as keys. After successful completion of these operations, teamd sends a REPLY_SUCCESS message back to teammgrd. If an error occurs during this process, the system is designed to retry the operation.
 
 **IPC message for Portchannel addition**
 
@@ -203,8 +238,10 @@ Upon receiving this request, teamd communicates with the kernel to create the ap
 Sample config_json:
 {"device":"PortChannel3","hwaddr":"22:26:87:a5:19:db","runner":{"active":true,"name":"lacp","min_ports":1}}
 
+The existing config portchannel add CLI command, along with its options (min-links, fallback, fast-rate), is also supported through this IPC mechanism.
+
 ```
-Similarly, when a PortChannel is deleted from CONFIG_DB, teammgrd sends a PortChannelRemove IPC to teamd. In response, teamd requests the kernel to delete the team netdev interface. Once the interface is removed, teamd removes the PortChannel context from its internal data structures and deletes the team device name and ifindex from the AVL tree. Upon successful completion, teamd sends a REPLY_SUCCESS message back to teammgrd, confirming that the deletion has been properly executed.
+Similarly, when a PortChannel is deleted from CONFIG_DB, teammgrd sends a PortChannelRemove IPC to teamd. In response, teamd requests the kernel to delete the team netdev interface. Once the interface is removed, teamd removes the PortChannel context from its internal data structures and deletes the team device name and ifindex from the hash table. Upon successful completion, teamd sends a REPLY_SUCCESS message back to teammgrd, confirming that the deletion has been properly executed.
 
 **IPC message for Portchannel Deletion**
 
@@ -219,7 +256,7 @@ msg_type - PortChannelRemove
 
 
 ### Portchannel Member Add/Del Configuration Flow
-When a member port is added to a PortChannel in CONFIG_DB, Teammgrd sends two IPC messages, PortConfigUpdate and PortAdd to the teamd process. Upon receiving these requests, teamd first looks up the teamd_context data structure from the AVL tree using the team_devname as a key. After locating the appropriate context, teamd communicates with the kernel to configure the specified port as a team member. Once the kernel successfully completes this configuration, teamd sends a REPLY_SUCCESS message back to teammgrd. If an error occurs during this process, the system is designed to retry the operation.
+When a member port is added to a PortChannel in CONFIG_DB, Teammgrd sends two IPC messages, PortConfigUpdate and PortAdd to the teamd process. Upon receiving these requests, teamd first looks up the teamd_context data structure from the hash table using the team_devname as a key. After locating the appropriate context, teamd communicates with the kernel to configure the specified port as a team member. Once the kernel successfully completes this configuration, teamd sends a REPLY_SUCCESS message back to teammgrd. If an error occurs during this process, the system is designed to retry the operation.
 
 
 **IPC message for Portchannel member addition**
@@ -235,7 +272,7 @@ Sample config_json:
 {"lacp_key":12,"link_watch": {"name": "ethtool"} }
 ```
 
-Similarly, when a member port is removed from a PortChannel in CONFIG_DB, teammgrd sends PortRemove IPC to teamd. Upon receiving this request, teamd again looks up the teamd_context from the AVL tree using the team_devname. After finding the context, teamd interacts with the kernel to remove the specified member from the PortChannel. When the kernel successfully completes the removal operation, teamd sends a REPLY_SUCCESS message back to teammgrd, confirming that the deletion has been properly executed.
+Similarly, when a member port is removed from a PortChannel in CONFIG_DB, teammgrd sends PortRemove IPC to teamd. Upon receiving this request, teamd again looks up the teamd_context from the hash table using the team_devname. After finding the context, teamd interacts with the kernel to remove the specified member from the PortChannel. When the kernel successfully completes the removal operation, teamd sends a REPLY_SUCCESS message back to teammgrd, confirming that the deletion has been properly executed.
 
 **IPC message for Portchannel Member Deletion**
 
@@ -269,7 +306,7 @@ REPLY_SUCCESS <response>
 <div align="center"> <img src=images/link_state.png width=600 /> </div>
 
 ### Link Event Flow
-When a link state change occurs, the kernel sends a netlink notification, which is received by the registered libteam callback. Libteam parses the netlink message, extracts the index of the affected link, and invokes a lookup function registered by teamd. Teamd then retrieves the corresponding team_dev structure from its internal AVL tree and returns it to libteam. Using this structure, libteam processes the state change and informs teamd through its change handlers. Teamd then triggers the appropriate LACP logic to handle the link state transition, and any updates to link aggregation are communicated back to the kernel via libteam.
+When a link state change occurs, the kernel sends a netlink notification, which is received by the registered libteam callback. Libteam parses the netlink message, extracts the index of the affected link, and invokes a lookup function registered by teamd. Teamd then retrieves the corresponding team_dev structure from its internal hash table and returns it to libteam. Using this structure, libteam processes the state change and informs teamd through its change handlers. Teamd then triggers the appropriate LACP logic to handle the link state transition, and any updates to link aggregation are communicated back to the kernel via libteam.
 
 <div align="center"> <img src=images/link_event_flow.png width=600 /> </div>
 
@@ -349,6 +386,19 @@ module sonic-teamd {
     /* end of sonic-teamd */
 }
 ```
+# Performance numbers
+The docker stats command was used to capture CPU and memory usage. The results below show measurements with 512 PortChannels in both legacy mode and unified mode. Unified mode shows a significant reduction in resource usage — CPU usage drops from ~33% to ~20%, and memory usage decreases from ~816 MiB to ~260 MiB.
+
+```
+With legacy mode:
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT   MEM %     NET I/O   BLOCK I/O   PIDS
+401d3f751f94   teamd     33.38%    816MiB / 14.8GiB    5.39%     0B / 0B   0B / 0B     526
+
+With Unified mode:
+CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT    MEM %     NET I/O   BLOCK I/O   PIDS
+a47e496e96f2   teamd     20.08%    259.7MiB / 14.8GiB   1.71%     0B / 0B   0B / 0B     15
+```
+
 
 # Testing
 
@@ -357,7 +407,7 @@ module sonic-teamd {
 The new implementation will be validated using existing test cases from the sonic-mgmt test suite.
 These tests verify core LAG (PortChannel) functionality such as creation, member addition/removal, LACP negotiation, traffic forwarding, and state validation.
 
-While the fundamental logic of LAG handling remains the same, necessary modifications will be made to the test cases to account for the new multi-device mode configuration. For instance, the setup steps may need to be updated to launch teamd with the -t all option when testing multi-device scenarios.
+While the fundamental logic of LAG handling remains the same, necessary modifications will be made to the test cases to account for the new unified mode configuration. 
 
 
 | Test Case | Description |
