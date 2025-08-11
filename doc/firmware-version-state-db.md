@@ -9,10 +9,10 @@ Design to store the firmware version info to the STATE DB
   * [Overview](#overview)
   * [1. Requirements ](#1-requirements)
   * [2. Architeture Design](#2-architecture-design)
-  * [DesignSAI API] (#designsai-api)
-  * [Configuration and management] (#configuration-and-management)
-  * [Memory Consumption] (#memory-consumption)
-  * [Testing] (#testing)
+  * [DesignSAI API](#designsai-api)
+  * [Configuration and management](#configuration-and-management)
+  * [Memory Consumption](#memory-consumption)
+  * [Testing](#testing)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
