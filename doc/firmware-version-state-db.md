@@ -9,6 +9,10 @@ Design to store the firmware version info to the STATE DB
   * [Overview](#overview)
   * [1. Requirements ](#1-requirements)
   * [2. Architeture Design](#2-architecture-design)
+  * [DesignSAI API] (#designsai-api)
+  * [Configuration and management] (#configuration-and-management)
+  * [Memory Consumption] (#memory-consumption)
+  * [Testing] (#testing)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
@@ -49,7 +53,7 @@ This makes firmware versions available to telemetry, CLI tooling, and third-part
 Implementation point: 
 The change will be implemented in sonic-chassisd/scripts/chassis_db_init (a Python script that runs during chassis init) and will use platform_chassis.get_all_components() + comp.get_firmware_version() to build and set the DB entries.
 
-# 1 Requirements
+# 1. Requirements
 
 Functional:
 On chassis DB init, populate STATE_DB with COMPONENT_INFO|<component> entries for all components returned by platform_chassis.get_all_components().
@@ -66,7 +70,7 @@ Exemptions / Not supported:
 This HLD does not introduce write-back of firmware versions to Config DB.
 No CLI or YANG changes are included.
 
-# 2 Architecture Design
+# 2. Architecture Design
 
 How this fits existing SONiC architecture
 This is an out-of-band, read-only population of STATE_DB performed by sonic-chassisd during chassis DB initialization (script path: sonic-chassisd/scripts/chassis_db_init).
@@ -75,6 +79,42 @@ The sonic-chassisd daemon will continue to run as before with an additional init
 
 Application Extension
 This is a built-in change to sonic-chassisd (not an App Extension).
+
+
+#  DesignSAI API
+No change to SAI APIs is required for this feature. The design uses platform chassis APIs (platform-specific) and writes to STATE_DB only.
+
+#  Configuration and management
+
+##  Manifest
+No manifest is required.
+
+##  CLI/YANG model Enhancements
+No CLI or YANG changes as part of this HLD.
+
+##  Config DB Enhancements
+No Config DB changes required.
+
+#  Memory Consumption
+   - No persistent memory usage while the feature is disabled.
+   - While enabled, memory cost is the size of the small hash entries in STATE_DB — negligible.
+
+#  Testing
+Run on DUT to list keys and contents in STATE_DB:
+
+Example: dump STATE_DB (DB 6) keys matching COMPONENT_INFO
+redis-dump -d 6 -y -k "COMPONENT_INFO*"
+
+Example expected output:
+
+{
+  "COMPONENT_INFO|Aikido": { "type":"hash", "value": { "firmware-version": "1.7" } },
+  "COMPONENT_INFO|BIOS":   { "type":"hash", "value": { "firmware-version": "0-4" } },
+  "COMPONENT_INFO|IOFPGA": { "type":"hash", "value": { "firmware-version": "1.8" } }
+}
+
+
+
 
 
 
