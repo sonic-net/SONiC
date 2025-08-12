@@ -46,7 +46,8 @@ Design to store the firmware version info to the STATE DB
 Telemetry need an easy, consistent place in SONiC to read current firmware versions of chassis components (BIOS, FPGAs, CPLDs, SSD, TAM, etc.). Previously, it had to be queried via platform APIs or vendor-specific interfaces.
 
 ### Solution 
-Populate STATE_DB with COMPONENT_INFO|<component-name> hash entries during chassis DB initialization. Each hash will contain firmware-version: <version-string>. 
+Populate STATE_DB with COMPONENT_INFO|<component-name> hash entries during chassis DB initialization. 
+Each hash will contain firmware-version: `<version-string>`.
 This makes firmware versions available to telemetry, CLI tooling, and third-party consumers via the standard DB reading mechanisms.
 
 ### Implementation point 
@@ -71,7 +72,7 @@ No CLI or YANG changes are included.
 
 # 2. Architecture Design
 
-How this fits existing SONiC architecture
+#### How this fits existing SONiC architecture
 This is an out-of-band, read-only population of STATE_DB performed by sonic-chassisd during chassis DB initialization (script path: sonic-chassisd/scripts/chassis_db_init).
 No existing architecture modules (SWSS, syncd, SAI) need changes. The STATE_DB is already the place for runtime state and is read by telemetry and other tools.
 The sonic-chassisd daemon will continue to run as before with an additional initialization routine that creates/updates the COMPONENT_INFO table.
