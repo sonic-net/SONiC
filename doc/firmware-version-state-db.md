@@ -1,5 +1,4 @@
 # Design to store the firmware version info to the STATE DB
-Design to store the firmware version info to the STATE DB
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -73,11 +72,11 @@ No CLI or YANG changes are included.
 # 2. Architecture Design
 
 #### How this fits existing SONiC architecture
-This is an out-of-band, read-only population of STATE_DB performed by sonic-chassisd during chassis DB initialization (script path: sonic-chassisd/scripts/chassis_db_init).
+This is an out-of-band, read-only population of STATE_DB performed by sonic-chassisd during chassis DB initialization `(script path: sonic-chassisd/scripts/chassis_db_init)`.
 No existing architecture modules (SWSS, syncd, SAI) need changes. The STATE_DB is already the place for runtime state and is read by telemetry and other tools.
 The sonic-chassisd daemon will continue to run as before with an additional initialization routine that creates/updates the COMPONENT_INFO table.
 
-Application Extension
+### Application Extension
 This is a built-in change to sonic-chassisd (not an App Extension).
 
 # 3. High-Level Design
