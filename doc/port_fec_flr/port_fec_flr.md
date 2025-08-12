@@ -153,6 +153,8 @@ No change in the SAI API. No new SAI object accessed.
 ### 4.4 FEC interleaving
 With FEC interleaving factor (X) incorporated, As per [IEEE 802.3df Logic Ad Hoc](https://www.ieee802.org/3/df/public/adhoc/logic/22_0630/opsasnick_3df_logic_220630a.pdf) FEC FLR is expressed as
 
+FEC_FLR = CER * (1 + X * MFC)/MFC, where MFC (MAC frames per codeword) is 8 in the case of RS-544 FEC. Thus,
+
 For X=1 (no interleaving), FEC_FLR = 1.125 * CER <br>
 For X=2, FEC_FLR = 2.125 * CER <br>
 For X=4, FEC_FLR = 4.125 * CER
@@ -207,20 +209,30 @@ Step 1: Prepare codeword error index vector (x)
 
     For each index i in vector x, codeword_errors[i] represents number of codewords with i symbol errors in the
     current interval i.e SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si - SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si_last.
+```
 
 
+The codeword error ratio typically follows an exponential decay curve, as shown in the image below.
+![Exponential decay curve of CER](./img/Exponential_decay_curve_of_CER.png)
+
+```
 Step 2: Compute logarithm codeword error ratio vector (y)
 
-    Codeword error ratio typically follows a exponential decay curve. By applying a logarithm to the codeword error
-    ratio, this curve is transformed into a linear pattern, making it suitable for linear regression modeling.
+    By applying a logarithm to the codeword error ratio, the exponential decay curve is transformed into a
+    linear pattern, making it suitable for linear regression modeling.
 
     For each index i in vector x, compute logarithm of codeword error ratio y[i] as follows
 
     y[i] = log10( codeword_errors[i] / total_codewords )
     where, total_codewords is total number of codewords
            i.e Σ from i=0 to 15 of (SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si - SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si_last)
+```
 
 
+The image below shows the linear pattern of the codeword error ratio (CER) after applying a logarithm.
+![Logarithm curve of CER](./img/Logarithm_curve_of_CER.png)
+
+```
 Step 3: Perform linear regresion to arrive at slope and intercept
 
     slope = (n * Σ(x*y) - Σx * Σy) / (n * Σ(x²) - (Σx)²)
@@ -228,15 +240,22 @@ Step 3: Perform linear regresion to arrive at slope and intercept
     where, n: number of data points (length of x or y vector)
 
     This gives the best-fit line, y = slope * x + intercept.
+```
 
 
+The image below shows the linear regression line along with the logarithmic curve of the codeword error ratio (CER).
+![Logarithm curve of CER and Linear regression fit](./img/Logarithm_curve_of_CER_and_Linear_regression_fit.png)
+
+```
 Step 4: Compute extrapolated CER
 
     Using linear regression line, predicted CER for an index representing j symbol errors is
     predicted_cer_j = 10 ^ ( j * slope + intercept )
 
-    Predicted cer for a window of codewords having uncorrectable symbol errors is
+    The predicted CER for a window of codewords with uncorrectable symbol errors is calculated as:
     predicted_cer = Σ from j=16 to 20 of predicted_cer_j
+
+    Note: We use the uncorrectable symbol error window from 16 to 20 because for values above 20, the predicted CER becomes insignificant.
  
 
 Step 5: Compute FLR from extrapolated CER by considering interleaving factor
@@ -250,22 +269,22 @@ Step 6: Store FEC_FLR_PREDICTED, SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si_last
 ## 5 Sample CLI Output
 ```
 root@sonic:~$ portstat -f
-      IFACE    STATE    FEC_CORR    FEC_UNCORR    FEC_SYMBOL_ERR    FEC_PRE_BER    FEC_POST_BER    FEC_FLR    FEC_FLR_PREDICTED
------------  -------  ----------  ------------  ----------------  -------------  --------------  ---------  -------------------
-  Ethernet0        U           0             0                 0       0.00e+00        0.00e+00          0                    0
-  Ethernet8        U           0             0                 0       0.00e+00        0.00e+00          0                    0
- Ethernet16        X           0             0                 0       0.00e+00        0.00e+00          0                    0
- Ethernet24        X           0             0                 0       0.00e+00        0.00e+00          0                    0
- Ethernet32        U           0             0                 0       0.00e+00        0.00e+00          0                    0
- Ethernet40        D          21             0                 0       0.00e+00        0.00e+00          0                    0
- Ethernet48        X           0             0                 0       0.00e+00        0.00e+00          0                    0
- Ethernet56        X           0             0                 0       0.00e+00        0.00e+00          0                    0
- Ethernet64        U       1,334             0                 4       0.00e+00        0.00e+00          0                    0
- Ethernet72        U      28,531             0                31       0.00e+00        0.00e+00          0             2.68e-09
- Ethernet80        U      25,890             0                25       0.00e+00        0.00e+00          0             6.03e-09
- Ethernet88        U      21,909             0                49       0.00e+00        0.00e+00          0                    0
- Ethernet96        U       5,635             0                 8       0.00e+00        0.00e+00          0                    0
-Ethernet104        U      21,141             0                 7       0.00e+00        0.00e+00          0             7.08e-09
+      IFACE    STATE    FEC_CORR    FEC_UNCORR    FEC_SYMBOL_ERR    FEC_PRE_BER    FEC_POST_BER    FEC_FLR      FEC_FLR_PREDICTED
+-----------  -------  ----------  ------------  ----------------  -------------  --------------  ---------  ---------------------
+  Ethernet0        U           0             0                 0       0.00e+00        0.00e+00          0                      0
+  Ethernet8        U           0             0                 0       0.00e+00        0.00e+00          0                      0
+ Ethernet16        X           0             0                 0       0.00e+00        0.00e+00          0                      0
+ Ethernet24        X           0             0                 0       0.00e+00        0.00e+00          0                      0
+ Ethernet32        U           0             0                 0       0.00e+00        0.00e+00          0                      0
+ Ethernet40        D          21             0                 0       0.00e+00        0.00e+00          0                      0
+ Ethernet48        X           0             0                 0       0.00e+00        0.00e+00          0                      0
+ Ethernet56        X           0             0                 0       0.00e+00        0.00e+00          0                      0
+ Ethernet64        U       1,334             0                 4       0.00e+00        0.00e+00          0                      0
+ Ethernet72        U      28,531             0                31       0.00e+00        0.00e+00          0  2.68e-09 (R^2 = 0.79)
+ Ethernet80        U      25,890             0                25       0.00e+00        0.00e+00          0  6.03e-09 (R^2 = 0.79)
+ Ethernet88        U      21,909             0                49       0.00e+00        0.00e+00          0                      0
+ Ethernet96        U       5,635             0                 8       0.00e+00        0.00e+00          0                      0
+Ethernet104        U      21,141             0                 7       0.00e+00        0.00e+00          0  7.08e-09 (R^2 = 0.79)
 ```
 
 If FEC is not supported for an interface, the FEC_FLR and FEC_FLR_PREDICTED fields will display `N/A` for the corresponding entry. If there is insufficient data to compute the FEC FLR (e.g., when the link is performing well), these fields will display `0` (note that `0` is shown instead of `0.00e+00` for better readability).
