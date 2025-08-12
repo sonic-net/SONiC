@@ -9,13 +9,11 @@ Design to store the firmware version info to the STATE DB
   * [Overview](#overview)
   * [1. Requirements ](#1-requirements)
   * [2. Architeture Design](#2-architecture-design)
-  * [DesignSAI API](#designsai-api)
-  * [Configuration and management](#configuration-and-management)
-  * [Memory Consumption](#memory-consumption)
-  * [Testing](#testing)
-
-# List of Tables
-[Table 1: Abbreviations](#table-1-abbreviations)
+  * [3. High Level Design](#3-high-level-design)
+  * [4. DesignSAI API](#designsai-api)
+  * [5. Configuration and management](#configuration-and-management)
+  * [6. Memory Consumption](#memory-consumption)
+  * [7. Testing](#testing)
 
 # Revision
 
@@ -80,11 +78,100 @@ The sonic-chassisd daemon will continue to run as before with an additional init
 Application Extension
 This is a built-in change to sonic-chassisd (not an App Extension).
 
+# 3. High-Level Design
 
-#  DesignSAI API
+## Built-in or Extension
+Built-in SONiC feature: modification to sonic-chassisd.
+
+## Modules / Sub-modules modified
+sonic-chassisd/scripts/chassis_db_init — script updated to populate COMPONENT_INFO in STATE_DB.
+
+Minor dependency on platform API: platform_chassis.get_all_components() and component interface methods.
+
+## Repositories changed
+sonic-platform/sonic-chassisd (or sonic-buildimage pack that contains sonic-chassisd) — exact repo path matching SONiC tree where sonic-chassisd lives.
+
+## Module / sub-module interfaces and dependencies
+Dependency: platform API must provide:
+
+platform_chassis.get_all_components() -> list of component objects
+
+comp.get_name() -> component name string
+
+comp.get_firmware_version() -> version string or None
+
+sonic-chassisd will use swsscommon.Table(state_db, COMPONENT_INFO_TABLE) to write entries.
+
+## SWSS and Syncd changes
+None. This feature only writes to STATE_DB and does not require changes in SWSS or syncd.
+
+## DB and Schema changes
+New logical table in STATE_DB: COMPONENT_INFO
+
+Key format: COMPONENT_INFO|<component_name>
+
+Value (hash fields):
+
+firmware-version : string (e.g., "1.8")
+
+Persistence: STATE_DB entries are runtime and expected to be ephemeral (no change to Config DB). If desired, an expiry could be added; current design does not require TTL.
+
+Validate DB index: example UT uses DB 6 (commonly STATE_DB). The HLD assumes STATE_DB is mapped to DB index 6 — use system config to verify in your deployment.
+
+## Linux dependencies and interface
+Requires Python runtime used by sonic-chassisd scripts.
+
+Requires swsscommon Python bindings to operate on Redis.
+
+## Warm reboot requirements/dependencies
+No changes required for warm reboot persistence beyond existing warmboot behavior.
+
+Because entries are runtime-state in STATE_DB, they are expected to be repopulated on init after warmboot if chassis_db_init runs during warmboot. If chassis_db_init is skipped during warmboot, consider adding a warmboot-aware path to repopulate the table.
+
+## Fastboot requirements/dependencies
+Minimal impact. Running the script adds a small number of Redis writes; it should not be on the critical fastboot path. If chassis_db_init runs as part of boot-critical tasks, ensure the operation is non-blocking or runs early in parallel if necessary.
+
+## Scalability and performance impact
+Number of writes = number of chassis components (small, typically < 20). CPU and Redis load negligible.
+
+Read traffic may increase as telemetry consumers read these keys but this is expected and minimal.
+
+## Memory requirements
+Each hash entry is tiny (a few bytes per component). Negligible memory use.
+
+## Docker dependency
+No new Docker containers. Changes are inside sonic-chassisd container/process.
+
+## Build dependency
+Include the updated script in sonic-chassisd package; standard build for that package. No external build dependencies.
+
+## Management interfaces
+SNMP: No changes.
+
+CLI: No changes by default. Operators can use existing DB inspection utilities (e.g., redis-dump, sonic-db-cli) to read STATE_DB entries.
+
+RESTAPI / gNMI: No changes required in this HLD. Telemetry consumers that read STATE_DB can surface this info.
+
+## Serviceability and Debug
+Logging: sonic-chassisd should log an informational message for each component written to DB and log warnings if firmware version is missing/unavailable.
+
+Example logs: INFO: wrote COMPONENT_INFO|IOFPGA firmware-version=1.8
+
+WARNING: component Aikido returned no firmware-version
+
+Tracing: add debug-level trace for the full list returned by get_all_components() when debug enabled.
+
+Counters: Not required.
+
+Verification: UT step uses redis-dump -d 6 -y -k "COMPONENT_INFO*".
+
+### Platform specificity
+Platform vendors must implement get_all_components() and get_firmware_version() for their chassis platform if not already present. If a platform does not support firmware query for a component, return empty or None and log appropriately.
+
+# 4. DesignSAI API
 No change to SAI APIs is required for this feature. The design uses platform chassis APIs (platform-specific) and writes to STATE_DB only.
 
-#  Configuration and management
+# 5. Configuration and management
 
 ##  Manifest
 No manifest is required.
@@ -95,11 +182,11 @@ No CLI or YANG changes as part of this HLD.
 ##  Config DB Enhancements
 No Config DB changes required.
 
-#  Memory Consumption
+# 6. Memory Consumption
    - No persistent memory usage while the feature is disabled.
    - While enabled, memory cost is the size of the small hash entries in STATE_DB — negligible.
 
-#  Testing
+# 7. Testing
 Run on DUT to list keys and contents in STATE_DB:
 
 Example: dump STATE_DB (DB 6) keys matching COMPONENT_INFO
