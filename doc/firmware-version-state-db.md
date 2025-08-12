@@ -29,14 +29,16 @@ This is a read-only population step performed by sonic-chassisd at chassis DB in
 
 # Definitions/Abbreviations
 
-SONiC — Software for Open Networking in the Cloud
-FPD — Field Programmable Device (firmware-programmable device)
-STATE_DB — Redis DB holding runtime state (in this repo’s deployments typically DB 6)
-CONFIG_DB — Redis DB for persistent configuration
-COMPONENT_INFO — New table name in STATE_DB to hold component firmware info
-sonic-chassisd — SONiC daemon that initializes / monitors chassis platform data
-platform_chassis — Platform API object that enumerates chassis components
-UT — Unit/Test verification steps (redis-dump example provided)
+| **Term**         | **Meaning**                                                                                           |
+|------------------|-------------------------------------------------------------------------------------------------------|
+| SONiC            | Software for Open Networking in the Cloud|
+| FPD              | Field Programmable Device (firmware-programmable device)|
+| STATE_DB         | Redis DB holding runtime state (in this repo’s deployments typically DB 6)|
+| CONFIG_DB        | Redis DB for persistent configuration|
+| COMPONENT_INFO   | New table name in STATE_DB to hold component firmware info|
+| sonic-chassisd   | SONiC daemon that initializes / monitors chassis platform data|
+| platform_chassis | Platform API object that enumerates chassis components|
+| UT               | Unit/Test verification steps (redis-dump example provided)|
 
 # Overview
 
