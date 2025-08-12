@@ -23,9 +23,9 @@ Design to store the firmware version info to the STATE DB
 
 # Scope
 
-This HLD describes adding component firmware (FPD) version information into SONiC's STATE_DB during chassis initialization. 
-The data will be written under a new COMPONENT_INFO table in STATE_DB, keyed by component name and storing a firmware-version field. 
-This is a read-only population step performed by sonic-chassisd at chassis DB init.
+- This HLD describes adding component firmware (FPD) version information into SONiC's STATE_DB during chassis initialization. 
+- The data will be written under a new COMPONENT_INFO table in STATE_DB, keyed by component name and storing a firmware-version field. 
+- This is a read-only population step performed by sonic-chassisd at chassis DB init.
 
 # Definitions/Abbreviations
 
@@ -42,30 +42,30 @@ This is a read-only population step performed by sonic-chassisd at chassis DB in
 
 # Overview
 
-Problem: 
+### Problem
 Telemetry need an easy, consistent place in SONiC to read current firmware versions of chassis components (BIOS, FPGAs, CPLDs, SSD, TAM, etc.). Previously, it had to be queried via platform APIs or vendor-specific interfaces.
 
-Solution: 
+### Solution 
 Populate STATE_DB with COMPONENT_INFO|<component-name> hash entries during chassis DB initialization. Each hash will contain firmware-version: <version-string>. 
 This makes firmware versions available to telemetry, CLI tooling, and third-party consumers via the standard DB reading mechanisms.
 
-Implementation point: 
+### Implementation point 
 The change will be implemented in sonic-chassisd/scripts/chassis_db_init (a Python script that runs during chassis init) and will use platform_chassis.get_all_components() + comp.get_firmware_version() to build and set the DB entries.
 
 # 1. Requirements
 
-Functional:
+### Functional
 On chassis DB init, populate STATE_DB with COMPONENT_INFO|<component> entries for all components returned by platform_chassis.get_all_components().
 Each entry must contain field firmware-version with the component’s firmware string (e.g., "1.8").
 If a component has no firmware version available, store an empty string or unknown (implementation detail below).
 Multiple consumers (telemetry, scripts, CLI tooling) should be able to read these entries without calling platform API.
 
-Non-functional:
+### Non-functional
 Minimal boot-time impact.
 No growing memory usage while feature is disabled.
 Backwards compatible (no breaking changes to existing tables or keys).
 
-Exemptions / Not supported:
+### Exemptions / Not supported
 This HLD does not introduce write-back of firmware versions to Config DB.
 No CLI or YANG changes are included.
 
@@ -81,18 +81,18 @@ This is a built-in change to sonic-chassisd (not an App Extension).
 
 # 3. High-Level Design
 
-## Built-in or Extension
+### Built-in or Extension
 Built-in SONiC feature: modification to sonic-chassisd.
 
-## Modules / Sub-modules modified
+### Modules / Sub-modules modified
 sonic-chassisd/scripts/chassis_db_init — script updated to populate COMPONENT_INFO in STATE_DB.
 
 Minor dependency on platform API: platform_chassis.get_all_components() and component interface methods.
 
-## Repositories changed
+### Repositories changed
 sonic-platform/sonic-chassisd (or sonic-buildimage pack that contains sonic-chassisd) — exact repo path matching SONiC tree where sonic-chassisd lives.
 
-## Module / sub-module interfaces and dependencies
+### Module / sub-module interfaces and dependencies
 Dependency: platform API must provide:
 
 platform_chassis.get_all_components() -> list of component objects
@@ -103,10 +103,10 @@ comp.get_firmware_version() -> version string or None
 
 sonic-chassisd will use swsscommon.Table(state_db, COMPONENT_INFO_TABLE) to write entries.
 
-## SWSS and Syncd changes
+### SWSS and Syncd changes
 None. This feature only writes to STATE_DB and does not require changes in SWSS or syncd.
 
-## DB and Schema changes
+### DB and Schema changes
 New logical table in STATE_DB: COMPONENT_INFO
 
 Key format: COMPONENT_INFO|<component_name>
@@ -119,41 +119,41 @@ Persistence: STATE_DB entries are runtime and expected to be ephemeral (no chang
 
 Validate DB index: example UT uses DB 6 (commonly STATE_DB). The HLD assumes STATE_DB is mapped to DB index 6 — use system config to verify in your deployment.
 
-## Linux dependencies and interface
+### Linux dependencies and interface
 Requires Python runtime used by sonic-chassisd scripts.
 
 Requires swsscommon Python bindings to operate on Redis.
 
-## Warm reboot requirements/dependencies
+### Warm reboot requirements/dependencies
 No changes required for warm reboot persistence beyond existing warmboot behavior.
 
 Because entries are runtime-state in STATE_DB, they are expected to be repopulated on init after warmboot if chassis_db_init runs during warmboot. If chassis_db_init is skipped during warmboot, consider adding a warmboot-aware path to repopulate the table.
 
-## Fastboot requirements/dependencies
+### Fastboot requirements/dependencies
 Minimal impact. Running the script adds a small number of Redis writes; it should not be on the critical fastboot path. If chassis_db_init runs as part of boot-critical tasks, ensure the operation is non-blocking or runs early in parallel if necessary.
 
-## Scalability and performance impact
+### Scalability and performance impact
 Number of writes = number of chassis components (small, typically < 20). CPU and Redis load negligible.
 
 Read traffic may increase as telemetry consumers read these keys but this is expected and minimal.
 
-## Memory requirements
+### Memory requirements
 Each hash entry is tiny (a few bytes per component). Negligible memory use.
 
-## Docker dependency
+### Docker dependency
 No new Docker containers. Changes are inside sonic-chassisd container/process.
 
-## Build dependency
+### Build dependency
 Include the updated script in sonic-chassisd package; standard build for that package. No external build dependencies.
 
-## Management interfaces
+### Management interfaces
 SNMP: No changes.
 
 CLI: No changes by default. Operators can use existing DB inspection utilities (e.g., redis-dump, sonic-db-cli) to read STATE_DB entries.
 
 RESTAPI / gNMI: No changes required in this HLD. Telemetry consumers that read STATE_DB can surface this info.
 
-## Serviceability and Debug
+### Serviceability and Debug
 Logging: sonic-chassisd should log an informational message for each component written to DB and log warnings if firmware version is missing/unavailable.
 
 Example logs: INFO: wrote COMPONENT_INFO|IOFPGA firmware-version=1.8
@@ -174,13 +174,13 @@ No change to SAI APIs is required for this feature. The design uses platform cha
 
 # 5. Configuration and management
 
-##  Manifest
+###  Manifest
 No manifest is required.
 
-##  CLI/YANG model Enhancements
+###  CLI/YANG model Enhancements
 No CLI or YANG changes as part of this HLD.
 
-##  Config DB Enhancements
+###  Config DB Enhancements
 No Config DB changes required.
 
 # 6. Memory Consumption
