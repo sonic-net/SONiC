@@ -194,13 +194,76 @@ Example: dump STATE_DB (DB 6) keys matching COMPONENT_INFO
 redis-dump -d 6 -y -k "COMPONENT_INFO*"
 
 Example expected output:
-
+```
+root@sonic:/home/cisco# redis-dump -d 6 -y -k "COMPONENT_INFO*"
 {
-  "COMPONENT_INFO|Aikido": { "type":"hash", "value": { "firmware-version": "1.7" } },
-  "COMPONENT_INFO|BIOS":   { "type":"hash", "value": { "firmware-version": "0-4" } },
-  "COMPONENT_INFO|IOFPGA": { "type":"hash", "value": { "firmware-version": "1.8" } }
+  "COMPONENT_INFO|Aikido": {
+    "expireat": 1749034477.8798983,
+    "ttl": -0.001,
+    "type": "hash",
+    "value": {
+      "firmware-version": "1.7"
+    }
+  },
+  "COMPONENT_INFO|BIOS": {
+    "expireat": 1749034477.8799129,
+    "ttl": -0.001,
+    "type": "hash",
+    "value": {
+      "firmware-version": "0-4"
+    }
+  },
+  "COMPONENT_INFO|IOFPGA": {
+    "expireat": 1749034477.8799255,
+    "ttl": -0.001,
+    "type": "hash",
+    "value": {
+      "firmware-version": "1.8"
+    }
+  },
+  "COMPONENT_INFO|SSD": {
+    "expireat": 1749034477.87991,
+    "ttl": -0.001,
+    "type": "hash",
+    "value": {
+      "firmware-version": "0.2"
+    }
+  },
+  "COMPONENT_INFO|TAM": {
+    "expireat": 1749034477.879916,
+    "ttl": -0.001,
+    "type": "hash",
+    "value": {
+      "firmware-version": "2.7"
+    }
+  },
+  "COMPONENT_INFO|iocpld0": {
+    "expireat": 1749034477.8799045,
+    "ttl": -0.001,
+    "type": "hash",
+    "value": {
+      "firmware-version": "0.2"
+    }
+  },
+  "COMPONENT_INFO|iocpld1": {
+    "expireat": 1749034477.8799193,
+    "ttl": -0.001,
+    "type": "hash",
+    "value": {
+      "firmware-version": "0.2"
+    }
+  },
+  "COMPONENT_INFO|pwrcpld": {
+    "expireat": 1749034477.8799224,
+    "ttl": -0.001,
+    "type": "hash",
+    "value": {
+      "firmware-version": "0.11"
+    }
+  }
 }
 
+```
 
 
 
