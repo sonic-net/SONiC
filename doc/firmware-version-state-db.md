@@ -17,10 +17,9 @@ Design to store the firmware version info to the STATE DB
 
 # Revision
 
-| Rev   | Date          | Author               | Change Description                  |
-| :---: | :-----------: | :------------------: | ----------------------------------- |
-| 0.1   | 08/11/2025    | Nishanth             | Initial draft — populate STATE_DB   
-                                                  with firmware-version per component|
+| Rev   | Date          | Author               | Change Description                   |
+| :---: | :-----------: | :------------------: | -------------------------------------|
+  0.1   |  08/11/2025    |  Nishanth           |  Initial draft — populate STATE_DB with firmware-version per component|
 
 # Scope
 
