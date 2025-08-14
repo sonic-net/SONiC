@@ -42,20 +42,21 @@
 # Overview
 
 ### Problem
-Telemetry need an easy, consistent place in SONiC to read current firmware versions of chassis components (BIOS, FPGAs, CPLDs, SSD, TAM, etc.). Previously, it had to be queried via platform APIs or vendor-specific interfaces.
+Telemetry need an easy, consistent place in SONiC to read current firmware versions of chassis components (BIOS, FPGAs, CPLDs, SSD, TAM, etc.) as well as components under each modules. Previously, it had to be queried via platform APIs or vendor-specific interfaces.
 
 ### Solution 
-Populate STATE_DB with COMPONENT_INFO|<component-name> hash entries during chassis DB initialization. 
+Populate STATE_DB with COMPONENT_INFO|<component-name> and COMPONENT_INFO|<module-name>|<component-name> hash entries during chassis DB initialization. 
 Each hash will contain firmware-version: `<version-string>`.
 This makes firmware versions available to telemetry, CLI tooling, and third-party consumers via the standard DB reading mechanisms.
 
 ### Implementation point 
-The change will be implemented in sonic-chassisd/scripts/chassis_db_init (a Python script that runs during chassis init) and will use platform_chassis.get_all_components() + comp.get_firmware_version() to build and set the DB entries.
+The change will be implemented in sonic-chassisd/scripts/chassis_db_init (a Python script that runs during chassis init) and will use platform_chassis.get_all_components() + comp.get_firmware_version() and platform_chassis.get_all_modules() to build and set the DB entries.
 
 # 1. Requirements
 
 ### Functional
 On chassis DB init, populate STATE_DB with COMPONENT_INFO|<component> entries for all components returned by platform_chassis.get_all_components().
+And similarly populate for  COMPONENT_INFO|<module>|<component> entries for all the components under each modules.
 Each entry must contain field firmware-version with the component’s firmware string (e.g., "1.8").
 If a component has no firmware version available, store an empty string or unknown (implementation detail below).
 Multiple consumers (telemetry, scripts, CLI tooling) should be able to read these entries without calling platform API.
@@ -87,7 +88,7 @@ Built-in SONiC feature: modification to sonic-chassisd.
 ### Modules / Sub-modules modified
 sonic-chassisd/scripts/chassis_db_init — script updated to populate COMPONENT_INFO in STATE_DB.
 
-Minor dependency on platform API: platform_chassis.get_all_components() and component interface methods.
+Minor dependency on platform API: platform_chassis.get_all_components(), platform_chassis.get_all_modules() and component interface methods.
 
 ### Repositories changed
 sonic-platform/sonic-chassisd (or sonic-buildimage pack that contains sonic-chassisd) — exact repo path matching SONiC tree where sonic-chassisd lives.
@@ -96,6 +97,8 @@ sonic-platform/sonic-chassisd (or sonic-buildimage pack that contains sonic-chas
 Dependency: platform API must provide:
 
 platform_chassis.get_all_components() -> list of component objects
+
+platform_chassis.get_all_modules() -> list of module objects
 
 comp.get_name() -> component name string
 
@@ -109,7 +112,7 @@ None. This feature only writes to STATE_DB and does not require changes in SWSS 
 ### DB and Schema changes
 New logical table in STATE_DB: COMPONENT_INFO
 
-Key format: COMPONENT_INFO|<component_name>
+Key format: COMPONENT_INFO|<component_name> and COMPONENT_INFO|<module_name>|<component_name>
 
 Value (hash fields):
 
@@ -157,6 +160,7 @@ RESTAPI / gNMI: No changes required in this HLD. Telemetry consumers that read S
 Logging: sonic-chassisd should log an informational message for each component written to DB and log warnings if firmware version is missing/unavailable.
 
 Example logs: INFO: wrote COMPONENT_INFO|IOFPGA firmware-version=1.8
+              INFO: wrote MODULE_INFO|COMPONENT_INFO|CPLD firmware-version=3.2
 
 WARNING: component Aikido returned no firmware-version
 
@@ -167,7 +171,7 @@ Counters: Not required.
 Verification: UT step uses redis-dump -d 6 -y -k "COMPONENT_INFO*".
 
 ### Platform specificity
-Platform vendors must implement get_all_components() and get_firmware_version() for their chassis platform if not already present. If a platform does not support firmware query for a component, return empty or None and log appropriately.
+Platform vendors must implement get_all_components(), get_all_modules() and get_firmware_version() for their chassis platform if not already present. If a platform does not support firmware query for a component, return empty or None and log appropriately.
 
 # 4. DesignSAI API
 No change to SAI APIs is required for this feature. The design uses platform chassis APIs (platform-specific) and writes to STATE_DB only.
@@ -260,6 +264,11 @@ root@sonic:/home/cisco# redis-dump -d 6 -y -k "COMPONENT_INFO*"
     "value": {
       "firmware-version": "0.11"
     }
+  }
+  "COMPONENT_INFO|PSU1|psucpld": {
+   "type": "hash",
+   "value": {
+   "firmware-version": "1.3"
   }
 }
 
