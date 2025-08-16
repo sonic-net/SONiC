@@ -1,8 +1,6 @@
-# RIB FIB HLD
+<h1 align="center">RIB FIB HLD </h1>
 
-# Table of Contents
-- [RIB FIB HLD](#rib-fib-hld)
-- [Table of Contents](#table-of-contents)
+# Table of Contents <!-- omit in toc -->
 - [Revision](#revision)
 - [Definition/Abbreviation](#definitionabbreviation)
     - [Table 1: Abbreviations](#table-1-abbreviations)
@@ -46,8 +44,8 @@
 # Revision
 
 | Rev  |   Date    |           Author           | Change Description      |
-| :--: | :-------: | :------------------------: | :---------------------: |
-| 0.1  | 08/20/2025  | Eddie Ruan, Lingyu Zhang, Songnan Lin, Yuqing Zhao |  Initial version        |
+| :-- | :------- | :------------------------ | :--------------------- |
+| 0.1  | 08/20/2025  | Eddie Ruan <br>Lingyu Zhang <br>Songnan Lin <br>Yuqing Zhao |  Initial version        |
 
 # Definition/Abbreviation
 
@@ -132,7 +130,7 @@ In general, the FIB is responsible for handling both NHG and route events. Howev
 
 ### Tables in NHG Block
 | Table Names  |   Descriptions    |           Usages           |
-| :--: | :-------: | :------------------------: |
+| :-- | :------- | :------------------------ |
 | SONiC zebra NHG table | Map zebra NHG id to received zebra_dplane_ctx + SONIC Context (a.k.a SONIC ZEBRA NHG) | Rely on “dependency” information in zebra_dplane_ctx to build walking chain.|
 | NEXTHOP KEY to Zebra NHG ID mapping |  Map nexthops in zebra_dplane_ctx to zebra NHG ID | It is used in warm reboot |
 | SONiC NHG table | Map SONiC NHG id to SONiC created NHG | Store Gateway NHG, a.k.a PIC NHG|
