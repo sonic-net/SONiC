@@ -37,7 +37,7 @@
     - [Backwalk Step 1](#backwalk-step-1)
     - [Backwalk Step 2](#backwalk-step-2)
 - [CLI](#cli)
-- [Developing Tasks](#developing-tasks)
+- [Developing Tasks and Milestones](#developing-tasks-and-milestones)
   - [Tasks in FRR](#tasks-in-frr)
   - [Tasks in SONiC](#tasks-in-sonic)
   - [Testing Strategy](#testing-strategy)
@@ -123,12 +123,12 @@ Currently, Zebra leverages struct zebra_dplane_ctx to transfer information from 
 
 ![image](images/process_model.png)
 
-Going forward, NHG-related events will be modified so that struct zebra_dplane_ctx is passed directly down to fpmsyncd, while the handling of other Zebra object events will remain unchanged. Upon receiving a message, fpmsyncd will invoke functions from the NHG module to convert the struct zebra_dplane_ctx into the corresponding SONiC objects. Processing for all other events will continue following the existing workflow.
+Going forward, NHG-related events will be updated so that struct zebra_dplane_ctx is passed directly to fpmsyncd, while the handling of other Zebra object events remains unchanged. Upon receiving such a message, fpmsyncd will invoke functions from the NHG module to translate struct zebra_dplane_ctx into the corresponding SONiC objects. Processing for all other events will continue to follow the existing workflow.
 
-Normally, FIB handles both NHG and routes. But since SONiC slow path uses Linux kernel, doesn't use routes information in fpmsyncd. Our FIB is mainly handling NHG events. We name the codes in fpmsyncd for handling zebra NHG event as NHG block.
+In general, the FIB is responsible for handling both NHG and route events. However, since SONiC’s slow path relies on the Linux kernel and does not process route information in fpmsyncd, the SONiC FIB primarily handles NHG events. The code in fpmsyncd responsible for processing Zebra NHG events is referred to as the NHG block.
 
 ## NHG Block
-![image](images/nhg_block.png)
+![image](images/NHG_block.png)
 
 ### Tables in NHG Block
 | Table Names  |   Descriptions    |           Usages           |
@@ -225,7 +225,7 @@ Note that the current NHG structure only contains top-level next-hops and final 
 
 ![image](images/zebra_nhg_chain.png)
 
-Once these resolve through and resolve via information are in, the SONiC forwarding chain graph could be drewn as the following graph.
+Once the resolve-through and resolve-via information is available, the SONiC forwarding chain can be represented as shown in the following graph.
 
 ![image](images/SONiC_nhg_chain.png)
 
@@ -299,8 +299,8 @@ Client list: bgp(fd 71)
 ```
 The following information would be sent to SONiC via dplane
 
-Nexthop address : used in walk spec or for SONiC NHG table walk, a.k.a PIC edge case.
-Its current resolved NHG ID : this NHG id is used to trigger backwalk update , a.k.a PIC core case.
+* Nexthop address : used in walk spec or for SONiC NHG table walk, a.k.a PIC edge case.
+* Its current resolved NHG ID : this NHG id is used to trigger backwalk update , a.k.a PIC core case.
 
 ## Backwalk infra
 Upon receiving an NHT trigger, the NHG block initiates a backwalk to update the affected NHGs, applying quick fixups based on current NHG information to minimize traffic loss. FRR will subsequently recalculate the routes and apply the appropriate updates, but the immediate fixups help prevent traffic disruption.
@@ -331,14 +331,15 @@ Once fpmsyncd starts to trigger a backwalk with above walk context.
 The process works as follows:
 
 * Step 1: Use NHG ID 243 to retrieve NHG 243 from the SONiC Zebra NHG table. This serves as the starting point for the backwalk.
-* Step 2: From NHG 243, obtain its dependents, NHG 260 and NHG 265, and walk through them one by one. For NHG 260, which involves 2064:100::1d as a single path, no update is needed, but the walk continues. For NHG 265, which does not involve 2064:100::1d, the walk can stop at this node.
-* Step 3: From NHG 260, continue the walk to NHG 264. Since NHG 264 has two paths and one of them involves 2064:100::1d, an update is triggered in APPDB by rewriting its NHG with the remaining valid paths from the forward walk.
-* Step 4: The walk then proceeds from NHG 260 onward, and the process continues recursively.
+* Step 2: From NHG 243, obtain its dependents, NHG 260 and NHG 265, and walk through them one by one. For NHG 260, which involves 2064:100::1d as a single path, no update is needed, but the walk continues.
+* Step 3: For NHG 265, which does not involve 2064:100::1d, the walk can stop at this node.
+* Step 4: From NHG 260, continue the walk to NHG 264. Since NHG 264 has two paths and one of them involves 2064:100::1d, an update is triggered in APPDB by rewriting its NHG with the remaining valid paths from the forward walk.
+* Further steps: The walk then proceeds from NHG 260 onward, and the process continues recursively.
 
 PIC core cases would be handled in this walk.
 
 ### Backwalk Step 2
-Fpmsyncd uses 2064:100::1d to trigger a lookup in NEXthop to SONIG NHG ID hash table. This lookup returns a list of SONiC NHGs which contains 2064:100::1d as its nexthop.
+Fpmsyncd uses 2064:100::1d to trigger a lookup in NEXTHOP to SONIG NHG ID hash table. This lookup returns a list of SONiC NHGs which contains 2064:100::1d as its nexthop.
 
 ![image](images/backwalk_2.png)
 
@@ -351,7 +352,7 @@ We need CLI to display zebra NHG table, SONiC NHG table, and other in memory inf
 
 TODO: what is the better approach here? Extend vtysh? or create a new one?
 
-# Developing Tasks
+# Developing Tasks and Milestones
 ## Tasks in FRR
 Phase 1: The goal is to enable FIB basic functionalities
 * Add unresolved NHG in zebra_dplane_ctx (For requirement 2)
