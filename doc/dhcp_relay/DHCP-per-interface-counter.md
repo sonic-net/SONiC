@@ -6,8 +6,8 @@
 | Rev |     Date    |       Author       | Change Description                  |
 |:---:|:-----------:|:-------------------|:-----------------------------------|
 | 1.0 |  05/29/2023 | Jie Cai       | Initial version                     |
-| 1.1 |  11/01/2024 | Yaqiang Zhu, <br> Jing Kan       | Revise                 |
-| 1.2 |  08/19/2025 | Yaqiang Zhu, <br> Jing Kan       | Add DHCPv6 per-intf counter |
+| 1.1 |  11/01/2024 | Yaqiang Zhu, <br> Jing Kan       | Revise, add DHCPv4 per-interface counter |
+| 1.2 |  08/19/2025 | Yaqiang Zhu, <br> Jing Kan       | Add DHCPv6 per-interface counter |
 
 # About this Manual
 
@@ -79,7 +79,7 @@ In this stage, dhcpmon would do some preparations, there are 3 points need to be
         <div align="center"> <img src=images/context_socket.png width=550 /> </div>
 
        - Hence the context interface map would be like below
-         ```JSON
+         ```
          {
           "Vlan1000": "Vlan1000",   // Downlink
           "Ethernet1": "Vlan1000",  // Downlink
