@@ -100,7 +100,7 @@ Currently, SAI supports only `uint64_t` statistics, without float support. To en
 /**
 * @brief Output power
 *
-* @type sai_uint64_t
+* @type sai_int64_t
 * @precision 2
 */
 SAI_OPTICAL_PORT_STAT_OUTPUT_POWER,
@@ -108,7 +108,7 @@ SAI_OPTICAL_PORT_STAT_OUTPUT_POWER,
 /**
 * @brief Los threshold
 *
-* @type sai_uint64_t
+* @type sai_int64_t
 * @flags CREATE_AND_SET
 * @precision 2
 */
@@ -219,6 +219,13 @@ This PR has been reviewed by the SONiC-OTN workgroup and Kamil Cudnik.
 
 ### 5. Open Questions
 1. Should OTN objects be defined as **SAI experimental entries**, or directly as **SAI standard entries**?
+   
 2. If standardized, should these objects be grouped in a dedicated `otn` folder?
+
+   Since there are 17 new OTN objects, there are three options:
+   * Define them as existing sai objects (The current PR's implementation);
+   * Define them as existing SAI objects but within a custom range, and place them in a new ‘otn’ folder
+   * Define them in the experimental folder, similar to DASH.
+  
 3. What are the next steps for adopting these OTN modifications into SAI?
 
