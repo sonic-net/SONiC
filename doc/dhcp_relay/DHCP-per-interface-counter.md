@@ -206,8 +206,8 @@ In some scenarios, packets shouldn't be relayed and should be ignored by counter
   2. Packets structure invalid (Cannot be parsed / option with incorrect length or only have length), packets would be dropped and `Malformed` counter would be increased.
   3. There is no next-header in the ext_header of IPv6 that is UDP.
   4. No any valid DHCPv6 type, packets would be dropped and `Unknown` counter would be increased.
-  5. Invalid DHCPv6 Option ID (> 147), packets would be dropped and `Malformed` counter would be increased. Refer http://www.iana.org/assignments/dhcpv6-parameters/dhcpv6-parameters.xhtml, packets would be dropped and `Malformed` counter would be increased.
-- Client-sent packets: fFor packets sent by client and match any of below conditions, dhcpmon wouldn't count them.
+  5. Invalid DHCPv6 Option ID (> 147), packets would be dropped and `Malformed` counter would be increased. Refer http://www.iana.org/assignments/dhcpv6-parameters/dhcpv6-parameters.xhtml.
+- Client-sent packets: For packets sent by client and match any of below conditions, dhcpmon wouldn't count them.
   1. From standby interface in DualToR.
   2. For RELAY_FORW packets, hop_count in DHCPv6 relay header >= 8 (Hop limit defined in RFC8415).
 - Packets sent to server: for packets sent to server and match any of below conditions, dhcpmon wouldn't count them.
@@ -230,7 +230,7 @@ In some scenarios, packets shouldn't be relayed and should be ignored by counter
 
 Following table changes would be added in Counters DB, including **DHCPV4_COUNTER_TABLE**, **DHCPV6_COUNTER_TABLE** table.
 
-```json
+```
 {
   'DHCPV4_COUNTER_TABLE': {
     'Vlan1000': {
