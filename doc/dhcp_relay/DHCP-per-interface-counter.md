@@ -65,10 +65,10 @@ Below picture shows initialization for dhcpmon.
 
 In this stage, dhcpmon would do some preparations, there are 3 points need to be highlighted:
 1. Initialize and bind socket. We will create 2 sockets for DHCPv4 and 2 sockets for DHCPv6:
-  - DHCPv4 RX: socket with `tcpdump -dd "inbound and udp and (port 67 or port 68)"`
-  - DHCPv4 TX: socket with `tcpdump -dd "outbound and udp and (port 67 or port 68)"`
-  - DHCPv6 RX: socket with `tcpdump -dd "inbound and ip6 and (udp port 547 or udp port 546)"`
-  - DHCPv6 TX: socket with `tcpdump -dd "outbound and ip6 and (udp port 547 or udp port 546)"`
+    - DHCPv4 RX: socket with `tcpdump -dd "inbound and udp and (port 67 or port 68)"`
+    - DHCPv4 TX: socket with `tcpdump -dd "outbound and udp and (port 67 or port 68)"`
+    - DHCPv6 RX: socket with `tcpdump -dd "inbound and ip6 and (udp port 547 or udp port 546)"`
+    - DHCPv6 TX: socket with `tcpdump -dd "outbound and ip6 and (udp port 547 or udp port 546)"`
 
 2. Update context interface map
      - Socket interface: We use socket to capture packets then count, socket interface is the interface for receiving or sending packets in socket.
@@ -94,7 +94,7 @@ In this stage, dhcpmon would do some preparations, there are 3 points need to be
          ```
 
 3. Init DB/check counter
-dhcpmon would create counter for corresponding interfaces in process memory and COUNTERS_DB and set them to be 0.
+    - dhcpmon would create counter for corresponding interfaces in process memory and COUNTERS_DB and set them to be 0.
 
 With above structure, packets processing and all writing actions to cache counter in process memory would be done in **main thread**, and all writing actions to COUNTERS_DB would be done in **DB update thread**.
 
@@ -192,11 +192,11 @@ Except valid types, We add two another types for invalid packets: `Unknown` and 
     * Related PortChannel member interfaces from CONFIG_DB table `PORTCHANNEL_MEMBER|PortChannelxxx`.
 * Vlan add/del
   * For now, after vlan adding or deleting, it requires dhcp_relay container be restarted to take effect. Vlan del Cli would automatically restart dhcp_relay container, other scenarios need manually restart. Then it could be referred to above `container restart` part
-* Vlan / PortChannel member change 
+* Vlan / PortChannel member change
   * Member add: It's expected to add entry and set counter to zero for member interface.
   * Member del: It's expected to delete related counter entry.
   * **Note: This requires db change subscription support. In early stage, we will mainly focus on key functionality. This feature maybe be supported in future.**
-* PortChannel change 
+* PortChannel change
   * It's expected to add entry and set counter to zero for adding portchannel and delete related counter entry for deleting portchannel.
   * **Note: This requires db change subscription support. In early stage, we will mainly focus on key functionality. This feature maybe be supported in future.**
 
@@ -275,7 +275,7 @@ This command is used to show dhcp_relay counter.
         dir: Specify egress or ingress
         type: Specify DHCP packet type
         json: Show output with JSON format
-    
+
     Note: At least one of dir and type must be specified
     ```
 
@@ -366,7 +366,7 @@ This command is used to show dhcp_relay counter.
     Options:
         dir: Specify egress or ingress
         type: Specify DHCP packet type
-    
+
     Note: At least one of dir and type must be specified
     ```
 
