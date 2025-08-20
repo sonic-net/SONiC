@@ -127,11 +127,12 @@ After receiving signal to clear cache, dhcpmon process would sync counter data f
 In Dual-ToR there are some behaviors different with single ToR:
 1. Packets come from standby interfaces should be dropped.
 <div align="center"> <img src=images/ingress_drop.png width=480 /> </div>
+
 2. For DHCPv4
-  - In single ToR, the gateway is Vlan ip, but in Dual-ToR, it's device's Loopback ip.
+    - In single ToR, the gateway is Vlan ip, but in Dual-ToR, it's device's Loopback ip.
 3. For DHCPv6
-  - In single ToR, packets are sent to server via Vlan GUA socket. But in Dual ToR, packets are sent to server via Loopback socket.
-  - Option 18 would be added in packets sent by Dual ToR or received from server to DualToR, which includes Vlan's LLA.
+    - In single ToR, packets are sent to server via Vlan GUA socket. But in Dual ToR, packets are sent to server via Loopback socket.
+    - Option 18 would be added in packets sent by Dual ToR or received from server to DualToR, which includes Vlan's LLA.
 
 ### DHCPv4
 dhcpmon would mainly focus on comparing below 3 fields in packet when counting packets. Point 1 and point 2 is used for counting context interface, **we only count client-sent packets which come from downlink Vlan and server-sent packets which come from uplink interfaces**. And point 3 is used to get packet type.
@@ -181,25 +182,6 @@ Except valid types, We add two another types for invalid packets: `Unknown` and 
 | Unknown                      | * |
 | Malformed                      | * |
 
-## Counter Reset
-
-* Container restart
-  * We would add clear all counter data logic in startup script `start.sh` inside dhcp_relay container. Then When dhcp_relay containter restarting, all counter data would be cleared.
-* Process restart
-  * One dhcpmon process would only listen on one downlink Vlan interface, hence dhcpmon process restart will initialize (counter set to zero) for interface in below list:
-    * Downlink / Uplink context interfaces given by startup parameter.
-    * Related Vlan member interfaces from CONFIG_DB table `VLAN_MEMBER|Vlanxxx`.
-    * Related PortChannel member interfaces from CONFIG_DB table `PORTCHANNEL_MEMBER|PortChannelxxx`.
-* Vlan add/del
-  * For now, after vlan adding or deleting, it requires dhcp_relay container be restarted to take effect. Vlan del Cli would automatically restart dhcp_relay container, other scenarios need manually restart. Then it could be referred to above `container restart` part
-* Vlan / PortChannel member change
-  * Member add: It's expected to add entry and set counter to zero for member interface.
-  * Member del: It's expected to delete related counter entry.
-  * **Note: This requires db change subscription support. In early stage, we will mainly focus on key functionality. This feature maybe be supported in future.**
-* PortChannel change
-  * It's expected to add entry and set counter to zero for adding portchannel and delete related counter entry for deleting portchannel.
-  * **Note: This requires db change subscription support. In early stage, we will mainly focus on key functionality. This feature maybe be supported in future.**
-
 In some scenarios, packets shouldn't be relayed and should be ignored by counter.
 - Common: we have below common validation for all packets, packets match any of below conditions shouldn't be counted.
   1. From invalid Physical interface or Context interface.
@@ -223,6 +205,25 @@ In some scenarios, packets shouldn't be relayed and should be ignored by counter
       - Not option 9 in option lists.
 - Packet sent to client: for packets sent to client and match any of below conditions, dhcpmon wouldn't count them.
   1. Src ip is no LLA or GUA of VLAN.
+
+## Counter Reset
+
+* Container restart
+  * We would add clear all counter data logic in startup script `start.sh` inside dhcp_relay container. Then When dhcp_relay container restarting, all counter data would be cleared.
+* Process restart
+  * One dhcpmon process would only listen on one downlink Vlan interface, hence dhcpmon process restart will initialize (counter set to zero) for interface in below list:
+    * Downlink / Uplink context interfaces given by startup parameter.
+    * Related Vlan member interfaces from CONFIG_DB table `VLAN_MEMBER|Vlanxxx`.
+    * Related PortChannel member interfaces from CONFIG_DB table `PORTCHANNEL_MEMBER|PortChannelxxx`.
+* Vlan add/del
+  * For now, after vlan adding or deleting, it requires dhcp_relay container be restarted to take effect. Vlan del Cli would automatically restart dhcp_relay container, other scenarios need manually restart. Then it could be referred to above `container restart` part
+* Vlan / PortChannel member change
+  * Member add: It's expected to add entry and set counter to zero for member interface.
+  * Member del: It's expected to delete related counter entry.
+  * **Note: This requires db change subscription support. In early stage, we will mainly focus on key functionality. This feature maybe be supported in future.**
+* PortChannel change
+  * It's expected to add entry and set counter to zero for adding portchannel and delete related counter entry for deleting portchannel.
+  * **Note: This requires db change subscription support. In early stage, we will mainly focus on key functionality. This feature maybe be supported in future.**
 
 ## DB Change
 
