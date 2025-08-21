@@ -1,7 +1,7 @@
 # SAI for Optical Transport Network (OTN)
 
 ## Authors
-The SONiC-OTN workgroup members: Alibaba, Microsoft, Molex, Nokia, and Accelink.
+The SONiC-OTN workgroup members: Alibaba, Microsoft, Molex, Nokia, Cisco and Accelink.
 
 ### Definitions and Abbreviations
 
