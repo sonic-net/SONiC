@@ -114,7 +114,7 @@ DB update timer would be invoked periodically (**every 20s**) in another thread 
 
 ### Clear Counter (Main thread)
 
-<div align="center"> <img src=images/clear_counter.png width=650 /> </div>
+<div align="center"> <img src=images/clear_counter.png width=700 /> </div>
 
 When user invokes SONiC Cli to clear counter, it would directly clear corresponding data in COUNTERS_DB, then a signal to clear cache counter would be sent to dhcpmon process.
 
