@@ -99,7 +99,7 @@ Modules that do not support CMIS and are not part of the CMIS state machine are 
 
 NOTE:  
 This feature modifies the TP4 settings, which can also be achieved by providing the optics_si_settings.json file. Consequently, it will modify the TX/RX Signal Integrity Controls on page 10h with the Explicit Control bit set.   
-If the optics_si_settings.json file is found, the Custom App Sel feature will be disabled. 
+The optics_si_settings.json can be used to over-ride default SI settings. So both files are co-exist.
 
 
 ## 3 Architecture Design
