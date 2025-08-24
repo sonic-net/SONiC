@@ -14,16 +14,16 @@
   * [7 References](#7-references)
 
 # List of Tables
-[Table 1: Abbreviations](#table-1-abbreviations)
-[Table 2: Component Basic Information Mapping](#component-basic-information-mapping)
-[Table 3: Memory Information Mapping](#memory-information-mapping)
-[Table 4: Temperature Information Mapping](#temperature-information-mapping)
-[Table 5: Power Supply Information Mapping](#power-supply-information-mapping)
-[Table 6: Fan Information Mapping](#fan-information-mapping)
-[Table 7: CPU Information Mapping](#cpu-information-mapping)
-[Table 8: Transceiver Information Mapping](#transceiver-information-mapping)
-[Table 9: Component Type to DB Table Mapping](#component-type-to-db-table-mapping)
-[Table 10: Transceiver Threshold Field Mapping](#334-transceiver-threshold-field-mapping)
+[Table 1: Abbreviations](#table-1-abbreviations) 
+[Table 2: Component Basic Information Mapping](#component-basic-information-mapping) 
+[Table 3: Memory Information Mapping](#memory-information-mapping) 
+[Table 4: Temperature Information Mapping](#temperature-information-mapping) 
+[Table 5: Power Supply Information Mapping](#power-supply-information-mapping) 
+[Table 6: Fan Information Mapping](#fan-information-mapping) 
+[Table 7: CPU Information Mapping](#cpu-information-mapping) 
+[Table 8: Transceiver Information Mapping](#transceiver-information-mapping) 
+[Table 9: Component Type to DB Table Mapping](#component-type-to-db-table-mapping) 
+[Table 10: Transceiver Threshold Field Mapping](#334-transceiver-threshold-field-mapping) 
 
 # Revision
 | Rev |     Date    |       Author          | Change Description                |
