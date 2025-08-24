@@ -15,14 +15,14 @@
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
-[Table 2: Component Basic Information Mapping](#3321-component-basic-information-mapping)
-[Table 3: Memory Information Mapping](#3322-memory-information-mapping)
-[Table 4: Temperature Information Mapping](#3323-temperature-information-mapping)
-[Table 5: Power Supply Information Mapping](#3324-power-supply-information-mapping)
-[Table 6: Fan Information Mapping](#3325-fan-information-mapping)
-[Table 7: CPU Information Mapping](#3326-cpu-information-mapping)
-[Table 8: Transceiver Information Mapping](#3327-transceiver-information-mapping)
-[Table 9: Component Type to DB Table Mapping](#333-component-type-to-db-table-mapping)
+[Table 2: Component Basic Information Mapping](#component-basic-information-mapping)
+[Table 3: Memory Information Mapping](#memory-information-mapping)
+[Table 4: Temperature Information Mapping](#temperature-information-mapping)
+[Table 5: Power Supply Information Mapping](#power-supply-information-mapping)
+[Table 6: Fan Information Mapping](#fan-information-mapping)
+[Table 7: CPU Information Mapping](#cpu-information-mapping)
+[Table 8: Transceiver Information Mapping](#transceiver-information-mapping)
+[Table 9: Component Type to DB Table Mapping](#component-type-to-db-table-mapping)
 [Table 10: Transceiver Threshold Field Mapping](#334-transceiver-threshold-field-mapping)
 
 # Revision
@@ -252,19 +252,19 @@ The following table shows the mapping between OpenConfig YANG paths and SONiC ST
 
 | OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Component Types |
 |---------------------|----------------|----------------|-----------------|
-| `/components/component/state/id` | PHYSICAL_ENTITY_INFO | position_in_parent | All |
+| `/components/component/state/id` | - | - | All |
 | `/components/component/state/part-no` | EEPROM_INFO | 0x22 | Chassis/EEPROM |
 | `/components/component/state/serial-no` | EEPROM_INFO, TRANSCEIVER_INFO | 0x23, serial | Chassis/EEPROM, Transceiver |
 | `/components/component/state/mfg-date` | EEPROM_INFO | 0x25 | Chassis/EEPROM |
 | `/components/component/state/hardware-version` | EEPROM_INFO, TRANSCEIVER_INFO | 0x27, hardware_rev | Chassis/EEPROM, Transceiver |
-| `/components/component/state/description` | Static/Computed | - | All |
+| `/components/component/state/description` | - | - | All |
 | `/components/component/state/mfg-name` | EEPROM_INFO, TRANSCEIVER_INFO | 0x2b, manufacturer | Chassis/EEPROM, Transceiver |
 | `/components/component/state/location` | PHYSICAL_ENTITY_INFO | parent_name | All |
 | `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | All |
-| `/components/component/state/empty` | Computed | - | All |
-| `/components/component/state/removable` | Computed | - | All |
-| `/components/component/state/oper-status` | Computed | status, presence | All |
-| `/components/component/state/type` | Computed | - | All |
+| `/components/component/state/empty` | - | - | All |
+| `/components/component/state/removable` | - | - | All |
+| `/components/component/state/oper-status` | PSU_INFO, FAN_INFO, TRANSCEIVER_INFO | status, presence | PSU, Fan, Transceiver |
+| `/components/component/state/type` | - | - | All |
 | `/components/component/state/model-name` | CPU_STATS, TRANSCEIVER_INFO | model_name, model | CPU, Transceiver |
 
 #### 3.3.2.2 Memory Information Mapping
