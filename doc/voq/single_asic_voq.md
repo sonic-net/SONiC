@@ -99,8 +99,6 @@ We do not need to create the inband port or the recirculation port in single-asi
   ### **1.4.2 Bgpconfd**
 
 - Spawn off ChassisDbMgr only on Chassis VOQ system but not on single-ASIC VOQ  
-    
-- Handle TSA (Traffic Shift Away) only on chassis VOQ and not on single-ASIC VOQ
 
   ### **1.4.3 Sonic-utilities**
 
