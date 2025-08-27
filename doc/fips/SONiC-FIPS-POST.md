@@ -36,18 +36,18 @@ The following figure depicts the data flow and SONiC components in the design. O
 
 ### State DB
 
-The following table is added to State DB to track POST status.
+The following table is added to State DB to track MACSec POST status, including SAI POST result/status.
 ```
-POST_STATUS_TABLE
+FIPS_MACSEC_POST_TABLE
 
-;Store POST status
+;Store MACSec POST status
 
-key    = POST_STATUS_TABLE|macsec
-status = "in-progress"    ; POST is in-progress.
-         "not-started"    ; POST was not enabled in switch init.
-         "pass"           ; POST passed.
-         "fail"           ; POST failed. 
-         "unsupported"    ; POST is not supported by SAI.
+key    = FIPS_MACSEC_POST_TABLE|sai
+status = "switch-level-post-in-progress"    ; SAI switch level POST is in-progress.
+         "macsec-level-post-in-progress"    ; SAI MACsec level POST will be triggered or in-progress.
+         "pass"                             ; SAI POST passed.
+         "fail"                             ; SAI POST failed. 
+         "disabled"                         ; SAI POST is disabled.
 
 ```
 
@@ -80,7 +80,15 @@ Since SAI supports POST completion callback, a callback or notification function
 
 ### Handling SAI POST failure
 
-If SAI POST fails,  MACSecOrch reads POST status of all MACSec ports and finds out which port has failed in POST.  MACSecOrch then adds the details of the failure in syslog.
+If SAI POST fails,  MACSecOrch reads POST status of all MACSec ports and finds out which port has failed in POST.  MACSecOrch then adds the details of the failure in syslog. The following syslog is added to report SAI POST failure.
+Swith level POST failure
+```
+Switch MACSec POST failed
+```
+MACSec level POST failure
+```
+MACSec POST failed: oid <macsec-oid>, direction ingress|egresss
+```
 
 ### Enforcing FIPS compliance
 
