@@ -7,6 +7,7 @@
 | 0.3 | 02/26/2024 | Ramesh Raghupathy | Addressed review comments |
 | 0.4 | 06/06/2024 | Ramesh Raghupathy | Added schema for DPU health-info and called out phase:1 and phase:2 activities for DPU health-info. Added key suffix to module reboot-cause to avoid key conflicts |
 | 0.5 | 04/30/2025 | Gagan Punathil Ellath | Added Post Startup and Pre shutdown sections for DPU |
+| 0.6 | 06/12/2025 | Gagan Punathil Ellath | DPU State Management Implementation |
 
 ## Definitions / Abbreviations
 
@@ -701,6 +702,41 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
         ”dpu_data_plane_time": ”timestamp",
         ”dpu_data_plane_reason": ”Pipeline failure",
 ```
+#### DPU State Management Default Implementation
+This implementation is valid for all smartswitch platforms (the midplane state updates from switch chassisd are generic, but the control plane and data plane state updates mentioned here is valid for platforms which run chassisd for state updates on DPU)
+The DPU state management is implemented through a combination of classes that handle state updates, monitoring and persistence:
+
+1. **DPU State updates from the switch**
+   * The switch updates the midplane state after querying the `is_midplane_reachable` platform API for the corresponding DPU. This is an universal implementation for all platforms
+   * The midplane state is updated at a specific frequency by the chassisd running on the switch (The frequency is once every 10 seconds - as per `CHASSIS_INFO_UPDATE_PERIOD_SECS` in chassisd)
+   * If the midplane state is down (which means that the DPU is no longer accessible through the midplane) This means that the state information which is present is no longer valid at the current instant, so the state information for control plane and data plane is set to 'down' but the data plane and the control plane reasons and the timestamps are retained as is for further debugging.
+
+2. **DpuStateManagerTask Class - present in Chassisd on DPU - Dependent on chassisd being enabled on DPU**
+   * If there is a platform specific implementation of `get_dataplane_state` and `get_controlplane_state` implementation, Then these functions are called in polling mode by the chassisd running on DPU to update the relevant state information
+   * If the functions (`get_dataplane_state` and `get_controlplane_state` are not implemented then we have an platform independent implementation to update the states by monitoring state changes through multiple database tables:
+     - PORT_TABLE in APPL_DB (This is queried for updating the data_plane_state of the DPU)
+     - SYSTEM_READY in STATE_DB  (This is queried for updating the control_plane_state of the DPU)
+     - DPU_STATE in CHASSIS_STATE_DB (We subscribe to the table being updated so that if there is an update to the mid plane state from the switch, the DPU takes appropriate actions to re-update the control plane and the data plane states if the DPU is able to do it)
+   * Only processes state changes for the specific DPU being monitored
+   * Avoids unnecessary updates when states haven't changed
+   * Triggers state updates through DpuStateUpdater when changes are detected
+
+3. **DpuChassisdDaemon Class the daemon class for the DPU - Dependent on chassisd being enabled on DPU**
+   * Main daemon class that orchestrates DPU state management
+   * Supports two modes of operation:
+     - Polling mode: Directly polls platform APIs for state changes
+     - Event-driven mode: Uses DpuStateManagerTask to monitor state changes
+   * Handles graceful shutdown and cleanup of state management resources
+   * Maintains state consistency across system reboots
+
+The state management implementation ensures:
+* Efficient monitoring of DPU states through event-driven updates
+* Consistent state transitions with proper timestamps
+* Automatic propagation of state changes (e.g. midplane down affecting other states)
+* Clean shutdown and resource management
+* Support for both polling and event-driven state updates. The polling mode is only relevant when the `get_dataplane_state` and the `get_controlplane_state` functions are implemented for the specific DPU platform. If not by default event driven mode is used by default
+
+
 #### 3 DPU Health
 This feature is implemented in two phases.
 #### Phase:1

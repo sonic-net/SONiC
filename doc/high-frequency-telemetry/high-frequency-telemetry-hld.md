@@ -476,8 +476,8 @@ The following table is an example of telemetry bandwidth of one cluster
 | ------------------- | --------------------- | ----------- | -------------- | ------------------------- | -------------- |
 | 30                  | 64                    | 10,000      | 10             | 12,288                    | 122,880,000    |
 
-- ${Total BW Per Switch} = \frac{{\verb|#| Of Stats Per Port} \times 8_{bytes} \times {\verb|#| Of Ports Per Switch} \times {Frequency} \times 1,000 \times 8}{1,000,000}$
-- ${Total BM} = {Total BW Per Switch} \times {\verb|#| Of Switch}$
+- /$/{Total BW Per Switch/} = \frac/{/{\verb|#| Of Stats Per Port/} \times 8_/{bytes/} \times /{\verb|#| Of Ports Per Switch/} \times /{Frequency/} \times 1,000 \times 8/}/{1,000,000/}$
+- /$/{Total BM/} = /{Total BW Per Switch/} \times /{\verb|#| Of Switch/}/$
 
 ### 7.4. Config DB
 
