@@ -407,7 +407,7 @@ packet-beta
 48-63: "nlmsg_flags: 0x0000"
 64-95: "nlmsg_seq: 0x00000000"
 96-127: "nlmsg_pid: 0x00000000"
-128-135: "cmd: 0x00"
+128-135: "cmd: 0x01 (STEL_CMD_IPFIX_DATA)"
 136-143: "version: protocol version"
 144-159: "reserved: 0x0000"
 160-191: "IPFIX Message Payload"
@@ -423,7 +423,7 @@ packet-beta
 - `nlmsg_pid` (4 bytes): Process ID = 0x00000000 (kernel originated message)
 
 **Generic Netlink Header (4 bytes):**
-- `cmd` (1 byte): Command type = 0x00 (always 0)
+- `cmd` (1 byte): Command type = 0x01 (STEL_CMD_IPFIX_DATA)
 - `version` (1 byte): Protocol version (implementation dependent)
 - `reserved` (2 bytes): Reserved for future use = 0x0000
 
@@ -447,7 +447,7 @@ static struct genl_family stel_family = {
     .n_mcgrps = ARRAY_SIZE(stel_mcgrps),
 };
 
-#define STEL_CMD_IPFIX_DATA 0
+#define STEL_CMD_IPFIX_DATA 1
 
 void send_msgs_to_user(/* ... */)
 {
@@ -470,7 +470,7 @@ void send_msgs_to_user(/* ... */)
         return;
     }
     
-    // Add genetlink header with cmd = 0
+    // Add genetlink header with cmd = STEL_CMD_IPFIX_DATA (1)
     msg_head = genlmsg_put(skb_out, 0, 0, &stel_family, 0, STEL_CMD_IPFIX_DATA);
     if (!msg_head) {
         nlmsg_free(skb_out);
