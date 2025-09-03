@@ -11,6 +11,7 @@
 7. [GPU to GPU Packet Flow](#gpu-to-gpu-packet-flow)
 8. [Software Architecture](#software-architecture)
 9. [Resiliency and Fault Tolerance](#resiliency-and-fault-tolerance)
+10.[Future Features in SONiC](#future-features-in-sonic)
 
 A Reference for SONiC Implementation [DRAFT]
 Version (Draft 0.6. July 27, 2025)
@@ -22,6 +23,9 @@ SONiC is commonly used within the front-end DC network and the Scale-Out network
 This document will aim to serve as an architectural guide. It will outline all necessary building blocks and document the design considerations for constructing an Ethernet-based scale-up AI fabric. Once the blueprint for building this system is fully defined, this working group will work with SAI community to define its SAI API specifications and design the required SONiC modules. Additionally, feedback will be shared with other industry activities like UAL and UEC to build synergy across all efforts.
 
 An Ethernet fabric can support different transport protocols such as PCIe over Ethernet, AXI over Ethernet, or an alternate standards-based or proprietary method. This working group will not define such transport technologies but will focus on the considerations and best practices for deploying them in a performance-optimal manner over an all-Ethernet infrastructure.  
+
+## Terminology
+
 
 ## Overview
 
@@ -62,6 +66,21 @@ The primary scale-up fabric requirements are:
 - Reduced communication and framing overheads
 - Cluster scaling to at least 1024 GPUs
 - Support for resiliency and fault tolerance.
+
+
+### Requirements Comparison from the industry
+
+|  | Alibaba | Microsoft | Tencent | Bytedance |
+|------|---------|-----------|---------|-----------|
+| **Packet Size** | 1K (match with HBM access granularity) | 1-8 K (No small packet requirement) | 4kB for network semantics, <512B for memory semantics | <2KB for both memory and message semantics |
+| **Cluster Size** | 256 -> 512 GPUs | 128 -> 256 GPUs | Up to 512 GPUs with 1-layer ETH-X Ultra network | 128 -> 1K GPUs |
+| **Latency** | < 1us. No need to be extraordinary low | < 1us. Preferably < 600 ns L3 SAF latency | < 1us. The smaller the better. | < 1us. |
+| **Traffic Rate** | ~= memory bandwidth | ~=HBM bandwidth | | |
+| **Multi-tenant** | Yes | GPU level | Yes | yes |
+| **Hardware** | Liquid & Air cooling, No optical module | Liquid cooling, No optical modules all copper cables, N-1 Serdes speed compatibility | | Liquid Cooling, Copper for I/O |
+| **Forwarding** | Ethernet | L2 & L3 routing based solutions | Standard IP (Optional) Compressed Header | Standard IP or Ethlink |
+| **Features for data traffic** | DSCP,ECN,LLR,CBFC | PFC,DSCP,ECN,ECMP | DSCP,ECN,CBFC,ECMP | DSCP,ECN,LLR,CBFC |
+| **Operational** | Performance monitoring + High precision telemetry | Traffic/Buffer/PG/Queue monitoring + High frequency telemetry (100ms to 1ms granularity) | Work as a Server (No network operation) + Adaptive Configuration – Plug & Play + Buffer Statistics Tracking + Mirror-on-Drop | <1ms monitoring |
 
 ## Reference System Model
 
@@ -109,6 +128,10 @@ It implies that, to achieve the same efficiency as high-bandwidth interconnects,
 The throughput of a multi-XPU shared memory system is affected by the latency of the XPU communication. Hence, minimizing the latency is of great importance. But extreme LOW latency may not be a must.
 
 Since the theoretical micro-batch overlap is hard to reach, and the upper bound on performance in practical inference workloads is mostly affected by computations. For example, the industry data shows that the expert computation time would converge to a lower bound when the batch size decreases. That means, at some point, no matter how you decrease the batch size, the computation time would not decrease. And even that lower bound computation time still dominates the theoretical optimistic communication latency.
+
+## Rack Design
+
+todo : compute tray / switch tray / connection in-between
 
 ## Multi-ASIC Architecture
 
@@ -324,7 +347,7 @@ Reconfiguration will typically take milli-seconds and traffic will be black hole
 
 ![fail3](images/fail3.png)
 
-## SONiC
+## Future Features in SONiC
 
 - Do we want to make any assumptions about the software stack?
 - What changes do we need for SONiC?
