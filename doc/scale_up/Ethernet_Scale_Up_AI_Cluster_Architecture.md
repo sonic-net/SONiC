@@ -1,137 +1,150 @@
 # Ethernet Scale Up AI Cluster Architecture
 
-## Table of Content
+**A Reference for SONiC Implementation [DRAFT]**  
+*Version 0.6 - July 27, 2025*
 
-1. [Scope](#scope)
-2. [Overview](#overview)
-3. [Scale-Up Fabrics](#scale-up-fabrics)
-4. [Reference System Model](#reference-system-model)
-5. [Multi-ASIC Architecture](#multi-asic-architecture)
-6. [Protocol Stack](#protocol-stack)
-7. [GPU to GPU Packet Flow](#gpu-to-gpu-packet-flow)
-8. [Software Architecture](#software-architecture)
-9. [Resiliency and Fault Tolerance](#resiliency-and-fault-tolerance)
-10.[Future Features in SONiC](#future-features-in-sonic)
+## Table of Contents
 
-A Reference for SONiC Implementation [DRAFT]
-Version (Draft 0.6. July 27, 2025)
-
-## Scope
-
-SONiC is commonly used within the front-end DC network and the Scale-Out network. The goal of this WG is to extend its usage to the Scale-Up domain and provide commonality across all networks. The focus will be on the operational and management aspects of developing an efficient, low-latency, scalable, fault-tolerant Ethernet-based scale-up network.
-
-This document will aim to serve as an architectural guide. It will outline all necessary building blocks and document the design considerations for constructing an Ethernet-based scale-up AI fabric. Once the blueprint for building this system is fully defined, this working group will work with SAI community to define its SAI API specifications and design the required SONiC modules. Additionally, feedback will be shared with other industry activities like UAL and UEC to build synergy across all efforts.
-
-An Ethernet fabric can support different transport protocols such as PCIe over Ethernet, AXI over Ethernet, or an alternate standards-based or proprietary method. This working group will not define such transport technologies but will focus on the considerations and best practices for deploying them in a performance-optimal manner over an all-Ethernet infrastructure.  
+1. [Terminology](#terminology)
+2. [Scope](#scope)
+3. [Overview](#overview)
+4. [Scale-Up Fabrics](#scale-up-fabrics)
+5. [Reference System Model](#reference-system-model)
+6. [Multi-ASIC Architecture](#multi-asic-architecture)
+7. [Protocol Stack](#protocol-stack)
+8. [GPU-to-GPU Packet Flow](#gpu-to-gpu-packet-flow)
+9. [Software Architecture](#software-architecture)
+10. [Resiliency and Fault Tolerance](#resiliency-and-fault-tolerance)
+11. [Future Features in SONiC](#future-features-in-sonic)
 
 ## Terminology
 
+|   Abbreviation | Full Term |
+|:--------------:|:-----------:|
+|       UFH       | Unified Forwarding Header |
+| XPU             | Generic term for GPU or ML accelerator |
+| CBFC            | Credit-Based Flow Control |
+| LLR             | Link-Level Retry |
+| UAL             | Ultra Accelerator Link |
+| UEC             | Ultra Ethernet Consortium |
+| PP              | Pipeline Parallelism |
+| TP              | Tensor Parallelism |
+| DP              | Data Parallelism |
+
+
+## Scope
+
+This document serves as an architectural guide, which outlines the fundamental building blocks and design principles of SONiC scale-up working group to construct Ethernet-based scale-up AI fabrics. Upon completion of this blueprint, we will collaborate with the SAI community to define API specifications and develop the necessary SONiC modules.
+
+While Ethernet fabrics can support various transport protocols including PCIe over Ethernet, AXI over Ethernet, and other standards-based or proprietary methods, this work focuses on considerations and best practices for deploying these technologies optimally over all-Ethernet infrastructure rather than defining specific transport technologies.
 
 ## Overview
 
-As workloads continue to expand in complexity in areas such as machine learning and AI inference, the need for parallel processing power increases significantly. Scaling up a GPU (or more generically an XPU, to include various custom ML accelerators) cluster to a rack or multi-rack level is needed to enhance its ability to process larger datasets, train deeper neural networks, handle more simultaneous tasks, and reduce execution time and improve overall system efficiency.
+SONiC is widely deployed in front-end datacenter networks and scale-out infrastructures. The SONiC Scale-Up Working Group aims to extend its capabilities to the scale-up domain, providing unified operational frameworks across all network types. Our primary focus centers on the operational and management aspects of building efficient, low-latency, scalable, and fault-tolerant Ethernet-based scale-up networks for AI workloads. We also share feedback with industry initiatives such as Ultra Accelerator Link (UAL) and Ultra Ethernet Consortium (UEC) to foster synergy across all efforts.
 
-Ethernet offers many advantages for designing such a fabric, from industry leading high-speed links and high-capacity switches to a well-developed ecosystem, and well-understood operational methods. Multiple industry groups are currently involved in developing networking technologies for AI based networks that extend Ethernet or use some of its components as a building block.
+As AI and machine learning workloads grow in complexity, the demand for parallel processing power increases exponentially. Scaling GPU clusters to rack and multi-rack levels is essential for processing larger datasets, training deeper neural networks, handling concurrent tasks.
+
+Ethernet provides compelling advantages for fabric design: industry-leading high-speed links, high-capacity switches, a mature ecosystem, and well-established operational practices. Multiple industry groups are actively developing networking technologies for AI-based networks that extend Ethernet or leverage its components as building blocks.
 
 ![ethernet](images/overview.png)
 
-The Ultra Ethernet Consortium defines a reference model with 3 types of networks, a front-end cloud scale DC network, a scale-out backend network for connecting GPU systems (consisting of one or more racks) and a high-capacity scale-up fabric for connectivity within a system. The current focus within UEC is on defining a high-performance transport protocol for the needs of a scale-out fabric, various physical and link level technologies for improving reliability, in-network compute, and management practices. Many of these link level technologies are directly applicable to Scale-Up networks as well, and the UEC is developing the use of Ethernet as a scale-up fabric.
+The Ultra Ethernet Consortium defines a reference model encompassing three network types:
+
+- **Front-end cloud-scale DC network**
+- **Scale-out backend network** for connecting GPU systems (one or more racks)
+- **High-capacity scale-up fabric** for intra-system connectivity
+
+UEC currently focuses on defining high-performance transport protocols for scale-out fabrics, physical and link-level technologies for enhanced reliability, in-network compute capabilities, and management practices. Many of these link-level technologies directly apply to scale-up networks, and UEC is actively developing Ethernet solutions for scale-up fabrics.
 
 ![interst](images/interest.png)
 
-The Ultra Accelerator Link Consortium (UAL) defines an approach that leverages Ethernet high-speed SerDes but maintains a PCIe-style transport and transaction layer. This method requires new PCIe style switches that interpret UPLI packets and updates them in transit. The PCIe style approach makes it challenging to use existing Ethernet equipment or to incorporate network resilience, a key consideration for fault-tolerant scale-up fabrics. The current UAL specification can therefore serve as a reference for use cases and requirements, but not as a direct solution.
+The Ultra Accelerator Link Consortium (UAL) defines an approach leveraging Ethernet high-speed SerDes while maintaining PCIe-style transport and transaction layers. This methodology requires specialized PCIe-style switches that interpret UPLI packets and modify them in transit. However, the PCIe-style approach presents challenges for using existing Ethernet equipment and incorporating network resilience—a critical consideration for fault-tolerant scale-up fabrics. While UAL specifications serve as valuable references for use cases and requirements, they cannot be directly adopted as complete solutions.
 
 ## Scale-Up Fabrics
 
-Scale-out networks connect a large number of nodes to distribute training workload(s). Scale-up fabrics connect closely coupled GPUs/GPUs in a cluster and can be described as “memory fabrics” as the intent is to enable memory load-store operations between the GPUs. GPUs have many orders of higher bandwidth on their scale-up interfaces vs scale-out. The fabric is typically single tier to reduce latency and manage performance, but this is not a strict restriction.
+Scale-out networks connect numerous nodes to distribute training workloads across a cluster. In contrast, scale-up fabrics interconnect tightly coupled GPUs/XPUs within a cluster, functioning essentially as "memory fabrics" that enable memory load-store operations between GPUs. GPUs typically provide orders of magnitude higher bandwidth on scale-up interfaces compared to scale-out connections. These fabrics are typically single-tier to minimize latency and optimize performance, though this is not a strict requirement.
 
-||Scale Up AI Cluster |Scale Out AI Fabric|
-|:---:|:-----------:|-----------------------------|
-|Number of machines| Multiple interconnected nodes |Independent nodes with distributed resources|
-|Examples| NVL72, PCIe | Ethernet based AI clusters |
-| Communication Characteristics | Low latency, High bandwidth, Memory load-store-atomics, Smaller transfers | Higher latency, Lower bandwidth, Message transfer, Large size transfers |
-| Scalability | Limited by GPU and cluster design | Horizontal Scaling|
-| Job scheduling | Almost the same | ..|
-| Network Performance | < 2us RTT | < 20us RTT |
-| Workload types | Tightly coupled tasks with high inter-node communication | Loosely coupled tasks (e.g., data parallelism) |
-| Model size | Very large models that require significant memory | Models that can be split across nodes |
-| Memory Architecture | Shared memory | Distributed memory, No shared global memory |
-| Parallelism | Required for PP and TP | Best for DP |
+| Characteristic | Scale-Up AI Cluster | Scale-Out AI Fabric |
+|:---------------|:-------------------|:--------------------|
+| **Number of machines** | Multiple interconnected nodes | Independent nodes with distributed resources |
+| **Examples** | NVL72, PCIe clusters | Ethernet-based AI clusters |
+| **Communication** | Low latency, high bandwidth, memory load-store-atomics, smaller transfers | Higher latency, lower bandwidth, message transfers, large transfers |
+| **Scalability** | Limited by GPU and cluster design | Horizontal scaling |
+| **Network Performance** | < 2μs RTT | < 20μs RTT |
+| **Workload Types** | Tightly coupled tasks with high inter-node communication | Loosely coupled tasks (e.g., data parallelism) |
+| **Model Size** | Very large models requiring significant memory | Models divisible across nodes |
+| **Memory Architecture** | Shared memory | Distributed memory, no global shared memory |
+| **Parallelism** | Required for PP and TP | Optimal for DP |
 
-The primary scale-up fabric requirements are:
+### Primary scale-up fabric requirements
 
-- Low latency connectivity
-- Lossless connectivity to reduce the need for timeouts and retransmissions
-- High throughput for smaller packets for GPU architectures using memory semantics
-- Reduced communication and framing overheads
-- Cluster scaling to at least 1024 GPUs
-- Support for resiliency and fault tolerance.
+- **Low-latency connectivity** for time-sensitive operations
+- **Lossless connectivity** to eliminate timeouts and retransmissions
+- **High throughput for small packets** to support GPU memory semantics
+- **Reduced communication and framing overheads** for efficiency
+- **Cluster scalability** to at least 1,024 GPUs
+- **Comprehensive resiliency and fault tolerance** mechanisms
 
+### Industry Requirements Comparison
 
-### Requirements Comparison from the industry
+During the scale-up working group weekly meetings, four major industry players—Alibaba, Microsoft, Tencent, and Bytedance—presented and discussed their respective requirements for Ethernet-based scale-up AI fabrics. These discussions provided valuable insights into the diverse needs and priorities across different organizations, helping to shape the architectural decisions outlined in this document. The following table summarizes the key requirements gathered from these collaborative sessions:
 
-|  | Alibaba | Microsoft | Tencent | Bytedance |
-|------|---------|-----------|---------|-----------|
-| **Packet Size** | 1K (match with HBM access granularity) | 1-8 K (No small packet requirement) | 4kB for network semantics, <512B for memory semantics | <2KB for both memory and message semantics |
-| **Cluster Size** | 256 -> 512 GPUs | 128 -> 256 GPUs | Up to 512 GPUs with 1-layer ETH-X Ultra network | 128 -> 1K GPUs |
-| **Latency** | < 1us. No need to be extraordinary low | < 1us. Preferably < 600 ns L3 SAF latency | < 1us. The smaller the better. | < 1us. |
-| **Traffic Rate** | ~= memory bandwidth | ~=HBM bandwidth | | |
-| **Multi-tenant** | Yes | GPU level | Yes | yes |
-| **Hardware** | Liquid & Air cooling, No optical module | Liquid cooling, No optical modules all copper cables, N-1 Serdes speed compatibility | | Liquid Cooling, Copper for I/O |
-| **Forwarding** | Ethernet | L2 & L3 routing based solutions | Standard IP (Optional) Compressed Header | Standard IP or Ethlink |
-| **Features for data traffic** | DSCP,ECN,LLR,CBFC | PFC,DSCP,ECN,ECMP | DSCP,ECN,CBFC,ECMP | DSCP,ECN,LLR,CBFC |
-| **Operational** | Performance monitoring + High precision telemetry | Traffic/Buffer/PG/Queue monitoring + High frequency telemetry (100ms to 1ms granularity) | Work as a Server (No network operation) + Adaptive Configuration – Plug & Play + Buffer Statistics Tracking + Mirror-on-Drop | <1ms monitoring |
+| Requirement | Alibaba | Microsoft | Tencent | Bytedance |
+|:------------|:--------|:----------|:---------|:----------|
+| **Packet Size** | 1KB (matches HBM access granularity) | 1-8KB (no small packet requirement) | 4KB for network semantics, <512B for memory semantics | <2KB for both memory and message semantics |
+| **Cluster Size** | 256 → 512 GPUs | 128 → 256 GPUs | Up to 512 GPUs with single-layer ETH-X Ultra network | 128 → 1K GPUs |
+| **Latency** | <1μs (no need for extremely low latency) | <1μs (preferably <600ns L3 SAF latency) | <1μs (smaller is better) | <1μs |
+| **Traffic Rate** | ≈ Memory bandwidth | ≈ HBM bandwidth | — | — |
+| **Multi-tenancy** | Yes | GPU level | Yes | Yes |
+| **Hardware** | Liquid & air cooling, no optical modules | Liquid cooling, no optical modules, all copper cables, N-1 SerDes speed compatibility | — | Liquid cooling, copper for I/O |
+| **Forwarding** | Ethernet | L2 & L3 routing solutions | Standard IP (optional) compressed header | Standard IP or Ethlink |
+| **Data Traffic Features** | DSCP, ECN, LLR, CBFC | PFC, DSCP, ECN, ECMP | DSCP, ECN, CBFC, ECMP | DSCP, ECN, LLR, CBFC |
+| **Operational** | Performance monitoring + high precision telemetry | Traffic/buffer/PG/queue monitoring + high frequency telemetry (100ms to 1ms granularity) | Server operation (no network operation) + adaptive configuration—plug & play + buffer statistics tracking + mirror-on-drop | <1ms monitoring |
 
 ## Reference System Model
 
-### XPU and STATION
+### XPU and Station Architecture
 
-Here we refer to a GPU or any other ML accelerator as a generic XPU, and refer to a device that conforms to IEEE 802.11 protocol as a station.
-Each station has a unique address to identify and provides connectivity with other devices in the network. It can be configured as one, or multiple ports, which could differentiate traffic arrived at the same address.
+We use XPU as a generic term for GPU or any ML accelerator, and define a station as a device conforming to IEEE 802.11 protocol. Each station has a unique address for identification and provides network connectivity with other devices. Stations can be configured with single or multiple ports to differentiate traffic arriving at the same address.
 
-![xpu](images/xpu.png)
+![XPU Station Architecture](images/xpu.png)
 
-A scale-up cluster consists of identical GPUs and switches. The fabric topology is commonly single tier but can be extended to multiple tiers without loss of generality.  In the initial stage, the network configuration is expected to be a single-hop switch topology.
+A scale-up cluster comprises identical GPUs and switches. While fabric topology is commonly single-tier, it can extend to multiple tiers without losing generality. Initially, we expect single-hop switch topology configurations.
 
-![topo](images/topo.png)
+![Network Topology](images/topo.png)
 
-The memory bandwidth of an GPU drives its scale-up bandwidth requirements. This bandwidth is distributed across multiple “stations” with the number of stations computed as:
+GPU memory bandwidth drives scale-up bandwidth requirements. This bandwidth is distributed across multiple stations, with the station count calculated as:
 
-![math](images/math.png)
+![Bandwidth Calculation](images/math.png)
 
-In the Ethernet world, a station can have up to 8 lanes of 100G or 200G.  Multiple lanes can be grouped to get ports of 100G/200G/400G/800G (100G lane) or 200G/400G/800G/1.6T (200G lane).
-A station can support anywhere from 1-8 ports depending on how the lanes are grouped.
-The station configuration and lane speeds are identical across all GPUs and switches. The figure above shows stations with 2 ports. The number of switches, and the number of independent planes, is 2N.
-Lower speed ports will be commonly used in a scale-up fabric to maximize the radix of the switch and size of the cluster. The tradeoff is higher latency due to the use of slower speed ports, and a design may find a suitable mid-point that better matches GPU memory bandwidth and physical cluster design constraints.
-Each Ethernet port operates independently of other ports. An Ethernet station may choose to implement a resiliency and load balancing function to map upper layer transactions to specific ports, in essence, decoupling the transactions from a rigid mapping to a specific port.
-A scale-up cluster is likely to require a minimum of 4 traffic classes to carry read and write requests and responses, with atomics sharing a class or using a reserved one. These TCs will be lossless. Additional best-effort TCs may be used for other management functions.
-Given the static nature of the cluster, and the ability to prescribe the exact component configuration, scale-up clusters will be commonly managed using a SDN controller framework. There are no protocols to actively discover nodes, device addresses or compute paths in the network. GPUs and switches will be configured statically. Some link level protocols such as LLDP may still be required to negotiate features such as LLR, and the cluster may rely on mechanisms like BFD to detect link and node failures. The station logic on the GPU needs the ability to inject such packets and to filter them on arrival, and the specifics will vary from GPU to GPU.
+In Ethernet implementations, a station can support up to 8 lanes of 100G or 200G speeds. Multiple lanes can be grouped to create ports of various capacities:
+- **100G lanes**: 100G/200G/400G/800G ports
+- **200G lanes**: 200G/400G/800G/1.6T ports
+
+Stations can support 1-8 ports depending on lane grouping configuration. Station configuration and lane speeds remain identical across all GPUs and switches. The figure above demonstrates stations with 2 ports, requiring 2N switches and independent planes.
+
+Lower-speed ports are commonly used in scale-up fabrics to maximize switch radix and cluster size. The trade-off involves higher latency due to slower port speeds, and designs must find suitable balance points matching GPU memory bandwidth and physical cluster constraints.
+
+Each Ethernet port operates independently. Ethernet stations may implement resiliency and load-balancing functions to map upper-layer transactions to specific ports, effectively decoupling transactions from rigid port mappings.
+
+Scale-up clusters typically require a minimum of 4 traffic classes for read/write requests and responses, with atomics sharing a class or using a dedicated one. These traffic classes will be lossless, while additional best-effort classes may serve management functions.
+
+Given the static nature of clusters and the ability to prescribe exact component configurations, scale-up clusters are commonly managed using SDN controller frameworks. No protocols are needed for active node discovery, device address resolution, or network path computation. GPUs and switches use static configurations. Link-level protocols such as LLDP may still be required for negotiating features like LLR, and clusters may rely on mechanisms like BFD for detecting link and node failures. GPU station logic must be capable of injecting such packets and filtering them upon arrival, with specifics varying between GPU implementations.
 
 ### Deployment Variations
 
-1. XPU stations connect to Ethernet switches with a single uplink, using a copper cable
-a. Single point of failure.
-b. Memory may need to be remapped to a different lane if a link fails.
-2. XPU stations connects to Ethernet switches using dual or multiple uplinks that are bundled together into a single logical link.
-a. Redundancies guaranteed.
-b. Traffic is load-balanced across all active links in the group.
-For a large-scale scenario, high-speed the optical fiber is used instead of copper.
+**Single Uplink Configuration:**
 
-### High Bandwidth
+- XPU stations connect to Ethernet switches via single copper cable uplinks
+- **Drawbacks**: Single point of failure, potential memory remapping required upon link failure
 
-The bandwidth of existing NICs is normally below 1Tbps, which leads to a very low TPOT (time per output token). For example, if a DeepSeek-V3 model is deployed with 400Gbps InfiniBand NICs, in terms of the EP all-to-all communication, it could generate 67 tokens per sec. However, if the fabrics are replaced with high-bandwidth interconnects like GB200 NVL72 (900 GB/s), the output speed increases to 1200 tokens per second.
+**Multiple Uplink Configuration:**
 
-It implies that, to achieve the same efficiency as high-bandwidth interconnects, many such regular NICs are required to collaborate for the same scale-up tasks. This is challenging from a space and power perspective.
+- XPU stations connect using dual or multiple uplinks bundled into a single logical link
+- **Benefits**: Guaranteed redundancy, traffic load-balancing across all active links
 
-### Low Latency
+For large-scale scenarios, high-speed optical fiber replaces copper connections.
 
-The throughput of a multi-XPU shared memory system is affected by the latency of the XPU communication. Hence, minimizing the latency is of great importance. But extreme LOW latency may not be a must.
-
-Since the theoretical micro-batch overlap is hard to reach, and the upper bound on performance in practical inference workloads is mostly affected by computations. For example, the industry data shows that the expert computation time would converge to a lower bound when the batch size decreases. That means, at some point, no matter how you decrease the batch size, the computation time would not decrease. And even that lower bound computation time still dominates the theoretical optimistic communication latency.
-
-## Rack Design
-
-todo : compute tray / switch tray / connection in-between
 
 ## Multi-ASIC Architecture
 
@@ -149,208 +162,245 @@ Each ASIC will have its down control plane stack, which includes:
 • swss/syncd/SAI
 • bgp/teamd/lldp
 
-![asic](images/asic.png)
+![Multi-ASIC Architecture](images/asic.png)
 
-However, unlike the regular Multi-ASIC switches, where the ASICs within a single switch often interconnect to each other and form a fabric. The scale up network switches doesn’t have to support this interconnect. This is because the AI traffic is rail-optimized, where the ports across rails won’t talk to each other. This reduces the max number of ports that must be connected together to total number of GPUs * N rails. With 512 port switches, it can support 7 rails being connected among 72 GPUs.
-Since the ASICs have no interconnects, iBGP sessions / Cross-connect VLAN don’t need to be established in the system, which simplifies the multi-ASIC support even more.
+Unlike regular multi-ASIC switches where ASICs interconnect to form internal fabrics, scale-up network switches don't require these interconnections. This is because AI traffic is rail-optimized—ports across different rails don't communicate with each other. This reduces the maximum required port connections to total GPUs × N rails. With 512-port switches, this can support 7 rails connecting 72 GPUs.
+
+Since ASICs lack interconnections, iBGP sessions and cross-connect VLANs are unnecessary, significantly simplifying multi-ASIC support.
 
 ## Protocol Stack
 
-In an Ethernet based scale-up fabric, the protocol stack appears as below. It is instructive to compare and contrast it with the protocol stack for alternate approaches such as UA Link as the functionality partition is different.
+In Ethernet-based scale-up fabrics, the protocol stack appears as shown below. It's instructive to compare this with alternate approaches such as UA Link, as the functionality partition differs significantly.
 
-![stack](images/stack.png)
+![Protocol Stack](images/stack.png)
 
 ### Physical Layer
 
-This is the standard Ethernet physical layer as defined in various standards.
-In order to ensure the link quality, in physical layer, following features are recommended to be enabled:
+This layer uses standard Ethernet physical specifications as defined in various IEEE standards. To ensure link quality, the following features are recommended:
 
-1. Enable FEC to lower the chance of bit errors
-2. Auto Negotiation and Link Training
+1. **Forward Error Correction (FEC)** to reduce bit error probability
+2. **Auto-negotiation and link training** for optimal link establishment
 
 ### Link Layer
 
-The standard Ethernet link layer can be used with no modifications for a scale-up fabric.
-Lossless connectivity is enabled by known features such as PFC or emerging UEC standards such as CBFC. A lossless traffic class can choose to use CBFC or PFC, or even a combination of the two. Buffer capacity and credits can be reserved per-traffic class, or multiple traffic classes may share a common pool. CBFC does not tie the use of credits to transport or transaction level semantics, as is the case with other technologies such as PCIe or UA Link.
-LLR implements a check-and-retry mechanism between link partners. This reduces the bit error rate more to the upper layers in destination, hence reducing the errors and retransmissions. LLR may be combined with a weaker but lower latency FEC such as RS 272/528/544 to further improve latency.
+Standard Ethernet link layer can be used without modifications for scale-up fabrics. Lossless connectivity is enabled through established features such as Priority Flow Control (PFC) or emerging UEC standards like Credit-Based Flow Control (CBFC). Lossless traffic classes can utilize CBFC, PFC, or combinations of both. Buffer capacity and credits can be reserved per traffic class or shared among multiple classes through common pools. CBFC doesn't tie credit usage to transport or transaction-level semantics, unlike technologies such as PCIe or UA Link.
+
+Link-Level Retry (LLR) implements check-and-retry mechanisms between link partners, reducing bit error rates visible to upper layers at destinations, thereby reducing errors and retransmissions. LLR may be combined with weaker but lower-latency FEC such as RS 272/528/544 to further improve latency performance.
 
 ### Ethernet MAC
 
-The standard Ethernet MAC sub-layer can be retained as-is for a scale-up fabric, and it is desirable to do so to leverage broad ecosystem support and use of Ethernet tools. VLAN tags will be required in a scale-up fabric if there is no alternative mechanism (another header field.) to describe the traffic class associated with a packet. They may also be used for tenant isolation if a large cluster is sharable across tenants. In such cases, tenant allocation is at an GPU level.
-The Ethernet MAC and VLAN headers collectively add 18B to a packet, and this overhead is non-optimal for small packets. Deployments can choose to use approaches such as the UEC’s Unified Forwarding Header (UFH) to improve wire efficiency without giving up on Ethernet compatibility or coexistence.
+The standard Ethernet MAC sub-layer can be retained as-is for scale-up fabrics, which is desirable for leveraging broad ecosystem support and Ethernet tooling. VLAN tags will be required if no alternative mechanism (another header field) exists to describe packet-associated traffic classes. They may also provide tenant isolation if large clusters are shared across tenants, with tenant allocation at the GPU level.
 
-![frame](images/frame.png)
+The Ethernet MAC and VLAN headers collectively add 18 bytes per packet, creating non-optimal overhead for small packets. Deployments can use approaches such as UEC's Unified Forwarding Header (UFH) to improve wire efficiency while maintaining Ethernet compatibility and coexistence.
 
-Scale-up fabrics will predominantly make use of unicast forwarding. Features such as MAC learning, broadcast and multicast are not mandatory in a cluster where the device inventory and connectivity are known upfront.
-A scale-up fabric may make use of LLDP to negotiate link capabilities such as LLR or CBFC. Use of protocols such as ARP or DHCP to bootstrap GPUs is optional and will vary by deployment.
-For small transactions (e.g. 64B - 256B), the standard Ethernet header + VLAN tag can introduce noticeable overheads. Compressed header format can be used, however it should follow the standard ethernet header format, for example:
+![Frame Format](images/frame.png)
 
-![aifh](images/aifh.png)
+Scale-up fabrics predominantly use unicast forwarding. Features such as MAC learning, broadcast, and multicast are not mandatory in clusters where device inventory and connectivity are known upfront.
 
-However, with the compressed header format, standard ethernet features will not work, such as MAC learning and LLDP.
-In short, packets on an Ethernet based scale-up fabric will continue to look like Ethernet but the encodings and forwarding behavior may not be standard Ethernet.
+Scale-up fabrics may use LLDP to negotiate link capabilities such as LLR or CBFC. Protocols like ARP or DHCP for GPU bootstrapping are optional and vary by deployment.
 
-### Network
+For small transactions (64B-256B), standard Ethernet headers plus VLAN tags introduce noticeable overhead. Compressed header formats can be used, but should follow standard Ethernet header formats:
 
-It is expected that single tier scale-up fabrics will scale to 1024 GPUs in the near future, and a cluster will need 1B to 2B for addressing. Depending on GPU and Switch capabilities, there are multiple options on how to encode these addresses in a packet header and the forwarding methodology.
+![AI Frame Header](images/aifh.png)
 
-#### L2-based Scale Up Network
+However, compressed header formats disable standard Ethernet features such as MAC learning and LLDP.
 
-A deployment can use the Ethernet MAC header, and encode source and destination addresses in the MAC SA and DA. In the simplest case, the source and destination GPU addresses use the full 6B.
-A deployment can choose to optimize this overhead and use only 1B or 2B for an address overlay, leaving other bits free to carry other useful fields or end-to-end data. This is the approach followed by UFH and it requires support from GPU stations and Switches. Stations need to pack and unpack fields from the different protocol layers into the Ethernet MAC, and switches need to forward using only the 1B-2B address overlays.
+In summary, packets on Ethernet-based scale-up fabrics continue to resemble standard Ethernet, but encodings and forwarding behavior may deviate from standard Ethernet practices.
 
-#### L3-based Scale up Network
+### Network Layer
 
-With AI traffic, the packet size can be large enough (4K-8K) to ignore the overhead that coming from even L3/L4 headers (42B). Hence a deployment can also choose to directly use protocol similar to RDMA for data transfer.
-This workgroup should expect different deployments to take different approaches in this space and should support APIs that abstract out addressing and forwarding capabilities from the underlying header structure and encoding details.
+Single-tier scale-up fabrics are expected to scale to 1,024 GPUs in the near future, requiring 1-2 billion addresses for the cluster. Depending on GPU and switch capabilities, multiple options exist for encoding these addresses in packet headers and forwarding methodologies.
 
-### Adaptation
+#### L2-Based Scale-Up Network
 
-The protocol stack picture shows a non-standard “adaptation” layer between the network and transport layers.
-It decouples the relationship between the transport and network layers to improve resiliency and fault tolerance. When packets are ready and queued to TX buffer, it comes to adaptation layer. This layer has several major purposes:
+Deployments can use Ethernet MAC headers, encoding source and destination addresses in MAC SA and DA fields. In the simplest case, source and destination GPU addresses utilize the full 6-byte addressing space.
 
-1. Rail / Plane selection. Load balance the packet across all available planes.
-2. Based of 1, this may require this layer to probe and track per-destination per-path reachability and trigger recovery actions when it gets path failure indications.
+Deployments can optimize this overhead using only 1-2 bytes for address overlays, leaving remaining bits for other useful fields or end-to-end data. This approach, followed by UFH, requires support from GPU stations and switches. Stations must pack and unpack fields from different protocol layers into Ethernet MAC addresses, while switches must forward using only the 1-2 byte address overlays.
 
-![gpu](images/gpu.png)
+#### L3-Based Scale-Up Network
 
-The adaptation layer could also be viewed as a sub-function of the transport layer, this document calls it out explicitly to highlight that it serves a distinct purpose and is optional. Different deployments may choose to implement these functions differently.
+With AI traffic, packet sizes can be large enough (4KB-8KB) to ignore overhead from L3/L4 headers (42 bytes). Therefore, deployments can choose to directly use RDMA-similar protocols for data transfer.
 
-### Transport
+This working group expects different deployments to take varying approaches in this space and should support APIs that abstract addressing and forwarding capabilities from underlying header structure and encoding details.
 
-The transport layer accepts transaction PDUs from the upper transaction layer, packs them into larger packets for improved wire efficiency, and delivers them to the destination GPU where they are unpacked and then delivered to the transaction layer. The packing and unpacking are on a per-destination basis.
-It offers a reliable service over the scale-up fabric to cover non-recoverable drops in transit. The probability of these is low, but not completely zero.
-Besides the above, this layer might also provide encryption support for the data being transmitted. Usually, the packet header will not be encrypted, only the payload are encrypted.
-The transport layer may implement fine grained GPU to GPU flow control. This is also invisible to the switch fabric.
-It is NOT the intent of this group to define one specific transport layer. GPUs will implement proprietary transaction layers and corresponding transport and adaptation layer functions. The goal is to enable transport of these over a scale-up fabric in a seamless manner.
+### Adaptation Layer
 
-### Transaction
+The protocol stack diagram shows a non-standard "adaptation" layer between network and transport layers. This layer decouples the relationship between transport and network layers to improve resiliency and fault tolerance. When packets are prepared and queued to TX buffers, they enter the adaptation layer, which serves several major purposes:
 
-The transaction layer corresponds to a traditional PCIe transaction layer or equivalent. It accepts read/write transaction requests from the application (in this case, the GPU’s DMA subsystem, or a kernel operation) and delivers them to the destination GPU.
-A few differences versus other approaches such as PCIe should be noted.
-• The transaction layer is end-to-end from GPU to GPU, and not per-hop. Transactions are opaque to switches and not interpreted in transit. This allows standard Ethernet switches to work with different transaction layers and not require special design.
-• Credit grants are managed hop-by-hop at the link layer and not as part of the transport layer.
+1. **Rail/Plane Selection**: Load-balance packets across all available planes
+2. **Path Management**: Based on selection logic, this layer may probe and track per-destination, per-path reachability and trigger recovery actions upon receiving path failure indications
 
-## GPU to GPU Packet Flow
+![GPU Architecture](images/gpu.png)
+
+The adaptation layer could also be viewed as a transport layer sub-function. This document calls it out explicitly to highlight its distinct purpose and optional nature. Different deployments may implement these functions differently.
+
+### Transport Layer
+
+The transport layer accepts transaction PDUs from the upper transaction layer, packs them into larger packets for improved wire efficiency, and delivers them to destination GPUs where they are unpacked and delivered to the transaction layer. Packing and unpacking occur on a per-destination basis.
+
+It offers reliable service over the scale-up fabric to handle non-recoverable transit drops. While the probability of such drops is low, it is not zero.
+
+Additionally, this layer may provide encryption support for transmitted data. Typically, packet headers remain unencrypted while only payloads are encrypted.
+
+The transport layer may implement fine-grained GPU-to-GPU flow control, which remains invisible to the switch fabric.
+
+This group does not intend to define one specific transport layer. GPUs will implement proprietary transaction layers and corresponding transport and adaptation layer functions. The goal is enabling seamless transport of these over scale-up fabrics.
+
+### Transaction Layer
+
+The transaction layer corresponds to traditional PCIe transaction layers or equivalents. It accepts read/write transaction requests from applications (GPU DMA subsystems or kernel operations) and delivers them to destination GPUs.
+
+Several differences from other approaches such as PCIe should be noted:
+
+- **End-to-end operation**: The transaction layer operates end-to-end from GPU to GPU, not per-hop. Transactions are opaque to switches and not interpreted in transit, allowing standard Ethernet switches to work with different transaction layers without requiring special design.
+- **Credit management**: Credit grants are managed hop-by-hop at the link layer, not as part of the transport layer.
+
+## GPU-to-GPU Packet Flow
 
 ### GPU to Station
 
-The GPU selects a station based on the remote destination memory address. From the GPU's perspective, this remote memory address appears accessible through a local DMA engine, and it is unaware that the data is remote. By mapping an address range to a station and then possibly a port within a station, the design ensures in-order delivery of transactions to a specific memory location.
-Each local CPU is responsible for monitoring the liveness of the local station within its OS domain. Station failure is a fatal error.
+The GPU selects a station based on the remote destination memory address. From the GPU's perspective, this remote memory address appears accessible through a local DMA engine, with the GPU unaware that data is remote. By mapping address ranges to stations and potentially specific ports within stations, the design ensures in-order delivery of transactions to specific memory locations.
+
+Each local CPU is responsible for monitoring local station liveness within its OS domain. Station failure constitutes a fatal error.
 
 ### Station to Switch
 
-Station processing follows the protocol stack shown earlier. Suitable transport headers are added to data received by the transport layer. It is processed by the adaption layer and optionally batched for efficiency, then updated with suitable network and link layer headers and transmitted over the Ethernet MAC.
+Station processing follows the protocol stack shown earlier. Suitable transport headers are added to data received by the transport layer, processed by the adaptation layer, optionally batched for efficiency, then updated with appropriate network and link layer headers and transmitted over Ethernet MAC.
 
 ### Switch to Station
 
-A deployment can choose to forward packets based on the full MAC DA or selected bytes in the header as defined by a deployment’s forwarding model. The forwarding table is statically configured, and the switch may load balance on outgoing links if there are multiple ports connecting to the same GPU. An entropy field is required in the packet header to support load balancing, and this will typically be derived from the target address to maintain in-order delivery of updates to the same memory area.
-The switch NOS is responsible for monitoring the liveness of its outgoing ports and updating the load-balancing structure accordingly.
-Station to GPU
-The receiving station decodes the payloads from the incoming Ethernet frames and transmit the transactions to the GPU through the device interface channel.
+Deployments can choose to forward packets based on full MAC DA or selected bytes in headers as defined by deployment forwarding models. Forwarding tables are statically configured, and switches may load-balance on outgoing links when multiple ports connect to the same GPU. An entropy field is required in packet headers to support load balancing, typically derived from target addresses to maintain in-order delivery of updates to the same memory area.
+
+The switch NOS is responsible for monitoring outgoing port liveness and updating load-balancing structures accordingly.
+
+### Station to GPU
+
+The receiving station decodes payloads from incoming Ethernet frames and transmits transactions to GPUs through device interface channels.
 
 ## Software Architecture
 
 ### ID Lookup
 
-In the scale-up scenario of AI computing clusters, traditional L2 MAC lookup faces scalability bottlenecks. This paper proposes an ID Lookup architecture based on the unified flexible header (UFH), which replaces the standard MAC address with a 12B extended header to achieve a high-performance, multi-path, and fine-grained QoS forwarding mechanism to meet the core requirements of low latency and high throughput for AI training traffic.
+In AI computing cluster scale-up scenarios, traditional L2 MAC lookup faces scalability bottlenecks. This document proposes an ID Lookup architecture based on Unified Flexible Header (UFH), replacing standard MAC addresses with 12-byte extended headers to achieve high-performance, multi-path, and fine-grained QoS forwarding mechanisms that meet core requirements for low latency and high throughput AI training traffic.
 
-![ufh](images/ufh.png)
+![UFH Architecture](images/ufh.png)
 
-Here shows the difference between L2 Mac Lookup and ID Lookup
+The following table shows differences between L2 MAC Lookup and ID Lookup:
 
-| Index | L2 MAC Lookup | ID Lookup (UFH)|
-|:--:|:--:|:--:|
-|Multi-Path | Not Support | ECMP |
-| QoS | 3bit CoS in VLAN tag | ToS 6bit |
-| ECN | Not support | Support |
-| Flexibility | Need to defined new Ethertype, Standard Mac address | UFH extend header, 6B/12B ID lookup, Follow SLAP |
+| Feature | L2 MAC Lookup | ID Lookup (UFH) |
+|:--------|:--------------|:----------------|
+| **Multi-Path** | Not supported | ECMP supported |
+| **QoS** | 3-bit CoS in VLAN tag | 6-bit ToS |
+| **ECN** | Not supported | Supported |
+| **Flexibility** | Requires new EtherType definition, standard MAC address | UFH extended header, 6B/12B ID lookup, follows SLAP |
 
-In the forwarding plane, vrf is used to isolate tenants. At the same time, the chip maintains a forwarding table for each vrf and finds the destination by looking up Dest ID + Vrf
+In the forwarding plane, VRF provides tenant isolation. Simultaneously, chips maintain forwarding tables for each VRF and find destinations by looking up Dest ID + VRF.
 
-![forwarding](images/forwarding.png)
+![Forwarding Architecture](images/forwarding.png)
 
-The configuration delivery channel can reuse the traditional route delivery API and is compatible with local static route delivery or SDN remote configuration.
+The configuration delivery channel can reuse traditional route delivery APIs and is compatible with both local static route delivery and SDN remote configuration.
 
-![delivery](images/delivery.png)
+![Delivery Architecture](images/delivery.png)
 
 ### PFC/CBFC
 
-CBFC (Credit Based Flow Control) manages traffic at the level of Virtual Channels (VCs), supporting up to 32 VCs, which allows for finer-grained control compared to PFC. Credit represents the available buffer space on the receiver side. When the sender transmits a packet, it consumes the corresponding number of credits. Once the receiver releases buffer space, it generates new credits and grants them to the sender. Credits and buffer space are mapped one-to-one. In other words, every lossless packet sent by the sender will consume buffer space that has been pre-allocated by the receiver.
+Credit-Based Flow Control (CBFC) manages traffic at the Virtual Channel (VC) level, supporting up to 32 VCs for finer-grained control compared to PFC. Credits represent available buffer space on the receiver side. When senders transmit packets, they consume corresponding credits. Once receivers release buffer space, they generate new credits and grant them to senders. Credits and buffer space maintain one-to-one mapping—every lossless packet sent by senders consumes buffer space pre-allocated by receivers.
 
-![alt text](images/image.png)
+![CBFC Architecture](images/image.png)
 
-CBFC has several important parameters. CreditSize defines the size of each credit, which typically corresponds to receiver ‘s buffer cell size. TotalCredits represents the total number of credits allocated across all lossless virtual channels (VCs). In addition, several counters are used to track credit usage: credit consumed (CC), credit freed (CF), credit limit (CL), and credit in use (CU). Receiver can choose to configure only the TotalCredits, allowing the sender to determine how credits are distributed among the lossless VCs. Or, receiver can directly specify the credit limit for each VC. Sender and receiver synchronize their counters using CC update and CF update messages, which are triggered periodically by their timers. This mechanism also helps prevent credit leak caused by packet loss. The parameters of each VC are configured through management software or LLDP.
-The following table shows the difference between PFC and CBFC.
+CBFC has several important parameters:
 
-| | PFC | CBFC|
-|:-:|:-:|:-:|
-| Implement | Simpler | More complicated |
-| Overhead | Low, no message when no control event occurring. | Need synchronize periodically by sending update messages. |
-| Multiple Resources | Can manage multiple resources within a priority class. | Manage main input buffer only. CBFC and PFC together can manage multiple switch resources. |
-| Managed Object | Priority class, up to 8. | Can enable more lossless VCs, up to 32.|
-| Sender | Sender knows nothing other than congestion. | Sender knows the credit usage by each VC, allowing for improved SCH/LB/AR.|
-| Delay sensitive | If cable delay is underestimated, PFC can have buffer overflows and dropped packets. | CBFC is not as sensitive as PFC to cable length, frame size, or response time of the sender. Buffer may be underutilized. |
-| Buffer usage | 1. Can enable more sharing and efficient usage of burst absorption buffer across ports. 2. Need headroom buffer to handle on fly packets. | 1. Can’t share buffer across ports. 2. For virtual channels that do not require full throughput, CBFC can simply allocate fewer credits and thus require less buffer space than PFC. 3. No need for headroom buffer.|
+- **CreditSize**: Defines each credit's size, typically corresponding to receiver buffer cell size
+- **TotalCredits**: Represents total credits allocated across all lossless virtual channels (VCs)
+- **Counters**: Track credit usage through Credit Consumed (CC), Credit Freed (CF), Credit Limit (CL), and Credit In Use (CU)
 
-In general, PFC is simpler, has lower overhead, and may enable more efficient buffer usage. On the other hand, CBFC can provide finer-grained flow control with better performance, guarantees no packet drops when used with LLR, and is less sensitive to delay.
-When implementing and deploying CBFC in a scale-up network, the following mechanisms need to be specified:
+Receivers can choose to configure only TotalCredits, allowing senders to determine credit distribution among lossless VCs, or directly specify credit limits for each VC. Senders and receivers synchronize counters using CC update and CF update messages, triggered periodically by timers. This mechanism also prevents credit leaks caused by packet loss. Each VC's parameters are configured through management software or LLDP.
 
-- The mapping of traffic to virtual channels (VCs).
-- The distribution of credits among VCs to ensure full utilization of available bandwidth.
-- The mapping of VCs to output queues.
+The following table compares PFC and CBFC:
+
+| Aspect | PFC | CBFC |
+|:-------|:----|:-----|
+| **Implementation** | Simpler | More complex |
+| **Overhead** | Low, no messages when no control events occur | Requires periodic synchronization via update messages |
+| **Multiple Resources** | Can manage multiple resources within a priority class | Manages main input buffer only; CBFC and PFC together can manage multiple switch resources |
+| **Managed Object** | Priority class, up to 8 | Can enable more lossless VCs, up to 32 |
+| **Sender Knowledge** | Sender knows nothing beyond congestion | Sender knows credit usage by each VC, enabling improved SCH/LB/AR |
+| **Delay Sensitivity** | Buffer overflows and packet drops possible if cable delay is underestimated | Less sensitive to cable length, frame size, or sender response time; buffer may be underutilized |
+| **Buffer Usage** | 1. Enables more sharing and efficient burst absorption buffer usage across ports<br>2. Requires headroom buffer for in-flight packets | 1. Cannot share buffer across ports<br>2. For VCs not requiring full throughput, CBFC can allocate fewer credits, requiring less buffer space than PFC<br>3. No headroom buffer needed |
+
+Generally, PFC is simpler, has lower overhead, and may enable more efficient buffer usage. Conversely, CBFC provides finer-grained flow control with better performance, guarantees no packet drops when used with LLR, and is less sensitive to delay.
+
+When implementing and deploying CBFC in scale-up networks, the following mechanisms must be specified:
+
+- Traffic-to-virtual-channel (VC) mapping
+- Credit distribution among VCs to ensure full bandwidth utilization
+- VC-to-output-queue mapping
 
 ### LLR
 
-TBD
+*[To be determined]*
 
 ## Resiliency and Fault Tolerance
 
-Any failure in a scale-up cluster affects the performance of the entire cluster. This makes it critical to develop resiliency solutions to address common failure modes.
+Any failure in a scale-up cluster affects entire cluster performance, making comprehensive resiliency solutions critical for addressing common failure modes.
 
 ### GPU Failures
 
-Empirical results from large scale deployments indicate that GPU or associated HBM errors are most common in a large deployment. Some deployments may provision for spare GPUs, others may refactor a job when GPUs fail and fall back to a checkpoint. Handling such errors is outside the scope of a switch NOS, and hence outside the scope of this WG.
+Empirical results from large-scale deployments indicate that GPU or associated HBM errors are most common. Some deployments may provision spare GPUs, while others refactor jobs when GPUs fail and fall back to checkpoints. Handling such errors lies outside switch NOS scope and hence outside this working group's scope.
 
 ### Switch Failures
 
-Hard failures can result in a switch going completely down and disabling forwarding on all its ports. This is typically visible to each connected station as a link failure. It requires each station to update its forwarding and load balancing policies. The station may rely on any additional ports, or if none are available declare itself as down. Switches can also suffer from silent failures where some ports go down or stop forwarding. Such failures must be detected through probing.
+Hard failures can result in complete switch failure, disabling forwarding on all ports. This typically appears to each connected station as a link failure, requiring each station to update its forwarding and load-balancing policies. Stations may rely on additional ports if available, or declare themselves down if none exist.
+
+Switches can also suffer silent failures where some ports fail or stop forwarding. Such failures must be detected through probing mechanisms.
 
 ### Link Failures
 
-Smaller clusters may choose to use DAC cables, but they are impractical for larger clusters due to GPU density and reachability limits. Optical links are required, but also more susceptible to failures.
-Link failures can be categorized as hard or soft. Hard failures can be detected by the Ethernet PHY on a GPU or Switch. Soft or Gray failures are harder to detect and require the use of a periodic probing mechanism such as BFD or a background monitoring function that tracks link error rates and flaps. Any path probing mechanisms implemented in a fabric can be hop-by-hop, between GPU and Switch or end to end between GPU and GPU. The choice depends on cluster design. The figure below shows hop by hop probing with probes initiated at a switch and reflected back by the GPU station.
+Smaller clusters may use Direct Attach Copper (DAC) cables, but they become impractical for larger clusters due to GPU density and reachability limitations. Optical links are required but are more susceptible to failures.
 
-![fail](images/fail.png)
+Link failures can be categorized as hard or soft:
 
-The failure of one link creates a capacity mismatch in the scale-up cluster. An affected plane has no reachability to the affected GPU but remains usable for other destinations. Removing the entire plane from service is undesirable. The recovery actions can vary from deployment to deployment.
+- **Hard failures**: Detectable by Ethernet PHY on GPUs or switches
+- **Soft or gray failures**: Harder to detect, requiring periodic probing mechanisms such as BFD or background monitoring functions that track link error rates and flaps
+
+Path probing mechanisms implemented in fabrics can be hop-by-hop (between GPU and switch) or end-to-end (between GPU and GPU), depending on cluster design. The figure below shows hop-by-hop probing with probes initiated at switches and reflected back by GPU stations.
+
+![Failure Detection](images/fail.png)
+
+Single link failures create capacity mismatches in scale-up clusters. Affected planes lose reachability to affected GPUs but remain usable for other destinations. Removing entire planes from service is undesirable. Recovery actions can vary between deployments.
 
 #### Redundant Links
 
-One option is to provision multiple links between a GPU and a switch, ensuring that the failure of a link does not cause total loss of connectivity. The representative topology shows 2 links per station to support this model. Loss of capacity on a particular plane can be handled by effective load balancing in the GPU station’s adaptation layer.
+One option involves provisioning multiple links between GPUs and switches, ensuring that single link failures don't cause total connectivity loss. The representative topology shows 2 links per station to support this model. Capacity loss on particular planes can be handled by effective load balancing in GPU station adaptation layers.
 
-#### Tracking per target reachability
+#### Tracking Per-Target Reachability
 
-If GPUs track reachability on a per (target GPU, plane) basis, they can avoid planes with no reachability to a target. This function can also be implemented in the adaptation layer.
+If GPUs track reachability on a per (target GPU, plane) basis, they can avoid planes with no target reachability. This function can also be implemented in adaptation layers.
 
-#### Fabric enables alternate paths
+#### Fabric-Enabled Alternate Paths
 
-If a GPU does not track reachability as above, the fabric may need to be designed to support inter-plane connectivity as shown below. SONiC can update routing tables to select the exception path.
-Consider the example topology below with an exception path connecting the different planes, and the associated route table at different nodes.
+If GPUs don't track reachability as above, fabrics may need designs supporting inter-plane connectivity as shown below. SONiC can update routing tables to select exception paths.
 
-![fail2](images.fail2.png)
+Consider the example topology below with exception paths connecting different planes and associated route tables at different nodes:
 
-![table](images/table.png)
+![Failure Recovery Topology](images/fail2.png)
 
-Now imagine a failure of a link between GPU-2 and Switch 1-1. The affected configuration is shown in red in the above table. GPU-2 and Switch 1-1 update their route table to remove each other. Other GPUs are unaware of this failure and will continue to send to switch 1-1. Removal of the direct route at switch 1-1 causes traffic to take the exception path. The exception path now redirects it to any of the alternate paths/planes to get to GPU 2.
-Reconfiguration will typically take milli-seconds and traffic will be black holed in this interval. It is now up to the GPU adaptation layer to recover from this error by either retransmitting stored transactions, or if that is not possible then to initiate fallback to a prior checkpoint.
+![Route Tables](images/table.png)
 
-![fail3](images/fail3.png)
+Now imagine a link failure between GPU-2 and Switch 1-1. The affected configuration is shown in red in the above table. GPU-2 and Switch 1-1 update their route tables to remove each other. Other GPUs remain unaware of this failure and continue sending to Switch 1-1. Removal of the direct route at Switch 1-1 causes traffic to take exception paths, which redirect traffic to alternate paths/planes to reach GPU-2.
+
+Reconfiguration typically takes milliseconds, during which traffic will be black-holed. GPU adaptation layers must recover from this error by either retransmitting stored transactions or, if that's not possible, initiating fallback to prior checkpoints.
+
+![Exception Path Recovery](images/fail3.png)
 
 ## Future Features in SONiC
 
-- Do we want to make any assumptions about the software stack?
-- What changes do we need for SONiC?
-- Which parts are optional?
-- Any new features required?
--
+The following items require further consideration and development:
+
+- **Software stack assumptions**: Determine appropriate assumptions about the software stack architecture
+- **SONiC modifications**: Identify specific changes required for SONiC to support scale-up fabrics
+- **Optional components**: Define which parts of the architecture are optional versus mandatory
+- **New feature requirements**: Specify any new features that need to be developed
+- **Integration considerations**: Address how these features integrate with existing SONiC functionality
+
+*[Additional details to be developed based on working group feedback and requirements analysis]*
