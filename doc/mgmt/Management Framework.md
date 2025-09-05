@@ -2150,7 +2150,7 @@ NETCONF server will accept concurrent requests. Translib provides appropriate lo
 
 NETCONF server will Support Netconf 1.1.
 
-###### 3.2.2.11.8 NETCONF Discovery
+###### 3.2.2.11.7 NETCONF Discovery
 
 NETCONF server supports following RPCs for clients to discover various NETCONF data models supported by the NETCONF server as described in [RFC6022](https://tools.ietf.org/html/rfc6022), via the <get-schema> NETCONF RPC.
 
@@ -2220,7 +2220,7 @@ It can be overridden through ConfigDB [NETCONF_SERVER table](#322414-db-schema) 
 
 The NETCONF server will reply back with error in several situations, to be defined ...
 
-###### 3.2.2.4.13 DB Schema
+###### 3.2.2.11.13 DB Schema
 
 A new table "NETCONF_SERVER" is introduced in ConfigDB for maintaining NETCONF server configurations.
 
