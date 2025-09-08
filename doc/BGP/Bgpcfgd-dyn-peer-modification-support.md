@@ -58,8 +58,8 @@ This section describes the SONiC requirements for supporting enhanced CRUD opera
 ###### Table 2: Scalability
 | Component                | Expected value              |
 |--------------------------|-----------------------------|
-| Number of Dynamic BGP Peers each with route-map, prefix-list and peer-group|2k|
-| Number of listen ranges|4k|
+| Number of Dynamic BGP Peers each with route-map, prefix-list and peer-group|2k total, ~1 per VNET/VRF|
+| Number of listen ranges|4k total, ~2 per VNET/VRF|
 | Size of each Route-map, Prefix-list|<10|
 
 
