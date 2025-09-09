@@ -1142,7 +1142,7 @@ Description of the fields inside *dev_attr*
 
 #### 3.4.13 Multi-FPGAPCIe Component
 
-This can be a drop in replacement for [FPGAPCIe Component](#3412-pfgapcie-component). Multi-FPGAPCIe supports systems containing one or more PCIe FPGAs, where as [FPGAPCIe Component](#3412-pfgapcie-component) supported systems with a single PCIe FPGA only. With Multi-FPGAPCIe, each FPGA can be uniquely identified by its `BDF` in `Domain:Bus:Device.Function` format. For components (e.g LED, PSU, XCVR) managed by the Multi-FPGAPCIe system, `attr_devtype` must be set to `multifpgapci`, and `attr_bdf` must be set to the `BDF` of the associated FPGA.
+This can be a drop in replacement for [FPGAPCIe Component](#3412-pfgapcie-component). Multi-FPGAPCIe supports systems containing one or more PCIe FPGAs, where as [FPGAPCIe Component](#3412-pfgapcie-component) supported systems with a single PCIe FPGA only. With Multi-FPGAPCIe, each FPGA can be uniquely identified by its `BDF` in `Domain:Bus:Device.Function` format. For components (e.g LED, PSU, XCVR) managed by the Multi-FPGAPCIe system, `attr_devtype` must be set to `multifpgapci`, and `attr_devname` must match the `device_name` of the associated FPGA.
 
 Multi-FPGAPCIe support the following PDDF components:
  - CPLDMUX
@@ -1426,7 +1426,7 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
 
 > **attr_devtype**: Must be set to `multifpgapci`.
 
-> **attr_devnam**: Must match the `device_name` of the FPGA which controls the LED's color.
+> **attr_devname**: Must match the `device_name` of the FPGA which controls the LED's color.
 
 ###### Multi-FPGAPCIe XCVR JSON
 
@@ -1460,7 +1460,7 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
 
 > **attr_devtype**: Must be set to `multifpgapci`.
 
-> **attr_devnam**: Must match the `device_name` of the FPGA which controls the xcvr.
+> **attr_devname**: Must match the `device_name` of the FPGA which controls the xcvr.
 
 ###### Multi-FPGAPCIe PSU JSON
 
@@ -1493,7 +1493,7 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
 
 > **attr_devtype**: Must be set to `multifpgapci`.
 
-> **attr_devnam**: Must match the `device_name` of the FPGA which reads the PSU's status.
+> **attr_devname**: Must match the `device_name` of the FPGA which reads the PSU's status.
 
 ###### Multi-FPGAPCIe PSU JSON
 
@@ -1529,7 +1529,7 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
 
 > **attr_devtype**: Must be set to `multifpgapci`.
 
-> **attr_devnam**: Must match the `device_name` of the FPGA which controls the fan.
+> **attr_devname**: Must match the `device_name` of the FPGA which controls the fan.
 
 ### 3.6 PDDF BMC Component Design
 
