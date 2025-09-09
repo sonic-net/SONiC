@@ -192,8 +192,128 @@ In prior SONiC releases, Linux kernel allowed VRF lookup fallback if a route was
 - Knob enabled: fallback restored (legacy only).
 - New deployments should not rely on kernel fallback feature.
 
-## 10–14. (Remain as in previous version, with test cases and open items updated to reflect new default and knob.)
+## 10. Warmboot and Fastboot Design Impact
 
+### 10.1. Warmboot Impact
+
+**No negative impact on warmboot functionality:**
+- Configuration persistence through CONFIG_DB
+- Route reconciliation during vrfmgrd restart
+- No additional stalls or IO operations in boot path
+- No changes to critical boot sequence
+
+### 10.2. Fastboot Impact
+
+**No impact on fastboot performance:**
+- Configuration loaded during normal service startup
+- No additional dependencies or processing overhead
+- Feature can be delayed without affecting critical services
+
+### 10.3. Performance Analysis
+
+- **Boot Time**: No measurable impact on boot time
+- **CPU Usage**: Minimal CPU overhead during configuration changes only
+- **IO Operations**: Limited to route add/delete operations
+- **Critical Path**: Not in critical boot path
+
+## 11. Memory Consumption
+
+### 11.1. Memory Analysis
+
+**Static Memory:**
+- Configuration storage in CONFIG_DB: ~100 bytes per VRF
+- Additional code in vrfmgrd: ~5KB
+
+**Dynamic Memory:**
+- No growing memory consumption during operation
+- Kernel route entries: ~64 bytes per unreachable route
+- No memory leaks or unbounded growth
+
+**Total Impact:**
+- Negligible memory footprint
+- No memory consumption when feature is disabled
+- Scales linearly with number of configured VRFs
+
+## 12. Restrictions/Limitations
+
+### 12.1. Design Limitations
+
+- **L-1**: Unreachable routes affect only software-forwarded traffic
+- **L-2**: Feature requires Linux kernel support for unreachable routes
+- **L-3**: Does not modify BGP or other routing protocol behavior
+- **L-4**: Limited to VRF route lookup control, not general routing policy
+
+### 12.2. Platform Dependencies
+
+- **No platform-specific dependencies**
+- **Standard Linux iproute2 functionality required**
+- **Compatible with all SONiC-supported platforms**
+
+### 12.3. Scale Limitations
+
+- **Limited by kernel route table capacity**
+- **Recommended maximum: 1000 VRFs (platform dependent)**
+
+## 13. Testing Requirements/Design
+
+### 13.1. Unit Test Cases
+
+#### 13.1.1 CLI Tests
+- **UT-CLI-1**: Validate CLI command syntax and parameter validation
+- **UT-CLI-2**: Test CONFIG_DB updates for valid configurations
+- **UT-CLI-3**: Test error handling for invalid VRF names
+- **UT-CLI-4**: Test show command output formatting
+
+#### 13.1.2 CONFIG_DB Tests
+- **UT-DB-1**: Schema validation for global fallback entries
+- **UT-DB-2**: Schema validation for per-VRF fallback entries
+- **UT-DB-3**: Invalid configuration handling
+- **UT-DB-4**: Configuration persistence testing
+
+#### 13.1.3 VRF Manager Tests
+- **UT-MGR-1**: Configuration change monitoring
+- **UT-MGR-2**: Route addition/removal logic
+- **UT-MGR-3**: IPv4 and IPv6 handling independently
+- **UT-MGR-4**: Error handling for route operations
+
+### 13.2. System Test Cases
+
+#### 13.2.1 Functional Tests
+- **ST-FUNC-1**: Verify route fallback disabled with unreachable route present
+- **ST-FUNC-2**: Verify per-VRF override of global setting
+- **ST-FUNC-3**: Verify IPv4 and IPv6 independent operation
+- **ST-FUNC-4**: Test with multiple VRFs and mixed configurations
+
+#### 13.2.2 Integration Tests  
+- **ST-INT-1**: End-to-end CLI to kernel route verification
+- **ST-INT-2**: Configuration persistence across reboots
+- **ST-INT-3**: Config reload testing
+- **ST-INT-4**: Warm reboot with feature enabled
+
+#### 13.2.3 Upgrade/Downgrade Tests
+- **ST-UPG-1**: Seamless upgrade from pre-feature version
+- **ST-UPG-2**: Configuration migration validation
+- **ST-UPG-3**: Graceful downgrade with cleanup
+- **ST-UPG-4**: Schema validation across versions
+
+#### 13.2.4 Performance Tests
+- **ST-PERF-1**: Boot time impact measurement
+- **ST-PERF-2**: Memory consumption validation
+- **ST-PERF-3**: Route operation performance
+- **ST-PERF-4**: Scale testing with multiple VRFs
+
+#### 13.2.5 Negative Tests
+- **ST-NEG-1**: Invalid configuration handling
+- **ST-NEG-2**: Non-existent VRF handling
+- **ST-NEG-3**: Kernel route operation failures
+- **ST-NEG-4**: Configuration corruption recovery
+
+### 13.3. Warmboot/Fastboot Testing
+
+- **Verify no impact on existing warmboot/fastboot timings**
+- **Confirm zero data plane disruption during configuration changes**
+- **Test route reconciliation after warmboot**
+- **Validate configuration persistence across boot cycles**
 ## 13. Testing Requirements/Design
 
 ### 13.1. Unit Tests
