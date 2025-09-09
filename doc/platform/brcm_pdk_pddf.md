@@ -1309,17 +1309,17 @@ See [3.4.13.1.1 Base FPGA Module Sysfs Controls](#341311-base-fpga-module-sysfs-
 
 Description of the fields inside *dev_info*
 
-> **device_type**: Must be set to `MULTIFPGAPCIESYSTEM`
+> **device_type**: Must be set to `MULTIFPGAPCIESYSTEM`.
 
-> **device_name**: Must be set to `MULTIFPGAPCIESYSTEM0`
+> **device_name**: Must be set to `MULTIFPGAPCIESYSTEM0`.
 
-> **device_parent**: Must be set to `null`
+> **device_parent**: Must be set to `null`.
 
 Description of the fields within elements inside *PCI_VENDOR_IDS*
 
-> **vendor**: 16 bit hexadecimal which matches the FPGA's PCIe Vendor ID
+> **vendor**: 16 bit hexadecimal which matches the FPGA's PCIe Vendor ID.
 
-> **device**: 16 bit hexadecimal which matches the FPGA's PCIe Device ID
+> **device**: 16 bit hexadecimal which matches the FPGA's PCIe Device ID.
 
 ##### 3.4.12.3 Multi-FPGAPCIe (per FPGA) JSON Design
 
@@ -1354,9 +1354,9 @@ See [3.4.13.1.2 I2C Module Sysfs Controls (Per-FPGA)](#341312-i2c-module-sysfs-c
 
 Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#34121-fpgapcie-json-design) for description of i2c related fields.
 
-> **device_type**: Must be set to `MULTIFPGAPCIE`
+> **device_type**: Must be set to `MULTIFPGAPCIE`.
 
-> **device_name**: Each FPGA must have a unique `device_name`
+> **device_name**: Each FPGA must have a unique `device_name`.
 
 > **device_bdf**: The FPGA's address in BDF (Domain:Bus:Device.Function) format.
 
@@ -1394,7 +1394,7 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
       ...
 ```
 
-> **dev_type**: Must be set to `multifpgapci_mux`
+> **dev_type**: Must be set to `multifpgapci_mux`.
 
 > **cpld_name**:  Must match the `device_name` of the FPGA which controls the mux channel selection.
 
@@ -1424,7 +1424,7 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
       ...
 ```
 
-> **attr_devtype**: Must be set to `multifpgapci`
+> **attr_devtype**: Must be set to `multifpgapci`.
 
 > **attr_devnam**: Must match the `device_name` of the FPGA which controls the LED's color.
 
@@ -1458,7 +1458,7 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
       ...
 ```
 
-> **attr_devtype**: Must be set to `multifpgapci`
+> **attr_devtype**: Must be set to `multifpgapci`.
 
 > **attr_devnam**: Must match the `device_name` of the FPGA which controls the xcvr.
 
@@ -1491,7 +1491,7 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
       ...
 ```
 
-> **attr_devtype**: Must be set to `multifpgapci`
+> **attr_devtype**: Must be set to `multifpgapci`.
 
 > **attr_devnam**: Must match the `device_name` of the FPGA which reads the PSU's status.
 
@@ -1527,7 +1527,7 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
       ...
 ```
 
-> **attr_devtype**: Must be set to `multifpgapci`
+> **attr_devtype**: Must be set to `multifpgapci`.
 
 > **attr_devnam**: Must match the `device_name` of the FPGA which controls the fan.
 
