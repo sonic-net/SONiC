@@ -1,4 +1,4 @@
-# SONiC FIPS POST support
+# SONiC SAI POST support for MACSec
 
 ## Revision
 | Rev |     Date    |       Author       | Change Description |      
@@ -18,7 +18,7 @@
 
 ## Overview
 
-This document describes SONiC design for Federal Information Processing Standards (FIPS) 140-3 standard compliance. Especially, the focus of the document is to trigger Pre-Operational Self-Test (POST) in SONiC and also ensure SONiC’s behavior is compliant to FIPS standard after POST.
+This document describes SONiC design for Federal Information Processing Standards (FIPS) 140-3 standard compliance. Especially, the focus of the document is to trigger MACSec Pre-Operational Self-Test (POST) in SONiC and also ensure SONiC’s behavior is compliant to FIPS standard after POST.
 
 ## Design requirements
 
@@ -30,7 +30,7 @@ The design must meet the following requirements:
 
 ## Deisgn details
 
-The following figure depicts the data flow and SONiC components in the design. Orchagent is responsible for triggering POST via SAI calls and publishing POST status in State DB.   MACSec container, precisely MACSecMgr, is enhanced to be POST aware and only process MACSec configuration after POST has passed. 
+The following figure depicts the data flow and SONiC components in the design. Orchagent is responsible for triggering POST via SAI calls and publishing POST status in State DB. MACSec container, precisely MACSecMgr, is enhanced to be POST aware and only process MACSec configuration after POST has passed. 
 
 ![](images/fips-post-overview.png)
 
@@ -51,6 +51,14 @@ status = "switch-level-post-in-progress"    ; SAI switch level POST is in-progre
 
 ```
 
+### Enabling SAI POST
+
+SAI POST is enabled only when FIPS is enabled in SONiC. FIPS can be configured via either sonic-installer, i.e., set-fips option, or config file, i.e.,/etc/sonic/fips.json. Enabling FIPS requires switch reboot, and FIPS config will be populated in FIPS_STATS table in State DB after reboot. However, there may be a latency to populate FIPS config in State DB. Therefore, checking FIPS config in State DB is reliable because Orchagent may start before FIPS config is populated. Instead, Orchagent will directly check FIPS config in the following files:
+- /proc/cmdline : When FIPS is configured via sonic-installer, the result, e.g., sonic_fips=1, is written in this file.
+- /etc/fips/fips_enable : If FIPS is configured via config file /etc/sonic/fips.json, /etc/fips/fips_enable is updated accordingly.
+
+Orchagent will trigger SAI POST if FIPS is enabled in either of the above files.
+
 ### Enabling POST in SAI switch init
 
 Orchagent enables POST when creating SAI switch regardless of whether the MACSec feature is supported or enabled. This can avoid triggering POST after SAI switch creation, e.g., MACSec feature is enabled later. The below flow chart depicts the process.
@@ -59,12 +67,7 @@ Orchagent enables POST when creating SAI switch regardless of whether the MACSec
 
 Orchagent enables POST when creating SAI switch. After SAI switch is created, Orchagent queries SAI POST capability. If POST is supported in switch init, Orchagent sets POST status to in-progress and waits for POST completion callback. Otherwise, if POST is supported only in MACSec init, Orchagent sets POST status to not-started, which informs MACSecOrch of performing POST in its initialization.
 
-If POST is not supported in either switch or MACSec init, then SAI does not support POST. The possible scenarios are:
-- The platform does not support MACSec. Or
-- The platform does support MACSec. But the deployment does not require FIPS compliance. Or
-- The platform does support MACSec, and the vendor incrementally supports FIPS when they can.
-
-In the above scenarios, Orchagent sets POST status to unsupported, which means POST is not required and is no-op.
+If POST is not supported in either switch or MACSec init, then SAI does not support POST. In this case, Orchagent sets POST status to fail if FIPS is enabled in SONiC.
 
 ### Enabling POST in SAI MACSec init
 
