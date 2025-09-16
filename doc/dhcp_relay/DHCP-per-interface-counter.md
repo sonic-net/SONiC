@@ -452,7 +452,7 @@ This command is used to clear DHCPv6 counters
 
 # Test
 ## Unit Test
-- show dhcp_relay ipv4 counter [--dir (TX|RX)] [--type \<type\>] \<vlan_interface\>
+- show dhcp_relay ipv4/ipv6 counter [--dir (TX|RX)] [--type \<type\>] \<vlan_interface\>
     |Case Description|Expected res|
     |:-|:-|
     |Show without specifying direction and without specifying type|Fail to display|
@@ -460,7 +460,7 @@ This command is used to clear DHCPv6 counters
     |Show without specifying packet type and with specifying direction and with specifying Vlan interface|Display corresponding direction counter of Vlan interface|
     |Show with specifying interface with type and without specifying direction and with specifying Vlan interface|Display corresponding type of counter of specified interface|
     |Show with specifying type with specifying direction with specifying Vlan interface |Display corresponding direction and type counter of Vlan interface|
-- sonic-clear dhcp_relay ipv4 counter [--dir (TX|RX)] [\<interface\>]
+- sonic-clear dhcp_relay ipv4/ipv6 counter [--dir (TX|RX)] [\<interface\>]
     |Case Description|Expected res|
     |:-|:-|
     |clear without specifying interface and without specifying direction|Fail to clear|
