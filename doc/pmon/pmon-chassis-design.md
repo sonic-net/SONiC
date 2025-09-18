@@ -447,9 +447,9 @@ In the Supervisor, the thermalctld/main daemon --> thermal_manager.run_policy() 
 
 **Option 2**
 
-This case where thermalctld in each Linecard/module processes thermal data locally and sends the thermal algorithm result to Supervisor CHASSIS_STATE_DB.
+This case where thermalctld in each Linecard/module processes thermal data locally using the vendor/platform specific thermal algorithm and sends the thermal algorithm result to Supervisor CHASSIS_STATE_DB.
  
-Following schema could be used to store the TEMPERATURE_INFO which is per Linecard module. This will contain vendor/platform spcific attributes to be used in the cooling algorithm in the supervisor 
+Following schema could be used to store the TEMPERATURE_INFO per Linecard module. This will contain vendor/platform specific attributes (eg: temperature of hotest sensor on linecard) to be used in the cooling algorithm in the supervisor. 
  
  #### CHASSIS_STATE_DB Schema for Temperature_Info
  ```
@@ -463,9 +463,9 @@ Following schema could be used to store the TEMPERATURE_INFO which is per Lineca
  ```
 In the Linecard there will be the following changes in thermalctld
       (i) thermalctld/main daemon --> thermal_manager.run_policy() implemented by each vendor/platform which will collect all the thermal data stored in STATE_DB locally and generate THERMAL_ALGO_RESULT, store it in STATE_DB
-      (ii) thermalctld/TemperatureUpdater needs to push the THERMAL_ALGO_RESULT created by the run_policy implementation to the CHASSIS_STATE_DB in supervisor along with other thermal data.
+      (ii) thermalctld/TemperatureUpdater needs to push the THERMAL_ALGO_RESULT calculated by the run_policy() to the CHASSIS_STATE_DB in supervisor along with other thermal data.
 
-In the Supervisor, the thermalctld/main daemon --> thermal_manager.run_policy() implemented by each vendor/platform which will collect all the thermal data along with the THERMAL_ALGO_RESULT from various linecards from CHASSIS_STATE_DB to drive the cooling algotithm.
+In the Supervisor, the thermalctld/main daemon --> thermal_manager.run_policy() implemented by each vendor/platform which will collect all the thermal data along with the THERMAL_ALGO_RESULT from various linecards present in CHASSIS_STATE_DB to drive the cooling algorithm.
 
 #### 3.3.3 Xcvrd/SFP
 
