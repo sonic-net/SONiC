@@ -440,7 +440,10 @@ Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STAT
  warning_status                        = str;
  timestamp                             = str;
  ```
-The thermalctld/ThermalMonitor thread will read the optics temperature information from the tables TRANSCEIVER_DOM_SENSOR|Ethernet<>, TRANSCEIVER_DOM_THRESHOLD|Ethernet<> in the STATE_DB of either linux host in case of single ASIC platforms or from the STATE_DB in respective namespaces for multi-asic platforms. This data will be pushed to the CHASSIS_STATE_DB in the CHASSIS_DB in the supervisor along with other thermal data.
+
+In the Linecard, the thermalctld/ThermalMonitor thread will read the optics temperature information from the tables TRANSCEIVER_DOM_SENSOR|Ethernet<>, TRANSCEIVER_DOM_THRESHOLD|Ethernet<> in the STATE_DB of either linux host in case of single ASIC platforms or from the STATE_DB in respective namespaces for multi-asic platforms. This data will be pushed to the CHASSIS_STATE_DB in the CHASSIS_DB in the supervisor along with other thermal data.
+
+In the Supervisor, the thermalctld/main daemon --> thermal_manager.run_policy() implemented by each vendor/platform which will collect all the thermal data pushed in CHASSIS_STATE_DB including optics and drive the cooling algotithm.
 
 **Option 2**
 
@@ -458,9 +461,11 @@ Following schema could be used to store the TEMPERATURE_INFO which is per Lineca
  thermal_result_attribute_3            = str;
  ... 
  ```
+In the Linecard there will be the following changes in thermalctld
+      (i) thermalctld/main daemon --> thermal_manager.run_policy() implemented by each vendor/platform which will collect all the thermal data stored in STATE_DB locally and generate THERMAL_ALGO_RESULT, store it in STATE_DB
+      (ii) thermalctld/TemperatureUpdater needs to push the THERMAL_ALGO_RESULT created by the run_policy implementation to the CHASSIS_STATE_DB in supervisor along with other thermal data.
 
-
-
+In the Supervisor, the thermalctld/main daemon --> thermal_manager.run_policy() implemented by each vendor/platform which will collect all the thermal data along with the THERMAL_ALGO_RESULT from various linecards from CHASSIS_STATE_DB to drive the cooling algotithm.
 
 #### 3.3.3 Xcvrd/SFP
 
