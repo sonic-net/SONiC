@@ -1,35 +1,45 @@
-# **SONiC Community FRR Upgrade Process Proposal**
+# **SONiC Community FRR Upgrade Work Flow**
 
-FRR upgrade and patch cadence is largely on need basis in the current SONiC release program. This SONiC FRR upgrade process proposal is to formalize the FRR upgrade cadence and process for future SONiC release programs.  
+The current SONiC release program handles FRR upgrades and patching on an as-needed basis. This proposed FRR upgrade workflow aims to establish a formalized cadence and process for FRR upgrades in future SONiC releases. Any changes or updates to this workflow must first be discussed and agreed upon by the Routing Working Group to reach consensus.
 
-# SONiC FRR Version Upgrade History
+# SONiC FRR Maintainers
+Currently, the role of SONiC FRR Maintainer rotates among Broadcom, Microsoft, Alibaba, NVIDIA, and Dell, with each term lasting 12 months. Recent FRR upgrades include:
 
-<p align=center>
-<img src="frr.png" alt="">
-</p>
+* Nvidia upgraded FRR to 8.5.1 in the 202311 release
+* Broadcom upgraded FRR to 10.0.1 in the 202411 release
+* Cisco upgraded FRR to 10.3 in the 202505 release
 
+Given that FRR releases a new version approximately every four months and the SONiC community aims to incorporate more FRR features, we propose shortening the FRR Maintainer term to six months. This change would allow for more frequent evaluations of whether an FRR upgrade should be included in each 6-month SONiC release cycle. The assigned FRR Maintainer for a given release will remain responsible for addressing any FRR-related bugs discovered during that release’s lifecycle.
+
+Additionally, we plan to expand the list of FRR Maintainers to include Cisco and Nexthop.AI. The proposed maintainer assignments for the next three SONiC releases are as follows:
+
+* 202511 release: Alibaba (primary), shadowed by Nexthop.AI
+* 202605 release: Microsoft
+* 202611 release: Dell
+* 202705 release: Nvidia
+* 202711 release: Broadcom
+* 202805 release: Cisco
+* 202811 release: Alibaba
+* 202905 release: Nexthop.AI
+* 202911 release: Microsoft
 
 # FRR Project Release Cadence
--   FRR release numbering scheme x.y.z-s#
--   New FRR releases roughly every 4 months
-	- Apr 2023 - Release 8.5.1 (48 fixes)
-	- Mar 2023 - Release 8.5 (947+ commits)
-	- Jan 2023 - Release 8.4.2 (22 fixes)
-	- Nov 2022 - Release 8.4.1 (16 fixes)
-	- Nov 2022 - Release 8.4 (700+ commits)
-	- Aug 2022 - Release 8.3.1 (14 fixes)
-	- Jul 2022 - Release 8.3 (1000+ commits)
-	- Mar 2022 - Release 8.2.2 (800+ commits)
-	- Nov 2021 - Release 8.1.0 (1200+ commits)
-	- Jul 2021 - Release 8.0.0 (2200+ commits)
+-  FRR release numbering scheme x.y.z-s#
+-  New FRR releases roughly every 4 months. FRR release information could be found from https://frrouting.org/release/
+-  SONiC to stay out from major/minor releases (x.y) and use patch release (.z) for stability (eg, FRR 8.3.1 instead of 8.3 if it is for 202211 release). Another example, at the time of SONiC FRR upgrade, the following FRR versions are avaialble 9.0.1, 8.5.3, 9.0, the guidance is to upgrade with the latest patch release 9.0.1
+-  For every sonic release, the recommendation is to update FRR to last stable minor release by default. If there is a need to change this guidance, the request needs to be discussed and approved in Routing Working Group.
 
--   SONiC to stay out from major/minor releases (x.y) and use patch release (.z) for stability (eg, FRR 8.3.1 instead of 8.3 if it is for 202211 release). Another example, at the time of SONiC FRR upgrade, the following FRR versions are avaialble 9.0.1, 8.5.3, 9.0, the guidance is to upgrade with the latest patch release 9.0.1 
+# FRR Patches
+Regarding FRR patches, whenever a patch is introduced based on a fix from FRR, there should be a clearly defined timeline for its removal to prevent the accumulation of excessive patches in SONiC. Such patches should remain only for a maximum of two upgrade cycles. If a patch cannot be removed within this timeframe, explicit approval must be obtained from the Routing Working Group.
+
+Currently, we prefix patch names with a patch number. To facilitate easy identification of long-lived patches, the Routing Working Group has agreed to retain these patch numbers even after a patch is removed during an upgrade. This practice helps to maintain traceability and simplifies tracking over time.
+
 
 # SONiC Release FRR Upgrade
 -   SONiC default to rebase FRR in every November community release
 -   SONiC FRR upgrade test requirements
-	-   MANDATORY: Pass all Azure pipeline build test and LGTM as required by the standard code PR merge process 
-  	-   OPTIONAL: Additional tests in respect to specific changeset in the upgrade as deem necessary, manual tests should be automated and submitted to improve future test coverage   
+	-   MANDATORY: Pass all Azure pipeline build test and LGTM as required by the standard code PR merge process
+  	-   OPTIONAL: Additional tests in respect to specific changeset in the upgrade as deem necessary, manual tests should be automated and submitted to improve future test coverage
 -   Rotate SONiC FRR maintenance duty among repo maintainer org and others (BRCM, MSFT, Alibaba, NVDA, DELL)
 -   Responsibility of SONiC FRR release maintainer
 	-   Default 12 months assignment
@@ -73,8 +83,14 @@ FRR upgrade and patch cadence is largely on need basis in the current SONiC rele
 	    -   Manually verify BGP, VRF, IPv4, IPv6 (on sonic-vs.)
     -   Create PR with the following template
 		- [https://github.com/sonic-net/sonic-buildimage/pull/15965](https://github.com/sonic-net/sonic-buildimage/pull/15965)
--   FRR upgrade PRs for reference  
+-   FRR upgrade PRs for reference
     - [https://github.com/sonic-net/sonic-buildimage/pull/15965](https://github.com/sonic-net/sonic-buildimage/pull/15965)
     - [https://github.com/sonic-net/sonic-buildimage/pull/10691](https://github.com/sonic-net/sonic-buildimage/pull/10691)
     - [https://github.com/sonic-net/sonic-buildimage/pull/11502](https://github.com/sonic-net/sonic-buildimage/pull/11502)
     - [https://github.com/sonic-net/sonic-buildimage/pull/10947](https://github.com/sonic-net/sonic-buildimage/pull/10947)
+
+# SONiC FRR Version Upgrade History
+
+<p align=center>
+<img src="frr.png" alt="">
+</p>
