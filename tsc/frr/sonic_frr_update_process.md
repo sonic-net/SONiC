@@ -36,19 +36,18 @@ Currently, we prefix patch names with a patch number. To facilitate easy identif
 
 
 # SONiC Release FRR Upgrade
--   SONiC default to rebase FRR in every November community release
+-   SONiC default to rebase FRR in every community release
 -   SONiC FRR upgrade test requirements
 	-   MANDATORY: Pass all Azure pipeline build test and LGTM as required by the standard code PR merge process
   	-   OPTIONAL: Additional tests in respect to specific changeset in the upgrade as deem necessary, manual tests should be automated and submitted to improve future test coverage
--   Rotate SONiC FRR maintenance duty among repo maintainer org and others (BRCM, MSFT, Alibaba, NVDA, DELL)
+-   Rotate SONiC FRR maintenance duty among repo maintainer org and others (BRCM, MSFT, Alibaba, NVDA, DELL， Cisco, Nexthop.AI)
 -   Responsibility of SONiC FRR release maintainer
-	-   Default 12 months assignment
-	-   Upgrade FRR version in Nov release, resolve SONiC FRR upgrade integration issues
+	-   Default 6 months assignment
+	-   Upgrade FRR version in SONiC release in needed, resolve SONiC FRR upgrade integration issues
 	-   Triage and fix SONiC FRR issues when applicable. Fix may come from SONiC contributors or from FRR community, maintainer is responsible to drive the fix to unblock SONiC community
 	-   Submit fixes to FRR project, submit new FRR topo test to FRR project if there is a gap
 	-   Release maintainer to subscribe to FRR project, and be the FRR Point-of-Contact on behalf of SONiC
 	-   Bring in FRR vulnerabilities and critical patches to SONiC
-  -   If there is a need for May release upgrade due to feature requirement or other reasons, it should be requested in the May release plan and get a consensus with the FRR release maintainer. The person or organization requested the upgrade will be responsible of carrying out FRR upgrade with the same FRR upgrade process described in this proposal. FRR release maintainer will need to work closely with the person or organization to oversee the mid term upgrade, he/she will continue to assume the role of FRR release maintainer until the end of his/her term
 
 # SONiC FRR vulnerability and patch upgrade in between SONiC releases
 
