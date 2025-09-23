@@ -109,6 +109,9 @@ With introduction of ICMP hardware offload a new config knob **[prober_type]** i
 * **Enhanced Session Management:** LinkMgrd creates and manages both NORMAL sessions (for sending ICMP requests) and RX sessions (for monitoring peer responses) with different timer configurations
 * **Hardware Capability Detection:** LinkMgrd detects platform hardware offload capabilities before creating hardware sessions, falling back to software mode if hardware support is unavailable
 
+Following diagram describes ICMP packet format used in the hardware offload.
+<div align="left"> <img src=image/icmp_pkt_format.png width=700 /> </div>
+
 #### Session cookie
 Session cookie is used by NPU to distinguish between software ICMP packets and ICMP packets that needs to be handled by the offload engine in NPU. LinkMgrd will use separate cookies for software and hardware based sessions.
 
