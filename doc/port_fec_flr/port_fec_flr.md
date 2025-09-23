@@ -56,11 +56,11 @@ Based on the Forward Error Correction (FEC) data, receiver device can compute an
 ### 2.2 CLI Requirements
 
  * The existing `show interfaces counters fec-stats` command will be enhanced to include the following FEC FLR columns:
-   - FEC_FLR
-   - FEC_FLR_PREDICTED
+   - FLR(O), to display observed FEC FLR values.
+   - FLR(P), to display predicted FEC FLR values.
  * A new `counterpoll port` sub-command will be introduced to configure FEC FLR interval factor:
-   - `counterpoll port fec-flr-interval-factor FEC_FLR_INTERVAL_FACTOR`
-     - The default value of FEC_FLR_INTERVAL_FACTOR will be 120.
+   - `counterpoll port flr-interval-factor FLR_INTERVAL_FACTOR`
+     - The default value of FLR_INTERVAL_FACTOR will be 120.
 
 ## 3 Architecture Design
 
@@ -77,21 +77,21 @@ There are no changes to the current SONiC Architecture.
          and SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si representing codewords with i symbol errors where i ranges from 0 to 15 in case of RS-544 FEC.
        - Compute both observed and predicted FEC FLR per port.
        - Store the computed FEC FLR values and the previous Redis counter values back into the Redis DB.
-       - Perform the FEC FLR computation on each port once every `port_stat POLL_INTERVAL * FEC_FLR_INTERVAL_FACTOR` seconds, where FEC_FLR_INTERVAL_FACTOR is retrieved from the FLEX_COUNTER_DB.
+       - Perform the FEC FLR computation on each port once every `port_stat POLL_INTERVAL * FLR_INTERVAL_FACTOR` seconds, where FLR_INTERVAL_FACTOR is retrieved from the FLEX_COUNTER_DB.
 
    + portsorch.cpp
      - Link the new "port_flr.lua" script as a plugin to the existing PORT_STAT_COUNTER_FLEX_COUNTER_GROUP, alongside "port_rates.lua".
 
    + flexcounterorch.cpp
-     - Enhance "FlexCounterOrch" to propagate FEC_FLR_INTERVAL_FACTOR from CONFIG_DB to FLEX_COUNTER_DB.
+     - Enhance "FlexCounterOrch" to propagate FLR_INTERVAL_FACTOR from CONFIG_DB to FLEX_COUNTER_DB.
 
  * Utilities Common changes:
 
    + portstat.py:
-     - Enhance the `portstat` command with the `-f` option (used by the CLI command `show interfaces counters fec-stats`) to include the FEC_FLR and FEC_FLR_PREDICTED columns.
+     - Enhance the `portstat` command with the `-f` option (used by the CLI command `show interfaces counters fec-stats`) to include the FLR(O) and FLR(P) columns.
 
    + counterpoll/main.py:
-     - Add a new argument `fec-flr-interval-factor` to the exisiting `counterpoll port` command.
+     - Add a new argument `flr-interval-factor` to the exisiting `counterpoll port` command.
 
      ```
      root@sonic:~$ counterpoll port --help
@@ -106,11 +106,11 @@ There are no changes to the current SONiC Architecture.
        disable                  Disable port counter query
        enable                   Enable port counter query
        interval                 Set port counter query interval
-       fec-flr-interval-factor  Set port fec flr interval factor
+       flr-interval-factor      Set port fec flr interval factor
 
 
-     root@sonic:~$ counterpoll port fec-flr-interval-factor --help
-     Usage: counterpoll port fec-flr-interval-factor [OPTIONS] FEC_FLR_INTERVAL_FACTOR
+     root@sonic:~$ counterpoll port flr-interval-factor --help
+     Usage: counterpoll port flr-interval-factor [OPTIONS] FLR_INTERVAL_FACTOR
 
        Set port fec flr interval factor
 
@@ -269,25 +269,25 @@ Step 6: Store FEC_FLR_PREDICTED, SAI_PORT_STAT_IF_IN_FEC_CODEWORD_ERRORS_Si_last
 ## 5 Sample CLI Output
 ```
 root@sonic:~$ portstat -f
-      IFACE    STATE    FEC_CORR    FEC_UNCORR    FEC_SYMBOL_ERR    FEC_PRE_BER    FEC_POST_BER    FEC_FLR      FEC_FLR_PREDICTED
------------  -------  ----------  ------------  ----------------  -------------  --------------  ---------  ---------------------
-  Ethernet0        U           0             0                 0       0.00e+00        0.00e+00          0                      0
-  Ethernet8        U           0             0                 0       0.00e+00        0.00e+00          0                      0
- Ethernet16        X           0             0                 0       0.00e+00        0.00e+00          0                      0
- Ethernet24        X           0             0                 0       0.00e+00        0.00e+00          0                      0
- Ethernet32        U           0             0                 0       0.00e+00        0.00e+00          0                      0
- Ethernet40        D          21             0                 0       0.00e+00        0.00e+00          0                      0
- Ethernet48        X           0             0                 0       0.00e+00        0.00e+00          0                      0
- Ethernet56        X           0             0                 0       0.00e+00        0.00e+00          0                      0
- Ethernet64        U       1,334             0                 4       0.00e+00        0.00e+00          0                      0
- Ethernet72        U      28,531             0                31       0.00e+00        0.00e+00          0  2.68e-09 (R^2 = 0.79)
- Ethernet80        U      25,890             0                25       0.00e+00        0.00e+00          0  6.03e-09 (R^2 = 0.79)
- Ethernet88        U      21,909             0                49       0.00e+00        0.00e+00          0                      0
- Ethernet96        U       5,635             0                 8       0.00e+00        0.00e+00          0                      0
-Ethernet104        U      21,141             0                 7       0.00e+00        0.00e+00          0  7.08e-09 (R^2 = 0.79)
+      IFACE    STATE    FEC_CORR    FEC_UNCORR    FEC_SYMBOL_ERR    FEC_PRE_BER    FEC_POST_BER    FLR(O)    FLR(P) (Accuracy)
+-----------  -------  ----------  ------------  ----------------  -------------  --------------  --------  -------------------
+  Ethernet0        U           0             0                 0       0.00e+00        0.00e+00         0                    0
+  Ethernet8        U           0             0                 0       0.00e+00        0.00e+00         0                    0
+ Ethernet16        X           0             0                 0       0.00e+00        0.00e+00         0                    0
+ Ethernet24        X           0             0                 0       0.00e+00        0.00e+00         0                    0
+ Ethernet32        U           0             0                 0       0.00e+00        0.00e+00         0                    0
+ Ethernet40        D          21             0                 0       0.00e+00        0.00e+00         0                    0
+ Ethernet48        X           0             0                 0       0.00e+00        0.00e+00         0                    0
+ Ethernet56        X           0             0                 0       0.00e+00        0.00e+00         0                    0
+ Ethernet64        U       1,334             0                 4       0.00e+00        0.00e+00         0                    0
+ Ethernet72        U      28,531             0                31       0.00e+00        0.00e+00         0       2.68e-09 (79%)
+ Ethernet80        U      25,890             0                25       0.00e+00        0.00e+00         0       6.03e-09 (79%)
+ Ethernet88        U      21,909             0                49       0.00e+00        0.00e+00         0                    0
+ Ethernet96        U       5,635             0                 8       0.00e+00        0.00e+00         0                    0
+Ethernet104        U      21,141             0                 7       0.00e+00        0.00e+00         0       7.08e-09 (79%)
 ```
 
-If FEC is not supported for an interface, the FEC_FLR and FEC_FLR_PREDICTED fields will display `N/A` for the corresponding entry. If there is insufficient data to compute the FEC FLR (e.g., when the link is performing well), these fields will display `0` (note that `0` is shown instead of `0.00e+00` for better readability).
+If FEC is not supported for an interface, the FLR(O) and FLR(P) fields will display `N/A` for the corresponding entry. If there is insufficient data to compute the FEC FLR (for example, if the link is performing well and there are not at least 2 bins with non-zero values for predicting FLR), both the observed (FLR(O)) and predicted (FLR(P)) FLR fields will display `0`. This choice is made for readability and consistency with user expectations in CLI output, as `0` is clearer and more concise than `0.00e+00` in this context.
 
 ## 6 Acknowledgements
 Thanks to Prince and Cameron from Microsoft for sharing the details of the predicted FEC FLR algorithm and the mapping of port speed to interleaving factor.
