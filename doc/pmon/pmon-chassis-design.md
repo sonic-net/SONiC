@@ -424,9 +424,9 @@ In the chassis architectures (voq and packet) the cooling/fan algorithm is run i
 
 **Option 1**
 
-This case where thermalctld in each Linecard/module **don't** process thermal data locally, instead just send each optics Temperature_info(along with the other thermals) to Supervisor CHASSIS_STATE_DB. The Supervisor/thermalctld use this directly as input to cooling algorithm.
+This case where thermalctld in each Linecard/module don't process thermal data locally, instead just send each optics Temperature_info(along with the other thermals) to Supervisor CHASSIS_STATE_DB. The thermalctld in Supervisor use all thermals including optics thermal data as input to cooling algorithm.
  
-Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STATE_DB. The <Sensor-Name> here will be interface name.
+Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STATE_DB. The 'Sensor-Name' here will be interface name.
  
  #### CHASSIS_STATE_DB Schema for Temperature_Info
  ```
@@ -441,31 +441,37 @@ Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STAT
  timestamp                             = str;
  ```
 
-In the Linecard, the thermalctld/ThermalMonitor thread will read the optics temperature information from the tables TRANSCEIVER_DOM_SENSOR|Ethernet<>, TRANSCEIVER_DOM_THRESHOLD|Ethernet<> in the STATE_DB of either linux host in case of single ASIC platforms or from the STATE_DB in respective namespaces for multi-asic platforms. This data will be pushed to the CHASSIS_STATE_DB in the CHASSIS_DB in the supervisor along with other thermal data.
+In the Linecard, the thermalctld/ThermalMonitor thread will read the optics temperature information from the tables TRANSCEIVER_DOM_SENSOR|Ethernet<>, TRANSCEIVER_DOM_THRESHOLD|Ethernet<> in the STATE_DB of either linux host in case of single ASIC platforms or from the STATE_DB in respective namespaces for multi-asic platforms. This data will be pushed using the above schema to the CHASSIS_STATE_DB in the CHASSIS_DB in the supervisor along with other thermal data.
 
-In the Supervisor, the thermalctld/main daemon --> thermal_manager.run_policy() implemented by each vendor/platform which will collect all the thermal data pushed in CHASSIS_STATE_DB including optics and drive the cooling algotithm.
+In the Supervisor, the thermalctld/main daemon ---calls---> thermal_manager.run_policy() which will collect all the thermal data pushed in CHASSIS_STATE_DB including optics and drive the cooling algotithm.
+
 
 **Option 2**
 
-This case where thermalctld in each Linecard/module processes thermal data locally using the vendor/platform specific thermal algorithm and sends the thermal algorithm result to Supervisor CHASSIS_STATE_DB.
- 
-Following schema could be used to store the TEMPERATURE_INFO per Linecard module. This will contain vendor/platform specific attributes (eg: temperature of hotest sensor on linecard) to be used in the cooling algorithm in the supervisor. 
- 
- #### CHASSIS_STATE_DB Schema for Temperature_Info
+This case where thermalctld in each Linecard/module processes thermal data locally using the vendor/platform specific thermal algorithm and sends the thermal algorithm result to Supervisor CHASSIS_STATE_DB. 
+
+Following schema could be used to store the THERMAL_ALGO_RESULT per Linecard module. This will contain vendor/platform specific attributes (for eg: it could be the attributes of the hotest sensor on linecard) to be used in the cooling algorithm in the supervisor. This attributes could be defined in the platform.json file of the platform/sku under a new key "thermal_algo_result_attributes"
+
+ #### CHASSIS_STATE_DB Schema for Thermal Algorithm result
  ```
  key                                   = TEMPERATURE_INFO_<card-index>|THERMAL_ALGO_RESULT; 
  ; field                               = value
- thermal_result_attribute_count        = int 
  thermal_result_attribute_1            = str;
  thermal_result_attribute_2            = str;
  thermal_result_attribute_3            = str;
- ... 
+ ...
  ```
 In the Linecard there will be the following changes in thermalctld
-      (i) thermalctld/main daemon --> thermal_manager.run_policy() implemented by each vendor/platform which will collect all the thermal data stored in STATE_DB locally and generate THERMAL_ALGO_RESULT, store it in STATE_DB
-      (ii) thermalctld/TemperatureUpdater needs to push the THERMAL_ALGO_RESULT calculated by the run_policy() to the CHASSIS_STATE_DB in supervisor along with other thermal data.
+* The thermalctld/main daemon ---calls---> thermal_manager.run_policy(), implemented by each vendor/platform which will collect all the thermal data from local STATE_DB, run the vendor thermal algorithm, 
+  generate the result and store it as "THERMAL_ALGO_RESULT" in STATE_DB
+          
+  The local thermal data contains the TEMPERATURE_INFO data in STATE_DB in the host database + the optics temperature information from the tables TRANSCEIVER_DOM_SENSOR|Ethernet<>, TRANSCEIVER_DOM_THRESHOLD|Ethernet<> 
+  in the STATE_DB of either linux host in case of single ASIC platforms or from the STATE_DB in respective namespaces for multi-asic platforms
+          
+* The thermalctld/TemperatureUpdater needs to push the THERMAL_ALGO_RESULT calculated by the run_policy() to the CHASSIS_STATE_DB in supervisor along with other thermal data.
 
-In the Supervisor, the thermalctld/main daemon --> thermal_manager.run_policy() implemented by each vendor/platform which will collect all the thermal data along with the THERMAL_ALGO_RESULT from various linecards present in CHASSIS_STATE_DB to drive the cooling algorithm.
+In the Supervisor, the thermalctld/main daemon ---calls---> thermal_manager.run_policy() which will collect all the thermal data along with the THERMAL_ALGO_RESULT from various linecards present in CHASSIS_STATE_DB to drive the cooling algorithm.
+
 
 #### 3.3.3 Xcvrd/SFP
 
