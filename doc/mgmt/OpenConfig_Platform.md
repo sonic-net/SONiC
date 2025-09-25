@@ -43,109 +43,101 @@ This document provides general information about the OpenConfig configuration/ma
 module: openconfig-platform
   +--rw components
      +--rw component* [name]
-        +--rw name
+        +--rw name                   -> ../config/name
         +--rw config
-        |  +--rw name?
+        |  +--rw name?   string
         +--ro state
-        |  +--ro name?
-        |  +--ro type?
-        |  +--ro id?
-        |  +--ro description?
-        |  +--ro mfg-name?
-        |  +--ro mfg-date?
-        |  +--ro hardware-version?
-        |  +--ro firmware-version?
-        |  +--ro software-version?
-        |  +--ro serial-no?
-        |  +--ro part-no?
-        |  +--ro oper-status?
-        |  +--ro parent?
-        |  +--ro location?
-        |  +--ro removable?
-        |  +--ro empty?
-        |  +--ro memory
-        |  |  +--ro available?
-        |  |  +--ro utilized?
+        |  +--ro name?               string
+        |  +--ro type?               union
+        |  x--ro id?                 string
+        |  x--ro location?           string
+        |  +--ro description?        string
+        |  +--ro mfg-name?           string
+        |  +--ro mfg-date?           oc-yang:date
+        |  +--ro hardware-version?   string
+        |  +--ro serial-no?          string
+        |  +--ro part-no?            string
+        |  +--ro model-name          string
+        |  +--ro removable?          boolean
+        |  +--ro oper-status?        identityref
+        |  +--ro empty?              boolean
+        |  +--ro parent?             -> ../../../component/config/name
         |  +--ro temperature
-        |     +--ro instant?
-        |     +--ro avg?
-        |     +--ro min?
-        |     +--ro max?
-        |     +--ro interval?
-        |     +--ro min-time?
-        |     +--ro max-time?
-        |     +--ro alarm-status?
-        |     +--ro alarm-threshold?
-        +--rw chassis
+        |  |  +--ro instant?           decimal64
+        |  |  +--ro min?               decimal64
+        |  |  +--ro max?               decimal64
+        |  |  +--ro alarm-status?      boolean
+        |  |  +--ro alarm-threshold?   uint32
+        |  +--ro memory
+        |     +--ro available?   uint64
+        |     +--ro utilized?    uint64
         +--rw power-supply
         |  +--ro state
-        |     +--ro capacity?
-        |     +--ro enabled?
+        |     +--ro oc-platform-psu:enabled?    boolean
+        |     +--ro oc-platform-psu:capacity?   oc-types:ieeefloat32
         +--rw fan
         |  +--ro state
-        |     +--ro speed?
+        |     +--ro oc-fan:speed?   uint32
         +--rw cpu
-        |  +--ro utilization
-        |     +--ro state
-        |        +--ro instant?
-        |        +--ro avg?
-        |        +--ro min?
-        |        +--ro max?
-        |        +--ro interval?
-        |        +--ro min-time?
-        |        +--ro max-time?
-        +--rw openconfig-platform-transceiver:transceiver
-           +--ro state
-           |  +--ro enabled?
-           |  +--ro form-factor-preconf?
-           |  +--ro present?
-           |  +--ro form-factor?
-           |  +--ro connector-type?
-           |  +--ro vendor-rev?
-           |  +--ro serial-no?
-           |  +--ro date-code?
-           |  +--ro supply-voltage
-           |     +--ro instant?
-           +--ro thresholds
-           |  +--ro threshold* [threshold-type]
-           |     +--ro threshold-type
-           |     +--ro state
-           |        +--ro threshold-type?
-           |        +--ro upper-critical?
-           |        +--ro upper-warning?
-           |        +--ro lower-warning?
-           |        +--ro lower-critical?
-           +--ro physical-channels
-              +--ro channel* [index]
-                 +--ro index
-                 +--ro state
-                 |  +--ro index?
-                 |  +--ro description?
-                 |  +--ro tx-laser?
-                 |  +--ro output-power
-                 |  |  +--ro instant?
-                 |  |  +--ro avg?
-                 |  |  +--ro min?
-                 |  |  +--ro max?
-                 |  |  +--ro interval?
-                 |  |  +--ro min-time?
-                 |  |  +--ro max-time?
-                 |  +--ro input-power
-                 |  |  +--ro instant?
-                 |  |  +--ro avg?
-                 |  |  +--ro min?
-                 |  |  +--ro max?
-                 |  |  +--ro interval?
-                 |  |  +--ro min-time?
-                 |  |  +--ro max-time?
-                 |  +--ro laser-bias-current
-                 |     +--ro instant?
-                 |     +--ro avg?
-                 |     +--ro min?
-                 |     +--ro max?
-                 |     +--ro interval?
-                 |     +--ro min-time?
-                 |     +--ro max-time?
+        |  +--rw config
+        |  +--ro state
+        |  +--rw oc-cpu:utilization
+        |     +--ro oc-cpu:state
+        |        +--ro oc-cpu:instant?    oc-types:percentage
+        |        +--ro oc-cpu:avg?        oc-types:percentage
+        |        +--ro oc-cpu:min?        oc-types:percentage
+        |        +--ro oc-cpu:max?        oc-types:percentage
+        |        +--ro oc-cpu:interval?   oc-types:stat-interval
+        +--rw oc-transceiver:transceiver
+           +--ro oc-transceiver:state
+           |  +--ro oc-transceiver:enabled?               boolean
+           |  +--ro oc-transceiver:form-factor-preconf?   identityref
+           |  +--ro oc-transceiver:present?               enumeration
+           |  +--ro oc-transceiver:form-factor?           identityref
+           |  +--ro oc-transceiver:connector-type?        identityref
+           |  +--ro oc-transceiver:vendor-rev?            string
+           |  +--ro oc-transceiver:serial-no?             string
+           |  +--ro oc-transceiver:date-code?             oc-yang:date-and-time
+           |  +--ro oc-transceiver:supply-voltage
+           |     +--ro oc-transceiver:instant?    decimal64
+           |     +--ro oc-transceiver:avg?        decimal64
+           |     +--ro oc-transceiver:min?        decimal64
+           |     +--ro oc-transceiver:max?        decimal64
+           |     +--ro oc-transceiver:interval?   oc-types:stat-interval
+           |     +--ro oc-transceiver:min-time?   oc-types:timeticks64
+           |     +--ro oc-transceiver:max-time?   oc-types:timeticks64
+           +--rw oc-transceiver:physical-channels
+           |  +--rw oc-transceiver:channel* [index]
+           |     +--rw oc-transceiver:index     -> ../config/index
+           |     +--ro oc-transceiver:state
+           |        +--ro oc-transceiver:index?                        uint16
+           |        +--ro oc-transceiver:associated-optical-channel?   -> /oc-platform:components/component/name
+           |        +--ro oc-transceiver:description?                  string
+           |        +--ro oc-transceiver:tx-laser?                     boolean
+           |        +--ro oc-transceiver:target-output-power?          decimal64
+           |        +--ro oc-transceiver:output-power
+           |        |  +--ro oc-transceiver:instant?   decimal64
+           |        +--ro oc-transceiver:input-power
+           |        |  +--ro oc-transceiver:instant?   decimal64
+           |        +--ro oc-transceiver:laser-bias-current
+           |           +--ro oc-transceiver:instant?   decimal64
+           +--rw oc-transceiver:thresholds
+              +--ro oc-transceiver:threshold* [severity]
+                 +--ro oc-transceiver:severity    -> ../state/severity
+                 +--ro oc-transceiver:state
+                    +--ro oc-transceiver:severity?                   identityref
+                    +--ro oc-transceiver:laser-temperature-upper?    decimal64
+                    +--ro oc-transceiver:laser-temperature-lower?    decimal64
+                    +--ro oc-transceiver:output-power-upper?         decimal64
+                    +--ro oc-transceiver:output-power-lower?         decimal64
+                    +--ro oc-transceiver:input-power-upper?          decimal64
+                    +--ro oc-transceiver:input-power-lower?          decimal64
+                    +--ro oc-transceiver:laser-bias-current-upper?   decimal64
+                    +--ro oc-transceiver:laser-bias-current-lower?   decimal64
+                    +--ro oc-transceiver:supply-voltage-upper?       decimal64
+                    +--ro oc-transceiver:supply-voltage-lower?       decimal64
+                    +--ro oc-transceiver:module-temperature-lower?   decimal64
+                    +--ro oc-transceiver:module-temperature-upper?   decimal64
 ```
 
 # Definition/Abbreviation
@@ -228,6 +220,10 @@ The following existing STATE DB tables are utilized for platform component infor
 - TRANSCEIVER_DOM_THRESHOLD
 - TRANSCEIVER_DOM_SENSOR
 - MOUNT_POINTS
+- PSU_INFO
+- FAN_INFO
+- FAN_DRAWER_INFO
+- CHASSIS_INFO
 - CPU_STATS (new table will be added to support this)
 
 ### 3.2.4 ASIC DB
@@ -244,111 +240,248 @@ Openconfig-platform.yang and its submodules will be used as user interfacing mod
 - openconfig-platform-fan.yang
 - openconfig-platform-transceiver.yang
 - openconfig-platform-cpu.yang
+- openconfig-platform-common.yang
+- openconfig-platform-types.yang
+- openconfig-platform-annotation.yang
+- openconfig-platform-deviation.yang
+- openconfig-platform-ext.yang
 
 ### 3.3.2 Database Table and Field Mapping
-The following table shows the mapping between OpenConfig YANG paths and SONiC STATE DB tables and fields:
+The following sections provide detailed mapping between OpenConfig YANG paths and SONiC STATE DB tables and fields for each component type.
 
-#### 3.3.2.1 Component Basic Information Mapping
+#### 3.3.2.1 Chassis Component Mapping
+**Database Table:** CHASSIS_INFO  
+**Key Pattern:** "chassis *" (e.g., "chassis 1")  
+**Component Type:** openconfig-platform-types:CHASSIS
 
-| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Component Types |
-|---------------------|----------------|----------------|-----------------|
-| `/components/component/state/id` | - | - | All |
-| `/components/component/state/part-no` | EEPROM_INFO | 0x22 | Chassis/EEPROM |
-| `/components/component/state/serial-no` | EEPROM_INFO, TRANSCEIVER_INFO | 0x23, serial | Chassis/EEPROM, Transceiver |
-| `/components/component/state/mfg-date` | EEPROM_INFO | 0x25 | Chassis/EEPROM |
-| `/components/component/state/hardware-version` | EEPROM_INFO, TRANSCEIVER_INFO | 0x27, hardware_rev | Chassis/EEPROM, Transceiver |
-| `/components/component/state/description` | - | - | All |
-| `/components/component/state/mfg-name` | EEPROM_INFO, TRANSCEIVER_INFO | 0x2b, manufacturer | Chassis/EEPROM, Transceiver |
-| `/components/component/state/location` | PHYSICAL_ENTITY_INFO | parent_name | All |
-| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | All |
-| `/components/component/state/empty` | - | - | All |
-| `/components/component/state/removable` | - | - | All |
-| `/components/component/state/oper-status` | PSU_INFO, FAN_INFO, TRANSCEIVER_INFO | status, presence | PSU, Fan, Transceiver |
-| `/components/component/state/type` | - | - | All |
-| `/components/component/state/model-name` | CPU_STATS, TRANSCEIVER_INFO | model_name, model | CPU, Transceiver |
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/type` | - | - | Fixed: CHASSIS |
+| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/serial-no` | CHASSIS_INFO | serial |
+| `/components/component/state/hardware-version` | CHASSIS_INFO | revision |
+| `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
+| `/components/component/state/empty` | - | - | Fixed: false |
+| `/components/component/state/removable` | - | - | Fixed: false |
+| `/components/component/state/model-name` | CHASSIS_INFO | model |
 
-#### 3.3.2.2 Memory Information Mapping
+#### 3.3.2.2 CPU Component Mapping  
+**Database Table:** CPU_STATS  
+**Key Pattern:** "CPU*" (e.g., "CPU0")  
+**Component Type:** openconfig-platform-types:CPU
 
-| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Component Types |
-|---------------------|----------------|----------------|-----------------|
-| `/components/component/state/memory/available` | MEMORY_STATS, MOUNT_POINTS | 1K-blocks | Memory, Disk |
-| `/components/component/state/memory/utilized` | MEMORY_STATS, MOUNT_POINTS | Used | Memory, Disk |
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/type` | - | - | Fixed: CPU |
+| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/model-name` | CPU_STATS | model_name | CPU model information |
+| `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
+| `/components/component/state/empty` | - | - | Fixed: false |
+| `/components/component/state/removable` | - | - | Fixed: false |
+| `/components/component/cpu/utilization/state/instant` | CPU_STATS | load | Current CPU load |
+| `/components/component/cpu/utilization/state/avg` | CPU_STATS | load | Calculated average |
+| `/components/component/cpu/utilization/state/min` | CPU_STATS | load | Calculated minimum |
+| `/components/component/cpu/utilization/state/max` | CPU_STATS | load | Calculated maximum |
 
-#### 3.3.2.3 Temperature Information Mapping
+#### 3.3.2.3 EEPROM Component Mapping
+**Database Table:** EEPROM_INFO  
+**Key Pattern:** "System Eeprom"  
+**Component Type:** openconfig-platform-types:STORAGE
 
-| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Component Types |
-|---------------------|----------------|----------------|-----------------|
-| `/components/component/state/temperature/instant` | TEMPERATURE_INFO | temperature | Temperature |
-| `/components/component/state/temperature/min` | TEMPERATURE_INFO | minimum_temperature | Temperature |
-| `/components/component/state/temperature/max` | TEMPERATURE_INFO | maximum_temperature | Temperature |
-| `/components/component/state/temperature/alarm-status` | TEMPERATURE_INFO | warning_status | Temperature |
-| `/components/component/state/temperature/alarm-threshold` | TEMPERATURE_INFO | critical_high_threshold | Temperature |
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/id` | - | - | Fixed: "System Eeprom" |
+| `/components/component/state/name` | - | - | Same as id |
+| `/components/component/state/type` | - | - | Fixed: STORAGE |
+| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/part-no` | EEPROM_INFO | 0x22 | Product part number |
+| `/components/component/state/serial-no` | EEPROM_INFO | 0x23 | Serial number |
+| `/components/component/state/mfg-date` | EEPROM_INFO | 0x25 | Manufacturing date |
+| `/components/component/state/hardware-version` | EEPROM_INFO | 0x27 | Hardware revision |
+| `/components/component/state/mfg-name` | EEPROM_INFO | 0x2b | Manufacturer name |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Usually chassis |
+| `/components/component/state/location` | PHYSICAL_ENTITY_INFO | parent_name | Location information |
+| `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
+| `/components/component/state/empty` | - | - | Fixed: false |
+| `/components/component/state/removable` | - | - | Fixed: false |
 
-#### 3.3.2.4 Power Supply Information Mapping
+#### 3.3.2.4 Memory Component Mapping
+**Database Table:** MEMORY_STATS  
+**Key Patterns:** "*Memory" (e.g., "Physical Memory", "Buffer Memory", "Swap Memory", "Cached Memory", "Virtual Memory", "Shared Memory")  
+**Component Type:** openconfig-platform-types:STORAGE
 
-| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Component Types |
-|---------------------|----------------|----------------|-----------------|
-| `/components/component/power-supply/state/capacity` | PSU_INFO | max_power | PSU |
-| `/components/component/power-supply/state/enabled` | PSU_INFO | status | PSU |
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/id` | - | Component key | Generated from memory key |
+| `/components/component/state/name` | - | Component key | Same as id |
+| `/components/component/state/type` | - | - | Fixed: STORAGE |
+| `/components/component/state/description` | - | - | Memory type description |
+| `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
+| `/components/component/state/empty` | - | - | Fixed: false |
+| `/components/component/state/removable` | - | - | Fixed: false |
+| `/components/component/state/memory/available` | MEMORY_STATS | 1K-blocks | Available memory in bytes |
+| `/components/component/state/memory/utilized` | MEMORY_STATS | Used | Used memory in bytes |
 
-#### 3.3.2.5 Fan Information Mapping
+#### 3.3.2.5 Disk Component Mapping
+**Database Table:** MOUNT_POINTS  
+**Key Pattern:** "/" (root filesystem)  
+**Component Type:** openconfig-platform-types:STORAGE
 
-| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Component Types |
-|---------------------|----------------|----------------|-----------------|
-| `/components/component/fan/state/speed` | FAN_INFO | speed | Fan |
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/id` | - | - | Fixed: "Disk" |
+| `/components/component/state/name` | - | - | Same as id |
+| `/components/component/state/type` | - | - | Fixed: STORAGE |
+| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
+| `/components/component/state/empty` | - | - | Fixed: false |
+| `/components/component/state/removable` | - | - | Fixed: false |
+| `/components/component/state/memory/available` | MOUNT_POINTS | 1K-blocks | Available disk space |
+| `/components/component/state/memory/utilized` | MOUNT_POINTS | Used | Used disk space |
 
-#### 3.3.2.6 CPU Information Mapping
+#### 3.3.2.6 Power Supply (PSU) Component Mapping
+**Database Table:** PSU_INFO  
+**Key Pattern:** "PSU *" (e.g., "PSU 1", "PSU 2")  
+**Component Type:** openconfig-platform-types:POWER_SUPPLY
 
-| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Component Types |
-|---------------------|----------------|----------------|-----------------|
-| `/components/component/cpu/utilization/state/instant` | CPU_STATS | load | CPU |
-| `/components/component/cpu/utilization/state/avg` | CPU_STATS | load | CPU |
-| `/components/component/cpu/utilization/state/min` | CPU_STATS | load | CPU |
-| `/components/component/cpu/utilization/state/max` | CPU_STATS | load | CPU |
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/name` | - | Component key | Name |
+| `/components/component/state/type` | - | - | Fixed: POWER_SUPPLY |
+| `/components/component/state/description` | - | - | PSU description |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Usually chassis |
+| `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
+| `/components/component/state/oper-status` | PSU_INFO | status | Operational status |
+| `/components/component/state/empty` | - | - | Calculated from status |
+| `/components/component/state/removable` | - | - | Fixed: true |
+| `/components/component/power-supply/state/capacity` | PSU_INFO | max_power | Maximum power capacity |
+| `/components/component/power-supply/state/enabled` | PSU_INFO | status | PSU enabled status |
 
-#### 3.3.2.7 Transceiver Information Mapping
+#### 3.3.2.7 Fan Component Mapping
+**Database Table:** FAN_INFO  
+**Key Pattern:** "*fan*" (e.g., "fan1", "PSU1.fan1")  
+**Component Type:** openconfig-platform-types:FAN
 
-| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Component Types |
-|---------------------|----------------|----------------|-----------------|
-| `/transceiver/state/enabled` | TRANSCEIVER_INFO | presence | Transceiver |
-| `/transceiver/state/form-factor-preconf` | TRANSCEIVER_INFO | ext_identifier | Transceiver |
-| `/transceiver/state/present` | TRANSCEIVER_INFO | presence | Transceiver |
-| `/transceiver/state/form-factor` | TRANSCEIVER_INFO | ext_identifier | Transceiver |
-| `/transceiver/state/connector-type` | TRANSCEIVER_INFO | connector | Transceiver |
-| `/transceiver/state/vendor-rev` | TRANSCEIVER_INFO | vendor_rev | Transceiver |
-| `/transceiver/state/serial-no` | TRANSCEIVER_INFO | serial | Transceiver |
-| `/transceiver/state/date-code` | TRANSCEIVER_INFO | vendor_date | Transceiver |
-| `/transceiver/state/supply-voltage/instant` | TRANSCEIVER_DOM_SENSOR | voltage | Transceiver |
-| `/transceiver/thresholds` | TRANSCEIVER_DOM_THRESHOLD | Various threshold fields | Transceiver |
-| `/transceiver/physical-channels` | TRANSCEIVER_DOM_SENSOR | rx power, tx power, tx bias | Transceiver |
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/name` | - | Component key | Name |
+| `/components/component/state/type` | - | - | Fixed: FAN |
+| `/components/component/state/description` | - | - | Fan description |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
+| `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
+| `/components/component/state/oper-status` | FAN_INFO | status | Operational status |
+| `/components/component/state/empty` | - | - | Calculated from status |
+| `/components/component/state/removable` | - | - | Fixed: true |
+| `/components/component/fan/state/speed` | FAN_INFO | speed | Fan speed in RPM |
 
-### 3.3.3 Component Type to DB Table Mapping
+#### 3.3.2.8 Fan Tray Component Mapping
+**Database Table:** FAN_DRAWER_INFO  
+**Key Pattern:** "fantray*" (e.g., "fantray1", "fantray2")  
+**Component Type:** openconfig-platform-types:FAN
 
-| Component Type | Primary DB Tables | Key Pattern | Description |
-|---------------|------------------|-------------|-------------|
-| Chassis | EEPROM_INFO, CHASSIS_INFO | "chassis *" | Main chassis component |
-| CPU | CPU_STATS | "CPU*" | CPU components |
-| EEPROM | EEPROM_INFO | "System Eeprom" | System EEPROM information |
-| Memory | MEMORY_STATS | "*Memory" | Memory components (Physical, Buffer, Swap, etc.) |
-| Disk | MOUNT_POINTS | "/" | Disk/storage components |
-| PSU | PSU_INFO | "PSU *" | Power supply units |
-| Fan | FAN_INFO | "*fan*" | Fan components |
-| Fantray | FAN_DRAWER_INFO | "fantray*" | Fan tray components |
-| Temperature | TEMPERATURE_INFO | Various sensor names | Temperature sensors |
-| Transceiver | TRANSCEIVER_INFO, TRANSCEIVER_DOM_SENSOR, TRANSCEIVER_DOM_THRESHOLD | "Ethernet*" | Transceiver modules |
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/name` | - | Component key | Name |
+| `/components/component/state/type` | - | - | Fixed: FANTRAY |
+| `/components/component/state/description` | - | - | Fan tray description |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Usually chassis |
+| `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
+| `/components/component/state/oper-status` | FAN_DRAWER_INFO | status | Operational status |
+| `/components/component/state/empty` | - | - | Calculated from status |
+| `/components/component/state/removable` | - | - | Fixed: true |
 
-### 3.3.4 Transceiver Threshold Field Mapping
+#### 3.3.2.9 Temperature Component Mapping
+**Database Table:** TEMPERATURE_INFO  
+**Key Pattern:** Various sensor names (e.g., "temp1", "cpu-thermal", "NPU0_TEMP_0")  
+**Component Type:** openconfig-platform-types:SENSOR
 
-| Threshold Type | Critical High | Critical Low | Warning High | Warning Low |
-|---------------|---------------|--------------|--------------|-------------|
-| Output Power | txpowerhighalarm | txpowerlowalarm | txpowerhighwarning | txpowerlowwarning |
-| Input Power | rxpowerhighalarm | rxpowerlowalarm | rxpowerhighwarning | rxpowerlowwarning |
-| Laser Bias Current | txbiashighalarm | txbiaslowalarm | txbiashighwarning | txbiaslowwarning |
-| Supply Voltage | vcchighalarm | vcclowalarm | vcchighwarning | vcclowwarning |
-| Temperature | temphighalarm | templowalarm | temphighwarning | templowwarning |
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/name` | - | Component key | Name |
+| `/components/component/state/type` | - | - | Fixed: SENSOR |
+| `/components/component/state/description` | - | - | Temperature sensor description |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
+| `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
+| `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
+| `/components/component/state/empty` | - | - | Fixed: false |
+| `/components/component/state/removable` | - | - | Fixed: false |
+| `/components/component/state/temperature/instant` | TEMPERATURE_INFO | temperature | Current temperature |
+| `/components/component/state/temperature/min` | TEMPERATURE_INFO | minimum_temperature | Minimum temperature |
+| `/components/component/state/temperature/max` | TEMPERATURE_INFO | maximum_temperature | Maximum temperature |
+| `/components/component/state/temperature/alarm-status` | TEMPERATURE_INFO | warning_status | Temperature alarm status |
+| `/components/component/state/temperature/alarm-threshold` | TEMPERATURE_INFO | critical_high_threshold | Critical threshold |
 
-### 3.3.5 REST API Support
-#### 3.3.5.1 GET Operations
+#### 3.3.2.10 Transceiver Component Mapping
+**Database Tables:** TRANSCEIVER_INFO, TRANSCEIVER_DOM_SENSOR, TRANSCEIVER_DOM_THRESHOLD  
+**Key Pattern:** "Ethernet*" (e.g., "Ethernet0", "Ethernet1/1")  
+**Component Type:** openconfig-platform-types:TRANSCEIVER
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/name` | - | Component key | Name |
+| `/components/component/state/type` | - | - | Fixed: TRANSCEIVER |
+| `/components/component/state/description` | - | - | Transceiver description |
+| `/components/component/state/serial-no` | TRANSCEIVER_INFO | serial | Serial number |
+| `/components/component/state/hardware-version` | TRANSCEIVER_INFO | hardware_rev | Hardware revision |
+| `/components/component/state/mfg-name` | TRANSCEIVER_INFO | manufacturer | Manufacturer name |
+| `/components/component/state/model-name` | TRANSCEIVER_INFO | model | Model name |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
+| `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
+| `/components/component/state/oper-status` | TRANSCEIVER_INFO | presence | Operational status |
+| `/components/component/state/empty` | TRANSCEIVER_INFO | presence | Calculated from presence |
+| `/components/component/state/removable` | - | - | Fixed: true |
+
+##### Transceiver State Information
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/transceiver/state/enabled` | TRANSCEIVER_INFO | presence | Enabled status |
+| `/transceiver/state/form-factor-preconf` | TRANSCEIVER_INFO | ext_identifier | Pre-configured form factor |
+| `/transceiver/state/present` | TRANSCEIVER_INFO | presence | Presence status |
+| `/transceiver/state/form-factor` | TRANSCEIVER_INFO | ext_identifier | Current form factor |
+| `/transceiver/state/connector-type` | TRANSCEIVER_INFO | connector | Connector type |
+| `/transceiver/state/vendor-rev` | TRANSCEIVER_INFO | vendor_rev | Vendor revision |
+| `/transceiver/state/serial-no` | TRANSCEIVER_INFO | serial | Serial number |
+| `/transceiver/state/date-code` | TRANSCEIVER_INFO | vendor_date | Manufacturing date code |
+| `/transceiver/state/supply-voltage/instant` | TRANSCEIVER_DOM_SENSOR | voltage | Supply voltage |
+
+##### Transceiver Thresholds
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/output-power-upper` | TRANSCEIVER_DOM_THRESHOLD | txpowerhighwarning | TX power high warning |
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/output-power-lower` | TRANSCEIVER_DOM_THRESHOLD | txpowerlowwarning | TX power low warning |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/output-power-upper` | TRANSCEIVER_DOM_THRESHOLD | txpowerhighalarm | TX power high alarm |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/output-power-lower` | TRANSCEIVER_DOM_THRESHOLD | txpowerlowalarm | TX power low alarm |
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/input-power-upper` | TRANSCEIVER_DOM_THRESHOLD | rxpowerhighwarning | RX power high warning |
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/input-power-lower` | TRANSCEIVER_DOM_THRESHOLD | rxpowerlowwarning | RX power low warning |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/input-power-upper` | TRANSCEIVER_DOM_THRESHOLD | rxpowerhighalarm | RX power high alarm |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/input-power-lower` | TRANSCEIVER_DOM_THRESHOLD | rxpowerlowalarm | RX power low alarm |
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/laser-bias-current-upper` | TRANSCEIVER_DOM_THRESHOLD | txbiashighwarning | TX bias high warning |
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/laser-bias-current-lower` | TRANSCEIVER_DOM_THRESHOLD | txbiaslowwarning | TX bias low warning |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/laser-bias-current-upper` | TRANSCEIVER_DOM_THRESHOLD | txbiashighalarm | TX bias high alarm |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/laser-bias-current-lower` | TRANSCEIVER_DOM_THRESHOLD | txbiaslowalarm | TX bias low alarm |
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/supply-voltage-upper` | TRANSCEIVER_DOM_THRESHOLD | vcchighwarning | Voltage high warning |
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/supply-voltage-lower` | TRANSCEIVER_DOM_THRESHOLD | vcclowwarning | Voltage low warning |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/supply-voltage-upper` | TRANSCEIVER_DOM_THRESHOLD | vcchighalarm | Voltage high alarm |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/supply-voltage-lower` | TRANSCEIVER_DOM_THRESHOLD | vcclowalarm | Voltage low alarm |
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/module-temperature-upper` | TRANSCEIVER_DOM_THRESHOLD | temphighwarning | Temperature high warning |
+| `/transceiver/thresholds/threshold[severity=WARNING]/state/module-temperature-lower` | TRANSCEIVER_DOM_THRESHOLD | templowwarning | Temperature low warning |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/module-temperature-upper` | TRANSCEIVER_DOM_THRESHOLD | temphighalarm | Temperature high alarm |
+| `/transceiver/thresholds/threshold[severity=CRITICAL]/state/module-temperature-lower` | TRANSCEIVER_DOM_THRESHOLD | templowalarm | Temperature low alarm |
+
+##### Transceiver Physical Channels
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/transceiver/physical-channels/channel[index=N]/state/index` | - | - | Channel index (0-based) |
+| `/transceiver/physical-channels/channel[index=N]/state/description` | - | - | Channel description |
+| `/transceiver/physical-channels/channel[index=N]/state/input-power/instant` | TRANSCEIVER_DOM_SENSOR | rx{N}power | RX power for channel N |
+| `/transceiver/physical-channels/channel[index=N]/state/output-power/instant` | TRANSCEIVER_DOM_SENSOR | tx{N}power | TX power for channel N |
+| `/transceiver/physical-channels/channel[index=N]/state/laser-bias-current/instant` | TRANSCEIVER_DOM_SENSOR | tx{N}bias | TX bias current for channel N |
+
+### 3.3.4 REST API Support
+#### 3.3.4.1 GET Operations
 Supported at various levels:
 - Component list level: `/openconfig-platform:components`
 - Individual component level: `/openconfig-platform:components/component={name}`
@@ -359,21 +492,25 @@ Sample GET output for chassis component:
 {
   "openconfig-platform:component": [
     {
-      "name": "Chassis",
+      "config": {
+        "name": "chassis 1"
+      },
+      "name": "chassis 1",
       "state": {
-        "name": "Chassis",
-        "type": "openconfig-platform-types:CHASSIS",
-        "description": "Main chassis component",
-        "mfg-name": "Cisco",
-        "part-no": "73-18971-01",
-        "serial-no": "CAT2242L0CG",
-        "mfg-date": "12/09/2021 20:08:48",
-        "hardware-version": "1.0",
-        "oper-status": "openconfig-platform-types:ACTIVE"
+        "description": "Chassis component",
+        "empty": false,
+        "hardware-version": "0.20",
+        "model-name": "8102-64H-O",
+        "name": "chassis 1",
+        "oper-status": "openconfig-platform-types:ACTIVE",
+        "removable": false,
+        "serial-no": "CSNH5T5PHAE",
+        "type": "openconfig-platform-types:CHASSIS"
       }
     }
   ]
 }
+
 ```
 
 Sample GET output for CPU component with utilization:
@@ -381,21 +518,30 @@ Sample GET output for CPU component with utilization:
 {
   "openconfig-platform:component": [
     {
-      "name": "CPU0",
-      "state": {
-        "name": "CPU0",
-        "type": "openconfig-platform-types:CPU",
-        "model-name": "Intel(R) Xeon(R) CPU E5-2680 v3"
+      "config": {
+        "name": "CPU0"
       },
       "cpu": {
-        "utilization": {
+        "openconfig-platform-cpu:utilization": {
           "state": {
-            "instant": 25,
-            "avg": 30,
-            "min": 10,
-            "max": 80
+            "avg": 8,
+            "instant": 1,
+            "interval": "60000000000",
+            "max": 19,
+            "min": 1
           }
         }
+      },
+      "name": "CPU0",
+      "state": {
+        "description": "GenuineIntel: VXR",
+        "empty": false,
+        "mfg-name": "GenuineIntel",
+        "model-name": "VXR",
+        "name": "CPU0",
+        "oper-status": "openconfig-platform-types:ACTIVE",
+        "removable": false,
+        "type": "openconfig-platform-types:CPU"
       }
     }
   ]
@@ -405,21 +551,27 @@ Sample GET output for CPU component with utilization:
 Sample GET output for Memory component:
 ```json
 {
-  "openconfig-platform:component": [
-    {
-      "name": "Physical Memory",
-      "state": {
+  "openconfig-platform:components/component": {
+    "openconfig-platform:component": [
+      {
+        "config": {
+          "name": "Physical Memory"
+        },
         "name": "Physical Memory",
-        "type": "openconfig-platform-types:STORAGE",
-        "description": "Physical Memory component",
-        "oper-status": "openconfig-platform-types:ACTIVE",
-        "memory": {
-          "available": 8192000,
-          "utilized": 2048000
+        "state": {
+          "description": "Physical Memory",
+          "empty": false,
+          "memory": {
+            "available": "20014612",
+            "utilized": "6550668"
+          },
+          "name": "Physical Memory",
+          "oper-status": "openconfig-platform-types:ACTIVE",
+          "type": "openconfig-platform-types:STORAGE"
         }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
@@ -428,18 +580,24 @@ Sample GET output for PSU component:
 {
   "openconfig-platform:component": [
     {
-      "name": "PSU 1",
-      "state": {
-        "name": "PSU 1",
-        "type": "openconfig-platform-types:POWER_SUPPLY",
-        "description": "Power Supply Unit 1",
-        "oper-status": "openconfig-platform-types:ACTIVE"
+      "config": {
+        "name": "PSU 1"
       },
+      "name": "PSU 1",
       "power-supply": {
         "state": {
-          "capacity": 1200.0,
-          "enabled": true
+          "openconfig-platform-psu:enabled": false
         }
+      },
+      "state": {
+        "description": "PSU 1",
+        "empty": true,
+        "location": "1",
+        "name": "PSU 1",
+        "oper-status": "openconfig-platform-types:ACTIVE",
+        "parent": "chassis 1",
+        "removable": true,
+        "type": "openconfig-platform-types:POWER_SUPPLY"
       }
     }
   ]
@@ -451,19 +609,26 @@ Sample GET output for Temperature sensor:
 {
   "openconfig-platform:component": [
     {
-      "name": "temp1",
+      "config": {
+        "name": "NPU0_TEMP_0"
+      },
+      "name": "NPU0_TEMP_0",
       "state": {
-        "name": "temp1",
-        "type": "openconfig-platform-types:SENSOR",
-        "description": "Temperature sensor 1",
+        "description": "Temperature Sensor - NPU0_TEMP_0",
+        "empty": false,
+        "location": "23",
+        "name": "NPU0_TEMP_0",
         "oper-status": "openconfig-platform-types:ACTIVE",
+        "parent": "chassis 1",
+        "removable": false,
         "temperature": {
-          "instant": 45.5,
-          "min": 22.0,
-          "max": 65.0,
           "alarm-status": false,
-          "alarm-threshold": 85.0
-        }
+          "alarm-threshold": 102,
+          "instant": "35",
+          "max": "35",
+          "min": "0"
+        },
+        "type": "openconfig-platform-types:SENSOR"
       }
     }
   ]
@@ -475,43 +640,81 @@ Sample GET output for Transceiver component:
 {
   "openconfig-platform:component": [
     {
-      "name": "Ethernet0",
-      "state": {
-        "name": "Ethernet0",
-        "type": "openconfig-platform-types:TRANSCEIVER",
-        "description": "Ethernet0 transceiver",
-        "mfg-name": "Cisco",
-        "part-no": "SFP-10G-SR",
-        "serial-no": "ABC123456",
-        "oper-status": "openconfig-platform-types:ACTIVE"
+      "config": {
+        "name": "Ethernet0"
       },
+      "name": "Ethernet0",
       "openconfig-platform-transceiver:transceiver": {
         "state": {
+          "date-code": "2017-08-27",
           "enabled": true,
+          "form-factor": "openconfig-transport-types:QSFP28",
+          "form-factor-preconf": "openconfig-transport-types:QSFP28",
           "present": "PRESENT",
-          "form-factor": "QSFP28",
-          "connector-type": "LC_CONNECTOR",
-          "vendor-rev": "1.0",
-          "serial-no": "ABC123456",
-          "date-code": "210405",
-          "supply-voltage": {
-            "instant": 3.3
-          }
+          "serial-no": "APF21340584-A",
+          "vendor-rev": "A"
+        },
+        "thresholds": {
+          "threshold": [
+            {
+              "severity": "openconfig-alarm-types:CRITICAL",
+              "state": {
+                "input-power-lower": "0",
+                "input-power-upper": "0",
+                "laser-bias-current-lower": "0",
+                "laser-bias-current-upper": "0",
+                "module-temperature-lower": "0",
+                "module-temperature-upper": "0",
+                "output-power-lower": "0",
+                "output-power-upper": "0",
+                "severity": "openconfig-alarm-types:CRITICAL",
+                "supply-voltage-lower": "0",
+                "supply-voltage-upper": "0"
+              }
+            },
+            {
+              "severity": "openconfig-alarm-types:WARNING",
+              "state": {
+                "input-power-lower": "0",
+                "input-power-upper": "0",
+                "laser-bias-current-lower": "0",
+                "laser-bias-current-upper": "0",
+                "module-temperature-lower": "0",
+                "module-temperature-upper": "0",
+                "output-power-lower": "0",
+                "output-power-upper": "0",
+                "severity": "openconfig-alarm-types:WARNING",
+                "supply-voltage-lower": "0",
+                "supply-voltage-upper": "0"
+              }
+            }
+          ]
         }
+      },
+      "state": {
+        "description": "Transceiver Ethernet0 - Type: QSFP28 or later",
+        "empty": false,
+        "mfg-name": "CISCO-AMPHENOL",
+        "model-name": "NDAAFF-C401",
+        "name": "Ethernet0",
+        "oper-status": "openconfig-platform-types:ACTIVE",
+        "removable": true,
+        "serial-no": "APF21340584-A",
+        "type": "openconfig-platform-types:TRANSCEIVER"
       }
     }
   ]
 }
 ```
 
-### 3.3.6 gNMI Support
-#### 3.3.6.1 Capabilities
+### 3.3.5 gNMI Support
+#### 3.3.5.1 Capabilities
 The gNMI server exposes platform component capabilities through the standard capabilities RPC.
 
-#### 3.3.6.2 Get Operations
+#### 3.3.5.2 Get Operations
 Full support for gNMI Get operations on all supported platform component paths.
 
-#### 3.3.6.3 Subscribe Operations
+#### 3.3.5.3 Subscribe Operations
 Support for gNMI Subscribe operations for real-time monitoring of:
 - Temperature readings
 - CPU utilization
@@ -520,22 +723,63 @@ Support for gNMI Subscribe operations for real-time monitoring of:
 - Power supply status
 - Transceiver DOM data
 
+- Example for Power supply oper-status subscribe on-change stream mode
+
+```json
+{
+  "source": "172.29.93.21:27117",
+  "subscription-name": "default-1758089936",
+  "timestamp": 1758089932057031339,
+  "time": "2025-09-17T11:48:52.057031339+05:30",
+  "prefix": "openconfig-platform:components/component[name=PSU 1]/state",
+  "target": "OC-YANG",
+  "updates": [
+    {
+      "Path": "oper-status",
+      "values": {
+        "oper-status": "INACTIVE"
+      }
+    }
+  ]
+}
+
+{
+  "sync-response": true
+}
+
+{
+  "source": "172.29.93.21:27117",
+  "subscription-name": "default-1758089936",
+  "timestamp": 1758089943763134718,
+  "time": "2025-09-17T11:49:03.763134718+05:30",
+  "prefix": "openconfig-platform:components/component[name=PSU 1]/state",
+  "target": "OC-YANG",
+  "updates": [
+    {
+      "Path": "oper-status",
+      "values": {
+        "oper-status": "ACTIVE"
+      }
+    }
+  ]
+}
+```
 ## 3.4 Implementation Details
 ### 3.4.1 Component Type Detection
 Component types are determined based on YANG key patterns:
 
 | Key Pattern | Component Type | Example Keys |
 |-------------|----------------|--------------|
-| "chassis *" | Chassis | "Chassis" |
+| "chassis *" | Chassis | "chassis 1" |
 | "CPU*" | CPU | "CPU0", "CPU1" |
 | "System Eeprom" | EEPROM | "System Eeprom" |
-| "*Memory" | Memory | "Physical Memory", "Buffer Memory" |
-| "/" | Disk | "/" |
+| "*Memory" | Memory | "Physical Memory", "Buffer Memory", "Swap Memory", "Cached Memory", "Virtual Memory", "Shared Memory" |
+| "/" | Disk | "/dev/vda3" |
 | "PSU *" | PSU | "PSU 1", "PSU 2" |
 | "*fan*" | Fan | "fan1", "PSU1.fan1" |
 | "fantray*" | Fantray | "fantray1", "fantray2" |
-| "Ethernet*" | Transceiver | "Ethernet0", "Ethernet1/1" |
-| Others | Temperature | "temp1", "cpu-thermal" |
+| "Ethernet*" | Transceiver | "Ethernet0", "Ethernet4" |
+| Others | Temperature | "temp1", "cpu-thermal", "NPU0_TEMP_0" |
 
 ### 3.4.2 Error Handling
 - Graceful handling of missing components
