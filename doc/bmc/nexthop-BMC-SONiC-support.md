@@ -35,7 +35,7 @@ This document outlines adding BMC support in SONiC and executing SONiC on a BMC 
 
 ### 4\. Overview
 
-The purpose of this HLD is to run a BMC-feature enabled SONiC image, on a BMC controller, in the network switch for out-of-band monitoring and management of the device. It is to enhance the reliability, manageability, and automation capabilities by allowing interaction to the switch device via the BMC controller. The initial capabilities will include the ability to power cycle the main CPU and redirection of its serial console over the network. 
+The purpose of this HLD is to run a BMC-feature enabled SONiC image, on a BMC controller, in the network switch for out-of-band monitoring and management of the switch. It is to enhance the reliability, manageability, and automation capabilities by allowing interaction to the switch device via the BMC controller. The initial capabilities will include the ability to power cycle the main CPU and redirection of its serial console over the network. 
 
 In the future the capabilities can be expanded to include comprehensive hardware health metrics, including telemetry data, proactive fault management, and support BMC-driven operations for device provisioning and other diagnostics actions. 
 
@@ -60,5 +60,22 @@ In the future the capabilities can be expanded to include comprehensive hardware
 #### 5.4. sonic-swss Support
 - sonic-swss executing on the main NOS CPU will not require any update to support the BMC integration.
 
-### 6\. Restrictions/Limitations
+### 6.0 High Level Design
+OpenBMC, a project from the Linux Foundation, provides the necessary software stack, thats widely used in the industry for BMC implementations. The OpenBMC framework will be used as the base for the BMC-SONiC-OS. Its proposed that we pull the necessary components from OpenBMC and integrate them into SONiC, while adding the necessary SONiC components to support the BMC functionality.
+
+### 6.1.1 Boot Loader Components
+OpenBMC uses the uboot as its boot loader. Its proposed that we continue to use uboot as the boot loader for BMC-SONiC-OS.
+
+### 6.1.2 SONiC Kernel Components
+Sonic Kernel will be used as the base for the BMC-SONiC-OS kernel. Its proposed to adopt the relevant kernel config options and drivers from the OpenBMC kernel and add them to the SONiC kernel.
+
+### 6.1.3 SONiC User Space Components
+The user space components from OpenBMC will be integrated into SONiC. To begin with its proposed to add
+
+  - OpenBMC Console - https://github.com/openbmc/obmc-console as the console capture and redirection component.
+  - OpenBMC BMC Web - https://github.com/openbmc/bmcweb as the RESTful API (Redfish) server component.
+
+These components will be built as docker containers to conform to the SONiC docker based architecture.
+
+### 7\. Restrictions/Limitations
 The functionality does not exist yet. It is possible that the final implementation and areas needed to be changed may differ.
