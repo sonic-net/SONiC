@@ -23,11 +23,15 @@ Additionally, we plan to expand the list of FRR Maintainers to include Cisco and
 * 202905 release: Nexthop.AI
 * 202911 release: Microsoft
 
+If there is a large feature / commits from a member company, it is better to swap the FRR release maintainer duty to make FRR maintaining more smooth.
+
 # FRR Project Release Cadence
 -  FRR release numbering scheme x.y.z-s#
 -  New FRR releases roughly every 4 months. FRR release information could be found from https://frrouting.org/release/
 -  SONiC to stay out from major/minor releases (x.y) and use patch release (.z) for stability (eg, FRR 8.3.1 instead of 8.3 if it is for 202211 release). Another example, at the time of SONiC FRR upgrade, the following FRR versions are avaialble 9.0.1, 8.5.3, 9.0, the guidance is to upgrade with the latest patch release 9.0.1
 -  For every sonic release, the recommendation is to update FRR to last stable minor release by default. If there is a need to change this guidance, the request needs to be discussed and approved in Routing Working Group.
+
+  Note: 10.4.1 has been released in Aug 2025, and there are over 70 commits entering this release branch. It is better to ask FRR community to set 10.4.2, which could be used for 202511.
 
 # FRR Patches
 Regarding FRR patches, whenever a patch is introduced based on a fix from FRR, there should be a clearly defined timeline for its removal to prevent the accumulation of excessive patches in SONiC. Such patches should remain only for a maximum of two upgrade cycles. If a patch cannot be removed within this timeframe, explicit approval must be obtained from the Routing Working Group.
@@ -49,6 +53,9 @@ Currently, we prefix patch names with a patch number. To facilitate easy identif
 	-   Release maintainer to subscribe to FRR project, and be the FRR Point-of-Contact on behalf of SONiC
 	-   Bring in FRR vulnerabilities and critical patches to SONiC
 
+# Logivity Test for each SONiC FRR release
+TODO, wait for Libing Xu's response.
+
 # SONiC FRR vulnerability and patch upgrade in between SONiC releases
 
 -   FRR CVE Fixes
@@ -60,7 +67,9 @@ Currently, we prefix patch names with a patch number. To facilitate easy identif
 	-   Need a process to bring in CVEs to earlier SONiC releases too (open to suggestions)
 
 -   Patch FRR Bug Fixes
-	-   SONiC FRR release maintainer should subscribe to FRR project to bring in critical patch which is applicable to SONiC
+	-  Each FRR release branch will be supported for one year. The first six months will be managed by the current release manager, and the subsequent six months will be overseen by the next release manager.
+	-  Each FRR release maintainer is responsible for tracking critical fixes across two FRR release branches: the current branch and the previous branch they were assigned to maintain.
+	-  The SONiC FRR release maintainer should subscribe to the FRR project to identify and incorporate critical patches relevant to SONiC from the monitored branches. It is recommended to monitor the two active FRR release branches on a monthly basis. If there is uncertainty about whether a fix qualifies as critical, this issue would be discussed in the Routing Working Group. Only critical fixes will be backported to the SONiC FRR release to ensure code stability.
 
 # SONiC FRR Upgrade Steps
 -   Create sonic-frr branch for the target FRR version
