@@ -1,23 +1,57 @@
+<!-- omit from toc -->
 # Ethernet Scale Up AI Cluster Architecture
 
-**A Reference for SONiC Implementation [DRAFT]**  
-*Version 0.6 - July 27, 2025*
-
+<!-- omit from toc -->
 ## Table of Contents
+- [Revisions](#revisions)
+- [Terminologyies](#terminologyies)
+- [Scope of SONiC Scale Up](#scope-of-sonic-scale-up)
+  - [Overview](#overview)
+- [Scale-Up Fabrics](#scale-up-fabrics)
+  - [Primary scale-up fabric requirements](#primary-scale-up-fabric-requirements)
+  - [Industry Requirements Comparison](#industry-requirements-comparison)
+- [Reference System Model](#reference-system-model)
+  - [Chassis](#chassis)
+  - [XPU and Station Architecture](#xpu-and-station-architecture)
+  - [Deployment Variations](#deployment-variations)
+- [Multi-ASIC Architecture](#multi-asic-architecture)
+  - [Background](#background)
+  - [Multi-ASIC Switch Design](#multi-asic-switch-design)
+- [Protocol Stack](#protocol-stack)
+  - [Physical Layer](#physical-layer)
+  - [Link Layer](#link-layer)
+  - [Ethernet MAC](#ethernet-mac)
+  - [Network Layer](#network-layer)
+    - [L2-Based Scale-Up Network](#l2-based-scale-up-network)
+    - [L3-Based Scale-Up Network](#l3-based-scale-up-network)
+  - [Adaptation Layer](#adaptation-layer)
+  - [Transport Layer](#transport-layer)
+  - [Transaction Layer](#transaction-layer)
+- [GPU-to-GPU Packet Flow](#gpu-to-gpu-packet-flow)
+  - [GPU to Station](#gpu-to-station)
+  - [Station to Switch](#station-to-switch)
+  - [Switch to Station](#switch-to-station)
+  - [Station to GPU](#station-to-gpu)
+- [Software Architecture](#software-architecture)
+  - [ID Lookup](#id-lookup)
+  - [PFC/CBFC](#pfccbfc)
+  - [LLR](#llr)
+    - [How UEC-LLR Works](#how-uec-llr-works)
+  - [LL-FEC](#ll-fec)
+  - [The impact from unreliable links](#the-impact-from-unreliable-links)
+- [Resiliency and Fault Tolerance](#resiliency-and-fault-tolerance)
+  - [GPU Failures](#gpu-failures)
+  - [Switch Failures](#switch-failures)
+  - [Link Failures](#link-failures)
+    - [Redundant Links](#redundant-links)
+    - [Tracking Per-Target Reachability](#tracking-per-target-reachability)
+    - [Fabric-Enabled Alternate Paths](#fabric-enabled-alternate-paths)
+- [Future Features in SONiC](#future-features-in-sonic)
 
-1. [Terminology](#terminology)
-2. [Scope](#scope)
-3. [Overview](#overview)
-4. [Scale-Up Fabrics](#scale-up-fabrics)
-5. [Reference System Model](#reference-system-model)
-6. [Multi-ASIC Architecture](#multi-asic-architecture)
-7. [Protocol Stack](#protocol-stack)
-8. [GPU-to-GPU Packet Flow](#gpu-to-gpu-packet-flow)
-9. [Software Architecture](#software-architecture)
-10. [Resiliency and Fault Tolerance](#resiliency-and-fault-tolerance)
-11. [Future Features in SONiC](#future-features-in-sonic)
+## Revisions
+- **July 27, 2025:** Moved version 0.6 to github by Joy Qin
 
-## Terminology
+## Terminologyies
 
 |   Abbreviation | Full Term |
 |:--------------:|:-----------:|
@@ -32,15 +66,15 @@
 | DP              | Data Parallelism |
 
 
-## Scope
+## Scope of SONiC Scale Up
 
 This document serves as an architectural guide, which outlines the fundamental building blocks and design principles of SONiC scale-up working group to construct Ethernet-based scale-up AI fabrics. Upon completion of this blueprint, we will collaborate with the SAI community to define API specifications and develop the necessary SONiC modules.
 
 While Ethernet fabrics can support various transport protocols including PCIe over Ethernet, AXI over Ethernet, and other standards-based or proprietary methods, this work focuses on considerations and best practices for deploying these technologies optimally over all-Ethernet infrastructure rather than defining specific transport technologies.
 
-## Overview
+### Overview
 
-SONiC is widely deployed in front-end datacenter networks and scale-out infrastructures. The SONiC Scale-Up Working Group aims to extend its capabilities to the scale-up domain, providing unified operational frameworks across all network types. Our primary focus centers on the operational and management aspects of building efficient, low-latency, scalable, and fault-tolerant Ethernet-based scale-up networks for AI workloads. We also share feedback with industry initiatives such as Ultra Accelerator Link (UAL) and Ultra Ethernet Consortium (UEC) to foster synergy across all efforts.
+SONiC is widely deployed in front-end datacenter networks and scale-out infrastructures. The SONiC Scale-Up Working Group aims to extend its capabilities to the scale-up domain, providing unified operational frameworks across all network types. Our primary focus centers on the operational and management aspects of building efficient, low-latency, scalable, and fault-tolerant Ethernet-based scale-up networks for AI workloads. We also share feedbacks with industry initiatives such as Ultra Ethernet Consortium (UEC) to foster synergy across all efforts.
 
 As AI and machine learning workloads grow in complexity, the demand for parallel processing power increases exponentially. Scaling GPU clusters to rack and multi-rack levels is essential for processing larger datasets, training deeper neural networks, handling concurrent tasks.
 
@@ -59,6 +93,8 @@ UEC currently focuses on defining high-performance transport protocols for scale
 ![interst](images/interest.png)
 
 The Ultra Accelerator Link Consortium (UAL) defines an approach leveraging Ethernet high-speed SerDes while maintaining PCIe-style transport and transaction layers. This methodology requires specialized PCIe-style switches that interpret UPLI packets and modify them in transit. However, the PCIe-style approach presents challenges for using existing Ethernet equipment and incorporating network resilience—a critical consideration for fault-tolerant scale-up fabrics. While UAL specifications serve as valuable references for use cases and requirements, they cannot be directly adopted as complete solutions.
+
+UAL over Ethernet is a variation from original UAL spec, which only keeps sematic and transport layer from UAL, and use Ethernet as data link layer which is align with what SONiC Scale Up Working Group's mission.
 
 ## Scale-Up Fabrics
 
@@ -101,7 +137,10 @@ During the scale-up working group weekly meetings, four major industry players�
 | **Data Traffic Features** | DSCP, ECN, LLR, CBFC | PFC, DSCP, ECN, ECMP | DSCP, ECN, CBFC, ECMP | DSCP, ECN, LLR, CBFC |
 | **Operational** | Performance monitoring + high precision telemetry | Traffic/buffer/PG/queue monitoring + high frequency telemetry (100ms to 1ms granularity) | Server operation (no network operation) + adaptive configuration—plug & play + buffer statistics tracking + mirror-on-drop | <1ms monitoring |
 
+
 ## Reference System Model
+### Chassis
+TODO, we use ALibaba's UPN and Tencent's ETH-X as references.
 
 ### XPU and Station Architecture
 
@@ -337,8 +376,58 @@ When implementing and deploying CBFC in scale-up networks, the following mechani
 - VC-to-output-queue mapping
 
 ### LLR
+In traditional Ethernet, packet loss is usually handled at higher layers like TCP, and it leads to high latency. There are some alternate solutions available, like RDMA, which is used in InfiniBand or RoCE, but they are complex and vendor-specific.
 
-*[To be determined]*
+LLR offers a middle ground by providing reliable loss recovery without RDMA and using existing Ethernet, providing a simpler solution. In LLR, instead of involving the whole protocol stack, including CPU, Packet loss is detected and retried at the local link layer, resulting in better throughput and low latency.
+
+#### How UEC-LLR Works
+Terms:
+•	Frame transmission with sequence numbering: Every frame between nodes is tagged with a local sequence number, and these sequence numbers/IDs are not visible to the upper layer.
+•	Frame Buffering: The sender buffers the sent frames in a local retry queue and holds them in a local buffer until the receiver acknowledges them.
+•	Acknowledgment: The receiver will send the ACKs back to the sender once each frame is received successfully.
+•	Loss detection: If a frame is dropped or corrupted, the receiver will notice a gap in the sequence number and send the Negative Acknowledgement (NACK) back to the sender. In other cases, if the sender does not receive an ACK or NACK within a time frame, it will initiate a timeout-based retry.
+
+![Protocol Stack](images/llr.jpg)
+
+The sender retransmits only lost/corrupted frames from the local retry buffer, avoiding transport-level retransmission. Once the Sender receives the ACKs, it will remove the entries from the local retry buffer.
+UEC outlines a layered Ethernet stack consisting of:
+•	Standard Ethernet PHYs (100G/200G/400G/800G)
+•	LLR Layer – Link-level recovery from transient packet loss
+•	UET (Ultra Ethernet Transport) – Manages ordering, congestion control, and flow control
+•	Application Layer – AI frameworks and HPC workloads.
+LLR sits above the PHY and below the UET layer, ensuring the loss resilience before the higher layers get involved.
+
+More details in UE spec: (5.1)
+https://ultraethernet.org/wp-content/uploads/sites/20/2025/06/UE-Specification-6.11.25.pdf
+
+### LL-FEC
+To improve end to end latency, a low-latency shortened codeword variant of the 802.3 FEC (LL-FEC) may optionally be used in place of the IEEE 802.3bs and 802.3cd standard RS-544.
+
+Based on the RS-FEC decoding algorithm, the receiver needs to collect all FEC frames of a whole FEC codeword before starting FEC decoding and error correction. Obviously, the overall latency is associated with the FEC codeword length.
+
+The LL-FEC code used is RS-272, which is half the codeword length of RS-544. This can bring two advantages:
+- Reduced 50% of latency to collect the whole FEC codeword.
+- Hardware FEC decoding runs faster, as the algorithm complexity is also reduced.
+
+![Protocol Stack](images/fec.png)
+
+Regarding the FEC error correction capability, LL-FEC is similar with KR4-FEC, which can fix up to 7 incorrect symbols.
+
+Regarding the FEC codeword latency, taking 100G port as example:
+- KP4-FEC: 5440b/(100G*68/64) = 52ns
+- LL-FEC: 2720b/(100G*68/64) = 26ns
+
+Apparently, LL-FEC has a lower latency, especially when the network transaction is less than 320B, which means an LL-FEC codeword can carry one or several transactions, and the transactions can be recovered and be sent to system level much earlier at receiving side.
+In the low-latency scenarios, reducing latency by more than 20ns really counts.
+
+![Protocol Stack](images/tencent_fec.png)
+Borrow test results from Tencent's presentation, this slide shows that FEC delay accounts for 30% to 50% of the static delay. However, Optimizing the FEC delay will result in an increase in bit error rate.
+
+
+### The impact from unreliable links
+![Protocol Stack](images/unreliable_link_impact.png)
+The Meta-X team conducted an insightful test to evaluate the differences between unreliable and reliable links. As shown in the graph above, bandwidth fluctuates significantly more on unreliable links compared to stable ones. These fluctuations can lead to increased queuing delays, which is an undesirable outcome in AI cluster environments.
+
 
 ## Resiliency and Fault Tolerance
 
