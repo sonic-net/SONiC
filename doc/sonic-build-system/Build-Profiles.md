@@ -5,7 +5,6 @@
 | Rev | Author                 | Change Description          |
 |:---:|:----------------------:|-----------------------------|
 | 0.1 | Justin Sherman (Cisco) | Initial version             |
-| 0.2 |                        | Addressed review feedback   |
 
 ### Overview
 
