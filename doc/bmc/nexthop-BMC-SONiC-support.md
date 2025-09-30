@@ -14,18 +14,20 @@
       - [5.4. sonic-swss Support](#54-sonic-swss-support)
     - [6. Restrictions/Limitations](#6-restrictionslimitations)
 
-### 1\. Revision
+### 1. Revision
 
 | Rev | Date | Author | Change Description |
 | :---- | :---- | :---- | :---- |
 | 0.1 | 2025-07-16 | ctikku-nexthop | Initial Draft |
+| 0.2 | 2025-08-28 | ctikku-nexthop | Revisised draft |
+| 0.3 | 2025-09-25 | chander-nexthop | Revisised draft |
 
-### 2\. Scope
+### 2. Scope
 This document outlines adding BMC support in SONiC and executing SONiC on a BMC controller for out-of-band management of the network device.
 
-### 3\. Definitions/Abbreviations
+### 3. Definitions/Abbreviations
 
-| Term | Definition | 
+| Term | Definition |
 | :---- | :---- |
 | BMC | Baseboard Management Controller |
 | NOS | Network Operating System |
@@ -33,49 +35,74 @@ This document outlines adding BMC support in SONiC and executing SONiC on a BMC 
 | CLI | Command Line Interface |
 | SEL | System Event Log |
 
-### 4\. Overview
+### 4. Overview
 
-The purpose of this HLD is to run a BMC-feature enabled SONiC image, on a BMC controller, in the network switch for out-of-band monitoring and management of the switch. It is to enhance the reliability, manageability, and automation capabilities by allowing interaction to the switch device via the BMC controller. The initial capabilities will include the ability to power cycle the main CPU and redirection of its serial console over the network. 
+The purpose of this HLD is to run a BMC-feature enabled SONiC image, on a BMC controller, in the network switch for out-of-band monitoring and management of the switch device. It is to enhance the reliability, manageability, and automation capabilities by allowing interaction to the switch device via the BMC controller. The initial capabilities will include the ability to power cycle the main CPU and redirection of its serial console over the network.
 
-In the future the capabilities can be expanded to include comprehensive hardware health metrics, including telemetry data, proactive fault management, and support BMC-driven operations for device provisioning and other diagnostics actions. 
+In the future the capabilities can be expanded to include comprehensive hardware health metrics, including telemetry data, proactive fault management, and support BMC-driven operations for device provisioning and other diagnostics actions.
 
-### 5\. High-Level Requirements
+### 5. High-Level Requirements
 
 #### 5.1. Functional Requirements
 
-- BMC-SONiC-OS: SONiC-OS, will execute on a BMC controller, operating in an isolated and support role to the main switch CPU. It will have its own out-of-band network access and will be independent of any resources on the main swich CPU or the NOS running on it. 
+##### 5.1.1 Baseboard Management Controller (BMC)
+- The BMC will be a dedicated hardware component, separate from the main switch CPU.
+- It will have its own Operating System, running independently from that of the main switch CPU.
+- It will have its own management network port for out-of-band management.
+- It will have its own serial port, separate from that of the main switch system.
 
-- Console: BMC-SONiC-OS will provide the capablity to redirect serial port console of the main switch CPU over its network.
+##### 5.1.2 BMC Hardware
+- The BMC controller will have its own CPU, memory, storage, and network port.
+- SOC: Aspeed 2720 chip (arm64), Memory: 4GB, Storage: 32GB eMMC, Network: 1Gbps.
+- The main switch CPU can operate with or without the presence of the BMC controller.
+- The BMC controller can operate with or without the presence of the main switch CPU.
 
-- Power: BMC-SONiC-OS will provide the capablity to power cycle the main switch CPU and any other components (ex: switch ASIC, PSU, etc.) as needed.
+##### 5.1.3 Operating System (OS)
+- The operating system running on the BMC will be called BMC-SONiC-OS.
+- BMC-SONiC-OS image will be built from the SONiC-OS codebase: https://github.com/sonic-net/sonic-buildimage.git
+- All changes related to BMC functionaliy will be committed back into the same git repository.
+- The BMC-SONiC-OS image will leverage SONiC-OS build tools and processes, but build with differnent flags.
+- There will be no changes to the SONiC-OS image build steps, functionality or the image itself.
+- BMC-SONiC-OS will include BMC functionality, similar to SONiC-OS, in the docker container format.
+- BMC-SONiC-OS will remove switching functionality and associated docker containers from its image.
 
-- Events: BMC-SONiC-OS will be able to retrieve and process System Event Log (SEL) entries from main switch CPU.
+##### 5.1.4 Out-of-Band Management (OOB Management)
+- BMC-SONiC-OS running on BMC, will contain its own management network port and network IP address.
+- BMC-SONiC-OS will allow connection to it using standard network protocols (ex: SSH)
+- BMC-SONiC-OS will allow the main switch CPU to be managed (reboot, power cycled) from the BMC controller.
+- Rebooting or power cycling of main switch CPU will not affect the BMC controller.
+- Rebooting or power cycling of BMC controller will not affect the main switch CPU.
 
-#### 5.2. sonic-platform-daemons Support
+##### 5.1.5 Serial Console
+- BMC will have its own serial port (UART), separate from that of the main switch system.
+- The physical serial port on the front panel of the device can be "attached" to the BMC or the main switch CPU.
+- Fixed hot keys will be used to swap between the two serial UART that connect to the front panel.
+
+##### 5.1.6 OBMC Console
+- BMC-SONiC-OS will use obmc-console for console services: https://github.com/openbmc/obmc-console
+- BMC-SONiC-OS will log the serial console output from the main switch CPU to a file for later access.
+- Log files will be managed using compression and rotation, similar to syslog.
+- Access to the switch CPU console will also be available from the BMC when connected to it over the network.
+
+##### 5.1.7 OBMC Web
+- BMC-SONiC-OS will use OpenBMC Web - https://github.com/openbmc/bmcweb as the RESTful API (Redfish) server.
+- bmcweb will be used to provide a web interface to the switch CPU console.
+
+#### 5.2 BMC Components deployment
+- BMC-SONiC-OS will deploy the BMC functionality as docker containers.
+- BMC-SONiC-OS will use kubernetes for container orchestration.
+
+#### 5.3. sonic-platform-daemons Support
 - sonic-platform-daemons executing on the main NOS CPU will not require any update to support the BMC integration.
 
-#### 5.3. sonic-utilities Support
+#### 5.4. sonic-utilities Support
 - show commands executing on the main NOS CPU will not require any update to support the BMC integration.
 
-#### 5.4. sonic-swss Support
+#### 5.5. sonic-swss Support
 - sonic-swss executing on the main NOS CPU will not require any update to support the BMC integration.
 
-### 6.0 High Level Design
-OpenBMC, a project from the Linux Foundation, provides the necessary software stack, thats widely used in the industry for BMC implementations. The OpenBMC framework will be used as the base for the BMC-SONiC-OS. Its proposed that we pull the necessary components from OpenBMC and integrate them into SONiC, while adding the necessary SONiC components to support the BMC functionality.
+### 6. Boot Loader Components
+- BMC-SONiC-OS will use uboot as the boot loader.
 
-### 6.1.1 Boot Loader Components
-OpenBMC uses the uboot as its boot loader. Its proposed that we continue to use uboot as the boot loader for BMC-SONiC-OS.
-
-### 6.1.2 SONiC Kernel Components
-Sonic Kernel will be used as the base for the BMC-SONiC-OS kernel. Its proposed to adopt the relevant kernel config options and drivers from the OpenBMC kernel and add them to the SONiC kernel.
-
-### 6.1.3 SONiC User Space Components
-The user space components from OpenBMC will be integrated into SONiC. To begin with its proposed to add
-
-  - OpenBMC Console - https://github.com/openbmc/obmc-console as the console capture and redirection component.
-  - OpenBMC BMC Web - https://github.com/openbmc/bmcweb as the RESTful API (Redfish) server component.
-
-These components will be built as docker containers to conform to the SONiC docker based architecture.
-
-### 7\. Restrictions/Limitations
+### 7. Restrictions/Limitations
 The functionality does not exist yet. It is possible that the final implementation and areas needed to be changed may differ.
