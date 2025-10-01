@@ -7,7 +7,7 @@
 | Rev |   Date     |     Author      |   Change  Description     |
 |:---:|:----------:|:---------------:|:-------------------------:|
 | 1.0 | 10/03/2024 |   Yijiao Qin    |    Base version           |
-<!-- | 1.1 | 09/26/2025 |   Yijiao Qin    |   Adopt multi-map SyncMap | -->
+| 1.1 | 09/26/2025 |   Yijiao Qin    |Adapt to multi-map SyncMap |
 
 <!-- omit in toc -->
 ## Table of Contents
@@ -25,6 +25,9 @@
   - [Group failures by the constraint](#group-failures-by-the-constraint)
   - [Notifications](#notifications)
   - [Restore to SyncMap during global retry process](#restore-to-syncmap-during-global-retry-process)
+- [Behavior on New Tasks](#behavior-on-new-tasks)
+  - [One FailedTask Found](#one-failedtask-found)
+  - [Two FailedTask Found](#two-failedtask-found)
 - [Logging](#logging)
 - [Test Results](#test-results)
   - [Check whether the duration of retry decreases](#check-whether-the-duration-of-retry-decreases)
@@ -230,6 +233,26 @@ To avoid blocking, it's supported to configure a threshold [30k] for how many ta
 2024-09-30.23:56:54.852819| (RETRY_CST_NHG, 102) | ROUTE_TABLE | 20000 retried
 ```
 
+## Behavior on New Tasks
+
+***Modified Behavior in addToSync***
+
+When a consumer receives new tasks, it should always check its `RetryCache`, if it has, before inserting into `SyncMap`.
+
+Pre-processing is required when we find tasks in `RetryMap` with the same key as the new task.
+
+### One FailedTask Found
+
+1. discard the new task, if it's the same as the one in `RetryMap`
+2. if the new task's op is DEL, delete the one in `RetryMap`
+3. if the new task's op is SET, move the old task from `RetryMap` to `SyncMap`, for later merge
+  
+### Two FailedTask Found
+
+must be a DEL task followed by a SET one
+
+1. if the new task's op is DEL, discard the new one, discard the SET in `RetryMap`, only keep the DEL in `RetryMap`
+2. if the new task's op is SET, move the old SET task from `RetryMap` to  `SyncMap`, for later merge, keep the DEL one in `RetryMap` as it is
 ## Logging
 
 We want to track the moving of tasks
