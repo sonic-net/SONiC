@@ -128,7 +128,7 @@ API *is\_voq\_chassis* will check for the presence of the *chassisdb.conf* file.
 
 - Orchagent will handle VOQ functionality the same way i.e. creation of system ports. But connect to Chassis DB only if chassis DB is supported in the sonic system.  
     
-- Given the inband ports are not created, we need to make sure mirrororch, neighorch, etc are updated to not look for these ports in single-asic-voq mode.
+- Given the inband ports are not created, we need to make sure orchagent is updated to not look for these ports in single-asic-voq mode.
 
 ### **2.1.2 Bgpconfd Changes**
 
