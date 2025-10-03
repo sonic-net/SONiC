@@ -56,8 +56,8 @@ Currently, we prefix patch names with a patch number. To facilitate easy identif
 # Logivity Test for each SONiC FRR release
 Besides the regular sonic-mgmt test cases in PR, we need run the following cases as longevity:
 
-1: bgp/test_bgp_stress_link_flap.py — please run with --completeness_level=confident
-2: bgp/test_bgp_suppress_fib.py — please run with --completeness_level=thorough
+1. bgp/test_bgp_stress_link_flap.py — please run with --completeness_level=confident
+2. bgp/test_bgp_suppress_fib.py — please run with --completeness_level=thorough
 
 # SONiC FRR vulnerability and patch upgrade in between SONiC releases
 
