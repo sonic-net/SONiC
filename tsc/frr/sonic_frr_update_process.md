@@ -3,7 +3,7 @@
 The current SONiC release program handles FRR upgrades and patching on an as-needed basis. This proposed FRR upgrade workflow aims to establish a formalized cadence and process for FRR upgrades in future SONiC releases. Any changes or updates to this workflow must first be discussed and agreed upon by the Routing Working Group to reach consensus.
 
 # SONiC FRR Maintainers
-Currently, the role of SONiC FRR Maintainer rotates among Broadcom, Microsoft, Alibaba, NVIDIA, and Dell, with each term lasting 12 months. Recent FRR upgrades include:
+Before 202511 release, the role of SONiC FRR Maintainer rotates among Broadcom, Microsoft, Alibaba, NVIDIA, and Dell, with each term lasting 12 months. Recent FRR upgrades include:
 
 * Nvidia upgraded FRR to 8.5.1 in the 202311 release
 * Broadcom upgraded FRR to 10.0.1 in the 202411 release
@@ -24,6 +24,14 @@ Additionally, we plan to expand the list of FRR Maintainers to include Cisco and
 * 202911 release: Microsoft
 
 If there is a large feature / commits from a member company, it is better to swap the FRR release maintainer duty to make FRR maintaining more smooth.
+
+# SONiC Release and FRR version
+| SONiC Release | FRR Version | FRR Maintainer |
+---------------|-------------|--------------|
+| 202311 | 8.5.1 | Nvidia |
+| 202411 | 10.0.1 | Broadcom |
+| 202505 | 10.3.0 | Cisco |
+| 202511 | 10.4.1 | Alibaba, with help from Cisco and Nexthop.AI |
 
 # FRR Project Release Cadence
 -  FRR release numbering scheme x.y.z-s#
