@@ -48,6 +48,7 @@ This document provides a high-level design for Smart Switch ENI based Packet For
 | HA  | High Availability                                |
 | ENI  | Elastic Network Interface                      |
 | FNIC  | Floating NIC                      |
+| PL  | Private Link                      |
 
 ## Overview ##
 
@@ -91,16 +92,16 @@ ENI based forwarding requires the switch to understand the relationship between 
 * Each packet can be identified as belonging to that switch using VIP and VNI
 * Forwarding can be to local DPU or remote DPU over L3 VxLAN
 * Only support Floating NIC scenario
-* Scale for Floating NIC:
-    - [# of ENIs hosted] * 2 (with/without Tunnel Termination) + [# of ENIs not hosted] * 1 (without Tunnel Termination)
-* Scale Example for Floating NIC:
+* Scale for FNIC + PL:
+    - [# of ENIs hosted] * 2 (ER GW Bypass VNI + Private Link VNI) * 2 (with/without Tunnel Termination) + [# of ENIs not hosted] * 2 (ER GW Bypass VNI + Private Link VNI) * 1 (without Tunnel Termination)
+* Scale Example for FNIC + PL:
     - T1 per cluster: 8
     - DPU per T1: 4
     - ENI per DPU: 64
     - HA Scaling factor: 2
     - Total ENI's in this Cluster:  (8 * 4 * 64) / 2 = 1024
     - ENI's hosted on a T1: 256
-    - Number of ACL Rules:  256 * 2 + (1024 - 256) * 1 = 1280
+    - Number of ACL Rules:  256 * 2 * 2 + (1024 - 256) * 2 = 2560
 
 ### Phase 1 ###
 
@@ -164,7 +165,7 @@ VNET: Vnet1000
 
 Note:
 - outbound_eni_mac_lookup is not relevant for FNIC cases since we always match on INNER_DST_MAC
-- outbound_vni name is conceived based on VM NIC design, for FNIC same attribute is used to match all the packets related to this FNIC
+- TUNNEL_VNI is derived from the key of DASH_ENI_FORWARD_TABLE
 
 ```
 {  
