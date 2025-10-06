@@ -9,6 +9,8 @@
 | 1.0 | 10/03/2024 |   Yijiao Qin    |    Base version           |
 | 1.1 | 09/26/2025 |   Yijiao Qin    |Adapt to multi-map SyncMap |
 
+[Codes - [sonic-swss] PR#3699](https://github.com/sonic-net/sonic-swss/pull/3699)
+
 <!-- omit in toc -->
 ## Table of Contents
 
@@ -29,9 +31,10 @@
   - [One FailedTask Found](#one-failedtask-found)
   - [Two FailedTask Found](#two-failedtask-found)
 - [Logging](#logging)
-- [Test Results](#test-results)
-  - [Check whether the duration of retry decreases](#check-whether-the-duration-of-retry-decreases)
-  - [Check the CPU business](#check-the-cpu-business)
+- [Tests](#tests)
+  - [Correctness](#correctness)
+  - [Performance](#performance)
+    - [Decreased duration of the overall retry process](#decreased-duration-of-the-overall-retry-process)
 
 ## Overview
 
@@ -269,38 +272,38 @@ root@HOST:/var/log/swss# cat retry.rec | grep 5.5.78.31/32
 2024-09-11.18:56:22.144220| ---- |ROUTE_TABLE:5.5.78.31/32|SET|nexthop_group:1
 ```
 
-## Test Results
+## Tests
 
-### Check whether the duration of retry decreases
+### Correctness
 
-1. Insert 40k routes referring to a non-existent nhg, which would keep retrying but never succeed
+included in `sonic-swss/tests/mock_tests/retrycache_ut.cpp`
 
-2. Delete a non-existent next hop group, which makes `NEXTHOP_GROUP_TABLE` to be selected and triggers all executors retrying
+### Performance
 
-3. Measure the duration of retry stage in `OrchDaemon`'s event loop.
-
-4. Measure the duration of retrying `ROUTE_TABLE` and the size of `m_toSync` before and after retry
-
-Before optimization.
-
-```c++
-NEXTHOP_GROUP_TABLE's run: retry stage takes 484 milliseconds!
+```
+## DUT Information
+Platform: x86_64-alibaba_as71-128h-lc-r0
+Distribution: Debian 11.11
+Kernel: 5.10.0-18-2-amd64
+HwSKU: AS71-128H
+ASIC: cisco
 ```
 
-```c++
-ROUTE_TABLE retry : 40000 entries -> 40000 entries in m_toSync, takes 468 milliseconds 
-```
+#### Decreased duration of the overall retry process
 
-After optimization:
+We used [inject_invalid_routes.py](inject_invalid_routes.py) to inject routes into redis-appdb, which would be consumed but fail to be installed. It simulates the pending routes in the real world, which are waiting for some constraint to be resolved, for example, their next hops to be established, their outgoing interfaces to be initialized, etc. These routes should not be discarded, since they are intended to be installed, when the conditions are met in the future.
 
-```c++
-NEXTHOP_GROUP_TABLE's run: retry stage takes 6 milliseconds!
-```
+Then the duration of orchdaemon's retry process is measured, with different number of pending routes in `APP_ROUTE_TABLE` consumer's `SyncMap`. When there is no incoming event, the periodic timeout still trigger a retry process, and we collect 100 entries to get an average.
 
-```c++
-ROUTE_TABLE retry : 0 entries -> 0 entries in m_toSync, takes 0 milliseconds 
-```
+There's a clear linear relationship between the number of routes and the duration.
 
-### Check the CPU business
+| # Pending Routes |      Average Duration     |
+|:----------------:|:-------------------------:|
+|       5K         |           60   ms         |
+|       10K        |           127  ms         |
+|       50K        |           630  ms         |
+|       100K       |           1300 ms         |
 
-After optimization, the %CPU of orchagent would decrease during retry stage.
+However, with the retrycache enabled, the average duration is almost negligible (about 2ms), since these pending routes are not retried at all.
+
+![improve](perf.png)
