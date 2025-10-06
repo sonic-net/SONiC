@@ -276,7 +276,7 @@ actions:
         - ACTION_POWER_CYCLE              # Third action: Power cycle
         - ACTION_FACTORY_RESET            # Fourth action: Full software reimage
         - ACTION_REPLACE                  # Final action: Return material authorization
-      time_window: 86400                      # Required: Time window for action escalation (seconds)
+      time_window: 86400                  # Required: Duration controller tracks fault history for escalation (seconds)
   log_collection:                         # Required: Diagnostic data to collect on fault
     logs:                                 # Optional: Static log files to capture
       - log: "/var/log/platform.log"      # Log file path
@@ -294,8 +294,7 @@ actions:
 
 | Field | Type | Required | Description | Valid Values | Example |
 |-------|------|----------|-------------|--------------|----------|
-| `repair_actions` | Object | Yes | Container for all remedial actions | See subfields below | See example above |
-| `time_window` | Integer | Yes | Time window in seconds for tracking fault recurrence | 300-604800 (5 min to 7 days) | `86400` (24 hours) |
+| `repair_actions` | Object | Yes | Container for all local and remote remedial actions | See subfields below | See example above |
 | `log_collection` | Object | Yes | Diagnostic data collection specification | See subfields below | See example above |
 
 #### Repair Actions Structure
@@ -319,7 +318,7 @@ local_actions:
 | `action_list` | List | Yes | Ordered sequence of vendor-defined remediation actions executed locally by the DLD daemon. Each action contains a type field specifying the execution method and a command field with the actual operation (note that the structure after the type is variable in the same way as the path block in the condition section). Actions are executed sequentially in the order specified. | List of action objects with `type` and `command` fields. Supported types: `dse`, `cli`, `i2c`, etc. | See example above |
 
 **Remote Actions (Required):**
-Below example is placeholder of OpenConfig defined enums, actual actions will be defined by associated OpenConfig model
+Below example is placeholder of OpenConfig defined enums, actual actions will be defined by associated OpenConfig model. `time_window` defines how long (in seconds) the controller should retain the fault history for escalation decisions; if the fault remains active throughout this window, the next action in `action_list` should be triggered.
 ```yaml
 remote_actions:
   action_list:                            # Required: Escalating sequence of controller actions
@@ -328,6 +327,7 @@ remote_actions:
     - ACTION_POWER_CYCLE                  # Level 3: Power cycle
     - ACTION_FACTORY_RESET                # Level 4: Full software reimage
     - ACTION_REPLACE                      # Final action: Replace the component
+  time_window: 86400                      # Required: Fault history window for escalation evaluation (seconds)
 ```
 
 For comprehensive list of actions, please refer to the OpenConfig fault model. Link to model: TBD
@@ -520,7 +520,7 @@ signatures:
               - ACTION_POWER_CYCLE
               - ACTION_FACTORY_RESET
               - ACTION_REPLACE
-        time_window: 86400
+            time_window: 86400
         log_collection:
           logs:
             - log: "/var/log/platform.log"
