@@ -101,7 +101,7 @@ ENI based forwarding requires the switch to understand the relationship between 
     - HA Scaling factor: 2
     - Total ENI's in this Cluster:  (8 * 4 * 64) / 2 = 1024
     - ENI's hosted on a T1: 256
-    - Number of ACL Rules:  256 * 2 + (1024 - 256) * 1 = 1280
+    - Number of ACL Rules:  256 * 2 + (1024 - 256) = 1280
 
 ### Phase 1 ###
 
@@ -165,6 +165,7 @@ VNET: Vnet1000
 Note:
 - outbound_eni_mac_lookup is not relevant for FNIC cases since we always match on INNER_DST_MAC
 - outbound_vni is not relevant for FNIC cases since we don't need to match on Tunnel VNI
+- VIP is common across the T1 cluster. It is not clear on where to consume it. It is currently read from a temporary config DB table "VIP_TABLE".
 
 ```
 {  
