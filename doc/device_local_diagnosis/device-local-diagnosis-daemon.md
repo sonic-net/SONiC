@@ -78,7 +78,7 @@ DLDD is a multithreaded SONiC daemon that implements vendor-agnostic, rule-drive
 
 At startup, DLDD loads vendor-provided fault rules from `/usr/share/sonic/device/<platform>/dld_rules.yaml`, validates schema compatibility, and resolves Data Source Extensions (DSE) into concrete data collection paths. It then builds execution plans that map rules to appropriate monitor threads based on transport type (Redis, Platform API, I2C, CLI, file). Rules that fail validation are tracked as broken and excluded from execution, with diagnostics published to the controller.
 
-During runtime, the **primary orchestration thread** manages the lifecycle of specialized monitor threads and consumes fault events from a shared FIFO buffer. The **monitor threads** (Redis, File, Common) periodically sample their assigned data sources using standardized adapters that abstract transport differences through a uniform interface (`validate()`, `get_value()`, `get_comparator()`, `run_comparison()`, `collect()`). When rule conditions are violated (fault detected), monitor threads evaluate the results on-thread and enqueue `FaultEvent` objects to the FIFO. In case of a failure (not a rule violation), per-rule failure counters track consecutive errors and trigger state transitions (`OK` → `DEGRADED` → `BROKEN|FATAL`) based on configurable thresholds stored in CONFIG_DB.
+During runtime, the **primary orchestration thread** manages the lifecycle of specialized monitor threads and consumes fault events from a shared FIFO buffer. The **monitor threads** (Redis, File, Common) periodically sample their assigned data sources using standardized adapters that abstract transport differences through a uniform interface (`validate()`, `get_value()`, `get_evaluator()`, `run_evaluation()`, `collect()`). When rule conditions are violated (fault detected), monitor threads evaluate the results on-thread and enqueue `FaultEvent` objects to the FIFO. In case of a failure (not a rule violation), per-rule failure counters track consecutive errors and trigger state transitions (`OK` → `DEGRADED` → `BROKEN|FATAL`) based on configurable thresholds stored in CONFIG_DB.
 
 Confirmed faults are published to the Redis `FAULT_INFO` table for gNMI subscription by the controller. DLDD executes vendor-defined local actions (log collection, component resets) as specified in the rules and escalates `ACTION_*` requests (RESEAT, COLD_BOOT, REPLACE) to the controller when local remediation is insufficient. The service maintains a heartbeat via `DLDD_STATUS|process_state` with a 120-second TTL, publishing both service health and broken rule diagnostics to provide full observability.
 
@@ -103,12 +103,12 @@ DLDD uses three primary data structures for inter-thread communication and execu
 - **Event Definition**: Resolved event specification with concrete transport details (Redis key, I2C address, file path, CLI command, etc.)
 - **Transport Type**: Classification determining which monitor thread handles the work (Redis, File, Common)
 - **DSE Bindings**: Resolved Data Source Extension mappings for abstract identifiers
-- **Comparator Metadata**: Condition type (mask, comparison, string, boolean) and threshold values
+- **Evaluator Metadata**: Condition type (mask, comparison, string, boolean) and threshold values
 
 **EvaluationResult** - Output of adapter evaluation within monitor threads
 - **Violation Status**: Boolean indicating if the rule condition was violated (fault detected)
 - **Collected Value**: Raw value retrieved from the data source (formatted per value_configs)
-- **Comparator**: The evaluation logic that was applied (type and threshold)
+- **Evaluator**: The evaluation logic that was applied (type and threshold)
 - **Timestamp**: When the evaluation occurred
 - **Exception Details**: Error information if the evaluation failed (used for failure tracking)
 - **State Transition**: Whether this result triggers OK → DEGRADED or DEGRADED → BROKEN|FATAL transition
@@ -126,9 +126,9 @@ These structures maintain type consistency across the service. The orchestrator 
 #### Monitor Thread Architecture
 
 - **Shared Interface**: Every monitor inherits the common `MonitorThread` contract (`get_query_path()`, `get_path_value()`, `generate_queue_object()`, `push_queue_object()`), guaranteeing uniform behavior regardless of underlying transport.
-- **Typed Adapters**: Each monitor thread composes the appropriate `DataSourceAdapter` (Redis, Platform API, CLI, I2C, File, etc.) which implements `validate()`, `get_value()`, `get_comparator()`, `run_comparison()`, and `collect()`.
-- **On-Thread Evaluation**: Logic and evaluation are executed inside the monitor threads; each `collect()` call resolves the value, comparator, and produces an `EvaluationResult` before packaging a `FaultEvent`.
-- **Structured Output**: When a rule condition is violated or state changes, monitors emit a normalized `FaultEvent` that encapsulates the rule, event metadata, value, comparator outcome, and timestamps before enqueuing to the shared FIFO.
+- **Typed Adapters**: Each monitor thread composes the appropriate `DataSourceAdapter` (Redis, Platform API, CLI, I2C, File, etc.) which implements `validate()`, `get_value()`, `get_evaluator()`, `run_evaluation()`, and `collect()`.
+- **On-Thread Evaluation**: Logic and evaluation are executed inside the monitor threads; each `collect()` call resolves the value, evaluator, and produces an `EvaluationResult` before packaging a `FaultEvent`.
+- **Structured Output**: When a rule condition is violated or state changes, monitors emit a normalized `FaultEvent` that encapsulates the rule, event metadata, value, evaluator outcome, and timestamps before enqueuing to the shared FIFO.
 
 **Data Collection Strategy**:
 - **Redis Monitor**: Polls all assigned Redis-based rules on a configurable interval (default: 60 seconds) by querying specific keys defined in rules
@@ -161,7 +161,7 @@ DLDD Process (PID: main)
 
 - **Monitor Thread Interface Enforcement**: All monitors are instantiated from the same base class, guaranteeing consistent callback signatures for value retrieval, evaluation, and queueing.
 - **Inter-Thread Payloads**: Communication between threads relies exclusively on the `MonitorWorkItem` descriptors (from orchestrator → monitor) and `FaultEvent` objects (monitor → orchestrator), keeping the data flow self-describing and serialization-friendly.
-- **Deterministic Ordering**: The FIFO buffer preserves chronological ordering of `FaultEvent` payloads, priority overrides are not supported as the primary thread will always process the latest event. Any handling of higher priority events should be handled by the severity by the remote controller.
+- **Deterministic Ordering**: The FIFO buffer preserves chronological ordering of `FaultEvent` payloads. If multiple faults on the same component and symptom are received, the pushed fault is determined first by the severity and then by priority (lower numeric priority takes precedence). If component instance, symptom, severity, and priority are the same, the pushed fault is based on first received fault.
 
 ### Rule Evaluation Workflow
 
@@ -227,14 +227,14 @@ class DataSourceAdapter(Protocol):
     def get_value(self, event: RuleEvent) -> CollectedValue:
         """Fetch the raw value from the underlying transport."""
 
-    def get_comparator(self, event: RuleEvent) -> Comparator:
+    def get_evaluator(self, event: RuleEvent) -> Evaluator:
         """Produce a callable or structure that encapsulates the evaluation logic."""
 
-    def run_comparison(self, value: CollectedValue, comparator: Comparator) -> EvaluationResult:
+    def run_evaluation(self, value: CollectedValue, evaluator: Evaluator) -> EvaluationResult:
         """Return the boolean outcome plus any metadata (timestamps, values, etc.)."""
 
     def collect(self, event: RuleEvent) -> EvaluationResult:
-        """Convenience wrapper that orchestrates value retrieval and comparison."""
+        """Convenience wrapper that orchestrates value retrieval and evaluation."""
 ```
 
 #### Method Responsibilities
@@ -251,21 +251,20 @@ The below is provided to help provide a better idea of where functionality takes
 - **Behavior**: Executes the transport operation using the already-resolved event specification and returns the unprocessed value (bytes, string, integer, JSON blob, etc.). DSE resolution has already occurred in the primary thread.
 - **Example**: For an I2C event with resolved bus/chip addresses, this reads the chip register and returns the raw byte/word. For Redis with a concrete database/table/key path, it performs `HGET` and returns the field value. For CLI with the final command string, it executes and returns stdout.
 
-**`get_comparator(event: RuleEvent) -> Comparator`**
+**`get_evaluator(event: RuleEvent) -> Evaluator`**
 - **Purpose**: Build the evaluation logic based on the `evaluation` block from the rules schema.
 - **Behavior**: Parses the evaluation type (`mask`, `comparison`, `string`, `boolean`) and constructs a callable or data structure that can be applied to the collected value.
-- **Example**: For a mask evaluation with `logic: '&'` and `value: '10000000'`, returns a comparator that performs bitwise AND. For a comparison evaluation with `operator: '>'` and `value: 50.0`, returns a greater-than checker.
-- **Reusability**: The comparator can be cached and reused across multiple `get_value()` calls if the comparator is static and not dynamically generated (a DSE reference as the value would require a new comparator each time as the underlying may change/is not hardcoded).
+- **Example**: For a mask evaluation with `logic: '&'` and `value: '10000000'`, returns an evaluator that performs bitwise AND. For a comparison evaluation with `operator: '>'` and `value: 50.0`, returns a greater-than checker.
+- **Reusability**: The evaluator can be cached and reused across multiple `get_value()` calls if the evaluator is static and not dynamically generated (a DSE reference as the value would require a new evaluator each time as the underlying may change/is not hardcoded).
 
-**`run_comparison(value: CollectedValue, comparator: Comparator) -> EvaluationResult`**
+**`run_evaluation(value: CollectedValue, evaluator: Evaluator) -> EvaluationResult`**
 - **Purpose**: Execute the evaluation logic and return the boolean outcome plus any metadata (actual value read, expected threshold, etc.).
-- **Behavior**: Applies the comparator to the value and packages the result into an `EvaluationResult` object that includes violation status, timestamps, and diagnostic information.
+- **Behavior**: Applies the evaluator to the value and packages the result into an `EvaluationResult` object that includes violation status, timestamps, and diagnostic information.
 - **Example**: For a temperature threshold check, returns `EvaluationResult(violated=True, value=55.2, threshold=50.0, unit='celsius')` if the sensor reads above the limit.
 - **Usage**: This is typically called by `collect()` but can be invoked independently for testing or batch evaluation scenarios.
 
-**`collect(event: RuleEvent) -> EvaluationResult`**
 - **Purpose**: Convenience method that chains the full evaluation workflow in a single call.
-- **Behavior**: Internally calls `get_value(event)`, `get_comparator(event)` (if necessary), and `run_comparison(value, comparator)`, then returns the final `EvaluationResult`.
+- **Behavior**: Internally calls `get_value(event)`, `get_evaluator(event)` (if necessary), and `run_evaluation(value, evaluator)`, then returns the final `EvaluationResult`.
 - **Usage**: Monitor threads call this method in their main sampling loop. It simplifies the common case where the thread wants a complete evaluation without needing to manage intermediate steps.
 - **Example**: `result = adapter.collect(event)` → fetches I2C register, applies mask, returns violation status in one operation.
 
@@ -329,7 +328,7 @@ During each sampling cycle, the monitor thread iterates through its assigned wor
 
 **Evaluation Exception Handling**
 
-Evaluation exceptions (comparator type mismatch, invalid logic) indicate permanent configuration errors. When caught:
+Evaluation exceptions (evaluator type mismatch, invalid logic) indicate permanent configuration errors. When caught:
 
 - Log an error into system logs.
 - Notify the primary thread immediately for removal from the execution plan and addition to the `broken_rules` list with fatal reason for this rule.
@@ -374,7 +373,7 @@ Broken rules are published to the service state telemetry:
         {
           "rule": "TEMP_THRESHOLD_CHECK",
           "version": "1.0.2",
-          "reason": "evaluation_error: comparator type mismatch",
+          "reason": "evaluation_error: evaluator type mismatch",
           "failure_count": 1,
           "state": "BROKEN",
           "last_attempt": 1735678905.678
@@ -679,7 +678,7 @@ DLDD provides a built-in validation utility for offline testing and schema valid
 # Validate a rules file against the current schema
 sudo dldd validate-rules --file /path/to/dld_rules.yaml
 
-# Validate with verbose output (show all DSE resolutions and comparator checks)
+# Validate with verbose output (show all DSE resolutions and evaluator checks)
 sudo dldd validate-rules --file /path/to/dld_rules.yaml --verbose
 
 # Validate and show JSON output for automation
@@ -706,8 +705,8 @@ Result: FAILED
 ```
 
 **Implementation Notes**:
-- Validation runs in dry-run mode without starting monitor threads, querying data sources, or testing comparator logic
-- Validation does NOT test whether comparators will work correctly at runtime or whether data sources are accessible
+- Validation runs in dry-run mode without starting monitor threads, querying data sources, or testing evaluator logic
+- Validation does NOT test whether evaluators will work correctly at runtime or whether data sources are accessible
 - Validation results include line numbers and field paths for error localization
 - Exit code 0 for success, non-zero for validation failures
 
@@ -717,7 +716,7 @@ Result: FAILED
 
 Each adapter type (Redis, Platform API, I2C, CLI, File) requires comprehensive unit tests with mocked underlying libraries to validate the adapter interface implementation without hardware dependencies.
 
-All adapters must pass conformance tests for the DataSourceAdapter interface using mock data sources to validate the underlying logic without hardware dependencies. Tests must verify that `validate()` correctly identifies invalid configurations, `get_value()` returns properly formatted values matching `value_configs` specifications, `get_comparator()` constructs correct evaluation logic from rule definitions, `run_comparison()` produces EvaluationResult objects with correct violation status, and `collect()` chains the full workflow while handling exceptions appropriately.
+All adapters must pass conformance tests for the DataSourceAdapter interface using mock data sources to validate the underlying logic without hardware dependencies. Tests must verify that `validate()` correctly identifies invalid configurations, `get_value()` returns properly formatted values matching `value_configs` specifications, `get_evaluator()` constructs correct evaluation logic from rule definitions, `run_evaluation()` produces EvaluationResult objects with correct violation status, and `collect()` chains the full workflow while handling exceptions appropriately.
 
 ### Integration Testing
 
@@ -731,7 +730,7 @@ Integration tests validate the complete rule execution pipeline from ingestion t
 
 **Service-Level State Testing**: Validate service-level BROKEN|FATAL state by loading a rules file with multiple rules and simulating failures that cause enough rules to break to exceed default `broken_rules_max_threshold` (default: 5). Verify that `process_state` transitions to `state: BROKEN|FATAL`, the service continues running but publishes critical state to the controller, and all broken rules are listed with diagnostics in the `process_state.broken_rules` array.
 
-**Configuration Error Handling**: Test schema validation failures by loading rules with invalid comparator logic or missing required fields and verifying that affected rules are marked broken at ingestion time with appropriate diagnostics (e.g., "evaluation_error" or "schema_validation_error"). Test DSE resolution failures by loading rules with invalid DSE references (e.g., `@UNKNOWN_DSE`) and confirming rules are marked broken during execution plan materialization with "dse_resolution_error" diagnostics. In both cases, verify the service starts successfully and continues evaluating a valid rule.
+**Configuration Error Handling**: Test schema validation failures by loading rules with invalid evaluation logic or missing required fields and verifying that affected rules are marked broken at ingestion time with appropriate diagnostics (e.g., "evaluation_error" or "schema_validation_error"). Test DSE resolution failures by loading rules with invalid DSE references (e.g., `@UNKNOWN_DSE`) and confirming rules are marked broken during execution plan materialization with "dse_resolution_error" diagnostics. In both cases, verify the service starts successfully and continues evaluating a valid rule.
 
 ### Platform Testing
 

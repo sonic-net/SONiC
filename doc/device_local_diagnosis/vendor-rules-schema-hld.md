@@ -79,13 +79,15 @@ At the highest level, each rules contains 3 primary sections: `metadata`, `condi
 ### Signature Metadata
 Each signature contains comprehensive metadata for identification and applicability. Every field serves a specific purpose in rule processing and system integration:
 
+- **Severity Ordering**: The `severity` field encodes the OpenConfig alarm severity (`CRITICAL`, `MAJOR`, `WARNING`, `MINOR`, `UNKNOWN`). Higher severity signatures always take precedence when multiple rules target the same component/symptom pair.
+- **Priority Tiebreaker**: The optional `priority` field provides deterministic ordering for rules that share the same severity and symptom. Lower numeric values indicate higher priority; when omitted, adapters treat the priority as `5`.
+
 ```yaml
 signature:
   metadata:
     name: "PSU_OV_FAULT"                    # Required: Unique string identifier for the rule
     id: 1000001                             # Required: Unique numeric ID for cross-referencing
     version: "1.0.0"                        # Required: Semantic version for rule tracking
-    redis_key: "FAULT_INFO|PSU_OV_FAULT_${psu_name}" # Required: Template for Redis key generation
     description: |                          # Required: Human-readable fault explanation
       An over voltage fault has occurred on the output feed from the PSU to the chassis.
       This condition indicates potential hardware failure requiring immediate attention.
@@ -97,6 +99,8 @@ signature:
       - "202311.3.0.2"                      # Additional compatible versions
     component: "PSU"                        # Required: Component type affected by fault
     symptom: "<OC symptom>"                 # Required: OpenConfig symptom enumeration
+    severity: "CRITICAL"                    # Required: OpenConfig severity enumeration
+    priority: 1                             # Optional: Numeric priority to account for rule ordering (default is 5 when omitted)
     tags:                                   # Optional: Classification tags for filtering, below is just an example
       - "power"                             # Functional category tag
       - "voltage"                           # Specific fault type tag
@@ -109,12 +113,13 @@ signature:
 | `name` | String | Yes | Unique human-readable identifier for the rule | Alphanumeric with underscores | `"PSU_OV_FAULT"` |
 | `id` | Integer | Yes | Unique numeric identifier for programmatic reference | 1000000-9999999 | `1000001` |
 | `version` | String | Yes | Semantic version following MAJOR.MINOR.PATCH format | Semantic versioning | `"1.0.0"` |
-| `redis_key` | String | Yes | Template for generating Redis keys in FAULT_INFO table | Must start with `FAULT_INFO\|` | `"FAULT_INFO\|PSU_OV_FAULT_${psu_name}"` |
 | `description` | String | Yes | Multi-line human-readable explanation of the fault condition | Plain text, can use YAML literal block | See example above |
 | `product_ids` | List | Yes | Hardware products where this rule applies | Product ID (and HW version) are defined in vendor EEPROM, format dependent on that | `["8122-64EHF-O P1"]` |
 | `sw_versions` | List | Yes | SW versions where rule is validated | SW version formatting dependent on NOS, given example is for Cisco release identifier for SONiC NOS | `["202311.3.0.1"]` |
 | `component` | String | Yes | Primary component category affected | `PSU`, `FAN`, `CHASSIS`, `SSD`, `CPU`, `MEMORY` | `"PSU"` |
-| `symptom` | String | Yes | OpenConfig alarm symptom enumeration for telemetry | OpenConfig defined symptoms | `"COMPONENT_FAILURE"` |
+| `symptom` | String | Yes | OpenConfig alarm symptom enumeration for telemetry | OpenConfig defined symptoms | `"SYMPTOM_OVER_THRESHOLD"` |
+| `severity` | String | Yes | OpenConfig alarm severity used for precedence | OpenConfig defined alarms | `"CRITICAL"` |
+| `priority` | Integer | No | Numeric priority for rules with matching severity and symptom (lower value = higher priority, default = 5 when omitted) | Non-negative integer | `5` |
 | `tags` | List | No | Categorization tags for filtering and organization | Arbitrary strings | `["power", "voltage"]` |
 
 ### Condition Logic
@@ -226,7 +231,7 @@ path:
 evaluation:
   type: 'mask'                            # Evaluation method
   logic: '&'                              # Bitwise operator: '&', '|', '^'
-  value: '10000000'                       # Mask value (binary string)
+  value: 0b10000000                       # Mask value (binary string)
 ```
 
 **Comparison Evaluation:**
@@ -234,8 +239,8 @@ evaluation:
 evaluation:
   type: 'comparison'                      # Evaluation method
   operator: '>'                           # Comparison: '>', '<', '>=', '<=', '==', '!='
-  value: '50.0'                          # Comparison value
-  unit: 'celsius'                        # Optional: Value unit
+  value: 50.0                             # Comparison value
+  unit: 'celsius'                         # Optional: Value unit
 ```
 
 **String Match Evaluation:**
@@ -427,8 +432,9 @@ Schema layout definitions provide the NOS with instructions on how to parse diff
           },
           "signature_name": "{higher_rule_object}.metadata.name",
           "signature_id": "{higher_rule_object}.metadata.id",
-          "redis_key_template": "{higher_rule_object}.metadata.redis_key",
           "fault_description": "{higher_rule_object}.metadata.description",
+          "fault_severity": "{higher_rule_object}.metadata.severity",
+          "rule_priority": "{higher_rule_object}.metadata.priority",
           "supported_product_ids": "{higher_rule_object}.metadata.product_ids",
           "supported_sw_versions": "{higher_rule_object}.metadata.sw_versions",
           "affected_component": "{higher_rule_object}.metadata.component",
@@ -460,7 +466,6 @@ signatures:
         name: PSU_OV_FAULT
         id: 1000001
         version: "1.0.0"
-        redis_key: FAULT_INFO|PSU_OV_FAULT_${psu_name}
         description: |
           An over voltage fault has occurred on the output feed from the PSU to the chassis.
         product_ids:
