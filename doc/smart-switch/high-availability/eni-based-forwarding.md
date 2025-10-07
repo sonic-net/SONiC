@@ -93,7 +93,7 @@ ENI based forwarding requires the switch to understand the relationship between 
 * Forwarding can be to local DPU or remote DPU over L3 VxLAN
 * Only support Floating NIC scenario
 * Scale for FNIC + PL:
-    - [# of ENIs hosted] * 2 (ER GW Bypass VNI + Private Link VNI) * 2 (with/without Tunnel Termination) + [# of ENIs not hosted] * 2 (ER GW Bypass VNI + Private Link VNI) * 1 (without Tunnel Termination)
+    - [# of ENIs hosted] * 2 (with/without Tunnel Termination) + [# of ENIs not hosted] * 1 (without Tunnel Termination)
 * Scale Example for FNIC + PL:
     - T1 per cluster: 8
     - DPU per T1: 4
@@ -101,7 +101,7 @@ ENI based forwarding requires the switch to understand the relationship between 
     - HA Scaling factor: 2
     - Total ENI's in this Cluster:  (8 * 4 * 64) / 2 = 1024
     - ENI's hosted on a T1: 256
-    - Number of ACL Rules:  256 * 2 * 2 + (1024 - 256) * 2 = 2560
+    - Number of ACL Rules:  256 * 2 + (1024 - 256) * 1 = 1280
 
 ### Phase 1 ###
 
@@ -126,7 +126,6 @@ DASH_ENI_FORWARD_TABLE schema is available here https://github.com/sonic-net/SON
     "ACL_TABLE_TYPE": {
         "ENI_REDIRECT": {
             "MATCHES": [
-                "TUNNEL_VNI",
                 "DST_IP",
                 "DST_IPV6",
                 "INNER_DST_MAC",
@@ -165,14 +164,13 @@ VNET: Vnet1000
 
 Note:
 - outbound_eni_mac_lookup is not relevant for FNIC cases since we always match on INNER_DST_MAC
-- TUNNEL_VNI is derived from the key of DASH_ENI_FORWARD_TABLE
+- outbound_vni is not relevant for FNIC cases since we don't need to match on Tunnel VNI
 
 ```
 {  
     "ACL_RULE": {
         "ENI:Vnet1000_AABBCCDDEEFF": {
-            "PRIORITY": "9997",
-            "TUNNEL_VNI": "4000",
+            "PRIORITY": "9996",
             "DST_IP": "1.1.1.1/32",
             "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
             "REDIRECT": "<local/tunnel nexthop>"
@@ -201,8 +199,7 @@ To solve this, ACL rules with high priority are added and the redirect should al
 {  
     "ACL_RULE": {
         "ENI:Vnet1000_AABBCCDDEEFF_TERM": {
-            "PRIORITY": "9999",
-            "TUNNEL_VNI": "4000",
+            "PRIORITY": "9997",
             "DST_IP": "1.1.1.1/32",
             "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
             "TUNN_TERM": "true",

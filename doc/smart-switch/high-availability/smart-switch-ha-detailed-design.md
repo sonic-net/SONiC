@@ -570,10 +570,10 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | DASH_ENI_FORWARD_TABLE | | | | |
 | | \<VNET_NAME\> | | VNET name. Used to correlate the VNET table to find VNET info, such as advertised VIP. | /{/{vnet_name/}/} |
 | | \<ENI_ID\> | | ENI ID. Same as the MAC address of the ENI. | /{/{eni_id/}/} |
-| | \<VNI\> | | Tunnel VNI of the arrived packet. Could be ER GW Bypass VNI, Private Link VNI or the VNET VNI | /{/{vni/}/} |
 | | | vdpu_ids | The list vDPU IDs hosting this ENI. | /{/{vdpu_id1/},/{vdpu_id2/},.../} |
 | | | primary_vdpu | The primary vDPU id. | /{/{dpu_id/}/} |
-| | | outbound_eni_mac_lookup | (Optional) Specify which MAC address to use to lookup the ENI for the outbound traffic. Not Relevant for Floating NIC | "none", "dst", "src" |
+| | | outbound_vni | (Optional) Outbound VNI used by this ENI, if different from the one in VNET. Each ENI can have its own VNI, such ExpressRoute Gateway Bypass case. | /{/{vni/}/} |
+| | | outbound_eni_mac_lookup | (Optional) Specify which MAC address to use to lookup the ENI for the outbound traffic. | "none", "dst", "src" |
 
 #### 2.3.3. CHASSIS_STATE_DB (per-NPU)
 
