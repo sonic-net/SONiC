@@ -23,7 +23,7 @@ Additionally, we plan to expand the list of FRR Maintainers to include Cisco and
 * 202905 release: Nexthop.AI
 * 202911 release: Microsoft
 
-If there is a large feature / commits from a member company, it is better to swap the FRR release maintainer duty to make FRR maintaining more smooth.
+If there is a large feature / commits from a member company, it is better to swap the FRR release maintainer duty to make FRR maintaining more smooth. This transition must be approved by Routing Workgroup and announce to community to avoid confusion.
 
 # SONiC Release and FRR version
 | SONiC Release | FRR Version | FRR Maintainer |
@@ -44,18 +44,19 @@ If there is a large feature / commits from a member company, it is better to swa
 # FRR Patches
 Regarding FRR patches, whenever a patch is introduced based on a fix from FRR, there should be a clearly defined timeline for its removal to prevent the accumulation of excessive patches in SONiC. Such patches should remain only for a maximum of two upgrade cycles. If a patch cannot be removed within this timeframe, explicit approval must be obtained from the Routing Working Group.
 
-Currently, we prefix patch names with a patch number. To facilitate easy identification of long-lived patches, the Routing Working Group has agreed to retain these patch numbers even after a patch is removed during an upgrade. This practice helps to maintain traceability and simplifies tracking over time.
+Currently, a patch number is added in front of the patch name. To facilitate easy identification of long-lived patches, the Routing Working Group has agreed to retain these patch numbers even after a patch is removed during an upgrade. This practice helps to maintain traceability and simplifies tracking over time.
 
 
 # SONiC Release FRR Upgrade
--   SONiC default to rebase FRR in every community release
+-   SONiC default to rebase FRR in every SONiC community release
 -   SONiC FRR upgrade test requirements
+	-   MANDATORY: Discuss with FRR community or review release notes about what is new and What are the highlight? Adjust additional test cases to add/or execute if needed.
 	-   MANDATORY: Pass all Azure pipeline build test and LGTM as required by the standard code PR merge process
   	-   OPTIONAL: Additional tests in respect to specific changeset in the upgrade as deem necessary, manual tests should be automated and submitted to improve future test coverage
--   Rotate SONiC FRR maintenance duty among repo maintainer org and others (BRCM, MSFT, Alibaba, NVDA, DELL， Cisco, Nexthop.AI)
+-   Rotate SONiC FRR maintenance duty among repo maintainer org and others (BRCM, MSFT, Alibaba, NVDA, DELL，Cisco, Nexthop.AI)
 -   Responsibility of SONiC FRR release maintainer
 	-   Default 6 months assignment
-	-   Upgrade FRR version in SONiC release in needed, resolve SONiC FRR upgrade integration issues
+	-   Upgrade FRR version in SONiC release if needed, resolve SONiC FRR upgrade integration issues
 	-   Triage and fix SONiC FRR issues when applicable. Fix may come from SONiC contributors or from FRR community, maintainer is responsible to drive the fix to unblock SONiC community
 	-   Submit fixes to FRR project, submit new FRR topo test to FRR project if there is a gap
 	-   Release maintainer to subscribe to FRR project, and be the FRR Point-of-Contact on behalf of SONiC
