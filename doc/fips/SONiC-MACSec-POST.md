@@ -104,7 +104,9 @@ POST is performed by MACSecOrch when POST is supported only in MACSec init. The 
 
 ### Enabling Control Plane POST in MACSecMgr init
 
-MACSecMgr performs POST status query during process init and publishes the status in the _FIPS_MACSEC_POST_TABLE|crypto_ table. A failure will result in MACSecMgr not processing any configuration beyond this.
+MACSecMgr performs POST status query during process init and publishes the status in the _FIPS_MACSEC_POST_TABLE|crypto_ table. Any w. A failure will result in MACSecMgr not processing any configuration beyond this.
+
+![](images/fips-cp-post-macsec-init.png)
 
 ### Enforcing FIPS compliance
 
@@ -126,4 +128,17 @@ Options:
   -d, --display [all|frontend]  Show internal interfaces  [default: all]
   -n, --namespace []            Namespace name or all
   -?, -h, --help                Show this message and exit.
+```
+Sample output
+```
+admin@sonic:~$ show macsec --post-status
+POST Status:
+===========
+Module    : crypto
+Status    : pass
+Timestamp : 2025-10-07 11:34:11 UTC
+
+Module    : sai
+Status    : pass
+Timestamp : 2025-10-07 11:34:11 UTC
 ```
