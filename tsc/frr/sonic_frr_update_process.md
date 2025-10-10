@@ -39,6 +39,7 @@ The assigned FRR Maintainer is responsible for the following tasks:
 | SONiC Release | FRR Version | FRR Maintainer |
 ---------------|-------------|--------------|
 | 202311 | 8.5.1 | Nvidia |
+| 202405 | 8.5.4 | Nvidia |
 | 202411 | 10.0.1 | Broadcom |
 | 202505 | 10.3.0 | Cisco |
 | 202511 | 10.4.1 | Alibaba, with help from Cisco and Nexthop.AI |
