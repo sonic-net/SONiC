@@ -3,15 +3,19 @@
 The current SONiC release program handles FRR upgrades and patching on an as-needed basis. This proposed FRR upgrade workflow aims to establish a formalized cadence and process for FRR upgrades in future SONiC releases. Any changes or updates to this workflow must first be discussed and agreed upon by the Routing Working Group to reach consensus.
 
 # SONiC FRR Maintainers
+## 6 month cadence on FRR version evalutation
+
 Before 202511 release, the role of SONiC FRR Maintainer rotates among Broadcom, Microsoft, Alibaba, NVIDIA, and Dell, with each term lasting 12 months. Recent FRR upgrades include:
 
 * Nvidia upgraded FRR to 8.5.1 in the 202311 release
+* Nvidia upgraded FRR to 8.5.4 in the 202405 release
 * Broadcom upgraded FRR to 10.0.1 in the 202411 release
 * Cisco upgraded FRR to 10.3 in the 202505 release
 
-Given that FRR releases a new version approximately every four months and the SONiC community aims to incorporate more FRR features, we propose shortening the FRR Maintainer term to six months. This change would allow for more frequent evaluations of whether an FRR upgrade should be included in each 6-month SONiC release cycle. The assigned FRR Maintainer for a given release will remain responsible for addressing any FRR-related bugs discovered during that release’s lifecycle.
+Given that FRR releases a new version approximately every four months and the SONiC community aims to incorporate more FRR features, we propose shortening the FRR Maintainer term to six months. This change would allow for more frequent evaluations of whether an FRR upgrade should be included in each 6-month SONiC release cycle.
 
-Additionally, we plan to expand the list of FRR Maintainers to include Cisco and Nexthop.AI. The proposed maintainer assignments for the next three SONiC releases are as follows:
+## FRR maintainers and onboard schedule
+We expand the list of FRR Maintainers to include Cisco and Nexthop.AI. The proposed maintainer assignments for the next three SONiC releases are as follows:
 
 * 202511 release: Alibaba (primary), shadowed by Nexthop.AI
 * 202605 release: Microsoft
@@ -24,6 +28,12 @@ Additionally, we plan to expand the list of FRR Maintainers to include Cisco and
 * 202911 release: Microsoft
 
 If there is a large feature / commits from a member company, it is better to swap the FRR release maintainer duty to make FRR maintaining more smooth. This transition must be approved by Routing Workgroup and announce to community to avoid confusion.
+
+## FRR maintainers' duties
+The assigned FRR Maintainer is responsible for the following tasks:
+* Pick a FRR release for the SONiC release if needed.
+* Monitor picked FRR release branch's incoming patches and select the critical patches to be added in the SONiC release branch and master. For example,SONiC 202511 release selects FRR 10.4.1 release. The maintainer is responsible for monitor 10.4 branch and cherry-pick the critical patches to SONiC release branch and master.
+* Monitor the previous round selected FRR release branch and select the critical patches to be added in the SONiC release branch. For example, 10.3 is selected for 202505 release. 202511's FRR maintainer is responsible for monitoring 10.3 branch and cherry-pick the critical patches to 202505's release branch.
 
 # SONiC Release and FRR version
 | SONiC Release | FRR Version | FRR Maintainer |
@@ -39,13 +49,11 @@ If there is a large feature / commits from a member company, it is better to swa
 -  SONiC to stay out from major/minor releases (x.y) and use patch release (.z) for stability (eg, FRR 8.3.1 instead of 8.3 if it is for 202211 release). Another example, at the time of SONiC FRR upgrade, the following FRR versions are avaialble 9.0.1, 8.5.3, 9.0, the guidance is to upgrade with the latest patch release 9.0.1
 -  For every sonic release, the recommendation is to update FRR to last stable minor release by default. If there is a need to change this guidance, the request needs to be discussed and approved in Routing Working Group.
 
-  Note: 10.4.1 has been released in Aug 2025, and there are over 70 commits entering this release branch. It is better to ask FRR community to set 10.4.2, which could be used for 202511.
 
 # FRR Patches
 Regarding FRR patches, whenever a patch is introduced based on a fix from FRR, there should be a clearly defined timeline for its removal to prevent the accumulation of excessive patches in SONiC. Such patches should remain only for a maximum of two upgrade cycles. If a patch cannot be removed within this timeframe, explicit approval must be obtained from the Routing Working Group.
 
 Currently, a patch number is added in front of the patch name. To facilitate easy identification of long-lived patches, the Routing Working Group has agreed to retain these patch numbers even after a patch is removed during an upgrade. This practice helps to maintain traceability and simplifies tracking over time.
-
 
 # SONiC Release FRR Upgrade
 -   SONiC default to rebase FRR in every SONiC community release
@@ -65,8 +73,12 @@ Currently, a patch number is added in front of the patch name. To facilitate eas
 # Logivity Test for each SONiC FRR release
 Besides the regular sonic-mgmt test cases in PR, we need run the following cases as longevity:
 
-1. bgp/test_bgp_stress_link_flap.py — please run with --completeness_level=confident
+1. bgp/test_bgp_stress_link_flap.py — please run with --completeness_level=confident. Based on Chun'ang Li's comments, SONiC repo PR test pipelines will run bgp/test_bgp_stress_link_flap.py.
 2. bgp/test_bgp_suppress_fib.py — please run with --completeness_level=thorough
+
+Note:
+1. Currently, we don't have Azure pipelines to run these two sanity checks. Need to ask Microsoft team's help to run it manually. This issue will bring up to TSC for allocate resources for setting up sanity check pipelines.
+2. Based on some Microsoft team's comments, race condition issues typically surface on lower-performance platforms. We need TSC to allocate some budget to build a dedicated lab for this purpose.
 
 # SONiC FRR vulnerability and patch upgrade in between SONiC releases
 
@@ -109,7 +121,8 @@ Besides the regular sonic-mgmt test cases in PR, we need run the following cases
     - [https://github.com/sonic-net/sonic-buildimage/pull/11502](https://github.com/sonic-net/sonic-buildimage/pull/11502)
     - [https://github.com/sonic-net/sonic-buildimage/pull/10947](https://github.com/sonic-net/sonic-buildimage/pull/10947)
 
-# SONiC FRR Version Upgrade History
+# Backups
+## SONiC FRR Version Upgrade History
 
 <p align=center>
 <img src="frr.png" alt="">
