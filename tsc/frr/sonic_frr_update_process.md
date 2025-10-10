@@ -7,6 +7,7 @@ The current SONiC release program handles FRR upgrades and patching on an as-nee
 
 Before 202511 release, the role of SONiC FRR Maintainer rotates among Broadcom, Microsoft, Alibaba, NVIDIA, and Dell, with each term lasting 12 months. Recent FRR upgrades include:
 
+* Broadcom upgraded FRR to 8.2.2 in the 202205 release
 * Nvidia upgraded FRR to 8.5.1 in the 202311 release
 * Nvidia upgraded FRR to 8.5.4 in the 202405 release
 * Broadcom upgraded FRR to 10.0.1 in the 202411 release
@@ -15,7 +16,9 @@ Before 202511 release, the role of SONiC FRR Maintainer rotates among Broadcom, 
 Given that FRR releases a new version approximately every four months and the SONiC community aims to incorporate more FRR features, we propose shortening the FRR Maintainer term to six months. This change would allow for more frequent evaluations of whether an FRR upgrade should be included in each 6-month SONiC release cycle.
 
 ## FRR maintainers and onboard schedule
-We expand the list of FRR Maintainers to include Cisco and Nexthop.AI. The proposed maintainer assignments for the next three SONiC releases are as follows:
+We expand the list of FRR Maintainers to include Cisco and Nexthop.AI. We also welcome other companies to reach out TSC if they are interested in becoming a FRR Maintainer.
+
+The proposed maintainer assignments for the next three SONiC releases are as follows:
 
 * 202511 release: Alibaba (primary), shadowed by Nexthop.AI
 * 202605 release: Microsoft
@@ -23,9 +26,7 @@ We expand the list of FRR Maintainers to include Cisco and Nexthop.AI. The propo
 * 202705 release: Nvidia
 * 202711 release: Broadcom
 * 202805 release: Cisco
-* 202811 release: Alibaba
-* 202905 release: Nexthop.AI
-* 202911 release: Microsoft
+* ... (Defer this list to the routing WG to decide the next assignment based on rotation record.) ...
 
 If there is a large feature / commits from a member company, it is better to swap the FRR release maintainer duty to make FRR maintaining more smooth. This transition must be approved by Routing Workgroup and announce to community to avoid confusion.
 
@@ -53,6 +54,7 @@ Note:
 ## SONiC Release and FRR version Mapping
 | SONiC Release | FRR Version | FRR Maintainer |
 ---------------|-------------|--------------|
+| 202205 | 8.2.2 | Broadcom |
 | 202311 | 8.5.1 | Nvidia |
 | 202405 | 8.5.4 | Nvidia |
 | 202411 | 10.0.1 | Broadcom |
