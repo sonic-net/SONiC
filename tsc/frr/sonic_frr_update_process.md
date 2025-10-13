@@ -135,12 +135,12 @@ Use a descriptive name that clearly conveys the purpose or scope of the patch.
 ## Logivity Test for each SONiC FRR release
 Besides the regular sonic-mgmt test cases in PR, we need run the following cases as longevity:
 
-1. bgp/test_bgp_stress_link_flap.py — please run with --completeness_level=confident. Based on Chun'ang Li's comments, SONiC repo PR test pipelines will run bgp/test_bgp_stress_link_flap.py.
+1. bgp/test_bgp_stress_link_flap.py — please run with --completeness_level=thorough. Based on Chun'ang Li's comments, SONiC repo PR test pipelines will run bgp/test_bgp_stress_link_flap.py.
 2. bgp/test_bgp_suppress_fib.py — please run with --completeness_level=thorough
 
 Note:
 1. Currently, we don't have Azure pipelines to run these two sanity checks. Need to ask Microsoft team's help to run it manually. This issue will bring up to TSC for allocate resources for setting up sanity check pipelines.
-2. Based on some Microsoft team's comments, race condition issues typically surface on lower-performance platforms. We need TSC to allocate some budget to build a dedicated lab for this purpose.
+2. Based on some Microsoft team's comments, race condition issues typically surface on lower-performance platforms. We need TSC to allocate some budget to build a dedicated lab for this purpose. The budget and decision for setting up additional testbed is not in the scope of this document. This needs to be brought up to TSC and board for discussion.
 
 # Backups
 ## SONiC FRR Version Upgrade History
