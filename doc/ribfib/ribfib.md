@@ -3,43 +3,48 @@
 # Table of Contents <!-- omit in toc -->
 - [Revision](#revision)
 - [Definition/Abbreviation](#definitionabbreviation)
-    - [Table 1: Abbreviations](#table-1-abbreviations)
 - [Problem Statements](#problem-statements)
   - [Summary of Problems to be solved](#summary-of-problems-to-be-solved)
     - [Enable NHG ID handling for improving route convergence](#enable-nhg-id-handling-for-improving-route-convergence)
     - [Introduce PIC (Prefix independent Convergence) for improving route convergence](#introduce-pic-prefix-independent-convergence-for-improving-route-convergence)
     - [Handling SRv6 VPN forwarding chain different from Linux](#handling-srv6-vpn-forwarding-chain-different-from-linux)
+  - [Current Thoughts](#current-thoughts)
+  - [Topics not in the scope](#topics-not-in-the-scope)
 - [Introduction of RIB / FIB in SONiC](#introduction-of-rib--fib-in-sonic)
+  - [new FIB's functionalities](#new-fibs-functionalities)
   - [FIB's location](#fibs-location)
 - [FIB High Level Design](#fib-high-level-design)
+  - [A global knob to enable/disable FIB](#a-global-knob-to-enabledisable-fib)
   - [Process Model](#process-model)
-  - [NHG Block](#nhg-block)
-    - [Tables in NHG Block](#tables-in-nhg-block)
+  - [FIB Block](#fib-block)
+    - [Tables in FIB Block](#tables-in-fib-block)
     - [SONiC zebra NHG table](#sonic-zebra-nhg-table)
       - [NEXTHOP KEY to Zebra NHG ID mapping](#nexthop-key-to-zebra-nhg-id-mapping)
     - [SONiC NHG table](#sonic-nhg-table)
-      - [NEXTHOP-\>SONIC NHG ID  table](#nexthop-sonic-nhg-id-table)
+      - [NEXTHOP-\>SONIC NHG ID table](#nexthop-sonic-nhg-idtable)
     - [SONIC NHG ID Manager](#sonic-nhg-id-manager)
   - [NHG forwarding chain graph](#nhg-forwarding-chain-graph)
-  - [Resolved NHG and Unresolved NHG](#resolved-nhg-and-unresolved-nhg)
+  - [Resolved NHG and Original NHG](#resolved-nhg-and-original-nhg)
   - [Route handling](#route-handling)
 - [FIB work flows](#fib-work-flows)
   - [Handle Global table routing information](#handle-global-table-routing-information)
   - [Handle SRv6 VPN routing information](#handle-srv6-vpn-routing-information)
-- [Route Congernce Handling](#route-congernce-handling)
+- [Route Convergence Handling](#route-convergence-handling)
+  - [Resolve through and Resolve via](#resolve-through-and-resolve-via)
   - [NHT Trigger](#nht-trigger)
   - [Backwalk infra](#backwalk-infra)
-  - [Walk Context](#walk-context)
-  - [Walk Procedure](#walk-procedure)
-  - [Example of backwalk](#example-of-backwalk)
-    - [Backwalk Step 1](#backwalk-step-1)
-    - [Backwalk Step 2](#backwalk-step-2)
+    - [Walk Context](#walk-context)
+    - [Walk Procedure](#walk-procedure)
+    - [Example of backwalk](#example-of-backwalk)
+      - [Backwalk Step 1](#backwalk-step-1)
+      - [Backwalk Step 2](#backwalk-step-2)
 - [CLI](#cli)
 - [Developing Tasks and Milestones](#developing-tasks-and-milestones)
   - [Tasks in FRR](#tasks-in-frr)
   - [Tasks in SONiC](#tasks-in-sonic)
   - [Testing Strategy](#testing-strategy)
   - [Developing Milestones](#developing-milestones)
+
 
 # Revision
 
@@ -49,12 +54,14 @@
 
 # Definition/Abbreviation
 
-### Table 1: Abbreviations
-
 | ****Term**** | ****Meaning**** |
 | -------- | ----------------------------------------- |
 | RIB | Routing Information Base  |
 | FIB | Forwarding Information Base  |
+| Resolved NHG | NHG resolved by Zebra, a.k.a containing nexthops with final outgoing interfaces and nexthop addresses  |
+| Original NHG | NHG information received by Zebra from protocol clients  |
+| resolve through | |
+| resolve via | |
 
 # Problem Statements
 With the increasing deployment of SONiC-based white-box devices, the demand for new features has grown significantly. This evolution has introduced the need for a RIB/FIB design within SONiC, which is driven by the following two factors.
@@ -66,9 +73,10 @@ The second factor relates to use cases such as SRv6 VPN, where the forwarding ch
 ## Summary of Problems to be solved
 
 ### Enable NHG ID handling for improving route convergence
-NTT's NHGID HLD could be found at  https://github.com/sonic-net/SONiC/blob/master/doc/pic/hld_fpmsyncd.md. The discussion meeting minutes could be found from 1107 meeting minutes https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/38030 NHG enhancements.
+NTT's NHGID HLD could be found at  https://github.com/sonic-net/SONiC/blob/master/doc/pic/hld_fpmsyncd.md. The discussion meeting minutes could be found from 1107 meeting minutes https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/38030 NHG enhancements. The goal is to enable NHG ID handling for improving route convergence. Current SONiC implementation could only support hard convergence. Both NTT and Broadcom have made some changes towards this goal. Current only one problem left to complete this enhancement is to see how to persist zebra NHG ID mapping to SONiC NHG ID mapping.
 
-Current challenge to complete this work is in how to persist zebra NHG ID mapping to SONiC NHG ID mapping. This topic has been discussed multiple times in routing working group. Here are a list of meeting minutes related to this topic.
+This topic has been discussed multiple times in routing working group. Here are a list of meeting minutes related to this topic.
+
 * 03/07 https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/36235 NHD_ID handling approach during warm reboot.
 * 03/14 https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/36288 NHD_ID handling approach during warm reboot.
 * 01/16 https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/38418 NHG ID persistence discussion for warm reboot.
@@ -77,7 +85,10 @@ Current challenge to complete this work is in how to persist zebra NHG ID mappin
 * 02/27 https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/38722 Finalize NHG ID handling in warm reboot. Bug scrub.
 * 03/20  https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/39064 NHG ID handling for warm reboot, Broadcom and Alibaba
 
-The current conclusion is to manage the persistence of this mapping table within fpmsyncd, so that unnecessary route events do not trigger redundant hardware programming.
+The current conclusiond from working group discussions are
+* We can't retreat the same NHG ID table from Linux kernel, which leads Zebra can't recover zebra NHG ID mapping table duringwarm reboot.
+* FRR team doesn't want to add addtional complexity to handle it since it is a data plane requirement.
+* We conclude to manage the persistence of this mapping table within fpmsyncd, so that we could avoid unnecessary route events trigger redundant hardware programming.
 
 
 ### Introduce PIC (Prefix independent Convergence) for improving route convergence
@@ -85,50 +96,80 @@ The PIC architecture document could be found at https://github.com/sonic-net/SON
 * 01/18 meeting minutes https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/35760 PIC plan is included.
 * BGP PIC HLD could be found at https://github.com/sonic-net/SONiC/pull/1493.
 
-The FRR changes were initially merged via https://github.com/FRRouting/frr/pull/16879, but later reverted due to differing opinions among FRR maintainers. This rollback prompted the need for this HLD. The current challenge is determining how to maintain the PIC forwarding chain.
+The FRR changes were initially merged via https://github.com/FRRouting/frr/pull/16879, but later reverted due to differing opinions among FRR maintainers. The concern from FRR team is that Zebra’s complexity is growing unmanageable.
 
 ### Handling SRv6 VPN forwarding chain different from Linux
-This issue was discussed in routing working group. The meeting minutes could be found at
-* 0522 https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/39744 Yuqing from Alibaba discussed the design to handle two different NHG requirements to dplane
+This issue was discussed in the SONiC Routing Working Group. Meeting notes from the May 22 session are available here  https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/39744. Yuqing from Alibaba presented a design proposal to address the need for handling two distinct Next Hop Group (NHG) requirements for diferent data plane.
 
-The challenge is how to handle forwarding chain differently among different data planes.
+The following diagram illustrates the differences in the forwarding chains between Linux and SONiC.
+![image](images/different_chains.png)
 
-To address these two main issues and provide future flexibility in managing forwarding chains within SONiC, we propose introducing the RIB/FIB concept.
+Previously, FRR assumed that the Linux forwarding chain would be identical to SONiC’s, and thus provided the same forwarding information to both data planes. However, with SRv6 VPN use cases revealing divergent forwarding behaviors between Linux and SONiC, FRR now faces added complexity in supporting different forwarding chain model for different data planes.
+
+## Current Thoughts
+To resolve these issues and enable greater flexibility for managing SONiC specific forwarding chains going forward, after consultating with the FRR team, we have agreed on a “divide and conquer” approach, separating the Routing Information Base (RIB) and Forwarding Information Base (FIB).
+
+## Topics not in the scope
+The following topics fall outside the scope of this document:
+
+1. The current implementation of fpmsyncd is tightly coupled with FRR, and no design considerations have been made to support alternative integration approaches.
+2. There are no plans to modify the existing SONiC process model.
 
 # Introduction of RIB / FIB in SONiC
 The Routing Information Base (RIB) manages routing information, while the Forwarding Information Base (FIB) translates that information into forwarding entries used by the data plane.
 
 In the current SONiC architecture, the forwarding chain is relatively simple, aligning directly with both the Linux kernel and SONiC’s forwarding chains. As a result, there is no explicit FIB component. Instead, FRR Zebra acts as both the RIB and an implicit FIB. Routing information is converted into SONiC objects within the Zebra thread, while fpmsyncd merely writes these objects into the APPDB.
 
-This model becomes insufficient in more complex scenarios such as SRv6 VPN, where the Linux kernel and SONiC handle forwarding differently. The Linux kernel collapses all forwarding information into a single object, similar to MPLS VPN, optimizing data plane performance. SONiC, however, follows a VXLAN EVPN-like model by introducing a tunnel nexthop, whose resolution occurs at the SDK level.
+This model becomes insufficient in more complex scenarios such as SRv6 VPN, where the Linux kernel and SONiC handle forwarding differently. The Linux kernel collapses all forwarding information into a single object, similar to MPLS VPN case, optimizing for data plane performance. SONiC, however, follows a VXLAN EVPN-like model by introducing a tunnel nexthop. The tunnel nexthop resolution occurs at the SDK level.
 
 The introduction of PIC (Prefix Independent Convergence) further complicates matters, requiring forwarding chains that may differ from routing chains. The FRR community reverted PR #16879 due to concerns that adding this complexity to Zebra would make it harder to serve different data planes.
 
 Given these challenges, the FRR community recommends redefining Zebra to function solely as the RIB, delegating FIB management to each data plane. This allows forwarding chains to be derived and optimized according to the specific requirements of each data plane implementation.
 
-## FIB's location
-The FIB functionality in SONiC can be introduced at two possible points: before APPDB, within fpmsyncd, or after APPDB, within orchagent. Following discussions in the Routing Working Group, the current consensus is to implement FIB functionality in fpmsyncd.
+## new FIB's functionalities
+The new FIB's primary functionalities are:
 
-This approach provides several advantages:
+1. Structuring FIB entries to align with SONiC’s data plane requirements, which are defined by the SAI (Switch Abstraction Interface).
+2. Organizing FIB entries with a focus on efficient route convergence handling.
+
+## FIB's location
+The FIB functionality in SONiC can be introduced at two possible points:
+1. Before APPDB, within fpmsyncd, or
+2. After APPDB, within orchagent.
+
+There are couple rounds disucssions in the Routing Working Group, the current consensus is to implement FIB functionality in fpmsyncd for the following advantages:
 
 * Minimized hardware updates – unnecessary hardware programming can be avoided.
 * Improved performance – eliminates redundant APPDB writes that could otherwise degrade system performance.
 * Consistency of APPDB objects – APPDB continues to store SONiC objects, preserving the current architectural behavior.
 
 # FIB High Level Design
-## Process Model
-Currently, Zebra leverages struct zebra_dplane_ctx to transfer information from the main thread to the FNC thread. The FNC thread then converts Zebra information into SONiC object representations and forwards them to fpmsyncd.
+## A global knob to enable/disable FIB
+Since it is a new design, we need to introduce a global knob to enable/disable FIB. This knob would only be used at device initialization time and not be allowed to modify at run time.
 
+## Process Model
+The following diagram shows the process model between curernt SONiC approach and new FIB approach. FIB block would be added to implement FIB functionalities.
 ![image](images/process_model.png)
 
-Going forward, NHG-related events will be updated so that struct zebra_dplane_ctx is passed directly to fpmsyncd, while the handling of other Zebra object events remains unchanged. Upon receiving such a message, fpmsyncd will invoke functions from the NHG module to translate struct zebra_dplane_ctx into the corresponding SONiC objects. Processing for all other events will continue to follow the existing workflow.
+In current approach, Zebra uses struct zebra_dplane_ctx to transfer information from the main thread to the FNC thread. The FNC thread then converts Zebra information into SONiC object representations and forwards them to fpmsyncd. The following diagram shows information sending from zebra to fpmsyncd. These fields are marked in yellow color.
+![image](images/old_message.png)
 
-In general, the FIB is responsible for handling both NHG and route events. However, since SONiC’s slow path relies on the Linux kernel and does not process route information in fpmsyncd, the SONiC FIB primarily handles NHG events. The code in fpmsyncd responsible for processing Zebra NHG events is referred to as the NHG block.
+Going forward, NHG-related events will be updated so that struct zebra_dplane_ctx is passed directly to fpmsyncd, while the handling of other Zebra object events remains unchanged. The following diagram shows new information sending from zebra to fpmsyncd. These fields are marked in green color.
 
-## NHG Block
-![image](images/NHG_block.png)
+![image](images/new_message.png)
 
-### Tables in NHG Block
+Upon receiving such messages, fpmsyncd will invoke functions from the FIB block to translate struct zebra_dplane_ctx into the corresponding SONiC objects. Processing for all other events will continue to follow the existing workflow.
+
+
+The following diagram shows NHG information stored in fpmsyncd between current approach and new FIB approach.
+![image](images/nhg_comparison.png)
+
+In general, the FIB is responsible for handling both NHG and route events. However, since SONiC’s slow path relies on the Linux kernel and does not process route information in fpmsyncd, the SONiC FIB block primarily handles NHG events. The code in fpmsyncd responsible for processing Zebra NHG events is referred to as the FIB block.
+
+## FIB Block
+![image](images/FIB_block.png)
+
+### Tables in FIB Block
 | Table Names  |   Descriptions    |           Usages           |
 | :-- | :------- | :------------------------ |
 | SONiC zebra NHG table | Map zebra NHG id to received zebra_dplane_ctx + SONIC Context (a.k.a SONIC ZEBRA NHG) | Rely on “dependency” information in zebra_dplane_ctx to build walking chain.|
@@ -137,7 +178,7 @@ In general, the FIB is responsible for handling both NHG and route events. Howev
 | NEXTHOP->SONIC NHG ID  table | NEXTHOP Address to SONiC NHG ID list mapping | Used to trigger back walk for PIC edge. |
 
 ### SONiC zebra NHG table
-The following three NHG events will be handled within the NHG block:
+The following three NHG events will be handled within the FIB block:
 
 * DPLANE_OP_NH_INSTALL
 * DPLANE_OP_NH_UPDATE
@@ -161,7 +202,7 @@ In certain scenarios, it is necessary to create a new SONIC Next Hop Group (NHG)
 
 For the SRv6 VPN use case, NHG messages from Zebra carry not only forwarding information but also additional context, such as the VPN SID or a policy SID list. To handle this, SONiC will create a gateway NHG that contains the forwarding information only. This gateway NHG is also referred to as the PIC NHG. The accompanying context information will be used to construct a PIC Context object in SONiC.
 
-#### NEXTHOP->SONIC NHG ID  table
+#### NEXTHOP->SONIC NHG ID table
 It serves as a helper table for quickly referencing SONiC NHG entries within the SONiC NHG Table.
 
 ### SONIC NHG ID Manager
@@ -229,22 +270,23 @@ Once the resolve-through and resolve-via information is available, the SONiC for
 
 Note that we use dotted lines to represent dependencies because we plan to use ID lookups to identify dependent NHGs rather than pointers. This approach makes the code more robust.
 
-## Resolved NHG and Unresolved NHG
-Unresolved NHG is also known as original NHG. FRR team plans to keep these NHG to provide information coming from protocol clients. In most cases, we use resolved NHG in SONiC. But in SRv6 VPN case, we use unresolved NHG due to SONiC expects tunnel NH to be provided, a.k.a unresolved NHG here.
+## Resolved NHG and Original NHG
+FRR team plans to use original NHG to provide information coming from protocol clients. In most cases, we use resolved NHG in SONiC. But in SRv6 VPN case, we use original NHG due to SONiC expects tunnel NH to be provided, a.k.a original NHG here.
 
 * Global Table case:
     * zebra resolved NHG (flatting one) : SONiC NHG
-    * Zebra unresolved NHG  (original one): not in use
+    * Zebra original NHG  (original one): not in use
 * VXLAN case
     * zebra resolved NHG (flatting one) :  SONiC NHG, (terminating at tunnel interfaces)
-    * Zebra unresolved NHG  (original one): not in use
+    * Zebra original NHG  (original one): not in use
 * SRv6 VPN case
     * Zebra resolved NHG (flatting one) : not in use
-    * Zebra unresolved NHG (original one, terminating at tunnel interface):
+    * Zebra original NHG (original one, terminating at tunnel interface):
         * SONiC PIC CONTEXT OBJ
         * Create gateway NHG in SONiC as PIC NHG for forwarding.
 
-![image](images/unresolved_nhg.png)
+The following diagram shows how the original NHG is mapped to SONiC gateway NHG for SRv6 VPN case.
+![image](images/original_nhg.png)
 
 ## Route handling
 For each route event, we need to use SONiC zebra NHG table to convert zebra NHG ID to SONiC NHG ID.
@@ -257,9 +299,9 @@ Assume  100.0.0.0/24 via 1.1.1.1 and 200.0.0.0/24 via 1.1.1.1. 1.1.1.1/32 via fi
 ![image](images/global_table.png)
 The green section represents the configurations described above.
 
-The grey section shows the Zebra forwarding chain within the RIB. Each prefix points to the unresolved NHG 200, which contains 1.1.1.1 learned from a protocol client. It also points to a resolved NHG, where 1.1.1.1 is marked as a recursive nexthop resolved via 2.2.2.2, 3.3.3.3, and 4.4.4.4.
+The grey section shows the Zebra forwarding chain within the RIB. Each prefix points to the original NHG 200, which contains 1.1.1.1 learned from a protocol client. It also points to a resolved NHG, where 1.1.1.1 is marked as a recursive nexthop resolved via 2.2.2.2, 3.3.3.3, and 4.4.4.4.
 
-The blue section illustrates the SONiC chain created by the FIB (fpmsyncd) based on information received from the RIB. When NHG 100 is received from Zebra, fpmsyncd creates SONiC NHG 400, which contains the three final nexthops 2.2.2.2, 3.3.3.3, and 4.4.4.4. The NHG 200 event is ignored because unresolved NHGs are not used in the global table.
+The blue section illustrates the SONiC chain created by the FIB (fpmsyncd) based on information received from the RIB. When NHG 100 is received from Zebra, fpmsyncd creates SONiC NHG 400, which contains the three final nexthops 2.2.2.2, 3.3.3.3, and 4.4.4.4. The NHG 200 event is ignored because original NHGs are not used in the global table.
 
 When handling the routes 100.0.0.0/24 and 200.0.0.0/24, fpmsyncd maps the Zebra NHG ID 100 to SONiC NHG ID 400 using the SONiC Zebra NHG table. As a result, orchagent only sees SONiC NHG ID 400.
 
@@ -270,13 +312,16 @@ Similar to the above example, except we use v6 address as next hop. Assume vrf f
 
 ![image](images/Srv6_vpn.png)
 
-Similar to the previous example, the green section represents the logical configuration, while the grey section shows the RIB chain. In the SRv6 VPN case, the unresolved NHG 200 is used to create a PIC NHG 400 with 1::1 as the nexthop. A PIC CONTEXT object is also created for VPN SID A. The unresolved NHG 400 then references PIC NHG 400 and creates an additional PIC CONTEXT object for VPN SID B.
+Similar to the previous example, the green section represents the logical configuration, while the grey section shows the RIB chain. In the SRv6 VPN case, the original NHG 200 is used to create a PIC NHG 400 with 1::1 as the nexthop. A PIC CONTEXT object is also created for VPN SID A. The original NHG 400 then references PIC NHG 400 and creates an additional PIC CONTEXT object for VPN SID B.
 
-# Route Congernce Handling
+# Route Convergence Handling
 A key objective of introducing the RIB/FIB model is to enhance route convergence. The design principle is to perform rapid updates on affected NHGs by removing failed paths based on existing NHG information. This mechanism mitigates traffic loss and provides sufficient time for routing protocols to complete reconvergence.
 
+## Resolve through and Resolve via
+We use "**Resolve through** and **Resolve via** to describe the dependency between NHGs. A NHG "A" is resolved through another NHG "B" if the NHG "A" contains a next-hop that is resolved via another NHG "B". NHG "A" is in NHG "B"'s resolve through list. NHG "B" is in NHG "A"'s resolve via list. We use this NHG dependency graph during convergence handling's forward walk and backwalk.
+
 ## NHT Trigger
-The Nexthop Tracker (NHT) is created by Zebra upon receiving information from a protocol client. At present, it only notifies registered protocol clients when a nexthop becomes unreachable. Following discussions with the FRR community, we propose extending NHT to inform the data plane on this event, enabling SONiC to perform rapid fixups that prevent traffic loss.
+The Nexthop Tracker (NHT) is created by Zebra upon receiving information from a protocol client. At present, it only notifies registered protocol clients when a nexthop becomes unreachable. Following discussions with the FRR community, we propose extending NHT to inform the data plane on this event, enabling SONiC to perform rapid fixups that prevent traffic loss. The following display is an example of the NHT display.
 
 ```
 PE3# show ipv6 nht
@@ -300,16 +345,22 @@ The following information would be sent to SONiC via dplane
 * Nexthop address : used in walk spec or for SONiC NHG table walk, a.k.a PIC edge case.
 * Its current resolved NHG ID : this NHG id is used to trigger backwalk update , a.k.a PIC core case.
 
+For example, when the route to 2064:100::1d is withdrawn, the nexthop address 2064:100::1d and its currently resolved Next Hop Group (NHG) ID 243 are sent to SONiC. To minimize traffic disruption, we must quickly update all NHGs that depend on NHG 243 for the specific nexthop 2064:100::1d. In the example above, this means updating NHG 260 and NHG 264, both of which resolve through NHG 243 for 2064:100::1d which needs to be updated during NHT event handling. However, NHG 265 does not rely on 2064:100::1d, so it does not require an update.
+
+This requirement introduces two new concepts: “forward walk” and “backwalk.”
+* A forward walk traverses from one NHG to another based on the “resolved via” relationship. From graph point of view, this is a simple traversal towards child nodes.
+* A backwalk traverses from one NHG to another based on the “resolved through” relationship. From graph point of view, this is a simple traversal toward parent nodes.
+
 ## Backwalk infra
-Upon receiving an NHT trigger, the NHG block initiates a backwalk to update the affected NHGs, applying quick fixups based on current NHG information to minimize traffic loss. FRR will subsequently recalculate the routes and apply the appropriate updates, but the immediate fixups help prevent traffic disruption.
+Upon receiving an NHT trigger, the FIB block initiates a backwalk to update the affected NHGs, applying quick fixups based on current NHG information to minimize traffic loss. FRR will subsequently recalculate the routes and apply the appropriate updates, but the immediate fixups help prevent traffic disruption.
 
 The purpose of the backwalk infrastructure is to provide a generalized mechanism for traversing the NHG database and applying the necessary actions to targeted NHGs.
 
-## Walk Context
-* Walk spec: indicate what we need to do at a given node. Example: Walk from zebra NHG ID 243, update NHGs contains or recursively contains 2064:100::1d as next hop. A forward walk would be used to collect remaining paths from its children.
+### Walk Context
+* Walk spec: indicate what we need to do at a given node. Example: Walk from zebra NHG ID 243, update NHGs contains or recursively contains 2064:100::1d as a next hop. A forward walk would be used to collect remaining paths from its children.
 * Prune spec : indicate if we need to stop the walk at a given node. Example: Stop further walk after gateway NHGs are updated.
 
-## Walk Procedure
+### Walk Procedure
 * Step1: Start from a given zebra NHG ID inSONiC zebra NHG chain, trigger backwalk via its ”dependents list”
     * When visiting each NHG node, use walk spec to determine if we need to update this node and use prune spec to decide if we need to stop further walk.
     * PIC core is handled in this walk.
@@ -317,13 +368,13 @@ The purpose of the backwalk infrastructure is to provide a generalized mechanism
     * PIC edge is handled in this walk.
     * Gateway NHG is a bridge between global table NHGs and the NHGs with contexts.
 
-## Example of backwalk
+### Example of backwalk
 Assume we use the example described before. Once 2064:100::1d's reachability is gone, NHT would inform dplane with 2064:100::1d as impacted nexthop and NHG 243 is resolved NHG for impacted nexthop. Once fpmsyncd receives this information, it would set walk context as the following
 
 * Walk spec : Walk from zebra NHG ID 243, update NHGs contains 2064:100::1d as nexthop
 * Prune spec  : Stop further walk after gateway NHGs are updated for SRv6 use cases.
 
-### Backwalk Step 1
+#### Backwalk Step 1
 Once fpmsyncd starts to trigger a backwalk with above walk context.
 ![image](images/backwalk_1.png)
 The process works as follows:
@@ -336,7 +387,7 @@ The process works as follows:
 
 PIC core cases would be handled in this walk.
 
-### Backwalk Step 2
+#### Backwalk Step 2
 Fpmsyncd uses 2064:100::1d to trigger a lookup in NEXTHOP to SONIG NHG ID hash table. This lookup returns a list of SONiC NHGs which contains 2064:100::1d as its nexthop.
 
 ![image](images/backwalk_2.png)
@@ -353,7 +404,7 @@ TODO: what is the better approach here? Extend vtysh? or create a new one?
 # Developing Tasks and Milestones
 ## Tasks in FRR
 Phase 1: The goal is to enable FIB basic functionalities
-* Add unresolved NHG in zebra_dplane_ctx (For requirement 2)
+* Add original NHG in zebra_dplane_ctx (For requirement 2)
 * Add “resolve through and resolve via” in zebra_dplane_ctx (For requirement 3)
 * Add NHT trigger to dplane ctx (For requirement 3)
 
