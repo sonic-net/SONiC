@@ -76,11 +76,14 @@ This data is already streamed out of the Linecard, so that external tools can mo
 The thermalctld/TemperatureUpdater class implementaion in the ThermalMonitor thread should get the optics temerature from the TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table per interface.
 * It is already connected to the STATE_DB in database service running in the host namespace.
 * For multi-asic platforms, there will be additional change to connect to the STATE_DB in database service running in the namespaces where TRANSCEIVER_DOM tables are present.
-* Push it to CHASSIS_STATE_DB as it is done for other thermal sensors.
+* Additional change to push this data to CHASSIS_STATE_DB as it is done for other thermal sensors.
 
 ##### In Supervisor
 
-The thermalctld/ThermalControlDaemon thread calls the thermal_manager.run_policy(self.chassis) routine. This run_policy() implementaion should gather all the thermals which includes Supervisor thermals sensors + optics and no-optics thermals pushed from various Linecards in CHASSIS_STATE_DB, invoke the platform/vendor specific cooling algorithm to derive the cooling parameters for the chassis.
+The thermalctld/ThermalControlDaemon thread calls the thermal_manager.run_policy(self.chassis) routine. 
+
+This run_policy/_collect_thermal_information() implementaion for vendor/platform should gather all the thermals which includes Supervisor thermals sensors + optics and no-optics thermals pushed from various Linecards in CHASSIS_STATE_DB, invoke the platform/vendor specific cooling algorithm to derive the cooling parameters for the chassis.
+
  ```
  TEMPERATURE_INFO_1|*thermals/optics*
  TEMPERATURE_INFO_2|*thermals/optics*
@@ -91,7 +94,10 @@ The thermalctld/ThermalControlDaemon thread calls the thermal_manager.run_policy
   
 ### 3.2 Process optics thermal data in Linecard send result to Supervisor
 
- This case where thermalctld in each Linecard/module processes thermal data including that of thermal sensors and interfaces/optics locally on the linecard itself using vendor/platform API and sends the thermal algorithm result to Supervisor CHASSIS_STATE_DB. The schema used will be a union of all the attributes which platform/vendor algorithm outputs, which can be defined in the platform.json file ( as shown below). It could be attributes like recommended fan speed, pwm value, temperature of the hotest sensor/optic etc.
+ This case where thermalctld in each Linecard/module processes thermal data including that of thermal sensors and interfaces/optics locally on the linecard itself using vendor/platform API and sends the thermal algorithm result to Supervisor CHASSIS_STATE_DB. 
+ 
+ The Database schema used will be a union of attributes which platform/vendor thermal algorithm calculates, which can be defined in the platform.json file ( as shown below). 
+ It could be attributes like recommended fan speed, pwm value, temperature of the hotest sensor/optic etc.
  
  ##### platform.json to have a new key named "linecard_thermal_algorithm_result" to define platform specific thermal algorithm result
  ```
@@ -115,21 +121,30 @@ The thermalctld/ThermalControlDaemon thread calls the thermal_manager.run_policy
 
 ##### In LineCard
 
-The thermalctld/TemperatureUpdater class implementaion in the ThermalMonitor thread should get the optics temerature from the TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table per interface.
-* The thermalctld/ThermalControlDaemon thread calls the thermal_manager.run_policy(self.chassis) routine. This run_policy() implementaion should gather all the thermals which includes local thermal sensors and optics temerature from the TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table ( in the respective namespaces for multi-asic platforms ), and it derives the thermal algorithm result attributes
-* The thermal algorithm result attributes is stored locally in the Linecard  as "TEMPERATURE_INFO|THERMAL_ALGO_RESULT" in the STATE_DB
-* The thermalctld/TemperatureUpdater in the ThermalMonitor thread would push the above thermal algorithm result to CHASSIS_STATE_DB as it is done for other thermal sensors.
+The thermalctld/ThermalControlDaemon thread calls the thermal_manager.run_policy(self.chassis) routine. 
+
+This run_policy() implementaion should gather all local thermals including optics from the TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table ( from the respective namespaces for multi-asic platforms ) and compute the thermal algorithm result attributes
+* Change the signature of run_policy() API in ThermalManagerBase class to return the thermal algorithm result attributes, in case of Linecard in a chassis.
+* The thermalctld/ThermalControlDaemon stores the thermal algorithm result in local STATE_DB in the Linecard  as "TEMPERATURE_INFO|THERMAL_ALGO_RESULT"
+* The thermalctld/TemperatureUpdater in the ThermalMonitor thread would push the above thermal algorithm result to CHASSIS_STATE_DB in supervisor with the DB schema defined for Thermal Algorithm Result above.
 
 ##### In Supervisor
 
-The thermalctld/ThermalControlDaemon thread calls the thermal_manager.run_policy(self.chassis) routine. This run_policy() implementaion should gather all the thermals including the Supervisor thermals sensors and the thermal_algo_result which was pushed from various Linecards in CHASSIS_STATE_DB in Supervisor, invoke the platform/vendor specific cooling algorithm to control the fan/cooling in chassis.
+The thermalctld/ThermalControlDaemon thread calls the thermal_manager.run_policy(self.chassis) routine. 
+
+This run_policy/_collect_thermal_information() implementaion for vendor/platform should gather all the thermals including the Supervisor thermals sensors and the thermal_algo_result which was pushed from various Linecards in CHASSIS_STATE_DB in Supervisor, invoke the platform/vendor specific cooling algorithm to control the fan/cooling in chassis.
+
  ```
- TEMPERATURE_INFO_1|*thermal_algo_result*
- TEMPERATURE_INFO_2|*thermal_algo_result*
- TEMPERATURE_INFO_3|*thermal_algo_result*
+ TEMPERATURE_INFO_1|*THERMAL_ALGO_RESULT*
+ TEMPERATURE_INFO_2|*THERMAL_ALGO_RESULT*
+ TEMPERATURE_INFO_3|*THERMAL_ALGO_RESULT*
  ...
  TEMPERATURE_INFO_SUP|*thermals*
 ```
+
+**Note:** With all above changes the timers currently used in thermalctld "INTERVAL" and "UPDATE_INTERVAL" needs to be fine tuned per platform. 
+          These could be added as knobs for thermalctld daemon in "pmon_daemon_control.json".
+
 
 ## 4. Tests
 
