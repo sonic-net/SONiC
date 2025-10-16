@@ -7,8 +7,7 @@
 * [About this Manual](#about-this-manual)
 * [Scope](#scope)
   * [1. Modular Chassis Thermalctld architecture](#1-modular-chassis-thermalctld-architecture)
-  * [2. Transceiver thermal data in Linecard](#2-transceiver-thermal-data-in-linecard)
-    * [2.1 Retrieve optics temperature data in Linecard](#21-retrieve-optics-temperature-data-in-linecard)
+  * [2. Transceiver thermal data in Linecard](#2-transceiver-thermal-data-in-linecard)    
   * [3. Approaches to send transceiver thermal data from Linecard to Supervisor](#3-approaches-to-send-transceiver-thermal-data-from-linecard-to-supervisor)
     * [3.1 Send raw optics thermal data from Linecard to Supervisor](#31-send-raw-optics-thermal-data-from-linecard-to-supervisor)
     * [3.2 Process optics thermal data in Linecard send result to Supervisor](#32-process-optics-thermal-data-in-linecard-send-result-to-supervisor)    
@@ -22,22 +21,26 @@
  | 1.0 | 10/08/2025  |  Judy Joseph                                                            | Initial version                   |
  
 # About this Manual
-This document provides design approaches to handling transceiver thermal data in Linecard, use it in cooling algorithm in Supervisor.
+This document provides design approaches to processing the transceiver thermal data in Linecard and use it in cooling algorithm run typically in Supervisor.
 
 # Scope
 This document covers both the packet chassis and voq chassis 
 
 ## 1. Modular Chassis Thermalctld architecture
-In the Modular chassis the thermalctld daemon runs in pmon docker on the Linecard and Supervisor card. It has ThermalControlDaemon thread which runs the thermal policy algorithm and spawns ThermalMonitor thread. ThermalMonitor use the TemperatureUpdater class to get the thermals available in the device either Linecard or Supervisor and updates then in the local STATE_DB + push the data to CHASSIS_STATE_DB in Supervisor card. 
+
+In the Modular chassis, thermalctld daemon runs in pmon docker on the Linecard and Supervisor card. It has ThermalControlDaemon thread which runs the thermal policy algorithm, and does policy actions to keep chassis cool by running fan at optimal speed. 
+
+It also spawns ThermalMonitor thread which uses the TemperatureUpdater class to get the thermals available in the device either Linecard or Supervisor and updates then in the local STATE_DB. In addition the thermalctld/ThermalMonitor in Linecard push this data to CHASSIS_STATE_DB in Supervisor card. 
+
+Today only the non-optics thermal data is pushed from Linecard to Supervisor via redis CHASSIS_STATE_DB approach. 
 
 The thermal sensor points is defined under the section "thermals" in the platform.json for that platform/sku.
    
 ## 2. Transceiver thermal data in Linecard
-The optics temperature infromation is retrieved by the dom_mgr thread in the xcvrd daemon in the respective Linecards and stored in the TRANSCEIVER_DOM_SENSOR|Ethernet<> table in STATE_DB. The temperature thresholds are stored in TRANSCEIVER_DOM_THRESHOLD|Ethernet<> table in STATE_DB.
+The optics temperature infromation is retrieved by the dom_mgr thread in the xcvrd daemon in the respective Linecards and stored in the TRANSCEIVER_DOM_SENSOR|Ethernet<> table in STATE_DB. The thresholds are stored in TRANSCEIVER_DOM_THRESHOLD|Ethernet<> table in STATE_DB. 
 
-### 2.1 Retrieve optics temperature data in Linecard
+This table is present in the STATE_DB of host database in case of single ASIC devices and in the STATE_DB of respective namespace database in case of multi-asic platforms.
 
-The data is already stored locally in the TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table per interface. This table is present in the STATE_DB of host database in case of single ASIC devices and in the STATE_DB of respective namespace database in case of multi-asic platforms.
 ```
 "TRANSCEIVER_DOM_SENSOR|Ethernet<>"
   temperature <value>
@@ -49,14 +52,16 @@ The data is already stored locally in the TRANSCEIVER_DOM_SENSOR and TRANSCEIVER
   temphighwarning   <value>
   templowwarning    <value>
 ```
-This data is already streamed out of the Linecard, so that external tools can monitor the optics temperature.
+This data is already streamed out of the Linecard from these tables, so that external tools can monitor the optics temperature.
 
 ## 3. Approaches to send transceiver thermal data from Linecard to Supervisor
   There are two approaches to send the transceiver thermal data from Linecard to Supervisor as detailed below
 
 ### 3.1 Send raw optics thermal data from Linecard to Supervisor
 
- This case where thermalctld in each Linecard/module **don't** process thermal data locally, instead just send each optics Temperature_info(along with the other thermals) to Supervisor CHASSIS_STATE_DB. Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STATE_DB, it follows the same schema as other thermals. Here the Sensor-Name will be the respective interface name.
+ This case where thermalctld in each Linecard/module **don't** process thermal data locally, instead just send each optics Temperature_info(along with the other thermals) to Supervisor CHASSIS_STATE_DB. 
+ 
+ Following schema could be used to store the TEMPERATURE_INFO in the CHASSIS_STATE_DB, it follows the same schema as other thermals. Here the Sensor-Name will be the respective interface name.
  
  ##### CHASSIS_STATE_DB Schema for Temperature_Info
  ```
@@ -124,8 +129,8 @@ This run_policy/_collect_thermal_information() implementaion for vendor/platform
 The thermalctld/ThermalControlDaemon thread calls the thermal_manager.run_policy(self.chassis) routine. 
 
 This run_policy() implementaion should gather all local thermals including optics from the TRANSCEIVER_DOM_SENSOR and TRANSCEIVER_DOM_THRESHOLD table ( from the respective namespaces for multi-asic platforms ) and compute the thermal algorithm result attributes
-* Change the signature of run_policy() API in ThermalManagerBase class to return the thermal algorithm result attributes, in case of Linecard in a chassis.
-* The thermalctld/ThermalControlDaemon stores the thermal algorithm result in local STATE_DB in the Linecard  as "TEMPERATURE_INFO|THERMAL_ALGO_RESULT"
+* Introduce a new API inThermalManagerBase class to fetch the thermal algorithm result attributes, in case of Linecard in a chassis. This needs to be implemented by vendor/platform API.
+* The thermalctld/ThermalControlDaemon fetch/store the thermal algorithm result in local STATE_DB in the Linecard  as "TEMPERATURE_INFO|THERMAL_ALGO_RESULT"
 * The thermalctld/TemperatureUpdater in the ThermalMonitor thread would push the above thermal algorithm result to CHASSIS_STATE_DB in supervisor with the DB schema defined for Thermal Algorithm Result above.
 
 ##### In Supervisor
@@ -142,8 +147,9 @@ This run_policy/_collect_thermal_information() implementaion for vendor/platform
  TEMPERATURE_INFO_SUP|*thermals*
 ```
 
-**Note:** With all above changes the timers currently used in thermalctld "INTERVAL" and "UPDATE_INTERVAL" needs to be fine tuned per platform. 
-          These could be added as knobs for thermalctld daemon in "pmon_daemon_control.json".
+**Note:** The imers currently used in thermalctld "INTERVAL" and "UPDATE_INTERVAL" needs to be fine tuned per platform. 
+          We can add knobs for thermalctld daemon in "pmon_daemon_control.json" to add timer values.
+          
 
 
 ## 4. Tests
