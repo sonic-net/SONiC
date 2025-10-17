@@ -138,8 +138,12 @@ Bgpcfgd, CLI and template changes will have corresponding UTs.
 New SONiC-mgmt tests will be introduced to test the following:
 1. Update template, and that new peer ranges are applied
 2. Verify that rendering the update template does not impact existing BGP sessions
-2. Delete template, and that the whole dynamic peer group is removed
+2. Delete template, and verify that the whole dynamic peer group is removed
 3. BGP session creation on a VNET
 4. CLI validation
 5. State DB validation:
    - Ensure consistency between the State DB and the configuration applied.
+6. Scale test with 2/4k BGP sessions established, with PTF based traffic going through each of the vnet/sessions, we will check that switch's CPU and memory usage are in acceptable ranges and that other control plane actions of the switch are unimpacted by the high scale of BGP sessions
+7. Stress tests, including:
+   - Config reload/reboot, measuring the time taken for the sessions to re-establish, we establish a base line by testing and will then set targets for improvement(if required)
+   - Modify dynamic sessions at full scale, ensuring that the newly added and removed sessions take effect in acceptable time(<1 minute)
