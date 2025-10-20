@@ -629,14 +629,13 @@ The following test cases validate the mirror capability discovery and validation
 
 | S.No | Test Case Synopsis |
 |------|-------------------|
-| 20 | Verify that CLI validates mirror direction capabilities before configuration |
+| 20 | Verify that capability checking fails when direction is not supported |
 | 21 | Verify that CLI returns appropriate error messages for unsupported directions |
 | 22 | Verify that CLI allows configuration when capabilities are supported |
-| 23 | Verify that CLI capability checking works for both SPAN and ERSPAN sessions |
-| 24 | Verify that CLI capability checking is not performed when no direction is specified |
 
-### 9.2.2 Integration Tests
+### 9.2.2 Swss Mock Tests
 
 | S.No | Test Case Synopsis |
 |------|-------------------|
-| 25 | Verify end-to-end capability validation from CLI to SAI |
+| 25 | Verify that capability checking fails when direction is not supported |
+| 26 | Verify that the mirror capability is inserted into the STATE_DB |
