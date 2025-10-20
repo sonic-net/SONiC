@@ -8,7 +8,7 @@
     - [Enable NHG ID handling for improving route convergence](#enable-nhg-id-handling-for-improving-route-convergence)
       - [Why do we need to persist NHG ID](#why-do-we-need-to-persist-nhg-id)
       - [Why we can't use FRR to handle NHG ID persistence](#why-we-cant-use-frr-to-handle-nhg-id-persistence)
-    - [Use fpmsyncd to manage NHG ID persistence](#use-fpmsyncd-to-manage-nhg-id-persistence)
+      - [Use fpmsyncd to manage NHG ID persistence](#use-fpmsyncd-to-manage-nhg-id-persistence)
     - [Introduce PIC (Prefix independent Convergence) for improving route convergence](#introduce-pic-prefix-independent-convergence-for-improving-route-convergence)
     - [Handling SRv6 VPN forwarding chain different from Linux](#handling-srv6-vpn-forwarding-chain-different-from-linux)
   - [Current Thoughts](#current-thoughts)
@@ -128,7 +128,7 @@ Therefore, during warm reboot, syncd must use the SONiC provided NHG IDs to corr
 #### Why we can't use FRR to handle NHG ID persistence
 We discussed this with the FRR team. But FRR team believes that NHG ID persistence is a data plane requirement and therefore it should not be managed by FRR. They recommended leveraging the Linux kernel as a mechanism to maintain NHG ID persistence. However, our proof of concept try revealed that the kernel lacks the necessary information to reliably restore NHG IDs in all scenarios. Therefore, we can't use FRR to handle NHG ID persistence.
 
-### Use fpmsyncd to manage NHG ID persistence
+#### Use fpmsyncd to manage NHG ID persistence
 The current conclusions from working group discussions are
 * We can't retreat the same NHG ID table from Linux kernel, which leads Zebra can't recover zebra NHG ID mapping table during warm reboot.
 * FRR team doesn't want to add addtional complexity to handle this persistency requirement since it is a data plane requirement.
