@@ -6,6 +6,9 @@
 - [Problem Statements](#problem-statements)
   - [Summary of Problems to be solved](#summary-of-problems-to-be-solved)
     - [Enable NHG ID handling for improving route convergence](#enable-nhg-id-handling-for-improving-route-convergence)
+      - [Why do we need to persist NHG ID](#why-do-we-need-to-persist-nhg-id)
+      - [Why we can't use FRR to handle NHG ID persistence](#why-we-cant-use-frr-to-handle-nhg-id-persistence)
+    - [Use fpmsyncd to manage NHG ID persistence](#use-fpmsyncd-to-manage-nhg-id-persistence)
     - [Introduce PIC (Prefix independent Convergence) for improving route convergence](#introduce-pic-prefix-independent-convergence-for-improving-route-convergence)
     - [Handling SRv6 VPN forwarding chain different from Linux](#handling-srv6-vpn-forwarding-chain-different-from-linux)
   - [Current Thoughts](#current-thoughts)
@@ -85,10 +88,53 @@ This topic has been discussed multiple times in routing working group. Here are 
 * 02/27 https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/38722 Finalize NHG ID handling in warm reboot. Bug scrub.
 * 03/20  https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/39064 NHG ID handling for warm reboot, Broadcom and Alibaba
 
-The current conclusiond from working group discussions are
-* We can't retreat the same NHG ID table from Linux kernel, which leads Zebra can't recover zebra NHG ID mapping table duringwarm reboot.
-* FRR team doesn't want to add addtional complexity to handle it since it is a data plane requirement.
-* We conclude to manage the persistence of this mapping table within fpmsyncd, so that we could avoid unnecessary route events trigger redundant hardware programming.
+#### Why do we need to persist NHG ID
+We need to ensure that hardware resources created prior to a warm reboot can be correctly mapped with the new software structures afterward. This helps avoiding unnecessary hardware updates that could disrupt traffic.
+
+Previously, before NHG IDs were used, syncd was responsible for mapping existing hardware NHGs to newly created software NHGs, based on the assumption that hardware NHGs with identical content were equivalent. However, this assumption NO LONGER holds when NHG IDs are in use.
+
+For example, consider the following route: Zebra creates a nexthop group (NHG) with ID 243, containing two nexthops which are via Ethernet12 and Ethernet4, respectively.
+
+```
+B>* 2064:100::1d/128 [20/0] (243) (pic_nh 0) via fc06::2, Ethernet12, weight 1, 3d02h57m
+*                                            via fc08::2, Ethernet4, weight 1, 3d02h57m
+```
+
+We then added the following static configurations to construct an example that illustrates the complexity of handling various NHG group scenarios. Similar route dependencies could also be achieved through a routing protocol.
+```
+ipv6 route 1::1/128 2064:100::1d
+ipv6 route 2::2/128 fc06::2
+ipv6 route 3::3/128 fc08::2
+ipv6 route 4::4/128 2::2
+ipv6 route 4::4/128 3::3
+```
+
+The route 1::1/128 uses a separate NHG with ID 260, which includes a recursive nexthop 2064:100::1d. This recursive nexthop is resolved via two underlying nexthops respectively.
+
+Similarly, the route 4::4/128 uses another NHG with ID 270, containing two recursive nexthops: 2::2 and 3::3. The nexthop 2::2 resolves to fc06::2 via Ethernet12, while 3::3 resolves to fc08::2 via Ethernet4.
+
+Before NHG IDs were used, Zebra sent fully resolved nexthop lists to SONiC for all three routes, 2064:100::1d/128, 1::1/128, and 4::4/128. Since all three ultimately resolved to the same physical nexthops (Ethernet12 and Ethernet4), Orchagent allocated a single shared hardware NHG for them. This approach limited convergence efficiency. For example, any change to the underlying nexthop list, e.g., removal of 2::2/128, triggered reprogramming of all dependent routes including 4::4/128 which results in prefix-dependent updates. Consequently, convergence time scaled with the number of routes relying on the affected nexthop.
+
+With NHG IDs enabled, each route references a distinct NHG:
+
+* 2064:100::1d/128 → NHG ID 243
+* 1::1/128 → NHG ID 260
+* 4::4/128 → NHG ID 270
+
+This results in three separate hardware NHGs. Now, if 2::2/128 is removed, only NHG ID 270 needs to be updated via removing failed path to immediately stop traffic loss and buy time to safely reprogram only the affected routes. This aligns with the goal of prefix-independent convergence (PIC).
+
+Therefore, during warm reboot, syncd must use the SONiC provided NHG IDs to correctly map to the corresponding hardware NHGs. To enable this, NHG ID persistence across reboots is essential.
+
+#### Why we can't use FRR to handle NHG ID persistence
+We discussed this with the FRR team. But FRR team believes that NHG ID persistence is a data plane requirement and therefore it should not be managed by FRR. They recommended leveraging the Linux kernel as a mechanism to maintain NHG ID persistence. However, our proof of concept try revealed that the kernel lacks the necessary information to reliably restore NHG IDs in all scenarios. Therefore, we can't use FRR to handle NHG ID persistence.
+
+### Use fpmsyncd to manage NHG ID persistence
+The current conclusions from working group discussions are
+* We can't retreat the same NHG ID table from Linux kernel, which leads Zebra can't recover zebra NHG ID mapping table during warm reboot.
+* FRR team doesn't want to add addtional complexity to handle this persistency requirement since it is a data plane requirement.
+* We don't want to keep NHG ID assignment in orchagent for avoiding unnecessary route events trigger redundant hardware programming.
+
+With these conclusions in mind, we conclude to manage the persistence of this mapping table within fpmsyncd.
 
 
 ### Introduce PIC (Prefix independent Convergence) for improving route convergence
