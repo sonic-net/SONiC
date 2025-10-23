@@ -1,4 +1,4 @@
-# Bgpcfgd Dynamic Peer moditication support
+# Bgpcfgd Dynamic Peer Modification Support
 # High Level Design Document
 ### Rev 1.0
 
