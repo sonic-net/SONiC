@@ -54,6 +54,7 @@
 |  2.3  | 11/07/2024 | Kumaresh Perumal    | Update DASH_PA_VALIDATION_TABLE           |
 |  2.4  | 02/05/2025 |    Prince Sunny     | Update DASH_TUNNEL, FNIC, minor clarifications  |
 |  2.5  | 06/13/2025 |    Lawrence Lee     | Add DB schema for PL redirect map|
+|  2.6  | 10/27/2025 |    Lawrence Lee     | Move route rule priority to key |
 
 
 # About this Manual
@@ -591,9 +592,9 @@ tunnel                   = string                    ; Nexthop tunnel for ECMP o
 ### 3.2.10 ROUTE RULE TABLE - INBOUND
 
 ``` 
-DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix/tag}}
+DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix/tag}}:{{priority}}
     "action_type": {{routing_type}} 
-    "priority": {{priority}}
+    "priority": {{priority}}  (deprecated)
     "protocol": {{protocol_value}} (OPTIONAL)
     "vnet":{{vnet_name}} (OPTIONAL)
     "pa_validation": {{bool}} (OPTIONAL)
@@ -603,10 +604,10 @@ DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix/tag}}
 ```
   
 ```
-key                      = DASH_ROUTE_RULE_TABLE:eni:vni:prefix ; ENI Inbound route table with VNI and optional SRC PA prefix or prefix tag defined by DASH_PREFIX_TAG_TABLE
+key                      = DASH_ROUTE_RULE_TABLE:eni:vni:prefix:priority ; ENI Inbound route table with VNI and optional SRC PA prefix or prefix tag defined by DASH_PREFIX_TAG_TABLE
 ; field                  = value 
 action_type              = routing_type              ; reference to routing type, action can be decap or drop
-priority                 = INT32 value               ; priority of the rule, lower the value, higher the priority
+priority                 = INT32 value               ; priority of the rule, lower the value, higher the priority (field is deprecated, moved to key)
 protocol                 = INT32 value               ; protocol value of incoming packet to match; 0 (any)
 vnet                     = vnet name                 ; mapped VNET for the key vni/pa
 pa_validation            = true/false                ; perform PA validation in the mapping table belonging to vnet_name. Default is set to true 
