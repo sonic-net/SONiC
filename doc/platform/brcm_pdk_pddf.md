@@ -623,6 +623,14 @@ Description of the fields inside *attr_list*
 
 > **attr_len**: Length of the SysFS attribute in bytes.
 
+> **attr_data_format**: The PMBus numerical data encoding format. Can be `linear11`, `linear16`, or `direct` (refer to [PMBus 1.3.1 section 7](https://pmbusprod.wpenginepowered.com/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-II-20150313.pdf)). Optional field, defaults to `linear11` if not provided.
+
+> **attr_m**: The PMBus `m` coefficient value (refer to [PMBus 1.3.1 section 7.4.1](https://pmbusprod.wpenginepowered.com/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-II-20150313.pdf)). Set `m` if and only if `attr_data_format` is `direct`.
+
+> **attr_b**: The PMBus `b` coefficient value (refer to [PMBus 1.3.1 section 7.4.1](https://pmbusprod.wpenginepowered.com/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-II-20150313.pdf)). Set `b` if and only if `attr_data_format` is `direct`.
+
+> **attr_r**: The PMBus `r` coefficient value (refer to [PMBus 1.3.1 section 7.4.1](https://pmbusprod.wpenginepowered.com/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-II-20150313.pdf)). Set `r` if and only if `attr_data_format` is `direct`.
+
 
 
 ```
@@ -649,6 +657,45 @@ Description of the fields inside *attr_list*
 		...
         ]
     }
+},
+"PSU1-PMBUS": {
+	"i2c": {
+		"attr_list": [
+			{
+				"attr_name": "psu_p_out",
+				"attr_devaddr": "0x58",
+				"attr_devtype": "pmbus",
+				"attr_offset": "0x96",
+				"attr_mask": "0x0",
+				"attr_cmpval": "0xff",
+				"attr_len": "2"
+			},
+			{
+				"attr_name": "psu_v_out",
+				"attr_devaddr": "0x58",
+				"attr_devtype": "pmbus",
+				"attr_offset": "0x8b",
+				"attr_mask": "0x0",
+				"attr_cmpval": "0xff",
+				"attr_data_format": "linear16",
+				"attr_len": "2"
+			},
+			{
+				"attr_name": "psu_i_out",
+				"attr_devaddr": "0x58",
+				"attr_devtype": "pmbus",
+				"attr_offset": "0x8c",
+				"attr_mask": "0x0",
+				"attr_cmpval": "0xff",
+				"attr_data_format": "direct",
+				"attr_data_m": "1",
+				"attr_data_b": "0",
+				"attr_data_r": "0",
+				"attr_len": "2"
+			},
+			...
+		]
+	}
 },
 ```
 
