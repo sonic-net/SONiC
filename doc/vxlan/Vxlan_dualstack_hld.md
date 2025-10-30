@@ -39,7 +39,8 @@ This new design allows a single VNET to have an IPv4-only Vxlan tunnel, IPv6-onl
 | VNet                     | Virtual Network                |
 
 # Overview
-Currently, SONiC supports either an IPv4 or an IPv6 Vxlan tunnel in a VNET. Both IPv4 and IPv6 tunnels cannot co-exist. By adding dual-stack support, VxLan tunnel routes can be added under the same VNET/VRF for both IPv4 and IPv6 VTEPs. Traffic is encapsulated with IPv4 or IPv6 headers based on which route it takes.
+Currently, SONiC supports either an IPv4 or an IPv6 Vxlan tunnel in a VNET. Both IPv4 and IPv6 tunnels cannot co-exist. By adding dual-stack support, VxLan tunnel routes can be added under the same VNET/VRF for both IPv4 and IPv6 VTEPs. Traffic is encapsulated with IPv4 or IPv6 headers based on which route it takes.  
+This is an extension to the existing [Vxlan feature on SONiC](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md).
 
 # 1 Requirements Overview
 ## 1.1 Functional requirements
@@ -84,7 +85,7 @@ key                                        = VXLAN_TUNNEL:name             ; Vxl
 ; field                                    = value
 SRC_IP                                     = ipv4                          ; Ipv4 source address, lpbk address for tunnel term
 DST_IP                                     = ipv4                          ; Ipv4 destination address, for P2P
-SRC_INTERFACE                              = interface_name                ; src interface name for tunnel
+SRC_INTERFACE                              = interface_name                ; src interface name, lpbk interface name for tunnel term
 
 ;value annotations
 ipv4          = dec-octet "." dec-octet "." dec-octet "." dec-octet     
