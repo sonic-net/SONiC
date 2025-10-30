@@ -16,6 +16,7 @@
   * [Handling SAI POST failure](#Handling-SAI-POST-failure)
   * [Enabling Control Plane POST in MACSecMgr init](#Enabling-Control-Plane-POST-in-MACSecMgr-init)
   * [Enforcing FIPS compliance](#Enforcing-FIPS-compliance)
+  * [CLI](#CLI)
 
 ## Overview
 
@@ -129,16 +130,60 @@ Options:
   -n, --namespace []            Namespace name or all
   -?, -h, --help                Show this message and exit.
 ```
-Sample output
-```
-admin@sonic:~$ show macsec --post-status
-POST Status:
-===========
-Module    : crypto
-Status    : pass
-Timestamp : 2025-10-07 11:34:11 UTC
 
-Module    : sai
-Status    : pass
-Timestamp : 2025-10-07 11:34:11 UTC
-```
+Sample Output
+- Single ASIC (Default namespace)
+  ```
+  admin@sonic:~$ show macsec --post-status
+  POST Status:
+  ===========
+  Module    : crypto
+  Status    : pass
+  Timestamp : 2025-10-07 11:34:11 UTC
+
+  Module    : sai
+  Status    : pass
+  Timestamp : 2025-10-07 11:34:11 UTC
+  ```
+
+- Multi ASIC
+  ```
+  admin@sonic:~$ show macsec --post-status
+  Module      : crypto
+  Status      : pass
+  Timestamp   : Fri Oct 10 08:48:28 UTC 2025
+
+  Module      : sai
+  Status      : inprogress
+  Timestamp   : Fri Oct 10 08:48:28 UTC 2025
+
+  Namespace (asic2)
+    Module      : crypto
+    Status      : pass
+    Timestamp   : Fri Oct 10 08:48:28 UTC 2025
+
+    Module      : sai
+    Status      : pass
+    Timestamp   : Fri Oct 10 08:48:28 UTC 2025
+
+  Namespace (asic3)
+    Module      : crypto
+    Status      : pass
+    Timestamp   : Fri Oct 10 08:48:28 UTC 2025
+
+    Module      : sai
+    Status      : inprogress
+    Timestamp   : Fri Oct 10 08:48:28 UTC 2025
+  ```
+- Specific ASIC
+  ```
+  admin@sonic:~$ show macsec --post-status -n asic2
+  Namespace (asic2)
+    Module      : crypto
+    Status      : pass
+    Timestamp   : Fri Oct 10 08:48:28 UTC 2025
+
+    Module      : sai
+    Status      : pass
+    Timestamp   : Fri Oct 10 08:48:28 UTC 2025
+  ```
