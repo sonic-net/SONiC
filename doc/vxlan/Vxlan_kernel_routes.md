@@ -26,18 +26,41 @@
 
 
 # 2 Scope
-This documents specifically deals with kernel routes and interfaces that are required by the CPU to communicate to a VxLAN endpoint. This is for a specific use case where CPU generated packets (such as BGP, ping etc) shoud be encapped/decapped with VxLAN. Transit traffic (which are not destined to CPU) are not in the scope of this document. NPU config required for transit traffic are discussed in [VxLAN HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md).
+This document is an extension to the VxLAN feature implementation defined in [VxLAN HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md). This documents specifically deals with kernel routes and interfaces that are required by the CPU to communicate to a VxLAN endpoint. This is for a specific use case where CPU generated packets (such as BGP, ping etc) shoud be encapped/decapped with VxLAN. Transit traffic (which are not destined to CPU) are not in the scope of this document. NPU config required for transit traffic are discussed in [VxLAN HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md).
 
 # 3 Definitions/Abbreviation
 ###### Table 1: Abbreviations
 |                          |                                |
 |--------------------------|--------------------------------|
+| BGP                      | Border Gateway Protocol        |
 | VNI                      | Vxlan Network Identifier       |
 | VTEP                     | Vxlan Tunnel End Point         |
 | VNet                     | Virtual Network                |
 
 # 4 Overview
 This document provides information about kernel routes required for SONiC to encap/decap VxLAN traffic originated/destined to CPU. For scenarios where SONiC needs to communicate to an endpoint that is behind a VTEP, the kernel needs to be aware of the VTEP and have routes to encap/decap the packets before sending it over the wire. For example, if SONiC needs to establish BGP over VxLAN, the kernel should know the VTEP and overlay routes to send and receive the packet. If the kernel is unaware of the VTEP, it will treat it as unreachable and drop the packets in kernel. 
+
+Currently, SONiC creates kernel routes, bridge and vxlan interfaces for a VNET. For example, consider a VNET `Vnet_1000` as defined below:
+
+```
+--- CONFIG_DB
+ |--- VNET
+ |     |--- Vnet_1000
+ |            |--- VNI = 1000
+ |            |--- source_tunnel
+ |
+ |--- VNET_ROUTE_TUNNEL
+          |--- Vnet_1000|10.0.0.2/32
+                |--- endpoint = 100.100.100.1
+                |--- vni = 2000
+
+--- Kernel
+  |--- Vnet_1000
+         |--- Brvxlan1000  -> A bridge for Vnet that terminates Vxlan and does L2 forwarding
+         |--- Vxlan1000 -> vxlan interface
+```
+
+For the above config, SONiC creates kernel configs for a L2 bridge and a VxLAN interface. For the vxlan routes that are added using `VXLAN_ROUTE_TUNNEL`, there are no kernel configurations applied. The kernel cannot initiate communication to the vnet endpoints behind VTEP since the kernel interface and routes for these prefixes are not installed on the kernel. This document enhances the VxLAN capabilities of SONiC to have the kernel routes and vxlan P2P interface to communicate with the remote endpoints defined in `VNET_ROUTE_TUNNEL`. This can be used for traffic originated by CPU (like BGP, ping etc) and destined to a remote VTEP endpoint.
 
 Additionally, SONiC may need Loopback interfaces attached to the VNET which can be used as the overlay source for any communication to external VTEPs. 
 
@@ -47,11 +70,12 @@ This section describes the SONiC requirements for Vxlan kernel interface and rou
  - SONiC should be able to encap/decap VxLAN traffic originated/destined to CPU
  - Processes on CPU could leverage these routes to communicate to VxLAN endpoints (establish BGP, ping etc)
 
-## 5.2 Orchagent requirements
+## 5.2 Config Manager requirements
 
-### Vnet Route orchagent:
- - Should be able to create kernel interface and routes for VxLAN endpoints
- - Should be able to create Loopback interfaces and attach it to VNET.
+### Vnet Manager:
+A new component called VnetMgr will be introduced that will handle kernel programming for `VNET_ROUTE_TUNNEL` endpoints. 
+- VnetMgr should handle vxlan interface creation and deletion for routes defined in VNET_ROUTE_TUNNEL.
+- VnetMgr should install/delete kernel routes for the  VTEP endpoints.
 
  
 ## 5.3 CLI requirements
@@ -118,11 +142,11 @@ VNI                                   = DIGITS                        ; VNI valu
 INSTALL_ON_KERNEL                     = true/false                    ; Indicates if this route should be installed on kernel
 ```
 
-## 6.3 Orchestration Agent
-Following orchagents shall be modified.
+## 6.3 Config Manager
+A new config manager called VnetMgr will be added which will handle kernel routes programming for `VNET_ROUTE_TUNNEL`. 
 
- ### VnetOrch/VnetRouteOrch
-VnetRouteOrch is reponsible for programming VNET_ROUTE_TUNNEL_TABLE in SAI. When VnetRouteOrch programs the tunnel routes in NPU, it will also install the kernel routes if the `install_on_kernel` flag is set to true. 
+ ### VnetMgr
+![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/vxlan_kernel_routes.png)
 
 For the config below:
 
