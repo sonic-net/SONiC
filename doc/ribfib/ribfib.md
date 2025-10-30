@@ -63,8 +63,8 @@
 | FIB | Forwarding Information Base  |
 | Resolved NHG | NHG resolved by Zebra, a.k.a containing nexthops with final outgoing interfaces and nexthop addresses  |
 | Original NHG | NHG information received by Zebra from protocol clients  |
-| resolve through | |
-| resolve via | |
+| Resolve through | |
+| Resolve via | |
 
 # Problem Statements
 With the increasing deployment of SONiC-based white-box devices, the demand for new features has grown significantly. This evolution has introduced the need for a RIB/FIB design within SONiC, which is driven by the following two factors.
@@ -89,9 +89,15 @@ This topic has been discussed multiple times in routing working group. Here are 
 * 03/20  https://lists.sonicfoundation.dev/g/sonic-wg-routing/wiki/39064 NHG ID handling for warm reboot, Broadcom and Alibaba
 
 #### Why do we need to persist NHG ID
-We need to ensure that hardware resources created prior to a warm reboot can be correctly mapped with the new software structures afterward. This helps avoiding unnecessary hardware updates that could disrupt traffic.
 
-Previously, before NHG IDs were used, syncd was responsible for mapping existing hardware NHGs to newly created software NHGs, based on the assumption that hardware NHGs with identical content were equivalent. However, this assumption NO LONGER holds when NHG IDs are in use.
+The following diagram shows the differences between the two workflows, current SONiC workflow and the new RIB/FIB workflow.
+![image](images/workflow_differences.png)
+
+There are no changes in ASICDB or syncd between these two workflows. The key difference lies in how routes identify next-hop groups (NHGs): instead of using a list of path information, they now use an NHG ID. It is essential to ensure that hardware resources created before a warm reboot can be correctly mapped to the new software structures afterward. This prevents unnecessary hardware updates that might disrupt traffic.
+
+Previously, before NHG IDs were introduced, orchagent used a list of path information to locate the corresponding software NHG and assigned it a virtual OID. Syncd was then responsible for mapping this virtual OID to a real hardware OID, i.e. the actual hardware entry. During a warm reboot, syncd would restore the mapping from virtual OID to real OID, while orchagent would reassociate software NHGs with their respective virtual OIDs. Because the same path information was applied both before and after the reboot, orchagent could successfully link the newly created software NHG to the previously allocated virtual OID.
+
+With the adoption of NHG IDs, however, the NHG ID itself becomes the key in orchagent. For convergence purposes, distinct NHG IDs must result in separate hardware entries, even if their underlying path information is identical.
 
 For example, consider the following route: Zebra creates a nexthop group (NHG) with ID 243, containing two nexthops which are via Ethernet12 and Ethernet4, respectively.
 
@@ -123,7 +129,7 @@ With NHG IDs enabled, each route references a distinct NHG:
 
 This results in three separate hardware NHGs. Now, if 2::2/128 is removed, only NHG ID 270 needs to be updated via removing failed path to immediately stop traffic loss and buy time to safely reprogram only the affected routes. This aligns with the goal of prefix-independent convergence (PIC).
 
-Therefore, during warm reboot, syncd must use the SONiC provided NHG IDs to correctly map to the corresponding hardware NHGs. To enable this, NHG ID persistence across reboots is essential.
+Therefore, during warm reboot, orchagent would be responsible to map the new NHG ID to the old virtual OID.
 
 #### Why we can't use FRR to handle NHG ID persistence
 We discussed this with the FRR team. But FRR team believes that NHG ID persistence is a data plane requirement and therefore it should not be managed by FRR. They recommended leveraging the Linux kernel as a mechanism to maintain NHG ID persistence. However, our proof of concept try revealed that the kernel lacks the necessary information to reliably restore NHG IDs in all scenarios. Therefore, we can't use FRR to handle NHG ID persistence.
@@ -134,7 +140,7 @@ The current conclusions from working group discussions are
 * FRR team doesn't want to add addtional complexity to handle this persistency requirement since it is a data plane requirement.
 * We don't want to keep NHG ID assignment in orchagent for avoiding unnecessary route events trigger redundant hardware programming.
 
-With these conclusions in mind, we conclude to manage the persistence of this mapping table within fpmsyncd.
+With these conclusions in mind, we conclude to manage the persistence of this zebra NHG ID to SONiC NHG ID mapping table within fpmsyncd.
 
 
 ### Introduce PIC (Prefix independent Convergence) for improving route convergence
