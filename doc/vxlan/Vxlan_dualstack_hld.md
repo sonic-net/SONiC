@@ -139,7 +139,7 @@ container sonic-vxlan {
 ```
 
 # 4 Example Configuration
-Loopnac3 interface is configured with a private IPv4 and a link local IPv6 address
+`Loopback3` interface is configured with a private IPv4 and a link local IPv6 address
 ```
 "LOOPBACK_INTERFACE": {
         "Loopback3": {},
