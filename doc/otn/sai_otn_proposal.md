@@ -210,22 +210,17 @@ typedef struct _sai_attr_metadata_t
 ```
 ---
 
-### 4. Experimental PR
+### 4. OTN Experimental PR
 An experimental PR with all OTN-related changes is available: [GitHub PR](https://github.com/Weitang-Zheng/SAI/pull/1).  
 
 This PR has been reviewed by the SONiC-OTN workgroup and Kamil Cudnik.
 
 ---
 
-### 5. Open Questions
-1. Should OTN objects be defined as **SAI experimental entries**, or directly as **SAI standard entries**?
-   
-2. If standardized, should these objects be grouped in a dedicated `otn` folder?
-
-   Since there are 17 new OTN objects, there are three options:
-   * Define them as existing sai objects (The current PR's implementation);
-   * Define them as existing SAI objects but within a custom range, and place them in a new ‘otn’ folder
-   * Define them in the experimental folder, similar to DASH.
+### 5. Design and Merge Considerations
+1. During the meeting with SAI subgroup on 8/21/2025, it is agreed that new OTN objects be defined using SAI [experimental extension mechanism](https://github.com/opencomputeproject/SAI/tree/master/experimental), same as DASH project. This would eliminate the impact of OTN changes on SONIC packet switch side.
   
-3. What are the next steps for adopting these OTN modifications into SAI?
-
+2. New SAI object for OTN device will be introduced to upstream in multiple PRs for easy review and approval by SAI team. PRs will be based on changes mentioned in section 4 with modifications incorporating the feedbacks from SAI/SONiC community. The PRs will be submitted in the following phases:
+- Minimum set of new objects (OA and VOA) for simplest optical device.
+- Incremental support for complete optical line system (OCM, OTDR, WSS and APS etc.)
+- Transponder support (Logical/physical channel, OTN protocol, OCH and OMC etc.)
