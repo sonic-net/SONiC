@@ -285,7 +285,7 @@ This is enhanced to accept a representation for tunnel next-hop.
 ```
     key: ACL_RULE_TABLE:table_name:rule_name
 
-    redirect_action = 1*255CHAR                ; tunnel next-hop                 Example: "2.2.2.1@tunnel_name"
+    redirect_action = 1*255CHAR                ; tunnel next-hop                 Example: "2.2.2.1@tunnel_name,100"
 ```
 
 ## Warmboot and Fastboot Design Impact ##
