@@ -30,6 +30,7 @@
 | Rev | Date | Author | Change Description |
 | --- | ---- | ------ | ------------------ |
 | 0.1 | 10/05/2024 | Vivek Reddy Karri | Initial version |
+| 0.2 | 10/05/2025 | Vivek Reddy Karri | Floating NIC support |
 
 ## Scope ##
 
@@ -46,6 +47,8 @@ This document provides a high-level design for Smart Switch ENI based Packet For
 | NH  | Next Hop                                   |
 | HA  | High Availability                                |
 | ENI  | Elastic Network Interface                      |
+| FNIC  | Floating NIC                      |
+| PL  | Private Link                      |
 
 ## Overview ##
 
@@ -88,16 +91,17 @@ ENI based forwarding requires the switch to understand the relationship between 
 * Every ENI should be a part of T1 cluster
 * Each packet can be identified as belonging to that switch using VIP and VNI
 * Forwarding can be to local DPU or remote DPU over L3 VxLAN
-* Scale:
-    - [# of ENIs hosted] * 2 (inbound and outbound) * 2 (with/without Tunnel Termination) + [# of ENIs not hosted] * 2 (Inbound and outbound)
-* Scale Example:
+* Only support Floating NIC scenario
+* Scale for FNIC + PL:
+    - [# of ENIs hosted] * 2 (with/without Tunnel Termination) + [# of ENIs not hosted] * 1 (without Tunnel Termination)
+* Scale Example for FNIC + PL:
     - T1 per cluster: 8
     - DPU per T1: 4
     - ENI per DPU: 64
     - HA Scaling factor: 2
     - Total ENI's in this Cluster:  (8 * 4 * 64) / 2 = 1024
     - ENI's hosted on a T1: 256
-    - Number of ACL Rules:  256 * (2 * 2) + (1024 - 256) * 2 = 2560
+    - Number of ACL Rules:  256 * 2 + (1024 - 256) = 1280
 
 ### Phase 1 ###
 
@@ -106,7 +110,7 @@ ENI based forwarding requires the switch to understand the relationship between 
 - Orchagent should also program ACL Rules with Tunnel termination entries
 - No BFD sessions are created to local DPU or the remote DPU.
 
-DASH_ENI_FORWARD_TABLE schema is available here https://github.com/r12f/SONiC/blob/user/r12f/ha2/doc/smart-switch/high-availability/smart-switch-ha-detailed-design.md#2321-dash_eni_forward_table
+DASH_ENI_FORWARD_TABLE schema is available here https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/high-availability/smart-switch-ha-detailed-design.md#2321-dash_eni_forward_table
 
 ### Phase 2 ###
 
@@ -122,10 +126,8 @@ DASH_ENI_FORWARD_TABLE schema is available here https://github.com/r12f/SONiC/bl
     "ACL_TABLE_TYPE": {
         "ENI_REDIRECT": {
             "MATCHES": [
-                "TUNNEL_VNI",
                 "DST_IP",
                 "DST_IPV6",
-                "INNER_SRC_MAC",
                 "INNER_DST_MAC",
                 "TUNNEL_TERM"
             ],
@@ -158,32 +160,17 @@ VIP: 1.1.1.1/32
 VNET: Vnet1000
 ```
 
-**ACL Rule for outbound traffic**
+**ACL Rule**
 
-MacDirection for outbound rules depends on the outbound_eni_mac_lookup field in the DASH_ENI_FORWARD_TABLE
-
-```
-{  
-    "ACL_RULE": {
-        "ENI:Vnet1000_AABBCCDDEEFF_OUT": {
-            "PRIORITY": "9997",
-            "TUNNEL_VNI": "4000",
-            "DST_IP": "1.1.1.1/32",
-            "INNER_SRC_MAC/INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
-            "REDIRECT": "<local/tunnel nexthop>"
-        }
-    }
-}
-```
-
-**ACL Rule for inbound traffic**
-
-Inbound Traffic can have any ENI expect the outbound VNI, no need to match on TUNNEL_VNI
+Note:
+- outbound_eni_mac_lookup is not relevant for FNIC cases since we always match on INNER_DST_MAC
+- outbound_vni is not relevant for FNIC cases since we don't need to match on Tunnel VNI
+- VIP is common across the T1 cluster. It is not clear on where to consume it. It is currently read from a temporary config DB table "VIP_TABLE".
 
 ```
 {  
     "ACL_RULE": {
-        "ENI:Vnet1000_AABBCCDDEEFF_IN": {
+        "ENI:Vnet1000_AABBCCDDEEFF": {
             "PRIORITY": "9996",
             "DST_IP": "1.1.1.1/32",
             "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff"
@@ -207,30 +194,13 @@ To solve this, ACL rules with high priority are added and the redirect should al
 
 ![Tunnel Termination Solution](./images/tunn_term_solution.png)
 
-**ACL Rule for outbound traffic with Tunnel Termination**
+**ACL Rule with Tunnel Termination**
 
 ```
 {  
     "ACL_RULE": {
-        "ENI:Vnet1000_AABBCCDDEEFF_OUT_TERM": {
-            "PRIORITY": "9999",
-            "TUNNEL_VNI": "4000",
-            "DST_IP": "1.1.1.1/32",
-            "INNER_SRC_MAC/INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
-            "TUNN_TERM": "true",
-            "REDIRECT": "<local nexthop oid>"
-        }
-    }
-}
-```
-
-**ACL Rule for inbound traffic with Tunnel Termination**
-
-```
-{
-    "ACL_RULE": {
-        "ENI:Vnet1000_AABBCCDDEEFF_IN_TERM": {
-            "PRIORITY": "9998",
+        "ENI:Vnet1000_AABBCCDDEEFF_TERM": {
+            "PRIORITY": "9997",
             "DST_IP": "1.1.1.1/32",
             "INNER_DST_MAC": "aa:bb:cc:dd:ee:ff",
             "TUNN_TERM": "true",
@@ -315,7 +285,7 @@ This is enhanced to accept a representation for tunnel next-hop.
 ```
     key: ACL_RULE_TABLE:table_name:rule_name
 
-    redirect_action = 1*255CHAR                ; tunnel next-hop                 Example: "2.2.2.1@tunnel_name"
+    redirect_action = 1*255CHAR                ; tunnel next-hop                 Example: "2.2.2.1@tunnel_name,100"
 ```
 
 ## Warmboot and Fastboot Design Impact ##
