@@ -39,7 +39,27 @@ This new design allows a single VNET to have an IPv4-only Vxlan tunnel, IPv6-onl
 | VNet                     | Virtual Network                |
 
 # Overview
-Currently, SONiC supports either an IPv4 or an IPv6 Vxlan tunnel in a VNET. Both IPv4 and IPv6 tunnels cannot co-exist. By adding dual-stack support, VxLan tunnel routes can be added under the same VNET/VRF for both IPv4 and IPv6 VTEPs. Traffic is encapsulated with IPv4 or IPv6 headers based on which route it takes.  
+Currently, SONiC supports either an IPv4 or an IPv6 Vxlan tunnel in a VNET. Both IPv4 and IPv6 tunnels cannot co-exist.  
+Consider the following Vnet and Vxlan configuration:
+
+```
+"VNET": {
+    "Vnet_1000": {
+        "vni": "1000",
+        "vxlan_tunnel": "Vxlan0",
+        "src_mac": "12:34:56:78:9a:bc"
+    }
+},
+"VXLAN_TUNNEL": {
+    "Vxlan0": {
+        "src_ip": "10.10.10.10"
+    }
+}
+```
+
+In the above example, a Vxlan tunnel is configured with an IPv4 _src_ip_. This means that only routes with IPv4 VTEPs can be added under the VNET_ROUTE_TUNNEL configuration. Routes with IPv6 VTEPs cannot be aded with the above configuration. Similary, if Vxlan0 is configured with an IPv6 _src_ip_, tunnel routes with only IPv6 VTEPs are supported.  
+
+By adding dual-stack support, VxLan tunnel routes can be added under the same VNET/VRF for both IPv4 and IPv6 VTEPs at the same time. Traffic will be encapsulated with IPv4 or IPv6 headers based on which route it takes.  
 This is an extension to the existing [Vxlan feature on SONiC](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md).
 
 # 1 Requirements Overview
