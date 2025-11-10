@@ -4,6 +4,28 @@
 
 ​        Today SONiC only has one redis database instance created and all the databases use this unique database instance, like APPL\_DB, ASIC\_DB, CONF\_DB and so on.  We found when there are huge writes operations during a short time period (like huge routes created), this only database instance is very busy. We tried to create two database instances and separate the huge write into two database instances. The test result shows the performance (time) improved 20-30%. Also creating multiple database instances help us to separate the databases based on their operation frequency or their role in the whole SONiC system, for example, like state database and loglevel database are not key features, we can avoid them affecting read and write APPL\_DB or ASIC\_DB  via multiple database instances.
 
+## High-Level Design
+
+SONiC build system includes a new build-time flag to ENABLE_MULTIDB (Default: unset, Value: y).
+When this flag is set, a flag file is touched at /etc/sonic/ by sonic_debian_extension.j2.
+```
+## Enable MULTIDB
+{% if ENABLE_MULTIDB == "y" %}
+sudo touch $FILESYSTEM_ROOT_ETC_SONIC/enable_multidb
+{% endif %}
+```
+Example ENABLE_MULTIDB flag usage:
+
+Enable MULTIDB:
+```
+make ENABLE_MULTIDB=y all
+```
+
+Do not enable MULTIDB:
+```
+make all
+```
+
 ## Current implementation
 
 * Single Redis database instance for all databases
@@ -92,9 +114,9 @@ DUT try to load a new images
     }
     ```
 
-* By default, each image has one default startup database\_config.json file in SONiC file system at /etc/default/sonic-db/.
+* By default, each image uses multi\_database\_config.json.j2 or database\_config.json.j2 to generate database\_config.json depending on whether enable multidb.
 
-* The users is able to use the customized database configration, what needs to do is creating a database\_config.josn file and place it at /etc/sonic/
+* The users is able to use the customized database configration, what needs to do is creating a database\_config.json file and place it at /etc/sonic/
 
 * We changed the database Docker ENTRYPOINT to docker-database-init.sh which is new added.
 
@@ -108,8 +130,8 @@ Detail steps as below:
     * [x] if no folder /host/old\_config/, copy some default xmls and etc. as usual
 3. **database service**
     * [x] **database docker start, entrypoint docker-database-init.sh**
-    * [x] **if database\_config.json is found at /ect/sonic/, that means there is customized database config, we copy this config file to /var/run/redis/sonic-db/, which is the running database config file location, all the applications will read databse information from this file**
-    * [x] **if database\_config.json is NOT found at /ect/sonic/, that means there is no customized database config, we copy this config file at /etc/default/ to /var/run/redis/sonic-db/, this is the default startuo config in the image itself.**
+    * [x] **if database\_config.json is found at /etc/sonic/, that means there is customized database config, we copy this config file to /var/run/redis/sonic-db/, which is the running database config file location, all the applications will read databse information from this file**
+    * [x] **if database\_config.json is NOT found at /etc/sonic/, that means there is no customized database config, we use multi\_database\_config.json.j2 or database\_config.json.j2 to generate database\_config.json depending on whether /etc/sonic/enable\_multidb exists**
     * [x] **using supervisord.conf.j2 to generate supervisord.conf**
     * [x] **execute the previous entrypoint program /usr/bin/supervisord, then all the services will start based on the new supervisord.conf, which including starting how many redis instances**
     * [x] **check if redis instances are running or NOT via ping_pong_db_insts script**
