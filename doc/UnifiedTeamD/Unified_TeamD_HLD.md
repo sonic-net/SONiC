@@ -6,6 +6,7 @@
 | Rev |     Date    |         Author               |          Change Description      |
 |:---:|:-----------:|:----------------------------:|:--------------------------------:|
 | 1.0 | 21/07/2025  | Praveen HM, Venkata Gouri Rajesh Etla, Ashutosh Agrawal                  | Initial Version                  |
+| 1.1 | 10/11/2025  | Praveen HM                  | Updated after community review                  |
                                                             
 ## Table of Contents
 
@@ -131,18 +132,18 @@ The redesigned architecture focuses on improving resource efficiency and scalabi
 - A Hash table will be used internally to enable fast and efficient lookups, insertions, and deletions.
 - Shared resources such as netlink sockets will be reused across all managed PortChannels to reduce system overhead.
 - Configuration updates from teammgrd will be handled via IPC messages.
-- A new CLI command will be added to notify teamd to operate in multi-process (legacy) mode
+- A new CLI command will be added to notify teamd to operate in either unified or multi-process (legacy) mode
 - The file descriptor usage will be optimized by implementing wheel timers and using global pipe instead of per portchannel pipe.
 
 ## Warmboot
 The existing warmboot behavior continues to be supported, and no explicit changes are required to enable warmboot with this enhancement.
 
 ## TeamD
-teamd shall support both unified and multi-process (legacy) operation modes. Upon startup, teammgrd determines the current mode of operation. If the mode is not set, teammgrd launches a single teamd instance using the following command:
+teamd shall support both unified and multi-process (legacy) operation modes. Upon startup, teammgrd determines the current mode of operation. If the mode is set to unified, teammgrd launches a single teamd instance using the following command:
 ```
 /usr/bin/teamd -t teamd-unified -L /var/warmboot/teamd/ -g -d
 ```
-In multi-process mode (the legacy behavior), teammgrd will spawn a separate teamd process for each PortChannel as they are created.
+By default teamd will run in multi-process mode (the legacy behavior), in which teammgrd will spawn a separate teamd process for each PortChannel as they are created.
 
 Refer section [teamd operating mode](#teamd-operating-mode) for more details on how to set the mode.
 
@@ -160,7 +161,7 @@ Once initialized, teamd can dynamically manage port channels based on configurat
 
 **Docker Container restart**
 
-When the system starts, teamd operates in the new design where it runs in single-process mode and manages all PortChannels through IPC. To downgrade to the legacy design, the mode must be explicitly set to "multi-process" and the Docker container must be restarted. Similarly, to upgrade back to the new design, the "multi-process" mode configuration should be removed, followed by a Docker restart. Therefore, the mode setting must be correctly configured before restarting the container to ensure the system comes up in the desired operation mode.
+Teamd will start in legacy mode only. If user wants to run in unified mode, then mode has to be set to unified and docker to be restarted. Then teamd will operate in new design where it runs in single-process mode and manages all PortChannels through IPC. Similarly, to switch back to legacy mode, the mode must be explicitly set to "multi-process" and the Docker container must be restarted. Therefore, the mode setting must be correctly configured before restarting the container to ensure the system comes up in the desired operation mode.
 
 Refer section [teamd operating mode](#teamd-operating-mode) for more details on how to set the mode.
 
@@ -185,7 +186,7 @@ As multiple LAGs are handled by single teamd daemon in case of unified-mode, the
 Currently each LAG uses 1 timerfd and 2 fds for pipe, each member port uses 3 timer fds and 1 fd for socket used for packet processing. The pipe is used for internal communication while doing LACP port aggregator selection and for active port selection with active-backup runner. With single unified teamd process, as there will be multiple LAGs in single teamd process this can lead to hitting the FD limit of 1024 for the process when scaled. To address this, following changes are made:
 
 - Instead of one pipe for each LAG, a single pipe will be used in global context and used across all LAGs 
-- 2 timer fds will be created, one for timers with granularity of seconds and another for 100ms granularity. These timers will then be used to add support for existing timers in teamd using hashed wheel timer. 
+- 1 timer fd will be created with granularity of seconds. This timer will then be used to add support for existing timers in teamd using hashed wheel timer. 
 
 ### Overview: What Is a Wheel Timer? 
 
@@ -197,8 +198,8 @@ A wheel timer organizes timers in a circular buffer structure where:
 - When the wheel lands on a slot, it fires or checks all timers in that slot. 
 
 ### Key Components of a Wheel Timer
-- Tick interval – Smallest unit of time. 100ms and 1sec interval timers will be used.  
-- Number of slots – Size of the wheel, for 100ms timer 20 slots will be used and for 1sec timer 120 slots will be used. 
+- Tick interval – Smallest unit of time. 1sec interval timer will be used.  
+- Number of slots – Size of the wheel, 120 slots will be used. 
 - Current slot index – Rotates at each tick (like a second hand). 
 - Timer entries – Each slot holds a list of timer callbacks to fire. The existing timer callbacks will be used to handle the timer expiry. 
 
@@ -314,7 +315,7 @@ When a link state change occurs, the kernel sends a netlink notification, which 
 
 ## teamd operating mode 
 
-teamd shall support both unified and multi-process (legacy) operation modes. By default teamd will operate in unified process mode. But if an user wants to revert to legacy teamd, then user has to update this mode into config DB.
+teamd supports two operation modes: unified and multi-process (legacy). By default teamd will operate in legacy multi-process mode. To enable unified mode, users must explicitly configure the mode setting in the Config DB.
 
 ### DB Changes
 
@@ -325,12 +326,12 @@ A new table named TEAMD will be introduced in the Config DB to support both the 
 {
   "TEAMD" : {
     "GLOBAL" : {
-          "mode" : "multi-process"
+          "mode" : "unified"
       }
   }
 }
 ```
-In this schema, "mode": "multi-process" indicates the legacy design, where each teamd instance manages separate PortChannels. In contrast, the absence of this entry implies unified teamd.
+In this schema, "mode": "unified" indicates new unified design and "mode": "multi-process" indicates the legacy design, where each teamd instance manages separate PortChannels.
 
 To config the portchannel the existing cli is reused.
 
@@ -341,7 +342,7 @@ A new CLI command has been introduced to allow users to explicitly configure tea
 The following CLI syntax is provided:
 
 ```
-config portchannel mode multi-process enable/disable
+config portchannel mode set unified-process/multi-process
 ```
 
 #### YANG
@@ -369,13 +370,20 @@ module sonic-teamd {
                 description "Global TEAMD configuration section";
 
                 leaf mode {
-                    description "TEAMD operation mode (fixed as multi-process)";
-                    type string {
-                        pattern "multi-process";
+                    description "TEAMD operation mode (multi-process or unified-process)";
+                    type enumeration {
+                        enum multi-process {
+                            description "Traditional multi-process mode (one teamd per PortChannel)";
+                        }
+                        enum unified-process {
+                            description "Unified single-process mode (one teamd manages all PortChannels)";
+                        }
                     }
                     default "multi-process";
                     must "true()" {
-                         description "WARNING: Changing or removing the mode will require a Docker restart for the changes to take effect.";
+                        description
+                          "WARNING: Changing the mode requires a Docker restart
+                           for the changes to take effect.";
                     }
                 }
             }
