@@ -4,7 +4,7 @@
 # Table of Contents
 * [List of Tables](#list-of-tables)
 
- * [Revision](#revision)
+* [Revision](#revision)
 
 * [Scope](#scope)
 
@@ -16,7 +16,8 @@
 * [1.3 CLI requirement](#13-cli-requirements)
 * [2 Modules Design](#2-modules-design)
 * [2.1 Config DB](#21-config-db)
-* [2.2 Orchestration Agent](#23-orchestration-agent)
+* [2.2 Orchestration Agent](#22-orchestration-agent)
+* [2.3 Test Plan](#23-test-plan)
 * [3 Configuration and Management](#3-configuration-and-management)
 * [4 Example configuration](#4-example-configuration)
 
@@ -68,17 +69,17 @@ This section describes the SONiC requirements for dual-stack Vxlan feature.
 
 At a high level the following should be supported:
 - Should allow both IPv4 and IPv6 Vxlan tunnel routes to co-exist in the same VNET
-- Should be able to perform the role of Vxlan Tunnel End Point (VTEP) for IPv4 and IPv6 simulataneously 
+- Should be able to perform the role of Vxlan Tunnel End Point (VTEP) for IPv4 and IPv6 simulataneously for the same VNI
 
 ## 1.2 Orchagent requirements
 ### Vxlan orchagent:
-- Should be able to create NH tunnels with _src_interface_ 
+- Should be able to create NH tunnels in SAI for both IPv4 and IPv6 addresses on _src_interface_ 
 
 ### Vnet Route orchagent:
 - Should be able to create IPv4 or IPv6 Vxlan tunnel routes based on the endpoint IP address provided in the configuration
 
 ## 1.3 CLI requirements
-- User should be able to configure Vxlan tunnels and VTEPs (Overlay) by providing _src_interface_ parameter
+- User should be able to configure Vxlan tunnels by providing _src_interface_ parameter
 
 ```
 config vxlan add <vxlan_name> <src_interface>
@@ -86,8 +87,8 @@ config vxlan add <vxlan_name> <src_interface>
 
 # 2 Modules Design
 ## 2.1 Config DB
-#### 2.1.1 VXLAN Table
-VXLAN_TUNNEL table will have following new optional fields. 
+### 2.1.1 VXLAN Table
+VXLAN_TUNNEL table will have following new optional field. 
 
 ```
 VXLAN_TUNNEL|{{tunnel_name}} 
@@ -96,7 +97,7 @@ VXLAN_TUNNEL|{{tunnel_name}}
     "src_interface": {{interface_name}} (Mandatory if src_ip is not provided)
 ```
 
-When _src_interface_ is provided, IPv4 or IPv6 tunnel route is created based on the endpoint in tunnel route configuration. If _src_ip_ is provided, existing behaviour takes precedence, irrespective of _src_interface_ is provided or not
+When _src_interface_ is provided, IPv4 and/or IPv6 tunnel is created based on the addresses on the interface. If _src_ip_ is provided, existing behaviour takes precedence, irrespective of _src_interface_ is provided or not
 
 ### 2.1.2 ConfigDB Schemas
 ```
@@ -115,12 +116,27 @@ dec-octet     = DIGIT                     ; 0-9
                   / "2" %x30-34 DIGIT     ; 200-249
 ```
 
-## 2.2 Orchestration Agent
+## 2.2 App DB
+### 2.2.1 VXLAN ROUTE TUNNEL table
+No changes needed for the Vxlan route tunnel table. VnetOrch/VnetRouteOrch will be enhanced to create appropriate routes with IPv4 or IPv6 VTEPs based on the endpoint specified in the route.
+
+## 2.3 Orchestration Agent
 ### 2.2.1 VxlanOrch
-Vxlan orch will be modified to be able to create co-existing IPv4 and IPv6 tunnels under the same Vnet and attach the same vni to both. It will also create relevant encap and decap mappers for both tunnels
+Vxlan orch will lookup _src_interface_ and find the IPv4 and/or IPv6 addresses on the interface. It will then be able to create co-existing IPv4 and IPv6 tunnels under the same Vnet and attach the same vni to both. Creating relevant encap and decap mappers for the tunnels will remain same
 
 ### 2.2.2 VnetOrch/VnetRouteOrch
-VnetRouteOrch is reponsible for programming VNET_ROUTE_TUNNEL_TABLE in SAI. Support will be added in VnetRouteOrch to lookup the appropriate IP address on the _src_interface_ and install routes for IPv4 and/or IPv6 tunnels based on the endpoint provided in the tunnel route configuration
+VnetRouteOrch is reponsible for reading VNET_ROUTE_TUNNEL_TABLE and creating routes in SAI. Support will be added in VnetRouteOrch to fetch the appropriate NH tunnel from Vxlan orch based on the endpoint IP. VnetRouteOrch will then use this NH tunnel to create routes in SAI
+
+## 2.3 Test Plan
+### 2.3.1 Test Cases
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Create Vxlan tunnel with dummy src interface that does not exist | src interface lookup | Vxlan tunnel creation must fail
+| Create loopback intf with only IPv4 addr. Create Vxlan tunnel and provide loopback intf as src interface. Create tunnel route with IPv4 endpoint. Send traffic to dest | IPv4 tunnel create | Traffic must be received at dest
+| Create loopback intf with only IPv6 addr. Create Vxlan tunnel and provide loopback intf as src interface. Create tunnel route with IPv6 endpoint. Send traffic to dest | IPv6 tunnel create | Traffic must be received at dest
+| Create loopback interface with both IPv4 and IPv6 addr. Create a Vxlan tunnel and provide loopback intf as src interface. Create tunnel routes with IPv4 and IPv6 endpoint. Send traffic to dest | Dual stack tunnel create | Both IPv4 and IPv6 dest must receive traffic
+
 
 # 3 Configuration and Management
 ## 3.1 YANG model
