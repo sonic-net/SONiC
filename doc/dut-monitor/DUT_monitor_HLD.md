@@ -45,7 +45,7 @@ Purpose of the current feature is to - verify that previously listed resources a
 #### Overall design
 The following figure depicts current feature integration with existed Pytest framework.
 
-![](https://github.com/yvolynets-mlnx/SONiC/blob/dut_monitor/images/dut_monitor_hld/Load_flaw.jpg)
+![](Load_flaw.jpg)
 
 Newly introduced feature consists of:
 + Pytest plugin – pytest_dut_monitor.py. Plugin defines:
@@ -210,7 +210,7 @@ If the connection will not be restored, exception will be raised that DUT become
 
 ### Interaction with dut
 
-![](https://github.com/yvolynets-mlnx/SONiC/blob/dut_monitor/images/dut_monitor_hld/Dut_monitor_ssh.jpg)
+![](Dut_monitor_ssh.jpg)
 
 ### Tests execution flaw
 
