@@ -122,13 +122,13 @@ PORTCHANNEL_MEMBER|{{port_channel_name}}|{{port_name}}
 
 # 4. Flows
 ## 4.1 Admin Status/MTU Configuration Flow
-![Image](https://github.com/stcheng/SONiC/blob/gh-pages/doc/admin_status.png)
+![Image](admin_status.png)
 ## 4.2 Port Channel and Member Configuration Flow
-![Image](https://github.com/stcheng/SONiC/blob/gh-pages/doc/port_channel.png)
+![Image](port_channel.png)
 ## 4.3 IP Configuration Flow
-![Image](https://github.com/stcheng/SONiC/blob/gh-pages/doc/ip.png)
+![Image](ip.png)
 ## 4.4 Device Start Flow
-![Image](https://github.com/stcheng/SONiC/blob/gh-pages/doc/device_start.png)
+![Image](device_start.png)
 ## 4.5 Docker swss Restart
 TBD
 ## 4.6 Docker teamd Restart
