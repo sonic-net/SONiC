@@ -66,7 +66,7 @@ All `Set` RPCs that uses a default role are arbitrated in the same group.
 
 ### Requirements
 
-Master Arbitration is a HA (high-availability) SDN-focused feature therefore it cannot be enabled by default. On the other hand, when it is required, it has to be enabled from the very moment the gNMI server starts. As an optional feature, Master Arbitration could be turned off when gNMI server restarted. And it should not impact the overall perfermance.
+Master Arbitration is a HA (high-availability) SDN-focused feature therefore it cannot be enabled by default. On the other hand, when it is required, it has to be enabled from the very moment the gNMI server starts. As an optional feature, Master Arbitration could be turned off when gNMI server restarted. And it should not impact the overall performance.
 
 ### Architecture Design
 
@@ -178,7 +178,7 @@ It should be noted that Master Arbitration only affects `SET` operations. Theref
 
 The modification of the `SetRequest` has an impact on the gNMI management interface. In order to ensure serviceability and facilitate debugging, it will be necessary to include a logging message for Master Arbitration.
 
-As a disabled feature by default, a DEBUG level log message is needed when a client is seleced as master, i.e. `ReqFromMaster = True`. When gNMI server decides a non-master client, a DEBUG level log message should be generated as well. The message should include the `election_id`. Error level log message should be printed when a non-master clients try to send request to gNMI server, inidcating the `Permission Deny` error.
+As a disabled feature by default, a DEBUG level log message is needed when a client is selected as master, i.e. `ReqFromMaster = True`. When gNMI server decides a non-master client, a DEBUG level log message should be generated as well. The message should include the `election_id`. Error level log message should be printed when a non-master clients try to send request to gNMI server, indicating the `Permission Deny` error.
 
 ### SAI API
 
@@ -311,20 +311,20 @@ The main focus of the test is on the coverage of the new feature. The user cases
 Mock one or more clients in the unit tests to test the feature. Here are the list of test cases in unit test:
 
 * TestDisabledMasterArbitration
-  * Single client - Expect always recieving request
-  * Multiple clients - Expect recieving requests from all clients
+  * Single client - Expect always receiving request
+  * Multiple clients - Expect receiving requests from all clients
 * TestEnabledMasterArbitrationWithoutProtoDefine
-  * Single client - Expect always recieving request
-  * Multiple clients - Expect recieving requests from all clients, as all clients with `EID = 0` but no comparsion happens.
+  * Single client - Expect always receiving request
+  * Multiple clients - Expect receiving requests from all clients, as all clients with `EID = 0` but no comparison happens.
 * TestDisabledMasterArbitrationWithProtoDefine
-  * Single client - Expect always recieving request
-  * Multiple clients - Expect recieving requests from all clients
+  * Single client - Expect always receiving request
+  * Multiple clients - Expect receiving requests from all clients
 * TestEnabledMasterArbitrationWithProtoDefine
-  * Single client - Expect always recieving request
-  * Multiple clients - Expect recieving requests from the client with the largest `EID`. As `EID` is guaranteed to be monotonically increasing, the last client will be used.
+  * Single client - Expect always receiving request
+  * Multiple clients - Expect receiving requests from the client with the largest `EID`. As `EID` is guaranteed to be monotonically increasing, the last client will be used.
 * TestEnabledMasterArbitrationWithChangeOfMaster
-  * Single client - Expect always recieving request
-  * Multiple clients - Expect recieving requests from the client with the largest `EID` and requests from other clients will be rejected.
+  * Single client - Expect always receiving request
+  * Multiple clients - Expect receiving requests from the client with the largest `EID` and requests from other clients will be rejected.
 * TestMasterArbitrationWhenSwitchRestart
   * Single client - Expect client with `EID = 0`
   * Multiple clients - Expect all clients with `EID = 0`.

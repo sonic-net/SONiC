@@ -43,7 +43,7 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
     vendor_date                  = 1*255VCHAR                   ; vendor's date code
     Connector                    = 1*255VCHAR                   ; connector type
     encoding                     = 1*255VCHAR                   ; serial encoding mechanism
-    ext_identifier               = 1*255VCHAR                   ; additional infomation about the sfp
+    ext_identifier               = 1*255VCHAR                   ; additional information about the sfp
     ext_rateselect_compliance    = 1*255VCHAR                   ; additional rate select compliance information
     cable_type                   = 1*255VCHAR                   ; cable type
     cable_length                 = 1*255VCHAR                   ; cable length that supported

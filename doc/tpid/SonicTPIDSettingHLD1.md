@@ -16,7 +16,7 @@
   |:-----------------------|:-----------------------------------------------------------------------|
   |TPID                    |**T**ag **P**rotocol **ID**entifier                                     |
   |VLAN                    |**V**irtual **L**ocal **A**rea **N**etworks                             |
-  |PBB                     |**P**rovider **B**ack **B**one                                          |
+  |PBB                     |**P**provider **B**ack **B**one                                          |
   |SAI                     |**S**witch **A**bstraction **I**nterface                                |
   |DUT                     |**D**evice **U**nder **T**est                                           |
   |802.1q                  |IEEE standard Trunking to identify which VLAN that the packet belongs to|

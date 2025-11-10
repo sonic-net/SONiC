@@ -9,7 +9,7 @@
 - [1 Introuduction and Scope](#1-introuduction-and-scope)
 - [2 Feature Requirements](#2-feature-requirements)
 - [2.1 Functional Requirements](#21-functional-requirements)
-- [2.2 Configuration and Managment Requirements](#22-configuration-and-management-requirements)
+- [2.2 Configuration and Management Requirements](#22-configuration-and-management-requirements)
 - [2.3 Warm Boot Requirements](#23-warm-boot-requirements)
 - [3 Feature Design](#3-feature-design)
 - [3.1 ConfigDB Changes](#31-configdb-changes)
@@ -408,9 +408,9 @@ In Srv6Orch, it will mark which route entry is Srv6 modified and having higher p
 
 **Resolve SID NextHop Via Controller or Others:** 
 
-If the SID subnet (below example, 2000::31 on E31) is directly connected to E11, the nexthop could be found, if not, we should have a controller to indicate nexthop information on E11 for subnet 2000::31, since FRR is not involved at this moment on Phase #1. A static route should be installed via controller in APPL_DB ROUTE_TABLE.  Or the network itself has some basic ipv6 protocol is ruuning, and all the basic ipv6 informaion is fully exchanged, it depends on how the architecture is designed.
+If the SID subnet (below example, 2000::31 on E31) is directly connected to E11, the nexthop could be found, if not, we should have a controller to indicate nexthop information on E11 for subnet 2000::31, since FRR is not involved at this moment on Phase #1. A static route should be installed via controller in APPL_DB ROUTE_TABLE.  Or the network itself has some basic ipv6 protocol is ruuning, and all the basic ipv6 information is fully exchanged, it depends on how the architecture is designed.
 
-Beside adding/modifing routes, controller could delete routes. When controller deletes some routes, then the higher priority flag will be removed and the routes will be deleted. Frr or other modules could modify the routes the same way as we did today when the srv6 high priority flag doesn't exist.
+Beside adding/modifying routes, controller could delete routes. When controller deletes some routes, then the higher priority flag will be removed and the routes will be deleted. Frr or other modules could modify the routes the same way as we did today when the srv6 high priority flag doesn't exist.
 
 **An Example as below:**
 ![draw-configdb](images/Srv6Example.png)
@@ -443,7 +443,7 @@ Orchagent listens to SRV6_MY_SID_TABLE in APP_DB to create SAI objects in ASIC_D
 
 
 The MySID counters are implemented utilizing the existing Flex Counter infrastructure.
-The FlexCounterManager is extened with a new group - `SRV6_STAT_COUNTER_FLEX_COUNTER_GROUP`. The default polling interval is set to 10 seconds.
+The FlexCounterManager is extended with a new group - `SRV6_STAT_COUNTER_FLEX_COUNTER_GROUP`. The default polling interval is set to 10 seconds.
 
 For MySID counters, SRV6Orchagent:
 1. Checks if platform supports SRv6 MySID counter via querying SAI_MY_SID_ENTRY_ATTR_COUNTER_ID attribute capabilities

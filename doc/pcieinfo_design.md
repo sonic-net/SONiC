@@ -4,7 +4,7 @@ Add a PCIe Diag tool for SONiC. This tool including three commands
 
     show platform pcieinfo     -----> Show current device PCIe info
     show platform pcieinfo -c  -----> Check whether the PCIe info is correct   
-    pcieutil pcie_generate     -----> Generate an PCIe info congfig file
+    pcieutil pcie_generate     -----> Generate an PCIe info config file
 
 ## Implementation 
 ### show utility update
@@ -48,9 +48,9 @@ Function: This file is used to fulfill the main interfaces including functions
     
 **Config file**
 
-Location: `device/Platofrm/plugins/pcie.yaml`
+Location: `device/Platform/plugins/pcie.yaml`
 
-Function: This file is used to as a standard to distinguish the device PCIe info. for different platform, config file will locate in differnet path
+Function: This file is used to as a standard to distinguish the device PCIe info. for different platform, config file will locate in different path
 
 ***Format***
 

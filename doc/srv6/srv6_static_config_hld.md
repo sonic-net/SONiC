@@ -8,7 +8,7 @@
 - [1 Introuduction and Scope](#1-introuduction-and-scope)
 - [2 Feature Requirements](#2-feature-requirements)
 - [2.1 Functional Requirements](#21-functional-requirements)
-- [2.2 Configuration and Managment Requirements](#22-configuration-and-management-requirements)
+- [2.2 Configuration and Management Requirements](#22-configuration-and-management-requirements)
 - [2.3 Warm Boot Requirements](#23-warm-boot-requirements)
 - [3 Feature Design](#3-feature-design)
 - [3.1 New Table in ConfigDB](#31-new-table-in-configdb)
@@ -46,7 +46,7 @@ This document provides general information about the design of the enhancements 
 # 1 Introuduction and Scope
 
 This document describes the high-level design of the new features in SONiC to support SRv6 SDN.
-The new features include the addtion of a new table in CONFIG_DB to enable configuration of SRv6 and the enhancement of bgpcfgd to program FRR with input from CONFIG_DB.
+The new features include the addition of a new table in CONFIG_DB to enable configuration of SRv6 and the enhancement of bgpcfgd to program FRR with input from CONFIG_DB.
 Besides, this document also define new YANG model specification and unit-test cases used to validate the aforementioned features.
 
 Note: frrcfgd in SONiC is also able to program SRv6 configurations to FRR but it is designed for scenarios where BGP is used to propagate SRv6 SIDs. SONiC users can choose either bgpcfgd or frrcfgd to program FRR configurations according to their own use cases freely.
@@ -74,7 +74,7 @@ Warm reboot is intended to be supported for planned system warm reboot.
 
 At the time of writing this document, FRR has been able to program the SRv6 related tables in APPL_DB through fpmsyncd.
 However, there is still one gap preventing SONiC being utilized for SRv6 SDN deployment.
-Specifically, there is no mechamism in SONiC allowing SDN controllers or users to directly add configuration for SRv6 without involving BGP.
+Specifically, there is no mechanism in SONiC allowing SDN controllers or users to directly add configuration for SRv6 without involving BGP.
 
 In this document, we define two new tables in CONFIG_DB, i.e. **SRV6_MY_LOCATORS** and **SRV6_MY_SIDS**, which serves as the configuration source of SRv6 in SONiC.
 Then, we design a new SRv6 Manager module in bgpcfgd to subscribe to the two tables and compile changes in CONFIG_DB to changes in the configurations of FRR (Note: the new SRv6 Manager relies on the new configuration CLI brought in by [FRR PR#16894](https://github.com/FRRouting/frr/pull/16894)).

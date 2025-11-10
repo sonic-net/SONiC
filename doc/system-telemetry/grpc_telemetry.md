@@ -279,7 +279,7 @@ notification: <
 >
 ```
 
-It is also possible to specifify multiple xpath values. Here we get values for both SAI_PORT_STAT_PFC_7_RX_PKTS and SAI_PORT_STAT_PFC_1_RX_PKTS:
+It is also possible to specify multiple xpath values. Here we get values for both SAI_PORT_STAT_PFC_7_RX_PKTS and SAI_PORT_STAT_PFC_1_RX_PKTS:
 ```
 jipan@sonicvm1:~/work/go/src/github.com/jipanyang/gnxi/gnmi_get$ ./gnmi_get -xpath_target COUNTERS_DB -xpath "COUNTERS/Ethernet9/SAI_PORT_STAT_PFC_7_RX_PKTS" -xpath "COUNTERS/Ethernet9/SAI_PORT_STAT_PFC_1_RX_PKTS" -target_addr 30.57.185.38:8080 -alsologtostderr -insecure true
 ```
@@ -400,7 +400,7 @@ Below is an example query and response for `SAMPLE` streaming using [gnmi_cli_py
 
 - The `"--submode 2"` argument is to tell that the `Subscription` is `SAMPLE` mode.
 - The `"--interval 2000"` argument is to set `sample_interval` to 2000ms (2s).
-- The `"--update_count 3"` argument tells the client tool to stop after receiving 3 updates. This is only for testing purposes. In real life the streaming is meant to be continuos.
+- The `"--update_count 3"` argument tells the client tool to stop after receiving 3 updates. This is only for testing purposes. In real life the streaming is meant to be continuous.
 
 Notice the 4 sections in the command output:
 
@@ -774,7 +774,7 @@ ok    github.com/jipanyang/sonic-telemetry/gnmi_server  57.958s
 ```
 
 # Performance and Scale Test
-Test has been done with counters on all Ethernet ports. In the example testing switch, there are 54 Ethernet ports and 106 counters under eatch ports.  All the 5724 counters are polled every second.
+Test has been done with counters on all Ethernet ports. In the example testing switch, there are 54 Ethernet ports and 106 counters under each ports.  All the 5724 counters are polled every second.
 [gnmi_cli](https://github.com/jipanyang/gnmi/tree/master/cmd/gnmi_cli) was used to collect the poll/response latency and cpu utilization rate on the switch. The latency and cpu utilization graphs were plotted at the same time.
 
 `

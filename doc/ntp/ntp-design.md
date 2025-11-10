@@ -399,7 +399,7 @@ To configure the feature we are going to use three Config DB tables:
 
 `NTP` table is used to store NTP global configuration.
 
-`NTP_SERVER` table contains configured remote NTP servers and theis approprite configuration.
+`NTP_SERVER` table contains configured remote NTP servers and this appropriate configuration.
 
 `NTP_KEY` table holds NTP authentication keys inventory.
 - Keys values must be `base64` encrypted before writing to DB.
@@ -725,7 +725,7 @@ _SRV_OPTS_:
 1. `-t|--type` - NTP server association type: `enum: server, pool`
 2. `-k|--key` - NTP authentication key ID: `integer: 1-65535`
 3. `-v|--version` - NTP protocol version `integer: 3-4`
-4. `-a|--aggressive` - NTP enable aggresive polling
+4. `-a|--aggressive` - NTP enable aggressive polling
 
 _KEY_OPTS_:
 1. `-t|--type` - NTP key type: `enum: md5, sha1`

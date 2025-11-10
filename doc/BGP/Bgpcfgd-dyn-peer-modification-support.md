@@ -122,7 +122,7 @@ The following modifications will be made to bgpcfgd to support the new scenario:
 ```
 4. Note that the default behavior when no update template is defined, is one where nothing executes during update peer operations, thereby making this change fully backward compatible and requiring no breaking changes in terms of templates for users of bgpcfgd.
 4. We expose similar logic as listed in 1, 2 for a delete handling, ie we add a delete template under self.templates["delete"] if such a template exists in the directory structure
-5. Upon a delete peer ocurring, we render the delete template(instead of executing the current behavior of ```no neighbor {{ neighbor addr}}```), on the other hand if a delete template is not defined then the default behavior of ```no neighbor {{ neighbor addr}}``` applies as usual, thereby making this change backward compatible.
+5. Upon a delete peer occurring, we render the delete template(instead of executing the current behavior of ```no neighbor {{ neighbor addr}}```), on the other hand if a delete template is not defined then the default behavior of ```no neighbor {{ neighbor addr}}``` applies as usual, thereby making this change backward compatible.
 6. Bgpcfgd will write a State DB entry per the schema from section 2.2. This will be utilized by the SDN controller to identify what has been processed by bgpcfgd in terms of configuration.
 
 ## 2.5 Docker-FPM-FRR bgpd template:

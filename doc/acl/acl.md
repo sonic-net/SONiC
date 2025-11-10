@@ -48,7 +48,7 @@ Define rules associated with a specific ACL Policy
   
     key: ACL_RULE_TABLE:table_name:seq                    ; key of the rule entry in the table, seq is the order of the rules   
                                                           ; when the packet is filtered by the ACL "policy_name".   
-                                                          ; A rule is always assocaited with a policy.
+                                                          ; A rule is always associated with a policy.
 
     ;field        = value   
     action        = "permit"/"deny"                       ; action when the fields are matched (mirror action only available to mirror acl table type)
@@ -57,12 +57,12 @@ Define rules associated with a specific ACL Policy
     l3_prot_type  = "icmp"/"tcp"/"udp"/"any"              ; options of the l3_protocol_type field   
     ipv4_src      = ipv4_prefix/"any"                     ; options of the source ipv4 address (and mask) field  
     ipv4_dst      = ipv4_prefix/"any"                     ; options of the destination ipv4 address (and mask) field  
-                                                          ; l2_prot_type detemines which set of the addresses taking effect, v4 or v6.  
+                                                          ; l2_prot_type determines which set of the addresses taking effect, v4 or v6.  
     l4_src_port   = port_num/[port_num_L-port_num_H]      ; source L4 port or the range of L4 ports field   
     l4_dst_port   = port_num/[port_num_L-port_num_H]      ; destination L4 port or the range of L4 ports field  
 
     ;value annotations
-    seq           = DIGITS                                ; unique sequence number of the rules assocaited within this ACL policy.  
+    seq           = DIGITS                                ; unique sequence number of the rules associated within this ACL policy.  
                                                           ; When applying this ACL policy, the seq determines the order of the   
                                                           ; rules applied.   
     port_num      = 1*5DIGIT                              ; a number between 0 and 65535  

@@ -334,7 +334,7 @@ Chassis1  N/A       CPLD        <fwpackage_path>/cpld.bin      5 / 10           
 - `fwutil show updates` command only displays for the components which have the firmware image path available in platform_components.json
 ```
 
-**The following command displays the Component FW update satus (only available for `fwutil update all` command):**
+**The following command displays the Component FW update status (only available for `fwutil update all` command):**
 1. update status
 ```bash
 root@sonic:~# fwutil show update status
@@ -410,7 +410,7 @@ for automatic FW installation of various platform components.
 
 Automatic FW installation requires "platform_components.json" to be created and placed at:  
 _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
-Recommanded image path = /lib/firmware/<vendor>/
+Recommended image path = /lib/firmware/<vendor>/
 
 **Example:**
 1. Non modular chassis platform
@@ -720,7 +720,7 @@ MSN2700/SSD firmware auto-update starting: /lib/firmware/mlnx/ssd.bin with fast
 ...
 SSD firmware auto-update status from 4 to 5: scheduled - installation scheduled for fast reboot
 ...
-MSN2700/CPLD firmware auto-update starting: /lib/firware/mlnx/cpld.bin with fast
+MSN2700/CPLD firmware auto-update starting: /lib/firmware/mlnx/cpld.bin with fast
 ...
 CPLD firmware auto-update status from 5 to 10: skipped - warm reboot not supported for auto-update
 All firmware auto-update has been performed.
@@ -741,7 +741,7 @@ MSN2700/SSD firmware auto-update starting: /lib/firmware/mlnx/ssd.bin with cold
 ...
 SSD firmware auto-update status from 4 to 5: scheduled - installation scheduled for cold reboot
 ...
-MSN2700/CPLD firmware auto-update starting: /lib/firware/mlnx/cpld.bin with cold
+MSN2700/CPLD firmware auto-update starting: /lib/firmware/mlnx/cpld.bin with cold
 ...
 CPLD firmware auto-update status from 5 to 10: installed - need cold reboot to be completed
 All firmware auto-update has been performed.
@@ -831,7 +831,7 @@ the platform component utility will perform the equivalent process of `auto-upda
 The component utility can perform the firmware update if the firmware update doesn't need any boot action required after the update.
 Otherwise, it will create a task file if any process or handling for the component firmware update needs to be done during the reboot
 and also if the update can be done for the specified reboot type.
-The componenet utility should be defined with key value `utility` in the component object of `platform_components.json` to be called by fwutil instead of the platform api.
+The component utility should be defined with key value `utility` in the component object of `platform_components.json` to be called by fwutil instead of the platform api.
 The task file will be platform-specific.
 
 **Example:**
@@ -877,10 +877,10 @@ Here are the interface requirements to support them.
     - auto-update interface needs two arguments : image_path and boot_type
     - response : the return_code that indicates the status of auto-update (please refer to section  2.2.2.4.1)
 
-**Optional) The utility can be supported for other platform api substitues like `compoenent_update` and `compoenent_install` with |-u(--update)|-i(--install)**
+**Optional) The utility can be supported for other platform api substitutes like `compoenent_update` and `compoenent_install` with |-u(--update)|-i(--install)**
 
 The component utility needs to be called by the FWutil command to perform the firmware auto-update process if it's defined in the `platform_components.json`, otherwise, the platform component api will be called.
-The componet utility path will be pased from the `platform_components.json` and be executed by fwutil.
+The component utility path will be passed from the `platform_components.json` and be executed by fwutil.
 Below shows how the utility can be executed for the auto-update interface.
 ```bash
 ...
@@ -903,7 +903,7 @@ If any specific component firmware update needs to be done only during the reboo
 Platform firmware update reboot plugin will handle the task during the rebooot and will be invoked by the reboot script with its reboot-type.
 The plugin is expected to analyze the task file to understand what component firmware update has been scheduled for which reboot and determine if the component firmware update can be performed for the reboot or not.
 After the determination, firmware update will be done by the plugin if any firmware update is scheduled for the reboot.
-If the passed reboot_type to the plugin is different than the boot_type of task file, the pluin should exit with error code so that the reboot script can fail for the error case.
+If the passed reboot_type to the plugin is different than the boot_type of task file, the plugin should exit with error code so that the reboot script can fail for the error case.
 
 ```bash
 PLATFORM_FW_AU_REBOOT_HANDLE="platform_fw_au_reboot_handle"

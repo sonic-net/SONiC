@@ -207,7 +207,7 @@ DebugDumpOrch
 show commands will act as triggers for OrchAgent.  
 Syntax:  `show debug <component> <command> <option-1> <option-2> ... <option-n>`  
 
-Definition of command and required options are left to the component module owners. Sample CLI section descripes few examples on how the "show debug" CLI command can be used.  
+Definition of command and required options are left to the component module owners. Sample CLI section describes few examples on how the "show debug" CLI command can be used.  
 
 ##### 3.1.1.1.3 Sample CLI
 *RouteOrch:*  
@@ -302,7 +302,7 @@ Debug framework will initialize with below default parameters and shall be consi
 ### 3.1.2 Assert Framework
 
 #### 3.1.2.1 Overview
-Asserts are added in the program execution sequence to confirm that the data/state at a certain point is valid/true. During developement, if the programming sequence fails in an assert condition then the program execution is stopped by crash/exception. In production code, asserts are normally removed. This framework enhances/extendes the assert to provide more debug details when an assert fails.  
+Asserts are added in the program execution sequence to confirm that the data/state at a certain point is valid/true. During development, if the programming sequence fails in an assert condition then the program execution is stopped by crash/exception. In production code, asserts are normally removed. This framework enhances/extendes the assert to provide more debug details when an assert fails.  
 
 Classify assert failure conditions based on following types, assert() will have type and the module as additional arguments  
 - DUMP: Invokes the debug framework registered callback API corresponding to the module
@@ -311,7 +311,7 @@ Classify assert failure conditions based on following types, assert() will have 
 - ABORT: Stop/throw exception
 
 
-#### 3.1.2.2 PsuedoCode:
+#### 3.1.2.2 pseudocode:
 
 ```
     static void custom_assert(bool exp, const char*func, const unsigned line);  

@@ -403,7 +403,7 @@ Here is a summary explaining the `order-patch` contract, Check [3.1.1.4 Patch Or
 |errors      |malformedPatchError  | Will be raised if the input JsonPatch is not valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
 |            |other errors         | Check [3.1.1.4.2 Order-Patch](#31142-order-patch) for exact list of errors to expect.
 |side-effects|None                 |
-|assumptions |running-config locked| The implementor of this contract might interact with ConfigDB to get the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
+|assumptions |running-config locked| The implementer of this contract might interact with ConfigDB to get the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
 
 #### Stage-3 Applying list of JsonChanges in order
 There are a few SONiC applications which store their configuration in the ConfigDB. These applications do not subscribe to the ConfigDB change events. So any changes to their corresponding table entries as part of the patch apply process in the ConfigDB are not processed by the application immediately. In order to apply the configuration changes, corresponding service needs to be restarted. Listed below are some example tables from SONiC config, and the corresponding services that need to be manually restarted.
@@ -444,7 +444,7 @@ Here is a summary explaining the `apply-change` contract, Check [3.1.1.4 Change 
 |errors      |malformedChangeError   | Will be raised if the input JsonChange is not valid according to [3.1.1.4.1 JsonChange](#31141-jsonchange).
 |            |other errors           | Check [3.1.1.4.1 apply-change](#31141-apply-change) for exact list of errors to expect.
 |side-effects|updating running-config| This operation will cause changes to the running-config according to the input JsonChange.
-|assumptions |running-config locked| The implementor of this contract will interact with ConfigDB to updating the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
+|assumptions |running-config locked| The implementer of this contract will interact with ConfigDB to updating the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
 
 #### Stage-4 Post-update validation
 The expectations after applying the JsonPatch is that it will adhere to [RFC 6902](https://tools.ietf.org/html/rfc6902).
@@ -606,11 +606,11 @@ The only condition of JsonChange is that the final outcome after applying the wh
 |            |conflictingStateError   | Will be raised if the patch cannot be applied to the current state of the running config e.g. trying to add an item to a non-existing json dictionary.
 |            |internalError            | Will be raised if any other error is encountered that's different than the ones listed above.
 |side-effects|None                     |
-|assumptions |running-config locked    | The implementor of this contract might interact with ConfigDB to get the running-config, it is assumed the ConfigDB is locked for changes for the lifespan of the operation.
+|assumptions |running-config locked    | The implementer of this contract might interact with ConfigDB to get the running-config, it is assumed the ConfigDB is locked for changes for the lifespan of the operation.
 
 If `order-patch` has to force the update to follow very specific steps, it would have to provide multiple JsonChange objects in the return list of `order-patch`.
 
-`order-patch` is returning a list of JsonChanges instead of a simple JsonPatch with multiple operations because a JsonChange can group together multiple JsonPatch operations that share no dependency and can be executed together. This can help the implementor of `apply-change` to optimize the mechanism for applying JsonChange e.g. group changes under same parent together or reduce number of service restarts.
+`order-patch` is returning a list of JsonChanges instead of a simple JsonPatch with multiple operations because a JsonChange can group together multiple JsonPatch operations that share no dependency and can be executed together. This can help the implementer of `apply-change` to optimize the mechanism for applying JsonChange e.g. group changes under same parent together or reduce number of service restarts.
 
 For example:
 Assume JsonPatch contains:
@@ -632,7 +632,7 @@ We have 2 operations updating DHCP servers, and another operation for DEVICE_NEI
 ]
 ```
 Updating DHCP_SERVERS requires restarting `dhcp_relay` service, so if the above patch is to be executed in order, we will restart `dhcp_relay` service twice.
-But since the implementor of `apply-change` can order the operations in any way they see fit since they are OK to update together. They can decide move the DHCP updates together, and DHCP table twice, but restart `dhcp_relay` service only once.
+But since the implementer of `apply-change` can order the operations in any way they see fit since they are OK to update together. They can decide move the DHCP updates together, and DHCP table twice, but restart `dhcp_relay` service only once.
 
 Let's take a visual example, assume we have a JsonPatch with 8 operations, and here is the topological order of the operation. Arrow from op-x to op-y means op-y depends on op-x.
 
@@ -646,7 +646,7 @@ But if we organize the operations into groups of JsonChange, we will have:
 
 <img src="files/jsonchanges-order.png" alt="jsonchanges-order" width="800"/>
 
-This will allow the the implementor of `apply-change` to have the freedom to optimize the operations in any order they see fit.
+This will allow the the implementer of `apply-change` to have the freedom to optimize the operations in any order they see fit.
 
 **NOTE:** Check Patch Orderer implementation design design details in [Json_Patch_Ordering_using_YANG_Models_Design](Json_Patch_Ordering_using_YANG_Models_Design.md) document.
 
@@ -668,9 +668,9 @@ void apply-change(JsonChange jsonChange)
 |            |unprocessableRequestError| Will be raised if the change is valid, all the resources are found but when applying the change it causes an error in the system.
 |            |internalError            | Will be raised if any other error is encountered that's different than the ones listed above.
 |side-effects|updating running-config  | This operation will cause changes to the running-config according to the input JsonChange.
-|assumptions |running-config locked    | The implementor of this contract will interact with ConfigDB to updating the running-config, it is assumed the ConfigDB is locked for changes for the lifespan of the operation.
+|assumptions |running-config locked    | The implementer of this contract will interact with ConfigDB to updating the running-config, it is assumed the ConfigDB is locked for changes for the lifespan of the operation.
 
-Since the order of executing the operation does not matter, the implementor of this component can work on optimizing the time to run the operation. For details check [3.1.1.4 Change Applier](#3115-change-applier).
+Since the order of executing the operation does not matter, the implementer of this component can work on optimizing the time to run the operation. For details check [3.1.1.4 Change Applier](#3115-change-applier).
 
 **NOTE:** Check Change Applier implementation design design details in [Json_Change_Application_Design](Json_Change_Application_Design.md) document.
 
@@ -695,7 +695,7 @@ Same as [3.1.1.3 YANG models](#3113-yang-models)
 same as [3.1.1.5 ConfigDB](#3115-configdb)
 
 #### 3.1.2.5 File system
-This will the file system where SONiC os is setup. Some suggestions prefer the path `/var/sonic/checkpoints`, but that is not decided yet. Will leave it to the implementor of this design document to decide.
+This will the file system where SONiC os is setup. Some suggestions prefer the path `/var/sonic/checkpoints`, but that is not decided yet. Will leave it to the implementer of this design document to decide.
 
 ### 3.1.3 Rollback
 <img src="files/rollback-design.png" alt="rollback-design" width="1200"/>
@@ -736,7 +736,7 @@ same as [3.1.1.5 ConfigDB](#3115-configdb)
 
 #### 3.2.1.1 JsonPatch
 
-The JsonPatch consistes of a list operation, and each operation follows this format:
+The JsonPatch consists of a list operation, and each operation follows this format:
 ```
   { "op": "<Operation-Code>", "path": "<Path>", "value": "<Value>", "from": "<From-Path>" }
 ```

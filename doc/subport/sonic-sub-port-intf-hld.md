@@ -447,7 +447,7 @@ ip link del Ethernet0.100
 ip link del Eth64.10
 ```
 
-We use `ip address` and `ip -6 address` to add and remove ip adresses on a host sub port interface.
+We use `ip address` and `ip -6 address` to add and remove ip addresses on a host sub port interface.
 
 Example:
 ```
@@ -465,7 +465,7 @@ Once the host sub port interfaces are properly set, route and neighbor subsystem
 fpmsyncd should receive route add/del updates on sub port interfaces from zebra over TCP socket port 2620. These updates are received in the format of netlink messages.
 neighsyncd should receive neigh add/del netlink messages on sub port interfaces from its subscription to the neighbor event notification group RTNLGRP_NEIGH.
 
-Internally, a sub port interface is represented as a Port object to be perceived seamlessly by NeighOrch and RouteOrch to create neighor and route entries, respectively, on it.
+Internally, a sub port interface is represented as a Port object to be perceived seamlessly by NeighOrch and RouteOrch to create neighbor and route entries, respectively, on it.
 
 
 # 3 Event flow diagrams
@@ -739,7 +739,7 @@ It returns a shortname format for both subinterface and parent interface dependi
     When a 802.1q tagged packet is received on a physical port or a port channel, it will go to the sub port interface that matches the VLAN id inside the packet.
     If no sub port interfaces match the VLAN id in the packet tag, what is the default policy on handling the packet?
 
-    As shown in Fig. 1, there is possiblity that a physical port or a port channel may not have a RIF type port created.
+    As shown in Fig. 1, there is possibility that a physical port or a port channel may not have a RIF type port created.
     In this case, if an untagged packet is received on the physical port or port channel, what is the policy on handling the untagged packet?
 
 # 12 Acknowledgment

@@ -451,7 +451,7 @@ Schema:
 
 key = VRF_TABLE:VRF_NAME ;
 fallback = "true"/"false"             ; default false
-vni = 1*8DIGIT ; VNI assicated with the VRF
+vni = 1*8DIGIT ; VNI associated with the VRF
 
 ```
 
@@ -936,9 +936,9 @@ The VNET_ROUTE_TABLE and VNET_TUNNEL_ROUTE_TABLE will continue to exist for VNET
 
 Since VNET and VRF route-tables will be separate in FRR, there will be no coherency/consistency issues between VNET and VRF route-tables.
 
-Note that FRR doesnot send remote VNI and remote routers MAC address in the VRF route message to fpm today. FRR changes will be required to carry these values along with the route in zebra and pass them on to fpm.
+Note that FRR does not send remote VNI and remote routers MAC address in the VRF route message to fpm today. FRR changes will be required to carry these values along with the route in zebra and pass them on to fpm.
 
-Following flow diagrams explains the prefix route over tunnel programing.
+Following flow diagrams explains the prefix route over tunnel programming.
 If APP VRF Route Table is updated with non-zero VNI, Nexthop IP is overlay nexthop and Tunnel Nexthop is created.
 
 Tunnel encap mapper entry is created using the VRF and VNI from VRF route table.
@@ -954,7 +954,7 @@ __Figure 14: Associate VRF with L3 VNI__
 
 ### 4.3.10 ARP and ND Suppression
 
-When the VNI is configured to support ARP and ND Suppression, the node will start to act as proxy for the remote neigbours. Hence avoiding the Arp & ND traffic across the tunnels. This also helps in faster convergence.
+When the VNI is configured to support ARP and ND Suppression, the node will start to act as proxy for the remote neighbours. Hence avoiding the Arp & ND traffic across the tunnels. This also helps in faster convergence.
 
 
 ![ARP and ND Suppression](images/Neigh-Suppress.PNG "Figure 14: ARP and ND Suppression flow")
@@ -963,10 +963,10 @@ __Figure 15: ARP and ND Suppression flow__
 
 ARP and ND suppression functionality is achieved in Linux kernel by updating neighbour suppress flag in VXLAN netdevice. One netdevice is created per VNI.
 
-In the above diagram, When updating the ARP/ND Suppresion per VLAN , VlanMgr will find the appropiate Netdevice for the configured VLAN. It will
+In the above diagram, When updating the ARP/ND Suppression per VLAN , VlanMgr will find the appropriate Netdevice for the configured VLAN. It will
 update the corresponding Netdevice Flag.This information must be passed to SAI layer to make sure that ARP/ND packets are trapped instead of copy to cpu.
 For few platforms, SAI might be required to program the ARP Suppress packets differently from Normal ARP. 
-i.e. Special CPU Queue with more CIR (Commited Information Rate) as it is acting as Proxy.
+i.e. Special CPU Queue with more CIR (Committed Information Rate) as it is acting as Proxy.
 For those cases, the ARP and ND Suppress information per VLAN will be sent to SAI layer. 
 
 Since this feature is supported in kernel, it can scale for all 4k VLANs.
@@ -1230,7 +1230,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    - switch(config-if-vtep1) [no] map vlan <vidstart> vni <vnistart>  count <n>
    - <n> is the number of mappings being configured. 
    - <vidstart>, <vnistart> are the starting VID and VNID. 
-   - count is optional and when specified maps contigous sets of VIDs to contigous VNIDs
+   - count is optional and when specified maps contiguous sets of VIDs to contiguous VNIDs
 4. VRF VNI Mapping configuration
    - switch(config-if-vtep1) [no] map vrf VRF-Blue vni 10001
 5. Neighbor suppression

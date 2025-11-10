@@ -62,7 +62,7 @@ Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/dualtor/
 
 
 #### Add SAI version check to SONiC build system
-SONiC is not desinged to work in backward compatibility with older vendor SAI implementations. SAI headers that SONiC's synd daemon is compiled against are taken from OCP SAI repository. So is taken from sonic-buildimage vendor's directory. This leads to a conflict that sometimes SAI in sonic-sairedis repository is updated but vendor SAI in sonic-buildimage is not. This implementation sorts out this conflicts.
+SONiC is not designed to work in backward compatibility with older vendor SAI implementations. SAI headers that SONiC's synd daemon is compiled against are taken from OCP SAI repository. So is taken from sonic-buildimage vendor's directory. This leads to a conflict that sometimes SAI in sonic-sairedis repository is updated but vendor SAI in sonic-buildimage is not. This implementation sorts out this conflicts.
 
 Refer below mentioned PR for more details. 
 <br>  **Pull Requests** : [935](https://github.com/sonic-net/SONiC/pull/935)
@@ -76,7 +76,7 @@ Refer below mentioned PR for more details.
 
 
 #### Added fan_drawer class support in PDDF
-This enhancement impliments the changes to attach the PSU related thermal sensors in the PSU instance. This is acheieved by adding a common class pddf_fan_drawer.py. This class uses the PDDF JSON to fetch the platform specific data. previously, the fan_drawer support was missing in PDDF common platform APIs. This resulted in 'thermalctld' not working and 'show platform fan' and 'show platfomr temperature' commands not working. As _thermal_list array inside PSU class was not initialized. 
+This enhancement implements the changes to attach the PSU related thermal sensors in the PSU instance. This is acheieved by adding a common class pddf_fan_drawer.py. This class uses the PDDF JSON to fetch the platform specific data. previously, the fan_drawer support was missing in PDDF common platform APIs. This resulted in 'thermalctld' not working and 'show platform fan' and 'show platform temperature' commands not working. As _thermal_list array inside PSU class was not initialized. 
 
 Refer below mentioned PR for more details. 
 <br>  **Pull Requests** : [10213](https://github.com/sonic-net/sonic-buildimage/pull/10213)
@@ -112,7 +112,7 @@ Refer below mentioned PR's for more details.
 
 
 #### Deterministic interface Link bring-up
-This feature impliments the determistic approach for Interface link bring-up sequence for all interfaces types i.e. below sequence to be followed:
+This feature implements the deterministic approach for Interface link bring-up sequence for all interfaces types i.e. below sequence to be followed:
 
 - Initialize and enable NPU Tx and Rx path
 - For system with 'External' PHY: Initialize and enable PHY Tx and Rx on both line and host sides; ensure host side link is up
@@ -137,7 +137,7 @@ Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/pbh/pbh-
 
 
 #### Extend auto tech support for memory threshold
-Currently, techsupport is run by invoking show techsupport either by orchestration tools or manually. The techsupport dump also collects any core dump files available in the /var/core/ directory. However upon the techsupport invocation be made event-driven based on core dump generation, that would improve the debuggability which is implimented on this enhancement.
+Currently, techsupport is run by invoking show techsupport either by orchestration tools or manually. The techsupport dump also collects any core dump files available in the /var/core/ directory. However upon the techsupport invocation be made event-driven based on core dump generation, that would improve the debuggability which is implemented on this enhancement.
 
 Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/auto_techsupport_and_coredump_mgmt.md) and below mentioned PR's for more details. 
 <br>  **Pull Requests** : [939](https://github.com/sonic-net/SONiC/pull/939), [2116](https://github.com/sonic-net/sonic-utilities/pull/2116) & [10433](https://github.com/sonic-net/sonic-buildimage/pull/10433)
@@ -206,7 +206,7 @@ The docker images to debian bullseye for this release are listed below.
 ```
 
 #### Move Nvidia syncd and pmon to Debian11- "Bullseye"
-This impliments the upgrade on nvidia platform for containers such as syncd / saiserver / syncd-rpc and pmon to bullseye 
+This implements the upgrade on nvidia platform for containers such as syncd / saiserver / syncd-rpc and pmon to bullseye 
 
 Refer below mentioned PR's for more details. 
 <br>  **Pull Requests** : [10580](https://github.com/sonic-net/sonic-buildimage/pull/10580)
@@ -241,7 +241,7 @@ Refer [HLD document](https://github.com/sonic-net/SONiC/blob/5a5922499b388acafa8
 
 
 #### Platform support for Edgecore AS4630/AS7326/AS7816/AS5835
-This feature impliments the sonic-buildimage changes needed to support in platform for AS4630-pe, AS5835-X, AS7326, AS7816 switch models (currently broken in master).
+This feature implements the sonic-buildimage changes needed to support in platform for AS4630-pe, AS5835-X, AS7326, AS7816 switch models (currently broken in master).
 
 Refer below mentioned PR's for more details. 
 <br>  **Pull Requests** : [10053](https://github.com/Azure/sonic-buildimage/pull/10053)
@@ -287,9 +287,9 @@ Refer below mentioned PR's for more details.
 
 
 #### Sorted next hop ECMP
-Under the ToR (Tier0 device) there can be appliances (eg:Firewall/Software-Load Balancer) which maintain state of flows running through them. For better scaling/high-availaibility/fault-tolerance set of appliances are used and connected to differnt ToR's. Not all the flow state that are maintained by these appliances in a set are shared between them. Thus with flow state not being sync if the flow do not end up alawys on to same TOR/Appliance it can cause services (using that flow) degradation and also impact it's availability
+Under the ToR (Tier0 device) there can be appliances (eg:Firewall/Software-Load Balancer) which maintain state of flows running through them. For better scaling/high-availaibility/fault-tolerance set of appliances are used and connected to different ToR's. Not all the flow state that are maintained by these appliances in a set are shared between them. Thus with flow state not being sync if the flow do not end up alawys on to same TOR/Appliance it can cause services (using that flow) degradation and also impact it's availability
 
-To make sure given flow (identidied by 5 tuple) always end up on to same TOR/Appliance we need ECMP ordered support/feature on T1 (Leaf Router). With this feature enable even if flow land's on different T1's (which is common to happen as some link/device in the flow path goes/come to/from maintainence) ECMP memeber being ordered will use same nexthop (T0) and thus same appliace.
+To make sure given flow (identified by 5 tuple) always end up on to same TOR/Appliance we need ECMP ordered support/feature on T1 (Leaf Router). With this feature enable even if flow land's on different T1's (which is common to happen as some link/device in the flow path goes/come to/from maintenance) ECMP member being ordered will use same nexthop (T0) and thus same appliace.
 
 Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/bum_storm_control/bum_storm_control_hld.md) and below mentioned PR's for more details. 
 <br>  **Pull Requests** : [896](https://github.com/sonic-net/SONiC/pull/896), [9651](https://github.com/sonic-net/sonic-buildimage/pull/9651), [2092](https://github.com/sonic-net/sonic-swss/pull/2092) & [989](https://github.com/sonic-net/sonic-sairedis/pull/989)

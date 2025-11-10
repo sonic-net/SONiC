@@ -131,7 +131,7 @@ The flow of using this json will be referred to as the **_Notify-Media-setting-P
 ## Port SI configuration (flows)
 
 Currently, the Notify-Media-Settings-Process is carried out only in the initialization phase of xcvrd and whenever a module is plugged in. After applying the port SI per speed enhancements, it will also be carried out upon port speed change events: Whenever a port speed change is detected by listening to CONFIG_DB, Notify-Media-Settings-Process will be called to send the most applicable SI values in the JSON to SAI.
-Port speed changes require invoking the Notify-Media-Settings-Process becuase after such a change, the lane_speed_key used for lookup in the JSON changes accordingly, and the previously configured SI values in the ASIC are no longer relevant.
+Port speed changes require invoking the Notify-Media-Settings-Process because after such a change, the lane_speed_key used for lookup in the JSON changes accordingly, and the previously configured SI values in the ASIC are no longer relevant.
 </br></br>
 
 
@@ -141,7 +141,7 @@ Port speed changes require invoking the Notify-Media-Settings-Process becuase af
 
 1. Changes in SfpStateUpdateTask thread:</br></br>
     With the port SI per speed enhancements applied, we rely on the lane speed when we lookup in _media_settings,json_. Hence, this flow has to be triggered not only by insertion/removal of modules, but by speed configuration changes as well.</br>
-    In order to establish the dependency of port SI configurations on lane speed, we need to be able to monitor speed configuration changes. Therefore, we will add to the SfpStateUpdateTask a listener to detect such changes: a new member will be added to SfpStateUpdateTask to listen to changes in CONFIG_DB.PORT_TABLE, and once such change is detected, _notify_media_settings()_ will be trigerred. Additionally, the SfpStateUpdateTask thread will have a new dictionary that will store the speed and number of lanes for each port.
+    In order to establish the dependency of port SI configurations on lane speed, we need to be able to monitor speed configuration changes. Therefore, we will add to the SfpStateUpdateTask a listener to detect such changes: a new member will be added to SfpStateUpdateTask to listen to changes in CONFIG_DB.PORT_TABLE, and once such change is detected, _notify_media_settings()_ will be triggered. Additionally, the SfpStateUpdateTask thread will have a new dictionary that will store the speed and number of lanes for each port.
 </br></br>
 
 
@@ -223,7 +223,7 @@ Port speed changes require invoking the Notify-Media-Settings-Process becuase af
 # Unit Test
 - Generation of keys in the new format: Expand the _test_get_media_settings_key()_ method to create a dictionary that contains a mapping between a port and its port speed and lane count. Then call _get_media_settings_key()_ with that dictionary and assert that a valid lane_speed_key was composed.
 
-- The lookup functionality works seamlessly with both the new and legacy JSON formats: Create a new test, _test_get_media_settings_value()_, that gets the (vendor_key, media_key, lane_speed_key) tuple. This test will perform the lookup using this tuple in two instances of the media_settings.json file: one from the updated format and one from the current format. The only difference between these two JSONs is that the first contains the hierarchy level that corresponds to the lane_speed_key received, while the latter doesn't. Everyhing else is similar for the two JSONs. Both lookup should end up with a match, extracting the same values from the JSONs.
+- The lookup functionality works seamlessly with both the new and legacy JSON formats: Create a new test, _test_get_media_settings_value()_, that gets the (vendor_key, media_key, lane_speed_key) tuple. This test will perform the lookup using this tuple in two instances of the media_settings.json file: one from the updated format and one from the current format. The only difference between these two JSONs is that the first contains the hierarchy level that corresponds to the lane_speed_key received, while the latter doesn't. Everything else is similar for the two JSONs. Both lookup should end up with a match, extracting the same values from the JSONs.
 This test verifies backward compatibility and ensures that the updated JSON format does not cause any issues for other vendors.
 
 - PortsOrchagent tests:

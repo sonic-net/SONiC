@@ -55,7 +55,7 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 | Feature| Feature Description | HLD PR / PR tracking |	Quality |
 | ------ | ------- | -----|-----|
 | ***Add hld for DHCPv4 relay per-interface counter*** | This feature describes the details of DHCPv4 Relay per-interface counter feature. It provides capability to count DHCPv4 packets based on packets type and ingress / egress interface.  | [1861](https://github.com/sonic-net/SONiC/pull/1861) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
-| ***Add tunnel pipe mode support for IPIP Decap mode to use SAI_TUNNEL_ATTR_DECAP_QOS_DSCP_TO_TC_MAP*** | Thie feature supports the pipe mode in IPIP packets when decapped - request from NetScan. Current support is for all platforms except broadcom SKUs. SAI attribute SAI_TUNNEL_ATTR_DECAP_QOS_DSCP_TO_TC_MAP will be used since the decap_dscp_to_tc_map key is set in the template.  | [21868](https://github.com/sonic-net/sonic-buildimage/pull/21868) |  [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
+| ***Add tunnel pipe mode support for IPIP Decap mode to use SAI_TUNNEL_ATTR_DECAP_QOS_DSCP_TO_TC_MAP*** | This feature supports the pipe mode in IPIP packets when decapped - request from NetScan. Current support is for all platforms except broadcom SKUs. SAI attribute SAI_TUNNEL_ATTR_DECAP_QOS_DSCP_TO_TC_MAP will be used since the decap_dscp_to_tc_map key is set in the template.  | [21868](https://github.com/sonic-net/sonic-buildimage/pull/21868) |  [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
 | ***Add Srv6 static config HLD*** | This feature implements the change in SONiC to support static configuration of Segment-routing over IPv6. Besides, a YANG model specification for the new table in CONFIG_DB is also defined.   | [1860](https://github.com/sonic-net/SONiC/pull/1860) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
 | ***Authentication Support for 802.1X and MAB*** | This feature supports the authentication for 802.1X and for MAB support |  [1977](https://github.com/sonic-net/SONiC/issues/1977) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
 | ***CVL Enhancements*** | This feature enhances the cvl custom validation to demonstrate its capability to allow/deny configuration based on other db data. 	|  [1969](https://github.com/sonic-net/SONiC/issues/1969) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
@@ -89,7 +89,7 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 
 
 
-Note : The HLD PR's have been updated in ""HLD PR / PR tracking"" coloumn. The code PR's part of the features are mentioned within the HLD PRs. The code PRs not mentioned in HLD PRs are updated in "HLD PR / PR tracking" coloumn along with HLD PRs.
+Note : The HLD PR's have been updated in ""HLD PR / PR tracking"" column. The code PR's part of the features are mentioned within the HLD PRs. The code PRs not mentioned in HLD PRs are updated in "HLD PR / PR tracking" column along with HLD PRs.
 
 # SAI APIs
 

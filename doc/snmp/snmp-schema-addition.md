@@ -5,7 +5,7 @@
 Currently SNMP configuration is managed from a mix of yaml files and DB based ACLs, we propose to integrate the SNMP configs into an SNMP table in the DB.  
 The following document proposes the database Schema in Json format and the list of required changes to the code.
 
-## Current configurtions for SNMP ##
+## Current configurations for SNMP ##
 sonic-buidimage and sonic-snmpagent depend on the following files:
 * */etc/sonic/snmp.yaml*
     defines 2 keys:  
@@ -103,7 +103,7 @@ Where:
 
 
 New keys:
-* "TYPE":  Optional, if ommited defaults to 'RO', there are 2 possible values:  
+* "TYPE":  Optional, if omitted defaults to 'RO', there are 2 possible values:  
   * "RO": read-only, the only implemented method at this time.  
   * "RW": well you never know - here for completeness but unused in the code.  
 
@@ -114,7 +114,7 @@ The changes we propose are only additive to remain compatible with the current i
 In repo *sonic-buildimage*:
 
 * *dockers/docker-snmp-v2/snmpd.conf.j2*:  
-  * verify the existence of the SNMP table in the datatbase and fork behavior if present, if not continue using old method.
+  * verify the existence of the SNMP table in the database and fork behavior if present, if not continue using old method.
 
 * *dockers/docker-snmp-v2/snmpd-config-updater*:  
   * this file will be deprecated soon by caclmgrd so no updates will be done

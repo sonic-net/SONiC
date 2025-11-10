@@ -88,7 +88,7 @@ Currently SONiC Testbed setup uses fanout switches to connect to the testbed ser
 
 
 #### 6. Error handling (swss)
-This feature impliments the orchagent in handling SAI failures. below are the failure handling functions in orchagent
+This feature implements the orchagent in handling SAI failures. below are the failure handling functions in orchagent
 
 *	Allow different handling for Create/Set/Remove/Get operations.
 *	Allow each Orch to have its specific handling logic.
@@ -123,10 +123,10 @@ This feature is an enhancements of SONiC ICCP MCLAG. This includes MCLAG configu
 <br> **Pull Requests** :  [596](https://github.com/sonic-net/SONiC/pull/596), [885](https://github.com/sonic-net/sonic-swss/pull/885), [4819](https://github.com/sonic-net/sonic-buildimage/pull/4819), [1331](https://github.com/sonic-net/sonic-swss/pull/1331), [1349](https://github.com/sonic-net/sonic-swss/pull/1349), [529](https://github.com/sonic-net/sonic-utilities/pull/529), [405](https://github.com/sonic-net/sonic-swss-common/pull/405), [59](https://github.com/sonic-net/sonic-mgmt-framework/pull/59), [25](https://github.com/sonic-net/sonic-mgmt-common/pull/25)
 
 #### 11. DHCP relay IPv6 support
-This DHCP Relay for IPv6 feature in SONiC impliments the following functionalities, 
+This DHCP Relay for IPv6 feature in SONiC implements the following functionalities, 
 
 *	To give the support for relaying DHCP packets from downstream networks to upstream networks using IPv6 addresses.
-*	To provide the functionality as a seperate process running on dhcp-relay docker container.
+*	To provide the functionality as a separate process running on dhcp-relay docker container.
 *	To relay messages to multiple unicast and multicast addresses.
 
 Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/DHCPv6_Relay/DHCPv6_Relay_HLD.md) and below mentioned PR's for more details.

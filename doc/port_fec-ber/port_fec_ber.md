@@ -107,7 +107,7 @@ The following redis DB entries will be access for the BER calculations
 |COUNTER_DB |RATES |SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last | New, RW|number |Last corrected bits counts |
 |COUNTER_DB |RATES |SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last |New, RW|number |Last uncorrctedble frame counts |  
 |COUNTER_DB |RATES |FEC_PRE_BER |New, RW| floating |calculated pre fec BER |  
-|COUNTER_DB |RATES |FEC_POST_BER |New, RW| floating | calulated post fec BER |  
+|COUNTER_DB |RATES |FEC_POST_BER |New, RW| floating | calculated post fec BER |  
 |APPL_DB |PORT_TABLE |lanes |R |strings |number of serdes lanes in the port |  
 |APPL_DB |PORT_TABLE |speed |R |number |port speed |  
 
@@ -156,7 +156,7 @@ Step 4 : assume statistical average error rate as 1e-8 per frame
 
      rs_average_frame_ber = 1e-8 
 
-Step 5: calcuate BER
+Step 5: calculate BER
 
     interval = PORT_STATE poll interval which is 1000 ms currently
 
@@ -164,7 +164,7 @@ Step 5: calcuate BER
     Post FEC BER = (SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES - SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last) * rs_average_frame_ber / (serdes * lanes_count * interval / 1000)
 
 
-Step 6: the following data will be updated and its latest value stored in the COUNTER_DB, RATES table after each iteraction
+Step 6: the following data will be updated and its latest value stored in the COUNTER_DB, RATES table after each interaction
 
     Pre FEC BER , Post FEC BEC, SAI_PORT_STAT_IF_IN_FEC_CORRECTED_BITS_last and SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES_last
 

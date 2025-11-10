@@ -26,7 +26,7 @@ Before removing a port the user is responsible to remove all dependencies of thi
 # About this Manual
 This document provides general information about ports creation or removal in SONiC. The creation of ports on the init stage and creating or removing ports after init stage.
 # Scope                                                                                  
-This document describes the high level design of orchagent and the impact of creating/removing ports dynamically on other services. The design describes the current implementaion and suggestion to changes that needs to be implemented in order to fully support the dynamic create/remove of ports.
+This document describes the high level design of orchagent and the impact of creating/removing ports dynamically on other services. The design describes the current implementation and suggestion to changes that needs to be implemented in order to fully support the dynamic create/remove of ports.
 
 ## Relevant PRs
 [PR #7999 Allow cfggen to work on system without ports](https://github.com/sonic-net/sonic-buildimage/pull/7999)<br />
@@ -273,7 +273,7 @@ If we will not use this mechanism we will get a lot of SAI error and with this r
 
 The Problem:
 -   when a port is added - the lldpcli execution can failed since the host interface is not yet up. oper_state on on APP DB is up but host interface is not up yet.
--   when lldp is removed immediatly after add the lldpcli command wasn't executed yet, the command is still on pending_cmds, there is treatment to remove a     port, on lldpmgrd, the command for this port will stay forever on the pending_cmds end each 10 seconds (timeout value) the command will be executed and failed since the host interface is no longer exist.
+-   when lldp is removed immediately after add the lldpcli command wasn't executed yet, the command is still on pending_cmds, there is treatment to remove a     port, on lldpmgrd, the command for this port will stay forever on the pending_cmds end each 10 seconds (timeout value) the command will be executed and failed since the host interface is no longer exist.
 
 Suggested change:
 -   Before executing lldpcli command we will check if host interface is up by checking the port status on state db<br />

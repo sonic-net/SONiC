@@ -39,7 +39,7 @@ Deterministic Approach for Interface Link bring-up sequence
 
 
 # About this Manual
-This is a high-level design document describing the need to have determinstic approach for
+This is a high-level design document describing the need to have deterministic approach for
 Interface link bring-up sequence and workflows for use-cases around it 
 
 # Abbreviation
@@ -109,7 +109,7 @@ Interface link bring-up sequence and workflows for use-cases around it
 
 # Objective
 
-Have a determistic approach for Interface link bring-up sequence for all interfaces types i.e. below sequence to be followed:
+Have a deterministic approach for Interface link bring-up sequence for all interfaces types i.e. below sequence to be followed:
   1. Initialize and enable NPU Tx and Rx path
   2. For system with 'External' PHY: Initialize and enable PHY Tx and Rx on both line and host sides; ensure host side link is up 
   3. Then only perform optics data path initialization/activation/Tx enable (for CMIS complaint optical modules) and Tx enable (for SFF complaint optical modules)
@@ -127,7 +127,7 @@ Plan is to follow this high-level work-flow sequence to accomplish the Objective
     - deterministic approach to bring the interface will eliminate any link stability issue which will be difficult to chase in the production network
       e.g. If there is a PHY device in between, and this 'deterministic approach' is not followed, PHY may adapt to a bad signal or interface flaps may occur when the optics tx/rx  enabled during PHY initialization. 
     - there is a possibility of interface link flaps with non-quiescent optical modules <QSFP+/SFP28/SFP+> if this 'deterministic approach' is not followed
-    - It helps bring down the optical module laser when interface is adminstiratively shutdown. Per the workflow here, this is acheived by xcvrd listening to host_tx_ready field from PORT_TABLE of STATE_DB. Turning the laser off would reduce the power consumption and avoid any lab hazard
+    - It helps bring down the optical module laser when interface is adminstiratively shutdown. Per the workflow here, this is achieved by xcvrd listening to host_tx_ready field from PORT_TABLE of STATE_DB. Turning the laser off would reduce the power consumption and avoid any lab hazard
     - Additionally provides uniform workflow (from SONiC NOS) across all interface types with or without module presence. 
   - This synchronization will also benefit SFP+ optical modules as they are "plug N play" and may not have quiescent functionality. (xcvrd can use the optional 'soft tx disable' ctrl reg to disable the tx)
 
@@ -162,7 +162,7 @@ Please refer to the  flow/sequence diagrams which covers the following required 
 Else, if ‘skip_xcvrd_cmis_mgr’ is set/found 'true' by xcvrd, it would skip launching CMIS task manager and this feature would remain disabled.
 If a platform/vendor does not specify/set ‘skip_xcvrd_cmis_mgr’, xcvrd would exercise the default workflow (i.e. when xcvrd detects QSFP-DD, it would luanch CMIS task manager and initialize the module per CMIS specification). 
 
-Note: This feature flag (skip_xcvrd_cmis_mgr) was added as a flexibility in case vendor/platform intend to disable this feature and not use CMIS task manager. However, techinically, as mentioned in this document, that should not be the case.
+Note: This feature flag (skip_xcvrd_cmis_mgr) was added as a flexibility in case vendor/platform intend to disable this feature and not use CMIS task manager. However, technically, as mentioned in this document, that should not be the case.
   
   Workflow :
   ![Enabling 'Interface link bring-up sequence' feature(2)](https://user-images.githubusercontent.com/69485234/154403945-654b49d7-e85f-4a7a-bb4d-e60a16b826a7.png)
@@ -185,7 +185,7 @@ Note: This feature flag (skip_xcvrd_cmis_mgr) was added as a flexibility in case
 
 # No transceiver present
 if transceiver is not present:
- - All the workflows mentioned above will reamin same ( or get exercised) till host_tx_ready field update
+ - All the workflows mentioned above will remain same ( or get exercised) till host_tx_ready field update
  - xcvrd will not perform any action on receiving host_tx_ready field update 
 
 # Port re-initialization during syncd/swss/orchagent crash

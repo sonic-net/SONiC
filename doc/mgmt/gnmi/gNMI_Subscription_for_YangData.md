@@ -90,8 +90,8 @@ to support gNMI subscriptions and wildcard paths for YANG defined paths.
 
 ### 1.1 Introduction
 
-SONiC Telemetry service suports gNMI Get, Set and Subscribe RPCs for DB paths and sonic-yang based paths.
-It also suppots Get and Set for OpenConfig YANG paths that are part of **sonic-mgmt-common** repository.
+SONiC Telemetry service supports gNMI Get, Set and Subscribe RPCs for DB paths and sonic-yang based paths.
+It also supports Get and Set for OpenConfig YANG paths that are part of **sonic-mgmt-common** repository.
 This design document describes proposed enhancements to support gNMI Subscribe RPC for these OpenConfig yang paths.
 
 ### 1.2 Requirements
@@ -142,7 +142,7 @@ Proposed enhancements should not affect any of the existing functionalities of t
 ### 1.3 Translib Overview
 
 Translib is a golang library for reading and writing YANG model based data to redis DB or non-DB data source.
-OpenConfig YANG models and correspinding translation code will be plugged into translib.
+OpenConfig YANG models and corresponding translation code will be plugged into translib.
 These application components are called *app modules*.
 Northbound API servers, like REST/gNMI servers, can call translib functions likes `Get()`, `Create()`, `Delete()` to process the request they received.
 Translib then invokes corresponding app modules to translate the YANG and and perform actual read/write operations.
@@ -373,7 +373,7 @@ This approach tends to result in Translib sending stream of smaller chunks of da
 A `SubscribeResponse` with SyncComplete=true is pushed to the queue after data chunks are pushed.
 
 Once the initial data responses are complete, the `Subscribe()` function ends.
-But the notification handler will continue to run until gNMI servers sends a cancel signal (through the cannel it passed to the `Subscribe()` function) or a redis PubSub read fails.
+But the notification handler will continue to run until gNMI servers sends a cancel signal (through the channel it passed to the `Subscribe()` function) or a redis PubSub read fails.
 
 #### 2.8.3 DB key to YANG Path mapping
 
@@ -412,7 +412,7 @@ Following table lists how translib re-interprets the redis keyspace notification
 |-------------|-----------------------|--------------------|---------------|-----------------|----------|
 | hset/hdel   | No  | No  | None              | Ignore          | Entry was created and deleted in quick succession. We cannot process them since we lost the values already. |
 |             | No  | Yes | Add to cache      | Key create      |   |
-|             | Yes | No  | None              | Ignore          | Update follwed by delete in quick succession. We have already lost the updated value. Hence nothing to be done here. There will be a *del* event next which will send delete notification. |
+|             | Yes | No  | None              | Ignore          | Update followed by delete in quick succession. We have already lost the updated value. Hence nothing to be done here. There will be a *del* event next which will send delete notification. |
 |             | Yes | Yes | Update cache      | Entry update    |   |
 | del         | No  | No  | None              | Ignore          | Entry was added and deleted in quick succession. We skip delete since we would have already skipped the create. |
 |             | No  | Yes | None              | Ignore          | Should not happen. |
@@ -426,7 +426,7 @@ It will be destroyed when the session is closed (i.e, when Subscribe RPC ends).
 
 Translib notification handler will calculate the modified DB fields by comparing the latest DB entry with the OnChange cache entry.
 Notification is ignored if there are no changes relevant to current subscribe paths.
-Redis key create/delete and create/update/delete of any of the fields peresent in the DB mapping are considered processed further.
+Redis key create/delete and create/update/delete of any of the fields present in the DB mapping are considered processed further.
 A `SubscribeResponse` object will be constructed as listed below:
 
 | DB change type      | SubscribeResponse contents                                         |
@@ -475,7 +475,7 @@ If the subscribe path is not mapped to any DB table (non-DB data) and does not h
 
 To detect deleted resources, gNMI server will maintain previous iteration's snapshot in a {path, YGOT object} cache.
 Current iteration's data is compared against this cache to identify deleted objects or attributes.
-Cache will be updated wih the current values at the end of each iteration.
+Cache will be updated with the current values at the end of each iteration.
 YGOT `ygot.Diff()` like logic can be used to compare two YGOT objects.
 We observed performance issues with `ygot.Diff()` API, hence it will not be used directly.
 
@@ -594,8 +594,8 @@ does not contain wildcards.
 Translib `Stream()` API current data is through the existing `Get()` flow.
 Wildcard paths cannot be passed to these functions due to limitations in the YGOT.
 
-An alterante approach is to extend app module's `processSubscribe()` scope to return all specific paths of a wildcard path.
-However this will not be practical for the app modules if non-DB data source does not provide APIs to retrive object keys (equivalent of redis KEYS or SCAN).
+An alternate approach is to extend app module's `processSubscribe()` scope to return all specific paths of a wildcard path.
+However this will not be practical for the app modules if non-DB data source does not provide APIs to retrieve object keys (equivalent of redis KEYS or SCAN).
 There is no standard "non-DB data access" layer in translib today.
 Hence the current design does not support wildcard paths for non-DB data.
 Future releases can enhance this based on how non-DB data access evolves in translib.
@@ -641,7 +641,7 @@ func IsSubscribeSupported(req IsSubscribeRequest) ([]*IsSubscribeResponse, error
 type IsSubscribeRequest struct {
     Paths         []IsSubscribePath
     Session       *SubscribeSession
-    // client info for authetication & accounting
+    // client info for authentication & accounting
 }
 
 type IsSubscribePath struct {

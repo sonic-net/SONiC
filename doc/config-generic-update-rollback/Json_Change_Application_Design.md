@@ -127,7 +127,7 @@ void apply-change(JsonChange jsonChange)
 |errors      |malformedChangeError   | Will be raised if the input JsonChange is not valid according to [SONiC_Generic_Config_Update_and_Rollback_Design](SONiC_Generic_Config_Update_and_Rollback_Design.md#31141-jsonchange).
 |            |other errors           | Check [SONiC_Generic_Config_Update_and_Rollback_Design](SONiC_Generic_Config_Update_and_Rollback_Design.md#31141-apply-change) for exact list of errors to expect.
 |side-effects|updating running-config| This operation will cause changes to the running-config according to the input JsonChange.
-|assumptions |running-config locked| The implementor of this contract will interact with ConfigDB to updating the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
+|assumptions |running-config locked| The implementer of this contract will interact with ConfigDB to updating the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
 
 The important constraint in the above interface is the JsonChange, where ordering of applying the modifications is arbitrary.
 
@@ -224,7 +224,7 @@ Or it can be updated using the following steps:
     { "op": "add", "path": "/DHCP_SERVER/192.0.0.3", "value": {} },
 ```
 
-Applying JsonChange is all about the running config being converted to the target config, the steps to update can be arbitrary and are decided by the implementor of the `apply-change` interface.
+Applying JsonChange is all about the running config being converted to the target config, the steps to update can be arbitrary and are decided by the implementer of the `apply-change` interface.
 
 Our current design documents will use the "Table" as the main granular element of update. We will update "Table" by "Table" in alphabetical order. Each table update will take care of updating table entries in ConfigDB, restarting services if needed and verifying services have absorbed
 

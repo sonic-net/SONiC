@@ -153,7 +153,7 @@ OrchAgent added a new orchestrator HashOrch to take care of programming the hash
 
 P4RT application needs a response status for every request (success and failure) that is sent southwards to the OrchAgent. This ensures the external client making the request is aware of the status and can respond appropriately.
 
-At a high level, syncd operates in synchronous mode and OrchAgent relays the hardware status of the operation back to P4RT application via a separate notification channel and writes all successful responses into the APPL_STATE_DB. This abstraction differs from the existing STATE_DB which does not provide an application level response. P4RT application uses the APPL_STATE_DB to restore the entry in APPL_DB when a particular request fails. More details on the response path design is captured in the AppDb Shema HLD.
+At a high level, syncd operates in synchronous mode and OrchAgent relays the hardware status of the operation back to P4RT application via a separate notification channel and writes all successful responses into the APPL_STATE_DB. This abstraction differs from the existing STATE_DB which does not provide an application level response. P4RT application uses the APPL_STATE_DB to restore the entry in APPL_DB when a particular request fails. More details on the response path design is captured in the AppDb Schema HLD.
 
 
 ## APPL DB Schema High-Level Design

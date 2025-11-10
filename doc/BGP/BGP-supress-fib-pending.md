@@ -219,7 +219,7 @@ module sonic-device_metadata {
 /* end of module sonic-device_metadata
 ```
 
-This knob can only be set to ```"enable"``` when syncrhonous SAI configuration mode is on. This constraint is guaranteed by the ```must``` expression for this leaf.
+This knob can only be set to ```"enable"``` when synchronous SAI configuration mode is on. This constraint is guaranteed by the ```must``` expression for this leaf.
 
 <!-- omit in toc -->
 #### 6.4. CLI
@@ -295,7 +295,7 @@ B>q 0.0.0.0/0 [20/0] via 10.0.0.1, PortChannel102, weight 1, 00:04:46
   q                  via 10.0.0.13, PortChannel1011, weight 1, 00:04:46
 ```
 
-Once zebra is notified about successfull route offload status the *offload* flag is set:
+Once zebra is notified about successful route offload status the *offload* flag is set:
 
 ```
 admin@sonic:~$ vtysh -c "show ip route 100.1.0.25/32 json"
@@ -590,7 +590,7 @@ sequenceDiagram
   deactivate APPL_DB
 
   alt Suppression is disabled
-    Note left of RouteSync: Reply back immidiatelly <br>when this feature is disabled
+    Note left of RouteSync: Reply back immediately <br>when this feature is disabled
     RouteSync ->> zebra: Send back RTM_NEWROUTE<br> with RTM_F_OFFLOAD set
     zebra ->> RouteSync: <br>
   end

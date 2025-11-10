@@ -148,7 +148,7 @@ module: openconfig-interfaces
 | REST | REpresentative State Transfer |
 | gNMI                     | gRPC Network Management Interface: used to retrieve or manipulate the state of a device via telemetry or configuration data         |
 | XML                     | eXtensible Markup Language   |
-| Aggregate |   Interchangable with portchannel |
+| Aggregate |   Interchangeable with portchannel |
 
 
 # 1 Feature Overview

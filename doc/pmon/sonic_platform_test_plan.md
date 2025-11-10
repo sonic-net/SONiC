@@ -43,7 +43,7 @@ To verify that the hw-management package works as expected, the test cases need 
 * Mellanox ACS-MSN2740
 * Mellanox ACS-MSN3700
 
-The test cases are groupd in two categories:
+The test cases are grouped in two categories:
 * Common test cases for all vendors.
 * Test cases specific for Mellanox platforms.
 
@@ -55,7 +55,7 @@ In common test cases, some steps are platform dependent. Detailed information wi
 
 A test suite will install an HTTP server in the PMon container of the DuT. This HTTP server will convert URLs into platform API calls, returning the results of the API call in the HTTP response. All platform API methods will be exercised in this manner, ensuring that:
 
-1. The vendor has implmented the method for the particular platform
+1. The vendor has implemented the method for the particular platform
 2. The API call returned 'sane' data (type is correct, etc.)
 3. Where applicable, the data returned is appropriate for the platform being tested (number of fans, number of transceivers, etc.)
 4. Where applicable, the data returned is appropriate for the specific DuT (serial number, system EERPOM data, etc.)
@@ -453,7 +453,7 @@ This test case needs to frequently check various status, the status to be checke
   * `redis-cli -n 6 keys TRANSCEIVER_INFO*`
 * CPU and memory usage: `top`
 
-Expected results of checking varous status:
+Expected results of checking various status:
 * Services syncd and swss should be active(running)
 * Service hw-management should be active(exited) - **Mellanox specific**
 * All interface and port-channel status should comply with current topology.
@@ -494,7 +494,7 @@ This test case needs to frequently check various status, the status to be checke
   * `redis-cli -n 6 keys TRANSCEIVER_INFO*`
 * CPU and memory usage: `top`
 
-Expected results of checking varous status:
+Expected results of checking various status:
 * Services syncd and swss should be active(running)
 * Service hw-management should be active(exited) - **Mellanox specific**
 * All interface and port-channel status should comply with current topology.
@@ -535,7 +535,7 @@ This test case needs to frequently check various status, the status to be checke
   * `redis-cli -n 6 keys TRANSCEIVER_INFO*`
 * CPU and memory usage: `top`
 
-Expected results of checking varous status:
+Expected results of checking various status:
 * Services syncd and swss should be active(running)
 * Service hw-management should be active(exited) - **Mellanox specific**
 * All interface and port-channel status should comply with current topology.
@@ -576,7 +576,7 @@ This test case needs to frequently check various status, the status to be checke
   * `redis-cli -n 6 keys TRANSCEIVER_INFO*`
 * CPU and memory usage: `top`
 
-Expected results of checking varous status:
+Expected results of checking various status:
 * Services syncd and swss should be active(running)
 * Service hw-management should be active(exited) - **Mellanox specific**
 * All interface and port-channel status should comply with current topology and hardware availability:
@@ -728,7 +728,7 @@ New automation required
 ### Pass/Fail Criteria
 * Verify that symbolic links are created under `/var/run/hw-management`. Ensure that there are no invalid symbolic link
 * Check current FAN speed against max and min fan speed, also check the the fan speed tolerance, insure it's in the range
-* Check thermal valules(CPU, SFP, PSU,...) against the max and min value to make sure they are in the range.
+* Check thermal values(CPU, SFP, PSU,...) against the max and min value to make sure they are in the range.
 
 ### Automation
 New automation required
@@ -749,7 +749,7 @@ New automation required
 
 ### Steps
 * Get all the connected interfaces
-* Check the presence of the SFP on each interface and corss check the SFP status from the sysfs
+* Check the presence of the SFP on each interface and cross check the SFP status from the sysfs
 
 ### Pass/Fail Criteria
 * All th SFP shall be presence and SFP status shall be OK.
@@ -769,9 +769,9 @@ New automation required
 This section outlines the design of scripts automating the SONiC platform test cases. The new pytest-ansible framework will be used. Sample code can be found [here](https://github.com/sonic-net/sonic-mgmt/tree/master/tests).
 
 ## Folder Structure and Script Files
-The pytest framwork supports flexible test discovery. The plan is to put all platform related scripts under `tests/platform`. Command like `pytest tests/platform` would be able to discover all `test_*.py` and `*_test.py` under `tests/platform`. No entry script is required.
+The pytest framework supports flexible test discovery. The plan is to put all platform related scripts under `tests/platform`. Command like `pytest tests/platform` would be able to discover all `test_*.py` and `*_test.py` under `tests/platform`. No entry script is required.
 
-The folder structure and sript files:
+The folder structure and script files:
 ```
 sonic-mgmt
 |-- ansible
@@ -800,7 +800,7 @@ Filename of scripts should follow this pattern:
 * All scripts for test cases should start with `test_`.
 * Put vendor specific test cases in dedicated folder. For example, all Mellanox specific scripts are put under subfolder "mellanox".
 * Scripts hold helper functions or classes should start with `check_`, or other prefix as long as it does not conflict with above two patterns.
-* The `sonic-mgmt/tests/platform/psu_controller.py` script has the definition of psu_controller fixture that is used in `test_platform_info.py`. The psu_controller fixture returns a PSU controller object for controlling the power on/off to PSUs of DUT. This script also defines the interface of PSU controller object in PsuControllerBase class. Vendor specific PSU controller must be implemented as a sublcass of PsuControllerBase and put under vendor subfolder. For example, Mellanox specific PSU controller is impelemented in `sonic-mgmt/tests/platform/mellanox/mellanox_psu_controller.py`.
+* The `sonic-mgmt/tests/platform/psu_controller.py` script has the definition of psu_controller fixture that is used in `test_platform_info.py`. The psu_controller fixture returns a PSU controller object for controlling the power on/off to PSUs of DUT. This script also defines the interface of PSU controller object in PsuControllerBase class. Vendor specific PSU controller must be implemented as a subclass of PsuControllerBase and put under vendor subfolder. For example, Mellanox specific PSU controller is implemented in `sonic-mgmt/tests/platform/mellanox/mellanox_psu_controller.py`.
 
 With this convention, to run just the common test cases, use below commands:
 * `py.test tests/platform/test_* <extra arguments>`
@@ -830,7 +830,7 @@ The psu_controller fixture will also be implemented in phase 1:
 * `tests/platform/psu_controller.py`
 * `tests/platform/mellanox/mellanox_psu_controller.py`
 
-The scripts for testing sensors `ansible/roles/test/tasks/sensors_check.yml` simply calls `ansible/roles/sonic-common/tasks/sensors_check.yml`. We can conver it to pytest in the future.
+The scripts for testing sensors `ansible/roles/test/tasks/sensors_check.yml` simply calls `ansible/roles/sonic-common/tasks/sensors_check.yml`. We can convert it to pytest in the future.
 
 ## Scripts to be implemented in phase 2
 

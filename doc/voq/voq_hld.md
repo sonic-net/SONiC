@@ -161,7 +161,7 @@ At this time warm restart capability is not factored into the design. This shall
 
 # 2 Modules Design
 ### 2.1 System Port Configuration on Sonic Instance
-The system ports are configured on the Line Card. This information is then populated in the "System Port Table" in the "Config DB". On each sonic instance - the "OrchAgent" daemon subscribes to this information and recevies it. 
+The system ports are configured on the Line Card. This information is then populated in the "System Port Table" in the "Config DB". On each sonic instance - the "OrchAgent" daemon subscribes to this information and receives it. 
 
  ![](../../images/voq_hld/control-card-system-port-config-flow.png)
 
@@ -320,7 +320,7 @@ Please refer to the [schema](https://github.com/sonic-net/sonic-swss/blob/master
 ### VOQ Switch Creation
 Prior to switch creation - OrchAgent determines whether or not it is a VOQ Switch by checking if VOQ specific information is present in the CONFIG DB. It could do this by checking for the presence of switch_id (or max_cores or connection information for VOQ System DB) in the VOQ System Information. If it is not a VOQ Switch - switch creation goes ahead as it does currently. VOQ Switch creation requires additional information - max_cores, switch_id and system port list (see previous srctions for table names). It waits until this information is available from the APP DB before going ahead with switch creation. 
 ### Portsorch
-This is made aware of voq system port. During PortOrch initialization, portsorch makes a list of all the system ports created during switch creation (above). After "PortInitDone" for all the local ports, portsorch adds system ports to ports list and creates host interfaces for the local ports (inclduing the recycle port if used for inband). 
+This is made aware of voq system port. During PortOrch initialization, portsorch makes a list of all the system ports created during switch creation (above). After "PortInitDone" for all the local ports, portsorch adds system ports to ports list and creates host interfaces for the local ports (including the recycle port if used for inband). 
 ### Intfsorch
 The router interface creation for system ports is driven by configuration in "INTERFACE" table ConfigDB. The router interface creation and ip address assignments are done as needed in the similar fashion as how they are done for local ports. No changes in IntfsOrh for voq systems.
 ### NeighOrch
@@ -334,7 +334,7 @@ IP communication support is required between
 - SONiC instances over the Fabric Links. This is required to support routing protocol peering between the SONiC instances.
 - A SONiC instance and IP hosts in the network reachable via ports on another asic in the system.
 
-There are two options for supporting these requirements. The proposed configuration model allows the user to select between the two options. The first option (Inband Recycle Port Option) requires the asic to support a special "RECYLE" port (described below). The second option (Inbnad VLAN Option) uses SAI Host interface of type VLAN. Both of the options are described below along with a comparison between the two options. It is recommended that the Inband Recycle Port Option be used if the asic is capable of supporting it and the Inband VLAN Option be used if the asic does not support a "RECYCLE" port.
+There are two options for supporting these requirements. The proposed configuration model allows the user to select between the two options. The first option (Inband Recycle Port Option) requires the asic to support a special "RECYCLE" port (described below). The second option (Inbnad VLAN Option) uses SAI Host interface of type VLAN. Both of the options are described below along with a comparison between the two options. It is recommended that the Inband Recycle Port Option be used if the asic is capable of supporting it and the Inband VLAN Option be used if the asic does not support a "RECYCLE" port.
 
 ### 2.5.1 Inband Recycle Port Option
 This option proposes that the "recycle" port be used for host IP packets flows that cross an asic boundary. Recycle port is a special port for which the Egress of the port is looped back to the Ingress. It can be used like any other port for forwarding operations (Routing, ACL, Mirror, Queues, Buffers etc..). This option proposes that a SONiC instance should create host interfaces ONLY for the its own system ports (ports that "belong" to its asic). This includes host interfaces for the network ports on the local asic and also the Recycle port.
@@ -447,7 +447,7 @@ Note: This is just an observation of what might be possible in terms of reducing
 ## 2.6 SAI
 Shown below tables represent main SAI attributes which shall be used for VOQ related objects.
 
-###### Table 3.1 Swith SAI attributes related to VOQ system
+###### Table 3.1 Switch SAI attributes related to VOQ system
 | Switch component                                                      | SAI attribute                               |
 |-----------------------------------------------------------------------|---------------------------------------------|
 | Switch type                                                           | SAI_SWITCH_ATTR_TYPE                        |
@@ -460,7 +460,7 @@ The system port configuration has the parameters listed below.
 ###### Table 3.2: System Port SAI attributes
 | VOQ System Port component | SAI attribute                                         |
 |---------------------------|-------------------------------------------------------|
-| Sysem port id             | SAI_VOQ_SYSTEM_PORT_ATTR_PORT_ID                      |
+| System port id             | SAI_VOQ_SYSTEM_PORT_ATTR_PORT_ID                      |
 | Attached switch id        | SAI_VOQ_SYSTEM_PORT_ATTR_ATTACHED_SWITCH_ID           |
 | Core index                | SAI_VOQ_SYSTEM_PORT_ATTR_ATTACHED_CORE_INDEX          |
 | Core port index           | SAI_VOQ_SYSTEM_PORT_ATTR_ATTACHED_CORE_PORT_INDEX     |
@@ -577,7 +577,7 @@ In a distributed VOQ System, queue and buffer utilization statistics for a port 
 ![](../../images/voq_hld/switch_creation_static.png)
 
 ## 3.2 VOQ System Port Orchestration
-- PortsOrch is made aware of the sytem ports. It initializes the system port list, adds system ports list and creates host interfaces for all remote system ports
+- PortsOrch is made aware of the system ports. It initializes the system port list, adds system ports list and creates host interfaces for all remote system ports
 
 ![](../../images/voq_hld/voq_systemport_orch.png)
 
@@ -595,7 +595,7 @@ In a distributed VOQ System, queue and buffer utilization statistics for a port 
 
 # 4 Example configuration
 
-Example coniguration for voq inband interface type "port" is presented
+Example configuration for voq inband interface type "port" is presented
 
 #### Config DB Objects:
 

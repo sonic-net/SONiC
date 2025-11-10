@@ -24,7 +24,7 @@
 |--------------|---------------------------------------------------|
 | WoL          | **W**ake-**o**n-**L**AN                           |
 | gNOI         | **g**RPC **N**etwork **O**perations **I**nterface |
-| NIC          | **N**etwork **I**nterface **C**ontroller          |
+| NIC          | **N**etwork **I**nterface **C**controller          |
 
 ## Overview
 

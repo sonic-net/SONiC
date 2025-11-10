@@ -157,7 +157,7 @@ To measure route programming time, BGP routes were advertised to a SONiC router 
   - If the lookup in the local link cache fails, fpmsyncd updates cache by getting the configured links from the kernel.
   
   The problem here is if there are no VNET present on the system, this lookup will always fail and cache is updated for every route.
-  This seems to slow down the rate which route programed for the global route table. 
+  This seems to slow down the rate which route programmed for the global route table. 
   
   To fix this we will skip the lookup for the Master device name if the route object table value is zero .i.e. the route needs to put in the global routing table
   
@@ -176,18 +176,18 @@ To measure route programming time, BGP routes were advertised to a SONiC router 
 
 With the above mentioned optimizations we target to get 30% reduction in the route programming time in SONiC.
 
-### 3.3 show CLI command enchancements
+### 3.3 show CLI command enhancements
 
 #### 3.3.1 show arp/ndp command improvement.
 
-The current implemetation of the cli script for "show arp" or "show ndp" fetches the whole FDB table to get the outgoing interface incase the L3 interface is a VLAN L3 Interface. 
+The current implementation of the cli script for "show arp" or "show ndp" fetches the whole FDB table to get the outgoing interface in case the L3 interface is a VLAN L3 Interface. 
 
 This slows down the show command. We will make changes to the CLI script to get FDB entries only for this specific ARP/ND instead of getting the whole FDB table. 
 
 These changes will improve the performance of the command significantly
 
 # 4 Warm Boot Support
-No specific changes are planned for Warm boot support as these are exisiting features.
+No specific changes are planned for Warm boot support as these are existing features.
 
 However, testing will done to make sure the changes done, for scaling or performance improvements, won't affect the Warm boot functionality. 
 
@@ -203,7 +203,7 @@ However, testing will done to make sure the changes done, for scaling or perform
 |              4. | Verify 128k IPv4 routes are installed and measure the route programming time  |        |            |
 |              5. | Verify 160k IPv4 routes are installed  and measure the route programming time |        |            |
 |              6. | Verify 200k IPv4 routes are installed and measure the route programming time  |        |            |
-|              7. | Verfiy  8k IPv4 ARP entries are learnt and measure the learning time          |        |            |
+|              7. | Verify  8k IPv4 ARP entries are learnt and measure the learning time          |        |            |
 |              8. | Verify  16k IPv4 ARP entries are learnt and measure the learning time         |        |            |
 |              9. | Verify  32k IPv4 ARP entries are learnt and measure the learning time         |        |            |
 ## 5.2 IPv6 Testcases
@@ -212,10 +212,10 @@ However, testing will done to make sure the changes done, for scaling or perform
 |              1. | Verify 10k IPv6 routes with prefix >64b  are installed  and measure the route programming time |        |            |
 |              2. | Verify 25k IPv6 routes with prefix > 64b are installed and measure the route programming time  |        |            |
 |              3. | Verify 40k IPv6 routes with prefix > 64b are installed and measure the route programming time  |        |            |
-|              4. | Verfiy  8k IPv6 ND entries are learnt and measure the learning time                            |        |            |
+|              4. | Verify  8k IPv6 ND entries are learnt and measure the learning time                            |        |            |
 |              5. | Verify  16k IPv6 ND entries are learnt and measure the learning time                           |        |            |
 |                 |                                                                                                |        |            |
-## 5.3 Regresssion Testcases
+## 5.3 Regression Testcases
 | Testcase number | Testcase                                                    | Result | Time taken |
 | --------------- | ----------------------------------------------------------- | ------ | ---------- |
 |              1. | Measure the convergence time with link flaps                |        |            |

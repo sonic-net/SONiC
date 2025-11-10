@@ -213,7 +213,7 @@ message RebootRequest {
   string message = 3;
   // Optional sub-components to reboot.
   repeated types.Path subcomponents = 4;
-  // Force reboot if sanity checks fail. (ex. uncommited configuration)
+  // Force reboot if sanity checks fail. (ex. uncommitted configuration)
   bool force = 5;
 }
 

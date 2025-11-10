@@ -9,7 +9,7 @@ Rev | Rev	Date	| Author	| Change Description
 |v0.2 |05/20/2019  |Padmanabhan Narayanan | Updated based on internal review comments
 |v0.3 |06/11/2019  |Padmanabhan Narayanan | Update CLIs, remove sflowcfgd
 |v0.4 |06/17/2019  |Padmanabhan Narayanan | Add per-interface configurations, counter mode support and <br /> unit test cases. Remove genetlink CLI
-|v0.5 |07/15/2019  |Padmanabhan Narayanan | Update CLI and DB schema based on comments from InMON : <br> Remove max-datagram-size from collector config <br/>Add CLI for counter polling interval <br/>Remvoe default header-size <br/>Add "all" interfaces option <br/> Separate CLI to set agent-id<br/>
+|v0.5 |07/15/2019  |Padmanabhan Narayanan | Update CLI and DB schema based on comments from InMON : <br> Remove max-datagram-size from collector config <br/>Add CLI for counter polling interval <br/>Remove default header-size <br/>Add "all" interfaces option <br/> Separate CLI to set agent-id<br/>
 |v1.0 |09/13/2019  |Sudharsan | Updating sequence diagram for various CLIs
 |v1.1 |10/23/2019  |Padmanabhan Narayanan | Update SAI section to use SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME instead of ID. Note on genetlink creation. Change admin_state values to up/down instead of enable/disable to be consistent with management framework's sonic-common.yang.
 |v1.2 |03/07/2021  | Garrick He | Add VRF support and fix interface admin-status output.
@@ -300,7 +300,7 @@ The sFlow counter polling interval is set to 20 seconds. The pollBus/HSPEVENT_UP
 
 * **sflow <enable|disable>**
 
-  Globally, sFlow is disabled by default. When sFlow is enabled globally, the sflow deamon is started and sampling will start on all interfaces which have sFlow enabled at the interface level (see “config sflow interface…”).
+  Globally, sFlow is disabled by default. When sFlow is enabled globally, the sflow daemon is started and sampling will start on all interfaces which have sFlow enabled at the interface level (see “config sflow interface…”).
 When sflow is disabled globally, sampling is stopped on all relevant interfaces and sflow daemon is stopped.
 
 * **sflow sample-direction <rx|tx|both>**
@@ -313,7 +313,7 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
 
   The “all” keyword is used as a convenience to enable/disable sflow at the interface level for all the interfaces.
   
-  Note: The local configuration applied to an interface has higher precedence over the global configuration provided through the "all" keyword. If sample-direction is not set at interface level, it will configure direction "rx" irrespective of global configuraion. User needs to override the same with "config sflow interface sample-direction" command.
+  Note: The local configuration applied to an interface has higher precedence over the global configuration provided through the "all" keyword. If sample-direction is not set at interface level, it will configure direction "rx" irrespective of global configuration. User needs to override the same with "config sflow interface sample-direction" command.
   
   This command enables sampling only in rx direction for backward compatibility.
 
@@ -343,7 +343,7 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
 
   Note that on an interface, the sample-rate must be same in both tx and rx direction. 
 
-  If sample-direction is not set at interface level, it will configure direction "rx" irrespective of global configuraion. User needs to override the same with "config sflow interface sample-direction" command.
+  If sample-direction is not set at interface level, it will configure direction "rx" irrespective of global configuration. User needs to override the same with "config sflow interface sample-direction" command.
 
 
 * **sflow polling-interval** *{value}*
@@ -521,7 +521,7 @@ SAMPLE_RATE         = 1*7DIGIT      ; average number of packets skipped before t
 Where speed         = 1*6DIGIT      ; port line speed in Mbps
 
 #### StateDB Schema
-Add "PORT_EGRESS_SAMPLE_CAPABLE" under swich capability.
+Add "PORT_EGRESS_SAMPLE_CAPABLE" under switch capability.
 
 ```
 "SWITCH_CAPABILITY|switch": {
@@ -621,7 +621,7 @@ sample-rate | sampling
 
 The master list of supported host-sflow tokens are found in host-sflow/src/Linux/hsflowtokens.h
 
-sflowmgrd also listens to SFLOW to propogate the sampling rate changes to App DB SFLOW_TABLE.
+sflowmgrd also listens to SFLOW to propagate the sampling rate changes to App DB SFLOW_TABLE.
 
 #### hsflowd service
 
@@ -740,7 +740,7 @@ The changes in SAI to support the GENETLINK host interface is highlighted below:
 ```
 #### Creating a GENETLINK Host Interface
 
-Below is an example code snip that shows how a GENETLINK based host inerface is created. It is assumed that the application has already installed the psample.ko and created multicast group 100.
+Below is an example code snip that shows how a GENETLINK based host interface is created. It is assumed that the application has already installed the psample.ko and created multicast group 100.
 
 ```
 // Create a Host Interface based on generic netlink
@@ -931,4 +931,4 @@ New ptf test cases will be added for this feature.
 ## 14 **Action items**
 * Determine if it is possible to change configuration without restarting hsflowd
 * Check host-sflow licensing options
-* Change hsflowd to version 2.0.45-1 for accpeting egress samples.
+* Change hsflowd to version 2.0.45-1 for accepting egress samples.

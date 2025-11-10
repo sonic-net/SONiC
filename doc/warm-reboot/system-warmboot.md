@@ -18,7 +18,7 @@
   - <del>save configDB db in ```/host/warmboot/config_db.json```</del> 
   - <del>save stateDB db (only FDB and WARM_RESTART_TABLE) in ```/host/warmboot/state_db.json``` </del> 
   - <del>save asicDB in ```/host/warmboot/asic_db.json```</del> 
-  - save the whole Redis databse into ```/host/warmboot/dump.rdb```
+  - save the whole Redis database into ```/host/warmboot/dump.rdb```
 - stop syncd docker
   - warm shutdown
   - save the SAI states in ```/host/warmboot/sai-warmboot.bin```
@@ -55,7 +55,7 @@ Later if we improve the consistency ```SONIC_BOOT_TYPE=[fast|warm|cold]```, this
   - the host interface will be also recovered.
 - start swss docker
   - orchagent will wait till syncd has been started to do init view.
-  - will read from APP DB and do comparsion logic.
+  - will read from APP DB and do comparison logic.
 - start teamd docker
   - at the same time as swss docker. swss will not read teamd app db until it finishes the comparison logic.
 - start bgp docker
@@ -66,7 +66,7 @@ Later if we improve the consistency ```SONIC_BOOT_TYPE=[fast|warm|cold]```, this
 - Application sets profile value SAI_KEY_WARM_BOOT_READ_FILE to the SAI data file from previous warm shutdown.
 - Note: Switch attribute SAI_SWITCH_ATTR_WARM_RECOVER is not required by SAI.
 - Application calls create_switch with 1 attribute: SAI_SWITCH_ATTR_INIT_SWITCH set to true. SAI shall recover other attributes programmed before.
-- Application re-register all callbacks/notificaions. These function points are not retained by SAI across warm boot.
+- Application re-register all callbacks/notifications. These function points are not retained by SAI across warm boot.
 
 # Design of test
 Assumptions:
@@ -202,7 +202,7 @@ ansible-playbook test_sonic.yml -i str --limit <DUT> --vault-password-file passw
    ```
 
 
-7. Carefully observe command output and seek for message like "Dut reboots: reboot start", switch to DUT ssh connection immediately and try hit enter keys several times. The ssh connnection will be no response after about 5 seconds. That's the time of shutdown.
+7. Carefully observe command output and seek for message like "Dut reboots: reboot start", switch to DUT ssh connection immediately and try hit enter keys several times. The ssh connection will be no response after about 5 seconds. That's the time of shutdown.
 
 8. During reboot happen, create one of the transition situations. You should do it quickly after above step.
     - Shutdown a downlink port.

@@ -106,7 +106,7 @@ For each LAN, the switches that attach to the LAN select a designated switch tha
 
 PVST+ allows for enabling multiple instances of spanning tree on per VLAN basis.
 
-One of the advantage with PVST is it allows for load-balancing of the traffic. When a single instance of spanning tree is run and a link is put into blocking state for avoiding the loop, it would result in inefficient bandwidth usage. With per VLAN spanning tree multiple instances can be run such that for some of the instances traffic is blocked over the link and for other instances traffic is forwared allowing for load balancing of traffic.
+One of the advantage with PVST is it allows for load-balancing of the traffic. When a single instance of spanning tree is run and a link is put into blocking state for avoiding the loop, it would result in inefficient bandwidth usage. With per VLAN spanning tree multiple instances can be run such that for some of the instances traffic is blocked over the link and for other instances traffic is forwarded allowing for load balancing of traffic.
 
 PVST+ support allows the device to interoperate with IEEE STP and also tunnel the PVST+ BPDUs transparently across IEEE STP region to potentially connect other PVST+ switches across the IEEE STP region. For interop with IEEE STP, PVST+ would send untagged IEEE BPDUs (MAC - 01:80:C2:00:00:00) with information corresponding to VLAN 1. The STP port must be a member of VLAN 1 for interoperating with IEEE STP.
 
@@ -157,8 +157,8 @@ Following config DB schemas are defined for supporting this feature.
     hello_time            = 2*DIGIT                             ; hello time in secs (1 to 10 sec, DEF:2sec)
     forward_delay         = 2*DIGIT                             ; forward delay in secs (4 to 30 sec, DEF:15 sec)
     hold_time             = 1*DIGIT                             ; hold time in secs (1 sec)
-    last_topology_change  = 1*10DIGIT                           ; time in secs since last topology change occured 
-    topology_change_count = 1*10DIGIT                           ; Number of times topology change occured
+    last_topology_change  = 1*10DIGIT                           ; time in secs since last topology change occurred 
+    topology_change_count = 1*10DIGIT                           ; Number of times topology change occurred
     root_bridge_id        = 16HEXDIG                            ; root bridge id
     root_path_cost        = 1*9DIGIT                            ; port path cost
     desig_bridge_id       = 16HEXDIG                            ; designated bridge id
@@ -204,8 +204,8 @@ Following config DB schemas are defined for supporting this feature.
     hello_time            = 2*DIGIT                             ; hello time in secs (1 to 10 sec, DEF:2sec)
     forward_delay         = 2*DIGIT                             ; forward delay in secs (4 to 30 sec, DEF:15 sec)
     hold_time             = 1*DIGIT                             ; hold time in secs (1 sec)
-    last_topology_change  = 1*10DIGIT                           ; time in secs since last topology change occured
-    topology_change_count = 1*10DIGIT                           ; Number of times topology change occured
+    last_topology_change  = 1*10DIGIT                           ; time in secs since last topology change occurred
+    topology_change_count = 1*10DIGIT                           ; Number of times topology change occurred
     root_bridge_id        = 16HEXDIG                            ; root bridge id
     root_path_cost        = 1*9DIGIT                            ; port path cost
     desig_bridge_id       = 16HEXDIG                            ; designated bridge id
@@ -276,7 +276,7 @@ Following config DB schemas are defined for supporting this feature.
 
 All STP operations for programming the HW would be handled as part of OrchAgent. OrchAgent would listen to below updates from APP DB for updating the ASIC DB via SAI REDIS APIs.
 
- * Port state udpate - STP_PORT_STATE_TABLE
+ * Port state update - STP_PORT_STATE_TABLE
 
  * VLAN to instance mapping - STP_VLAN_INSTANCE_TABLE
 
@@ -319,9 +319,9 @@ Max STP Ports = Max physical ports + Max Port-Channel interfaces
 
 where,
 
-Max physical ports would be determined from the higher interface id populated say for example if higher port is Ethernet252 (or 254) - max ports would be 256 to ensure breakout ports are accomodated.
+Max physical ports would be determined from the higher interface id populated say for example if higher port is Ethernet252 (or 254) - max ports would be 256 to ensure breakout ports are accommodated.
 
-Max Port-Channel interfaces would be same as max physical ports to accomodate the worst case scenario of each Port-channel having only one port.
+Max Port-Channel interfaces would be same as max physical ports to accommodate the worst case scenario of each Port-channel having only one port.
 
 Post bootup, Portsyncd reads the port_config.ini file which contains the port specific configuration information, and updates the APP DB with this information. Orchagent listens to these APP DB updates and takes care of creating all the interfaces in linux kernel and the hardware. Kernel sends netlink updates for the interfaces being created which Portsyncd listens to, once Portsyncd confirms all the interfaces have been configured it would generate PortInitDone notification. STPd would receive this message via STPMgr and then gets all the interface information via netlink for allocating the local STP port ids.
 
@@ -376,7 +376,7 @@ The below command allows enabling or disabling spanning-tree on a VLAN.
 
 **config spanning_tree vlan {enable|disable} <vlan\>**
 
-This command allows the user to control the convergence of the logical topology pertaining to the specified VLAN. This can addionally help in load balancing the traffic belonging to a range of VLANs.
+This command allows the user to control the convergence of the logical topology pertaining to the specified VLAN. This can additionally help in load balancing the traffic belonging to a range of VLANs.
 
  ### 3.6.2.1.3 Root-guard timeout
 
@@ -535,7 +535,7 @@ Identifier       MaxAge Hello  FwdDly Time  Change       Change
 hex              sec    sec    sec    sec   sec          cnt
 8000002438eefbc3 20     2      15     1     0            0
 
-RootBridge       RootPath  DesignatedBridge Root  Max Hel Fwd
+RootBridge       RootPath  DesignatedBridge Root  Max Hello Fwd
 Identifier       Cost      Identifier       Port  Age lo  Dly
 hex                        hex                    sec sec sec
 8000002438eefbc3 0         8000002438eefbc3 Root  20  2   15
@@ -723,7 +723,7 @@ Functionality
 14) Verify max-age by changing intervals
 15) Verify altering bridge priority would alter Root Bridge selection
 16) Verify altering port priority would alter Designated port selection
-17) Verify altering port cost results in path with lowest root path cost is seleced as root port
+17) Verify altering port cost results in path with lowest root path cost is selected as root port
 18) Verify port states on same physical interface for multiple STP instances configured
 19) Verify Topology change functionality and spanning-tree reconvergence by disabling/enabling links
 20) Verify spanning-tree behavior after adding few more VLANs

@@ -120,7 +120,7 @@ Few checks will be performed in initialization flow.
 2. Are ports configured in SAI?
 
     In order to check this, we will query the ports list created in SAI using sai_switch_api->get_switch_attribute() API, while attr id is SAI_SWITCH_ATTR_PORT_LIST.
-    If there are ports in the list taken from SAI, they will be proceessed as before and saved in a list for the later comparison logic.
+    If there are ports in the list taken from SAI, they will be processed as before and saved in a list for the later comparison logic.
 
 
 #### doPortTask Flow
@@ -138,15 +138,15 @@ The same flow will be performed for ports attribute setting.
 If bulk set_attribute is supported, set_ports_attribute() API will be called.
 Otherwise, setting SAI attributes will be done one by one as before.
 
-\* Creating Host Interfaces will be done one by one as beofre.
+\* Creating Host Interfaces will be done one by one as before.
 
 
 An important Note:
 
-In order to use SAI bulk APIs, the global flag in syncd (-l / --enableBulk) should enable the bulk opertaion.
+In order to use SAI bulk APIs, the global flag in syncd (-l / --enableBulk) should enable the bulk operation.
 If this flag will not be provided upon syncd startup, bulk operation will be translated to regular operation. Hence, time will not be enhanced.
 Each vendor should enable the flag for it's config_syncd_vendor function in syncd_init_common.sh script.
-Note that this flag will enable bulk opertaions for all available options (e.g. route, vlan and now ports).
+Note that this flag will enable bulk operations for all available options (e.g. route, vlan and now ports).
 
 
 #### Error Flow
@@ -210,7 +210,7 @@ N/A
 After feature is implemented in both SONiC and SAI side, few tests will need to be performed.
 * Execute regression test for fast boot and perform time analyze, in order to make sure fast-boot time decreased as expected. In addition, manual time testing for fast-reboot up time.
 * A new sonic-mgmt test will need to be added. the test will check fast-reboot with dynamic port breakout.
-* A full regression testing to make sure evertything is working as before.
+* A full regression testing to make sure everything is working as before.
 
 
 #### Unit Test cases

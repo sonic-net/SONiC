@@ -529,7 +529,7 @@ redis-cli -n 4 HGETALL 'SYSLOG_SERVER|4.4.4.5'
  7) "protocol"
  8) "udp"
  9) "filter_type"
-10) "exlude"
+10) "exclude"
 11) "filter_regex"
 12) "exclude_str*"
 13) "severity"

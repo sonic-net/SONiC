@@ -37,7 +37,7 @@
 |  Rev  |     Date     |                       Author                       | Change Description                                                                                                                                                          |
 | :---: | :----------: | :------------------------------------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |  0.1  | Jul 14, 2023 | Kanji Nakano, Kentaro Ebisawa, Hitoshi Irino (NTT) | Initial version                                                                                                                                                             |
-|  0.2  | Jul 30, 2023 |               Kentaro Ebisawa (NTT)                | Remove description about VRF which is not nessesary for NHG. Add High Level Architecture diagram. Add note related to libnl, Routing WG. Fix typo and improve explanations. |
+|  0.2  | Jul 30, 2023 |               Kentaro Ebisawa (NTT)                | Remove description about VRF which is not necessary for NHG. Add High Level Architecture diagram. Add note related to libnl, Routing WG. Fix typo and improve explanations. |
 |  0.3  | Sep 18, 2023 |               Kentaro Ebisawa (NTT)                | Update based on discussion at Routing WG on Sep 14th (Scope, Warmboot/Fastboot, CONFIG_DB)                                                                                  |
 |  0.4  | Sep 24, 2023 |               Kentaro Ebisawa (NTT)                | Add feature enable/disable design and CLI. Update test plan.                                                                                                                     |
 |  0.5  | Nov 10, 2023 |               Kanji Nakano (NTT)                   | Update feature enable/disable design and CLI. Update test plan.                                                                                                                     |
@@ -321,7 +321,7 @@ System reboot is required after enabling/disabling this feature to make sure rou
 
 #### Configuration data flow
 
-Diagram shows how `zebra.conf` is genereated from CONFIG_DB data.
+Diagram shows how `zebra.conf` is generated from CONFIG_DB data.
 
 <!-- omit in toc -->
 ##### Figure: Configuration data flow
@@ -537,7 +537,7 @@ This feature extends the existing NEXT_HOP_GROUP_TABLE, to store next hop group 
     ifname        = *INTF_TABLE.key,   ; zero or more separated 
                      by “,” (zero indicates no interface)
     nexthop_group = NEXT_HOP_GROUP_TABLE:key, ; index within the
-                    NEXT_HOP_GROUP_TABLE seperated by "," used 
+                    NEXT_HOP_GROUP_TABLE separated by "," used 
                     for recursice/ecmp routes. (New field. When this field 
                     is present, other fields will not be present)
 
@@ -730,7 +730,7 @@ We should review this PR (and any other related patches if found) so difference 
 
 #### Further performance improvements
 
-Extention to fpmsyncd described in this HLD will only change how `fpmsyncd` will handle `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP`.
+Extension to fpmsyncd described in this HLD will only change how `fpmsyncd` will handle `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP`.
 
 Further study is required for more fundamental improvements, e.g. how zebra handles NextHop Groups in scale, communication channel between zebra and fpmsyncd, improvements in FRR like BGP PIC support etc.
 
@@ -753,7 +753,7 @@ There is a `sysctl` option `net.ipv4.nexthop_compat_mode nexthop_compat_mode` wh
 
 This option is not changed as part this HLD to avoid unexpected impact to the existing behavior.
 
-One should carefully study the impact of this change before chainging this option.
+One should carefully study the impact of this change before changing this option.
 
 #### Warmboot/Fastboot support
 

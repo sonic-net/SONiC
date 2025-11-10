@@ -20,7 +20,7 @@
     - [Functional Requirements  <a name="functional-requirements"></a>](#functional-requirements-a-namefunctional-requirementsa)
     - [Configuration and Management Requirements](#configuration-and-management-requirements)
 	- [SSH Key Generation Requirements](#ssh-key-generation-requirement)
-- [kdump Remote Architechture](#kdump-remote-architechture)
+- [kdump Remote Architecture](#kdump-remote-architechture)
 - [Functional Description](#functional-description)
     - [Design Changes](#design-changes)
 - [Configurations and Management](#configuration-and-management)
@@ -96,7 +96,7 @@ admin@sonic: ssh-copy-id username@server_address
 
  This helps automate passwordless SSH logins by copying public key to authorized servers.
 
-## kdump Remote Architechture
+## kdump Remote Architecture
 ![alt text](./images/kdump-ssh.drawio.png)
 
 ## Functional Description
@@ -110,7 +110,7 @@ The SONiC kernel core dump remote functionality can be divided into two categori
 
 Current SONiC lacks remote kernel dump functionality. To add this feature, consider enabling kdump for remote storage.
 
-We are suggesting modifying the exisitng SONiC configuration as following sonic-buildimage files.
+We are suggesting modifying the existing SONiC configuration as following sonic-buildimage files.
  
 1. build_debian.sh (Addition)
 
@@ -119,7 +119,7 @@ We are suggesting modifying the exisitng SONiC configuration as following sonic-
 2. files/scripts/network_setup.sh (New Addition)
     - A script to initialize the network interfaces and enable DHCP on them.
 3. files/script/network_setup.hook (New Addition)
-4. Updated exisitng hostcfg daemon file script/hostcfgd (Updation).
+4. Updated existing hostcfg daemon file script/hostcfgd (Updation).
 
 ## Configuration and Management
 This section describes all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below.
@@ -153,7 +153,7 @@ New SONiC CLI commands are introduced to configure remote kdump feature.
 ```
 admin@sonic: sudo config kdump remote enable 
 ```
-This commans will configure remote kdump feature in SONiC.
+This commands will configure remote kdump feature in SONiC.
 
 ```
 admin@sonic: sudo config kdump remote add ssh_string username@serverip
@@ -176,7 +176,7 @@ admin@sonic: sudo config kdump remote disable
 ```
 This command disables the remote kdump feature.
 #### CLI Show Commands
-An existing SONiC CLI command is used to display the current remote kdump feature configuraitons.
+An existing SONiC CLI command is used to display the current remote kdump feature configurations.
 
 ```
 admin@sonic: show kdump config

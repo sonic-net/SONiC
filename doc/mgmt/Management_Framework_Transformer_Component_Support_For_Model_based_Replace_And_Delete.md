@@ -34,7 +34,7 @@ The data resource is identified by the RESTCONF target resource URI that can be 
 
 # 2 Background
 Replacing data resource with PUT operation at any depth of YANG model has been a challenge over the last few releases and there was limited support to replace only the data translated from the request payload instead of entire data resource yang hierarchy.
-Current DELETE operation resulted in the deletion of only the target data resource and not the heirarchy beneath it.
+Current DELETE operation resulted in the deletion of only the target data resource and not the hierarchy beneath it.
 This feature attempts to overcome this behaviour and support the PUT & DELETE at any yang depth and avoid the applications to handle this in their callbacks especially the post transformer callback.
 
 # 3 Requirements
@@ -70,14 +70,14 @@ This feature attempts to overcome this behaviour and support the PUT & DELETE at
 
 2) The DELETE request from northbound will follow the same procedures as point 1.2 in REPLACE flow as detailed above except 1.2)6) which is not required for north bound DELETE operation.
 
-3) Current annotation of "get-validate" will be changed to "validate-xfmr"so that it can be used for CRUD cases as well as GET. During traversal both for REPLACE and DELETE flow, validate transformer callbacks will be invoked and if they identify the node to be not valid for the request, the node and its child heirarchy will not be processed.
+3) Current annotation of "get-validate" will be changed to "validate-xfmr"so that it can be used for CRUD cases as well as GET. During traversal both for REPLACE and DELETE flow, validate transformer callbacks will be invoked and if they identify the node to be not valid for the request, the node and its child hierarchy will not be processed.
 
-4) The DB operations for all the tables in the final translated map will be continued to be excercised alongside CVL as in the current design.
+4) The DB operations for all the tables in the final translated map will be continued to be exercised alongside CVL as in the current design.
 
 After completion of PUT/REPLACE operation, a GET operation should find/fetch only the data releavent to the new config data asked by the client in the request payload.Similarly after completion of DELETE operation, a GET operation should fetch no data. 
 
 **Limitations:** 
-1.  Defaults will be applied only for DB instances mapped to the nodes in PUT payload and its child heirarchy belonging to the same table.Refer 1.1 4) above.
+1.  Defaults will be applied only for DB instances mapped to the nodes in PUT payload and its child hierarchy belonging to the same table.Refer 1.1 4) above.
 2. No default values will be applied when fields/DB table instances having default value are marked for delete in the GET-like delete flow (for both PUT and DELETE operations).Refer example 7 in the use cases section 4.1 below.
 If the north bound operation is DELETE and when the target node is a leaf having default, the default value will be reset instead of deleting the leaf node (existing behavior).
 
@@ -717,7 +717,7 @@ final node IFF its a list instance
 <pre>
 7. Target is at a yang node at a
   higher depth in yang and the
-  child hierachy spans multiple
+  child hierarchy spans multiple
   tables mapped to child list
   and containers with and without
   defaults
@@ -843,7 +843,7 @@ TBL-C1|val-k1
 TBL-C1D1|keyC1D1
 ------------------         
   leaf-t: valt
-  leaf-u: valu (default)
+  leaf-u: value (default)
 TBL-C1E1|val-q
 ------------------         
   leaf-o: valo (default)
@@ -887,7 +887,7 @@ This annotation will be useful in cases where DB table has data not only from th
 **Dynamic annotation**
 
 - If the table returned by table-xfmr is owned by the yang node for a given instance/key but for some other key it does not own the table then in such case set dynamic flag **\*isNotTblOwner** to true and don't use static annotation. When returning a single table as per the key in URI, the dynamic flag can be filled by the table-xfmr callback.
-- when multiple tables are returned by the table-xfmr for URI targeted at whole list then do not set the flag for table-owner becuase infra will process every instance for every table, and to traverse the child yang hierarchy the table xfmr will be invoked per instance again that will map to single table.
+- when multiple tables are returned by the table-xfmr for URI targeted at whole list then do not set the flag for table-owner because infra will process every instance for every table, and to traverse the child yang hierarchy the table xfmr will be invoked per instance again that will map to single table.
 
 **Note:** Do not mix static table-owner annotation with dynamic, a static table-owner annotation will take precedence.
 
@@ -971,13 +971,13 @@ GET like traversal of the yang hierarchy beneath the target URI to identify the 
 
 **Static annotation (existing annotation)**
 
-Use the **virtual-table:true** annotation where there is table-xfmr annotation and the yang node doesn't map to any real DB table but the node needs to traversed to the reach child yang hierarchy wher DB mappings exist.
+Use the **virtual-table:true** annotation where there is table-xfmr annotation and the yang node doesn't map to any real DB table but the node needs to traversed to the reach child yang hierarchy where DB mappings exist.
 By default all tables identified at a yang node are considered as mapped to real DB table (virtual-table:false)
 
 **Dynamic annotation (existing annotation)**
 
 If a table returned by table-xfmr for a given key in URI maps to a real DB table but for another given key it doesn't map to a DB table then in such case set dynamic flag  ***inParams.isVirtualTbl = true** and don't use static annotation. 
-When the table xfmr returns a single table as per the key in URI, the dynamic flag for  virtual table can be filled by the callback.When multiple tables are returned by the table-xfmr for URI targeted at whole list then do not set the flag becuase infra will process every instance in every table and the table xfmr will be invoked again per instance that will map to single table.
+When the table xfmr returns a single table as per the key in URI, the dynamic flag for  virtual table can be filled by the callback.When multiple tables are returned by the table-xfmr for URI targeted at whole list then do not set the flag because infra will process every instance in every table and the table xfmr will be invoked again per instance that will map to single table.
 
 **Note:** Do not mix static  annotation with dynamic, a static annotation will take precedence.
 
@@ -1270,7 +1270,7 @@ ________________________________________________________________________________
   - PUT payload containing instances mapped with table-owner false annotation should not result in swapping the whole table-entry with new payload keeping the other attributes in the table-entry, that are not mapped in the request yang intact.
   - PUT request URI targeted at list instance not present in DB should create the instance with attributes from payload.
   - PUT request URI targeted at leaf/leaf-list node should update the value with new value in payload.
-  - DELETE request URI targeted at whole list/list-instance should delete all list instances/targeted list-instance respectively,that exist in DB, including the relevant insances in the child yang hierarchy.In case of non table-owner only the attributes in the yang hierarchy should be deleted.Yang nodes in the child yang hierarchy having virtual table mapping should not be marked for delete.
-  - DELETE request URI targeted at container should delete only the attributes under that container.Child yang hierachy should be traversed and relevant instances should be deleted.Yang nodes in the child yang hierarchy having virtual table mapping should not be marked for delete.
+  - DELETE request URI targeted at whole list/list-instance should delete all list instances/targeted list-instance respectively,that exist in DB, including the relevant instances in the child yang hierarchy.In case of non table-owner only the attributes in the yang hierarchy should be deleted.Yang nodes in the child yang hierarchy having virtual table mapping should not be marked for delete.
+  - DELETE request URI targeted at container should delete only the attributes under that container.Child yang hierarchy should be traversed and relevant instances should be deleted.Yang nodes in the child yang hierarchy having virtual table mapping should not be marked for delete.
   - DELETE request targeted at leaf node should delete the corresponding DB attribute in mapped table-entry.If leaf has yang default it should reset to default.
   - DELETE request targeted at leaf-list instance should delete the specific instance and if the request is targeted at entire leaf-list then the corresponding attribute in table-entry should get deleted.

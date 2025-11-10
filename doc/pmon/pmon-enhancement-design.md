@@ -59,9 +59,9 @@ Part of transceiver related data already in the DB which are collected by Xcvrd,
 
 ### 1.4 Misc platform related data collection
 
-For the platform hwsku, AISC name, reboot cause and other datas from syseeprom will be write to DB during the start up. A new separate task will be added to collect all of the data, since these data will not change over time, so this task doing one shot thing, will exit after post all the data to DB.
+For the platform hwsku, AISC name, reboot cause and other data from syseeprom will be write to DB during the start up. A new separate task will be added to collect all of the data, since these data will not change over time, so this task doing one shot thing, will exit after post all the data to DB.
 
-Detail datas that need to be collected please see the below DB Schema section.
+Detail data that need to be collected please see the below DB Schema section.
 
 ### 1.4 DB Schema for Platform related data
 
@@ -69,15 +69,15 @@ All the peripheral devices data will be stored in state DB.
 
 #### 1.5.1 Platform Table
 
-    ; Defines information for a platfrom
-    key                     = PLATFORM_INFO|platform_name    ; infomation for the chassis
+    ; Defines information for a platform
+    key                     = PLATFORM_INFO|platform_name    ; information for the chassis
     ; field                 = value                 
     chassis_list            = STRING                   ; chassis name list
     
 #### 1.5.2 Chassis Table
 
 	; Defines information for a chassis
-	key                     = CHASSIS_INFO|chassis_name      ; infomation for the chassis
+	key                     = CHASSIS_INFO|chassis_name      ; information for the chassis
 	; field                 = value
 	presence                = BOOLEAN                        ; presence of the chassis
 	model                   = STRING                         ; model number from syseeprom
@@ -92,8 +92,8 @@ All the peripheral devices data will be stored in state DB.
 
 	product_name            = STRING                         ; product name from syseeprom
 	mac_addr_num            = INT                            ; mac address numbers from syseeprom
-	manufacture_date        = STRING                         ; manufature date from syseeprom
-	manufacture             = STRING                         ; manufaturer from syseeprom
+	manufacture_date        = STRING                         ; manufacture date from syseeprom
+	manufacture             = STRING                         ; manufacturer from syseeprom
 	platform_name           = STRING                         ; platform name from syseeprom
 	onie_version            = STRING                         ; onie version from syseeprom
 	crc32_checksum          = INT                            ; CRC-32 checksum from syseeprom
@@ -290,7 +290,7 @@ Design doc for new platform API [design doc](https://github.com/sonic-net/SONiC/
 ## 4. Pmon daemons dynamically loading
 We have multi pmon daemons for different peripheral devices, like xcvrd for transceivers, ledd for front panel LEDs, etc. Later on we may add more for PSU, fan.
 
-But not all the platfrom can support(or needed) all of these daemons due to various reasons. Thus if we arbitrarily load all the pmon daemons in all the platfrom, some platform may encounter into some errors. To avoid this, pmon need a capability to load the daemons dynamically for a specific platfrom.
+But not all the platform can support(or needed) all of these daemons due to various reasons. Thus if we arbitrarily load all the pmon daemons in all the platform, some platform may encounter into some errors. To avoid this, pmon need a capability to load the daemons dynamically for a specific platform.
 
 The starting of the daemons inside pmon is controlled by supervisord, to have dynamically control on it, an approach is to manipulate supervisord configuration file. For now pmon superviosrd only have a common configuration file which applied to all the platforms by default.
 

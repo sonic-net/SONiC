@@ -51,7 +51,7 @@ We want to allow configuring ssh server global settings. This will feature will 
 
 ###  1.5. Requirements
 
-This feature requires a dedicated table in the configuration DB, and enhancements of hostcfg demon, in order to allow modifing the relvant ssh configuration files. In order to override ssh configurations, we need to have write access to ssh config files such as /etc/ssh/sshd_config
+This feature requires a dedicated table in the configuration DB, and enhancements of hostcfg demon, in order to allow modifying the relevant ssh configuration files. In order to override ssh configurations, we need to have write access to ssh config files such as /etc/ssh/sshd_config
 
 ###  1.6. Architecture Design 
 ####  1.6.1. Configuration modules
@@ -64,7 +64,7 @@ We want to enhance configDB to include table for ssh server global configuration
 We want to enable global ssh server configuration in SONIC. In order to do so will touch few areas in the system:
 1. configDB - to include a dedicated table for configurations
 2. hostcfg demon - to update ssh config files once configDB relevant areas are modified (and for this feature, ssh server config table)
-3. OS ssh config files - specific for this stage we are only /etc/ssh/sshd_config is going to be modifed by the hostcfg demon.
+3. OS ssh config files - specific for this stage we are only /etc/ssh/sshd_config is going to be modified by the hostcfg demon.
 4. OS ssh service - to be restarted after each configuration change.
 
 Note:
@@ -73,10 +73,10 @@ The Daemon is running in the host (without container) that matches this feature,
 ##### Flow diagram
 ![ssh_flow_community](ssh_flow_community.png)
 #### 1.7.1 Flow description
-When the feature is enabled, by modifying the DB manually, user will set ssh server policies/configuration (see options below) by modifing CONFIG_DB in SSH_SERVER_TABLE.
+When the feature is enabled, by modifying the DB manually, user will set ssh server policies/configuration (see options below) by modifying CONFIG_DB in SSH_SERVER_TABLE.
 
 The hostcfgd daemon will be extended to listen to ssh policies/configurations from SSH_SERVER table, parse the inputs and set the new policies to ssh config files, and update ssh server afterwards. Inactivity timeout configured by already existing flows in hostcfgd.
-Updated .j2 config file for max sessions cofiguration:
+Updated .j2 config file for max sessions configuration:
 ```
 # limits.conf.j2
 {% if max_sessions -%}

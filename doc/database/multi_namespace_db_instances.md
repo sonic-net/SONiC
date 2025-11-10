@@ -11,7 +11,7 @@ In the Multi NPU devices, the services could be broadly classified into
 *  Global services like database, snmp, pmon, telemetry running in the dockers running in the linux "host".
    We call it "global" namespace.
 	
-*  NPU specific services like database, swss, syncd, bgp, teamd, lldp etc which runs in a separate "namespace" created. The method used currently to seggregate services per NPU is "linux network namespace" and there is a one-to-one mapping between the number of NPUs and linux network namesapces created. We call it "NPU" namespace.
+*  NPU specific services like database, swss, syncd, bgp, teamd, lldp etc which runs in a separate "namespace" created. The method used currently to seggregate services per NPU is "linux network namespace" and there is a one-to-one mapping between the number of NPUs and linux network namespaces created. We call it "NPU" namespace.
 
 The database docker in the "global" namespace can be called the "global DB" service. The redis databases available here (decided by contents of database_config.json) would be APPL_DB, CONFIG_DB used to store the system wide attributes like AAA, syslog, ASIC to interface name mapping etc. 
 
@@ -31,7 +31,7 @@ The database service for a NPU linux namespace {NS} will use "/var/run/redis_{NS
 
 Following are the major design changes
 
-* A new file **database_global.json** is introduced. It will contain the details of all the namespaces and the corresponsing database_config.json files. This file would be created by the "globalDB" service in the directory "/var/run/redis/sonic-db/". In the below example, we consider a SONIC device with 3 NPUS's and hence have 3 namespaces referred as "asic0", "asic1", "asic2". The first entry refers to the database_config.json file used by database docker running in linux host.
+* A new file **database_global.json** is introduced. It will contain the details of all the namespaces and the corresponding database_config.json files. This file would be created by the "globalDB" service in the directory "/var/run/redis/sonic-db/". In the below example, we consider a SONIC device with 3 NPUS's and hence have 3 namespaces referred as "asic0", "asic1", "asic2". The first entry refers to the database_config.json file used by database docker running in linux host.
 
 ```json
 {
@@ -131,7 +131,7 @@ Following are the major design changes
 	  the linux host namespace, the NS_REF_CNT will be equal to the number of namespaces in the device. Currently we have a 
 	  NPU:namespace mapping of 1:1, hence we pass the NS_REF_CNT to be the number of NPU's.
 
-  Additional variables to be introduced in future to make this more flexible like creating more redis INSTANCES, assosiating DATABASES to different redis instances etc.
+  Additional variables to be introduced in future to make this more flexible like creating more redis INSTANCES, associating DATABASES to different redis instances etc.
 
 **database_global.json**
 
@@ -250,10 +250,10 @@ class SonicDBConfig(object):
     _sonic_db_config = {}
 
     """This is the database_global.json parse and load API. This file has the namespace name and
-       the corresponsing database_config.json file. The global file is significant for the
+       the corresponding database_config.json file. The global file is significant for the
        applications running in the linux host namespace, like eg: config/show cli, snmp etc which
        needs to connect to databases running in other namesacpes. If the "namespace" attribute is not
-       specified for an "include" attribute, it referes to the linux host namespace.
+       specified for an "include" attribute, it refers to the linux host namespace.
     """
     @staticmethod
     def load_sonic_global_db_config(global_db_file_path=SONIC_DB_GLOBAL_CONFIG_FILE):
@@ -306,7 +306,7 @@ class SonicDBConfig(object):
                 logger.warning(msg)
                 sonic_db_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'database_config.json')
             with open(sonic_db_file_path, "r") as read_file:
-                # The database_config.json is loaded into the '' index, which referes to the local namespace.
+                # The database_config.json is loaded into the '' index, which refers to the local namespace.
                 SonicDBConfig._sonic_db_config[''] = json.load(read_file)
         except (OSError, IOError):
             msg = "Could not open sonic database config file '{}'".format(sonic_db_file_path)
@@ -353,8 +353,8 @@ class SonicV2Connector(DBInterface):
         self.namespace = namespace
 
         """If the user don't give the namespace as input, it takes the default value of ''
-           '' (empty string) referes to the local namespace where this class is used.
-           (It could be a network namespace or linux host namesapce)
+           '' (empty string) refers to the local namespace where this class is used.
+           (It could be a network namespace or linux host namespace)
         """
         if not isinstance(namespace, str):
             msg = "{} is not a valid namespace name".format(namespace)

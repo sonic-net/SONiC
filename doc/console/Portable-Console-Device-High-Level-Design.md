@@ -127,7 +127,7 @@ class PortableConsoleDeviceBase:
     @classmethod
     def is_plugged_in(cls):
         """
-        Retrives whether portable console device is plugged in or not.
+        Retrieves whether portable console device is plugged in or not.
         This method is mandatory for factory function to auto detect vendor name and model name.
 
         :return: A boolean, True if portable console device is plugged in
@@ -138,7 +138,7 @@ class PortableConsoleDeviceBase:
     @classmethod
     def get_vendor_name(cls):
         """
-        Retrives the vendor name of the `PortableConsoleDeviceBase` concrete subclass.
+        Retrieves the vendor name of the `PortableConsoleDeviceBase` concrete subclass.
         This method is mandatory for factory function to create instance from manual configuration.
 
         :return: A string, denoting vendor name of the `PortableConsoleDeviceBase` concrete subclass.
@@ -148,7 +148,7 @@ class PortableConsoleDeviceBase:
     @classmethod
     def get_model_name(cls):
         """
-        Retrives the model name of the `PortableConsoleDeviceBase` concrete subclass.
+        Retrieves the model name of the `PortableConsoleDeviceBase` concrete subclass.
         This method is mandatory for factory function to create instance from manual configuration.
 
         :return: A string, denoting model name of the `PortableConsoleDeviceBase` concrete subclass.
@@ -201,7 +201,7 @@ class PortableConsoleDeviceBase:
 
     def get_all_lines(self):
         """
-        Retrieves the infomation of all console lines on portable console devices.
+        Retrieves the information of all console lines on portable console devices.
 
         :return: A dict, the key is console line number (integer, 1-based),
                          the value is an object derived from `sonic_console.line_info.ConsoleLineInfo`.
@@ -395,7 +395,7 @@ The flow chart below describes how `get_portable_console_device` function works:
 
 ![factory-function-flow-chart.png](./Portable-Console-Device-High-Level-Design/factory-function.png)
 
-As mentioned above, only the third way is our recommendation, which can automatically detect which vendor's device is plugged in and create the corresponing object. The first and second ways are reserved for more flexibility, so they are given higher priority.
+As mentioned above, only the third way is our recommendation, which can automatically detect which vendor's device is plugged in and create the corresponding object. The first and second ways are reserved for more flexibility, so they are given higher priority.
 
 ## SONiC CLI Design
 

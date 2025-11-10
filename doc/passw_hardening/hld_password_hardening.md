@@ -208,7 +208,7 @@ As a result of the changes above, new users will have an expiration time of 1 da
 	root@arc-switch1004:/home/admin# su test_user1
 	Warning: your password will expire in 1 day
 
-Regaring the policy when expiration time end (PASS_MAX_DAYS):
+Regarding the policy when expiration time end (PASS_MAX_DAYS):
 
 The maximum number of days a password may be used. If the
 password is older than this, a password change will be

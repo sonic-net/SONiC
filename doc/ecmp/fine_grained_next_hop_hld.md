@@ -55,9 +55,9 @@ This document describes the high level design of a Fine Grained ECMP feature as 
 ![](../../images/ecmp/use_case.png)
 
 Firewall or other applications running on loadbalanced VMs which maintain state of flows running through them, such that:
-- There is shared state amongst some set of firewalls so that flows can be recovered if a flow transistions from 1 firewall to another. In the
+- There is shared state amongst some set of firewalls so that flows can be recovered if a flow transitions from 1 firewall to another. In the
   prefix-based match mode, there is only 1 bank of firewalls and either all the firewalls share the same state or none of them do. In route/nexthop
-  mode, the number of banks can be configured and all the firewalls in the same firewall set(bank) will share state. Flow transistions can occur
+  mode, the number of banks can be configured and all the firewalls in the same firewall set(bank) will share state. Flow transitions can occur
   when next-hops are added/withdrawn. In this example for the route/nexthop match-mode, Firewall 1,2,3 form a firewall set(bank)
 - Flow recovery is expensive so we should limit the flow redistributions which occur during next-hop addition and removal
 - Given that not all firewalls share state, there is a need to redistribute flows only amongst the firewalls which share state
@@ -310,7 +310,7 @@ Following orchagents shall be modified. Flow diagrams are captured in a later se
 - fgnhgorch
 
  ### routeorch
- This is the swss orchestrator responsible for pushing routes down to the ASIC. It creates ECMP groups in the ASIC for cases where there are multiple next-hops. It also adds/removes next-hop members as neighbor availability changes(link up and down scnearios). It will evoke fgnhgorch for all routes which desire special ecmp behavior.
+ This is the swss orchestrator responsible for pushing routes down to the ASIC. It creates ECMP groups in the ASIC for cases where there are multiple next-hops. It also adds/removes next-hop members as neighbor availability changes(link up and down scenarios). It will evoke fgnhgorch for all routes which desire special ecmp behavior.
 
  ### fgnhgorch
  This is the swss orchestrator which receives FG_NHG entries and identifies the exact way in which the hash buckets need to be created and assigned at the time of BGP route modifications. For BGP route modifications/next-hop changes, fgnhgorch gets evoked by routeorch. It creates ecmp groups with the new SAI components in Table 3 and will be the orchestrator responsible for achieving the use cases highlighted above by modifying hash buckets in a special manner. Fgnhgorch will also be an observer for SUBJECT_TYPE_PORT_OPER_STATE_CHANGE from portsorch, this will allow operational state changes for links to be reflected in the ASIC per fine grained behavior.
@@ -345,7 +345,7 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 - A key idea in achieving consistent ecmp and limiting redistributions to a bank(group) is the creation of many hash buckets(SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER) associated with an ecmp group and having a next-hop repeated multiple times within it.
 - Now if a next-hop were to go down we would only change the hash buckets which are affected by the next-hop down event. This allows us to ensure that all flows are not affected by a next-hop change, thereby achieving consistent hashing
 - Further, in the route/nexthop match modes, by pushing configuration with next-hop bank membership, we can ensure that we only refill the affected hash buckets with those next-hops within the same bank. Thus achieving consistent hashing within a bank itself and meeting the requirement/use case above.
-- A distiction is made between Kernel routes and hardware routes for fine grained ECMP. The kernel route contains the prefix along with standard next-hops as learnt via BGP or any other means. Fine Grained ECMP takes that standard route(as pushed via APP DB + routeorch) and then creates a fine grained ECMP group by expanding it into the hash bucket membership. Further the kernel route and hw route are not equivalent due to the special redistribution behavior with respect to the bank defintion. Special logic is also present in route/nexthop modes to ensure that any next-hops which don't match the static FG_NHG next-hop set for a prefix will cause the next-hop to be ignored to maintain consistency with the desired hw route and hashing state defined in FG_NHG. FG_NHG drives the final state of next-hop groups in the ASIC given a user programs the config_db entry for it.
+- A distinction is made between Kernel routes and hardware routes for fine grained ECMP. The kernel route contains the prefix along with standard next-hops as learnt via BGP or any other means. Fine Grained ECMP takes that standard route(as pushed via APP DB + routeorch) and then creates a fine grained ECMP group by expanding it into the hash bucket membership. Further the kernel route and hw route are not equivalent due to the special redistribution behavior with respect to the bank definition. Special logic is also present in route/nexthop modes to ensure that any next-hops which don't match the static FG_NHG next-hop set for a prefix will cause the next-hop to be ignored to maintain consistency with the desired hw route and hashing state defined in FG_NHG. FG_NHG drives the final state of next-hop groups in the ASIC given a user programs the config_db entry for it.
 - Given that fgnhgorch can ignore next-hops in route addition in order to maintain consistency with FG_NHG, special syslog error messages will be displayed whenever fgnhgorch skips propagation of a next-hop to the ASIC.
 - A guideline for the hash bucket size is to define a bucket size which will allow equal distribution of traffic regardless of the number of next-hops which are active. For example with 2 Firewall sets, each set containing 3 firewall members: each set can have equal redistribution by finding the lowest common multiple of 3 next-hops which is 3x2x1(this is equivalent to us saying that if there were 3 or 2 or 1 next-hop active, we could distribute the traffic equally amongst the next-hops). With 2 such sets we get a total of 3x2x1 + 3x2x1 = 12 hash buckets.
 - fgnhgorch is an observer for SUBJECT_TYPE_PORT_OPER_STATE_CHANGE events, these events are used in conjunction with the IP to interface mapping(INTERFACE attribute of the FG NHG member table), to trigger next-hop withdrawal/addition depending on which interface's operational state transitioned to down/up. The next-hop withdrawal/addition is performed per consistent and layered hashing rules. The INTERFACE attribute is optional, so this functionality is activated based on user configuration.
@@ -518,15 +518,15 @@ A new test called test_fgnhg.py will be created to test FG_NHG configurations. T
 Test details:
 ### Route-based/Nexthop-based Match Mode
 - Create FG_NHG config_db entry with 2 banks, 3 members per bank
-- Create 6 interfaces with IPs, and program an APP_DB route with IP prefix + 6 next-hops matching above config_db entry: check if hash buckets are created as expected adhereing to the bank defintions
+- Create 6 interfaces with IPs, and program an APP_DB route with IP prefix + 6 next-hops matching above config_db entry: check if hash buckets are created as expected adhereing to the bank definitions
 - APP_DB route modified to reduce some number of next-hops: check if ASIC_DB hash bucket members show that the swss code maintains layered and consistent hashing
 - APP_DB route modified to remove all next-hops in bank0: check if ASIC_DB hash bucket members show that members of bank1 take the place bank0 members
 - APP_DB route modified to add 1st next-hop to bank0: check if ASIC_DB hash bucket members show that the added next-hop member takes up all the hash buckets assigened to the bank0
 - Test both IPv4 and IPv6 above
-- Disable a link from the link mapping created in FG_NHG_MEMBER and validate that hash buckets were redistributed in the same bank and occured in a consistent fashion
-- Test dynamic changes to the config_db bank + member defintion
+- Disable a link from the link mapping created in FG_NHG_MEMBER and validate that hash buckets were redistributed in the same bank and occurred in a consistent fashion
+- Test dynamic changes to the config_db bank + member definition
 - Change ARP(NEIGH)/interface reachability and validate that ASIC_DB hash bucket members are as expected(ie: maintaining layered and consistent hashing)
-- Test warm reboot and ensure that Fine Grained ECMP entries in the ASIC are identical post warm reboot. Ensure that nexthop modifications post warm reboot yeild expected changes in hash buckets.
+- Test warm reboot and ensure that Fine Grained ECMP entries in the ASIC are identical post warm reboot. Ensure that nexthop modifications post warm reboot yield expected changes in hash buckets.
 - Run the above set of tests for both nexthop-based and route-based match_modes. Additionally, for nexthop-based matchmode, validate changes in asic objects for route transitions from fine grained ecmp to regular ecmp and vice-versa. The route transition can occur because a route points to one set of nexthops which are fine grained, and the route may change later to point to nexthops which are non-fine grained and vice-versa. We validate these cases and the resulting ASIC DB objects.
 
 ### Prefix-based Match Mode
@@ -534,7 +534,7 @@ Test details:
 - Create 6 interfaces with IPs, and program an APP_DB route with IP prefix + 3 next-hops: check if hash buckets are created as expected.
 - APP_DB route modified to remove a next-hop: check if ASIC_DB hash bucket members show that the swss code maintains layered and consistent hashing.
 - APP_DB route modified to add two next-hops and remove a next-hop: check if ASIC_DB hash bucket members show that the swss code maintains layered and consistent hashing.
-- Test warm reboot and ensure that Fine Grained ECMP entries in the ASIC are identical post warm reboot. Ensure that nexthop modifications post warm reboot yeild expected changes in hash buckets.
+- Test warm reboot and ensure that Fine Grained ECMP entries in the ASIC are identical post warm reboot. Ensure that nexthop modifications post warm reboot yield expected changes in hash buckets.
 - Create another FG_NHG config_db entry with a different prefix, bucket_size and max_next_hops_value.
 - Add an APP_DB route for the 2nd prefix that shares a next-hop with the 1st prefix: ensure the hash buckets for hardware nexthop groups corresponding to both prefixes are created correctly.
 - Bring down and then bring up a next-hop common to both prefixes: Check that ASIC_DB hash buckets are updated correctly and only the minimum number of buckets changed in both groups.
@@ -550,11 +550,11 @@ Test details:
 - Create a route entry with 8 IPs as the next-hop, and an IP prefix as defined in FG_NHG, deploy it to the DUT
 - Pytest will now evoke the fine grained ECMP PTF test to send 1000 unique flows from the T1 interface destined to the unique IP prefix
 - Track which link receives which flow and store the mapping of flow to link
-- Change the DUT route entry to reduce 1 next-hop, validate that flows were redistributed in the same bank and occured in a consistent fashion
-- Change the DUT route entry to add 1 next-hop, validate that flows were redistributed in the same bank and occured in a consistent fashion
+- Change the DUT route entry to reduce 1 next-hop, validate that flows were redistributed in the same bank and occurred in a consistent fashion
+- Change the DUT route entry to add 1 next-hop, validate that flows were redistributed in the same bank and occurred in a consistent fashion
 - Change the DUT route entry to have all next-hops in a bank0 as down, make sure that the traffic now flows to links in bank1 only
 - Change the DUT route entry to add 1st next-hop in a previously down bank0, now some of the flows should migrate to the newly added next-hop
-- Disable a link from the link mapping created in FG_NHG_MEMBER and validate that flows were redistributed in the same bank and occured in a consistent fashion
+- Disable a link from the link mapping created in FG_NHG_MEMBER and validate that flows were redistributed in the same bank and occurred in a consistent fashion
 - Validate that in all cases the flow distribution per next-hop is roughly equal
 - Test both IPv4 and IPv6 above
 - The above test is configured via config_db entries directly, a further test mode to configure Fine Grained ECMP via minigraph will be present and tested

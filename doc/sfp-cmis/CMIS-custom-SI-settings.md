@@ -48,7 +48,7 @@
 | SI             | Signal Integrity                                 |
 | EC             | Explicit Control                                 |
 | TX             | Transmit                                         |
-| RX             | Recieve                                          |
+| RX             | Receive                                          |
 | EQ             | Equalizer                                        |
 
 ### References
@@ -63,7 +63,7 @@
 This is a high-level design document describing the way to apply custom SI settings for CMIS supported modules.
 
 ## 1 Introduction and Scope
-Certain high-speed QSFP_DD, OSFP and QSFP modules require Signal Integrity (SI) settings to match platform media settings in order to achieve link stability, right tunning and optimal performance.
+Certain high-speed QSFP_DD, OSFP and QSFP modules require Signal Integrity (SI) settings to match platform media settings in order to achieve link stability, right tuning and optimal performance.
 
 ### 1.1 Clause from CMIS5p0 spec for Signal Integrity
 Excerpt from CMIS5.0 spec providing definition of Signal Integrity:
@@ -86,7 +86,7 @@ This feature would be enabled per platform basis. If platform wants to use this 
 ## 3 Architecture Design
 The SI media setting file optics_si_setting.json needs to be defined by each platform_vendor that will need SI settings. All SKUs of the platform will share the same optics_si_setting.json file. If no file is found, then this mechanism will be ignored.
 
-This file will have two blocks: the first is global level setting and the next is port level setting. These blocks will contain subblocks of range or indiviual ports. Inside this port block, there will be subblocks for different lane speeds which will eventuall have per-lane SI parameter setting values based on the type of vendor that are expected to be programmed. The SI settings will not depend on cable length.
+This file will have two blocks: the first is global level setting and the next is port level setting. These blocks will contain subblocks of range or individual ports. Inside this port block, there will be subblocks for different lane speeds which will eventually have per-lane SI parameter setting values based on the type of vendor that are expected to be programmed. The SI settings will not depend on cable length.
 
 ### 3.1 TX_SETTING:   
 TX EQ (TX input equalizer control) setting can be FIXED or ADAPTIVE. Only adaptive EQ should be used for TX input, and it's enabled as the default setting in module. Fixed EQ is not recommended for TX direction and will not work until the SI/Hardware team explicitly recommends it.
@@ -264,7 +264,7 @@ There are no changes to SAI API
 There are no changes to any CLI/YANG model or Config DB enhancements. 
 
 ## 7 Warmboot and Fastboot Design Impact
-There is no impact to Warmboot and Fastboot design. This feature is invoked as part of exisiting CMIS manager flow only
+There is no impact to Warmboot and Fastboot design. This feature is invoked as part of existing CMIS manager flow only
 
 ## 8 Restrictions or Limitations
 If transceiver is not present:
@@ -272,6 +272,6 @@ If transceiver is not present:
 Modules that do not support CMIS and not part of CMIS state machine are not in the scope of this document.
 
 ## 9 Unit Test cases
-1. Check XCVRD/CMIS log if optics SI settings are succesfully applied for module which expect the SI settings.
+1. Check XCVRD/CMIS log if optics SI settings are successfully applied for module which expect the SI settings.
 2. Check XCVRD/CMIS log if optics SI settings are ignored for modules that dont expect the SI settings.
 3. Validate no link flaps or link down once SI settings are applied

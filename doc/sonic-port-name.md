@@ -2,7 +2,7 @@
 
 ## Scope of the change ##
 
-- Micorsoft proposes to change SONiC port naming convention to [Linux Network Interface Naming](http://tdt.rocks/linux_network_interface_naming.html)
+- Microsoft proposes to change SONiC port naming convention to [Linux Network Interface Naming](http://tdt.rocks/linux_network_interface_naming.html)
 
 ## Current SONiC port naming convention ##
 - Ethernet[0..(N-1)]       where N=32 or 64

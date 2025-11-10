@@ -659,7 +659,7 @@ Following "show" commands can be used to check the port status.
 -	Show interface status ( up/down)
 -	Show interface transceiver  presence 
 
-Following "redis-dump" command can be used to dump the port configuraiton from the ConfigDB.
+Following "redis-dump" command can be used to dump the port configuration from the ConfigDB.
 
 Example : 
 ```

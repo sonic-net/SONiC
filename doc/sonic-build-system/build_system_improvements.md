@@ -153,7 +153,7 @@ If your package can be built in parallel, please either use compat 10 or pass --
 - swss-common (can be built in parallel)
 - sairedis (~20m -> ~7m)
 
-## Seperate sairedis RPC from non-RPC build
+## Separate sairedis RPC from non-RPC build
 
 Some work is done on that but no PR (https://github.com/sonic-net/sonic-sairedis/issues/333)
 
@@ -164,13 +164,13 @@ The idea of improvement is:
 - No need to build libthrift, saithrift when 'ENABLE_SYNCD_RPC != y'
 - The debian/rules in sairedis is written in a way that it will built sairedis from scratch twice - non-rpc and rpc version.
 
-This improvement is achivable by specifying in rules/sairedis.mk:
+This improvement is achievable by specifying in rules/sairedis.mk:
 
 ```SAIREDIS_DPKG_TARGET = binary-syncd```
 
-and conditionaly injecting libthrift depending on ENABLE_SYNCD_RPC.
+and conditionally injecting libthrift depending on ENABLE_SYNCD_RPC.
 
-The overal improvement ~10m.
+The overall improvement ~10m.
 
 sairedis target built time now is ~3m.
 

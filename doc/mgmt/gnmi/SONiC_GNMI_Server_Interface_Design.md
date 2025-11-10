@@ -223,7 +223,7 @@ With CONFIG_DB schema:
         elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "DEVICE_NEIGHBOR"}
     }
     encoding: JSON_IETF
-    ++++++++ Recevied get response: ++++++++
+    ++++++++ Received get response: ++++++++
     notification {
         update {
             path {
@@ -253,7 +253,7 @@ With CONFIG_YANG schema:
         elem {name: "CONFIG_DB"} elem {name: "localhost"} elem {name: "sonic-device_neighbor:sonic-device_neighbor"}
     }
     encoding: JSON_IETF
-    ++++++++ Recevied get response: ++++++++
+    ++++++++ Received get response: ++++++++
     notification {
         update {
             path {
@@ -295,7 +295,7 @@ With CONFIG_DB schema:
             json_ietf_val: "eth1"
         }
     }
-    ++++++++ Recevied set response: ++++++++
+    ++++++++ Received set response: ++++++++
     response {
         path {
             origin: "sonic_db"
@@ -329,7 +329,7 @@ With CONFIG_YANG schema:
             json_ietf_val: "eth1"
         }
     }
-    ++++++++ Recevied set response: ++++++++
+    ++++++++ Received set response: ++++++++
     response {
         path {
             origin: "sonic_yang"
@@ -394,7 +394,7 @@ SetRequest message will be:
             json_ietf_val: "{\"DEVICE_NEIGHBOR/Ethernet8/name\":\"Servers1\", \"DEVICE_NEIGHBOR/Ethernet8/port\":\"eth0\", \"DEVICE_NEIGHBOR/Ethernet96/name\":\"Servers23\", \"DEVICE_NEIGHBOR/Ethernet96/port\":\"eth0\", ...}"
         }
     }
-    ++++++++ Recevied set response: ++++++++
+    ++++++++ Received set response: ++++++++
     response {
         path { 
             origin: "sonic_db"
@@ -414,7 +414,7 @@ SetRequest message will be:
 
 All successful changes for ConfigDB made through the gNMI SET RPC will be saved to /etc/sonic/config_db.json.
 
-If the target database is not ConfigDB, we can't guarantee persisitence.
+If the target database is not ConfigDB, we can't guarantee persistence.
 
 #### 1.2.1.7 Heartbeat and Reprogram
 

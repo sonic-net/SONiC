@@ -38,7 +38,7 @@ For the convenience of implementation and reduce the time consuming, pcie-check.
 
 1. `pcieutil` should get the platform specific PCIe device information and monitor the PCIe device and bus status with PcieUtil.get_pcie_check.
 
-2. `PcieUtil` will provide APIs `load_config_file`, `get_pcie_device` and `get_pcie_check` to get the expected PCIe device list and informations, to get the current PCIe device information, and check if any PCIe device is missing or if there is any PCIe bus error.
+2. `PcieUtil` will provide APIs `load_config_file`, `get_pcie_device` and `get_pcie_check` to get the expected PCIe device list and information, to get the current PCIe device information, and check if any PCIe device is missing or if there is any PCIe bus error.
 
 ![pcieinfo_design](https://github.com/sonic-net/SONiC/blob/master/doc/pcieinfo_design.md)
 
@@ -93,7 +93,7 @@ PcieUtil calls this API to check the PCIe device status, following example code 
                  
 ### 1.4 PCIe Check Service `pcie-check.service` flow ###
 
-pcie-check.service will be started by systemd during boot up and it will spawn a thread to check PCIe device status and perform the rescan pci devices if there is any missing devices after rc.local.service is completed and it will update the state db with pcie device satus after the `pcieutil pcie-chek` call so that the dependent services/container or kernel driver can be started or stopped based on the status.
+pcie-check.service will be started by systemd during boot up and it will spawn a thread to check PCIe device status and perform the rescan pci devices if there is any missing devices after rc.local.service is completed and it will update the state db with pcie device status after the `pcieutil pcie-chek` call so that the dependent services/container or kernel driver can be started or stopped based on the status.
 
 Detailed flow as showed in below chart: 
 ![](pcie-check.svg)
@@ -424,6 +424,6 @@ root@sonic:/home/admin#
 < TBA >
 ## Open Questions ##
 
-1. Current PcieUtil is limited to check the PCIe device availablility based on the configuration. 
+1. Current PcieUtil is limited to check the PCIe device availability based on the configuration. 
    Can we also add the PCIe communication error status check using AER detection into get_pcie_check() api or with a separate api? 
    some plugins like, say, collectd (https://wiki.opnfv.org/display/fastpath/PCIe+Advanced+Error+Reporting+Plugin)  

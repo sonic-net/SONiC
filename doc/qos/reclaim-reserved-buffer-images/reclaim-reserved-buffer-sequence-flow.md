@@ -50,12 +50,12 @@ sequenceDiagram
         sonic cfggen ->> DATABASE: Generate BUFFER_QUEUE item for queue 0-2, 3-4, 5-6 for the port
         sonic cfggen ->> DATABASE: Generate BUFFER_PORT_INGRESS_PROFILE_LIST item
         sonic cfggen ->> DATABASE: Generate BUFFER_PORT_EGRESS_PROFILE_LIST item
-        Note over sonic cfggen, DATABASE: Generat lossy PGs by rendering the buffer template if NO special script to generate them 
+        Note over sonic cfggen, DATABASE: Generate lossy PGs by rendering the buffer template if NO special script to generate them 
         sonic cfggen ->> DATABASE: Generate lossy BUFFER_PG item PG 0 for the port, using normal ingress lossy buffer profile
     end
     rect rgb(255, 0, 255)
         opt zero profiles exist
-            Note over sonic cfggen, DATABASE: Generate items for inactive ports by rendering bufer template if zero profiles exist
+            Note over sonic cfggen, DATABASE: Generate items for inactive ports by rendering buffer template if zero profiles exist
             loop for each inactive port
                 sonic cfggen ->> DATABASE: Generate zero buffer profile item in BUFFER_QUEUE table for queue 0-7
                 sonic cfggen ->> DATABASE: Generate zero buffer profile item in BUFFER_PORT_INGRESS_PROFILE_LIST table

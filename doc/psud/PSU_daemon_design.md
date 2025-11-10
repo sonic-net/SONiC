@@ -70,7 +70,7 @@ We will detail the new flows in the following sections.
 Basically, there are two scenarios in which a new PSU can be detected:
 
 - On PSU daemon starting, all PSUs installed on the switch are detected
-- On new PSU pulgged, the new PSU is detected
+- On new PSU plugged, the new PSU is detected
 
 When one or more new PSUs is detected and power is good, PSU daemon tries retrieving the warning-suppress and critical threshold for each PSU installed on the switch.
 
@@ -80,7 +80,7 @@ The PSU power checking will not be checked for a PSU if `NotImplemented` excepti
 
 We use asymmetric thresholds between raising and clearing the alarm for the purpose of creating a hysteresis and avoiding alarm flapping.
 
-- an alarm will be raised when a PSU's power is rising accross the critical threshold
+- an alarm will be raised when a PSU's power is rising across the critical threshold
 - an alarm will be cleared when a PSU's power is dropping across the warning-suppress threshold
 
 In case a unified power threshold is used, the alarm status can flap when the power fluctuates around the threshold. For example, in the following picture, the alarm is cleared every time the PSU power drops across the critical threshold and raised every time the PSU power rises across the critical threshold. By having two thresholds, the alarm won't be cleared and raised so frequently.

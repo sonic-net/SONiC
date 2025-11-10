@@ -745,7 +745,7 @@ OpenConfig evpn yang will be extended for global non-standard parameter configur
 
 <a id="332-TeamMgr"></a>
 ### 3.3.2 TeamMgr
-Existing TeamMgr will be extended to perform following activites
+Existing TeamMgr will be extended to perform following activities
 
 1. Subscribe to PORTCHANNEL_TABLE updates from config DB for the new system-id-mac configuration attribute under the Port Channel interface.
 2. TeamMgr to update the APP_DB LAG_TABLE with the new system-id-mac.
@@ -805,7 +805,7 @@ A new EvpnMhOrch class will be introduced to perform following activities,
 
 1. Subscribe to EVPN_MH_GLOBAL config table and set the SAI switch attribute.
 2. Subscribe to EVPN_ETHERNET_SEGMENT config table updates and maintain internal cache.
-3. Provide set of API to check if the given acces interface is ES associated or not.
+3. Provide set of API to check if the given access interface is ES associated or not.
 4. Subscribe to LAG_TABLE oper status changes and trigger MAC update requests to FdbOrch.
 5. Subscribe to EVPN_DF_TABLE from APP-DB and set the SAI bridge port attribute SAI_BRIDGE_PORT_ATTR_TUNNEL_TERM_BUM_TX_DROP to relevant Bridgeport.
 
@@ -817,7 +817,7 @@ A new ShlOrch class will be introduced to perform following activities,
 2. Update ASIC-DB with corresponding list of VTEPs for specific MH access interface.
 3. Handle interface add/removal.
 4. Interact with EvpnMhOrch to check if the given access interface is associated with ES or not
-4. Handle interface ES assignement and removal.
+4. Handle interface ES assignment and removal.
 
 Following split-horizon handling and activities will also be performed by the EvpnMhOrch:
 1. Subscribe to EVPN_SPLIT_HORIZON_TABLE and EVPN_DF_TABLE from APP-DB.
@@ -1181,7 +1181,7 @@ Description:
 ```
 
 ##### 3.5.2.2 BGP EVPN show commands
-List of FRR show commands relevent to EVPN Multihoming.
+List of FRR show commands relevant to EVPN Multihoming.
 
 **show evpn es detail**
 ```
@@ -1605,9 +1605,9 @@ Warm reboot is not part of this design due to below dependencies at present:
 - FRR currently does not support BGP GR for EVPN address-family
 - NHID (L3) WB reconciliation currently does not exist
 
-Once above dependencies are resolved, WB reconcilation of below objects will be required:
+Once above dependencies are resolved, WB reconciliation of below objects will be required:
 
 - L2 Nexthop groups
   Since there is no ESI-to-NHID mapping in the Linux kernel, the ESI-to-NHID mapping is required to be passed to fpmsyncd, preserved in APPL_DB, and passed back to zebra for the reconciliation.
 - Split Horizon and Designated Forwarder data
-  Fpmsyncd can indepedently reconcile these similar to ROUTE_TABLE reconciliation.
+  Fpmsyncd can independently reconcile these similar to ROUTE_TABLE reconciliation.

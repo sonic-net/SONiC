@@ -11,7 +11,7 @@
 
 ## 2. Scope  
 
-This section describes an enhancment of the synchronization between ASIC port and module configuration.
+This section describes an enhancement of the synchronization between ASIC port and module configuration.
 
 ## 3. Definitions/Abbreviations 
 
@@ -26,7 +26,7 @@ These initialization processes should be synchronized and the configuration of C
 Currently, SONIC uses the "host_tx_ready"  flag in the PORT table in STATE DB for synchronization. This flag is set by Ports OA right after the SAI API for setting the Admin status to UP returns with OK/Success status. PMON registers for changes of this flag in Redis DB and starts the CMIS initialization for a particular module when this flag is set.
 
 Current design has some gaps with synchronization between ASIC and module configuration.
-This document purpose is to introduce an enhacement that will address the gaps and find a backward compatible solution. 
+This document purpose is to introduce an enhancement that will address the gaps and find a backward compatible solution. 
 
 
 ## 5. Requirements
@@ -37,7 +37,7 @@ This document purpose is to introduce an enhacement that will address the gaps a
 
 * Vendor SDK/FW shall support asynchronous notification of start/stop of sending high-speed signal from ASIC to module.
 
-* PortsOrch shall set host_tx_ready in state DB, only when it recieved notification that the high-speed signal is sent. 
+* PortsOrch shall set host_tx_ready in state DB, only when it received notification that the high-speed signal is sent. 
 
 ## 6. High-Level Design 
 
@@ -81,7 +81,7 @@ High Level Flow:
 
 #### 6.2.1. host_tx_signal
 This flow shall be used only on supporting platforms.
-Hence, as part of PortsOrch initialization, SONiC will query SAI capabilities regarding the support of allowence flag for sending high-speed signal to module - It will be done by checking if SAI_PORT_ATTR_HOST_TX_SIGNAL_ENABLE is supported.
+Hence, as part of PortsOrch initialization, SONiC will query SAI capabilities regarding the support of allowance flag for sending high-speed signal to module - It will be done by checking if SAI_PORT_ATTR_HOST_TX_SIGNAL_ENABLE is supported.
 In case SAI supports it, PortsOrch will start listening to TRANSCEIVER_INFO in State DB to know on any module plug event.
 
 Module's INSERTION/REMOVAL events shall trigger the calling of SAI API on a Port object with SAI_PORT_ATTR_HOST_TX_SIGNAL_ENABLE to enable or disable data signal from ASIC to module.

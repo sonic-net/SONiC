@@ -232,7 +232,7 @@ In addition clear functionality will be added:
 
 # clear queue [watermark|persistent-watermark] unicast
 
-# clear queue [watermark|persistent-watermark] mutlicast
+# clear queue [watermark|persistent-watermark] multicast
 ```
 
 The user can clear the persistent watermark, and the "user" watermark. The user can not clear the periodic(telemetry) watermark. The clear command requires sudo, as the watermark is shared for 
@@ -240,7 +240,7 @@ all users, and clear will affect every user(if a number of people are connected 
 
 #### 3.1.2.3 Show/configure telemetry interval
 
-The telemetry interval will be available for viewing and configuring with the folowing CLI:
+The telemetry interval will be available for viewing and configuring with the following CLI:
 
 ```
 $ show watermark telemetry interval
@@ -317,7 +317,7 @@ The sai APIs anf calls are:
 
 ### 3.1.9 gRPC
 
-Sonic-telemetry will have acess to data in WATERMARK an HIGHEST_WATERMARK tables. For this the virtual db should be extended to access the said tables, virual path should should support mapping 
+Sonic-telemetry will have access to data in WATERMARK an HIGHEST_WATERMARK tables. For this the virtual db should be extended to access the said tables, virtual path should should support mapping 
 ports to queues and priority groups. The exact syntax of the virtual paths is TBD.
 
 Examples of virtual paths:
@@ -341,11 +341,11 @@ Examples of virtual paths:
 
 The core components are the flex counter, watermark orch, DB, CLI. 
 
-The flex counter reads and clears the watermarks on a peroid of 1s by default. The values are put directly to COUNTERS table. The flex counter also has plugins configured for queue and pg, which will be triggered on every flex counter group interval. The lua plugin will update PERIODIC_WATERMARKS, PERSISTENT_WATERMARKS and USER_WATERMARKS with if the new value exceeds the vlaue that was read from the table.  
+The flex counter reads and clears the watermarks on a period of 1s by default. The values are put directly to COUNTERS table. The flex counter also has plugins configured for queue and pg, which will be triggered on every flex counter group interval. The lua plugin will update PERIODIC_WATERMARKS, PERSISTENT_WATERMARKS and USER_WATERMARKS with if the new value exceeds the value that was read from the table.  
 
 The watermark orch has 2 main functions:
  - Handle the Timer that clears the PERIODIC_WATERMARKS table. Handle the configuring of the interval for the timer.
- - Handle Clear notificatons. On clear event the orch should just zero-out the corresponding watermarks from the table. It will be soon repopulated by lua plugin.  
+ - Handle Clear notifications. On clear event the orch should just zero-out the corresponding watermarks from the table. It will be soon repopulated by lua plugin.  
 
 The DB contains all the tables with watemarks, and the configuration table.
 

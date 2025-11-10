@@ -64,7 +64,7 @@ This document describes the Functionality and High level design of the build imp
 
 This feature provides improvements in three essential areas.
  - Build container creation using native docker mode.
- - Package cache support for build componets that are downloaded from external world.
+ - Package cache support for build components that are downloaded from external world.
  - Image cache support for installer image components. 
 
  - Version cache feature is supported on top existing versioning feature.
@@ -130,34 +130,34 @@ This feature provides build improvements in SONIC.
 
 - Docker-In-Docker mode.
     - Installing and running another Docker engine (daemon) inside a Docker container.
-    - Since Docker 0.6, a “privileged” option is added to allow running containers in a special mode with almost all capabilities of the host machine, including kernel features and devices acccess.
+    - Since Docker 0.6, a “privileged” option is added to allow running containers in a special mode with almost all capabilities of the host machine, including kernel features and devices access.
     - As a consequence, Docker engine, as a privileged application, can run inside a Docker container itself.
-    - Docker-in-Docker solution is not recommented, especially in containerized Jenkins systems as potential problems include 
+    - Docker-in-Docker solution is not recommended, especially in containerized Jenkins systems as potential problems include 
         - Security profile of inner Docker will conflict with one of outer Docker 
         - Incompatible file systems (e.g. AUFS inside Docker container).
     - As a workaround to address these problems using:
         - Container creation using dind docker solutions.
 	    - To use AUFS in the inner Docker, just promote /var/lib/docker to inner docker.
-	- Apart from the security aspect, a lot of performace panaliteis are involved as it uses the UnionFS/OverlayFS that degrades the performace when number of lower layers are more. 
+	- Apart from the security aspect, a lot of performance panaliteis are involved as it uses the UnionFS/OverlayFS that degrades the performance when number of lower layers are more. 
     - All the child container resource usage is restricted within the paraent container usage. 
 
 - Native docker mode.
-    - The DoD mode uses socket file(/var/run/docker.sock) to communitcate with host dockerd daemon.
+    - The DoD mode uses socket file(/var/run/docker.sock) to communicate with host dockerd daemon.
 	- It uses the shared socket file between HOST and the container to run the build container.
 	    -  Eg: docker run -v /var/run/docker.sock:/var/run/docker.sock ...
 	- When a new docker container/builder/composer is invoked from a build container:
-        - It is started as a sibiling to build container. 
+        - It is started as a sibling to build container. 
         - It will run in parallel with build container.
 	- This mode provides a better performance as it can utilize the full potential of host machine.
 
 ### Build Container in SONiC:
-- The current SONiC build infrastructure generats all the SONiC build artifacts inside the docker container environment. When docker is isolated from the host CPU, the docker resource usage and filesystem access are restricted from its full capacity. Docker isolation is more essential for application containers, but for the build containers, the more essentail requirement is the build performace rather than adopting a higher security model. It provides the better build performance when the build containers are run in native mode. 
+- The current SONiC build infrastructure generates all the SONiC build artifacts inside the docker container environment. When docker is isolated from the host CPU, the docker resource usage and filesystem access are restricted from its full capacity. Docker isolation is more essential for application containers, but for the build containers, the more essential requirement is the build performance rather than adopting a higher security model. It provides the better build performance when the build containers are run in native mode. 
 - Sonic supports both the mode of build container creation. 
-- The Native docker mode gives better performace but it has some limitations:
+- The Native docker mode gives better performance but it has some limitations:
     - In a shared build servers, sonic docker creation from multiple user would give conflict as it shares the same docker image name.
 - This feature addresses:
     - Sonic docker container creation in parallel from multiple users.
-	- Since it runs as sibiling container, it will degrade the parent container performace. 
+	- Since it runs as sibling container, it will degrade the parent container performance. 
 	- As it shares the host dockerd, it gives better performance as the multilevel UNIONFS/OverlayFS is not needed.
 
 #### Build Container in SONiC:
@@ -194,7 +194,7 @@ This feature provides build improvements in SONIC.
     - Go modules
     - Other tools and utilities
     
-- These components are getting updated fequently and the changes are dynamic in nature.
+- These components are getting updated frequently and the changes are dynamic in nature.
 - Versioning feature support the sonic build to particular version of the package to be downloaded/installed.
 - Versioning ability to select the particular package version, but still it will fetch the package from external world.
 - When external site is down, selected package version is not available or any other issues with connecting to external site or downloading the package would lead to sonic build failure. 
@@ -308,7 +308,7 @@ files/build/versions/
 	     Example: debian-stetch-sha256-7f2706b124ee835c3bcd7dc81d151d4f5eca3f4306c5af5c73848f5f89f10e0b.tgz
 
 	   - If present but not available in the cache, then it downloads the image and saves into saves in to cache in gz format.
-	   - If present and the docker image is availabe in cache, then it preloads the docker image for container preparation.
+	   - If present and the docker image is available in cache, then it preloads the docker image for container preparation.
 	   
  ![ Docker Images ](images/docker-image-version-caching.png)
   
@@ -331,7 +331,7 @@ files/build/versions/
        - Makefile
        - Common Files
        - ENV flags
-   - It caches all the go module files as a directory structure instead of compressed tar file as it gives better performace when number of files are more.
+   - It caches all the go module files as a directory structure instead of compressed tar file as it gives better performance when number of files are more.
    - Different directory hierarchy is created for each HASH value.
    - If HASH matches, it uses rsync to sync the cached modules to GOPATH build directory.
    - While storing/retrieving, the cache content is always protected with global lock.
@@ -379,7 +379,7 @@ files/build/versions/
        - Version files
        - Common makefiles and script utilities.
        - Env Flags
-   - On the subsequent build, if calculated HASH maches with existing version cache filename, it loads the boostrap files from cache. 
+   - On the subsequent build, if calculated HASH matches with existing version cache filename, it loads the bootstrap files from cache. 
  
 
 #### Rootfs preparation
@@ -453,7 +453,7 @@ files/build/versions/
 
 ## Build Time Compression
 
-|       **Feature**      | **Normal Build** | **Build Enhacement**              |
+|       **Feature**      | **Normal Build** | **Build Enhancement**              |
 | --------------------------------- | -------------| -------------------------- |
 | DPKG_CACHE=N <br> VERSION_CACHE=N |  \<TBD\>     |  \<TBD\>                   |
 | DPKG_CACHE=Y <br> VERSION_CACHE=y |  \<TBD\>     |  \<TBD\>                   |

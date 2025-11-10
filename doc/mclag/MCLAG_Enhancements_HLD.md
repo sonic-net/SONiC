@@ -386,7 +386,7 @@ mac_address    = 12HEXDIG         ; MAC address.
 
 ;fields
 port           = 1*64VCHAR        ; name of the L2 Port
-type           = "static/dynamic" ; tpye of the MAC address.
+type           = "static/dynamic" ; type of the MAC address.
 
 ```
 
@@ -523,7 +523,7 @@ config mclag {add | del}  \<domain-id> \<local-ip-addr> \<peer-ip-addr> \ [\<pee
 ```
 config mclag member {add | del}  \<domain-id> <portchannel-names>
 
-- comma seperated MCLAG interfaces for given MCLAG domain; MCLAG interfaces can be only portchannels
+- comma separated MCLAG interfaces for given MCLAG domain; MCLAG interfaces can be only portchannels
 ```
 
 **MCLAG Keepalive/session timeout configuration**
@@ -578,7 +578,7 @@ sonic(config-mclag-domain)#[no] session-timeout <keepalive interval in secs>
 
 - session-timeout in the range of 1 to 3600 seconds with default value of 15 seconds
 
-- session-timeout should be multipler of keepalive-timer value
+- session-timeout should be multiplier of keepalive-timer value
 
 ```
 
@@ -642,7 +642,7 @@ Sonic#show mclag brief
 **Figure 4: Local Dynamic MAC upstream to ICCPd Flow Diagram**
 
 ### 4.1.3 Remote MAC Processing
-Below diagram shows the flow of MAC address programing learned from ICCP. 
+Below diagram shows the flow of MAC address programming learned from ICCP. 
 
 ![Peer MCLAG MAC programming flow Diagram](images/RemoteMCLAGMacDownload.png "Peer MCLAG MAC programming flow Diagram")
 
@@ -669,7 +669,7 @@ Local Ip: 192.168.1.1
 Peer Ip: 192.168.1.2
 Peer Link Interface: PortChannel30
 Keepalive time: 1
-sesssion Timeout : 15
+session Timeout : 15
 Peer Link Mac: b8:6a:97:73:6c:96
 Role: Active
 MCLAG Interface: PortChannel50

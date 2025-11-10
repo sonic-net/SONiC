@@ -728,7 +728,7 @@ metering_class_or        = uint32
 DASH_TUNNEL_TABLE shall have one or more endpoints. Encap type, VNI are create only attributes. A change on encap would require deleting and creating new tunnel objects. 
 One endpoint is treated as single nexthop and comma separated multiple endpoints shall be treated as ECMP nexthop. For return packet from the tunnel, expectation is to have the same encap type.
 
-For single endpoint, implmentation shall simply create a sai_dash_tunnel object with ```SAI_DASH_TUNNEL_ATTR_DIP=endpoint IP``` and ```SAI_DASH_TUNNEL_ATTR_MAX_MEMBER_SIZE=1```
+For single endpoint, implementation shall simply create a sai_dash_tunnel object with ```SAI_DASH_TUNNEL_ATTR_DIP=endpoint IP``` and ```SAI_DASH_TUNNEL_ATTR_MAX_MEMBER_SIZE=1```
 
 For ECMP, implementation shall create ```sai_dash_tunnel_member``` and ```sai_dash_tunnel_next_hop``` with appropriate ```SAI_DASH_TUNNEL_ATTR_MAX_MEMBER_SIZE```. Since MAX_MEMBER_SIZE is set during creation, it is expected that adding new member will be a new DASH_TUNNEL object creation. However, implementation shall support removing members.
 
@@ -1310,7 +1310,7 @@ Refer DASH documentation for the test plan.
         "DASH_METER_RULE: {
             "meter_policy_id": "245bea34-1000-0000-0000-0000082764ac",
             "rule_num": "1",
-            "prioirty": "0",
+            "priority": "0",
             "ip_prefix": "40.0.0.1/32",
             "metering_class":"20000"
         },

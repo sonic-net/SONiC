@@ -121,7 +121,7 @@ Since HA set is mostly only used for defining the list of vDPUs that being paire
 - It aggregates all information from the global config and vDPUs to update its own state.
 - After information is ready:
   - If the scope is `dpu`, it will setup the DPU level forwarding rule for the HA set.
-  - For any vDPU that is local to the current swtich, it programs the DPU side HA set table, so the HA set info can be used by the ENI.
+  - For any vDPU that is local to the current switch, it programs the DPU side HA set table, so the HA set info can be used by the ENI.
 
 ```mermaid
 flowchart LR

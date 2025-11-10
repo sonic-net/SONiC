@@ -16,12 +16,12 @@ Table of Contents
 * [gRPC channel customisation and Telemetry Schema](#grpc-channel-customisation-and-telemetry-schema)
   * [Keepalive mechanism for channels](#keepalive-for-grpc-channelstub)
 * [gRPC client communicate to SoC over Loopback IP](#grpc-client-communicate-to-soc-over-loopback-ip)
-* [gRPC commuication over secure channel](#grpc-commuication-over-secure-channel)
+* [gRPC communication over secure channel](#grpc-communication-over-secure-channel)
 * [gRPC client initialization/deployment](#deployment)
-* [gRPC commuication to NIC simulator](#grpc-communication-with-nic-simulator)
+* [gRPC communication to NIC simulator](#grpc-communication-with-nic-simulator)
    * [Interceptor Solution for NIC simulator ](#proposed-solution-using-grpc-interceptor-inside-the-client)
    * [Mulptiple servers for NIC simulator ](#proposed-solution-using-multiple-grpc-servers-inside-nic-simulator)
-* [Proto and Schema Definition for Aync notificaion](#proto-definition-interface-to-soc-to-notify-ycabled-about-service-notification)
+* [Proto and Schema Definition for Aync notification](#proto-definition-interface-to-soc-to-notify-ycabled-about-service-notification)
 
 
 ## Revision
@@ -29,7 +29,7 @@ Table of Contents
 | Rev | Date     | Author          | Change Description |
 |:---:|:--------:|:---------------:|--------------------|
 | 0.1 | 04/1/22 | Vaibhav Dahiya  | Initial version    |
-| 0.2 | 02/1/22 | Vaibhav Dahiya  | Make chnages to be shared to Core Team    |
+| 0.2 | 02/1/22 | Vaibhav Dahiya  | Make changes to be shared to Core Team    |
 
 
 ## Scope
@@ -48,7 +48,7 @@ and do this within SONiC PMON docker
 - the service gRPC daemon should be able exchange RPC's with the gRPC server running on the SoC over a secure channel
 - provide a schema for this daemon to publish to State DB on Host which would monitor the aspects of gRPC state for all SoC's running as server.
 - provide an interface/method for gRPC daemon to exchange RPC's with the gRPC server running on the SoC using a loopback IP as source IP.
-- provide an interface for SoC to notify this gRPC client about going to maintainence/shutdown via an asynchronous method.
+- provide an interface for SoC to notify this gRPC client about going to maintenance/shutdown via an asynchronous method.
 - gRPC client communication with Nic-simulator(which will be run in SONiC-Mgmt Testbeds) should also be provided to exchange RPC's.
 - provide a way to monitor gRPC client's and channel health for corrective/monitoring action to be implemented within SONiC ecosystem
 
@@ -70,7 +70,7 @@ More Resources for learning gRPC and advantages Credits
 [grpc github repo](https://github.com/grpc/grpc)
 
 
-## Hardware Overview and overall Archtecture
+## Hardware Overview and overall Architecture
 
 ### Hardware Overview
 
@@ -82,7 +82,7 @@ HOST and FPGA functionality is explained in this diagram
 
 ![Hardware Overview](images/gRPC_host.png)
 
-### DualToR redundancy achievment using Active-Active solution
+### DualToR redundancy achievement using Active-Active solution
 
 ![Hardware Overview](images/failover.png)
 
@@ -218,7 +218,7 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
 
 ### KeepAlive for gRPC channel and Stub
 - Because of native gRPC channel State Machine has a delay issue for making the channel READY from IDLE state in case a gRPC RPC is not exchanged for a while, we employ a keepalive mechanism for DualToR messages exchanged.
-- This helps achieve to immediately send an RPC, in case its requested fro linkmgr/orchagent and not have a delay in forming the session
+- This helps achieve to immediately send an RPC, in case its requested for linkmgr/orchagent and not have a delay in forming the session
 - Enables HTTP2 pings to be sent to SoC and hence in normal working conditions Channel State of gRPC is always kept at READY
 - more details for keepalive can be found here
 ![grpc keep live](https://github.com/grpc/grpc/blob/master/doc/keepalive.md)
@@ -236,7 +236,7 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
 
 ### Telemetry publishing schema for monitoring YCabled
 
-- for monitoring most of these fields are updated or sent RPC and updated after every ~60 seconds by the service, except the grpc_connection_status and soc_service fields, both of which are preemptively monitored by using keepalive mechanism and an asynchrounous notification from the SoC.
+- for monitoring most of these fields are updated or sent RPC and updated after every ~60 seconds by the service, except the grpc_connection_status and soc_service fields, both of which are preemptively monitored by using keepalive mechanism and an asynchronous notification from the SoC.
 
 ```
     State DB
@@ -255,7 +255,7 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
     - peer_link_state_probe_count|	Type:int	//A counter about how many times peer link state is counted using gRPC	
     - operation_state_probe_count|	Type:int	//A counter about how many times operation link state is counted using gRPC	
     - peer_operation_state_probe_count|	Type:int	//A counter about how many times peer operation link state is counted using gRPC
-    - soc_service| inprogress/noop/NA	//Mentions if at all there is a service happening on the SoC, If ths channel link status goes to READY, then this is not going to be utilized
+    - soc_service| inprogress/noop/NA	//Mentions if at all there is a service happening on the SoC, If this channel link status goes to READY, then this is not going to be utilized
 			
 ```
 
@@ -275,8 +275,8 @@ The following Picture explains how data is exchanged between orchagent/ycabled/l
        sudo ip route add <SoC IP> via <vlan IP> src <Loopback IP>
     ```
   - The issue with adding a Kernel Route is that route_checker will fail after adding this route, since vlan IP is the HOST's own vlan IP within SONiC as such no real neighbor is present, hence the route_checker will not be able to validate this entry
-  - SWSS orchagent will also complain about not able to install the entry in ASIC, since the entry will be present in APP DB but not present inside ASIC itself. This would deem more workarounds necessary to be able to accomodate this route using this approach.
-  - For the kernel route approach we would have to accomodate these issues listed above
+  - SWSS orchagent will also complain about not able to install the entry in ASIC, since the entry will be present in APP DB but not present inside ASIC itself. This would deem more workarounds necessary to be able to accommodate this route using this approach.
+  - For the kernel route approach we would have to accommodate these issues listed above
 - using an IPTABLES rule. We could add a POSTROUTING rule to the SNAT table with destination as SoC IP and source as Loopback IP. For Example
     ```
         sudo iptables -t nat -A POSTROUTING --destination <SoC IP> --source <Vlan IP> -j SNAT --to-source <LoopBack IP>
@@ -312,11 +312,11 @@ num   pkts bytes target     prot opt in     out     source               destina
 
   - This approach conveniently adds the rule for all the SoC IP's needed to be communicating with DualToR over gPRC, and therefore SoC server and gRPC client would be able to communicate over agreed IP.
 
-## gRPC commuication over secure channel
+## gRPC communication over secure channel
 
 #### Background
 
-- gRPC listener aka Server would need some way to autheticate that it is a valid and secure way for communication to the SoC.
+- gRPC listener aka Server would need some way to authenticate that it is a valid and secure way for communication to the SoC.
 
 #### Proposed Solution
 
@@ -357,17 +357,17 @@ is initiating the channels, it would be able to form a secure/insecure channel. 
 
 ## gRPC client initialization
 
-- gRPC client should not be initialized for all images/configurations. Here the premise will be taken that the gRPC client would only be initailzed only for DualToR active-active scenario.
+- gRPC client should not be initialized for all images/configurations. Here the premise will be taken that the gRPC client would only be initialized only for DualToR active-active scenario.
 
 #### Proposed Solution
-- the proposal is to have a cable_type field in MUX_CABLE table inside CONFIG_DB. During PMON initilazation once the configuration has been rendered, and CONFIG_DB is populated and if it is active-active it will initailze the grpc client daemon logic for that PORT. For the lifetime of gRPC daemon, it will monitor this PORT as gRPC port only and not muxcable port
+- the proposal is to have a cable_type field in MUX_CABLE table inside CONFIG_DB. During PMON initilazation once the configuration has been rendered, and CONFIG_DB is populated and if it is active-active it will initialize the grpc client daemon logic for that PORT. For the lifetime of gRPC daemon, it will monitor this PORT as gRPC port only and not muxcable port
 -
     ```
         MUX_CABLE|PORTNAME
         SoC_IPv4: <SoC IP>
         cable_type: active_active
     ```
-    This part is only for discussion- Should we seperate out the logic for gRPC or should we keep both ycabled and gRPC in the same daemon. We could have an extra field for DualToRType type.
+    This part is only for discussion- Should we separate out the logic for gRPC or should we keep both ycabled and gRPC in the same daemon. We could have an extra field for DualToRType type.
     ```
         DEVICE_METADATA | localhost
         type: ToRRouter
@@ -379,7 +379,7 @@ is initiating the channels, it would be able to form a secure/insecure channel. 
 
 ## gRPC communication with Nic-Simulator
 
-- the gRPC server hosted on the server in the lab, needs to know a request originating from the client, belongs to which Port. As in the case of real SoC the gRPC server only has the knowledge of a single PORT, it does not need to distinguish between requests for different ports. However the gRPC server hosted for SONiC MGMT tests will not have knowledge about the requests are orginating for different PORTs.
+- the gRPC server hosted on the server in the lab, needs to know a request originating from the client, belongs to which Port. As in the case of real SoC the gRPC server only has the knowledge of a single PORT, it does not need to distinguish between requests for different ports. However the gRPC server hosted for SONiC MGMT tests will not have knowledge about the requests are originating for different PORTs.
 
 #### Proposed Solution using gRPC interceptor inside the client.
 
@@ -422,7 +422,7 @@ server.add_insecure_port("%s:%s" % (nic_addr, binding_port))
 ## Deployment
 
 #### Deployment of gRPC in SONiC build system.
-The current logic for deploying gRPC in PMON is that we utilize sonic-ycabled's wheel utility to generate the gRPC libray utlities which are imported by the daemon.
+The current logic for deploying gRPC in PMON is that we utilize sonic-ycabled's wheel utility to generate the gRPC library utilities which are imported by the daemon.
 The main advantage of doing this is
 - with each gRPC version improvement SONiC Dev does not have to maintain the generated code, if that changes over each version
 - No need to test the generated code as part of Unit Test infrastructure

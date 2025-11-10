@@ -102,7 +102,7 @@ The config file path is `/etc/sonic/reboot.conf`. Supported configs as following
 |-|-|-|-|
 | blocking_mode | true/false | false | Enable Blocking Mode for reboot command  |
 | blocking_mode_timeout | int (seconds) | 180 | The timeout for enable Blocking Mode. |
-| show_timer | true/false | false | <li>Must enable `blocking_mode` first.</li><li>Enable Runing Output for blocking mode.</li> |
+| show_timer | true/false | false | <li>Must enable `blocking_mode` first.</li><li>Enable Running Output for blocking mode.</li> |
 
 
 Example for `reboot.conf` content:

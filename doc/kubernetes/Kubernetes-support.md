@@ -10,7 +10,7 @@ The vision here is to open up container management to external management infras
   
 The goal it to keep the design open for future integration with other technologies too. With a minimal build time change, one should be able to build SONiC image that supports the selected tool.
 
-This proposal deals in depth with kubernetes-support. With this proposal, an image could be downloaded from external repositaries and kubernetes does the deployment. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode is referred as "**kubernetes mode**". For short word "kube" is used interchangeably to refer kubernetes.
+This proposal deals in depth with kubernetes-support. With this proposal, an image could be downloaded from external repositories and kubernetes does the deployment. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode is referred as "**kubernetes mode**". For short word "kube" is used interchangeably to refer kubernetes.
 
 
 # A Brief on Kubernetes
@@ -21,7 +21,7 @@ This proposal deals in depth with kubernetes-support. With this proposal, an ima
   
   ## Key terms:
    * Kubernetes master/cluster<br/>
-      This is the brain behind the kubernetes system. Comprised of many deamons, which includes API server, scheduler, controller, kubelet, proxy, etcd, ...<br/>
+      This is the brain behind the kubernetes system. Comprised of many daemons, which includes API server, scheduler, controller, kubelet, proxy, etcd, ...<br/>
       To ensure high availability two or more masters could be installed as a cluster behind a VIP.<br/>
       A kubernetes cluster is externally installed to manage SONiC switches.
       This is outside the scope of this doc.
@@ -54,7 +54,7 @@ This proposal deals in depth with kubernetes-support. With this proposal, an ima
       SONiC switch can add labels describing its version, platform, .... This can help create manifests for specific version and platform and ...
       
    * Daemonset<br/>
-      A deamonset is a special kind of pod. A daemonset pod is deployed in every node that matches the requirments per manifest. In case of daemonset, there is only one instance per node. The kube manages pods on SONiC switches using the kind daemonset only.
+      A deamonset is a special kind of pod. A daemonset pod is deployed in every node that matches the requirements per manifest. In case of daemonset, there is only one instance per node. The kube manages pods on SONiC switches using the kind daemonset only.
            
 ## A high level overview on setup:
   1) Set up a master cluster
@@ -72,7 +72,7 @@ This proposal deals in depth with kubernetes-support. With this proposal, an ima
   8) For any update, push new container image to registry; update manifest; propagate manifest to all masters.<br/>
      For each connected node,
      * On any manifest update, kube stops the current pod running in node and deploy the new one.
-     * On any manifest removed, it stops tbe current pod
+     * On any manifest removed, it stops the current pod
   
      
 
@@ -187,7 +187,7 @@ The following are the high level requirements to meet.
       Note: There is no control on names of the dockers started by kubernetes
  
 * The containers started in either mode, are required to record their start & end as follows in STATE-DB.
-  This informtion would be helpful to learn/show the current status and as well the actions to take for start/stop/wait/...
+  This information would be helpful to learn/show the current status and as well the actions to take for start/stop/wait/...
    * On post-start
       * `current_owner = local/kube` 
       * `docker_id = <ID of the container>`
@@ -211,7 +211,7 @@ The following are the high level requirements to meet.
      
 * A daemon could help switch from kubernetes to local if deploy would not happen for a period.
 
-  When a feature remain pending for kube deployment, with no local conatainer running, a daemon could watch and switch over to local, if configured so. 
+  When a feature remain pending for kube deployment, with no local container running, a daemon could watch and switch over to local, if configured so. 
   
 *  Systemd service install for new kubernetes features.
 
@@ -524,7 +524,7 @@ The kubernetes deployment is initiated & managed by Kubernetes master, through k
   * Say master applied manifest for "feature-foo" version "1.0.0" and it is successfully deployed in node
   * Say, later master become unreachable
   * Say, user removes the feature-foo manifest at master.
-  * But node will continue to run feature-foo and infact, if it would crash/restarted, kubelet will re-deploy, as kubelet is not aware of the manifest removal.
+  * But node will continue to run feature-foo and in fact, if it would crash/restarted, kubelet will re-deploy, as kubelet is not aware of the manifest removal.
   * The feature-foo will be undeployed, only upon node reaching master (which is in future)
   
 * SONiC impacts
@@ -533,7 +533,7 @@ The kubernetes deployment is initiated & managed by Kubernetes master, through k
     * systemctl stopped the feature (systemct status down)
     * Ownership of the feature switched to "local"
     * A higher version of the same feature running
-    * This version of the feature is expliciltly blocked locally by node.
+    * This version of the feature is explicitly blocked locally by node.
     
 * SONiC handling:
 
@@ -553,7 +553,7 @@ These bash scripts are auto-created using templates, as part of image build.
 ## Proposal: Extend the auto-create code to create manifests too.
   * A separate template could be provided for manifest creation
   * A manifest per feature per ASIC is created.
-    * Platform & HWSKU related paths can be simplified with pre-created softlinks that point to approrpriate dir for that platform/hardware sku.
+    * Platform & HWSKU related paths can be simplified with pre-created softlinks that point to appropriate dir for that platform/hardware sku.
     * This could avoid the need to go per platform per HWSKU granularity.
     * For multi-ASIC, as runtime parameters differs across multiple instances, there has to be multiple manifests as one per instance.
   * Use these generated manifests in nightly tests to help validate
@@ -614,7 +614,7 @@ Points to note:
   
   ## Garbage collection:
   The kubelet's [garbage collection](https://kubernetes.io/docs/concepts/cluster-administration/kubelet-garbage-collection/) feature could be utilized.<br/>
-  For a tighter control, a custom soultion might be required which could monitor & manage as configured.
+  For a tighter control, a custom solution might be required which could monitor & manage as configured.
   
   
 # Failure mode detection & rollback
@@ -665,7 +665,7 @@ Points to note:
   
   ## A possibility:
   * For each update, create a new manifest, instead of updating existing.
-    In addition to helping with Safety check, using new manifest helps with quick transition from one to anoter in a switch with very low service down time.
+    In addition to helping with Safety check, using new manifest helps with quick transition from one to another in a switch with very low service down time.
   * The manifest would get an unique label as <feature name>_<version>_enabled=true as of NodeSelector labels
   * An external entity identifies the subset of nodes to update.
   * For each node in that set, add this unique label, that will make the selected subset of nodes as eligible for update
@@ -695,7 +695,7 @@ The config command could be used to create the FEATURE entry and the required sy
    * A locally available feature which can be switched between local & kube.
    * A feature that does not affect dataplane, like snmp, pmon, lldp, dhcp_relay,...
  
-The service files are already available. The FEATURE table would need to be updated, with the minium of set_owner.
+The service files are already available. The FEATURE table would need to be updated, with the minimum of set_owner.
 
 
 # RFE -- For brain storming
@@ -706,7 +706,7 @@ During runtime, a FEATURE could auto restart  using warm-restart to minimize tra
   3. When owner is set to `local` and kube-to-local transition occurs
   4. When container exits due to internal failure and systemd auto-restart.
   
-With exception of the 'failure exit', the rest are initiated to do an expectes/explicit transition. In all these cases, one may do a warm restart, to minimize impact to an active switch.
+With exception of the 'failure exit', the rest are initiated to do an expects/explicit transition. In all these cases, one may do a warm restart, to minimize impact to an active switch.
 
 ## Tag downloaded as local image
 The fallback to local is a very handy feature to be able to 

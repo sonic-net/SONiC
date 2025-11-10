@@ -427,7 +427,7 @@ Links:
 
 ### Test on Different Platforms
 
-We tested the Linux kernel dump mechanism on different platfroms in StarLab. 
+We tested the Linux kernel dump mechanism on different platforms in StarLab. 
 The following table shows detailed information related to the size of core
 dump file and kernel log file, the downtime of device. At here, the `downtime`
 represents the time interval from issuing the command `echo c > /proc/sysrq-trigger`

@@ -140,7 +140,7 @@ Before remapping to queue 2 and 6, both queues are required to be cleared. Hence
     }
     ```
 
-    TC_TO_PRIORITY_GROUP_MAP for mappping TC to PG
+    TC_TO_PRIORITY_GROUP_MAP for mapping TC to PG
 
     ```json
     "TC_TO_PRIORITY_GROUP_MAP": {

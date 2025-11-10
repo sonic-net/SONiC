@@ -199,7 +199,7 @@ key                                   = VNET:name                     ; Vnet nam
 VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
 VNI                                   = DIGITS                        ; 1 to 16 million VNI values
 SCOPE                                 = Vnet Scope                    ; Whether to use default or non-default VRF
-PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
+PEER_LIST                             = \*vnet_name                   ; vnet names separate by "," 
                                                                              (empty indicates no peering)
 ```
 
@@ -217,7 +217,7 @@ key                                   = INTERFACE:name:prefix         ; Vnet int
 
 ; Defines schema for VNet Neighbor configuration attributes
 key                                   = NEIGH_TABLE:name:ip_address   ; Vnet neighbor with IP address. Swss shall resolve
-                                                                        the mac addresss for this configuration
+                                                                        the mac address for this configuration
 ; field                               = value
 family                                = IPv4/IPv6                     ; Address family
 ```
@@ -292,7 +292,7 @@ key                                   = VNET_TABLE:name               ; VNet tab
 ; field                               = value
 VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
 VNI                                   = DIGITS                        ; 1 to 16 million VNI values
-PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
+PEER_LIST                             = \*vnet_name                   ; vnet names separate by "," 
                                                                              (empty indicates no peering)
 ```
 
@@ -303,7 +303,7 @@ Following orchagents shall be modified. Flow diagrams are captured in a later se
 ![](vnet_vxlan_orch.png)
 
  ### VxlanOrch
- This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VRF/VNI to respective tunnel. 
+ This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Separate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VRF/VNI to respective tunnel. 
  	
  ### VrfMgrD
  VrfMgrD gets the VNET Table config and creates the L3mdev interface in kernel. VrfMgrD updates the APP_DB with VNET_TABLE later to be used by VnetOrch. VrfMgrD also updates the STATE_DB for the status of VRF created. 

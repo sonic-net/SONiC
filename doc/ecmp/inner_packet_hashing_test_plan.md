@@ -36,7 +36,7 @@ The purpose of this test plan is to describe inner packet hashing tests for ECMP
 ## Test information
 
 ### Supported topology
-The test will be supported on the T0 toplogy(add and verify others), it may be enhanced in the future for other topologies.
+The test will be supported on the T0 topology(add and verify others), it may be enhanced in the future for other topologies.
 
 ### Test configuration
 The inner hashing configuration to the DUT done by dynamic Policy Base Hashing feature.
@@ -117,7 +117,7 @@ pbh_table  vxlan_ipv6_ipv6  1           ether_type:        0x86dd  inner_hash  S
 
 ### High level test details
 1. Send packets to a destination prefix which is pointing to multiple ecmp nexthops. For the T0 topology test we will send it to a dest prefix which is pointing to the T1s.
-3. Vary some tuple of the packet so that the packets hash to different nexthops. The total packets sent in a test is calcualted as follows: 1000 packets sent per ECMP next hop. This translates to 4000 packets in a T0 topology with 4 T1s(ECMP nexthops). All 4000 packets will have varied tuples to get a good distribution of packets to ports.
+3. Vary some tuple of the packet so that the packets hash to different nexthops. The total packets sent in a test is calculated as follows: 1000 packets sent per ECMP next hop. This translates to 4000 packets in a T0 topology with 4 T1s(ECMP nexthops). All 4000 packets will have varied tuples to get a good distribution of packets to ports.
 4. Identify set of ports on which the packet would have ecmp'd
 5. Check which port received the packet and record received packet count per port
 6. Calculate the expected number of packets per port

@@ -46,9 +46,9 @@ ASIC Instances learned the route from their eBGP peers.
 In other words, the set of nexthops chosen for a given route should be the same
 on each ASIC Instance.  When traffic is forwarded over an ECMP route, which
 nexthop used for a given flow may be different than what another ASIC Instance
-would have chosen.  Making this forwading decision match is not required for a
+would have chosen.  Making this forwarding decision match is not required for a
 VoQ chassis because the decision is made only once, at the ingress ASIC, unlike
-an ethernet clos based chassis, where each ASIC Instance makes the forwarding
+an ethernet close based chassis, where each ASIC Instance makes the forwarding
 decision as the packet moves through the chassis and a forwarding loop could
 result if ASIC Instances choose each other from an ECMP nexthop.
 
@@ -138,12 +138,12 @@ require recursive resolution where paths with these nexthops would otherwise
 not be considered usable.
 
 To resolve this, when “bgp bestpath peer-type multipath-relax” is configured,
-recursive resolution will be reenabled for nexthops in the RIB if an
+recursive resolution will be re-enabled for nexthops in the RIB if an
 iBGP-learned nexthop is included in the group.  If an eBGP peer sends a nexthop
 that requires recursive resolution, paths using that nexthop would be
 considered invalid and not be placed in the ECMP group.  Hence they will not
 be present in the RIB and obviously will not be in the FIB regardless of
-whether recursive resolution has been reenabled for RIB nexthops.
+whether recursive resolution has been re-enabled for RIB nexthops.
 
 ## 2.4 CONFIG_DB Changes
 

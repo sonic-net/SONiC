@@ -325,7 +325,7 @@ e.g., Sensor temperature critical high
 ### 3.1.2 Event Consumer
 The event consumer is a class in EventDB service that processes the incoming events.
 
-On intitialization, event consumer reads */etc/evprofile/default.json* and builds an internal map of events, called *static_event_map*.
+On initialization, event consumer reads */etc/evprofile/default.json* and builds an internal map of events, called *static_event_map*.
 It then subscribes to zmqproxy for events.
 
 On reading the event, using the event-id in the record, event consumer fetches static information from *static_event_map*.
@@ -392,7 +392,7 @@ Alarm table is empty. All counters in ALARM_STATS is 0. System LED is Green.
 | ALM-1 | CRITICAL   |              |
 | ALM-2 | MINOR      |              |
 
-Alarm table now has two alarms. One with *CRITICAL* and other with *MINOR*. ALARM_STATS is updated as: Critical as 1 and Minor as 1. As There is atleast one alarm with *critical/major* severity, system LED is Red.
+Alarm table now has two alarms. One with *CRITICAL* and other with *MINOR*. ALARM_STATS is updated as: Critical as 1 and Minor as 1. As There is at least one alarm with *critical/major* severity, system LED is Red.
 
 | alarm |  severity  | acknowledged |
 |:-----:|:----------:|:------------:|
@@ -412,7 +412,7 @@ Now there is an alarm with *MAJOR* severity. ALARM_STATS now reads as: Major as 
 | ALM-2 | MINOR      |              |
 | ALM-9 | MAJOR      | true         |
 
-The *MAJOR* alarm is acknowledged by user, alarm consumer sets *acknolwedged* flag to true and reduces Major counter in ALARM_STATS by 1, ALARM_STATS now reads as: Major 0 and Minor 1. This way, acknowledged major alarm has no effect on system LED. There are no other *CRITICAL/MAJOR* alarms. There however, exists an alarm with *MINOR/WARNING* severity. System LED is Amber.
+The *MAJOR* alarm is acknowledged by user, alarm consumer sets *acknowledged* flag to true and reduces Major counter in ALARM_STATS by 1, ALARM_STATS now reads as: Major 0 and Minor 1. This way, acknowledged major alarm has no effect on system LED. There are no other *CRITICAL/MAJOR* alarms. There however, exists an alarm with *MINOR/WARNING* severity. System LED is Amber.
 
 | alarm |  severity  | acknowledged |
 |:-----:|:----------:|:------------:|
@@ -804,7 +804,7 @@ openconfig alarms yang is defined  [here](https://github.com/openconfig/public/b
 ```
 sonic# alarm acknowledge <seq-id-of-raised-alarm>
 ```
-An operator can acknolwedge a raised alarm. This indicates that the operator is aware of the fault condition and considers the condition not catastrophic.
+An operator can acknowledge a raised alarm. This indicates that the operator is aware of the fault condition and considers the condition not catastrophic.
 Acknowledging an alarm updates alarm statistics and thereby applications like pmon can remove the particular alarm from status consideration.
 
 The alarm record in the ALARM table is marked with acknowledged field set to true. There is acknowledge-time field that indicates when that alarm is acknowledged.
@@ -945,7 +945,7 @@ Id           Action          Severity   Name                           Timestamp
 
 sonic# show alarm [ acknowledged | all | detail | summary | severity <sev> | id <seq-id> | start <from-ts> end <to-ts> | recent <5min|1hr|1day> | from <from-seq> to <to-seq> ]
 
-'show alarm' command would display all the *active* alarm records in ALARM table. Acknowledged alarms wont be shown here.
+'show alarm' command would display all the *active* alarm records in ALARM table. Acknowledged alarms won't be shown here.
 
 sonic# show alarm
 ----------------------------------------------------------------------------------------------------------------------------
@@ -1057,7 +1057,7 @@ The second command displays all the alarms that are waiting to be cleared by app
 # 7 Unit Test
 - Raise an event and verify the fields in EVENT table and EVENT_STATS table
 - Raise an alarm and verify the fields in ALARM table and ALARM_STATS table
-- Clear an alarm and verify that record is removed from ALARM and ALARM_STATS tables are udpated
+- Clear an alarm and verify that record is removed from ALARM and ALARM_STATS tables are updated
 - Ack an alarm and verify that acknowledged flag is set to true in ALARM table and acknowledge-time is set
 - Un-Ack an alarm and verify that acknowledged flag is set to false in ALARM table and acknowledge-time is set
 - Verify wrap around for EVENT table ( change manifest file to a lower range and trigger that many events )

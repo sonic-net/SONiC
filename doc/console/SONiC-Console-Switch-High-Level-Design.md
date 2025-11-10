@@ -111,15 +111,15 @@ This document describes the functionality and high level design of the Console s
 | Term | Meaning
 |---|---|
 | SSH | **S**ecure **S**hell |
-| CLI | **C**ommand **L**ine **I**nterface |
+| CLI | **C**ommand **L**in **I**nterface |
 | OS | **O**perating **S**ystem |
 | USB | **U**niversal **S**erial **B**us |
 | TTY | **T**ele**TY**pewriter, terminal for text input/output environment |
-| PID | **P**rocess **ID**entification number |
+| PID | **P**process **ID**entification number |
 | ETH | **ETH**ernet |
 | UTC | **C**oordinated **U**niversal **T**ime |
 | MGMT | **M**ana**G**e**M**en**T** |
-| TCP | **T**ransmission **C**ontrol **P**rotocol |
+| TCP | **T**ransmission **C**control **P**rotocol |
 
 # 1 Feature Overview
 
@@ -256,7 +256,7 @@ For B, there are multiple management IPs binding to the SONiC device and mapping
    IP       ->  Console Line Number -> Remote Device
 2001:db8::1 ->          1           ->   DeviceA
 2001:db8::2 ->          2           ->   DeviceB
-2001:db8::3 ->          3           ->   DeviceC
+2001:db8::3 ->          3           ->   device
 ```
 
 Then we can use below commands to connect to a remote device, what's more, we can use DNS to help us access the remote device more directly.
@@ -269,8 +269,8 @@ ssh tom@2001:db8::1
 # connect to DeviceB
 ssh tom@2001:db8::2
 
-# Assume that domain name DeviceC.co point to 2001:db8::3
-ssh tom@DeviceC.co
+# Assume that domain name device.co point to 2001:db8::3
+ssh tom@device.co
 ```
 
 The mechanism behind it is actually very similar to mode A. We will record the target ssh host IP address to a environment variable `$SSH_TARGET_IP`. Since we have stored the relationship between line number and it's management IP, then we can easily start the management session automatically after user login by calling `consutil connect` command in `/etc/bash.bashrc`. If the management IP were not found in config db (consutil connect failed due to target not found), then we will fall back to normal SONiC management bash session.

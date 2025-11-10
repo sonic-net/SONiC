@@ -372,7 +372,7 @@ out are:
 Eg: unconfirmed_disallow=y
 
 If a site has a policy of not allowing *unconfirmed* user creation, this
-setting can be used to requre the user to login successfully to the console, or
+setting can be used to require the user to login successfully to the console, or
 another application not requiring *unconfirmed* user creation, prior to allowing
 SSH access for them.
 

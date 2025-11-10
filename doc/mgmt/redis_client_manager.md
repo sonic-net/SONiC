@@ -64,7 +64,7 @@ This function is implemented using a cache of Redis Clients that are initialized
 
 ![RCM Init](images/rcm_init.png)
 
-When a Redis Client is requested through this new function, the Redis Client is taken from the cache and returned to the caller. Multiple callers can use a given Redis Client at a time and the number of connections in the pool will increase to satisfy simulatenous Redis operations through the same client. All of the connection pool management is handled by go-redis, with more details [here](https://pkg.go.dev/github.com/go-redis/redis/v8#Options). This process looks like this:
+When a Redis Client is requested through this new function, the Redis Client is taken from the cache and returned to the caller. Multiple callers can use a given Redis Client at a time and the number of connections in the pool will increase to satisfy simultaneous Redis operations through the same client. All of the connection pool management is handled by go-redis, with more details [here](https://pkg.go.dev/github.com/go-redis/redis/v8#Options). This process looks like this:
 
 ![RCM Clients](images/rcm_client.png)
 
@@ -187,7 +187,7 @@ Unit tests are implemented to test RCM's functionality. Since callsites are upda
 - TestConnectionPoolDisable
 	- Tests the command line flag that can be used to enable/disable Redis connection pools.
 - TestNilRCM
-	- Tests the scenario where RCM is nil or never intialized.
+	- Tests the scenario where RCM is nil or never initialized.
 - TestRedisCounters
 	- Tests that the RCM counters are updated correctly given different scenarios.
 - TestRedisClientManagerCounters

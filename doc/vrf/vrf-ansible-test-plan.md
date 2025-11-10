@@ -37,7 +37,7 @@ The purpose is to test vrf functionality on the SONIC switch DUT, closely mimic 
 
 ### Scope
 
-The test is running on real SONIC switch with testbed's basic configuration. The purpose of the test is not to test specific C/C++ class or APIs, those tests are coverd by vs test cases. The purpose is to do VRF functional test on a SONIC system. They include vrf creation/deletion, neighbor/route learning in vrf, binding/unbinding vrf to L3 intf, isolation among vrfs, acl redirection/everflow in vrf and vrf attributes function.
+The test is running on real SONIC switch with testbed's basic configuration. The purpose of the test is not to test specific C/C++ class or APIs, those tests are covered by vs test cases. The purpose is to do VRF functional test on a SONIC system. They include vrf creation/deletion, neighbor/route learning in vrf, binding/unbinding vrf to L3 intf, isolation among vrfs, acl redirection/everflow in vrf and vrf attributes function.
 
 ### Testbed
 
@@ -407,7 +407,7 @@ PTF test will generate traffic between ports and make sure the traffic forwardin
 
 ### Traffic validation in PTF
 
-Depending on the test cases PTF will verify the packet is arrived or dropped. For vrf "src_mac" option test, PTF will analyze ip packet dst_mac after L3 forwarding through vrf and do L3 forwarding only when ip packet's dst_mac is matched with configed vrf "src_mac".
+Depending on the test cases PTF will verify the packet is arrived or dropped. For vrf "src_mac" option test, PTF will analyze ip packet dst_mac after L3 forwarding through vrf and do L3 forwarding only when ip packet's dst_mac is matched with configured vrf "src_mac".
 
 ## Test cases
 
@@ -480,7 +480,7 @@ ACL redirection can redirect packets to the nexthop with specified interface bou
 
 #### Test objective <!-- omit in toc -->
 
-User can configurate multiple loopback interfaces. Each interface can belong to different vrf.
+User can configure multiple loopback interfaces. Each interface can belong to different vrf.
 
 #### Test steps <!-- omit in toc -->
 

@@ -8,7 +8,7 @@
 * [Revision](#revision)
 * [About this Manual](#about-this-manual)
 * [Scope](#scope)
-* [Defintions/Abbreviation](#definitionsabbreviation)
+* [Definitions/Abbreviation](#definitionsabbreviation)
 * [1 Overview](#1-overview)
 * [2 Requirements](#2-requirements)
     - [2.1 Functional Requirements](#21-functional-requirements)
@@ -84,7 +84,7 @@ BUFFER_POOL_WATERMARK_STAT  default (10000)     enable
 
 ```
 
-#### New imlementation
+#### New implementation
 
 ```
 admin@sonic:~$ counterpoll show

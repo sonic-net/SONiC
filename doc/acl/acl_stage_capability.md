@@ -18,7 +18,7 @@ E.g.: Egress mirror action on ingress stage or vice versa might be not supported
 
 SAI API has two mirror action types - SAI_ACL_ACTION_TYPE_MIRROR_INGRESS, SAI_ACL_ACTION_TYPE_MIRROR_EGRESS which can be set on ingress or egress table.
 So SONiC will not restrict setting egress mirror rule on ingress table or vice versa.
-To check wheter such combination is supported by the ASIC application should look into SWITCH_CAPABILITY table which is described in part 2 of this document.
+To check whether such combination is supported by the ASIC application should look into SWITCH_CAPABILITY table which is described in part 2 of this document.
 
 The proposed new schema:
 
@@ -150,7 +150,7 @@ AclRuleMirror::validateAddAction(string attr_name, string attr_value)
 
 Test case 1:
 
-VS test cases update to check for differnt combinations ingress/egress table and ingress/egress mirror rule creation
+VS test cases update to check for different combinations ingress/egress table and ingress/egress mirror rule creation
 
 ### system level testing
 
@@ -219,7 +219,7 @@ Check negative flow in case action is not supported.
 
 For ingress and egress tables:
   - Set custom SAI_SWITCH_ATTR_ACL_STAGE_$STAGE attribute using setReadOnlyAttribute mechanism in VS test infrastructure and restart orchagent to make it reconstruct its capability map;
-  - Create ACL rule wich is not supported and verify no entry in ASIC DB;
+  - Create ACL rule which is not supported and verify no entry in ASIC DB;
 
 ### system level testing
 

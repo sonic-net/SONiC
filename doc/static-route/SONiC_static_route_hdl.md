@@ -91,7 +91,7 @@ blackhole           = string; List of boolean; true if the next-hop route is bla
                       Default value false will be set when this field is not configured for nexthop(s)
 ```
 The nexthop-vrf if set, will allow to create a leaked route in the current VRF(vrf-name). The vrf-name, nexthop-vrf, prefix, ifname, distance and blackhole are all parameters required to configure static routes and route leaks in vtysh.
-If an interface is moved from one VRF to another and it exist in the STATIC_ROUTE table, the configured routes with that interface will become inactive. These routes are stored in vtysh "running config" and STATIC_ROUTE table. It is up to the user to remove stale/inactive routes. They will become active if/when the interface is bound again to the orignal VRF.
+If an interface is moved from one VRF to another and it exist in the STATIC_ROUTE table, the configured routes with that interface will become inactive. These routes are stored in vtysh "running config" and STATIC_ROUTE table. It is up to the user to remove stale/inactive routes. They will become active if/when the interface is bound again to the original VRF.
 
 In this table each entry based on the index in the lists of  nexthop, ifname, distance, nexthop-vrf and blackhole  is a set. Together based on the index they specify one next-hop entry as there can be multiple next-hops for a prefix. Empty string and default values will be used to complete the set if required. Prefix and nexthop in a set is expected to have same address family.
 
@@ -187,7 +187,7 @@ New Parameters
 
 |    Keyword    | Description |
 |:-----------------:|:-----------:|
-oc-local-routing-ext:nexthop-vrf-name|Specify the nexthop-vrf incase interface or next-hop is not in current instance(i.e VRF). This parameter is explicitly required  by vtysh to correctly install route leaks.
+oc-local-routing-ext:nexthop-vrf-name|Specify the nexthop-vrf in case interface or next-hop is not in current instance(i.e VRF). This parameter is explicitly required  by vtysh to correctly install route leaks.
 oc-local-routing-ext:blackhole | If set to true the nexhop is a blackholed route. Only metric is relevant when configuring blackhole next-hop for a prefix.
 
 Note: Each next-hop entry has a key called "index" in openconfig yang as shown above. This key is used to uniquely identify a entry in the list of next-hops. This key will be formed based on "interface (interface name if present) + next-hop (next-hop-ip if present) + next-hop vrf-name(if present)" and is expected to be provided correctly  by the user for non-blackhole routes. For blackhole route DROP will be used as key. Either interface name  or next-hop-ip or both or blackhole  should be present for any route to be accessed. i.e Ethernet0_2.2.2.2_default, 3.3.3.3_Vrf-RED, DROP. This key will not be stored in config DB.
@@ -410,10 +410,10 @@ vrf <src_vrf>
 
 Note:
 - *If table entry key contains only one item, it should be prefix_ip and src_vrf will be used with default value "default".
-- **Each argument uses one item of corresponding list in table entry. If the item in list is "Null" value, this optional argument will not be added to mapped FRR commnand.
+- **Each argument uses one item of corresponding list in table entry. If the item in list is "Null" value, this optional argument will not be added to mapped FRR command.
 - ***The "Null" value of nexthop_ip should be chosen based on the address family of ip_prefix
 
-#### Example of table entry and correspoinding FRR runnning config
+#### Example of table entry and corresponding FRR running config
 Data in STATIC_ROUTE table:
 ```
 127.0.0.1:6379[4]> hgetall STATIC_ROUTE|Vrf-test|1.1.1.0/16
@@ -441,7 +441,7 @@ vrf Vrf-test
 All static route configurations were persistently stored in config DB STATIC_ROUTE table. After BGP container restarts, the configuration in DB needs to be re-applied. This configuration reload is done by generating staticd.conf file before FRR staticd daemon starts. A jinja template file will be used to map table entries to fill in staticd.conf file. The generated conf file is loaded by FRR daemon to configure static routes to system.
 
 # 4 Unit Test and automation
-The following test cases will be tested using CLI/REST/gNMI management interfaces and spytest will be incremeted.
+The following test cases will be tested using CLI/REST/gNMI management interfaces and spytest will be incremented.
 
 |Test Cases (done on default instance and VRF)| Test Result |
 | :------ | :----- |
@@ -469,7 +469,7 @@ The following test cases will be tested using CLI/REST/gNMI management interface
 | ###Negative test cases ###|
 |Try creating a route with mismatched prefix(IPV4) and address(IPV6)| test will fail|
 |Try creating a route with wrong distance like 300| test will fail|
-|Try creating a route with non-existing VRF| backened will fail|
+|Try creating a route with non-existing VRF| backend will fail|
 
 |Test Cases specific to REST/gNMI (done on default instance and VRF)| Test Result|
 | :------ | :----- |
@@ -477,7 +477,7 @@ The following test cases will be tested using CLI/REST/gNMI management interface
 |GET single NH in a prefix| verify the result with what was set|
 |Delete single NH in a prefix| verify the route is deleted|
 |Create multiple nexthop in a prefix| verify they are created|
-|Use Get for a prefix with multiple next-hops|verify the output macthes with what was set|
+|Use Get for a prefix with multiple next-hops|verify the output matches with what was set|
 |Delete a prefix | Verify all routes within the prefix are deleted|
 |Create multiple prefix with multiple Next-hops in a VRF|verify all the routes are created|
 |Use GET at static_routes level to get all the routes| verify the result with what was set|

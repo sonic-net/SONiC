@@ -121,7 +121,7 @@ Furthermore, the bulk chunk size can be configured on a per counter IDs set basi
 Each `COUNTER_NAME_PREFIX` defines a set of counter IDs by matching the counter IDs with the prefix. All the counter IDs in each set share a unified bulk chunk size and will be polled in a series of bulk counter polling API calls with the same counter IDs set but different port set.
 All such sets of counter IDs form a partition of counter IDs of the flex counter group. The partition of a flex counter group is represented by the keys of map `m_portBulkContexts`.
 
-To simplify the logic, it is not supported to change the partition, which means it does not allow to split counter IDs into a differet sub sets once they have been split.
+To simplify the logic, it is not supported to change the partition, which means it does not allow to split counter IDs into a different sub sets once they have been split.
 
 Eg. `SAI_PORT_STAT_IF_IN_FEC:32,SAI_PORT_STAT_IF_OUT_QLEN:0` represents
 
@@ -189,7 +189,7 @@ The following new types will be introduced in `container FLEX_COUNTER_TABLE` of 
     /}
 ```
 
-In the yang model, each flex counter group is an independent countainer. We will define leaf in the countainer `PG_DROP`, `PG_WATERMARK`, `PORT`, `QUEUE`, `QUEUE_WATERMARK`.
+In the yang model, each flex counter group is an independent container. We will define leaf in the container `PG_DROP`, `PG_WATERMARK`, `PORT`, `QUEUE`, `QUEUE_WATERMARK`.
 The update of `PG_DROP` is shown as below
 
 ```
@@ -248,6 +248,6 @@ As this feature does not introduce any new function, unit test shall be good eno
 
 An example shows how smaller bulk chunk size helps PFC watchdog counter polling thread to be scheduled in time.
 
-In the upper chart, the port counters are polled in a single bulk call which takes longer time. The PFC watchdog counter polling thread can not procceed until the long bulk call exits the critical section.
+In the upper chart, the port counters are polled in a single bulk call which takes longer time. The PFC watchdog counter polling thread can not proceed until the long bulk call exits the critical section.
 
 In the lower chart, the port counters are polled in a series of bulk call with smaller bulk chunk sizes. The PFC watchdog counter polling thread has more chance to be scheduled in time.

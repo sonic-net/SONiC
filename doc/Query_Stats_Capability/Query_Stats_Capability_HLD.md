@@ -1,7 +1,7 @@
-# Query Stats Capability new SAI API indroduction
+# Query Stats Capability new SAI API introduction
 
 # Table of Contents
-- [Query Stats Capability new SAI API indroduction](#query-stats-capability-new-sai-api-indroduction)
+- [Query Stats Capability new SAI API introduction](#query-stats-capability-new-sai-api-introduction)
 - [Table of Contents](#table-of-contents)
 - [Introduction and Motivation](#introduction-and-motivation)
 - [Requirements](#requirements)
@@ -31,7 +31,7 @@ But, it will require all vendors either implement the API or return SAI_STATUS_N
 
 # Code example
 
-- Current implemenation:
+- Current implementation:
 ```
 for (int id = SAI_PORT_STAT_IF_IN_OCTETS; id <= SAI_PORT_STAT_IF_OUT_FABRIC_DATA_UNITS; ++id)
 {
@@ -49,7 +49,7 @@ for (int id = SAI_PORT_STAT_IF_IN_OCTETS; id <= SAI_PORT_STAT_IF_OUT_FABRIC_DATA
 }
 ```
 
-- New implemenation:
+- New implementation:
 ```
 sai_stat_capability_list_t stats_capability;
 stats_capability.count = 0;

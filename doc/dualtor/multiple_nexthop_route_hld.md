@@ -22,7 +22,7 @@ We will be adding a function `updateRoute()` to muxorch which will handle refres
 
 If `updateRoute()` finds 1 nexthop corresponding to the given route, it will be a no-op and the current behavior will be maintained.
 
-If `updateRoute()` finds more than 1 nexthop corresponding to the given route, then it will set the hardware route according to the folowing logic using `sai_route_api`:
+If `updateRoute()` finds more than 1 nexthop corresponding to the given route, then it will set the hardware route according to the following logic using `sai_route_api`:
 
 1. If a nexthop neighbor is in Standby: do nothing
 2. If a nexthop neighbor is in Active: Set the first active neighbor as the sole nexthop and return.
@@ -133,7 +133,7 @@ Several assumptions are made as a part of this design. This means that there are
 
 - As part of this design, we are assuming that within a nexthop group, nexthop neighbors are either ALL "Mux" nexthops, or None of the neighbors are "Mux" nexthops. Due to this assumption, we will not support mixed "Mux" and "non-Mux" nexthop neighbors within a nexthop group.
 
-- Since only one nexthop will be programmed to the ASIC, all ECMP neighbors with a mux will fall back to 1 active nexthop neigbor or 1 tunnel route.
+- Since only one nexthop will be programmed to the ASIC, all ECMP neighbors with a mux will fall back to 1 active nexthop neighbor or 1 tunnel route.
 
 ## Testing
 

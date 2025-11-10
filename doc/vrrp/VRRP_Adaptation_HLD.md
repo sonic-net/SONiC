@@ -65,7 +65,7 @@ Table 1: Abbreviations
 
 | Abbreviation    | Description                                        |
 | :----------     | :------------------------------------------------  |
-| VRRP            | Virtual Router Redundency Protocol                 |
+| VRRP            | Virtual Router Redundancy Protocol                 |
 | ARP             | Address Resolution Protocol                        |
 | FRR             | Free Range Routing Stack                           |
 | CLI             | Command Line Interface                             |
@@ -160,7 +160,7 @@ Toggle preempt mode. When enabled, preemption allows Backup routers with higher 
 
 ##### Virtual Router Owner
 
-VRRP instance whose virtual IP address (VIP) is same as real interface address is called the owner of virtual router and has the highest priority (255). VRRP owner is supported in SONIC's VRRP implementation. VRRP owner node will pre-empt the active master even when pre-emption is disabled for that particular VRRP instance.
+VRRP instance whose virtual IP address (VIP) is same as real interface address is called the owner of virtual router and has the highest priority (255). VRRP owner is supported in SONIC's VRRP implementation. VRRP owner node will preempt the active master even when pre-emption is disabled for that particular VRRP instance.
 
 ##### Virtual MAC Address
 
@@ -353,7 +353,7 @@ Example:-
 11) "pre_empt"
 12) "True"
 
-**Example:- Entery with multiple virtual IPs**
+**Example:- Entry with multiple virtual IPs**
 
 admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP|Vlan1|1"
  1) "vrid"
@@ -369,7 +369,7 @@ admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP|Vlan1|1"
 11) "pre_empt"
 12) "True"
 
-**Example:- Entery with multiple virtual IPs**
+**Example:- Entry with multiple virtual IPs**
 
 admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP6|Vlan3|3"
  1) "vrid"
@@ -383,7 +383,7 @@ admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP6|Vlan3|3"
  9) "pre_empt"
 10) "True"
 
-**Example:- Entery with multiple track interfaces for VRRP IPv4**
+**Example:- Entry with multiple track interfaces for VRRP IPv4**
 
 admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP_TRACK|Vlan1|1|Vlan200"
 1) "priority_increment"
@@ -393,7 +393,7 @@ admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP_TRACK|Vlan1|1|Ethernet64"
 1) "priority_increment"
 2) "20"
 
-**Example:- Entery with multiple track interfaces for VRRP IPv6**
+**Example:- Entry with multiple track interfaces for VRRP IPv6**
 
 admin@sonic:~$ redis-cli -n 4 HGETALL "VRRP6_TRACK|Vlan9|9|Vlan200"
 1) "priority_increment"

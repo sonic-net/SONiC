@@ -469,7 +469,7 @@ Scenario 3:
 
   - Yang model tests:
     - Logger table with a wrong loglevel, or with a wrong logoutput
-    - Logger table without loglevel or logoutput fileds
+    - Logger table without loglevel or logoutput fields
     - Logger table with valid values
 
 ## 9.2 Manual Testing 

@@ -158,12 +158,12 @@ watermark enable only:
 
 QUEUE map generation will be separated into two flows:
 
-- QUEUE map geneartion
+- QUEUE map generation
 - adding QUEUE or QUEUE_WATERMARK stats to FLEX_COUNTER_DB depending on the counterpoll enabled (queue or watermark)
 
 PG map generation will be separated into two flows:
 
-- PG map geneartion
+- PG map generation
 - adding PG_DROP or PG_WATERMARK stats to FLEX_COUNTER_DB depending on the counterpoll enabled (pg-drop or watermark)
 
 ## 6.5 Effect upon disablement of counterpoll queue/watermark/pg-drop
@@ -217,7 +217,7 @@ this function will call generatePriorityGroupMapPerPort per physical port.
 inside this per port function only PG map will be created.
 pg-drop stats creation will be separated into a different inner function that will be called separately if pg-drop counterpoll is enabled.
 
-When only watermark is enabled in counterpoll, this block will call both generatePriorityGroupMap abd addPriorityGroupWatermarkFlexCounters function 
+When only watermark is enabled in counterpoll, this block will call both generatePriorityGroupMap and addPriorityGroupWatermarkFlexCounters function 
 which will call addPriorityGroupWatermarkFlexCountersPerPort per physical port.
 inside this per port functions both the PG map will be created and pg-watermark stats will be added respectively.
 
@@ -263,7 +263,7 @@ the same mechanism will be done in the new watermark functions.
 
 ## 7.3 Addition of port when watermark is enabled
 
-when watermark counterpoll is enabled and a certaion port will be added, the watermark stats for this port will be added.
+when watermark counterpoll is enabled and a certain port will be added, the watermark stats for this port will be added.
 
 # 8. Testing
 

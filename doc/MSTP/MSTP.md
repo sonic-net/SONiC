@@ -35,8 +35,8 @@
   - [Instance deletion](#instance-deletion)
   - [MSTP Instance creation](#mstp-Instance-Creation)
   - [MSTP Instance deletion](#mstp-Instance-Deletion)
-  - [Add VLAN to Exisiting Instance](#add-vlan-existing)
-  - [Delete VLAN to Exisiting Instance](#delete-vlan-existing)
+  - [Add VLAN to Existing Instance](#add-vlan-existing)
+  - [Delete VLAN to Existing Instance](#delete-vlan-existing)
   - [Add VLAN member](#add-vlan-member)
   - [Del VLAN member](#del-vlan-member)
 * [Configuration Commands](#configuration-commands)
@@ -330,7 +330,7 @@ mst_boundary_proto  = BIT                       ; 'enabled' or 'disabled'
 #### STP_INST_PORT_FLUSH_TABLE
 ```
 ;Defines instance and port for which FDB Flush needs to be performed
-key                 = STP_INST_PORT_FLUSH_TABLE:instane:ifname         ; FDB Flush instance id and port name
+key                 = STP_INST_PORT_FLUSH_TABLE:instance:ifname         ; FDB Flush instance id and port name
 state               = "true"
 ```
 
@@ -404,7 +404,7 @@ The MSTP standard does not support UplinkFast, so this functionality will be dis
 ## Add VLAN to Existing Instance
 ![MSTP VLAN Add](images/MSTP_Add_ExistingInstance.drawio.png)
 
-## Del VLAN from  Exisiting Instance
+## Del VLAN from  Existing Instance
 ![MSTP VLAN Del](images/MSTP_Del_ExistingInstance.drawio.png)
 
 # Configuration Commands
@@ -473,13 +473,13 @@ The existing interface-level STP commands as below will re-used for configuring 
   - Configure an interface for MSTP.
 
 - **config spanning_tree interface edgeport {enable|disable} \<ifname\>**
-  - This command enables or disables the Edge Port feature on the speficied interface.
+  - This command enables or disables the Edge Port feature on the specified interface.
 
 - **config spanning_tree interface bpdu_guard {enable|disable} \<ifname\>**
-  - This command enables or disables the BPDU Guard feature on the speficied interface.
+  - This command enables or disables the BPDU Guard feature on the specified interface.
 
 - **config spanning_tree interface root_guard {enable|disable} \<ifname\>**
-    - This command enables or disables the Root Guard feature on the speficied interface.
+    - This command enables or disables the Root Guard feature on the specified interface.
 
 - **config spanning_tree interface priority \<ifname\> \<port_priority-value\>**
   - Set the specified port level priority for the specified interface in seconds.

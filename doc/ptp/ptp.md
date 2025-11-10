@@ -19,7 +19,7 @@ path delay = ((t4-t1) - (t3-t2))/2
 
 offset from master clock = (t2 - t1) - path delay
 
-![PTP Messages for boundry clock](ptp-messages.jpg)
+![PTP Messages for boundary clock](ptp-messages.jpg)
 
 Achieving high precision requires hardware timestamping
 

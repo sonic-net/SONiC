@@ -31,9 +31,9 @@ This document provides guidelines on how to do versioning for SONiC Docker Image
 <!-- omit in toc -->
 #### Motivation
 
-With new SONiC Application Extension Infrastructure SONiC Dockers and SONiC Base OS can be seperated and distributed individually.
+With new SONiC Application Extension Infrastructure SONiC Dockers and SONiC Base OS can be separated and distributed individually.
 SONiC Dockers (aka SONiC Packages) can be installed, upgraded invididually from other. This creates a new problem which needs to be
-solved - compatibility between dependend Dockers and host OS. SONiC Application Extension Infrastructure provides a way to specify
+solved - compatibility between dependent Dockers and host OS. SONiC Application Extension Infrastructure provides a way to specify
 the package version dependency using semantic versioning (https://semver.org). This document provides a guideline on how to increment
 version numbers correctly on releases.
 
@@ -84,7 +84,7 @@ BREAKING CHANGE: this feature breaks the Consumer/Producer based IPC
 
 **NOTE**: SONiC package version has no correlation to a SONiC release. While keeping API of dependencies compatible a package can work across different SONiC releases.
 
-Package maintainer may choose to maintain a single repository and have there packages that can work accross different releases or maintain a repository per SONiC release.
+Package maintainer may choose to maintain a single repository and have there packages that can work across different releases or maintain a repository per SONiC release.
 
 ***package maintainer can*** update *default-reference* in package.json in SONiC buildimage to point to a default version which will be used when user installs a package.
 
@@ -185,7 +185,7 @@ foo's manifest:
 
 5. Dependencies SDK changes
 
-An infrastructure can detect wether package foo is using SDK componenet major version same as foo's dependencies. This automatic check does not require package maintainer additional manifest configuration.
+An infrastructure can detect whether package foo is using SDK component major version same as foo's dependencies. This automatic check does not require package maintainer additional manifest configuration.
 
 For more control foo developer can specify more exact rules.
 

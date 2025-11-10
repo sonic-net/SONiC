@@ -9,7 +9,7 @@
 * [Revision](#revision)
 * [About this Manual](#about-this-manual)
 * [Scope](#scope)
-* [Defintions/Abbreviation](#definitionsabbreviation)
+* [Definitions/Abbreviation](#definitionsabbreviation)
 * [1 Overview](#1-overview)
     - [1.1 Use Cases](#11-use-cases)
         - [1.1.1 A flexible "drop filter"](#111-a-flexible-"drop-filter")

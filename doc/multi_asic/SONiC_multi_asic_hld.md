@@ -95,15 +95,15 @@ A linux network namespace is created for every ASIC that's controlled by the sam
 This creates a separate linux network stack including routes and network devices for every ASIC.
 The interfaces for a given ASIC is linked to its corresponding namespace.
 
-In a multi-ASIC system, very commonly the ASICs are physically connected in a clos fabric topology. With sonic container dockers running as separate namespaces for each ASIC in a multi-ASIC system, we can model and configure the system as if there is a spine-leaf network topology within the box.
+In a multi-ASIC system, very commonly the ASICs are physically connected in a close fabric topology. With sonic container dockers running as separate namespaces for each ASIC in a multi-ASIC system, we can model and configure the system as if there is a spine-leaf network topology within the box.
 
-![Archtecture Diagram](images/architecture_diagram.jpg)
+![Architecture Diagram](images/architecture_diagram.jpg)
 
 A high level software architectural view for a multi-asic system with 6 ASIC is shown as follows:
 
 
 
-![Archtecture Detailed View](images/multi_asic_architecture.jpg)
+![Architecture Detailed View](images/multi_asic_architecture.jpg)
 
 
 
@@ -205,7 +205,7 @@ This section provides design details for a Multi ASIC system with a single CPU.
 To detect if the system is a Single or Multi ASIC at run-time, a new configuration file, **asic.conf** is added.
    * The file ***asic.conf*** is present in the directory `/usr/share/sonic/device/<platform>/`. It has the following details
      * NUM_ASIC=n, where n is the number of asic's in this platform.
-     * The device identifier is the pci device id of the ASIC. This is used to populate the "asic_id" field in DEVICE_METADATA of the config_db file for each namespace. The "asic_id" is passed as the SAI instance identifier during the creation of orchagent proces in each namespace.
+     * The device identifier is the pci device id of the ASIC. This is used to populate the "asic_id" field in DEVICE_METADATA of the config_db file for each namespace. The "asic_id" is passed as the SAI instance identifier during the creation of orchagent process in each namespace.
        These entries are present for all the 'n' asic's.
 
     Sample asic.conf
@@ -452,7 +452,7 @@ A new template file database_global.json.j2 is introduced which is used to gener
 
 #### 2.4.4.1. Infrastructure changes
 
-The dbconnector classes present in the sonic-py-swsssdk submodule viz. SoncV2Connector, ConfigDBConnector is enhanced to accept the namespace parameter  to connect to the DB in a particular namesapce. The dbconnector in the sonic-swsscommon submodule viz DBConnector too will be enhanced to accept the namespace parameter.  
+The dbconnector classes present in the sonic-py-swsssdk submodule viz. SoncV2Connector, ConfigDBConnector is enhanced to accept the namespace parameter  to connect to the DB in a particular namespace. The dbconnector in the sonic-swsscommon submodule viz DBConnector too will be enhanced to accept the namespace parameter.  
 Please refer [multi namespace db instance implementation document](https://github.com/sonic-net/SONiC/blob/master/doc/database/multi_namespace_db_instances.md) for more details. 
 
 ### 2.4.5. Configuration CLIs
@@ -461,19 +461,19 @@ Please refer [multi namespace db instance implementation document](https://githu
 
  * config save/load/reload : No additional namespace argument added to these commands. These commands perform the action using the list of config_db.json files either given by user as parameter or by using the default config_db files 
       /etc/sonic/config_db.json, /etc/sonic/config_db0.json, /etc/sonic/config_db1.json etc as there are number of asic/namespace needed in the platform.
- * config load_minigraph : No additional namespace argument added to this command. It parses the minigraph and populates the database instances present in different namesapces.
+ * config load_minigraph : No additional namespace argument added to this command. It parses the minigraph and populates the database instances present in different namespaces.
  * config bgp : No additional namespace argument added to bgp commands. The bgp startup/shutdown all commands are applied on the external bgp sessions ( where BGP neighbors are external routers ). The commands like bgp <startup/shutdown/remove>
       <neighbor_ip> applies to either internal/external BGP sessions as per the user input.
  * config interface : Added an optional argument to specify the namespace [ -n namespace ]. In Multi-ASIC devices the namespace could either be taken as a user input or if not provided will be derived based on the interface name. 
  * config vlan : Added an optional argument to specify the namespace [ -n namespace ]. In Multi-ASIC devices namespace parameter is mandatory for (add/del) of vlan and member interface.
- * config portchannel : Added an optional argument to specify the namespace [ -n namespace ]. In Multi-ASIC devices namesapce parameter is mandatory for (add/del) of portchannel and member interface.
+ * config portchannel : Added an optional argument to specify the namespace [ -n namespace ]. In Multi-ASIC devices namespace parameter is mandatory for (add/del) of portchannel and member interface.
 
 ### 2.4.6. Platform Services
 The PMON container remains as a single instance service running in the linux host. The platform daemons viz psud, syseepromd, thermalctld, fancontrol updates tables viz. CHASSIS_INFO_TABLE, PSU_INFO_TABLE, EEPROM_TABLE, FAN_INFO_TABLE, TEMPER_INFO_TABLE which are in the _globalDB_ database container. 
 
 The ledd daemon will be updated to listen for change events from PORT tables in APP DB present in all namespaces.   
 
-The xcvrd daemon will get/set the data from interface related tables viz. TRANSCEIVER_INFO_TABLE, TRANSCEIVER_DOM_SENSOR_TABLE, TRANSCEIVER_STATUS_TABLE present in database containers running in different namespaces. It will continue to have three threads viz. main, dom_sensor_update, sfp_state_update as is there currently, but will use the enhanced DB access API's from the sonic-swsscommon submodule which accepts the namespace parameter to connect and update the tables in the respective namesapce DB tables. The interface name will be used to dynamically derive the right namespace database instance.
+The xcvrd daemon will get/set the data from interface related tables viz. TRANSCEIVER_INFO_TABLE, TRANSCEIVER_DOM_SENSOR_TABLE, TRANSCEIVER_STATUS_TABLE present in database containers running in different namespaces. It will continue to have three threads viz. main, dom_sensor_update, sfp_state_update as is there currently, but will use the enhanced DB access API's from the sonic-swsscommon submodule which accepts the namespace parameter to connect and update the tables in the respective namespace DB tables. The interface name will be used to dynamically derive the right namespace database instance.
 
 
 ### 2.4.7. Monitoring/Troubleshooting
@@ -502,7 +502,7 @@ A new daemon will be added in BGP docker, which will populate STATE_DB with requ
 There is also dependency on management interface related information. Currently, the Interfaces MIB has interface operational status information. This table currently shows operational status of management interface along with operational status of all front panel interfaces. SWSS updates the operational status in STATE_DB. As there is no swss running on the host namespace, this information will be retrieved from _/sys/class/net/**mgmt interface**/operstate._
 
 
-Below are the list of MIBs suppored by snmp_ax_impl.
+Below are the list of MIBs supported by snmp_ax_impl.
 
 |OID |  | Name | Data source | 
 |----|--|------|-------------|
@@ -529,7 +529,7 @@ There will be a single Telemetry service and telemetry docker for the multi asic
 
 #### 2.4.7.3. LLDP
 
-LLDP service/docker in multi-asic platforms will be running in both host and asic namespaces. For host namesapce LLDP is running on Management interface and per-asic namespace LLDP is running on both Frontend and Backend interfaces.  This enables visualizing internal links and internal devices information.
+LLDP service/docker in multi-asic platforms will be running in both host and asic namespaces. For host namespace LLDP is running on Management interface and per-asic namespace LLDP is running on both Frontend and Backend interfaces.  This enables visualizing internal links and internal devices information.
 
 #### 2.4.7.4. ACL
 
@@ -539,7 +539,7 @@ For Control ACL's:
  - Iptables rules are currently programmed on the host as these rules are applied to traffic coming from management interface.
  - Iptable rules will also be programmed in each namespace which are applied from the traffic from frontend ports
   
-  Data and Everflow ACLs are programed in all front-end asic's only and are bound to corresponding frontend interfaces only.  Backend asic's do not have any ACL's programmed and have no ACL rules bound to backend interfaces.
+  Data and Everflow ACLs are programmed in all front-end asic's only and are bound to corresponding frontend interfaces only.  Backend asic's do not have any ACL's programmed and have no ACL rules bound to backend interfaces.
 
 #### 2.4.7.5. Everflow
 
@@ -751,7 +751,7 @@ asic0: BGP router identifier 10.0.107.16, local AS number 65100 vrf-id 0
 BGP table version 28012
 asic1: BGP router identifier 10.0.107.19, local AS number 65100 vrf-id 0
 BGP table version 10040
-Neighbhor       V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
+Neighbor       V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
 ------------  ---  -----  ---------  ---------  --------  -----  ------  ---------  --------------  --------------
 10.10.192.53    4  64011      87404      91254         0      0       0  3d00h49m                6  11T0
 10.10.192.55    4  64012      87396      91254         0      0       0  3d00h49m                6  12T0
@@ -780,7 +780,7 @@ asic1: BGP router identifier 10.0.107.19, local AS number 65100 vrf-id 0
 BGP table version 13051
 asic2: BGP router identifier 10.0.107.20, local AS number 65100 vrf-id 0
 BGP table version 12977
-Neighbhor       V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
+Neighbor       V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
 ------------  ---  -----  ---------  ---------  --------  -----  ------  ---------  --------------  --------------
 10.0.107.0      4  65100       6468      12038         0      0       0  3d00h32m             6564  ASIC2
 10.0.107.1      4  65100      12038       6468         0      0       0  3d00h32m             6409  ASIC0
@@ -810,7 +810,7 @@ asic0: BGP router identifier 10.0.107.16, local AS number 65100 vrf-id 0
 BGP table version 28012
 RIB entries 13127, using 2415368 bytes of memory
 Peers 4, using 83680 KiB of memory
-Neighbhor      V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
+Neighbor      V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
 -----------  ---  -----  ---------  ---------  --------  -----  ------  ---------  --------------  --------------
 10.0.107.0     4  65100       6468      12038         0      0       0  3d00h35m             6564  ASIC1
 10.106.0.1     4  65200      90278      99008         0      0       0  3d00h33m             6402  01T2
@@ -827,7 +827,7 @@ asic2: BGP router identifier 10.0.107.20, local AS number 65100 vrf-id 0
 BGP table version 12967
 RIB entries 13125, using 2415000 bytes of memory
 Peers 4, using 83680 KiB of memory
-Neighbhor      V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
+Neighbor      V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
 -----------  ---  -----  ---------  ---------  --------  -----  ------  ---------  --------------  --------------
 10.0.107.1     4  65100      12038       6468         0      0       0  3d00h36m             6409  ASIC0
 10.0.107.13    4  65100         45       6464         0      0       0  3d00h36m               74  ASIC1
@@ -841,7 +841,7 @@ asic1: BGP router identifier 10.0.107.19, local AS number 65100 vrf-id 0
 BGP table version 10040
 RIB entries 13127, using 2415368 bytes of memory
 Peers 12, using 251040 KiB of memory
-Neighbhor       V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
+Neighbor       V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
 ------------  ---  -----  ---------  ---------  --------  -----  ------  ---------  --------------  --------------
 10.0.107.12     4  65100       6464         45         0      0       0  3d00h37m             6564  ASIC1
 10.10.192.53    4  64011      87112      90962         0      0       0  3d00h35m                6  11T0

@@ -321,7 +321,7 @@ __Figure 4: Control flow for DTel events corresponding to ref-counted objects__.
 	* Report session OID
 	* Reference count
 
-**Port hashmap (ports with atleast one queue on which reporting in enabled)**
+**Port hashmap (ports with at least one queue on which reporting in enabled)**
 
 * Key: ifName
 * Value: 

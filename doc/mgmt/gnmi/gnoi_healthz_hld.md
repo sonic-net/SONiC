@@ -69,7 +69,7 @@ The [Healthz](https://github.com/openconfig/gnoi/blob/main/healthz/healthz.proto
 
 ```
 // The Healthz service provides access to the status of a path on the
-// system. Addtitionally it allows the implementor to provide path specific
+// system. Additionally it allows the implementer to provide path specific
 // diagnositic data into the status return.
 //
 // Healthz is expected to work in conjunction with the component OC model.
@@ -179,7 +179,7 @@ Supported Paths for Get:
 Get Sequence Flow
 
 1. The Get RPC handler translates the incoming gNMI Path in the Get request to the correct component and derives the related information for the log level indicated. 
-2. For the above supoorted paths, a call to HealthzCollect is made through the DBUS client with the component name, log level, and a persistent_storage flag to indicate if the artifacst should be stored in persistent storage. This in turn invokes the DBUS endpoint of the host service via the module `debug_info`.
+2. For the above supported paths, a call to HealthzCollect is made through the DBUS client with the component name, log level, and a persistent_storage flag to indicate if the artifacst should be stored in persistent storage. This in turn invokes the DBUS endpoint of the host service via the module `debug_info`.
 3. The host service module `debug_info.collect` collects all the artifacts for a given board type. Depending on the log level and board type input, the relevant log files, DB snapshots, counters, record files, and various command outputs are collected for multiple components and aggregated under a specified artifact directory in the host. Once complete, the directory is compressed to a `*.tar.gz` file ready to be streamed.
 4. In. the meantime, the frontend keeps polling for the artifact to be ready with a call to HealthzCheck through the DBUS client `debug_info.check`.
 5. Once the artifact tar file is ready, the artifact details (filename, size, checksum) with the unique ID string are sent in the Get response back to the client.
@@ -212,9 +212,9 @@ message ArtifactHeader {
   // File artifacts should use the defined FileArtifactType.
   // Proto artifacts should either use the generic ProtoArtifactType
   // which means the artifact is made up a sequence of proto.Any
-  // messages which can be deserialized directly into thier message
+  // messages which can be deserialized directly into their message
   // types. Otherwise the implementer can provide a specific artifact type
-  // which can add any additional metadata the implementor wants and define
+  // which can add any additional metadata the implementer wants and define
   // a custom format for the message stream.
   oneof artifact_type {
     FileArtifactType file = 101;

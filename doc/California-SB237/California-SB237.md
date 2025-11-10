@@ -25,7 +25,7 @@
 	* 1.14. [Test Plan](#TestPlan)
 		* 1.14.1. [Unit Test cases](#UnitTestcases)
 		* 1.14.2. [System Test cases](#SystemTestcases)
-		* 1.14.3. [Pasword Change Flow](#PasswordChangeFlow)
+		* 1.14.3. [Password Change Flow](#PasswordChangeFlow)
 	* 1.15. [3rd Party Components](#rdPartyComponents)
 		* 1.15.1. [PW Force Expiration](#WForceExpire)
 		* 1.15.2. [Pam Unix](#PAMUNIX)
@@ -143,7 +143,7 @@ Not relevant
 
 
 ###  1.11. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact
-The feature can be triggered after sonic upgrade and warm reboot and feature doesn't affect trafic.
+The feature can be triggered after sonic upgrade and warm reboot and feature doesn't affect traffic.
 
 ###  1.12. <a name='RestrictionsLimitations'></a>Restrictions/Limitations
 The California law feature is not supported on remote AAA.
@@ -169,7 +169,7 @@ Check affecting password hardening feature:
   Check password hardening age is not affected
 
 
- #### 1.14.3. <a name='PasswordChangeFlow'></a>Pasword Change Flow
+ #### 1.14.3. <a name='PasswordChangeFlow'></a>Password Change Flow
 
  Example of password change during 1st login.
 

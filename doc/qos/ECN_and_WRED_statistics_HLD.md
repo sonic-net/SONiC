@@ -182,7 +182,7 @@ The following new port counters will be added along with existing counters on su
     * SAI_PORT_STAT_WRED_DROPPED_PACKETS
     * SAI_PORT_STAT_ECN_MARKED_PACKETS [to be supported in next phase of Enhancement]
 
-For every egress queue, the following statistics will be added along with existing queue conters on supported platforms
+For every egress queue, the following statistics will be added along with existing queue counters on supported platforms
 
 * COUNTERS:oid:queue_oid
     * SAI_QUEUE_STAT_WRED_ECN_MARKED_PACKETS
@@ -444,7 +444,7 @@ There are no impact to warmboot or fastboot.
 
 #### Unit Test cases
 - On Supported platforms, Verify if the queuestat CLI display has WRED and ECN Queue statistics
-- On Supported platforms, Verify if the port statistcs CLI display has the WRED statistics
+- On Supported platforms, Verify if the port statistics CLI display has the WRED statistics
 - On ECN-WRED stats non-supported platforms,
     - Verify that CLI does not show the respective Headers in queue stats
     - Verify that CLI does not show the respective rows in port stats

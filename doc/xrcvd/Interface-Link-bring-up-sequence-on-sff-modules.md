@@ -30,7 +30,7 @@ Deterministic Approach for Interface Link bring-up sequence on SFF compliant mod
 
 
 # About this Manual
-This is a high-level design document describing the need to have determinstic approach on SFF compliant modules for Interface link bring-up sequence and workflows for use-cases around it
+This is a high-level design document describing the need to have deterministic approach on SFF compliant modules for Interface link bring-up sequence and workflows for use-cases around it
 
 Parent HLD [Interface-Link-bring-up-sequence.md](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis/Interface-Link-bring-up-sequence.md) focuses on generic high level background/idea and details for CMIS modules, while this HLD focuses on SFF modules with details.
 
@@ -68,7 +68,7 @@ According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp
 
 # Objective
 
-According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis/Interface-Link-bring-up-sequence.md#objective), have a determistic approach for Interface link bring-up sequence for SFF compliant modules (100G/40G) i.e. below sequence to be followed:
+According to parent [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sfp-cmis/Interface-Link-bring-up-sequence.md#objective), have a deterministic approach for Interface link bring-up sequence for SFF compliant modules (100G/40G) i.e. below sequence to be followed:
   1. Initialize and enable NPU Tx and Rx path
   2. For system with 'External' PHY: Initialize and enable PHY Tx and Rx on both line and host sides; ensure host side link is up
   3. Then perform optics Tx enable
@@ -103,7 +103,7 @@ Platform needs to leave the transceiver (if capable of disabling Tx) in Tx disab
   - ### Flow of pre-requisite for platform in insertion/bootup cases
   ```mermaid
   graph TD;
-  A[platfrom brings module out of RESET]
+  A[platform brings module out of RESET]
   B[platform keeps module in Tx disabled state immediately after module out-of-RESET]
   C[xcvrd detects module insertion via platform API get_transceiver_change_event, and update module status/info to DB]
   D[Upon module insertion event, sff_mgr takes action accordingly if needed]
@@ -130,7 +130,7 @@ Platform needs to leave the transceiver (if capable of disabling Tx) in Tx disab
   D --> End
   ```
   - ### Flow of calculating target tx_disable value:
-      - When ```tx_disable value/status``` is ```True```, it means Tx is disabed
+      - When ```tx_disable value/status``` is ```True```, it means Tx is disabled
       - when ```tx_disable value/status``` is ```False```, it means Tx is enabled
   ```mermaid
   graph TD;
@@ -155,8 +155,8 @@ Platform needs to leave the transceiver (if capable of disabling Tx) in Tx disab
   B[while task_stopping_event is not set]
   C[check insertion event, host_tx_ready change event and admin_status change event for each intended port]
   D[double check if module is present]
-  E[fetch DB and update host_tx_ready value in local cahce, if not available locally]
-  E2[fetch DB and update admin_status value in local cahce, if not available locally]
+  E[fetch DB and update host_tx_ready value in local cache, if not available locally]
+  E2[fetch DB and update admin_status value in local cache, if not available locally]
   F[calculate target tx_disable value based on host_tx_ready and admin_status]
   G[check if tx_disable status on module is already the target value]
   H[go ahead to enable/disable Tx based on the target tx_disable value]

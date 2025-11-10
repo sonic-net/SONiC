@@ -40,7 +40,7 @@ IP packets arriving on the switch will be associated to a VRF, based on the inco
 Note: Transit traffic will never be forwarded between default and management VRF and vice-versa.
 
 ### Originating On The Switch
-All switch-originated traffic will be based on the VRF on which the applications are running. By default all application will use the default routing table unless explictly mentioned to use management VRF. Applications like ping, traceroute has option to specify which interface (VRF) to use while sending packets out and hence they work on both default VRF & management VRF. The design approach for each application is explained in later sections.
+All switch-originated traffic will be based on the VRF on which the applications are running. By default all application will use the default routing table unless explicitly mentioned to use management VRF. Applications like ping, traceroute has option to specify which interface (VRF) to use while sending packets out and hence they work on both default VRF & management VRF. The design approach for each application is explained in later sections.
 
 ## Design
 L3 Master Device (l3mdev) is based on L3 domains that correlate to a specific FIB table. Network interfaces are enslaved to an l3mdev device uniquely associating those interfaces with an L3 domain. Packets going through devices enslaved to an l3mdev device use the FIB table configured for the device for routing, forwarding and addressing decisions. The key here is the enslavement only affects L3 decisions. 
@@ -99,7 +99,7 @@ When the "config vrf add mgmt" CLI command is executed, following sequence of th
    (a) This service first does "ifdown --force eth0" where it will execute all the commands specified in the already existing "/etc/network/interfaces" file. 
        For example, it will execute the command "down ip route delete default via <def_gw_ip> dev eth0 table default", which will delete the existing default route from the routing table "default". 
        Similarly, it deletes the route related to directly connected network that corresponds to the management IP address. Note that these rules are already existing even without management vrf implementation.
-   (b) It then regenerates the management VRF specific /etc/network/interfaces file as per the requriement 
+   (b) It then regenerates the management VRF specific /etc/network/interfaces file as per the requirement 
    (c) It then restarts the "networking" service (explained in next point) which will bring up the management VRF. 
 
    As part of management vrf implementation, "interfaces.j2" file has been modified to create the management vrf specific "/etc/network/interfaces" file. The generated file is given below for reference.
@@ -150,7 +150,7 @@ When the "config vrf del mgmt" CLI command is executed, following sequence of th
        For example, it will execute the command "down ip route delete default via <def_gw_ip> dev eth0 table 5000", which will delete the existing default route from the routing table "5000" that corresponds to management VRF. 
        Similarly, it deletes the route related to directly connected network that corresponds to the management IP address. Note that these rules are same as the rules that were already existing even without management VRF implementation; the only difference is the routing table name/ID.
        It also deletes the CGROUP "l3mdev:mgmt" using the command "cgdelete -g l3mdev:mgmt".
-   (b) It then regenerates the management VRF specific /etc/network/interfaces file as per the requriement 
+   (b) It then regenerates the management VRF specific /etc/network/interfaces file as per the requirement 
    (c) It then restarts the "networking" service (explained in next point) which will bring up the the system without management VRF. 
 
    As part of management vrf implementation, "interfaces.j2" file has been modified to delete the management vrf specific interfaces using the "/etc/network/interfaces" file. The default "/etc/network/interfaces" file is given below for reference.
@@ -243,7 +243,7 @@ This section explains the behavior of each application on the default VRF and ma
 
 #### Application Daemons In The Device  
 ##### TCP Application Daemons  
-Linux kernel has got the flag tcp_l3mdev_accept which is required for enabling the TCP applications to receive and process packets from both data VRF and management VRF. By default, this flag is already enabled. With this flag enabled, TCP is capable of accepting the incoming connections that internally binds the incoming interface to the connection. i.e. When connection request arrives via the front-panel ports, TCP accepts the connection via the front-panel port; when connect request arrives via the management port (eth0), it accepts via the management port. Example: sshd, ftpd, etc., No changes are required in these deamons to make them work on both management VRF and default VRF.
+Linux kernel has got the flag tcp_l3mdev_accept which is required for enabling the TCP applications to receive and process packets from both data VRF and management VRF. By default, this flag is already enabled. With this flag enabled, TCP is capable of accepting the incoming connections that internally binds the incoming interface to the connection. i.e. When connection request arrives via the front-panel ports, TCP accepts the connection via the front-panel port; when connect request arrives via the management port (eth0), it accepts via the management port. Example: sshd, ftpd, etc., No changes are required in these daemons to make them work on both management VRF and default VRF.
 
 ##### UDP Application Daemons
 Linux 4.9 does not support `udp_l3mdev_accept`; corresponding patch is back ported to SONiC Linux 4.9. With this patch, UDP applications will be able to receive and process packets from both data VRF and management VRF. UDP being a connectionless protocol, these is no concept of accepting the connection through the same incoming port (VRF) and hence UDP applications will not be able to specify the interface through which the reply has to be sent. i.e. When UDP applications send a reply reply packet, there is no reference to the port in which the request packet had arrived. Hence the Linux stack will try to route this packet via default routing table, even if request packet had arrived via management port. Such UDP application daemon code needs to be modified to use the incoming port reference and use it for sending replies via the same VRF through which the request had arrived.
@@ -328,7 +328,7 @@ TACPLUS_SERVER address 10.11.55.41
 2. snmp traps from device: netsnmp 5.7.3 Linux patch has VRF support for traps. Conifuguration file needs to specify VRF name. Above mentioned PRs handle the required changes.
 
 #### NTP  
-When managmenet VRF is enabled, NTP application is restarted in the mvrf context by doing the following changes.
+When management VRF is enabled, NTP application is restarted in the mvrf context by doing the following changes.
 Debian contains the NTP package that has got the NTP initialization script file /etc/init.d/ntp that calls "start-stop-daemon" command which in turn starts the "ntpd" daemon as follows.
 ```
 start-stop-daemon --start --quiet --oknodo --pidfile $PIDFILE --startas $DAEMON -- -p $PIDFILE $NTPD_OPTS
@@ -339,7 +339,7 @@ cgexec -g l3mdev:mgmt start-stop-daemon --start --quiet --oknodo --pidfile $PIDF
 ```
 Since this file "/etc/init.d/ntp" is part of the default NTP package from debian, this file is manually copied into sonic-buildimage (at files/image_config/ntp/ntp) and modified to handle the mvrf enable status. It is then copied into /etc/init.d/ntp along with this mvrf changes. Whenever a new version of NTP is added to SONiC, care must be taken to repeat this change as required.
 
-In addtion to this change, NTP has got linux commands like "ntpq" which communicates with "ntpd" using the loopback IP address 127.0.0.1.
+In addition to this change, NTP has got linux commands like "ntpq" which communicates with "ntpd" using the loopback IP address 127.0.0.1.
 Hence, a dummy interface "lo-m" is created and enslaved into "mgmt" and configured with the IP address 127.0.0.1
 
 These NTP changes are done as part of the pull request [PR3204](https://github.com/sonic-net/sonic-buildimage/pull/3204) 
@@ -356,7 +356,7 @@ IP address changes or gateway changes are correctly reflected.
 
 #### DHCP Relay 
 DHCP relay is expected to work via the default VRF. 
-DHCP Relay shall receive the DHCP requests from servers via the front-panel ports and it will send it to DHCP server through front-panel ports. No code changes are reqiured.
+DHCP Relay shall receive the DHCP requests from servers via the front-panel ports and it will send it to DHCP server through front-panel ports. No code changes are required.
 
 
 #### DNS
@@ -367,7 +367,7 @@ When such processes call DNS POSIX API like getaddrinfo, the sockets opened by t
 Hence, no other code change is required to make the internal DNS calls to work.
 
 #### Other Applications
-Applications like "apt-get", "ntp", "scp", "sftp", "tftp", "wget" are expected to work via both default VRF & management VRF when users connect from external device to the respective deamons running in the device.
+Applications like "apt-get", "ntp", "scp", "sftp", "tftp", "wget" are expected to work via both default VRF & management VRF when users connect from external device to the respective daemons running in the device.
 When these applications are triggered from the device, they work through default VRF by default without any change.
 To make them work through management VRF, use "cgexec -g l3mdev:mgmt" as prefix before the actual command. 
 
@@ -393,7 +393,7 @@ For example, we will have to run two instances of lldp/ssh, one for Management a
 ### Conclusion: Use l3mdev instead of namespace  
 
 The Linux kernel has brought in the l3mdev primarily to provide the VRF solution in the L3 layer. 
-Linux kernel upgrades are also targetted towards using the L3mdev solution for VRF. 
+Linux kernel upgrades are also targeted towards using the L3mdev solution for VRF. 
 Industry also uses l3mdev as the solution for VRF. 
 Hence, it is decided to use l3mdev solution for supporting the VRF requirements. 
 The alternate solution that is based on "Namespace" (given above) has been ignored due to the reasons stated above.

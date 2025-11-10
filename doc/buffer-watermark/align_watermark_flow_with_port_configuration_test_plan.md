@@ -49,7 +49,7 @@ The purpose of this test plan is to describe tests for Align watermark flow with
 ## Test information
 
 ### Supported topology
-The test will be supported on any toplogy, since it doesn't require any traffic,
+The test will be supported on any topology, since it doesn't require any traffic,
 except configuring port buffers since a performance improvement in queue and pg-drop maps creation was merged few days ago.
 
 ### Test configuration

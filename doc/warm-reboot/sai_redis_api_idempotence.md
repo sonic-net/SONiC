@@ -12,7 +12,7 @@ Table of Contents
     * [Default attributes to OID mapping](#default-attributes-to-oid-mapping)
   * [OID to attributes mapping](#oid-to-attributes-mapping)
   * [Default objects mapping](#default-objects-mapping)
-* [Performance tunning](#performance-tunning)
+* [Performance tuning](#performance-tuning)
   * [In memory cache of the mapping](#in-memory-cache-of-the-mapping)
   * [Optimize current producer/consumer channel](#optimize-current-producerconsumer-channel)
   * [Multiple redis instance support](#multiple-redis-instance-support)
@@ -20,7 +20,7 @@ Table of Contents
 
 
 # Overview
-Libsairedis API interface is used by orchagent to interact with syncd for ASIC programing and data retrieval.  To support warm restart of swss docker, making the libsairedis API call idempotent will greatly facilitate the state restore of orchagent.
+Libsairedis API interface is used by orchagent to interact with syncd for ASIC programming and data retrieval.  To support warm restart of swss docker, making the libsairedis API call idempotent will greatly facilitate the state restore of orchagent.
 
 
 # Libsairedis API operations
@@ -45,11 +45,11 @@ Each sai object has a key to be uniquely identified. For objects which are creat
 ```
 #define ATTR2OID_PREFIX    ("ATTR2OID_" + (g_objectOwner))
 ```
-ATTR2OID_PREFIX is the prefix for mapping from attributes to OID. When a create request for oject key type of sai_object_id_t reaches libsairedis layer, the attributes provided will put together in order and a lookup key is formed using ATTR2OID_PREFIX as prefix. If there is an entry existing for the lookup key, corresponding OID value is returned directly without going down further.
+ATTR2OID_PREFIX is the prefix for mapping from attributes to OID. When a create request for object key type of sai_object_id_t reaches libsairedis layer, the attributes provided will put together in order and a lookup key is formed using ATTR2OID_PREFIX as prefix. If there is an entry existing for the lookup key, corresponding OID value is returned directly without going down further.
 
 Note that g_objectOwner is a string value set by some application to distinguish objects which are created with same attributes.
 
-Ex. for underlay and overlay router interfaces created by orchagent, both of them use the same loopback router interface and virtural router as attributes, different owners are set so they may retrieve the original OIDs without confusing each other.
+Ex. for underlay and overlay router interfaces created by orchagent, both of them use the same loopback router interface and virtual router as attributes, different owners are set so they may retrieve the original OIDs without confusing each other.
 
 In the example below, the owner of underlay router interface is "UNDERLAY_INTERFACE_" and it has OID of 0x6000000000939. While for overlay router interface, it is owned by "OVERLAY_INTERFACE_" and its OID is 0x6000000000996.
 
@@ -72,7 +72,7 @@ In the example below, the owner of underlay router interface is "UNDERLAY_INTERF
 #define DEFAULT_ATTR2OID_PREFIX    ("DEFAULT_ATTR2OID_" + (g_objectOwner))
 #define DEFAULT_OID2ATTR_PREFIX    "DEFAULT_OID2ATTR_"
 ```
-After an object with key type of sai_object_id_t is created, the attributes for it may be changed later. The current attributes to OID mapping will be updated to reflect this changes. For warm restart, the same original default attributes list may be used when the object is created again. To be able to handle such cases, whenever a new SET request which will cause the orginial default attributes list changed, a separate default attributes to OID mapping will be created. This happens up to one time for each object, any more attributes SET change will just update the current attributes to OID mapping, this is ensured by checking the existence "DEFAULT_OID2ATTR_" mapping using OID as lookup key.
+After an object with key type of sai_object_id_t is created, the attributes for it may be changed later. The current attributes to OID mapping will be updated to reflect this changes. For warm restart, the same original default attributes list may be used when the object is created again. To be able to handle such cases, whenever a new SET request which will cause the original default attributes list changed, a separate default attributes to OID mapping will be created. This happens up to one time for each object, any more attributes SET change will just update the current attributes to OID mapping, this is ensured by checking the existence "DEFAULT_OID2ATTR_" mapping using OID as lookup key.
 
 Take hostif object as example, hostif Ethernet18 was originally created with attributes SAI_HOSTIF_ATTR_NAME, SAI_HOSTIF_ATTR_OBJ_ID and SAI_HOSTIF_ATTR_TYPE. After vlan provisioning on Ethernet18, SAI_HOSTIF_ATTR_VLAN_TAG is set, a new default attributes to OID mapping is created to save the original mapping while current attributes to OID mapping will be updated to include SAI_HOSTIF_ATTR_VLAN_TAG attribute.
 
@@ -113,7 +113,7 @@ There are default objects created by libsai/SDK. Orchagent may change the attrib
 #define DEFAULT_OBJ_PREFIX    "DEFAULT_OBJ_"
 ```
 
-# Performance tunning
+# Performance tuning
 
 (TODO:)
 

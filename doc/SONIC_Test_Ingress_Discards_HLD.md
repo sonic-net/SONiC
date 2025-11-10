@@ -96,8 +96,8 @@ Please refer to the test case for detailed description.
 | sonic-clear counters                  | Clear counters                         |
 | sonic-clear rifcounters               | Clear RIF counters                     |
 
-As different vendors can have diferent drop counters calculation, for example L2 and L3 drop counters can be combined and L2 drop counter will be increased for all ingress discards.
-So for valid drop counters verification there is a need to distinguish wheter drop counters are combined or not for current vendor.
+As different vendors can have different drop counters calculation, for example L2 and L3 drop counters can be combined and L2 drop counter will be increased for all ingress discards.
+So for valid drop counters verification there is a need to distinguish whether drop counters are combined or not for current vendor.
 This can be done by checking platform name of the DUT.
 
 ##### Work need to be done based on this case

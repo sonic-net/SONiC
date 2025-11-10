@@ -200,7 +200,7 @@ For more details about the HA state table and the fields, please refer to [Smart
 
 When NPU-DPU midplane interface goes down due to some trigger or platform changes, PMON module updates the midplane NetDev interface state in DPU_STATE DB and trigger a notification for link state change. HA manager listens to these updates and bring down the BFD by applying ingress ACL rules or updating NPU->DPU links. This will bring down the local and remote BFD sessions between NPU and DPU. ACL can be attached to NPU-DPU interconnect interface to drop BFD packets from DPU.
 
-Note: This is out of scope of this document, Smartswitch HA HLD will have more details as HA manager listens to all FSM changes from the controller and PMON changes. For more details, please refere to Unplanned Events section in SmartSwitch HA HLD.
+Note: This is out of scope of this document, Smartswitch HA HLD will have more details as HA manager listens to all FSM changes from the controller and PMON changes. For more details, please refer to Unplanned Events section in SmartSwitch HA HLD.
 
 ## 2.9 DPU BFD Host trap entries
 To avoid BFD packets getting delayed or congested with other data traffic, BFD host_trap entries are created to redirect BFD control packets to a separate queue. This can be done during system initialization like other COPP rules generated for BGP, LLDP etc.,

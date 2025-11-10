@@ -6,7 +6,7 @@
 Rev | Rev	Date	| Author	| Change Description
 ---------|--------------|-----------|-------------------
 |v0.1 |01/10/2019  |Padmanabhan Narayanan | Initial version
-|v0.2 |10/07/2020  |Padmanabhan Narayanan | Update based on review comments and addess Multi ASIC scenario.
+|v0.2 |10/07/2020  |Padmanabhan Narayanan | Update based on review comments and address Multi ASIC scenario.
 |v0.3 |10/15/2020  |Padmanabhan Narayanan | Update Section 6.3 to indicate no change in thermalctld or Platform API definitions.
 
 ## 2. Scope
@@ -24,7 +24,7 @@ NOS| Network Operating System
 
 ## 4. Overview
 
-Networking switch platforms are populated with a number of thermal sensors which include exteral (i.e. onboard) as well as internal (those located within the component, e.g. CPU, ASIC, DIMM, Transceiver etc..) sensors. Readings from both the external as well as the internal sensors are essential inputs to the thermal/fan control algorithm so as to maintain optimal cooling. While drivers exist to retrive sensor values from onboard and other internal sensors, the ASIC based sensor values are currently retrieved thru the ASIC's SDK. SAI provides the following attributes to retrive the ASIC internal sensors:
+Networking switch platforms are populated with a number of thermal sensors which include external (i.e. onboard) as well as internal (those located within the component, e.g. CPU, ASIC, DIMM, Transceiver etc..) sensors. Readings from both the external as well as the internal sensors are essential inputs to the thermal/fan control algorithm so as to maintain optimal cooling. While drivers exist to retrieve sensor values from onboard and other internal sensors, the ASIC based sensor values are currently retrieved thru the ASIC's SDK. SAI provides the following attributes to retrieve the ASIC internal sensors:
 
 |Attribute|Description|
 |---|------|
@@ -43,7 +43,7 @@ A configurable ASIC sensors poller is introduced that periodically retrieves the
     * There should be a way to enable/disable the poller
     * The polling interval should be configurable (from 5 to 300 secs)
 2. The retrieved values should be written to the STATE DB (of each ASIC's DB instance in a multi ASIC platform).
-3. The ASIC internal sensor values retrieved should be useable by the Thermal Control infrastructure (https://github.com/sonic-net/SONiC/blob/master/thermal-control-design.md).
+3. The ASIC internal sensor values retrieved should be usable by the Thermal Control infrastructure (https://github.com/sonic-net/SONiC/blob/master/thermal-control-design.md).
 
 ### 5.2 CLI requirements
 
@@ -111,7 +111,7 @@ where ASIC0, ASIC1 and ASIC2 have N0, N1 and N2 internal sensors respectively.
 
 The implementation of the APIs get_high_threshold(), get_low_threshold(), get_high_critical_threshold(), get_name(), get_presence() etc.. are platform (ASIC) specific. The get_temperature() should retrieve the temperature from the ASIC_TEMPERATURE_INFO table of the stateDB from the concerned ASIC's DB instance (which is populated by the SwitchOrch poller as described [above](#62-switchorch-changes)).
 
-The thermalctld's TemperatureUpdater::_refresh_temperature_status() retreives the temperatures of the ASIC internal sensors from the get_temperature() API - just as it would for any external sensor. Only that in the case of ASIC internal sensors, the get_temperature() API is going to retrieve and return the value from from ASIC_TEMPERATURE_INFO table. The thermalctld also updates these values to the TEMPERATURE_INFO table in the globalDB's stateDB. Thus, there is no change in the existing thermalctld infrastructure.
+The thermalctld's TemperatureUpdater::_refresh_temperature_status() retrieves the temperatures of the ASIC internal sensors from the get_temperature() API - just as it would for any external sensor. Only that in the case of ASIC internal sensors, the get_temperature() API is going to retrieve and return the value from from ASIC_TEMPERATURE_INFO table. The thermalctld also updates these values to the TEMPERATURE_INFO table in the globalDB's stateDB. Thus, there is no change in the existing thermalctld infrastructure.
 
 ## 7 Virtual Switch
 
@@ -130,6 +130,6 @@ Unit test case one-liners are given below:
 |1| Set "ASIC_SENSORS\|ASIC_SENSORS_POLLER_STATUS" "admin_status" to "enable" for a specific ASIC instance | Check that ASIC internal sensors are dumped periodically in the ASIC_TEMPERATURE_INFO of the ASIC's stateDB instance and to the globalDB's TEMPERATURE_INFO table
 |2| Set "ASIC_SENSORS\|ASIC_SENSORS_POLLER_STATUS" "admin_status" to "disable" for a specific ASIC instance | Check that the poller stops
 |3| Set "ASIC_SENSORS\|ASIC_SENSORS_POLLER_INTERVAL" "interval" to "30" for a specific ASIC instance | Check that the poller interval changes from the default 10 seconds
-|4| Issue "show platform temperature" | Check that the ASIC interal temperatures are displayed for all the ASICs
+|4| Issue "show platform temperature" | Check that the ASIC internal temperatures are displayed for all the ASICs
 
 ## 10 Action items

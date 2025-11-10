@@ -71,10 +71,10 @@ This decryption step is crucial because the login or SSH daemon references the P
 The implementation as follows
 1. OPENSSL toolkit is used for encryption / decryption.
 2. base64 is the encoding format used for encryption / decryption.
-4. sonic_utilities extended to passkey encyption using the master key/passwd manager.
+4. sonic_utilities extended to passkey encryption using the master key/passwd manager.
 5. User has to enter master key/passwd at the time of configuring the passkey, this is mandatory requirement only if "key_encrypt" run time flag is enabled.
 6. The encrypted passkey stored in config_db 
-7. The master key/paswd used for encryption/decryption and will be stored in the same device with root access previleges (/etc/cipher_pass).
+7. The master key/paswd used for encryption/decryption and will be stored in the same device with root access privileges (/etc/cipher_pass).
 8. HostCfg will use the master key/passwd to decrypt the encrypted passkey and further store it in PAM configuration files. 
 
 #### CLI Changes 
