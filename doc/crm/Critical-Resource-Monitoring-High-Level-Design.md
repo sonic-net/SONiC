@@ -525,11 +525,11 @@ container sonic-crm {
 ```
 # 3 Flows
 ## 3.1 CRM monitoring
-![](https://github.com/sonic-net/SONiC/blob/gh-pages/images/crm_hld/crm_monitoring_flow.png)
+![](crm_monitoring_flow.png)
 ## 3.2 CRM CLI config
-![](https://github.com/sonic-net/SONiC/blob/gh-pages/images/crm_hld/crm_cli_config_flow.png)
+![](crm_cli_config_flow.png)
 ## 3.3 CRM CLI show
-![](https://github.com/sonic-net/SONiC/blob/gh-pages/images/crm_hld/crm_cli_show_flow.png)
+![](crm_cli_show_flow.png)
 
 # 4 Testing Requirements/Design  
 
