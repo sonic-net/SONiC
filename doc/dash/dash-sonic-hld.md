@@ -29,31 +29,32 @@
 
 ###### Revision
 
+
 |  Rev  |    Date    |       Author        | Change Description                        |
 | :---: | :--------: | :-----------------: | :---------------------------------------- |
-|  0.1  | 02/01/2022 |    Prince Sunny     | Initial version                           |
-|  0.2  | 03/09/2022 |    Prince Sunny     | Packet Flows/DB Objects                   |
-|  0.3  | 05/24/2022 |      Oleksandr      | Memory Footprints                         |
-|  0.4  | 06/01/2022 |    Prince Sunny     | Design Considerations                     |
-|  0.5  | 06/13/2022 |    Chris Sommers    | Schema Relationships                      |
-|  0.6  | 08/05/2022 | Mukesh M Velayudhan | Outbound VNI derivation in pipeline       |
-|  0.7  | 08/09/2022 |    Prince Sunny     | Add Inbound Routing rules                 |
-|  0.6  | 04/20/2022 |   Marian Pritsak    | APP_DB to SAI mapping                     |
-|  0.8  | 09/30/2022 |   Prabhat Aravind   | Update APP_DB table names                 |
-|  1.0  | 10/10/2022 |    Prince Sunny     | ST and PL scenarios                       |
-|  1.1  | 01/09/2023 |    Prince Sunny     | Underlay Routing and ST/PL clarifications |
-|  1.2  | 02/12/2023 |  Vijay Srinivasan   | Metering schema and description           |
-|  1.3  | 04/12/2023 |     Ze Gan          | AppDB protobuf design                     |
-|  1.4  | 05/03/2023 |    Prince Sunny     | ACL Tagging, ACL Requirements             |
-|  1.5  | 05/22/2023 | Oleksandr Ivantsiv  | Update configuration examples             |
-|  1.6  | 06/01/2023 |    Prince Sunny     | Added FastPath                            |
-|  1.7  | 02/20/2024 |    Prince Sunny     | Introduce Route Group Table               |
-|  2.0  | 04/08/2024 |    Prince Sunny     | Schema updates for PL, PL-NSG, metering   |
-|  2.1  | 08/22/2024 | Mukesh M Velayudhan | Add local Region ID field in appliance    |
-|  2.2  | 08/28/2024 |    Lawrence Lee     | Route table `routing_type` restrictions, delete op behavior    |
-|  2.3  | 11/07/2024 | Kumaresh Perumal    | Update DASH_PA_VALIDATION_TABLE           |
+|  2.5  | 06/13/2025 |    Lawrence Lee     | Add DB schema for PL redirect map         |
 |  2.4  | 02/05/2025 |    Prince Sunny     | Update DASH_TUNNEL, FNIC, minor clarifications  |
-|  2.5  | 06/13/2025 |    Lawrence Lee     | Add DB schema for PL redirect map|
+|  2.3  | 11/07/2024 | Kumaresh Perumal    | Update DASH_PA_VALIDATION_TABLE           |
+|  2.2  | 08/28/2024 |    Lawrence Lee     | Route table `routing_type` restrictions, delete op behavior    |
+|  2.1  | 08/22/2024 | Mukesh M Velayudhan | Add local Region ID field in appliance    |
+|  2.0  | 04/08/2024 |    Prince Sunny     | Schema updates for PL, PL-NSG, metering   |
+|  1.7  | 02/20/2024 |    Prince Sunny     | Introduce Route Group Table               |
+|  1.6  | 06/01/2023 |    Prince Sunny     | Added FastPath                            |
+|  1.5  | 05/22/2023 | Oleksandr Ivantsiv  | Update configuration examples             |
+|  1.4  | 05/03/2023 |    Prince Sunny     | ACL Tagging, ACL Requirements             |
+|  1.3  | 04/12/2023 |     Ze Gan          | AppDB protobuf design                     |
+|  1.2  | 02/12/2023 |  Vijay Srinivasan   | Metering schema and description           |
+|  1.1  | 01/09/2023 |    Prince Sunny     | Underlay Routing and ST/PL clarifications |
+|  1.0  | 10/10/2022 |    Prince Sunny     | ST and PL scenarios                       |
+|  0.8  | 09/30/2022 |   Prabhat Aravind   | Update APP_DB table names                 |
+|  0.7  | 08/09/2022 |    Prince Sunny     | Add Inbound Routing rules                 |
+|  0.6  | 08/05/2022 | Mukesh M Velayudhan | Outbound VNI derivation in pipeline       |
+|  0.5  | 06/13/2022 |    Chris Sommers    | Schema Relationships                      |
+|  0.4  | 06/01/2022 |    Prince Sunny     | Design Considerations                     |
+|  0.3  | 05/24/2022 |      Oleksandr      | Memory Footprints                         |
+|  0.25 | 04/20/2022 |   Marian Pritsak    | APP_DB to SAI mapping                     |
+|  0.2  | 03/09/2022 |    Prince Sunny     | Packet Flows/DB Objects                   |
+|  0.1  | 02/01/2022 |    Prince Sunny     | Initial version                           |
 
 
 # About this Manual
