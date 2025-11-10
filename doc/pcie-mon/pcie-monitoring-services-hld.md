@@ -96,7 +96,7 @@ PcieUtil calls this API to check the PCIe device status, following example code 
 pcie-check.service will be started by systemd during boot up and it will spawn a thread to check PCIe device status and perform the rescan pci devices if there is any missing devices after rc.local.service is completed and it will update the state db with pcie device satus after the `pcieutil pcie-chek` call so that the dependent services/container or kernel driver can be started or stopped based on the status.
 
 Detailed flow as showed in below chart: 
-![](https://github.com/sonic-net/SONiC/blob/70a152f1b98e145c9f0771e7cda7a951d98a978e/images/pcie-check.svg)
+![](pcie-check.svg)
 
 
 ### 1.5 PCIe daemon `pcied` flow ###
@@ -104,7 +104,7 @@ Detailed flow as showed in below chart:
 pcied will be started by PMON container will continue monitoring the PCIe device status during run time and it will check the PCIe device status periodically every 1 minute and update the state db when the status is checked.
 
 Detailed flow as showed in below chart:
-![](https://github.com/sonic-net/SONiC/blob/70a152f1b98e145c9f0771e7cda7a951d98a978e/images/pcied.svg)
+![](pcied.svg)
 
 
 ### 1.6 STATE_DB keys and value ###
