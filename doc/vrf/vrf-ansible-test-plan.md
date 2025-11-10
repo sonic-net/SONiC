@@ -47,7 +47,7 @@ The test will run on the `t0` testbed:
 
 ### vrf config in t0 topo
 
-![vrf-t0_topo](https://github.com/shine4chen/SONiC/blob/vrf-test-case/images/vrf_hld/vrf_t0_topo.png)
+![vrf-t0_topo](vrf_t0_topo.png)
 
 ### Scripts for generating configuration on SONIC
 
