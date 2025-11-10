@@ -17,9 +17,10 @@
 * [2 Modules Design](#2-modules-design)
 * [2.1 Config DB](#21-config-db)
 * [2.2 Orchestration Agent](#22-orchestration-agent)
-* [2.3 Test Plan](#23-test-plan)
-* [3 Configuration and Management](#3-configuration-and-management)
-* [4 Example configuration](#4-example-configuration)
+* [3 Flows](#3-flows)
+* [4 Test Plan](#4-test-plan)
+* [5 Configuration and Management](#5-configuration-and-management)
+* [6 Example configuration](#6-example-configuration)
 
   ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
@@ -127,8 +128,14 @@ Vxlan orch will lookup _src_interface_ and find the IPv4 and/or IPv6 addresses o
 ### 2.2.2 VnetOrch/VnetRouteOrch
 VnetRouteOrch is reponsible for reading VNET_ROUTE_TUNNEL_TABLE and creating routes in SAI. Support will be added in VnetRouteOrch to fetch the appropriate NH tunnel from Vxlan orch based on the endpoint IP. VnetRouteOrch will then use this NH tunnel to create routes in SAI
 
-## 2.3 Test Plan
-### 2.3.1 Test Cases
+# 3 Flows
+
+![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/Vxlan_dualstack_create.png)
+
+![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/Vxlan_dualstack_route_create.png)
+
+## 4 Test Plan
+### 4.1 Test Cases
 
 | Step | Goal | Expected results |
 |-|-|-|
@@ -138,8 +145,8 @@ VnetRouteOrch is reponsible for reading VNET_ROUTE_TUNNEL_TABLE and creating rou
 | Create loopback interface with both IPv4 and IPv6 addr. Create a Vxlan tunnel and provide loopback intf as src interface. Create tunnel routes with IPv4 and IPv6 endpoint. Send traffic to dest | Dual stack tunnel create | Both IPv4 and IPv6 dest must receive traffic
 
 
-# 3 Configuration and Management
-## 3.1 YANG model
+# 5 Configuration and Management
+## 5.1 YANG model
 Yang model for [Vxlan tunnel](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vxlan.yang) will be enhanced to have _src_interface_ field
 
 ```
@@ -174,7 +181,7 @@ container sonic-vxlan {
 }
 ```
 
-# 4 Example Configuration
+# 6 Example Configuration
 `Loopback3` interface is configured with a private IPv4 and a link local IPv6 address
 ```
 "LOOPBACK_INTERFACE": {
