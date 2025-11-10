@@ -61,7 +61,7 @@ This document provides general information about the Vxlan Overlay ECMP feature 
 Below diagram captures the use-case. In this, ToR is a Tier0 device and Leaf is a Tier1 device. Vxlan tunnel is established from Leaf (Tier1) to a VTEP endpoint. ToR (Tier0), Spine (Tier3) are transit devices. 
 
 
-![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_UseCase.png)
+![](OverlayEcmp_UseCase.png)
 
 ### Packet flow
 
@@ -172,7 +172,7 @@ PROFILE                  = STRING                    ; profile name to be applie
 
 Overlay routes can be programmed via RestAPI or gNMI/gRPC interface which is not described in this document. A highlevel module interaction is shown below
 
-![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_ModuleInteraction.png)
+![](OverlayEcmp_ModuleInteraction.png)
 
 ## 2.4 Orchestration Agent
 Following orchagents shall be modified. 
