@@ -145,13 +145,13 @@ PORTCHANNEL_MEMBER|{{port_channel_name}}|{{port_name}}
 
 # 4. Flow
 ## 4.1 Admin Status/MTU Configuration Flow
-![Image](admin_status_mtu_configuration_flow.png)
+![Image](admin_status.png)
 ## 4.2 Port Channel and Member Configuration Flow
-![Image](port_channel_member_configuration_flow.png)
+![Image](port_channel.png)
 ## 4.3 IP Configuration Flow
-![Image](ip_configuration_flow.png)
+![Image](ip.png)
 ## 4.4 Device Start Flow
-![Image](device_start_flow.png)
+![Image](device_start.png)
 ## 4.5 Docker swss Restart
 TBD
 ## 4.6 Docker teamd Restart
