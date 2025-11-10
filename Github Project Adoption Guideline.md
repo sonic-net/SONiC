@@ -25,14 +25,14 @@ For new contributors, please [check](https://github.com/sonic-net/SONiC/wiki/Bec
 ### How to change the status?
 There are two ways to update the status of one proposed feature.
 
-#### Option 1: Drag & drop the feature to different slot on “Board View”
+#### Option 1: Drag & drop the feature to different slot on "Board View"
 You can drag one feature to another slot to change the status.
 
-![](https://github.com/kannankvs/kvskSONiC/blob/master/assets/img/github_proj_guid_1.png)
+![](assets/img/github_proj_guid_1.png)
 
-#### Option 2: Change the “Status” field on the feature page
+#### Option 2: Change the "Status" field on the feature page
 
-![](https://github.com/kannankvs/kvskSONiC/blob/master/assets/img/github_proj_guid_2.png)
+![](assets/img/github_proj_guid_2.png)
 
 
 ### Feature status change flow
