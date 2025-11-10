@@ -32,7 +32,7 @@ This document provides details to add dual stack support on Sonic for VxLAN tunn
 This new design allows a single VNET to have an IPv4-only Vxlan tunnel, IPv6-only Vxlan tunnel or both (dual-stack) coexisting.
 
 ## Use Case
-Dual stack Vxlan tunnels will be useful when individual overlay routes are needed for multiple destinations (VMs) and some destinations are behind an IPv4 VTEP, while others are behind an IPv6 VTEP. In such cases, Vxlan tunnels must have the same VNI and work on both IPv4 and IPv6 underlay
+For high bandwidth and low latency connections, individual overlay routes are needed to multiple destinations (VMs) in a Vnet. Some destinations may be behind an IPv4 VTEP, while others may be behind an IPv6 VTEP. In such cases, Vxlan tunnels must have the same VNI and work on both IPv4 and IPv6 (dual-stack) underlay.
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
