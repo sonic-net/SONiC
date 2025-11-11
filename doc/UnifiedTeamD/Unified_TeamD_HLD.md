@@ -7,7 +7,7 @@
 |:---:|:-----------:|:----------------------------:|:--------------------------------:|
 | 1.0 | 21/07/2025  | Praveen HM, Venkata Gouri Rajesh Etla, Ashutosh Agrawal                  | Initial Version                  |
 | 1.1 | 10/11/2025  | Praveen HM                  | Updated after community review                  |
-                                                            
+| 1.2 | 10/12/2025  | Boxing Peng                 |Update test case and results|                                                           
 ## Table of Contents
 
 - [Unified Teamd Process for PortChannels](#unified-teamd-process-for-portchannels)
@@ -45,6 +45,14 @@
 - [Performance numbers](#performance-numbers)
 - [Testing](#testing)
   - [Test Cases](#test-cases)
+  - [Test on both vSonic and Physical Environments](#test-on-both-vsonic-and-physical-environments)
+    - [Test Types](#test-types)
+    - [vSonic Test](#vsonic-test)
+      - [Test Specifications:](#test-specifications)
+      - [Results](#results)
+    - [Physical Device Test](#physical-device-test)
+      - [Test Topology](#test-topology)
+      - [Test Results](#test-results)
 - [References](#references)
 
 ## Scope
@@ -428,6 +436,120 @@ While the fundamental logic of LAG handling remains the same, necessary modifica
 https://github.com/sonic-net/SONiC/wiki/LAG-Feature-Test-Suite
 https://github.com/sonic-net/sonic-mgmt/tree/master/tests/pc
 
+## Test on both vSonic and Physical Environments
+
+### Test Types
+- Basic function tests:
+    - Verifying different sequences of LAG creation, member addition, and sub-interface configuration.
+    - LAG and member (add/delete/enable/disable) test.
+    - Traffic test.
+- Stress tests:
+    - Reboot test with full configuration.
+    - Interface Flapping Test.
+
+---
+
+### vSonic Test
+
+#### Test Specifications:
+- 128 LAGs, each with a single member and 16 sub-interfaces.
+- 2 LAGs, each with 64 members and 16 sub-interfaces.
+
+<div align="center"> <img src=images/vSonic_test_specification1.png width=600 /> </div>
+<div align="center"> <img src=images/vSonic_test_specification2.png width=600 /> </div>
+
+
+#### Results
+- All test cases passed.
+- Test Comparison:
+
+| Metric | Legacy Mode | Unified Mode | Improvement |
+|--------------------------------------|--------------------|--------------|---------------|
+| Memory (128 LAGs) | 261.7MiB | 87.45MiB | 66.6% Reduction|
+| Fds (128 LAGs) | 2816 (22*128) | 147 (total) | 95% Reduction |
+| Netlink Stability (Flap Test) | Lost message | no lost | Stable |
+
+---
+### Physical Device Test
+
+#### Test Topology
+- The PSW1-3 connects to two PSWs, establishing a total of 240 PortChannel ports.
+- Tester Port 4 establishes a BGP neighbor with ASW-P2-S2-2 and advertises 100K IPv4 and IPv6 routes.
+- Bidirectional traffic flow between Port1 and Port4.
+- LACP in Fast-mode (1000ms).
+<div align="center"> <img src=images/test_topo.png width=600 /> </div>
+
+
+#### Test Results
+
+- All test cases passed.
+- Switch Resource Comparison (Flap all ports with 50k BGP Routes, 240 member / 240 LAG):
+  - CPU peak usage decreased by about 11%.
+  - Memory usage decreased by 3.4%.
+  	<div align="center"> <img src=images/cpu_usage.png width=600 /> </div>
+  	<div align="center"> <img src=images/memory_usage.png width=600 /> </div>
+
+- PortChannel Recovery Comparison (Reboot with 100k bgp routes, 240 member / 240 LAG)
+  - Legacy mode: Some PortChannels remained down or unsynchronized after 25mins
+  - Unified mode: All PortChannels recovered within 5 mins
+  
+  ```
+  With legacy mode:
+  2    PortChannel2    up             LACP(A)(Up)  Ethernet2_1(S) 0x3f 0x3d
+  162  PortChannel162  up             LACP(A)(Dw)  Ethernet81_2(S) 0x3f 0x3f
+  211  PortChannel211  up             LACP(A)(Dw)  Ethernet106_1(S*) 0xf 0x3f
+  212  PortChannel212  up             LACP(A)(Dw)  Ethernet106_2(S*) 0x3f 0x3f
+  217  PortChannel217  up             LACP(A)(Up)  Ethernet109_1(S*) 0xf 0x3f
+  221  PortChannel221  up             LACP(A)(Up)  Ethernet111_1(S) 0xf 0x3f
+  228  PortChannel228  up             LACP(A)(Up)  Ethernet114_2(S*) 0xf 0x3f
+  234  PortChannel234  up             LACP(A)(Dw)  Ethernet117_2(S*) 0xf 0x3f
+  237  PortChannel237  up             LACP(A)(Dw)  Ethernet119_1(S) 0x3f 0x3f
+  238  PortChannel238  up             LACP(A)(Dw)  Ethernet119_2(S) 0x3f 0x3f
+  247  PortChannel247  up             LACP(A)(Dw)  Ethernet124_1(S) 0x3f 0x3f
+
+  With Unified mode:
+  248  PortChannel248  up             LACP(A)(Up)  Ethernet124_2(S) 0x3f 0x3f
+  249  PortChannel249  up             LACP(A)(Up)  Ethernet125_1(S) 0x3f 0x3f
+  250  PortChannel250  up             LACP(A)(Up)  Ethernet125_2(S) 0x3f 0x3f
+  251  PortChannel251  up             LACP(A)(Up)  Ethernet126_1(S) 0x3f 0x3f
+  252  PortChannel252  up             LACP(A)(Up)  Ethernet126_2(S) 0x3f 0x3f
+  253  PortChannel253  up             LACP(A)(Up)  Ethernet127_1(S) 0x3f 0x3f
+  254  PortChannel254  up             LACP(A)(Up)  Ethernet127_2(S) 0x3f 0x3f
+  255  PortChannel255  up             LACP(A)(Up)  Ethernet128_1(S) 0x3f 0x3f
+  256  PortChannel256  up             LACP(A)(Up)  Ethernet128_2(S) 0x3f 0x3f
+
+  ```
+
+- Netlink Stability Comparison
+  - Legacy mode: High volume of netlink message drops
+  - Unified mode: No message drops
+
+```
+With legacy mode:
+|sk      | Pid          | Rmem  | Drops |
+|--------|---------|-------------------|-------|
+| 000000002c815c22 | 2415919153   | 5605120      | 49616|
+| 00000000ff0d452d | 3745513521   | 5605120      | 49616|
+| 00000000f680f34e | 251658289    | 5605120      | 49617|
+| 00000000545d6471 | 2684354609   | 5605120      | 49617|
+| 0000000085abc23c | 352321585    | 5605120      | 49617|
+| 0000000052ac5067 | 2063597617   | 5605120      | 49617|
+| 000000004b9b1288 | 2533359665   | 606400       | 49616|
+| 0000000004988ed5 | 2818572337   | 5605120      | 49617|
+| 0000000054c01c84 | 2483028017   | 5609472      | 49617|
+| 00000000df4ecfec | 3019898929   | 5609472      | 49617|
+| 000000006280b4e3 | 4215275569   | 5605120      | 49616|
+
+With Unified mode:
+|sk      | Pid          | Rmem  | Drops |
+|--------|---------|-------------------|-------|
+| 00000000204b3a2d | 176164575  | 5439488 | 0 ｜
+| 0000000019fee98d | 1769996340 | 4797184 | 0 ｜
+| 000000004049116b | 1962934324 | 4833792 | 0 ｜
+| 00000000214eb747 | 545259572  | 5616896 | 0 ｜
+| 0000000032dcd491 | 411041844  | 1210112 | 0 ｜
+| 0000000073208930 | 159386823  | 1451264 | 0 ｜
+```
 # References
 
 1. [Infrastructure Specification - jpirko/libteam GitHub Wiki](https://github.com/jpirko/libteam/wiki/Infrastructure-Specification)
