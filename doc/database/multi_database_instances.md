@@ -258,7 +258,7 @@ public:
     static constexpr const char *DEFAULT_UNIXSOCKET = "/var/run/redis/redis.sock";
 
     /*
-     * Connect to Redis DB whether with a hostname:port or unix socket
+     * Connect to Redis DB either with a hostname:port or unix socket
      * Select the database index provided by "db"
      *
      * Timeout - The time in millisecond until exception is been thrown. For

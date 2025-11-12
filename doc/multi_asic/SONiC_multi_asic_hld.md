@@ -95,7 +95,7 @@ A linux network namespace is created for every ASIC that's controlled by the sam
 This creates a separate linux network stack including routes and network devices for every ASIC.
 The interfaces for a given ASIC is linked to its corresponding namespace.
 
-In a multi-ASIC system, very commonly the ASICs are physically connected in a close fabric topology. With sonic container dockers running as separate namespaces for each ASIC in a multi-ASIC system, we can model and configure the system as if there is a spine-leaf network topology within the box.
+In a multi-ASIC system, very commonly the ASICs are physically connected in a clos fabric topology. With sonic container dockers running as separate namespaces for each ASIC in a multi-ASIC system, we can model and configure the system as if there is a spine-leaf network topology within the box.
 
 ![Architecture Diagram](images/architecture_diagram.jpg)
 

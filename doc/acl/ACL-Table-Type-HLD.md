@@ -420,7 +420,7 @@ tables referencing it.
 ### System tests
 
 - Existing ACL/Everflow tests cover default table types coming from init_cfg.json, which means it is covering the flow of creating table types.
-- Extend existing ACL/Everflow tests with a fixture to create custom table types that will be a copy of a default once and run the same test cases.
+- Extend existing ACL/Everflow tests with a fixture to create custom table types that will be a copy of a default ones and run the same test cases.
 - Warm/Fast reboot tests to verify the functionality with new changes.
 
 ### Open questions

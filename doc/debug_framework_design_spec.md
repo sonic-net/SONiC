@@ -311,7 +311,7 @@ Classify assert failure conditions based on following types, assert() will have 
 - ABORT: Stop/throw exception
 
 
-#### 3.1.2.2 pseudocode:
+#### 3.1.2.2 PseudoCode:
 
 ```
     static void custom_assert(bool exp, const char*func, const unsigned line);  

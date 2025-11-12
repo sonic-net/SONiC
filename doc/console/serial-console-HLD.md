@@ -219,7 +219,7 @@ Configuration
 1.2. Connect and login via serial-console. Validate auto-logout happened in configured time (1-2 min.)
 2. Init flow for auto-logout.
 2.1. Don't save previous auto-logout configuration and reboot the switch.
-2.2. After boot connect and login via serial-console. Validate that auto-logout didn't happened in previously configured time (1-2 min.)
+2.2. After boot connect and login via serial-console. Validate that auto-logout didn't happen in previously configured time (1-2 min.)
 3. Configure sysrq parameter. 
 3.1. Configure and apply non-default sysrq-capabilities parameter (enabled)
 3.2. Check sysrq parameter value in linux proc filesystem being changed to new applied value of "1"

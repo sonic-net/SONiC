@@ -1857,7 +1857,7 @@ Example,
 
 
 #### 3.7.3 LED Class
-There is no generic LED API class defined in PDDF. LED APIs related to a component has been made part of that's component's platform API class. System LED APIs are made part of PddfChassis class.
+There is no generic LED API class defined in PDDF. LED APIs related to a component has been made part of that component's platform API class. System LED APIs are made part of PddfChassis class.
 ```
 class PddfChassis(ChassisBase):
     def set_system_led(self, device_name, color):
