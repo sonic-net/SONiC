@@ -71,7 +71,7 @@ The VLAN interface will use static anycast gateway MAC address to replace CPU MA
 The enable/disable knob on the VLAN interface can let user to determine to use CPU MAC or static anycast gateway MAC address.
 
 In IPv6 link-local address management, the system MAC generated IPv6 link-local to me route is added by RouteOrch in its initialization.  
-If the MAC address is changed between system and SAG, we need to call RouteOrch's API to delete old MAC gerenated IPv6 link-local to me route and then add new MAC generated IPv6 link-local to me route.
+If the MAC address is changed between system and SAG, we need to call RouteOrch's API to delete old MAC generated IPv6 link-local to me route and then add new MAC generated IPv6 link-local to me route.
 The static anycast gateway on the VLAN interface will be disabled by default.
 
 The following diagram describes the sequence between DBs and modules.

@@ -181,7 +181,7 @@ These are Dockers for which it might be complicated to separate the OS part from
 Built-in packages **cannot** be *removed* and *upgraded* as SONiC Packages and the infrastructure will mark them with a special built-in flag.
 
 This will allow for a smooth transition of SONiC Docker images into SONiC Packages by marking all of the existing Docker images as
-build-in and then removing this flag for images that become a SONiC Packages.
+built-in and then removing this flag for images that become a SONiC Packages.
 
 The following list enumerates some built-in Docker containers, that cannot become SONiC Package at current stage:
 - database
@@ -385,7 +385,7 @@ This way the user can ensure the integrity and the publisher of the image he is 
 #### CLI Enhancements
 
 The SONiC Package Manager is another executable utility available in base SONiC OS called *sonic-package-manager* or abbreviated to *spm*.
-The command line interfaces are given bellow:
+The command line interfaces are given below:
 
 <!-- omit in toc -->
 #### CLI
@@ -458,7 +458,7 @@ Usage: sonic-package-manager install [OPTIONS] [PACKAGE_EXPR]
 Options:
   -y, --yes                        Answer yes for any prompt
   -f, --force                      Force installation
-  --enable                         Wether to enable feature after install
+  --enable                         Whether to enable feature after install
   --default-owner [local|kube]     Default configured owner
   --from-repository                Install directly from repository specified
                                    in this options. Format is the same as for
@@ -470,7 +470,7 @@ Options:
   --skip-cli-plugin-installation   Do not install CLI plugins provided by the
                                    package on the host OS
                                    Note: In case package CLI is defined as mandatory
-                                   and this option is beeing used the installation
+                                   and this option is being used the installation
                                    will fail.
   --help                           Show this message and exit
 ```
@@ -763,7 +763,7 @@ For the list of supported expressions check the python library that is going to 
 SDK refers to [SONiC SDK Docker Images](#sonic-sdk-docker-images).
 
 SDK Docker image records an set of library versions in labels that gets inherited by the package image. This allows to perform an
-automatic compatibility check. If libraries constarints are not defined in the manifest but a library version exists in labels of a package the constraint will initialize for that component as "^$major.$minor.0". E.g:
+automatic compatibility check. If libraries constraints are not defined in the manifest but a library version exists in labels of a package the constraint will initialize for that component as "^$major.$minor.0". E.g:
 
 Package Foo is build with following labels:
 
@@ -790,7 +790,7 @@ LABEL com.azure.sonic.versions.libsairedis = 1.3.0
 
 libswsscommon is validated against "^1.0.0,^2.0.0", libsairedis is validated using "^1.3.0".
 This gives more guaranties to the user that if package installs it is compatible.
-If pacakge does not use sairedis interface, user can put "*" to match any version in Bar.
+If package does not use sairedis interface, user can put "*" to match any version in Bar.
 
 
 ### SONiC Package Changelog
@@ -913,7 +913,7 @@ manifest.
 | /service/after     | list of strings | no        | Boot order dependency. List of SONiC services the application is set to start after on system boot.                                                                                         |
 | /service/before    | list of strings | no        | Boot order dependency. List of SONiC services the application is set to start before on system boot.                                                                                        |
 | /service/wanted-by | list of strings | no        | Services list that "wants" this service. Maps to systemd's WantedBy                                                                                                                         |
-| /service/delayed   | boolean         | no        | Wether to generate a timer to delay the service on boot. Defaults to false.                                                                                                                 |
+| /service/delayed   | boolean         | no        | Whether to generate a timer to delay the service on boot. Defaults to false.                                                                                                                 |
 
 
 <!-- omit in toc -->
@@ -929,10 +929,10 @@ before or after a the container ENTRYPOINT is started.
 
 Example of container lifecycle hook can apply to a database package. A database systemd service should not reach started state
 before redis process is ready otherwise other services will start but fail to connect to the database. Since, there is no control
-when the redis process starts a *post-start-action* script may execute "sonic-db-cli ping" till the ping is succeessful.
+when the redis process starts a *post-start-action* script may execute "sonic-db-cli ping" till the ping is successful.
 This will ensure that service start is blocked till the redis service is up and running.
 
-The *pre-shutdown-action* might be usefull to execute a specific action to prepare for warm reboot. For example, teamd script that sends
+The *pre-shutdown-action* might be useful to execute a specific action to prepare for warm reboot. For example, teamd script that sends
 SIGUSR1 to teamd to initiate warm shutdown. Note, the usage of the pre-shutdown action is not limited to warm restart and is invoked every
 time the container is about to be stopped or killed.
 
@@ -953,12 +953,12 @@ MULTI_INST_DEPENDENT="teamd"
 ```
 
 ```
-DEPDENDENT=$(cat /etc/sonic/${SERVICE}_dependent)
+DEPENDENT=$(cat /etc/sonic/${SERVICE}_dependent)
 MULTI_INST_DEPENDENT=$(cat /etc/sonic/${SERVICE}_multi_inst_dependent)
 ```
 
 The infrastructure is not deciding whether this script is needed for a particular package or not based on warm-reboot requirements or
-container lifetime hooks provided by a feature, instead this script is always generated and if no specific actions descirbed above
+container lifetime hooks provided by a feature, instead this script is always generated and if no specific actions described above
 are needed it becomes a simple wrapper around a script under /usr/bin/.
 
 Examples are [swss.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/scripts/swss.sh),
@@ -976,8 +976,8 @@ after installation all the service scripts under */usr/local/bin/* are re-genera
 
 | Path                         | Type            | Mandatory | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ---------------------------- | --------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| /service/dependent-of        | lits of strnigs | no        | List of SONiC services this application is dependent of.<p>Specifying in this option a service X, will regenerate the /usr/local/bin/X.sh script and upgrade the "DEPENDENT" list with this package service.<p>This option is warm-restart related, a warm-restart of service X will not trigger this package service restart.<p>On the other hand, this service package will be started, stopped, restarted togather with service X.<p>Example:<p>For "dhcp-relay", "radv", "teamd" this field will have "swss" service in the list. |
-| /service/post-start-action   | string          | no        | Path to an executable inside Docker image filesystem to be executed after container start.<p>A package may use this field in case a systemd service should not reach started state before some condition. E.g.: A database service should not reach started state before redis process is not ready. Since, there is no control, when the redis process will start a "post-start-action" script may execute "redis-cli ping" till the ping is succeessful.                                                                            |
+| /service/dependent-of        | lits of strnigs | no        | List of SONiC services this application is dependent of.<p>Specifying in this option a service X, will regenerate the /usr/local/bin/X.sh script and upgrade the "DEPENDENT" list with this package service.<p>This option is warm-restart related, a warm-restart of service X will not trigger this package service restart.<p>On the other hand, this service package will be started, stopped, restarted together with service X.<p>Example:<p>For "dhcp-relay", "radv", "teamd" this field will have "swss" service in the list. |
+| /service/post-start-action   | string          | no        | Path to an executable inside Docker image filesystem to be executed after container start.<p>A package may use this field in case a systemd service should not reach started state before some condition. E.g.: A database service should not reach started state before redis process is not ready. Since, there is no control, when the redis process will start a "post-start-action" script may execute "redis-cli ping" till the ping is successful.                                                                            |
 | /service/pre-shutdown-action | string          | no        | Path to an executable inside Docker image filesystem to be executed before container stops.<p>A uses case is to execute a warm-shutdown preparation script.<p>A script that sends SIGUSR1 to teamd to initiate warm shutdown is one of such examples.                                                                                                                                                                                                                                                                                 |
 
 <!-- omit in toc -->
@@ -1129,7 +1129,7 @@ ave to be also auto-generated from YANG in the future.
 
 | Path                   | Type   | Mandatory | Description                                                     |
 | ---------------------- | ------ | --------- | --------------------------------------------------------------- |
-| /cli/mandatory         | boolean| no        | Wether CLI is a mandatory functionality for the package. Default: False. |
+| /cli/mandatory         | boolean| no        | Whether CLI is a mandatory functionality for the package. Default: False. |
 | /cli/show-cli-plugin   | list of strings | no        | List of paths to plugins for sonic-utilities show CLI command.        |
 | /cli/config-cli-plugin | list of strings | no        | List of paths to plugins for sonic-utilities config CLI command.      |
 | /cli/clear-cli-plugin  | list of strings | no        | List of paths to plugins for sonic-utilities sonic-clear CLI command. |
@@ -1227,8 +1227,8 @@ corresponding service files are created per each namespace. *systemd-sonic-gener
 
 | Path                  | Value   | Mandatory | Description                                                                         |
 | --------------------- | ------- | --------- | ----------------------------------------------------------------------------------- |
-| /service/host-service | boolean | no        | Multi-ASIC field. Wether a service should run in host namespace. Default is True.   |
-| /service/asic-service | boolean | no        | Multi-ASIC field. Wether a service should run per ASIC namespace. Default is False. |
+| /service/host-service | boolean | no        | Multi-ASIC field. Whether a service should run in host namespace. Default is True.   |
+| /service/asic-service | boolean | no        | Multi-ASIC field. Whether a service should run per ASIC namespace. Default is False. |
 
 ### Warmboot and Fastboot Design Impact
 
@@ -1237,7 +1237,7 @@ to announce departure and cause hosts to lose default gateway, while "teamd" ser
 send the last LACP PDU though CPU port right before CPU port becomes unavailable.
 
 The warm-reboot and fast-reboot service shutdown scripts have to be auto-generated from a template */usr/share/sonic/templates/fast-shutdown.sh.j2*
-and */usr/share/sonic/templates/warm-shutdown..sh.j2* wich are symbolic links to the same template. The templates are derived from the fast-reboot
+and */usr/share/sonic/templates/warm-shutdown..sh.j2* which are symbolic links to the same template. The templates are derived from the fast-reboot
 script from sonic-utlities.
 
 A services shutdown is an ordered executions of *systemctl stop {{ service }}* commands with an exception for "swss" service after which a syncd
@@ -1272,8 +1272,8 @@ systemctl stop {{ service }}
 | /service/fast-shutdown/       | object          | no        | Fast reboot related properties. Used to generate the fast-reboot script.                                                                                                                                                                                                                                                                                                                  |
 | /service/fast-shutdown/after  | lits of strings | no        | Same as for warm-shutdown.                                                                                                                                                                                                                                                                                                                                                                |
 | /service/fast-shutdown/before | lits of strings | no        | Same as for warm-shutdown.                                                                                                                                                                                                                                                                                                                                                                |
-| /processes                    | object          | no        | Processes infromation                                                                                                                                                                                                                                                                                                                                                                     |
-| /processes/[name]/reconciles  | boolean         | no        | Wether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False.                                                                                                                                                                                                                                                                      |
+| /processes                    | object          | no        | Processes information                                                                                                                                                                                                                                                                                                                                                                     |
+| /processes/[name]/reconciles  | boolean         | no        | Whether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False.                                                                                                                                                                                                                                                                      |
 
 
 
@@ -1430,7 +1430,7 @@ The list of packages added to *sonic-sdk-buildenv* in addition to *sonic-sdk*:
 
 The SDK images built should be labeled with metadata about the build to give the user an idea about base OS version
 compatibility as well as some core packages version compatibility. Packages like *libswsscommon* and *libsairedis*
-have a relation to database, swss, syncd containers they were built togather with.
+have a relation to database, swss, syncd containers they were built together with.
 
 The SDK components versions are saved into labels:
 

@@ -216,7 +216,7 @@ admin@bjw-can-3800-1:~$ redis-cli -n 20 -p 6400 HGETALL "BGP_RIB_OUT_TABLE|192.1
 ## 2.5 BMP Agent
 As [2.2 OpenBMP](#22-openbmp) shown, We need to fork and update code in [OpenBMPd](#https://github.com/SNAS/openbmp/tree/master/Server/). OpenBMP supports BMP protocol collecting by openbmpd agent. Thus in this project we will only need openbmpd agent role, and add redis population when monitoring BGP data from BGP container.
 
-Below picture is referenced from [OpenBMPFlow](#https://www.openbmp.org/#openbmp-flow/), refer the part in <span style="color: red;">red</span> circle, which is the daemon we need to update in this porject.
+Below picture is referenced from [OpenBMPFlow](#https://www.openbmp.org/#openbmp-flow/), refer the part in <span style="color: red;">red</span> circle, which is the daemon we need to update in this project.
 
 <img src="images/openbmp.png" alt="OPENBMP ARCHITECTURE" width="400">  
 
@@ -268,7 +268,7 @@ Create below config items list for enabling and disabling different table.
 
 ### Full Dataset supported
 
-[OpenBMP dataset](https://github.com/SNAS/openbmp/blob/master/docs/MESSAGE_BUS_API.md#message-api-parsed-data), we can find full dataset info as reference here which is Kafaka based TSV message, however, we will not follow it's format when populats the redis database, the data format we use is decalred [2.4 Database Design](#24-database-design)
+[OpenBMP dataset](https://github.com/SNAS/openbmp/blob/master/docs/MESSAGE_BUS_API.md#message-api-parsed-data), we can find full dataset info as reference here which is Kafaka based TSV message, however, we will not follow it's format when populats the redis database, the data format we use is declared [2.4 Database Design](#24-database-design)
 
 
 ## 2.6 GNMI support

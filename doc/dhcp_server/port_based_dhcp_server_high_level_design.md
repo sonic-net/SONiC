@@ -119,7 +119,7 @@ For broadcast packet (discover, request) sent by client, obviously it would be r
 
 <div align="center"> <img src=images/overview_kea.png width=570 /> </div>
 
-Belows are sample configurations for dhcrelay and kea-dhcp-server:
+Below are sample configurations for dhcrelay and kea-dhcp-server:
 
 - dhcprelay:
   ```CMD
@@ -257,7 +257,7 @@ Have to be aware of is that below options are not supported to customize, becaus
 Currently support binary, boolean, string, ipv4-address, uint8, uint16, uint32.
 
 ## DHCP Relay Daemon
-For scenario of dhcp_server feature is enabled, we need a daemon process inside dhcp_relay container to manage dhcrelay processes. dhcprelayd would subcribe VLAN/VLAN_MEMBER/DHCP_SERVER_IPV4* table in config_db, and when dhcp_relay container restart or related config changed, dhcprelayd will kill/start/restart dhcrelay process.
+For scenario of dhcp_server feature is enabled, we need a daemon process inside dhcp_relay container to manage dhcrelay processes. dhcprelayd would subscribe VLAN/VLAN_MEMBER/DHCP_SERVER_IPV4* table in config_db, and when dhcp_relay container restart or related config changed, dhcprelayd will kill/start/restart dhcrelay process.
 
 <div align="center"> <img src=images/dhcprelayd_flow.png width=350 /> </div>
 
@@ -787,7 +787,7 @@ This command is used to unbind dhcp option.
   config dhcp_server ipv4 option unbind <dhcp_interface> (--all | <option_name>)
   ```
 
-- Exampe
+- Example
   ```
   config dhcp_server ipv4 option unbind Vlan1000 --all
 

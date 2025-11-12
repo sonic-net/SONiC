@@ -194,7 +194,7 @@ A few examples for the cases that adding/deleting static route, and also differe
 
 1. when static route prefix2  ("bfd"="true") is added to config_db STATIC_ROUTE_TABLE, StaticRouteBfd creates an entry in TABLE_CONFIG, include all the information for this static route
 2. StaticRouteBfd also creates an entry in TABLE_SRT, includes all the information in this static route but nexthop list is empty.
-3. For each nexthop in the nexthop list, nh_a and nh_b, because they are alerady in the TABLE_NEXTHOP, StaticRouteBfd add prefix2 to nh_a and nh_b's prefix list, don't need to create BFD sessions because they were created when add prefix1
+3. For each nexthop in the nexthop list, nh_a and nh_b, because they are already in the TABLE_NEXTHOP, StaticRouteBfd add prefix2 to nh_a and nh_b's prefix list, don't need to create BFD sessions because they were created when add prefix1
 
 <img src="static_rt_bfd_example2.png" width="400">
 <br>
@@ -328,7 +328,7 @@ Description:<br>
 |remove static route A and B|clear static route for next tests|1, route A and B are removed.<br>2, BFD sessions for the nexthops are removed|
 <br>
 
-## StaticRouteBfd retart/crash testing (crash/restart StaticRouteBfd process)
+## StaticRouteBfd restart/crash testing (crash/restart StaticRouteBfd process)
 <br>
 Verify StaticRouteBfd restore information from redis DB and rebuild its internal data struct and continue to handle config or state change.
 

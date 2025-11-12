@@ -8,7 +8,7 @@
 ## Table of Contents
 * [Overview](#Overview)
 * [Design requirements](#Design-requirements)
-* [Deisgn details](#Design-details)
+* [Design details](#Design-details)
   * [State DB](#State-DB)
   * [Enabling POST in SAI switch init](#Enabling-POST-in-SAI-switch-init)
   * [Enabling POST in SAI MACSec init](#Enabling-POST-in-SAI-MACSec-init)
@@ -28,7 +28,7 @@ The design must meet the following requirements:
 - POST failure must not affect the operation of non-MACSec ports.
 - Explicit visibility must be provided if POST fails, for example, in syslog. The syslog message must include the details of the failure. For example, SAI object Id of ports that fail POST and the corresponding MACSec engine.
 
-## Deisgn details
+## Design details
 
 The following figure depicts the data flow and SONiC components in the design. Orchagent is responsible for triggering POST via SAI calls and publishing POST status in State DB. MACSec container, precisely MACSecMgr, is enhanced to be POST aware and only process MACSec configuration after POST has passed. 
 
@@ -85,7 +85,7 @@ Since SAI supports POST completion callback, a callback or notification function
 
 If SAI POST fails,  MACSecOrch reads POST status of all MACSec ports and finds out which port has failed in POST.  MACSecOrch then adds the details of the failure in syslog. The following syslog is added to report SAI POST failure.
 
-Swith level POST failure
+Switch level POST failure
 ```
 Switch MACSec POST failed
 ```

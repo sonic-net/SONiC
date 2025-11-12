@@ -474,7 +474,7 @@ Following is the list of objects supported by the connectivity-check plugin. Als
 | retry-count    | Stop ping to a ping host and move on to the next host specified in the list. | Valid non-zero integer value | 12            |
 | ping-count     | Stop after sending *count* ECHO_REQUEST packets. With *deadline* option, ping waits for *count* ECHO_REPLY packets, until the timeout expires. | Valid non-zero integer value | 3             |
 | deadline       | Specify a timeout, in seconds, before ping exits regardless of how many packets have been sent or received. In this case ping does not stop after *count* packet are sent, it waits either for *deadline* expire or until *count* probes are answered or for some error notification from network. | Valid non-zero integer value | N/A           |
-| timeout        | Time to wait for a response, in seconds. The option affects only timeout in absense of any responses, otherwise ping waits for two RTTs. | Valid non-zero integer value | N/A           |
+| timeout        | Time to wait for a response, in seconds. The option affects only timeout in absence of any responses, otherwise ping waits for two RTTs. | Valid non-zero integer value | N/A           |
 
 
 
@@ -513,7 +513,7 @@ Example usage.
         "source": {
           "prefix": "http://192.168.1.1:8080/acl_",
           "identifier": "hostname-fqdn",
-          "sufix": ".json"
+          "suffix": ".json"
         }
       }
     }
@@ -528,7 +528,7 @@ When a switch requests for a file specified by a url, it is expected that the se
 
 #### 3.3.1 HTTP Headers
 
-For a server to make the decision on which file to serve out, it requires uniquely identifiable information about the requesting switch.  Then, appropriate logic can be implemented at the server side to porcess the provided information, identify and give out the requested file.
+For a server to make the decision on which file to serve out, it requires uniquely identifiable information about the requesting switch.  Then, appropriate logic can be implemented at the server side to process the provided information, identify and give out the requested file.
 
 All HTTP/HTTPS requests made during ZTP contain switch identification information as part of HTTP headers. Below is the information that is included.
 
@@ -546,7 +546,7 @@ All HTTP/HTTPS requests made during ZTP contain switch identification informatio
 
 *dynamic-url.source* field consists of three subj-obects whose values are used to construct a url string at runtime. The *identifier*  subobject is mandatory. The prefix and suffix subobjects are optional.
 
- - prefix  - Specifies a static string which forms the leading part of the url. This typically specifies the transfer protcol and server address. e.g http://192.168.1.1:8080/
+ - prefix  - Specifies a static string which forms the leading part of the url. This typically specifies the transfer protocol and server address. e.g http://192.168.1.1:8080/
  - identifier - Specifies the runtime logic to be used to generate the filename of the resource to be downloaded.
  - suffix - Specifies any filename extension that needs to be added for convenience.
 
@@ -769,7 +769,7 @@ A configuration option is provided in the ZTP configuration file *ztp_cfg.json* 
 
 ##### updategraph
 
-ZTP and updategraph can co-exist in the same SONiC image. However, for updategraph to operate ZTP has to be disbaled. If ZTP is enabled, updategraph gracefully exits and depends on ZTP to process the values of *graph_url* and *acl_url.* The ZTP service processes the DHCP response and downloads the *minigraph.xml* and the *acl.json* files and places them in the */etc/sonic* directory. The *config load_minigraph*  command is then executed to process the downloaded *minigraph.xml* and *acl.json* files.
+ZTP and updategraph can co-exist in the same SONiC image. However, for updategraph to operate ZTP has to be disabled. If ZTP is enabled, updategraph gracefully exits and depends on ZTP to process the values of *graph_url* and *acl_url.* The ZTP service processes the DHCP response and downloads the *minigraph.xml* and the *acl.json* files and places them in the */etc/sonic* directory. The *config load_minigraph*  command is then executed to process the downloaded *minigraph.xml* and *acl.json* files.
 
 
 
@@ -1098,7 +1098,7 @@ src/usr/lib/python3/dist-packages/ztp/
 |-- Logger.py                      >> Logger API to generate syslogs and console logs at each step of the ZTP service |                                                 execution
 |-- ZTPCfg.py                   >> Helper class to access contents of the ZTP configuration file */host/ztp/ztp_cfg.json*
 |-- ZTPLib.py                    >> Helper API's used across ZTP libs, ZTP engine and ztp command utility
-|-- ZTPObjects.py            >> Class which defiles URL, DynamicURL, Identifier and other ojects used in ZTP 
+|-- ZTPObjects.py            >> Class which defiles URL, DynamicURL, Identifier and other objects used in ZTP 
 
 |                                                JSON 
 |-- ZTPSections.py          >> Class to process ZTP JSON and the Configuration Sections which are part of it
@@ -1205,7 +1205,7 @@ Run unit test suite with code coverage
 # Install code coverage tool
 apt-get install python3-coverage
 
-# Install depdenent libraries for coverage
+# Install dependent libraries for coverage
 apt-get install -y libjs-jquery libjs-jquery-isonscreen \
               libjs-jquery-tablesorter libjs-jquery-throttle-debounce \
               libjs-jquery-hotkeys
@@ -1903,7 +1903,7 @@ python3-coverage html --omit="*_pytest*,*test_*,*pkg_resources*,*dist-packages/p
 - Invalid or not working URL is provided
   - ZTP continues to try to download the file every 30 seconds
 - Include a REBOOT inside the provisioning script
-  - When switch boots, ZTP downloads the provisioning script again and starts execution again from the begining
+  - When switch boots, ZTP downloads the provisioning script again and starts execution again from the beginning
 
 ### Test Case #18
 
@@ -2020,7 +2020,7 @@ python3-coverage html --omit="*_pytest*,*test_*,*pkg_resources*,*dist-packages/p
 
 **Test Steps:**
 
-- Modfy contents with invalid values, incorrect JSON format or delete the file /host/ztp/ztp_cfg.json
+- Modify contents with invalid values, incorrect JSON format or delete the file /host/ztp/ztp_cfg.json
 - Start ztp service
 
 **Expected Results:**

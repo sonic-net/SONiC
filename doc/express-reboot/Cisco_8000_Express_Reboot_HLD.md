@@ -9,7 +9,7 @@ The goal of Sonic express reboot is to be able to restart and upgrade SONiC soft
 <img src="img/express-boot-flow.png" alt="Figure 1. Express boot flow">
 </p>
 
-It can be seen from Figure 1, it is possible that punt-header-v1 reachs SONIC-v2 or inject-header-v2 reachs NPU-v1 during t1 to t2 window. The punt and inject header changes are rare and not commom. Currently punt and inject header data structure differences between V1 and V2 are handled case by case basis in S1 SDK internally. A more generic and scalable approach for it is being planned and will be shared with the community as an express boot phase-2 once it is finalized. But in principle, maintaining backward compatibility in punt-inject-header if there are any changes is essential for successful express boot upgrades.
+It can be seen from Figure 1, it is possible that punt-header-v1 reaches SONIC-v2 or inject-header-v2 reaches NPU-v1 during t1 to t2 window. The punt and inject header changes are rare and not common. Currently punt and inject header data structure differences between V1 and V2 are handled case by case basis in S1 SDK internally. A more generic and scalable approach for it is being planned and will be shared with the community as an express boot phase-2 once it is finalized. But in principle, maintaining backward compatibility in punt-inject-header if there are any changes is essential for successful express boot upgrades.
 
 Figure 2 below compares major steps taken in warm boot and express boot from both SONiC and SDK point of view. 
 

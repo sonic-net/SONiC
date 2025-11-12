@@ -134,7 +134,7 @@ The following orchestration agents will be added or modified. The flow diagrams 
 The following sub-modules will be modified:
 * [sonic-swss](https://github.com/sonic-net/sonic-swss) - will be extended with the new orchestration agent for NVGRE.
 * [sonic-swss-common](https://github.com/sonic-net/sonic-swss-common) - will be extended with the new tables for ConfigDB.
-* [sonic-utilities](https://github.com/sonic-net/sonic-utilities) - will be extened with the new CLI.
+* [sonic-utilities](https://github.com/sonic-net/sonic-utilities) - will be extended with the new CLI.
 
 #### Sequence diagrams
 

@@ -102,7 +102,7 @@ This feature is a design change that allows the PHY drivers to be separated from
 <br> **Pull Requests** : [347](https://github.com/sonic-net/sonic-swss-common/pull/347), [931](https://github.com/sonic-net/sonic-utilities/pull/931), [1321](https://github.com/sonic-net/sonic-swss/pull/1321), [624](https://github.com/sonic-net/sonic-sairedis/pull/624) & [4851](https://github.com/sonic-net/sonic-buildimage/pull/4851).
 
 #### Kubernetes (docker to be controlled by Kubernetes)
-This feature deals in depth with kubernetes-support. With this feature, an image could be downloaded from external repositaries and kubernetes does the deployment. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode is referred as "kubernetes mode". 
+This feature deals in depth with kubernetes-support. With this feature, an image could be downloaded from external repositories and kubernetes does the deployment. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode is referred as "kubernetes mode". 
 
 What we implement in this release:
 -	The image could be built with kubernetes support 

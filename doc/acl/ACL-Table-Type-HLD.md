@@ -88,7 +88,7 @@ ACL table create-only SAI attributes include a list of match fields, bind point 
 to pass on table creation, which is defined by SAI_SWITCH_ATTR_ACL_STAGE_INGRESS, SAI_SWITCH_ATTR_ACL_STAGE_EGRESS in sai_acl_capability_t structure, field is_action_list_mandatory.
 
 ```abnf
-key: ACL_TABLE_TYPE:name           ; key of the ACL table type entry. The name is arbitary name user chooses.
+key: ACL_TABLE_TYPE:name           ; key of the ACL table type entry. The name is arbitrary name user chooses.
 ; field         = value
 matches         = match-list       ; list of matches for this table, matches are same as in ACL_RULE table.
 actions         = action-list      ; list of actions for this table, actions are same as in ACL_RULE table.
@@ -301,7 +301,7 @@ other orchs to override the behavior.
 </p>
 
 The polymorphism of existing AclRule derivatives AclRuleL3, AclRuleL3V6, etc is in the validation methods.
-E.g. AclRuleL3's validateAddMatch() method checks wether the match is one of the L3 table type matches.
+E.g. AclRuleL3's validateAddMatch() method checks whether the match is one of the L3 table type matches.
 This can be consolidated into single generic validate() method that validations ACL Rule configuration
 by checking AclRule SAI matches and SAI actions against AclTable SAI attributes.
 
@@ -420,7 +420,7 @@ tables referencing it.
 ### System tests
 
 - Existing ACL/Everflow tests cover default table types coming from init_cfg.json, which means it is covering the flow of creating table types.
-- Extend existing ACL/Everflow tests with a fixture to create custom table types that will be a copy of a default onces and run the same test cases.
+- Extend existing ACL/Everflow tests with a fixture to create custom table types that will be a copy of a default ones and run the same test cases.
 - Warm/Fast reboot tests to verify the functionality with new changes.
 
 ### Open questions
@@ -430,4 +430,4 @@ tables referencing it.
   - Does YANG infrastructure in SONiC supports validation against STATE DB information (e.g. is_action_list_mandatory)?
 - Does this feature needs a similar capability table for match fields? What is the SAI API to query it?
   - Currently SAI object API allows to query for an ACL table attributes CREATE, SET, GET operations implementation availability (sai_query_attribute_capability, sai_attr_capability_t),
-    but does not tell wether it is supported or not. Can we assume if it is not implemented it is not supported?
+    but does not tell whether it is supported or not. Can we assume if it is not implemented it is not supported?

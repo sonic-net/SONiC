@@ -225,7 +225,7 @@ module sonic-auto_techsupport {
                         The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
                         When the limit is crossed, the older core files are incrementally deleted
                         */
-                        description "Max Limit in percentage for the cummulative size of ts dumps. No cleanup is performed if the value isn't configured or is 0.0";
+                        description "Max Limit in percentage for the cumulative size of ts dumps. No cleanup is performed if the value isn't configured or is 0.0";
                         type decimal-repr;
                     }
 
@@ -236,7 +236,7 @@ module sonic-auto_techsupport {
                         The actual value in bytes is calculated based on the available space in the filesystem hosting /var/core
                         When the limit is crossed, the older core files are deleted
                         */
-                        description "Max Limit in percentage for the cummulative size of core dumps. No cleanup is performed if the value isn't congiured or is 0.0";
+                        description "Max Limit in percentage for the cumulative size of core dumps. No cleanup is performed if the value isn't congiured or is 0.0";
                         type decimal-repr;
                     }
                     
@@ -452,13 +452,13 @@ root-overlay    32896880 5460768  25742008  18% /
 ```
 
 /var/core & /var/dump directories are hosted on root-overlay filesystem and this usually ranges from 10G to 25G+. 
-A default value of 5% would amount to a minimum of 500 MB which is a already a decent space for coredumps.  For techsupport a default value of 10% would amount to a minium of 1G, which might accomodate from 5-10 techsupports.  
+A default value of 5% would amount to a minimum of 500 MB which is a already a decent space for coredumps.  For techsupport a default value of 10% would amount to a minimum of 1G, which might accommodate from 5-10 techsupports.  
 
 Although if the admin feels otherwise, these values are configurable.
 
 ### 7.8 Techsupport Locking
 
-Recently, an enhancement was made to techsupport script to only run one instance at a time by using a locking mechanism. When other script instance of techsupport tries to run, it'll exit with a relevent code. This would apply nevertheless of how a techsupport was invoked i.e. manual or through auto-techsupport. 
+Recently, an enhancement was made to techsupport script to only run one instance at a time by using a locking mechanism. When other script instance of techsupport tries to run, it'll exit with a relevant code. This would apply nevertheless of how a techsupport was invoked i.e. manual or through auto-techsupport. 
 
 With this change, rate-limit-interval of zero would not make any difference. The locking mechanism would implicitly impose a minimum rate-limit-interval of techsupport execution time.  And since, the techsupport execution time can't be found out and varies based on underlying machine and system state, the range of values configurable for the rate-limit-interval is left unchanged
 
@@ -470,7 +470,7 @@ Enhance the existing techsupport sonic-mgmt test with the following cases.
 
 | S.No | Test case synopsis                                                                                                                      |
 |------|-----------------------------------------------------------------------------------------------------------------------------------------|
-|  1   | Check if the `coredump_gen_handler` script is infact invoking the techsupport cmd, when configured                                      |
+|  1   | Check if the `coredump_gen_handler` script is in fact invoking the techsupport cmd, when configured                                      |
 |  2   | Check if the techsupport cleanup is working as expected                                                                                 |
 |  3   | Check if the global rate-& & per-process rate-limit-interval is working as expected                                                     |
 |  4   | Check if the core-dump cleanup is working as expected                                                                                   |
@@ -482,7 +482,7 @@ The configuration in the init_cfg.json is loaded to the running config i.e. CONF
 
 ### 10  App Extension Considerations
 
-Detailed Info related to Appliation Extension can be found here: https://github.com/sonic-net/SONiC/blob/master/doc/sonic-application-extension/sonic-application-extention-hld.md
+Detailed Info related to Application Extension can be found here: https://github.com/sonic-net/SONiC/blob/master/doc/sonic-application-extension/sonic-application-extention-hld.md
 
 A new AUTO_TECHSUPPORT_FEATURE register/deregister option will be introduced. The existing FeatureRegistry class will be enahcned to also add/delete configuration related to AUTO_TECHSUPPORT_FEATURE table.
 

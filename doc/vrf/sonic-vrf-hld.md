@@ -111,7 +111,7 @@ Note: linux kernel use VRF master device to support VRF and it supports admin up
 
 ### Target Deployment Use Cases
 
-Virtual Routing and Forwarding is used to achieve network virtualization and traffic separation over on a shared network infrastructure in Enterprise and DC delpoyments.
+Virtual Routing and Forwarding is used to achieve network virtualization and traffic separation over on a shared network infrastructure in Enterprise and DC deployments.
 
 ![Deployment use case](https://github.com/preetham-singh/SONiC-1/blob/master/images/vrf_hld/Multi-VRF_Deployment.png "Figure 1: Multi VRF Deployment use case")
 __Figure 1: Multi VRF Deployment use case__
@@ -123,7 +123,7 @@ Router-1 and Router-2 are routers which provide interconnectivity between custom
 Above figure depicts typical customer deployment where multiple Customer facing devices are connected to Provider edge routers.
 With such deployment Provider Edge routers associate each input interface with one VRF instance.
 
-In Figure 1, All cutomer facing devices belonging to Customer-A irrespective of the site, will belong to VRF Green and those in Customer-B will belong to VRF Red.
+In Figure 1, All customer facing devices belonging to Customer-A irrespective of the site, will belong to VRF Green and those in Customer-B will belong to VRF Red.
 With this deployment, isolation of traffic is achieved across customers maintaining connectivity within same customer sites.
 
 Note that multiple input interfaces can be associated to a VRF instance. This input interface can be Physical interface, Port-channel or L3 Vlan interface.
@@ -360,7 +360,7 @@ The existing acl_rule_table definition is the following.
 
 ```
 
-To support vrf the nexthop key should change to `{IP,interface}` pair from single `{IP}`. For backward compatibilty nexthop key `{IP}` is also supported, it only works on global vrf. So new acl_rule_table should like the following. 
+To support vrf the nexthop key should change to `{IP,interface}` pair from single `{IP}`. For backward compatibility nexthop key `{IP}` is also supported, it only works on global vrf. So new acl_rule_table should like the following. 
 
 ```json
 
@@ -612,12 +612,12 @@ router bgp 64015
 
 - Listening to VRF creation/deletion configuration in config_db. Once detected,
 update kernel using iproute2 CLIs and write VRF information to app-VRF-table.
-- When vrfmgrd receives VRF delete event it wont process the event till all the devices belonging to this VRF are unbound from the VRF. Slave device information can be retrieved from kernel.
+- When vrfmgrd receives VRF delete event it won't process the event till all the devices belonging to this VRF are unbound from the VRF. Slave device information can be retrieved from kernel.
 - vrfmgrd process will be placed in swss docker. In case of swss docker warm reboot, since VRF device is still retained in kernel, when vrfmgrd starts up it will recover the VRF system state from kernel.
 
 ### intfsmgrd changes
 
-IP address event and VRF binding event need to be handled seperately. These two events has sequence dependency.
+IP address event and VRF binding event need to be handled separately. These two events has sequence dependency.
 
 - Listening to interface binding to specific VRF configuration in config_db.
   - bind to VRF event:
@@ -625,7 +625,7 @@ IP address event and VRF binding event need to be handled seperately. These two 
     - add interface entry with VRF attribute to app-intf-table.
     - set intf-bind-vrf flag on STATE_DB
   - unbind from VRF event:
-    - wait until all ip addresses associated with the interface is removed. Ip address infomation can be retrieved from kernel.
+    - wait until all ip addresses associated with the interface is removed. Ip address information can be retrieved from kernel.
     - bind kernel device to global VRF
     - del interface entry with VRF attribute from app-intf-table
     - unset vrf-binding flag on STATE_DB
@@ -673,11 +673,11 @@ sai_remove_virtual_router_fn defined in saivirtualrouter.h to track (VR, VRF) cr
 ### routeorch changes
 
 - Add vrforch as a member of routeorch
-- Once app-route-table has new udpate, get VRF object ID from vrforch by vrf_name.
+- Once app-route-table has new update, get VRF object ID from vrforch by vrf_name.
 - Nexthop key is changed to ``(ipaddress, intf_name)`` pair from ``ipaddress``.
 - The key of Nexthop group is the set of nexthop key.
 - The value of routetable is changed to the set of ``(ipaddress, intf_name)`` pair from ``ipaddresses``
-- Expand single routetable to mutiple routetables with vrf ID as the key
+- Expand single routetable to multiple routetables with vrf ID as the key
 - Update refcnt of vrforch
 - handle the adding/deling of subnet-route
 
@@ -998,7 +998,7 @@ Here "Vrf-blue" is part of the IP address configuration of the interface.
 
 Since it is very complicated to carry IP addresses when an interface moves from one VRF to another VRF, the current implementation is when interface moves from one VRF to another VRF, the IP address will be deleted. Because of this, we can treat VRF as part of the key of interface entry, but not an attribute. This solution has following advantage:
 
-- It can eliminate intf-bind-vrf event and ip-address event sequence dependency, intfMgrd/intfsorch implemetation is much easier. Simple is better.
+- It can eliminate intf-bind-vrf event and ip-address event sequence dependency, intfMgrd/intfsorch implementation is much easier. Simple is better.
 - It is fully compatible with both old config file and existing ansible testcases.
 
 app-intf-prefix-table can be defined as following. Vrf_name is part of the key.

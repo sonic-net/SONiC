@@ -18,7 +18,7 @@
     - [CLI Design](#cli-design)
         - [Show CLI](#show-cli)
         - [Config CLI](#config-cli)
-- [Feature limitaion](#feature-limitaion)
+- [Feature limitation](#feature-limitation)
 
 
 ## Revision
@@ -46,7 +46,7 @@ This document describes how to leverage the SONiC config DB to add or remove BGP
 ## Overview
 In BGP, we can aggregate contributing routes into one single aggregated route. It has many advantages, for example reducing routes’ count.
 
-However, firstly, SONiC can’t configurate aggregated addresses via config DB and doesn’t have CLI support for it.
+However, firstly, SONiC can’t configure aggregated addresses via config DB and doesn’t have CLI support for it.
 
 Secondly, if we aggregated routes without BBR feature on device, we many got packet drop on this device due to contributing routes missing.
 
@@ -205,7 +205,7 @@ It's a string which should be the name of a prefix list, and the aggregate addre
 It's a string which should be the name of a prefix list, and the aggregate address will be append to the prefix list with prefix length filter to filter prefixes whose length greater or equal to the prefix length of the aggregate address.
 
 ### State DB Extension
-For every aggregated address, we track its state in state DB, it has two states active and inactive. Active state means the address is configurated in the bgp container, while inactive state means isn't.
+For every aggregated address, we track its state in state DB, it has two states active and inactive. Active state means the address is configured in the bgp container, while inactive state means isn't.
 
 #### State DB sample:
 ```json
@@ -359,5 +359,5 @@ Then we will implement test in sonic-mgmt repo to test if this feature works inc
 3. Remove aggregated address in config db and check whether the address will be removed from state db and bgp container.
 4. More tests details will be published in sonic-mgmt repo.
 
-## Feature limitaion
-In CLOS network, aggregate deployment without simultaneous operation on all devices in same layer could lead to traffic imbalance due to traffic prefers go to detail routes, please only use this feature in traffic insensitve scenario or ensure deploy aggregate routes on all devices in same layer simultaneously.
+## Feature limitation
+In CLOS network, aggregate deployment without simultaneous operation on all devices in same layer could lead to traffic imbalance due to traffic prefers go to detail routes, please only use this feature in traffic insensitive scenario or ensure deploy aggregate routes on all devices in same layer simultaneously.

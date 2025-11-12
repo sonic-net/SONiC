@@ -74,7 +74,7 @@ counterpoll [port_rates|rif_rates] interval <seconds>
 counterpoll [port_rates|rif_rates] [enable|disable]
 ```
 
-To configure the smoothing interval of moving average new CLI will be intrduced:
+To configure the smoothing interval of moving average new CLI will be introduced:
 
 ```
 config rate smoothing_interval [all|port|rif] <interval>
@@ -134,7 +134,7 @@ For RIF:
 
 ### 2.2.4 Exponential moving average
 
-To make the rates and utilization values more smooth, exponential moving average will be calculated. EMA approximates moving average on a window siza that can be changed dynmically. More recent values are given more weight(imapct the average more, decreasing lag). EMA allows to calculate moving average without storing a set of values. Actually all the values in the series are impacting the EMA, but the weight of older values is infinitely decreasing.
+To make the rates and utilization values more smooth, exponential moving average will be calculated. EMA approximates moving average on a window siza that can be changed dynamically. More recent values are given more weight(impact the average more, decreasing lag). EMA allows to calculate moving average without storing a set of values. Actually all the values in the series are impacting the EMA, but the weight of older values is infinitely decreasing.
 
 
 ALPHA (precalculated):
@@ -226,10 +226,10 @@ The Lua plugin logic is simple:
 ### 3.1.5 CLI Scripts
 
 The `counterpoll` utility should return an error when user tries to enable rates when the corresponding counter polling is disabled.
-The `counterpoll` utility should returnwarn the user who is trying to configure rates intervall less than the corresponding counter polling interval,
+The `counterpoll` utility should returnwarn the user who is trying to configure rates interval less than the corresponding counter polling interval,
 and configure the same interval as the counters interval.
 
-The `portstat` and `intfstat` scripst will be updated to display the rates and utilization values from the DB. 
+The `portstat` and `intfstat` scripts will be updated to display the rates and utilization values from the DB. 
 The show CLI commands support a `-p, --period` option, to display values calculated over a specified period of time. For this the approach of taking a snapshot of counters is more suitable. The script should use this approach when `-p` option is used. 
 
 ### 3.2 Testing

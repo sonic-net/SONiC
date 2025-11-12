@@ -1,9 +1,9 @@
 ## CMIS and C-CMIS support for ZR on SONiC
 
 ### 1. Overview
-Common Management Interface Specification (CMIS) is defined for pluggables or on-board modules to communicate with the registers [CMIS v5.0](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf). With a clear difinition of these registers, modules can set the configurations or get the status, to achieve the basic level of monitor and control. 
+Common Management Interface Specification (CMIS) is defined for pluggables or on-board modules to communicate with the registers [CMIS v5.0](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf). With a clear definition of these registers, modules can set the configurations or get the status, to achieve the basic level of monitor and control. 
 
-CMIS is widely used on modules based on a Two-Wire-Interface (TWI), including QSFP-DD, OSFP, COBO and QSFP modules. However, new requirements emerge with the introduction of coherent optical modules, such as 400G ZR. 400G ZR is the first type of modules to require definitions on coherent optical specifications, a field CMIS does not touch on. The development of C(coherent)-CMIS aims to solve this issue [C-CMIS v1.1](https://www.oiforum.com/wp-content/uploads/OIF-C-CMIS-01.1.pdf). It is based on CMIS but incroporates more definitions on registers in the extended space, regarding the emerging demands on coherent optics specifications.
+CMIS is widely used on modules based on a Two-Wire-Interface (TWI), including QSFP-DD, OSFP, COBO and QSFP modules. However, new requirements emerge with the introduction of coherent optical modules, such as 400G ZR. 400G ZR is the first type of modules to require definitions on coherent optical specifications, a field CMIS does not touch on. The development of C(coherent)-CMIS aims to solve this issue [C-CMIS v1.1](https://www.oiforum.com/wp-content/uploads/OIF-C-CMIS-01.1.pdf). It is based on CMIS but incorporates more definitions on registers in the extended space, regarding the emerging demands on coherent optics specifications.
 
 The scope of this work is to develop APIs for both CMIS and C-CMIS to support 400G ZR modules on SONiC.
 
@@ -23,7 +23,7 @@ The following diagram shows how the CLI interfaces with the module registers thr
             ||                              /\
             \/                              ||
  -------------------------       ---------------------------------
-|lpmode|freq|TXPow|looback|     |xcvr_info|xcvr_dom|xcvr_status|PM|
+|lpmode|freq|TXPow|loopback|     |xcvr_info|xcvr_dom|xcvr_status|PM|
  -------------------------       --------------------------------- 
             ||                              /\
             \/                              ||
@@ -1140,7 +1140,7 @@ def get_VDM_page(port, page):
     if page not in [0x20, 0x21, 0x22, 0x23]:
         raise ValueError('Page not in VDM Descriptor range!')
     VDM_descriptor = struct.unpack(f'{PAGE_SIZE}B', read_reg(port, page, PAGE_OFFSET, PAGE_SIZE))
-    # Odd Adress VDM observable type ID, real-time monitored value in Page + 4
+    # Odd Address VDM observable type ID, real-time monitored value in Page + 4
     VDM_typeID = VDM_descriptor[1::2]
     # Even Address
     # Bit 7-4: Threshold set ID in Page + 8, in group of 8 bytes, 16 sets/page
@@ -1544,7 +1544,7 @@ The second step is to start CDB download by writing the header of start header s
 The third step is to repeatedly read from the given firmware file and write to the payload space advertised from the first step. We use CDB command 0103h to write to the local payload; we use CDB command 0104h to write to the extended paylaod. This step repeats until it reaches end of the firmware file, or the CDB status failed.
 The last step is to complete the firmware upgrade with CDB command 0107h. 
 Note that if the download process fails anywhere in the middle, we need to run CDB command 0102h to abort the upgrade before we restart another upgrade process. 
-After the firmware download finishes. The firmware will be run and committed with CDB command 0109h and 010Ah. We also check the currently running and committed firmware iamge version by CDB command 0100h before and after the entire firmware upgrade process to confirm the module switched to the updated firmware. 
+After the firmware download finishes. The firmware will be run and committed with CDB command 0109h and 010Ah. We also check the currently running and committed firmware image version by CDB command 0100h before and after the entire firmware upgrade process to confirm the module switched to the updated firmware. 
 A CDB command is triggered when byte 0x9F: 129 is written. This requires we break a CDB command into two written pieces:
 1. write bytes from 0x9F: 130 till the message ends.
 2. write bytes 0x9F: 128-129.
@@ -1572,7 +1572,7 @@ def get_module_FW_info(port):
     print('Get module FW info')
     rlplen, rlp_chkcode, rlp = cdb.cmd0100h(port)
     if cdb.cdb_chkcode(rlp) == rlp_chkcode:
-        # Regiter 9Fh:136
+        # Register 9Fh:136
         fwStatus = rlp[0]
         # Registers 9Fh:138,139; 140,141
         print('Image A Version: %d.%d; BuildNum: %d' %(rlp[2], rlp[3], ((rlp[4]<< 8) | rlp[5])))

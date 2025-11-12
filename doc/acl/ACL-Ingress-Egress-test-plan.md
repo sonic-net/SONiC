@@ -71,7 +71,7 @@ When t1 topology is used, the tables can bind to all ports. When t1-lag and t1-6
 
 A same set of improved ACL rules can be used for both ingress and egress ACL testing. While testing ingress ACL, it is always possible to hit the rules. While testing egress ACL, destination IP address of the injected packet must be routable. Otherwise, the injected packet would never get a chance to hit the egress rule.
 
-For completness, both packet flow directions will be covered:
+For completeness, both packet flow directions will be covered:
 * TOR ports -> SPINE ports: Inject packet into tor ports. Set destination IP address to BGP routes learnt on spine ports. Check the packet on spine ports.
 * SPINE ports -> TOR ports: Inject packet into spine ports. Set destination IP address to BGP routes learnt on tor ports. Check the packet on tor ports.
 
@@ -81,7 +81,7 @@ Work need to be done based on this strategy and existing scripts:
 * Update the existing acltb.yml script:
   * Backup config_db. 
   * Create ACL tables and load ACL rules for testing.
-  * Run the PTF scritp.
+  * Run the PTF script.
   * Restore configuration after testing.
 * Update the PTF script
   * Add more test cases for the improved set of ACL rules.
@@ -91,7 +91,7 @@ Work need to be done based on this strategy and existing scripts:
   * Improve the existing ACL rules to address issue that RULE_12 and RULE_13 are not hit.
   * Extend the existing ACL rules to cover more DROP action. The PTF script should be extended accordingly too.
   * Change source IP to addresses that are not used by other devices in current topologies
-  * Add two rules to always allow BGP packets. Othewise, BGP routes will be lost.
+  * Add two rules to always allow BGP packets. Otherwise, BGP routes will be lost.
 * Add a new ansible module for gathering ACL counters in DUT switch.
 * Check counters of ACL rules after each PTF script execution.
 
@@ -107,7 +107,7 @@ The ACL rules will be improved too:
 * Add a new set of rules RULE_14 to RULE_26 for testing DROP action.
 * RULE_12 and RULE_13 should use source IP address different with RULE_1, for example 20.0.0.4/32. Otherwise packets with source IP 20.0.0.2/32 would always match RULE_1 and never hit RULE_12 and RULE_13. The PTF script testing case 10 and 11 need to use this new source IP address for the injected packets.
 * RULE_25 and RULE_26 should use source IP address different with: RULE_1, RULE_12, RULE_13 and RULE_14. Otherwise, RULE_25 and RULE_26 will never be hit.
-* RULE_27 and RULE_28 are added to always alow BGP traffic. Otherwise, BGP traffic would be blocked by the DEFAULT_RULE.
+* RULE_27 and RULE_28 are added to always allow BGP traffic. Otherwise, BGP traffic would be blocked by the DEFAULT_RULE.
 
 The ACL rules should not be all loaded at the same time.
 

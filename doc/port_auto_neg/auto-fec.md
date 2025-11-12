@@ -206,6 +206,6 @@ Below table gives details on when db_migrator will be needed when vendor impleme
 #### VS Test cases
 
 1. Add SWSS VS test to query SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE and if supported expect SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE to be set to true when FEC is configured.
-2. If SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE is not suppored it should not be set when configuring FEC
+2. If SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE is not supported it should not be set when configuring FEC
 3. Set FEC mode to auto and AN=true verify SAI_PORT_ATTR_AUTO_NEG_FEC_MODE_OVERRIDE is set to false
 4. Set FEC mode to auto and AN=false verify no FEC mode is programmed

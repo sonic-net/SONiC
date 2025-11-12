@@ -15,7 +15,7 @@
  3. Logging to console *(Useful for debugging purposes)*  
     3.1. Specific severity type used by application to print to console  
     3.2. Log monitor events to mirror selected messages to all terminals  
- 4. Daemon crashes should be monitored and reported along with system dumps generated after crash occures.  
+ 4. Daemon crashes should be monitored and reported along with system dumps generated after crash occurs.  
 
 ### System Dumps
 
@@ -34,7 +34,7 @@ System should provide an interface to generate such dump on demand and upload it
 
 In order to not use all available space on disk, log files should be rotated automaticcaly and their size should be limited.  
 Log files should be limitatied in their overall size.  
-Spamming log messages should be limited in frequency of their occurence.  
+Spamming log messages should be limited in frequency of their occurrence.  
 Sysdump archive should have a limitation in size
 
 ## Interaction with other modules

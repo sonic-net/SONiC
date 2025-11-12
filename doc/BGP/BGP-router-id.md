@@ -32,7 +32,7 @@ This document describes a mechanism to allow user explicitly configure BGP route
 ### Overview
 
 Currently, there are some BGP hard codings in SONiC:
-1. BGP router id was defined as a 32-bit value that uniquely identifies a BGP device. In single-asic device, SONiC uses Loopback0 IPv4 address as BGP router id. In mult-asic and uses Loopback4096 IPv4 address as BGP router id (for both iBGP and eBGP). This coupling prevents users from using customized router id. If IPv4 address of Loopback0 / Loopback4096 don't exist, BGP router id wouldn't be configured, then FRR would choose the largest IP address in device to be BGP router id. If the router id choosen by FRR is not unique, it would be considered an error.
+1. BGP router id was defined as a 32-bit value that uniquely identifies a BGP device. In single-asic device, SONiC uses Loopback0 IPv4 address as BGP router id. In mult-asic and uses Loopback4096 IPv4 address as BGP router id (for both iBGP and eBGP). This coupling prevents users from using customized router id. If IPv4 address of Loopback0 / Loopback4096 don't exist, BGP router id wouldn't be configured, then FRR would choose the largest IP address in device to be BGP router id. If the router id chosen by FRR is not unique, it would be considered an error.
 2. In single-asic device, SONiC wouldn't add BGP peer when there is not Loopback0 IPv4 exists. In multi-asic, SONiC wouldn't add eBGP peer when there is not Loopback0 IPv4 exists.
 
 Below is current workflow about BGP and router id in single-asic, only includes contents related to Loopback0.
@@ -67,7 +67,7 @@ Add support to allow user explicitly configure BGP router id.
 
 2 aspects enhancement:
 
-1. Add a field `bgp_router_id` in `CONFIG_DB["DEVICE_METADATA"]["localhost"]` to support explicitly configure BGP router id. For multi-asic devices, this configuraion would be added to correspond config_db for each asic. If `CONFIG_DB["DEVICE_METADATA"]["localhost"]["bgp_router_id"]` configured, always use it as BGP router id. With this change, the new BGP router id configuration behavior will be like follow table. To be clarified that when bgp_router_id doesn't be configured, the behavior is totally same as previously.
+1. Add a field `bgp_router_id` in `CONFIG_DB["DEVICE_METADATA"]["localhost"]` to support explicitly configure BGP router id. For multi-asic devices, this configuration would be added to correspond config_db for each asic. If `CONFIG_DB["DEVICE_METADATA"]["localhost"]["bgp_router_id"]` configured, always use it as BGP router id. With this change, the new BGP router id configuration behavior will be like follow table. To be clarified that when bgp_router_id doesn't be configured, the behavior is totally same as previously.
 
 |           | Loopback0/Loopback4096 IPv4 address exists | Loopback0/Loopback4096 IPv4 address doesn't exist |
 |--------------|-------|------------|

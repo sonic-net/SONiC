@@ -43,7 +43,7 @@ Two new CLIs shall be added to sfputil module:
 
 For detail please check chapter [CLI/YANG model Enhancements](#cliyang-model-enhancements)
 
-The existing API `sfp.read_eeprom` and `sfp.write_eeprom` accept "overall offset" as parameter. They have no concept of page. If user wants to use it, user has to convert page and offset to "overall offset" manually. Different cable types use different covert method according to the standard. So, it is not user friendly to provide such API directly to user. sonic-utilities shall provide the function to translate from page offset to overall offset.
+The existing API `sfp.read_eeprom` and `sfp.write_eeprom` accept "overall offset" as parameter. They have no concept of page. If user wants to use it, user has to convert page and offset to "overall offset" manually. Different cable types use different convert method according to the standard. So, it is not user friendly to provide such API directly to user. sonic-utilities shall provide the function to translate from page offset to overall offset.
 
 ##### CMIS validation
 
@@ -186,7 +186,7 @@ No memory consumption is expected when the feature is disabled via compilation a
 
 ### Restrictions/Limitations
 
-- Vendor should support plaform API `sfp.read_eeprom` and `sfp.write_eeprom` to support this feature.
+- Vendor should support platform API `sfp.read_eeprom` and `sfp.write_eeprom` to support this feature.
 
 ### Testing Requirements/Design
 

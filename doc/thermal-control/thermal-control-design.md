@@ -97,11 +97,11 @@ Below policies are examples that can be applied:
 
 - Set PWM to full speed if one of FAN drawers is not present or one of tachometers is broken present
 
-- Set the fan speed to a consant value (60% of full speed) thermal control functions was disabled.
+- Set the fan speed to a constant value (60% of full speed) thermal control functions was disabled.
 
 FAN status led and PSU status led shall also be set accordingly when policy meet.
 
-Policy check functions will go through the device status and adjust the fan speed if necessary, these check will be preformed by calling the platform new API.
+Policy check functions will go through the device status and adjust the fan speed if necessary, these check will be performed by calling the platform new API.
 
 A thermal control daemon class will be deifined with above functions defined, vendors will be allowed to have their own implementation.
 

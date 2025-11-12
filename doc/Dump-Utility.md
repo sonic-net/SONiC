@@ -75,7 +75,7 @@ dump state port all
 3) This argument could either be a table-key or a unique-field-value present in either Conf DB or Appl DB.
    * Eg: For PORT, the second argument will be an interface name i.e 'Ethernet128' which is a table-key. On the other hand, the secondary argument for COPP will be a trap_id such as  'arp_req', which is a field-value and not a key of any table.
 4) The decision of what to pass as a secondary argument lies with the discretion of the one who is writing the module.
-6) The Command should also take a list of comma seperated inputs for the secondary argument
+6) The Command should also take a list of comma separated inputs for the secondary argument
 7) The Command should also accept an "all" value and which means it should print the unified view for every entry related to that feature.
 
 ```
@@ -644,7 +644,7 @@ class Port(Executor):
 2) MatchEngine / MatchRequest: Provided to abstract the heavy lifting in fetching the required data from redis-db/config-files. More info in the next section.
 3) verbose_print(str_): prints to the stdout based on verbosity provided by the user.
 4) handle_error(err_str, excep=False): Prints the error output to stdout, if any experienced by the module, Set excep = True, to raise an exception
-5) handle_multiple_keys_matched_error(err_str, key_to_go_with="", excep=False): When a filtering criteria specified by the module matches multiple keys, wherein it is expected to match ony one, this method can be used.
+5) handle_multiple_keys_matched_error(err_str, key_to_go_with="", excep=False): When a filtering criteria specified by the module matches multiple keys, wherein it is expected to match only one, this method can be used.
 ```
 
 ### 2.4 Match Infrastructure
@@ -672,7 +672,7 @@ To Abstract this functionality out, a MatchEngine class is created. A MatchReque
   "just_keys": "true|false"     # Mandatory, if true, Only Returns the keys matched. Does not return field-value pairs. Defaults to True
   "ns" : DEFAULT_NAMESPACE      # namespace argument, if nothing is provided, default namespace is used
   "match_entire_list" : False   # Some of the fields in redis can consist of multiple values eg: trap_ids = "bgp,bgpv6,ospf".
-  			          When this arg is set to true, entire list is matched incluing the ",".
+  			          When this arg is set to true, entire list is matched including the ",".
 				  When False, the values are split based on "," and individual items are matched with
 }
 ```
@@ -995,7 +995,7 @@ admin@sonic:~$ dump state acl_rule 'DATA_L3|R1' -t
 
 | S.No | Test case synopsis                                                                                                                      |
 |------|-----------------------------------------------------------------------------------------------------------------------------------------|
-|  1   | Verify MatchEngine funtionality in cases of invalid Request Objects                                                                     |
+|  1   | Verify MatchEngine functionality in cases of invalid Request Objects                                                                     |
 |  2   | Verify MatchEngine Match functionality is as expected                                                                                   |
 |  3   | Verify all the options in the CLI is working as expected                                                                                |
 |  4   | Verify the namespace arg is working as expected                                                                                         |

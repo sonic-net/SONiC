@@ -111,7 +111,7 @@ In addition, the LDAP pkgs mentioned in the Compilation chapter are installed, b
 ```
 LDAP_TABLE:{
 	global:{
-		"bind_dn": {{ (emtpy) }}
+		"bind_dn": {{ (empty) }}
 		"bind_password": {{ empty with starts **** }}
 		"bind_timeout": {{ (5 (duration_sec)) }}
 		"version": {{3}}
@@ -136,7 +136,7 @@ AAA:{
 ```
 #### Dependencies
 LDAP Server should be configured according to the permission and users that the customer requires.
-i.e: if requires admin permission, the Redis server should have a user with groups id similar to the local groups id of admin build-in user in order to support the same permissions.
+i.e: if requires admin permission, the Redis server should have a user with groups id similar to the local groups id of admin built-in user in order to support the same permissions.
 uid=6000(test_admin), groups=1000(admin),4(adm),27(sudo),999(docker),1001(redis)
 ### SAI API 
 
@@ -412,7 +412,7 @@ Fallback mechanism
 -	Configure AAA authentication login ldap, local
 	- Test that if the LDAP server is not answering, local user (i.e. admin) can be connected.
 -	Configure AAA authentication login local, ldap
-	- Test that when connecting with SSH, first the authetication flow will search the user locally, and only if not exist will search in LDAP server
+	- Test that when connecting with SSH, first the authentication flow will search the user locally, and only if not exist will search in LDAP server
 
 #### Debug
 Use Linux tool ldapsearch 

@@ -53,7 +53,7 @@ The information should be: RX: OK, ERR in packets and bytes. TX: OK, ERR in pack
 The CLI command format and example output
 
 ```
-$ show interfaces counters rif [OPTOINS] [interface_name]
+$ show interfaces counters rif [OPTIONS] [interface_name]
 
  Show interface counters
 
@@ -215,7 +215,7 @@ typedef enum _sai_router_interface_stat_t
 
 We can expose the rif counters via sonic telemetry.
 The telemetry is able to access the data in SONiC databases according to the schema,
-but for more simplicity virtual path can be used. Virtual path allows to querry for counters by interface name, instead of VID. 
+but for more simplicity virtual path can be used. Virtual path allows to query for counters by interface name, instead of VID. 
 
 Example virtual paths
 

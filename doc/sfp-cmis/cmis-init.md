@@ -147,7 +147,7 @@ Functionality should continue to work across warm boot.
 
 # Functional Description
 
-- The **pmon#xcvrd** should detect the module type of the attched CMIS transceiver and
+- The **pmon#xcvrd** should detect the module type of the attached CMIS transceiver and
 post its module information onto the **STATE_DB**
 - When a CMIS transceiver is attached, the **show interfaces transceiver eeprom**
 should display the advertised applications of the transceiver.
@@ -239,7 +239,7 @@ to support multiple CMIS transceivers in one single thread.
   - Prior to advancing the state, CmisManagerTask should always double-check the hardware module and datapath states.  
     - Prior to handling the CMIS state transitions, the following checkers are always performed  
       - **Check for the transceiver presence** via sfp.get_presence(),
-        abort the initialization sequence if it's no loner present
+        abort the initialization sequence if it's no longer present
       - **Validate the transceiver module type** via sfp.get_transceiver_info()['type_abbrv_name'],
         abort the initialization sequence if it's not a QSFP-DD
       - **Validate the transceiver memory type** via sfp.get_transceiver_info()['memory_type'],
@@ -344,7 +344,7 @@ Add the following stub routines
 
 ## sonic-utilities/sfputil
 
-- Add supprot to show the CMIS application advertisement
+- Add support to show the CMIS application advertisement
 
 ## CLI commands
 

@@ -94,7 +94,7 @@ This feature extends and provides unified configuration and management capabilit
 ### 1.1.1 Functional Requirements
 
   1. Extend Unified mode for full FRR-BGP config and management in SONiC
-  2. Ability to start frrcfgd (new FRR config deamon fully based on config-DB events) or bgpcfgd (template based legacy daemon) based on frr_mgmt_framework_config field with "true"/"false" in DEVICE_METADATA table
+  2. Ability to start frrcfgd (new FRR config daemon fully based on config-DB events) or bgpcfgd (template based legacy daemon) based on frr_mgmt_framework_config field with "true"/"false" in DEVICE_METADATA table
   3. Add frrcfgd daemon (sonic-buildimage/src/sonic-frr-mgmt-framework) and integrate with FRR-BGP for features supported in SONiC
   3. Support for retrieval of FRR-BGP state and statistics information
   4. For backward compatibility retain access to FRR UI (vtysh) for managing features that are NOT in conflict with SONiC features
@@ -386,7 +386,7 @@ remove_private_as_enabled      = "true" / "false" ; Remove private ASNs in outbo
 replace_private_as             = "true" / "false" ; Replace private ASNs with our ASN in outbound update
 remove_private_as_all          = "true" / "false" ;  Apply to all AS numbers
 allow_as_in                     = "true" / "false" ;  Accept as-path with my AS present in it
-allow_as_count                 = 1*3DIGIT ;  Number of occurences of AS number
+allow_as_count                 = 1*3DIGIT ;  Number of occurrences of AS number
 allow_as_origin                = "true" / "false" ; Only accept my AS in the as-path if the route was originated in my AS
 cap_orf                        = "send" / "receive" / "both" ; Outbound route filtering capability
 route_server_client            = "true" / "false" ; Configure a neighbor as Route Server client
@@ -474,7 +474,7 @@ remove_private_as_enabled      = "true" / "false" ; Remove private ASNs in outbo
 replace_private_as             = "true" / "false" ; Replace private ASNs with our ASN in outbound update
 remove_private_as_all          = "true" / "false" ;  Apply to all AS numbers
 allow_as_in                     = "true" / "false" ;  Accept as-path with my AS present in it
-allow_as_count                 = 1*3DIGIT ;  Number of occurences of AS number
+allow_as_count                 = 1*3DIGIT ;  Number of occurrences of AS number
 allow_as_origin                = "true" / "false" ; Only accept my AS in the as-path if the route was originated in my AS
 cap_orf                        = "send" / "receive" / "both" ; Outbound route filtering capability
 route_server_client            = "true" / "false" ; Configure a neighbor as Route Server client
@@ -499,7 +499,7 @@ name          = 1*255VCHAR ; route map set name
 
 key                             = ROUTE_MAP|route_map_name|stmt_name ;
 route_map_name                  = 1*64VCHAR ; route map name
-stmt_name                       = 1*64VCHAR ; statment name
+stmt_name                       = 1*64VCHAR ; statement name
 route_operation                 = "ACCEPT" / "REJECT"; Permit/Deny operation
 match_interface                 = 1*64VCHAR ; Match interface name
 match_prefix_set                = 1*64VCHAR ; Match prefix sets
@@ -606,7 +606,7 @@ as_path_set_member = string list ; AS path list
 
 ### 3.2.1.16 DEVICE_METADATA
 ```JSON
-; Ability to start frrcfgd (new FRR config deamon fully based on config-DB events) or bgpcfgd (template based legacy daemon) based on 'frr_mgmt_framework_config' field with "true"/"false"
+; Ability to start frrcfgd (new FRR config daemon fully based on config-DB events) or bgpcfgd (template based legacy daemon) based on 'frr_mgmt_framework_config' field with "true"/"false"
 ;
 ;Status: stable
 key                         = localhost          ; name must be unique
@@ -785,7 +785,7 @@ module: openconfig-routing-policy
 ##### 3.6.2.1.4 BGP Neighbor Address family mode commands
 |Command Description |CLI Command    |
 |:-----------------|:---------------|
-|Activate a BGP neighor for a specific address family|sonic(config-router-bgp-neighbor-af)#activate|
+|Activate a BGP neighbor for a specific address family|sonic(config-router-bgp-neighbor-af)#activate|
 |Config as-path acceptance with own ASN|sonic(config-router-bgp-neighbor-af)#allowas-in \<AS occurrence count\> [origin] |
 |Specify route policy map to neighbor mapping|sonic(config-router-bgp-neighbor-af)#route-map \<name\> {in \| out} |
 | Use addpath to advertise all paths to a neighbor |sonic(config-router-bgp-neighbor-af)# addpath-tx-all-paths |

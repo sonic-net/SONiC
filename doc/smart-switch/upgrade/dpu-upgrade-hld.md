@@ -12,7 +12,7 @@
 
 This document describes the high-level design of the sequence to independently upgrade a SmartSwitch DPU with minimal impact to other DPUs and the NPU, through GNOI API.
 
-#### 2.1 Depenedencies
+#### 2.1 Dependencies
 The individual DPU upgrade process depends on the following components:
 * Healthy DPU and NPU SONiC Host Services: The system service running on DPU that interact with the OS to execute the upgrade process.
 * Healthy DPU and NPU SONiC GNMI: The GNOI service running on the DPU, which is responsible for handling GNOI requests for upgrades.

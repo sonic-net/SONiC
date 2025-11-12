@@ -137,7 +137,7 @@ The new naming converntion like [SONiC port naming] (https://github.com/yxieca/S
 
 Also there was considerations of grouping port together for different purposes and also support or mix with FibreChannel ports with different naming convention, this will NOT be part of this design.
 
-For the naming changes, since the port naming will be in `platform.json` etc common files (check below section) and the parser function is common, the design will allow you to easiy improve this later.
+For the naming changes, since the port naming will be in `platform.json` etc common files (check below section) and the parser function is common, the design will allow you to easily improve this later.
 
 ## Platform capability design
 A capability file for a platform with port breakout capabilities is provided. It defines the initial configurations like lanes, speed, alias etc. This file will be used for CLI later to pick the parent port and breakout mode. It can be used for speed checks based on the current mode. It (in conjunction with `hwsku.json` talked later) will also replace the functionality of the current existing port_config.ini.
@@ -247,7 +247,7 @@ After dynamic port breakout support, we won’t need different HWSKUs for the sa
 
 The `default_brkout_mode` mode should be one of the modes in `brkout_mode` from the same port in `platform.json`.
 
-The file will work in conjuction with the `platform.json` at platform level, and it will be used for port breakout during the initialization phase.
+The file will work in conjunction with the `platform.json` at platform level, and it will be used for port breakout during the initialization phase.
 
 Above `platform.json` and `hwsku.json` files will deprecate the old port_config.ini file in the current SONiC design.
 
@@ -444,7 +444,7 @@ High level configuration flow is as below:
 
 Interfaces in the figure:
 1. CLI will utilize `platform.json` and configDB to find out what ports to be deleted and then generate the individual port configurations into configDB. When port-breakout was changed successfully, CLI will update the configDB for `BREAKOUT_CFG` table.
-2. CLI will call the config management library to load configDB data into Yang instance data after generic translation, then during the port delete, it will find all the dependencies and optionally remove them automatically. It then translates the Yang instance data to configDB data. This interface is also used for config validate like syntax checks and dependency checks, whenever we are pushing data to configDB, e,g, during the port adding process. Note: CLI is also leaveraged to verfiy the port deletion completeness before adding the new ports.
+2. CLI will call the config management library to load configDB data into Yang instance data after generic translation, then during the port delete, it will find all the dependencies and optionally remove them automatically. It then translates the Yang instance data to configDB data. This interface is also used for config validate like syntax checks and dependency checks, whenever we are pushing data to configDB, e,g, during the port adding process. Note: CLI is also leaveraged to verify the port deletion completeness before adding the new ports.
 3. CLI will use existing RedisDB APIs or utilities to read/write data to configDB.
 4. This is the RedisDB interface.
 
@@ -1187,7 +1187,7 @@ remove_next_hop
 remove_neighbor_entry
 ```
 
-All thee attribute that coud be changed in orchagent should be able to be brought back to default state. e,g, set the attribute to null.
+All thee attribute that could be changed in orchagent should be able to be brought back to default state. e,g, set the attribute to null.
 
 # Warm reboot support
 Syncd changes are required as mentioned above. The PR need to be merged and tested.
@@ -1202,7 +1202,7 @@ As part of enabling CMIS FSM with port breakout, found out that port breakout fe
 A NxS breakout cable inserted implies following
 - A physical port is broken down into N subports (logical ports)
   - subports are numbered as 8/N i.e.
-  - For 4x100G breakout optical module inserted in physcial Ethernet port 1 (etp1), implies: Ethernet8, Ethernet10, Ethernet12, Ethernet14
+  - For 4x100G breakout optical module inserted in physical Ethernet port 1 (etp1), implies: Ethernet8, Ethernet10, Ethernet12, Ethernet14
   - Note: This is done in this manner to keep such assignments uniform across various breakout modes viz.1x, 2x, 4x, 8x
 - Speed of each subport is S Gpbs
 - Unique subport# is assigned to each of the N sub-port starting with subport# 1 (and sequentially incrementing with each sub-port)
@@ -1215,8 +1215,8 @@ A NxS breakout cable inserted implies following
 
 
 - Configure a unique subport# for each broken-down (logical) port in platform's port_config.ini
-   - subport# to start with 1 (and increment sequentailly for each logical port) under the same physcial port
-   - subport# sequence may repeat for logical ports under another physcial port 
+   - subport# to start with 1 (and increment sequentailly for each logical port) under the same physical port
+   - subport# sequence may repeat for logical ports under another physical port 
    - subport# as 0 (on a port) implies physical port itself (i.e. no port breakout on it)
 - These subport#s are then parsed and updated in PORT_TABLE of CONFIG redisDB
   - There would be a unique PORT_TABLE for each logical port
@@ -1239,12 +1239,12 @@ A NxS breakout cable inserted implies following
     - subport 1: Lanes 1,2,3,4
     - subport 2: Lanes 5,6,7,8
     
-- Next, xcvrd to initiate CMIS FSM (state machine) initilization for each logical port. 
+- Next, xcvrd to initiate CMIS FSM (state machine) initialization for each logical port. 
   Prior to this, xcvrd to perform following steps:
   - xcvrd to determine Active Lanes (per subport) from the App Advertisement Table of CMIS Spec.
     - xcvrd to read 'speed', 'subport' and lanes information (of a logical/sub-port) from the PORT_TABLE of CONFIG DB to perform look-up in appl_dict
     - xcvrd to check Table 6.1 (of CMIS v5.2) to find the desired application (for the inserted optical module) via get_cmis_application_desired() subroutine
-        - get_application_advertisement() in xcvrd codebase (cmis.py), which eventually formualtes appl_dict
+        - get_application_advertisement() in xcvrd codebase (cmis.py), which eventually formulates appl_dict
         - Use the following criteria to determine the right 'key' in appl_dict dictionary for App\<X\>
           - Use 'speed' and compare it to transeiver's EEPROM HostInterfaceID for App\<X\> (First Byte of Table 6.1)
           - Use '# of lanes' (i.e. host_lane_count per subport) as determined above and compare it to HostLaneCount for App\<X\> (Third Byte of Table 6.1)

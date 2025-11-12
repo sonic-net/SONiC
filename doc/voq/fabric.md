@@ -151,7 +151,7 @@ NOTE: Longer term, we would like to use the FEATURE table to control which conta
 
 ## 2.4 Fabric Card Hotswap
 
-PMON will be responsible for detecting card presence and hotswap events using the get_change_event API. A new systemd service will be responsbile for turning on/off the service files for the syncd, database and swss containers that manage each fabric ASIC. When the fabric card is removed, the containers that manage the fabric ASICs that are part of that fabric card will be stopped. These will be re-started when the fabric card is inserted later.
+PMON will be responsible for detecting card presence and hotswap events using the get_change_event API. A new systemd service will be responsible for turning on/off the service files for the syncd, database and swss containers that manage each fabric ASIC. When the fabric card is removed, the containers that manage the fabric ASICs that are part of that fabric card will be stopped. These will be re-started when the fabric card is inserted later.
 
 ## 2.5 Orchagent
 
@@ -581,7 +581,7 @@ Fabric port testing will rely on sonic-mgmt tests that can run on chassis hardwa
 - Test fabric port monitoring:
   * Use the CLI to isolate/unisolate fabric ports, and verify whether the corresponding STATE_DB entries are updated.
   * Create simulated errors (e.g., CRC errors) on a fabric port, and confirm that the algorithm takes appropriate action and updates the corresponding STATE_DB entries.
-  * Test fabric capcity monitoring: This test involves isolating/unisolating fabric ports on the system and checking that the 'show fabric capacity' command updates its output correctly to reflect the changes.
+  * Test fabric capacity monitoring: This test involves isolating/unisolating fabric ports on the system and checking that the 'show fabric capacity' command updates its output correctly to reflect the changes.
 
 # 7 Open/Action items - if any
 

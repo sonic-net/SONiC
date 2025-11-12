@@ -413,7 +413,7 @@ There are no warm boot changes required for this feature. When warm restart is i
 18. Verify that the BGP peer running over the auto-configured link-local address can receive and install IPv4 routes with IPv6 link-local nexthop.
 
 ## 9.4 Scaling Test Cases
-1. Verify that L3 RIF is created on all the VLAN interfaces when maximum supported VLANs are created and when the global IPv6 commmand is executed.
+1. Verify that L3 RIF is created on all the VLAN interfaces when maximum supported VLANs are created and when the global IPv6 command is executed.
 
 ## 9.5 Warm Boot Test Cases
 1. Verify that there is minimal traffic loss (less than 1sec) to routes with next hop as IPv6 link-local address.

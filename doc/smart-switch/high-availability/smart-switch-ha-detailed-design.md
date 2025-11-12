@@ -446,7 +446,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 
 To show the current state of HA, the states will be aggregated by `hamgrd` and store in the HA scope table as below.
 
-> Because this state table is relatively large, the fields are splited into a few sections below.
+> Because this state table is relatively large, the fields are split into a few sections below.
 
 ###### 2.2.1.1.1. Table key
 
@@ -711,7 +711,7 @@ Once the packet lands on an ENI, we should have the following counters to monito
 
 #### 3.3.3. ENI-level pipeline drop counters (Per-ENI)
 
-When the packet is landed on the ENI going throught each match stages, it might be dropped due to no entries can be matched, such as routing or CA-PA mapping. In order to show these drops, we should have the following counters:
+When the packet is landed on the ENI going through each match stages, it might be dropped due to no entries can be matched, such as routing or CA-PA mapping. In order to show these drops, we should have the following counters:
 
 | Name | Description |
 | -------------- | ----------- |
@@ -781,7 +781,7 @@ To monitor how it works, we should have the following counters on HA set level:
 | Name | Description |
 | --- | --- |
 | SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_ATTEMPTED | Number of connect calls for establishing the data channel. |
-| SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_RECEIVED | Number of connect calls received to estabilish the data channel. |
+| SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_RECEIVED | Number of connect calls received to establish the data channel. |
 | SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_SUCCEEDED | Number of connect calls that succeeded. |
 | SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_FAILED | Number of connect calls that failed because of any reason other than timeout / unreachable. |
 | SAI_HA_SET_STAT_CP_DATA_CHANNEL_CONNECT_REJECTED | Number of connect calls that rejected due to certs and etc. |

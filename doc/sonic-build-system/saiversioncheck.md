@@ -1,8 +1,8 @@
 # SAI API version check
 
-## Motiviation
+## Motivation
 
-SONiC is not desing to work in backward compatibility with older vendor SAI implementations.
+SONiC is not design to work in backward compatibility with older vendor SAI implementations.
 SAI headers that SONiC's synd daemon is compiled against are taken from OCP SAI repository while
 the actual libsai.so is taken from sonic-buildimage vendor's directory. This leads to a situation
 that sometimes SAI in sonic-sairedis repository is updated but vendor SAI in sonic-buildimage is not.
@@ -79,6 +79,6 @@ Using that new API we can implement a configure-time check in sonic-sairedis wit
 </p>
 
 The check will compare the vendor SAI API version (on the left on the Figure 1) with sairedis SAI API version (on the right on the Figure 2.) and fail if they do not match.
-In case, SAI versioning follows sematical versioning rules, the test program can implement a check for only MAJOR and MINOR version, relaxing the constraint on the PATCH version.
+In case, SAI versioning follows semantical versioning rules, the test program can implement a check for only MAJOR and MINOR version, relaxing the constraint on the PATCH version.
 
 ## Questions

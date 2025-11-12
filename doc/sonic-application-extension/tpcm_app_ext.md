@@ -71,7 +71,7 @@ SONiC is an open and extensible operating system. SONiC can be extended with Thi
 
 - Dynamically install TPCs from various sources without pre-packaging them in SONIC. 
 - Ensure TPC has right system resources and privileges
-- Abilitiy to configure startup command arguments to TPC
+- Ability to configure startup command arguments to TPC
 - Configure resource limits to TPCs, to ensure it does not starve core SONiC containers
 - Ability to seamlessly integrate into SONiC Services Architecture enabling start/ auto restart/ establish dependencies
 
@@ -96,7 +96,7 @@ There is no change to the SONiC architecture.
 
 ### High-Level Design 
 
-SONiC Application Extension Infrastructure provides the framework to integrate SONiC compatible dockers. However there are many open source third party applications which can be installed on SONiC system, to extend the capabilities, and these typically are standalone or have less interaction with the SONiC system itself. So it is not necesary to for these docker applications to be SONiC compliant, and provide their corresponding manifest.json. These TPCs can be installed dynamically on a SONiC device and can be managed.
+SONiC Application Extension Infrastructure provides the framework to integrate SONiC compatible dockers. However there are many open source third party applications which can be installed on SONiC system, to extend the capabilities, and these typically are standalone or have less interaction with the SONiC system itself. So it is not necessary to for these docker applications to be SONiC compliant, and provide their corresponding manifest.json. These TPCs can be installed dynamically on a SONiC device and can be managed.
 
 - This feature enables the installation and management of third-party Docker packages without manifest files through the Sonic Package Manager. 
 - This feature enables users to create a local custom manifest file (from default manifest template file) on-the-fly which can be updated or deleted as needed. 
@@ -231,7 +231,7 @@ Not applicable
 <!-- omit in toc -->
 #### CLI Enhancements
 
-The SONiC Package Manager is another executable utility available in base SONiC OS called *sonic-package-manager* or abbreviated to *spm*. This would be extended to support these new TPCM capabilities. The command line interfaces are given bellow:
+The SONiC Package Manager is another executable utility available in base SONiC OS called *sonic-package-manager* or abbreviated to *spm*. This would be extended to support these new TPCM capabilities. The command line interfaces are given below:
 
 <!-- omit in toc -->
 #### CLI
@@ -385,8 +385,8 @@ TPC with resource limits will be provided in the followup.
 
 ### Future Enhancements Proposal
 
-- Local custom Manfiest file could be used(created/updated) for SONiC packages as well.
-- TPC could be configured to start right after system becomes ready so that SONiC packages bootup wont be delayed.
+- Local custom Manifest file could be used(created/updated) for SONiC packages as well.
+- TPC could be configured to start right after system becomes ready so that SONiC packages bootup won't be delayed.
 - Data preservation in TPCM migration
 - TPC and SONiC containers to have resource limits in place in config db.
 

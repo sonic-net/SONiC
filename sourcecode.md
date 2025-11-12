@@ -71,7 +71,7 @@
 	   - a SAI library that puts SAI objects into the ASIC_DB and
 	   - a syncd process that takes the SAI objects and puts them into the ASIC.
 	- It also contains the sub-folders "saiplayer" (that records all the actions from orchagent that result in making the SAI API calls to ASIC), "saidump" (tool to dump the ASIC contents)
-	- Note that the SAI library for the specific platform is not part of this repo. The SAI library is built using the sonic-buildimage/platform/<platformname>/*sai.mk (slave.mk includes the platform/<platformname>/rules.mk that in turn includes the *sai.mk that installs the required SAI debians).
+	- Note that the SAI library for the specific platform is not part of this repo. The SAI library is built using the sonic-buildimage/platform/<platformname>/*sai.mk (slave.mk includes the platform/<platformname>/rules.mk that in turn includes the *sai.mk that installs the required SAI debian's).
 	   
 
 ### sonic-dbsyncd  

@@ -74,7 +74,7 @@ The recommended design approach would translate the new defined tables into thre
 
 ### Requirements
 
-1. Support DSCP change of the outer header for an encapsulated IPv4/IPv6 packets. The orignal packet may be IPv4/IPv6 as well, and the DSCP change for both should be supported.
+1. Support DSCP change of the outer header for an encapsulated IPv4/IPv6 packets. The original packet may be IPv4/IPv6 as well, and the DSCP change for both should be supported.
 2. Match Criteria supported should be the same as standard L3 IPv4/IPv6 match criteria.
 3. Platform capabilities should be utilized to determine if these tables can be created and the supported range of metadata values.
 4. The solution should be extendable in a way that more action types can be added later.
@@ -164,7 +164,7 @@ This approach is similar to Option A with the exception that instead of creating
      * |    Match Type          |   Actions    |    Bind    |
      * |                        |              |   points   |
      * |----------------------------------------------------|
-     * | No additionnal Match | SET_METADATA*|              |
+     * | No additional Match | SET_METADATA*|              |
      * |----------------------------------------------------|
      
      * L3V6 Table augmentation
@@ -173,7 +173,7 @@ This approach is similar to Option A with the exception that instead of creating
      * |    Match Type          |   Actions    |    Bind    |
      * |                        |              |   points   |
      * |----------------------------------------------------|
-     * | No additionnal Match | SET_METADATA*|              |
+     * | No additional Match | SET_METADATA*|              |
      * |----------------------------------------------------|
 
      * EGR_SET_DSCP
@@ -286,8 +286,8 @@ In addition, by keeping track of DSCP and metadata values, the entries in the EG
 ##### Metadata Management
 
 Since not all platforms support metadata matching and action, the implementation would use SAI capability check to see if metadata action and match attributes are supported. In addition, the range of the metadata field would be checked by 'SAI_SWITCH_ATTR_ACL_USER_META_DATA_RANGE'.
-The orcahagent would check if a DSCP action value has an assigned metadata value, thereby reusing the same value and EGR_SET_DSCP entry. If a DSCP value has no associated metadata value, a new one would be allcoated along with EGR_SET_DSCP entry.
-Since these metadata values would be reused accross differnt ACLs and for both V4 and V6 type entries, Each metadata, DSCP combition would be reference counted.
+The orcahagent would check if a DSCP action value has an assigned metadata value, thereby reusing the same value and EGR_SET_DSCP entry. If a DSCP value has no associated metadata value, a new one would be allocated along with EGR_SET_DSCP entry.
+Since these metadata values would be reused across different ACLs and for both V4 and V6 type entries, Each metadata, DSCP combition would be reference counted.
 During the processing of an ACL, if metadata allocation fails for an entry, the orchagent would return failure for that and subsequent entries and the user would have to remove the complete ACL.
  
 
@@ -296,7 +296,7 @@ During the processing of an ACL, if metadata allocation fails for an entry, the 
 The EGR_SET_DSCP table would be created and managed by the orchagent internally. Only a single instance of this table would be created upon creation of UNDERLAY_SET_DSCP/V6 table and subsequent tables of type UNDERLAY_SET_DSCP/V6 would reuse this instance. By employing ref-counting this table would be retained until the last user of this table is removed. Entries in this table would also be ref-counted as mnetioned in above section.
 The interface association of this table can be implemented in two ways. 
 
-  1) EGR_SET_DSCP association with all dataplane interfaces. This approach is resource intensive and would require changes in portsOrch to accomodate exposing all ports to the AclOrch. However this allows us to decouple the ingress stage table port association from EGR_SET_DSCP.
+  1) EGR_SET_DSCP association with all dataplane interfaces. This approach is resource intensive and would require changes in portsOrch to accommodate exposing all ports to the AclOrch. However this allows us to decouple the ingress stage table port association from EGR_SET_DSCP.
   2) EGR_SET_DSCP be associated with a superset of all interfaces which are associated with tables referencing it. e.g. if UNDERLAY_SET_DSCP is associated with interfaces [a,b,c] and UNDERLAY_SET_DSCPV6 is associated with [c,d,e] then EGR_SET_DSCP would be associated with [a,b,c,d,e]. This gives the user of the feature the choice to limit port association when needed. Based on common use case pattern, the tables would almost always be associated with all data-plane interfaces. 
 
 
@@ -474,7 +474,7 @@ There is no impact on warmboot or fastboot.
 - Verify ACL Capability in STATE_DB on non-supported platforms.
     - The new field `supported_UnderlaySetDSCPV6` must be false.
 - Verify ACL tables creation and deletion
-    - The UNDERLAY_SET_DSCP and UNDERLAY_SET_DSCPV6 tables can be created and deleted togther and separately.
+    - The UNDERLAY_SET_DSCP and UNDERLAY_SET_DSCPV6 tables can be created and deleted together and separately.
 - Verify that both UNDERLAY_SET_DSCP/V6 can be bound to same ports as well as separate ports.
     - The EGR_SET_DSCP table is only created once and is bound to the superset of the ports for both UNDERLAY_SET_DSCP/V6 and removed when all referencing tables are removed.
 - Verify that for multiple tables, different order of creation and removal should not have adverse affect.
@@ -483,9 +483,9 @@ There is no impact on warmboot or fastboot.
     - If multiple rules share the same SET_DSCP action value only one entry should be created. Also EGR_SET_DSP rule should be created with first entry and removed when last rule is removed.
 - Verify a single EGR_SET_DSP entry is created per a unique DSCP action value accorss different tables.
     - If multiple rules share the same SET_DSCP action value only one entry should be created. Also EGR_SET_DSP rule should be created with first entry and removed when last rule is removed.
-- Verfiy metadata allocation and deallocation
+- Verify metadata allocation and deallocation
     - freed metadata values should be available for next allocation.
-- Verfiy metadata allcoation failure.
+- Verify metadata allocation failure.
     - when metadata is exhausted, this should result in failure.
 
 
@@ -495,13 +495,13 @@ There is no impact on warmboot or fastboot.
   * UNDERLAY_SET_DSCP/V6 creation failure test.
     - Create multiple tables so that tcam is full and ensure that UNDERLAY_SET_DSCP/V6 creation fails gracefully.
   * UNDERLAY_SET_DSCP/V6 traffic tests with tunneled packets.
-    - Verify outer DSCP value change after packets are encapsualted.
+    - Verify outer DSCP value change after packets are encapsulated.
   * UNDERLAY_SET_DSCP/V6 traffic tests with non-tunneled packets.
     - Verify DSCP value change even when packets are not encapsulated.
   * Metadata exhaustion with traffic test.
-    - Verfiy metadata exhaustion results in graceful acl failure.
+    - Verify metadata exhaustion results in graceful acl failure.
   * UNDERLAY_SET_DSCP/V6 multi-creation test with traffic.
-    - Verfiy metadata value leak doesnt happen by creating and removing UNDERLAY_SET_DSCP/V6 entries multiple times in differnet order. Ensure proper function in each iteration with traffic.
+    - Verify metadata value leak doesnt happen by creating and removing UNDERLAY_SET_DSCP/V6 entries multiple times in different order. Ensure proper function in each iteration with traffic.
 
 ### Addendum
 ### Changes proposed by the Community to be introduced in the next iteration

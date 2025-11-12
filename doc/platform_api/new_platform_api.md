@@ -65,7 +65,7 @@ Challenge: Attempt to create a standardized, unified API to interface with all c
   2. Copy the sonic_platform Python wheel to the appropriate /usr/share/sonic/device/<PLATFORM>/ directory, which gets mounted in the Docker containers
 - When the Platform Monitor (PMon) container starts, it will check whether a "sonic_platform" package is installed. If not, it will attempt to install a "sonic_platform\*.whl" file in the mounted directory as mentioned above.
 - In the host system, applications will interact with the platform API for things like watchdog and reboot cause
-- Daemons running in pmon container will be responsible for updating Redis State database with current metrics/status from platfrom hardware
+- Daemons running in pmon container will be responsible for updating Redis State database with current metrics/status from platform hardware
 - Command-line utilities in host image will query State DB to retrieve current platform peripheral metrics
 - For more real-time data, such as transceiver optical data, a mechanism can be implemented CLI can notify daemons to retrieve data by writing to DB
 

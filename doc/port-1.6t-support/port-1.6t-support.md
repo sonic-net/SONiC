@@ -7,7 +7,7 @@
     - [2. Scope](#2-scope)
     - [3. Definitions/Abbreviations](#3-definitionsabbreviations)
     - [4. Overview](#4-overview)
-    - [5. High-Level Enchancements](#5-high-level-enchancements)
+    - [5. High-Level Enhancements](#5-high-level-enhancements)
       - [5.1. SFF-8024 Additions](#51-sff-8024-additions)
         - [5.1.1. Host Electrical Interface](#511-host-electrical-interface)
         - [5.1.2. MMF Media Interface](#512-mmf-media-interface)

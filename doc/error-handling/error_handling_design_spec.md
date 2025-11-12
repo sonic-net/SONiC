@@ -120,7 +120,7 @@ Following diagram describes a high level overview of the BGP use case:
 
 ## 3.1 Error Database
 
-As SONIC architecture relies on the use of centralized Redis-database as means of multi-process communication among all subsystems, the framework re-uses the same mechanism to notify errors back to applications.
+As SONIC architecture relies on the use of centralized Redis-database as means of multi-process communication among all subsystems, the framework reuses the same mechanism to notify errors back to applications.
 
 A new database, ERROR_DB, is introduced to store the details of failed entries/objects corresponding to various tables. The ERROR_DB tables are defined in application friendly format. Applications can register as consumer of ERROR_DB table to receive error notifications, whereas OrchAgent is registered as producer of ERROR_DB table. If the SAI CREATE/SET method fails, Syncd informs OrchAgent using the notification channel of ASIC_DB. OrchAgent is responsible to translate the ASIC_DB notification and store it in ERROR_DB format. It is also responsible to map the SAI specific error codes to SWSS error codes.
 
@@ -393,8 +393,8 @@ The unit test plan for error handling framework is documented below:
 |                | 1.3  | Verify multiple applications registering for ROUTE table notifications. Generate failure event and verify all registered applications are notified. |
 |                | 1.4  | Verify multiple applications de-register for ROUTE table notifications. Generate failure event and verify only de-registered application is NO LONGER notified. Other registered applications continue to get notified. |
 |                | 1.5  | Verify that the notification for IPv4/IPv6 ROUTE entry contains all the required parameters as defined by the schema - Prefix/Nexthops/Opcode/Failure code. |
-|                | 1.6  | Verify error is notified incase of IPv4/IPv6 ROUTE add failure due to TABLE full condition. Verify entry exists in ERROR_DB for failed route with Opcode=Add and Error=Table Full. |
-|                | 1.7  | Verify error is notified incase of IPv4/IPv6 ROUTE add failure due to ENTRY_EXISTS condition. Verify entry exists in ERROR_DB for failed route with Opcode=Add and Error=Entry Exists. |
+|                | 1.6  | Verify error is notified in case of IPv4/IPv6 ROUTE add failure due to TABLE full condition. Verify entry exists in ERROR_DB for failed route with Opcode=Add and Error=Table Full. |
+|                | 1.7  | Verify error is notified in case of IPv4/IPv6 ROUTE add failure due to ENTRY_EXISTS condition. Verify entry exists in ERROR_DB for failed route with Opcode=Add and Error=Entry Exists. |
 |                | 1.8  | Verify application is notified even in case of IPv4/IPv6 ROUTE is successfully programmed (NO_ERROR). Verify that there is NO entry for the route in ERROR_DB. |
 |                | 1.9  | Verify error is notified in case of IPv4/IPv6 ROUTE deletion failure due to NOT_FOUND. Verify that there is NO entry for the failed route in ERROR_DB. |
 |                | 1.10 | Verify that the failed IPv4/IPv6 ROUTE entry in ERROR_DB is cleared, when application deletes that entry. Verify other failed entries in ERROR_DB are retained. |
@@ -404,8 +404,8 @@ The unit test plan for error handling framework is documented below:
 |                | 2.3  | Verify multiple applications registerting for Neighbor table notifications. Generate failure event and verify all registered applications are notified. |
 |                | 2.4  | Verify multiple applications de-register for Neighbor table notifications. Generate failure event and verify only de-registered application is NO LONGER notified. Other registered applications continue to get notified. |
 |                | 2.5  | Verify that the notification for IPv4/IPv6 Neighbor entry contains all the required parameters as defined by the schema -  Ifname/Prefix/Opcode/Failure code. |
-|                | 2.6  | Verify error is notified incase of IPv4/IPv6 NEIGHBOR add failure due to TABLE full condition. Verify entry exists in ERROR_DB for failed neighbor with Opcode=Add and Error=Table Full. |
-|                | 2.7  | Verify error is notified incase of IPv4/IPv6 NEIGHBOR add failure due to ENTRY_EXISTS condition. Verify entry exists in ERROR_DB for failed neighbor with Opcode=Add and Error=Entry Exists. |
+|                | 2.6  | Verify error is notified in case of IPv4/IPv6 NEIGHBOR add failure due to TABLE full condition. Verify entry exists in ERROR_DB for failed neighbor with Opcode=Add and Error=Table Full. |
+|                | 2.7  | Verify error is notified in case of IPv4/IPv6 NEIGHBOR add failure due to ENTRY_EXISTS condition. Verify entry exists in ERROR_DB for failed neighbor with Opcode=Add and Error=Entry Exists. |
 |                | 2.8  | Verify application is notified even in case of IPv4/IPv6 NEIGHBOR is successfully programmed (NO_ERROR). Verify that there is NO entry for the neighbor in ERROR_DB in this case. |
 |                | 2.9  | Verify error is notified in case of IPv4/IPv6 NEIGHBOR deletion failure due to NOT_FOUND. Verify that there is NO entry in ERROR_DB in this case. |
 |                | 2.10 | Verify that the failed IPv4/IPv6 NEIGHBOR entry in ERROR_DB is cleared, when application deletes that entry. Verify other failed entries in ERROR_DB are retained. |
@@ -426,4 +426,4 @@ The unit test plan for error handling framework is documented below:
 
   If Tid is included in the application request, framework includes the same in the notification. Otherwise, the notification is still sent, but without Tid. This enables migration of applications to start using Tid on a need basis.
 
-- Extend error handling to other tables in the sytem (VLAN/LAG/Mirror/FDB etc).
+- Extend error handling to other tables in the system (VLAN/LAG/Mirror/FDB etc).

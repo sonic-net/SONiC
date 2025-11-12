@@ -3,7 +3,7 @@
 | Rev | Date | Author | Change Description |
 | --- | ---- | ------ | ------------------ |
 | 0.1 | 08/09/2023 | Riff Jiang | Initial version |
-| 0.2 | 08/10/2023 | Riff Jiang | Simpified ENI-level traffic control, primary election algorithm |
+| 0.2 | 08/10/2023 | Riff Jiang | Simplified ENI-level traffic control, primary election algorithm |
 | 0.3 | 08/14/2023 | Riff Jiang | Added DPU level standalone support |
 | 0.4 | 08/17/2023 | Riff Jiang | Redesigned HA control plane data channel |
 | 0.5 | 10/14/2023 | Riff Jiang | Merged resource placement and topology section and moved detailed design out for better readability |
@@ -37,7 +37,7 @@
    1. [5.1. Working with upstream service](#51-working-with-upstream-service)
    2. [5.2. HA control plane overview](#52-ha-control-plane-overview)
       1. [5.2.1. HA control plane components](#521-ha-control-plane-components)
-         1. [5.2.1.1. ha containter](#5211-ha-containter)
+         1. [5.2.1.1. ha container](#5211-ha-container)
          2. [5.2.1.2. swbusd](#5212-swbusd)
          3. [5.2.1.3. hamgrd](#5213-hamgrd)
       2. [5.2.2. HA Control Plane Channels](#522-ha-control-plane-channels)
@@ -227,7 +227,7 @@ When designing HA for SmartSwitch, we have a few assumptions:
 
 ## 4. Network Physical Topology
 
-> Today, in [SONiC DASH HLD](../../dash/dash-sonic-hld.md), a DASH pipeline is modeled to be an ENI, although all the discussion below is generically appliable to other scenarios, but we will use ENI to refer the DASH pipeline for simplicity.
+> Today, in [SONiC DASH HLD](../../dash/dash-sonic-hld.md), a DASH pipeline is modeled to be an ENI, although all the discussion below is generically applicable to other scenarios, but we will use ENI to refer the DASH pipeline for simplicity.
 
 ### 4.1. ENI placement
 
@@ -323,7 +323,7 @@ Many customer tenants have restrictions on how many nodes can be impacted when u
 * Update domain defines the groups of virtual machines and underlying physical hardware that can be rebooted at the same time.
 * Fault domain defines the group of virtual machines that share a common power source and network switch.
 
-Since SmartSwitch is a shared network service, one single DPU could host multiple ENIs from the same UD or FD. And with the ENI-level setup, these restrictions could also be supported by simply batching the ENI failover based on the UD and FD information when upgrade or other maintainance work happens.
+Since SmartSwitch is a shared network service, one single DPU could host multiple ENIs from the same UD or FD. And with the ENI-level setup, these restrictions could also be supported by simply batching the ENI failover based on the UD and FD information when upgrade or other maintenance work happens.
 
 #### 4.3.5. DPU to DPU communication for flow HA
 
@@ -413,7 +413,7 @@ Here is the overview of HA control plane, and we will walk through the component
 
 #### 5.2.1. HA control plane components
 
-##### 5.2.1.1. ha containter
+##### 5.2.1.1. ha container
 
 To support HA, we will need to add new programs that communicates between multiple smart switches, manages the HA state machine transition or syncing other data, such as flow info. These programs will be running in a new container called `ha`.
 
@@ -611,7 +611,7 @@ Probing local DPU is straightforward, we can directly set up the BFD session in 
 
 #### 6.1.3. BFD probing remote DPU
 
-We wiil use multi-hop BFD to probe the remote DPU with certain changes in NPU.
+We will use multi-hop BFD to probe the remote DPU with certain changes in NPU.
 
 In order to make it work, we need the DPU IP to be advertised in the network, so that we can directly send BFD packet to it. With this, the data path will be looking like below:
 
@@ -1390,7 +1390,7 @@ To solve problem 2, we have 2 mechanisms:
 
 With these 2 mechanisms, as long as we have 1 switch working, the traffic will be forwarded correctly.
 
-For detailed data path, please see "[Standy to active DPU tunnel](#4351-standby-to-active-dpu-tunnel)" section.
+For detailed data path, please see "[Standby to active DPU tunnel](#4351-standby-to-active-dpu-tunnel)" section.
 
 #### 9.3.2. Switch power down or kernel crash
 
@@ -1513,7 +1513,7 @@ First, we need to check the DPU health signals:
 At this moment, both DPU should be running fine, so we start to check the ENI status and data path status. To ensure we have the latest state, we will send the `DPURequestEnterStandalone` message with aggregated signals and ENI states to the peer DPU. And upon receiving the message, we will run the following checks:
 
 1. If the signals from local DPU have "Card pinned to standalone", we return `Deny` to the peer DPU.
-2. Check "Manual Pinned" for manual opertaions:
+2. Check "Manual Pinned" for manual operations:
    1. If the signals from local DPU have "Manual Pinned", which the peer DPU doesn't have, we return `Deny` to the peer DPU.
    2. If the signals from peer DPU have "Manual Pinned", which the local DPU doesn't have, we return `Allow` to the peer DPU.
    3. If both sides have "Manual Pinned", we return `Deny` and raise alert after retrying certain amount of times.

@@ -109,7 +109,7 @@ This feature require access to SONiC DB. All messages (MOTD, login and logout) s
 ###### Figure 4: Banner show configuration
 
 The default Banner feature state is disabled. It means - the current (default) SONiC OS banner messages won't be changed.
-With disabled feature state - user can use provided CLI to configre banner messages. The changes will be applied to Config DB table.
+With disabled feature state - user can use provided CLI to configure banner messages. The changes will be applied to Config DB table.
 Only with enabled feature state, configured banner messages from Config DB will be applied to Linux.
 
 ## 2.3 CLI
@@ -160,7 +160,7 @@ config banner login <message>
 config banner logout <message>
 ```
 
-**The following command set mesage of the day (MOTD):**
+**The following command set message of the day (MOTD):**
 ```bash
 config banner motd <message>
 ```
@@ -246,7 +246,7 @@ New YANG model `sonic-banner.yang` will be added to provide support for configur
 
                 leaf logout {
                     type string;
-                    description "Banner message dispalyed to the users on logout";
+                    description "Banner message displayed to the users on logout";
                     default "";
                 }
             } /* end of container MESSAGE */

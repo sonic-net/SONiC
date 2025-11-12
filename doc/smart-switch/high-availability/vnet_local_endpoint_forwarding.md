@@ -8,7 +8,7 @@ TODO: add packet flow diagram for the scenarios.
 
 ## Handling directly connected next hops (local DPU)
 
-Covered in [Overlay ECMP ehancements - support for directly conneced nexthops](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Overlay%20ECMP%20ehancements.md#33-bfd-tx-rx-interval-parameter-and-support-for-directly-connected-nexthops).
+Covered in [Overlay ECMP enhancements - support for directly connected nexthops](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Overlay%20ECMP%20ehancements.md#33-bfd-tx-rx-interval-parameter-and-support-for-directly-connected-nexthops).
 
 A new field will be added the `VNET_ROUTE_TUNNEL_TABLE`:
 

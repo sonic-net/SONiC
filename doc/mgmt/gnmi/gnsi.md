@@ -65,7 +65,7 @@ Add the microservice for supporting gNSI APIs. Add related gNMI telemetry paths.
 
 ### Overview
 
-gRPC Network Security Interface is a set of microservices to provides a management layer for security credentials of multiple types. Each service shares a similiar design of `Rotate()` which takes in the new payload, creates a backup of the current state, and rolls back the state if it isn't finalized.
+gRPC Network Security Interface is a set of microservices to provides a management layer for security credentials of multiple types. Each service shares a similar design of `Rotate()` which takes in the new payload, creates a backup of the current state, and rolls back the state if it isn't finalized.
 
 ### Requirements
 
@@ -166,7 +166,7 @@ Pathz is policy based authorization for gNMI access that is tunable for read/wri
 
 #### Credentialz
 
-Credentialz is for managing SSH and Console access. Changes are made through dbus calls to appropiate host service modules. The expected calls and behavior of the host service modules are defined in the next sections.
+Credentialz is for managing SSH and Console access. Changes are made through dbus calls to appropriate host service modules. The expected calls and behavior of the host service modules are defined in the next sections.
 
 - Credentialz.RotateAccountCredentials()
   - Modify users' keys, passwords, and certificates

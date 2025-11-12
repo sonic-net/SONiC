@@ -94,7 +94,7 @@ However, these specs for validation are also defined in the sonic-portchannel YA
 
 For PortChannel and many of the config fields listed above, the field validation is unnecessarily duplicated in sonic-utilities/config and in YANG models. The goal of this project is to utilize preexisting YANG models to validate config CLI field updates, without unnecessarily defining separate, redundant validation specs ad-hoc in sonic-utilities.
 
-Some necessary ad-hoc validations are not yet reflected in YANG models. For those missing validations that YANG infrastructure supports, GitHub issues are created to track the progress to filling in these YANG model gaps. In the uncommon scenario where YANG infrastructure is incapable of suporting a certain check, ad-hoc validation will be left in-place. 
+Some necessary ad-hoc validations are not yet reflected in YANG models. For those missing validations that YANG infrastructure supports, GitHub issues are created to track the progress to filling in these YANG model gaps. In the uncommon scenario where YANG infrastructure is incapable of supporting a certain check, ad-hoc validation will be left in-place. 
 
 During the migration process, we will first leave the ad-hoc validation code in-place, and leave an option to configure type of validation used: ad-hoc or YANG validation. Once YANG validation has stabilized and YANG validation coverage has widened, we will remove the preexisting ad-hoc validation code for non performance-sensitive scenarios. 
 

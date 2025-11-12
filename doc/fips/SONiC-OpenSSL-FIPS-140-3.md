@@ -111,7 +111,7 @@ Files in the packages:
 Kerberos will use the builtin cryptographic module by default, but it allows to change the build option to use OpenSSl, see [MIT Kerberos features](https://web.mit.edu/kerberos/krb5-1.13/doc/mitK5features.html). SONiC will change the build option to use OpenSSL instead of the builtin one. It is not configurable to use the Kerberos builtin cryptographic module when OpenSSL used.
 
 ## Golang Cryptographic Module
-Golang has its own cryptographic module (see [crypto](https://github.com/golang/go/tree/master/src/crypto)) without FIPS supports. There are some branches with branch name starting with "dev.boringcrypto" (see [golang branches](https://github.com/golang/go/branches/all?query=dev.boringcrypto)), changing the Golang cryptographic APIs' referenece to use [BoringSSL](https://github.com/google/boringssl). Although BoringSSL is an open source project, but it used by Google only, not intened for general use.
+Golang has its own cryptographic module (see [crypto](https://github.com/golang/go/tree/master/src/crypto)) without FIPS supports. There are some branches with branch name starting with "dev.boringcrypto" (see [golang branches](https://github.com/golang/go/branches/all?query=dev.boringcrypto)), changing the Golang cryptographic APIs' reference to use [BoringSSL](https://github.com/google/boringssl). Although BoringSSL is an open source project, but it used by Google only, not intened for general use.
 
 To support FIPS for Golang, RedHat offers an alternative solution (see [here](https://developers.redhat.com/blog/2019/06/24/go-and-fips-140-2-on-red-hat-enterprise-linux)), it builds on top of the Golang's dev.bringcrypt branches, has ability to call into OpenSSL, not BoringSSL. SONiC can reuse the RedHat sulotion, one difference is that RedHat supports FIPS for OpenSSL directly, SONiC uses OpenSSL Engine.
 
@@ -123,7 +123,7 @@ When FIPS enabled, both of the BoringSSL Enable Option and the SymCrypt Enabled 
 
 ## Application Impact
 Some of functions of a application might be broken when using the cryptographic algorithms that are not FIPS compliant. It is relied on the tests of the applications to detect all the impact functions.
-For OpenSSH, Centos provides a [patch](https://git.centos.org/rpms/openssh/raw/c8/f/SOURCES/openssh-7.7p1-fips.patch) which is compiant with FIPS 140-2. We can apply the patch and verify if it can pass all the OpenSSH test cases when FIPS enabled.
+For OpenSSH, Centos provides a [patch](https://git.centos.org/rpms/openssh/raw/c8/f/SOURCES/openssh-7.7p1-fips.patch) which is compliant with FIPS 140-2. We can apply the patch and verify if it can pass all the OpenSSH test cases when FIPS enabled.
 
 ## SONiC FIPS Configuration
 
@@ -135,7 +135,7 @@ grep 'sonic_fips=1' /proc/cmdline
 
 There is another parameter fips=1 supported for SymCrypt OpenSSL to enable FIPS. The parameter will enable the Linux Kernel FIPS, but the Linux Kernel FIPS is not supported yet, and it is out of scope in this document. In future, when the FIPS is supported by SONiC Linux Kernel, and the parameter fips=1 has already set, it is not necessary to set sonic_fips=1.
 
-For grub, one of implemetation as below:
+For grub, one of implementation as below:
 cat /etc/grub.d/99-fips.cfg
 ```
 GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT sonic_fips=1"
@@ -174,7 +174,7 @@ Support to enable/disable the FIPS feature, the feature is enabled by default in
 ```
 INCLUDE_FIPS ?= y
 ```
-Support to enable/disable FIPS config, the flage is disabled by default. IF the option is set, then the fips is enabled by default in the image, not necesary to do the config in system level or application level.
+Support to enable/disable FIPS config, the flags is disabled by default. IF the option is set, then the fips is enabled by default in the image, not necessary to do the config in system level or application level.
 ```
 ENABLE_FIPS ?= n
 ```

@@ -308,7 +308,7 @@ New Netlink message next-hop accessors were added to retrieve attributes in a ne
 ##### IntfMgr
 IntfMgr is an existing daemon in SWSS container that monitors operations in CONFIG_DB on INTERFACE, PORTCHANNEL_INTERFACE, and VLAN_INTERFACE tables.
 
-For MPLS, IntfMgr is modified to additionally process the "mpls" enable/disble attribute from the CONFIG_DB and propagate this attribute to APPL_DB.
+For MPLS, IntfMgr is modified to additionally process the "mpls" enable/disable attribute from the CONFIG_DB and propagate this attribute to APPL_DB.
 ###### Functions
 The following are functions for IntfMgr:
 ```
@@ -616,7 +616,7 @@ A new SONiC CLI command is introduced to configure interfaces for MPLS.
     config interface mpls add|remove <intf-name>
 
 ##### Show CLI Commands
-A new SONiC CLI command is introduced to display the current MPLS configuraiton for interfaces.
+A new SONiC CLI command is introduced to display the current MPLS configuration for interfaces.
 
     # Show MPLS state per INTERFACE/PORT_CHANNEL_INTERFACE/VLAN_INTERFACE
     show interface mpls [<intf-name>]

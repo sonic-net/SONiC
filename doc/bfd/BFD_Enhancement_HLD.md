@@ -87,19 +87,19 @@ When BFD timer configuration is changed the packet stored in memory will be flus
 When a Rx packet is received with poll bit set, BFD will flush the stored Tx packet and a fresh packet will be sent until the negotiation is complete.
 
 ### 3.1.3 LAG support:
-When deploying BFD over LAG interface it is expected that BFD session do not flap when a LAG member port flaps. BFD packets are send over a member port in the LAG based on the hashing in the kernel. When the port on which BFD packets are being sent goes down, BFD packets should seamlessly switchover to next available member port in LAG decided by hasing in the kernel.
+When deploying BFD over LAG interface it is expected that BFD session do not flap when a LAG member port flaps. BFD packets are send over a member port in the LAG based on the hashing in the kernel. When the port on which BFD packets are being sent goes down, BFD packets should seamlessly switchover to next available member port in LAG decided by hashing in the kernel.
 One BFD session will be created per LAG irrespective of number of member port in the LAG. RFC 7130 does specifies creation of BFD session for each member port of LAG, but this will not be implemented.                                                                                                                                      
 
 Supporting LAG is challenging in BFD due to time it may take for member port down event to reach control plane, in SONiC when a port is DOWN, the down event has to traverse up to ORCH agent and then back to the kernel, this may take considerable time.                                                                           
 
-In current SONiC implementation BFD relies on kernel network stack to switch the BFD packet to next available active port when a member port goes DOWN in LAG. BFD timers in this case is directly proportional to the time it takes for kernel to get the port down event. Faster the kernel learns port down the more aggressive BFD timers can be. In this case it is suggested to configure BFD timer values to have a timeout value of atleast 600 msec.                                                                                                                                                   
+In current SONiC implementation BFD relies on kernel network stack to switch the BFD packet to next available active port when a member port goes DOWN in LAG. BFD timers in this case is directly proportional to the time it takes for kernel to get the port down event. Faster the kernel learns port down the more aggressive BFD timers can be. In this case it is suggested to configure BFD timer values to have a timeout value of at least 600 msec.                                                                                                                                                   
 
 ### 3.1.4       ECMP Support:
 For BFD multihop session there could be multiple nexthop to reach the destination, it is expected that BFD session do not flap when an active nexthop goes down, BFD session should seamlessly switchover to next available nexthop without bringing down the BFD session.                                                            
 
 Supporting ECMP is challenging in BFD due to time it may take for control plane to know that the active nexthop went down. In SONiC this information has to traverse all the way down to kernel after traversing all the DBs this may take considerable time.                                                                         
 
-In current SONiC implementation BFD relies on kernel network stack to switch the BFD packet to next available nexthop when a active nexthop goes down. BFD timers in this case is directly proportional to the time it takes for kernel to get the nexthop down event. Faster the kernel learns active nexthop is down the more aggressive BFD timers can be. In this case it is suggested to configure BFD timer values to have a timeout of atleast 600 msec.                                                                                                                                            
+In current SONiC implementation BFD relies on kernel network stack to switch the BFD packet to next available nexthop when a active nexthop goes down. BFD timers in this case is directly proportional to the time it takes for kernel to get the nexthop down event. Faster the kernel learns active nexthop is down the more aggressive BFD timers can be. In this case it is suggested to configure BFD timer values to have a timeout of at least 600 msec.                                                                                                                                            
 
 ## 3.2 CLI
 ### 3.2.1 Data Models
@@ -355,7 +355,7 @@ Unit test cases for this specification are as listed below:
 47| |Verify BFD session timeout on all ECMP path DOWN.
 48| |Verify BFD session timeout when a intermediate path is DOWN.
   ||BFD CLI|
-49| |Verify CLI to cofigure BFD for BGP
+49| |Verify CLI to configure BFD for BGP
 50| |Verify CLI to configure transmit interval
 51| |Verify CLI to configure receive interval
 52| |Verify CLI to configure detection multiplier
@@ -404,7 +404,7 @@ Unit test cases for this specification are as listed below:
 95| |Verify CLI to display IPv4 multihop Peer.
 96| |Verify CLI to display IPv6 multihop Peer.
 97| |Verify config save and reload of BFD configuration.
-98| |Verify unsaved config loss after relaod.
+98| |Verify unsaved config loss after reload.
   ||BFD static peer|
 99| |Verify BFD static IPv4 single hop peer establishment.
 100| |Verify BFD static IPv4 multi hop peer stablishment.

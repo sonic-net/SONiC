@@ -8,7 +8,7 @@
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | Oct 23, 2023 | Stephen Sun | Initial version |
 | 0.2 | Nov 17, 2023 | Stephen Sun | Fix internal review comments |
-| 0.3 | Dec 11, 2023 | Stephen Sun | Adjust for multi ASIC platform according to the common pratice in the community |
+| 0.3 | Dec 11, 2023 | Stephen Sun | Adjust for multi ASIC platform according to the common practice in the community |
 | 0.4 | Jan 05, 2023 | Stephen Sun | Address community review comments |
 | 0.5 | Jan 11, 2023 | Stephen Sun | Minor adjustments in CLI |
 
@@ -38,7 +38,7 @@ Orchagent can abort itself if a SAI API call fails, usually due to a bad argumen
 
 The current implementation has the following limitations:
 
-- It is difficult for a customer to understand what occured on SAI and below or distinguish an SDK/FW internal error from a SAI API call. Even a customer can analyze the issue using the log message, it is not intuitive.
+- It is difficult for a customer to understand what occurred on SAI and below or distinguish an SDK/FW internal error from a SAI API call. Even a customer can analyze the issue using the log message, it is not intuitive.
 - It is unable to notify an ASIC/FW/SDK event if the event is less serious to ask for shutdown.
 - It is unable for telementry agent to collect such information.
 
@@ -89,7 +89,7 @@ The `timestamp` is converted to format "%Y-%m-%d %H:%M:%S" which is a walltime b
 
 The `severity` is mapped between each other according to the next table:
 
-| represention in SONiC | Enumerate in SAI headers | SAI attribute to register corresponding eventa |
+| representation in SONiC | Enumerate in SAI headers | SAI attribute to register corresponding eventa |
 |:---:|:---:|:---:|
 | fatal | SAI_SWITCH_ASIC_SDK_HEALTH_SEVERITY_FATAL | SAI_SWITCH_ATTR_REG_FATAL_SWITCH_ASIC_SDK_HEALTH_CATEGORY |
 | warning | SAI_SWITCH_ASIC_SDK_HEALTH_SEVERITY_WARNING | SAI_SWITCH_ATTR_REG_WARNING_SWITCH_ASIC_SDK_HEALTH_CATEGORY |
@@ -97,7 +97,7 @@ The `severity` is mapped between each other according to the next table:
 
 The `category` is mapped between each other according to the next table:
 
-| represention in SONiC | Enumerate in SAI headers |
+| representation in SONiC | Enumerate in SAI headers |
 |:---:|:---:|
 | software | SAI_SWITCH_ASIC_SDK_HEALTH_CATEGORY_SW |
 | firmware | SAI_SWITCH_ASIC_SDK_HEALTH_CATEGORY_FW |
@@ -325,7 +325,7 @@ Eg 1. the following command will suppress `notice` events with category `asic_hw
 
 After that, the ASIC/SDK health events whose `category` is one of `asic_hw` and `cpu_hw` and `severity` is `notice` will not be reported.
 
-Eg 2. the following command will configure maxinum number of events of `notice` to '10240`:
+Eg 2. the following command will configure maximum number of events of `notice` to '10240`:
 
 `config asic-sdk-health-event suppress notice --max-events 10240`
 
@@ -635,8 +635,8 @@ The flow to handle suppress ASIC/SDK health event configuration is as below:
 
 A user can configure the maximum number of events of each severity. The system will check `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE` every 1 hour, and remove the oldest entries of a severity if it exceeds the threshold.
 
-As it requires frequent communitcate with redis server, a Lua plugin will be introduced to do this job.
-The Lua plugin will be loaded during system intialization, and check the number of entries in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`, and remove the old entries every 1 hour.
+As it requires frequent communicate with redis server, a Lua plugin will be introduced to do this job.
+The Lua plugin will be loaded during system initialization, and check the number of entries in `STATE_DB.ASIC_SDK_HEALTH_EVENT_TABLE`, and remove the old entries every 1 hour.
 
 The flow is as below:
 

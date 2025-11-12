@@ -119,7 +119,7 @@ list<JsonChange> order-patch(JsonPatch jsonPatch)
 |errors      |malformedPatchError  | Will be raised if the input JsonPatch is not valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
 |            |other errors         | Check [SONiC Generic Configuration Update and Rollback - HLD](SONiC_Generic_Config_Update_and_Rollback_Design.md#3114-patch-orderer) for exact list of errors to expect.
 |side-effects|None                 |
-|assumptions |running-config locked| The implementor of this contract might interact with ConfigDB to get the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
+|assumptions |running-config locked| The implementer of this contract might interact with ConfigDB to get the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
 
 The important constraint in the above interface is the JsonChange, where the application of a single JsonChange does not guarantee any ordering. If ordering is needed, multiple JsonChanges should be returned.
 

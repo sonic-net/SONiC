@@ -13,7 +13,7 @@ assignees: lucyhyde
 
 **Working Group Details**
 <!-- 
-   Please fill working group scope and desriptions
+   Please fill working group scope and descriptions
 -->
    
 **--Working Group Name:**

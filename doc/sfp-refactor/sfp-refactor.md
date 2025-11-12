@@ -125,7 +125,7 @@ This document summarizes an approach to refactor the Sfp-related functionality i
 
 The current platform API model is such that base classes in sonic-platform-common define a common, PI interface that can be implemented in PD classes.
 
-For Sfp, there is a great deal of PI logic that exists in sonic_sfp pertaining to different xcvr specs. Ideally, platform vendors reponsible for implementing the PD classes would only need to add logic that is actually PD.
+For Sfp, there is a great deal of PI logic that exists in sonic_sfp pertaining to different xcvr specs. Ideally, platform vendors responsible for implementing the PD classes would only need to add logic that is actually PD.
 
 However, the reality today is that some parts of the Sfp platform API are PI whereas some parts are PD, and platform vendors are required to take care of both in their SfpBase-derived implementations. The problem is that sonic_sfp (much of it being legacy code from the older platform API model) has not been updated to handle the requirements of the newer Sfp platform API, and vendors are having to fill in implementation gaps for themselves. This is resulting in a lot of duplicate work being done for things that should be common across platforms.
 
@@ -151,7 +151,7 @@ With these abstractions, the most that should be exposed to any clients using th
 
 The correct specification abstraction needs to be selected at runtime to interpret a xcvr’s memory map correctly. This should be done by reading the first byte in the xcvr’s EEPROM, which contains an identifier value whose meaning is specified in Table 4-1 of SFF-8024. There should then be a set of mappings between identifier values and the specifications we support.
 
-This approach is in contrast to what's currenly done with selecting parsers based on the xcvr's port number, which can sometimes lead to the wrong memory map interpretation.
+This approach is in contrast to what's currently done with selecting parsers based on the xcvr's port number, which can sometimes lead to the wrong memory map interpretation.
 
 ### Vendor Specific Data
 
@@ -460,8 +460,8 @@ class XcvrApiFactory(object):
 
 ```
 
-* Mapping organized at top level according to identifers (0x00-0xFF)
-* Each identifer maps to 1 or more set of dotted paths to Python classes that are subclasses of XcvrApi, XcvrCodes, and XcvrMemMap.
+* Mapping organized at top level according to identifiers (0x00-0xFF)
+* Each identifier maps to 1 or more set of dotted paths to Python classes that are subclasses of XcvrApi, XcvrCodes, and XcvrMemMap.
 * Identifiers in SFF-8024 included in this mapping must have a "public" key, providing classes corresponding to a public spec (e.g. SFF-8436)
 * Vendors providing custom classes under a particular identifier do so under key corresponding to vendor's name (must match name read from EEPROM)
     * Mappings under vendor name are further split according to model/part number

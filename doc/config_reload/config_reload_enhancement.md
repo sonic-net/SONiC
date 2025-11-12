@@ -116,6 +116,6 @@ Hostcfgd tests would be enhanced to cover the new flow.
 - Ensure the delayed services are started as soon as PortInitDone is seen in APPL_DB table. Example services includes snmp, lldp and telemetry.
 
 #### System tests
-There are existing SONiC mgmt tests to cover config reload scenario. After this feature the existing tests should run without degradation. The only noticable differentiation is the switch would be initialized faster in the new flow compared to the existing flow.
+There are existing SONiC mgmt tests to cover config reload scenario. After this feature the existing tests should run without degradation. The only noticeable differentiation is the switch would be initialized faster in the new flow compared to the existing flow.
 
 

@@ -17,7 +17,7 @@
  
   * [1 Requirements Overview](#1-requirements-overview)
     * [1.1 Use Case](#11-use-case)
-    * [1.2 Acheiving Order Nexthop member in ECMP](#12-acheiving-order-nexthop-memeber-in-ecmp)
+    * [1.2 Achieving Order Nexthop member in ECMP](#12-acheiving-order-nexthop-memeber-in-ecmp)
     * [1.3 Functional requirements](#13-functional-requirements)
   * [2 Modules Design](#2-modules-design)
     * [2.1 App DB](#21-app-db)
@@ -43,19 +43,19 @@ This document talks about use-case to support ECMP with Ordered Nexthop and chan
 # 1 Requirements Overview
 ## 1.1 Use case
 Under the ToR (Tier0 device) there can be appliances (eg:Firewall/Software-Load Balancer) which maintain state of flows running through them. For better scaling/high-availaibility/fault-tolerance
-set of appliances are used and connected to differnt ToR's. Not all the flow state that are maintained by these appliances in a set are shared between them. Thus with flow state not being sync 
+set of appliances are used and connected to different ToR's. Not all the flow state that are maintained by these appliances in a set are shared between them. Thus with flow state not being sync 
 if the flow do not end up alawys on to same TOR/Appliance it can cause services (using that flow) degradation and also impact it's availability
 
-To make sure given flow (identidied by 5 tuple) always end up on to same TOR/Appliance we need ECMP ordered support/feature on T1 (Leaf Router). 
-With this feature enable even if flow land's on different T1's (which is common to happen as some link/device in the flow path goes/come to/from maintainence)
-ECMP memeber being ordered will use same nexthop (T0) and thus same appliace.
+To make sure given flow (identified by 5 tuple) always end up on to same TOR/Appliance we need ECMP ordered support/feature on T1 (Leaf Router). 
+With this feature enable even if flow land's on different T1's (which is common to happen as some link/device in the flow path goes/come to/from maintenance)
+ECMP member being ordered will use same nexthop (T0) and thus same appliace.
 
 Below diagram captures the use-case (Traffic is flowing from T1 <-> T0 <-> Appliance)
 ![](../../images/ecmp/order_ecmp_pic.png)
-## 1.2 Acheiving Order Nexthop member in ECMP
+## 1.2 Achieving Order Nexthop member in ECMP
 1. Nexthop's will be sorted based on their IP address to get their order within the ECMP group. 
 In typical data-center ip address allocation scheme all T1’s in a given podset/cluster have the same order for P2P v4/v6 IP Address for all downstream T0's.
-2. This feature/enhacement assumes entropy calculation will be same for a given flow on each devices that have set set of nexthop in the ECMP Group.
+2. This feature/enhancement assumes entropy calculation will be same for a given flow on each devices that have set set of nexthop in the ECMP Group.
 3. This feature/enhancement is best effort in nature where if the Links/Bgp between pair of devices are not in same state (either Up/Down) then flow can take different path.
 
 ## 1.3 Functional requirements
@@ -64,13 +64,13 @@ This section describes the SONiC requirements for Ordered ECMP Nexthop
 At a high level the following should be supported:
 
 Phase #1
-- Program ECMP memebers (nexthops) in ordered way. Above use case is for ECMP Group on T1 with nexthop memebers as T0 but requirement is generic for any ECMP Group/Tier
+- Program ECMP members (nexthops) in ordered way. Above use case is for ECMP Group on T1 with nexthop members as T0 but requirement is generic for any ECMP Group/Tier
 - Knob to enable/disable the order ecmp nexthop
 - Maintain Backward Compatible if given SAI Vendor can not support ordered ecmp
 - Should work with Overlay ECMP.
 - Handling linkdown/linkup scenarios which triggers nexthop withdrawal/addition to nexthop group.
 
-Phase #2 (Not commited as of now)
+Phase #2 (Not committed as of now)
 - Init time knob to configure key/parameter to use for creating ordered nexthop (default being nexthop ip address)
 - Warm restart support (if/when enable on T0)
 - Config DB based knob to enable/disable order ecmp feature. This might need system reboot

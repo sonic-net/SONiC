@@ -172,7 +172,7 @@ we increase pipeline size from the default 125 to 50k, which would decrease the 
 
 #### Add a timer to help delay the flush
 
-Current implementation let fpmsyncd flush the pipeline on every monitered event, then the downstream orchagent is always fed with data in a small batch. But from a performance perspective, orchagent would prefer those small data batch to come as a whole.
+Current implementation let fpmsyncd flush the pipeline on every monitored event, then the downstream orchagent is always fed with data in a small batch. But from a performance perspective, orchagent would prefer those small data batch to come as a whole.
 
 So we choose to skip some of the event-triggered flush.
 

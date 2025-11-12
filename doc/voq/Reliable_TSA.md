@@ -30,7 +30,7 @@ This document describes the requirements for Reliable TSA on a VOQ Chassis and t
 This scope of this specification is the TSA/TSB commands and the implementation supporting those commands on a VOQ Chassis.
 
 # Background
-The TSA feature can be used to shift traffic away from a Sonic Router. This is achieved by applying a Route Policy to BGP which causes it to not advertize any Routes to its Neighbors. This capability is useful when commissioning a new Device  or prior to beginning maintenance operations on a device that may already in production. In a Chassis based system that is made up of multiple Line Cards and a Supervisor Card each running a separate instance of the Sonic software - the TSA feature currently works as follows.
+The TSA feature can be used to shift traffic away from a Sonic Router. This is achieved by applying a Route Policy to BGP which causes it to not advertise any Routes to its Neighbors. This capability is useful when commissioning a new Device  or prior to beginning maintenance operations on a device that may already in production. In a Chassis based system that is made up of multiple Line Cards and a Supervisor Card each running a separate instance of the Sonic software - the TSA feature currently works as follows.
     1. The TSA/TSB commands on the Line Card updates the CONFIG_DB on the Line Card. This update is picked up and processed by the bgpcfgd process.
     2. The TSA/TSB commands on the Supervisor causes the Supervisor to SSH to each Line Card in sequence and issue the same command on the Line Card.
 

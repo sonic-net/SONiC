@@ -54,7 +54,7 @@ Many things in this setup will shares the same or very similar approach as the E
 
 In SmartSwitch HA design, there are a few key characteristics that defines the high level behavior of HA:
 
-- **HA pairing**: How the ENIs are placed amoung all DPUs to form the HA set?
+- **HA pairing**: How the ENIs are placed among all DPUs to form the HA set?
 - **HA owner**: Who drives the HA state machine on behalf of SDN controller?
 - **HA scope**: At which level, the HA state machine is managed? This determines how the traffic is forwarded from NPU to DPU.
 - **HA mode**: How the DPUs coordinate with each other to achieve HA?
@@ -82,7 +82,7 @@ With DPU-level HA scope, the HA state is controlled at the DPU level. This means
 
 ### 4.2. DPU-level NPU to DPU traffic forwarding
 
-Due to the essense of the DPU-level HA scope, the traffic forwarding from NPU to DPU will be done on DPU level:
+Due to the essence of the DPU-level HA scope, the traffic forwarding from NPU to DPU will be done on DPU level:
 
 - Each DPU pair will use a dedicated VIP per HA scope for traffic forwarding from NPU to DPU.
 - All VIPs for all DPUs in the SmartSwitch will be pre-programmed into the NPU and advertised to the network as a single VIP range (or subnet).

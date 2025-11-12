@@ -2,7 +2,7 @@
 
 # Overview
 
-Alibaba is deploying SRv6 VPN with SONiC based white box router at its edge of the network. The Alibaba's SRv6 VPN use case has been described in muliple conferences. The basic idea follows RFC 8986, which we use SRv6 as a network programming framework for applications.  VPN information is used as service anchor points for identifying service instances in the service plane. SRv6 policy could be used to provide paths to let applications reach service instances. The following diagram provides a summary on what Alibaba would like to achieve via SRv6 VPN.
+Alibaba is deploying SRv6 VPN with SONiC based white box router at its edge of the network. The Alibaba's SRv6 VPN use case has been described in multiple conferences. The basic idea follows RFC 8986, which we use SRv6 as a network programming framework for applications.  VPN information is used as service anchor points for identifying service instances in the service plane. SRv6 policy could be used to provide paths to let applications reach service instances. The following diagram provides a summary on what Alibaba would like to achieve via SRv6 VPN.
 
 ![image](images/1PGN.png)
 
@@ -25,7 +25,7 @@ Besides recent FRR changes for SRv6 VPN contributed by Cisco team, Al
 4.  SRv6 Policy handling
     
 
-FRR changes would be commited to FRR community.  SONiC 202305 release would pull in the corresponding  version of FRR release.
+FRR changes would be committed to FRR community.  SONiC 202305 release would pull in the corresponding  version of FRR release.
 
 The minimal FRR version for SRv6 VPN is 8.4, which you could get SRv6 VPN PoC functionalities. FRR version 8.5 or 9.0 would provide Alibaba deployment feature parity.
 
@@ -174,7 +174,7 @@ The SBFD\_PEER schema is shown as the following
 
 ## BFD state change events handling
 
-When BFD orch receives a BFD session state notification from hardware, BFD orch updates the state information in state db. Other SONiC modules could subscribe the BFD session notification based on their needs. bfdd also needs to be informed. But bfdd belongs to FRR code base, currently, there is no infrastructure to let SONiC generated states be propogated to FRR related processes. Therefore, we take a workaround approach which is described in "Notify BFD state change events to FRR bfdd" section.
+When BFD orch receives a BFD session state notification from hardware, BFD orch updates the state information in state db. Other SONiC modules could subscribe the BFD session notification based on their needs. bfdd also needs to be informed. But bfdd belongs to FRR code base, currently, there is no infrastructure to let SONiC generated states be propagated to FRR related processes. Therefore, we take a workaround approach which is described in "Notify BFD state change events to FRR bfdd" section.
 
 ### BFD\_HW STATE in STATE\_DB
 
@@ -253,7 +253,7 @@ The following schema is added for describing bfd\_hw\_state in STATE\_D
 
 # References
 
-RFC 8986 Segment Routing over IPv6 (SRv6) Network Programmin
+RFC 8986 Segment Routing over IPv6 (SRv6) Network Programming
 
 RFC 9256 Segment Routing Policy Architecture
 
@@ -263,7 +263,7 @@ RFC 7881Seamless Bidirectional Forwarding Detection (S-BFD) for IPv4, IP
 
 # Current SONiC's Design Limitations and workarounds
 
-We don't have an efficient infrastructure to communicate between FRR related processes and SONiC related processes due to current SONiC design limitation. This area needs to be redesigned in the future. Alibaba's business can't wait for the community agreed solution to be ready, therefore we put in the following workaround for an overall solution in the cloud environment. These workarounds would NOT be commited in 202305 release. We will raise PRs and provide diff for referencing purposes only. 
+We don't have an efficient infrastructure to communicate between FRR related processes and SONiC related processes due to current SONiC design limitation. This area needs to be redesigned in the future. Alibaba's business can't wait for the community agreed solution to be ready, therefore we put in the following workaround for an overall solution in the cloud environment. These workarounds would NOT be committed in 202305 release. We will raise PRs and provide diff for referencing purposes only. 
 
 ## SRv6 policy download
 

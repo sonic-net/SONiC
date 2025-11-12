@@ -77,7 +77,7 @@ Each PT Midpoint node on the packet path records a tiny piece of information kno
 
 The Midpoint Compressed Data (MCD) contains the outgoing interface ID, outgoing (truncated) timestamp, and the load of the outgoing interface.
 
-Every interface of the PT Midpoint is assigned an interface ID and timestamp template. The timestamp template defines how to trunacte the timestamp (i.e., which bits of the timestamp are selected). 
+Every interface of the PT Midpoint is assigned an interface ID and timestamp template. The timestamp template defines how to truncate the timestamp (i.e., which bits of the timestamp are selected). 
 
 In this document, we provide the SONiC High Level Design (HLD) to program the Path Tracing Interface ID and timestamp template. 
 

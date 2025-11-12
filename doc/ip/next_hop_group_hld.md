@@ -109,7 +109,7 @@ The ROUTE_TABLE is then extended to allow a reference to the next hop group to b
 A new orchestration agent will be written to handle the new NEXT_HOP_GROUP_TABLE in APP_DB. For a new or updated entry in the NEXT_HOP_GROUP_TABLE, programming will depend on whether the group is configured with 1 or multiple next hops.
 
  - If the group has a single next hop, the next hop group orchagent will simply get the SAI identifier for that next hop from the neighbor orchagent, and use that as the SAI identifier for the group.
- - If the group has multiple next hops, the next hop group orchagent will add a next hop group to ASIC_DB and then add a next hop group member to ASIC_DB for every member of that group that is available to be used. Changes to the membership of the group will result in next hop group members being added to or removed from ASIC_DB. The next hop group orchagent will then maintain an association between the identifer of the group from APP_DB and the SAI identifier assigned to the next hop group.
+ - If the group has multiple next hops, the next hop group orchagent will add a next hop group to ASIC_DB and then add a next hop group member to ASIC_DB for every member of that group that is available to be used. Changes to the membership of the group will result in next hop group members being added to or removed from ASIC_DB. The next hop group orchagent will then maintain an association between the identifier of the group from APP_DB and the SAI identifier assigned to the next hop group.
 
 Dummy code for this logic:
 ```

@@ -18,7 +18,7 @@ This document provides the high level design of SONiC dual toR solution, support
 ## Content
 [1 Cluster Topology](#active_active_hld.md#1-cluster-topology)  
 
-[2 Requrement Overview](#2-requrement-overview)  
+[2 Requirement Overview](#2-requrement-overview)  
   - [2.1 Server Requirements](#21-server-requirements)
   - [2.2 SONiC Requirements](#22-sonic-requirements)  
 
@@ -38,7 +38,7 @@ This document provides the high level design of SONiC dual toR solution, support
     - [3.3.3 Forwarding State](#333-forwarding-state)
     - [3.3.4 Acitve-Active State Machine](#334-acitve-active-state-machine)
     - [3.3.5 Default route to T1](#335-default-route-to-t1)
-    - [3.3.6 Incremental Featrues](#336-incremental-featrues)
+    - [3.3.6 Incremental Features](#336-incremental-featrues)
   - [3.4 Orchagent](#34-orchagent)
     - [3.4.1 IPinIP tunnel](#341-ipinip-tunnel)
     - [3.4.2 Flow Diagram and Orch Components](#342-flow-diagram-and-orch-components)
@@ -72,7 +72,7 @@ In this design:
 
 ![image info](./image/cluster_topology.png)
 
-## 2 Requrement Overview
+## 2 Requirement Overview
 ### 2.1 Server Requirements
 In our cluster setup, as smart y-cable is replaced, some complexity shall be transferred to server NIC. 
 
@@ -133,7 +133,7 @@ Note that, this complexity can be handled by active-active smart cables, or any 
 1. Introduce active-active mode into MUX state machine. 
 1. Probe to determine if link is healthy or not. 
 1. Signal NIC if ToR is switching active or standby.
-1. Rescue when peer ToR failure occures.
+1. Rescue when peer ToR failure occurs.
 1. Unblock traffic when cable control channel is unreachable.  
 
 ## 3 SONiC ToR Controlled Solution 
@@ -330,7 +330,7 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   ![grpc_failure](./image/gRPC_failure.png) 
 
 #### 3.3.5 Default route to T1  
-  If default route to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/sonic-net/sonic-linkmgrd/blob/master/doc/default_route.md).
+  If default route to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors default route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/sonic-net/sonic-linkmgrd/blob/master/doc/default_route.md).
 
   To summarize the state transition decision we talk about, and the corresponding gRPC action to take, we have this decision table below: 
 
@@ -400,17 +400,17 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   </tbody>
 </table>
 
-#### 3.3.6 Incremental Featrues   
+#### 3.3.6 Incremental Features   
 
-* Link Prober Packet Loss Statics  
-  Link prober will by default send heartbeat packet every 100 ms, the packet loss statics can be a good measurement of system healthiness. An incremental feature is to collect the packet loss counts, start time and end time. The collected data is stored and updated in state db. User can check and reset through CLI. 
+* Link Prober Packet Loss Statistics  
+  Link prober will by default send heartbeat packet every 100 ms, the packet loss statistics can be a good measurement of system healthiness. An incremental feature is to collect the packet loss counts, start time and end time. The collected data is stored and updated in state db. User can check and reset through CLI. 
  
-* Supoort for Detachment  
+* Support for Detachment  
   User can config linkmgrd to a certain mode, so it won't switch to active / standby based on health indicators. User can also config linkmgrd to a mode, so it won't modify peer's forwarding state. This support will be useful for maintenance, upgrade and testing scenarios. 
 
 ### 3.4 Orchagent 
 #### 3.4.1 IPinIP tunnel
-Orchagent will create tunnel at initialization and add / remove routes to forward traffic to peer ToR via this tunnel when linkmgrd switchs state to standby / active. 
+Orchagent will create tunnel at initialization and add / remove routes to forward traffic to peer ToR via this tunnel when linkmgrd switches state to standby / active. 
 
 Check below for an example of config DB entry and tunnel utilization when LT0's link is having issue. 
   ![tunnel](./image/tunnel.png) 
@@ -453,7 +453,7 @@ This optimization maintains the same traffic forwarding behavior while significa
 
 ### 3.5 Transceiver Daemon
 #### 3.5.1 Cable Control through gRPC  
-  In active-active design, we will use gRPC to do cable control and signal NIC if ToRs is up active. SoC will run a gRPC server. Linkmgrd will determine server side forwarding state based on link prober status and link state. Then linkmgrd can invoke transceiver daemon to update NIC wether ToRs are active or not through gRPC calls. 
+  In active-active design, we will use gRPC to do cable control and signal NIC if ToRs is up active. SoC will run a gRPC server. Linkmgrd will determine server side forwarding state based on link prober status and link state. Then linkmgrd can invoke transceiver daemon to update NIC whether ToRs are active or not through gRPC calls. 
   
   Current defined gRPC services between SoC and ToRs related with linkmgrd cable controlling:  
   * DualToRActive
@@ -497,7 +497,7 @@ The following UML diagram shows this change when Linkmgrd state moves to standby
 #### 3.8.1 Advertise updated routes to T1
 Current failover strategy can smoothly handle the link failure cases, but if one of the ToRs crashes, and if T1 still sends traffic to the crashed ToR, we will see packet loss. 
 
-A further improvement in rescuing scenario, is when detecting peer's unhealthy status, local ToR advertises specific routes (i.e. longer prefix), so that traffic from T1 does't go to crashed ToR as all. 
+A further improvement in rescuing scenario, is when detecting peer's unhealthy status, local ToR advertises specific routes (i.e. longer prefix), so that traffic from T1 doesn't go to crashed ToR as all. 
 
 #### 3.8.2 Server Servicing & ToR Upgrade
 For server graceful restart, We already have gRPC service defined in [3.5.1](#351-cable-control-through-grpc). An indicator of ongoing server servicing should be defined based on that notification, so ToR can avoid upgrades in the meantime. Vice versa, we can also define gRPC APIs to notify server when ToR upgrade is ongoing.

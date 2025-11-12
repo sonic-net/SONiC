@@ -391,7 +391,7 @@ The Pypi official mirror supports multiple versions of each binary package. It i
 
 The design of the Pypi package mirror is only for monitoring and alerting. When a specified version of the package is used in SONiC, we can expect the package should never be changed. If it was changed (the same package name and version, but different binary), we will be notified.
 
-If a package used by SONiC is removed from the Pypi official mirror accidently, the SONiC build will be failed. One of the solution is to add the extra URLs for pip command, see [here](https://pip.pypa.io/en/stable/reference/pip_install/#install-extra-index-url). But the risk should be very low, we keep to update the version to the latest one by design. It should not be the high priority task to do it.
+If a package used by SONiC is removed from the Pypi official mirror accidentally, the SONiC build will be failed. One of the solution is to add the extra URLs for pip command, see [here](https://pip.pypa.io/en/stable/reference/pip_install/#install-extra-index-url). But the risk should be very low, we keep to update the version to the latest one by design. It should not be the high priority task to do it.
 
 To publish only the packages used by SONiC, the used packages and versions should be collected by SONiC build. The input file should be like this as below:
 

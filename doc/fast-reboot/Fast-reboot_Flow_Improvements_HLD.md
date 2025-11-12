@@ -27,7 +27,7 @@
 
 The goal of SONiC fast-reboot is to be able to restart and upgrade SONiC software with a data plane disruption less than 30 seconds and control plane less than 90 seconds.
 With current implementation there is no indication of the fast-reboot status, meaning we don't have a way to determine if the flow has finished or not.
-Some feature flows in SONiC are delayed with a timer to keep the CPU dedicated to the fast-reboot init flow for best perforamnce, like enablement of flex counters.
+Some feature flows in SONiC are delayed with a timer to keep the CPU dedicated to the fast-reboot init flow for best performance, like enablement of flex counters.
 In order to have such indicator, re-use of the fastfast-reboot infrastructure can be used.
 
 Each network application will experience similar processing flow.
@@ -48,7 +48,7 @@ https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-orchage
 
 # 2 Functional Requirements
 
-The new Fast-reboot design should meet the following requirments:
+The new Fast-reboot design should meet the following requirements:
 
 - Reboot the switch into a new SONiC software version using kexec - less than 5 seconds.
 - Upgrade the switch FW by the new SONiC image if needed.
@@ -75,7 +75,7 @@ The restart of syncd docker should leave data plane intact until it starts again
 
 Fast-reboot will finish successfully from a different NOS than SONiC with two possible scenarios:
  - Dump files of default gateway, neighbors and fdb tables are provided to the new image in a format that meet the SONiC scheme, as SONiC does prior the reboot.
-   - On this scenario all should work exacly the same as the switch rebooted from SONiC to SONiC.
+   - On this scenario all should work exactly the same as the switch rebooted from SONiC to SONiC.
 
  - Dump files of default gateway, neighbors and fdb tables are not provided to the new image as SONiC does prior the reboot.
    - On this scenario fast-reboot will finish successfully, but with low performance since all neighbors and fdb entries will be created by the slow path.
@@ -148,7 +148,7 @@ Same for FDB entries which will be created by the kernel as well, depends on the
 When orchagent starts with the new SONiC image, the same infrastructure we use to reconcile fastfast-boot will start.
 After INIT_VIEW and create_switch functions sent to syncd (reset of the ASIC took place here), 'warmRestoreAndSyncUp' will be executed.
 This function will populate m_toSync with all tasks for syncd, by APP DB and CONFIG DB prior the reboot.
-To verify orchagent reached the same state as before the reboot, 'warmRestoreValidation' will verify no pending tasks left in the queue, meaning all proccessed succesfully and in the pipeline for syncd to configure the HW.
+To verify orchagent reached the same state as before the reboot, 'warmRestoreValidation' will verify no pending tasks left in the queue, meaning all processed successfully and in the pipeline for syncd to configure the HW.
 At the end APPLY_VIEW will be sent to syncd to finalize the process, from this point orchagent enter the main loop and operates normally.
 
 ### NOTICE
@@ -161,7 +161,7 @@ This is solvable by the db migrator.
 Syncd starts with the fast-reboot flag, trigger the ASIC reset when create_switch is requested from orchagent.
 In addition, on this case temp view flag will set to false since it is not required, no comparison logic needed since current view is empty.
 Basically INIT and APPLY view requests from orchagent are ignored by syncd, but bound the process from start to end.
-During reconsilations process of orchagent, syncd will recieve all tasks to restore the previous state.
+During reconsilations process of orchagent, syncd will receive all tasks to restore the previous state.
 All other network applications will do the same as we do today for warm-reboot.
 
 ![Syncd](/doc/fast-reboot/Orchagent_Syncd.svg)
@@ -221,8 +221,8 @@ reboot-finalizer.sh (warm-finalizer.sh) script must also be templatized and upda
 | /service/fast-shutdown/       | object          | no        | Fast reboot related properties. Used to generate the fast-reboot script.                                             |
 | /service/fast-shutdown/after  | lits of strings | no        | Same as for warm-shutdown.                                                                                           |
 | /service/fast-shutdown/before | lits of strings | no        | Same as for warm-shutdown.                                                                                           |
-| /processes                    | object          | no        | Processes infromation                                                                                                |
-| /processes/[name]/reconciles  | boolean         | no        | Wether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False. |
+| /processes                    | object          | no        | Processes information                                                                                                |
+| /processes/[name]/reconciles  | boolean         | no        | Whether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False. |
 
 
 This chapter it taken from SONiC Application Extension Infrastructure HLD:

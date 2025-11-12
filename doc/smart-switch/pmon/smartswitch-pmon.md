@@ -667,7 +667,7 @@ return REBOOT_CAUSE_NON_HARDWARE + ', ' + 'kernel panic'
 
 ```
 #### 2. DPU State
-    * Added supporting fileds such as "time" and "reason" to show exactly where in the state progression the DPU failed. This will be helpful in fault isolation, DPU switchover decision, resiliency and recovery
+    * Added supporting fields such as "time" and "reason" to show exactly where in the state progression the DPU failed. This will be helpful in fault isolation, DPU switchover decision, resiliency and recovery
     * Though this is platform implementation specific, in a multi vendor use case, there has to be a consistent way of storing and accessing the information.
     * Store the state progression (dpu_midplane_link_state, dpu_control_plane_state, dpu_data_plane_state) on the host ChassisStateDB.
     * get_state_info(self) will return an object with the ChassisStateDB data
@@ -1246,11 +1246,11 @@ root@sonic:/home/admin# show interfaces status
 ### 3.5 Console Management
 The console access to smartswitch needs to support DPU access in addition to the switch.
 * By default the management port should be connected to the switch CPU console
-* Once inside the switch, the DPUs should be accesssible from it.
+* Once inside the switch, the DPUs should be accessible from it.
 
 #### 3.5.1 Dpu Console Utility
 * Sonic now supports a DPU console utility "dpu-tty.py"
-* The scope of this is limited only to smartswitch paltforms
+* The scope of this is limited only to smartswitch platforms
 * The user can invoke one or more DPU consoles as shown below by invoking the script "dpu-tty.py" with the module name option "-n dpu0"
 
 ```

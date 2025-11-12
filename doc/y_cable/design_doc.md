@@ -13,7 +13,7 @@
 This document summarizes the approach taken to accommodate multiple
 Y-Cable vendors for supporting dual-ToR configurations in SONiC.
 All the design choices are presented
-such that vendors can implement the Y-Cable interface with ease and effeciency
+such that vendors can implement the Y-Cable interface with ease and efficiency
 and all the feature requirements are met.
 
 
@@ -92,7 +92,7 @@ Vendors can have several implementations/ways to use this concept
 - We need to have an appropriate place where vendors can implement their modules and provide SONiC with an abstraction layer where PMon container and host can access the Y-Cable packages of all the vendors with ease
 
   - Currently the assumption is Y-Cable API will be written in the Python language
-  - If a vendor has an existing library in a different language, they will need to either find a way to wrap/bind it in Python to align with the description below or (preferrably) provide a pure Python implementation
+  - If a vendor has an existing library in a different language, they will need to either find a way to wrap/bind it in Python to align with the description below or (preferably) provide a pure Python implementation
   - Since sonic_y_cable (sonic-platform-common/sonic_y_cable) is already built as a package today (only for a single Y-Cable vendor with sonic-buildimage) vendors can also place their implementation in this directory itself.
   - Also, a vendor can provide multiple files to support multiple cables/groups of cables. Importing the module from the mapping should import all the necessary implementation for the cable
   - Vendors can put their common implementation across multiple modules in helper files which can be present in the vendor directory or inside another subdirectory. The second example below shows this approach.
@@ -254,7 +254,7 @@ Vendors can have several implementations/ways to use this concept
 #### Proposed Solution(s)
 
   - One way is since CLI lives in the host, we can choose to do everything on xcvrd lines. Meaning once there is port number, convert to a physical port and look into a mapping from vendor/part number to the appropriate Y-Cable module to load file and then load the module and execute the API
-  - The more preferred approach here is CLI can interact with PMon container thorugh redis-db. Basically we can define a schema table for different operations which need to be performed on the Y-Cable. 
+  - The more preferred approach here is CLI can interact with PMon container through redis-db. Basically we can define a schema table for different operations which need to be performed on the Y-Cable. 
 
   - Exanple table and operations
     ```

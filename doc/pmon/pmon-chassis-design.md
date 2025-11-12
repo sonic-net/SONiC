@@ -76,22 +76,22 @@ At a functional level of a chassis, SONiC will manage supervisor-cards, line car
 * The Supervisor monitors PSUs of the chassis. 
 * LEDs and Transceivers are present on line-cards and can be managed via line-card's SONiC platform instances. 
 * Some of these perpherals are plug-able and hot-swap capable.
-* In general, VOQ chassis has midplane ethernet which interconnects line-cards and supervisor together for its internal communication. This should be initalized upon platform booting and can be used as IP connectivity between supervisor, line-cards.
+* In general, VOQ chassis has midplane ethernet which interconnects line-cards and supervisor together for its internal communication. This should be initialized upon platform booting and can be used as IP connectivity between supervisor, line-cards.
 * Each line-card will have management interface either directly to external management interface or via internal midplane ethernet.
 
 ### 2.2. Chassis Platform Stack
-In a modular disaggregated SONiC software architecture, each line-card will run an instance of SONiC platform stack and the Supervisor would run its own instance of SONiC platform stack. Each line-card resources are manged as independent fixed platform and also providing all the above functional requirements to operate the chassis. Below picture describes high level view of the platform stack.
+In a modular disaggregated SONiC software architecture, each line-card will run an instance of SONiC platform stack and the Supervisor would run its own instance of SONiC platform stack. Each line-card resources are managed as independent fixed platform and also providing all the above functional requirements to operate the chassis. Below picture describes high level view of the platform stack.
 
 ![Chassis Platform Stack ](pmon-chassis-images/pmon-chassis-stack.png)
 
 * Each line-card & supervisor-card will have its own ONIE_PLATFORM string to differentiate between each other and also variation of it.
-* The Supervisor wont run any protocol stack except SWSS, SyncD dockers for managing Switch Fabric.
+* The Supervisor won't run any protocol stack except SWSS, SyncD dockers for managing Switch Fabric.
 * Each line-card & supervisor-card would run one instance of PMON container. 
 * Each line-card & supervisor-card would run one instance of redis server for common platform monitoring (host network) and also uses per-asic redis for SFP monitoring.
-* The supervisor-card & line-card could communicate over midplane ethernet. In order to provide this IP connectivty between supervisor & line card, midplane ethernet drivers are run on host network namespace. 
+* The supervisor-card & line-card could communicate over midplane ethernet. In order to provide this IP connectivity between supervisor & line card, midplane ethernet drivers are run on host network namespace. 
 * Each line-card & supervisor-card gets IP address (internal network) assigned to this midplane ethernet based on slot information.
 * The supervisor-card PMON will have all sensors readings via either fetching line-card redis servers(subscribe to multiple servers) or global redis db on the Supervisor(publish to single server). 
-* SONiC on a fixed platform has put together PMON 2.0 API's for platform vendors to implement peripheral drivers (kernel or userspace). Most of the existing PMON 2.0 API's will be used for chassis and some key changes and enhancments required as detailed below.
+* SONiC on a fixed platform has put together PMON 2.0 API's for platform vendors to implement peripheral drivers (kernel or userspace). Most of the existing PMON 2.0 API's will be used for chassis and some key changes and enhancements required as detailed below.
 * The supervisor-card will provide driver implementation to obtain line-card status such as present, empty.
 
 ## 3. Detailed Workflow
@@ -101,7 +101,7 @@ SONiC supports ONIE as a boot method and also provides vendor specific boot meth
     
 #### 3.1.1 Supervisor Boot Process
     
-Supervisor card can be booted using ONiE method. Upon boot, unique ONIE_PLATFORM string will be provided in a ONIE firmware to differentiate the cards and services/dockers it could start via systemd-generator. In case of supervisor card, there wont be dockers like BGP, LLDP, etc started. This service list is included as part of platform specific service list file.
+Supervisor card can be booted using ONiE method. Upon boot, unique ONIE_PLATFORM string will be provided in a ONIE firmware to differentiate the cards and services/dockers it could start via systemd-generator. In case of supervisor card, there won't be dockers like BGP, LLDP, etc started. This service list is included as part of platform specific service list file.
 
 ```
     device/
@@ -145,7 +145,7 @@ In order to allow direct access to line-cards from outside of the chassis over e
 
 1. Supervisor can create virtual switch (linux bridge) and all add midplane ethernet and external management interface on this bridge. This is the L2 mode of operation but internal communication and external L2 stations traffic will be seen inside this midplane ethernet. 
 2. IP Routing: Midplane ethernet could be configured with externally reachable network (announced via any routing protocols), this requires mgmt interface on the Supervisor to run routing protocol which isn't common deployment. 
-3. Statically assigned externally reachable management IP address per line-card via chassis-d and use NAT to map external/internal midplane IP address. In this case, internal midplane ethernet traffic wont be seen in a external management network and only direct communication allowed using NAT rules. 
+3. Statically assigned externally reachable management IP address per line-card via chassis-d and use NAT to map external/internal midplane IP address. In this case, internal midplane ethernet traffic won't be seen in a external management network and only direct communication allowed using NAT rules. 
 
 Allowing DHCP relay or DHCP client on these internal midplane ethernet aren't considered for first phase of the design. 
 
@@ -221,7 +221,7 @@ Configuration will be provided to administratively bring down a line-card or fab
 Configuration to administratively bring down the module
 #config chassis modules shutdown <module_name>
 
-Configuration to remove the adminstrative down state of module
+Configuration to remove the administrative down state of module
 #config chassis modules startup <module_name>
 ```
 #### Config-DB Schema
@@ -281,7 +281,7 @@ One of the functional requirement for chassis is to manage and monitor the power
 *  PSUd will get the power-capacity of each PSU.
 *  PSUd will calculate the total power capacity from power-capacity of each PSU multiplied by number of PSUs with valid status.
 *  PSUd will get fixed maximum power requirements of each type of line-card, each SFM and each FAN.
-*  PSUd will calculate the total power required as a sum total of power-required of each type of card multipled by maxium power requirement of that card.
+*  PSUd will calculate the total power required as a sum total of power-required of each type of card multiplied by maximum power requirement of that card.
 *  PSUd will set a Master-LED state based on power available vs power required.
 
 We do not see a requirement for real-time monitoring of current power usage of each card.
@@ -419,7 +419,7 @@ Thermal 5        59           68         0             N/A            N/A       
 
 #### Requirements
 * Database connections per namespace - Database dockers run per namespace and PMON processes need to connect to each of these database instances. 
-* Update per namespace port status - The pmon processes will need to run per-asic specific functinality ina a separate thread.
+* Update per namespace port status - The pmon processes will need to run per-asic specific functionality ina a separate thread.
 
 Two approaches were discussed as part of the design:
 * Approach-1 - Existing process and threads will connect/subscribe to all databases across per-asic namespace. This is the preferred approach and has been documented in https://github.com/sonic-net/SONiC/blob/master/doc/pmon/pmon_multiasic_design.md.
@@ -456,7 +456,7 @@ Below is a code snippet to connect to State-DB. In src/sonic-platform-daemons/so
 #### Multi-thread support
 
 
-Below is a code snippet to run namespace specific funtionality per thread. In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd:
+Below is a code snippet to run namespace specific functionality per thread. In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd:
 ```
   # Run daemon
     def run(self):
@@ -486,11 +486,11 @@ Below is a code snippet to run namespace specific funtionality per thread. In sr
 
 
 ```
-Additonal new APIs like *set_namespace()* and *get_namespace()* can be provided ina chassis_base.py which can be set by PMON processes. This will enable modules supporting platform 2.0 to be aware or query which namespace they are running ina.
+Additional new APIs like *set_namespace()* and *get_namespace()* can be provided ina chassis_base.py which can be set by PMON processes. This will enable modules supporting platform 2.0 to be aware or query which namespace they are running ina.
 
 #### Callflow
 
-![Tranceiver Monitoring](pmon-chassis-images/pmon-chassis-xcvr-monitoring.png)
+![Transceiver Monitoring](pmon-chassis-images/pmon-chassis-xcvr-monitoring.png)
  
 #### Show commands
 
@@ -594,14 +594,14 @@ FRONT-PANEL INTERFACE STATUS TABLE
 
 #### 3.3.5 Syseepromd
 
-Syseepromd will run on supervisor and line-cards indepenedently and monitor for any changes in syseeprom. The functionality is similar to fixed platform devices.
+Syseepromd will run on supervisor and line-cards independently and monitor for any changes in syseeprom. The functionality is similar to fixed platform devices.
 
 #### 3.3.6 Midplane Ethernet
 
 To manage and monitor midplace ethernet, the following vendor-specific PMON 2.0 APIs can be introduced:
 
 *  API to initialize the midplane on both supervisor and line cards - init_midplane_switch()
-    * This API will *not* be used to intialize the drivers or configure the IP-address. The drivers should be initialized and IP-addresses should be configured before the Database-dockers are brought up.  
+    * This API will *not* be used to initialize the drivers or configure the IP-address. The drivers should be initialized and IP-addresses should be configured before the Database-dockers are brought up.  
 *  APIs to check midplane connectivity:
     *  On line-card to check if the Supervisor is reachable via midplane  - is_midplane_supervisor_reachable() 
     *  On the Supervisor to check if line-card on slot is reachable via midplane - is_midplane_linecard_reachable(slot)

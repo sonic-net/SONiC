@@ -3,7 +3,7 @@
 The current SONiC release program handles FRR upgrades and patching on an as-needed basis. This proposed FRR upgrade workflow aims to establish a formalized cadence and process for FRR upgrades in future SONiC releases. Any changes or updates to this workflow must first be discussed and agreed upon by the Routing Working Group to reach consensus.
 
 # SONiC FRR Maintainers
-## 6 month cadence on FRR version evalutation
+## 6 month cadence on FRR version evaluation
 
 Before 202511 release, the role of SONiC FRR Maintainer rotates among Broadcom, Microsoft, Alibaba, NVIDIA, and Dell, with each term lasting 12 months. Recent FRR upgrades include:
 
@@ -48,7 +48,7 @@ Note:
 ## FRR Project Release Cadence
 -  FRR release numbering scheme x.y.z-s#
 -  New FRR releases roughly every 4 months. FRR release information could be found from https://frrouting.org/release/
--  SONiC to stay out from major/minor releases (x.y) and use patch release (.z) for stability (eg, FRR 8.3.1 instead of 8.3 if it is for 202211 release). Another example, at the time of SONiC FRR upgrade, the following FRR versions are avaialble 9.0.1, 8.5.3, 9.0, the guidance is to upgrade with the latest patch release 9.0.1
+-  SONiC to stay out from major/minor releases (x.y) and use patch release (.z) for stability (eg, FRR 8.3.1 instead of 8.3 if it is for 202211 release). Another example, at the time of SONiC FRR upgrade, the following FRR versions are available 9.0.1, 8.5.3, 9.0, the guidance is to upgrade with the latest patch release 9.0.1
 -  For every sonic release, the recommendation is to update FRR to last stable minor release by default. If there is a need to change this guidance, the request needs to be discussed and approved in Routing Working Group.
 
 ## SONiC Release and FRR version Mapping

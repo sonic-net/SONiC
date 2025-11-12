@@ -102,7 +102,7 @@ message RebootRequest {
   string message = 3;
   // Optional sub-components to reboot.
   repeated types.Path subcomponents = 4;
-  // Force reboot if sanity checks fail. (ex. uncommited configuration)
+  // Force reboot if sanity checks fail. (ex. uncommitted configuration)
   bool force = 5;
 }
 
@@ -127,7 +127,7 @@ enum RebootMethod {
   POWERUP = 7;     // Apply power, no-op if power is already on.
 }
 
-// A CancelRebootRequest requests the cancelation of any outstanding reboot
+// A CancelRebootRequest requests the cancellation of any outstanding reboot
 // request.
 message CancelRebootRequest {
   string message = 1;      // informational reason for the cancel
@@ -163,7 +163,7 @@ message RebootStatus {
   string message = 2;
 }
 
-// A TimeRequest requests the current time accodring to the target.
+// A TimeRequest requests the current time according to the target.
 message TimeRequest {
 }
 

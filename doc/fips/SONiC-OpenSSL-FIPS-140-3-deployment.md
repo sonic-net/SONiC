@@ -10,7 +10,7 @@ Table of Contents
     * [FIPS None Enforce Mode](#FIPS-None-Enforce-Mode)
     * [FIPS Enforce Mode](#FIPS-Enforce-Mode)
 * [SONiC FIPS State](#SONiC-FIPS-State)
-* [SONiC reboot and upgarde](#SONiC-reboot-and-upgarde)
+* [SONiC reboot and upgrade](#SONiC-reboot-and-upgrade)
     * [SONiC warm-reboot or fast-reboot](#SONiC-warm-reboot-or-fast-reboot)
     * [SONiC upgrade](#SONiC-upgrade)
 * [Test cases](#Test-cases)
@@ -29,7 +29,7 @@ It is for the security requirement, the FIPS 140-3 feature should be enabled for
 - Provide a way to enforce the FIPS for SONiC.
 
 ## Scopes
-1. The FIPS 140-3 is only availabel on SONiC OS Version 11 or above.
+1. The FIPS 140-3 is only available on SONiC OS Version 11 or above.
 2. FIPS is supported on branches: 202205, 202211, master.
 
 ## SONiC Configuration for FIPS
@@ -95,7 +95,7 @@ The redis dictionary key is FIPS_STAT\|state.
 
 GitHub Pull Request for reference: https://github.com/sonic-net/sonic-host-services/pull/69
 
-## SONiC reboot and upgarde
+## SONiC reboot and upgrade
 ### SONiC warm-reboot or fast-reboot
 SONiC ware-reboot/fast-reboot will initialize the kernel command line, it only has impact when the FIPS enforcement flag changed, either from enforce to none-enforce, or from none-enforce to enforce.
 

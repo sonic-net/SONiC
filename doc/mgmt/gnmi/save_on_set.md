@@ -48,7 +48,7 @@ Add the option for enabling the SONiC gNMI implementation to save its in-memory 
 
 ### Overview
 
-Having configuration be persistant across switch reboot is a useful feature that is not currently implemented by Sonic-Telemetry.
+Having configuration be persistent across switch reboot is a useful feature that is not currently implemented by Sonic-Telemetry.
 
 The required behaviour is to save the configuration to a file that is used to populate the configuration database during the startup process every time the gNMI.Set() RPC call is performed.
 

@@ -123,6 +123,6 @@ Only planned warm restart is mandatory. SONiC will issue explicit request to lib
 Warm restart is usually performed in two steps: state restore and state sync up.
 For start restore,  based on configuration, a series of state consistency check and validation could be done to ensure application has reached the desired state.
 
-State sync up is a little tricky, since application is trying to get synchronized with lastest state which is not deterministic. Current idea is to have an application specific timer to guard this process. Once timer expires, the sync up processing is treat as done and successfull. Each application should apply its own internal speicific check.
+State sync up is a little tricky, since application is trying to get synchronized with latest state which is not deterministic. Current idea is to have an application specific timer to guard this process. Once timer expires, the sync up processing is treat as done and successful. Each application should apply its own internal specific check.
 
 

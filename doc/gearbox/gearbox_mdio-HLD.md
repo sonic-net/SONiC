@@ -69,7 +69,7 @@ The Ethernet switches of today often have PHY, re-timer and mux. Some PHY is int
 
 ### Requirements
 
-The syncd docker and daemon use the SAI library to service the NPU programming. The SAI library uses PCIe to access the NPU hardware. The gbsyncd docker and daemon use the PAI library to service the external PHY configuration processing. The PAI library usualy uses MDIO to access the PHY hardware.
+The syncd docker and daemon use the SAI library to service the NPU programming. The SAI library uses PCIe to access the NPU hardware. The gbsyncd docker and daemon use the PAI library to service the external PHY configuration processing. The PAI library usually uses MDIO to access the PHY hardware.
 
 It depends on the switch hardware design that the external PHY could be connected to a FPGA or CPLD based MDIO controller or a switch NPU MDIO bus. The FPGA or CPLD based MDIO controller often has linux kernel driver and provides linux sysfs programming interface. The switch NPU MDIO bus uses SAI library hence an Inter-Process-Communication (IPC) mechanism is required between the syncd daemon and gbsyncd daemon.
 ![libPAI MDIO access](images/PAI-MDIO.png)
@@ -80,9 +80,9 @@ When a configured platform target is built, there is only one syncd docker as th
 
 ### Architecture Design 
 
-There are many choices for the IPC mechanism between the syncd daemon and gbsyncd daemon. One performance requirement is that it should finsh firmware download within a reasonable time. Our design choice is to use the Unix socket as the IPC mechanism. Our design has the MDIO IPC server in the syncd daemon with its own thread. A new syncd class MdioIpcServer is added to start a new thread, to create an unix socket, to listen on the socket, to accept connection and to read/reply IPC messages.
+There are many choices for the IPC mechanism between the syncd daemon and gbsyncd daemon. One performance requirement is that it should finish firmware download within a reasonable time. Our design choice is to use the Unix socket as the IPC mechanism. Our design has the MDIO IPC server in the syncd daemon with its own thread. A new syncd class MdioIpcServer is added to start a new thread, to create an unix socket, to listen on the socket, to accept connection and to read/reply IPC messages.
 
-There is a corresponding MDIO access IPC client code in the form of dynamic link library which provides the flexiblity to load the library at runtime. Assuming the MDIO access library for sysfs is also in the form of dynamic library, gbsyncd can select the MDIO access library at runtime based on some configuration in the gearbox\_config.json file.
+There is a corresponding MDIO access IPC client code in the form of dynamic link library which provides the flexibility to load the library at runtime. Assuming the MDIO access library for sysfs is also in the form of dynamic library, gbsyncd can select the MDIO access library at runtime based on some configuration in the gearbox\_config.json file.
 
 The same gearbox\_config.json file already has the information of the PAI library name. The information can be used to dynamically load the PAI library at runtime.
 
@@ -113,7 +113,7 @@ The high level design of the gbsyncd mdio access function using the mdio bus fro
 	- During the warmboot, the creation of the Unix IPC socket and connection is the same as of coldboot.
 	- The platform module software should not reset the external PHY during warmboot.
 
-The VendorPai class will inherit most member functions from the VendorSai class. The VendorSai class needs some changes to accomdate the inheritance.
+The VendorPai class will inherit most member functions from the VendorSai class. The VendorSai class needs some changes to accommodate the inheritance.
 
 When a syncd instance runs inside the gbsyncd docker, a new command line option --paiInstance or -i with an integer argument is required. A CommandLineOptions class variable m_paiInstance stores the argument value. The syncd instance in gbsyncd docker already uses another command line option -x to point the configuration file "gearbox\_config.json". The CommandLineOptions class variable m_contextConfig stores the configuration file name.
 

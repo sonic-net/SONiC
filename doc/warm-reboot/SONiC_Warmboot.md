@@ -65,7 +65,7 @@ Table of Contents
   * [Upgrade path with warm reboot support](#upgrade-path-with-warm-reboot-support)
   * [Latency requirement on LibSAI/SDK warm restart](#latency-requirement-on-libsaisdk-warm-restart)
   * [Backward compatibility requirement on SAI/LibSAI/SDK?](#backward-compatibility-requirement-on-sailibsaisdk)
-  * [What is the requirment on LibSAI/SDK with regards to data plane traffic during warm reboot? Could FDB be flushed?](#what-is-the-requirment-on-libsaisdk-with-regards-to-data-plane-traffic-during-warm-reboot-could-fdb-be-flushed)
+  * [What is the requirement on LibSAI/SDK with regards to data plane traffic during warm reboot? Could FDB be flushed?](#what-is-the-requirement-on-libsaisdk-with-regards-to-data-plane-traffic-during-warm-reboot-could-fdb-be-flushed)
   * [What are the the principles of warm reboot support for SONiC?](#what-are-the-the-principles-of-warm-reboot-support-for-sonic)
 * [References](#references)
 
@@ -76,7 +76,7 @@ Warm restart of each individual process/docker is also part of the goal. Except 
 
 For restart processing, SONiC may be roughly divided into three layers:
 
-__Network applications and Orchagent__: Each application will experience similar processing flow. Application and corresponding orchagent sub modules need to work together to restore the orginal data and populate the delta for warm start. Take route as example, upon restart operation, network application BGP performs graceful restart and gets synchronized with the latest routing state via talking with peers, fpmsyncd uses the input from BGP to program appDB and it also deals with any stale/new routes besides those routes without change.  RouteOrch responds to the operation requests from fpmsyncd and propagates any change down to syncd.
+__Network applications and Orchagent__: Each application will experience similar processing flow. Application and corresponding orchagent sub modules need to work together to restore the original data and populate the delta for warm start. Take route as example, upon restart operation, network application BGP performs graceful restart and gets synchronized with the latest routing state via talking with peers, fpmsyncd uses the input from BGP to program appDB and it also deals with any stale/new routes besides those routes without change.  RouteOrch responds to the operation requests from fpmsyncd and propagates any change down to syncd.
 
 __Syncd__:  syncd should dump ASICDB before restart, and restore to the same state as pre-reboot.  The restore of SONiC syncd itself should not disturb the state of ASIC.  It takes changes from Orchagent and pass them down to LibSAI/ASIC after necessary transformation.
 
@@ -167,9 +167,9 @@ In this approach syncd only needs to save and restore the mapping between object
 ###	How Orchagent manages data dependencies during state restore
 The constructor of each orchagent subroutine may work as normal startup.
 
-Each application reads configDB data or restores data from Linux kernel or re-populate data via network protocols uppon restart, and progams appDB accordingly. Each network application and orchagent subroutine handle the dependency accordingly, which means some operation may be delayed until all required objects are ready. The dependency check has been part of existing implementation in orchagent, but new issues may pop up with this new scenario.
+Each application reads configDB data or restores data from Linux kernel or re-populate data via network protocols upon restart, and programs appDB accordingly. Each network application and orchagent subroutine handle the dependency accordingly, which means some operation may be delayed until all required objects are ready. The dependency check has been part of existing implementation in orchagent, but new issues may pop up with this new scenario.
 
-To be able to handle the case of swss only restart, orchagent also restores route (for BGP docker) and portchannel data (for teamd docker) from APPDB directly besides subscribing to appDB consumer channnel. Loose order control for the data restore helps speed up the processing.
+To be able to handle the case of swss only restart, orchagent also restores route (for BGP docker) and portchannel data (for teamd docker) from APPDB directly besides subscribing to appDB consumer channel. Loose order control for the data restore helps speed up the processing.
 
 ###	What is missing in Orchagent for it to restore to the state of pre-shutdown
 Orchagent and application may get data from configDB and APPDB as normal startup, but to be able to in sync and communicate with syncd, it also needs OID for each object with key type of sai_object_id_t.
@@ -197,7 +197,7 @@ For object ID previously fetched via sai redis get operation, the same method st
 
 One possible solution is to save the mapping between OID and attr_list at redis_generic_create(). This assumes that during restore, exact same attr_list will be used for object create, so same OID may be found and returned.
 
-When there is attribute change for the first time, the original default mapping could be saved in DEFAULT_ATTR2OID_ and DEFAULT_OID2ATTR_ tables. This is because during restore, object create may use the default attributes instead of current attribues.
+When there is attribute change for the first time, the original default mapping could be saved in DEFAULT_ATTR2OID_ and DEFAULT_OID2ATTR_ tables. This is because during restore, object create may use the default attributes instead of current attributes.
 
 All new changes will be applied on the regular ATTR2OID_ and OID2ATTR_ mapping tables.
 
@@ -333,7 +333,7 @@ One possible but kind of extreme solution is: Always flush all related appDB tab
 
 ## How to do version control for software upgrade at docker level?
 
-`Show version` command is able to retrieve the version data for each docker.  Furher extention may be based on that.
+`Show version` command is able to retrieve the version data for each docker.  Further extension may be based on that.
 
 ```
 root@PSW-A2-16-A02.NA62:/home/admin# show version
@@ -384,11 +384,11 @@ No strict requuirment on this layer yet.  Probably in the order of seconds, say,
 ## Backward compatibility requirement on SAI/LibSAI/SDK?
 Yes, Backward compatibility is mandatory for warm reboot support.
 
-## What is the requirment on LibSAI/SDK with regards to data plane traffic during warm reboot? Could FDB be flushed?
-No packet loss at data plane for existing data flow.  In general, FDB flush should be triggered by NOS instread of LibSAI/SDK.
+## What is the requirement on LibSAI/SDK with regards to data plane traffic during warm reboot? Could FDB be flushed?
+No packet loss at data plane for existing data flow.  In general, FDB flush should be triggered by NOS instead of LibSAI/SDK.
 
 ## What are the the principles of warm reboot support for SONiC?
-One of the priciples talked about is have warm restart support at each layer/module/docker, each layer/module/docker is self contained as to warm restart.
+One of the principles talked about is have warm restart support at each layer/module/docker, each layer/module/docker is self contained as to warm restart.
 
 # References
 * [SAI Warmboot spec](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_Proposal_Warmboot.docx?raw=true)

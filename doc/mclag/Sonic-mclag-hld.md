@@ -106,7 +106,7 @@ The features below are not supported currently, may provide solutions in future 
 - More consistency checking, both between peer switches and MLAG port channels configured on the switches, e.g. port speed configuration
 - Peer-link with a detection mechanism, and with robust "split brain" detection
 - Configurable peer master/slave roles for the peer switches
-- VRRP/VARP for active/active gateway redundency
+- VRRP/VARP for active/active gateway redundancy
 - Add feature support across MLAGs (e.g. STP, IGMP snooping, DHCP Relay)
 - Make sure isolation ACL is installed in the ASIC table before MCLAG enabled portchannel is active
 
@@ -142,7 +142,7 @@ Will MC-LAG work if there is no physical connection between the peers? In theory
 
 ## 5.2. ICCPd State machines
 
-Lite version support “ICCP Connection State Machine”，shown as followings:
+Lite version support “ICCP Connection State Machine”，shown as following:
 The ICCP Connection state machine is defined to have six states in RFC 7275 section 4.2.1, as below.
 
 - NONEXISTENT: This state is the starting point for the state machine. It indicates that no ICCP connection exists between the PEs.
@@ -592,13 +592,13 @@ Adding the following logic:([PR#810](https://github.com/sonic-net/sonic-swss/pul
 
 Adding the following logics:
 
-- If the port has the attribute ‘learn_mode’ in CFG_DB, read the attribute and set this attribute in APP_DB. If ‘learn_mode’ is set to ‘disabled’, the MAC learning of this port is disbled.
+- If the port has the attribute ‘learn_mode’ in CFG_DB, read the attribute and set this attribute in APP_DB. If ‘learn_mode’ is set to ‘disabled’, the MAC learning of this port is disabled.
 
 ## 9.6. portsorch changes
 
 Adding the following logics:
 
-- Listening new APP_DB events, enable or disable to learn interface MACs. If ‘learn_mode’ attribute of one port is set to ‘disabled’, the MAC learning of this port is disbled.([PR#809](https://github.com/sonic-net/sonic-swss/pull/809))
+- Listening new APP_DB events, enable or disable to learn interface MACs. If ‘learn_mode’ attribute of one port is set to ‘disabled’, the MAC learning of this port is disabled.([PR#809](https://github.com/sonic-net/sonic-swss/pull/809))
 - Add LAG name map to counter table, so that ‘show mac’ can display the MACs learned from LAG ports. ([PR#808](https://github.com/sonic-net/sonic-swss/pull/808))
 
 ## 9.7. intfmgr changes
@@ -659,10 +659,10 @@ Adding the following logics:
 
 Adding the following logics:
 
-- If the PortChannel has the attribute 'learn_mode' in CFG_DB, read the attribute and set this attribute in APP_DB. If 'learn_mode' is set to 'disabled', the MAC learning of LAG port is disbled.
+- If the PortChannel has the attribute 'learn_mode' in CFG_DB, read the attribute and set this attribute in APP_DB. If 'learn_mode' is set to 'disabled', the MAC learning of LAG port is disabled.
 - When warm-reboot teammgr gets MAC from saved LACP PDU and update port-channel's MAC before port-channel member port sending any LACP PDU.
 
 # 10. Test
 
-A separete test spec is provided for community to review.
+A separate test spec is provided for community to review.
 

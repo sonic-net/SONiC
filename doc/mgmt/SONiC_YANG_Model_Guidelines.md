@@ -551,7 +551,7 @@ container INTERFACE {
 }
 ......
 ```
-In the example above if the config DB contains an INTERFACE table with single key element then it will be associted with the INTERFACE_LIST and if contains 2 key elements then it will be associated with INTERFACE_IPADDR_LIST
+In the example above if the config DB contains an INTERFACE table with single key element then it will be associated with the INTERFACE_LIST and if contains 2 key elements then it will be associated with INTERFACE_IPADDR_LIST
 
 #### Example 2: Keys with same number of elements of same type (NOT Allowed case 1)
 
@@ -884,7 +884,7 @@ module sonic-acl {
 					}
 					must "(/scommon:operation/scommon:operation != 'DELETE') or " +
 						"(current()/../../../ACL_TABLE/ACL_TABLE_LIST[table_name=current()]/type = 'L3')" {
-							error-message "Type not staisfied.";
+							error-message "Type not satisfied.";
 						}
 				}
 

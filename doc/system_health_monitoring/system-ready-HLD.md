@@ -160,9 +160,9 @@ System ready is arrived at considering the following factors.
 - System-health's newly introduced sysmonitor subtask tracks the sonic host service list, all the docker wrapper services for their running status and also, their app ready status including portready and declare the system is ready.
 - When sysmonitor daemon boots up, it polls for the service list status once and maintains the operational data in STATE_DB and publishes the system ready status in form of syslog and as well as in STATE_DB.
 - Subsequently, when any service state changes, sysmonitor gets the event notification for that service to be checked for its status and update the STATE_DB promptly.
-- Hence the system status is always up-to-date to be notifed to user in the form of syslog, STATE_DB update and as well as could be fetched by appropriate CLIs.
+- Hence the system status is always up-to-date to be notified to user in the form of syslog, STATE_DB update and as well as could be fetched by appropriate CLIs.
 - Once system declare the status (any of it, `UP`, `DOWN`, or `FAILED`) the applications which were waiting for it can continue execution and take actions according to received status.
-  - `UP` system status should be concidered as healthy system status
+  - `UP` system status should be considered as healthy system status
   - `DOWN` system status means that required daemon/s didn't notify its ready status during timeout period.
   - `FAILED` system status means that some daemon was failed during it's execution or SONiC application reported `false` `up_status`.
 
@@ -188,7 +188,7 @@ Sysmonitor is the subtask of system-health service which does the job of checkin
    - With the STATE_DB feature table subscription, any input to the FEATURE table gets notified to this task and it puts the event in the queue.
 
 1. Timeout task
-   - Timeout can be configured trought the platform's `system_health_monitoring_config.json` file by the `timeout` field.
+   - Timeout can be configured through the platform's `system_health_monitoring_config.json` file by the `timeout` field.
    System will be declared DOWN once timeout reached.
 
 1. Main task
@@ -200,10 +200,10 @@ Sysmonitor is the subtask of system-health service which does the job of checkin
 ## 4.3 Service Identification
 
 - It covers the enabled services from FEATURE table of CONFIG_DB.
-- Also, since the idea is to cover only the sonic services but not the general system services, sysmonitor tracks services under "multi-user.target" and "sonic.target". It also inportant to track all "generated" systemd services from `/run/systemd/generator/` folder, such as `ntp-config`, `interfaces-config`, etc.
+- Also, since the idea is to cover only the sonic services but not the general system services, sysmonitor tracks services under "multi-user.target" and "sonic.target". It also important to track all "generated" systemd services from `/run/systemd/generator/` folder, such as `ntp-config`, `interfaces-config`, etc.
 - This covers all the sonic docker services and most of the sonic host services.
-- Additionaly, in `system_health_monitoring_config.json` we introduce a new fields: `services_to_wait` and `services_to_report_app_status`.
-   - `services_to_wait` - holds explicit list of services we would like to wait for in order to declare system ready state. This list shouldn't include the SONiC applications, because it is up to them to specify the effect on system ready by paramerizing FEATURE table.
+- Additionally, in `system_health_monitoring_config.json` we introduce a new fields: `services_to_wait` and `services_to_report_app_status`.
+   - `services_to_wait` - holds explicit list of services we would like to wait for in order to declare system ready state. This list shouldn't include the SONiC applications, because it is up to them to specify the effect on system ready by parameterizing FEATURE table.
    - `services_to_report_app_status` - some daemon may want to notify the readiness to systemd earlier that functional readiness.
    That parameter will hold all services that should notify app ready state by itself using the same mechanism as SONiC application.
 
@@ -223,7 +223,7 @@ but align the services within framework to flag the status as "Down" if the serv
         - oneshot services are considered as 'OK'.
         - Special services with condition pathexists check failure are considered as 'OK'.
         - Other services in inactive state are considered to be 'Down'.
-        - Services exited with error code concidered 'Failed'.
+        - Services exited with error code considered 'Failed'.
     - Any service type other than oneshot if by default goes to inactive state, RemainAfterExit=yes entry needs to be added to their service unit file to be inline with the framework.
     - Host daemons marked their status via `up_status` field in STATE_DB as `true` considered 'OK'.
     - Host daemons marked their status via `up_status` field in STATE_DB as `false` considered 'Failed'.
@@ -422,7 +422,7 @@ Only Click command is supported and not KLISH commands as KLISH will not work if
 ### 5.1 Output Format:
     1. Short message indicating system is ready or not
     2. Header - Service-Name, Service-Status, App-Ready-Status, Down-Reason
-    3. List of servies and it status values
+    3. List of services and it status values
     4. Output Strings for Service-Status and App-Ready-Status:
         "OK" - when a service is up
         "Down" - to emphasise a service is not running when it was intended to be running.

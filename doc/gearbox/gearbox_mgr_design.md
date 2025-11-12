@@ -118,7 +118,7 @@ In order to isolate gearbox functionality and complexity, the Gearbox Manager im
 ![Gearbox Overview](images/gearbox_overview.png)
 
 ### 3.1.1 ORCHAGENT (modified)
-Upon startup or reboot, portsyncd is started as well as the new gearsyncd deamon. The Orchagent is still responsible for creating the ASIC switch and the associated host interfaces. The internal doPortTask has been modified to support both internal port and Gearbox related events.
+Upon startup or reboot, portsyncd is started as well as the new gearsyncd daemon. The Orchagent is still responsible for creating the ASIC switch and the associated host interfaces. The internal doPortTask has been modified to support both internal port and Gearbox related events.
 
 ![Gearbox ORCHAGENT FLOW](images/gearbox_orchagent_flow.png)
 

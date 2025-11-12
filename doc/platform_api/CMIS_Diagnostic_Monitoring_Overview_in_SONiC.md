@@ -2227,7 +2227,7 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
 2. **Link change event:**
     - Only the **flag-related diagnostic information** is updated for a port when a link change event is detected by the `DomInfoUpdateTask` thread. Further details on the tables updated during a link change event are provided in the `Diagnostic Information Update During Link Change Event` section.
     - Updating flag information during a link change event ensures that the flag change time is captured in a timely manner. The periodic update can take more time to update the diagnostic information since it reads the diagnostic information for all the ports in a sequential manner.
-    - The `DomInfoUpdateTask` thread may fail to update flag metadata and flag status if there are mutiple link change events happening in a short period of time. Please refer to the Non-goals section for more details.
+    - The `DomInfoUpdateTask` thread may fail to update flag metadata and flag status if there are multiple link change events happening in a short period of time. Please refer to the Non-goals section for more details.
     - Since the flag registers are clear-on-read latched values, the `DomInfoUpdateTask` thread will require two reads to update the flag value, last clear time, and change count once the flagged condition is no longer present. Hence, it is expected that the flag status change in the database will be delayed by two update cycles when the flagged condition is no longer present on the module. Please refer to the Non-goals section for more details.
 
 #### 5.2.1 High-Level Steps for Updating Dynamic Diagnostic Information
@@ -2489,7 +2489,7 @@ Specifically, the `TRANSCEIVER_STATUS` table contains the `diagnostics_update_in
 
 #### Calculation of `diagnostics_update_interval`
 
-Since diagnostic monitoring is a frequent event, retrieving the average diagnostic interval would require the `DomInfoUpdateTask` to maintain a large cache of last update times for every poll. To reduce the overhead of maintaining such a large cache, we use the Exponentially Weighted Moving Average (EWMA) to calculate the `diagnostics_update_interval`. This approach provides a smooth and responsive average of the update intervals, allowing us to store a single `diagnostics_update_interval` and retrieve the average diagnostic update interval efficiently. An alpha value of 0.1 is used for the EWMA calculation to provide a smooth average while still being responsive to changes in the udpate intervals.
+Since diagnostic monitoring is a frequent event, retrieving the average diagnostic interval would require the `DomInfoUpdateTask` to maintain a large cache of last update times for every poll. To reduce the overhead of maintaining such a large cache, we use the Exponentially Weighted Moving Average (EWMA) to calculate the `diagnostics_update_interval`. This approach provides a smooth and responsive average of the update intervals, allowing us to store a single `diagnostics_update_interval` and retrieve the average diagnostic update interval efficiently. An alpha value of 0.1 is used for the EWMA calculation to provide a smooth average while still being responsive to changes in the update intervals.
 
 **Formula:**
 

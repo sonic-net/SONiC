@@ -62,7 +62,7 @@ These fields are self-explanatory.
 
 1. The "storagemond" process will be initiated by the "pmon" Docker container.
 
-2. Shortly succeeding the initialization process, the daemon will query the Config DB for fields called `daemon_polling_interval` and `fsstats_sync_interval` within a newly proposed table `STORMOND_CONFIG|INTERVALS` and use the value to set the looping frequency for getting dynamic informaton and syncing this information to disk, respectively<sup>NOTE</sup>. In the absense of this table/field, we would default to 3600 seconds for the polling interval and 86400 seconds for sync interval.
+2. Shortly succeeding the initialization process, the daemon will query the Config DB for fields called `daemon_polling_interval` and `fsstats_sync_interval` within a newly proposed table `STORMOND_CONFIG|INTERVALS` and use the value to set the looping frequency for getting dynamic information and syncing this information to disk, respectively<sup>NOTE</sup>. In the absence of this table/field, we would default to 3600 seconds for the polling interval and 86400 seconds for sync interval.
 
 3. Also as part of init, the daemon would reconcile the `STATE_DB`, a JSON file on disk and the current parsed information to calculate the cumulative values of fields that are subject to reset upon reboot. More on this is detailed in section [2.4.4](#244-accounting-for-reboots-and-unintended-powercycles) below.
 
@@ -383,7 +383,7 @@ disk_io_writes          = STRING                    ; Describes the total number
 reserved_blocks         = STRING                    ; Describes the reserved blocks count of the SSD                                                   (Dynamic)
 firmware                = STRING                    ; Describes the Firmware version of the SSD                                                        (Dynamic)
 health                  = STRING                    ; Describes the overall health of the SSD as a % value based on several SMART attrs                (Dynamic)
-last_sync_time          = STRING                    ; The latest successful sync time (in UTC) of disk attribtes to STATE_DB (YYYY:MM:DD HH:MM:SS)     (Dynamic)
+last_sync_time          = STRING                    ; The latest successful sync time (in UTC) of disk attributes to STATE_DB (YYYY:MM:DD HH:MM:SS)     (Dynamic)
 ```
 
 NOTE: disk_io_reads and disk_io_writes return total LBAs read/written. 'LBA' stands for Logical Block Address. 
@@ -481,7 +481,7 @@ container sonic-stormond-config {
             container INTERVALS {
 
                 leaf daemon_polling_interval {
-                    description "Polling inerval for Storage Monitoring Daemon in STORMOND_CONFIG table";
+                    description "Polling interval for Storage Monitoring Daemon in STORMOND_CONFIG table";
                     type uint32 {
                         range "1..4294967295";
                     }

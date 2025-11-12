@@ -26,7 +26,7 @@ This document provides information on the enhancements for platform capability f
 
 Each networking switch has a set of platform components (e.g: Fans, PSUs, LEDs, etc.) and these components in each platform can have different characteristics (like supported colors for a LED). In a given platform, the components could be controlled by a dedicated platform controller (like BMC) or the NOS running on the CPU is required to control it and in the former the control of the components from the NOS could be limited.
 
-In SONiC the platform components' supported attributes are made available via Platform API, but certain platform specific capabilties for the components are not available for the applications.
+In SONiC the platform components' supported attributes are made available via Platform API, but certain platform specific capabilities for the components are not available for the applications.
 
 This document provides the enhancement for `platform.json` to address the above issue.
 
@@ -36,7 +36,7 @@ Currently, `platform.json` is used for providing the expected structure of the p
 
 ### Platform capabilities field
 
-A new set of `capabilities` fields are introduced in platform.json, for providing platform specific capablities on control and characteristics of the components.
+A new set of `capabilities` fields are introduced in platform.json, for providing platform specific capabilities on control and characteristics of the components.
 
 For each component's attribute, the defined `capabilities` fields are as follows:
 

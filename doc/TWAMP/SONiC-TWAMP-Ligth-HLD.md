@@ -43,8 +43,8 @@
           - [6.2.1.6 Remove_TWAMP_Light_session](#6_2_1_6-Remove_TWAMP_Light_session)
         - [6.2.2 Show commands](#6_2_1-Show_commands)
           - [6.2.2.1 Show TWAMP Light session status](#6_2_2_1-Show_TWAMP_Light_session_status)
-          - [6.2.2.2 Show TWAMP Ligth latency and jitter](#6_2_2_2-Show_TWAMP_Ligth_latency_and_jitter)
-          - [6.2.2.3 Show TWAMP Ligth packet loss](#6_2_2_3-Show_TWAMP_Light_packet_loss)
+          - [6.2.2.2 Show TWAMP Light latency and jitter](#6_2_2_2-Show_TWAMP_Ligth_latency_and_jitter)
+          - [6.2.2.3 Show TWAMP Light packet loss](#6_2_2_3-Show_TWAMP_Light_packet_loss)
       - [6.3 YANG](#6_2-YANG)
    - [7. Warmboot and Fastboot Design Impact](#7-Warmboot_and_Fastboot_Design_Impact)
    - [8. Restrictions_Limitations](#8-Restrictions_Limitations)
@@ -128,7 +128,7 @@ Phase #1
 - Should be able to perform the role of TWAMP Light Session-Reflector:
 
   - Support to reflect TWAMP-Test packets to sender
-- Should be able to configure TWAMP-Test packets fileds: Source IP, L4 Source Port, Destination IP, L4 Destination Port, DSCP, TTL, timestamp format, padding
+- Should be able to configure TWAMP-Test packets fields: Source IP, L4 Source Port, Destination IP, L4 Destination Port, DSCP, TTL, timestamp format, padding
 
 Later phases:
 
@@ -173,7 +173,7 @@ Architecture considers both software and hardware solutions, with the main diffe
 
 * TWAMP Light architecture using the hardware solution. A process twamporch is newly added in the hardware solution. Twamporch subscribes to TWAMP_LIGHT_TABLE and creates a session that includes properties such as IP, UDP PORT and offloads to ASIC. The ASIC generates the test packets, independently calculates the measurement data, and reports it to the up layer system.
 
-* TWAMP Light architecture using the software solution. A TWAMP container is newly added. The container includes twampd which subscribes to TWAMP_LIGHT_TABLE and creates a session that includes properties such as IP, UDP PORT. Twampd runs two threads, one generates TWAMP-test packets and sends them out by Linux socket, the other receives TWAMP-test packets from Linux socket. For Session-Sender, twampd is required to calculate the latency, jitter and packet loss rate based on the measurement data such as timestamp, transmitting and receiving packets count and so on. For Session-Reflector, twampd reflects the TWAMP-test packet with timestamp. For TWAMP-Test packet, ACL entry with packet fileds such as ip, udp_port will be installed to ASIC when creating a TWAMP Light session. Aslo a new trap of host interface will be added, and this trap is configurable in COPP rules.
+* TWAMP Light architecture using the software solution. A TWAMP container is newly added. The container includes twampd which subscribes to TWAMP_LIGHT_TABLE and creates a session that includes properties such as IP, UDP PORT. Twampd runs two threads, one generates TWAMP-test packets and sends them out by Linux socket, the other receives TWAMP-test packets from Linux socket. For Session-Sender, twampd is required to calculate the latency, jitter and packet loss rate based on the measurement data such as timestamp, transmitting and receiving packets count and so on. For Session-Reflector, twampd reflects the TWAMP-test packet with timestamp. For TWAMP-Test packet, ACL entry with packet fields such as ip, udp_port will be installed to ASIC when creating a TWAMP Light session. Also a new trap of host interface will be added, and this trap is configurable in COPP rules.
 
 ## 4 High-Level Design
 
@@ -735,7 +735,7 @@ Name    Status    Sender IP:PORT    Reflector IP:PORT
 
 ```
 
-##### 6.2.2.2 Show TWAMP Ligth latency and jitter
+##### 6.2.2.2 Show TWAMP Light latency and jitter
 
 This command is used to display the latency and jitter.
 
@@ -752,7 +752,7 @@ Name      Latency(AVG)    Latency(MIN)    Latency(MAX)    Jitter(AVG)    Jitter(
 sdp34            20906               5               6         134217        3489660        3489660
 ```
 
-##### 6.2.2.3 Show TWAMP Ligth packet loss
+##### 6.2.2.3 Show TWAMP Light packet loss
 
 This command is used to display the packet loss
 

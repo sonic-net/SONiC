@@ -38,7 +38,7 @@ Below is a packet capture showing SNMP request packet sent to DUT Loopback IPV6 
 2. SNMP request is received at SONiC device is sent to snmpd which is listening on port 161 :::161/
 3. snmpd process will parse the request create a response and sent to DST IP fc00::72.
 4. snmpd process does not track the DST IP on which the SNMP request was received, which in this case is Loopback IP.
-snmpd process will only keep track what is tht IP to which the response should be sent to.
+snmpd process will only keep track what is that IP to which the response should be sent to.
 5. snmpd process will send the response packet.
 Kernel will do a route look up on destination IP and find the best path.
 ip -6 route get fc00::72
@@ -74,16 +74,16 @@ On multi-asic platform, there exists different network namespaces.
 SNMP docker with snmpd process runs on host namespace.
 Management interface belongs to host namespace.
 Loopback0 is configured on asic namespaces.
-Additional inforamtion on how the packet coming over Loopback IP reaches snmpd process running on host namespace: #5420
+Additional information on how the packet coming over Loopback IP reaches snmpd process running on host namespace: #5420
 Because of this separation of network namespaces, the route lookup of destination IP is confined to routing table of specific namespace where packet is received.
 If packet is received over management interface, SNMP response also is sent out of management interface. Same goes with packet received over Loopback Ip.
 
 ## Changes done to workaround the issue ##
 
 Currently snmpd listens on any ip by default, after this change:
-1. If minigraph.xml is used to load the initial configuration, then SNMP_AGENT_ADDRESS_CONFIG in config_db will be updated with Loopback0 and Managment interface IP addresses during the parsing of minigraph.xml.
+1. If minigraph.xml is used to load the initial configuration, then SNMP_AGENT_ADDRESS_CONFIG in config_db will be updated with Loopback0 and Management interface IP addresses during the parsing of minigraph.xml.
 2. No change will be done if config_db.json is used to load the configuration.
-config_db.json file could have SNMP_AGENT_ADDRESS_CONFIG table udpated with required IP addresses for snmpd to listen on. 
+config_db.json file could have SNMP_AGENT_ADDRESS_CONFIG table updated with required IP addresses for snmpd to listen on. 
 
 Before the change:
 snmpd listens on any IP, snmpd binds to IPv4 and IPv6 sockets as below:
@@ -95,7 +95,7 @@ netsnmp_udpbase: binding socket: 8 to UDP/IPv6: [::]:161
 When IPv4 response is sent, it goes out of fd 7 and IPv6 response goes out of fd 8.
 When IPv6 response is sent, it does not have the right SRC IP and it can lead to the issue described.
 
-If minigraph.xml is used, then SNMP_AGENT_ADDRESS_CONFIG will be configured with Loopback0 and Managment interface IP addresses. When snmpd listens on specific Loopback/Management IPs, snmpd binds to different sockets:
+If minigraph.xml is used, then SNMP_AGENT_ADDRESS_CONFIG will be configured with Loopback0 and Management interface IP addresses. When snmpd listens on specific Loopback/Management IPs, snmpd binds to different sockets:
 ```
 trace: netsnmp_udpipv4base_transport_bind(): transports/snmpUDPIPv4BaseDomain.c, 207:
 netsnmp_udpbase: binding socket: 7 to UDP: [0.0.0.0]:0->[10.250.0.101]:161
@@ -129,7 +129,7 @@ This change is also more secure approach instead of listening over any ip.
 
 ### Effects of this change ###
 1. If minigraph.xml is used to load the initial configuration, then snmpd will listen on Loopback0/Management IPs on single asic platform.
-2. If config_db.json is used load the configuration, then snmpd will listen on any IP, the IPv6 issue will be seen. To overcome IPv6 issue, SNMP_AGENT_ADDRESS_CONFIG table should be udpated to listen to specific IPv4 or IPv6 addresses using "config snmpagentaddress add <ip>".
+2. If config_db.json is used load the configuration, then snmpd will listen on any IP, the IPv6 issue will be seen. To overcome IPv6 issue, SNMP_AGENT_ADDRESS_CONFIG table should be updated to listen to specific IPv4 or IPv6 addresses using "config snmpagentaddress add <ip>".
 3. No change required or done for multi-asic platforms.
 
 ### Pull request to support this change ###

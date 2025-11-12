@@ -30,7 +30,7 @@ cannot be found in a reasonable time, the issue will be escalated to the Project
 find a solution to move the project forward. 
 
 ### Example of conflict resolution
-Let's say the link aggregation repositor(ies) (LACP) merge a change that is incompatible with the other parts 
+Let's say the link aggregation repository(ies) (LACP) merge a change that is incompatible with the other parts 
 of the project.  At a minimum, the build-repo maintainer will detect this and continue to build with the older 
 release of the LACP repo(s).  The community discusses the changes.
 

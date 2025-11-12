@@ -87,7 +87,7 @@ This document describes the functionality and high level design of Broadcast, Un
 # 1 Feature Overview
 A traffic storm occurs when packets flood the LAN, creating excessive traffic and degrading network performance. The type of traffic can be Broadcast, Unknown-unicast or unknown-Multicast (BUM). 
 The storm-control feature allows the user to limit the amount of BUM traffic admitted to the system. This can be achieved by configuring the type of storm (Broadcast or Unknown-unicast or unknown-Multicast) and the corresponding kilo bits per second (kbps) parameter on a given physical interface. Traffic that exceeds the configured rate will be dropped. 
-Unknown-multicast traffic consists of all multicast traffic which donot match any of the statically configured or dynamically learned multicast groups. 
+Unknown-multicast traffic consists of all multicast traffic which do not match any of the statically configured or dynamically learned multicast groups. 
 
 
 

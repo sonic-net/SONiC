@@ -91,7 +91,7 @@ There are no changes to the current SONiC Architecture.
      - Enhance the `portstat` command with the `-f` option (used by the CLI command `show interfaces counters fec-stats`) to include the FLR(O) and FLR(P) columns.
 
    + counterpoll/main.py:
-     - Add a new argument `flr-interval-factor` to the exisiting `counterpoll port` command.
+     - Add a new argument `flr-interval-factor` to the existing `counterpoll port` command.
 
      ```
      root@sonic:~$ counterpoll port --help
@@ -233,7 +233,7 @@ The image below shows the linear pattern of the codeword error ratio (CER) after
 ![Logarithm curve of CER](./img/Logarithm_curve_of_CER.png)
 
 ```
-Step 3: Perform linear regresion to arrive at slope and intercept
+Step 3: Perform linear regression to arrive at slope and intercept
 
     slope = (n * Σ(x*y) - Σx * Σy) / (n * Σ(x²) - (Σx)²)
     intercept = (Σy - slope * Σx) / n

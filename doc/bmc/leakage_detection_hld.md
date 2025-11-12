@@ -17,7 +17,7 @@ The leak alarm process is straightforward. The platform API first acquires the s
 A new object `LiquidCollingBase` will be added to the `sonic-platform-common` to reflect the new liquid cooling device
 
 ```
-Class LiquidcollingBase(ojbect):
+Class LiquidcollingBase(object):
     leakge_sensors_num = 0
     leakage_sensors = {}
 
@@ -53,7 +53,7 @@ Class LiquidcollingBase(ojbect):
         return leaking_sensors
 
 Class LeakageSensor(sensor_base):
-    "" there might be mutiple leakge detection sensors, to let user better find the location, 
+    "" there might be multiple leakge detection sensors, to let user better find the location, 
     name = ""
     leaking = 0
 
@@ -72,7 +72,7 @@ During initialization, a separate thread will be launched to periodically call t
 
 New configuration will be added to pmon_daemon_control.json, to indicate whether the system has liquid cooling system, if not, the object and thread will not be created in the initialization of thermalctld at all to avoid performance overheading.
 ```
-# to enable the seperate thread for liquid cooling monitor
+# to enable the separate thread for liquid cooling monitor
 enable_liquid_cooling: true,
 # set the interval to update the leakage status, default 0.5
 liquid_cooling_update_interval: 0.5
@@ -94,7 +94,7 @@ class LiquidCoolingUpdater():
 ```
 
 ### stat_db data schema 
-the `LIQUID_COOLING_DEVICE` table stores all the date gathered by thermal control deamon, currtenly, it will have only `leakage_sensors`
+the `LIQUID_COOLING_DEVICE` table stores all the date gathered by thermal control daemon, currtenly, it will have only `leakage_sensors`
 
 ```
 Defines a logical structure for liquid cooling devices, with keys for various sensors.
@@ -145,11 +145,11 @@ leak_sensors3            Not OK    LiquidCooling
 ```
 
 ## 8. Performance
-Seperate thread will be lunched in thermal contorl daemon keep monitoring entire liquid cooling device status within 0.5s interval
+Separate thread will be lunched in thermal control daemon keep monitoring entire liquid cooling device status within 0.5s interval
 
 ## 9. Testing
 A mock testing should be created to demonstrate the functionality of this implementation. Once simulated a leaking event, these things need to be checked:
-1. correct sensors number had been indicated in the syslog messge
+1. correct sensors number had been indicated in the syslog message
 2. state db is rightly updated 
 3. GNMI event had been sent out
 4. `show platform leakage status` command output is correct

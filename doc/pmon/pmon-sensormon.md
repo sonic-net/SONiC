@@ -40,7 +40,7 @@ Note that temperature sensor devices are managed via SONiC ThermalCtlD daemon to
 Linux does provide some support of voltage and current sensor monitoring using lmsensors/hwmon infrastructure. However there are a few limitations with that
 
 - Devices not supported with Hwmon are not covered
-- Simple devices which donot have an inbuilt monitoring functions do not generate any alarms
+- Simple devices which do not have an inbuilt monitoring functions do not generate any alarms
 - Platform specific thresholds for monitoring are not available
 
 The solution proposed in this document tries to address these limitations by extending the coverage to a larger set of devices and providing platform specific thresholds for sensor monitoring.
@@ -79,7 +79,7 @@ The following SONiC repositories will have changes
 
 #### sonic-platform-daemons	
 
-SensorMon will be a new daemon that will run in PMON container. It will retrieve a list of sensors of different sensor types from the platform during initialization. Subsequently, it will poll the sensor devices on a periodic basis and update their measurments in StateDb. SensorMon will also raise syslogs on alarm conditions. 
+SensorMon will be a new daemon that will run in PMON container. It will retrieve a list of sensors of different sensor types from the platform during initialization. Subsequently, it will poll the sensor devices on a periodic basis and update their measurements in StateDb. SensorMon will also raise syslogs on alarm conditions. 
 
 Following is the DB schema for voltage and current sensor data.
 
@@ -97,7 +97,7 @@ Following is the DB schema for voltage and current sensor data.
 	warning_status          = boolean                        ; Sensor value in range
 	timestamp               = string                         ; Last update time
 	maximum_voltage         = float                          ; Maximum recorded measurement
-	minimum_voltage         = float                          ; Mininum recorded measurement
+	minimum_voltage         = float                          ; Minimum recorded measurement
 
 ##### Current Sensor StateDb Schema
 
@@ -113,7 +113,7 @@ Following is the DB schema for voltage and current sensor data.
 	warning_status          = boolean                        ; Sensor value in range
 	timestamp               = string                         ; Last update time
 	maximum_current         = float                          ; Maximum recorded measurement
-	minimum_current         = float                          ; Mininum recorded measurement
+	minimum_current         = float                          ; Minimum recorded measurement
 	
 		
 #### sonic-platform-common
@@ -125,7 +125,7 @@ Module base class will also be enhanced with similar methods for retrieving sens
 New base classes will be introduced for new sensor types.
 
 VsensorBase is introduced for voltage sensor objects. 
-IsensorBase is introdued for current sensor objects.
+IsensorBase is introduced for current sensor objects.
 
 The classes will have methods to retrieve threshold information, sensor value and min/max recorded values from the sensor.
 	
@@ -174,7 +174,7 @@ It is advised to monitor the sensor alarms and use that to debug and identify an
 
 	FJul 27 08:26:32.561330 sonic WARNING pmon#sensormond: High voltage warning: VP0P75_CORE_NPU2 current voltage 880mV, high threshold 856mV
 
-The alarm condition will be visible in the CLI ouputs for sensor data and system health.
+The alarm condition will be visible in the CLI outputs for sensor data and system health.
 
 	e.g 
 	root@sonic:/home/cisco# show platform voltage

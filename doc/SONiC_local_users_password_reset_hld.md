@@ -78,7 +78,7 @@ The service is dependent on the ```database.service``` for reading the configure
 This feature will be a built-in SONiC feature. There will be three main files to consider in this feature:
 
 1. ```src/sonic-platform-common/sonic_platform_base/reset_local_users_passwords_base.py``` - The default behavior implementation will reside in this file, including when to trigger the feature and how to reset the local users' configurations.
-2. ```platform/<vendor-path>/sonic_platform/reset_local_users_passwords.py``` - The vendor specifc implementation of the feature, each vendor can decide what is the trigger cause to start the functionality and how it is implemented.
+2. ```platform/<vendor-path>/sonic_platform/reset_local_users_passwords.py``` - The vendor specific implementation of the feature, each vendor can decide what is the trigger cause to start the functionality and how it is implemented.
 3. ```src/sonic-host-services/scripts/reset-local-users-passwords``` - The python file that will be called on service start during init that imports the vendor's specific implementation.
 
 The default behavior will delete non-default users and restore the original passwords of the default users and expire them based on the content of the file of ```/etc/sonic/default_users.json``` on long reboot press.
@@ -144,7 +144,7 @@ The ```LocalUsersConfigurationResetPlatform``` class residing in ```platform/<ve
     ```
 
 
-The new serivce will call the python script ```src/sonic-host-services/scripts/reset-local-users-passwords``` which in return it will read the feature state from the ```LOCAL_USERS_PASSWORDS_RESET``` table in ```CONFIG_DB``` database. If feature is enabled and a long reset button press detected, the service will perfom the implementation in the ```start()``` in the vendor's specifc implementation as we can see in the following code snippet of ```src/sonic-host-services/scripts/reset-local-users-passwords```:
+The new service will call the python script ```src/sonic-host-services/scripts/reset-local-users-passwords``` which in return it will read the feature state from the ```LOCAL_USERS_PASSWORDS_RESET``` table in ```CONFIG_DB``` database. If feature is enabled and a long reset button press detected, the service will perform the implementation in the ```start()``` in the vendor's specific implementation as we can see in the following code snippet of ```src/sonic-host-services/scripts/reset-local-users-passwords```:
 
 
 ```
@@ -168,7 +168,7 @@ def main():
     LocalUsersConfigurationReset().start()
 ```
 
-The feature is added to the init flow as long as we set the new ```ENABLE_LOCAL_USERS_PASSWORDS_RESET``` global variable and the exsiting ```CHANGE_DEFAULT_PASSWORD``` global variable in ```rules/config``` to ```y```.
+The feature is added to the init flow as long as we set the new ```ENABLE_LOCAL_USERS_PASSWORDS_RESET``` global variable and the existing ```CHANGE_DEFAULT_PASSWORD``` global variable in ```rules/config``` to ```y```.
 
 ```
 # ENABLE_LOCAL_USERS_PASSWORDS_RESET - enable local users' passwords reset during init on switch
@@ -186,7 +186,7 @@ The ```reset-local-users-passwords.service``` is required to run as fast as poss
 ###### Local users' password reset during init flow
 ![](./reset-local-users-passwords-init-flow.png  "Local users' password reset during init")
 
-The defualt behavior is on long reset button press, the system will delete non default users and restore original passwords for default users and expire them, all done using linux commands
+The default behavior is on long reset button press, the system will delete non default users and restore original passwords for default users and expire them, all done using linux commands
 
 # Configuration and management
 

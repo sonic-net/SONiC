@@ -54,7 +54,7 @@ To ensure the recycled packet is bridged/routed correctly, the corresponding FDB
 
 In general, recycle-to-routed is more preferred to reccyle-to-bridged because the former can take the advantages of L3 forwarding features like ECMP. However, recycle-to-routed is also having its own limitation/issue. For example, the TTL of the egress packet may be decremented twice because the packet is routed twice.
 
-## 1.2 Explict recycle ports
+## 1.2 Explicit recycle ports
 
 Since the traffic is forwarded via recycle ports, it’s ideal to have statistics, like counters or errors, collected for recycle ports as well just like for front panel ports. This makes it easier to debug forwarding issue in which recycle ports are involved. To this end recycle ports need to be made visible to SONiC.
 
@@ -77,7 +77,7 @@ Ethernet24          72,73,74,75,76,77,78,79   Ethernet4/1  4      Ext        400
 Ethernet-Rec0       221                       Recirc0/0    5      Rec        400000
 Ethernet-IB0        222                       Recirc0/1    6      Inb        400000
 ```
-Similarly, if recirculation ports are configued in platform.json, their port role must be provided too. For example, the above recirculation ports are defined in platform.json as shown below:
+Similarly, if recirculation ports are configured in platform.json, their port role must be provided too. For example, the above recirculation ports are defined in platform.json as shown below:
 ```
     "Ethernet-Rec0": {
         "index": "5",

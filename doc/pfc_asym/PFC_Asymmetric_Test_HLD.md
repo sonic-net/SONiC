@@ -96,7 +96,7 @@ Preparation before test cases run will be executed in the following pytest fixtu
 To simulate that neighbors are overloaded (send many PFC frames) there is used PFC packets generator which is running on Fanout switch.
 File location - ```roles/test/files/helpers/pfc_gen.py```
 
-Currnet fixture deploys ```roles/test/files/helpers/pfc_gen.py``` to the fanout host.
+Current fixture deploys ```roles/test/files/helpers/pfc_gen.py``` to the fanout host.
 This step can be different for different platforms. Below there is description how it works for Mellanox and Arista cases, also how to add support of another platform type.
 
 #### Notes
@@ -126,7 +126,7 @@ Copy "roles/test/files/helpers/pfc_gen.py" to "/mnt/flash" directory
 Tests currently support deployment of arista fanout switches, **to support other platforms:**
 
 1. Add platform specific logic to deploy pfc packet generator automatically in ```deploy_pfc_gen``` pytest fixture.
-Or manualy deploy ```roles/test/files/helpers/pfc_gen.py``` and ensure the file is available on fanout switch.
+Or manually deploy ```roles/test/files/helpers/pfc_gen.py``` and ensure the file is available on fanout switch.
 
 2. Create ```pfc_storm_[sku].j2``` and ```pfc_storm_stop_[sku].j2``` under ```ansible/roles/test/templates/```
 to trigger pfc storm **start/stop** action.
@@ -318,7 +318,7 @@ setup
 #### Test steps
 - Setup:
   - Start ARP responder
-  - Limit maximum bandwith rate on the destination port by setting "1" into SAI port attribute SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID
+  - Limit maximum bandwidth rate on the destination port by setting "1" into SAI port attribute SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID
   
 - Clear all counters for all ports
 - Get lossless priorities
@@ -332,7 +332,7 @@ setup
 - Verify that PFC frames are not generated for lossy priorities
 
 - Teardown:
-  - Restore maximum bandwith rate on the destination port by setting "0" into SAI port attribute SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID
+  - Restore maximum bandwidth rate on the destination port by setting "0" into SAI port attribute SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID
    - Stop ARP responder
 
 ### Test case # 2 – Asymmetric PFC Off RX pause frames
@@ -372,14 +372,14 @@ setup, enable_pfc_asym
 #### Test steps
 - Setup:
   - Start ARP responder
-  - Limit maximum bandwith rate on the destination port by setting "1" into SAI port attribute SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID
+  - Limit maximum bandwidth rate on the destination port by setting "1" into SAI port attribute SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID
 
 - As SAI attributes stores PFC values like a bit vector, calculate bitmask for each PFC mode according to configured "lossless" priorities to have possibility to check that asymmetric PFC configuration for RX and TX queues was applied correctly for configured PFC mode:
   - Calculate bitmask for the PFC value
   - Calculate bitmask for the asymmetric PFC Tx value
   - Calculate bitmask for the asymmetric PFC Rx value
 
-- Verify asymetric PFC mode is enabled on each server port
+- Verify asymmetric PFC mode is enabled on each server port
 - Get asymmetric PFC Rx value for all server ports
 - Verify asymmetric PFC Rx value for each server port
 - Get asymmetric PFC Tx value for all server ports
@@ -400,12 +400,12 @@ setup, enable_pfc_asym
 - Verify PFC value is restored to default
 
 - Teardown:
-  - Restore maximum bandwith rate on the destination port by setting "0" into SAI port attribute SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID
+  - Restore maximum bandwidth rate on the destination port by setting "0" into SAI port attribute SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID
    - Stop ARP responder
 
 ### Test case # 4 – Asymmetric PFC On Rx pause frames on all priorities
 #### Test objective
-Asymmetric PFC is enabled. Verify that while receiving PFC frames DUT handle PFC frames on all priorities when asymetric mode is enabled
+Asymmetric PFC is enabled. Verify that while receiving PFC frames DUT handle PFC frames on all priorities when asymmetric mode is enabled
 
 #### Used fixtures
 setup, pfc_storm_runner, enable_pfc_asym

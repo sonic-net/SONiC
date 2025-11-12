@@ -5,7 +5,7 @@
  * [2. Temperature sensor sysfs](#2-temperature-sensor-sysfs)
  * [3. Voltage sensor sysfs](#3-voltage-sensor-sysfs)
  * [4. Current sensor sysfs ](#4-current-sensor-sysfs)
- * [5. Syseeprom infomation sysfs ](#5-syseeprom-information-sysfs)
+ * [5. Syseeprom information sysfs ](#5-syseeprom-information-sysfs)
  * [6. Fan information sysfs](#6-fan-information-sysfs)
  * [7. PSU information sysfs](#7-psu-information-sysfs)
  * [8. Transceiver information sysfs](#8-transceiver-information-sysfs)

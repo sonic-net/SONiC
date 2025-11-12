@@ -22,7 +22,7 @@ The release manager is responsible for the release of the community SONiC versio
   
 ### PR Management
 * The release manager is responsible for managing PRs, categorizing PRs into bugfix PRs and non-bugfix PRs (e.g. a feature PR), and categorizing PRs by functional category, such as platform/Routing/Switch, etc., to help find the right person to review the code.
-* In principle, only bugfix PRs are accepted. For featrue PRs, they need to be approved by TSC meeting before they can be merged
+* In principle, only bugfix PRs are accepted. For feature PRs, they need to be approved by TSC meeting before they can be merged
 * In principle, the code modification of a bugfix should be less than 200 lines. Bugfixes with more than 200 lines are recommended to be transferred to requirement tracking.
 * For all merged bugfixes, corresponding sonic-mgmt test cases need to be provided to cover the modifications of the bugfix and ensure quality. This is the bottom line.
 * The release manager needs to organize community experts to review the PR code. Only PRs that pass the code review are allowed to be merged.

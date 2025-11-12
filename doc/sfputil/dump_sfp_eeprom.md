@@ -49,7 +49,7 @@ Existing subcommand `eeprom-hexdump` shall be extended to dump eeprom data for a
 
 1. `sfputil show eeprom-hexdump --port <port> --page <page>`: dump given page for given port
 2. `sfputil show eeprom-hexdump --port <port>`: dump page 0 for given port (to keep backwardcompatible)
-3. `sfputil show eeprom-hexdump --page <page>`: dump given page for all ports, validate that page must be in range [0,255]. User is repsonsible for making sure the page existence.
+3. `sfputil show eeprom-hexdump --page <page>`: dump given page for all ports, validate that page must be in range [0,255]. User is responsible for making sure the page existence.
 4. `sfputil show eeprom-hexdump`: dump available pages for all ports. Available pages for different cable types are described below.
 
 `sfputil show eeprom-hexdump` shall dump pages based on cable type:

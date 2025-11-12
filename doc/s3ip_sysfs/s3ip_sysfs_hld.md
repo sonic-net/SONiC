@@ -64,7 +64,7 @@ The S3IP sysfs specification is represented as an organized sysfs directory stru
 
 Both vendors and users should comply with the S3IP sysfs specification. Device vendors focus on the specification implementation, while users verify the usability of the device against this specification. Vendors should provide software access to every sensor capable of being read. For any available sensor, vendors shall provide S3IP sysfs access.
 
-Figure2-2 S3IP sysfs diretory demo
+Figure2-2 S3IP sysfs directory demo
 
 ![demo](/images/s3ip_sysfs/s3ip_sysfs_demo.png)
 
@@ -297,7 +297,7 @@ However, there are many differences between the two frameworks, which are listed
 |-|-|-|
 |Requirements| The requirements are put forward from the user's perspective, and the sysfs node is summarized from the actual operation experience. The goal is to unify the interface for device management | The requirements are proposed from technical point of view aimed at platform driver and APIs development in SONiC. Only those SysFS which are required by SONiC platform APIs are exposed.
 |Ecosystem | Devices compliant with S3IP SYSFS specification have been widely used in data centers.<br> The [S3IP](http://www.s3ip.org/) project involved both vendors and users[S3IP] (including Tencent, Alibaba, Baidu, Kuaishou, Meituan, Jingdong and more than a dozen ODM vendors). Vendors and users complete a closed-loop of requirements, standards and debugging tools that have the ability to iterate continuously. | PDDF is a new framework and it is developed in the SONiC context. Some ODM platforms are already using PDDF. PDDF is an underlying framework which ODMs can use for faster development but it does not exposes any fixed SysFS nodes to the user.
-|Development Mode | Regular development model,<br>Programming is required to implement the requirements. <br>ODM venders need to provide professional driver support for customers，Customers validating device with sysfs| ODM vendors can use common PDDF kernel drivers and user space common platform APIs. Only some platform specific device data needs to be provided by the ODMs in the form of JSON files. Validation is via usual SONiC CLIs.
+|Development Mode | Regular development model,<br>Programming is required to implement the requirements. <br>ODM vendors need to provide professional driver support for customers，Customers validating device with sysfs| ODM vendors can use common PDDF kernel drivers and user space common platform APIs. Only some platform specific device data needs to be provided by the ODMs in the form of JSON files. Validation is via usual SONiC CLIs.
 |Flexible | 1.Bus independent, The hardware support:<br>Fan<br>PSU<br>System EEPROM<br>Transceivers<br>CPLD<br>FPGA<br>System LED<br>Temperature sensors<br>Current sensors<br>Voltage sensors<br>Slot<br>Watchdog<br><br>2.Support scenarios with many customization requirements, such as FPGA-Polling, BMC management hardware and firmware upgrades <br><br>3.Normalized SYSFS is easy for hardware fault identification and prediction <br><br>4.Easy to debug for ODM users, and they need not care about the bus topology |PDDF can be used on the platforms which use I2C bus to communicate with the peripheral devices. Platforms which use BMC can also be brought up using PDDF. In future PDDF would be supported on platform using PCIE FPGA devices.
 |code position |  https://github.com/sonic-net/sonic-buildimage/tree/master/platform/s3ip-sysfs| https://github.com/sonic-net/sonic-buildimage/tree/master/platform/pddf
 

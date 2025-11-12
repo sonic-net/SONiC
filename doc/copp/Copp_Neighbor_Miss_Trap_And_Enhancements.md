@@ -283,7 +283,7 @@ No warmboot and fastboot impact is expected for this feature.
 #### 12.1.1. SWSS Unit Test Cases
 
 * **Neighbor Miss default configuration verification:** Default copp group and trap configuration of neighbor miss will be added to test_copp.py to verify the default configuration.
-* **Trap hw_status verification:** Existing test cases currently verify trap configuration by SET/DEL on CONFIG_DB and vaidating the configuration by GET on ASIC_DB. These test cases will be extended to also verify the hw_status field in STATE_DB.
+* **Trap hw_status verification:** Existing test cases currently verify trap configuration by SET/DEL on CONFIG_DB and validating the configuration by GET on ASIC_DB. These test cases will be extended to also verify the hw_status field in STATE_DB.
 * **STATE_DB capability table verification:** New test cases will be added to verify the COPP_TRAP_CAPABILITY_TABLE table in STATE_DB. Test case will perform GET operation and verify trap_id_list field in the table is not empty.
 
 #### 12.1.2. CLI UT Test Cases

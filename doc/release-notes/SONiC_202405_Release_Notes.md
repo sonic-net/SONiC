@@ -55,7 +55,7 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 | Feature| Feature Description | HLD PR / PR tracking |	Quality |
 | ------ | ------- | -----|-----|
 | ***[LLDP][T2] Advertise Chassis Hostname when present.*** | This feature is for chassis to advertise chassis hostname instead of line card hostname if available to LLDP peers. | [19076](https://github.com/sonic-net/sonic-buildimage/pull/19076) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
-| ***[NTP] Fix config template to init default parameters*** | This implements the fix for NTP config generation from the minigraph and save backward compatability | [18736](https://github.com/sonic-net/sonic-buildimage/pull/18736) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
+| ***[NTP] Fix config template to init default parameters*** | This implements the fix for NTP config generation from the minigraph and save backward compatibility | [18736](https://github.com/sonic-net/sonic-buildimage/pull/18736) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
 | ***[SubnetDecap] Add subnet decap HLD*** | This feature implements the subnet decapsulation feature on T0 SONiC that allows Netscan to probe VLAN subnet IP addresses.  | [1657](https://github.com/sonic-net/SONiC/pull/1657)  | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
 | ***Add details of sff_mgr regarding deterministic bringup for SFF compliant modules*** | This feature adds a new thread sff_mgr under xcvrd to provide deterministic link bringup feature for SFF compliant modules (100G/40G) | [1334](https://github.com/sonic-net/SONiC/pull/1334) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
 | ***Add HLD for IPv4 port based DHCP server in SONiC*** | This feature implements the design details of ipv4 port based DHCP server in SONiC.  | [1282](https://github.com/sonic-net/SONiC/pull/1282) |  [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
@@ -94,7 +94,7 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 | ***Weighted-Cost Multi-Path*** | This feature provides general information about Weighted-Cost Multi-Path implementation in SONiC | [1629](https://github.com/sonic-net/SONiC/pull/1629)  | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md) |
 
 
-Note : The HLD PR's have been updated in ""HLD PR / PR tracking"" coloumn. The code PR's part of the features are mentioned within the HLD PRs. The code PRs not mentioned in HLD PRs are updated in "HLD PR / PR tracking" coloumn along with HLD PRs.
+Note : The HLD PR's have been updated in ""HLD PR / PR tracking"" column. The code PR's part of the features are mentioned within the HLD PRs. The code PRs not mentioned in HLD PRs are updated in "HLD PR / PR tracking" column along with HLD PRs.
 
 # SAI APIs
 

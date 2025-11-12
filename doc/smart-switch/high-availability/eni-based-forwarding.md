@@ -68,11 +68,11 @@ Packet Forwarding from NPU to local and remote DPU's are clearly explained in th
 
 ### Packet Flow ###
 
-**Case 1: Packet lands directly on NPU which has the currrent Active ENI**
+**Case 1: Packet lands directly on NPU which has the current Active ENI**
 
 ![Active ENI case](./images/active_eni.png)
 
-**Case 2: Packet lands NPU which has the currrent Standby ENI**
+**Case 2: Packet lands NPU which has the current Standby ENI**
 
 ![Active Standby ENI case](./images/active_standby_eni.png)
 
@@ -84,7 +84,7 @@ Packet Forwarding from NPU to local and remote DPU's are clearly explained in th
 
 ENI based forwarding requires the switch to understand the relationship between the packet and ENI, and ENI and DPU.
 
-* Each DPU is represented as a PA (public address). Unlike VIP, PA does't have to be visible from the entire cloud infrastructure
+* Each DPU is represented as a PA (public address). Unlike VIP, PA doesn't have to be visible from the entire cloud infrastructure
 * Every ENI should be a part of T1 cluster
 * Each packet can be identified as belonging to that switch using VIP and VNI
 * Forwarding can be to local DPU or remote DPU over L3 VxLAN

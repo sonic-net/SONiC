@@ -84,7 +84,7 @@ Zebra, on receiving the message containing route install success, will notify BG
 Zebra, on receiving the message containing failed route notification, will withdraw the route from kernel. It will also mark the route with flag as "Not installed in hardware" and store the route. It will not send the next best route to fpmsyncd. At this stage, route is present in Zebra. It will NOT notify BGP of the route add failure.
 
 ### 3.3.2 BGP changes
-When BGP learns a route, it marks the route as "pending FIB install" and sends the route to Zebra. The route may or may not be successfully installed in hardware.  On receiving route add sucess notification message, BGP will remove the "pending FIB install" flag and advertise the route to its peers. 
+When BGP learns a route, it marks the route as "pending FIB install" and sends the route to Zebra. The route may or may not be successfully installed in hardware.  On receiving route add success notification message, BGP will remove the "pending FIB install" flag and advertise the route to its peers. 
 
 In case user wants to retry the installation of failed routes, he/she can issue the command in Zebra. The command will reprogram the failed route in kernel and send that route to hardware.  If the route is successfully programmed in hardware, it will notify Zebra. Zebra will, in turn, notify BGP and route will be advertised to its neighbors.
 
@@ -124,7 +124,7 @@ Commands:
   disable  Administratively Disable BGP error-handling
   enable   Administratively Enable BGP error handling
   ```
-  When the error-handling is disabled, fpmsyncd will not subcribe to any notification from ERROR_ROUTE_TABLE.  By default, the error-handling feature is disabled. During system reload, config replay for this feature is possible when the docker routing config mode is unified or split.
+  When the error-handling is disabled, fpmsyncd will not subscribe to any notification from ERROR_ROUTE_TABLE.  By default, the error-handling feature is disabled. During system reload, config replay for this feature is possible when the docker routing config mode is unified or split.
  This feature can be turned off on demand. But it can affect the system stability. When the config was turned on, there may be some routes in BGP, for which, it is waiting for update from hardware. When the feature is turned off, we will unsubscribe from ERROR_DB and will no longer receive any notifications from hardware. Hence, some of the routes may not receive any notification from hardware.  
 It is recommended to restart the BGP docker when the config state is changed to disable from enable. By default, this config is disabled. If the config is changed from disable to enable, we do not need to restart the docker. But the feature will be affecting only those routes which will be learnt after enabling the feature.
   

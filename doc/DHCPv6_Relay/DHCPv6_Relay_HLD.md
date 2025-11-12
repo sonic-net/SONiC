@@ -55,7 +55,7 @@ This document describes the high level design of the DHCP Relay for IPv6 feature
 DHCP Relay for IPv6 feature in SONiC should meet the following high-level functional requirements:
 
 - Give the support for relaying DHCP packets from downstream networks to upstream networks using IPv6 addresses.
-- Provide the functionality as a seperate process running on dhcp-relay docker container.
+- Provide the functionality as a separate process running on dhcp-relay docker container.
 - Relaying messages to multiple unicast and multicast addresses.
 
 ## 1.2 Configuration and Management Requirements

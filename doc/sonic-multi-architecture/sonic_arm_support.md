@@ -165,7 +165,7 @@ Update target platform for Onie image platform configuration in onie image conf.
  - onie-image.conf for AMD64
  - onie-image-armhf.conf for ARMHF
  - onie-image-arm64.conf for ARM64
-Onie platform config file will chosed based on the target platform 
+Onie platform config file will chose based on the target platform 
  - platform/<TARGET_PLATFORM>/platform.conf
  platform.conf will be used by the onie installer script to install the onie image
 Onie Installer scripts
@@ -209,14 +209,14 @@ This can be addressed in platform specific makefiles.
 
 
 ### Usage for ARM Architecture
-To build Arm32 bit for (ARMHF) plaform
+To build Arm32 bit for (ARMHF) platform
 
     # Execute make configure once to configure ASIC and ARCH
     make configure PLATFORM=[ASIC_VENDOR] SONIC_ARCH=armhf
     **example**:
     make configure PLATFORM=marvell-armhf SONIC_ARCH=armhf
 
-To build Arm64 bit for plaform
+To build Arm64 bit for platform
 
     # Execute make configure once to configure ASIC and ARCH
     make configure PLATFORM=[ASIC_VENDOR] SONIC_ARCH=arm64

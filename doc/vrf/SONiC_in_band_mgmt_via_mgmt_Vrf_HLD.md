@@ -46,7 +46,7 @@ The following diagrams capture the kernel and SAI configuration flows.
 
 ![](../../images/vrf_hld/in_band_mgmt_vrf_config_flow.png)
 
-## L3 inteface to mgmt VRF bind flow
+## L3 interface to mgmt VRF bind flow
 
 ![](../../images/vrf_hld/in_band_mgmt_vrf_intf_config_flow.png)
 

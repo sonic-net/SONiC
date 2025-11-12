@@ -13,7 +13,7 @@
 2. On RP the reboot command should reboot the entire system (RP and LC). . Expectation is Peer node should detect link down when reboot is given on RP.
 3. Ungraceful Reboot of Supervisor should bring all LC's. LC's should not run headless.
 4. Config shut/unshut of LC will be supported as per the Chassis-d design.
-5. Generate syslog for all the critical events and share the threshold (for appropriate/needed components)  in documents and recommended for given threshold range.  Expectation is we will bind syslog to our Alert Orchestration system and perform recommnded action based on the documents.
+5. Generate syslog for all the critical events and share the threshold (for appropriate/needed components)  in documents and recommended for given threshold range.  Expectation is we will bind syslog to our Alert Orchestration system and perform recommended action based on the documents.
 6. PCI-e issue of not able to detect FC ASIC’s and LC ASIC’s and syslog for same.https://github.com/sonic-net/SONiC/blob/master/doc/pcie-mon/pcie-monitoring-services-hld.md.
 7. HW-Watchdog adhering to current SONiC behavior. Start before reboot and explicitly disabled post reboot by SONiC.
 8. chassisd daemon support on both LC and RP with all fields of table "CHASSIS_MODULE_TABLE|xxxx” correctly populated.
@@ -33,8 +33,8 @@
 	 
 ## 2. Future Requirements/Enhancements:
 1. Generic console for LC using . Possible using this: https://github.com/Azure/SONiC/blob/master/doc/console/SONiC-Console-Switch-High-Level-Design.md
-2. Auto Handling by Platfrom SW to reboot/shutdown the HW Component when detecting the critical Fault’s.
+2. Auto Handling by Platform SW to reboot/shutdown the HW Component when detecting the critical Fault’s.
 3. Module/Chassis/Board LED’s .  Need general infra enhancement of led daemon and show commands.
 4. Temperature Measuring Category Enhancements. More Granular and Increase Polling Interval for same. Also show command optimize not dump all sesors and filter based on location.
-5. Move Voltage and Current sensors support from existing sensorsd/libsensors model to PMON/ thermalCtld model This provide ability/mechanism in SONiC NOS to poll for board’s Voltage and Current sensors (from platform) for power alogorithm.
+5. Move Voltage and Current sensors support from existing sensorsd/libsensors model to PMON/ thermalCtld model This provide ability/mechanism in SONiC NOS to poll for board’s Voltage and Current sensors (from platform) for power algorithm.
 6. Support for Midplane Switch Counters (Debugging) /Modifying QOS Properties if needed (Performance)  (Applicable for HW based Midplane switch).

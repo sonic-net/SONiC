@@ -128,7 +128,7 @@ class DeviceBase(object):
 		raise NotImplementedError
 ```
 
-Second, add thermal list for PsuBase and SfpBase to reflect the actual hierarchy. Vender should initialize thermal list for PSU and SFP properly. Thermal control daemon should also retrieve thermal objects from PSU and SFP.
+Second, add thermal list for PsuBase and SfpBase to reflect the actual hierarchy. Vendor should initialize thermal list for PSU and SFP properly. Thermal control daemon should also retrieve thermal objects from PSU and SFP.
 
 ```python
 class PsuBase(device_base.DeviceBase):
@@ -163,7 +163,7 @@ class PsuBase(device_base.DeviceBase):
             retrieve
 
         Returns:
-            An object dervied from ThermalBase representing the specified thermal
+            An object derived from ThermalBase representing the specified thermal
         """
         thermal = None
 
@@ -381,8 +381,8 @@ New test cases will be added to cover the new MIB entries:
 
 ### 2.1 Entity Sensor MIB Extension Scope
 
-Currently SONiC already have a RFC3433 Entity sensor MIB implementation,  Transceiver embeded sensors like temperature, voltage, rx_power, tx_power and tx_bias are alreay included. After Entity MIB was extended as desribed in Section 1, Entity MIB will also be extened to cover more sensors. 
-Thermal sensors besides the Transceiver embedded thermal sensors which avalaible in the STATE_DB will all be added to the Entity Sensor MIB support.
+Currently SONiC already have a RFC3433 Entity sensor MIB implementation,  Transceiver embedded sensors like temperature, voltage, rx_power, tx_power and tx_bias are already included. After Entity MIB was extended as described in Section 1, Entity MIB will also be extended to cover more sensors. 
+Thermal sensors besides the Transceiver embedded thermal sensors which available in the STATE_DB will all be added to the Entity Sensor MIB support.
 PSU temperature, voltage, power and current will added, FAN tachometer will be added as well.
 
 ### 2.1 Entity Sensor MIB Data Source

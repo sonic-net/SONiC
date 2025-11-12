@@ -190,7 +190,7 @@ options that are available. The major ones of note are:
   chrony doesn't quite have that. This is partly because the configuration
   control for chrony is on a different port entirely (UDP port 323 instead of
   UDP port 123), this making it easier to be firewalled off and/or configured
-  separtely. In addition, chrony will default to using a client-server
+  separately. In addition, chrony will default to using a client-server
   relationship instead of symmetric relationship (where both sides will sync
   time with each other), unless the `peer` keyword is used instead of `server`.
 * Chrony also allows storing the NTP servers in a separate file, making it
@@ -214,7 +214,7 @@ more NTP servers. If Monit sees that if the time is not synchronized for 3
 minutes, then a message will be printed every 5 minutes saying that the time is
 not synchronized.
 
-Sample messsage:
+Sample message:
 
 ```
 2024 Nov  7 01:36:00.154986 vlab-01 ERR monit[735]: 'ntp' status failed (1) -- NTP is not synchronized with servers
