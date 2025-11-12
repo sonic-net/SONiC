@@ -2,7 +2,7 @@
 # High Level Design Document
 ### Rev 1.0
 # Table of Contents
-* [List of Tables](#list-of-tables)
+* [Table of Contents](#table-of-contents)
 
 * [Revision](#revision)
 
@@ -26,7 +26,7 @@
   ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 |             | Sridhar Kulkarni   | Initial version                   |
+| 1.0 |             | Sridhar Kulkarni   | Initial version                   |
 
 # Scope
 This document provides details to add dual stack support on Sonic for VxLAN tunnels in the same VNET (same VNI).
