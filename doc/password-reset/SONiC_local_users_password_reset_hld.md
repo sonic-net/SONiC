@@ -67,7 +67,7 @@ The feature implementation shall support the following:
 
 In this feature, we want to add new systemd service ```reset-local-users-passwords.service``` to the init flow. This new service is expected to run on the system during boot and before any connection is open to the switch which includes SSH and serial connection as well and perform restoring local users' configurations, by deleting non-default users and restoring default passwords for default users and expiring these passwords due to security conecerns.
 
-![](./reset-local-users-passwords-init.png)
+![](reset-local-users-passwords-init.png)
 
 The service is dependent on the ```database.service``` for reading the configured feature state, so it needs to run after it during boot. As well as it needs to run before any connection is open and this includes all the following services: `sshd.service`, `getty.target`, `systemd-logind.service` and `serial-getty@ttyS0.service`.
 

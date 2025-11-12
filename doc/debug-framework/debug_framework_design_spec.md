@@ -96,10 +96,10 @@ New utility scripts are provided to:
 ### 3.1.1 Framework for dump routines
 
 **Block Diagram**
-![Debug Framework Block Diagram](https://github.com/anilsadineni/SONiC/blob/debug_framework_HLD/images/debug_framework_block_diagram.png)
+![Debug Framework Block Diagram](debug_framework_block_diagram.png)
 
 
-Debug framework provides an API for components to register with the framework. It also provides interface for administrator, assert utilities, error handling functions to invoke framework actions. Framework uses Redis notifications for communicating the trigger message from entity invoking the trigger to the registered components. Framework actions are configurable. These actions are applicable uniformly to all registered components.  
+Debug Framework provides an API for components to register with the framework. It also provides interface for administrator, assert utilities, error handling functions to invoke framework actions. Framework uses Redis notifications for communicating the trigger message from entity invoking the trigger to the registered components. Framework actions are configurable. These actions are applicable uniformly to all registered components.  
 
 Debug Framework itself will not have an executing context. Framework actions are performed in the registered component's thread context. Trigger APIs are executed in the context of invoking utility or invoking process.  
 Please refer [Flow Diagram](#4-flow-diagrams) for execution sequence.
@@ -362,7 +362,7 @@ show interfaces pktdrop is added to display debug/error counters for all interfa
 
 # 4 Flow Diagrams
 
-![Framework and component interaction](https://github.com/anilsadineni/SONiC/blob/debug_framework_HLD/images/debug_framework_flow_diagram.png)
+![Framework and component interaction](debug_framework_flow_diagram.png)
 
 # 5 Serviceability and Debug
 None
