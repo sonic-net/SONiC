@@ -34,13 +34,15 @@ This new design allows a single VNET to have an IPv4-only Vxlan tunnel, IPv6-onl
 
 ## Use Case
 In some cases, separate overlay routes to individual destinations (VMs) in a Vnet are needed. Some destinations may be behind an IPv4 VTEP, while others may be behind an IPv6 VTEP. In such cases, one Vnet must support both IPv4 and IPv6 Vxlan tunnels.  
-Consider the below diagram where Host 1 is a physical machine while VM1 and VM2 are VMs in a cloud and all three are in the same VNet. VM1 is hosted on a physical server with a public IPv4 address and VM2 is hosted on a server with a public IPv6 address. For Host1 to be able to communicate to both VM1 and VM2, there should be
+Consider the below diagram where Host 1 is a physical machine while VM1 and VM2 are VMs in a cloud and all three are in the same VNet. VM1 is hosted on a physical server with a public IPv4 address and VM2 is hosted on a server with a public IPv6 address.
+
+![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/VxLAN_dualstack_usecase.png)
+
+For Host1 to be able to communicate to both VM1 and VM2, there should be
 1. IPv4 Vxlan tunnel from Sonic to VM1
 2. IPv6 Vxlan tunnel from Sonic to VM2
 
 Currently, Sonic supports either 1 or 2 but not both. The following design will add support for both 1 and 2 in the same VNet.
-
-![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/VxLAN_dualstack_usecase.png)
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
