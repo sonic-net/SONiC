@@ -64,20 +64,19 @@ This document provides general information about the OpenConfig configuration of
      +--rw interface* [name]
         +--rw name                  -> ../config/name
         +--rw config
-        |  +--rw name?          string
-        |  +--rw type           identityref
-        |  +--rw mtu?           uint16
-        |  +--rw description?   string
-        |  +--rw enabled?       boolean
-        |  +--rw loopback-mode? oc-opt-types:loopback-mode-type
-        |  +--rw oc-p4rt:id     uint32
+        |  +--rw name?                    string
+        |  +--rw type                     identityref
+        |  +--rw mtu?                     uint16
+        |  +--rw description?             string
+        |  +--rw enabled?                 boolean
+        |  +--rw oc-p4rt:id               uint32
+        |  +--rw oc-eth:mac-address?      oc-yang:mac-address
         +--ro state
         |  +--ro name?                            string
         |  +--ro type                             identityref
         |  +--ro mtu?                             uint16
         |  +--ro description?                     string
         |  +--ro enabled?                         boolean
-        |  +--ro loopback-mode?                   oc-opt-types:loopback-mode-type
         |  +--ro oc-p4rt:id                       uint32
         |  +--ro oc-port:hardware-port            -> /oc-platform:components/oc-platform:component/oc-platform:name
         |  +--ro oc-transceiver:transceiver       -> /oc-platform:components/oc-platform:component[oc-platform:name=current()/../oc-port:hardware-port]/oc-platform:subcomponents/oc-platform:subcomponent/oc-platform:name
@@ -289,8 +288,9 @@ Mapping attributes between OpenConfig YANG and SONiC YANG:
 |   ifindex               |      index            |
 |   oper-status           |      oper\_status     |
 |   last-change           |      last_up/down_time|
-|   loopback-mode         |      loopback-mode    |
-|   mac-address           |      mac-address      |
+|   mac-address           |      mac              |
+|   id                    |      id               |
+
 
 
 |   OpenConfig YANG       |    Sonic-interface YANG |
