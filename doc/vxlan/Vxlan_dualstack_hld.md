@@ -40,7 +40,7 @@ Consider the below diagram where Host 1 is a physical machine while VM1 and VM2 
 
 Currently, Sonic supports either 1 or 2 but not both. The following design will add support for both 1 and 2 in the same VNet.
 
-![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/VxLAN_dualstack_%20usecase.png)
+![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/VxLAN_dualstack_usecase.png)
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
