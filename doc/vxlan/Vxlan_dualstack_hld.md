@@ -33,8 +33,12 @@ This document provides details to add dual stack support on Sonic for VxLAN tunn
 This new design allows a single VNET to have an IPv4-only Vxlan tunnel, IPv6-only Vxlan tunnel or both (dual-stack) coexisting.
 
 ## Use Case
-For high bandwidth and low latency connections, separate overlay routes to individual destinations (VMs) in a Vnet are needed. Some destinations may be behind an IPv4 VTEP, while others may be behind an IPv6 VTEP. In such cases, one Vnet must support both IPv4 and IPv6 Vxlan tunnels.  
-Consider the below diagram where Host 1 is a physical machine while VM1 and VM2 are VMs in a cloud and all three are in the same VNet. VM1 is hosted on a physical server with a public IPv4 address and VM2 is hosted on a server with a public IPv6 address. Host1 to VM1 communication needs an IPv4 Vxlan tunnel and Host1 to VM2 communication needs an IPv6 Vxlan tunnel.
+In some cases, separate overlay routes to individual destinations (VMs) in a Vnet are needed. Some destinations may be behind an IPv4 VTEP, while others may be behind an IPv6 VTEP. In such cases, one Vnet must support both IPv4 and IPv6 Vxlan tunnels.  
+Consider the below diagram where Host 1 is a physical machine while VM1 and VM2 are VMs in a cloud and all three are in the same VNet. VM1 is hosted on a physical server with a public IPv4 address and VM2 is hosted on a server with a public IPv6 address. For Host1 to be able to communicate to both VM1 and VM2, there should be
+1. IPv4 Vxlan tunnel from Sonic to VM1
+2. IPv6 Vxlan tunnel from Sonic to VM2
+
+Currently, Sonic supports either 1 or 2 but not both. The following design will add support for both 1 and 2 in the same VNet.
 
 ![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/VxLAN_dualstack_%20usecase.png)
 
@@ -160,13 +164,17 @@ No changes needed for VxlanOrch
 
 ### 2.2.2 VnetOrch/VnetRouteOrch
 Currently VNetOrch only refers to one Vxlan tunnel. It will be extended to reference two Vxlan tunnels. VnetRouteOrch is reponsible for reading VNET_ROUTE_TUNNEL_TABLE and creating routes in SAI. Support will be added in VnetRouteOrch to create the appropriate NH tunnel from Vxlan orch based on the endpoint IP. VnetRouteOrch will then use this NH tunnel to create routes in SAI.  
-For example, when a Vxlan route is added with IPv4 endpoint, NH tunnel object will be created in SAI for the IPv4 Vxlan tunnel and will be used as the nexthop in the route. If a Vxlan route added with IPv6 endpoint, NH tunnel object will be created in SAI for the IPv6 Vxlan tunnel and will be used as nexthop in the route.
+For example, when a Vxlan route is added with IPv4 endpoint, NH tunnel object will be created in SAI for the IPv4 Vxlan tunnel and will be used as the nexthop in the route. If a Vxlan route is added with IPv6 endpoint, NH tunnel object will be created in SAI for the IPv6 Vxlan tunnel and will be used as nexthop in the route.
 
 # 3 Flows
 
 ![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/Vnet_Vxlan_dualstack.png)
+
+![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/VNet_Vxlan_dualstack_update.png)
   
 ![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/Vnet_dualstack_vxlan_route_create.png)
+
+![](https://github.com/sridkulk/SONiC/blob/srkul/vxlandualstack/images/vxlan_hld/Vnet_dualstack_vxlan_route_delete.png)
 
 
 ## 4 Test Plan
@@ -174,11 +182,13 @@ For example, when a Vxlan route is added with IPv4 endpoint, NH tunnel object wi
 
 | Step | Goal | Expected results |
 |-|-|-|
-| Create two Vxlan tunnels and provide IPv4 addressses as src ip for both. Create VNet and associate the two tunnels to it | VNet create | VNet creation must fail
-| Create two Vxlan tunnels and provide IPv6 addressses as src ip for both. Create VNet and associate the two tunnels to it | VNet create | VNet creation must fail
+| Create two Vxlan tunnels and provide IPv4 addressses as src ip for both. Create VNet and associate the two tunnels to it | VNet and dualstack Vxlan create | VNet creation must fail
+| Create two Vxlan tunnels and provide IPv6 addressses as src ip for both. Create VNet and associate the two tunnels to it | VNet and dualstack Vxlan create | VNet creation must fail
 | Create loopback intf with only IPv4 addr. Create Vxlan tunnel and provide loopback intf ip as src ip. Create VNet and associate the tunnel to it. Create tunnel route with IPv4 endpoint. Send traffic to dest | Vnet with only IPv4 tunnel | Traffic must be received at dest
 | Create loopback intf with only IPv6 addr. Create Vxlan tunnel and provide loopback intf ip as src ip. Create VNet and associate the tunnel to it. Create tunnel route with IPv6 endpoint. Send traffic to dest | Vnet with only IPv6 tunnel | Traffic must be received at dest
 | Create loopback interface with both IPv4 and IPv6 addr. Create one Vxlan tunnel with loopback IPv4 addr as src ip. Create another Vxlan tunnel with loopback IPv6 addr as src ip. Create VNet and associate both tunnels to it. Create tunnel routes with IPv4 and IPv6 endpoint. Send traffic to dest | Dual stack tunnel create | Both IPv4 and IPv6 dest must receive traffic
+| Create loopback intf with only IPv4 addr. Create Vxlan tunnel and provide loopback intf ip as src ip. Create VNet and associate the tunnel to it. Add IPv6 addr to the loopback intf. Create another Vxlan tunnel with this IPv6 src_ip. Update Vnet with this Vxlan tunnel. Create IPv4 and IPv6 Vxlan tunnel routes. Send traffic to dest | Vxlan tunnel update after VNet create | Traffic must be received at dest
+
 
 # 5 Configuration and Management
 ## 5.1 YANG model
