@@ -106,18 +106,18 @@ config vnet add <vnet_name> <vni> <vxlan_tunnel> <vxlan_tunnel_v6>
 # 2 Modules Design
 ## 2.1 Config DB
 ### 2.1.1 VNET Table
-VNET table will have a new optional field `vxlan_tunnel_v6`: 
+VNET table will have a new optional field `vxlan_tunnel2`: 
 
 ```
 VNET|{{vnet_name}} 
     "vxlan_tunnel"          : {{tunnel_name}}
-    "vxlan_tunnel_v6"       : {{IPv6_tunnel_name}} (OPTIONAL)
+    "vxlan_tunnel2"         : {{tunnel_name2}} (OPTIONAL)
     "vni"                   : {{vni}} 
     "scope"                 : {{default}} (OPTIONAL)
     "peer_list"             : {{vnet_name_list}} (OPTIONAL)
 ```
 
-`vxlan_tunnel_v6` is an optional field. If provided, it should be the name of the Vxlan tunnel with an IPv6 _src_ip_
+`vxlan_tunnel2` is an optional field. If provided, it should be the name of a Vxlan tunnel. One tunnel must have IPv4 _src_ip_ and another tunnel must have IPv6 _src_ip_. Both tunnels cannot have IPv4 _src_ip_ and both tunnels cannot have IPv6 _src_ip_.
 
 ### 2.1.2 ConfigDB Schemas
 ```
@@ -125,7 +125,7 @@ VNET|{{vnet_name}}
 key                                   = VNET:name                     ; Vnet name
 ; field                               = value
 VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
-VXLAN_TUNNEL_V6                       = tunnel_name                   ; refers to the Vxlan tunnel name with IPv6 src IP
+VXLAN_TUNNEL2                         = tunnel_name2                  ; refers to another Vxlan tunnel name
 VNI                                   = DIGITS                        ; 1 to 16 million VNI values
 SCOPE                                 = Vnet Scope                    ; Whether to use default or non-default VRF
 PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
@@ -138,7 +138,7 @@ VrfMgrd will copy the VNET table contents from CONFIG DB to APP DB.
 ```
 VNET|{{vnet_name}} 
     "vxlan_tunnel"          : {{tunnel_name}}
-    "vxlan_tunnel_v6"       : {{IPv6_tunnel_name}} (OPTIONAL)
+    "vxlan_tunnel2"         : {{tunnel_name2}} (OPTIONAL)
     "vni"                   : {{vni}} 
     "scope"                 : {{default}} (OPTIONAL)
     "peer_list"             : {{vnet_name_list}} (OPTIONAL)
@@ -153,7 +153,7 @@ No changes needed for the Vxlan route tunnel table. VnetOrch/VnetRouteOrch will 
 key                                   = VNET:name                     ; Vnet name
 ; field                               = value
 VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
-VXLAN_TUNNEL_V6                       = tunnel_name                   ; refers to the Vxlan tunnel name with IPv6 src IP
+VXLAN_TUNNEL2                         = tunnel_name2                  ; refers to another Vxlan tunnel name
 VNI                                   = DIGITS                        ; 1 to 16 million VNI values
 SCOPE                                 = Vnet Scope                    ; Whether to use default or non-default VRF
 PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
@@ -189,7 +189,8 @@ For example, when a Vxlan route is added with IPv4 endpoint, NH tunnel object wi
 | Create loopback intf with only IPv4 addr. Create Vxlan tunnel and provide loopback intf ip as src ip. Create VNet and associate the tunnel to it. Create tunnel route with IPv4 endpoint. Send traffic to dest | Vnet with only IPv4 tunnel | Traffic must be received at dest
 | Create loopback intf with only IPv6 addr. Create Vxlan tunnel and provide loopback intf ip as src ip. Create VNet and associate the tunnel to it. Create tunnel route with IPv6 endpoint. Send traffic to dest | Vnet with only IPv6 tunnel | Traffic must be received at dest
 | Create loopback interface with both IPv4 and IPv6 addr. Create one Vxlan tunnel with loopback IPv4 addr as src ip. Create another Vxlan tunnel with loopback IPv6 addr as src ip. Create VNet and associate both tunnels to it. Create tunnel routes with IPv4 and IPv6 endpoint. Send traffic to dest | Dual stack tunnel create | Both IPv4 and IPv6 dest must receive traffic
-| Create loopback intf with only IPv4 addr. Create Vxlan tunnel and provide loopback intf ip as src ip. Create VNet and associate the tunnel to it. Add IPv6 addr to the loopback intf. Create another Vxlan tunnel with this IPv6 src_ip. Update Vnet with this Vxlan tunnel. Create IPv4 and IPv6 Vxlan tunnel routes. Send traffic to dest | Vxlan tunnel update after VNet create | Traffic must be received at dest
+| Create loopback intf with only IPv6 addr. Create Vxlan tunnel and provide loopback intf ip as src ip. Create VNet and associate the tunnel to it. Add IPv4 addr to the loopback intf. Create another Vxlan tunnel with this IPv4 src_ip. Update Vnet with this Vxlan tunnel. Create IPv4 and IPv6 Vxlan tunnel routes. Send traffic to dest | IPv4 Vxlan tunnel update after VNet create | Traffic must be received at dest
+| Create loopback intf with only IPv4 addr. Create Vxlan tunnel and provide loopback intf ip as src ip. Create VNet and associate the tunnel to it. Add IPv6 addr to the loopback intf. Create another Vxlan tunnel with this IPv6 src_ip. Update Vnet with this Vxlan tunnel. Create IPv4 and IPv6 Vxlan tunnel routes. Send traffic to dest | IPv6 Vxlan tunnel update after VNet create | Traffic must be received at dest
 
 
 # 5 Configuration and Management
@@ -219,8 +220,8 @@ container sonic-vnet {
                 }
             }
 
-            leaf vxlan_tunnel_v6 {
-                description "A valid and active vxlan tunnel with IPv6 src_ip to be used with this vnet for IPv6 traffic encapsulation.";
+            leaf vxlan_tunnel2 {
+                description "Another valid and active vxlan tunnel to be used with this vnet for IPv6 traffic encapsulation. If src_ip of the tunnel above is IPv4, then this tunnel must have IPv6 src_ip. If src_ip of above tunnel is IPv6, then src_ip of this tunnel must be IPv4";
                 type leafref {
                     path "/svxlan:sonic-vxlan/svxlan:VXLAN_TUNNEL/svxlan:VXLAN_TUNNEL_LIST/svxlan:name";
                 }
@@ -302,7 +303,7 @@ Below example shows Vnet_1000 created and associated with vni `1000` and vxlan t
         "Vnet_1000": {
             "vni": "1000",
             "vxlan_tunnel": "Vxlan0",
-            "vxlan_tunnel_v6": "Vxlan1",
+            "vxlan_tunnel2": "Vxlan1",
             "src_mac": "12:34:56:78:9a:bc"
         }
     }
