@@ -32,14 +32,20 @@ This document goes over an enhancement to VXLAN tunnel endpoint ECMP to add supp
 |--------------------------|-----------------| 
 | NH                       | Next hop        |
 | NHG                      |  Next hop Group |
+| NHGM                      |  Next hop Group Member |
 | FG                       |  Fine Grained   |
 | ECMP                     | Equal Cost MultiPath |
 
 # 1 Overview
 The details for enabling consistent hashing for Vxlan tunnel route(VNET_ROUTE_TUNNEL) are discussed in this document.
 
-Use-case:
+###### Use-case:
   Vxlan tunnel routes can contain a list of endpoints(next-hops) for overlay traffic to be routed to multiple underlay endpoints(next-hops). When there are multiple endpoints, ECMP is used to select the nexthop for this traffic to be encapsulated towards and sent out. This is primarily used in scenarios where  throughput needs to be scaled beyond what a single vxlan endpoint is capable of. When these endpoints hold flow state, endpoint modifications(next-hop addition/removal), will result in most flows being rehashed and sent to a different endpoint than what they were originally going to, resulting in connection restart whenever a endpoint modification is performed. To limit connection restarts during endpoint/next hop modifications, we will enable consistent hashing for tunnel nexthops.
+
+###### Scale:
+| Component                | Expected value              |
+|--------------------------|-----------------------------|
+| NHG size| 512 - 2048 next hop group members(NHGMs) |
 
 # 2 Schema Changes
 
