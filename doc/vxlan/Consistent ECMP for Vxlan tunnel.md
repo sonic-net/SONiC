@@ -9,8 +9,9 @@
     - [Config and APP DB](#21-config-and-appdb)
     - [STATE DB](#22-state-db)
     - [CLI](#23-cli)
-- [SWSS orchagent design](#3-swss-orchagent-design)
-- [Test Plan](#4-test-plan)
+- [Programming Flow](#3-programming-flow)
+- [SWSS orchagent design](#4-swss-orchagent-design)
+- [Test Plan](#5-test-plan)
 
 
 # Revision
@@ -107,7 +108,14 @@ show fgnhg active-hops <vnet/vrf name> <prefix name>
 ===========+=================+====================+
 ```
 
-# 3 SWSS orchagent design
+# 3 Programming flow
+*E2E creation flow for VNET_ROUTE_TUNNEL with consistent hashing*
+![](../../images/vxlan_hld/CreateTunnelConsistentHashing.png)
+
+*E2E flow for updating tunnel endpoints list with consistent hashing*
+![](../../images/vxlan_hld/UpdateTunnelConsistentHashing.png)
+
+# 4 SWSS orchagent design
 1. vnetorch will receive a call to create a VNET_ROUTE_TUNNEL_TABLE
 2. vnetorch will check if consistent_hashing_buckets is set and if so call fgnhgorch to create internal FgNhgEntry with the following parameters:
 2.a FGMatchMode will be PREFIX_BASED
@@ -119,7 +127,7 @@ show fgnhg active-hops <vnet/vrf name> <prefix name>
 6. For VNET_ROUTE_TUNNEL_TABLE modification where “consistent_hashing_buckets” is added for an existing tunnel route a transition from non fine grained to fine grained ecmp must occur and when “consistent_hashing_buckets” is removed then a transition from fine grained to non fine grained ecmp occurs. Both of these transitions result in a sai route update with new nexthop group/nexthop along with deleting any left over stale nexthop groups.
 
 
-# 4 Test Plan for the enhacements
+# 5 Test Plan for the enhacements
 The following testing is planned for this feature:
 - SWSS unit tests via virtual switch testing
 - Data Plane tests via pytest + PTF
