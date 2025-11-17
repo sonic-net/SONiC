@@ -11,7 +11,10 @@
   - [Primary scale-up fabric requirements](#primary-scale-up-fabric-requirements)
   - [Industry Requirements Comparison](#industry-requirements-comparison)
 - [Reference System Model](#reference-system-model)
-  - [Chassis](#chassis)
+  - [Rack (Integrated Rack System)](#rackintegratedracksystem)
+  - [Switch Tray (Ultra-Performance Network Switching)](#switchtrayultra-performancenetworkswitching)
+  - [Compute Tray (Heterogeneous Compute Acceleration)](#computetrayheterogeneouscomputeacceleration)
+  - [Cable Tray (Integrated Interconnect Infrastructure)](#cabletrayintegratedinterconnectinfrastructure)
   - [XPU and Station Architecture](#xpu-and-station-architecture)
   - [Deployment Variations](#deployment-variations)
 - [Multi-ASIC Architecture](#multi-asic-architecture)
@@ -33,6 +36,7 @@
   - [Switch to Station](#switch-to-station)
   - [Station to GPU](#station-to-gpu)
 - [Software Architecture](#software-architecture)
+  - [SONiC Software Module Changes](#sonicsoftwaremodulechanges)
   - [ID Lookup](#id-lookup)
   - [PFC/CBFC](#pfccbfc)
   - [LLR](#llr)
@@ -49,7 +53,12 @@
 - [Future Features in SONiC](#future-features-in-sonic)
 
 ## Revisions
-- **July 27, 2025:** Moved version 0.6 to github by Joy Qin
+
+| Rev |     Date    |       Author       | Change Description                |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.1 | 07/27/2025  |     Joy Qin  | Initial version                   |
+| 0.2 | 11/17/2025  |     Haiyang Zheng  | Update rack system model and related software module changes                  |
+
 
 ## Terminologyies
 
@@ -90,7 +99,7 @@ The Ultra Ethernet Consortium defines a reference model encompassing three netwo
 
 UEC currently focuses on defining high-performance transport protocols for scale-out fabrics, physical and link-level technologies for enhanced reliability, in-network compute capabilities, and management practices. Many of these link-level technologies directly apply to scale-up networks, and UEC is actively developing Ethernet solutions for scale-up fabrics.
 
-![interst](images/interest.png)
+![interest](images/interest.png)
 
 The Ultra Accelerator Link Consortium (UAL) defines an approach leveraging Ethernet high-speed SerDes while maintaining PCIe-style transport and transaction layers. This methodology requires specialized PCIe-style switches that interpret UPLI packets and modify them in transit. However, the PCIe-style approach presents challenges for using existing Ethernet equipment and incorporating network resilience—a critical consideration for fault-tolerant scale-up fabrics. While UAL specifications serve as valuable references for use cases and requirements, they cannot be directly adopted as complete solutions.
 
@@ -139,8 +148,40 @@ During the scale-up working group weekly meetings, four major industry players�
 
 
 ## Reference System Model
-### Chassis
-TODO, we use ALibaba's UPN and Tencent's ETH-X as references.
+![system model](images/system_model.png)
+
+### Rack (Integrated Rack System)
+
+The Rack is a high-density, standards-compliant infrastructure unit that serves as the physical and logical foundation for hyperscale AI workloads. It integrates modular **Switch Tray**, **Compute Tray** and **Cable Tray**, along with shared power, cooling, and management systems, enabling a scalable architecture within a single rack footprint.
+
+### Switch Tray (Ultra-Performance Network Switching)
+
+A modular, standards-compliant switching platform that serves as the intra-rack network backbone, delivering ultra-low-latency, high-bandwidth connectivity for AI clusters via Ethernet-based protocol stacks.
+
+### Compute Tray (Heterogeneous Compute Acceleration)
+
+A modular compute node housing custom AI accelerators (XPUs), optimized for rack-scale integration with high-bandwidth memory and ultra-fast interconnects to maximize performance-per-watt.
+
+### Cable Tray (Integrated Interconnect Infrastructure)
+
+The **Cable Tray** is a standardized, modular cabling subsystem integrated within the **Rack** to provide high-density, serviceable, and airflow-optimized interconnects between **Switch Tray** and **Compute Tray**. It supports both copper and optical media, enabling flexible topology deployment while maintaining thermal efficiency and operational simplicity in a scalable architecture.
+
+**Interconnect Options**
+
+| Medium | Pros | Cons |
+| --- | --- | --- |
+| **Copper (DAC/AEC)** | Low cost, high reliability, no external power | Limited reach (<5m at 400G), lower density |
+| **Optical** | Long reach, high density, lightweight | Higher cost, greater power, lower historical reliability |
+
+_Intra-rack links (<3m) primarily use copper; optical is reserved for high-density or future 1.6T+ deployments._
+
+**Optical Technology Comparison**
+
+| Type | Description | Cost vs. FRO | Reliability | Field Replaceable |
+| --- | --- | --- | --- | --- |
+| **FRO** | Retimed pluggables (QSFP-DD/OSFP) | Baseline (highest) | Moderate | Yes |
+| **LPO** | Linear-drive pluggables (no retimers) | –30% | High | Yes |
+| **NPO** | On-board (soldered) optics | –40% (vs. FRO) | Very high | No |
 
 ### XPU and Station Architecture
 
@@ -317,6 +358,114 @@ The switch NOS is responsible for monitoring outgoing port liveness and updating
 The receiving station decodes payloads from incoming Ethernet frames and transmits transactions to GPUs through device interface channels.
 
 ## Software Architecture
+
+### SONiC Software Module Changes
+
+![software_modules](images/software_modules.png)
+
+1.  **Config DB**
+
+    *   Introduce a dedicated configuration schema to support FEC (Forward Error Correction), LLR (Link Layer Redundancy), and CBFC (Congestion-Based Flow Control) parameters.
+
+
+    ```plain
+    ; Defines information for port configuration
+    key                     = PORT|port_name     ; configuration of the port
+    ; field                 = value
+    ...
+    FEC                     = STRING             ; FEC configuration(RS-272/RS-544/autoneg)
+    LLR                     = STRING             ; LLR configuration(on/off/autoneg)
+    LLR_PROFILE             = STRING             ; LLR profile
+    CFBC                    = STRING             ; CFBC configuration(on/off/autoneg)
+    CBFC_PROFILE            = STRING             ; CBFC profile
+    ```
+
+2.  **PortMgr**
+
+    *   Implement monitoring and processing of Config DB changes for static configuration parameters related to FEC, LLR, and CBFC.
+
+3.  **LLDP**
+
+    *   **lldmgrd Enhancement**:
+
+        *   Add functionality to handle Config DB events for LLR and CBFC configuration updates, to enable or disable UE link negotiation.
+
+    *   **lldpd Enhancement**:
+
+        *   Implement dynamic LLR/CBFC configuration negotiation using custom TLV (Type-Length-Value) extensions.
+
+    *   **lldp-syncd Enhancement**:
+
+        *   Update Application DB with LLR/CBFC enable/disable status based on Config DB settings and negotiation outcomes.
+
+4.  **APP DB**
+
+    *   define new schema for LLR/CBFC/PFC
+
+
+    ```plain
+    ; Defines information for port configuration
+    key                     = PORT_TABLE:port_name           ; configuration of the port
+    ; field                 = value
+    ...
+    FEC                     = STRING             ; FEC configuration(RS-272/RS-544/autoneg)
+    LLR                     = STRING             ; LLR configuration(on/off)
+    CFBC                    = STRING             ; CFBC configuration(on/off)
+    ```
+
+5.  **SWSS** 
+
+    *   **Orchestration Implementation**:
+
+        *   Either develop a new OrchAgent or extend PortOrch to program LLR profile and CBFC VC (Virtual Channel) settings into SAI port objects.
+
+        *   Get port LLR/CBFC status/counters from SAI, and update State DB and Counter DB correspondingly
+
+6.  **State DB**
+
+    ```plain
+    ; Defines information for port state
+    key                     = PORT_TABLE:port_name      ; state of the port
+    ; field                 = value
+    ...
+    FEC                     = STRING         ; operational fec mode
+    LLR_TX                  = STRING         ; operational LLR TX status
+    LLR_RX                  = STRING         ; operational LLR RX status
+    LLR_FRAME_ACTION        = STRING         ; operational LLR frame action
+    CFBC                    = STRING         ; operational CFBC status
+    ```
+
+    Here is the table to map the LLR fields and SAI attributes:
+
+    | **Parameter** | **sai\_port\_attr\_t** |
+    | --- | --- |
+    | tx\_off | SAI\_PORT\_LLR\_TX\_STATUS\_OFF |
+    | tx\_init | SAI\_PORT\_LLR\_TX\_STATUS\_INIT |
+    | tx\_adv | SAI\_PORT\_LLR\_TX\_STATUS\_ADVANCE |
+    | tx\_replay | SAI\_PORT\_LLR\_TX\_STATUS\_REPLAY |
+    | tx\_flush | SAI\_PORT\_LLR\_TX\_STATUS\_FLUSH |
+    | ... | ... |
+
+    Here is the table to map the CBFC fields and SAI attributes:
+
+    | **Parameter** | **sai\_port\_attr\_t** |
+    | --- | --- |
+    | credit\_used | SAI\_PORT\_STAT\_CBFC\_SENDER\_CREDITS\_USED |
+    | credit\_watermark | SAI\_PORT\_STAT\_CBFC\_SENDER\_CREDITS\_USED\_WATERMARK |
+    | cc\_msg\_tx | SAI\_PORT\_STAT\_CBFC\_NUM\_CC\_UPDATE\_MESSAGES\_TX |
+    | cf\_msg\_tx | SAI\_PORT\_STAT\_CBFC\_NUM\_CF\_UPDATE\_MESSAGES\_TX |
+    | cc\_msg\_rx | SAI\_PORT\_STAT\_CBFC\_NUM\_CC\_UPDATE\_MESSAGES\_RX |
+    | cf\_msg\_rx | SAI\_PORT\_STAT\_CBFC\_NUM\_CF\_UPDATE\_MESSAGES\_RX |
+
+7.  **SAI**
+
+    *   **LLR Implementation**:
+
+        *   [GitHub Pull Request #1](https://github.com/rck-innovium/SAI/pull/1)
+
+    *   **CBFC Implementation**:
+
+        *   [GitHub Pull Request #2](https://github.com/rck-innovium/SAI/pull/2)
 
 ### ID Lookup
 
