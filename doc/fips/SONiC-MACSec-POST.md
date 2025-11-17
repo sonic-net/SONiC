@@ -105,7 +105,7 @@ POST is performed by MACSecOrch when POST is supported only in MACSec init. The 
 
 ### Enabling Control Plane POST in MACSecMgr init
 
-MACSecMgr performs POST status query during process init and publishes the status in the _FIPS_MACSEC_POST_TABLE|crypto_ table. Any w. A failure will result in MACSecMgr not processing any configuration beyond this.
+MACSecMgr performs POST status query during process init and publishes the status in the _FIPS_MACSEC_POST_TABLE|crypto_ table. A failure will result in MACSecMgr not processing any configuration beyond this.
 
 ![](images/fips-cp-post-macsec-init.png)
 
