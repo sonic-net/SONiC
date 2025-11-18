@@ -6,7 +6,7 @@
 - [Definition/Abbreviation](#definitionabbreviation)
     - [Table 1: Abbreviations](#table-1-abbreviations)
 - [About this Manual](#about-this-manual)
-- [1 Introuduction and Scope](#1-introuduction-and-scope)
+- [1 Introduction and Scope](#1-introduction-and-scope)
 - [2 Feature Requirements](#2-feature-requirements)
   - [2.1 Functional Requirements](#21-functional-requirements)
   - [2.2 Configuration and Management Requirements](#22-configuration-and-management-requirements)
@@ -17,8 +17,8 @@
   - [3.2.1 Bgpcfgd Locator Configuration Compilation](#321-bgpcfgd-locator-configuration-compilation)
   - [3.2.2 Bgpcfgd Static SIDs Configuration Compilation](#322-bgpcfgd-static-sids-configuration-compilation)
   - [3.3 YANG Model](#33-yang-model)
-  - [4 Unit Test](#4-unit-test)
-  - [5 References](#5-references)
+- [4 Unit Test](#4-unit-test)
+- [5 References](#5-references)
 
 # Revision
 
@@ -47,7 +47,7 @@
 
 This document provides general information about the design of the enhancements in SONiC to support static configuration of Segment Routing over IPv6 protocol, which is crucial for SRv6 SDN deployment (without usage of BGP).
 
-# 1 Introuduction and Scope
+# 1 Introduction and Scope
 
 This document describes the high-level design of the new features in SONiC to support SRv6 SDN.
 The new features include the addtion of a new table in CONFIG_DB to enable configuration of SRv6 and the enhancement of bgpcfgd to program FRR with input from CONFIG_DB.
@@ -137,6 +137,8 @@ key = SRV6_MY_SIDS|locator|ip_prefix
 action = behavior            ; behaviors defined for the SID, default uN
 decap_dscp_mode = decap_dscp_mode  ; Mandatory, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation
 decap_vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, default "default", only applicable to uDT4/uDT46/uDT6 actions
+interface = string                 ; Mandatory if action = uA, interface for this SID
+adj = inet:ipv6-address            ; Mandatory, next hop ip address for this SID
 
 For example:
     "SRV6_MY_SIDS" : {
@@ -155,6 +157,10 @@ For example:
     }
 Example for SID with uN action and SID with uA action configuration (2 SIDs configuration):
     "SRV6_MY_SIDS" : {
+        "loc2|FCBB:BBBB:21::/48" : {
+           "action": "uN",
+           "decap_dscp_mode": "pipe"
+        },
         "loc2|FCBB:BBBB:21:FE24::/64" : {
            "action": "uA",
            "interface": "Ethernet24",
@@ -178,7 +184,7 @@ The current list of supported SRv6 behaviors allowed to be define in CONFIG_DB i
 | :------ | :----- |
 | uN | End with NEXT-CSID |
 | uDT46 | End.DT46 with CSID |
-| uA | End.X, Endpoint with Layer-3 cross-connect, [Adj SID] |
+| uA | End.X with NEXT-CSID |
 
 ## 3.2 Bgpcfgd changes
 
@@ -284,7 +290,7 @@ module: sonic-srv6
 ```
 Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models) for the YANG model defined with standard IETF syntax.
 
-## 4 Unit Test
+# 4 Unit Test
 
 |Test Cases | Test Result |
 | :------ | :----- |
@@ -298,6 +304,6 @@ Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/
 |delete config for a SID with uA action in CONFIG_DB | verify the SID with uA action entry is deleted in FRR config|
 
 
-## 5 References
+# 5 References
 
 
