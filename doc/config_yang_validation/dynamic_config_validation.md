@@ -16,7 +16,7 @@
 
 |  Rev  |  Date   |      Author      | Change Description |
 | :---: | :-----: | :--------------: | ------------------ |
-|  1.0  | 11/2025 |     Rajath V     | Phase 1 Design     |
+|  v0.1 | 2025-11-18 |     Rajath V     | Initial version of dynamic config validation HLD 
 
 ## Project Overview  
 
