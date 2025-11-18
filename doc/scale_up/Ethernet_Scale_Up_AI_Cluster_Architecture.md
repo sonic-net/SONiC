@@ -363,9 +363,9 @@ The receiving station decodes payloads from incoming Ethernet frames and transmi
 
 ![software_modules](images/software_modules.png)
 
-1.  **Config DB**
+1. **Config DB**
 
-    *   Introduce a dedicated configuration schema to support FEC (Forward Error Correction), LLR (Link Layer Redundancy), and CBFC (Congestion-Based Flow Control) parameters.
+    Introduce a dedicated configuration schema to support FEC (Forward Error Correction), LLR (Link Layer Redundancy), and CBFC (Congestion-Based Flow Control).
 
 
     ```plain
@@ -380,11 +380,13 @@ The receiving station decodes payloads from incoming Ethernet frames and transmi
     CBFC_PROFILE            = STRING             ; CBFC profile
     ```
 
-2.  **PortMgr**
+2. **PortMgr**
 
-    *   Implement monitoring and processing of Config DB changes for static configuration parameters related to FEC, LLR, and CBFC.
+    Implement monitoring and processing of Config DB changes for port configurations related to FEC, LLR, and CBFC.
 
-3.  **LLDP**
+3. **LLDP**
+
+    Leverage LLDP protocol with custom TLV to support auto-negotiation, configuration check, status and counter synchronization between two endpoints within the link layer.
 
     *   **lldmgrd Enhancement**:
 
@@ -398,9 +400,9 @@ The receiving station decodes payloads from incoming Ethernet frames and transmi
 
         *   Update Application DB with LLR/CBFC enable/disable status based on Config DB settings and negotiation outcomes.
 
-4.  **APP DB**
+4. **APP DB**
 
-    *   define new schema for LLR/CBFC/PFC
+    define new schema for LLR/CBFC/PFC
 
 
     ```plain
@@ -413,13 +415,11 @@ The receiving station decodes payloads from incoming Ethernet frames and transmi
     CFBC                    = STRING             ; CFBC configuration(on/off)
     ```
 
-5.  **SWSS** 
+5. **SWSS** 
 
-    *   **Orchestration Implementation**:
+     *   Either develop a new OrchAgent or extend PortOrch to program LLR profile and CBFC VC (Virtual Channel) settings into SAI port objects.
 
-        *   Either develop a new OrchAgent or extend PortOrch to program LLR profile and CBFC VC (Virtual Channel) settings into SAI port objects.
-
-        *   Get port LLR/CBFC status/counters from SAI, and update State DB and Counter DB correspondingly
+      *   Get port LLR/CBFC status/counters from SAI, and update State DB and Counter DB correspondingly
 
 6.  **State DB**
 
@@ -459,13 +459,13 @@ The receiving station decodes payloads from incoming Ethernet frames and transmi
 
 7.  **SAI**
 
-    *   **LLR Implementation**:
+  *   **LLR Implementation**:
 
         *   [GitHub Pull Request #1](https://github.com/rck-innovium/SAI/pull/1)
 
-    *   **CBFC Implementation**:
+  *   **CBFC Implementation**:
 
-        *   [GitHub Pull Request #2](https://github.com/rck-innovium/SAI/pull/2)
+      *   [GitHub Pull Request #2](https://github.com/rck-innovium/SAI/pull/2)
 
 ### ID Lookup
 
