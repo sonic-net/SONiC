@@ -5,11 +5,7 @@
 ## Table of contents
 
 - [Revision](#revision)
-- [About this manual](#about-this-manual)
 - [Scope](#scope)
-- [Abbreviations](#abbreviations)
-- [List of figures](#list-of-figures)
-- [List of tables](#list-of-tables)
 - [1 Introduction](#1-introduction)
   - [1.1 Feature overview](#11-feature-overview)
   - [1.2 Requirements](#12-requirements)
@@ -18,72 +14,71 @@
     - [1.2.3 Error handling](#123-error-handling)
     - [1.2.4 Event logging](#124-event-logging)
 - [2 Design](#2-design)
-  - [2.1 Overview](#21-overview)
-  - [2.2 Capability discovery](#22-capability-discovery)
-  - [2.3 Configuration model](#23-configuration-model)
-  - [2.4 SAI API](#24-sai-api)
-  - [2.5 Orchestration agent](#25-orchestration-agent)
-    - [2.5.1 Switch orch](#251-switch-orch)
-    - [2.5.2 Ports orch](#252-ports-orch)
-  - [2.6 DB schema](#26-db-schema)
-    - [2.6.1 Config DB](#261-config-db)
-    - [2.6.2 State DB](#262-state-db)
-    - [2.6.3 Data sample](#263-data-sample)
-    - [2.6.4 Configuration sample](#264-configuration-sample)
-    - [2.6.5 Initial configuration](#265-initial-configuration)
-    - [2.6.6 Configuration migration](#266-configuration-migration)
-  - [2.7 Flows](#27-flows)
-    - [2.7.1 Config section](#271-config-section)
-    - [2.7.2 Show section](#272-show-section)
-  - [2.8 CLI](#28-cli)
-    - [2.8.1 Command structure](#281-command-structure)
-    - [2.8.2 Usage examples](#282-usage-examples)
-  - [2.9 YANG model](#29-yang-model)
-  - [2.10 Warm/Fast boot](#210-warmfast-boot)
+  - [2.1 Flows](#21-flows)
+    - [2.1.1 Capability discovery on switch init](#211-capability-discovery-on-switch-init)
+    - [2.1.2 Global parameters configuration](#212-global-parameters-configuration)
+    - [2.1.3 Per-port enablement](#213-per-port-enablement)
+  - [2.2 SAI API](#22-sai-api)
+  - [2.3 Orchestration agent](#23-orchestration-agent)
+    - [2.3.1 Switch orch](#231-switch-orch)
+    - [2.3.2 Ports orch](#232-ports-orch)
+  - [2.4 CLI](#24-cli)
+    - [2.4.1 Command structure](#241-command-structure)
+    - [2.4.2 Usage examples](#242-usage-examples)
+  - [2.5 DB schema](#25-db-schema)
+    - [2.5.1 Config DB](#251-config-db)
+      - [2.5.1.1 SWITCH_FAST_LINKUP (Switch OA)](#2511-switch_fast_linkup-switch-oa)
+      - [2.5.1.2 PORT (Ports OA)](#2512-port-ports-oa)
+    - [2.5.2 State DB](#252-state-db)
+      - [2.5.2.1 Fast link-up capabilities](#2521-fast-link-up-capabilities)
+    - [2.5.3 Data sample](#253-data-sample)
+    - [2.5.4 Configuration sample](#254-configuration-sample)
+    - [2.5.5 Initial configuration](#255-initial-configuration)
+    - [2.5.6 Configuration migration](#256-configuration-migration)
+  - [2.6 YANG model](#26-yang-model)
 - [3 Test plan](#3-test-plan)
-  - [3.1 Unit tests via VS](#31-unit-tests-via-vs)
-  - [3.2 Data plane tests via PTF](#32-data-plane-tests-via-ptf)
+  - [3.1 Unit tests](#31-unit-tests)
+  - [3.2 Verification - TBD](#32-verification---tbd)
 
 ## Revision
 
 | Rev | Date       | Author            | Description |
 |:---:|:----------:|:-----------------:|:------------|
-| 0.9 | 2025-11-19 | Fast Link-Up Team | Draft       |
-| 1.0 | TBD        | Fast Link-Up Team | GA          |
+| 0.1 | TBD        | Yair Raviv        | Initial version       |
 
 ## Scope
 
 This document describes the high level design of the Fast Link-Up feature in SONiC.
 
 
-## List of figures
-
-[Figure 1: Architecture overview](#figure-1-architecture-overview)  
-[Figure 2: Global configuration flow](#figure-2-global-configuration-flow)  
-[Figure 3: Per-interface flow](#figure-3-per-interface-flow)  
-[Figure 4: Link recovery state machine](#figure-4-link-recovery-state-machine)
-
-
 # 1 Introduction
 
 ## 1.1 Feature overview
 
-Fast Link-Up accelerates link bring-up and recovery on platforms that support a dedicated SAI port attribute for fast link-up. The feature is capability-gated; configuration is accepted only when the platform advertises support and ranges.
+Fast Link-Up reduces link recovery time by attempting to bring links up using the last-known-good equalization (EQ) parameters from the previous successful session (“Just-Do-Fast”), instead of running a full tuning sequence after a link flap. The feature is applied only on link recovery events.
 
 Key points:
-1. Global parameters tune the behavior: polling interval, guard time, BER threshold.
-2. Per-port enable/disable controls whether Fast Link-Up is attempted on that port.
-3. If at guard expiry link quality exceeds configured BER threshold, system falls back to the regular link-up path.
+1. Operation model (recovery-only): on link flap, ASIC FW first tries fast link-up by reusing the prior EQ. If unsuccessful within the polling window, regular link-up is executed.
+2. Quality gate: when link reaches UP via fast path, a guard timer starts; at expiry, BER is checked against a configured threshold to decide whether to keep the fast path or fall back to regular link-up.
+3. Configuration model:
+   - Global parameters on the switch:
+     - polling_time (sec): max time to attempt fast link-up before falling back.
+     - guard_time (sec): period the link must remain UP with acceptable BER.
+     - ber_threshold (exponent): acceptable BER as 1e-<E> (e.g., 12 → 1e-12).
+   - Per-port enable/disable: controls whether fast link-up is attempted for that port.
+4. Capability-gated: on init, SONiC queries SAI for support and optional ranges; configuration is accepted only if supported and values are within published ranges.
 
 ## 1.2 Requirements
 
 ### 1.2.1 Functionality
 
-The feature supports the following functionality:
-1. Global Fast Link-Up configuration in `SWITCH_FAST_LINKUP|GLOBAL` (`polling_time`, `guard_time`, `ber_threshold`).
-2. Per-port enable/disable via `PORT|<ifname>:fast_linkup`.
-3. Capability and range discovery via `STATE_DB:SWITCH_CAPABILITY|switch`.
-4. Safe fallback to regular link-up when conditions are not met.
+Functional requirements:
+1. The system shall discover Fast Link-Up capability and optional min/max ranges on init and publish them to `STATE_DB:SWITCH_CAPABILITY|switch`.
+2. The system shall allow configuring global parameters `polling_time`, `guard_time`, `ber_threshold` via `SWITCH_FAST_LINKUP|GLOBAL`, validating support and enforcing published ranges.
+3. The system shall allow enabling/disabling Fast Link-Up per port using `PORT|<ifname>:fast_linkup` and program `SAI_PORT_ATTR_FAST_LINKUP_ENABLED` when supported.
+4. The system shall attempt fast bring-up on link recovery, and shall fall back to regular link-up if the fast attempt fails or BER exceeds the configured threshold at `guard_time` expiry.
+5. The system shall expose configuration and status via CLI (`config switch-fast-linkup`, `config interface fast-linkup`, `show` commands) and model the global container in YANG.
+
 
 ### 1.2.2 Command interface
 
@@ -102,36 +97,62 @@ Notes:
 ### 1.2.3 Error handling
 
 Frontend (CLI):
-1. Missing parameters
-2. Invalid parameter value or out-of-range based on STATE_DB capability ranges
-3. Unsupported platform (FAST_LINKUP_CAPABLE != true)
+- Missing parameters
+- Invalid parameter value
+- Out‑of‑range parameter
+- Unsupported platform
 
 Backend (OA):
-1. Unknown fields in `SWITCH_FAST_LINKUP` are ignored with warning
-2. Out-of-range global values are rejected when ranges are published
-3. Unsupported SAI attributes result in safe no-ops
+- Missing parameters
+- Invalid parameter value
+- Out‑of‑range parameter
+- Unsupported operation on `SWITCH_FAST_LINKUP`
+- Capability/range query failure
+- SAI set/get failure (switch/port)
+- Per‑port attribute set failure
 
 ### 1.2.4 Event logging
 
-Frontend:
-- Notice on successful global configuration apply
-- Error on invalid parameters or unsupported platform
-
-Backend:
-- Notice on successful SAI attribute updates
-- Error/Warning when capability/range queries fail or invalid updates attempted
+Frontend (CLI):
+- Global fast-linkup configuration applied
+- Global fast-linkup configuration failed
 
 ###### Table 1: Frontend event logging
 
-| Event                                     | Severity |
-|:------------------------------------------|:---------|
-| Fast Link-Up global update: success       | NOTICE   |
-| Fast Link-Up global update: error         | ERROR    |
-| Per-port fast_linkup toggle: success      | NOTICE   |
-| Per-port fast_linkup toggle: error        | ERROR    |
+| Event                                   | Severity |
+|:----------------------------------------|:---------|
+| Global fast-linkup configuration applied| INFO     |
+| Global fast-linkup configuration failed | ERROR    |
+
+Backend (SWSS):
+- Fast-linkup capability query failed
+- Global fast-linkup parameters applied on switch (SAI)
+- Global fast-linkup parameter apply failed (SAI)
+- Out-of-range global configuration rejected
+- Unsupported operation on SWITCH_FAST_LINKUP
+- Unknown field in SWITCH_FAST_LINKUP ignored
+- Per-port fast_linkup applied (SAI)
+- Per-port fast_linkup apply failed (SAI)
+- Fast-linkup not supported (switch/port path)
+
+###### Table 2: Backend event logging
+
+| Event                                             | Severity |
+|:--------------------------------------------------|:---------|
+| Capability query failed                           | ERROR    |
+| Global parameters applied on switch (SAI)         | INFO     |
+| Global parameter apply failed (SAI)               | ERROR    |
+| Out-of-range global configuration rejected        | NOTICE   |
+| Unsupported operation on SWITCH_FAST_LINKUP       | ERROR    |
+| Unknown field in SWITCH_FAST_LINKUP ignored       | WARN     |
+| Per-port fast_linkup applied (SAI)                | INFO     |
+| Per-port fast_linkup apply failed (SAI)           | ERROR    |
+| Fast-linkup not supported (switch/port path)      | NOTICE   |
+
+
 # 2 Design
 
-## 2.1 Overview
+## 2.1 Flows
 
 The design consists of:
 - Capability discovery via `STATE_DB` populated by platform components.
@@ -143,28 +164,37 @@ The design consists of:
 
 ![Architecture Overview](images/architecture-overview.png)
 
-###### Figure 4: Link recovery state machine
+###### Figure 2: Capability discovery on switch init
 
-![Link Recovery State Machine](images/link-recovery-sm.png)
+![Capability Discovery on Switch Init](images/capability-discovery-init.png)
 
-## 2.2 Capability discovery
+### 2.1.1 Capability discovery on switch init
 
-`STATE_DB:SWITCH_CAPABILITY|switch` provides:
-- `FAST_LINKUP_CAPABLE`: 'true' | 'false'
-- `FAST_LINKUP_POLLING_TIMER_RANGE`: "min,max"
-- `FAST_LINKUP_GUARD_TIMER_RANGE`: "min,max"
+On orchagent init, `switchorch` queries SAI for support and optional ranges of Fast Link-Up attributes and publishes them into `STATE_DB:SWITCH_CAPABILITY|switch`. These values are used by CLI validation and to guard orchestration paths. See Figure 2.
 
-These are used by CLI validation and to guard SWSS programming.
+### 2.1.2 Global parameters configuration
 
-## 2.3 Configuration model
+###### Figure 3: Global parameters configuration
 
-- Global container: `SWITCH_FAST_LINKUP|GLOBAL`
-  - `polling_time` (string seconds)
-  - `guard_time` (string seconds)
-  - `ber_threshold` (string exponent, e.g., 12 -> 1e-12)
-- Per-port: `PORT|<ifname>:fast_linkup` ('true' | 'false')
+![Global Parameters Configuration](images/global-parameters-configuration.png)
 
-## 2.4 SAI API
+Flow:
+- User invokes `config switch-fast-linkup global [--polling-time ...] [--guard-time ...] [--ber ...]`.
+- CLI reads `STATE_DB` capabilities, validates support and ranges, and writes to `CONFIG_DB:SWITCH_FAST_LINKUP|GLOBAL`.
+- `switchorch` validates again (for config-apply) and programs switch SAI attributes.
+
+### 2.1.3 Per-port enablement
+
+###### Figure 4: Per-port enablement
+
+![Per-port Enablement](images/per-port-enablement.png)
+
+Flow:
+- User invokes `config interface fast-linkup <ifname> <enabled|disabled>`.
+- CLI updates `CONFIG_DB:PORT|<ifname>:fast_linkup` (with alias handling as applicable).
+- `portsorch` checks capability and sets `SAI_PORT_ATTR_FAST_LINKUP_ENABLED` for the port when supported (safe no-op otherwise).
+
+## 2.2 SAI API
 
 - Switch attributes:
   - `SAI_SWITCH_ATTR_FAST_LINKUP_POLLING_TIME_RANGE` (read-only)
@@ -175,55 +205,154 @@ These are used by CLI validation and to guard SWSS programming.
 - Port attribute:
   - `SAI_PORT_ATTR_FAST_LINKUP_ENABLED` (boolean)
 
-## 2.5 Orchestration agent
+## 2.3 Orchestration agent
 
-### 2.5.1 Switch orch
+### 2.3.0 Overview
 
-- On init:
-  - Query capability and ranges via SAI
-  - Publish to `STATE_DB:SWITCH_CAPABILITY|switch`
-- On config update:
-  - Validate ranges (if present)
-  - Apply `SAI_SWITCH_ATTR_*` attributes
+The orchestration agent (OA) is extended to support Fast Link-Up through a new `SWITCH_FAST_LINKUP` Config DB table and a new per-port field in the `PORT` table. The design follows the standard producer-consumer model:
+- Switch-level logic (capability discovery and global parameter application) is handled by `switchorch`.
+- Port-level logic (per-interface enable/disable) is handled by `portsorch`.
 
-### 2.5.2 Ports orch
+Key responsibilities:
+- Discover and publish capability (support flag and optional ranges) into `STATE_DB:SWITCH_CAPABILITY|switch`.
+- Validate and apply global parameters to the switch object using SAI.
+- Validate and apply per-port enable/disable using a dedicated SAI port attribute when supported; otherwise safe no-op.
+- Preserve unspecified global fields (partial update semantics) and ensure idempotent programming.
+- Log success/failure events as described in the Event logging section.
 
-- On `PORT|<ifname>:fast_linkup` change:
-  - Check capability for `SAI_PORT_ATTR_FAST_LINKUP_ENABLED`
-  - Set per-port attribute (safe no-op if unsupported)
+### 2.3.1 Switch orch
 
-## 2.6 DB schema
+Responsibilities:
+1) Capability discovery and publish
+   - On init, `setFastLinkupCapability()` queries:
+     - Support: by checking create/set capability for `SAI_SWITCH_ATTR_FAST_LINKUP_POLLING_TIME`.
+     - Ranges (optional): `SAI_SWITCH_ATTR_FAST_LINKUP_POLLING_TIME_RANGE`, `SAI_SWITCH_ATTR_FAST_LINKUP_GUARD_TIME_RANGE`.
+   - Results are cached in `m_fastLinkupCap` and published to `STATE_DB:SWITCH_CAPABILITY|switch`:
+     - `FAST_LINKUP_CAPABLE`
+     - `FAST_LINKUP_POLLING_TIMER_RANGE` (if available)
+     - `FAST_LINKUP_GUARD_TIMER_RANGE` (if available)
 
-### 2.6.1 Config DB
+2) Global configuration apply
+   - `doCfgSwitchFastLinkupTableTask(Consumer&)` handles updates under `SWITCH_FAST_LINKUP|GLOBAL`.
+   - Builds `FastLinkupConfig` from provided fields; unknown fields are logged and ignored.
+   - `setSwitchFastLinkup(const FastLinkupConfig&)`:
+     - Validates values against cached ranges when available (partial updates supported).
+     - Programs SAI switch attributes for provided fields only:
+       - `SAI_SWITCH_ATTR_FAST_LINKUP_POLLING_TIME`
+       - `SAI_SWITCH_ATTR_FAST_LINKUP_GUARD_TIME`
+       - `SAI_SWITCH_ATTR_FAST_LINKUP_BER_THRESHOLD`
+     - Emits a single INFO summary line indicating which fields were applied (set/skipped).
 
-- `SWITCH_FAST_LINKUP|GLOBAL`:
-  - `polling_time` (1..65535)
-  - `guard_time` (0..255)
-  - `ber_threshold` (uint8 exponent, e.g., 12 -> 1e-12)
-- `PORT|<ifname>`:
-  - `fast_linkup` ('true'|'false', default 'false')
+3) Error handling and invariants
+   - If capability is not supported: emit NOTICE and return without SAI calls (safe no-op).
+   - Out-of-range values (when ranges known): reject and do not program SAI.
+   - SAI failures when setting attributes: log status and stop applying subsequent attributes for the same update.
+   - Unsupported operations on `SWITCH_FAST_LINKUP` and unknown fields are logged and ignored.
+   - Ensures idempotent programming: re-applying the same values is harmless.
 
-### 2.6.2 State DB
+### 2.3.2 Ports orch
 
-- `SWITCH_CAPABILITY|switch`:
-  - `FAST_LINKUP_CAPABLE` ('true'|'false')
-  - `FAST_LINKUP_POLLING_TIMER_RANGE` ("min,max")
-  - `FAST_LINKUP_GUARD_TIMER_RANGE` ("min,max")
+Responsibilities:
+1) Capability detection
+   - On init, checks port-level capability using `querySwitchCapability(SAI_OBJECT_TYPE_PORT, SAI_PORT_ATTR_FAST_LINKUP_ENABLED)` and caches the result in `m_fastLinkupPortAttrSupported`.
 
-### 2.6.3 Data sample
+2) Per-port configuration apply
+   - On `PORT|<ifname>` updates, `setPortFastLinkupEnabled(Port&, bool)` applies the per-port enable/disable:
+     - If the attribute is supported, sets `SAI_PORT_ATTR_FAST_LINKUP_ENABLED` accordingly.
+     - If not supported, emits NOTICE and returns success without programming SAI (safe no-op).
 
-```json
-{
-  "SWITCH_FAST_LINKUP|GLOBAL": {
-    "polling_time": "60",
-    "guard_time": "10",
-    "ber_threshold": "12"
-  }
-}
+3) Integration details
+   - Operates on canonical interface names; CLI takes care of alias resolution before writing Config DB.
+   - Namespace-aware through the standard SONiC framework (no special handling unique to this feature).
+   - Error paths from SAI are logged with ERROR and surfaced via standard task status propagation.
+
+## 2.5 DB schema
+
+### 2.5.1 Config DB
+
+#### 2.5.1.1 SWITCH_FAST_LINKUP (Switch OA)
+
+```abnf
+; defines schema for switch fast link-up configuration attributes
+key = SWITCH_FAST_LINKUP|GLOBAL ; switch fast link-up global. Must be unique
+
+; field         = value
+polling_time    = 1*5DIGIT   ; time (in sec) to attempt fast link-up before fallback
+guard_time      = 1*3DIGIT   ; time (in sec) to verify link quality (BER gate)
+ber_threshold   = 1*2DIGIT   ; BER negative exponent (e.g., 12 => 1e-12)
 ```
 
+Note:
+- Partial updates are allowed; unspecified fields are preserved.
+
+#### 2.5.1.2 PORT (Ports OA)
+
+```abnf
+; per-port fast link-up enable/disable
+key = PORT|ifname             ; ifname must be unique
+
+; field       = value
+fast_linkup   = "true" / "false"  ; feature status (default "false")
+```
+
+### 2.5.2 State DB
+
+#### 2.5.2.1 Fast link-up capabilities
+
+```abnf
+; defines schema for switch fast link-up capabilities
+key = SWITCH_CAPABILITY|switch ; must be unique
+
+; field                                  = value
+FAST_LINKUP_CAPABLE                       = capability-knob ; whether fast link-up is supported
+FAST_LINKUP_POLLING_TIMER_RANGE           = range-list      ; allowed polling_time values "min,max"
+FAST_LINKUP_GUARD_TIMER_RANGE             = range-list      ; allowed guard_time values "min,max"
+
+; value annotations
+capability-knob = "true" / "false"
+range-list      = 1*DIGIT "," 1*DIGIT
+```
+
+### 2.5.3 Data sample
+
+Config DB:
+```bash
+redis-cli -n 4 HGETALL 'SWITCH_FAST_LINKUP|GLOBAL'
+1) "polling_time"
+2) "60"
+3) "guard_time"
+4) "10"
+5) "ber_threshold"
+6) "12"
+
+redis-cli -n 4 HGETALL 'PORT|Ethernet0'
+1) "fast_linkup"
+2) "true"
+```
+
+State DB:
+```bash
+redis-cli -n 6 HGETALL 'SWITCH_CAPABILITY|switch'
+1) "FAST_LINKUP_CAPABLE"
+2) "true"
+3) "FAST_LINKUP_POLLING_TIMER_RANGE"
+4) "5,120"
+5) "FAST_LINKUP_GUARD_TIMER_RANGE"
+6) "1,20"
+```
+
+### 2.5.4 Configuration sample
+
+config_db.json:
 ```json
 {
+  "SWITCH_FAST_LINKUP": {
+    "GLOBAL": {
+      "polling_time": "60",
+      "guard_time": "10",
+      "ber_threshold": "12"
+    }
+  },
   "PORT": {
     "Ethernet0": {
       "fast_linkup": "true"
@@ -232,50 +361,43 @@ These are used by CLI validation and to guard SWSS programming.
 }
 ```
 
-```json
-{
-  "SWITCH_CAPABILITY|switch": {
-    "FAST_LINKUP_CAPABLE": "true",
-    "FAST_LINKUP_POLLING_TIMER_RANGE": "5,120",
-    "FAST_LINKUP_GUARD_TIMER_RANGE": "1,20"
-  }
-}
+## 2.4 CLI
+
+### 2.4.1 Command structure
+
+User interface:
+```
+config
+|--- switch-fast-linkup
+|    |--- global [OPTIONS]
+|
+|--- interface
+     |--- fast-linkup <IFNAME> <enabled|disabled> [OPTIONS]
+
+show
+|--- switch-fast-linkup
+|    |--- global [--json]
+|
+|--- interfaces
+     |--- fast-linkup
+          |--- status
 ```
 
-### 2.6.4 Configuration sample
+Options:
 
-- `config switch-fast-linkup global --polling-time 60 --guard-time 10 --ber 12`
-- `config interface fast-linkup Ethernet0 enabled`
+config switch-fast-linkup global
+1. `--polling-time <uint16>`  - time (sec) to attempt fast link-up (validated against STATE_DB range if present)
+2. `--guard-time <uint8>`     - time (sec) to verify link quality (validated against STATE_DB range if present)
+3. `--ber|--ber-threshold <int8>` - BER exponent (e.g., 12 => 1e-12)
 
-### 2.6.5 Initial configuration
-- Disabled by default (no `fast_linkup` entries; `SWITCH_FAST_LINKUP|GLOBAL` may be absent).
+config interface fast-linkup
+1. `<IFNAME>`                 - interface name (alias supported by CLI)
+2. `<enabled|disabled>`       - enable/disable per-port fast link-up
 
-### 2.6.6 Configuration migration
-- None; additive schema. Older images ignore unknown keys.
+show switch-fast-linkup global
+1. `--json`                   - display in JSON format
 
-## 2.7 Flows
-
-### 2.7.1 Config section
-
-###### Figure 2: Global configuration flow
-
-![Global Configuration Flow](images/global-config-flow.png)
-
-### 2.7.2 Show section
-
-###### Figure 3: Per-interface flow
-
-![Per-interface Flow](images/per-port-flow.png)
-
-## 2.8 CLI
-
-### 2.8.1 Command structure
-
-- Command groups:
-  - Config: `config switch-fast-linkup`, `config interface fast-linkup`
-  - Show: `show switch-fast-linkup`, `show interfaces fast-linkup`
-
-### 2.8.2 Usage examples
+### 2.4.2 Usage examples
 
 - Global show:
   - `show switch-fast-linkup global`
@@ -319,58 +441,81 @@ These are used by CLI validation and to guard SWSS programming.
     ```
 
 - Per-interface config:
-  - `config interface fast-linkup <interface_name> <enabled|disabled|true|false|on|off>`
+  - `config interface fast-linkup Ethernet0 enabled`
+  - `config interface fast-linkup Ethernet0 disabled`
   - Notes:
     - Interface aliases are converted automatically when alias mode is enabled.
     - On multi-ASIC systems, namespace can be supplied and is propagated to backend.
     - If the platform does not support the SAI attribute, SWSS safely no-ops (no disruptive errors).
 
-## 2.9 YANG model
+## 2.6 YANG model
 
-New module `sonic-fast-linkup.yang` models the global configuration:
-- Module: `sonic-fast-linkup`
-- Top container: `sonic-fast-linkup`
-- Container: `SWITCH_FAST_LINKUP/GLOBAL`
-- Leafs:
-  - `polling_time` (uint16, seconds): interval for status checks during accelerated window
-  - `guard_time` (uint16, seconds): maximum time window before fallback decision
-  - `ber_threshold` (uint8, exponent): BER threshold E such that threshold is 1e-<E> (e.g., 12 → 1e-12)
+New YANG module `sonic-fast-linkup.yang` models the global configuration:
 
-Details:
-- The YANG module provides type/structure validation for `SWITCH_FAST_LINKUP|GLOBAL` during `config apply/replace`.
-- Platform min/max ranges (from STATE_DB) are enforced at runtime by the CLI; dynamic ranges are not modeled in YANG.
-- Per-port enable/disable remains a `PORT` table field (`PORT|<ifname>:fast_linkup`) and follows existing `PORT` schema.
+Skeleton code:
+```yang
+module sonic-fast-linkup {
+  yang-version 1.1;
+  namespace "http://github.com/sonic-net/sonic-fast-linkup";
+  prefix sfl;
 
-Example matching CONFIG_DB:
-```json
-{
-  "SWITCH_FAST_LINKUP|GLOBAL": {
-    "polling_time": "60",
-    "guard_time": "10",
-    "ber_threshold": "12"
+  description "YANG model for SWITCH_FAST_LINKUP global configuration.";
+
+  revision 2025-10-20 {
+    description "First Revision";
   }
+
+  container sonic-fast-linkup {
+    container SWITCH_FAST_LINKUP {
+      description "SWITCH_FAST_LINKUP part of config_db.json";
+
+      container GLOBAL {
+        leaf polling_time {
+          description "Time (in seconds) to attempt fast link-up before fallback";
+          type uint16;
+        }
+        leaf guard_time {
+          description "Time (in seconds) to verify link quality (BER gate)";
+          type uint16;
+        }
+        leaf ber_threshold {
+          description "BER negative exponent; 12 => 1e-12";
+          type uint8;
+        }
+      }
+      /* end of container GLOBAL */
+    }
+    /* end of container SWITCH_FAST_LINKUP */
+  }
+  /* end of container sonic-fast-linkup */
 }
+/* end of module sonic-fast-linkup */
 ```
 
-## 2.10 Warm/Fast boot
-
-No special handling is required. Standard config reload mechanisms apply.
+Notes:
+- The YANG module provides type/structure validation for `SWITCH_FAST_LINKUP|GLOBAL` during `config apply/replace`.
+- Platform min/max ranges (from STATE_DB) are enforced at runtime by the CLI; dynamic ranges are not modeled in YANG.
+- Per-port enable/disable remains a `PORT` table field (`PORT|<ifname>:fast_linkup`) and follows the existing `sonic-port.yang`.
 
 # 3 Test plan
 
-## 3.1 Unit tests via VS
+## 3.1 Unit tests
 
-1. Capability publish: verify `FAST_LINKUP_CAPABLE` presence and ranges in `STATE_DB`.
-2. Global apply: write `SWITCH_FAST_LINKUP|GLOBAL` and verify switch SAI attributes in ASIC_DB.
-3. Global validation (range): push out-of-range values when ranges are known and assert no apply.
-4. Per-port toggle: toggle `PORT.fast_linkup` and verify `SAI_PORT_ATTR_FAST_LINKUP_ENABLED` in ASIC_DB.
-5. CLI error handling: verify messages for unsupported platform and out-of-range values.
+- SWSS (orchagent, VS)
+  - Capability publish (STATE_DB)
+  - Global apply → ASIC DB switch attributes set
+  - Global range enforcement (negative match when ranges exist)
+  - Per-port fast_linkup toggle → SAI port attribute
 
-## 3.2 Data plane tests via PTF
+- CLI (sonic-utilities)
+  - Global config on unsupported platform
+  - Global range validation (frontend)
+  - Show global JSON equals CONFIG_DB
+  - Show interfaces fast-linkup status
+  - Interface fast-linkup enable/disable
+  - Enable fast-linkup when not supported (fails)
 
-1. Measure recovery-time improvement on supported modes versus baseline.
-2. Validate fallback to regular link-up when BER > threshold at guard expiry.
-3. Stability across repeated recovery cycles with toggled fast_linkup.
+## 3.2 Verification - TBD
 
 ---
 
