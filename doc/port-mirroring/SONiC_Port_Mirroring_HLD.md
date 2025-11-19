@@ -25,15 +25,16 @@
       * [3.3 Switch State Service Design](#33-switch-state-service-design)
           * [3.3.1 Orchestration Agent](#331-orchestration-agent)
           * [3.3.2 Other Process](#332-other-process)
-      * [3.4 SAI](#35-sai)
-      * [3.5 CLI](#36-cli)
-          * [3.5.1 Data Models](#351-data-models)
-          * [3.5.2 Configuration Commands](#352-configuration-commands)
-          * [3.5.3 Show Commands](#353-show-commands)
-          * [3.5.4 Clear Commands](#354-clear-commands)
-          * [3.5.5 Debug Commands](#355-debug-commands)
-          * [3.5.6 Rest API Support](#356-rest-api-support)
-          * [3.5.7 GNMI Support](#357-gnmi-support)
+      * [3.4 Mirror Capability Discovery](#34-mirror-capability-discovery)
+      * [3.5 SAI](#35-sai)
+      * [3.6 CLI](#36-cli)
+          * [3.6.1 Data Models](#361-data-models)
+          * [3.6.2 Configuration Commands](#362-configuration-commands)
+          * [3.6.3 Show Commands](#363-show-commands)
+          * [3.6.4 Clear Commands](#364-clear-commands)
+          * [3.6.5 Debug Commands](#365-debug-commands)
+          * [3.6.6 Rest API Support](#366-rest-api-support)
+          * [3.6.7 GNMI Support](#367-gnmi-support)
   * [4. Flow Diagrams](#4-flow-diagrams)
   * [5. Error Handling](#5-Error-Handling)
   * [6. Serviceability and Debug](#6-serviceability-and-debug)
@@ -49,6 +50,7 @@
 | Rev |     Date    |       Author       | Change Description                         |
 |:---:|:-----------:|:------------------:|--------------------------------------------|
 | 0.1 | 05/17/2019  |   Rupesh Kumar      | Initial version                            |
+| 0.2 | 09/05/2025  |   Stephen Sun      | Added mirror capability discovery and validation |
 
 
 # About this Manual
@@ -144,7 +146,28 @@ Existing table PORT_MIRROR_TABLE is enhanced to accept new source and destinatio
 ### 3.2.2 APP_DB
 No tables are introduced in APP_DB
 ### 3.2.3 STATE_DB
-No tables are introduced in STATE_DB.·
+
+#### Table SWITCH_CAPABILITY
+
+Table `SWITCH_CAPABILITY` is not a new table. It has been designed to represent various switch object capabilities supported on the platform.
+
+The following fields are introduced in this design for mirror capability discovery:
+
+```text
+PORT_INGRESS_MIRROR_CAPABLE    = "true" | "false"    ; whether SAI attribute SAI_PORT_ATTR_INGRESS_MIRROR_SESSION is supported
+PORT_EGRESS_MIRROR_CAPABLE     = "true" | "false"    ; whether SAI attribute SAI_PORT_ATTR_EGRESS_MIRROR_SESSION is supported
+```
+
+These capabilities are discovered during system initialization by SwitchOrch using `sai_query_attribute_capability()` and stored in STATE_DB under the key `SWITCH_CAPABILITY|switch`.
+
+**Example STATE_DB entry:**
+```text
+SWITCH_CAPABILITY|switch
+  PORT_INGRESS_MIRROR_CAPABLE: "true"
+  PORT_EGRESS_MIRROR_CAPABLE: "false"
+```
+
+This indicates that the ASIC supports ingress mirror sessions but does not support egress mirror sessions.
 
 ### 3.2.4 ASIC_DB
 No changes are introduced in ASIC_DB.·
@@ -163,7 +186,58 @@ Mirror Orchestration agent is modified to support this feature:
         - Session with source/destination/direction config will be active once the session created from SAI is programmed on the source ports.
    - Populates the mirror attribute SAI structures and pushes the entry to ASIC_DB.·
 
-## 3.4 SAI
+## 3.4 Mirror Capability Discovery
+
+The mirror capability discovery feature provides runtime detection and validation of ASIC mirror capabilities to ensure proper configuration and graceful error handling.
+
+### 3.4.1 Capability Discovery Process
+
+The capability discovery process involves multiple layers:
+
+1. **SAI Layer Discovery**: SwitchOrch queries SAI for port mirror capabilities using `sai_query_attribute_capability()` for:
+   - `SAI_PORT_ATTR_INGRESS_MIRROR_SESSION`
+   - `SAI_PORT_ATTR_EGRESS_MIRROR_SESSION`
+
+2. **STATE_DB Storage**: Discovered capabilities are stored in STATE_DB under `SWITCH_CAPABILITY|switch`:
+   - `PORT_INGRESS_MIRROR_CAPABLE`: "true"/"false"
+   - `PORT_EGRESS_MIRROR_CAPABLE`: "true"/"false"
+
+3. **Runtime Validation**: MirrorOrch validates capabilities before configuring mirror sessions
+
+### 3.4.2 Capability Validation Flow
+
+The capability validation follows this sequence:
+
+1. **User CLI Command**: User executes a mirror session configuration command
+2. **CLI Validation**: `is_port_mirror_capability_supported()` function is called
+3. **STATE_DB Query**: System queries STATE_DB for mirror capabilities
+4. **Direction Validation**: System validates if the requested mirror direction is supported
+5. **Result**: Command proceeds if supported, or returns error message if not supported
+
+### 3.4.3 Error Handling
+
+- **CLI Level**: Early validation prevents invalid configurations
+- **OrchAgent Level**: Runtime validation with detailed error logging
+- **Graceful Degradation**: System continues to function with unsupported features disabled
+
+### 3.4.4 Implementation Components
+
+#### SwitchOrch Enhancements
+- New capability constants: `SWITCH_CAPABILITY_TABLE_PORT_INGRESS_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_PORT_EGRESS_MIRROR_CAPABLE`
+- `querySwitchPortMirrorCapability()`: Discovers and stores capabilities
+- Public interface methods: `isPortIngressMirrorSupported()`, `isPortEgressMirrorSupported()`
+
+#### MirrorOrch Enhancements
+- Capability validation in `setUnsetPortMirror()`
+- Separate validation for ingress and egress directions
+- Detailed error logging for unsupported operations
+
+#### CLI Enhancements
+- `is_port_mirror_capability_supported()`: Queries STATE_DB for capabilities
+- Integration with `validate_mirror_session_config()`
+- User-friendly error messages for unsupported directions
+
+## 3.5 SAI
 Mirror SAI interface APIs are already defined. 
 More details about SAI API and attributes are described below SAI Spec @
 
@@ -226,8 +300,8 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
     SAI_PORT_ATTR_EGRESS_MIRROR_SESSION,
 ```
 
-## 3.5 CLI
-### 3.5.1 Data Models
+## 3.6 CLI
+### 3.6.1 Data Models
 SONiC Yang model  and OpenConfig extension models will be introduced for this feature.
 
 ## openconfig-mirror-ext
@@ -303,7 +377,7 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
 
 ```
 
-### 3.5.2 Configuration Commands
+### 3.6.2 Configuration Commands
 
 Existing mirror session commands are enhanced to support this feature.
 ```
@@ -332,7 +406,7 @@ KLISH CLI Support.
     **switch(config)# [no] mirror-session <session-name>** <br>
     **switch(config-mirror-<session-name>)# [no] destination erspan src_ip <src_ip> dst_ip <dst_ip> dscp < dscp > ttl < ttl > [ gre < gre >] [queue <queue>] [source <src_ifName> direction <rx/tx>**] [policer <policer>]<br>
 
-### 3.5.3 Show Commands
+### 3.6.3 Show Commands
 
 The following show command display all the mirror sessions that are configured.
 
@@ -350,13 +424,13 @@ The following show command display all the mirror sessions that are configured.
 
 KLISH show mirror-session is same as above.
 
-###  3.5.4 Clear Commands
+###  3.6.4 Clear Commands
 No command variants of config commands take care of clear config.
 
-### 3.5.5 Debug Commands
+### 3.6.5 Debug Commands
 Not applicable
 
-### 3.5.6 REST API Support
+### 3.6.6 REST API Support
 
 - Please check all REST API from link @ https://<switch_ip>/ui link. 
 - This webserver provides user information about all the REST URLS, REST Data. Return codes. 
@@ -379,7 +453,7 @@ The following show command display all the mirror sessions that are configured.
     # curl -X DELETE "https://<switch_ip>/restconf/data/sonic-mirror-session:sonic-mirror-session/MIRROR_SESSION/MIRROR_SESSION_LIST=mirr3" -H "accept: application/yang-data+json"
 ```
 
-### 3.5.7 GNMI Support
+### 3.6.7 GNMI Support
 
 - Following GNMI set and get commands will be supported.
 ```
@@ -399,9 +473,63 @@ The following show command display all the mirror sessions that are configured.
 
 # 5 Error Handling
 
+## 5.1 Basic Error Handling
+
 - show mirror_session command will display any errors during session configuration and current status of session.
 - Internal processing errors within SwSS will be logged in syslog with ERROR level
 - SAI interaction errors will be logged in syslog
+
+## 5.2 Enhanced Mirror Capability Error Handling
+
+### 5.2.1 Capability Validation Errors
+
+The enhanced error handling system provides comprehensive validation and user-friendly error messages for mirror capability issues:
+
+#### CLI Level Validation
+- **Early Detection**: Capability validation occurs before configuration attempts
+- **User-Friendly Messages**: Clear error messages indicating unsupported directions
+- **Example Error Messages**:
+  ```
+  Error: Port mirror direction 'rx' is not supported by the ASIC
+  Error: Port mirror direction 'tx' is not supported by the ASIC
+  Error: Port mirror direction 'both' is not supported by the ASIC
+  ```
+
+#### OrchAgent Level Validation
+- **Runtime Validation**: MirrorOrch validates capabilities before SAI operations
+- **Detailed Logging**: Comprehensive error logging for debugging
+- **Graceful Degradation**: System continues to function with unsupported features disabled
+
+### 5.2.2 Error Handling Flow
+
+The error handling follows a two-stage validation process:
+
+**Stage 1: CLI Validation**
+1. **Configuration Attempt**: User attempts to configure mirror session
+2. **CLI Validation**: Early validation checks are performed
+3. **Capability Check**: System queries STATE_DB for mirror capabilities
+4. **Decision Point**:
+   - If supported: Proceed to OrchAgent
+   - If not supported: Return error message to user
+
+**Stage 2: OrchAgent Validation**
+1. **OrchAgent Validation**: Runtime validation before SAI operations
+2. **Final Decision Point**:
+   - If supported: Configure SAI attributes
+   - If not supported: Log error and skip operation
+
+### 5.2.3 Error Recovery and Status Reporting
+
+- **Error Prevention**: CLI validation prevents invalid configurations from being applied
+- **Status Reporting**: Clear status reporting in show commands
+- **Logging**: Comprehensive logging for troubleshooting and monitoring
+- **Graceful Rejection**: System rejects unsupported configurations with clear error messages
+
+### 5.2.4 Backward Compatibility
+
+- **Legacy Support**: Existing configurations continue to work
+- **Graceful Migration**: New capability checks don't break existing functionality
+- **Default Behavior**: When capability detection fails, system assumes full support for backward compatibility
 
 # 6 Serviceability and Debug
 
@@ -416,6 +544,32 @@ Max mirror sessions supported are silicon specific.
 |Name                      |   Scaling value    |
 |--------------------------|--------------------|
 | Max mirror sessions      | silicon specific   |
+
+# 8.1 Backward Compatibility
+
+## 8.1.1 Mirror Capability Feature Compatibility
+
+The mirror capability discovery and validation feature is designed to be fully backward compatible:
+
+### 8.1.2 Existing Configurations
+- **Legacy Support**: All existing mirror session configurations continue to work without modification
+- **No Breaking Changes**: Existing CLI commands and configurations remain unchanged
+- **Graceful Migration**: New capability checks are additive and don't interfere with existing functionality
+
+### 8.1.3 Capability Detection Fallback
+- **Default Behavior**: When capability detection fails, the system assumes full support for backward compatibility
+- **Error Handling**: If STATE_DB is unavailable or capability queries fail, the system continues to function
+- **Logging**: Capability detection failures are logged but don't prevent normal operation
+
+### 8.1.4 CLI Compatibility
+- **Command Compatibility**: All existing CLI commands work exactly as before
+- **Error Message Enhancement**: New error messages are only shown when capabilities are explicitly checked
+- **Optional Validation**: Capability validation is only performed when direction parameters are specified
+
+### 8.1.5 OrchAgent Compatibility
+- **Runtime Validation**: New capability validation is performed at runtime without affecting existing sessions
+- **Graceful Degradation**: Unsupported operations are logged but don't crash the system
+- **State Preservation**: Existing mirror sessions continue to function regardless of capability status
 
 # 9 Unit Test
 
@@ -466,3 +620,22 @@ test_mirror_port_span.py::TestMirror::test_PortMirrorPolicerMultiAddRemove PASSE
 test_mirror_port_span.py::TestMirror::test_PortMirrorPolicerWithAcl PASSED                                                                                                                                                             [ 91%]
 test_mirror_port_span.py::TestMirror::test_LAGMirorrSpanAddRemove PASSED                                                                                                                                                               [100%]
 ```
+
+## 9.2 Mirror Capability Test Cases
+
+### 9.2.1 CLI Capability Validation Tests
+
+The following test cases validate the mirror capability discovery and validation functionality:
+
+| S.No | Test Case Synopsis |
+|------|-------------------|
+| 20 | Verify that capability checking fails when direction is not supported |
+| 21 | Verify that CLI returns appropriate error messages for unsupported directions |
+| 22 | Verify that CLI allows configuration when capabilities are supported |
+
+### 9.2.2 Swss Mock Tests
+
+| S.No | Test Case Synopsis |
+|------|-------------------|
+| 25 | Verify that capability checking fails when direction is not supported |
+| 26 | Verify that the mirror capability is inserted into the STATE_DB |
