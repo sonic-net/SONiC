@@ -44,7 +44,7 @@
 
 | Rev | Date       | Author            | Description |
 |:---:|:----------:|:-----------------:|:------------|
-| 0.1 | TBD        | Yair Raviv        | Initial version       |
+| 0.1 | 06/01/2026 | Yair Raviv        | Initial version       |
 
 ## Scope
 
@@ -67,6 +67,9 @@ Key points:
      - ber_threshold (exponent): acceptable BER as 1e-<E> (e.g., 12 → 1e-12).
    - Per-port enable/disable: controls whether fast link-up is attempted for that port.
 4. Capability-gated: on init, SONiC queries SAI for support and optional ranges; configuration is accepted only if supported and values are within published ranges.
+
+
+![Architecture Overview](images/architecture-overview.png)
 
 ## 1.2 Requirements
 
@@ -160,39 +163,30 @@ The design consists of:
 - Per-port control via `CONFIG_DB:PORT|<ifname>:fast_linkup`.
 - Orchestration in SWSS to program SAI `SAI_PORT_ATTR_FAST_LINKUP_ENABLED` when supported.
 
-###### Figure 1: Architecture overview
+### 2.1.1 Capability discovery on switch init
 
-![Architecture Overview](images/architecture-overview.png)
-
-###### Figure 2: Capability discovery on switch init
+On orchagent init, `switchorch` queries SAI for support and optional ranges of Fast Link-Up attributes and publishes them into `STATE_DB:SWITCH_CAPABILITY|switch`. These values are used by CLI validation and to guard orchestration paths.
 
 ![Capability Discovery on Switch Init](images/capability-discovery-init.png)
 
-### 2.1.1 Capability discovery on switch init
-
-On orchagent init, `switchorch` queries SAI for support and optional ranges of Fast Link-Up attributes and publishes them into `STATE_DB:SWITCH_CAPABILITY|switch`. These values are used by CLI validation and to guard orchestration paths. See Figure 2.
-
 ### 2.1.2 Global parameters configuration
-
-###### Figure 3: Global parameters configuration
-
-![Global Parameters Configuration](images/global-parameters-configuration.png)
 
 Flow:
 - User invokes `config switch-fast-linkup global [--polling-time ...] [--guard-time ...] [--ber ...]`.
 - CLI reads `STATE_DB` capabilities, validates support and ranges, and writes to `CONFIG_DB:SWITCH_FAST_LINKUP|GLOBAL`.
 - `switchorch` validates again (for config-apply) and programs switch SAI attributes.
 
+![Global Parameters Configuration](images/global-parameters-configuration.png)
+
+
 ### 2.1.3 Per-port enablement
-
-###### Figure 4: Per-port enablement
-
-![Per-port Enablement](images/per-port-enablement.png)
 
 Flow:
 - User invokes `config interface fast-linkup <ifname> <enabled|disabled>`.
 - CLI updates `CONFIG_DB:PORT|<ifname>:fast_linkup` (with alias handling as applicable).
 - `portsorch` checks capability and sets `SAI_PORT_ATTR_FAST_LINKUP_ENABLED` for the port when supported (safe no-op otherwise).
+
+![Per-port Enablement](images/per-port-enablement.png)
 
 ## 2.2 SAI API
 
