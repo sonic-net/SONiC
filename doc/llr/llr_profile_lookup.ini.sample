@@ -1,5 +1,5 @@
 ############################################################################################################
-# llr_buffer_lookup.ini
+# llr_profile_lookup.ini
 #
 #   Vendor‑supplied lookup table used by llrmgrd to auto‑generate LLR_PROFILE entries per (speed, cable_len).
 #
