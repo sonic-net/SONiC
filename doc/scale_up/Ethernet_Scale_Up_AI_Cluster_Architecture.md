@@ -461,7 +461,7 @@ The receiving station decodes payloads from incoming Ethernet frames and transmi
 
   *   **LLR Implementation**:
 
-        *   [GitHub Pull Request #1](https://github.com/rck-innovium/SAI/pull/1)
+        *   [GitHub Pull Request #1](https://github.com/opencomputeproject/SAI/pull/2225)
 
   *   **CBFC Implementation**:
 
