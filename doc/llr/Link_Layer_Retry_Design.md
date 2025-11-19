@@ -185,7 +185,7 @@ The following initial configurations are handled for LLR
   - `llrmgrd` subscribes to LLR_GLOBAL and LLR_PORT tables in CONFIG_DB to receive LLR global and per-port configuration updates and, depending on the global and per-port LLR state, propagates the relevant LLR configuration to APPL_DB.
       - If the LLR global configuration mode is set to Static, the configuration is driven by the configuration in CONFIG_DB.
       - When set to Dynamic, the configuration is driven by the LLDP exchange (This mode is not supported in Phase I of development).
-  - It subscribes to CABLE_LENGTH tables in CONFIG_DB for admin_status, cable length information. For operational speed updates, it subscribes to the PORT_TABLE in STATE_DB.
+  - It subscribes to CABLE_LENGTH table in CONFIG_DB for port cable length information. For operational speed updates, it subscribes to the PORT_TABLE in STATE_DB.
   - When LLR is enabled both globally and on a port, `llrmgrd` generates an LLR profile for the port and writes the corresponding profile to CONFIG_DB.
   - Additionally, it consumes LLR_PROFILE updates from CONFIG_DB and writes LLR port and profile information to APPL_DB for orchagent consumption.
 
@@ -207,12 +207,12 @@ Field names in `llr_buffer_lookup.ini` maps to CONFIG_DB `LLR_PROFILE` fields. A
 
 Profile fields to ini header mapping:
 ```
-max_outstanding_frames      <-> outstanding_frames (no of frames)
+max_outstanding_frames      <-> outstanding_frames (number of frames)
 max_outstanding_bytes       <-> outstanding_bytes (bytes)
 max_replay_timer            <-> replay_timer (ns)
 max_replay_count            <-> replay_count (count)
 pcs_lost_timeout            <-> pcs_lost_timeout (ns)
-data_age_timer              <-> data_age_timer (ns)
+data_age_timeout            <-> data_age_timeout (ns)
 ctlos_spacing_bytes         <-> ctlos_spacing (bytes)
 init_action                 <-> init_action (best_effort | block | discard)
 flush_action                <-> flush_action (best_effort | block | discard)
@@ -220,14 +220,14 @@ flush_action                <-> flush_action (best_effort | block | discard)
 
 Sample file snippet:
 ```
-speed   cable  outstanding_frames outstanding_bytes replay_timer replay_count pcs_lost_timeout data_age_timer ctlos_spacing init_action   flush_action
-400000    3m      4096              262144          5000         3            50000            20000          2048          best_effort   block
-400000    10m     4096              262144          5500         3            55000            24000          2048          best_effort   block
-800000    3m      8192              524288          5000         3            50000            20000          2048          best_effort   best_effort
-800000    10m     8192              524288          5500         3            55000            24000          2048          best_effort   discard
+speed   cable  outstanding_frames outstanding_bytes replay_timer replay_count pcs_lost_timeout data_age_timeout ctlos_spacing init_action   flush_action
+400000    3m      4096              262144          5000         3            50000            20000            2048          best_effort   block
+400000    10m     4096              262144          5500         3            55000            24000            2048          best_effort   block
+800000    3m      8192              524288          5000         3            50000            20000            2048          best_effort   best_effort
+800000    10m     8192              524288          5500         3            55000            24000            2048          best_effort   discard
 ```
 
-Vendors may omit any unsupported field by removing the column from the header; the manager will skip setting that attribute. This flexible format allows heterogeneous hardware capabilities without requiring code changes.
+Vendors may omit any unsupported field other than the `outstanding_frames` and `outstanding_bytes` by removing the column from the header; the manager will skip setting that attribute. This flexible format allows heterogeneous hardware capabilities without requiring code changes.
 
 ###### Figure 3: LLR Manager Flow
 ![llrmgrd Flow](images/llr_llrmgrd_flow.svg "Figure 3: llrmgrd Flow")
@@ -282,7 +282,7 @@ The following table lists the SAI APIs used and their relevant attributes.
 |             | sai_set_port_llr_profile_attribute_fn | SAI_PORT_LLR_PROFILE_ATTR_REPLAY_TIMER_MAX             |
 |             | sai_get_port_llr_profile_attribute_fn | SAI_PORT_LLR_PROFILE_ATTR_REPLAY_COUNT_MAX             |
 |             |                                       | SAI_PORT_LLR_PROFILE_ATTR_PCS_LOST_TIMEOUT             |
-|             |                                       | SAI_PORT_LLR_PROFILE_ATTR_DATA_AGE_TIMER               |
+|             |                                       | SAI_PORT_LLR_PROFILE_ATTR_DATA_AGE_TIMEOUT             |
 |             |                                       | SAI_PORT_LLR_PROFILE_ATTR_INIT_LLR_FRAME_ACTION        |
 |             |                                       | SAI_PORT_LLR_PROFILE_ATTR_FLUSH_LLR_FRAME_ACTION       |
 |             |                                       | SAI_PORT_LLR_PROFILE_ATTR_RE_INIT_ON_FLUSH (only TRUE) |
@@ -350,9 +350,10 @@ mode                 = "static"  / "dynamic"     ; Network configuration mode
 key                   = LLR_PORT | ifname       ; Interface name (Ethernet only). Must be unique
 
 ; field               = value
-state                 = "enabled" / "disabled"  ; Per-port LLR state (both TX and RX)
-                                                ; Implementation maps to setting both SAI_PORT_ATTR_LLR_MODE_LOCAL and
-                                                ; SAI_PORT_ATTR_LLR_MODE_REMOTE. Default: "disabled" (only applied when mode == "static")
+local_state           = "enabled" / "disabled"  ; Per-port LLR local state
+                                                ; Implementation maps to setting SAI_PORT_ATTR_LLR_MODE_LOCAL. Default: "disabled" (only applied when mode == "static")
+remote_state          = "enabled" / "disabled"  ; Per-port LLR remote state
+                                                ; Implementation maps to setting SAI_PORT_ATTR_LLR_MODE_REMOTE. Default: "disabled" (only applied when mode == "static")
 profile               = 1*64VCHAR               ; LLR Profile name bound to the port (auto-generated)
 
 ```
@@ -374,7 +375,7 @@ max_replay_timer          = 1*10DIGIT                   ; Maximum replay timer (
                                                         ; retransmission trigger. Range 0..65535
 pcs_lost_timeout          = 1*10DIGIT                   ; Maximum PCS lost status duration (ns).
                                                         ; Range 0..4290000000
-data_age_timer            = 1*10DIGIT                   ; Maximum age a frame may reside in replay buffer (ns). Range 0..4290000000
+data_age_timeout          = 1*10DIGIT                   ; Maximum age a frame may reside in replay buffer (ns). Range 0..4290000000
 ctlos_spacing_bytes       = 1*5DIGIT                    ; Target spacing between CtlOS msgs (ACK/NACK).
                                                         ; Range 400..16384. Default: 2048
 
@@ -420,7 +421,8 @@ POLL_INTERVAL             = 1*10DIGIT                     ; Flex counter polling
 {
   "LLR_PORT|Ethernet0": {
     "value": {
-      "state": "enabled",
+      "local_state": "enabled",
+      "remote_state": "enabled",
       "profile": "llr_buffer_800000_40m_profile"
     }
   }
@@ -437,7 +439,7 @@ POLL_INTERVAL             = 1*10DIGIT                     ; Flex counter polling
       "max_replay_count": "3",
       "max_replay_timer": "5000",
       "pcs_lost_timeout": "50000",
-      "data_age_timer": "20000",
+      "data_age_timeout": "20000",
       "ctlos_spacing_bytes": "2048",
       "init_action": "best_effort",
       "flush_action": "best_effort"
@@ -470,7 +472,7 @@ key                     = SWITCH_CAPABILITY | switch    ; must be unique
 
 ; field                 = value
 LLR_CAPABLE             = "true" / "false"           ; specifies whether switch supports LLR feature
-LLR_SUPPORTED_PROFILE_ATTRIBUTES = "OUTSTANDING_BYTES_MAX, OUTSTANDING_FRAMES_MAX, REPLAY_TIMER_MAX, REPLAY_COUNT_MAX, PCS_LOST_TIMEOUT, DATA_AGE_TIMER, CTLOS_TARGET_SPACING"
+LLR_SUPPORTED_PROFILE_ATTRIBUTES = "OUTSTANDING_BYTES_MAX, OUTSTANDING_FRAMES_MAX, REPLAY_TIMER_MAX, REPLAY_COUNT_MAX, PCS_LOST_TIMEOUT, DATA_AGE_TIMEOUT, CTLOS_TARGET_SPACING"
 ```
 
 **Sample JSON:**
@@ -478,7 +480,7 @@ LLR_SUPPORTED_PROFILE_ATTRIBUTES = "OUTSTANDING_BYTES_MAX, OUTSTANDING_FRAMES_MA
 "SWITCH_CAPABILITY|switch": {
   "value": {
     "LLR_CAPABLE": "true",
-    "LLR_SUPPORTED_PROFILE_ATTRIBUTES": "OUTSTANDING_BYTES_MAX, OUTSTANDING_FRAMES_MAX, REPLAY_TIMER_MAX, REPLAY_COUNT_MAX, PCS_LOST_TIMEOUT, DATA_AGE_TIMER, CTLOS_TARGET_SPACING"
+    "LLR_SUPPORTED_PROFILE_ATTRIBUTES": "OUTSTANDING_BYTES_MAX, OUTSTANDING_FRAMES_MAX, REPLAY_TIMER_MAX, REPLAY_COUNT_MAX, PCS_LOST_TIMEOUT, DATA_AGE_TIMEOUT, CTLOS_TARGET_SPACING"
     ...
   }
 }
@@ -586,7 +588,8 @@ LLR per-port statistics are stored in the existing COUNTERS_DB Port Counters tab
 ```
  - config llr {enable|disable}
  - config llr mode {static|dynamic}   (dynamic Not implemented in Phase I)
- - config llr interface <interface-name> state {enabled|disabled} // only applicable when mode == static
+ - config llr interface local-state <interface-name> {enabled|disabled} // only applicable when mode == static
+ - config llr interface remote-state <interface-name> {enabled|disabled} // only applicable when mode == static
 
  - show llr 
  - show llr interface [interface-name]
@@ -619,18 +622,24 @@ The following command configures LLR mode:
 ## config llr mode <static|dynamic>
 
 config
-|--- llr mode <static|dynamic>
+|--- llr
+  |--- mode <static|dynamic>
 ```
 ### 2.6.1.2 LLR Port Configuration Commands
-The following command allows enabling/disabling LLR (both TX and RX) on a port:
+The following commands allow enabling/disabling LLR local and remote states separately on a port. As per the UE SPEC, local_state is set when LLDP negotiation determines that both ends of a link support LLR, and remote_state is set when negotiation receives indication from the remote end of the link that its local_state has been set to ON.
+
+In static mode, handling local_state and remote_state enablement sequence across the link parts is the responsibility of the network administrator.
 
 **Enable/Disable LLR per Port**:
 ```bash
-## config llr interface <interface-name> state {enabled|disabled}
+## config llr interface local-state <interface-name> {enabled|disabled}
+## config llr interface remote-state <interface-name> {enabled|disabled}
 
 config
-|--- llr interface <interface-name> state {enabled|disabled}
-```
+|--- llr
+  |--- interface
+    |--- local-state <interface-name> {enabled|disabled}
+    |--- remote-state <interface-name> {enabled|disabled}
 
 ### 2.6.1.3 LLR Flex Counter Commands
 **The following command updates LLR Flex counter configuration:**
@@ -655,11 +664,11 @@ LLR Global Information:
 LLR Interface Configuration
 ----------------------------
 
-PORT          LLR State     LLR PROFILE
-----------    ----------    ------------------------------
-Ethernet1     disabled      -
-Ethernet2     enabled       llr_buffer_800000_40m_profile
-Ethernet3     enabled       llr_buffer_100000_100m_profile
+PORT          LLR Local State    LLR Remote State    LLR PROFILE
+----------    -----------------  ------------------  ------------------------------
+Ethernet1     enabled            disabled            llr_buffer_800000_40m_profile
+Ethernet2     enabled            enabled             llr_buffer_800000_40m_profile
+Ethernet3     enabled            enabled             llr_buffer_100000_100m_profile
 ```
 
 ```bash
@@ -677,7 +686,7 @@ Ethernet3     enabled       llr_buffer_100000_100m_profile
 +---------------------------------------+--------------+
 | PCS Lost Status Timeout(ns)           | 50000        |
 +---------------------------------------+--------------+
-| Data Age Timer(ns)                    | 20000        |
+| Data Age Timeout(ns)                  | 20000        |
 +---------------------------------------+--------------+
 | CTLOS Spacing Bytes                   | 2048         |
 +---------------------------------------+--------------+
@@ -810,10 +819,16 @@ module sonic-llr-port {
           }
         }
 
-        leaf state {
+        leaf local_state {
           type stypes:admin_mode;
           default disabled;
-          description "Enable LLR on the port (enables both transmit and receive directions).";
+          description "Enable LLR local state on the port.";
+        }
+
+        leaf remote_state {
+          type stypes:admin_mode;
+          default disabled;
+          description "Enable LLR remote state on the port.";
         }
 
         leaf llr_profile {
@@ -959,12 +974,12 @@ module sonic-llr-profile {
           description "Maximum value for Port PCS lost status timer in nanoseconds. This value represents maximum duration for a port PCS status can be lost, post timer expiry, LLR state transitions into FLUSH state. Support for non-zero values is optional depending on platform implementation.";
         }
 
-        leaf data_age_timer {
+        leaf data_age_timeout {
           type uint32 {
             range "0..4290000000";
           }
           default 0;
-          description "Maximum value for data age timer in nanoseconds. This value represents the maximum time that data can reside in the replay buffer. Post timer expiry, LLR declares the replay data is too old and invalid for retransmission";
+          description "Maximum value for data age timeout in nanoseconds. This value represents the maximum time that data can reside in the replay buffer. Post timer expiry, LLR declares the replay data is too old and invalid for retransmission";
         }
 
         leaf ctlos_spacing_bytes {
