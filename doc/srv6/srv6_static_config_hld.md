@@ -163,6 +163,7 @@ Example for SID with uN action and SID with uA action configuration (2 SIDs conf
         },
         "loc2|FCBB:BBBB:21:FE24::/64" : {
            "action": "uA",
+           "decap_dscp_mode": "pipe",
            "interface": "Ethernet24",
            "adj": "2001:db8:4:501::5"
         }
@@ -171,6 +172,7 @@ Example for SID with uA action only configuration(1 SID configuration):
     "SRV6_MY_SIDS" : {
         "loc2|FCBB:BBBB:FE28::/48" : {
            "action": "uA",
+           "decap_dscp_mode": "pipe",
            "interface": "Ethernet28",
            "adj": "2001:db8:4:502::5"
         }
@@ -218,8 +220,8 @@ segment-routing
          exit
          !
          locator loc2
-          prefix fcbb:bbbb:21::/48 block-len 32 node-len 16 func-bits 16
-          behavior usid
+            prefix fcbb:bbbb:21::/48 block-len 32 node-len 16 func-bits 16
+            behavior usid
          exit
 ```
 
@@ -242,11 +244,13 @@ For the following SIDs configuration entries in CONFIG_DB:
    },
    "loc2|FCBB:BBBB:21:FE24::/64" : {
       "action": "uA",
+      "decap_dscp_mode": "pipe",
       "interface": "Ethernet24",
       "adj": "2001:db8:4:501::5"
    },
    "loc2|FCBB:BBBB:FE28::/48" : {
       "action": "uA",
+      "decap_dscp_mode": "pipe",
       "interface": "Ethernet28",
       "adj": "2001:db8:4:502::5"
    }
