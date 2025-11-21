@@ -412,7 +412,8 @@ With IPv6 tunnels, prefixes can be either IPv4 or IPv6
 
 ### 2.8.1 Overlay ECMP 
 
-It is assumed that the endpoint IPs may not have exact match underlay route but may have an LPM underlay route or a default route. Test must consider both IPv4 and IPv6 traffic for routes configured as example shown above
+It is assumed that the endpoint IPs may not have exact match underlay route but may have an LPM underlay route or a default route. Test must consider both IPv4 and IPv6 traffic for routes configured as example shown above.
+For Underlay ECMP tests, we also check whether the packets are distributed uniformly among active interfaces connected to T2 neighbors and also among members of each active PortChannel interface connected to a T2 neighbor.
 
 | Step | Goal | Expected results |
 |-|-|-|
