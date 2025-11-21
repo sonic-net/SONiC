@@ -65,12 +65,12 @@ We want to enhance configDB to include table for serial-console global configura
 We want to enable serial-console configuration in SONIC. In order to do so will touch few areas in the system:
 1. configDB - to include a dedicated table for configurations
 2. hostcfg demon - to trigger dedicated service on config apply.
-3. OS config files - specific for this stage we are only /etc/profile.d/tmout-env.sh and /etc/sysctl.d/95-sysrq-sysctl.conf and /proc/sys/kernel/sysrq are going to be modifed by the serial-config.sh runned by serial-config.service .
+3. OS config files - specific for this stage we are only /etc/profile.d/tmout-env.sh and /etc/sysctl.d/95-sysrq-sysctl.conf and /proc/sys/kernel/sysrq are going to be modified by the serial-config.sh run by serial-config.service .
 
 ##### Flow diagram
 ![serial_console_flow](serial_console_flow.png)
 ### 3.1 Flow description
-When the feature is enabled, by modifying the DB manually, user will set serial-console configurations by modifing CONFIG_DB in SERIAL_CONSOLE table.
+When the feature is enabled, by modifying the DB manually, user will set serial-console configurations by modifying CONFIG_DB in SERIAL_CONSOLE table.
 
 The hostcfgd daemon will be extended to listen to configurations from SERIAL_CONSOLE table and restarts the serial_console.service. Serial console script will read SERIAL_CONSOLE table and update config files accordingly.
 
@@ -216,10 +216,10 @@ Example sub-sections for unit test cases and system test cases are given below.
 Configuration
 1. Configure auto-logout for serial-console.
 1.1. Configure and apply non-default auto-logout value (1-2 min.)
-1.2. Connect and login via serial-console. Validate auto-logout happend in configured time (1-2 min.)
+1.2. Connect and login via serial-console. Validate auto-logout happened in configured time (1-2 min.)
 2. Init flow for auto-logout.
 2.1. Don't save previous auto-logout configuration and reboot the switch.
-2.2. After boot connect and login via serial-console. Validate that auto-logout didn't happend in previously configured time (1-2 min.)
+2.2. After boot connect and login via serial-console. Validate that auto-logout didn't happen in previously configured time (1-2 min.)
 3. Configure sysrq parameter. 
 3.1. Configure and apply non-default sysrq-capabilities parameter (enabled)
 3.2. Check sysrq parameter value in linux proc filesystem being changed to new applied value of "1"
