@@ -30,7 +30,7 @@ DUT try to load a new images
 
 * We introduce a new configuration file.
 
-* This file contains how many redis instances and databases , also the configration of each database , including instance, dbid, separator.
+* This file contains how many redis instances and databases , also the configuration of each database , including instance, dbid, separator.
 
     ```json
     {
@@ -94,7 +94,7 @@ DUT try to load a new images
 
 * By default, each image has one default startup database\_config.json file in SONiC file system at /etc/default/sonic-db/.
 
-* The users is able to use the customized database configration, what needs to do is creating a database\_config.josn file and place it at /etc/sonic/
+* The users is able to use the customized database configuration, what needs to do is creating a database\_config.josn file and place it at /etc/sonic/
 
 * We changed the database Docker ENTRYPOINT to docker-database-init.sh which is new added.
 
@@ -108,8 +108,8 @@ Detail steps as below:
     * [x] if no folder /host/old\_config/, copy some default xmls and etc. as usual
 3. **database service**
     * [x] **database docker start, entrypoint docker-database-init.sh**
-    * [x] **if database\_config.json is found at /ect/sonic/, that means there is customized database config, we copy this config file to /var/run/redis/sonic-db/, which is the running database config file location, all the applications will read databse information from this file**
-    * [x] **if database\_config.json is NOT found at /ect/sonic/, that means there is no customized database config, we copy this config file at /etc/default/ to /var/run/redis/sonic-db/, this is the default startuo config in the image itself.**
+    * [x] **if database\_config.json is found at /etc/sonic/, that means there is customized database config, we copy this config file to /var/run/redis/sonic-db/, which is the running database config file location, all the applications will read database information from this file**
+    * [x] **if database\_config.json is NOT found at /etc/sonic/, that means there is no customized database config, we copy this config file at /etc/default/ to /var/run/redis/sonic-db/, this is the default startuo config in the image itself.**
     * [x] **using supervisord.conf.j2 to generate supervisord.conf**
     * [x] **execute the previous entrypoint program /usr/bin/supervisord, then all the services will start based on the new supervisord.conf, which including starting how many redis instances**
     * [x] **check if redis instances are running or NOT via ping_pong_db_insts script**
@@ -258,10 +258,10 @@ public:
     static constexpr const char *DEFAULT_UNIXSOCKET = "/var/run/redis/redis.sock";
 
     /*
-     * Connect to Redis DB wither with a hostname:port or unix socket
+     * Connect to Redis DB either with a hostname:port or unix socket
      * Select the database index provided by "db"
      *
-     * Timeout - The time in milisecond until exception is been thrown. For
+     * Timeout - The time in millisecond until exception is been thrown. For
      *           infinite wait, set this value to 0
      */
     DBConnector(int dbId, const std::string &hostname, int port, unsigned int timeout);
@@ -336,7 +336,7 @@ Today the usage is to accept parameter in SonicV2Connector()->init() and then ca
 
 The new design is similar to what we did for C++. We introduce a new class SonicDBConfig which is used to read database\_config.json file and store the database configuration information.
 
-Then we modify the existing class SonicV2Connector, we use SonicDBConfig to get the database inforamtion in SonicV2Connector before we connect the redis instances.
+Then we modify the existing class SonicV2Connector, we use SonicDBConfig to get the database information in SonicV2Connector before we connect the redis instances.
 
 interface.py
 
@@ -736,7 +736,7 @@ The scripts is used in shell, python, c and c++ system call, we need to change a
 
 We added a new sonic-db-cli which is written in python, the function is the same as redis-cli, the only difference is to accept db name as the first parameter instead of '-n x' for redis-cli.
 
-Form the db name, we can using exising python swsssdk library to look up the db information and use them. This new sonic-db-cli is in swsssdk as well and will be installed where ever swsssdk is installed.
+Form the db name, we can using existing python swsssdk library to look up the db information and use them. This new sonic-db-cli is in swsssdk as well and will be installed where ever swsssdk is installed.
 
 swsssdk/src/script/sonic-db-cli
 ```python
@@ -836,9 +836,9 @@ Then restore it when database instance is up.
 
 The redis instances & databases mapping may change between versions, that means before warmboot, we may have, for example, 3 redis instances and after warmboot, the number of redis instances may be, for example, 2 or 4. This makes the original 3 saved rdb files CANNOT restore the 2 or 4 redis instances directly.  We need to do something to restore data based on the new redis instances & database mapping.
 
-Today we already assigned each database name with a unique number (APPL_DB 0, ASIC_DB 1, ...) and assign them into different redis instances in design. This makes it possible to migrate all data in all redis instances into one redis instance without any conflicts. Then we can handle this single redis instance the same as what we did today, since today we are only use single redis instance. So the poposed new idea is as below steps:
+Today we already assigned each database name with a unique number (APPL_DB 0, ASIC_DB 1, ...) and assign them into different redis instances in design. This makes it possible to migrate all data in all redis instances into one redis instance without any conflicts. Then we can handle this single redis instance the same as what we did today, since today we are only use single redis instance. So the proposed new idea is as below steps:
 
-1. When we normally start multiple redis instances, besides all the necessary and used redis isntances, we add one more unused/spare redis instance configration in database_config.json. This unused/spare redis instance is not accessed by any application and it is empty.
+1. When we normally start multiple redis instances, besides all the necessary and used redis instances, we add one more unused/spare redis instance configuration in database_config.json. This unused/spare redis instance is not accessed by any application and it is empty.
 2. In the shutdown stage of warmboot, we migrate the data on all used redis instances into the unused/spare/empty redis instance. In this way all the data are in one redis instance and we can issue "redis-cli save" now to generate a single rdb file containing all the data. After this point, everything is the same as what we did today for single redis instance,  copying rdb file to WARM_DIR and so on.
 3. When loading new images during warmboot, we copy the single full data rdb file to each instance's rdb file path as what we did today. Then all the instances have the full data after startup, each instance can access the data as usual based on the redis instances & databases mapping in database_config.json. The unused data could be deleted via "redis-cli flushdb".
 4. At this point, all the data are restored based on the new redis instance & database mapping. In this way, we don't need to find the delta between configurations and could handle all redis instances&database mapping cases.
@@ -846,8 +846,8 @@ Today we already assigned each database name with a unique number (APPL_DB 0, AS
 Below shows an example:
 
 - [x] Before warmboot, there are four redis instances and the mapping as shown.
-- [x] During warmboot, migrating all data into one redis intance and save rdb file.
-- [x] In new image, there are only three instances and after startup, each instances has full data. But ins0 only use DB0&DB1 based on configration in database_config.json, DB2&DB3 are never used and we can flushdb them.
+- [x] During warmboot, migrating all data into one redis instance and save rdb file.
+- [x] In new image, there are only three instances and after startup, each instances has full data. But ins0 only use DB0&DB1 based on configuration in database_config.json, DB2&DB3 are never used and we can flushdb them.
 
 ![center](./img/db_restore_new.png)
 
@@ -1000,7 +1000,7 @@ Now we see, the extra step for the new implementation is migrating all data into
   db6:keys=365,expires=0,avg_ttl=0
   ```
 
-So this method is good for warmboot database backup, we just need to add above python script to merge all data into one redis isntance and save data. The other changes are minor like copying files ....
+So this method is good for warmboot database backup, we just need to add above python script to merge all data into one redis instance and save data. The other changes are minor like copying files ....
 
 ## Platform VS
 
@@ -1010,7 +1010,7 @@ From the feedback in SONiC meeting, docker platform vs is suggested to have mult
 
 ## Other unit testing
 
-SONiC has many unit testing runing when building images or after submmitting PR. Those test cases are not running under database docker environment, hence for those local test cases, we add some static database\_config.josn under each tests directory or isntalled via library(swss and swsssdk). These database\_config.json files are used for testing only.
+SONiC has many unit testing running when building images or after submmitting PR. Those test cases are not running under database docker environment, hence for those local test cases, we add some static database\_config.josn under each tests directory or installed via library(swss and swsssdk). These database\_config.json files are used for testing only.
 
 ## DUT Testing
 
