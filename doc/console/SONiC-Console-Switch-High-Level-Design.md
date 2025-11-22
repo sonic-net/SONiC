@@ -115,11 +115,11 @@ This document describes the functionality and high level design of the Console s
 | OS | **O**perating **S**ystem |
 | USB | **U**niversal **S**erial **B**us |
 | TTY | **T**ele**TY**pewriter, terminal for text input/output environment |
-| PID | **P**process **ID**entification number |
+| PID | **P**rocess **ID**entification number |
 | ETH | **ETH**ernet |
 | UTC | **C**oordinated **U**niversal **T**ime |
 | MGMT | **M**ana**G**e**M**en**T** |
-| TCP | **T**ransmission **C**control **P**rotocol |
+| TCP | **T**ransmission **C**ontrol **P**rotocol |
 
 # 1 Feature Overview
 
@@ -269,8 +269,8 @@ ssh tom@2001:db8::1
 # connect to DeviceB
 ssh tom@2001:db8::2
 
-# Assume that domain name devicec.co point to 2001:db8::3
-ssh tom@devicec.co
+# Assume that domain name DeviceC.co point to 2001:db8::3
+ssh tom@DeviceC.co
 ```
 
 The mechanism behind it is actually very similar to mode A. We will record the target ssh host IP address to a environment variable `$SSH_TARGET_IP`. Since we have stored the relationship between line number and it's management IP, then we can easily start the management session automatically after user login by calling `consutil connect` command in `/etc/bash.bashrc`. If the management IP were not found in config db (consutil connect failed due to target not found), then we will fall back to normal SONiC management bash session.
