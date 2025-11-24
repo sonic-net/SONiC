@@ -9,6 +9,7 @@
     - [Config and APP DB](#21-config-and-appdb)
     - [STATE DB](#22-state-db)
     - [CLI](#23-cli)
+    - [YANG model](#24-yang-model)
 - [Programming Flow](#3-programming-flow)
 - [SWSS orchagent design](#4-swss-orchagent-design)
 - [Test Plan](#5-test-plan)
@@ -112,6 +113,48 @@ show fgnhg active-hops <vnet/vrf name> <prefix name>
 -----------+-----------------+--------------------+
 | VNET/VRF | FG_NHG_PREFIX   | Active Next Hops   |
 ===========+=================+====================+
+```
+
+## 2.4 YANG Model
+The following enhancements to the VNET_ROUTE_TUNNEL YANG model will be made, specifically endpoints, mac and vni are converted into a comma separated list as a string type, and consistent_hashing_buckets is added:
+
+```
+        container VNET_ROUTE_TUNNEL {
+            description "ConfigDB VNET_ROUTE_TUNNEL table";
+            
+            list VNET_ROUTE_TUNNEL_LIST {
+                key "vnet_name prefix";
+                leaf vnet_name {
+                    description "VNET name";
+                    type leafref {
+                        path "/svnet:sonic-vnet/svnet:VNET/svnet:VNET_LIST/svnet:name";
+                    }
+                }
+                
+                leaf prefix {
+                    description "IPv4 prefix in CIDR format";
+                    type stypes:sonic-ip4-prefix;
+                }
+                
+                leaf endpoint {
+                    description "Comma separated list of endpoint/next hop tunnel IPs if multiple nexthops, or a single IP address";
+                    type string;
+                    mandatory true;
+                }
+                leaf mac_address {
+                    description "Comma separated list of inner dest mac in encapsulated packet if there are multiple nexthops/endpoints, or a single mac address";
+                    type string;
+                }
+                leaf vni {
+                    description "Comma separated list of VNIs if there are multiple nexthops/endpoints, or a single VNI for the route/nh";
+                    type string;
+                }
+                leaf consistent_hashing_buckets {
+                    description "Number of consistent hashing buckets to use, if consistent hashing is desired";
+                    type unit16;
+                }
+            }
+        }
 ```
 
 # 3 Programming flow
