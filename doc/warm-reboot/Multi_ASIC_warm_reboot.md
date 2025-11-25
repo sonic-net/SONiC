@@ -485,7 +485,7 @@ The table below summarizes default failure handling for key operations with resp
 | ------------------------------- | -------------------- | ------------------------ |
 | Pre-reboot checks               | Abort operation      | Cold reboot failing ASIC |
 | Orchagent Restart Check         | Abort operation      | Cold reboot failing ASIC |
-| Syncd Pre-shutdown (ISSU Start) | Failure is ignored   | Failure is ignored       |
+| Syncd Pre-shutdown              | Failure is ignored   | Failure is ignored       |
 
 If all ASICs fail during the process, the failure handling procedure is identical to that of a single-ASIC system.
 
