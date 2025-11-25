@@ -30,7 +30,7 @@
 # 1 Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 |             |  Bharath Veeranna  | Initial version                   |
+| 0.1 |  11/25/2025 |  Bharath Veeranna  | Initial version                   |
 
 
 # 2 Scope
@@ -99,8 +99,6 @@ Consider a usecase where SONiC has to establish BGP to both the devices: 20.0.0.
 
 However, the VM having IP 20.0.0.3 is behind a VTEP 200.200.200.3 having VNI 2000. SONiC does not have any kernel routes and interfaces configured for VNI 2000. Any traffic destined to 20.0.0.3 will be dropped in the kernel since there are no routes or interfaces configured for VxLAN 2000. 
 
-Moreover, if the CPU port is set to Egress mode in the NPU, the packets sent from the CPU are directed to the egress pipeline. Hence, the kernel has to form the packets with appropriate VxLAN headers before placing the packet in the egress pipeline. To encap the packets with VxLAN headers, the kernel should have the VxLAN interface and routes configured.
-
 # 6 Requirements Overview
 ## 6.1 Functional requirements
 This section describes the SONiC requirements for Vxlan kernel interface and routes required for the OS to handle VxLAN encap/decap for traffic originated/destined to CPU.
@@ -113,7 +111,7 @@ This section describes the SONiC requirements for Vxlan kernel interface and rou
 A new component called VnetMgr will be introduced that will handle kernel programming for `VNET_ROUTE_TUNNEL` endpoints. 
 - VnetMgr should handle vxlan interface creation and deletion for routes defined in VNET_ROUTE_TUNNEL.
 - VnetMgr should install/delete kernel routes for the  VTEP endpoints.
-- VnetMgr should subscribe to CONFIG_DB changes to VNET_ROUTE_TUNNEL and update the same in APP_DB
+- VnetMgr should subscribe to CONFIG_DB changes to VNET_ROUTE_TUNNEL and update the same in APPL_DB
 
  
 ## 6.3 CLI requirements
@@ -176,7 +174,7 @@ VnetMgr is a new config manager introduced to handle the config changes for `VNE
 
 - Subscribe for config changes to `VNET_ROUTE_TUNNEL`
 - Handle kernel interface and route (create and delete) if the routes have `install_on_kernel` flag is set.
-- Publish the routes to APP_DB
+- Publish the routes to APPL_DB
 
 The diagram below shows the flow for the route creation:
 
@@ -213,6 +211,17 @@ sudo ip route add {{prefix}} dev Vxlan_{{vnet_name}}_{{prefix}} vrf {{vnet_name}
 sudo ip neigh add {{prefix}} lladdr {{overlay_dmac_address}} dev Vxlan_{{vnet_name}}_{{prefix}}
 ```
 
+## 7.4 Orch Agent
+
+### VNetCfgRouteOrch
+VNetCfgRouteOrch is an orch agent that currently subscribes to the CONFIG_DB tables: VNET_ROUTE_TUNNEL_TABLE and VNET_ROUTE_TABLE. This orch agent publishes the entries from these two tables to the APPL_DB. This orch agent is just a pass through which publishes to APPL_DB. This orch agent will be removed completely and the functionality performed by this orch agent will be handled by VnetMgr as described in the above section. 
+
+In addition to the tasks mentioned in the previous section, VnetMgr will also do the following tasks that are currently performed by VNetCfgRouteOrch:
+- Subscribe to VNET_ROUTE CONFIG_DB table and publish to APPL_DB
+- Subscribe to VNET_ROUTE_TUNNEL CONFIG_DB table and publish to APPL_DB
+
+## VNetRouteOrch
+There are no changes to VNetRouteOrch. This orch agent performs the south-bound programming of the vnet routes in the NPU. 
 
 # 8 Limitations
 - Linux kernel allows only one vxlan interface per VNI. There can be at most one `VNET_ROUTE_TUNNEL` with a given  VNI and `install_on-kernel: true`. In other words, two routes having same VNI cannot have `install_on_kernel` flag set to true.
