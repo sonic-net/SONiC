@@ -3,47 +3,48 @@
 ## Table of Content
 
 - [Multi ASIC warm reboot](#multi-asic-warm-reboot)
-	- [Table of Content](#table-of-content)
-		- [1. Revision](#1-revision)
-		- [2. Scope](#2-scope)
-		- [3. Definitions/Abbreviations](#3-definitionsabbreviations)
-		- [4. Overview](#4-overview)
-		- [5. Requirements](#5-requirements)
-		- [Restrictions/Limitations](#restrictionslimitations)
-		- [6. Architecture Design](#6-architecture-design)
-		- [7. High-Level Design](#7-high-level-design)
-		- [Warm reboot state](#warm-reboot-state)
-		- [CONFIG\_DB](#config_db)
-			- [WARM\_RESTART](#warm_restart)
-		- [STATE\_DB](#state_db)
-			- [WARM\_RESTART\_ENABLE\_TABLE](#warm_restart_enable_table)
-			- [WARM\_RESTART\_TABLE](#warm_restart_table)
-		- [Warm shutdown](#warm-shutdown)
-				- [Sequence diagram of warm-reboot](#sequence-diagram-of-warm-reboot)
-			- [Failure handling](#failure-handling)
-		- [Warm startup](#warm-startup)
-			- [High-Level system boot flow for Multi-ASIC system](#high-level-system-boot-flow-for-multi-asic-system)
-		- [Database](#database)
-		- [SWSS](#swss)
-		- [PMON](#pmon)
-				- [Xcvrd CmisManagerTask](#xcvrd-cmismanagertask)
-					- [CmisManagerTask CMIS state diagram:](#cmismanagertask-cmis-state-diagram)
-				- [Xcvrd SfpStateUpdateTask](#xcvrd-sfpstateupdatetask)
-					- [SfpStateUpdatTask flowchart:](#sfpstateupdattask-flowchart)
-		- [Global services](#global-services)
-		- [Warmboot finalizer](#warmboot-finalizer)
-		- [8. SAI API](#8-sai-api)
-		- [9. Configuration and management](#9-configuration-and-management)
-			- [9.1. Manifest (if the feature is an Application Extension)](#91-manifest-if-the-feature-is-an-application-extension)
-			- [9.2. CLI/YANG model Enhancements](#92-cliyang-model-enhancements)
-			- [9.3. Config DB Enhancements](#93-config-db-enhancements)
-		- [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
-		- [Warmboot and Fastboot Performance Impact](#warmboot-and-fastboot-performance-impact)
-		- [11. Memory Consumption](#11-memory-consumption)
-		- [12. Testing Requirements/Design](#12-testing-requirementsdesign)
-			- [12.1. Unit Test cases](#121-unit-test-cases)
-			- [12.2. System Test cases](#122-system-test-cases)
-		- [13. Open/Action items - if any](#13-openaction-items---if-any)
+  - [Table of Content](#table-of-content)
+    - [1. Revision](#1-revision)
+    - [2. Scope](#2-scope)
+    - [3. Definitions/Abbreviations](#3-definitionsabbreviations)
+    - [4. Overview](#4-overview)
+    - [5. Requirements](#5-requirements)
+    - [Restrictions/Limitations](#restrictionslimitations)
+    - [6. Architecture Design](#6-architecture-design)
+    - [7. High-Level Design](#7-high-level-design)
+    - [Warm reboot state](#warm-reboot-state)
+    - [CONFIG\_DB](#config_db)
+      - [WARM\_RESTART](#warm_restart)
+      - [Failure handling](#failure-handling)
+    - [STATE\_DB](#state_db)
+      - [WARM\_RESTART\_ENABLE\_TABLE](#warm_restart_enable_table)
+      - [WARM\_RESTART\_TABLE](#warm_restart_table)
+    - [Warm shutdown](#warm-shutdown)
+        - [Sequence diagram of warm-reboot](#sequence-diagram-of-warm-reboot)
+      - [Failure handling](#failure-handling-1)
+    - [Warm startup](#warm-startup)
+      - [High-Level system boot flow for Multi-ASIC system](#high-level-system-boot-flow-for-multi-asic-system)
+    - [Database](#database)
+    - [SWSS](#swss)
+    - [PMON](#pmon)
+        - [Xcvrd CmisManagerTask](#xcvrd-cmismanagertask)
+          - [CmisManagerTask CMIS state diagram:](#cmismanagertask-cmis-state-diagram)
+        - [Xcvrd SfpStateUpdateTask](#xcvrd-sfpstateupdatetask)
+          - [SfpStateUpdatTask flowchart:](#sfpstateupdattask-flowchart)
+    - [Global services](#global-services)
+    - [Warmboot finalizer](#warmboot-finalizer)
+    - [8. SAI API](#8-sai-api)
+    - [9. Configuration and management](#9-configuration-and-management)
+      - [9.1. Manifest (if the feature is an Application Extension)](#91-manifest-if-the-feature-is-an-application-extension)
+      - [9.2. CLI/YANG model Enhancements](#92-cliyang-model-enhancements)
+      - [9.3. Config DB Enhancements](#93-config-db-enhancements)
+    - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
+    - [Warmboot and Fastboot Performance Impact](#warmboot-and-fastboot-performance-impact)
+    - [11. Memory Consumption](#11-memory-consumption)
+    - [12. Testing Requirements/Design](#12-testing-requirementsdesign)
+      - [12.1. Unit Test cases](#121-unit-test-cases)
+      - [12.2. System Test cases](#122-system-test-cases)
+    - [13. Open/Action items - if any](#13-openaction-items---if-any)
 
 
 ### 1. Revision  
@@ -138,7 +139,6 @@ This table defines configuration parameters for the warm reboot process, such as
 
 These parameters typically use default values in testing, but can be adjusted for specific network requirements. Each application reads its timer values from Redis within its own namespace. Because these settings are ASIC-specific, they are stored separately in each namespace database to ensure applications access the correct configuration.
 
-
 In multi-ASIC systems, the CLI has been enhanced to automatically configure the CONFIG_DB within each ASIC namespace. This ensures that timer settings remain consistent across all ASICs, providing symmetric warm restart behavior throughout the device.
 
 config command:
@@ -147,6 +147,10 @@ admin@dut:~# config warm_restart neighsyncd_timer 180
 ```
 
 **NOTE**: If future requirements call for configuring warm restart timers on a per-ASIC basis, the CLI can be enhanced with a `-n` or `--namespace` option to support this functionality. At present, the recommended approach is to maintain symmetric timer settings across all ASICs for consistency.
+
+#### Failure handling
+
+- In case CONFIG DB update fails for an ASIC the command fails with an error message, healthy CONFIG DBs are updated.
 
 ### STATE_DB
 
@@ -269,42 +273,40 @@ sequenceDiagram
     participant DB
 
     User->>warm-reboot: call warm-reboot
-    warm-reboot->>warm-reboot: config warm_restart enable
+    warm-reboot->>DB: config warm_restart enable
+    par ASIC 0..N
+        warm-reboot->>DB: config warm_restart enable -n <namespace>
+
+        alt error
+          warm-reboot->>User: Operation aborted
+        end
+    end
     
     Note over warm-reboot: Pre-reboot checks (for each ASIC in parallel)
-    par ASIC 0
+    par ASIC 0..N
         warm-reboot->>warm-reboot: check_pfc_storm_active
         warm-reboot->>DB: check_db_integrity
         DB-->>warm-reboot: integrity status
-    and ASIC 1..N
-        warm-reboot->>warm-reboot: check_pfc_storm_active
-        warm-reboot->>DB: check_db_integrity
-        DB-->>warm-reboot: integrity status
+
+        alt error
+          warm-reboot->>User: Operation aborted
+        end
     end
     
     Note over warm-reboot: Run lag_keepalive (for each ASIC in parallel)
-    par ASIC 0
-        warm-reboot->>lag_keepalive: lag_keepalive.py
-        lag_keepalive-->>warm-reboot: done
-    and ASIC 1..N
+    par ASIC 0..N
         warm-reboot->>lag_keepalive: lag_keepalive.py
         lag_keepalive-->>warm-reboot: done
     end
     
     Note over warm-reboot: Orchagent restart check (for each ASIC in parallel)
-    par ASIC 0
-        warm-reboot->>orchagent: orchagent_restart_check
-        orchagent-->>warm-reboot: check complete
-    and ASIC 1..N
+    par ASIC 0..N
         warm-reboot->>orchagent: orchagent_restart_check
         orchagent-->>warm-reboot: check complete
     end
     
     Note over warm-reboot: Increase retry count (for each ASIC in parallel)
-    par ASIC 0
-        warm-reboot->>teamd_increase_retry_count: teamd_increase_retry_count.py
-        teamd_increase_retry_count-->>warm-reboot: done
-    and ASIC 1..N
+    par ASIC 0..N
         warm-reboot->>teamd_increase_retry_count: teamd_increase_retry_count.py
         teamd_increase_retry_count-->>warm-reboot: done
     end
@@ -313,10 +315,7 @@ sequenceDiagram
     warm-reboot->>systemd: stop global lldp service
     systemd-->>warm-reboot: stopped
     
-    par ASIC 0
-        warm-reboot->>systemd: stop lldp@0
-        systemd-->>warm-reboot: stopped
-    and ASIC 1..N
+    par ASIC 0..N
         warm-reboot->>systemd: stop lldp@N
         systemd-->>warm-reboot: stopped
     end
@@ -324,35 +323,23 @@ sequenceDiagram
     warm-reboot->>systemd: stop radv service
     systemd-->>warm-reboot: stopped
     
-    par ASIC 0
-        warm-reboot->>systemd: stop bgp@0
-        systemd-->>warm-reboot: stopped
-    and ASIC 1..N
+    par ASIC 0..N
         warm-reboot->>systemd: stop bgp@N
         systemd-->>warm-reboot: stopped
     end
     
-    par ASIC 0
-        warm-reboot->>systemd: stop swss@0
-        systemd-->>warm-reboot: stopped
-    and ASIC 1..N
+    par ASIC 0..N
         warm-reboot->>systemd: stop swss@N
         systemd-->>warm-reboot: stopped
     end
     
     Note over warm-reboot: Pre-shutdown syncd (for each ASIC in parallel)
-    par ASIC 0
-        warm-reboot->>syncd: pre_shutdown
-        syncd-->>warm-reboot: done
-    and ASIC 1..N
+    par ASIC 0..N
         warm-reboot->>syncd: pre_shutdown
         syncd-->>warm-reboot: done
     end
     
-    par ASIC 0
-        warm-reboot->>systemd: stop teamd@0
-        systemd-->>warm-reboot: stopped
-    and ASIC 1..N
+    par ASIC 0..N
         warm-reboot->>systemd: stop teamd@N
         systemd-->>warm-reboot: stopped
     end
@@ -361,10 +348,7 @@ sequenceDiagram
     warm-reboot->>DB: backup global redis database
     DB-->>warm-reboot: backup complete
     
-    par ASIC 0
-        warm-reboot->>DB: backup redis database for ASIC 0
-        DB-->>warm-reboot: backup complete
-    and ASIC 1..N
+    par ASIC 0..N
         warm-reboot->>DB: backup redis database for ASIC N
         DB-->>warm-reboot: backup complete
     end
@@ -379,7 +363,6 @@ This is the expected output of warm-reboot command on Multi-ASIC device:
 admin@sonic:~$ sudo warm-reboot -v
 Fri Oct 24 01:29:24 PM UTC 2025 Starting warm-reboot
 Fri Oct 24 01:29:25 PM UTC 2025 Saving counters folder before warmboot...
-Fri Oct 24 01:29:26 PM UTC 2025 Pre-reboot checks on multi-ASIC devices are not yet implemented
 Fri Oct 24 01:29:27 PM UTC 2025 Loading kernel without secure boot
 Fri Oct 24 01:29:28 PM UTC 2025 Cleared reboot states
 Fri Oct 24 01:29:28 PM UTC 2025 asic0: Cleared reboot states
@@ -473,18 +456,12 @@ Fri Oct 24 01:29:56 PM UTC 2025 Rebooting with /sbin/kexec -e to SONiC-OS-master
 
 #### Failure handling
 
-If failures occur before the point of no return, the system design allows either:
-  - Aborting the entire operation
-  - Proceeding by cold booting just the affected ASICs
-
-The current behavior is to cold boot only the failed ASICs while continuing the warm boot process on the remaining healthy ASICs.
-
 The table below summarizes default failure handling for key operations with respect to ASIC failure:
 
 | ASIC Operation                  | Single-ASIC Handling | Multi-ASIC Handling      |
 | ------------------------------- | -------------------- | ------------------------ |
-| Pre-reboot checks               | Abort operation      | Cold reboot failing ASIC |
-| Orchagent Restart Check         | Abort operation      | Cold reboot failing ASIC |
+| Pre-reboot checks               | Abort operation      | Abort operation |
+| Orchagent Restart Check         | Abort operation      | Cold reboot failing ASIC (no rollback of healthy ASICs) |
 | Syncd Pre-shutdown              | Failure is ignored   | Failure is ignored       |
 
 If all ASICs fail during the process, the failure handling procedure is identical to that of a single-ASIC system.
