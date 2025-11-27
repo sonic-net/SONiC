@@ -74,6 +74,10 @@ High level overview of SONiC architecutre for Multi-ASIC devices:
 
 ![Multi ASIC SONiC Architecture](../multi_asic/images/multi_asic_architecture.jpg)
 
+Multi ASIC topology
+
+![Multi ASIC device connectivity](images/multi-asic-conn.svg)
+
 ### 5. Requirements
 
 - All FW and software ASIC packages (SDK/SAI/syncd/orchagent) are of the same version accross all ASICs
@@ -465,6 +469,14 @@ The table below summarizes default failure handling for key operations with resp
 | Syncd Pre-shutdown              | Failure is ignored   | Failure is ignored       |
 
 If all ASICs fail during the process, the failure handling procedure is identical to that of a single-ASIC system.
+
+#### Ignoring failing ASICs
+
+Some ASICs may be in a bad unrecoverable state. In this case the user should be able to warm-reboot healthy ASICs while the failing ASIC should be cold started.
+
+The `warm-reboot` is extended with option `-m` (*mask asic*) that accepts a comma seperated list of ASICs to skip warm-boot process on. 
+Instead these ASICs are going to be cold booted at startup.
+
 
 **Affected components**:
   - sonic-utilities scripts:
