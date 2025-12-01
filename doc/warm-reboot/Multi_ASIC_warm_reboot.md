@@ -74,10 +74,6 @@ High level overview of SONiC architecutre for Multi-ASIC devices:
 
 ![Multi ASIC SONiC Architecture](../multi_asic/images/multi_asic_architecture.jpg)
 
-Multi ASIC topology
-
-![Multi ASIC device connectivity](images/multi-asic-conn.svg)
-
 ### 5. Requirements
 
 - All FW and software ASIC packages (SDK/SAI/syncd/orchagent) are of the same version accross all ASICs
@@ -89,6 +85,10 @@ Multi ASIC topology
 ### Restrictions/Limitations  
 
 - This design covers systems with all front-end ASICs
+
+Multi ASIC topology
+
+![Multi ASIC device connectivity](images/multi-asic-conn.svg)
 
 ### 6. Architecture Design 
 
