@@ -1,4 +1,5 @@
 # Consistent ECMP for Vxlan Tunnels
+### Rev 1.0
 
 # Table of Contents
 
@@ -26,6 +27,9 @@
 
 This document goes over an enhancement to VXLAN tunnel endpoint ECMP to add support for consistent hashing towards a group of tunnel endpoints that are nexthops for a given tunnel route. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
 
+- In-scope: Enabling consistent hashing for VNET_TUNNEL_ROUTEs, ie towards L3 VXLAN nexthops
+- Out of scope: Enabling consistent hashing for other route types within a VNET/VRF, and modifying consistent hashing orchagent to generically support VRF/VNET are out of the scope of this document
+
 
 # Abbreviations
 
@@ -41,7 +45,7 @@ This document goes over an enhancement to VXLAN tunnel endpoint ECMP to add supp
 The details for enabling consistent hashing for Vxlan tunnel route(VNET_ROUTE_TUNNEL) are discussed in this document.
 
 ###### Use-case:
-  Vxlan tunnel routes can contain a list of endpoints(next-hops) for overlay traffic to be routed to multiple underlay endpoints(next-hops). When there are multiple endpoints, ECMP is used to select the nexthop for this traffic to be encapsulated towards and sent out. This is primarily used in scenarios where  throughput needs to be scaled beyond what a single vxlan endpoint is capable of. When these endpoints hold flow state, endpoint modifications(next-hop addition/removal), will result in most flows being rehashed and sent to a different endpoint than what they were originally going to, resulting in connection restart whenever a endpoint modification is performed. To limit connection restarts during endpoint/next hop modifications, we will enable consistent hashing for tunnel nexthops.
+Vnet Vxlan tunnel routes can contain a list of endpoints(next-hops) for overlay traffic to be routed to multiple underlay endpoints(next-hops). When there are multiple endpoints, ECMP is used to select the nexthop for this traffic to be encapsulated towards and sent out. This is primarily used in scenarios where  throughput needs to be scaled beyond what a single vxlan endpoint is capable of. When these endpoints hold flow state, endpoint modifications(next-hop addition/removal), will result in most flows being rehashed and sent to a different endpoint than what they were originally going to, resulting in connection restart whenever a endpoint modification is performed. To limit connection restarts during endpoint/next hop modifications, we will enable consistent hashing for tunnel nexthops.
 
 ###### Scale:
 | Component                | Expected value              |
@@ -176,7 +180,7 @@ The following enhancements to the VNET_ROUTE_TUNNEL YANG model will be made, spe
 6. For VNET_ROUTE_TUNNEL_TABLE modification where “consistent_hashing_buckets” is added for an existing tunnel route a transition from non fine grained to fine grained ecmp must occur and when “consistent_hashing_buckets” is removed then a transition from fine grained to non fine grained ecmp occurs. Both of these transitions result in a sai route update with new nexthop group/nexthop along with deleting any left over stale nexthop groups.
 
 
-# 5 Test Plan for the enhacements
+# 5 Test Plan
 The following testing is planned for this feature:
 - SWSS unit tests via virtual switch testing
 - Data Plane tests via pytest + PTF
