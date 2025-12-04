@@ -55,7 +55,7 @@ if [ -d "$TEMPLATE_DIR" ] && [ -f "$FEATURE_CAPABILITIES_JSON" ] && command -v j
         filename=$(basename "$template" .j2)
         output_file="$OUTPUT_DIR/$filename"
 
-        if j2 "$template" "$FEATURE_CAPABILITIES_JSON" > "$output_file" 2>/dev/null; thenExpand commentComment on line R23ResolvedCode has comments. Press enter to view.
+        if j2 "$template" "$FEATURE_CAPABILITIES_JSON" > "$output_file" 2>/dev/null; then
             echo "Generated: $output_file"
         else
             echo "Warning: Failed to generate $output_file" >&2
