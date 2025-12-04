@@ -1,13 +1,14 @@
-# SONiC Dynamic Config Validation via Platform Specific YANG Models
+# SONiC Platform Specific Config Validation via YANG Models
 
 ## Table of Contents
 
 - [1 Revision](#revision)
 - [2 Project Overview](#project-overview)
-- [3 Case Study: Buffer-Profile](#case-study)
+- [3 Example: Buffer-Profile](#example-buffer-profile)
 - [4 Design](#design)
     - [4.1 Design Summary](#design-summary)
     - [4.2 Framework](#framework)
+    - [4.3 Expected behavior] (#expected-behavior)
 - [5 Extending to new features](#extending-to-new-features)
 
 
@@ -16,87 +17,21 @@
 
 |  Rev  |  Date   |      Author      | Change Description |
 | :---: | :-----: | :--------------: | ------------------ |
-|  v0.1 | 2025-11-18 |     Rajath V     | Initial version of dynamic config validation HLD 
+|  v0.1 | 2025-11-18 |     Rajath V     | Initial version of platform specific config validation HLD 
 
 ## Project Overview  
 
 ### Problem Statement
-This document describes the broad guidelines to support dynamic config validation on SoNiC for YANG models based on platform-specific checks. The goal of this framework is to provide an easy way to have simple validation checks for new features based on ASIC or platform constraints. 
+This document describes the broad guidelines to support platform specific config validation on SoNiC for YANG models. The goal of this framework is to provide an easy way to have simple validation checks for new features based on ASIC or platform constraints. 
 
 ### Goal
-Enable dynamic config validation on SoNiC using YANG models that are platform-specific and hold constraints that could vary between vendors/platforms.
+Enable platform level config validation on SoNiC using YANG models that are platform-specific and hold constraints that could vary between vendors/platforms.
 
 ### Scope
-The scope of this project is to support dynamic config validation for all config fields that are defined in YANG models. This includes config fields updated via config CLI and gNMI/RESTCONF, as well as changes from config load / reload cases.
+The scope of this project is to support platform specific config validation for all config fields that are defined in YANG models. This includes config fields updated via config CLI and gNMI/RESTCONF, as well as changes from config load / reload cases.
 
+## Example: Buffer-Profile
 
-
-## Design
-
-### Design Summary
-The framework is based broadly on two things - leveraging feature_capabilities.json files specific to each platform and using jinja2 templates to generate custom yang checks at runtime. Combining these two things allows for checks to be added only on those platforms that need them, eliminating unnecessary overhead for other platforms who can resort to default values.
-
-This is especially important for features like ARS where limits are specified per platform, and currently there is no concrete implementation for dynamically injecting non-default values in the validation flow. Without this, config_db accepts all the data, but functionality fails and there is no other way to check this except from show logging.
-
-This is cumbersome, especially for range checks for multiple objects per feature. Hence a better way is to guardrail it at the YANG validation level, which doesn’t write into config_db if there are out-of-bound values. 
-
-### Framework
-
-The design follows the current yang validation flow, and appends additional checks into it. Along with this, we also implement a postinst hook that is platform-specific, and checks whether there is a feature_capabilities.json file to generate the yang file using jinja2 templates to add to the yang validation flow.
-
-The flow can be shortened to this:
-
-feature_capabilities.json + YANG template → Generated YANG → Runtime validation
-
-The directory structure can be broadly classified as follows:
-
-
-```bash
-src/sonic-yang-models/
-├── yang-models/                    # Static YANG files
-│   ├── sonic-buffer-profile.yang
-│   ├── sonic-vlan.yang
-│   └── ...
-├── yang-templates/                 # Build-time templates (existing)
-│   ├── sonic-acl.yang.j2          # Rendered during build for py/cvl variants
-│   ├── sonic-extension.yang.j2
-│   └── ...
-├── platform-yang-templates/        # NEW: Runtime templates
-│   ├── sonic-buffer-profile-capabilities.yang.j2
-│ 
-└── setup.py                        # Modified to package platform-yang-templates/
-```
- 
-We’ll take the example of sonic-buffer-profile.yang as our baseline.
-
-With this flow, after the postinstall hook, new files will be generated and installed on the box. The locations for these are depicted below:
-
-
-```bash
-/usr/local/
-├── yang-models/                      # Base YANG models (from wheel)
-│   ├── sonic-ars.yang
-│   ├── sonic-port.yang
-│   └── ...
-├── platform-yang-templates/          # Platform-specific templates (from wheel)
-│   ├── sonic-buffer-profile-capabilities.yang.j2
-└── platform-yang-models/            # Generated YANG (created at install time)
-    ├── sonic-buffer-profile-capabilities.yang
-   
-
-/usr/share/sonic/device/x86_64-nexthop_4010-r0/
-├── feature_capabilities.json                     # Input data for templates
-├── hwsku.json
-└── ...
-```
-
-The changes required in postinst files are mainly:
-
-1. Check if feature_capabilities.json exists
-2. Check if platform-yang-templates directory exists
-3. If both exist, render all templates in platform-yang-templates and save the output to platform-yang-models
-
-An example snippet is documented below:
 ```bash
 #!/bin/bash
 
@@ -196,7 +131,77 @@ Apart from this, there's two other changes that are required to implement the fr
         py.extend(generated_yang)
 ```
 
-With this, the design is fully complete. 
+## Design
+
+### Design Summary
+The framework is based broadly on two things - leveraging feature_capabilities.json files specific to each platform and using jinja2 templates to generate custom yang checks at runtime. Combining these two things allows for checks to be added only on those platforms that need them, eliminating unnecessary overhead for other platforms who can resort to default values.
+
+This is especially important for features like ARS where limits are specified per platform, and currently there is no concrete implementation for injecting non-default values in the validation flow. Without this, config_db accepts all the data, but functionality fails and there is no other way to check this except from show logging.
+
+This is cumbersome, especially for range checks for multiple objects per feature. Hence a better way is to guardrail it at the YANG validation level, which doesn’t write into config_db if there are out-of-bound values. 
+
+
+### Framework
+
+The design follows the current yang validation flow, and appends additional checks into it. Along with this, we also implement a postinst hook that is platform-specific, and checks whether there is a feature_capabilities.json file to generate the yang file using jinja2 templates to add to the yang validation flow.
+
+The flow can be shortened to this:
+
+feature_capabilities.json + YANG template → Generated YANG → Runtime validation
+
+The directory structure can be broadly classified as follows:
+
+
+```bash
+src/sonic-yang-models/
+├── yang-models/                    # Static YANG files
+│   ├── sonic-buffer-profile.yang
+│   ├── sonic-vlan.yang
+│   └── ...
+├── yang-templates/                 # Build-time templates (existing)
+│   ├── sonic-acl.yang.j2          # Rendered during build for py/cvl variants
+│   ├── sonic-extension.yang.j2
+│   └── ...
+├── platform-yang-templates/        # NEW: Runtime templates
+│   ├── sonic-buffer-profile-capabilities.yang.j2
+│ 
+└── setup.py                        # Modified to package platform-yang-templates/
+```
+ 
+We’ll take the example of sonic-buffer-profile.yang as our baseline.
+
+With this flow, after the postinstall hook, new files will be generated and installed on the box. The locations for these are depicted below:
+
+
+```bash
+/usr/local/
+├── yang-models/                      # Base YANG models (from wheel)
+│   ├── sonic-ars.yang
+│   ├── sonic-port.yang
+│   └── ...
+├── platform-yang-templates/          # Platform-specific templates (from wheel)
+│   ├── sonic-buffer-profile-capabilities.yang.j2
+└── platform-yang-models/            # Generated YANG (created at install time)
+    ├── sonic-buffer-profile-capabilities.yang
+   
+
+/usr/share/sonic/device/x86_64-nexthop_4010-r0/
+├── feature_capabilities.json                     # Input data for templates
+├── hwsku.json
+└── ...
+```
+
+The changes required in postinst files are mainly:
+
+1. Check if feature_capabilities.json exists
+2. Check if platform-yang-templates directory exists
+3. If both exist, render all templates in platform-yang-templates and save the output to platform-yang-models
+
+### Expected behavior
+
+Generally, config changes come from config load / reload, config CLI and gNMI. For config load / reload -y cases, YANG validation is hit and therefore platform-specific validation should kick in. For config CLI and gNMI cases, since we already have the YANG validation in place, the platform-specific validation should kick in as well.
+
+However, manually writing config_db.json or running config will not trigger the YANG validation, and therefore the platform-specific validation will not kick in. This is expected behavior, as the user is bypassing the validation layer by directly modifying the config_db.json, without doing a config reload -y. Loading a different json file via config load / reload should still work as expected.
 
 ## Extending to new features
 
