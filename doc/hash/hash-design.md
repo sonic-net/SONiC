@@ -326,13 +326,11 @@ Any further switch hash update is being validated using vendor specific hash cap
 
 **Skeleton code:**
 ```cpp
-
 enum class HashPktType
 {
-    INVALID,
     IPV4,
     IPV6,
-    IPV4_IN_IPV4,
+    IPNIP,
     IPV4_RDMA,
     IPV6_RDMA
 };
@@ -356,9 +354,16 @@ private:
     void getSwitchHashLagOid();
     void querySwitchHashDefaults();
 
-    // Switch packet-type hash
-    bool applySwitchHashConfig(const SwitchHash &hash, HashPktType pktType, bool isEcmpHash);
-    bool removeSwitchHashConfig(const SwitchHash &hash, HashPktType pktType, bool isEcmpHash);
+    // Switch packet type hash
+    bool bindPacketTypeHashToSwitch(sai_object_id_t hashOid, bool isEcmp, HashPktType pktType);
+    bool unbindPacketTypeHashFromSwitch(sai_object_id_t hashOid, bool isEcmp, HashPktType pktType);
+    sai_switch_attr_t getSwitchAttrForPacketType(HashPktType pktType, bool isEcmp);
+
+    bool removePacketTypeHashOid(sai_object_id_t oid, const std::string &hashType, const std::string &pktType);
+    bool setPacketTypeHashOid(sai_object_id_t &oid, const std::set<sai_native_hash_field_t> &fields, bool isEcmp, const std::string &pktType);
+    bool applySwitchPacketTypeHashConfiguration(const SwitchHash &hash);
+    bool processPacketTypeHash(const SwitchHash &hash, const SwitchHash &currentConfig, bool isEcmp, bool &configChanged);
+
 
     // Switch hash SAI defaults
     struct {
@@ -788,20 +793,18 @@ And the second one is for getting the actual data.
 
 1. **Packet-type Option Workflow**
 
-   - If user selects the `packet-type` option:
+   - If user selects the `--packet-type <pkt-type> --action <add|del>` options:
      - CLI performs capability checks.
-     - Only if capabilities exist for the selected packet-type, hash config commands are written into CONFIG_DB
+     - Only if capabilities exist for the selected `pkt-type`, hash config commands are written into CONFIG_DB
 
 2. **Hash Configuration Handling in switchOrch**
-   - switchOrch that subscribes to CONFIG_DB consumes entries from SWITCH_HASH CONFIG_DB.
+   - switchOrch subscribes to SWITCH_HASH in CONFIG_DB and consumes
    - When **switchOrch** receives the HSET configuration, it checks if the packet-type hash is already configured
        - **If not configured:**  _Treat as a create operation._
-       - **If configured:** _Treat as an update operation._
+       - **If configured:** _Treat as an update or delete operation._
 
-   - When **switchOrch** receives the HDEL configuration, it checks if the packet-type hash exists
-       - **If not configured:**  _Ignores the operation._
-       - **If configured:** _Deletes the packet-type hash._
-
+   - When **switchOrch** receives the HDEL configuration
+       - _Logs error message and ignores the operation._
   
 ### 2.5.2 Show section
 
@@ -827,10 +830,10 @@ And the second one is for getting the actual data.
 config
 |--- switch-hash
      |--- global
-          |--- ecmp-hash [packet-type <pkt-type> <add|del>] ARGS
-          |--- lag-hash [packet-type <pkt-type> <add|del>] ARGS
+          |--- ecmp-hash [--packet-type <pkt-type> --action <add|del>] ARGS
+          |--- lag-hash [--packet-type <pkt-type> --action <add|del>] ARGS
           |--- ecmp-hash-algorithm ARG
-          |--- lag-hash-algorithm ARG 
+          |--- lag-hash-algorithm ARG
           
 show
 |--- switch-hash
@@ -841,9 +844,11 @@ show
 - _pkt-type (Supported values):_
   - _all, ipv4, ipv6, ipnip, ipv4-rdma, ipv6-rdma_
 - _In config command:_
-  - _`packet-type <pkt-type> <add|del>`: Optional parameter, if omitted updates global hash_
-    - _`add`: Creates packet type hash if one doesn't exist, else overwrites the hash fields in existing hash_
-    - _`del`: Deletes Packet type hash_
+  - _`--packet-type <pkt-type>`: Optional parameter; if omitted, updates global hash_
+  - _`--action <add|del>`: Required when `--packet-type` is specified_
+    - _`add`: Adds the specified hash fields for the given packet-type hash. Duplicate fields are ignored_
+    - _`del`: Removes the specified hash fields for the given packet-type hash. If no hash fields are provided, the given packet-type hash is deleted_  
+    
 - _In show command:_
   - _`packet-type <pkt-type>` is optional; `all` packet-type is valid only for show_
   - _If pkt-type omitted: Shows global hash configuration/capabilities_
@@ -854,8 +859,8 @@ show
 #### 2.6.2.1 Config command group
 
 **The following command updates switch hash global defaults:**  
-**Note:-**  
-_RDMA_BTH_OPCODE and RDMA_BTH_DEST_QP are optional fields in the global hash configuration._  
+**Note:-**
+_RDMA_BTH_OPCODE and RDMA_BTH_DEST_QP are optional fields in the global hash configuration._
 _They are supported by the design but can be omitted from update commands if not required._
 
 ```bash
@@ -902,7 +907,7 @@ config switch-hash global lag-hash \
 
 **The following command creates switch packet-type hash:**
 ```bash
-config switch-hash global ecmp-hash packet-type ipv4-rdma add \
+config switch-hash global ecmp-hash --packet-type ipv4-rdma --action add \
 'DST_MAC' \
 'SRC_MAC' \
 'ETHERTYPE' \
@@ -914,7 +919,7 @@ config switch-hash global ecmp-hash packet-type ipv4-rdma add \
 'RDMA_BTH_OPCODE' \
 'RDMA_BTH_DEST_QP'
 
-config switch-hash global lag-hash packet-type ipnip add \
+config switch-hash global lag-hash --packet-type ipnip --action add \
 'IP_PROTOCOL' \
 'DST_IP' \
 'SRC_IP' \
@@ -932,7 +937,7 @@ config switch-hash global lag-hash packet-type ipnip add \
 
 **The following command updates switch packet-type hash:**
 ```bash
-config switch-hash global ecmp-hash packet-type ipv4-rdma add \
+config switch-hash global ecmp-hash --packet-type ipv4-rdma --action add \
 'DST_IP' \
 'SRC_IP' \
 'L4_DST_PORT' \
@@ -942,8 +947,8 @@ config switch-hash global ecmp-hash packet-type ipv4-rdma add \
 ```
 **The following command removes switch packet-type hash:**
 ```bash
-config switch-hash global ecmp-hash packet-type ipv4-rdma del
-config switch-hash global lag-hash packet-type ipnip del
+config switch-hash global ecmp-hash --packet-type ipv4-rdma --action del
+config switch-hash global lag-hash --packet-type ipnip --action del
 
 ```
 **The following command updates switch hash algorithm global:**
@@ -1260,6 +1265,17 @@ will be extended with a new common type.
             enum CRC_32HI;
             enum CRC_CCITT;
             enum CRC_XOR;
+        }
+    }
+
+    typedef hash-packet-type {
+        description "Represents the packet type for which hash is configured";
+        type enumeration {
+            enum IPV4;
+            enum IPV6;
+            enum IPNIP;
+            enum IPV4_RDMA;
+            enum IPV6_RDMA;
         }
     }
 ```
