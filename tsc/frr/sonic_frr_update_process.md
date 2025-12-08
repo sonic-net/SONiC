@@ -136,6 +136,10 @@ Use a descriptive name that clearly conveys the purpose or scope of the patch.
 Besides the regular sonic-mgmt test cases in PR, we need run the following cases as longevity:
 
 1. bgp/test_bgp_stress_link_flap.py — please run with --completeness_level=thorough. Based on Chun'ang Li's comments, SONiC repo PR test pipelines will run bgp/test_bgp_stress_link_flap.py.
+	###### Note: Currently, we are only using the DUT parameter for local runs to save time due to resource limitations.<br>You can specify the DUT parameter explicitly by running:
+	```python
+    bgp/test_bgp_stress_link_flap.py::test_bgp_stress_link_flap[dut]
+    ```
 2. bgp/test_bgp_suppress_fib.py — please run with --completeness_level=thorough
 
 Note:
