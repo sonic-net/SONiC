@@ -29,6 +29,7 @@
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
 | 0.1 | 08/24/2025  | Anukul Verma | Initial version                   |
+| 0.2 | 12/10/2025  | Neha Das | Added integrated-circuit and PCIE components   |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration/management of Platform components in SONiC corresponding to openconfig-platform.yang module and its sub-modules.
@@ -71,6 +72,55 @@ module: openconfig-platform
         |  +--ro memory
         |     +--ro available?   uint64
         |     +--ro utilized?    uint64
+        |  +--ro pcie
+        |     +--ro fatal-errors
+        |        +--ro total-errors?                   oc-yang:counter64 
+        |        +--ro undefined-errors?               oc-yang:counter64
+        |        +--ro data-link-errors?               oc-yang:counter64
+        |        +--ro surprise-down-errors?           oc-yang:counter64
+        |        +--ro poisoned-tlp-errors?            oc-yang:counter64
+        |        +--ro flow-control-protocol-errors?   oc-yang:counter64
+        |        +--ro completion-timeout-errors?      oc-yang:counter64
+        |        +--ro completion-abort-errors?        oc-yang:counter64
+        |        +--ro unexpected-completion-errors?   oc-yang:counter64
+        |        +--ro receiver-overflow-errors?       oc-yang:counter64
+        |        +--ro malformed-tlp-errors?           oc-yang:counter64
+        |        +--ro ecrc-errors?                    oc-yang:counter64
+        |        +--ro unsupported-request-errors?     oc-yang:counter64
+        |        +--ro acs-violation-errors?           oc-yang:counter64
+        |        +--ro internal-errors?                oc-yang:counter64
+        |        +--ro blocked-tlp-errors?             oc-yang:counter64
+        |        +--ro atomic-op-blocked-errors?       oc-yang:counter64
+        |        +--ro tlp-prefix-blocked-errors?      oc-yang:counter64
+        |     +--ro non-fatal-errors?
+        |        +--ro total-errors?                   oc-yang:counter64 
+        |        +--ro undefined-errors?               oc-yang:counter64
+        |        +--ro data-link-errors?               oc-yang:counter64
+        |        +--ro surprise-down-errors?           oc-yang:counter64
+        |        +--ro poisoned-tlp-errors?            oc-yang:counter64
+        |        +--ro flow-control-protocol-errors?   oc-yang:counter64
+        |        +--ro completion-timeout-errors?      oc-yang:counter64
+        |        +--ro completion-abort-errors?        oc-yang:counter64
+        |        +--ro unexpected-completion-errors?   oc-yang:counter64
+        |        +--ro receiver-overflow-errors?       oc-yang:counter64
+        |        +--ro malformed-tlp-errors?           oc-yang:counter64
+        |        +--ro ecrc-errors?                    oc-yang:counter64
+        |        +--ro unsupported-request-errors?     oc-yang:counter64
+        |        +--ro acs-violation-errors?           oc-yang:counter64
+        |        +--ro internal-errors?                oc-yang:counter64
+        |        +--ro blocked-tlp-errors?             oc-yang:counter64
+        |        +--ro atomic-op-blocked-errors?       oc-yang:counter64
+        |        +--ro tlp-prefix-blocked-errors?      oc-yang:counter64
+        |     +--ro correctable-errors?
+        |        +--ro total-errors?                   oc-yang:counter64 
+        |        +--ro receiver-errors?                oc-yang:counter64
+        |        +--ro bad-tlp-errors?                 oc-yang:counter64
+        |        +--ro bad-dllp-errors?                oc-yang:counter64
+        |        +--ro relay-rollover-errors?          oc-yang:counter64
+        |        +--ro replay-timeout-errors?          oc-yang:counter64
+        |        +--ro advisory-non-fatal-errors?      oc-yang:counter64
+        |        +--ro internal-errors?                oc-yang:counter64
+        |        +--ro hdr-log-overflow-errors?        oc-yang:counter64
         +--rw power-supply
         |  +--ro state
         |     +--ro oc-platform-psu:enabled?    boolean
@@ -138,6 +188,20 @@ module: openconfig-platform
                     +--ro oc-transceiver:supply-voltage-lower?       decimal64
                     +--ro oc-transceiver:module-temperature-lower?   decimal64
                     +--ro oc-transceiver:module-temperature-upper?   decimal64
+        +--rw integrated-circuit
+        |  +--rw config
+        |     +--rw oc-p4rt:node-id                      uint64
+        |  +--ro state
+        |     +--rw oc-p4rt:node-id                      uint64
+        |  +--ro oc-ic:memory
+        |     +--ro oc-ic:state
+        |        +--ro oc-ic:corrected-parity-errors?    uint64
+        |        +--ro oc-ic:total-parity-errors?        uint64
+        |  +--ro oc-ppc:pipeline-counters
+        |     +--ro oc-ppc:drop
+        |        +--ro oc-ppc:lookup-block
+        |           +--ro oc-ppc:state
+        |              +--ro oc-ppc:no-route?            oc-yang:counter64
 ```
 
 # Definition/Abbreviation
@@ -169,6 +233,8 @@ module: openconfig-platform
     * fantray
     * temperature
     * transceiver
+    * integrated-circuit
+    * pcie
 4. Support for platform component state information including:
     * Basic component information (name, type, description, manufacturer, etc.)
     * Operational status and health monitoring
@@ -178,6 +244,8 @@ module: openconfig-platform
     * Power supply capacity and status
     * Fan speed monitoring
     * Transceiver information and DOM (Digital Optical Monitoring) data
+    * Integrated Circuit configuration and telemetry
+    * PCIE error telemetry monitoring
 
 ### 1.1.2 Configuration and Management Requirements
 The Platform configuration/management can be done via REST and gNMI. The implementation will return an error if configuration is not allowed due to misconfiguration or un-supported node is accessed.
@@ -225,6 +293,9 @@ The following existing STATE DB tables are utilized for platform component infor
 - FAN_DRAWER_INFO
 - CHASSIS_INFO
 - CPU_STATS (new table will be added to support this)
+- NODE_CFG
+- NODE_INFO
+- PCIE_DEVICE
 
 ### 3.2.4 ASIC DB
 There are no changes to ASIC DB schema definition.
@@ -245,6 +316,9 @@ Openconfig-platform.yang and its submodules will be used as user interfacing mod
 - openconfig-platform-annotation.yang
 - openconfig-platform-deviation.yang
 - openconfig-platform-ext.yang
+- openconfig-platform-integrated-circuit.yang
+- openconfig-platform-pipeline-counters.yang
+- openconfig-p4rt.yang (for node-id)
 
 ### 3.3.2 Database Table and Field Mapping
 The following sections provide detailed mapping between OpenConfig YANG paths and SONiC STATE DB tables and fields for each component type.
@@ -479,6 +553,22 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | `/transceiver/physical-channels/channel[index=N]/state/input-power/instant` | TRANSCEIVER_DOM_SENSOR | rx{N}power | RX power for channel N |
 | `/transceiver/physical-channels/channel[index=N]/state/output-power/instant` | TRANSCEIVER_DOM_SENSOR | tx{N}power | TX power for channel N |
 | `/transceiver/physical-channels/channel[index=N]/state/laser-bias-current/instant` | TRANSCEIVER_DOM_SENSOR | tx{N}bias | TX bias current for channel N |
+
+#### 3.3.2.11 Integrated-Circuit Component Mapping
+**Database Table:** NODE_CFG and NODE_INFO  
+**Key Pattern:** "integrated_circuit*" (e.g., "integrated_circuit0")  
+**Component Type:** openconfig-platform-types:INTEGRATED_CIRCUIT
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/type` | - | - | Fixed: INTEGRATED_CIRCUIT |
+| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
+| `/components/component/state/removable` | - | - | Fixed: false |
+| `/components/component/integrated-circuit/config/node-id` | NODE_CFG | node-id | Device ID |
+| `/components/component/integrated-circuit/state/node-id` | NODE_INFO | node-id | Device ID |
+| `/components/component/memory/state/corrected-parity-errors` |  |  |  |
+| `/components/component/memory/state/total-parity-errors` |  |  |  |
 
 ### 3.3.4 REST API Support
 #### 3.3.4.1 GET Operations
