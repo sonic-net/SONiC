@@ -70,7 +70,6 @@ This document provides general information about the OpenConfig configuration of
         |  +--rw description?             string
         |  +--rw enabled?                 boolean
         |  +--rw oc-p4rt:id               uint32
-        |  +--rw oc-eth:mac-address?      oc-yang:mac-address
         +--ro state
         |  +--ro name?                            string
         |  +--ro type                             identityref
@@ -103,6 +102,8 @@ This document provides general information about the OpenConfig configuration of
         |     +--ro out-multicast-pkts?   oc-yang:counter64
         |     +--ro out-discards?         oc-yang:counter64
         |     +--ro out-errors?           oc-yang:counter64
+        |     +--ro carrier-transitions   oc-yang:counter64
+        |     +--ro in-fcs-errors         oc-yang:counter64
         +--rw subinterfaces
         |  +--rw subinterface* [index]
         |     +--rw index         -> ../config/index
@@ -143,6 +144,7 @@ This document provides general information about the OpenConfig configuration of
         |  +--ro oc-eth:state
         |     +--ro oc-eth:auto-negotiate?   boolean
         |     +--ro oc-eth:port-speed?       identityref
+        |     +--ro oc-eth:mac-address?      oc-yang:mac-address
         |     +--ro oc-eth:counters
         |     |  +--ro oc-eth:in-oversize-frames?    oc-yang:counter64
         |     |  +--ro oc-eth:in-undersize-frames?   oc-yang:counter64
@@ -290,8 +292,6 @@ Mapping attributes between OpenConfig YANG and SONiC YANG:
 |   last-change           |      last_up/down_time|
 |   mac-address           |      mac              |
 |   id                    |      id               |
-
-
 
 |   OpenConfig YANG       |    Sonic-interface YANG |
 |-------------------------|-------------------------|
