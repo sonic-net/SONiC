@@ -64,29 +64,29 @@ This document provides general information about the OpenConfig configuration of
      +--rw interface* [name]
         +--rw name                  -> ../config/name
         +--rw config
-        |  +--rw name?                    string
-        |  +--rw type                     identityref
-        |  +--rw mtu?                     uint16
-        |  +--rw description?             string
-        |  +--rw enabled?                 boolean
-        |  +--rw oc-p4rt:id               uint32
+        |  +--rw name?          string
+        |  +--rw type           identityref
+        |  +--rw mtu?           uint16
+        |  +--rw description?   string
+        |  +--rw enabled?       boolean
+        |  +--rw oc-p4rt:id     uint32
         +--ro state
         |  +--ro name?                            string
         |  +--ro type                             identityref
         |  +--ro mtu?                             uint16
         |  +--ro description?                     string
         |  +--ro enabled?                         boolean
+        |  +--ro ifindex?                         uint32
+        |  +--ro admin-status                     enumeration
+        |  +--ro oper-status                      enumeration
+        |  +--ro last-change?                     oc-types:timeticks64
+        |  +--ro logical?                         boolean
+        |  +--ro management?                      boolean
+        |  +--ro cpu?                             boolean
         |  +--ro oc-p4rt:id                       uint32
         |  +--ro oc-port:hardware-port            -> /oc-platform:components/oc-platform:component/oc-platform:name
-        |  +--ro oc-transceiver:transceiver       -> /oc-platform:components/oc-platform:component[oc-platform:name=current()/../oc-port:hardware-port]/oc-platform:subcomponents/oc-platform:subcomponent/oc-platform:name
         |  +--ro oc-transceiver:physical-channel  -> /oc-platform:components/oc-platform:component[oc-platform:name=current()/../oc-transceiver:transceiver]/oc-transceiver:transceiver/oc-transceiver:physical-channels/oc-transceiver:channel/oc-transceiver:index
-        |  +--ro ifindex?                          uint32
-        |  +--ro admin-status                      enumeration
-        |  +--ro oper-status                       enumeration
-        |  +--ro last-change?                      oc-types:timeticks64
-        |  +--ro logical?                          boolean
-        |  +--ro management?                       boolean
-        |  +--ro cpu?                              boolean
+        |  +--ro oc-transceiver:transceiver       -> /oc-platform:components/oc-platform:component[oc-platform:name=current()/../oc-port:hardware-port]/oc-platform:subcomponents/oc-platform:subcomponent/oc-platform:name
         |  +--ro counters
         |     +--ro in-octets?            oc-yang:counter64
         |     +--ro in-pkts?              oc-yang:counter64
@@ -102,7 +102,6 @@ This document provides general information about the OpenConfig configuration of
         |     +--ro out-multicast-pkts?   oc-yang:counter64
         |     +--ro out-discards?         oc-yang:counter64
         |     +--ro out-errors?           oc-yang:counter64
-        |     +--ro carrier-transitions   oc-yang:counter64
         |     +--ro in-fcs-errors         oc-yang:counter64
         +--rw subinterfaces
         |  +--rw subinterface* [index]
