@@ -4,11 +4,12 @@
 
 - [1 Revision](#revision)
 - [2 Project Overview](#project-overview)
-- [3 Example: Buffer-Profile](#example-buffer-profile)
+- [3 Example:](#example)
 - [4 Design](#design)
     - [4.1 Design Summary](#design-summary)
     - [4.2 Framework](#framework)
-    - [4.3 Expected behavior] (#expected-behavior)
+    - [4.3 Code Snippets](#code-snippets)
+    - [4.4 Expected behavior](#expected-behavior)
 - [5 Extending to new features](#extending-to-new-features)
 
 
@@ -17,7 +18,8 @@
 
 |  Rev  |  Date   |      Author      | Change Description |
 | :---: | :-----: | :--------------: | ------------------ |
-|  v0.1 | 2025-11-18 |     Rajath V     | Initial version of platform specific config validation HLD 
+|  v0.1 | 2025-11-18 |     Rajath V     | Initial version of platform specific config validation HLD
+|  v0.2 | 2025-11-23 |     Rajath V     | Updated HLD with code snippets and expected behavior
 
 ## Project Overview  
 
@@ -30,106 +32,19 @@ Enable platform level config validation on SoNiC using YANG models that are plat
 ### Scope
 The scope of this project is to support platform specific config validation for all config fields that are defined in YANG models. This includes config fields updated via config CLI and gNMI/RESTCONF, as well as changes from config load / reload cases.
 
-## Example: Buffer-Profile
+## Example
 
+Consider an example configuration like 
 ```bash
-#!/bin/bash
-
-# Generate platform-specific YANG models from templates
-TEMPLATE_DIR="/usr/local/platform-yang-templates"
-OUTPUT_DIR="/usr/local/platform-yang-models"
-# Dynamically determine platform name from the script name.
-SCRIPT_NAME=$(basename "$0")
-PLATFORM_SUFFIX=$(echo "$SCRIPT_NAME" | sed 's/^sonic-platform-//' | sed 's/\.postinst$//')
-PLATFORM_NAME="x86_64-${PLATFORM_SUFFIX}"
-PLATFORM_NAME=$(echo "$PLATFORM_NAME" | sed 's/nexthop-/nexthop_/')
-FEATURE_CAPABILITIES_JSON="/usr/share/sonic/device/${PLATFORM_NAME}/feature_capabilities.json"
-
-# Check if all required components exist
-if [ -d "$TEMPLATE_DIR" ] && [ -f "$FEATURE_CAPABILITIES_JSON" ] && command -v j2 >/dev/null 2>&1; then
-    mkdir -p "$OUTPUT_DIR"
-
-    # Generate YANG files from templates
-    for template in "$TEMPLATE_DIR"/*.yang.j2; do
-        [ -e "$template" ] || continue
-        filename=$(basename "$template" .j2)
-        output_file="$OUTPUT_DIR/$filename"
-
-        if j2 "$template" "$FEATURE_CAPABILITIES_JSON" > "$output_file" 2>/dev/null; then
-            echo "Generated: $output_file"
-        else
-            echo "Warning: Failed to generate $output_file" >&2
-        fi
-    done
-fi
+config buffer profile add <profile_name> --xon <xon_threshold> --xoff <xoff_threshold> [-size <size>] [-dynamic_th <dynamic_th_value>] [-pool <ingress_lossless_pool_name>]
 ```
 
-Note: The above snippet is just an example and may need to be modified based on the specific platform and requirements. It uses `PLATFORM_SUFFIX`, `PLATFORM_NAME` to dynamically determine the platform name from the postinst script name. This assumes that the postinst script name follows a specific naming convention (e.g., `sonic-platform-nexthop-4010-r0.postinst`). The `FEATURE_CAPABILITIES_JSON` path is constructed based on the platform name. This is to override any symlinks made in the repository for multiple platforms to point to a single `postinst` file, since each platform may have different `feature_capabilities.json` files.
+For specific hswkus, the values for `dynamic_th` can take different ranges. As an example, let's say for Tomahawk5 the values of `dynamic_th` can be from -7 to 3, while for Tomahawk6 the values could be from -1 to 3. (These are indicative values just provided as an example). 
 
+The current YANG validation design does not take into account platform-specific values, since the YANG file is global and does not have a way to handle platform level changes for values. With this design, we can now add YANG models at the first boot on a platform that has specific values injected for the platform itself, instead of the generic values handled before. This is especially important in the cases of config reload/load and configurations added from gNMI/RESTCONF.
 
-An example for feature_capabilities.json is shown below:
-```json
-{
-    "mmu_capabilities": {
-            "bpf_dynamic_th_low": -7,
-            "bpf_dynamic_th_high": 3
-    }
-}
-```
+With this new framework, users can simply add new YANG files per platform for their feature in addition to the base YANG file to extend validation checks on a more granular, platform level.
 
-An example for the template is shown below:
-```jinja2
-module sonic-buffer-profile-capability {
-    yang-version 1.1;
-    namespace "http://github.com/sonic-net/sonic-buffer-profile-capability";
-    prefix bpf-capability;
-
-    import sonic-buffer-profile {
-        prefix bpf;
-    }
-
-    description "SONIC buffer profile platform-specific YANG model - generated from feature_capabilities.json";
-
-    revision 2025-11-12 {
-        description "Initial revision Generated from feature_capabilities.json at installation time";
-    }
-
-    {% if mmu_capabilities is defined %}
-    {% set bpf_dynamic_th_low = mmu_capabilities.bpf_dynamic_th_low %}
-    {% set bpf_dynamic_th_high = mmu_capabilities.bpf_dynamic_th_high %}
-
-    // Platform-specific deviations - BUFFER_PROFILE uses bpf_dynamic_th range from mmu_capabilities
-    deviation "/bpf:sonic-buffer-profile/bpf:BUFFER_PROFILE/bpf:BUFFER_PROFILE_LIST/bpf:dynamic_th" {
-        deviate replace {
-            type int32 {
-                range "{{ bpf_dynamic_th_low }}..{{ bpf_dynamic_th_high }}" {
-                    error-message "Invalid dynamic_th for this platform. dynamic_th should be in the range [{{ bpf_dynamic_th_low }}, {{ bpf_dynamic_th_high }}]";
-                }
-            }
-        }
-        description "Platform-specific deviation for dynamic_th";
-    }
-    {% else %}
-    // No buffer profile capability data - skip validation.
-    {% endif %}
-}
-```
-
-Apart from this, there's two other changes that are required to implement the framework:
-
-1. Ensure that the new jinja2 templates are packaged by `sonic-yang-models` wheel. This can be done by adding the following line to `setup.py`:
-```python
-    data_files=[
-        ('platform-yang-templates', glob.glob('./platform-yang-templates/*.yang.j2')),
-    ],
-```
-2. Modify the `sonic_yang.py` and `sonic_yang_ext.py` files to load the generated YANG files from `/usr/local/platform-yang-models/`. This can be done by adding the following lines to the `_load_schema_modules` function in both files:
-```python
-    generated_yang_dir = "/usr/local/platform-yang-models"
-    if os.path.exists(generated_yang_dir):
-        generated_yang = glob.glob(generated_yang_dir + "/*.yang")
-        py.extend(generated_yang)
-```
 
 ## Design
 
@@ -197,11 +112,122 @@ The changes required in postinst files are mainly:
 2. Check if platform-yang-templates directory exists
 3. If both exist, render all templates in platform-yang-templates and save the output to platform-yang-models
 
+### Code Snippets
+
+postinst hook for platform-specific YANG generation
+
+```bash
+#!/bin/bash
+
+# Generate platform-specific YANG models from templates
+TEMPLATE_DIR="/usr/local/platform-yang-templates"
+OUTPUT_DIR="/usr/local/platform-yang-models"
+# Dynamically determine platform name from the script name.
+SCRIPT_NAME=$(basename "$0")
+PLATFORM_SUFFIX=$(echo "$SCRIPT_NAME" | sed 's/^sonic-platform-//' | sed 's/\.postinst$//')
+PLATFORM_NAME="x86_64-${PLATFORM_SUFFIX}"
+PLATFORM_NAME=$(echo "$PLATFORM_NAME" | sed 's/nexthop-/nexthop_/')
+FEATURE_CAPABILITIES_JSON="/usr/share/sonic/device/${PLATFORM_NAME}/feature_capabilities.json"
+
+# Check if all required components exist
+if [ -d "$TEMPLATE_DIR" ] && [ -f "$FEATURE_CAPABILITIES_JSON" ] && command -v j2 >/dev/null 2>&1; then
+    mkdir -p "$OUTPUT_DIR"
+
+    # Generate YANG files from templates
+    for template in "$TEMPLATE_DIR"/*.yang.j2; do
+        [ -e "$template" ] || continue
+        filename=$(basename "$template" .j2)
+        output_file="$OUTPUT_DIR/$filename"
+
+        if j2 "$template" "$FEATURE_CAPABILITIES_JSON" > "$output_file" 2>/dev/null; then
+            echo "Generated: $output_file"
+        else
+            echo "Warning: Failed to generate $output_file" >&2
+        fi
+    done
+fi
+```
+
+Note: The above snippet is just an example and may need to be modified based on the specific platform and requirements. It uses `PLATFORM_SUFFIX`, `PLATFORM_NAME` to dynamically determine the platform name from the postinst script name. This assumes that the postinst script name follows a specific naming convention (e.g., `sonic-platform-nexthop-4010-r0.postinst`). The `FEATURE_CAPABILITIES_JSON` path is constructed based on the platform name. This is to override any symlinks made in the repository for multiple platforms to point to a single `postinst` file, since each platform may have different `feature_capabilities.json` files.
+
+
+Example for feature_capabilities.json:
+```json
+{
+    "mmu_capabilities": {
+            "bpf_dynamic_th_low": -7,
+            "bpf_dynamic_th_high": 3
+    }
+}
+```
+
+Example jinja2 template:
+
+```jinja2
+module sonic-buffer-profile-capability {
+    yang-version 1.1;
+    namespace "http://github.com/sonic-net/sonic-buffer-profile-capability";
+    prefix bpf-capability;
+
+    import sonic-buffer-profile {
+        prefix bpf;
+    }
+
+    description "SONIC buffer profile platform-specific YANG model - generated from feature_capabilities.json";
+
+    revision 2025-11-12 {
+        description "Initial revision Generated from feature_capabilities.json at installation time";
+    }
+
+    {% if mmu_capabilities is defined %}
+    {% set bpf_dynamic_th_low = mmu_capabilities.bpf_dynamic_th_low %}
+    {% set bpf_dynamic_th_high = mmu_capabilities.bpf_dynamic_th_high %}
+
+    // Platform-specific deviations - BUFFER_PROFILE uses bpf_dynamic_th range from mmu_capabilities
+    deviation "/bpf:sonic-buffer-profile/bpf:BUFFER_PROFILE/bpf:BUFFER_PROFILE_LIST/bpf:dynamic_th" {
+        deviate replace {
+            type int32 {
+                range "{{ bpf_dynamic_th_low }}..{{ bpf_dynamic_th_high }}" {
+                    error-message "Invalid dynamic_th for this platform. dynamic_th should be in the range [{{ bpf_dynamic_th_low }}, {{ bpf_dynamic_th_high }}]";
+                }
+            }
+        }
+        description "Platform-specific deviation for dynamic_th";
+    }
+    {% else %}
+    // No buffer profile capability data - skip validation.
+    {% endif %}
+}
+```
+
+Apart from this, there's two other changes that are required to implement the framework:
+
+1. Ensure that the new jinja2 templates are packaged by `sonic-yang-models` wheel. This can be done by adding the following line to `setup.py`:
+```python
+    data_files=[
+        ('platform-yang-templates', glob.glob('./platform-yang-templates/*.yang.j2')),
+    ],
+```
+2. Modify the `sonic_yang.py` and `sonic_yang_ext.py` files to load the generated YANG files from `/usr/local/platform-yang-models/`. This can be done by adding the following lines to the `_load_schema_modules` function in both files:
+```python
+    generated_yang_dir = "/usr/local/platform-yang-models"
+    if os.path.exists(generated_yang_dir):
+        generated_yang = glob.glob(generated_yang_dir + "/*.yang")
+        py.extend(generated_yang)
+```
+
 ### Expected behavior
 
-Generally, config changes come from config load / reload, config CLI and gNMI. For config load / reload -y cases, YANG validation is hit and therefore platform-specific validation should kick in. For config CLI and gNMI cases, since we already have the YANG validation in place, the platform-specific validation should kick in as well.
+Cases where the new framework will be triggered:
 
-However, manually writing config_db.json or running config will not trigger the YANG validation, and therefore the platform-specific validation will not kick in. This is expected behavior, as the user is bypassing the validation layer by directly modifying the config_db.json, without doing a config reload -y. Loading a different json file via config load / reload should still work as expected.
+1. `config load -y` 
+2. `config reload -y`
+3. config loads from gNMI / RESTCONF.
+
+Cases where the new framework will not be triggered:
+
+1. CLI based config. CLI has ways to handle constraints in the code itself, since there is a lot of flexibility in handling configs at various granular levels. So it shouldn't matter in this case.
+2. If a user manually writes into CONFIG_DB, bypassing the cases mentioned above. In this case, no validation is hit, and if there are invalid values only syslogs will reflect it.
 
 ## Extending to new features
 
