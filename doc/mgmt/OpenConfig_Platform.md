@@ -193,15 +193,6 @@ module: openconfig-platform
         |     +--rw oc-p4rt:node-id                      uint64
         |  +--ro state
         |     +--rw oc-p4rt:node-id                      uint64
-        |  +--ro oc-ic:memory
-        |     +--ro oc-ic:state
-        |        +--ro oc-ic:corrected-parity-errors?    uint64
-        |        +--ro oc-ic:total-parity-errors?        uint64
-        |  +--ro oc-ppc:pipeline-counters
-        |     +--ro oc-ppc:drop
-        |        +--ro oc-ppc:lookup-block
-        |           +--ro oc-ppc:state
-        |              +--ro oc-ppc:no-route?            oc-yang:counter64
 ```
 
 # Definition/Abbreviation
@@ -317,7 +308,6 @@ Openconfig-platform.yang and its submodules will be used as user interfacing mod
 - openconfig-platform-deviation.yang
 - openconfig-platform-ext.yang
 - openconfig-platform-integrated-circuit.yang
-- openconfig-platform-pipeline-counters.yang
 - openconfig-p4rt.yang (for node-id)
 
 ### 3.3.2 Database Table and Field Mapping
@@ -567,8 +557,63 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | `/components/component/state/removable` | - | - | Fixed: false |
 | `/components/component/integrated-circuit/config/node-id` | NODE_CFG | node-id | Device ID |
 | `/components/component/integrated-circuit/state/node-id` | NODE_INFO | node-id | Device ID |
-| `/components/component/memory/state/corrected-parity-errors` |  |  |  |
-| `/components/component/memory/state/total-parity-errors` |  |  |  |
+
+#### 3.3.2.12 PCIE Component Mapping
+**Database Table:** PCIE_DEVICE  
+**Key Pattern:** "{Bus}:{Dev}.{Fn}" (e.g., "01:00.0")  
+**Component Type:** openconfig-platform-types:PCIE
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/type` | - | - | Fixed: PCIE |
+| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
+| `/components/component/state/removable` | - | - | Fixed: false |
+| `/components/component/state/pcie/correctable-errors/total-errors` | PCIE_DEVICE | `correctable|TOTAL_ERR_COR` | Total correctable errors |
+| `/components/component/state/pcie/correctable-errors/receiver-errors` | PCIE_DEVICE | `correctable|RxErr` | Receiver errors |
+| `/components/component/state/pcie/correctable-errors/bad-tlp-errors` | PCIE_DEVICE | `correctable|BadTLP` | Bad TLP errors |
+| `/components/component/state/pcie/correctable-errors/bad-dllp-errors` | PCIE_DEVICE | `correctable|BadDLLP` | Bad DLLP errors |
+| `/components/component/state/pcie/correctable-errors/relay-rollover-errors` | PCIE_DEVICE | `correctable|Rollover` | Relay Rollover errors |
+| `/components/component/state/pcie/correctable-errors/replay-timeout-errors` | PCIE_DEVICE | `correctable|Timeout` | Replay timeout errors |
+| `/components/component/state/pcie/correctable-errors/advisory-non-fatal-errors` | PCIE_DEVICE | `correctable|NonFatalErr` | Advisory non fatal errors |
+| `/components/component/state/pcie/correctable-errors/internal-errors` | PCIE_DEVICE | `correctable|CorrIntErr` | Internal errors |
+| `/components/component/state/pcie/correctable-errors/hdr-log-overflow-errors` | PCIE_DEVICE | `correctable|HeaderOF` | Header log overflow errors |
+| `/components/component/state/pcie/fatal-errors/total-errors` | PCIE_DEVICE | `fatal|TOTAL_ERR_FATAL` | Total fatal errors |
+| `/components/component/state/pcie/fatal-errors/undefined-errors` | PCIE_DEVICE | `fatal|Undefined` | fatal undefined errors |
+| `/components/component/state/pcie/fatal-errors/data-link-errors` | PCIE_DEVICE | `fatal|DLP` | fatal DLP errors |
+| `/components/component/state/pcie/fatal-errors/surprise-down-errors` | PCIE_DEVICE | `fatal|SDES` | fatal SDES errors |
+| `/components/component/state/pcie/fatal-errors/poisoned-tlp-errors` | PCIE_DEVICE | `fatal|PoisonTLPBlocked` | fatal Poison TLP errors |
+| `/components/component/state/pcie/fatal-errors/flow-control-protocol-errors` | PCIE_DEVICE | `fatal|FCP` | fatal FCP errors |
+| `/components/component/state/pcie/fatal-errors/completion-timeout-errors` | PCIE_DEVICE | `fatal|CmpltTO` | fatal completion timeout errors |
+| `/components/component/state/pcie/fatal-errors/completion-abort-errors` | PCIE_DEVICE | `fatal|CmpltAbrt` | fatal completion abort errors |
+| `/components/component/state/pcie/fatal-errors/unexpected-completion-errors` | PCIE_DEVICE | `fatal|UnxCmplt` | fatal unexpected completion errors |
+| `/components/component/state/pcie/fatal-errors/receiver-overflow-errors` | PCIE_DEVICE | `fatal|RxOF` | fatal receiver overflow errors |
+| `/components/component/state/pcie/fatal-errors/malformed-tlp-errors` | PCIE_DEVICE | `fatal|MalfTLP` | fatal malformed tlp errors |
+| `/components/component/state/pcie/fatal-errors/ecrc-errors` | PCIE_DEVICE | `fatal|ECRC` | fatal ECRC errors |
+| `/components/component/state/pcie/fatal-errors/unsupported-request-errors` | PCIE_DEVICE | `fatal|UnsupReq` | fatal unsupported request errors |
+| `/components/component/state/pcie/fatal-errors/acs-violation-errors` | PCIE_DEVICE | `fatal|ACSViol` | fatal ACS violation errors |
+| `/components/component/state/pcie/fatal-errors/internal-errors` | PCIE_DEVICE | `fatal|UncorrIntErr` | fatal internal errors |
+| `/components/component/state/pcie/fatal-errors/blocked-tlp-errors` | PCIE_DEVICE | `fatal|BlockedTLP` | fatal blocked TLP errors |
+| `/components/component/state/pcie/fatal-errors/atomic-op-blocked-errors` | PCIE_DEVICE | `fatal|AtomicOpBlocked` | fatal atomic operations blocked errors |
+| `/components/component/state/pcie/fatal-errors/tlp-prefix-blocked-errors` | PCIE_DEVICE | `fatal|TLPBlockedErr` | fatal internal errors |
+| `/components/component/state/pcie/non-fatal-errors/total-errors` | PCIE_DEVICE | `non_fatal|TOTAL_ERR_FATAL` | Total non-fatal errors |
+| `/components/component/state/pcie/non-fatal-errors/undefined-errors` | PCIE_DEVICE | `non_fatal|Undefined` | non-fatal undefined errors |
+| `/components/component/state/pcie/non-fatal-errors/data-link-errors` | PCIE_DEVICE | `non_fatal|DLP` | non-fatal DLP errors |
+| `/components/component/state/pcie/non-fatal-errors/surprise-down-errors` | PCIE_DEVICE | `non_fatal|SDES` | non-fatal SDES errors |
+| `/components/component/state/pcie/non-fatal-errors/poisoned-tlp-errors` | PCIE_DEVICE | `non_fatal|PoisonTLPBlocked` | non-fatal Poison TLP errors |
+| `/components/component/state/pcie/non-fatal-errors/flow-control-protocol-errors` | PCIE_DEVICE | `non_fatal|FCP` | non-fatal FCP errors |
+| `/components/component/state/pcie/non-fatal-errors/completion-timeout-errors` | PCIE_DEVICE | `non_fatal|CmpltTO` | non-fatal completion timeout errors |
+| `/components/component/state/pcie/non-fatal-errors/completion-abort-errors` | PCIE_DEVICE | `non_fatal|SDCmpltAbrtES` | non-fatal completion abort errors |
+| `/components/component/state/pcie/non-fatal-errors/unexpected-completion-errors` | PCIE_DEVICE | `non_fatal|UnxCmplt` | non-fatal unexpected completion errors |
+| `/components/component/state/pcie/non-fatal-errors/receiver-overflow-errors` | PCIE_DEVICE | `non_fatal|RxOF` | non-fatal receiver overflow errors |
+| `/components/component/state/pcie/non-fatal-errors/malformed-tlp-errors` | PCIE_DEVICE | `non_fatal|MalfTLP` | non-fatal malformed tlp errors |
+| `/components/component/state/pcie/non-fatal-errors/ecrc-errors` | PCIE_DEVICE | `non_fatal|ECRC` | non-fatal ECRC errors |
+| `/components/component/state/pcie/non-fatal-errors/unsupported-request-errors` | PCIE_DEVICE | `non_fatal|UnsupReq` | non-fatal unsupported request errors |
+| `/components/component/state/pcie/non-fatal-errors/acs-violation-errors` | PCIE_DEVICE | `non_fatal|ACSViol` | non-fatal ACS violation errors |
+| `/components/component/state/pcie/non-fatal-errors/internal-errors` | PCIE_DEVICE | `non_fatal|UncorrIntErr` | non-fatal internal errors |
+| `/components/component/state/pcie/non-fatal-errors/blocked-tlp-errors` | PCIE_DEVICE | `non_fatal|BlockedTLP` | non-fatal blocked TLP errors |
+| `/components/component/state/pcie/non-fatal-errors/atomic-op-blocked-errors` | PCIE_DEVICE | `non_fatal|AtomicOpBlocked` | non-fatal atomic operations blocked errors |
+| `/components/component/state/pcie/non-fatal-errors/tlp-prefix-blocked-errors` | PCIE_DEVICE | `non_fatal|TLPBlockedErr` | non-fatal internal errors |
 
 ### 3.3.4 REST API Support
 #### 3.3.4.1 GET Operations
@@ -870,6 +915,8 @@ Component types are determined based on YANG key patterns:
 | "fantray*" | Fantray | "fantray1", "fantray2" |
 | "Ethernet*" | Transceiver | "Ethernet0", "Ethernet4" |
 | Others | Temperature | "temp1", "cpu-thermal", "NPU0_TEMP_0" |
+| "integrated_circuit*" | Integrated Circuit | "integrated_circuit0", "integrated_circuit1" |
+| "{Bus}:{Dev}.{Fn}" | PCIE | "01:00.0", "00:00.0" |
 
 ### 3.4.2 Error Handling
 - Graceful handling of missing components
