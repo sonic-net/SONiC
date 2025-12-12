@@ -39,6 +39,22 @@ Consider an example configuration like
 config buffer profile add <profile_name> --xon <xon_threshold> --xoff <xoff_threshold> [-size <size>] [-dynamic_th <dynamic_th_value>] [-pool <ingress_lossless_pool_name>]
 ```
 
+The corresponding json format for this would be
+```json
+{
+    "BUFFER_PROFILE": {
+        "my_custom_profile": {
+            "pool": "[BUFFER_POOL|ingress_lossless_pool]",
+            "xon": "18432",
+            "xoff": "20480",
+            "size": "38912",
+            "dynamic_th": "3"
+        }
+    }
+}
+```
+
+While the CLI handlers have enough flexibility to check constraints based on platform, JSON / gnMI / RESTCONF relies entirely on YANG models to do the validation.
 For specific hswkus, the values for `dynamic_th` can take different ranges. As an example, let's say for Tomahawk5 the values of `dynamic_th` can be from -7 to 3, while for Tomahawk6 the values could be from -1 to 3. (These are indicative values just provided as an example). 
 
 The current YANG validation design does not take into account platform-specific values, since the YANG file is global and does not have a way to handle platform level changes for values. With this design, we can now add YANG models at the first boot on a platform that has specific values injected for the platform itself, instead of the generic values handled before. This is especially important in the cases of config reload/load and configurations added from gNMI/RESTCONF.
