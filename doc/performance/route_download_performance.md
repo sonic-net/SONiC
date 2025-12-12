@@ -25,6 +25,7 @@ Mike Dubrovsky - Cisco
   - [Redis Performance](#redis-performance)
   - [Additional Parameters](#additional-parameters)
   - [Ideas](#ideas)
+- [Appendix A: Routing Workgroup Meeting Summary](#appendix-a-routing-workgroup-meeting-summary)
 
 ---
 
@@ -621,4 +622,53 @@ static constexpr int DEFAULT_POP_BATCH_SIZE = 128;
 
 ---
 
-**END**
+## Appendix A: Routing Workgroup Meeting Summary
+
+**Meeting Date:** December 11, 2025
+
+### Summary
+
+The team discussed the challenges and improvements related to async mode, failure handling, and performance metrics. They noted that async mode allows for selective enabling and disabling but requires careful failure message conveyance. The latest code handles ASIC programming failures gracefully, avoiding crashes. Performance improvements were observed, with bulk support enabling faster processing. The multi-DB feature was debated, highlighting its benefits and potential memory and CPU impacts. The application state DB population was discussed, noting a significant performance drop when enabled. The team agreed to test various configurations and optimizations, including synchronous and asynchronous modes, to ensure robust performance and avoid unnecessary overhead.
+
+### Action Items
+
+- Perform tests to understand the performance impact of async mode, both standalone and when combined with other optimizations.
+- Investigate the current status of the multi-DB feature and explore options to make it more configurable.
+- Characterize the performance impact of different batch and bulking size configurations and ensure there are no negative side effects.
+- Explore the possibility of not populating the app state DB when the FIB suppression feature is disabled.
+
+### Discussion on Async Mode and Failure Handling
+
+- There are challenges of validating for every platform and mentions the use of async mode for selective enabling and disabling.
+- Suggestion is to enable async mode only for specific devices in a data center network.
+- Discussed the difficulty in conveying failure messages to the northbound API when using async mode.
+- The latest code handles ASIC programming failures gracefully, requiring manual intervention later.
+- The offload flag in FRR waits for the app state DB population before advertising routes.
+- The current workflow where the API considers a programming operation successful, updating the app state DB.
+- The performance improvements brought by async mode and bulking support must be quantify
+- Hybrid mode was introduced by Broadcom, which sends multiple batches and waits for responses.
+- Testing with both synchronous and async modes to compare performance.
+- Emphasized the need for thorough testing before enabling async mode to ensure full benefits.
+
+### Multi-DB and Compilation Flags
+
+- Discussed the multi-DB feature, which distributes databases across multiple Redis processes.
+- Discussed the benefits and drawbacks of multi-DB, including increased memory and CPU usage.
+- Concerns about managing different images with different flags for various platforms.
+- Suggestion about using a runtime option in the platform.json file for database initialization.
+
+### Batch and Bulk Size Optimization
+
+- Discussed the impact of batch and bulk size on performance, noting that larger batches can improve speed but slow down reaction times.
+- Community requested more characterization on the benefits and potential issues of different batch sizes.
+- A mention about issues with interface bring-up times on chassis when batch sizes are too large.
+- Suggested testing different batch sizes to find the optimal balance.
+
+### Application State DB Population
+
+- Discussed the performance impact of populating the application state DB, noting a significant drop in performance.
+- Suggestion about coupling the app state DB population from the asynchronous mode.
+- Discussed the importance of the wait-for-install feature in preventing unnecessary traffic i.e., prevents BGP from advertising uninstalled prefixes. Seems like only a small percentage of users currently use the feature.
+- Suggestion is to configure the feature based on user needs and platform capabilities.
+
+---
