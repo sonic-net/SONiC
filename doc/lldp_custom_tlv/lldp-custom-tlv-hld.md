@@ -103,16 +103,16 @@ The LLDP Custom TLV feature in SONiC provides the capability to:
 
 ### Example Use Cases
 
-Apart from the existing NVIDIA use case: "**Switch to SuperNIC handshake to enable Nvidia superNIC SPC-X capability**"
-Below are some examples:
+#### 1. Switch-to-NIC Handshake for Device-Specific Capability Enablement
+Implements a handshake mechanism between the switch and NIC using custom TLVs to dynamically negotiate and activate device-specific capabilities, thereby optimizing hardware interoperability and performance.
 
-#### 1. BGP Auto-Peering Using LLDP
+#### 2. BGP Auto-Peering Using LLDP
 Automatically form BGP sessions between directly connected devices that support auto-peering.
 
 Reference link:
 https://datatracker.ietf.org/doc/html/draft-acee-idr-lldp-peer-discovery-19
 
-#### 2. Port-to-Device Mapping (Console Port Metadata)
+#### 3. Port-to-Device Mapping (Console Port Metadata)
 **Description**:
 Terminal servers can use custom TLVs to advertise real-time mappings between physical console ports and connected network devices.
 
@@ -124,7 +124,7 @@ TLVs are updated automatically when devices are swapped or reconnected (e.g., Sw
 
 Eliminates the need for manual tracking of device-to-port assignments. Enables orchestration systems and NOC operators to instantly identify which network device is attached to each console port.
 
-#### 3. Out-of-Band (OOB) Management Role Advertisement
+#### 4. Out-of-Band (OOB) Management Role Advertisement
 **Description**:
 Custom TLVs can advertise the management role of the terminal server within the OOB network topology.
 
@@ -136,7 +136,7 @@ Automatically reflects changes in failover status (e.g., backup becomes active).
 
 Facilitates intelligent decision-making in orchestration platforms by signaling which terminal servers are actively responsible for OOB access.
 
-#### 4. Security and Access Policy Enforcement
+#### 5. Security and Access Policy Enforcement
 **Description**:
 Terminal servers can broadcast security policy-related metadata via TLVs.
 
@@ -147,6 +147,7 @@ Device whitelists for authorized console connections (e.g., based on serial numb
 Triggered when unauthorized or unknown devices are connected.
 
 Acts as a preventative control against unauthorized physical access. Helps detect rogue or spoofed devices connected to console ports.
+
 
 ## Architecture Design
 
