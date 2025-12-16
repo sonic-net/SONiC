@@ -18,7 +18,7 @@
   - [6.3 SAI Statistics](#63-sai-statistics)
 - [7. Configuration and Management](#7-configuration-and-management)
 - [8. Manifest](#8-manifest)
-- [9. CLI/YANG Model Enhancements](#9-cliyangmodel-enhancements)
+- [9. CLI-YANG Model Enhancements](#9-cli-yang-model-enhancements)
 - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
 - [11. Restrictions/Limitations](#11-restrictionslimitations)
 - [12. Testing Requirements/Design](#12-testing-requirementsdesign)
@@ -303,7 +303,7 @@ The hardware-based PFC watchdog uses the same configuration interface as the exi
 
 Not applicable - this is a core SONiC feature enhancement.
 
-## 9. CLI/YANG Model Enhancements
+## 9. CLI-YANG Model Enhancements
 
 No YANG model changes are required for this feature. The new `show pfcwd status` command displays operational state data, not configuration data.
 
