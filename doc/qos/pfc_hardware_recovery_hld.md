@@ -22,10 +22,7 @@
 - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
 - [11. Restrictions/Limitations](#11-restrictionslimitations)
 - [12. Testing Requirements/Design](#12-testing-requirementsdesign)
-  - [12.1 Unit Test Cases](#121-unit-test-cases)
-  - [12.2 System Test Cases](#122-system-test-cases)
-  - [12.3 Performance Testing](#123-performance-testing)
-  - [12.4 Compatibility Testing](#124-compatibility-testing)
+  - [12.1 Additional Test Cases for Hardware Recovery](#121-additional-test-cases-for-hardware-recovery)
 - [13. Open Points](#13-open-points)
 
 ## Revision
