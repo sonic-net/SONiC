@@ -23,7 +23,6 @@
 - [11. Restrictions/Limitations](#11-restrictionslimitations)
 - [12. Testing Requirements/Design](#12-testing-requirementsdesign)
   - [12.1 Additional Test Cases for Hardware Recovery](#121-additional-test-cases-for-hardware-recovery)
-- [13. Open Points](#13-open-points)
 
 ## Revision
 
