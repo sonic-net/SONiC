@@ -12,6 +12,7 @@
   - [4.1 Hardware Recovery Mechanism](#41-hardware-recovery-mechanism)
   - [4.2 PFC Watchdog Orchagent Refactoring](#42-pfc-watchdog-orchagent-refactoring)
 - [5. CLI Changes](#5-cli-changes)
+  - [5.1 CLI Data Flow](#51-cli-data-flow)
 - [6. SAI API](#6-sai-api)
   - [6.1 SAI Attributes](#61-sai-attributes)
   - [6.2 SAI Events](#62-sai-events)
