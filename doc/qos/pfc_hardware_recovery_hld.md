@@ -95,6 +95,12 @@ Each phase of hardware detection and recovery happens based on the programming o
 - Configured values may differ from actual hardware-programmed values
 - Upper limits may apply based on platform (e.g., Broadcom: 1-15 × granularity)
 
+**Hardware recovery advantages:**
+- **Better accuracy in storm detection**: Hardware-based detection operates at line rate without software polling delays, providing more precise detection timing
+- **Better accuracy in storm restoration**: Hardware-based restoration timing is more accurate as it doesn't depend on software polling intervals or system load
+- **Reduced latency**: Hardware detection and recovery actions happen immediately without waiting for software polling cycles
+- **Lower CPU overhead**: Eliminates continuous software polling, reducing CPU utilization and system load
+
 #### 4.1.1 Hardware vs Software Recovery Flow
 
 The following diagram illustrates the decision flow for selecting hardware vs software recovery:
