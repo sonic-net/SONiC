@@ -40,6 +40,7 @@
 		 * [lm-sensors](#lm-sensors-tools)
 	     * [FPGAPCIe Component](#pddf-fpgapcie-component)
 		 * [Multi-FPGAPCIe Component](#3413-multi-fpgapcie-component)
+		 * [Multi-Protocol Support Design](#3414-multi-protocol-support-design)
 	 * [PDDF BMC Component Design](#pddf-bmc-component-design)
 		 * [PSU JSON](#psu-json)
 		 * [FAN JSON](#fan-json)
@@ -79,6 +80,7 @@
 | 0.7 | 01/05/2023  |  Fuzail Khan, Precy Lee     | FPGAPCIe component support        |
 | 0.8 | 03/17/2023  |  Fuzail Khan, Precy Lee     | S3IP SysFS support        |
 | 0.9 | 05/31/2025  |  Nexthop AI                 | Multi-FPGAPCIe component support  |
+| 1.0 | 10/26/2025  |  Nexthop AI                 | Multi-FPGAPCIe Multi-Protocol support |
 
 # About this Manual
 Platform Driver Development Framework (PDDF) is part of SONiC Platform Development Kit (PDK), which enables rapid development of platform drivers and APIs for SONiC platforms. PDK consists of
@@ -1577,6 +1579,89 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
 > **attr_devtype**: Must be set to `multifpgapci`.
 
 > **attr_devname**: Must match the `device_name` of the FPGA which controls the fan.
+
+#### 3.4.14 Multi-Protocol Support Design
+
+The Multi-FPGAPCIe driver implements a modular architecture where different communication protocols (I2C, GPIO, SPI, MDIO) are handled by separate loadable kernel modules. This design provides flexibility and extensibility for FPGA-based platform implementations.
+
+##### Architecture Overview
+
+The core Multi-FPGAPCIe driver (`pddf_multifpgapci_driver`) acts as a protocol manager that:
+- Discovers and manages FPGA PCIe devices
+- Provides a registration framework for protocol modules
+- Handles device lifecycle management
+- Maintains protocol-to-device mappings
+
+##### Protocol Registration API
+
+Protocol modules register themselves with the core driver using the following external API:
+
+```c
+int multifpgapci_register_protocol(const char *name, struct protocol_ops *ops);
+void multifpgapci_unregister_protocol(const char *name);
+```
+
+**Protocol Operations Interface**
+
+Each protocol module must implement the `protocol_ops` structure:
+
+```c
+struct protocol_ops {
+    attach_fn attach;
+    detach_fn detach;
+    map_bar_fn map_bar;
+    unmap_bar_fn unmap_bar;
+    const char *name;
+};
+```
+
+**Callback Function Signatures**
+
+Protocol modules must implement these callback functions:
+
+```c
+typedef int (*attach_fn)(struct pci_dev *pci_dev, struct kobject *kobj);
+typedef void (*detach_fn)(struct pci_dev *pci_dev, struct kobject *kobj);
+typedef void (*map_bar_fn)(struct pci_dev *pci_dev, void __iomem *bar_base,
+                          unsigned long bar_start, unsigned long bar_len);
+typedef void (*unmap_bar_fn)(struct pci_dev *pci_dev, void __iomem *bar_base,
+                            unsigned long bar_start, unsigned long bar_len);
+```
+
+##### Load Order Independence
+
+The framework supports flexible module loading:
+- **Late Registration**: Protocol modules loaded after FPGA discovery are automatically attached to existing devices
+- **Early Registration**: Protocol modules loaded before FPGA discovery are saved and attached when devices are found
+- **Dynamic Loading**: Protocols can be loaded/unloaded at runtime
+
+##### Supported Protocol Modules
+
+**I2C Protocol Module** (`pddf_multifpgapci_i2c_module.c`):
+- Registers with the core driver using the protocol registration system
+- Implements attach/detach callbacks for FPGA device management
+
+**GPIO Protocol Module** (`pddf_multifpgapci_gpio_module.c`):
+- Registers with the core driver using the protocol registration system
+- Implements attach/detach callbacks for FPGA device management
+
+**MDIO Protocol Module** (`pddf_multifpgapci_mdio_module.c`):
+- Registers with the core driver using the protocol registration system
+- Implements attach/detach callbacks for FPGA device management
+
+**Additional Protocol Support**:
+- **SPI Protocol**: Future support for SPI controller operations
+
+##### Protocol Module Requirements
+
+Each protocol module must:
+1. Implement the `protocol_ops` callback structure with all required function pointers
+2. Handle device-specific BAR mapping and resource allocation via map_bar/unmap_bar callbacks
+3. Register with the core driver during module initialization using `multifpgapci_register_protocol()`
+4. Unregister during module cleanup using `multifpgapci_unregister_protocol()`
+5. Support graceful cleanup during device removal
+
+This modular approach decouples the core driver from protocol-specific implementations, reducing complexity and improving maintainability by allowing protocols to be developed and maintained independently.
 
 ### 3.6 PDDF BMC Component Design
 
