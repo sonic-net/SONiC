@@ -220,7 +220,7 @@ Management framework makes use of the translation library (Translib) written in 
 
 The management framework is designed to run in a single container named “sonic-mgmt-framework”. The container includes the REST server linked with Translib, and CLI process.
 The gNMI support requires the gNMI server which is provided as a part of sonic-gnmi container.
-A new repo sonic-mgmt-common to host the common code that is used both in the mgmt-framework and sonic-gnmi container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-gnmi repo can be compiled without the mgmt-framework being present in the code base.
+A new repo sonic-mgmt-common will host the common code that is used both in the mgmt-framework and sonic-gnmi container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-gnmi repo can be compiled without the mgmt-framework being present in the code base.
 
 ## 2 Functionality
 
