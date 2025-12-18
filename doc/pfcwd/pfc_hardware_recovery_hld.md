@@ -1,7 +1,6 @@
 # PFC Watchdog Hardware Recovery
 
 ## Table of Contents
-
 - [Revision](#revision)
 - [Scope](#scope)
 - [Abbreviations](#abbreviations)
@@ -29,7 +28,7 @@
 
 | Rev | Date       | Author        | Change Description |
 |-----|------------|---------------|--------------------|
-| 0.1 | 12/13/2024 | PFC Team      | Initial version    |
+| 0.1 | 12/13/2025 | Pinky Agrawal | Initial version    |
 
 ## Scope
 
@@ -152,10 +151,19 @@ sequenceDiagram
 
     Note over HW: PFC Storm Occurs
     HW->>HW: Detect Storm (Hardware Timer)
-    HW->>HW: Apply Recovery Action
     HW->>SAI: Generate Event Notification
     SAI->>Orch: Storm Detected Event
     Orch->>DB: Update Storm Counters
+
+    alt app_managed_recovery = true
+        Note over Orch: Event handler sets<br/>app_managed_recovery=true
+        Orch->>SAI: Program SAI_QUEUE_ATTR_PFC_DLR_INIT
+        SAI->>HW: Trigger Recovery Action
+        HW->>HW: Apply Recovery Action
+    else app_managed_recovery = false
+        Note over HW: Hardware automatically<br/>applies recovery action
+        HW->>HW: Apply Recovery Action
+    end
 
     Note over HW: Storm Subsides
     HW->>HW: Restoration Timer Expires
@@ -230,10 +238,10 @@ There may be a granularity associated with the timers, so it is possible that th
 For example: if the hardware granularity is 100 ms and configured detection time through cli is 250 ms, then hardware might program either 200/300 ms.
 
 **Upper limit on the timer value**
-Some platforms like broadcom only allow the timer value to be within the range <1-15> multiplied with the current granularity. So, it is possible that the value in the cli config cannot be programmed in the hardware. There is no mechanism to notify the config status today.
+Some platforms like broadcom only allow the timer value to be within the range <1-15> multiplied with the current granularity. So, it is possible that the value in the cli config cannot be programmed in the hardware.
 
 **New CLI command**
-We propose to add a new CLI command `show pfcwd status` to display hardware-specific information including recovery type, hardware detection time, hardware restoration time, detection time granularity, and restoration time granularity.
+We propose to add a new CLI command `show pfcwd status` to display hardware-specific information including recovery type, programming status, hardware detection time, hardware restoration time, detection time granularity, and restoration time granularity. The STATUS column indicates whether the pfcwd configuration was successfully programmed (success/failed). Configuration can fail due to unsupported timer value ranges or hardware constraints.
 
 #### 5.1 CLI Data Flow
 
@@ -249,22 +257,25 @@ flowchart LR
     C --> E[Get Actual HW Timer Values]
     C --> F[Get Platform Granularity]
     C --> G[Get Recovery Type]
+    C --> J[Validate Timer Ranges]
 
     E --> H[Format Display Data]
     F --> H
     G --> H
+    J --> H
     D --> H
 
-    H --> I[Display Table with:<br/>PORT, RECOVERY TYPE, HW DETECTION TIME,<br/>DETECTION GRANULARITY, HW RESTORATION TIME,<br/>RESTORATION GRANULARITY]
+    H --> I[Display Table with:<br/>PORT, RECOVERY TYPE, STATUS,<br/>HW DETECTION TIME, DETECTION GRANULARITY,<br/>HW RESTORATION TIME, RESTORATION GRANULARITY]
 ```
 
 ```shell
 admin@sonic:~$ show pfcwd status
-PORT        RECOVERY TYPE    HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
-----------  -------------    -------------------  ---------------------    ---------------------  -----------------------
-Ethernet0   hardware         300                  100ms                    500                    100ms
-Ethernet4   software         N/A                  N/A                      N/A                    N/A
-Ethernet8   hardware         200                  50ms                     400                    100ms
+PORT        RECOVERY TYPE    STATUS     HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
+----------  -------------    --------   -------------------  ---------------------    ---------------------  -----------------------
+Ethernet0   hardware         success    300                  100ms                    500                    100ms
+Ethernet4   software         success    N/A                  N/A                      N/A                    N/A
+Ethernet8   hardware         success    200                  50ms                     400                    100ms
+Ethernet12  hardware         failed     N/A                  100ms                    N/A                    100ms
 ```
 
 ## 6. SAI API
