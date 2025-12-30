@@ -8,6 +8,7 @@
 | 0.4 | 05/06/2024 | Riff Jiang | Added drop counters for pipeline monitoring. |
 | 0.5 | 06/03/2024 | Riff Jiang | Added DASH BFD probe state update workflow and DB schema. |
 | 0.6 | 03/23/2025 | Riff Jiang | Split DPU table into DPU and REMOTE_DPU. Add FEATURE table. |
+| 0.7 | 12/31/2025 | Vivek Reddy Karri | Added flow dump feature: schema and workflow |
 
 1. [1. High level data flow](#1-high-level-data-flow)
    1. [1.1. Upstream config programming path](#11-upstream-config-programming-path)
@@ -37,6 +38,8 @@
          1. [2.3.1.1. HA set configurations](#2311-ha-set-configurations)
          2. [2.3.1.2. HA scope configurations](#2312-ha-scope-configurations)
          3. [2.3.1.3. Flow sync sessions](#2313-flow-sync-sessions)
+         4. [2.3.1.4. Flow dump filter](#2314-flow-dump-filter)
+         5. [2.3.1.5. Flow dump sessions](#2315-flow-dump-sessions)
       2. [2.3.2. APPL\_DB (per-NPU)](#232-appl_db-per-npu)
          1. [2.3.2.1. DASH\_ENI\_FORWARD\_TABLE](#2321-dash_eni_forward_table)
       3. [2.3.3. CHASSIS\_STATE\_DB (per-NPU)](#233-chassis_state_db-per-npu)
@@ -45,7 +48,8 @@
          1. [2.3.4.1. HA set state](#2341-ha-set-state)
          2. [2.3.4.2. HA scope state](#2342-ha-scope-state)
          3. [2.3.4.3. Flow sync session states](#2343-flow-sync-session-states)
-         4. [2.3.4.4. DASH BFD probe state](#2344-dash-bfd-probe-state)
+         4. [2.3.4.4. Flow dump session states](#2344-flow-dump-session-states)
+         5. [2.3.4.5. DASH BFD probe state](#2345-dash-bfd-probe-state)
 3. [3. Telemetry](#3-telemetry)
    1. [3.1. HA state and related health signals](#31-ha-state-and-related-health-signals)
    2. [3.2. Traffic forwarding related](#32-traffic-forwarding-related)
@@ -60,6 +64,9 @@
       1. [3.4.1. Data plane channel probing (Per-HA Set)](#341-data-plane-channel-probing-per-ha-set)
       2. [3.4.2. Inline flow sync (Per-ENI)](#342-inline-flow-sync-per-eni)
       3. [3.4.3. Bulk sync related counters (Per-HA Set)](#343-bulk-sync-related-counters-per-ha-set)
+   5. [3.5. Flow dump for debugging](#35-flow-dump-for-debugging)
+      1. [3.5.1. Flow dump workflow](#351-flow-dump-workflow)
+      2. [3.5.2. File management](#352-file-management)
 4. [4. SAI APIs](#4-sai-apis)
 5. [5. CLI commands](#5-cli-commands)
 
@@ -562,6 +569,30 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | target_server_ip | The IP of the server that used to receive flow records. |
 | | | target_server_port | The port of the server that used to receive flow records. |
 
+##### 2.3.1.4. Flow dump filter
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_FLOW_DUMP_FILTER_TABLE | | | Flow dump filter for selecting flows to dump. |
+| | \<FILTER_NAME\> | | Filter name. |
+| | | key | Filter key: eni_addr, ip_protocol, src_ip_addr, dst_ip_addr, src_l4_port, dst_l4_port, or key_version. |
+| | | op | Filter operation: equal_to, greater_than, greater_than_or_equal_to, less_than, or less_than_or_equal_to. |
+| | | value | Value to compare against. Type can be INT, IP, or MAC depending on key |
+
+##### 2.3.1.5. Flow dump sessions
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_FLOW_DUMP_SESSION_TABLE | | | Flow dump session for debugging/testing. |
+| | \<SESSION_NAME\> | | Session name. |
+| | | flow_state | Boolean: "True/true" or "False/false" |
+| | | filter_1 | Reference to filter name (optional). |
+| | | filter_2 | Reference to filter name (optional). |
+| | | filter_3 | Reference to filter name (optional). |
+| | | filter_4 | Reference to filter name (optional). |
+| | | filter_5 | Reference to filter name (optional). |
+| | | max_flows | Maximum flows to dump (optional). |
+
 #### 2.3.2. APPL_DB (per-NPU)
 
 ##### 2.3.2.1. DASH_ENI_FORWARD_TABLE
@@ -634,7 +665,18 @@ DPU state table stores the health states of each DPU. These data are collected b
 | | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
 | | | last_state_start_time_in_ms | Flow sync session last state start time in milliseconds. |
 
-##### 2.3.4.4. DASH BFD probe state
+##### 2.3.4.4. Flow dump session states
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_FLOW_DUMP_SESSION_STATE | | | Flow dump session state. |
+| | \<SESSION_NAME\> | | Session name. |
+| | | session_id | SAI object ID of the session. |
+| | | status | Session status: "created", "in_progress", "completed", "failed". |
+| | | output_file | Path to output file: `/var/log/flows/flow_dump_<timestamp>.json`. |
+| | | flow_count | Number of flows dumped. |
+
+##### 2.3.4.5. DASH BFD probe state
 
 The schema of `DASH_BFD_PROBE_STATE` table is defined in the [SmartSwitch BFD HLD](https://github.com/sonic-net/SONiC/pull/1635). Please refer to it for detailed definition.
 
@@ -796,6 +838,38 @@ Besides the channel status, we should also have the following counters for the b
 | SAI_HA_SET_STAT_BULK_SYNC_MESSAGE_SEND_FAILED | Number of messages we failed to sent for bulk sync via data channel. |
 | SAI_HA_SET_STAT_BULK_SYNC_FLOW_RECEIVED | Number of flows received from bulk sync message. A single bulk sync message can contain many flow records. |
 | SAI_HA_SET_STAT_BULK_SYNC_FLOW_SENT | Number of flows sent via bulk sync message. A single bulk sync message can contain many flow records. |
+
+### 3.5. Flow dump for debugging
+
+Flow dump is a debugging/testing feature that exports all active flows from SDK to userspace.  This is a highly resource-intensive operation. 
+
+Traditional pattern would be to relay the flow data from syncd to orchagent. To optimize this, we directly write from syncd process to a file directly.
+
+#### 3.5.1. Flow dump workflow
+
+1. User creates optional filter in `DASH_FLOW_DUMP_FILTER_TABLE` to select specific flows.
+2. User creates session using `DASH_FLOW_DUMP_SESSION_TABLE`
+3. DPU orchagent creates SAI bulk session objects with mode `EVENT` or `EVENT_WITHOUT_FLOW_STATE`.
+4. Orchagent updates `DASH_FLOW_DUMP_SESSION_STATE` with status "in_progress".
+5. SDK streams flow entries via callback `sai_flow_bulk_get_session_event_notification_fn`.
+6. **Syncd writes each flow as JSON line to `/var/log/flows/flow_dump_<timestamp>.json`**.
+7. Syncd sends `SAI_FLOW_BULK_GET_SESSION_EVENT_FINISHED` notification to orchagent
+8. Syncd closes file and notifies orchagent with filename and flow count.
+9. Orchagent updates state table with status "completed", output file path, and flow count.
+
+#### 3.5.2. File management
+
+**Output location**: `/var/log/flows/`  
+**File format**: JSON Lines (JSONL) - one flow entry per line  
+**Naming**: `flow_dump_<monotonic_timestamp>.json`
+
+**Logrotate policy**:
+- Maximum 4 files retained
+- When 5th file is created, oldest file is automatically deleted
+- No compression to keep files immediately readable
+- Rotation handled by syncd flow dump writer
+
+**File lifecycle**: Session creation → File open → Stream flows → File close → State update → Rotation check
 
 ## 4. SAI APIs
 
