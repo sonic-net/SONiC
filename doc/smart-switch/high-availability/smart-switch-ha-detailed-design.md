@@ -8,6 +8,7 @@
 | 0.4 | 05/06/2024 | Riff Jiang | Added drop counters for pipeline monitoring. |
 | 0.5 | 06/03/2024 | Riff Jiang | Added DASH BFD probe state update workflow and DB schema. |
 | 0.6 | 03/23/2025 | Riff Jiang | Split DPU table into DPU and REMOTE_DPU. Add FEATURE table. |
+| 0.7 | 12/31/2025 | Vivek Reddy Karri | Added flow dump and timeout field to Bulk sync |
 
 1. [1. High level data flow](#1-high-level-data-flow)
    1. [1.1. Upstream config programming path](#11-upstream-config-programming-path)
@@ -37,6 +38,8 @@
          1. [2.3.1.1. HA set configurations](#2311-ha-set-configurations)
          2. [2.3.1.2. HA scope configurations](#2312-ha-scope-configurations)
          3. [2.3.1.3. Flow sync sessions](#2313-flow-sync-sessions)
+         4. [2.3.1.4. Flow dump filter](#2314-flow-dump-filter)
+         5. [2.3.1.5. Flow dump sessions](#2315-flow-dump-sessions)
       2. [2.3.2. APPL\_DB (per-NPU)](#232-appl_db-per-npu)
          1. [2.3.2.1. DASH\_ENI\_FORWARD\_TABLE](#2321-dash_eni_forward_table)
       3. [2.3.3. CHASSIS\_STATE\_DB (per-NPU)](#233-chassis_state_db-per-npu)
@@ -45,7 +48,8 @@
          1. [2.3.4.1. HA set state](#2341-ha-set-state)
          2. [2.3.4.2. HA scope state](#2342-ha-scope-state)
          3. [2.3.4.3. Flow sync session states](#2343-flow-sync-session-states)
-         4. [2.3.4.4. DASH BFD probe state](#2344-dash-bfd-probe-state)
+         4. [2.3.4.4. Flow dump session states](#2344-flow-dump-session-states)
+         5. [2.3.4.5. DASH BFD probe state](#2345-dash-bfd-probe-state)
 3. [3. Telemetry](#3-telemetry)
    1. [3.1. HA state and related health signals](#31-ha-state-and-related-health-signals)
    2. [3.2. Traffic forwarding related](#32-traffic-forwarding-related)
@@ -60,6 +64,11 @@
       1. [3.4.1. Data plane channel probing (Per-HA Set)](#341-data-plane-channel-probing-per-ha-set)
       2. [3.4.2. Inline flow sync (Per-ENI)](#342-inline-flow-sync-per-eni)
       3. [3.4.3. Bulk sync related counters (Per-HA Set)](#343-bulk-sync-related-counters-per-ha-set)
+   5. [3.5. Flow dump for debugging](#35-flow-dump-for-debugging)
+      1. [3.5.1. Flow dump workflow](#351-flow-dump-workflow)
+      2. [3.5.2. File management](#352-file-management)
+      3. [3.5.3. JSON format specification](#353-json-format-specification)
+      4. [3.5.4. Scale considerations](#354-scale-considerations)
 4. [4. SAI APIs](#4-sai-apis)
 5. [5. CLI commands](#5-cli-commands)
 
@@ -561,6 +570,32 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | ha_set_id | HA set id. |
 | | | target_server_ip | The IP of the server that used to receive flow records. |
 | | | target_server_port | The port of the server that used to receive flow records. |
+| | | timeout | timeout to mark the status as failed if the finished notification is not recieved (default is 120 secs)  |
+
+##### 2.3.1.4. Flow dump filter
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_FLOW_DUMP_FILTER_TABLE | | | Flow dump filter for selecting flows to dump. |
+| | \<FILTER_NAME\> | | Filter name. |
+| | | key | Filter key: eni_addr, ip_protocol, src_ip_addr, dst_ip_addr, src_l4_port, dst_l4_port, or key_version. |
+| | | op | Filter operation: equal_to, greater_than, greater_than_or_equal_to, less_than, or less_than_or_equal_to. |
+| | | value | Value to compare against. Type can be INT, IP, or MAC depending on key |
+
+##### 2.3.1.5. Flow dump sessions
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_FLOW_DUMP_SESSION_TABLE | | | Flow dump session for debugging/testing. |
+| | \<SESSION_ID\> | | Session ID. |
+| | | flow_state | Boolean: "True/true" or "False/false". If flow state is false, only values under sai_flow_entry_t are present |
+| | | filter_1 | Reference to filter name (optional). |
+| | | filter_2 | Reference to filter name (optional). |
+| | | filter_3 | Reference to filter name (optional). |
+| | | filter_4 | Reference to filter name (optional). |
+| | | filter_5 | Reference to filter name (optional). |
+| | | max_flows | Maximum flows to dump (optional). |
+| | | timeout | timeout to mark the status as failed if the finished notification is not recieved (default is 300 secs)  |
 
 #### 2.3.2. APPL_DB (per-NPU)
 
@@ -634,7 +669,19 @@ DPU state table stores the health states of each DPU. These data are collected b
 | | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
 | | | last_state_start_time_in_ms | Flow sync session last state start time in milliseconds. |
 
-##### 2.3.4.4. DASH BFD probe state
+##### 2.3.4.4. Flow dump session states
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_FLOW_DUMP_SESSION_STATE | | | Flow dump session state. |
+| | \<SESSION_NAME\> | | Session name (same as config table key). |
+| | | state | Session status: "created", "in_progress", "completed", "failed". |
+| | | oid | Bulk session Object OID, needed for syncd to update the output_file and flow_count |
+| | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
+| | | output_file | Path to output file: `/var/dump/flows/flow_dump_<timestamp>.jsonl.gz`. |
+| | | flow_count | Number of flows dumped. |
+
+##### 2.3.4.5. DASH BFD probe state
 
 The schema of `DASH_BFD_PROBE_STATE` table is defined in the [SmartSwitch BFD HLD](https://github.com/sonic-net/SONiC/pull/1635). Please refer to it for detailed definition.
 
@@ -796,6 +843,146 @@ Besides the channel status, we should also have the following counters for the b
 | SAI_HA_SET_STAT_BULK_SYNC_MESSAGE_SEND_FAILED | Number of messages we failed to sent for bulk sync via data channel. |
 | SAI_HA_SET_STAT_BULK_SYNC_FLOW_RECEIVED | Number of flows received from bulk sync message. A single bulk sync message can contain many flow records. |
 | SAI_HA_SET_STAT_BULK_SYNC_FLOW_SENT | Number of flows sent via bulk sync message. A single bulk sync message can contain many flow records. |
+
+### 3.5. Flow dump for debugging
+
+Flow dump is a debugging/testing feature that exports all active flows from SDK to userspace.  This is a highly resource-intensive operation. 
+
+Traditional pattern would be to relay the flow data from syncd to orchagent. This would atleast 2 serialize and 2 deserialize operations as of today. To optimize this, we directly write from syncd process to a file directly.
+
+#### 3.5.1. Flow dump workflow
+
+**Flow Diagram:**
+
+```
+┌──────┐      ┌─────────────┐      ┌──────────────┐      ┌──────────────┐       ┌────────┐      ┌─────┐
+│ User │      │ GNMI Server │      │ DPU Orchagent│      │ DPU_STATE_DB │       │ Syncd  │      │ SDK │
+│      │      │  (via ZMQ)  │      │              │      │              │       │        │      │     │
+└───┬──┘      └──────┬──────┘      └──────┬───────┘      └──────┬───────┘       └───┬────┘      └──┬──┘
+    │                │                    │                     │                   │              │
+    │ 1. Create      │                    │                     │                   │              │
+    │   Filter(s)    │                    │                     │                   │              │
+    │───────────────>│                    │                     │                   │              │
+    │                │                    │                     │                   │              │
+    │ 2. Create      │                    │                     │                   │              │
+    │   Session      │                    │                     │                   │              │
+    │───────────────>│                    │                     │                   │              │
+    │                │  3. Push config    │                     │                   │              │
+    │                │───────────────────>│                     │                   │              │
+    │                │                    │                     │                   │              │
+    │                │                    │ 4. Create SAI       │                   │              │
+    │                │                    │    Filter & Session │                   │              │
+    │                │                    │────────────────────────────────────────>│              │
+    │                │                    │                     │                   │  SAI API     │
+    │                │                    │                     │                   │─────────────>│
+    │                │                    │                     │                   │              │
+    │                │                    │ 5. Write OID & STATE│                   │              │
+    │                │                    │  status="in_progress"                   │              │
+    │                │                    │────────────────────>│                   │              │
+    │                │                    │                     │                   │              │
+    │                │                    │                     │                   │ 6. Stream    │
+    │                │                    │                     │                   │    flows     │
+    │                │                    │                     │                   │<─────────────│
+    │                │                    │                     │                   │ (callback)   │
+    │                │                    │                     │                   │              │
+    │                │                    │                     │                   │ 7. Write     │
+    │                │                    │                     │                   │    JSON      │
+    │                │                    │                     │                   │─────┐        │
+    │                │                    │                     │                   │     │to file │
+    │                │                    │                     │                   │<────┘        │
+    │                │                    │                     │                   │/var/log/flows│
+    │                │                    │                     │                   │              │
+    │                │                    │                     │                   │ 8. FINISHED  │
+    │                │                    │                     │                   │     event    │
+    │                │                    │                     │                   │<─────────────│
+    │                │                    │                     │                   │              │
+    │                │                    │                     │  9. Update STATE  │              │
+    │                │                    │                     │  output_file=...  │              │
+    │                │                    │                     │  flow_count=N     │              │
+    │                │                    │                     │<─────────────────-│              │
+    │                │                    │                     │                   │              │
+    │                │                    │ 10. Notify          │                   │              │
+    │                │                    │    completion       │                   │              │
+    │                │                    │<────────────────────────────────────────│              │
+    │                │                    │                     │                   │              │
+    │                │                    │ 11. Write STATE     │                   │              │
+    │                │                    │  status="completed" │                   │              │
+    │                │                    │────────────────────>│                   │              │
+    │                │                    │                     │                   │              │
+    │                │                    │                     │                   │              │
+    │                │                    │                     │                   │              │
+    │                │                    │ 12. Timeout watchdog│                   │              │
+    │                │                    │  (if no COMPLETION) │                   │              │
+    │                │                    │────────────────────>│                   │              │
+    │                │                    │  status="failed"    │                   │              │
+    │                │                    │                     │                   │              │
+```
+
+
+#### 3.5.2. File management
+
+**Output location**: `/var/dump/flows/`  
+**File format**: GZIP compressed JSON Lines (JSONL) - one flow entry per line  
+**Naming**: `flow_dump_<monotonic_timestamp>.jsonl.gz`
+
+**Logrotate policy**:
+- Maximum 2 files retained
+- Rotation handled by syncd
+
+**File lifecycle**: Session creation → SAI sends flows → Rotation check -> File open → Stream flows → File close → State update 
+
+#### 3.5.3. JSON format specification
+
+**Key fields** (always present, 7 fields):
+- `em` = eni_mac (MAC address string)
+- `vn` = vnet_id (uint16, optional - may not be present)
+- `pr` = ip_proto (uint8)
+- `si` = src_ip (IP address string)
+- `di` = dst_ip (IP address string)
+- `sp` = src_port (uint16)
+- `dp` = dst_port (uint16)
+
+**Attribute fields**:
+- Attributes are encoded as numeric keys representing enum IDs. For Eg: ACTION = 0, VERSION = 1. 
+- String equivalent for key is `(SAI_FLOW_ENTRY_ATTR_<NAME>)`
+- List of all attributes: https://github.com/opencomputeproject/SAI/blob/v1.17/experimental/saiexperimentaldashflow.h#L149
+- Values are typed based on the attribute (int, bool, string, MAC, IP)
+
+**Example JSON line:**
+```json
+{"em":"00:1a:2b:3c:4d:5e","vn":100,"pr":6,"si":"10.0.1.5","di":"192.168.1.100","sp":45678,"dp":443,"0":0,"1":1,"2":1,"3":2,"4":5,"5":false,"6":"00:1a:2b:3c:4d:6f","7":100,"8":6,"9":"192.168.1.100","10":"10.0.1.5","11":443,"12":45678,"13":1000,"14":"100.64.0.1","15":"100.64.0.2"}
+```
+
+**Attribute ID mapping** (partial list):
+| ID | Attribute Name | Type |
+|----|----------------|------|
+| 0 | action | uint32 |
+| 1 | version | uint32 |
+| 2 | dash_direction | enum |
+| 3 | dash_flow_action | enum |
+| 4 | meter_class | uint32 |
+| 5 | is_unidirectional_flow | bool |
+| 6 | reverse_flow_eni_mac | MAC |
+| 7 | reverse_flow_vnet_id | uint16 |
+
+Full mapping available in SAI header `sai_flow_entry_attr_t struct`
+
+#### 3.5.4. Scale considerations
+
+**Total per flow:** 
+
+~300 bytes when saved without compression calculated with 7 field and average of 15 attributes
+
+**64M flows (maximum scale, average load):**
+- Raw size: 300 bytes × 67,108,864 = **18.75 GB**
+- Compressed (gzip): 3-10x reduction. ~4 GB
+- Note: Compression will be done for a batch of flows as they are recieved and will be appended to the file. Higher the number of records per callback from SAI/SDK, lower the size
+
+**Important limitations:**
+- Flow dump with Mode Event is NOT suitable for full-scale dumps
+- Intended for **debugging specific flows** using filters and during tests
+- Should expand to alternatives such as gRPC for full scale
+
 
 ## 4. SAI APIs
 
