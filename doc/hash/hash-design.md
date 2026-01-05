@@ -465,8 +465,6 @@ LAG_PKT_TYPE_HASH_CAPABLE   = capability-knob ; specifies whether switch is LAG 
 HASH|ECMP_PKT_TYPE_LIST     = pkt-type-list   ; packet type capabilities for hashing packets going through ECMP
 HASH|LAG_PKT_TYPE_LIST      = pkt-type-list   ; packet type capabilities for hashing packets going through LAG
 
-
-
 ; value annotations
 capability-knob = "true" / "false"
 hash-field      = ""
@@ -527,34 +525,34 @@ INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER
 6) "CRC"
 7) "lag_hash_algorithm"
 8) "CRC"
-9) "ecmp_hash@ipv4"
+9) "ecmp_hash_ipv4"
 10) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
-11) "ecmp_hash@ipv6"
+11) "ecmp_hash_ipv6"
 12) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
-13) "ecmp_hash@ipnip"
+13) "ecmp_hash_ipnip"
 14) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
-15) "ecmp_hash@ipv4_rdma"
+15) "ecmp_hash_ipv4_rdma"
 16) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
-17) "ecmp_hash@ipv6_rdma"
+17) "ecmp_hash_ipv6_rdma"
 18) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
-19) "lag_hash@ipv4"
+19) "lag_hash_ipv4"
 20) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
-21) "lag_hash@ipv6"
+21) "lag_hash_ipv6"
 22) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
-23) "lag_hash@ipnip"
+23) "lag_hash_ipnip"
 24) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
-25) "lag_hash@ipv4_rdma"
+25) "lag_hash_ipv4_rdma"
 26) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
-27) "lag_hash@ipv6_rdma"
+27) "lag_hash_ipv6_rdma"
 28) "DST_MAC,SRC_MAC,ETHERTYPE,IP_PROTOCOL,DST_IP,SRC_IP,L4_DST_PORT,L4_SRC_PORT, \
 INNER_DST_MAC,INNER_SRC_MAC,INNER_ETHERTYPE,INNER_IP_PROTOCOL,INNER_DST_IP,INNER_SRC_IP,INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DEST_QP"
 ```
@@ -586,7 +584,6 @@ INNER_L4_DST_PORT,INNER_L4_SRC_PORT,IPV6_FLOW_LABEL,RDMA_BTH_OPCODE,RDMA_BTH_DES
 20) "IPV4","IPV4_IN_IPV4","IPV6","IPV4_RDMA","IPV6_RDMA" 
 19) "HASH|LAG_PKT_TYPE_LIST"
 20) "IPV4","IPV4_IN_IPV4","IPV6","IPV4_RDMA","IPV6_RDMA"
-
 ```
 
 ### 2.4.4 Configuration sample
@@ -830,11 +827,11 @@ And the second one is for getting the actual data.
 config
 |--- switch-hash
      |--- global
-          |--- ecmp-hash [--packet-type <pkt-type> --action <add|del>] ARGS
-          |--- lag-hash [--packet-type <pkt-type> --action <add|del>] ARGS
+          |--- ecmp-hash [--packet-type <pkt-type> [--action <add|del>]] ARGS
+          |--- lag-hash [--packet-type <pkt-type> [--action <add|del>]] ARGS
           |--- ecmp-hash-algorithm ARG
           |--- lag-hash-algorithm ARG
-          
+
 show
 |--- switch-hash
      |--- global [packet-type <pkt-type>]
@@ -845,20 +842,25 @@ show
   - _all, ipv4, ipv6, ipnip, ipv4-rdma, ipv6-rdma_
 - _In config command:_
   - _`--packet-type <pkt-type>`: Optional parameter; if omitted, updates global hash_
-  - _`--action <add|del>`: Required when `--packet-type` is specified_
-    - _`add`: Adds the specified hash fields for the given packet-type hash. Duplicate fields are ignored_
-    - _`del`: Removes the specified hash fields for the given packet-type hash. If no hash fields are provided, the given packet-type hash is deleted_  
-    
+  - `--action <add|del>`: 
+    - _Optional parameter, applicable only when packet-type is specified_
+    - _If `action` omitted overwrites packet hash fields_
+    - _`add`:  
+          - Merge hash fields into existing list_
+    - _`del`:  
+          - Removes the specified hash fields for the given packet-type hash   
+          - If no ARGS are provided, the given packet-type hash is deleted_  
+   
 - _In show command:_
   - _`packet-type <pkt-type>` is optional; `all` packet-type is valid only for show_
   - _If pkt-type omitted: Shows global hash configuration/capabilities_
-  - _If pkt-type is all: Shows all packet type hash configuration/capabilities_
+  - _If pkt-type is `all`: Shows all packet type hash configuration/capabilities_
 
 ### 2.6.2 Usage examples
 
 #### 2.6.2.1 Config command group
 
-**The following command updates switch hash global defaults:**  
+**The following command updates switch hash global defaults:**
 **Note:-**
 _RDMA_BTH_OPCODE and RDMA_BTH_DEST_QP are optional fields in the global hash configuration._
 _They are supported by the design but can be omitted from update commands if not required._
@@ -905,7 +907,9 @@ config switch-hash global lag-hash \
 'IPV6_FLOW_LABEL' 
 ```
 
-**The following command creates switch packet-type hash:**
+**The following command creates\updates switch packet-type hash:**
+**Note:-**
+_It is a create operation if packet-type hash does not exists, else it is a hash fields update operation_
 ```bash
 config switch-hash global ecmp-hash --packet-type ipv4-rdma --action add \
 'DST_MAC' \
@@ -918,44 +922,34 @@ config switch-hash global ecmp-hash --packet-type ipv4-rdma --action add \
 'L4_SRC_PORT' \
 'RDMA_BTH_OPCODE' \
 'RDMA_BTH_DEST_QP'
-
-config switch-hash global lag-hash --packet-type ipnip --action add \
-'IP_PROTOCOL' \
-'DST_IP' \
-'SRC_IP' \
-'L4_DST_PORT' \
-'L4_SRC_PORT' \
-'INNER_DST_MAC' \
-'INNER_SRC_MAC' \
-'INNER_ETHERTYPE' \
-'INNER_IP_PROTOCOL' \
-'INNER_DST_IP' \
-'INNER_SRC_IP' \
-'INNER_L4_DST_PORT' \
-'INNER_L4_SRC_PORT' \
 ```
 
-**The following command updates switch packet-type hash:**
+**The following command creates\overwrites switch packet-type hash fields:**
+**Note:-**
+_It is a create operation if packet-type hash does not exists, else it is a hash fields overwrite operation_
 ```bash
-config switch-hash global ecmp-hash --packet-type ipv4-rdma --action add \
+config switch-hash global ecmp-hash --packet-type ipv4-rdma \
 'DST_IP' \
 'SRC_IP' \
-'L4_DST_PORT' \
-'L4_SRC_PORT' \
 'RDMA_BTH_OPCODE' \
 'RDMA_BTH_DEST_QP'
 ```
+
+**The following command deletes switch packet-type hash fields:**
+```bash
+config switch-hash global ecmp-hash --packet-type ipv4-rdma --action del
+'ETHERTYPE' 
+```
+
 **The following command removes switch packet-type hash:**
 ```bash
 config switch-hash global ecmp-hash --packet-type ipv4-rdma --action del
-config switch-hash global lag-hash --packet-type ipnip --action del
-
 ```
+
 **The following command updates switch hash algorithm global:**
 ```bash
 config switch-hash global ecmp-hash-algorithm 'CRC'
 config switch-hash global lag-hash-algorithm 'CRC'
-
 ```
 
 #### 2.6.2.2 Show command group
@@ -1016,145 +1010,145 @@ root@sonic:/home/admin# show switch-hash global
 +--------+-------------------------------------+
 
 root@sonic:/home/admin# show switch-hash global packet-type ipv4-rdma
-+--------+-----------+-----------------------------------+
-| Hash   | Pkt-Type  | Configuration                     |
-+========+===========+===================================+
-| ECMP   | ipv4-rdma | +------------------+------------+ |
-|        |           | | Hash Field       | Algorithm  | |
-|        |           | |------------------+------------| |
-|        |           | | DST_MAC          | CRC        | |
-|        |           | | SRC_MAC          |            | |
-|        |           | | ETHERTYPE        |            | |
-|        |           | | IP_PROTOCOL      |            | |
-|        |           | | DST_IP           |            | |
-|        |           | | SRC_IP           |            | |
-|        |           | | L4_DST_PORT      |            | |
-|        |           | | L4_SRC_PORT      |            | |
-|        |           | | RDMA_BTH_OPCODE  |            | |
-|        |           | | RDMA_BTH_DEST_QP |            | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| LAG    | ipv4-rdma | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
++--------+---------------+------------------------+
+| Hash   | Packet Type   | Configuration          |
++========+===============+========================+
+| ECMP   | ipv4-rdma     | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | DST_MAC            | |
+|        |               | | SRC_MAC            | |
+|        |               | | ETHERTYPE          | |
+|        |               | | IP_PROTOCOL        | |
+|        |               | | DST_IP             | |
+|        |               | | SRC_IP             | |
+|        |               | | L4_DST_PORT        | |
+|        |               | | L4_SRC_PORT        | |
+|        |               | | RDMA_BTH_OPCODE    | |
+|        |               | | RDMA_BTH_DEST_QP   | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| LAG    | ipv4-rdma     | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
 
 root@sonic:/home/admin# show switch-hash global packet-type ipnip
-+--------+-----------+-----------------------------------+
-| Hash   | Pkt-Type  | Configuration                     |
-+========+===========+===================================+
-| ECMP   | ipnip     | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| LAG    | ipnip     | +-------------------------------+ |
-|        |           | | Hash Field        | Algorithm | |
-|        |           | |-------------------+-----------| |
-|        |           | | IP_PROTOCOL       | CRC       | |
-|        |           | | DST_IP            |           | |
-|        |           | | SRC_IP            |           | |
-|        |           | | L4_DST_PORT       |           | |
-|        |           | | L4_SRC_PORT       |           | |
-|        |           | | INNER_DST_MAC     |           | |
-|        |           | | INNER_SRC_MAC     |           | |
-|        |           | | INNER_ETHERTYPE   |           | |
-|        |           | | INNER_IP_PROTOCOL |           | |
-|        |           | | INNER_DST_IP      |           | |
-|        |           | | INNER_SRC_IP      |           | |
-|        |           | | INNER_L4_DST_PORT |           | |
-|        |           | | INNER_L4_SRC_PORT |           | |
-|        |           | +-------------------+-----------+ |
-+--------+-----------+-----------------------------------+
++--------+---------------+------------------------+
+| Hash   | Packet Type   | Configuration          |
++========+===============+========================+
+| ECMP   | ipnip         | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| LAG    | ipnip         | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | IP_PROTOCOL        | |
+|        |               | | DST_IP             | |
+|        |               | | SRC_IP             | |
+|        |               | | L4_DST_PORT        | |
+|        |               | | L4_SRC_PORT        | |
+|        |               | | INNER_DST_MAC      | |
+|        |               | | INNER_SRC_MAC      | |
+|        |               | | INNER_ETHERTYPE    | |
+|        |               | | INNER_IP_PROTOCOL  | |
+|        |               | | INNER_DST_IP       | |
+|        |               | | INNER_SRC_IP       | |
+|        |               | | INNER_L4_DST_PORT  | |
+|        |               | | INNER_L4_SRC_PORT  | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
 
 root@sonic:/home/admin# show switch-hash global packet-type all
-+--------+-----------+-----------------------------------+
-| Hash   | Pkt-Type  | Configuration                     |
-+========+===========+===================================+
-| ECMP   | ipv4      | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| ECMP   | ipv6      | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| ECMP   | ipnip     | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| ECMP   | ipv4-rdma | +------------------+------------+ |
-|        |           | | Hash Field       | Algorithm  | |
-|        |           | |------------------+------------| |
-|        |           | | DST_MAC          | CRC        | |
-|        |           | | SRC_MAC          |            | |
-|        |           | | ETHERTYPE        |            | |
-|        |           | | IP_PROTOCOL      |            | |
-|        |           | | DST_IP           |            | |
-|        |           | | SRC_IP           |            | |
-|        |           | | L4_DST_PORT      |            | |
-|        |           | | L4_SRC_PORT      |            | |
-|        |           | | RDMA_BTH_OPCODE  |            | |
-|        |           | | RDMA_BTH_DEST_QP |            | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| ECMP   | ipv6-rdma | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| LAG    | ipv4      | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| LAG    | ipv6      | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| LAG    | ipnip     | +-------------------------------+ |
-|        |           | | Hash Field        | Algorithm | |
-|        |           | |-------------------+-----------| |
-|        |           | | IP_PROTOCOL       | CRC       | |
-|        |           | | DST_IP            |           | |
-|        |           | | SRC_IP            |           | |
-|        |           | | L4_DST_PORT       |           | |
-|        |           | | L4_SRC_PORT       |           | |
-|        |           | | INNER_DST_MAC     |           | |
-|        |           | | INNER_SRC_MAC     |           | |
-|        |           | | INNER_ETHERTYPE   |           | |
-|        |           | | INNER_IP_PROTOCOL |           | |
-|        |           | | INNER_DST_IP      |           | |
-|        |           | | INNER_SRC_IP      |           | |
-|        |           | | INNER_L4_DST_PORT |           | |
-|        |           | | INNER_L4_SRC_PORT |           | |
-|        |           | +-------------------+-----------+ |
-+--------+-----------+-----------------------------------+
-| LAG    | ipv4-rdma | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
-| LAG    | ipv6-rdma | +-----------------+-------------+ |
-|        |           | | Hash Field      | Algorithm   | |
-|        |           | |-----------------+-------------| |
-|        |           | | N/A             | N/A         | |
-|        |           | +------------------+------------+ |
-+--------+-----------+-----------------------------------+
++--------+---------------+------------------------+
+| Hash   | Packet Type   | Configuration          |
++========+===============+========================+
+| ECMP   | ipv4          | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| ECMP   | ipv6          | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| ECMP   | ipnip         | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| ECMP   | ipv4-rdma     | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | DST_MAC            | |
+|        |               | | SRC_MAC            | |
+|        |               | | ETHERTYPE          | |
+|        |               | | IP_PROTOCOL        | |
+|        |               | | DST_IP             | |
+|        |               | | SRC_IP             | |
+|        |               | | L4_DST_PORT        | |
+|        |               | | L4_SRC_PORT        | |
+|        |               | | RDMA_BTH_OPCODE    | |
+|        |               | | RDMA_BTH_DEST_QP   | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| ECMP   | ipv6-rdma     | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| LAG    | ipv4          | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| LAG    | ipv6          | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| LAG    | ipnip         | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | IP_PROTOCOL        | |
+|        |               | | DST_IP             | |
+|        |               | | SRC_IP             | |
+|        |               | | L4_DST_PORT        | |
+|        |               | | L4_SRC_PORT        | |
+|        |               | | INNER_DST_MAC      | |
+|        |               | | INNER_SRC_MAC      | |
+|        |               | | INNER_ETHERTYPE    | |
+|        |               | | INNER_IP_PROTOCOL  | |
+|        |               | | INNER_DST_IP       | |
+|        |               | | INNER_SRC_IP       | |
+|        |               | | INNER_L4_DST_PORT  | |
+|        |               | | INNER_L4_SRC_PORT  | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| LAG    | ipv4-rdma     | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
+| LAG    | ipv6-rdma     | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
 ```
 
 **The following command shows switch hash capabilities:**
@@ -1164,7 +1158,7 @@ root@sonic:/home/admin# show switch-hash capabilities
 | Hash   | Capabilities                                              |
 +========+===========================================================+
 | ECMP   | +-------------------+-------------+---------------------+ |
-|        | | Hash Field        | Algorithm   | Pkt-type            | |
+|        | | Hash Field        | Algorithm   | Packet Type         | |
 |        | |-------------------+-------------+---------------------| |
 |        | | IN_PORT           | CRC         | IPV4                | |
 |        | | DST_MAC           | XOR         | IPV6                | |
@@ -1190,7 +1184,7 @@ root@sonic:/home/admin# show switch-hash capabilities
 |        | +-------------------+-------------+---------------------+ |
 +--------+-----------------------------------------------------------+
 | LAG    | +-------------------+-------------+---------------------+ |
-|        | | Hash Field        | Algorithm   | Pkt-type            | |
+|        | | Hash Field        | Algorithm   | Packet Type         | |
 |        | |-------------------+-------------+---------------------| |
 |        | | IN_PORT           | CRC         | IPV4                | |
 |        | | DST_MAC           | XOR         | IPV6                | |
