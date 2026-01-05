@@ -1,4 +1,4 @@
-# Add support for IPv6 Router Advertisement on VLAN Interfaces using OpenConfig YANG.
+# OpenConfig support for VLAN interface router advertisement
 
 # High Level Design Document
 #### Rev 0.1
@@ -39,6 +39,7 @@
   
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
+
 [Table 2: OpenConfig YANG to SONiC YANG Mapping](#table-2-openconfig-yang-to-sonic-yang-mapping)
 
 # Revision
@@ -105,7 +106,7 @@ module: openconfig-interfaces
 7. Map OpenConfig router-advertisement model to SONiC VLAN_INTERFACE and VLAN_INTERFACE_ND_PREFIX tables.
 
 ### 1.1.2 Configuration and Management Requirements
-The IPv6 Router Advertisement configurations can be done via REST and gNMI. The implementation will return an error if a configuration is not allowed. No new configuration commands or methods are added beyond what already exists.
+The IPv6 Router Advertisement configurations can be done via REST and gNMI. The implementation will return an error if a configuration is not allowed.
 
 **Important Notes:**
 - Router Advertisement is only supported on VLAN interfaces (routed-vlan).
@@ -117,7 +118,7 @@ The IPv6 Router Advertisement configurations can be done via REST and gNMI. The 
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-SONiC already supports IPv6 Router Advertisement configurations via SONiC YANG models. This feature adds support for OpenConfig based YANG models using transformer based implementation in the Management Framework.
+SONiC already supports IPv6 Router Advertisement configurations via FRR CLIs. This feature adds support for OpenConfig based YANG models using transformer based implementation in the Management Framework.
 
 The implementation provides mapping between:
 - OpenConfig router-advertisement config parameters → SONiC VLAN_INTERFACE table fields
@@ -126,10 +127,15 @@ The implementation provides mapping between:
 ### 1.2.2 Container
 The code changes for this feature are part of *Management Framework* container which includes the REST server and *gnmi* container for gNMI support in *sonic-mgmt-common* repository.
 
+### 1.2.3 Repository Changes
+Changes are also made in **sonic-buildimage** repository:
+1. **sonic-yang-models**: Update `sonic-vlan.yang` to add new fields in `VLAN_INTERFACE` table and introduce `VLAN_INTERFACE_ND_PREFIX` table.
+2. **sonic-frr-mgmt-framework**: Update to subscribe to new CONFIG_DB tables (`VLAN_INTERFACE` and `VLAN_INTERFACE_ND_PREFIX`) and configure corresponding FRR CLIs.
+
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
 1. REST client through which the user can perform PATCH, DELETE, POST, PUT, and GET operations on IPv6 Router Advertisement configuration paths.
-2. gNMI client with support for capabilities, get and set operations based on the supported YANG models.
+2. gNMI client with support for capabilities, get, set, and subscribe operations based on the supported YANG models.
 
 # 3 Design
 ## 3.1 Overview
@@ -160,8 +166,6 @@ SONiC Key:  "Vlan100|2001:db8::/64"
 ```
 
 ## 3.2 DB Changes
-
-Changes are made in **frrcfgd** daemon to subscribe to the `VLAN_INTERFACE` and `VLAN_INTERFACE_ND_PREFIX` tables in CONFIG_DB and configure the corresponding IPv6 Neighbor Discovery CLIs in FRR (Free Range Routing).
 
 ### 3.2.1 CONFIG DB
 
@@ -200,7 +204,6 @@ VLAN_INTERFACE|Vlan100
   "nd_managed_config_flag": "true"
   "nd_other_config_flag": "false"
   "nd_suppress_ra": "false"
-  "NULL": "NULL"
 ```
 
 **VLAN_INTERFACE_ND_PREFIX Table:**
@@ -208,6 +211,10 @@ VLAN_INTERFACE|Vlan100
 VLAN_INTERFACE_ND_PREFIX|Vlan100|2001:db8::/64
   "disable_autoconfiguration": "true"
 ```
+
+**FRR Configuration:**
+
+Changes are made in **frrcfgd** daemon to subscribe to the `VLAN_INTERFACE` and `VLAN_INTERFACE_ND_PREFIX` tables in CONFIG_DB and configure the corresponding IPv6 Neighbor Discovery CLIs in FRR (Free Range Routing).
 
 ### 3.2.2 APP DB
 There are no changes to APP DB schema definition for this feature.
@@ -236,7 +243,7 @@ Annotations are defined in:
 #### 3.3.2.1 GET
 Supported at all levels (container, list, and leaf).
 
-**Example 1: GET router-advertisement config**
+**Example: GET router-advertisement config**
 ```bash
 curl -X GET -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config" -H "accept: application/yang-data+json"
 ```
@@ -252,106 +259,10 @@ Response:
 }
 ```
 
-**Example 2: GET router-advertisement state**
-```bash
-curl -X GET -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/state" -H "accept: application/yang-data+json"
-```
-
-Response:
-```json
-{
-  "openconfig-if-ip:state": {
-    "managed": true,
-    "other-config": false
-  }
-}
-```
-
-**Example 3: GET specific field - managed flag**
-```bash
-curl -X GET -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config/managed" -H "accept: application/yang-data+json"
-```
-
-Response:
-```json
-{
-  "openconfig-if-ip:managed": true
-}
-```
-
-**Example 4: GET all prefixes**
-```bash
-curl -X GET -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/prefixes" -H "accept: application/yang-data+json"
-```
-
-Response:
-```json
-{
-  "openconfig-if-ip:prefixes": {
-    "prefix": [
-      {
-        "prefix": "2001:db8::/64",
-        "config": {
-          "prefix": "2001:db8::/64",
-          "disable-autoconfiguration": true
-        },
-        "state": {
-          "prefix": "2001:db8::/64",
-          "disable-autoconfiguration": true
-        }
-      },
-      {
-        "prefix": "2001:db8:1::/64",
-        "config": {
-          "prefix": "2001:db8:1::/64",
-          "disable-autoconfiguration": false
-        },
-        "state": {
-          "prefix": "2001:db8:1::/64",
-          "disable-autoconfiguration": false
-        }
-      }
-    ]
-  }
-}
-```
-
-**Example 5: GET specific prefix**
-```bash
-curl -X GET -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/prefixes/prefix=2001:db8::/64" -H "accept: application/yang-data+json"
-```
-
-Response:
-```json
-{
-  "openconfig-if-ip:prefix": [
-    {
-      "prefix": "2001:db8::/64",
-      "config": {
-        "prefix": "2001:db8::/64",
-        "disable-autoconfiguration": true
-      },
-      "state": {
-        "prefix": "2001:db8::/64",
-        "disable-autoconfiguration": true
-      }
-    }
-  ]
-}
-```
-
 #### 3.3.2.2 POST
 Used to create new configuration. Supported at container and leaf levels.
 
-**Example 1: POST router-advertisement config with all parameters**
-```bash
-curl -X POST -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config" \
-  -H "accept: */*" \
-  -H "Content-Type: application/yang-data+json" \
-  -d '{"suppress": false, "managed": true, "other-config": false}'
-```
-
-**Example 2: POST a new prefix**
+**Example: POST a new prefix**
 ```bash
 curl -X POST -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/prefixes" \
   -H "accept: */*" \
@@ -369,15 +280,10 @@ curl -X POST -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfa
   }'
 ```
 
-Verify with GET:
-```bash
-curl -X GET -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config" -H "accept: application/yang-data+json"
-```
-
 #### 3.3.2.3 PUT
 Used to replace entire configuration. Supported at container and leaf levels.
 
-**Example 1: PUT router-advertisement config**
+**Example: PUT router-advertisement config**
 ```bash
 curl -X PUT -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config" \
   -H "accept: */*" \
@@ -390,23 +296,10 @@ curl -X PUT -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfac
   }'
 ```
 
-**Example 2: PUT specific prefix config**
-```bash
-curl -X PUT -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/prefixes/prefix=2001:db8::/64/config" \
-  -H "accept: */*" \
-  -H "Content-Type: application/yang-data+json" \
-  -d '{
-    "config": {
-      "prefix": "2001:db8::/64",
-      "disable-autoconfiguration": false
-    }
-  }'
-```
-
 #### 3.3.2.4 PATCH
 Used to modify specific fields without replacing entire configuration. Supported at all levels.
 
-**Example 1: PATCH managed flag**
+**Example: PATCH managed flag**
 ```bash
 curl -X PATCH -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config/managed" \
   -H "accept: */*" \
@@ -414,58 +307,12 @@ curl -X PATCH -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interf
   -d '{"managed": false}'
 ```
 
-**Example 2: PATCH other-config flag**
-```bash
-curl -X PATCH -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config/other-config" \
-  -H "accept: */*" \
-  -H "Content-Type: application/yang-data+json" \
-  -d '{"other-config": true}'
-```
-
-**Example 3: PATCH disable-autoconfiguration for a specific prefix**
-```bash
-curl -X PATCH -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/prefixes/prefix=2001:db8::/64/config/disable-autoconfiguration" \
-  -H "accept: */*" \
-  -H "Content-Type: application/yang-data+json" \
-  -d '{"disable-autoconfiguration": false}'
-```
-
-Verify with GET:
-```bash
-curl -X GET -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config" -H "accept: application/yang-data+json"
-```
-
-Response:
-```json
-{
-  "openconfig-if-ip:config": {
-    "suppress": false,
-    "managed": false,
-    "other-config": true
-  }
-}
-```
-
-**Example 4: PATCH suppress flag**
-```bash
-curl -X PATCH -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config/suppress" \
-  -H "accept: */*" \
-  -H "Content-Type: application/yang-data+json" \
-  -d '{"suppress": true}'
-```
-
 #### 3.3.2.5 DELETE
 Supported at all levels.
 
-**Example 1: DELETE specific prefix**
+**Example: DELETE specific prefix**
 ```bash
 curl -X DELETE -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/prefixes/prefix=2001:db8::/64" \
-  -H "accept: */*"
-```
-
-**Example 2: DELETE all router-advertisement config**
-```bash
-curl -X DELETE -k "https://192.168.1.1/restconf/data/openconfig-interfaces:interfaces/interface=Vlan100/routed-vlan/ipv6/router-advertisement/config" \
   -H "accept: */*"
 ```
 
@@ -475,7 +322,7 @@ curl -X DELETE -k "https://192.168.1.1/restconf/data/openconfig-interfaces:inter
 
 #### 3.3.3.1 GET
 
-**Example 1: GET router-advertisement config**
+**Example: GET router-advertisement config**
 ```bash
 gnmi_get -insecure -logtostderr -username admin -password password \
   -target_addr localhost:8080 \
@@ -508,81 +355,9 @@ Response:
 ]
 ```
 
-**Example 2: GET specific managed flag**
-```bash
-gnmi_get -insecure -logtostderr -username admin -password password \
-  -target_addr localhost:8080 \
-  -xpath /openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/config/managed
-```
-
-Response:
-```json
-[
-  {
-    "source": "localhost:8080",
-    "timestamp": 1736064000000000000,
-    "time": "2025-01-05T12:00:00Z",
-    "target": "localhost:8080",
-    "updates": [
-      {
-        "Path": "openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/config/managed",
-        "values": {
-          "openconfig-interfaces:interfaces/interface/routed-vlan/ipv6/router-advertisement/config/managed": {
-            "openconfig-if-ip:managed": true
-          }
-        }
-      }
-    ]
-  }
-]
-```
-
-**Example 3: GET all prefixes**
-```bash
-gnmi_get -insecure -logtostderr -username admin -password password \
-  -target_addr localhost:8080 \
-  -xpath /openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/prefixes
-```
-
-Response:
-```json
-[
-  {
-    "source": "localhost:8080",
-    "timestamp": 1736064000000000000,
-    "time": "2025-01-05T12:00:00Z",
-    "target": "localhost:8080",
-    "updates": [
-      {
-        "Path": "openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/prefixes",
-        "values": {
-          "openconfig-interfaces:interfaces/interface/routed-vlan/ipv6/router-advertisement/prefixes": {
-            "openconfig-if-ip:prefixes": {
-              "prefix": [
-                {
-                  "prefix": "2001:db8::/64",
-                  "config": {
-                    "prefix": "2001:db8::/64",
-                    "disable-autoconfiguration": true
-                  },
-                  "state": {
-                    "prefix": "2001:db8::/64",
-                    "disable-autoconfiguration": true
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    ]
-  }
-]
-```
-
 #### 3.3.3.2 SET
 
-**Example 1: SET router-advertisement config**
+**Example: SET router-advertisement config**
 ```bash
 # Create radv_config.json:
 {
@@ -617,50 +392,9 @@ Response:
 ]
 ```
 
-**Example 2: SET prefix**
-```bash
-# Create prefix_config.json:
-{
-  "openconfig-if-ip:prefix": [
-    {
-      "prefix": "2001:db8::/64",
-      "config": {
-        "prefix": "2001:db8::/64",
-        "disable-autoconfiguration": true
-      }
-    }
-  ]
-}
-
-gnmi_set -insecure -logtostderr -username admin -password password \
-  -target_addr localhost:8080 \
-  -xpath_target OC-YANG \
-  -update /openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/prefixes:@/tmp/prefix_config.json
-```
-
-**Example 3: SET managed flag only**
-```bash
-# Create managed_flag.json:
-{
-  "openconfig-if-ip:managed": false
-}
-
-gnmi_set -insecure -logtostderr -username admin -password password \
-  -target_addr localhost:8080 \
-  -xpath_target OC-YANG \
-  -update /openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/config/managed:@/tmp/managed_flag.json
-```
-
-Verify with GET:
-```bash
-gnmi_get -insecure -logtostderr -username admin -password password \
-  -target_addr localhost:8080 \
-  -xpath /openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/config
-```
-
 #### 3.3.3.3 DELETE
 
-**Example 1: DELETE specific prefix**
+**Example: DELETE specific prefix**
 ```bash
 gnmi_set -insecure -logtostderr -username admin -password password \
   -target_addr localhost:8080 \
@@ -686,29 +420,14 @@ Response:
 ]
 ```
 
-**Example 2: DELETE all router-advertisement config**
-```bash
-gnmi_set -insecure -logtostderr -username admin -password password \
-  -target_addr localhost:8080 \
-  -xpath_target OC-YANG \
-  -delete /openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/config
-```
-
-Verify deletion with GET:
-```bash
-gnmi_get -insecure -logtostderr -username admin -password password \
-  -target_addr localhost:8080 \
-  -xpath /openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/config
-```
-
 #### 3.3.3.4 SUBSCRIBE
 
 gNMI subscription is supported for monitoring configuration changes on router-advertisement parameters.
 
-**Example 1: Subscribe to managed flag changes**
+**Example: Subscribe to router-advertisement config changes**
 ```bash
 gnmic -a localhost:8080 -u admin -p password --insecure --target OC-YANG \
-  sub --path "openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/config/managed"
+  sub --path "openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/config"
 ```
 
 Response:
@@ -734,33 +453,14 @@ Response:
 }
 ```
 
-**Example 2: Subscribe to all router-advertisement config changes**
-```bash
-gnmic -a localhost:8080 -u admin -p password --insecure --target OC-YANG \
-  sub --path "openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/config"
-```
-
-**Example 3: Subscribe to prefix configuration changes**
-```bash
-gnmic -a localhost:8080 -u admin -p password --insecure --target OC-YANG \
-  sub --path "openconfig-interfaces:interfaces/interface[name=Vlan100]/routed-vlan/ipv6/router-advertisement/prefixes"
-```
-
 # 4 Error Handling
 
 The implementation handles various error scenarios and returns appropriate error responses:
 
-## 4.1 VLAN Not Configured
-Attempting to configure router-advertisement on a non-existent VLAN interface will return an error indicating the resource was not found.
-
-## 4.2 Non-VLAN Interface
-Attempting to configure router-advertisement on non-VLAN interfaces (Ethernet, PortChannel, Loopback) will return an error indicating an invalid interface name.
-
-## 4.3 Mandatory Field Deletion
-Attempting to delete a mandatory field (such as `disable-autoconfiguration`) from a prefix entry will return an error. The entire prefix entry must be deleted instead.
-
-## 4.4 Invalid IPv6 Prefix Format
-Providing an invalid IPv6 prefix format will return an error indicating the prefix format is invalid.
+- **VLAN Not Configured**: Attempting to configure router-advertisement on a non-existent VLAN interface will return an error indicating the resource was not found.
+- **Non-VLAN Interface**: Attempting to configure router-advertisement on non-VLAN interfaces (Ethernet, PortChannel, Loopback) will return an error indicating an invalid interface name.
+- **Mandatory Field Deletion**: Attempting to delete a mandatory field (such as `disable-autoconfiguration`) from a prefix entry will return an error. The entire prefix entry must be deleted instead.
+- **Invalid IPv6 Prefix Format**: Providing an invalid IPv6 prefix format will return an error indicating the prefix format is invalid.
 
 
 
