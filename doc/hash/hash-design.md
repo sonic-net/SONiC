@@ -907,7 +907,7 @@ config switch-hash global lag-hash \
 'IPV6_FLOW_LABEL' 
 ```
 
-**The following command creates\updates switch packet-type hash:**
+**The following command creates\updates switch packet-type hash:**  
 **Note:-**
 _It is a create operation if packet-type hash does not exists, else it is a hash fields update operation_
 ```bash
@@ -924,7 +924,7 @@ config switch-hash global ecmp-hash --packet-type ipv4-rdma --action add \
 'RDMA_BTH_DEST_QP'
 ```
 
-**The following command creates\overwrites switch packet-type hash fields:**
+**The following command creates\overwrites switch packet-type hash fields:**  
 **Note:-**
 _It is a create operation if packet-type hash does not exists, else it is a hash fields overwrite operation_
 ```bash
@@ -1074,18 +1074,6 @@ root@sonic:/home/admin# show switch-hash global packet-type all
 |        |               | | N/A                | |
 |        |               | +--------------------+ |
 +--------+---------------+------------------------+
-| ECMP   | ipv6          | +--------------------+ |
-|        |               | | Hash Field         | |
-|        |               | |--------------------| |
-|        |               | | N/A                | |
-|        |               | +--------------------+ |
-+--------+---------------+------------------------+
-| ECMP   | ipnip         | +--------------------+ |
-|        |               | | Hash Field         | |
-|        |               | |--------------------| |
-|        |               | | N/A                | |
-|        |               | +--------------------+ |
-+--------+---------------+------------------------+
 | ECMP   | ipv4-rdma     | +--------------------+ |
 |        |               | | Hash Field         | |
 |        |               | |--------------------| |
@@ -1101,6 +1089,12 @@ root@sonic:/home/admin# show switch-hash global packet-type all
 |        |               | | RDMA_BTH_DEST_QP   | |
 |        |               | +--------------------+ |
 +--------+---------------+------------------------+
+| ECMP   | ipv6          | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | N/A                | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
 | ECMP   | ipv6-rdma     | +--------------------+ |
 |        |               | | Hash Field         | |
 |        |               | |--------------------| |
@@ -1110,31 +1104,12 @@ root@sonic:/home/admin# show switch-hash global packet-type all
 | LAG    | ipv4          | +--------------------+ |
 |        |               | | Hash Field         | |
 |        |               | |--------------------| |
-|        |               | | N/A                | |
-|        |               | +--------------------+ |
-+--------+---------------+------------------------+
-| LAG    | ipv6          | +--------------------+ |
-|        |               | | Hash Field         | |
-|        |               | |--------------------| |
-|        |               | | N/A                | |
-|        |               | +--------------------+ |
-+--------+---------------+------------------------+
-| LAG    | ipnip         | +--------------------+ |
-|        |               | | Hash Field         | |
-|        |               | |--------------------| |
+|        |               | | DST_MAC            | |
+|        |               | | SRC_MAC            | |
+|        |               | | ETHERTYPE          | |
 |        |               | | IP_PROTOCOL        | |
 |        |               | | DST_IP             | |
 |        |               | | SRC_IP             | |
-|        |               | | L4_DST_PORT        | |
-|        |               | | L4_SRC_PORT        | |
-|        |               | | INNER_DST_MAC      | |
-|        |               | | INNER_SRC_MAC      | |
-|        |               | | INNER_ETHERTYPE    | |
-|        |               | | INNER_IP_PROTOCOL  | |
-|        |               | | INNER_DST_IP       | |
-|        |               | | INNER_SRC_IP       | |
-|        |               | | INNER_L4_DST_PORT  | |
-|        |               | | INNER_L4_SRC_PORT  | |
 |        |               | +--------------------+ |
 +--------+---------------+------------------------+
 | LAG    | ipv4-rdma     | +--------------------+ |
@@ -1143,10 +1118,23 @@ root@sonic:/home/admin# show switch-hash global packet-type all
 |        |               | | N/A                | |
 |        |               | +--------------------+ |
 +--------+---------------+------------------------+
+| LAG    | ipv6          | +--------------------+ |
+|        |               | | Hash Field         | |
+|        |               | |--------------------| |
+|        |               | | DST_IP             | |
+|        |               | | SRC_IP             | |
+|        |               | | IPV6_FLOW_LABEL    | |
+|        |               | +--------------------+ |
++--------+---------------+------------------------+
 | LAG    | ipv6-rdma     | +--------------------+ |
 |        |               | | Hash Field         | |
 |        |               | |--------------------| |
-|        |               | | N/A                | |
+|        |               | | IP_PROTOCOL        | |
+|        |               | | DST_IP             | |
+|        |               | | SRC_IP             | |
+|        |               | | IPV6_FLOW_LABEL    | |
+|        |               | | RDMA_BTH_OPCODE    | |
+|        |               | | RDMA_BTH_DEST_QP   | |
 |        |               | +--------------------+ |
 +--------+---------------+------------------------+
 ```
@@ -1425,7 +1413,7 @@ No special handling is required
 3. Verify ASIC DB object state after switch ECMP hash algorithm update
 4. Verify ASIC DB object state after switch LAG hash algorithm update
 
-### 3.1.1 Packet type hash basic configuration test:
+### 3.1.2 Packet type hash basic configuration test:
 1. Verify ASIC DB object state after creating switch ECMP packet type hash
 2. Verify ASIC DB object state after creating switch LAG packet type hash
 3. Verify ASIC DB object state after updating switch ECMP packet type hash 
