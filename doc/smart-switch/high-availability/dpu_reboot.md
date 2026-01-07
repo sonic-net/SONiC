@@ -1,4 +1,4 @@
-# DPU Restart – Database out of sync 
+# DPU Restart – Solution for database out of sync 
 ## Problem Statement
 When DPU restarts (either as a planned or an unexpected event), DPU_[APPL|STATE] _DB that are hosted on NPU will not be restarted along with as DPU. This causes some states to be out of sync and leads to unexpected behaviors in HA scenarios. 
 We observed a couple of issues with this problem:
