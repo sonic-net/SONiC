@@ -33,7 +33,8 @@ Mike Dubrovsky - Cisco
 
 | Rev | Date       | Author             | Change Description |
 |-----|------------|--------------------|--------------------|
-| 0.1 | 8/21/2025  | Mike Dubrovsky     | Initial version    |
+| 1.0 | 8/21/2025  | Mike Dubrovsky     | Initial version    |
+| 1.1 | 1/8/2026   | Patrice Brissette  | Updating table     |
 
 ---
 
@@ -139,21 +140,21 @@ This section presents detailed performance analysis and optimization techniques 
 ## Performance Summary
 
 
-| Optimization                                                                              | Evaluation |Baseline| ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF |
-|-------------------------------------------------------------------------------------------|------------|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
-| [Async mode](#async-mode)                                                                 |            |        |        | On     |        |        |        | On     | On     | On     | On     |
-| [Multi db](#multi-db)                                                                     |            |        |        |        | On     | On     | On     | On     | On     | On     | On     |
-| [Batch / bulk sizes](#batch--bulk-sizes)                                                  |            |        |        |        |        | On     | On     |        | On     | On     | On     |
-| [No APPL_STATE_DB population](#no-appl_state_db-population)                               |            |        | On     |        |        | On     | On     | On     | On     | On     | On     |
-| [Separate pthread for APPL_STATE_DB](#separate-pthread-for-responsepublisher)             |            |        |        |        |        |        |        |        |        |        |        |
-| [Ring buffer](#ring-buffer)                                                               |            |        |        |        |        | On     | On     | On     | On     | On     | On     |
-| [ZMQ for ConsumerStateTable](#zmq-for-consumerstatetable)                                 |            |        |        |        |        | On     | On     |        | On     | On     | On     |
-| [No logs](#no-logs)                                                                       |            |        |        |        |        | On     | On     |        | On     | On     | On     |
-| [Use nexthop groups (even for single nbr)](#use-nexthop-groups-even-for-single-nbr)       |            |        |        |        |        |        |        |        |        |        | On     |
-| [Sort SAI route bulk](#sort-sai-route-bulk)                                               |            |        |        |        |        | On     | On     |        | On     | On     | On     |
-| [Bypass saimeta::Meta for bulk operations](#bypass-saimetameta-for-bulk-operations)       |            |        |        |        |        | On     | On     |        | On     | On     | On     |
-| [No APPL_DB and APPL_ASIC_DB populations](#no-appl_db-and-appl_asic_db-populations)       |            |        |        |        |        |        | On     |        |        | On     | On     |
-| **Total speed (1K route/sec)**                                                            |            | **2**  | **4**  | **2.9**| **3.6**| **12** | **13** | **14** |**18.5**|**20.6**| **21** |
+| Optimization                                                                              | Evaluation |Baseline| ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF | ON/OFF |
+|-------------------------------------------------------------------------------------------|------------|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+| [Async mode](#async-mode)                                                                 |            |        |        | On     |        |        |        |        | On     | On     | On     | On     | On     |        |
+| [Multi db](#multi-db)                                                                     |            |        |        |        | On     |        | On     | On     | On     | On     | On     | On     | On     |        |
+| [Batch / bulk sizes](#batch--bulk-sizes)                                                  |            |        |        |        |        |        |        | On     |        | On     |        | On     | On     |        |
+| [No APPL_STATE_DB population](#no-appl_state_db-population)                               |            |        | On     |        |        |        |        | On     | On     | On     | On     | On     | On     |        |
+| [Separate pthread for APPL_STATE_DB](#separate-pthread-for-responsepublisher)             |            |        |        |        |        |        |        |        |        |        |        |        |        |        |
+| [Ring buffer](#ring-buffer)                                                               |            |        |        |        |        |        |        | On     | On     | On     | On     | On     | On     |        |
+| [ZMQ for ConsumerStateTable](#zmq-for-consumerstatetable)                                 |            |        |        |        |        | On     | On     | On     | On     | On     |        | On     | On     |        |
+| [No logs](#no-logs)                                                                       |            |        |        |        |        |        |        | On     | On     | On     |        | On     | On     |        |
+| [Use nexthop groups (even for single nbr)](#use-nexthop-groups-even-for-single-nbr)       |            |        |        |        |        |        |        |        |        |        |        |        | On     |        |
+| [Sort SAI route bulk](#sort-sai-route-bulk)                                               |            |        |        |        |        |        |        | On     | On     | On     |        | On     | On     |        |
+| [Bypass saimeta::Meta for bulk operations](#bypass-saimetameta-for-bulk-operations)       |            |        |        |        |        |        |        | On     | On     | On     |        | On     | On     |        |
+| [No APPL_DB and APPL_ASIC_DB populations](#no-appl_db-and-appl_asic_db-populations)       |            |        |        |        |        |        |        |        | On     | On     |        |        | On     |        |
+| **Total speed (1K route/sec)**                                                            |            | **2**  | **4**  | **2.9**| **3.6**| **5.1**| **7.1**| **12** | **13** | **14** | **14** |**18.5**|**20.6**|**21**  |
 
 ---
 
@@ -672,3 +673,26 @@ The team discussed the challenges and improvements related to async mode, failur
 - Suggestion is to configure the feature based on user needs and platform capabilities.
 
 ---
+
+**Meeting Date:** January 8, 2025
+
+### Summary
+
+The team reviewed the route download performance, focusing on async mode, multi-database, and compilation flags. They noted issues with the ring buffer feature, which needs further testing and configuration. The conversation was paused due to the absence of key participants, particularly from Microsoft, and will be resumed next week. The team also discussed the need for Microsoft's involvement in driving the discussion forward.
+
+
+### Action Items
+- Measure and report how much route convergence improves when multi-DB population runs in a separate thread, providing characterization data to the group
+- Send a personal email to the Alibaba contributors asking whether they are seeing issues with the ring buffer and report their responses back to the group
+- Ping the Microsoft participants to ensure they attend next week's meeting so route-download performance items can be advanced
+- Schedule and prepare a full presentation on the DCI (multi-site EVPN/VXLAN) HLD for the workgroup in a few weeks
+
+### Discussion on Route Download Performance
+- Reviews the topics discussed in the last meeting, including async mode, multi-database, and compilation flag.
+- Discussion includes bulk and batch application state DB population.
+
+### Separate Threads for GP Population
+- Discusses the separate thread for GP population, which consumes CPU resources but is faster than not populating it.
+- Characterization on the separate P thread required
+- The ring buffer has been merged but is currently broken and causing issues.
+
