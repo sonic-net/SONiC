@@ -676,10 +676,8 @@ DPU state table stores the health states of each DPU. These data are collected b
 | DASH_FLOW_DUMP_SESSION_STATE | | | Flow dump session state. |
 | | \<SESSION_NAME\> | | Session name (same as config table key). |
 | | | state | Session status: "created", "in_progress", "completed", "failed". |
-| | | oid | Bulk session Object OID, needed for syncd to update the output_file and flow_count |
 | | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
-| | | output_file | Path to output file: `/var/dump/flows/flow_dump_<timestamp>.jsonl.gz`. |
-| | | flow_count | Number of flows dumped. |
+| | | output_file | Path to output file: `/var/dump/flows/flow_dump_<oid>.jsonl.gz`. |
 
 ##### 2.3.4.5. DASH BFD probe state
 
@@ -890,40 +888,41 @@ Traditional pattern would be to relay the flow data from syncd to orchagent. Thi
     │                │                    │                     │                   │─────┐        │
     │                │                    │                     │                   │     │to file │
     │                │                    │                     │                   │<────┘        │
-    │                │                    │                     │                   │/var/log/flows│
+    │                │                    │                     │                   │/var/dump/    │
+    │                │                    │                     │                   │flows/        │
+    │                │                    │                     │                   │flow_dump_    │
+    │                │                    │                     │                   │<oid>.jsonl.gz│
     │                │                    │                     │                   │              │
     │                │                    │                     │                   │ 8. FINISHED  │
     │                │                    │                     │                   │     event    │
     │                │                    │                     │                   │<─────────────│
     │                │                    │                     │                   │              │
-    │                │                    │                     │  9. Update STATE  │              │
-    │                │                    │                     │  output_file=...  │              │
-    │                │                    │                     │  flow_count=N     │              │
-    │                │                    │                     │<─────────────────-│              │
-    │                │                    │                     │                   │              │
-    │                │                    │ 10. Notify          │                   │              │
+    │                │                    │ 9. Notify           │                   │              │
     │                │                    │    completion       │                   │              │
     │                │                    │<────────────────────────────────────────│              │
     │                │                    │                     │                   │              │
-    │                │                    │ 11. Write STATE     │                   │              │
+    │                │                    │ 10. Write STATE     │                   │              │
+    │                │                    │  output_file=       │                   │              │
+    │                │                    │  /var/dump/flows/   │                   │              │
+    │                │                    │  flow_dump_<oid>    │                   │              │
+    │                │                    │  .jsonl.gz          │                   │              │
     │                │                    │  status="completed" │                   │              │
     │                │                    │────────────────────>│                   │              │
     │                │                    │                     │                   │              │
     │                │                    │                     │                   │              │
     │                │                    │                     │                   │              │
-    │                │                    │ 12. Timeout watchdog│                   │              │
+    │                │                    │ 11. Timeout watchdog│                   │              │
     │                │                    │  (if no COMPLETION) │                   │              │
     │                │                    │────────────────────>│                   │              │
     │                │                    │  status="failed"    │                   │              │
     │                │                    │                     │                   │              │
 ```
 
-
 #### 3.5.2. File management
 
 **Output location**: `/var/dump/flows/`  
 **File format**: GZIP compressed JSON Lines (JSONL) - one flow entry per line  
-**Naming**: `flow_dump_<monotonic_timestamp>.jsonl.gz`
+**Naming**: `flow_dump_<oid>.jsonl.gz` where `<oid>` is the flow bulk get session OID
 
 **Logrotate policy**:
 - Maximum 2 files retained
