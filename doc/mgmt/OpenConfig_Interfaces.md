@@ -139,11 +139,9 @@ This document provides general information about the OpenConfig configuration of
         |  |  +--rw oc-eth:auto-negotiate?   boolean
         |  |  +--rw oc-eth:port-speed?       identityref
         |  |  +--rw oc-lag:aggregate-id?     -> /oc-if:interfaces/interface/name
-        |  |  +--rw oc-eth:mac-address?      oc-yang:mac-address
         |  +--ro oc-eth:state
         |     +--ro oc-eth:auto-negotiate?   boolean
         |     +--ro oc-eth:port-speed?       identityref
-        |     +--ro oc-eth:mac-address?      oc-yang:mac-address
         |     +--ro oc-eth:counters
         |     |  +--ro oc-eth:in-oversize-frames?    oc-yang:counter64
         |     |  +--ro oc-eth:in-undersize-frames?   oc-yang:counter64
@@ -289,7 +287,6 @@ Mapping attributes between OpenConfig YANG and SONiC YANG:
 |   ifindex               |      index            |
 |   oper-status           |      oper\_status     |
 |   last-change           |      last_up/down_time|
-|   mac-address           |      mac              |
 |   id                    |      id               |
 
 |   OpenConfig YANG       |    Sonic-interface YANG |
