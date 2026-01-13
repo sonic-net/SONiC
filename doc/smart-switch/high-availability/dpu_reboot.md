@@ -9,26 +9,31 @@ We observed a couple of issues with this problem:
 ## Solutions
 We will need solutions from not only sonic image but also SDN controller.
 1.	Cleanup DPU_*_DB instances when DPU boots up.
-2.	SDN controller needs to monitor DPU state and
-a.	Delete stale HA_SET_CONFIG and HA_SCOPE_CONFIG
-b.	Re-program HA_SET_CONFIG and HA_SCOPE_CONFIG
-3.	Hamgrd needs to change the passive BFD session creation logic, today the sessions are created statically. We need this change to avoid hamgrd restart. 
+2.	SDN controller needs to monitor DPU state and  
+a.	Delete stale HA_SET_CONFIG and HA_SCOPE_CONFIG  
+b.	Re-program HA_SET_CONFIG and HA_SCOPE_CONFIG  
+3.	Hamgrd needs to change the passive BFD session creation logic, today the sessions are created statically. We need this change to avoid hamgrd restart. Hamgrd need to create BFD session if `dpu_control_plane_state` changes from down to up. 
 
+Note that DashHaOrch should cache the BFD session parameters, remove and create the sessions accordingly in planned shutdown. 
+
+## Workflow
 
 ```mermaid
 sequenceDiagram
     participant SDN Controller
     participant hamgrd
+    participant pmon
     participant NPU APPL_DB
     participant NPU STATE_DB
+    participant NPU CHASSIS_STATE_DB/DPU_STATE
     participant DPU_APPL_DB(on NPU)
     participant DPU_STATE_DB(on NPU)
     participant DPU
     participant DashHaOrch
 
     DPU->>DPU: 1. DPU shutdown
-    hamgrd->>NPU STATE_DB: 2. Update DPU state to Down
-    NPU STATE_DB->>SDN Controller: 3. Update DPU state to Down
+    pmon->>NPU CHASSIS_STATE_DB/DPU_STATE: 2. Update DPU state to Down
+    NPU CHASSIS_STATE_DB/DPU_STATE->>SDN Controller: 3. Update DPU state to Down
     SDN Controller->>hamgrd: 4. Delete HA_SCOPE_CONFIG and HA_SET_CONFIG
     hamgrd->>DPU_APPL_DB(on NPU): 5. Delete HA_SET, HA_SCOPE
     hamgrd->>NPU STATE_DB: 6. Delete HA_SCOPE_STATE_TABLE
@@ -37,8 +42,8 @@ sequenceDiagram
     DPU->>DPU_APPL_DB(on NPU): 8. Cleanup Database
     DPU->>DPU_STATE_DB(on NPU): 9. Cleanup Database
 
-    hamgrd->>NPU STATE_DB: 10. Update DPU state to Up
-    NPU STATE_DB->>SDN Controller: 11. Update DPU state to Up
+    pmon->>NPU CHASSIS_STATE_DB/DPU_STATE: 10. Update DPU state to Up
+    NPU CHASSIS_STATE_DB/DPU_STATE->>SDN Controller: 11. Update DPU state to Up
 
     SDN Controller->>hamgrd: 12. Create HA_SCOPE_CONFIG and HA_SET_CONFIG
     hamgrd->>DPU_APPL_DB(on NPU): 13. Create HA_SET, HA_SCOPE, create BFD
