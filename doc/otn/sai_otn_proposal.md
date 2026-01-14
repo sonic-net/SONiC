@@ -7,9 +7,8 @@ The SONiC-OTN workgroup members: Alibaba, Microsoft, Molex, Nokia, Cisco and Acc
 
 | Abbreviation | Description |
 |--------------|-------------|
-| OTSS | Optical Transport State Service |
-| OTAI | Optical Transport Abstraction Interface |
 | OTN | Optical Transport Network |
+| DCI | Data Center Interconnect |
 | CRUD | CREATE, READ, UPDATE, and DELETE |
 | OA | Optical Amplifier |
 | OSC | Optical Supervisory Channel |
@@ -18,13 +17,19 @@ The SONiC-OTN workgroup members: Alibaba, Microsoft, Molex, Nokia, Cisco and Acc
 | OTDR | Optical Time Domain Reflectometer |
 
 ---
+### 1. Scope
+This document defines the draft technical specifications for the API in Open Compute Project Switch Abstraction Interface (SAI) used to support the management of optical components in the Optical Transport Network (OTN) device.
 
-### 1. Introduction to SONiC for Optical Networks
-In recent years, Optical Transport Networks (OTNs) have been increasingly deployed for Data Center Interconnects (DCIs), enabling high-speed, low-latency, and reliable connections between data centers. With the advent of digital coherent technology, the adoption of software-defined networking (SDN), and the growing demand for large-scale DCIs, OTNs have evolved toward openness and disaggregation. As a result, modular OTN equipment with standardized northbound interfaces and data models has become widely used.
+### 2. Why SONiC for OTN
+OTN devices are deployed for Data Center Interconnects (DCIs), serving as the optical transport layer that connects the ports of switches and routers between geographically dispersed data centers. This enables high-speed, low-latency, and reliable optical connections across long distances. 
 
-However, the Network Operating Systems (NOSes) running on these open and disaggregated optical devices are still proprietary and vary across OTN vendors. These proprietary NOSes differ in performance, alarm handling, CLI capabilities, and security features, often following independent release schedules. This lack of standardization increases both Capital Expenditures (CapEx) and Operational Expenditures (OpEx) in large-scale DCI networks.
+OTN devices typically run vendor-specific, proprietary Network Operating Systems (NOSs). This lack of standardization across NOS capabilities and features increases both Capital Expenditure (CapEx) and Operational Expenditure (OpEx) in large-scale DCI networks.
 
-To address this, the **SONiC for OTN project** proposes extending SONiC to support optical transport networks. This would enable end-to-end deployment of SONiC across packet and optical layers. The solution would support optical transponders and muxponders, as well as optical line systems such as OLP switches, OAs, and Wavelength Selective Switches (WSSes), providing optical interconnects between IP switches and routers.
+The **SONiC for OTN project** proposes extending SONiC to support optical transport networks, enabling end-to-end deployment across both packet and optical layers. 
+
+As a network service provider, you can manage end-to-end network infrastructure consistently, from the IP layer (switches and routers) through the optical transport layer (OTN devices). This unified management approach allows you to use the same SDN controller infrastructure across all layers, facilitating seamless data sharing and coordination between the IP network and optical transport network.
+
+As an optical device vendor, you can leverage the SONiC system ecosystem, avoiding reinvention of user management, security, and management network modules. This reduces time to market, improves software quality, and lowers development costs.
 
 <img src="../../images/otn/sonic-otn-transponder-open-line-system.png" alt="transponder and open line system with sonic-otn" style="zoom: 35%;" />
 
@@ -32,195 +37,196 @@ To address this, the **SONiC for OTN project** proposes extending SONiC to suppo
 
 ---
 
-### 2. Introduction to Optical Transport Network Devices
-OTN devices deliver high-speed, reliable, and efficient data transmission over optical fibers. For DCI use cases, these devices typically use 1RU or 2RU chassis that house multiple optical linecards, fans, power supply units (PSUs), and control modules. The optical linecards are pluggable and support a variety of functions.
+#### 2.1 OTN device and components overview
+OTN devices typically employ 1RU or 2RU chassis housing multiple optical linecards, fans, power supply units (PSUs), and control modules. Most optical linecards are pluggable and support diverse functions.
 
 <img src="../../images/otn/otn-device-overview.png" alt="otn device overview" style="zoom: 35%;" />
 
-Despite functional differences among vendors, these linecards are built on a common set of optical component units that provide core transmission functionalities:
+These optical linecards are built on a common set of optical component units that provide core transmission functionalities:
 
-* **Transponders and Transceivers** – Convert electrical signals into optical signals for fiber transmission.
-* **Multiplexer (Mux)** – Combines multiple wavelengths onto a single fiber.
-* **Demultiplexer (Demux)** – Separates multiple wavelengths from a single fiber.
-* **Optical Line Protection (OLP) Switch** – Automatically switches traffic to a backup path when a fault occurs.
-* **Optical Amplifier (OA)** – Boosts optical signals to extend transmission distance.
-* **Wavelength Selective Switch (WSS)** – Dynamically routes specific wavelengths in different directions.
-* **Optical Supervisory Channel (OSC)** – Transports management and control information.
 * **Variable Optical Attenuator (VOA)** – Adjusts optical signal power levels.
+* **Optical Amplifier (OA)** – Boosts optical signals to extend transmission distance.
+* **Optical Line Protection (OLP) Switch** – Automatically switches traffic to a backup path when a fault occurs.
+* **Optical Supervisory Channel (OSC)** – Transports management and control information.
+* **Wavelength Selective Switch (WSS)** – Dynamically routes specific wavelengths in different directions.
 * **Optical Channel Monitor (OCM)** – Analyzes the optical spectrum.
 * **Optical Time-Domain Reflectometer (OTDR)** – Measures attenuation and reflection losses along fibers.
-
-<img src="../../images/otn/optical-linecard-and-components.png" alt="optical linecard and component" style="zoom: 35%;" />
+* **Transponders and Transceivers** – Convert electrical signals into optical signals for fiber transmission.
 
 ---
 
-### 3. Expanding SAI for Optical Transport Networks
-The Switch Abstraction Interface (SAI) is a vendor-independent programming model for network equipment. Instead of introducing a new OTAI, the SONiC community has decided to **extend SAI to support OTN**.
+### 3. SAI for OTN
+The OTN SAI definition provides the following core functions:
+* Creation and removal of OTN components
+* Retrieval of current operational status of OTN components
+* Notification handling for failures and hardware data reporting
+* Execution of hardware-specific operations, such as optical path switching and triggering optical measurements
 
+All OTN objects are subobjects of the switch root element, with no collaboration with existing SAI objects.
 Below is the hierarchy of SAI with OTN objects:
 
 <img src="../../images/otn/SAI_with_OTN_objects.png" alt="SAI with OTN objects" style="zoom: 45%;" />
 
-*The switch object is the root for all OTN objects. It can represent either a physical optical linecard in a multi-linecard system or optical components in a pizza box. The switch object may contain both real optical components and logical objects.*
+*The switch object is the root for all OTN objects. It can represent either a physical optical linecard in a multi-linecard system, or optical components in a pizza box.*
 
-#### 3.1 OTN Objects
+#### 3.1 Experimental OTN Objects
 
-All these OTN objects definitions are based on OpenConfig models.
+All OTN object definitions are based on OpenConfig models and are designated as experimental objects in SAI. There is no overlap or interaction between IP and OTN objects. This approach is consistent with the DASH and OCS projects and minimizes the impact of OTN changes on SONiC packet switch functionality.
 
+SAI support for OTN objects will be introduced in three phases:
+
+**Phase 1**: Initial OTN support, introducing a minimal set of new objects (OA and VOA) for the simplest optical devices.
+
+**Phase 2**: Incremental support for a complete optical line system, including OCM, OTDR, WSS, APS, and related components.
+
+**Phase 3**: Full OTN support, including transponder objects (logical channels).
+
+In Phase 1, we submitted SAI support for OA and VOA to demonstrate the evaluation and expansion methodology for OTN object support. The corresponding pull request is available here: PR 2217(https://github.com/opencomputeproject/SAI/pull/2217)
+
+In subsequent phases 2 and 3, we plan to submit additional SAI OTN objects.
+
+Note:  
+To minimize disruption to the SAI workgroup due to detailed OTN definitions, we propose the following process: the SONiC-OTN workgroup will first review the changes internally, after which the SAI team will review and approve them.
+
+
+
+Below is the list of OTN objects that will be added to SAI:
 | Object | Description | SAI File | OpenConfig Reference |
 |--------|-------------|----------|----------------------|
-| Optical Port | Optical transport port | [saiopticalport.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiopticalport.h) | [openconfig-transport-line-common.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-transport-line-common.yang) |
-| Physical Channel | Physical channel | [saiphysicalchannel.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiphysicalchannel.h) | [openconfig-platform-transceiver.yang](https://github.com/openconfig/public/tree/master/release/models/platform/openconfig-platform-transceiver.yang) |
-| Logical Channel | Logical channel | [sailogicalchannel.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/sailogicalchannel.h) | [openconfig-terminal-device.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-terminal-device.yang) |
-| Ethernet | Ethernet | [saiethernet.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiethernet.h) | [openconfig-if-ethernet.yang](https://github.com/openconfig/public/tree/master/release/models/interfaces/openconfig-if-ethernet.yang) |
-| Assignment | Optical assignment | [saiassignment.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiassignment.h) | [openconfig-terminal-device.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-terminal-device.yang) |
-| OTN | OTN protocol | [saiotn.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiotn.h) | [openconfig-terminal-device.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-terminal-device.yang) |
-| OCH | Optical channel | [saioch.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saioch.h) | [openconfig-terminal-device.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-terminal-device.yang) |
-| OA | Optical amplifier | [saioa.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saioa.h) | [openconfig-optical-amplifier.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-amplifier.yang) |
-| WSS | Wavelength selective switch | [saiwss.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiwss.h) | [openconfig-wavelength-router.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-wavelength-router.yang) |
-| OMC | Optical media channel | [saimediachannel.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saimediachannel.h) | [openconfig-wavelength-router.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-wavelength-router.yang) |
-| OSC | Optical supervisory channel | [saiosc.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiosc.h) | [openconfig-optical-amplifier.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-amplifier.yang) |
-| Interface | Interface | [saiinterface.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiinterface.h) | [openconfig-interfaces.yang](https://github.com/openconfig/public/tree/master/release/models/interfaces/openconfig-interfaces.yang) |
-| OTDR | Optical time-domain reflectometer | [saiotdr.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiotdr.h) | Not defined yet |
-| OCM | Optical channel monitor | [saiocm.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiocm.h) | [openconfig-channel-monitor.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-channel-monitor.yang) |
-| VOA | Optical attenuator | [saiattenuator.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiattenuator.h) | [openconfig-optical-attenuator.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-attenuator.yang) |
-| APS | Automatic protection switch | [saiaps.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiaps.h) | [openconfig-transport-line-protection.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-transport-line-protection.yang) |
-| APS Port | Automatic protection switch port | [saiapsport.h](https://github.com/Weitang-Zheng/SAI/blob/test-merge/inc/saiapsport.h) | [openconfig-transport-line-protection.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-transport-line-protection.yang) |
+| OA | Optical amplifier | [saiexperimentalotnoa.h](https://github.com/sonic-otn/SAI/blob/master/experimental/saiexperimentalotnoa.h) | [openconfig-optical-amplifier.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-amplifier.yang) |
+| VOA | Optical attenuator | [saiexperimentalotnattenuator.h](https://github.com/sonic-otn/SAI/blob/master/experimental/saiexperimentalotnoa.h) | [openconfig-optical-attenuator.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-attenuator.yang) |
+| Optical Port | Optical transport port | TBD | [openconfig-transport-line-common.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-transport-line-common.yang) |
+| OCH | Optical channel | TBD | [openconfig-terminal-device.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-terminal-device.yang) |
+| WSS | Wavelength selective switch | TBD | [openconfig-wavelength-router.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-wavelength-router.yang) |
+| OMC | Optical media channel | TBD | [openconfig-wavelength-router.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-wavelength-router.yang) |
+| OSC | Optical supervisory channel | TBD | [openconfig-optical-amplifier.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-amplifier.yang) |
+| OTDR | Optical time-domain reflectometer | TBD | Not defined yet |
+| OCM | Optical channel monitor | TBD | [openconfig-channel-monitor.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-channel-monitor.yang) |
+| APS | Automatic protection switch | TBD | [openconfig-transport-line-protection.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-transport-line-protection.yang) |
+| APS Port | Automatic protection switch port | TBD | [openconfig-transport-line-protection.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-transport-line-protection.yang) |
+| Logical Channel | Logical channel | TBD | [openconfig-terminal-device.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-terminal-device.yang) |
 
 ---
 
-#### 3.2 New Tags in OTN Objects
+##### 3.1.1 SAI otnoa object
+The file `saiexperimentalotnoa.h` defines the SAI otnoa object, which represents an optical amplifier (OA). OA components amplify optical signals to increase their power and enable long-distance optical transmission.
 
+It supports creation and removal of OA components, configuration of OA components, and retrieval of current operational status of OA components.   
+
+**otnoa APIs**
+```cpp
+/**
+ * @brief Routing interface methods table retrieved with sai_api_query()
+ */
+typedef struct _sai_otn_oa_api_t
+{
+    sai_create_otn_oa_fn                create_otn_oa;
+    sai_remove_otn_oa_fn                remove_otn_oa;
+    sai_set_otn_oa_attribute_fn         set_otn_oa_attribute;
+    sai_get_otn_oa_attribute_fn         get_otn_oa_attribute;
+} sai_otn_oa_api_t;
+```
+
+**SAI otnoa object attributes**
+| SAI Object | SAI Attributes | SAI Data Type | create/get/set |
+| ---- | ---- | ---- | ---- |
+|SAI_OBJECT_TYPE_OTN_OA  | SAI_OTN_OA_ATTR_TYPE | sai_otn_oa_type_t | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_TARGET_GAIN | sai_uint32_t  | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_MIN_GAIN | sai_uint32_t  | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_MAX_GAIN | sai_uint32_t  | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_TARGET_GAIN_TILT | sai_uint32_t  | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_GAIN_RANGE | sai_otn_oa_gain_range_t  | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_AMP_MODE | sai_otn_oa_amp_mode_t  | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_TARGET_OUTPUT_POWER | sai_int32_t  | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_MAX_OUTPUT_POWER | sai_int32_t  | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_ENABLED | bool  | CREATE_AND_SET |
+| | SAI_OTN_OA_ATTR_FIBER_TYPE_PROFILE | sai_otn_oa_fiber_type_profile_t  |CREATE_AND_SET  |
+| | SAI_OTN_OA_ATTR_INGRESS_PORT | char  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_EGRESS_PORT | char  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_ACTUAL_GAIN | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_ACTUAL_GAIN_TILT | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_INPUT_POWER_TOTAL | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_INPUT_POWER_C_BAND | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_INPUT_POWER_L_BAND | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_OUTPUT_POWER_TOTAL | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_OUTPUT_POWER_C_BAND | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_OUTPUT_POWER_L_BAND | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_LASER_BIAS_CURRENT | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_OA_ATTR_OPTICAL_RETURN_LOSS | sai_int32_t  | READ_ONLY |
+------
+
+**otnoa Notification**  
+Not required
+
+##### 3.1.2 SAI otnattenuator object
+The file `saiexperimentalotnattenuator.h` defines the SAI otnattenuator object, which represents an optical attenuator (VOA). VOA components educes optical signal power to maintain proper signal levels and prevent receiver saturation.
+
+It supports creation and removal of VOA components, configuration of VOA components, and retrieval of current operational status of VOA components.   
+
+**otnattenuator APIs**
+```cpp
+/**
+ * @brief Routing interface methods table retrieved with sai_api_query()
+ */
+typedef struct _sai_otn_attenuator_api_t
+{
+    sai_create_otn_attenuator_fn                create_otn_attenuator;
+    sai_remove_otn_attenuator_fn                remove_otn_attenuator;
+    sai_set_otn_attenuator_attribute_fn         set_otn_attenuator_attribute;
+    sai_get_otn_attenuator_attribute_fn         get_otn_attenuator_attribute;
+} sai_otn_attenuator_api_t;
+```
+
+**SAI otnoa object attributes**
+| SAI Object | SAI Attributes | SAI Data Type | create/get/set |
+| ---- | ---- | ---- | ---- |
+|SAI_API_OTN_ATTENUATOR  | SAI_OTN_ATTENUATOR_ATTR_ATTENUATION_MODE | sai_otn_attenuator_mode_t | CREATE_AND_SET |
+| | SAI_OTN_ATTENUATOR_ATTR_TARGET_OUTPUT_POWER | sai_uint32_t  | CREATE_AND_SET |
+| | SAI_OTN_ATTENUATOR_ATTR_ATTENUATION | sai_uint32_t  | CREATE_AND_SET |
+| | SAI_OTN_ATTENUATOR_ATTR_ENABLED | sai_uint32_t  | CREATE_AND_SET |
+| | SAI_OTN_ATTENUATOR_ATTR_MAX_OUTPUT_POWER | sai_int32_t  | CREATE_AND_SET |
+| | SAI_OTN_ATTENUATOR_ATTR_MAX_OUTPUT_POWER_THRESHOLD | sai_int32_t  | CREATE_AND_SET |
+| | SAI_OTN_ATTENUATOR_ATTR_INGRESS_PORT | char  | READ_ONLY |
+| | SAI_OTN_ATTENUATOR_ATTR_EGRESS_PORT | char  | READ_ONLY |
+| | SAI_OTN_ATTENUATOR_ATTR_SYSTEM_DERIVED_TARGET_OUTPUT_POWER | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_ATTENUATOR_ATTR_ACTUAL_ATTENUATION | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_ATTENUATOR_ATTR_OUTPUT_POWER_TOTAL | sai_int32_t  | READ_ONLY |
+| | SAI_OTN_ATTENUATOR_ATTR_OPTICAL_RETURN_LOSS | sai_int32_t  | READ_ONLY |
+
+------
+
+**otnoa Notification**  
+Not required
+
+#### 3.2 New Tags in SAI OTN Objects
+
+##### 3.2.1 Precision Tag for floating point values
 **Precision Tag**  
 Many OTN objects include floating-point values (e.g., optical power, attenuation, Pre-FEC BER). These values require different levels of precision — optical power may need two decimal places, while Pre-FEC BER may require up to 18.
 
 Currently, SAI supports only `uint64_t` statistics, without float support. To enable floats without breaking compatibility, we propose introducing the `@precision` tag, allowing attributes and statistics to specify required precision. Here are examples:
 
 ```
-/**
-* @brief Output power
-*
-* @type sai_int64_t
-* @precision 2
-*/
-SAI_OPTICAL_PORT_STAT_OUTPUT_POWER,
-
-/**
-* @brief Los threshold
-*
-* @type sai_int64_t
-* @flags CREATE_AND_SET
-* @precision 2
-*/
-SAI_OPTICAL_PORT_ATTR_LOS_THRESHOLD,
-```
-```
-/**
-* @brief Bit error rate before forward error correction
-*
-* @type sai_uint64_t
-* @precision 18
-*/
-SAI_OTN_STAT_PRE_FEC_BER,
-```
-
-**Action Tag**  
-Some OTN objects perform actions (e.g., APS switching paths, OCM scanning spectrum, OTDR scanning reflection losses). These actions are triggered by upper-layer applications such as Syncd. To support this, we propose an `@isaction` tag for attributes that represent one-time actions. These values would not be stored in the ASIC database.
-
-```
-/**
-* @brief Scan
-*
-* @type bool
-* @flags CREATE_AND_SET
-* @isaction true
-*/
-SAI_OCM_ATTR_SCAN,
-```
-```
-/**
-* @brief Active path
-*
-* @type sai_aps_active_path_t
-* @flags CREATE_AND_SET
-* @isaction true
-*/
-SAI_APS_ATTR_ACTIVE_PATH,
-```
-
----
-
-#### 3.3 Metadata Modifications
-To support `@precision` and `@isaction`, modifications to SAI metadata are required. Specifically:
-- Introduce `sai_stat_metadata_t` with a precision field for statistics.
-```  
-typedef struct _sai_stat_metadata_t
-{
     /**
-     * @brief Specifies valid SAI object type.
-     */
-    sai_object_type_t                           objecttype;
-
-    /**
-     * @brief Specifies valid statistics id for this object type.
-     */
-    sai_stat_id_t                               statid;
-
-    /**
-     * @brief Specifies valid statistics id name for this object type.
-     */
-    const char* const                           statidname;
-
-    /**
-     * @brief Specifies valid statistics id name of kebab case naming style.
-     */
-    const char* const                           statidkebabname;
-
-    /**
-     * @brief Specifies valid statistics id name of camel case naming style.
-     */
-    const char* const                           statidcamelname;
-
-    /**
-     * @brief Specifies value decimal precision for this statistics.
-     */
-    sai_value_precision_t                       valueprecision;
-} sai_stat_metadata_t;
-```
-
-- Extend `sai_attr_metadata_t` with `isaction` and `precision` fields.
-
-```
-typedef struct _sai_attr_metadata_t
-{
-    ......
-    /**
-     * @brief Indicates whether attribute is an action.
+     * @brief Positive gain applied by the amplifier in units of 0.01dB.
+     * This is used when the amp-mode is in CONSTANT_GAIN or DYNAMIC_GAIN
+     * mode to set the target gain that the amplifier should achieve.
      *
-     * If true, when calling SET API successfully, the value will NOT be saved in local
-     * db for warm-reboot (or cold-reboot) flow to recover this configuration.
+     * @type sai_uint32_t
+     * @flags CREATE_AND_SET
+     * @default 2000
+     * @precision 2
      */
-    bool                                        isaction;
-
-    /**
-     * @brief Specifies value decimal precision for this attribute.
-     */
-    sai_value_precision_t                       valueprecision;
-} sai_attr_metadata_t;
+    SAI_OTN_OA_ATTR_TARGET_GAIN,
 ```
----
-
-### 4. OTN Experimental PR
-An experimental PR with all OTN-related changes is available: [GitHub PR](https://github.com/Weitang-Zheng/SAI/pull/1).  
-
-This PR has been reviewed by the SONiC-OTN workgroup and Kamil Cudnik.
+In the SAI meta data, the `valueprecision` field in `attrInfo` is used to represent the precision.
 
 ---
 
-### 5. Design and Merge Considerations
-1. During the meeting with SAI subgroup on 8/21/2025, it is agreed that new OTN objects be defined using SAI [experimental extension mechanism](https://github.com/opencomputeproject/SAI/tree/master/experimental), same as DASH project. This would eliminate the impact of OTN changes on SONIC packet switch side.
-  
-2. New SAI object for OTN device will be introduced to upstream in multiple PRs for easy review and approval by SAI team. PRs will be based on changes mentioned in section 4 with modifications incorporating the feedbacks from SAI/SONiC community. The PRs will be submitted in the following phases:
-- Minimum set of new objects (OA and VOA) for simplest optical device.
-- Incremental support for complete optical line system (OCM, OTDR, WSS and APS etc.)
-- Transponder support (Logical/physical channel, OTN protocol, OCH and OMC etc.)
+### 4. How to Manage OTN objects in Syncd
+TBD
+
+### 5. How to manage OTN objects in SWSS
+TBD
+
+
