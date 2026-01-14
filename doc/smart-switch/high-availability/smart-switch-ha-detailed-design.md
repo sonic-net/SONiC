@@ -909,9 +909,13 @@ Traditional pattern would be to relay the flow data from syncd to orchagent. Thi
     │                │                    │  status="completed" │                   │              │
     │                │                    │────────────────────>│                   │              │
     │                │                    │                     │                   │              │
+    │                │                    │ 11. Delete Session  │                   │              │
+    │                │                    │────────────────────────────────────────>│              │
+    │                │                    │                     │                   │  SAI API     │
+    │                │                    │                     │                   │─────────────>│
     │                │                    │                     │                   │              │
     │                │                    │                     │                   │              │
-    │                │                    │ 11. Timeout watchdog│                   │              │
+    │                │                    │ 12. Timeout watchdog│                   │              │
     │                │                    │  (if no COMPLETION) │                   │              │
     │                │                    │────────────────────>│                   │              │
     │                │                    │  status="failed"    │                   │              │
@@ -928,7 +932,7 @@ Traditional pattern would be to relay the flow data from syncd to orchagent. Thi
 - Maximum 2 files retained
 - Rotation handled by syncd
 
-**File lifecycle**: Session creation → SAI sends flows → Rotation check -> File open → Stream flows → File close → State update 
+**File lifecycle**: Session creation → SAI sends flows → Rotation check -> File open → Stream flows → File close → State update → Session deletion 
 
 #### 3.5.3. JSON format specification
 
