@@ -93,8 +93,9 @@ The specification of each HA state and its transition is detailed as follows:
 #### 3.1.8 State: Standby
 
 - DPU not carrying traffic and forwarding traffic to the active peer
-- Listening for `PlannedSwitchover`
+- Listening for `PlannedSwitchover` and `PlannedShutdown`
 - On receiving `PlannedSwitchover`, change the state to *SwitchingToActive*
+- On receiving `PlannedShutdown`, change the state to *Destroying*
 
 #### 3.1.9 State: Standalone
 
@@ -105,11 +106,16 @@ The specification of each HA state and its transition is detailed as follows:
 #### 3.1.10 State: SwitchingToStandby
 
 - Set up tunnel to forward traffic to the peer DPU
-- On receiving acknowledgement from the peer DPU being Active, Change the state to *Standby*
+- On receiving acknowledgement from the peer DPU being Active, change the state to *Standby*
 
 #### 3.1.11 State: SwitchingToActive
 
-- On receiving acknowledgement from the peer DPU setting up the forwarding tunnel, Change the state to *Active*
+- On receiving acknowledgement from the peer DPU setting up the forwarding tunnel, change the state to *Active*
+
+#### 3.1.12 State: Destroying
+
+- Draining traffic
+- After the traffic is drained, change the state to *Dead*
 
 
 ### 3.2 HA role activation
