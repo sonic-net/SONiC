@@ -31,9 +31,86 @@ In NPU-driven HA, the state machine is managed by the HAmgrd running on NPU. So,
 
 ### 3.1 NPU-driven HA state transition
 
-The state transition graph for DPU-scope-NPU-driven HA is shown as below:
+The high-level state transition graph for DPU-scope-NPU-driven HA is shown as below:
 
 <p align="center"><img alt="HA state transition" src="./images/dpu-scope-npu-driven-ha-state-transition.svg"></p>
+
+The specification of each HA state and its transition is detailed as follows:
+
+#### 3.1.1 State: Dead
+
+- On launch, initialize configurations and change the state to *Connecting*
+
+#### 3.1.2 State: Connecting
+
+- Iniate connections to the peer DPU and the SDN controller
+- On successful connection to the peer DPU and the SDN controller
+	* Change the state to *Connected*
+- On connection failures
+	* Change the state to *Standalone*
+
+#### 3.1.3 State: Connected
+
+- Initiate the voting process with the peer DPU by sending `RequestVote`
+- On acquiring the voting result, perform the following state changes:
+	* Change the state to *InitializingToActive* if won the vote
+	* Change the state to *InitializingToStandby* if lost the vote
+- If failed to get the voting result, change the state to Standalone
+- If the `RequestVote` is rejected by the peer, keep retrying.
+
+#### 3.1.3 State: InitializingToActive
+
+- Wait for the peer to acknowledge the completion of bulk sync via `HAStateChanged` event
+- On receiving the acknowledgement, change the state to *PendingActiveRoleActivation*
+- On timeout, change the state to *Standalone*
+- On detecting local failures, change the state to *Standby*
+
+#### 3.1.4 State: InitializingToStandby
+
+- Send `HAStateChanged` event when the bulk sync is done locally
+- Wait for the peer to acknowledge the completion of bulk sync via `HAStateChanged` event
+- On receiving the acknowledgement, change the state to *PendingStandbyRoleActivation*
+- On timeout, change the state to *Standalone*
+- On detecting local failures, change the state to *Standby*
+
+#### 3.1.5 State: PendingActiveRoleActivation
+
+- Request the approval to be active DPU from SDN controller
+- Wait until received the approval, change the state to *Active*
+
+#### 3.1.6 State: PendingStandbyRoleActivation
+
+- Request the approval to be standby DPU from SDN controller
+- Wait until received the approval, change the state to *Standby*
+
+#### 3.1.7 State: Active
+
+- DPU carrying traffic and replicating flows to the standby peer inline
+- Listening for `PlannedSwitchover` and `PlannedPeerShutdown` from the SDN controller
+- On receiving `PlannedSwitchover` and acknowledgement from the peer DPU, change the state to *SwitchingToStandby*
+- On receiving `PlannedPeerShutdown`, change the statet to *Standalone*
+
+#### 3.1.8 State: Standby
+
+- DPU not carrying traffic and forwarding traffic to the active peer
+- Listening for `PlannedSwitchover`
+- On receiving `PlannedSwitchover`, change the state to *SwitchingToActive*
+
+#### 3.1.9 State: Standalone
+
+- DPU carrying traffic
+- Listening for `RequestVote` and `HAStateChanged` events from peer
+- On receiving `HAStateChanged`, change the state to *Active*
+
+#### 3.1.10 State: SwitchingToStandby
+
+- Set up tunnel to forward traffic to the peer DPU
+- On receiving acknowledgement from the peer DPU being Active, Change the state to *Standby*
+
+#### 3.1.11 State: SwitchingToActive
+
+- On receiving acknowledgement from the peer DPU setting up the forwarding tunnel, Change the state to *Active*
+
 
 ### 3.2 HA role activation
 
