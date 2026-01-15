@@ -44,10 +44,8 @@ The specification of each HA state and its transition is detailed as follows:
 #### 3.1.2 State: Connecting
 
 - Iniate connections to the peer DPU and the SDN controller
-- On successful connection to the peer DPU and the SDN controller
-	* Change the state to *Connected*
-- On connection failures
-	* Change the state to *Standalone*
+- On successful connection to the peer DPU and the SDN controller, change the state to *Connected*
+- On connection failures, change the state to *Standalone*
 
 #### 3.1.3 State: Connected
 
@@ -55,7 +53,7 @@ The specification of each HA state and its transition is detailed as follows:
 - On acquiring the voting result, perform the following state changes:
 	* Change the state to *InitializingToActive* if won the vote
 	* Change the state to *InitializingToStandby* if lost the vote
-- If failed to get the voting result, change the state to Standalone
+- If failed to get the voting result, change the state to *Standalone*
 - If the `RequestVote` is rejected by the peer, keep retrying.
 
 #### 3.1.3 State: InitializingToActive
@@ -87,30 +85,43 @@ The specification of each HA state and its transition is detailed as follows:
 
 - DPU carrying traffic and replicating flows to the standby peer inline
 - Listening for `PlannedSwitchover` and `PlannedPeerShutdown` from the SDN controller
-- On receiving `PlannedSwitchover` and acknowledgement from the peer DPU, change the state to *SwitchingToStandby*
-- On receiving `PlannedPeerShutdown`, change the statet to *Standalone*
+	* On receiving `PlannedSwitchover` and acknowledgement from the peer DPU, change the state to *SwitchingToStandby*
+	* On receiving `PlannedPeerShutdown`, change the statet to *Standalone*
+- Listening for health signals
+	* On local DPU failure, change the state to *Standby*
+	* On remote DPU failure, change the state to *Standalone*
 
 #### 3.1.8 State: Standby
 
 - DPU not carrying traffic and forwarding traffic to the active peer
 - Listening for `PlannedSwitchover` and `PlannedShutdown`
-- On receiving `PlannedSwitchover`, change the state to *SwitchingToActive*
-- On receiving `PlannedShutdown`, change the state to *Destroying*
+	* On receiving `PlannedSwitchover`, change the state to *SwitchingToActive*
+	* On receiving `PlannedShutdown`, change the state to *Destroying*
+- Listening for health signals
+	* On remote DPU failure, change the state to *Standalone*
 
 #### 3.1.9 State: Standalone
 
 - DPU carrying traffic
-- Listening for `RequestVote` and `HAStateChanged` events from peer
-- On receiving `HAStateChanged`, change the state to *Active*
+- Listening for `HAStateChanged` events from peer
+	* On receiving `HAStateChanged` from the peer, change the state to *Active*
+- Listening for health signals
+	* On local DPU failure, change the state to *Standby*
 
 #### 3.1.10 State: SwitchingToStandby
 
 - Set up tunnel to forward traffic to the peer DPU
 - On receiving acknowledgement from the peer DPU being Active, change the state to *Standby*
+- Listening for health signals
+	* On local DPU failure, change the state to *Standby*
+	* On remote DPU failure, change the state to *Standalone*
 
 #### 3.1.11 State: SwitchingToActive
 
 - On receiving acknowledgement from the peer DPU setting up the forwarding tunnel, change the state to *Active*
+- Listening for health signals
+	* On local DPU failure, change the state to *Standby*
+	* On remote DPU failure, change the state to *Standalone*
 
 #### 3.1.12 State: Destroying
 
