@@ -228,34 +228,45 @@ The domain concept significantly enhances the architecture by enabling a clear s
 #### Site
 A data center domain interconnects with a WAN domain via a pair of redundant BGW nodes where DCI functionality is provided. That pair of BGW nodes and its DC domain form a site. It is identified by defining a site-id. Both BGW node share that same site-id.
 
+#### Ethernet Segment
+In scenarios where there is no directly connected host or orphan ports on BGW nodes and with the usage of anycast VTEP per domain per site, the usage of Ethernet Segment is not required. BUM traffic always hits a side BGW node when ingress replication is performed.
+
+When there are locally connected hosts, and/or when L3 services are enabled, an Ethernet Segment is required to identify the logical connectivity of the data center. The Ethernet Segment Identifier (ESI) is generated using a site identifier (site-id), with one assigned per pair of BGW node per connected data center domain. In this context, the data center is treated as an access network connected to the BGW, where loops must be avoided. As a result, VXLAN tunnels between peering BGWs are only established on either the DC or the WAN side; a configurable knob is used to determine the behavior. The WAN is chosen as default. Each multi-homed host also receives its own ESI, and the site-id is used to determine Designated and Non-Designated Forwarding towards the data center as if it is a connected access device. This approach aligns with best practices for loop-free access connectivity, often enforced by protocols such as STP.
+
+As any typical VxLAN node handling multi-homing, local bias is performed on peering BGW during BUM traffic handling.
+The following picture demonstration the logical representation of various Ethernet Segment at play.
+
+![Ethernet Segments](images/dci-ethernet-segment.png)
+*Figure 3: Ethernet Segments*
+
 #### Forwarding Paradigm
 A BGW node performs simple operations to achieve DCI functionality. For each incoming packet from DC/WAN side, a full tunnel disposition chain is performed followed by a lookup based on the inner payload followed by a full tunnel imposition chain. For layer-2 connectivity, it looks like:
 
 ![L2 Forwarding Paradigm](images/dci-fwd-paradigm.png)
-*Figure 3: L2 Forwarding Paradigm*
+*Figure 4: L2 Forwarding Paradigm*
 Dataplane MAC learning is disable on these tunnels / ports. All programmed MAC entries are coming from BGP-EVPN; remote MAC are installed with remote nexthop taken from EVPN RT-2. The same forwarding paradigm is used in both directions
 
 Similarly, for layer-3 connectivity, the forwarding chain looks like:
 
 ![L3 Forwarding Paradigm](images/dci-fwd-l3paradigm.png)
-*Figure 4: L3 Forwarding Paradigm*
+*Figure 5: L3 Forwarding Paradigm*
 
 IP entries are installed in the VRF with remote nexthop taken from either the EVPN RT-2 IP portion or from EVPN RT-5.
 Finally, to complete the picture, directly connected host may also be attached to the BGW node. In that case the forwarding chain looks like:
 
 ![DCI Forwarding Paradigm](images/dci-fwd-allparadigm.png)
-*Figure 5: DCI Forwarding Paradigm*
+*Figure 6: DCI Forwarding Paradigm*
 
 Since BGW comes generally in pair for redundancy, to support locally connected host on BGW, EVPN Ethernet Segment, DF election, local bias and carving are required. This is well describes in [Ethernet Segment](#ethernet-segment) and [Traffic Flows](#traffic-flows) sections.
 
 Lastly, it may also be possible to run VRF-lite as described in section [Combining BL function with BGW](#combining-bl-function-with-bgw). This allows the BGW to send traffic to external northbound customer. 
 
 #### Remote entries programming
-The L2 DCI functionality is achieved by installing EVPN remote MAC received from DC & WAN domains. This allow the MAC lookup to be performed properly after tunnel termination. Similar approach is taken for IP payload where the lookup is performed within the appropriate VRF. EVPN installs remote MAC/IP received from Dc & WAN domains.
+The L2 DCI functionality is achieved by installing EVPN remote MAC received from DC & WAN domains. This allow the MAC lookup to be performed properly after tunnel termination. Similar approach is taken for IP payload where the lookup is performed within the appropriate VRF. EVPN installs remote MAC/IP received from DC & WAN domains.
 
 #### Tunnel Establishment
 ![Tunnels Establishment](images/dci-tunnel-establish.png)
-*Figure 6: Tunnels Establishment*
+*Figure 7: Tunnels Establishment*
 
 With VxLAN, tunnels are established per source and destination VTEP addresses. During imposition procedures, the association of the VNI value is done per destination VTEP address. In the example of a BGW node, the VNI value differ for each domain / destination. This allows the support of downstream assigned VNI used in a different context/scenario when required.
 
@@ -264,19 +275,19 @@ The implementation is done using a normalized symmetric VNI approach in the WAN 
 This approach is geared towards greenfield or fully managed deployments. Main advantages are: simplicity in term of monitoring, statistic, debugability and consistency. This solution also scale much better; it avoid having VNI dependency on the nexthop object. The normalized VNI value must be globally unique across all domains (WAN and data centers).
 
 ![Normalized-VNI Achitecture](images/dci-normalized-vni.png)
-*Figure 7: Normalized-VNI Architecture*
+*Figure 8: Normalized-VNI Architecture*
 
 Other NOS may use a difference approach where VNI being used are coming from BGP routes. That assymetric approach is refered as downstream-assign VNI. It is usually used in brownfield deployment where there are already an established WAN connecting data centers using different VNI values. The main advantage is to have a single VNI rewrite across the entire network (instead of two with normalized-vni approach). On the down side, the VNI value being imposed is now dependent of the remote nexthop.
 
 ![Downstream-assign VNI Achitecture](images/dci-downstream-assign.png)
-*Figure 8: Downstream-assign VNI Architecture*
+*Figure 9: Downstream-assign VNI Architecture*
 
 ##### Asymmetric L3VNI Routing
 
 When Layer-3 services are required in a DCI deployment, an asymmetric L3VNI routing model can be employed. This approach is particularly useful in brownfield environments where different data centers use different L3VNI values for the same tenant VRF, while maintaining a normalized VNI across the WAN for consistency.
 
 ![Asymmetric L3VNI packet flow](images/dci-assymetric-vni.png)
-*Figure 9: Asymmetric L3VNI packet flow*
+*Figure 10: Asymmetric L3VNI packet flow*
 
 In the asymmetric L3VNI model, as illustrated in the diagram:
 
@@ -319,17 +330,6 @@ When locally connected hosts are present, anycast VTEP is no longer suitable. A 
 
 Additionally, when L3 services are enabled, physical VTEP must be used. In some deployments, both anycast and physical VTEPs may operate together using the VIP for L2 services and the PIP for L3 services. The exact combination depends on the specific setup and supported features.
 
-#### Ethernet Segment
-In scenarios where there is no directly connected host or orphan ports on BGW nodes and with the usage of anycast VTEP per domain per site, the usage of Ethernet Segment is not required. BUM traffic always hits a side BGW node when ingress replication is performed.
-
-When there are locally connected hosts, and/or when L3 services are enabled, an Ethernet Segment is required to identify the logical connectivity of the data center. The Ethernet Segment Identifier (ESI) is generated using a site identifier (site-id), with one assigned per pair of BGW node per connected data center domain. In this context, the data center is treated as an access network connected to the BGW, where loops must be avoided. As a result, VXLAN tunnels between peering BGWs are only established on either the DC or the WAN side; a configurable knob is used to determine the behavior. The WAN is chosen as default. Each multi-homed host also receives its own ESI, and the site-id is used to determine Designated and Non-Designated Forwarding towards the data center as if it is a connected access device. This approach aligns with best practices for loop-free access connectivity, often enforced by protocols such as STP.
-
-As any typical VxLAN node handling multi-homing, local bias is performed on peering BGW during BUM traffic handling.
-The following picture demonstration the logical representation of various Ethernet Segment at play.
-
-![Ethernet Segments](images/dci-ethernet-segment.png)
-*Figure 10: Ethernet Segments*
-
 #### Forwarding Tables
 When customers use anycast VTEP, it does not change how forwarding tables are built and how entries are resolved. For instance, there is no need for an extra recursion. The following pictures illustrate how FIB and FDB tables are built based on anycast VIP.
 The first picture shows an example with separate Spine and BGW nodes.
@@ -348,7 +348,7 @@ The usage of physical VTEP works in a very similar way; forwarding tables remain
 There are variant of the traffic flows for L2 connectivity. Following sub-sections are describing them:
 
 ##### Anycast VTEP - no directly connected host / orphan port
-All packets, whether BUM or unicast, are handled similarly. With anycast VTEPs configured per domain on BGW nodes, traffic forwarding uses ECMP, so a BGW pair appears as a single device to remote nodes. Upon reaching the destination data center, BUM traffic is distributed using ingress replication, while unicast traffic is typically forwarded via ECMP or direct paths.
+All packets, whether BUM or unicast, are handled similarly. With anycast VTEPs configured per domain on BGW nodes, traffic forwarding uses underlay ECMP, so a BGW pair appears as a single device to remote nodes. Upon reaching the destination data center, BUM traffic is distributed using ingress replication, while unicast traffic is typically forwarded via underlay ECMP or direct paths.
 
 ![Traffic flow - Anycast VIP](images/dci-traffic-flow-vip.png)
 *Figure 13: Traffic flow - Anycast VIP, no orphan port*
