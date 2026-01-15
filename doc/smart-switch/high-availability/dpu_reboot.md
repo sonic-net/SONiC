@@ -33,7 +33,7 @@ sequenceDiagram
 
     DPU->>DPU: 1. DPU shutdown
     pmon->>NPU CHASSIS_STATE_DB/DPU_STATE: 2. Update DPU state to Down
-    NPU CHASSIS_STATE_DB/DPU_STATE->>SDN Controller: 3. Update DPU state to Down
+    NPU CHASSIS_STATE_DB/DPU_STATE->>SDN Controller: 3. dpu_midplane_link_state==down || dpu_control_plane_state==down
     SDN Controller->>hamgrd: 4. Delete HA_SCOPE_CONFIG and HA_SET_CONFIG
     hamgrd->>DPU_APPL_DB(on NPU): 5. Delete HA_SET, HA_SCOPE
     hamgrd->>NPU STATE_DB: 6. Delete HA_SCOPE_STATE_TABLE
@@ -43,7 +43,7 @@ sequenceDiagram
     DPU->>DPU_STATE_DB(on NPU): 9. Cleanup Database
 
     pmon->>NPU CHASSIS_STATE_DB/DPU_STATE: 10. Update DPU state to Up
-    NPU CHASSIS_STATE_DB/DPU_STATE->>SDN Controller: 11. Update DPU state to Up
+    NPU CHASSIS_STATE_DB/DPU_STATE->>SDN Controller: 11. dpu_midplane_link_state==up && dpu_control_plane_state==up
 
     SDN Controller->>hamgrd: 12. Create HA_SCOPE_CONFIG and HA_SET_CONFIG
     hamgrd->>DPU_APPL_DB(on NPU): 13. Create HA_SET, HA_SCOPE, create BFD
