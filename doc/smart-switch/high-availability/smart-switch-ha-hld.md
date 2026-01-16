@@ -9,6 +9,7 @@
 | 0.5 | 10/14/2023 | Riff Jiang | Merged resource placement and topology section and moved detailed design out for better readability |
 | 0.6 | 10/22/2023 | Riff Jiang | Added ENI leak detection |
 | 0.7 | 10/13/2024 | Riff Jiang | Update HA control plane components graph to match with latest design update on database and gNMI. |
+| 0.8 | 01/16/2026 | Changrong Wu | Update HA state machine per latest discussions. |
 
 1. [1. Background](#1-background)
 2. [2. Terminology](#2-terminology)
@@ -68,6 +69,18 @@
 7. [7. HA state machine](#7-ha-state-machine)
    1. [7.1. HA state definition and behavior](#71-ha-state-definition-and-behavior)
    2. [7.2. State transition](#72-state-transition)
+    1. [7.2.1 State: Dead](#721-state-dead)
+    2. [7.2.2 State: Connecting](#722-state-connecting)
+    3. [7.2.3 State: Connected](#723-state-connected)
+    4. [7.2.4 State: InitializingToStandby](#724-state-initializingtostandby)
+    5. [7.2.5 State: PendingActiveRoleActivation](#725-state-pendingactiveroleactivation)
+    6. [7.2.6 State: PendingStandbyRoleActivation](#726-state-pendingstandbyroleactivation)
+    7. [7.2.7 State: Active](#727-state-active)
+    8. [7.2.8 State: Standby](#728-state-standby)
+    9. [7.2.9 State: Standalone](#729-state-standalone)
+    10. [7.2.10 State: SwitchingToStandby](#7210-state-switchingtostandby)
+    11. [7.2.11 State: SwitchingToActive](#7211-state-switchingtoactive)
+    12. [7.2.12 State: Destroying](#7212-state-destroying)
    3. [7.3. Primary election](#73-primary-election)
    4. [7.4. HA state persistence and rehydration](#74-ha-state-persistence-and-rehydration)
 8. [8. Planned events and operations](#8-planned-events-and-operations)
@@ -672,6 +685,10 @@ The hard problem is how to really detect gray failure with generic probe mechani
 
 Hence, to summarize, we are skipping designing ENI-level pipeline probe here.
 
+#### 6.3.3. Failure Notication
+
+Although we let the vendors to design their own probing mechanism, we specify a uniform failure event notification interface: [DASH SAI event notification API](https://github.com/opencomputeproject/SAI/blob/master/experimental/saiswitchextensions.h). The health signal will be reflected in `dp_channel_is_alive` field in `DASH_HA_SET_STATE` table of `STATE_DB` (per-DPU).
+
 ### 6.4. Probe state pinning
 
 For each ENI, besides probing and handling the probe state update, we can also choose to pin the probe state to whatever state we like and use it as our final state. This is mostly designed for failure handling, where we want to force the packet to go to a certain place.
@@ -760,7 +777,7 @@ Here are all the states that each HA participants will go through to help us ach
 | Dead | HA participant is just getting created, and not connected yet. | No | Drop | Drop | No | No | No |  |
 | Connecting | Connecting to its peer. | No | Drop | Drop | No | No | No |  |
 | Connected | Connected to its peer, but starting primary election to join the HA set. | No | Drop | Drop | No | No | No |  |
-| InitializingToActive | Connected to pair for the first time, voted to be active. | No | Drop | Drop | No | No | No | We have to drop the packet at this moment, because we need to ensure the peer is ready to respond the flow replication traffic, otherwise the traffic will be dropped. |
+| InitializingToActive | Connected to pair for the first time, voted to be active. | No | Drop | Drop | No | No | Yes | We have to drop the packet at this moment, because we need to ensure the peer is ready to respond the flow replication traffic, otherwise the traffic will be dropped. |
 | InitializingToStandby | Connected to pair for the first time, voted to be standby. | No | Tunneled to pair | Tunneled to pair | Yes | No | No | It needs to wait until existing flows to be replicated before going to the next state. |
 | Destroying | Preparing to be destroyed. Waiting for existing traffic to drain out. | No | Tunneled to pair | Tunneled to pair | No | No | No | Wait for traffic to drain and doesn’t take any new traffic load. |
 | Active | Connected to pair and act as decision maker. | Yes | Yes | Yes | No | Yes | Yes |  |
@@ -768,6 +785,8 @@ Here are all the states that each HA participants will go through to help us ach
 | Standalone | Heartbeat to pair is lost. Acting like a standalone setup. | Yes | Yes | Yes | Yes | No | No | Acting like the peer doesn’t exist, hence skip all data syncs. <br/><br/>However, the peer can be still connected, because in certain failure cases, we have to drive the DPU to standalone mode for mitigation. |
 | SwitchingToActive | Connected and preparing to switch over to active. | No | Yes | Yes | Yes | Yes | No | SwitchingToActive state is a transient state to help old active moving to standby, hence it accepts flow sync from old active, as well as making decision and sync flow back, when old active moved to standby.<br/><br/>Bulk sync is not used in SwitchOver at all. |
 | SwitchingToStandby | Connected, leaving active state and preparing to become standby. | Yes | Tunneled to pair | Tunneled to pair | Yes | No | No | SwitchingToStandby is a transient state to help new active moving from SwitchingToActive state to active state. It is identical to standby except responding NPU probe to tunneling traffic. This is needed to make sure we always only have 1 decider at any moment during the transition.<br/><br/>Bulk sync is not used in SwitchOver at all. |
+| PendingActiveRoleActivation | Connected, waiting for approval to become active. | No | Drop | Drop | No | No | No | PendingActiveRoleActivation is an intermediate state where we allow the SDN controller to block the DPU until the flow programming has been completed. |
+| PendingStandbyRoleActivation | Connected, waiting for approval to become standby. | No | Tunneled to pair | Tunneled to pair | Yes | No | No | PendingStandbyRoleActivation is an intermediate state where we allow the SDN controller to block the DPU until the flow programming has been completed. |
 
 Here are the definitions of the columns above:
 
@@ -783,6 +802,99 @@ Here are the definitions of the columns above:
 The state transition graph is shown as below:
 
 <p align="center"><img alt="HA state transition" src="./images/ha-state-transition.svg"></p>
+
+The specification of each HA state and its transitions is detailed as follows:
+
+#### 7.2.1 State: Dead
+
+- On launch, initialize configurations and transition to *Connecting*
+
+#### 7.2.2 State: Connecting
+
+- Iniate connections to the peer DPU
+- On successful connection to the peer DPU, transition to *Connected*
+- On connection failures, follow the standard procedure to transition to *Standalone*
+
+#### 7.2.3 State: Connected
+
+- Initiate the voting process with the peer DPU by sending `RequestVote`
+- On acquiring the voting result, perform the following state changes:
+	* transition to *InitializingToActive* if won the vote
+	* transition to *InitializingToStandby* if lost the vote
+- If failed to get the voting result, follow the standard procedure to transition to *Standalone*
+- If the `RequestVote` is rejected by the peer, keep retrying.
+
+#### 7.2.3 State: InitializingToActive
+
+- Wait for the peer to acknowledge the completion of bulk sync via `HAStateChanged` event
+- On receiving the acknowledgement, transition to *PendingActiveRoleActivation*
+- On timeout, follow the standard procedure to transition to *Standalone*
+- On detecting local failures, transition to *Standby*
+
+#### 7.2.4 State: InitializingToStandby
+
+- Send `HAStateChanged` event when the bulk sync is done locally
+- Wait for the peer to acknowledge the completion of bulk sync via `HAStateChanged` event
+- On receiving the acknowledgement, transition to *PendingStandbyRoleActivation*
+- On timeout, follow the standard procedure to transition to *Standalone*
+- On detecting local failures, transition to *Standby*
+
+#### 7.2.5 State: PendingActiveRoleActivation
+
+- Request the approval to be active DPU from SDN controller
+- Wait until received the approval, transition to *Active*
+
+#### 7.2.6 State: PendingStandbyRoleActivation
+
+- Request the approval to be standby DPU from SDN controller
+- Wait until received the approval, transition to *Standby*
+
+#### 7.2.7 State: Active
+
+- DPU carrying traffic and replicating flows to the standby peer inline
+- Listening for `PlannedSwitchover` and `PlannedPeerShutdown` from the SDN controller
+	* On receiving `PlannedSwitchover` and acknowledgement from the peer DPU, transition to *SwitchingToStandby*
+	* On receiving `PlannedPeerShutdown`, transitiont to *Standalone*
+- Listening for health signals
+	* On local DPU failure, transition to *Standby*
+	* On remote DPU failure, follow the standard procedure to transition to *Standalone*
+
+#### 7.2.8 State: Standby
+
+- DPU not carrying traffic and forwarding traffic to the active peer
+- Listening for `PlannedSwitchover` and `PlannedShutdown`
+	* On receiving `PlannedSwitchover`, transition to *SwitchingToActive*
+	* On receiving `PlannedShutdown`, transition to *Destroying*
+- Listening for health signals
+	* On remote DPU failure, follow the standard procedure to transition to *Standalone*
+
+#### 7.2.9 State: Standalone
+
+- DPU carrying traffic
+- Listening for `HAStateChanged` events from peer
+	* On receiving `HAStateChanged` from the peer, transition to *Active*
+- Listening for health signals
+	* On local DPU failure, transition to *Standby*
+
+#### 7.2.10 State: SwitchingToStandby
+
+- Set up tunnel to forward traffic to the peer DPU
+- On receiving acknowledgement from the peer DPU being Active, transition to *Standby*
+- Listening for health signals
+	* On local DPU failure, transition to *Standby*
+	* On remote DPU failure, follow the standard procedure to transition to *Standalone*
+
+#### 7.2.11 State: SwitchingToActive
+
+- On receiving acknowledgement from the peer DPU setting up the forwarding tunnel, transition to *Active*
+- Listening for health signals
+	* On local DPU failure, transition to *Standby*
+	* On remote DPU failure, follow the standard procedure to transition to *Standalone*
+
+#### 7.2.12 State: Destroying
+
+- Draining traffic
+- After the traffic is drained, transition to *Dead*
 
 ### 7.3. Primary election
 
