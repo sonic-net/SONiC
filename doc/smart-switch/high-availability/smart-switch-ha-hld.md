@@ -72,15 +72,16 @@
     1. [7.2.1 State: Dead](#721-state-dead)
     2. [7.2.2 State: Connecting](#722-state-connecting)
     3. [7.2.3 State: Connected](#723-state-connected)
-    4. [7.2.4 State: InitializingToStandby](#724-state-initializingtostandby)
-    5. [7.2.5 State: PendingActiveRoleActivation](#725-state-pendingactiveroleactivation)
-    6. [7.2.6 State: PendingStandbyRoleActivation](#726-state-pendingstandbyroleactivation)
-    7. [7.2.7 State: Active](#727-state-active)
-    8. [7.2.8 State: Standby](#728-state-standby)
-    9. [7.2.9 State: Standalone](#729-state-standalone)
-    10. [7.2.10 State: SwitchingToStandby](#7210-state-switchingtostandby)
-    11. [7.2.11 State: SwitchingToActive](#7211-state-switchingtoactive)
-    12. [7.2.12 State: Destroying](#7212-state-destroying)
+    4. [7.2.4 State: InitializingToActive](#724-state-initializingtoactive)
+    4. [7.2.5 State: InitializingToStandby](#725-state-initializingtostandby)
+    5. [7.2.6 State: PendingActiveRoleActivation](#726-state-pendingactiveroleactivation)
+    6. [7.2.7 State: PendingStandbyRoleActivation](#727-state-pendingstandbyroleactivation)
+    7. [7.2.8 State: Active](#728-state-active)
+    8. [7.2.9 State: Standby](#729-state-standby)
+    9. [7.2.10 State: Standalone](#7210-state-standalone)
+    10. [7.2.11 State: SwitchingToStandby](#7211-state-switchingtostandby)
+    11. [7.2.12 State: SwitchingToActive](#7212-state-switchingtoactive)
+    12. [7.2.13 State: Destroying](#7213-state-destroying)
    3. [7.3. Primary election](#73-primary-election)
    4. [7.4. HA state persistence and rehydration](#74-ha-state-persistence-and-rehydration)
 8. [8. Planned events and operations](#8-planned-events-and-operations)
@@ -824,32 +825,31 @@ The specification of each HA state and its transitions is detailed as follows:
 - If failed to get the voting result, follow the standard procedure to transition to *Standalone*
 - If the `RequestVote` is rejected by the peer, keep retrying.
 
-#### 7.2.3 State: InitializingToActive
+#### 7.2.4 State: InitializingToActive
 
-- Wait for the peer to acknowledge the completion of bulk sync via `HAStateChanged` event
+- Wait for the peer to acknowledge the completion of bulk sync via `BulkSyncCompletedAck` event
 - On receiving the acknowledgement, transition to *PendingActiveRoleActivation*
 - On timeout, follow the standard procedure to transition to *Standalone*
 - On detecting local failures, transition to *Standby*
 
-#### 7.2.4 State: InitializingToStandby
+#### 7.2.5 State: InitializingToStandby
 
-- Send `HAStateChanged` event when the bulk sync is done locally
-- Wait for the peer to acknowledge the completion of bulk sync via `HAStateChanged` event
+- Wait for the peer to confirm the completion of bulk sync via `BulkSyncCompleted` event
 - On receiving the acknowledgement, transition to *PendingStandbyRoleActivation*
 - On timeout, follow the standard procedure to transition to *Standalone*
 - On detecting local failures, transition to *Standby*
 
-#### 7.2.5 State: PendingActiveRoleActivation
+#### 7.2.6 State: PendingActiveRoleActivation
 
 - Request the approval to be active DPU from SDN controller
 - Wait until received the approval, transition to *Active*
 
-#### 7.2.6 State: PendingStandbyRoleActivation
+#### 7.2.7 State: PendingStandbyRoleActivation
 
 - Request the approval to be standby DPU from SDN controller
 - Wait until received the approval, transition to *Standby*
 
-#### 7.2.7 State: Active
+#### 7.2.8 State: Active
 
 - DPU carrying traffic and replicating flows to the standby peer inline
 - Listening for `PlannedSwitchover` and `PlannedPeerShutdown` from the SDN controller
@@ -859,7 +859,7 @@ The specification of each HA state and its transitions is detailed as follows:
 	* On local DPU failure, transition to *Standby*
 	* On remote DPU failure, follow the standard procedure to transition to *Standalone*
 
-#### 7.2.8 State: Standby
+#### 7.2.9 State: Standby
 
 - DPU not carrying traffic and forwarding traffic to the active peer
 - Listening for `PlannedSwitchover` and `PlannedShutdown`
@@ -868,7 +868,7 @@ The specification of each HA state and its transitions is detailed as follows:
 - Listening for health signals
 	* On remote DPU failure, follow the standard procedure to transition to *Standalone*
 
-#### 7.2.9 State: Standalone
+#### 7.2.10 State: Standalone
 
 - DPU carrying traffic
 - Listening for `HAStateChanged` events from peer
@@ -876,7 +876,7 @@ The specification of each HA state and its transitions is detailed as follows:
 - Listening for health signals
 	* On local DPU failure, transition to *Standby*
 
-#### 7.2.10 State: SwitchingToStandby
+#### 7.2.11 State: SwitchingToStandby
 
 - Set up tunnel to forward traffic to the peer DPU
 - On receiving acknowledgement from the peer DPU being Active, transition to *Standby*
@@ -884,14 +884,14 @@ The specification of each HA state and its transitions is detailed as follows:
 	* On local DPU failure, transition to *Standby*
 	* On remote DPU failure, follow the standard procedure to transition to *Standalone*
 
-#### 7.2.11 State: SwitchingToActive
+#### 7.2.12 State: SwitchingToActive
 
 - On receiving acknowledgement from the peer DPU setting up the forwarding tunnel, transition to *Active*
 - Listening for health signals
 	* On local DPU failure, transition to *Standby*
 	* On remote DPU failure, follow the standard procedure to transition to *Standalone*
 
-#### 7.2.12 State: Destroying
+#### 7.2.13 State: Destroying
 
 - Draining traffic
 - After the traffic is drained, transition to *Dead*
