@@ -1,6 +1,6 @@
 # Vxlan SONiC
 # High Level Design Document
-### Rev 1.3
+### Rev 1.4
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -34,13 +34,14 @@
   * [4 Example configuration](#4-example-configuration)
 
 ###### Revision
-| Rev |     Date    |       Author       | Change Description                |
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 |             |     Prince Sunny   | Initial version                   |
-| 1.0 |             |     Prince Sunny   | Review comments/feedback          |
-| 1.1 |             |     Prince Sunny   | Review comments                   |
-| 1.2 |             |     Prince Sunny   | Design change for VNET Table flow |
-| 1.3 |             |     Prince Sunny   | VNet and Route Delete flow        |
+| Rev |     Date    |       Author       | Change Description                       |
+|:---:|:-----------:|:------------------:|------------------------------------------|
+| 0.1 |             |     Prince Sunny   | Initial version                          |
+| 1.0 |             |     Prince Sunny   | Review comments/feedback                 |
+| 1.1 |             |     Prince Sunny   | Review comments                          |
+| 1.2 |             |     Prince Sunny   | Design change for VNET Table flow        |
+| 1.3 |             |     Prince Sunny   | VNet and Route Delete flow               |
+| 1.4 |             |     Anish Narsian  | Doc ref for consistent hashing on Tunnel |
 
 # About this Manual
 This document provides general information about the Vxlan feature implementation in SONiC.
@@ -74,6 +75,8 @@ Phase #2
 - Should be able to do HER for unicast traffic based on configured flood list
 - CLI commands to configure Vxlan
 
+Phase #3:
+- Ability to enable consistent hashing for Vnet Vxlan tunnel next hops(VNET_ROUTE_TUNNEL), the detailed design for this can be found [here](../vxlan/Consistent_ecmp_for_Vxlan_tunnel.md)
 
 ## 1.2 Orchagent requirements
 ### Vxlan orchagent:
