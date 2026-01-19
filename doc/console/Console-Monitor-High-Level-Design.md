@@ -590,7 +590,11 @@ admin@sonic:~$ sonic-db-cli STATE_DB HGETALL "CONSOLE_PORT|2"
 
 ## 5. CLI
 
-The `show line` command adds Oper State and State Duration display:
+### 5.1 Show line
+
+Alias of `consutil show`
+
+The `show line` command now adds Oper State and State Duration display:
 
 ```
 admin@sonic:~$ show line
@@ -611,6 +615,70 @@ New columns:
 |-------------|-------------|
 | Oper State | Current operational state of console link |
 | State Duration | Duration of current state (format: XyXdXhXmXs, only shows non-zero parts) |
+
+### 5.2 Configuration Commands
+
+#### 5.2.1 Enable/Disable Console Heartbeat (DTE Side)
+
+```bash
+config console heartbeat {enable|disable}
+```
+
+Control console heartbeat transmission on controlled device (DTE side). When enabled, the DTE side service will send heartbeat frames regularly to verify link connectivity.
+
+**Sample Usage:**
+
+```bash
+# Enable console heartbeat on DTE side
+admin@switch:~$ sudo config console heartbeat enable
+
+# Disable console heartbeat on DTE side
+admin@switch:~$ sudo config console heartbeat disable
+
+# Verify configuration
+admin@switch:~$ sonic-db-cli CONFIG_DB HGETALL "CONSOLE_SWITCH|controlled_device"
+```
+
+#### 5.2.2 Enable/Disable Console Monitor (DCE Side)
+
+```bash
+config console {enable|disable}
+```
+
+Console monitor service share same command with [SONiC Console Switch Utility](https://github.com/sonic-net/SONiC/blob/master/doc/console/SONiC-Console-Switch-High-Level-Design.md#33136-enabledisable-console-switch-feature). When enabled, the DCE side service will monitor heartbeats and update link operational states.
+
+**Sample Usage:**
+
+```bash
+# Enable console monitor on DCE side
+admin@console-server:~$ sudo config console enable
+
+# Disable console monitor on DCE side
+admin@console-server:~$ sudo config console disable
+
+# Verify configuration
+admin@console-server:~$ sonic-db-cli CONFIG_DB HGETALL "CONSOLE_SWITCH|console_mgmt"
+```
+
+---
+
+## 6. Example Configuration
+
+**DCE Side - CONFIG_DB:**
+
+Refer to [Example Configuration](https://github.com/sonic-net/SONiC/blob/master/doc/console/SONiC-Console-Switch-High-Level-Design.md#33136-enabledisable-console-switch-feature)
+
+**DTE Side - CONFIG_DB:**
+
+```json
+{
+  "CONSOLE_SWITCH": {
+    "controlled_device": {
+      "enabled": "yes"
+    }
+  }
+}
+```
 
 ---
 
