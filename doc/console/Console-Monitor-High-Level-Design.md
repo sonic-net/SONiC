@@ -37,7 +37,7 @@
 | DCE | Data Communications Equipment - Console Server side |
 | DTE | Data Terminal Equipment - SONiC Switch (managed device) side |
 | Heartbeat | Periodic signal used to verify link connectivity |
-| Oper | Operational state (Up/Down) |
+| Oper | Operational state (Up/Unknown) |
 | PTY | Pseudo Terminal - Virtual terminal interface |
 | Proxy | Intermediate proxy process handling serial communication |
 | TTY | Teletypewriter - Terminal device interface |
@@ -54,7 +54,7 @@ The console monitor service provides real-time automatic detection of link Oper 
 ### 1.1 Feature Requirements
 
 *   **Connectivity Detection**
-    *   Determine whether the DCE ↔ DTE serial link is available (Oper Up/Down)
+    *   Determine whether the DCE ↔ DTE serial link is available (Oper Up/Unknown)
 *   **Non-Interference**
     *   Does not affect normal console operations, including remote device cold reboot and system reinstallation
 *   **Robustness**
@@ -125,7 +125,8 @@ Creates a Proxy between the physical serial port and user applications, responsi
 *   **PTY Creation**
     *   Creates pseudo-terminal pairs for upper-layer applications
 *   **PTY Symlink**
-    *   Creates fixed symlinks (e.g., `/dev/VC0-1`) pointing to dynamic PTY slaves (e.g., `/dev/pts/3`)
+    *   Creates fixed symlinks (e.g., `/dev/C0-1-PTS`) pointing to dynamic PTY slaves (e.g., `/dev/pts/3`)
+    *   Naming convention: `<prefix><link_id>-PTS` where prefix is read from udevprefix.conf
     *   Upper-layer applications (consutil, picocom) use stable device paths
 *   **Heartbeat Filtering**
     *   Identifies heartbeat frames, updates state, and discards heartbeat data
@@ -278,13 +279,14 @@ When frame content (between frame header and trailer) contains special character
 
 #### 3.1.8 Frame Detection and Filtering
 
+![ConsoleMonitorDataFlow](./Console-Monitor-High-Level-Desig/ConsoleMonitorDataFlow.png)
+
 **Buffer Design:**
 
 Since frames may be split during read operations, a sliding buffer is needed to store received byte streams for frame detection.
 
-*   **Characteristics:**
-    *   Fixed size of 64 bytes
-    *   Stores all input data except SOF and EOF
+- Fixed size of 64 bytes
+- Responsible for distinguishing frame data from user data
 
 **Detection Algorithm:**
 
@@ -445,24 +447,26 @@ Each link has an independent Proxy instance, responsible for serial port read/wr
 
 #### 3.3.2 Timeout Determination
 
-Default timeout period is 15 seconds. If no heartbeat is received during this period, timeout is triggered.
+Default timeout period is 15 seconds. If no heartbeat or user data is received during this period, timeout is triggered.
 
 #### 3.3.3 Oper State Determination
+
+![ConsoleMonitorOperStateTransition](ConsoleMonitorOperStateTransition.png)
 
 Each link maintains independent state, using dual detection mechanism of heartbeat and data activity:
 
 *   **State becomes UP**: When a heartbeat frame is received, Proxy resets the heartbeat timeout timer and sets oper state to UP
-*   **State becomes DOWN**: When heartbeat timeout (default 15 seconds) triggers, additionally checks for recent serial data activity:
+*   **State becomes UNKNOWN**: When heartbeat timeout (default 15 seconds) triggers, additionally checks for recent serial data activity:
     *   If there was data activity within the timeout period (even without heartbeat), reset timer and continue waiting
-    *   If neither heartbeat nor data activity occurred, set oper state to DOWN
-*   **Design Rationale**: Prevents false link state determination when DTE side is busy causing heartbeat write blocking
+    *   If neither heartbeat nor data activity occurred, set oper state to UNKNOWN
+    *   When no heartbeat or data is received, the root cause cannot be determined, it could be link layer failure, system layer failure, or software layer failure.
 
 State changes are written to STATE_DB.
 
 STATE_DB entries:
 
 *   Key: `CONSOLE_PORT|<link_id>`
-*   Field: `oper_state`, Value: `up` / `down`
+*   Field: `oper_state`, Value: `Up` / `Unknown`
 *   Field: `last_state_change`, Value: `<timestamp>` (state change timestamp)
 
 #### 3.3.4 Service Startup and Initialization
@@ -475,7 +479,7 @@ The console-monitor-dce service starts in the following order:
     *   Establishes connections to CONFIG_DB and STATE_DB
 3.  **Read PTY Symlink Prefix**
     *   Reads device prefix (e.g., `C0-`) from `<platform_path>/udevprefix.conf`
-    *   Constructs virtual device prefix `/dev/V<prefix>` (e.g., `/dev/VC0-`)
+    *   PTY symlinks are created with format: `/dev/<prefix><link_id>-PTS` (e.g., `/dev/C0-1-PTS`)
 4.  **Initial Sync (Check Console Feature)**
     *   Checks the `enabled` field of `CONSOLE_SWITCH|console_mgmt` in CONFIG_DB
     *   If `enabled` is not `"yes"`, skips Proxy initialization; service continues running but does not start any Proxy
@@ -488,15 +492,15 @@ The console-monitor-dce service starts in the following order:
     *   For each serial port configuration in CONFIG_DB:
         *   Open physical serial port (e.g., `/dev/C0-1`)
         *   Create PTY pair (master/slave, e.g., `/dev/pts/X`)
-        *   Create symlink (e.g., `/dev/VC0-1` → `/dev/pts/3`)
+        *   Create symlink (e.g., `/dev/C0-1-PTS` → `/dev/pts/3`)
         *   Configure serial port and PTY to raw mode
         *   Register file descriptors to asyncio event loop
         *   Start heartbeat timeout timer (15 seconds)
 7.  **Enter Main Loop**
     *   Process serial data, filter heartbeats, update STATE_DB
 8.  **Initial State**
-    *   If no heartbeat within 15 seconds, `oper_state` is set to `down`, recording `last_state_change` timestamp
-    *   After receiving first heartbeat, `oper_state` becomes `up`, recording `last_state_change` timestamp
+    *   If no heartbeat or data activity within 15 seconds, `oper_state` is set to `Unknown`, recording `last_state_change` timestamp
+    *   After receiving first heartbeat, `oper_state` becomes `Up`, recording `last_state_change` timestamp
 
 #### 3.3.5 Dynamic Configuration Changes
 
@@ -514,7 +518,7 @@ When console-monitor-dce service receives shutdown signal (SIGINT/SIGTERM), each
     *   Only deletes `oper_state` and `last_state_change` fields
     *   Preserves `state`, `pid`, `start_time` fields managed by consutil
 *   **PTY Symlink**
-    *   Deletes symlinks (e.g., `/dev/VC0-1`)
+    *   Deletes symlinks (e.g., `/dev/C0-1-PTS`)
 *   **Buffer Flush**
     *   If filter buffer is non-empty, flush to PTY
 
@@ -522,14 +526,65 @@ When console-monitor-dce service receives shutdown signal (SIGINT/SIGTERM), each
 
 ## 4. Database Changes
 
-### 4.1 STATE_DB
+### 4.1 CONFIG_DB
 
-Table: CONSOLE_PORT_TABLE
+#### 4.1.1 CONSOLE_SWITCH Table
 
 | Key Format | Field | Value | Description |
 |------------|-------|-------|-------------|
-| `CONSOLE_PORT|<link_id>` | `oper_state` | `up` / `down` | Link operational state |
-| `CONSOLE_PORT|<link_id>` | `last_state_change` | `<timestamp>` | State change timestamp |
+| `CONSOLE_SWITCH\|controlled_device` | `enabled` | `yes` / `no` | Enable/disable DTE side heartbeat sending |
+| `CONSOLE_SWITCH\|console_mgmt` | `enabled` | `yes` / `no` | Enable/disable DCE side console monitor service |
+
+**Example:**
+
+```bash
+admin@sonic:~$ sonic-db-cli CONFIG_DB HGETALL "CONSOLE_SWITCH|controlled_device"
+{'enabled': 'yes'}
+
+admin@sonic:~$ sonic-db-cli CONFIG_DB HGETALL "CONSOLE_SWITCH|console_mgmt"
+{'enabled': 'yes'}
+```
+
+### 4.2 STATE_DB
+
+#### 4.2.1 CONSOLE_PORT Table
+
+| Key Format | Field | Value | Description
+|------------|-------|-------|-------------|
+| `CONSOLE_PORT\|<link_id>` | `oper_state` | `Up` / `Unknown` | Link operational state
+| `CONSOLE_PORT\|<link_id>` | `last_state_change` | `<timestamp>` | Oper state change timestamp
+
+**Example:**
+
+```bash
+admin@sonic:~$ sonic-db-cli STATE_DB HGETALL "CONSOLE_PORT|1"
+ 1) "state"
+ 2) "idle"
+ 3) "pid"
+ 4) ""
+ 5) "start_time"
+ 6) ""
+ 7) "oper_state"
+ 8) "Unknown"
+ 9) "last_state_change"
+10) "1737273845"
+
+admin@sonic:~$ sonic-db-cli STATE_DB HGETALL "CONSOLE_PORT|2"
+ 1) "state"
+ 2) "busy"
+ 3) "pid"
+ 4) "12345"
+ 5) "start_time"
+ 6) "1737270000"
+ 7) "oper_state"
+ 8) "Up"
+ 9) "last_state_change"
+10) "1737060245"
+```
+
+**Note:**
+- `state`, `pid`, `start_time` are managed by consutil
+- `oper_state`, `last_state_change` are managed by console-monitor-dce service
 
 ---
 
@@ -546,8 +601,8 @@ Output:
 ```
   Line    Baud    Flow Control    PID    Start Time      Device    Oper State    State Duration
 ------  ------  --------------  -----  ------------  ----------  ------------  ----------------
-     1    9600        Disabled      -             -   Terminal1             up          3d16h34s
-     2    9600        Disabled      -             -   Terminal2           down              1h5m
+     1    9600        Disabled      -             -   Terminal1             Up       3d16h24m34s
+     2    9600        Disabled      -             -   Terminal2        Unknown           1h5m17s
 ```
 
 New columns:
@@ -567,3 +622,4 @@ New columns:
 4. [Getty Explanation](https://0pointer.de/blog/projects/serial-console.html)
 5. [ASCII Code](https://www.ascii-code.com/)
 6. [agetty(8) - Linux manual page](https://man7.org/linux/man-pages/man8/agetty.8.html)
+7. [agetty source code](https://github.com/util-linux/util-linux/blob/master/term-utils/agetty.c)
