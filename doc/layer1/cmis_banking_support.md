@@ -575,7 +575,7 @@ Physical Module (32 lanes, index=1)
 **Benefits:**
 - **Thread-safe** - each view has its own xcvr_api with bank set, no shared mutable state
 - **Backwards compatible** - existing code using `get_sfp(index)` continues to work (defaults to bank 0)
-- **Efficient** - views and xcvr_api instances are cached, not created per request
+- **Efficient** - For interface scope access, reduce i2c writes from 4 (entire module) to 1 (bank only)
 - **Bank is explicitly configured** in `platform.json`
 
 #### 7.8.3 Implementation Changes by Layer
