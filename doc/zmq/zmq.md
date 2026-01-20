@@ -14,8 +14,8 @@
 - [2 Requirements](#2-requirements)
   * [2.1 Functional Requirements](#21-functional-requirements)
 - [3 Syncd Changes](#3-syncd-changes)
-  * [3.1 Syncd Flow](#31-syncd-flow)
-  * [3.2 After the Changes](#32-after-the-changes)
+  * [3.1 Syncd Flow (Before)](#31-syncd-flow-before)
+  * [3.2 Syncd Flow (After)](#32-syncd-flow-after)
   * [3.3 Memory Footprint Comparison](#33-memory-footprint-comparison)
 - [4 Design](#4-design)
   * [4.1 Remove Syncd Redis Objects with ZMQ](#41-remove-syncd-redis-objects-with-zmq)
@@ -46,6 +46,7 @@ This document describes the optimization to reduce ASIC DB memory footprint by u
 | DASH     | Disaggregated APIs for SONiC Hosts                       |
 | DPU      | Data Processing Unit                                     |
 | ENI      | Elastic Network Interface                                |
+| VmRSS    | Virtual Memory Resident Set Size - physical memory used  |
 
 # 1 Overview
 
@@ -66,16 +67,15 @@ The optimization removes unnecessary Redis objects from syncd to save on memory,
 - The optimization shall be transparent to orchagent and other consumers
 - No functionality shall be lost when this optimization is enabled
 
-# 3 Syncd changes
+# 3 Syncd Changes
 
-## 3.1 Syncd flow
+## 3.1 Syncd Flow (Before)
 
 Notifications prior to the change were tracked by ZMQ Push/Pull sockets. State in ASIC_DB is updated only after the ASIC is successfully programmed. `sairedis.rec` is also updated with an entry that includes the SAI call and its response code.
 
+## 3.2 Syncd Flow (After)
 
-## 3.2 After the changes
-
-The only major change is that objects cannot be created or destroyed in zmq_sync notification mode.
+With the `zmq_sync` notification mode enabled, Redis objects are no longer created or destroyed in ASIC_DB. State is no longer written to ASIC_DB after ASIC programming—instead, the SAI call results are only recorded in `sairedis.rec`. This eliminates the Redis memory overhead while maintaining the ability to track and replay SAI operations.
 
 ## 3.3 Memory Footprint Comparison
 
