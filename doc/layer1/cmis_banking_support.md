@@ -457,8 +457,6 @@ def get_banks_supported(self):
     banks_supported_raw = self.read_field(consts.BANKS_SUPPORTED_FIELD)
     if banks_supported_raw is None:
         return 1  # Default to Bank 0 only
-
-    # Decode: 0=1bank, 1=2banks, 2=3banks, 3=4banks etc
 ```
 
 #### 7.7.3 I2C Write Behavior
