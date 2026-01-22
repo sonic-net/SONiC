@@ -347,10 +347,31 @@ END PROCEDURE
 
 When no new data arrives within the timeout period, flush or discard the buffer based on `in_frame` state:
 *   Timeout is dynamically calculated based on baud rate: `timeout = (10 / baud) × MAX_FRAME_BUFFER_SIZE × 3`
-*   Formula explanation: per-character time (10 bits / baud rate) × maximum frame length × 3x margin
-*   If not in frame: flush buffer as user data
-*   If in frame: frame is incomplete, discard buffer contents
-*   Exit in-frame state
+    *   If not in frame: flush buffer as user data
+    *   If in frame: frame is incomplete, discard buffer contents
+    *   Finally exit in-frame state
+
+*   Formula explanation: 
+    *   Base transmission time: `(10 bits / baud rate) × MAX_FRAME_BUFFER_SIZE`
+        *   10 bits per character (1 start + 8 data + 1 stop bit)
+    *   3x safety margin accounts for system-level processing delays
+    *   Ignored delays:
+        *   Cable propagation delay: ~1.5μs for 300m datacenter distance (signal travels at ~2×10⁸ m/s)
+        *   Optical-electrical conversion: 2-20μs for serial-to-fiber converters
+        *   System processing overhead: USB-to-Serial chip buffering, kernel TTY layer, and scheduling jitter are absorbed by the 3x margin
+    *   Physical and conversion delays (μs) are 3 orders of magnitude smaller than serial transmission time (ms), making them negligible in timeout calculation
+
+**Common Baud Rates and Timeouts:**
+
+| Baud Rate | Per-Byte Time | 64-Byte Transmission | Timeout (3x) |
+|-----------|---------------|----------------------|--------------|
+| 9600      | 1.04 ms       | 66.7 ms              | 200.1 ms     |
+| 19200     | 0.52 ms       | 33.3 ms              | 99.9 ms     |
+| 38400     | 0.26 ms       | 16.7 ms              | 50.1 ms      |
+| 57600     | 0.17 ms       | 11.1 ms              | 33.3 ms      |
+| 115200    | 0.09 ms       | 5.6 ms               | 16.8 ms      |
+
+
 
 ---
 
