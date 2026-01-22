@@ -655,6 +655,25 @@ class SfpView:
         self._xcvr_api = None
 ```
 
+In the case for CPO seperate mode there is an SfpView per OE and ELS:
+```python
+class CpoSeperateSfp:
+    """Composite view for CPO with separate OE and ELSFP devices."""
+
+    def __init__(self, oe_view: SfpView, elsfp_view: SfpView):
+        self._oe_view = oe_view
+        self._elsfp_view = elsfp_view
+        self._xcvr_api = None
+
+    def get_xcvr_api(self):
+        if self._xcvr_api is None:
+            self._xcvr_api = CpoSeperateCmisApi(
+                self._oe_view.get_xcvr_api(),
+                self._elsfp_view.get_xcvr_api()
+            )
+        return self._xcvr_api
+```
+
 ##### Layer 3: CMIS API (`api/public/cmis.py`)
 
 Add `set_bank()` method and use internal `_bank` attribute when accessing banked pages:
@@ -686,6 +705,24 @@ class CmisApi:
     def get_module_temperature(self):
         """Temperature is on non-banked page - no bank parameter needed."""
         return self.xcvr_eeprom.read(consts.MODULE_TEMPERATURE_FIELD)
+```
+
+In the case for CPO seperate mode there is a new class that handles calls to the correct device (OE or ELS)
+```python
+class CpoSeperateCmisApi:
+    """Composite API that routes calls to appropriate device."""
+
+    def __init__(self, oe_api, elsfp_api):
+        self._oe_api = oe_api
+        self._elsfp_api = elsfp_api
+
+    # data from OE
+    def get_oe_rx_power(self):
+        return self._oe_api.get_rx_power()
+
+    # data from ELSFP
+    def get_eslfp_tx_power(self):
+        return  self._elsfp_api.get_tx_power()
 ```
 
 ##### Layer 4: XcvrEeprom (`xcvr_eeprom.py`)
