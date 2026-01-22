@@ -279,7 +279,7 @@ When frame content (between frame header and trailer) contains special character
 
 #### 3.1.8 Frame Detection and Filtering
 
-![ConsoleMonitorDataFlow](./Console-Monitor-High-Level-Desig/ConsoleMonitorDataFlow.png)
+![ConsoleMonitorDataFlow](Console-Monitor-High-Level-Design/ConsoleMonitorDataFlow.png)
 
 **Buffer Design:**
 
@@ -441,7 +441,7 @@ flowchart TD
 
 Topology:
 
-![Console Monitor Structure](./Console-Monitor-High-Level-Desig/ConsoleMonitorStructure.png)
+![Console Monitor Structure](Console-Monitor-High-Level-Design/ConsoleMonitorStructure.png)
 
 Each link has an independent Proxy instance, responsible for serial port read/write and state maintenance.
 
@@ -451,7 +451,7 @@ Default timeout period is 15 seconds. If no heartbeat or user data is received d
 
 #### 3.3.3 Oper State Determination
 
-![ConsoleMonitorOperStateTransition](ConsoleMonitorOperStateTransition.png)
+![ConsoleMonitorOperStateTransition](Console-Monitor-High-Level-Design/ConsoleMonitorOperStateTransition.png)
 
 Each link maintains independent state, using dual detection mechanism of heartbeat and data activity:
 
