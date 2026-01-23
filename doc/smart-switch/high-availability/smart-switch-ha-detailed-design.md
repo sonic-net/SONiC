@@ -39,7 +39,6 @@
          2. [2.3.1.2. HA scope configurations](#2312-ha-scope-configurations)
          3. [2.3.1.3. Flow sync sessions](#2313-flow-sync-sessions)
          4. [2.3.1.4. Flow dump filter](#2314-flow-dump-filter)
-         5. [2.3.1.5. Flow dump sessions](#2315-flow-dump-sessions)
       2. [2.3.2. APPL\_DB (per-NPU)](#232-appl_db-per-npu)
          1. [2.3.2.1. DASH\_ENI\_FORWARD\_TABLE](#2321-dash_eni_forward_table)
       3. [2.3.3. CHASSIS\_STATE\_DB (per-NPU)](#233-chassis_state_db-per-npu)
@@ -48,8 +47,7 @@
          1. [2.3.4.1. HA set state](#2341-ha-set-state)
          2. [2.3.4.2. HA scope state](#2342-ha-scope-state)
          3. [2.3.4.3. Flow sync session states](#2343-flow-sync-session-states)
-         4. [2.3.4.4. Flow dump session states](#2344-flow-dump-session-states)
-         5. [2.3.4.5. DASH BFD probe state](#2345-dash-bfd-probe-state)
+         4. [2.3.4.4. DASH BFD probe state](#2344-dash-bfd-probe-state)
 3. [3. Telemetry](#3-telemetry)
    1. [3.1. HA state and related health signals](#31-ha-state-and-related-health-signals)
    2. [3.2. Traffic forwarding related](#32-traffic-forwarding-related)
@@ -565,12 +563,20 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_FLOW_SYNC_SESSION_TABLE | | |  |
-| | \<SESSION_ID\> | | Flow sync session id. |
-| | | ha_set_id | HA set id. |
-| | | target_server_ip | The IP of the server that used to receive flow records. |
-| | | target_server_port | The port of the server that used to receive flow records. |
-| | | timeout | timeout to mark the status as failed if the finished notification is not recieved (default is 120 secs)  |
+| DASH_FLOW_SYNC_SESSION_TABLE | | | Flow sync session table supporting both bulk sync and flow dump sessions. |
+| | \<SESSION_ID\> | | Session ID. |
+| | | type | Session type: "bulk_sync" or "flow_dump". |
+| | | ha_set_id | HA set id (required for bulk_sync type). |
+| | | target_server_ip | The IP of the server that used to receive flow records (required for bulk_sync type). |
+| | | target_server_port | The port of the server that used to receive flow records (required for bulk_sync type). |
+| | | timeout | Timeout to mark the status as failed if the finished notification is not received (default is 120 secs for bulk_sync, 300 secs for flow_dump). |
+| | | flow_state | Boolean: "True/true" or "False/false" (for flow_dump type). If flow state is false, only values under sai_flow_entry_t are present. |
+| | | filter_1 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | filter_2 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | filter_3 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | filter_4 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | filter_5 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | max_flows | Maximum flows to dump (for flow_dump type, default: 1000). |
 
 ##### 2.3.1.4. Flow dump filter
 
@@ -581,21 +587,6 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | key | Filter key: eni_addr, ip_protocol, src_ip_addr, dst_ip_addr, src_l4_port, dst_l4_port, or key_version. |
 | | | op | Filter operation: equal_to, greater_than, greater_than_or_equal_to, less_than, or less_than_or_equal_to. |
 | | | value | Value to compare against. Type can be INT, IP, or MAC depending on key |
-
-##### 2.3.1.5. Flow dump sessions
-
-| Table | Key | Field | Description |
-| --- | --- | --- | --- |
-| DASH_FLOW_DUMP_SESSION_TABLE | | | Flow dump session for debugging/testing. |
-| | \<SESSION_ID\> | | Session ID. |
-| | | flow_state | Boolean: "True/true" or "False/false". If flow state is false, only values under sai_flow_entry_t are present |
-| | | filter_1 | Reference to filter name (optional). |
-| | | filter_2 | Reference to filter name (optional). |
-| | | filter_3 | Reference to filter name (optional). |
-| | | filter_4 | Reference to filter name (optional). |
-| | | filter_5 | Reference to filter name (optional). |
-| | | max_flows | Maximum flows to dump (optional). |
-| | | timeout | timeout to mark the status as failed if the finished notification is not recieved (default is 300 secs)  |
 
 #### 2.3.2. APPL_DB (per-NPU)
 
@@ -663,23 +654,15 @@ DPU state table stores the health states of each DPU. These data are collected b
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_FLOW_SYNC_SESSION_STATE | | |  |
-| | \<SESSION_ID\> | | Flow sync session id. |
-| | | state | Flow sync session state. It can be "created", "in_progress", "completed", "failed". |
-| | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
-| | | last_state_start_time_in_ms | Flow sync session last state start time in milliseconds. |
+| DASH_FLOW_SYNC_SESSION_STATE | | | Flow sync session state table supporting both bulk sync and flow dump sessions. |
+| | \<SESSION_ID\> | | Session ID (same as config table key). |
+| | | type | Session type: "bulk_sync" or "flow_dump". |
+| | | state | Session state. It can be "created", "in_progress", "completed", "failed". |
+| | | creation_time_in_ms | Session creation time in milliseconds. |
+| | | last_state_start_time_in_ms | Session last state start time in milliseconds. |
+| | | output_file | Path to output file: `/var/dump/flows/flow_dump_<oid>.jsonl.gz` (for flow_dump type, present when state is "completed"). |
 
-##### 2.3.4.4. Flow dump session states
-
-| Table | Key | Field | Description |
-| --- | --- | --- | --- |
-| DASH_FLOW_DUMP_SESSION_STATE | | | Flow dump session state. |
-| | \<SESSION_NAME\> | | Session name (same as config table key). |
-| | | state | Session status: "created", "in_progress", "completed", "failed". |
-| | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
-| | | output_file | Path to output file: `/var/dump/flows/flow_dump_<oid>.jsonl.gz`. |
-
-##### 2.3.4.5. DASH BFD probe state
+##### 2.3.4.4. DASH BFD probe state
 
 The schema of `DASH_BFD_PROBE_STATE` table is defined in the [SmartSwitch BFD HLD](https://github.com/sonic-net/SONiC/pull/1635). Please refer to it for detailed definition.
 
@@ -864,6 +847,9 @@ Traditional pattern would be to relay the flow data from syncd to orchagent. Thi
     │                │                    │                     │                   │              │
     │ 2. Create      │                    │                     │                   │              │
     │   Session      │                    │                     │                   │              │
+    │   (type=       │                    │                     │                   │              │
+    │   flow_dump,   │                    │                     │                   │              │
+    │   filter refs) │                    │                     │                   │              │
     │───────────────>│                    │                     │                   │              │
     │                │  3. Push config    │                     │                   │              │
     │                │───────────────────>│                     │                   │              │
@@ -875,7 +861,8 @@ Traditional pattern would be to relay the flow data from syncd to orchagent. Thi
     │                │                    │                     │                   │─────────────>│
     │                │                    │                     │                   │              │
     │                │                    │ 5. Write OID & STATE│                   │              │
-    │                │                    │  status="in_progress"                   │              │
+    │                │                    │  type="flow_dump"   │                   │              │
+    │                │                    │  status="in_progress"│                   │              │
     │                │                    │────────────────────>│                   │              │
     │                │                    │                     │                   │              │
     │                │                    │                     │                   │ 6. Stream    │
@@ -902,6 +889,7 @@ Traditional pattern would be to relay the flow data from syncd to orchagent. Thi
     │                │                    │<────────────────────────────────────────│              │
     │                │                    │                     │                   │              │
     │                │                    │ 10. Write STATE     │                   │              │
+    │                │                    │  type="flow_dump"   │                   │              │
     │                │                    │  output_file=       │                   │              │
     │                │                    │  /var/dump/flows/   │                   │              │
     │                │                    │  flow_dump_<oid>    │                   │              │
@@ -918,6 +906,7 @@ Traditional pattern would be to relay the flow data from syncd to orchagent. Thi
     │                │                    │ 12. Timeout watchdog│                   │              │
     │                │                    │  (if no COMPLETION) │                   │              │
     │                │                    │────────────────────>│                   │              │
+    │                │                    │  type="flow_dump"   │                   │              │
     │                │                    │  status="failed"    │                   │              │
     │                │                    │                     │                   │              │
 ```
