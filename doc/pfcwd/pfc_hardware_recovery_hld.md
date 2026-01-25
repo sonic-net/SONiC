@@ -11,7 +11,8 @@
   - [4.1 Hardware Recovery Mechanism](#41-hardware-recovery-mechanism)
   - [4.2 PFC Watchdog Orchagent Refactoring](#42-pfc-watchdog-orchagent-refactoring)
 - [5. CLI Changes](#5-cli-changes)
-  - [5.1 CLI Data Flow](#51-cli-data-flow)
+  - [5.1 New CLI command](#51-new-cli-command)
+  - [5.2 CLI Data Flow](#52-cli-data-flow)
 - [6. SAI API](#6-sai-api)
   - [6.1 SAI Attributes](#61-sai-attributes)
   - [6.2 SAI Events](#62-sai-events)
@@ -240,10 +241,19 @@ For example: if the hardware granularity is 100 ms and configured detection time
 **Upper limit on the timer value**
 Some platforms like broadcom only allow the timer value to be within the range <1-15> multiplied with the current granularity. So, it is possible that the value in the cli config cannot be programmed in the hardware.
 
-**New CLI command**
+#### 5.1 New CLI command
 We propose to add a new CLI command `show pfcwd status` to display hardware-specific information including recovery type, programming status, hardware detection time, hardware restoration time, detection time granularity, and restoration time granularity. The STATUS column indicates whether the pfcwd configuration was successfully programmed (success/failed). Configuration can fail due to unsupported timer value ranges or hardware constraints.
 
-#### 5.1 CLI Data Flow
+**Timer determination for hardware-based model**
+For hardware-based recovery, the actual timer values programmed in hardware are determined through the following process:
+1. **User Configuration**: User configures desired timer values through CLI (e.g., detection_time=250ms)
+2. **Platform Capability Query**: Software queries SAI capability attributes to determine hardware granularity constraints (see section 6.1 for SAI capability attributes)
+3. **Value Adjustment**: Software adjusts the configured value to the nearest supported hardware value based on granularity
+4. **Hardware Programming**: Adjusted value is programmed via SAI attributes (`SAI_PORT_ATTR_PFC_TC_DLD_INTERVAL` / `SAI_PORT_ATTR_PFC_TC_DLR_INTERVAL`)
+5. **Verification**: Software reads back the actual programmed value from hardware to display in `show pfcwd status`
+
+
+#### 5.2 CLI Data Flow
 
 The following diagram illustrates how the new `show pfcwd status` command retrieves and displays information:
 
@@ -268,14 +278,26 @@ flowchart LR
     H --> I[Display Table with:<br/>PORT, RECOVERY TYPE, STATUS,<br/>HW DETECTION TIME, DETECTION GRANULARITY,<br/>HW RESTORATION TIME, RESTORATION GRANULARITY]
 ```
 
+**Example: ASIC with Hardware Recovery**
+
 ```shell
 admin@sonic:~$ show pfcwd status
 PORT        RECOVERY TYPE    STATUS     HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
 ----------  -------------    --------   -------------------  ---------------------    ---------------------  -----------------------
 Ethernet0   hardware         success    300                  100ms                    500                    100ms
-Ethernet4   software         success    N/A                  N/A                      N/A                    N/A
 Ethernet8   hardware         success    200                  50ms                     400                    100ms
-Ethernet12  hardware         failed     N/A                  100ms                    N/A                    100ms
+Ethernet12  hardware         success    400                  100ms                    800                    100ms
+```
+
+**Example: ASIC with Software Recovery**
+
+```shell
+admin@sonic:~$ show pfcwd status
+PORT        RECOVERY TYPE    STATUS     HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
+----------  -------------    --------   -------------------  ---------------------    ---------------------  -----------------------
+Ethernet0   software         success    N/A                  N/A                      N/A                    N/A
+Ethernet4   software         success    N/A                  N/A                      N/A                    N/A
+Ethernet8   software         success    N/A                  N/A                      N/A                    N/A
 ```
 
 ## 6. SAI API
@@ -284,12 +306,19 @@ Following SAI statistics and attributes are used in this feature:
 
 ### 6.1 SAI Attributes
 
-- `SAI_QUEUE_ATTR_ENABLE_PFC_DLDR` - Enable PFC deadlock detection and recovery
-- `SAI_SWITCH_ATTR_QUEUE_PFC_DEADLOCK_NOTIFY` - Register callback for PFC deadlock events
-- `SAI_PORT_ATTR_PFC_TC_DLD_INTERVAL` - Detection timer intervals per port/per TC
-- `SAI_PORT_ATTR_PFC_TC_DLR_INTERVAL` - Recovery timer intervals per port/per TC
-- `SAI_SWITCH_ATTR_PFC_DLR_PACKET_ACTION` - Configure drop/forward action
-- `SAI_QUEUE_ATTR_PFC_DLR_INIT` - Manual recovery control
+**Configuration Attributes:**
+
+| SAI Attribute | Description |
+| ------------- | ----------- |
+| `SAI_QUEUE_ATTR_ENABLE_PFC_DLDR` | Enable PFC deadlock detection and recovery |
+| `SAI_SWITCH_ATTR_QUEUE_PFC_DEADLOCK_NOTIFY` | Register callback for PFC deadlock events |
+| `SAI_PORT_ATTR_PFC_TC_DLD_INTERVAL_RANGE` | Query supported detection timer range per port |
+| `SAI_PORT_ATTR_PFC_TC_DLD_TIMER_INTERVAL` | Set the granularity for the detection timer per port |
+| `SAI_PORT_ATTR_PFC_TC_DLD_INTERVAL` | Detection timer intervals per port/per TC |
+| `SAI_PORT_ATTR_PFC_TC_DLR_INTERVAL_RANGE` | Query supported recovery timer range per port |
+| `SAI_PORT_ATTR_PFC_TC_DLR_INTERVAL` | Recovery timer intervals per port/per TC |
+| `SAI_SWITCH_ATTR_PFC_DLR_PACKET_ACTION` | Configure drop/forward action |
+| `SAI_QUEUE_ATTR_PFC_DLR_INIT` | Manual recovery control |
 
 ### 6.2 SAI Events
 
@@ -350,7 +379,6 @@ All existing PFC watchdog testing remains unchanged as documented in the [PFC Wa
 - Validate hardware timer values and granularity information display
 - Test N/A display for software recovery ports
 - Verify column alignment and formatting
-- Test command behavior on mixed hardware/software port configurations
 
 #### Hardware Recovery Functionality Testing
 - Verify hardware capability detection and automatic selection between hardware/software implementations
