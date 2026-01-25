@@ -35,29 +35,32 @@
   - [Station to Switch](#station-to-switch)
   - [Switch to Station](#switch-to-station)
   - [Station to GPU](#station-to-gpu)
-- [Software Architecture](#software-architecture)
-  - [SONiC Software Module Changes](#sonicsoftwaremodulechanges)
-  - [ID Lookup](#id-lookup)
-  - [PFC/CBFC](#pfccbfc)
-  - [LLR](#llr)
-    - [How UEC-LLR Works](#how-uec-llr-works)
-  - [LL-FEC](#ll-fec)
-  - [The impact from unreliable links](#the-impact-from-unreliable-links)
 - [Resiliency and Fault Tolerance](#resiliency-and-fault-tolerance)
   - [GPU Failures](#gpu-failures)
   - [Switch Failures](#switch-failures)
   - [Link Failures](#link-failures)
     - [Redundant Links](#redundant-links)
     - [Tracking Per-Target Reachability](#tracking-per-target-reachability)
-    - [Fabric-Enabled Alternate Paths](#fabric-enabled-alternate-paths)
-- [Future Features in SONiC](#future-features-in-sonic)
+- [Cluster Provisioning](#cluster-provisioning)
+  - [Option 1 Fabric mananger](#option-1-fabric-mananger)
+  - [Option 2 SDN style](#option-2-sdn-style)
+  - [Option 3 Hybrid mode](#option-3-hybrid-mode)
+- [Software Architecture](#software-architecture)
+  - [ID Lookup](#id-lookup)
+  - [PFC/CBFC](#pfccbfc)
+  - [LLR](#llr)
+    - [How UEC-LLR Works](#how-uec-llr-works)
+  - [LL-FEC](#ll-fec)
+    - [The impact from unreliable links](#the-impact-from-unreliable-links)
+  - [SONiC Software Module Changes](#sonicsoftwaremodulechanges)
 
 ## Revisions
 
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 07/27/2025  |     Joy Qin  | Initial version                   |
+| 0.1 | 07/27/2025  |     Niranjan Vaidyam, Joy Qin, Eddie Ruan  | Initial version                   |
 | 0.2 | 11/17/2025  |     Haiyang Zheng  | Update rack system model and related software module changes                  |
+| 0.3 | 01/25/2026  |     Eddie Ruan | Update based on WG discussions |
 
 
 ## Terminologyies
@@ -105,6 +108,8 @@ The Ultra Accelerator Link Consortium (UAL) defines an approach leveraging Ether
 
 UAL over Ethernet is a variation from original UAL spec, which only keeps sematic and transport layer from UAL, and use Ethernet as data link layer which is align with what SONiC Scale Up Working Group's mission.
 
+ESUN (Ethernet Scale Up Network) is a workstream under the OCP Networking Project, introduced at the OCP 2025 conference (https://www.opencompute.org/wiki/Networking/ESUN). It advocates for Ethernet as an open interconnect solution for scale-up architectures, capitalizing on the robust Ethernet ecosystem which includes network operating systems (NOS), operational practices, and performance tools. While ESUN emphasizes a holistic solution approach, SONiC is positioned as one of the NOS options within this framework.
+
 ## Scale-Up Fabrics
 
 Scale-out networks connect numerous nodes to distribute training workloads across a cluster. In contrast, scale-up fabrics interconnect tightly coupled GPUs/XPUs within a cluster, functioning essentially as "memory fabrics" that enable memory load-store operations between GPUs. GPUs typically provide orders of magnitude higher bandwidth on scale-up interfaces compared to scale-out connections. These fabrics are typically single-tier to minimize latency and optimize performance, though this is not a strict requirement.
@@ -132,7 +137,7 @@ Scale-out networks connect numerous nodes to distribute training workloads acros
 
 ### Industry Requirements Comparison
 
-During the scale-up working group weekly meetings, four major industry players—Alibaba, Microsoft, Tencent, and Bytedance—presented and discussed their respective requirements for Ethernet-based scale-up AI fabrics. These discussions provided valuable insights into the diverse needs and priorities across different organizations, helping to shape the architectural decisions outlined in this document. The following table summarizes the key requirements gathered from these collaborative sessions:
+During the scale-up working group weekly meetings, four major industry players， Alibaba, Microsoft, Tencent, and Bytedance，presented and discussed their respective requirements for Ethernet-based scale-up AI fabrics. These discussions provided valuable insights into the diverse needs and priorities across different organizations, helping to shape the architectural decisions outlined in this document. The following table summarizes the key requirements gathered from these collaborative sessions:
 
 | Requirement | Alibaba | Microsoft | Tencent | Bytedance |
 |:------------|:--------|:----------|:---------|:----------|
@@ -185,7 +190,7 @@ _Intra-rack links (<3m) primarily use copper; optical is reserved for 
 
 ### XPU and Station Architecture
 
-We use XPU as a generic term for GPU or any ML accelerator, and define a station as a device conforming to IEEE 802.11 protocol. Each station has a unique address for identification and provides network connectivity with other devices. Stations can be configured with single or multiple ports to differentiate traffic arriving at the same address.
+We use XPU as a generic term for GPU or any ML accelerator, and define a station as a device conforming to IEEE 802.11 protocol. Each station has a unique address for identification and provides network connectivity with other devices. Stations can be configured with single or multiple ports to differentiate traffic arriving at the same address. These stations are also referred to as IO dies, which are interconnected with XPU dies.
 
 ![XPU Station Architecture](images/xpu.png)
 
@@ -283,7 +288,7 @@ For small transactions (64B-256B), standard Ethernet headers plus VLAN tags intr
 
 ![AI Frame Header](images/aifh.png)
 
-However, compressed header formats disable standard Ethernet features such as MAC learning and LLDP.
+However, compressed header formats disable standard Ethernet features such as MAC learning and LLDP. LLDP would use normal port Ethernet MAC address in scale up cluster.
 
 In summary, packets on Ethernet-based scale-up fabrics continue to resemble standard Ethernet, but encodings and forwarding behavior may deviate from standard Ethernet practices.
 
@@ -357,9 +362,187 @@ The switch NOS is responsible for monitoring outgoing port liveness and updating
 
 The receiving station decodes payloads from incoming Ethernet frames and transmits transactions to GPUs through device interface channels.
 
+## Resiliency and Fault Tolerance
+
+Any failure in a scale-up cluster affects entire cluster performance, making comprehensive resiliency solutions critical for addressing common failure modes.
+
+### GPU Failures
+
+Empirical results from large-scale deployments indicate that GPU or associated HBM errors are most common. Some deployments may provision spare GPUs, while others refactor jobs when GPUs fail and fall back to checkpoints. Handling such errors lies outside switch NOS scope and hence outside this working group's scope.
+
+### Switch Failures
+
+Hard failures can result in complete switch failure, disabling forwarding on all ports. This typically appears to each connected station as a link failure, requiring each station to update its forwarding and load-balancing policies. Stations may rely on additional ports if available, or declare themselves down if none exist.
+
+Switches can also suffer silent failures where some ports fail or stop forwarding. Such failures must be detected through probing mechanisms.
+
+### Link Failures
+
+Smaller clusters may use Direct Attach Copper (DAC) cables, but they become impractical for larger clusters due to GPU density and reachability limitations. Optical links are required but are more susceptible to failures.
+
+Link failures can be categorized as hard or soft:
+
+- **Hard failures**: Detectable by Ethernet PHY on GPUs or switches
+- **Soft or gray failures**: Harder to detect, requiring periodic probing mechanisms such as BFD or background monitoring functions that track link error rates and flaps
+
+Path probing mechanisms implemented in fabrics can be hop-by-hop (between GPU and switch) or end-to-end (between GPU and GPU), depending on cluster design. The figure below shows hop-by-hop probing with probes initiated at switches and reflected back by GPU stations.
+
+![Failure Detection](images/fail.png)
+
+Single link failures create capacity mismatches in scale-up clusters. Affected planes lose reachability to affected GPUs but remain usable for other destinations. Removing entire planes from service is undesirable. Recovery actions can vary between deployments.
+
+#### Redundant Links
+
+One option involves provisioning multiple links between GPUs and switches, ensuring that single link failures don't cause total connectivity loss. The representative topology shows 2 links per station to support this model. Capacity loss on particular planes can be handled by effective load balancing in GPU station adaptation layers.
+
+#### Tracking Per-Target Reachability
+
+If GPUs track reachability on a per (target GPU, plane) basis, they can avoid planes with no target reachability. This function can also be implemented in adaptation layers.
+
+We have dropped the exceptional path approach due to
+1. Additional latency would be added due to extra switch hops would be added. These extra latency may lead to end to end transport timeout.
+2. In some cases, all ports are used, we may not have physical ports for extra exceptional paths.
+
+
+## Cluster Provisioning
+There are several approaches to provisioning all devices within the cluster.
+
+### Option 1 Fabric mananger
+Similar to the NVL72 architecture, fabric-related provisioning is handled by a dedicated fabric manager.
+
+### Option 2 SDN style
+Given that all device interconnections are static, both compute trays and switching trays can be managed directly by an external controller. From the perspective of each device, it operates as an independently managed entity.
+
+### Option 3 Hybrid mode
+Configuration data is delivered directly to each switch tray. The switch trays then use a customized LLDP implementation to provision the connected GPU devices.
+
+Operators can select the provisioning model that best fits their operational requirements. SONiC does not mandate or enforce any specific option.
+
+
 ## Software Architecture
 
+### ID Lookup
+
+(This feature is only needed if we use UFH or AFH as forwarding model.)
+
+In AI computing cluster scale-up scenarios, traditional L2 MAC lookup faces scalability bottlenecks. This document proposes an ID Lookup architecture based on Unified Flexible Header (UFH), replacing standard MAC addresses with 12-byte extended headers to achieve high-performance, multi-path, and fine-grained QoS forwarding mechanisms that meet core requirements for low latency and high throughput AI training traffic.
+
+![UFH Architecture](images/ufh.png)
+
+The following table shows differences between L2 MAC Lookup and ID Lookup:
+
+| Feature | L2 MAC Lookup | ID Lookup (UFH) |
+|:--------|:--------------|:----------------|
+| **Multi-Path** | Not supported | ECMP supported |
+| **QoS** | 3-bit CoS in VLAN tag | 6-bit ToS |
+| **ECN** | Not supported | Supported |
+| **Flexibility** | Requires new EtherType definition, standard MAC address | UFH extended header, 6B/12B ID lookup, follows SLAP |
+
+In the forwarding plane, VRF provides tenant isolation. Simultaneously, chips maintain forwarding tables for each VRF and find destinations by looking up Dest ID + VRF.
+
+![Forwarding Architecture](images/forwarding.png)
+
+The configuration delivery channel can reuse traditional route delivery APIs and is compatible with both local static route delivery and SDN remote configuration.
+
+![Delivery Architecture](images/delivery.png)
+
+### PFC/CBFC
+
+Credit-Based Flow Control (CBFC) manages traffic at the Virtual Channel (VC) level, supporting up to 32 VCs for finer-grained control compared to PFC. Credits represent available buffer space on the receiver side. When senders transmit packets, they consume corresponding credits. Once receivers release buffer space, they generate new credits and grant them to senders. Credits and buffer space maintain one-to-one mapping—every lossless packet sent by senders consumes buffer space pre-allocated by receivers.
+
+![CBFC Architecture](images/image.png)
+
+CBFC has several important parameters:
+
+- **CreditSize**: Defines each credit's size, typically corresponding to receiver buffer cell size
+- **TotalCredits**: Represents total credits allocated across all lossless virtual channels (VCs)
+- **Counters**: Track credit usage through Credit Consumed (CC), Credit Freed (CF), Credit Limit (CL), and Credit In Use (CU)
+
+Receivers can choose to configure only TotalCredits, allowing senders to determine credit distribution among lossless VCs, or directly specify credit limits for each VC. Senders and receivers synchronize counters using CC update and CF update messages, triggered periodically by timers. This mechanism also prevents credit leaks caused by packet loss. Each VC's parameters are configured through management software or LLDP.
+
+The following table compares PFC and CBFC:
+
+| Aspect | PFC | CBFC |
+|:-------|:----|:-----|
+| **Implementation** | Simpler | More complex |
+| **Overhead** | Low, no messages when no control events occur | Requires periodic synchronization via update messages |
+| **Multiple Resources** | Can manage multiple resources within a priority class | Manages main input buffer only; CBFC and PFC together can manage multiple switch resources |
+| **Managed Object** | Priority class, up to 8 | Can enable more lossless VCs, up to 32 |
+| **Sender Knowledge** | Sender knows nothing beyond congestion | Sender knows credit usage by each VC, enabling improved SCH/LB/AR |
+| **Delay Sensitivity** | Buffer overflows and packet drops possible if cable delay is underestimated | Less sensitive to cable length, frame size, or sender response time; buffer may be underutilized |
+| **Buffer Usage** | 1. Enables more sharing and efficient burst absorption buffer usage across ports<br>2. Requires headroom buffer for in-flight packets | 1. Cannot share buffer across ports<br>2. For VCs not requiring full throughput, CBFC can allocate fewer credits, requiring less buffer space than PFC<br>3. No headroom buffer needed |
+
+Generally, PFC is simpler, has lower overhead, and may enable more efficient buffer usage. Conversely, CBFC provides finer-grained flow control with better performance, guarantees no packet drops when used with LLR, and is less sensitive to delay.
+
+When implementing and deploying CBFC in scale-up networks, the following mechanisms must be specified:
+
+- Traffic-to-virtual-channel (VC) mapping
+- Credit distribution among VCs to ensure full bandwidth utilization
+- VC-to-output-queue mapping
+
+### LLR
+In traditional Ethernet, packet loss is usually handled at higher layers like TCP, and it leads to high latency. There are some alternate solutions available, like RDMA, which is used in InfiniBand or RoCE, but they are complex and vendor-specific.
+
+LLR offers a middle ground by providing reliable loss recovery without RDMA and using existing Ethernet, providing a simpler solution. In LLR, instead of involving the whole protocol stack, including CPU, Packet loss is detected and retried at the local link layer, resulting in better throughput and low latency.
+
+#### How UEC-LLR Works
+Terms:
+•	Frame transmission with sequence numbering: Every frame between nodes is tagged with a local sequence number, and these sequence numbers/IDs are not visible to the upper layer.
+•	Frame Buffering: The sender buffers the sent frames in a local retry queue and holds them in a local buffer until the receiver acknowledges them.
+•	Acknowledgment: The receiver will send the ACKs back to the sender once each frame is received successfully.
+•	Loss detection: If a frame is dropped or corrupted, the receiver will notice a gap in the sequence number and send the Negative Acknowledgement (NACK) back to the sender. In other cases, if the sender does not receive an ACK or NACK within a time frame, it will initiate a timeout-based retry.
+
+![Protocol Stack](images/llr.jpg)
+
+The sender retransmits only lost/corrupted frames from the local retry buffer, avoiding transport-level retransmission. Once the Sender receives the ACKs, it will remove the entries from the local retry buffer.
+UEC outlines a layered Ethernet stack consisting of:
+•	Standard Ethernet PHYs (100G/200G/400G/800G)
+•	LLR Layer – Link-level recovery from transient packet loss
+•	UET (Ultra Ethernet Transport) – Manages ordering, congestion control, and flow control
+•	Application Layer – AI frameworks and HPC workloads.
+LLR sits above the PHY and below the UET layer, ensuring the loss resilience before the higher layers get involved.
+
+More details in UE spec: (5.1)
+https://ultraethernet.org/wp-content/uploads/sites/20/2025/06/UE-Specification-6.11.25.pdf
+
+### LL-FEC
+To improve end to end latency, a low-latency shortened codeword variant of the 802.3 FEC (LL-FEC) may optionally be used in place of the IEEE 802.3bs and 802.3cd standard RS-544.
+
+Based on the RS-FEC decoding algorithm, the receiver needs to collect all FEC frames of a whole FEC codeword before starting FEC decoding and error correction. Obviously, the overall latency is associated with the FEC codeword length.
+
+The LL-FEC code used is RS-272, which is half the codeword length of RS-544. This can bring two advantages:
+- Reduced 50% of latency to collect the whole FEC codeword.
+- Hardware FEC decoding runs faster, as the algorithm complexity is also reduced.
+
+![Protocol Stack](images/fec.png)
+
+Regarding the FEC error correction capability, LL-FEC is similar with KR4-FEC, which can fix up to 7 incorrect symbols.
+
+Regarding the FEC codeword latency, taking 100G port as example:
+- KP4-FEC: 5440b/(100G*68/64) = 52ns
+- LL-FEC: 2720b/(100G*68/64) = 26ns
+
+Apparently, LL-FEC has a lower latency, especially when the network transaction is less than 320B, which means an LL-FEC codeword can carry one or several transactions, and the transactions can be recovered and be sent to system level much earlier at receiving side.
+In the low-latency scenarios, reducing latency by more than 20ns really counts.
+
+![Protocol Stack](images/tencent_fec.png)
+Borrow test results from Tencent's presentation, this slide shows that FEC delay accounts for 30% to 50% of the static delay. However, Optimizing the FEC delay will result in an increase in bit error rate.
+
+
+#### The impact from unreliable links
+![Protocol Stack](images/unreliable_link_impact.png)
+The Meta-X team conducted an insightful test to evaluate the differences between unreliable and reliable links. As shown in the graph above, bandwidth fluctuates significantly more on unreliable links compared to stable ones. These fluctuations can lead to increased queuing delays, which is an undesirable outcome in AI cluster environments.
+
 ### SONiC Software Module Changes
+
+From SONiC point of view, the following features would be developped for supporting Scale Up:
+* LLR
+* CBFC
+* LL-FEC
+* ID lookup.
+
+The following sections descrbes the rough changes needed. Each of these features would have its own feature HLD which would not be in this architecture document.
+
 
 ![software_modules](images/software_modules.png)
 
@@ -467,178 +650,4 @@ The receiving station decodes payloads from incoming Ethernet frames and transmi
 
       *   [GitHub Pull Request #2](https://github.com/rck-innovium/SAI/pull/2)
 
-### ID Lookup
 
-In AI computing cluster scale-up scenarios, traditional L2 MAC lookup faces scalability bottlenecks. This document proposes an ID Lookup architecture based on Unified Flexible Header (UFH), replacing standard MAC addresses with 12-byte extended headers to achieve high-performance, multi-path, and fine-grained QoS forwarding mechanisms that meet core requirements for low latency and high throughput AI training traffic.
-
-![UFH Architecture](images/ufh.png)
-
-The following table shows differences between L2 MAC Lookup and ID Lookup:
-
-| Feature | L2 MAC Lookup | ID Lookup (UFH) |
-|:--------|:--------------|:----------------|
-| **Multi-Path** | Not supported | ECMP supported |
-| **QoS** | 3-bit CoS in VLAN tag | 6-bit ToS |
-| **ECN** | Not supported | Supported |
-| **Flexibility** | Requires new EtherType definition, standard MAC address | UFH extended header, 6B/12B ID lookup, follows SLAP |
-
-In the forwarding plane, VRF provides tenant isolation. Simultaneously, chips maintain forwarding tables for each VRF and find destinations by looking up Dest ID + VRF.
-
-![Forwarding Architecture](images/forwarding.png)
-
-The configuration delivery channel can reuse traditional route delivery APIs and is compatible with both local static route delivery and SDN remote configuration.
-
-![Delivery Architecture](images/delivery.png)
-
-### PFC/CBFC
-
-Credit-Based Flow Control (CBFC) manages traffic at the Virtual Channel (VC) level, supporting up to 32 VCs for finer-grained control compared to PFC. Credits represent available buffer space on the receiver side. When senders transmit packets, they consume corresponding credits. Once receivers release buffer space, they generate new credits and grant them to senders. Credits and buffer space maintain one-to-one mapping—every lossless packet sent by senders consumes buffer space pre-allocated by receivers.
-
-![CBFC Architecture](images/image.png)
-
-CBFC has several important parameters:
-
-- **CreditSize**: Defines each credit's size, typically corresponding to receiver buffer cell size
-- **TotalCredits**: Represents total credits allocated across all lossless virtual channels (VCs)
-- **Counters**: Track credit usage through Credit Consumed (CC), Credit Freed (CF), Credit Limit (CL), and Credit In Use (CU)
-
-Receivers can choose to configure only TotalCredits, allowing senders to determine credit distribution among lossless VCs, or directly specify credit limits for each VC. Senders and receivers synchronize counters using CC update and CF update messages, triggered periodically by timers. This mechanism also prevents credit leaks caused by packet loss. Each VC's parameters are configured through management software or LLDP.
-
-The following table compares PFC and CBFC:
-
-| Aspect | PFC | CBFC |
-|:-------|:----|:-----|
-| **Implementation** | Simpler | More complex |
-| **Overhead** | Low, no messages when no control events occur | Requires periodic synchronization via update messages |
-| **Multiple Resources** | Can manage multiple resources within a priority class | Manages main input buffer only; CBFC and PFC together can manage multiple switch resources |
-| **Managed Object** | Priority class, up to 8 | Can enable more lossless VCs, up to 32 |
-| **Sender Knowledge** | Sender knows nothing beyond congestion | Sender knows credit usage by each VC, enabling improved SCH/LB/AR |
-| **Delay Sensitivity** | Buffer overflows and packet drops possible if cable delay is underestimated | Less sensitive to cable length, frame size, or sender response time; buffer may be underutilized |
-| **Buffer Usage** | 1. Enables more sharing and efficient burst absorption buffer usage across ports<br>2. Requires headroom buffer for in-flight packets | 1. Cannot share buffer across ports<br>2. For VCs not requiring full throughput, CBFC can allocate fewer credits, requiring less buffer space than PFC<br>3. No headroom buffer needed |
-
-Generally, PFC is simpler, has lower overhead, and may enable more efficient buffer usage. Conversely, CBFC provides finer-grained flow control with better performance, guarantees no packet drops when used with LLR, and is less sensitive to delay.
-
-When implementing and deploying CBFC in scale-up networks, the following mechanisms must be specified:
-
-- Traffic-to-virtual-channel (VC) mapping
-- Credit distribution among VCs to ensure full bandwidth utilization
-- VC-to-output-queue mapping
-
-### LLR
-In traditional Ethernet, packet loss is usually handled at higher layers like TCP, and it leads to high latency. There are some alternate solutions available, like RDMA, which is used in InfiniBand or RoCE, but they are complex and vendor-specific.
-
-LLR offers a middle ground by providing reliable loss recovery without RDMA and using existing Ethernet, providing a simpler solution. In LLR, instead of involving the whole protocol stack, including CPU, Packet loss is detected and retried at the local link layer, resulting in better throughput and low latency.
-
-#### How UEC-LLR Works
-Terms:
-•	Frame transmission with sequence numbering: Every frame between nodes is tagged with a local sequence number, and these sequence numbers/IDs are not visible to the upper layer.
-•	Frame Buffering: The sender buffers the sent frames in a local retry queue and holds them in a local buffer until the receiver acknowledges them.
-•	Acknowledgment: The receiver will send the ACKs back to the sender once each frame is received successfully.
-•	Loss detection: If a frame is dropped or corrupted, the receiver will notice a gap in the sequence number and send the Negative Acknowledgement (NACK) back to the sender. In other cases, if the sender does not receive an ACK or NACK within a time frame, it will initiate a timeout-based retry.
-
-![Protocol Stack](images/llr.jpg)
-
-The sender retransmits only lost/corrupted frames from the local retry buffer, avoiding transport-level retransmission. Once the Sender receives the ACKs, it will remove the entries from the local retry buffer.
-UEC outlines a layered Ethernet stack consisting of:
-•	Standard Ethernet PHYs (100G/200G/400G/800G)
-•	LLR Layer – Link-level recovery from transient packet loss
-•	UET (Ultra Ethernet Transport) – Manages ordering, congestion control, and flow control
-•	Application Layer – AI frameworks and HPC workloads.
-LLR sits above the PHY and below the UET layer, ensuring the loss resilience before the higher layers get involved.
-
-More details in UE spec: (5.1)
-https://ultraethernet.org/wp-content/uploads/sites/20/2025/06/UE-Specification-6.11.25.pdf
-
-### LL-FEC
-To improve end to end latency, a low-latency shortened codeword variant of the 802.3 FEC (LL-FEC) may optionally be used in place of the IEEE 802.3bs and 802.3cd standard RS-544.
-
-Based on the RS-FEC decoding algorithm, the receiver needs to collect all FEC frames of a whole FEC codeword before starting FEC decoding and error correction. Obviously, the overall latency is associated with the FEC codeword length.
-
-The LL-FEC code used is RS-272, which is half the codeword length of RS-544. This can bring two advantages:
-- Reduced 50% of latency to collect the whole FEC codeword.
-- Hardware FEC decoding runs faster, as the algorithm complexity is also reduced.
-
-![Protocol Stack](images/fec.png)
-
-Regarding the FEC error correction capability, LL-FEC is similar with KR4-FEC, which can fix up to 7 incorrect symbols.
-
-Regarding the FEC codeword latency, taking 100G port as example:
-- KP4-FEC: 5440b/(100G*68/64) = 52ns
-- LL-FEC: 2720b/(100G*68/64) = 26ns
-
-Apparently, LL-FEC has a lower latency, especially when the network transaction is less than 320B, which means an LL-FEC codeword can carry one or several transactions, and the transactions can be recovered and be sent to system level much earlier at receiving side.
-In the low-latency scenarios, reducing latency by more than 20ns really counts.
-
-![Protocol Stack](images/tencent_fec.png)
-Borrow test results from Tencent's presentation, this slide shows that FEC delay accounts for 30% to 50% of the static delay. However, Optimizing the FEC delay will result in an increase in bit error rate.
-
-
-### The impact from unreliable links
-![Protocol Stack](images/unreliable_link_impact.png)
-The Meta-X team conducted an insightful test to evaluate the differences between unreliable and reliable links. As shown in the graph above, bandwidth fluctuates significantly more on unreliable links compared to stable ones. These fluctuations can lead to increased queuing delays, which is an undesirable outcome in AI cluster environments.
-
-
-## Resiliency and Fault Tolerance
-
-Any failure in a scale-up cluster affects entire cluster performance, making comprehensive resiliency solutions critical for addressing common failure modes.
-
-### GPU Failures
-
-Empirical results from large-scale deployments indicate that GPU or associated HBM errors are most common. Some deployments may provision spare GPUs, while others refactor jobs when GPUs fail and fall back to checkpoints. Handling such errors lies outside switch NOS scope and hence outside this working group's scope.
-
-### Switch Failures
-
-Hard failures can result in complete switch failure, disabling forwarding on all ports. This typically appears to each connected station as a link failure, requiring each station to update its forwarding and load-balancing policies. Stations may rely on additional ports if available, or declare themselves down if none exist.
-
-Switches can also suffer silent failures where some ports fail or stop forwarding. Such failures must be detected through probing mechanisms.
-
-### Link Failures
-
-Smaller clusters may use Direct Attach Copper (DAC) cables, but they become impractical for larger clusters due to GPU density and reachability limitations. Optical links are required but are more susceptible to failures.
-
-Link failures can be categorized as hard or soft:
-
-- **Hard failures**: Detectable by Ethernet PHY on GPUs or switches
-- **Soft or gray failures**: Harder to detect, requiring periodic probing mechanisms such as BFD or background monitoring functions that track link error rates and flaps
-
-Path probing mechanisms implemented in fabrics can be hop-by-hop (between GPU and switch) or end-to-end (between GPU and GPU), depending on cluster design. The figure below shows hop-by-hop probing with probes initiated at switches and reflected back by GPU stations.
-
-![Failure Detection](images/fail.png)
-
-Single link failures create capacity mismatches in scale-up clusters. Affected planes lose reachability to affected GPUs but remain usable for other destinations. Removing entire planes from service is undesirable. Recovery actions can vary between deployments.
-
-#### Redundant Links
-
-One option involves provisioning multiple links between GPUs and switches, ensuring that single link failures don't cause total connectivity loss. The representative topology shows 2 links per station to support this model. Capacity loss on particular planes can be handled by effective load balancing in GPU station adaptation layers.
-
-#### Tracking Per-Target Reachability
-
-If GPUs track reachability on a per (target GPU, plane) basis, they can avoid planes with no target reachability. This function can also be implemented in adaptation layers.
-
-#### Fabric-Enabled Alternate Paths
-
-If GPUs don't track reachability as above, fabrics may need designs supporting inter-plane connectivity as shown below. SONiC can update routing tables to select exception paths.
-
-Consider the example topology below with exception paths connecting different planes and associated route tables at different nodes:
-
-![Failure Recovery Topology](images/fail2.png)
-
-![Route Tables](images/table.png)
-
-Now imagine a link failure between GPU-2 and Switch 1-1. The affected configuration is shown in red in the above table. GPU-2 and Switch 1-1 update their route tables to remove each other. Other GPUs remain unaware of this failure and continue sending to Switch 1-1. Removal of the direct route at Switch 1-1 causes traffic to take exception paths, which redirect traffic to alternate paths/planes to reach GPU-2.
-
-Reconfiguration typically takes milliseconds, during which traffic will be black-holed. GPU adaptation layers must recover from this error by either retransmitting stored transactions or, if that's not possible, initiating fallback to prior checkpoints.
-
-![Exception Path Recovery](images/fail3.png)
-
-## Future Features in SONiC
-
-The following items require further consideration and development:
-
-- **Software stack assumptions**: Determine appropriate assumptions about the software stack architecture
-- **SONiC modifications**: Identify specific changes required for SONiC to support scale-up fabrics
-- **Optional components**: Define which parts of the architecture are optional versus mandatory
-- **New feature requirements**: Specify any new features that need to be developed
-- **Integration considerations**: Address how these features integrate with existing SONiC functionality
-
-*[Additional details to be developed based on working group feedback and requirements analysis]*
