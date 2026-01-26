@@ -9,9 +9,9 @@ We observed a couple of issues with this problem:
 ## Solutions
 We will need solutions from not only sonic image but also SDN controller.
 1.	Cleanup DPU_*_DB instances when DPU boots up.
-2.	SDN controller needs to monitor DPU state and  
-a.	Delete stale HA_SET_CONFIG and HA_SCOPE_CONFIG  
-b.	Re-program HA_SET_CONFIG and HA_SCOPE_CONFIG  
+2.	SDN controller needs to monitor DPU state by `CHASSIS_STATE_DB|DPU_STATE`, either `dpu_control_plane_state` or `dpu_midplane_link_state` being down will be treated as DPU down. SDN controller will then  
+    1. Delete stale HA_SET_CONFIG and HA_SCOPE_CONFIG  
+    1. Re-program HA_SET_CONFIG and HA_SCOPE_CONFIG  
 3.	Hamgrd needs to change the passive BFD session creation logic, today the sessions are created statically. We need this change to avoid hamgrd restart. Hamgrd need to create BFD session if `dpu_control_plane_state` changes from down to up. 
 
 Note that DashHaOrch should cache the BFD session parameters, remove and create the sessions accordingly in planned shutdown. 
