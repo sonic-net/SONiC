@@ -27,9 +27,9 @@ OTN devices typically run vendor-specific, proprietary Network Operating Systems
 
 The **SONiC for OTN project** proposes extending SONiC to support optical transport networks, enabling end-to-end deployment across both packet and optical layers. 
 
-As a network service provider, you can manage end-to-end network infrastructure consistently, from the IP layer (switches and routers) through the optical transport layer (OTN devices). This unified management approach allows you to use the same SDN controller infrastructure across all layers, facilitating seamless data sharing and coordination between the IP network and optical transport network.
+For hyperscale network user and service provider, by introducing optical support in SONiC, end-to-end network infrastructure can be managed consistently, from the IP layer (switches and routers) through the optical transport layer (OTN devices). This significantly simplifies the network management tools and controllers. Furthermore, it provides the potential of single SDN controller infrastructure across all layers and moving into an open and converged multi-payer network management solution.
 
-As an optical device vendor, you can leverage the SONiC system ecosystem, avoiding reinvention of user management, security, and management network modules. This reduces time to market, improves software quality, and lowers development costs.
+For optical device vendor, all exiting SONiC NOS infrastructure and generic feature, such as, user management, security, and management network modules can be re-used. This reduces time to market, improves software quality, and lowers development costs. Joining SONiC ecosystem also allows vendors and users to work closely using SONIC open source community as a collaboration platform.
 
 <img src="../../images/otn/sonic-otn-transponder-open-line-system.png" alt="transponder and open line system with sonic-otn" style="zoom: 35%;" />
 
@@ -94,14 +94,14 @@ Below is the list of OTN objects that will be added to SAI:
 | Object | Description | SAI File | OpenConfig Reference |
 |--------|-------------|----------|----------------------|
 | OA | Optical amplifier | [saiexperimentalotnoa.h](https://github.com/sonic-otn/SAI/blob/master/experimental/saiexperimentalotnoa.h) | [openconfig-optical-amplifier.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-amplifier.yang) |
-| VOA | Optical attenuator | [saiexperimentalotnattenuator.h](https://github.com/sonic-otn/SAI/blob/master/experimental/saiexperimentalotnoa.h) | [openconfig-optical-attenuator.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-attenuator.yang) |
+| VOA | Optical attenuator | [saiexperimentalotnattenuator.h](https://github.com/sonic-otn/SAI/blob/master/experimental/saiexperimentalotnattenuator.h) | [openconfig-optical-attenuator.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-attenuator.yang) |
 | Optical Port | Optical transport port | TBD | [openconfig-transport-line-common.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-transport-line-common.yang) |
 | OCH | Optical channel | TBD | [openconfig-terminal-device.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-terminal-device.yang) |
 | WSS | Wavelength selective switch | TBD | [openconfig-wavelength-router.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-wavelength-router.yang) |
 | OMC | Optical media channel | TBD | [openconfig-wavelength-router.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-wavelength-router.yang) |
-| OSC | Optical supervisory channel | TBD | [openconfig-optical-amplifier.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-amplifier.yang) |
+| OSC | Optical supervisory channel |  [saiexperimentalotnosc.h](https://github.com/sonic-otn/SAI/blob/master/experimental/saiexperimentalotnosc.h) | [openconfig-optical-amplifier.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-optical-amplifier.yang) |
 | OTDR | Optical time-domain reflectometer | TBD | Not defined yet |
-| OCM | Optical channel monitor | TBD | [openconfig-channel-monitor.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-channel-monitor.yang) |
+| OCM | Optical channel monitor |  [saiexperimentalotnocm.h](https://github.com/sonic-otn/SAI/blob/master/experimental/saiexperimentalotnocm.h)| [openconfig-channel-monitor.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-channel-monitor.yang) |
 | APS | Automatic protection switch | TBD | [openconfig-transport-line-protection.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-transport-line-protection.yang) |
 | APS Port | Automatic protection switch port | TBD | [openconfig-transport-line-protection.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-transport-line-protection.yang) |
 | Logical Channel | Logical channel | TBD | [openconfig-terminal-device.yang](https://github.com/openconfig/public/tree/master/release/models/optical-transport/openconfig-terminal-device.yang) |
@@ -177,7 +177,7 @@ typedef struct _sai_otn_attenuator_api_t
 } sai_otn_attenuator_api_t;
 ```
 
-**SAI otnoa object attributes**
+**SAI otnattenuator object attributes**
 | SAI Object | SAI Attributes | SAI Data Type | create/get/set |
 | ---- | ---- | ---- | ---- |
 |SAI_API_OTN_ATTENUATOR  | SAI_OTN_ATTENUATOR_ATTR_ATTENUATION_MODE | sai_otn_attenuator_mode_t | CREATE_AND_SET |
@@ -224,9 +224,130 @@ In the SAI meta data, the `valueprecision` field in `attrInfo` is used to repres
 ---
 
 ### 4. How to Manage OTN objects in Syncd
-TBD
+**Code physical separation**
+
+`FlexCounter` managed configuration of CounterDB for SAI object monitoring. Separate files of `FlexCounterOtn` are created for managing the OTN SAI object attributes in COUNT DB. This eliminates the contention of code change among the OTN project and rest of SONiC development.
+
+```Diff
+   --- syncd
+    |--- FlexCounter.(h|cpp)
++   |--- FlexcounterOtn.(h|cpp)
+```
+
+Similarly, SAI Object (de)serialization is also implemented in separate files `meta/sai_serialize_otn` from the main file `sai-serialize`.
+
+**Run time logical flow isolation**
+
+Also, processing OTN SAI objects and APIs added on the the existing Syncd infrastructure/framework seamlessly with clear isolation from the exiting logic. This is done by putting the OTN objects processing at the end of current logic, so that the OTN logic would be in the code path of any packet switch code. The code snip for add counter plugin for OTN is shown:
+
+```Diff
+FlexCounter.cpp
+
+void FlexCounter::addCounterPlugin {
+    ....
+    {
+            else
+            {
++               if (m_flexCounterOtn ->addCounterPlugin(field, shaStrings))
++               {
++                    continue;
++               }
+
+                SWSS_LOG_ERROR("Field is not supported %s", field.c_str());
+            }
+    }
+
+    // notify thread to start polling
+    notifyPoll();
+}
+
+void FlexCounter::removeCounter {
+    ......
+    else
+    {
++       if (m_flexCounterOtn->removeCounter(vid, objectType))
++       {
++           return;
++       }
+
+        SWSS_LOG_ERROR("Object type for removal not supported, %s",
+                sai_serialize_object_type(objectType).c_str());
+    }
+}
+
+void FlexCounter::addCounter {
+    ...
+        else
+        {
++           if (m_flexCounterOtn->addCounter(vid, rid, objectType, field, idStrings))
++           {
++               continue;
++           }
+
+            SWSS_LOG_ERROR("Object type and field combination is not supported, object type %s, field %s",
+                    sai_serialize_object_type(objectType).c_str(),
+                    field.c_str());
+        }
+    }
+
+```
 
 ### 5. How to manage OTN objects in SWSS
-TBD
 
+The same design of Syncd is adopted to reuse SWSS infrastructure while keeping the OTN objects relatively isolated from existing packet switching objects.
 
+**Code physical separation**
+
+For ConfigMgr module, which listening the CONFIG DB changes, a separate daemon is created for processing OTN devices config changes. Upon any config changes in OTN tables in CONFIG DB, OTN configMgr copies the config changes to APP DB.
+
+```Diff
+   --- cfgmgr
+    |--- intfmgr.(h|cpp)
+    |--- intfmgrd.cpp
+    |--- ....
++   |--- otnmgr.(h|cpp)
++   |--- otnmgrd.cpp
+```
+
+For orchagent, which processing the changes in APP DB, a separate folder is created to contains the code for processing OTN objects in APP DB.
+
+```Diff
+   --- orchagent
+    |--- switch
+    |--- ....
+    |--- dash
++   |--- otn
++      |--- objectorch.(h|cpp) - generic for all objects
++      |--- attenuatorch.(h|cpp)
++      |--- oaorch (h|cpp)
++      |--- ocmorch (h|cpp)
++      |--- ....
++      |--- otnorchdaemon.(h.cpp) - process
+```
+
+**Run time logical flow isolation**
+
+In orchagent `main.cpp`, a new switch type for OTN is used to decide what kind of orchagent daemon should be lunched. Switch type is configure in the DEVICE_META table.
+
+```Diff
+    shared_ptr<OrchDaemon> orchDaemon;
++   if(gMySwitchType == SWITCH_TYPE_OTN)
++   {
++       orchDaemon = make_shared<OtnOrchDaemon>(&appl_db, &config_db, &state_db, chassis_app_db.get(), zmq_server.get());
++   }
+    else if (gMySwitchType != "fabric")
+    {
+        orchDaemon = make_shared<OrchDaemon>(&appl_db, &config_db, &state_db, chassis_app_db.get(), zmq_server.get());
+        if (gMySwitchType == "voq")
+        {
+            orchDaemon->setFabricEnabled(true);
+            orchDaemon->setFabricPortStatEnabled(true);
+            orchDaemon->setFabricQueueStatEnabled(false);
+        }
+    }
+    else
+    {
+        orchDaemon = make_shared<FabricOrchDaemon>(&a ppl_db, &config_db, &state_db, chassis_app_db.get(), zmq_server.get());
+    }
+
+```
