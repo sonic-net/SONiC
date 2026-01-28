@@ -14,7 +14,7 @@ The following are the proposed actions during DPU reboot.
     Note that database is cleaned up when swss is restarted, so both DPU reboot and critical process restart scenarios should be covered.   
 1. SDN controller needs to monitor NPU `STATE_DB` entries below: 
 
-    1. `DASH_DPU_RESET_INFO_TABLE|DPU<dpu_index>: {'reset_status': 'true|false', 'timestamp': timestamp}`  
+    1. `DASH_DPU_RESET_INFO_TABLE|DPU<dpu_index>: {'reset_status': 'true|false', 'timestamp': timestamp, 'dpu_id': dpu_id, 'vdpu_id': vdpu_id}`  
         This table will be updated by hamgrd based on `CHASSIS_STATE_DB|DPU_STATE`. Either `dpu_control_plane_state` or `dpu_midplane_link_state` being down will trigger hamgrd to set `reset_status` to `true`.
         Controller will update the status to `false` when it finishes the service provision and HA programming after DPU is up.        
  
@@ -48,7 +48,7 @@ sequenceDiagram
     DPU->>DPU: 1. DPU shutdown
     pmon->>NPU CHASSIS_STATE_DB: 2. Update dpu state to down
     hamgrd->>NPU STATE_DB: 3. update local vdpu state in `DASH_HA_SCOPE_STATE` table, update `DASH_DPU_RESET_INFO_TABLE` and `CHASSIS_MODULE_TABLE`
-    NPU STATE_DB->>SDN Controller: 4. DASH_DPU_RESET_INFO_TABLE|DPU0: {"reset_status": "true", timestamp: <timestamp>} CHASSIS_MODULE_TABLE|DPU0: {"dpu_ready": "false"}
+    NPU STATE_DB->>SDN Controller: 4. DASH_DPU_RESET_INFO_TABLE|DPU0: {"reset_status": "true", timestamp: <timestamp>, dpu_id: <dpu_id>, vdpu_id: <vdpu_id>} CHASSIS_MODULE_TABLE|DPU0: {"dpu_ready": "false"}
     hamgrd->>DPU_APPL_DB: 5. hamgrd remove passive BFD sessions
     SDN Controller->>hamgrd: 6. Delete HA_SCOPE_CONFIG and HA_SET_CONFIG
     hamgrd->>DPU_APPL_DB: 7. Delete HA_SET, HA_SCOPE
