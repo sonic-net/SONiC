@@ -13,14 +13,16 @@ The following are the proposed actions during DPU reboot.
 1. Cleanup `DPU_*_DB` instances when DPU boots up.
     Note that database is cleaned up when swss is restarted, so both DPU reboot and critical process restart scenarios should be covered.   
 1. SDN controller needs to monitor NPU `STATE_DB` entries below: 
-    1. `CHASSIS_MODULE_TABLE|DPU<dpu_index>: {'admin_status': 'up|down', 'oper_status': 'up|down'}`  
-        This table entry will be updated by [SmartSwitch pmon](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/pmon/smartswitch-pmon.md).
-    1. `DPU_RESET_INFO|DPU<dpu_index>: {'reset_status': 'true|false', 'last_reset_status_update': timestamp}`  
+
+    1. `DASH_DPU_RESET_INFO_TABLE|DPU<dpu_index>: {'reset_status': 'true|false', 'timestamp': timestamp}`  
         This table will be updated by hamgrd based on `CHASSIS_STATE_DB|DPU_STATE`. Either `dpu_control_plane_state` or `dpu_midplane_link_state` being down will trigger hamgrd to set `reset_status` to `true`.
         Controller will update the status to `false` when it finishes the service provision and HA programming after DPU is up.        
-    1.  `DPU_RESET_INFO|DPU<dpu_index>: {'dpu_ready': 'true|false', 'last_dpu_readiness_update': timestamp}`  
-        This field indicates if dpu is ready to be provisioned. Hamgrd will set the value to `false` when `dpu_control_plane_state` or `dpu_midplane_link_state` goes down, and set the value back to `true` when both states are up. 
-          
+ 
+    1. `CHASSIS_MODULE_TABLE|DPU<dpu_index>: {'admin_status': 'up|down', 'oper_status': 'up|down'， 'dpu_ready': 'true|false'}`  
+        `admin_status` and `oper_status` will be updated by [SmartSwitch pmon](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/pmon/smartswitch-pmon.md).
+
+        `dpu_ready` indicates if dpu is ready to be provisioned. Hamgrd will set the value to `false` when `dpu_control_plane_state` or `dpu_midplane_link_state` goes down, and set the value back to `true` when both states are up. 
+
 1. SDN controller will then   
     1. Delete stale HA_SET_CONFIG and HA_SCOPE_CONFIG  
     1. Re-program DASH objects, HA_SET_CONFIG and HA_SCOPE_CONFIG  
@@ -45,8 +47,8 @@ sequenceDiagram
 
     DPU->>DPU: 1. DPU shutdown
     pmon->>NPU CHASSIS_STATE_DB: 2. Update dpu state to down
-    hamgrd->>NPU STATE_DB: 3. update local vdpu state in `DASH_HA_SCOPE_STATE` table, update `DPU_RESET_INFO`
-    NPU STATE_DB->>SDN Controller: 4. DPU_RESET_INFO|DPU0: {"reset_status": "true", "dpu_ready": "false"}
+    hamgrd->>NPU STATE_DB: 3. update local vdpu state in `DASH_HA_SCOPE_STATE` table, update `DASH_DPU_RESET_INFO_TABLE` and `CHASSIS_MODULE_TABLE`
+    NPU STATE_DB->>SDN Controller: 4. DASH_DPU_RESET_INFO_TABLE|DPU0: {"reset_status": "true", timestamp: <timestamp>} CHASSIS_MODULE_TABLE|DPU0: {"dpu_ready": "false"}
     hamgrd->>DPU_APPL_DB: 5. hamgrd remove passive BFD sessions
     SDN Controller->>hamgrd: 6. Delete HA_SCOPE_CONFIG and HA_SET_CONFIG
     hamgrd->>DPU_APPL_DB: 7. Delete HA_SET, HA_SCOPE
@@ -56,11 +58,11 @@ sequenceDiagram
     DPU->>DPU_STATE_DB: 11. Cleanup Database
     pmon->>NPU CHASSIS_STATE_DB: 12. Update DPU state to Up
     hamgrd->>DPU_APPL_DB: 13. Create BFD passive sessions. 
-    hamgrd->>NPU STATE_DB: 14. DPU_RESET_INFO|DPU0: {"dpu_ready": "true"}
+    hamgrd->>NPU STATE_DB: 14. CHASSIS_MODULE_TABLE|DPU0: {"dpu_ready": "true"}
 
-    NPU STATE_DB->>SDN Controller: 15. DPU_RESET_INFO|DPU0: {"dpu_ready": "true"} && CHASSIS_MODULE_TABLE|DPU0 {'admin_status':'up'} &&CHASSIS_MODULE_TABLE|DPU0 {'oper_status':'up'} 
+    NPU STATE_DB->>SDN Controller: 15. CHASSIS_MODULE_TABLE|DPU0: {"dpu_ready": "true", 'admin_status':'up', 'oper_status':'up'} 
 
 
     SDN Controller->>hamgrd: 16. Create DASH objects, HA_SCOPE_CONFIG and HA_SET_CONFIG 
-    SDN Controller->>NPU STATE_DB: 17. Set value DPU_RESET_INFO|DPU0: {"reset_status": "false"}
+    SDN Controller->>NPU STATE_DB: 17. Set value DASH_DPU_RESET_INFO_TABLE|DPU0: {"reset_status": "false", timestamp:<timestamp>}
 ```
