@@ -11,6 +11,7 @@ We observed a couple of issues with this problem:
 The following are the proposed actions during DPU reboot.
 
 1. Cleanup `DPU_*_DB` instances when DPU boots up.
+    Note that database is cleaned up when swss is restarted, so both DPU reboot and critical process restart scenarios should be covered.   
 1. SDN controller needs to monitor NPU `STATE_DB` entries below: 
     1. `CHASSIS_MODULE_TABLE|DPU<dpu_index>: {'admin_status': 'up|down', 'oper_status': 'up|down'}`  
         This table entry will be updated by [SmartSwitch pmon](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/pmon/smartswitch-pmon.md).
@@ -18,13 +19,13 @@ The following are the proposed actions during DPU reboot.
         This table will be updated by hamgrd based on `CHASSIS_STATE_DB|DPU_STATE`. Either `dpu_control_plane_state` or `dpu_midplane_link_state` being down will trigger hamgrd to set `reset_status` to `true`.
         Controller will update the status to `false` when it finishes the service provision and HA programming after DPU is up.        
     1.  `DPU_RESET_INFO|DPU<dpu_index>: {'dpu_ready': 'true|false', 'last_dpu_readiness_update': timestamp}`  
-        This field indicates if dpu is ready to be provisioned. Hamgrd will set the value to `false` when `dpu_control_plane_state` or `dpu_midplane_link_state` goes down, and set the value back to `true` when the states are up. 
+        This field indicates if dpu is ready to be provisioned. Hamgrd will set the value to `false` when `dpu_control_plane_state` or `dpu_midplane_link_state` goes down, and set the value back to `true` when both states are up. 
           
 1. SDN controller will then   
     1. Delete stale HA_SET_CONFIG and HA_SCOPE_CONFIG  
     1. Re-program DASH objects, HA_SET_CONFIG and HA_SCOPE_CONFIG  
     1. Once services are provisioned, HA is programmed, SDN controller will set `reset_status` to `false` 
-1. Hamgrd needs to change the passive BFD session creation logic, today the sessions are created statically. We need this change to avoid hamgrd restart. Hamgrd needs to create BFD session if `dpu_control_plane_state` changes from down to up. 
+1. Hamgrd needs to change the passive BFD session creation logic, today the sessions are created statically. We need this change to avoid hamgrd restart. Hamgrd needs to create BFD session if `dpu_control_plane_state` changes from down to up or `dpu_midplane_state` from down to up, both states needs to be up for BFD to be created. 
 
 Note that DashHaOrch should cache the BFD session parameters, remove and create the sessions accordingly in planned shutdown. 
 
@@ -61,5 +62,5 @@ sequenceDiagram
 
 
     SDN Controller->>hamgrd: 16. Create DASH objects, HA_SCOPE_CONFIG and HA_SET_CONFIG 
-    SDN Controller->>NPU STATE_DB: 17. DPU_RESET_INFO|DPU0: {"reset_status": "false"}
+    SDN Controller->>NPU STATE_DB: 17. Set value DPU_RESET_INFO|DPU0: {"reset_status": "false"}
 ```
