@@ -86,6 +86,7 @@ Rev 1.4
 | 1.2  | Jul-2024   | Patrice Brissette (Cisco)   | Adding ShlOrchagent definition, addressing PR comments |
 | 1.3  | Aug-2024   | Patrice Brissette (Cisco)   | Updated SAI examples |
 | 1.4  | Nov-2024   | Syed Hasan Naqvi (Broadcom) | Addressed review comments. Updated/removed duplicate text in SAI sec. |
+| 1.5  | Feb-2026   | Patrice Brissette (Cisco)   | Addressed review comments. |
 
 <a id="About-this-Manual"></a>
 # About this Manual
@@ -465,7 +466,7 @@ The below steps explain the MAC learning and ageing scenario in the EVPN MH netw
 2. Type-2 update is received on Vtep-4:
 	- (a) FRR installs MAC in kernel with dev=PortChannel1, state=NUD_NOARP
 	- (b) Fdbsyncd listens to the above update from kernel and installs VXLAN_FDB_TABLE with type=controlPlane, ifname=PortChannel1, and state=remote. Note: A new FDB type is defined for synchronized entry. The type can be dataplane, controlplane or both.
-	- (c) Fdborch installs the MAC in hardware with mesh-bit set to avoid ageing.
+	- (c) Fdborch installs the MAC in hardware with SAI_FDB_ENTRY_TYPE_STATIC and SAI_FDB_ENTRY_ATTR_ALLOW_MAC_MOVE=True. This prevents aging while allowing the MAC entry to move to a local interface due to a learn event.
 	- (d) FRR advertises Type-2 route with Proxy=1.
 
 3. Type-2 proxy update is received on Vtep-1:
@@ -475,15 +476,15 @@ The below steps explain the MAC learning and ageing scenario in the EVPN MH netw
 
 4. MAC ages out on Vtep-1:
     - (a) L2 table update event from SAI is processed in Fdborch.
-    - (b) Fdborch updates STATE_FBD_TABLE entry with type=controlPlane, and resets Local flag in FDB cache. It observes that Remote flag is set in FDB cache, so it updates MAC into the hardware with mesh bit set.
+    - (b) Fdborch updates STATE_FBD_TABLE entry with type=controlPlane, and resets Local flag in FDB cache. It observes that Remote flag is set in FDB cache, so it updates MAC into the hardware with SAI_FDB_ENTRY_TYPE_STATIC and SAI_FDB_ENTRY_ATTR_ALLOW_MAC_MOVE=True.
     - (c) Fdbsyncd receives STATE_FDB_TABLE updates event. It sees type=controlPlane. It removes FDB entry from the kernel (or resets activity bit, if possible.)
     - (d) FRR receives FDB notification with inactive_bit set. BGP withdraws Type-2 update.
 
 5. Type-2 withdrawal is received on Vtep-4:
     - (a) FRR updates the kernel FDB entry with IN_TIMER flag and starts hold-timer.
     - (c) Fdbsyncd receives notification from kernel with IN_TIMER flag set, and it replaces the VXLAN_FDB_TABLE entry with ageing=enabled, type=none.
-    - (d) Fdborch removes the mesh bit from the FDB entry in HW.
-    - (e) MAC learn event is received from SAI if the traffic hits after mesh bit is removed.
+    - (d) Fdborch converts the FDB entry in HW to dynamic (removes SAI_FDB_ENTRY_TYPE_STATIC, sets SAI_FDB_ENTRY_ATTR_ALLOW_MAC_MOVE=False).
+    - (e) MAC learn event is received from SAI if the traffic hits after the entry becomes dynamic.
     - (f) Fdborch populates STATE_FDB_TABLE table (type=dynamic) and Fdbsyncd installs local FDB entry into the kernel.
     - (g) FRR advertises Type-2 route with Proxy=0.
     - (h) At step (e) above, if there is no traffic, the MAC will be removed from kernel by FRR after the hold-timer expiry. Fdbsyncd will remove the VXLAN_FDB_TABLE entry and mac will be removed from HW.
@@ -980,9 +981,40 @@ typedef enum _sai_bridge_port_attr_t
   - Bridgeport of type TUNNEL will also now have the isolation group attribute set.
   - Multiple Tunnel bridgeports can have the isolation group attribute set.
 
+**LAG Failure Handling with Protection Groups**
 
-[SAI PR 2058] (https://github.com/opencomputeproject/SAI/pull/2058) is raised for the above changes.
+As described in [SAI PR 2084](https://github.com/opencomputeproject/SAI/pull/2084), SONiC implements LAG protection using the SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_SET_SWITCHOVER attribute.
 
+The sequence of SAI operations when a LAG fails is as follows:
+
+1. **Initial Setup (Normal Operation)**:
+   - NOS attaches a PROTECTION_NEXT_HOP_GROUP_ID on LAG bridge ports where protection is enabled
+   - The protection next-hop group contains:
+     - Primary path: The local LAG bridge port
+     - Backup path: Remote VTEP next-hop group (for remote peer VTEPs in the same ES)
+   - MAC addresses are learned on the LAG and associated with the LAG bridge port
+   - Traffic flows through the primary path (local LAG)
+
+2. **LAG Failure Detection**:
+   - SONiC detects the LAG port failure through link state monitoring
+   - NOS determines that protection switchover is required
+
+3. **Protection Switchover Trigger**:
+   - NOS sets the SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_SET_SWITCHOVER attribute on the failed LAG's bridge port
+   - This attribute triggers the SAI implementation to activate the protection mechanism
+
+4. **Traffic Redirection by SAI**:
+   - SAI implementation automatically redirects traffic from the failed LAG
+   - MAC addresses previously learned on the failed LAG are now forwarded via the PROTECTION_NEXT_HOP_GROUP
+   - Traffic is sent to the remote peer VTEPs (backup path) instead of the local LAG
+   - No FDB entry updates are required - the switchover is transparent to upper layers
+
+5. **Traffic Flow During Failure**:
+   - Incoming traffic destined to MAC addresses on the failed ES continues to be received
+   - Outgoing traffic to those MACs is now encapsulated and forwarded to remote peer VTEPs
+   - Remote peer VTEPs forward the traffic to the hosts via their operational LAG members
+
+This mechanism ensures minimal traffic disruption during LAG failures by leveraging hardware-based protection switching without requiring FDB re-programming.
 
 <a id="343-sai-object-usage"></a>
 ### 3.4.3 SAI Object usage
