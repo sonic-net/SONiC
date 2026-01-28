@@ -2,7 +2,7 @@
 
 # High Level Design Document
 
-Rev 1.4
+Rev 1.5
 
 # Table of Contents
 
@@ -484,10 +484,9 @@ The below steps explain the MAC learning and ageing scenario in the EVPN MH netw
     - (a) FRR updates the kernel FDB entry with IN_TIMER flag and starts hold-timer.
     - (c) Fdbsyncd receives notification from kernel with IN_TIMER flag set, and it replaces the VXLAN_FDB_TABLE entry with ageing=enabled, type=none.
     - (d) Fdborch converts the FDB entry in HW to dynamic (removes SAI_FDB_ENTRY_TYPE_STATIC, sets SAI_FDB_ENTRY_ATTR_ALLOW_MAC_MOVE=False).
-    - (e) MAC learn event is received from SAI if the traffic hits after the entry becomes dynamic.
-    - (f) Fdborch populates STATE_FDB_TABLE table (type=dynamic) and Fdbsyncd installs local FDB entry into the kernel.
-    - (g) FRR advertises Type-2 route with Proxy=0.
-    - (h) At step (e) above, if there is no traffic, the MAC will be removed from kernel by FRR after the hold-timer expiry. Fdbsyncd will remove the VXLAN_FDB_TABLE entry and mac will be removed from HW.
+    - (e) If traffic hits after the entry becomes dynamic, a MAC learn event may be received from SAI if the entry is not already present in hardware. Fdborch populates STATE_FDB_TABLE table (type=dynamic) and Fdbsyncd installs local FDB entry into the kernel.
+    - (f) FRR advertises Type-2 route with Proxy=0.
+    - (g) At step (e) above, if there is no traffic, the MAC will be removed from kernel by FRR after the hold-timer expiry. Fdbsyncd will remove the VXLAN_FDB_TABLE entry and mac will be removed from HW.
 
 <a id="226-Static-Anycast-Gateway"></a>
 ### 2.2.6 Static Anycast Gateway
