@@ -232,7 +232,6 @@ Comprehensive unit tests covering:
 - REST API endpoint testing
 - gNMI operations validation
 
-
 # 5 References
 1. [OpenConfig LACP YANG Models](https://github.com/openconfig/public/tree/master/release/models/lacp)
 2. [SONiC Management Framework HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Management%20Framework.md)
