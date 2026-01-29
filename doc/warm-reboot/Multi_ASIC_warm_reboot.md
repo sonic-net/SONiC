@@ -592,16 +592,21 @@ In a warm-boot scenario, the module initializes in a ready state with the DataPa
 ```mermaid
 stateDiagram-v2
     [*] --> UNKNOWN
+
+    classDef yourState font-style:italic,font-weight:bold,fill:yellow
     
     UNKNOWN --> INSERTED
     UNKNOWN --> REMOVED
     
     INSERTED --> DP_PRE_INIT_CHECK
 
-    
+   
     DP_PRE_INIT_CHECK --> READY : !host_tx_ready && fast-boot for ASIC < N >
     DP_PRE_INIT_CHECK --> DP_DEINIT : App update needed
-    DP_PRE_INIT_CHECK --> READY : host_tx_ready && No update needed
+    
+    check: warm boot path - host_tx_ready && No update needed
+    DP_PRE_INIT_CHECK --> check:::yourState
+    check --> READY
     
     DP_DEINIT --> AP_CONF
    
@@ -642,10 +647,12 @@ flowchart TD
 
     C --> A0[_post_port_sfp_info_and_dom_thr_to_db_once]
 
+    subgraph Warm boot path
     A0 -->|for every port on every ASIC| XXX@{ shape: diamond, label: "Check ASIC N warm-boot?"}
 
     XXX -->|NO|X
     XXX -->|YES|Continue
+    end
     
     A0 --> D{System Ready?}
     D -->|No| E[Wait & Retry]
