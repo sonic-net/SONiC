@@ -140,6 +140,113 @@
               
 ![](key_selection_flow.png)
 
+## Custom SerDes attributes
+
+Custom SerDes attributes are vendor-specific SerDes settings that are not covered by standard `SAI_PORT_SERDES_*` attributes, especially those not suitable for public standardization in SAI (for example, proprietary ones). `SAI_PORT_SERDES_ATTR_CUSTOM_COLLECTION` was introduced to carry these settings as a single JSON string based attribute.
+
+In media_settings.json, define custom attributes using keys prefixed with `CUSTOM:` (for example, `CUSTOM:XYZ`). xcvrd's media_settings_parser strips the prefix, and aggregates them into a single JSON string field `custom_serdes_attrs` in APPL_DB `PORT_TABLE`. The JSON format is a list of attribute objects, each with a per-lane `value` array sized for the logical port, and portsorch maps that field to `SAI_PORT_SERDES_ATTR_CUSTOM_COLLECTION`. portsorch doesn't interpret the contents; it simply passes it through to SAI.
+
+### Value of `SAI_PORT_SERDES_ATTR_CUSTOM_COLLECTION` is a JSON string in the following format
+
+```
+{
+    "attributes": [
+        {
+            "XYZ": {
+                "value": [10, 11, 12, 13]
+            }
+        },
+        {
+            "ABC": {
+                "value": ["mode_a", "mode_b", "mode_c", "mode_d"]
+            }
+        }
+    ]
+}
+```
+
+Note: The above JSON is formatted with spaces and newlines for readability to help understand the structure. The actual value written to APPL_DB by xcvrd is compressed (spaces and newlines removed) to achieve minimal payload size.
+
+### Example media_settings.json with only custom attributes
+
+```
+{
+    "GLOBAL_MEDIA_SETTINGS": {
+        "1-32": {
+            "Default": {
+                "CUSTOM:XYZ": {
+                    "lane0": 10,
+                    "lane1": 11,
+                    "lane2": 12,
+                    "lane3": 13
+                },
+                "CUSTOM:ABC": {
+                    "lane0": "mode_a",
+                    "lane1": "mode_b",
+                    "lane2": "mode_c",
+                    "lane3": "mode_d"
+                }
+            }
+        }
+    }
+}
+```
+
+Example APPL_DB PORT_TABLE entry based on the above media_settings.json:
+
+```
+# sonic-db-cli APPL_DB hgetall "PORT_TABLE:EthernetXXX"
+{
+    ...
+    'custom_serdes_attrs': '{"attributes":[{"XYZ":{"value":[10,11,12,13]}},{"ABC":{"value":["mode_a","mode_b","mode_c","mode_d"]}}]}'
+    ...
+}
+```
+
+### Example media_settings.json with mixed traditional and custom attributes
+
+```
+{
+    "GLOBAL_MEDIA_SETTINGS": {
+        "1-32": {
+            "Default": {
+                "preemphasis": {
+                    "lane0": "0x112233",
+                    "lane1": "0x112233",
+                    "lane2": "0x112244",
+                    "lane3": "0x443322"
+                },
+                "idriver": {
+                    "lane0": "0xb",
+                    "lane1": "0xc",
+                    "lane2": "0xd",
+                    "lane3": "0xa"
+                },
+                "CUSTOM:XYZ": {
+                    "lane0": 10,
+                    "lane1": 11,
+                    "lane2": 12,
+                    "lane3": 13
+                }
+            }
+        }
+    }
+}
+```
+
+Example APPL_DB PORT_TABLE entry based on the above media_settings.json:
+
+```
+# sonic-db-cli APPL_DB hgetall "PORT_TABLE:EthernetXXX"
+{
+    ...
+    'preemphasis': '0x112233,0x112233,0x112244,0x443322',
+    'idriver': '0xb,0xc,0xd,0xa',
+    'custom_serdes_attrs': '{"attributes":[{"XYZ":{"value":[10,11,12,13]}}]}'
+    ...
+}
+```
+
 ## Breakout Scenario:
 
               For breakout scenario, there is no special handling or modification that needs to be done to media_settings.json. Currently breakout in SONiC is done by modifying port_config.ini and platform related files and doing a config reload. This config reload will stop and restart most of the daemons. Thus this sequence will be similar to the normal reboot sequence. When xcvrd is stopped and restarted it notifies portsorch about all media just as in normal reboot scenario.
