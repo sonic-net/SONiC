@@ -440,7 +440,7 @@ Before enabling banking, the software performs the following checks:
 ```python
 def get_banks_supported(self):
     """
-    Read Banks Supported field from Page 01h, Byte 155, Bits 2-0.
+    Read Banks Supported field from Page 01h, Byte 142, Bits 1-0.
     Returns the number of banks supported (1, 2, 4, or 8).
     """
     banks_supported_raw = self.read_field(consts.BANKS_SUPPORTED_FIELD)
@@ -452,7 +452,7 @@ def get_banks_supported(self):
 
 | Condition | bank_size sysfs | I2C Write Behavior |
 |-----------|-----------------|-------------------|
-| Banks Supported > 1 | Set to advertised value | 2-byte writes (bank + page) per CMIS 5.3 §8.2.15 |
+| Banks Supported > 1 | Set to advertised value | 2-byte writes (bank + page) per CMIS 5.3 Section 8.2.15 |
 | Banks Supported = 1 or field unreadable | 0 (disabled) | 1-byte writes (page only) - legacy behavior |
 
 This ensures:
@@ -470,8 +470,8 @@ BANKS_SUPPORTED_FIELD = "BanksSupported"
 Add to `sonic_xcvr/mem_maps/public/cmis.py` in `MODULE_CHAR_ADVT`:
 
 ```python
-NumberRegField(consts.BANKS_SUPPORTED_FIELD, self.getaddr(0x1, 155),
-    *(RegBitField("Bit%d" % bit, bit) for bit in range(0, 3))
+NumberRegField(consts.BANKS_SUPPORTED_FIELD, self.getaddr(0x1, 142),
+    *(RegBitField("Bit%d" % bit, bit) for bit in range(0, 2))
 ),
 ```
 
