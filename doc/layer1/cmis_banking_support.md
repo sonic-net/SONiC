@@ -322,17 +322,6 @@ def getaddr(self, page, offset, page_size=128, bank=0):
         return ( ( bank * OPTOE_BANKED_PAGE_SIZE ) + page + 1 ) * page_size + (offset % page_size)
 ```
 
-### 7.4 Field Definition Changes (xcvr_field.py)
-
-**File**: `src/sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/xcvr_field.py`
-
-```python
-class RegField:
-    def __init__(self, name, offset, *args, bank=0, **kwargs):
-        self.bank = bank
-        # ...
-```
-
 ### 7.5 CLI Utility Changes (sfputil)
 
 **File**: `src/sonic-utilities/sfputil/main.py`
