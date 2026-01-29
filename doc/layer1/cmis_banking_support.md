@@ -422,7 +422,7 @@ Per CMIS 5.x specification, the Banks Supported field is located at:
 
 | Location | Description |
 |----------|-------------|
-| Page 01h, Byte 155, Bits 2-0 | Number of banks for lane-specific registers |
+| Page 01h, Byte 142, Bits 1-0 | Number of banks for lane-specific registers |
 
 **Encoding**:
 
