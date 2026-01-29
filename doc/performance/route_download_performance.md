@@ -674,7 +674,7 @@ The team discussed the challenges and improvements related to async mode, failur
 
 ---
 
-**Meeting Date:** January 8, 2025
+**Meeting Date:** January 8, 2026
 
 ### Summary
 
@@ -696,3 +696,47 @@ The team reviewed the route download performance, focusing on async mode, multi-
 - Characterization on the separate P thread required
 - The ring buffer has been merged but is currently broken and causing issues.
 
+---
+
+**Meeting Date:** January 29, 2026
+
+### Action Items
+
+- Investigate why route-sorting was set to false by default, measure its standalone performance impact, and report findings so the team can decide whether to enable it by default.
+- Follow up to analyze the meta-layer (hash/check) protection overhead for large route counts and determine whether to keep it enabled or change defaults; provide recommendations based on CPU and memory impact.
+- Do homework on warm-reboot implications for switching to ZMQ/async (including possible gaps in RDB persistence and reconciliation) and report back with recommended configuration or fixes.
+
+### ZMQ for Consumer State Table and Performance Improvements
+
+- Discussed the use of ZMQ for consumer state table communication, which improves performance.
+- Discussed the benefits of using ZMQ, including reduced CPU usage and improved performance.
+- Raised concerns about process restarts and the implications for appdb and ASIC.
+
+### Warm Reboot and Performance Optimization
+
+- Discussed the need for warm reboot support and the impact on performance.
+- Agreed on the importance of keeping warm reboot support for flexibility.
+
+### Route Sorting
+
+- Discussed the sorting of routes for better performance in hardware.
+- Discussed about the implications of process restarts and the need for event-driven scripts.
+- Discussed the benefits of sorting routes for better packing in hardware.
+- https://github.com/sonic-net/sonic-utilities/pull/4205 addresses the route check performance. People believes that might be optional. 
+
+### Bypass Sign Meta Meta for Bulk Version
+
+- Discussed the purpose of the bypass sign meta meta for bulk version, which is a debugging tool.
+- Questioned the default setting of this feature and its impact on performance.
+- Discussed the additional CPU cycles spent on this layer and the benefits of disabling it.
+
+### Appdb and Asicdb Population and SNMP Fix
+
+- Discussed the impact of using ZMQ on appdb and asicdb population, including improved performance.
+- Questioned the need for appdb and asicdb population and the impact on performance.
+- Discussed the benefits of using ZMQ for route updates and the need for reconciliation during warm reboots.
+- Raised concerns about the frequency of SNMP queries and suggests switching to event-driven scripts.
+
+### Summary and Next Steps
+
+Next steps: address AI from previous meetings and summarize the action plan.
