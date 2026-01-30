@@ -236,14 +236,16 @@ Apart from this, there's two other changes that are required to implement the fr
 
 Cases where the new framework will be triggered:
 
-1. `config load -y` 
+1. `config apply-patch` 
 2. `config reload -y`
-3. config loads from gNMI / RESTCONF.
+3. `config replace`
+3. gNMI related config changes.
 
 Cases where the new framework will not be triggered:
 
 1. CLI based config. CLI has ways to handle constraints in the code itself, since there is a lot of flexibility in handling configs at various granular levels. So it shouldn't matter in this case.
 2. If a user manually writes into CONFIG_DB, bypassing the cases mentioned above. In this case, no validation is hit, and if there are invalid values only syslogs will reflect it.
+3. `config load` - this bypasses all validation, so YANG checks are never hit in this case.
 
 ## Extending to new features
 
