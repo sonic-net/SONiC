@@ -239,7 +239,7 @@ Cases where the new framework will be triggered:
 1. `config apply-patch` 
 2. `config reload -y`
 3. `config replace`
-3. gNMI related config changes.
+4. gNMI related config changes.
 
 Cases where the new framework will not be triggered:
 
