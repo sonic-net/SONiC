@@ -12,7 +12,6 @@
   - [7.1 Repositories Changed](#71-repositories-changed)
   - [7.2 Kernel Driver Changes (optoe.c)](#72-kernel-driver-changes-optoec)
   - [7.3 Memory Map Abstraction Changes (cmis.py)](#73-memory-map-abstraction-changes-cmispy)
-  - [7.4 Field Definition Changes (xcvr_field.py)](#74-field-definition-changes-xcvr_fieldpy)
   - [7.5 CLI Utility Changes (sfputil)](#75-cli-utility-changes-sfputil)
   - [7.6 Linear Offset Calculation](#76-linear-offset-calculation)
   - [7.7 Backwards Compatibility](#77-backwards-compatibility)
@@ -716,20 +715,20 @@ class CpoSeperateCmisApi:
 
 ##### Layer 4: XcvrEeprom (`xcvr_eeprom.py`)
 
-Add bank parameter to read/write methods:
+**No changes required.** The XcvrEeprom layer remains unchanged. Bank context is stored on the mem_map and accessed by fields when calculating offsets:
 
 ```python
-def read(self, field_name, bank=0):
+def read(self, field_name):
     """Read a field from the transceiver EEPROM."""
     field = self.mem_map.get_field(field_name)
-    offset = field.get_offset(bank=bank)
+    offset = field.get_offset()  # Field uses mem_map.getaddr() which uses mem_map._bank
     # Read from sysfs at calculated offset
     ...
 
-def write(self, field_name, value, bank=0):
+def write(self, field_name, value):
     """Write a value to the transceiver EEPROM."""
     field = self.mem_map.get_field(field_name)
-    offset = field.get_offset(bank=bank)
+    offset = field.get_offset()  # Field uses mem_map.getaddr() which uses mem_map._bank
     # Write to sysfs at calculated offset
     ...
 ```
@@ -789,7 +788,7 @@ xcvrd (processing "Ethernet8", which maps to index=1, bank=1 in platform.json)
   │
   └─► api.get_tx_power()
           │
-          └─► xcvr_eeprom.read(TX_POWER_FIELD, bank=self._bank)
+          └─► xcvr_eeprom.read(TX_POWER_FIELD)
                   │
                   └─► getaddr(page=0x11, offset=154, bank=1) ──► linear offset for Bank 1
                           │
