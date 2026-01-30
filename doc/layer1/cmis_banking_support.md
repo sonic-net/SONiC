@@ -288,7 +288,7 @@ if (page > 0) {
 
 **File**: `src/sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/cmis.py`
 
-The Python layer must calculate linear offsets that match the optoe driver's address mapping:
+The memory map accepts bank as a constructor argument. Since each xcvr_api has its own mem_map instance (created in `xcvr_api_factory.py`), the bank is set once at construction time and is immutable thereafter.
 
 ```python
 # Constants matching optoe driver
@@ -296,30 +296,33 @@ OPTOE_PAGE_SIZE = 128
 OPTOE_NON_BANKED_PAGE_SIZE = 16   # pages 00h-0Fh
 OPTOE_BANKED_PAGE_SIZE = 240      # pages 10h-FFh
 
-# Extended implementation
-def getaddr(self, page, offset, page_size=128, bank=0):
-    """
-    Calculate linear offset for optoe driver.
+class CmisMemMap(XcvrMemMap):
+    def __init__(self, codes, bank=0):
+        super().__init__(codes)
+        self._bank = bank  # Immutable after construction
 
-    For bank 0: linear_offset = (page + 1) * 128 + byte_in_page
-    For bank > 0 (pages 10h-FFh only):
-        linear_offset = (256 + (bank - 1) * 240 + (page - 16) + 1) * 128 + byte_in_page
-    """
-    if page == 0 and offset < 128:
-        # Lower memory
-        return offset
+    def getaddr(self, page, offset, page_size=128):
+        """
+        Calculate linear offset for optoe driver using instance's bank.
 
-    if bank == 0:
-        # Bank 0: pages 00h-FFh
-        return (page + 1) * page_size + (offset % page_size)
-    else:
-        # Banks 1+: only pages 10h-FFh are banked
-        # Offset into banked region
-        # 1 = lower
-        # page = page num
-        # bank * OPTOE_BANKED_PAGE_SIZE = num of 'banked pages chunks' to skip to get to our desired page
-        return ( ( bank * OPTOE_BANKED_PAGE_SIZE ) + page + 1 ) * page_size + (offset % page_size)
+        For bank 0: linear_offset = (page + 1) * 128 + byte_in_page
+        For bank > 0 (pages 10h-FFh only):
+            linear_offset = (256 + (bank - 1) * 240 + (page - 16) + 1) * 128 + byte_in_page
+        """
+        if page == 0 and offset < 128:
+            # Lower memory
+            return offset
+
+        if self._bank == 0:
+            # Bank 0: pages 00h-FFh
+            return (page + 1) * page_size + (offset % page_size)
+        else:
+            # Banks 1+: only pages 10h-FFh are banked
+            # bank * OPTOE_BANKED_PAGE_SIZE = num of 'banked pages chunks' to skip
+            return ((self._bank * OPTOE_BANKED_PAGE_SIZE) + page + 1) * page_size + (offset % page_size)
 ```
+
+**Key Design Decision**: Bank is passed as a constructor argument and is immutable. This works because each `SfpView` gets its own `xcvr_api` with its own `mem_map` instance created with the appropriate bank value.
 
 ### 7.5 CLI Utility Changes (sfputil)
 
@@ -633,9 +636,8 @@ class SfpView:
     def get_xcvr_api(self):
         """Returns xcvr_api with bank context set (cached per view)."""
         if self._xcvr_api is None:
-            # Create a new api instance for this view using the factory
-            self._xcvr_api = self._sfp._xcvr_api_factory.create_xcvr_api()
-            self._xcvr_api.set_bank(self._bank)
+            # Create a new api instance for this view, passing bank to factory
+            self._xcvr_api = self._sfp._xcvr_api_factory.create_xcvr_api(bank=self._bank)
         return self._xcvr_api
 
     def refresh_xcvr_api(self):
@@ -662,38 +664,11 @@ class CpoSeperateSfp:
         return self._xcvr_api
 ```
 
-##### Layer 3: CMIS API (`api/public/cmis.py`)
+##### Layer 3: XcvrApiFactory (`xcvr_api_factory.py`)
 
-Add `set_bank()` method and use internal `_bank` attribute when accessing banked pages:
+The factory accepts bank as a parameter and passes it to the mem_map constructor
 
-```python
-class CmisApi:
-    NUM_CHANNELS = 8
-
-    def __init__(self, xcvr_eeprom):
-        self.xcvr_eeprom = xcvr_eeprom
-        self._bank = 0  # Default bank
-
-    def set_bank(self, bank):
-        """Set the bank context for this API instance."""
-        self._bank = bank
-
-    def get_tx_power(self):
-        """Returns TX power for lanes in the current bank (8 values)."""
-        tx_power_support = self.get_tx_power_support()
-        if not tx_power_support:
-            return ["N/A" for _ in range(self.NUM_CHANNELS)]
-
-        tx_power = self.xcvr_eeprom.read(consts.TX_POWER_FIELD, bank=self._bank)
-        if tx_power is not None:
-            return [tx_power['TxPower%dField' % i] for i in range(1, self.NUM_CHANNELS + 1)]
-        return ["N/A" for _ in range(self.NUM_CHANNELS)]
-
-    # Module-level methods don't need bank - always read from bank 0
-    def get_module_temperature(self):
-        """Temperature is on non-banked page - no bank parameter needed."""
-        return self.xcvr_eeprom.read(consts.MODULE_TEMPERATURE_FIELD)
-```
+##### Layer 4: CMIS API 
 
 In the case for CPO seperate mode there is a new class that handles calls to the correct device (OE or ELS)
 ```python
@@ -711,26 +686,6 @@ class CpoSeperateCmisApi:
     # data from ELSFP
     def get_eslfp_tx_power(self):
         return  self._elsfp_api.get_tx_power()
-```
-
-##### Layer 4: XcvrEeprom (`xcvr_eeprom.py`)
-
-**No changes required.** The XcvrEeprom layer remains unchanged. Bank context is stored on the mem_map and accessed by fields when calculating offsets:
-
-```python
-def read(self, field_name):
-    """Read a field from the transceiver EEPROM."""
-    field = self.mem_map.get_field(field_name)
-    offset = field.get_offset()  # Field uses mem_map.getaddr() which uses mem_map._bank
-    # Read from sysfs at calculated offset
-    ...
-
-def write(self, field_name, value):
-    """Write a value to the transceiver EEPROM."""
-    field = self.mem_map.get_field(field_name)
-    offset = field.get_offset()  # Field uses mem_map.getaddr() which uses mem_map._bank
-    # Write to sysfs at calculated offset
-    ...
 ```
 
 ##### Layer 5: Memory Map (`mem_maps/public/cmis.py`)
@@ -784,15 +739,23 @@ xcvrd (processing "Ethernet8", which maps to index=1, bank=1 in platform.json)
   │
   ├─► sfp.get_xcvr_api()
   │       │
-  │       └─► returns cached xcvr_api (with _bank=1 already set)
+  │       └─► returns cached xcvr_api (with bank=1 set on its mem_map)
   │
   └─► api.get_tx_power()
           │
           └─► xcvr_eeprom.read(TX_POWER_FIELD)
                   │
-                  └─► getaddr(page=0x11, offset=154, bank=1) ──► linear offset for Bank 1
+                  ├─► field = mem_map.get_field(TX_POWER_FIELD)
+                  │       │
+                  │       └─► returns RegField(page=0x11, byte_offset=154)
+                  │
+                  └─► offset = field.get_offset()
                           │
-                          └─► sysfs read ──► returns [tx_power lanes 9-16]
+                          └─► mem_map.getaddr(page=0x11, offset=154)
+                                  │
+                                  └─► uses mem_map._bank=1 ──► linear offset for Bank 1
+                                          │
+                                          └─► sysfs read ──► returns [tx_power lanes 9-16]
 ```
 
 **xcvrd pseudo-code:**
