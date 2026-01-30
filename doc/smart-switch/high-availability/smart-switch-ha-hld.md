@@ -1001,7 +1001,8 @@ sequenceDiagram
 
     S0N->>S0N: Move to InitializingToActive state
     S1N->>S1N: Move to InitializingToStandby state
-    S0D->>S1D: Bulk Sync
+    S1N->>S1D: Activate standby role
+    S0N->>S0D: Start Bulk Sync
     S0D->>S1D: Bulk Sync Completed
     S1D->>S0D: Bulk Sync Completed Ack
     S0N->>S0N: Move to PendingActiveRoleActivation state
@@ -1011,14 +1012,13 @@ sequenceDiagram
 
     SDN->>S0N: Approval to be active
     SDN->>S1N: Approval to be standby
-    S1N->>S1D: Activate standby role
-    S1N->>S1N: Move to Standby state
-    S1N->>S0N: HAStateChanged
+    S1N->>S0N: DpuHAStateChanged, Dead->Standby
     S0N->>S0N: Move to Active state<br>and move to next term (Term 1)
     S0N->>S0D: Activate active role with term 1
     S0N->>SA: Update ENI traffic forwarding<br>rule next hop to DPU0
     Note over S0N,SA: From now on, traffic will be forwarded<br>from all NPUs to DPU0
-    S1N->>S1N: Update its term
+    S0N->>S1N: DpuHAStateChanged, Dead->Active
+    S1N->>S1N: Move to Standby state and update its term
 ```
 
 #### 8.1.2. Launch with standalone peer
@@ -1062,17 +1062,17 @@ sequenceDiagram
     S0N->>S1N: Respond BecomeStandby
 
     S1N->>S1N: Move to InitializingToStandby state
-    S0D->>S1D: Start Bulk Sync
+    S1N->>S1D: Active standby role
+    S1N->>S0N: DpuHAStateChanged, Dead->Standby
+    S0N->>S0N: Move to Active state and move to next term
+    S0N->>S0D: Activate active role with new term
+    S0N->>S0D: Start Bulk Sync
     S0D->>S1D: Bulk Sync Completed
     S1D->>S0D: Bulk Sync Completed Ack
     S1N->>S1N: Move to PendingStandbyRoleActivation state
     S1N->>SDN: Request Approval to be Standby
     SDN->>S1N: Approval to be Standby
-    S1N->>S1N: Move to Standby state
-    S1N->>S1D: Active standby role
-
-    S0N->>S0N: Move to Active state and move to next term
-    S0N->>S0D: Activate active role with new term
+    S1N->>S1N: Move to Standby state and update its term to match its peer
 ```
 
 #### 8.1.3. Launch with no peer
