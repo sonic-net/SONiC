@@ -40,7 +40,7 @@ For the convenience of implementation and reduce the time consuming, pcie-check.
 
 2. `PcieUtil` will provide APIs `load_config_file`, `get_pcie_device` and `get_pcie_check` to get the expected PCIe device list and informations, to get the current PCIe device information, and check if any PCIe device is missing or if there is any PCIe bus error.
 
-![pcieinfo_design](https://github.com/sonic-net/SONiC/blob/master/doc/pcieinfo_design.md)
+![pcieinfo_design](https://github.com/sonic-net/SONiC/blob/master/doc/pcie-mon/pcieinfo_design.md)
 
 ### 1.2 PCIe device configuration file ###
 
