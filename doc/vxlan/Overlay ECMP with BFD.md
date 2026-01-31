@@ -61,7 +61,7 @@ This document provides general information about the Vxlan Overlay ECMP feature 
 Below diagram captures the use-case. In this, ToR is a Tier0 device and Leaf is a Tier1 device. Vxlan tunnel is established from Leaf (Tier1) to a VTEP endpoint. ToR (Tier0), Spine (Tier3) are transit devices. 
 
 
-![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_UseCase.png)
+![](OverlayEcmp_UseCase.png)
 
 ### Packet flow
 
@@ -172,7 +172,7 @@ PROFILE                  = STRING                    ; profile name to be applie
 
 Overlay routes can be programmed via RestAPI or gNMI/gRPC interface which is not described in this document. A highlevel module interaction is shown below
 
-![](https://github.com/sonic-net/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_ModuleInteraction.png)
+![](OverlayEcmp_ModuleInteraction.png)
 
 ## 2.4 Orchestration Agent
 Following orchagents shall be modified. 
@@ -412,7 +412,8 @@ With IPv6 tunnels, prefixes can be either IPv4 or IPv6
 
 ### 2.8.1 Overlay ECMP 
 
-It is assumed that the endpoint IPs may not have exact match underlay route but may have an LPM underlay route or a default route. Test must consider both IPv4 and IPv6 traffic for routes configured as example shown above
+It is assumed that the endpoint IPs may not have exact match underlay route but may have an LPM underlay route or a default route. Test must consider both IPv4 and IPv6 traffic for routes configured as example shown above.
+For Underlay ECMP tests, we also check whether the packets are distributed uniformly among active interfaces connected to T2 neighbors and also among members of each active PortChannel interface connected to a T2 neighbor.
 
 | Step | Goal | Expected results |
 |-|-|-|

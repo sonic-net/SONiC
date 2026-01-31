@@ -223,7 +223,7 @@ Here are the new flags we propose to add in the SAI interface:
 ## SONiC system diagram for VRF
 
 The following is high level diagram of modules with VRF support.
-![](https://github.com/sonic-net/SONiC/blob/f2ebba476b4ef364b13b7980c2fe01e8929c71e6/images/vrf_hld/VRF_HIGH_LEVEL_DIAGRAM.png)
+![](VRF_HIGH_LEVEL_DIAGRAM.png)
 
 ## The schema changes
 
@@ -436,7 +436,7 @@ The non-global vrf_name must start with "Vrf" prefix. So it can differ from ipv6
 
 ## Event flow diagram
 
-![vrf-event-flow-digaram-1](https://github.com/shine4chen/SONiC/blob/vrf/images/vrf_hld/vrf_event_diagram_1.jpg)
+![vrf-event-flow-digaram-1](vrf_event_diagram_1.jpg)
 
 ```mermaid
 sequenceDiagram
@@ -491,7 +491,7 @@ sequenceDiagram
 
 ```
 
-![vrf-event-flow-diagram2](https://github.com/shine4chen/SONiC/blob/vrf/images/vrf_hld/vrf_event_diagram_2.jpg)
+![vrf-event-flow-diagram2](vrf_event_diagram_2.jpg)
 
 ```mermaid
 sequenceDiagram
