@@ -9,6 +9,9 @@
 - [3. Architecture Design](#3-architecture-design)
 - [4. High-Level Design](#4-high-level-design)
   - [4.1 Hardware Recovery Mechanism](#41-hardware-recovery-mechanism)
+    - [4.1.1 Hardware vs Software Recovery Flow](#411-hardware-vs-software-recovery-flow)
+    - [4.1.2 Hardware Recovery Workflow](#412-hardware-recovery-workflow)
+    - [4.1.3 SDK and Hardware Responsibilities](#413-sdk-and-hardware-responsibilities)
   - [4.2 PFC Watchdog Orchagent Refactoring](#42-pfc-watchdog-orchagent-refactoring)
 - [5. CLI Changes](#5-cli-changes)
   - [5.1 New CLI command](#51-new-cli-command)
@@ -112,22 +115,32 @@ flowchart TD
     B -->|No| D[Initialize PfcWdOrch<br/>Software Recovery]
 
     C --> E[Configure SAI Hardware<br/>Watchdog Attributes]
-    E --> F[Hardware Detection<br/>& Recovery Active]
+    E --> E1[Update STATE_DB:<br/>status=operational<br/>recovery_type=hardware]
+    E1 --> F[Hardware Detection<br/>& Recovery Active]
 
     D --> G[Configure Lua Script<br/>Polling & Handlers]
-    G --> H[Software Detection<br/>& Recovery Active]
+    G --> G1[Update STATE_DB:<br/>status=operational<br/>recovery_type=software]
+    G1 --> H[Software Detection<br/>& Recovery Active]
 
     F --> I[PFC Storm Detected<br/>by Hardware]
     H --> J[PFC Storm Detected<br/>by Lua Script]
 
-    I --> K[Hardware Automatic<br/>Recovery Action]
-    J --> L[Software Handler<br/>Recovery Action]
+    I --> I1[Update STATE_DB:<br/>status=storm_detected<br/>last_detection_time<br/>detection_count++]
+    J --> J1[Update STATE_DB:<br/>status=storm_detected<br/>last_detection_time<br/>detection_count++]
+
+    I1 --> K[Hardware Automatic<br/>Recovery Action]
+    J1 --> L[Software Handler<br/>Recovery Action]
 
     K --> M[Hardware Event<br/>Notification to SW]
     L --> N[Update Counters<br/>& State]
 
+    M --> M1[Update STATE_DB:<br/>status=storm_restored<br/>last_restoration_time<br/>storm_duration_ms]
+    N --> N1[Update STATE_DB:<br/>status=storm_restored<br/>last_restoration_time<br/>storm_duration_ms]
+
     M --> P[Software Counter<br/>Polling & State Update]
     N --> O[Update Statistics<br/>& CLI Display]
+    M1 --> O
+    N1 --> O
     P --> O
 ```
 
@@ -142,6 +155,7 @@ sequenceDiagram
     participant SAI as SAI Layer
     participant HW as Hardware
     participant DB as Counters DB
+    participant StateDB as STATE_DB
 
     CLI->>Orch: Configure PFC Watchdog
     Orch->>SAI: Set Detection Timer
@@ -149,12 +163,14 @@ sequenceDiagram
     Orch->>SAI: Set Recovery Action
     Orch->>SAI: Enable Hardware Watchdog
     SAI->>HW: Program Hardware Timers
+    Orch->>StateDB: Update status=operational,<br/>recovery_type=hardware,<br/>detection_time_programmed,<br/>granularity values
 
     Note over HW: PFC Storm Occurs
     HW->>HW: Detect Storm (Hardware Timer)
     HW->>SAI: Generate Event Notification
     SAI->>Orch: Storm Detected Event
     Orch->>DB: Update Storm Counters
+    Orch->>StateDB: Update status=storm_detected,<br/>last_detection_time,<br/>detection_count++
 
     alt app_managed_recovery = true
         Note over Orch: Event handler sets<br/>app_managed_recovery=true
@@ -172,7 +188,30 @@ sequenceDiagram
     HW->>SAI: Generate Restoration Event
     SAI->>Orch: Storm Restored Event
     Orch->>DB: Update Restoration Counters
+    Orch->>StateDB: Update status=storm_restored,<br/>last_restoration_time,<br/>storm_duration_ms
 ```
+
+#### 4.1.3 SDK and Hardware Responsibilities
+
+In hardware-based PFC watchdog recovery, the responsibilities are distributed between the SDK layer and the hardware (ASIC).
+
+**SDK Responsibilities:**
+
+The SDK layer (e.g., Broadcom SDK) acts as the intermediary between SAI and the hardware. It is responsible for:
+- Translating SAI attribute calls into hardware-specific register programming
+- Reporting hardware capabilities such as supported timer ranges and granularity constraints
+- Monitoring hardware event registers and translating them into SAI event callbacks (`SAI_QUEUE_PFC_DEADLOCK_EVENT_TYPE_DETECTED` and `SAI_QUEUE_PFC_DEADLOCK_EVENT_TYPE_RECOVERED`)
+- Managing hardware resource allocation for timers, counters, and event queues
+- Reading hardware counter registers and providing statistics via SAI APIs
+
+**Hardware (ASIC) Responsibilities:**
+
+The hardware performs the actual line-rate detection and recovery operations:
+- Monitoring incoming PFC pause frames on each queue and tracking continuous pause state duration
+- Comparing pause duration against programmed detection timers and generating detection events when timers expire
+- Automatically applying recovery actions (drop/forward) to packets in affected queues
+- Maintaining hardware timers for both detection and restoration at the configured granularity (e.g., 100ms increments)
+- Generating hardware interrupts or events on storm detection and restoration
 
 ### 4.2 PFC Watchdog Orchagent Refactoring
 
@@ -207,13 +246,31 @@ Orch (base class)
 
 `PfcWdHwOrch` is the new class that will handle hardware recovery mechanisms. There will be no handlers defined in hardware-based recovery unlike software recovery which defines drop and forward handlers. To update the counters periodically, `PfcWdHwOrch` itself will provide a function to read the required SAI attributes and get updated counters.
 
+#### SKU-Based Override Mechanism
+
+In some cases, certain SKUs may need to use software-based PFCWD even when hardware capability is available. This can be due to:
+- Hardware recovery in development mode
+- Hardware limitations or bugs specific to certain SKU models
+- Platform-specific requirements
+- Testing or validation purposes
+
+For such cases, the orchagent can maintain a list of such SKUs and skip creating `PfcWdHwOrch` for those SKUs as given in the code below.
+
 Runtime selection in `orchdaemon.cpp`:
 
 ```c
 // Check hardware capability
 bool pfcHwRecoverySupported = gSwitchOrch->checkPfcHwRecoverySupport();
 
-if (pfcHwRecoverySupported)
+// Check if SKU is in the override list to force software-based PFCWD
+std::vector<std::string> swPfcwdSkuList = getSwPfcwdSkuOverrideList();
+std::string currentSku = gSwitchOrch->querySwitchSku();
+bool skuForcesSwPfcwd = std::find(swPfcwdSkuList.begin(), swPfcwdSkuList.end(), currentSku) != swPfcwdSkuList.end();
+
+// Check hardware capability
+bool pfcHwRecoverySupported = gSwitchOrch->checkPfcHwRecoverySupport();
+
+if (pfcHwRecoverySupported && !skuForcesSwPfcwd)
 {
     SWSS_LOG_NOTICE("Starting hardware-based PFC watchdog (no handlers)");
     m_orchList.push_back(new PfcWdHwOrch(
@@ -259,45 +316,47 @@ The following diagram illustrates how the new `show pfcwd status` command retrie
 
 ```mermaid
 flowchart LR
-    A[show pfcwd status] --> B{Recovery Type?}
+    A[show pfcwd status] --> B[Query STATE_DB<br/>PFC_WD_STATE Table]
 
-    B -->|Hardware| C[Query SAI Attributes]
-    B -->|Software| D[Return N/A Values]
+    B --> C[Read Per-Port/Queue Entries]
 
-    C --> E[Get Actual HW Timer Values]
-    C --> F[Get Platform Granularity]
-    C --> G[Get Recovery Type]
-    C --> J[Validate Timer Ranges]
+    C --> D[Extract recovery_type]
+    C --> E[Extract programming_status]
+    C --> F[Extract detection_time_programmed]
+    C --> G[Extract detection_time_granularity]
+    C --> H[Extract restoration_time_programmed]
+    C --> I[Extract restoration_time_granularity]
 
-    E --> H[Format Display Data]
-    F --> H
-    G --> H
-    J --> H
-    D --> H
+    D --> L[Format Display Data]
+    E --> L
+    F --> L
+    G --> L
+    H --> L
+    I --> L
 
-    H --> I[Display Table with:<br/>PORT, RECOVERY TYPE, STATUS,<br/>HW DETECTION TIME, DETECTION GRANULARITY,<br/>HW RESTORATION TIME, RESTORATION GRANULARITY]
+    L --> M[Display Table with:<br/>PORT, RECOVERY TYPE, PROGRAMMING_STATUS,<br/>HW DETECTION TIME, DETECTION GRANULARITY,<br/>HW RESTORATION TIME, RESTORATION GRANULARITY]
 ```
 
 **Example: ASIC with Hardware Recovery**
 
 ```shell
 admin@sonic:~$ show pfcwd status
-PORT        RECOVERY TYPE    STATUS     HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
-----------  -------------    --------   -------------------  ---------------------    ---------------------  -----------------------
-Ethernet0   hardware         success    300                  100ms                    500                    100ms
-Ethernet8   hardware         success    200                  50ms                     400                    100ms
-Ethernet12  hardware         success    400                  100ms                    800                    100ms
+PORT        RECOVERY TYPE    PROGRAMMING_STATUS    HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
+----------  -------------    ------------------    -------------------  ---------------------    ---------------------  -------------------------
+Ethernet0   hardware         success               300                  100ms                    500                    100ms
+Ethernet4   hardware         failed                2000                 N/A                      N/A                    N/A
+Ethernet12  hardware         success               400                  100ms                    800                    100ms
 ```
 
 **Example: ASIC with Software Recovery**
 
 ```shell
 admin@sonic:~$ show pfcwd status
-PORT        RECOVERY TYPE    STATUS     HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
-----------  -------------    --------   -------------------  ---------------------    ---------------------  -----------------------
-Ethernet0   software         success    N/A                  N/A                      N/A                    N/A
-Ethernet4   software         success    N/A                  N/A                      N/A                    N/A
-Ethernet8   software         success    N/A                  N/A                      N/A                    N/A
+PORT        RECOVERY TYPE    PROGRAMMING_STATUS    HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
+----------  -------------    ------------------    -------------------  ---------------------    ---------------------  -------------------------
+Ethernet0   software         N/A                   N/A                  N/A                      N/A                    N/A
+Ethernet4   software         N/A                   N/A                  N/A                      N/A                    N/A
+Ethernet8   software         N/A                   N/A                  N/A                      N/A                    N/A
 ```
 
 ## 6. SAI API
@@ -341,6 +400,69 @@ The hardware-based PFC watchdog uses the same configuration interface as the exi
 - Configuration is done through CONFIG_DB PFC_WD table
 - Runtime selection between hardware and software is automatic based on platform capabilities
 - No additional configuration parameters are required for hardware mode
+
+### 7.1 STATE_DB Schema
+
+The following STATE_DB table is used to track PFCWD detection and restoration events for both hardware and software-based methods. This table serves as the data source for the `show pfcwd status` command.
+
+**PFC_WD_STATE Table:**
+
+```
+PFC_WD_STATE|<port_name>|<queue_index>
+    "recovery_type": "hardware" | "software"
+    "programming_status": "success" | "failed" | "N/A"
+    "status": "operational" | "storm_detected" | "storm_restored"
+    "detection_count": <number>
+    "last_detection_time": <timestamp>
+    "last_restoration_time": <timestamp>
+    "storm_duration_ms": <value>
+    "detection_time_configured": <value_in_ms>
+    "detection_time_programmed": <value_in_ms>  // N/A for software mode or if programming failed
+    "detection_time_granularity": <value_in_ms>  // N/A for software mode or if programming failed
+    "restoration_time_configured": <value_in_ms>
+    "restoration_time_programmed": <value_in_ms>  // N/A for software mode or if programming failed
+    "restoration_time_granularity": <value_in_ms>  // N/A for software mode or if programming failed
+    "action": "drop" | "forward"
+```
+
+**Example Entries:**
+
+```
+PFC_WD_STATE|Ethernet0|3
+    "recovery_type": "hardware"
+    "programming_status": "success"
+    "status": "storm_detected"
+    "detection_count": "5"
+    "last_detection_time": "2026-02-02T10:15:30Z"
+    "last_restoration_time": "2026-02-02T10:14:25Z"
+    "storm_duration_ms": "0"
+    "detection_time_configured": "250"
+    "detection_time_programmed": "300"
+    "detection_time_granularity": "100"
+    "restoration_time_configured": "450"
+    "restoration_time_programmed": "500"
+    "restoration_time_granularity": "100"
+    "action": "drop"
+```
+
+Software mode:
+```
+PFC_WD_STATE|Ethernet8|3
+    "recovery_type": "software"
+    "programming_status": "N/A"
+    "status": "operational"
+    "detection_count": "2"
+    "last_detection_time": "2026-02-02T09:30:15Z"
+    "last_restoration_time": "2026-02-02T09:30:20Z"
+    "storm_duration_ms": "5000"
+    "detection_time_configured": "400"
+    "detection_time_programmed": "N/A"
+    "detection_time_granularity": "N/A"
+    "restoration_time_configured": "400"
+    "restoration_time_programmed": "N/A"
+    "restoration_time_granularity": "N/A"
+    "action": "drop"
+```
 
 ## 8. Manifest
 
