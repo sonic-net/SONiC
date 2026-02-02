@@ -1,4 +1,4 @@
-# I2C Transceiver Page Banking Support HLD
+# CMIS Banking Support HLD
 
 ## Table of Content
 
