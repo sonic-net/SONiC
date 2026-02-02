@@ -31,6 +31,7 @@
 | 0.2 | 2025-08-28 | ctikku-nexthop  | Revised Draft |
 | 0.3 | 2025-09-25 | chander-nexthop | Revised Draft |
 | 0.4 | 2025-11-11 | chinmoy-nexthop | Revised Draft |
+| 0.5 | 2026-02-02 | chander-nexthop | Revised Draft |
 
 ### 2. Scope
 This document describes the addition of BMC support in SONiC and the execution of SONiC on a BMC controller for out-of-band management of network devices. This design supports Aspeed AST2720 platform, and can be extended to other BMC chipsets.
@@ -63,6 +64,7 @@ Future enhancements may include advanced hardware health monitoring, telemetry d
 - It will have an independent serial port, separate from the main switch system.
 - The BMC uses eMMC storage; therefore, write operations must be minimized.
 - The BMC will provide staged boot control, manage main system power on/off, and handle leak detection and management.
+- The BMC will support a network device over USB to connect to the x86 CPU for a secure private network between the x86 and the BMC.
 
 ##### 5.1.2 BMC Hardware
 - The BMC controller will include its own CPU, memory, storage, and network port.
@@ -95,12 +97,16 @@ Future enhancements may include advanced hardware health monitoring, telemetry d
 
 ##### 5.1.6 OBMC Console
 - **BMC-SONiC-OS** will use [obmc-console](https://github.com/openbmc/obmc-console) for console management.
+- A clone of this project will be created and added as a submodule in the sonic-buildimage repository.
+- The switch CPU console will be accessible by invoking the obmc-console-client inside the obmc-console docker.
+- The switch CPU console will also be accessible over the network via ssh to a specific port on the BMC.
 - It will capture and log the main switch CPU’s serial console output for later review.
-- Log rotation and compression will be applied similar to syslog management.
-- The switch CPU console will also be accessible over the network via the BMC.
+- Log rotation, compression and export to an external server will be supported
 
 ##### 5.1.7 OBMC Web
 - **BMC-SONiC-OS** will use [OpenBMC Web (bmcweb)](https://github.com/openbmc/bmcweb) as the RESTful (Redfish) API server.
+- A clone of this project will be created and added as a submodule in the sonic-buildimage repository.
+- A new module SONiC-Dbus-Bridge will be created to populate necessary state from REDIS and other data sources into DBus. This way bmcweb can continue to read dbus paths.
 - **bmcweb** will provide a web-based interface to the switch CPU console.
 - The **staged boot process** will be managed through the Redfish API.
 - **Redfish API** for Power On/Off control of the main system.
@@ -119,7 +125,8 @@ Future enhancements may include advanced hardware health monitoring, telemetry d
   - Boot the SONiC kernel with a minimal initramfs from U-Boot to launch a shell, and use the included script to download the image via TFTP and flash it to the eMMC.
 - **Subsequent Boots**:
   - Once the image is installed, the system can boot directly from the eMMC, eliminating the need to download or reinstall the image over TFTP.
-- The image installation process may be augmented in the future to enable redundancy through A/B install support.
+  - The image will support the sonic-installer utility for image management, including adding a new image, removing an existing image, and selecting the default image for boot.
+  - There will be only one partition in the eMMC and multiple images can be installed in that partition, conforming to the standard SONiC behaviour (Ex: /host/image-1, /host/image-2, etc.).
 - The boot process may be refined in future revisions to improve efficiency and usability.
 
 ### 7. eMMC Writes
