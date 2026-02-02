@@ -191,7 +191,7 @@ POE port table has been enhanced to support power via mdi capability:
 
 #### APPLICATION DB Enhancements  
 
-New table LLDP_MDI_POWER introduced in State DB. This table will be written by LLDP manager daemon after processing incoming LLDP TLVs from PD. And, the PoE application after listening to this table, will process and configure the same in hardware using SAI.
+New table LLDP_MDI_POWER introduced in Application DB. This table will be written by LLDP manager daemon after processing incoming LLDP TLVs from PD. And, the PoE manager application after listening to this table, will process and configure the same in hardware using SAI.
 
 #### LLDP_MDI_POWER
 ```
@@ -251,7 +251,7 @@ New table LLDP_MDI_POWER introduced in State DB. This table will be written by L
 
 #### STATE DB Enhancements  
 
-New table LLDP_MDI_POWER introduced in State DB to enable to PoE application daemon to communicate with the DB. This DB will be subscribed by 
+New table LLDP_MDI_POWER introduced in State DB to enable to PoE manager to communicate with the PD. Once the dynamic power limit is set in hardware, then the poe manager will write the same in STATE_DB. This DB will be subscribed by 
 lldp manager to fill the outgoing power via mdi TLVs in LLDP protocol packets.
 
 #### LLDP_MDI_POWER
