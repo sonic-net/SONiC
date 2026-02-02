@@ -10,17 +10,20 @@
 - [6. Architecture Design](#6-architecture-design)
 - [7. High-Level Design](#7-high-level-design)
   - [7.1 Repositories Changed](#71-repositories-changed)
-  - [7.2 Kernel Driver Changes (optoe.c)](#72-kernel-driver-changes-optoec)
-  - [7.3 Memory Map Abstraction Changes (cmis.py)](#73-memory-map-abstraction-changes-cmispy)
-  - [7.5 CLI Utility Changes (sfputil)](#75-cli-utility-changes-sfputil)
-  - [7.6 Linear Offset Calculation](#76-linear-offset-calculation)
+  - [7.2 Sequence Diagram](#72-sequence-diagram)
+  - [7.3 Kernel Driver Changes (optoe.c)](#73-kernel-driver-changes-optoec)
+  - [7.4 Linear Offset Calculation](#74-linear-offset-calculation)
+    - [7.4.1 Linear Offset Reference Table for CMIS API Calls](#741-linear-offset-reference-table-for-cmis-api-calls)
+  - [7.5 Memory Map Abstraction Changes (cmis.py)](#75-memory-map-abstraction-changes-cmispy)
+  - [7.6 Field Definition Changes (xcvr_field.py)](#76-field-definition-changes-xcvr_fieldpy)
   - [7.7 Backwards Compatibility](#77-backwards-compatibility)
   - [7.8 API Design for Multi-Bank Modules](#78-api-design-for-multi-bank-modules)
-  - [7.9 DB and Schema Changes](#79-db-and-schema-changes)
-  - [7.10 SWSS and Syncd Changes](#710-swss-and-syncd-changes)
-  - [7.11 Sequence Diagram](#711-sequence-diagram)
+  - [7.9 CLI Utility Changes (sfputil)](#79-cli-utility-changes-sfputil)
+  - [7.10 DB and Schema Changes](#710-db-and-schema-changes)
+  - [7.11 SWSS and Syncd Changes](#711-swss-and-syncd-changes)
   - [7.12 Implementation Phases](#712-implementation-phases)
-  - [7.13 Platform Dependencies](#713-platform-dependencies)
+  - [7.13 Files Changed Summary](#713-files-changed-summary)
+  - [7.14 Platform Dependencies](#714-platform-dependencies)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and Management](#9-configuration-and-management)
   - [9.1 Manifest](#91-manifest)
@@ -38,7 +41,8 @@
 
 | Rev | Date       | Author | Change Description |
 |-----|------------|--------|--------------------|
-| 0.1 | 2026-01-20 | bobby-nexthop      | Initial version    |
+| 0.1 | 2025-12-08 | bobby-nexthop      | Initial version    |
+| 0.2 | 2026-01-05 | bobby-nexthop      | Updated to align with upstream PR sonic-net/sonic-linux-kernel#473 |
 
 ## 2. Scope
 
@@ -65,15 +69,7 @@ The CMIS specification defines a 3D memory addressing scheme using Bank Select (
 | Memory Region | Address Range | Description |
 |---------------|---------------|-------------|
 | Lower Memory  | 0x00 - 0x7F   | Fixed, always accessible (128 bytes) |
-| Upper Memory  | 0x80 - 0xFF   | Paged (128 bytes). Only certain pages support banking (see below) |
-
-**Note**: Not all upper memory pages support banking. According to the CMIS specification, only the following page ranges can be banked:
-- Pages 0x10 to 0x1F (lane-specific registers)
-- Pages 0x20 to 0x2F (VDM and lane-specific data)
-- Page 0x9F
-- Pages 0xA0 to 0xAF
-
-Other upper memory pages (e.g., 0x00-0x0F, 0x30-0x9E) are not bankable and always refer to Bank 0.
+| Upper Memory  | 0x80 - 0xFF   | Paged (128 bytes). Only certain pages support banking |
 
 ### Control Registers
 
@@ -89,6 +85,7 @@ Other upper memory pages (e.g., 0x00-0x0F, 0x30-0x9E) are not bankable and alway
   - Bank 1: Lanes 9-16
   - Bank 2: Lanes 17-24, etc.
 - **VDM (Vendor Diagnostic Monitoring)**: Pages 20h-2Fh
+- **CPO**
 
 ## 5. Requirements
 
@@ -98,7 +95,7 @@ Other upper memory pages (e.g., 0x00-0x0F, 0x30-0x9E) are not bankable and alway
 2. Maintain backward compatibility with existing Bank 0 operations
 3. Extend CLI utilities to accept bank parameter
 4. Update Python xcvr library to support bank-aware field access
-5. Auto-detect banking support by reading CMIS Banks Supported field (Page 01h, Byte 155)
+5. Auto-detect banking support by reading CMIS Banks Supported field (Page 01h, Byte 142)
 6. Use 1-byte I2C writes for transceivers without banking support; 2-byte writes only when banking is advertised
 
 ### Non-Functional Requirements
@@ -145,10 +142,50 @@ No changes to the overall SONiC architecture are required. This feature extends 
 | Repository | Files Modified |
 |------------|----------------|
 | sonic-linux-kernel | `drivers/misc/eeprom/optoe.c` |
-| sonic-platform-common | `sonic_xcvr/mem_maps/public/cmis.py`, `sonic_xcvr/fields/xcvr_field.py` |
+| sonic-platform-common | `sonic_xcvr/mem_maps/public/cmis.py`, `sonic_xcvr/mem_maps/xcvr_mem_map.py`, `sonic_xcvr/fields/xcvr_field.py`, `sonic_xcvr/api/public/cmis.py` |
 | sonic-utilities | `sfputil/main.py` |
 
-### 7.2 Kernel Driver Changes (optoe.c)
+### 7.2 Sequence Diagram
+
+The following sequence diagram shows the end-to-end flow for a bank-aware API call:
+
+```
+User             SfpView            CmisApi           xcvr_eeprom         mem_map              optoe.c           Transceiver
+  |                 |                  |                   |                  |                    |                  |
+  |-- get_tx_power  |                  |                   |                  |                    |                  |
+  |   for Ethernet8 |                  |                   |                  |                    |                  |
+  |   (bank=1)      |                  |                   |                  |                    |                  |
+  |---------------->|                  |                   |                  |                    |                  |
+  |                 |--get_xcvr_api()->|                   |                  |                    |                  |
+  |                 |  (bank=1 set     |                   |                  |                    |                  |
+  |                 |   on mem_map)    |                   |                  |                    |                  |
+  |                 |                  |                   |                  |                    |                  |
+  |                 |                  |--get_tx_power()-->|                  |                    |                  |
+  |                 |                  |                   |--get_field()---->|                    |                  |
+  |                 |                  |                   |                  |                    |                  |
+  |                 |                  |                   |--get_offset()--->|                    |                  |
+  |                 |                  |                   |                  |--getaddr(page,     |                  |
+  |                 |                  |                   |                  |   offset) uses     |                  |
+  |                 |                  |                   |                  |   self._bank=1---->|                  |
+  |                 |                  |                   |                  |   = linear_offset  |                  |
+  |                 |                  |                   |                  |                    |                  |
+  |                 |                  |                   |<-----------------+----read(offset)--->|                  |
+  |                 |                  |                   |                  |                    |                  |
+  |                 |                  |                   |                  |                    | Per CMIS 8.2.15: |
+  |                 |                  |                   |                  |                    | Write bank+page  |
+  |                 |                  |                   |                  |                    | in single I2C op |
+  |                 |                  |                   |                  |                    |                  |
+  |                 |                  |                   |                  |                    |--write 2 bytes-->|
+  |                 |                  |                   |                  |                    |  @0x7E:[0x01,pg] |
+  |                 |                  |                   |                  |                    |                  |
+  |                 |                  |                   |                  |                    |--read upper mem->|
+  |                 |                  |                   |<-----------------+----data------------|<----data---------|
+  |<----------------|<-----------------|<------------------|                  |                    |                  |
+```
+
+**Note**: Per CMIS 5.3 Section 8.2.15, when changing bank, both BankSelect (0x7E) and PageSelect (0x7F) must be written in a single I2C WRITE operation. The module does not process the BankSelect value until PageSelect is written.
+
+### 7.3 Kernel Driver Changes (optoe.c)
 
 **File**: `drivers/misc/eeprom/optoe.c`
 
@@ -156,7 +193,7 @@ No changes to the overall SONiC architecture are required. This feature extends 
 
 **Key Changes**:
 
-#### 7.2.1 New Constants
+#### 7.3.1 New Constants
 
 ```c
 #define OPTOE_BANK_SELECT_REG         0x7E
@@ -166,7 +203,7 @@ No changes to the overall SONiC architecture are required. This feature extends 
 #define OPTOE_BANKED_PAGE_SIZE        240  /* pages 10h-FFh are banked */
 ```
 
-#### 7.2.2 New sysfs Interface: `bank_size`
+#### 7.3.2 New sysfs Interface: `bank_size`
 
 A new sysfs entry `bank_size` is added to enable and configure bank support:
 
@@ -206,7 +243,7 @@ cat /sys/class/i2c-dev/i2c-1/device/1-0050/bank_size
 echo 4 | sudo tee /sys/class/i2c-dev/i2c-1/device/1-0050/bank_size
 ```
 
-#### 7.2.3 Linear Address Mapping
+#### 7.3.3 Linear Address Mapping
 
 Banked pages are mapped into a linear address space starting after non-banked pages:
 
@@ -244,7 +281,7 @@ static uint32_t one_addr_eeprom_size_with_bank(uint32_t bank_size)
 }
 ```
 
-#### 7.2.4 Bank/Page Calculation from Offset
+#### 7.3.4 Bank/Page Calculation from Offset
 
 ```c
 static uint8_t optoe_translate_offset(struct optoe_data *optoe,
@@ -265,7 +302,7 @@ static uint8_t optoe_translate_offset(struct optoe_data *optoe,
 }
 ```
 
-#### 7.2.5 CMIS-Compliant Bank/Page Write
+#### 7.3.5 CMIS-Compliant Bank/Page Write
 
 Per CMIS 5.3 Section 8.2.15, when changing bank, both bank and page must be written in a single I2C WRITE operation:
 
@@ -284,64 +321,7 @@ if (page > 0) {
 }
 ```
 
-### 7.3 Memory Map Abstraction Changes (cmis.py)
-
-**File**: `src/sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/cmis.py`
-
-The memory map accepts bank as a constructor argument. Since each xcvr_api has its own mem_map instance (created in `xcvr_api_factory.py`), the bank is set once at construction time and is immutable thereafter.
-
-```python
-# Constants matching optoe driver
-OPTOE_PAGE_SIZE = 128
-OPTOE_NON_BANKED_PAGE_SIZE = 16   # pages 00h-0Fh
-OPTOE_BANKED_PAGE_SIZE = 240      # pages 10h-FFh
-
-class CmisMemMap(XcvrMemMap):
-    def __init__(self, codes, bank=0):
-        super().__init__(codes)
-        self._bank = bank  # Immutable after construction
-
-    def getaddr(self, page, offset, page_size=128):
-        """
-        Calculate linear offset for optoe driver using instance's bank.
-
-        For bank 0: linear_offset = (page + 1) * 128 + byte_in_page
-        For bank > 0 (pages 10h-FFh only):
-            linear_offset = (256 + (bank - 1) * 240 + (page - 16) + 1) * 128 + byte_in_page
-        """
-        if page == 0 and offset < 128:
-            # Lower memory
-            return offset
-
-        if self._bank == 0:
-            # Bank 0: pages 00h-FFh
-            return (page + 1) * page_size + (offset % page_size)
-        else:
-            # Banks 1+: only pages 10h-FFh are banked
-            # bank * OPTOE_BANKED_PAGE_SIZE = num of 'banked pages chunks' to skip
-            return ((self._bank * OPTOE_BANKED_PAGE_SIZE) + page + 1) * page_size + (offset % page_size)
-```
-
-**Key Design Decision**: Bank is passed as a constructor argument and is immutable. This works because each `SfpView` gets its own `xcvr_api` with its own `mem_map` instance created with the appropriate bank value.
-
-### 7.5 CLI Utility Changes (sfputil)
-
-**File**: `src/sonic-utilities/sfputil/main.py`
-
-```python
-# Add bank parameter to page dump commands
-@click.option('--bank', default=0, type=int, help='Bank number (default: 0)')
-def read_eeprom(port, page, bank):
-    # Include bank in offset calculation
-    pass
-
-@click.option('--bank', default=0, type=int, help='Bank number (default: 0)')
-def write_eeprom(port, page, bank):
-    # Include bank in offset calculation
-    pass
-```
-
-### 7.6 Linear Offset Calculation
+### 7.4 Linear Offset Calculation
 
 The optoe driver maps the entire transceiver memory into a linear address space. The mapping accounts for the fact that only pages 0x10-0xFF are banked (240 pages per bank), while pages 0x00-0x0F are not banked (16 pages, always bank 0).
 
@@ -414,6 +394,95 @@ bank = (257 - 16) / 240 = 241 / 240 = 1 ✓
 adjusted_page = 257 - (1 × 240) = 17 = 0x11 ✓
 ```
 
+#### 7.4.1 Linear Offset Reference Table for CMIS API Calls
+
+The following table shows some linear offset examples for common lane-specific CMIS fields across banks 0-3. These fields are on page 0x11 which is a banked page.
+
+**Formula**: `linear_offset = (bank * 240 + page) * 128 + byte_offset`
+
+| API Call / Field | Page | Byte | Bank 0 | Bank 1 | Bank 2 | Bank 3 |
+|------------------|------|------|--------|--------|--------|--------|
+| `get_datapath_state()` - DP1/2 State | 0x11 | 128 | 2304 | 33024 | 63744 | 94464 |
+| `get_datapath_state()` - DP3/4 State | 0x11 | 129 | 2305 | 33025 | 63745 | 94465 |
+| `get_datapath_state()` - DP5/6 State | 0x11 | 130 | 2306 | 33026 | 63746 | 94466 |
+| `get_datapath_state()` - DP7/8 State | 0x11 | 131 | 2307 | 33027 | 63747 | 94467 |
+
+**Notes**:
+- Bank 0 covers lanes 1-8, Bank 1 covers lanes 9-16, Bank 2 covers lanes 17-24, Bank 3 covers lanes 25-32
+- Each bank's offset differs by 30720 bytes (240 pages × 128 bytes/page)
+- Non-banked pages (0x00-0x0F) have the same linear offset regardless of bank
+
+**Non-Banked Fields** (same offset for all banks):
+
+| API Call / Field | Page | Byte | Linear Offset |
+|------------------|------|------|---------------|
+| `get_module_temperature()` | 0x00 | 14 | 14 |
+| `get_voltage()` | 0x00 | 16 | 16 |
+
+### 7.5 Memory Map Abstraction Changes (cmis.py)
+
+**File**: `src/sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/cmis.py`
+
+The memory map accepts bank as a constructor argument. Since each xcvr_api has its own mem_map instance (created in `xcvr_api_factory.py`), the bank is set once at construction time and is immutable thereafter.
+
+```python
+# Constants matching optoe driver
+OPTOE_PAGE_SIZE = 128
+OPTOE_NON_BANKED_PAGE_SIZE = 16   # pages 00h-0Fh
+OPTOE_BANKED_PAGE_SIZE = 240      # pages 10h-FFh
+
+class CmisFlatMemMap(XcvrMemMap):
+    def __init__(self, codes, bank=0):
+        super().__init__(codes)
+        self._bank = bank  # Immutable after construction
+
+    def getaddr(self, page, offset, page_size=128):
+        """
+        Calculate linear offset for optoe driver using instance's bank.
+
+        For bank 0: linear_offset = page * 128 + byte_offset
+        For bank > 0 (pages 10h-FFh only):
+            linear_offset = (bank * OPTOE_BANKED_PAGE_SIZE + page) * 128 + byte_offset
+
+        Note: Pages 00h-0Fh are never banked, even for bank > 0.
+        """
+        if page == 0 and offset < 128:
+            # Lower memory - not affected by banking
+            return offset
+
+        if self._bank == 0:
+            # Bank 0: standard linear offset
+            return page * page_size + offset
+        else:
+            # Banks 1+: only pages 10h-FFh (0x10+) are banked
+            # Pages < 0x10 are never banked, even for bank > 0
+            if page < 0x10:
+                # Non-banked pages (00h-0Fh): same as bank 0
+                return page * page_size + offset
+            else:
+                # Banked pages (10h-FFh): offset by bank * OPTOE_BANKED_PAGE_SIZE pages
+                return ((self._bank * OPTOE_BANKED_PAGE_SIZE) + page) * page_size + offset
+
+class CmisMemMap(CmisFlatMemMap):
+    def __init__(self, codes, bank=0):
+        super().__init__(codes, bank=bank)
+```
+
+**Key Design Decision**: Bank is passed as a constructor argument and is immutable. This works because each `SfpView` gets its own `xcvr_api` with its own `mem_map` instance created with the appropriate bank value.
+
+### 7.6 Field Definition Changes (xcvr_field.py)
+
+**No changes required.** Fields are defined during mem_map construction using `self.getaddr(page, offset)`. Since each mem_map instance is created with its own bank value, the `getaddr()` calls during field definition already use the correct bank:
+
+```python
+# During CmisMemMap.__init__(codes, bank=1):
+NumberRegField(consts.TX_POWER_FIELD, self.getaddr(0x11, 154), ...)
+#                                     ^^^^^^^^^^^^^^^^^^^^^^^^
+#                                     Uses self._bank=1, returns bank-aware offset
+```
+
+The linear offset is calculated once at mem_map construction time and stored in `field.offset`. No runtime bank lookup is needed.
+
 ### 7.7 Backwards Compatibility
 
 To ensure backwards compatibility with existing transceivers that may not handle 2-byte I2C writes correctly, the implementation reads the **Banks Supported** field from the transceiver before enabling banking.
@@ -448,13 +517,14 @@ def get_banks_supported(self):
     banks_supported_raw = self.read_field(consts.BANKS_SUPPORTED_FIELD)
     if banks_supported_raw is None:
         return 1  # Default to Bank 0 only
+
 ```
 
 #### 7.7.3 I2C Write Behavior
 
 | Condition | bank_size sysfs | I2C Write Behavior |
 |-----------|-----------------|-------------------|
-| Banks Supported > 1 | Set to advertised value | 2-byte writes (bank + page) per CMIS 5.3 Section 8.2.15 |
+| Banks Supported > 1 | Set to advertised value | 2-byte writes (bank + page) per CMIS 5.3 8.2.15 |
 | Banks Supported = 1 or field unreadable | 0 (disabled) | 1-byte writes (page only) - legacy behavior |
 
 This ensures:
@@ -566,7 +636,7 @@ Physical Module (32 lanes, index=1)
 **Benefits:**
 - **Thread-safe** - each view has its own xcvr_api with bank set, no shared mutable state
 - **Backwards compatible** - existing code using `get_sfp(index)` continues to work (defaults to bank 0)
-- **Efficient** - For interface scope access, reduce i2c writes from 4 (entire module) to 1 (bank only)
+- **Efficient** - views and xcvr_api instances are cached, not created per request
 - **Bank is explicitly configured** in `platform.json`
 
 #### 7.8.3 Implementation Changes by Layer
@@ -645,56 +715,63 @@ class SfpView:
         self._xcvr_api = None
 ```
 
-In the case for CPO seperate mode there is an SfpView per OE and ELS:
-```python
-class CpoSeperateSfp:
-    """Composite view for CPO with separate OE and ELSFP devices."""
-
-    def __init__(self, oe_view: SfpView, elsfp_view: SfpView):
-        self._oe_view = oe_view
-        self._elsfp_view = elsfp_view
-        self._xcvr_api = None
-
-    def get_xcvr_api(self):
-        if self._xcvr_api is None:
-            self._xcvr_api = CpoSeperateCmisApi(
-                self._oe_view.get_xcvr_api(),
-                self._elsfp_view.get_xcvr_api()
-            )
-        return self._xcvr_api
-```
-
 ##### Layer 3: XcvrApiFactory (`xcvr_api_factory.py`)
 
-The factory accepts bank as a parameter and passes it to the mem_map constructor
+The factory accepts bank as a parameter and passes it to the mem_map constructor:
 
-##### Layer 4: CMIS API 
-
-In the case for CPO seperate mode there is a new class that handles calls to the correct device (OE or ELS)
 ```python
-class CpoSeperateCmisApi:
-    """Composite API that routes calls to appropriate device."""
+class XcvrApiFactory:
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
 
-    def __init__(self, oe_api, elsfp_api):
-        self._oe_api = oe_api
-        self._elsfp_api = elsfp_api
+    def _create_api(self, codes_class, mem_map_class, api_class, bank=0):
+        codes = codes_class
+        mem_map = mem_map_class(codes, bank=bank)  # Pass bank to mem_map
+        xcvr_eeprom = XcvrEeprom(self.reader, self.writer, mem_map)
+        return api_class(xcvr_eeprom)
 
-    # data from OE
-    def get_oe_rx_power(self):
-        return self._oe_api.get_rx_power()
-
-    # data from ELSFP
-    def get_eslfp_tx_power(self):
-        return  self._elsfp_api.get_tx_power()
+    def create_xcvr_api(self, bank=0):
+        id = self._get_id()
+        # ... existing logic to determine which API class to use ...
+        return self._create_api(CmisCodes, CmisMemMap, CmisApi, bank=bank)
 ```
 
-##### Layer 5: Memory Map (`mem_maps/public/cmis.py`)
+##### Layer 4: CMIS API (`api/public/cmis.py`)
 
-The `getaddr()` method calculates linear offsets with bank awareness (already covered in Section 7.3).
+**No changes required.** The CmisApi doesn't need a `set_bank()` method since the bank is set at construction time via the mem_map:
+
+```python
+class CmisApi:
+    NUM_CHANNELS = 8
+
+    def __init__(self, xcvr_eeprom):
+        self.xcvr_eeprom = xcvr_eeprom
+        # Bank is already set on xcvr_eeprom.mem_map at construction time
+
+    def get_tx_power(self):
+        """Returns TX power for lanes in the current bank (8 values).
+
+        The bank is already set on the mem_map, so no bank parameter is needed.
+        """
+        tx_power_support = self.get_tx_power_support()
+        if not tx_power_support:
+            return ["N/A" for _ in range(self.NUM_CHANNELS)]
+
+        tx_power = self.xcvr_eeprom.read(consts.TX_POWER_FIELD)
+        if tx_power is not None:
+            return [tx_power['TxPower%dField' % i] for i in range(1, self.NUM_CHANNELS + 1)]
+        return ["N/A" for _ in range(self.NUM_CHANNELS)]
+
+    # Module-level methods work the same - bank 0 fields are unaffected by bank setting
+    def get_module_temperature(self):
+        """Temperature is on non-banked page (page 0) - bank setting doesn't affect it."""
+        return self.xcvr_eeprom.read(consts.MODULE_TEMPERATURE_FIELD)
+```
 
 #### 7.8.4 Platform Configuration (platform.json)
 
-The bank is explicitly defined per interface in `platform.json`:
+The bank is explicitly defined per interface in `platform.json`. This initial banking support is for single i2c device modules.For more complicated use cases like CPO, a follow up HLD will explain the platform mapping.
 
 ```json
 {
@@ -739,7 +816,11 @@ xcvrd (processing "Ethernet8", which maps to index=1, bank=1 in platform.json)
   │
   ├─► sfp.get_xcvr_api()
   │       │
-  │       └─► returns cached xcvr_api (with bank=1 set on its mem_map)
+  │       └─► (first call) factory.create_xcvr_api(bank=1)
+  │               │
+  │               └─► CmisMemMap(codes, bank=1)  ──► mem_map._bank = 1 (immutable)
+  │               │
+  │               └─► returns cached xcvr_api
   │
   └─► api.get_tx_power()
           │
@@ -769,62 +850,39 @@ for interface_name in ["Ethernet0", "Ethernet8", "Ethernet16", "Ethernet24"]:
     # Get cached SfpView with bank context
     sfp_view = platform_chassis.get_sfp(index, bank)
 
-    # Get cached xcvr_api (already has bank set)
+    # Get cached xcvr_api (mem_map was created with bank at construction time)
     api = sfp_view.get_xcvr_api()
 
-    # API calls use the view's bank context automatically
+    # API calls use the view's bank context automatically (via mem_map._bank)
     info = api.get_transceiver_info()
     tx_power = api.get_tx_power()
     # ...
 ```
 
-#### 7.8.6 Files Changed Summary
+### 7.9 CLI Utility Changes (sfputil)
 
-| Repository | File | Change |
-|------------|------|--------|
-| sonic-platform-common | `sonic_platform_base/chassis_base.py` | Update `get_sfp()` to return `SfpView`, add bank parameter |
-| sonic-platform-common | `sonic_platform_base/sfp_view.py` | New file: `SfpView` class with own cached xcvr_api |
-| sonic-platform-common | `sonic_xcvr/api/public/cmis.py` | Add `set_bank()`, use `self._bank` in banked methods |
-| sonic-platform-common | `sonic_xcvr/xcvr_eeprom.py` | Add `bank` parameter to `read()`/`write()` |
-| sonic-platform-common | `sonic_xcvr/mem_maps/public/cmis.py` | Bank-aware `getaddr()` (Section 7.3) |
-| Platform vendors | `platform.json` | Add `bank` field per interface |
-### 7.9 DB and Schema Changes
+**File**: `src/sonic-utilities/sfputil/main.py`
+
+```python
+# Add bank parameter to page dump commands
+@click.option('--bank', default=0, type=int, help='Bank number (default: 0)')
+def read_eeprom(port, page, bank):
+    # Include bank in offset calculation
+    pass
+
+@click.option('--bank', default=0, type=int, help='Bank number (default: 0)')
+def write_eeprom(port, page, bank):
+    # Include bank in offset calculation
+    pass
+```
+
+### 7.10 DB and Schema Changes
 
 No database schema changes are required for this feature.
 
-### 7.10 SWSS and Syncd Changes
+### 7.11 SWSS and Syncd Changes
 
 No changes required to SWSS or Syncd.
-
-### 7.11 Sequence Diagram
-
-```
-User                sfputil              xcvr_eeprom           optoe.c              Transceiver
-  |                    |                      |                   |                      |
-  |-- read bank=1 ---->|                      |                   |                      |
-  |   page=0x10, byte  |                      |                   |                      |
-  |                    |-- getaddr(0x10,      |                   |                      |
-  |                    |    byte, bank=1)---->|                   |                      |
-  |                    |   = linear_offset    |                   |                      |
-  |                    |                      |-- read(offset) -->|                      |
-  |                    |                      |                   |                      |
-  |                    |                      |                   |  Per CMIS 5.3 8.2.15:|
-  |                    |                      |                   |  Write bank+page in  |
-  |                    |                      |                   |  single I2C operation|
-  |                    |                      |                   |                      |
-  |                    |                      |                   |-- write 2 bytes ---->|
-  |                    |                      |                   |   @0x7E: [0x01,0x10] |
-  |                    |                      |                   |                      |
-  |                    |                      |                   |-- read upper mem --->|
-  |                    |                      |<---- data --------|<----- data --------- |
-  |<----- data --------|<----- data ----------|                   |                      |
-  |                    |                      |                   |                      |
-  |                    |                      |                   |-- write 2 bytes ---->|
-  |                    |                      |                   |   @0x7E: [0x00,0x00] |
-  |                    |                      |                   |   (restore to bank 0)|
-```
-
-**Note**: Per CMIS 5.3 Section 8.2.15, when changing bank, both BankSelect (0x7E) and PageSelect (0x7F) must be written in a single I2C WRITE operation. The module does not process the BankSelect value until PageSelect is written.
 
 ### 7.12 Implementation Phases
 
@@ -835,7 +893,24 @@ User                sfputil              xcvr_eeprom           optoe.c          
 | 3 | API Layer | Implement SFP view per logical port, add bank context |
 | 4 | Utilities | Add bank parameter to CLI commands, update VDM APIs |
 
-### 7.13 Platform Dependencies
+### 7.13 Files Changed Summary
+
+| Repository | File | Change |
+|------------|------|--------|
+| sonic-platform-common | `sonic_platform_base/chassis_base.py` | Update `get_sfp()` to return `SfpView`, add bank parameter |
+| sonic-platform-common | `sonic_platform_base/sfp_view.py` | New file: `SfpView` class with own cached xcvr_api |
+| sonic-platform-common | `sonic_xcvr/xcvr_api_factory.py` | Add `bank` parameter to `create_xcvr_api()` and `_create_api()` |
+| sonic-platform-common | `sonic_xcvr/api/public/cmis.py` | No changes required |
+| sonic-platform-common | `sonic_xcvr/xcvr_eeprom.py` | No changes required |
+| sonic-platform-common | `sonic_xcvr/fields/xcvr_field.py` | No changes required |
+| sonic-platform-common | `sonic_xcvr/fields/consts.py` | Add `BANKS_SUPPORTED_FIELD` constant |
+| sonic-platform-common | `sonic_xcvr/mem_maps/public/cmis.py` | Add `bank` constructor arg to `CmisFlatMemMap`, bank-aware `getaddr()` (Section 7.5) |
+| sonic-platform-common | `sonic_xcvr/mem_maps/public/c_cmis.py` | Update to pass `bank` parameter to parent class |
+| sonic-platform-common | `sonic_xcvr/mem_maps/public/cmisTargetFWUpgrade.py` | Update to pass `bank` parameter to parent class |
+| sonic-platform-common | `sonic_xcvr/mem_maps/credo/aec_800g.py` | Update to pass `bank` parameter to parent class |
+| Platform vendors | `platform.json` | Add `bank` field per interface |
+
+### 7.14 Platform Dependencies
 
 This feature requires CMIS-compliant transceivers that support banking. Transceivers without banking support (flat memory modules) will continue to work with Bank 0.
 
