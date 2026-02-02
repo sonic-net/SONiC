@@ -109,7 +109,6 @@ LLDP syncd is required to be modified as following:
 
 ### High-Level Design 
 
-To be added
 
 ###### LLDP flows
 
