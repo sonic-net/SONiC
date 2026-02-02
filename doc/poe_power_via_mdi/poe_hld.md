@@ -1,4 +1,4 @@
-# SONiC PoE #
+# SONiC PoE Power via MDI #
 
 ## Table of Content 
 
