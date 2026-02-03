@@ -972,15 +972,13 @@ Once ENIs are created, they will start the clean launch process:
 2. During launch, they will move to `Connecting` state and start to connect to its peer.
 3. Once connected, they will start to send `RequestVote` to its peer with its own information, such as Term, to start Primary election process. This will decide which of them will become Active or Standby.
 4. Say, DPU0 won the vote and is set to become active. Then, DPU0 will start to move to `InitializingToActive` state, while its peer moves to `InitializingToStandby` state.
-5. DPU0 will kickstart the bulk sync process by adding a new entry in DASH_FLOW_SYNC_SESSION_TABLE of DPU_APPL_DB.
 6. NPU associated with DPU1 will activate the standby role of DPU1 by setting the ha_role field to `Standby`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
-7. Once DPU0 finishes bulk sync, it will send a `BulkSyncCompleted` message to DPU1.
-8. When DPU1 receives `BulkSyncCompleted`, it should send a `BulkSyncCompletedAck` to DPU0 and enters `PendingStandbyRoleActivation`.
-9. Once received `BulkSyncCompletedAck`, DPU0 will move to `PendingActiveRoleActivation` state.
-10. In `Pending*RoleActivation` states, both DPUs will wait for the SDN controller to approve the transition to "Active/Standby" states.
-11. Once received approvals, the HA state machine of DPU0 will move to `Active` state and update the Term from 0 to 1 after it received `HAStateChanged` message from DPU1, while the HA state machine of DPU1 will move to `Standby`.
-12. NPU associated with DPU0 will activate the active role of DPU0 by setting the ha_role field to `Active`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
-13. DPU1 will update its term when it received `HAStateChanged` message from DPU0.
+7. When DPU0 receives `HAStateChanged` (Connected -> InitializingToStandby) from DPU1, it will move to `PendingActiveRoleActivation` state.
+8. Upon approval from SDN, DPU0 will move to `Active` state and update the Term from 0 to 1.
+9. DPU0 will send a `BulkSyncDone` message to DPU1 immediately since there is no flow to sync.
+10. When DPU1 receives `BulkSyncDone`, it enters `PendingStandbyRoleActivation`.
+11. Once received approval from SDN, the HA state machine of DPU1 will move to `Standby` state.
+12. DPU1 will update its term when it received `HAStateChanged` (PendingActiveRoleActivation -> Active) message from DPU0.
 
 To summarize the workflow, here is the sequence diagram:
 
@@ -1005,23 +1003,24 @@ sequenceDiagram
 
     S0N->>S0N: Move to InitializingToActive state
     S1N->>S1N: Move to InitializingToStandby state
+    
     S1N->>S1D: Activate standby role
-    S1N->>S0N: DpuHAStateChanged, Dead->Standby
-    S0N->>S0D: Start Bulk Sync
-    S0D->>S1D: Bulk Sync Completed
-    S1D->>S0D: Bulk Sync Completed Ack
+    S1N->>S0N: HAStateChanged, Connected->InitializingToStandby
+
     S0N->>S0N: Move to PendingActiveRoleActivation state
     S0N->>SDN: Request Approval to be Active
+    SDN->>S0N: Approval to be active
+    S0N->>S0N: Move to Active state<br>and move to next term (Term 1)
+    S0N->>S0D: Activate active role with term 1
+    S0N->>S1N: HAStateChanged, PendingActiveRoleActivation->Active
+    S0N->>S1N: Bulk Sync Done
     S1N->>S1N: Move to PendingStandbyRoleActivation state
     S1N->>SDN: Request Approval to be Standby
 
-    SDN->>S0N: Approval to be active
-    SDN->>S1N: Approval to be standby
-    S0N->>S0N: Move to Active state<br>and move to next term (Term 1)
-    S0N->>S0D: Activate active role with term 1
     S0N->>SA: Update ENI traffic forwarding<br>rule next hop to DPU0
     Note over S0N,SA: From now on, traffic will be forwarded<br>from all NPUs to DPU0
-    S0N->>S1N: DpuHAStateChanged, Dead->Active
+    
+    SDN->>S1N: Approval to be standby
     S1N->>S1N: Move to Standby state and update its term
 ```
 
@@ -1038,13 +1037,15 @@ Once created, the new ENI will go through similar steps as above and join the HA
 3. The primary election response will move the new node to `InitializingToStandby` state.
     * Using `RequestVote` method is trying to make the launch process simple, because the pair could also be doing a clean start, so we are not determined to become standby, but also might become the active.
     * If the DPU0 is pinned to standalone state, we can reject the `RequestVote` message with retry later.
-4. DPU0 will kickstart the bulk sync process by adding a new entry in DASH_FLOW_SYNC_SESSION_TABLE of DPU_APPL_DB.
-5. NPU associated with DPU1 will activate the standby role of DPU1 by setting the ha_role field to `Standby`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
-6. The DPU1 will accept bulk sync from the DPU0. Upon completion, DPU1 will send a `BulkSyncCompletedAck` to DPU0 and move to `PendingStandbyRoleActivation` state.
-7. Upon receiving the approval from SDN controller, DPU1 moves to `Standby` state.
-8. DPU1 sends `HAStateChanged` event to DPU0, so DPU0 knows DPU1 is ready. Then it moves to `Active` state, which will,
+4. NPU associated with DPU1 will activate the standby role of DPU1 by setting the ha_role field to `Standby`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
+5. DPU1 sends `HAStateChanged` (Connected -> InitializingToStandby) event to DPU0, so DPU0 knows DPU1 is ready. Then it moves to `Active` state, which will,
     1. Start replicating flows inline.
-    2. Move to next term, because the flow replication channel is re-established.
+    2. Start bulk sync to replicate all old flows (by adding a new entry in DASH_FLOW_SYNC_SESSION_TABLE of DPU_APPL_DB.).
+    3. Move to next term, because the flow replication channel is re-established.
+6. The DPU1 will accept bulk sync from the DPU0. Upon completion, DPU1 will move to `PendingStandbyRoleActivation` state.
+7. DPU0 will send `HAStateChanged` (Standalone -> Active) to DPU1 with the new term, but DPU1 should save this update and postpone it until it moves to standby state. This is to ensure all previous flow is copied over. 
+8. Upon receiving the approval from SDN controller, DPU1 moves to `Standby` state.
+
 
 To summarize the workflow, here is the sequence diagram:
 
@@ -1069,12 +1070,12 @@ sequenceDiagram
 
     S1N->>S1N: Move to InitializingToStandby state
     S1N->>S1D: Active standby role
-    S1N->>S0N: DpuHAStateChanged, Dead->Standby
+    S1N->>S0N: HAStateChanged, Connected->InitializingToStandby
     S0N->>S0N: Move to Active state and move to next term
     S0N->>S0D: Activate active role with new term
     S0N->>S0D: Start Bulk Sync
-    S0D->>S1D: Bulk Sync Completed
-    S1D->>S0D: Bulk Sync Completed Ack
+    S0N->>S1N: Bulk Sync Done
+    S0N->>S1N: HAStateChanged, Standalone->Active
     S1N->>S1N: Move to PendingStandbyRoleActivation state
     S1N->>SDN: Request Approval to be Standby
     SDN->>S1N: Approval to be Standby
