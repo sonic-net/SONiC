@@ -32,31 +32,31 @@ This document provides design requirements and interactions between platform dri
 
 # Acronyms
 BMC - Baseboard Management Controller
-
 Redfish - standard REST API for managing hardware
-
 PMON - Platform Monitor. Used in the context of Platform monitoring docker/processes.
+Rack Manager - Rack controller where the switch is mounted.
 
-## 1. SONiC Platform Management and Monitoring
-
-
+## 1. SONiC BMC Platform Management and Monitoring
 ### 1.1. Functional Requirements
 This section captures the functional requirements for platform monitoring and management in sonic BMC 
-
 * BMC will manage the Host CPU to support operations like power up/down, get operational status.
-* BMC will read board leak sensors and take appropriate actions based on policy. 
-* BMC will get inputs on liquid temperature, pressure and rack-leak external Rack Manager via redfish protocol.It takes action based on policy
-* BMC can be accessed via the external management interface or from the Host CPU via the internal midplane ethernet.
+* BMC will read board leak sensors and take appropriate actions based on policy.
+* BMC will get inputs on liquid temperature, pressure, flow rate etc from Rack Manager via redfish protocol and take action based on policy
+* The policy application workflow will be defined in bmcctld daemon which is introduced in sonic BMC
+* Board thermal sensor thresholds can be defined per sku in platform.json
+* BMC can be accessed via the external management interface and from the Host CPU via the internal midplane ethernet.
+* Platform APIs are defined for HostCPU to talk to BMC and viceversa
 
 ### 1.2. BMC Platform Stack
-
+ - 
 ## 2. Detailed Workflow
 
-
 ### 2.1 BMC Boot Process
+- power on first time BMC boot sequence
+
 
 #### 2.1.1 BMC Rack Manager Interaction
-
+redfish interaction, new docker 
 
 #### 2.1.2 Midplane Ethernet
 
@@ -80,6 +80,7 @@ This section captures the functional requirements for platform monitoring and ma
 
 
 #### 2.2.4 Platform APIs
+
 
 
 ## 3 Future Items
