@@ -971,12 +971,16 @@ Once ENIs are created, they will start the clean launch process:
 1. Both DPUs will start with `Dead` state.
 2. During launch, they will move to `Connecting` state and start to connect to its peer.
 3. Once connected, they will start to send `RequestVote` to its peer with its own information, such as Term, to start Primary election process. This will decide which of them will become Active or Standby.
-4. Say, DPU0 won the vote and is set to become active. Then, DPU0 will start to move to `InitializingToActive` state, while its peer moves to `InitializingToStandby` state. The bulk sync process will also be kickstarted.
-5. Once DPU0 finishes bulk sync, it will send a `BulkSyncCompleted` message to DPU1.
-6. When DPU1 receives `BulkSyncCompleted`, it should send a `BulkSyncCompletedAck` to DPU0 and enters `PendingStandbyRoleActivation`.
-7. Once received `BulkSyncCompletedAck`, DPU0 will move to `PendingActiveRoleActivation` state.
-8. In `Pending*RoleActivation` states, both DPUs will wait for the SDN controller to approve the transition to "Active/Standby" states.
-6. Once received approvals, DPU1 will move to `Standby` state and DPU0 will move to `Active` state and update the Term from 0 to 1 after it received `HAStateChanged` message from DPU1.
+4. Say, DPU0 won the vote and is set to become active. Then, DPU0 will start to move to `InitializingToActive` state, while its peer moves to `InitializingToStandby` state.
+5. DPU0 will kickstart the bulk sync process by adding a new entry in DASH_FLOW_SYNC_SESSION_TABLE of DPU_APPL_DB.
+6. NPU associated with DPU1 will activate the standby role of DPU1 by setting the ha_role field to `Standby`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
+7. Once DPU0 finishes bulk sync, it will send a `BulkSyncCompleted` message to DPU1.
+8. When DPU1 receives `BulkSyncCompleted`, it should send a `BulkSyncCompletedAck` to DPU0 and enters `PendingStandbyRoleActivation`.
+9. Once received `BulkSyncCompletedAck`, DPU0 will move to `PendingActiveRoleActivation` state.
+10. In `Pending*RoleActivation` states, both DPUs will wait for the SDN controller to approve the transition to "Active/Standby" states.
+11. Once received approvals, the HA state machine of DPU0 will move to `Active` state and update the Term from 0 to 1 after it received `HAStateChanged` message from DPU1, while the HA state machine of DPU1 will move to `Standby`.
+12. NPU associated with DPU0 will activate the active role of DPU0 by setting the ha_role field to `Active`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
+13. DPU1 will update its term when it received `HAStateChanged` message from DPU0.
 
 To summarize the workflow, here is the sequence diagram:
 
@@ -1002,6 +1006,7 @@ sequenceDiagram
     S0N->>S0N: Move to InitializingToActive state
     S1N->>S1N: Move to InitializingToStandby state
     S1N->>S1D: Activate standby role
+    S1N->>S0N: DpuHAStateChanged, Dead->Standby
     S0N->>S0D: Start Bulk Sync
     S0D->>S1D: Bulk Sync Completed
     S1D->>S0D: Bulk Sync Completed Ack
@@ -1012,7 +1017,6 @@ sequenceDiagram
 
     SDN->>S0N: Approval to be active
     SDN->>S1N: Approval to be standby
-    S1N->>S0N: DpuHAStateChanged, Dead->Standby
     S0N->>S0N: Move to Active state<br>and move to next term (Term 1)
     S0N->>S0D: Activate active role with term 1
     S0N->>SA: Update ENI traffic forwarding<br>rule next hop to DPU0
@@ -1034,9 +1038,11 @@ Once created, the new ENI will go through similar steps as above and join the HA
 3. The primary election response will move the new node to `InitializingToStandby` state.
     * Using `RequestVote` method is trying to make the launch process simple, because the pair could also be doing a clean start, so we are not determined to become standby, but also might become the active.
     * If the DPU0 is pinned to standalone state, we can reject the `RequestVote` message with retry later.
-4. The DPU1 will accept bulk sync from the DPU0. Upon completion, DPU1 will send a `BulkSyncCompletedAck` to DPU0 and move to `PendingStandbyRoleActivation` state.
-5. Upon receiving the approval from SDN controller, DPU1 moves to `Standby` state.
-6. DPU1 sends `HAStateChanged` event to DPU0, so DPU0 knows DPU1 is ready. Then it moves to `Active` state, which will,
+4. DPU0 will kickstart the bulk sync process by adding a new entry in DASH_FLOW_SYNC_SESSION_TABLE of DPU_APPL_DB.
+5. NPU associated with DPU1 will activate the standby role of DPU1 by setting the ha_role field to `Standby`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
+6. The DPU1 will accept bulk sync from the DPU0. Upon completion, DPU1 will send a `BulkSyncCompletedAck` to DPU0 and move to `PendingStandbyRoleActivation` state.
+7. Upon receiving the approval from SDN controller, DPU1 moves to `Standby` state.
+8. DPU1 sends `HAStateChanged` event to DPU0, so DPU0 knows DPU1 is ready. Then it moves to `Active` state, which will,
     1. Start replicating flows inline.
     2. Move to next term, because the flow replication channel is re-established.
 
@@ -1275,6 +1281,8 @@ Because each ENI is programmed independently with our northbound interface, the 
 
 4. DPU1 can now move to `Destroying` state. In `Destroying` state, the DPU will wait for existing flow replication traffic to drain.
 
+    The NPU associated with DPU1 will set the ha_role field to `Dead`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
+    Starting from this, the DPU1 should drain flow replication traffic.
     Since DPU1 state is changed, it will still send back `HAStateChanged` message, but the message will not trigger any action.
 
     <p align="center"><img alt="HA planned shutdown standby step 4" src="./images/ha-planned-events-shutdown-step-4.svg"></p>
@@ -1450,7 +1458,7 @@ This probe is mostly used for determining if the NPU (no matter if it owns the D
 
 The detailed mechanism is described in "[Card level NPU-to-DPU liveness probe](#61-card-level-npu-to-dpu-liveness-probe)" and "[All probe state altogether](#65-all-probe-states-altogether)" sections. The detailed data path is described in "[NPU-to-DPU traffic forwarding](#421-eni-level-npu-to-dpu-traffic-forwarding)" section.
 
-##### 9.1.4.2. Data plane gray failure
+##### 9.1.4.2. DPU-to-DPU Data plane gray failure
 
 When data plan channel failure occurs, it is very important to avoid making a gray failure becoming 100% down. See "[DPU-to-DPU Data Plane Channel](#4352-dpu-to-dpu-data-plane-channel)" for more information.
 
