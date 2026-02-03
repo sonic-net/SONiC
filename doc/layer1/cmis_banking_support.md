@@ -616,7 +616,7 @@ Ethernet0  Ethernet8  Ethernet16  Ethernet24
 The recommended design uses long-lived `SfpViewBase` wrappers to provide thread-safe access to banked transceivers. Each SfpViewBase is created once at chassis init and cached per interface. Each view has its own xcvr_api instance with bank context set.
 
 ```
-Physical Module (32 lanes, index=1)Expand commentComment on line R619Resolved
+Physical Module (32 lanes, index=1)
          │
          ▼
     ┌─────────────────────────────────────────────────────────────┐
