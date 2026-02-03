@@ -472,13 +472,14 @@ To show the current state of HA, the states will be aggregated by `hamgrd` and s
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
 | | | local_ha_state | The state of the HA state machine. This is the state in NPU hamgrd. |
-| | | local_ha_state_last_updated_time_in_ms | The time when local target HA state is set. |
+| | | local_ha_state_last_updated_time_in_ms | The time when local HA state is set. |
 | | | local_ha_state_last_updated_reason | The reason of the last HA state change. |
 | | | local_target_asic_ha_state | The target HA state in ASIC. This is the state that hamgrd generates and asking DPU to move to. |
 | | | local_acked_asic_ha_state | The HA state that ASIC acked. |
 | | | local_target_term | The current target term of the HA state machine. |
 | | | local_acked_term | The current term that acked by ASIC. |
 | | | peer_ha_state | The state of the HA state machine in peer DPU. |
+| | | peer_ha_state_last_updated_time_in_ms | The time when the latest peer HA state was set. |
 | | | peer_term | The current term in peer DPU. |
 
 ###### 2.2.1.1.4. Aggregated health signals for this HA scope
