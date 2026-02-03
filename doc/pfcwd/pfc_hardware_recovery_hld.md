@@ -339,6 +339,19 @@ flowchart LR
 
 **Example: ASIC with Hardware Recovery**
 
+First, let's view the configured values using the existing `show pfcwd config` command:
+
+```shell
+admin@sonic:~$ show pfcwd config
+PORT        ACTION    DETECTION TIME    RESTORATION TIME
+----------  --------  ----------------  ------------------
+Ethernet0   drop      350               550
+Ethernet4   drop      2000              2000
+Ethernet12  drop      400               800
+```
+
+Now, let's use the new `show pfcwd status` command to see the actual hardware-programmed values and programming status:
+
 ```shell
 admin@sonic:~$ show pfcwd status
 PORT        RECOVERY TYPE    PROGRAMMING_STATUS    HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
@@ -347,6 +360,11 @@ Ethernet0   hardware         success               300                  100ms   
 Ethernet4   hardware         failed                2000                 N/A                      N/A                    N/A
 Ethernet12  hardware         success               400                  100ms                    800                    100ms
 ```
+
+**Key Observations:**
+- **Ethernet0**: Configuration (350ms/550ms) was adjusted to (300ms/500ms) by hardware due to 100ms granularity. The `show pfcwd config` shows what the user requested (350/550), but `show pfcwd status` reveals the actual hardware-programmed values (300/500).
+- **Ethernet4**: Configuration (2000ms/2000ms) **failed** to program because 2000ms exceeds hardware timer range. The `show pfcwd config` shows what the user requested, but `show pfcwd status` reveals the programming failure.
+- **Ethernet12**: Configuration (400ms/800ms) successfully programmed to hardware. Granularity is 100ms.
 
 **Example: ASIC with Software Recovery**
 
