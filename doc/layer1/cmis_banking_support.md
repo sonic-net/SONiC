@@ -720,7 +720,7 @@ class CmisApi:
 
 #### 7.8.4 Platform Configuration (platform.json)
 
-The bank is explicitly defined per interface in `platform.json`. This initial banking support is for single i2c device modules.For more complicated use cases like CPO, a follow up HLD will explain the platform mapping. 'module_id' can be used in the future to deduplicate module wide events like temperature polling etc.
+The bank is explicitly defined per interface in `platform.json`. This initial banking support is for single i2c device modules.For more complicated use cases like CPO, a follow up HLD will explain the platform mapping.
 
 ```json
 {
@@ -728,25 +728,21 @@ The bank is explicitly defined per interface in `platform.json`. This initial ba
         "Ethernet0": {
             "index": 1,
             "bank": 0,
-            "module_id": 1,
             "lanes": "1,2,3,4,5,6,7,8"
         },
         "Ethernet8": {
             "index": 2,
             "bank": 1,
-            "module_id": 1,
             "lanes": "9,10,11,12,13,14,15,16"
         },
         "Ethernet16": {
             "index": 3,
             "bank": 2,
-            "module_id": 1,
             "lanes": "17,18,19,20,21,22,23,24"
         },
         "Ethernet24": {
             "index": 4,
             "bank": 3,
-            "module_id": 1,
             "lanes": "25,26,27,28,29,30,31,32"
         }
     }
