@@ -55,7 +55,7 @@ The media settings file currently supports lookups for a variety of media tuning
 
 ### 1\. sonic-buildimage \- Add GEARBOX\_MEDIA\_SETTINGS Section in Media Settings File
 
-The first proposed change is to add support for a new section to the media settings file of gearbox-enabled SKUs specifically for gearbox tunings. Support is added for GEARBOX\_GLOBAL\_MEDIA\_SETTINGS and GEARBOX\_PORT\_MEDIA\_SETTINGS as top-level keys, representing global gearbox settings over a range of ports and individual logical port configurations, respectively. These new keys will should include sub-sections for line-side and system-side tunings for logical ports which have gearbox connections.
+The first proposed change is to add support for a new section to the media settings file of gearbox-enabled SKUs specifically for gearbox tunings. Support is added for GEARBOX\_GLOBAL\_MEDIA\_SETTINGS and GEARBOX\_PORT\_MEDIA\_SETTINGS as top-level keys, representing global gearbox settings over a range of ports and individual logical port configurations, respectively. These new keys will include sub-sections for line-side and system-side tunings for logical ports which have gearbox connections.
 
 #### Example media_settings.json
 
