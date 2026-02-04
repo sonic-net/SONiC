@@ -23,8 +23,10 @@ Prefix based mux neighbors is an optimization of mux neighbors for dual ToR topo
     - [7.2.2 State-DB](#722-state-db)
   - [7.3 Utilities](#73-utilities)
     - [7.3.1 Dualtor neighbor check](#731-dualtor-neighbor-check)
-- [8. Warm Reboot Support](#8-warm-reboot-support)
-
+- [8. Test Coverage](#8-test-coverage)
+  - [8.1 SWSS unit tests using virtual switch testing](#81-swss-unit-tests-using-virtual-switch-testing)
+  - [8.2 Data Plane Community tests using pytest + PTF](#82-data-plane-community-tests-using-pytest--ptf)
+  - [8.3 dualtor_neighbor_check utility tests](#83-dualtor_neighbor_check-utility-tests)
 <!-- /TOC -->
 
 ### 1. Revision
@@ -70,7 +72,7 @@ Following SAI forwarding pipeline diagrams illustrate the difference between hos
 
 **Host Route Mux Neighbor:**
 Notice how a host route is created implicitly with host_route mux neighbor in the diagram below.
-<div align="center"> <img src=./image/Host_Route_Nbr.png width=750 /> </div>
+<div align="center"> <img src=./image/Host_Route_Nbr.png width=950 /> </div>
 
 **Prefix Based Mux Neighbor:**
 Notice in case of no host route an explitcit prefix route is created for the prefix based mux neighbor in the diagram below.
@@ -116,7 +118,7 @@ The following diagram illustrates the high-level flow of prefix based mux neighb
 * New field `neighbor_mode` in `MUX_CABLE` table to determine neighbor type
 ```
 MUX_CABLE|PORTNAME:
-  neighbor_mode: host_route|prefix_route  // New field to enable/disable prefix based mux neighbors, default is prefix_route
+  neighbor_mode: host_route|prefix_route  // New field to enable/disable prefix based mux neighbors (NO_HOST_ROUTE), default is prefix_route
 ```
 
 ##### 7.2.2 State-DB
@@ -144,6 +146,28 @@ NEIGHBOR      MAC                PORT         MUX_STATE    IN_MUX_TOGGLE    NEIG
 192.168.0.9   fe:5b:87:84:a8:81  Ethernet24   active       no               yes                 no                consistent
 192.168.0.11  f6:56:ef:ae:8b:c3  Ethernet32   standby      no               no                  yes               consistent
 ```
-## 8 Warm Reboot Support
-TBD
+Failure handling and log emmiting should remain backward compatible.
 
+## 8 Test Coverage
+Following tests are planned to cover the prefix based mux neighbor feature:
+* SWSS unit tests using virtual switch testing
+* Data Plane Community tests using pytest + PTF
+* dualtor_neighbor_check utility tests using python mock framework
+
+#### 8.1 SWSS unit tests using virtual switch testing
+Existing VS tests for host-route based mux neighbors will be moved to test_mux_hostroute.py file.
+Existing test_mux.py file will modified and be used to cover the prefix based mux neighbor feature.
+New tests will be added to cover the following scenarios:
+* Verify neighbor_mode is stored in STATE_MUX_CABLE_TABLE
+* Verify MUX cable uses prefix-based neighbor handler
+* Verify Neighbors are handled with NO_HOST_ROUTE flag
+* Verify neighbor prefix route is created and updated with neighbor nexthop or tunnel nexthop based on mux state
+
+#### 8.2 Data Plane Community tests using pytest + PTF
+Neighbor-mode config knob will be set to both host_route and prefix_route modes for all existing dualtor-io and mock dualtor.
+
+#### 8.3 dualtor_neighbor_check utility tests
+dualtor_neighbor_check utility tests will be added to cover the prefix based mux neighbor feature using python mock framework.
+Tests will be added to cover the following scenarios:
+* Verify dualtor_neighbor_check utility output for prefix based mux neighbors
+* Verify dualtor_neighbor_check utility output for host_route mux neighbors
