@@ -144,7 +144,9 @@
 
 Custom SerDes attributes are vendor-specific SerDes settings that are not covered by standard `SAI_PORT_SERDES_*` attributes, especially those not suitable for public standardization in SAI (for example, proprietary ones). `SAI_PORT_SERDES_ATTR_CUSTOM_COLLECTION` was introduced to carry these settings as a single JSON string based attribute.
 
-In media_settings.json, define custom attributes using keys prefixed with `CUSTOM:` (for example, `CUSTOM:XYZ`). xcvrd's media_settings_parser strips the prefix, and aggregates them into a single JSON string field `custom_serdes_attrs` in APPL_DB `PORT_TABLE`. The JSON format is a list of attribute objects, each with a per-lane `value` array sized for the logical port, and portsorch maps that field to `SAI_PORT_SERDES_ATTR_CUSTOM_COLLECTION`. portsorch doesn't interpret the contents; it simply passes it through to SAI.
+In media_settings.json, define custom attributes under the top-level `CUSTOM_MEDIA_SETTINGS` section using keys prefixed with `CUSTOM:` (for example, `CUSTOM:XYZ`). `CUSTOM_MEDIA_SETTINGS` is keyed by physical port selectors and supports the same selector syntax as `GLOBAL_MEDIA_SETTINGS` (ranges, lists, list-of-ranges, and single-port keys). xcvrd's media_settings_parser strips the prefix, and aggregates them into a single JSON string field `custom_serdes_attrs` in APPL_DB `PORT_TABLE`. The JSON format is a list of attribute objects, each with a per-lane `value` array sized for the logical port, and portsorch maps that field to `SAI_PORT_SERDES_ATTR_CUSTOM_COLLECTION`. portsorch doesn't interpret the contents; it simply passes it through to SAI.
+
+Within each port selector, the media/vendor key matching, lane speed pattern matching, and `Default` fallback behavior are identical to traditional `GLOBAL_MEDIA_SETTINGS` and `PORT_MEDIA_SETTINGS`.
 
 ### Value of `SAI_PORT_SERDES_ATTR_CUSTOM_COLLECTION` is a JSON string in the following format
 
@@ -171,7 +173,7 @@ Note: The above JSON is formatted with spaces and newlines for readability to he
 
 ```
 {
-    "GLOBAL_MEDIA_SETTINGS": {
+    "CUSTOM_MEDIA_SETTINGS": {
         "1-32": {
             "Default": {
                 "CUSTOM:XYZ": {
@@ -221,7 +223,13 @@ Example APPL_DB PORT_TABLE entry based on the above media_settings.json:
                     "lane1": "0xc",
                     "lane2": "0xd",
                     "lane3": "0xa"
-                },
+                }
+            }
+        }
+    },
+    "CUSTOM_MEDIA_SETTINGS": {
+        "1-32": {
+            "Default": {
                 "CUSTOM:XYZ": {
                     "lane0": 10,
                     "lane1": 11,
