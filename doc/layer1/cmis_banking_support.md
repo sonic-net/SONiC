@@ -142,7 +142,7 @@ No changes to the overall SONiC architecture are required. This feature extends 
 | Repository | Files Modified |
 |------------|----------------|
 | sonic-linux-kernel | `drivers/misc/eeprom/optoe.c` |
-| sonic-platform-common | `sonic_xcvr/mem_maps/public/cmis.py`, `sonic_xcvr/mem_maps/xcvr_mem_map.py`, `sonic_xcvr/fields/xcvr_field.py`, `sonic_xcvr/api/public/cmis.py` |
+| sonic-platform-common | `sonic_platform_base/sfp_base.py`, `sonic_xcvr/xcvr_api_factory.py`, `sonic_xcvr/mem_maps/public/cmis.py` |
 | sonic-utilities | `sfputil/main.py` |
 
 ### 7.2 Sequence Diagram
@@ -150,15 +150,14 @@ No changes to the overall SONiC architecture are required. This feature extends 
 The following sequence diagram shows the end-to-end flow for a bank-aware API call:
 
 ```
-User             SfpViewBase        CmisApi           xcvr_eeprom         mem_map              optoe.c           Transceiver
+User             SFP (bank=1)       CmisApi           xcvr_eeprom         mem_map              optoe.c           Transceiver
   |                 |                  |                   |                  |                    |                  |
   |-- get_tx_power  |                  |                   |                  |                    |                  |
   |   for Ethernet8 |                  |                   |                  |                    |                  |
-  |   (bank=1)      |                  |                   |                  |                    |                  |
   |---------------->|                  |                   |                  |                    |                  |
   |                 |--get_xcvr_api()->|                   |                  |                    |                  |
-  |                 |  (bank=1 set     |                   |                  |                    |                  |
-  |                 |   on mem_map)    |                   |                  |                    |                  |
+  |                 |  (uses internal  |                   |                  |                    |                  |
+  |                 |   self._bank=1)  |                   |                  |                    |                  |
   |                 |                  |                   |                  |                    |                  |
   |                 |                  |--get_tx_power()-->|                  |                    |                  |
   |                 |                  |                   |--get_field()---->|                    |                  |
@@ -553,7 +552,7 @@ NumberRegField(consts.BANKS_SUPPORTED_FIELD, self.getaddr(0x1, 142),
 ┌─────────────────────────────────────────────────────────────────┐
 │                  Transceiver Initialization                     │
 ├─────────────────────────────────────────────────────────────────┤
-│  1. Read Page 01h, Byte 155 (Banks Supported)                   │
+│  1. Read Page 01h, Byte 142 (Banks Supported)                   │
 │                         │                                       │
 │                         ▼                                       │
 │              ┌─────────────────────┐                            │
@@ -611,108 +610,58 @@ Ethernet0  Ethernet8  Ethernet16  Ethernet24
 (lanes 1-8) (lanes 9-16) (lanes 17-24) (lanes 25-32)
 ```
 
-#### 7.8.2 Recommended Approach: Thread-Safe SfpViewBase Pattern
+#### 7.8.2 Recommended Approach: SFP Object Per Logical Interface with Internal Bank
 
-The recommended design uses long-lived `SfpViewBase` wrappers to provide thread-safe access to banked transceivers. Each SfpViewBase is created once at chassis init and cached per interface. Each view has its own xcvr_api instance with bank context set.
+The recommended design creates one SFP object per logical interface (front panel port). Each SFP object stores its bank internally and uses it automatically when creating the xcvr_api. Multiple SFP objects may share the same physical transceiver (same I2C path) but have different bank values.
 
 ```
-Physical Module (32 lanes, index=1)
+Physical Module (32 lanes, same I2C path)
          │
-         ▼
-    ┌─────────────────────────────────────────────────────────────┐
-    │                   Shared SFP Object                         │
-    │                   (one per physical module)                 │
-    └─────────────────────────────────────────────────────────────┘
-         │              │              │              │
-         ▼              ▼              ▼              ▼
-    SfpViewBase    SfpViewBase    SfpViewBase    SfpViewBase
-    (bank=0)       (bank=1)       (bank=2)       (bank=3)
-    own xcvr_api   own xcvr_api   own xcvr_api   own xcvr_api
-         │              │              │              │
-         ▼              ▼              ▼              ▼
-    Ethernet0      Ethernet8      Ethernet16     Ethernet24
+    ┌────┴────┬─────────┬─────────┐
+    ▼         ▼         ▼         ▼
+   SFP       SFP       SFP       SFP
+get_sfp[0] [1]       [2]       [3]
+(bank=0)   (bank=1)   (bank=2)   (bank=3)
+    │         │         │         │
+    ▼         ▼         ▼         ▼
+Ethernet0  Ethernet8  Ethernet16  Ethernet24
 ```
 
 **Benefits:**
-- **Thread-safe** - each view has its own xcvr_api with bank set, no shared mutable state
-- **Backwards compatible** - existing code using `get_sfp(index)` continues to work (defaults to bank 0)
-- **Efficient** - views and xcvr_api instances are cached, not created per request
+- **Backwards compatible** - existing code using `get_sfp(index)` and `get_xcvr_api()` works unchanged
+- **No xcvrd changes** - xcvrd iterates over `_sfp_list` as it does today
 - **Bank is explicitly configured** in `platform.json`
 
 #### 7.8.3 Implementation Changes by Layer
 
 ##### Layer 1: Platform Chassis (`chassis_base.py`)
 
-The Chassis caches SfpViewBases per interface at init. The existing `get_sfp()` method is updated to return an `SfpViewBase` instead of a raw SFP object, accepting an optional `bank` parameter:
+The Chassis creates one SFP object per logical interface at init. Each SFP is constructed with its bank value from platform.json:
+
+##### Layer 2: SFP Base Class (`sfp_base.py`)
+
+The SFP base class stores the bank internally and passes it to the xcvr_api factory:
 
 ```python
-class Chassis:
-    def __init__(self):
-        # ... existing init code ...
-        self._sfp_view_cache = {}  # Cache for SfpViewBase objects keyed by (index, bank)
-        self._port_config = self._load_platform_json()  # Load interface config from platform.json
+class SfpBase:
+    """Base class for SFP with internal bank context."""
 
-    def get_sfp(self, index, bank=0):
-        """
-        Returns an SfpViewBase for a specific physical module and bank.
-
-        For backwards compatibility, bank defaults to 0. Existing callers
-        that use get_sfp(index) will continue to work unchanged.
-
-        Args:
-            index: Physical module index
-            bank: Bank number (default: 0 for backwards compatibility)
-
-        Returns:
-            SfpViewBase wrapping the SFP with the specified bank context
-        """
-        # Check if we have a cached view for this index/bank combination
-        cache_key = (index, bank)
-        if cache_key not in self._sfp_view_cache:
-            sfp = self._sfp_list[index]
-            self._sfp_view_cache[cache_key] = SfpViewBase(sfp, bank)
-        return self._sfp_view_cache[cache_key]
-
-    def get_bank_for_logical_port(self, interface_name):
-        """
-        Returns the bank number for a logical port from platform.json.
-
-        Args:
-            interface_name: Logical interface name (e.g., "Ethernet8")
-
-        Returns:
-            Bank number (0 if not specified in config)
-        """
-        return self._port_config.get(interface_name).get("bank", 0)
-```
-
-##### Layer 2: SfpViewBase (`sfp_view_base.py`)
-
-`SfpViewBase` is a long-lived, thread-safe wrapper around an SFP object. Each view caches its own xcvr_api instance with bank context set. It uses `__getattr__` to delegate all other methods to the underlying SFP:
-
-```python
-class SfpViewBase:
-    """Thread-safe view of an SFP with a specific bank context."""
-
-    def __init__(self, sfp, bank=0):
-        self._sfp = sfp
+    def __init__(self, index, bank=0):
+        self._index = index
         self._bank = bank
-        self._xcvr_api = None  # Own cached api, not shared
-
-    def __getattr__(self, name):
-        """Delegate all other methods to underlying SFP."""
-        return getattr(self._sfp, name)
+        self._xcvr_api = None  # Cached api
 
     def get_xcvr_api(self):
-        """Returns xcvr_api with bank context set (cached per view)."""
+        """Returns xcvr_api with bank context set (cached)."""
         if self._xcvr_api is None:
-            # Create a new api instance for this view, passing bank to factory
-            self._xcvr_api = self._sfp._xcvr_api_factory.create_xcvr_api(bank=self._bank)
+            # Create api instance, passing internal bank to factory
+            self._xcvr_api = self._xcvr_api_factory.create_xcvr_api(bank=self._bank)
         return self._xcvr_api
 
-    def refresh_xcvr_api(self):
-        """Refresh the cached xcvr_api (e.g., after transceiver hot-swap)."""
-        self._xcvr_api = None
+    @property
+    def bank(self):
+        """Returns the bank number for this SFP."""
+        return self._bank
 ```
 
 ##### Layer 3: XcvrApiFactory (`xcvr_api_factory.py`)
@@ -771,7 +720,7 @@ class CmisApi:
 
 #### 7.8.4 Platform Configuration (platform.json)
 
-The bank is explicitly defined per interface in `platform.json`. This initial banking support is for single i2c device modules.For more complicated use cases like CPO, a follow up HLD will explain the platform mapping.
+The bank is explicitly defined per interface in `platform.json`. This initial banking support is for single i2c device modules.For more complicated use cases like CPO, a follow up HLD will explain the platform mapping. 'module_id' can be used in the future to deduplicate module wide events like temperature polling etc.
 
 ```json
 {
@@ -779,21 +728,25 @@ The bank is explicitly defined per interface in `platform.json`. This initial ba
         "Ethernet0": {
             "index": 1,
             "bank": 0,
+            "module_id": 1,
             "lanes": "1,2,3,4,5,6,7,8"
         },
         "Ethernet8": {
-            "index": 1,
+            "index": 2,
             "bank": 1,
+            "module_id": 1,
             "lanes": "9,10,11,12,13,14,15,16"
         },
         "Ethernet16": {
-            "index": 1,
+            "index": 3,
             "bank": 2,
+            "module_id": 1,
             "lanes": "17,18,19,20,21,22,23,24"
         },
         "Ethernet24": {
-            "index": 1,
+            "index": 4,
             "bank": 3,
+            "module_id": 1,
             "lanes": "25,26,27,28,29,30,31,32"
         }
     }
@@ -808,15 +761,15 @@ The bank is explicitly defined per interface in `platform.json`. This initial ba
 #### 7.8.5 Call Flow Example
 
 ```
-xcvrd (processing "Ethernet8", which maps to index=1, bank=1 in platform.json)
+xcvrd (processing Ethernet8, which is _sfp_list[1] with bank=1)
   │
-  ├─► get_bank_for_logical_port("Ethernet8")  ──► returns 1 (cached from platform.json)
-  │
-  ├─► get_sfp(index=1, bank=1)  ──► returns cached SfpViewBase (bank=1)
+  ├─► get_sfp(1)  ──► returns SFP object (bank=1 set internally)
   │
   ├─► sfp.get_xcvr_api()
   │       │
-  │       └─► (first call) factory.create_xcvr_api(bank=1)
+  │       └─► (first call) factory.create_xcvr_api(bank=self._bank)
+  │               │                                      │
+  │               │                                      └─► uses sfp._bank=1
   │               │
   │               └─► CmisMemMap(codes, bank=1)  ──► mem_map._bank = 1 (immutable)
   │               │
@@ -839,21 +792,16 @@ xcvrd (processing "Ethernet8", which maps to index=1, bank=1 in platform.json)
                                           └─► sysfs read ──► returns [tx_power lanes 9-16]
 ```
 
-**xcvrd pseudo-code:**
+**xcvrd pseudo-code (unchanged from today):**
 
 ```python
-# xcvrd iterates over interfaces
-for interface_name in ["Ethernet0", "Ethernet8", "Ethernet16", "Ethernet24"]:
-    # Look up bank from platform.json via chassis
-    bank = platform_chassis.get_bank_for_logical_port(interface_name)
+    # Get SFP object (bank is already set internally from platform.json)
+    sfp = platform_chassis.get_sfp(index)
 
-    # Get cached SfpViewBase with bank context
-    sfp_view = platform_chassis.get_sfp(index, bank)
+    # Get cached xcvr_api (mem_map was created with sfp._bank at construction time)
+    api = sfp.get_xcvr_api()
 
-    # Get cached xcvr_api (mem_map was created with bank at construction time)
-    api = sfp_view.get_xcvr_api()
-
-    # API calls use the view's bank context automatically (via mem_map._bank)
+    # API calls use the SFP's internal bank context automatically (via mem_map._bank)
     info = api.get_transceiver_info()
     tx_power = api.get_tx_power()
     # ...
@@ -890,15 +838,14 @@ No changes required to SWSS or Syncd.
 |-------|-------------|------------|
 | 1 | Kernel Driver | Add bank select register handling, extend linear address space |
 | 2 | Python Layer | Extend `getaddr()` with bank parameter, add bank-aware fields |
-| 3 | API Layer | Implement SfpViewBase per logical port, add bank context |
+| 3 | API Layer | Add `_bank` attribute to SFP base class, pass bank to xcvr_api factory |
 | 4 | Utilities | Add bank parameter to CLI commands, update VDM APIs |
 
 ### 7.13 Files Changed Summary
 
 | Repository | File | Change |
 |------------|------|--------|
-| sonic-platform-common | `sonic_platform_base/chassis_base.py` | Update `get_sfp()` to return `SfpViewBase`, add bank parameter |
-| sonic-platform-common | `sonic_platform_base/sfp_view_base.py` | New file: `SfpViewBase` class with own cached xcvr_api |
+| sonic-platform-common | `sonic_platform_base/sfp_base.py` | Add `_bank` attribute, update `get_xcvr_api()` to pass bank to factory |
 | sonic-platform-common | `sonic_xcvr/xcvr_api_factory.py` | Add `bank` parameter to `create_xcvr_api()` and `_create_api()` |
 | sonic-platform-common | `sonic_xcvr/api/public/cmis.py` | No changes required |
 | sonic-platform-common | `sonic_xcvr/xcvr_eeprom.py` | No changes required |
