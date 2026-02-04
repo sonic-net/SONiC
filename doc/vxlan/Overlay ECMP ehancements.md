@@ -152,7 +152,7 @@ when primary endpoints are specified the following behavior is adopted.
 
 The following diagram depicts the scenario where Endpoint 1 and 2 are primary in a tunnel route and Endpoint 3 and 4 are backup. The active endpoints 1 and 2 are indicated with green line.
 
-![](https://github.com/sonic-net/SONiC/blob/22e06c87939f49ee72687cf2972f83a526c67b30/images/vxlan_hld/OverlayEcmp_priorty.png)
+![](OverlayEcmp_priorty.png)
 
 
 ### 3.1.1 Behaviour example
@@ -176,7 +176,7 @@ The optional overlay_dmac field is  provided in the VNET table and is passed to 
 
 The following module interaction diagram shows how the custom monitoring routes are handled.
 
-![](https://github.com/sonic-net/SONiC/blob/5299343e188ef8f09e3abce234a0d5ed65a76feb/images/vxlan_hld/overlay-ecmp-module-interaction-with-custom-monitoring.png)
+![](overlay-ecmp-module-interaction-with-custom-monitoring.png)
 
 
 ## 3.3 BFD Tx, Rx interval parameter and support for directly connected nexthops

@@ -105,7 +105,7 @@ Policy check functions will go through the device status and adjust the fan spee
 
 A thermal control daemon class will be deifined with above functions defined, vendors will be allowed to have their own implementation.
 
-![](https://github.com/keboliu/SONiC/blob/master/images/thermal-control.svg)
+![](thermal-control.svg)
 
 ### 3.2 Policy management
 

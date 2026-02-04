@@ -241,19 +241,19 @@ This TSG gives the instruction of how to reset a SONiC switch password.
 1. Edit Grub boot menu options
 1.1 First you need to get into grub menu options. This menu is displayed right at the beginning of the boot.  You should get something similar to this, but not the exactly the same. 
 Choose the choice Start with SONiC-:
-  ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-1.png)
+  ![image.png](PW-1.png)
 
 1.2 Now we attempt to edit grub's boot option. Press "e" to edit the first grub menu option and navigate to kernel line:
- ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-2.png)
+ ![image.png](PW-2.png)
 
 1.3 Remove quiet  and add  init=/bin/bash
- ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-3.png)
+ ![image.png](PW-3.png)
 
 1.4 Press Ctrl-x to boot
 
 2. Remount / and /proc
 2.1 After successfully boot you will be presented with bash command prompt:
- ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-4.png)
+ ![image.png](PW-4.png)
 
 ```
 mount -o remount,rw / 
@@ -264,7 +264,7 @@ mount -o remount,rw /proc
 3.1 To reset an actual password is now simple as typing :
 `passwd admin`
  
-  ![image.png](https://github.com/sonic-net/SONiC/blob/master/images/PW-5.png)
+  ![image.png](PW-5.png)
  
 ```
 sync
