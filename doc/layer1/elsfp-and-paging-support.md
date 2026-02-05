@@ -367,7 +367,7 @@ class ElsfpMemMap(CmisFlatMemMap):
 
 The mechanism described here enables one to remap pages or duplicate pages for vendor specific implementations.
 
-For example, consider Device 1 that controls Device 2. Device 2's advertising page is mapped onto vendor a reserved reserved page B0.
+For example, consider Device 1 that controls Device 2. Device 2's advertising page is mapped onto a vendor reserved page B0.
 
 This is how a vendor may implement this:
 
