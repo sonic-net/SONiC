@@ -182,7 +182,7 @@ Existing CMIS registers are grouped into their respective pages. For example, re
               .
               .
             ]
-  class CmisCdbMessagePage(CMISPage): #0x9F
+  class CmisCdbMessagePage(CmisPage): #0x9F
     def __init__(codes, page=0x9F, bank=0):
         super(CmisCdbMessagePage, self).__init__(codes, page, bank)
         self.fields[consts.TRANS_CDB_FIELD] = [
@@ -212,12 +212,12 @@ class CmisMemMap(XcvrMemMap):
     def __init__(self, codes):
         super(CmisMemMap, self).__init__(codes)
         #CMIS pages
-        self.administrative_upper_page = CMISAdministrativeUpperPage(codes) #0x00U
-        self.advertising_page = CMISAdvertisingPage(codes) #0x01
+        self.administrative_upper_page = CmisAdministrativeUpperPage(codes) #0x00U
+        self.advertising_page = CmisAdvertisingPage(codes) #0x01
         .
         .
         .
-        self.cdb_message_page = CMISCDBMessagePage(codes) #0x9F
+        self.cdb_message_page = CmisCdbMessagePage(codes) #0x9F
         self.TRANS_CDB= RegGroupField(consts.TRANS_CDB_FIELD,
             *self.get_field_from_pages(consts.TRANS_CDB_FIELD, self.advertising_page, self.cdb_message_page)
         )
@@ -326,8 +326,8 @@ class ElsfpMemMap(CmisFlatMemMap):
     def __init__(self, codes, bank):
         super(ElsfpMemMap, self).__init__(codes, bank)
         #CMIS pages
-        self.administrative_upper_page = CMISAdministrativeUpperPage(codes, bank=bank)
-        self.advertising_page = CMISAdvertisingPage(codes, bank=bank)
+        self.administrative_upper_page = CmisAdministrativeUpperPage(codes, bank=bank)
+        self.advertising_page = CmisAdvertisingPage(codes, bank=bank)
         .
         .
         .
