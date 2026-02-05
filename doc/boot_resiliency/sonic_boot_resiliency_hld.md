@@ -46,7 +46,7 @@ Disk failures, filesystem corruptions, partition corruptions on disks are a comm
 3. Have ability to be ONIE independent:
     * Maintaining ONIE and needing ONIE to recover SONiC in the field is an overhead and should be optional and not mandatory.
 4. Ability to have same image version as a backup NOS on the device.
-    * Currently only 1 copy of a NOS version is allowed on the device. A backup NOS should have such restrictions.
+    * Currently only 1 copy of a NOS version is allowed on the device. A backup NOS should NOT have such restrictions.
 5. Fallback mechanism to recover device from other partition.
     * Ability to recover and boot from backup partition if a NOS version fails to boot successfully.
 
