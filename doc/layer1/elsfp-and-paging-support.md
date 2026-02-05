@@ -375,7 +375,7 @@ This is how a vendor may implement this:
 
 class Device2AdvertisingPage(CmisAdvertisingPage):
     def __init__(codes, page=0xB0, bank=0):
-        # Device 2's advertising page which is set to 0x01 ny default is mapped onto page 0xB0
+        # Device 2's advertising page which is set to 0x01 by default is mapped onto page 0xB0
         super(Device2AdvertisingPage, self).__init__(codes, page, bank)
         .
         .
@@ -387,6 +387,9 @@ class Device1MemMap(CmisMemMap):
         .
         .
         .
+        # Device 1's own page is mapped to the default CMIS page
+        self.advertising_page = CmisAdvertisingPage(codes)
+        # Device 2's advertising page is mapped to the vendor reserved page 0xB0
         self.device2_advertising_page = Device2AdvertisingPage(codes)
         .
         .
