@@ -467,7 +467,7 @@ class CmisMemMap(CmisFlatMemMap):
         super().__init__(codes, bank=bank)
 ```
 
-**Key Design Decision**: Bank is passed as a constructor argument and is immutable. This works because each `SfpViewBase` gets its own `xcvr_api` with its own `mem_map` instance created with the appropriate bank value.
+**Key Design Decision**: Bank is passed as a constructor argument and is immutable. This works because each `Sfp` gets its own `xcvr_api` with its own `mem_map` instance created with the appropriate bank value.
 
 ### 7.6 Field Definition Changes (xcvr_field.py)
 
