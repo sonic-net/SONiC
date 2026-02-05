@@ -82,7 +82,7 @@ This is an extension to the existing [Vxlan feature on SONiC](https://github.com
 This section describes the SONiC requirements for dual-stack Vxlan feature. 
 
 At a high level the following should be supported:
-- Should be able to support one IPv4 Vxlan tunnel and one IPv6 Vxlan tunnel in the same VNet
+- Should be able to support multiple Vxlan tunnels with IPv4/IPv6 src ip in the same VNet
 - Should allow both IPv4 and IPv6 Vxlan tunnel routes to co-exist in the same VNET
 - Should be able to perform the role of Vxlan Tunnel End Point (VTEP) for IPv4 and IPv6 simulataneously for the same VNet
 
@@ -91,45 +91,45 @@ At a high level the following should be supported:
 - No changes needed for Vxlan orchagent 
 
 ### Vnet Orchagent
-- Should be able to associate one IPv4 Vxlan tunnel and one IPv6 Vxlan tunnel to the same VNet
+- Should be able to associate multiple Vxlan tunnels to the same VNet
 
 ### Vnet Route Orchagent:
 - Should be able to create IPv4 or IPv6 Vxlan tunnel routes based on the endpoint IP address provided in the configuration
 
 ## 1.3 CLI requirements
-- User should be able to configure Vnet with IPv4 and IPv6 Vxlan tunnels 
+- User should be able to configure Vnet with multiple Vxlan tunnels 
 
 ```
-config vnet add <vnet_name> <vni> <vxlan_tunnel> <vxlan_tunnel_v6>
+config vnet add <vnet_name> <vni> <vxlan_tunnel_list>
 ```
 
 # 2 Modules Design
 ## 2.1 Config DB
 ### 2.1.1 VNET Table
-VNET table will have a new optional field `vxlan_tunnel2`: 
+VNET table will have a new optional field `vxlan_tunnel_list`: 
 
 ```
 VNET|{{vnet_name}} 
-    "vxlan_tunnel"          : {{tunnel_name}}
-    "vxlan_tunnel2"         : {{tunnel_name2}} (OPTIONAL)
-    "vni"                   : {{vni}} 
-    "scope"                 : {{default}} (OPTIONAL)
-    "peer_list"             : {{vnet_name_list}} (OPTIONAL)
+    "vxlan_tunnel"              : {{tunnel_name}}
+    "vxlan_tunnel_list"         : {{tunnel_name_list}} (OPTIONAL)
+    "vni"                       : {{vni}} 
+    "scope"                     : {{default}} (OPTIONAL)
+    "peer_list"                 : {{vnet_name_list}} (OPTIONAL)
 ```
 
-`vxlan_tunnel2` is an optional field. If provided, it should be the name of a Vxlan tunnel. One tunnel must have IPv4 _src_ip_ and another tunnel must have IPv6 _src_ip_. Both tunnels cannot have IPv4 _src_ip_ and both tunnels cannot have IPv6 _src_ip_.
+Either `vxlan_tunnel` or `vxlan_tunnel_list` must be provided. `vxlan_tunnel_list` should be a list Vxlan tunnel names. This design limits the number of tunnels in the list to 2 and supports one IPv4 tunnel and one IPv6 tunnel
 
 ### 2.1.2 ConfigDB Schemas
 ```
 ; Defines schema for VXLAN Tunnel configuration attributes
-key                                   = VNET:name                     ; Vnet name
-; field                               = value
-VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
-VXLAN_TUNNEL2                         = tunnel_name2                  ; refers to another Vxlan tunnel name
-VNI                                   = DIGITS                        ; 1 to 16 million VNI values
-SCOPE                                 = Vnet Scope                    ; Whether to use default or non-default VRF
-PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
-                                                                             (empty indicates no peering)
+key                                       = VNET:name                         ; Vnet name
+; field                                   = value
+VXLAN_TUNNEL                              = tunnel_name                       ; refers to the Vxlan tunnel name
+VXLAN_TUNNEL_LIST                         = tunnel_name_list                  ; refers to a list of Vxlan tunnel names
+VNI                                       = DIGITS                            ; 1 to 16 million VNI values
+SCOPE                                     = Vnet Scope                        ; Whether to use default or non-default VRF
+PEER_LIST                                 = \*vnet_name                       ; vnet names seperate by "," 
+                                                                                (empty indicates no peering)
 ```
 
 ## 2.2 App DB
@@ -137,11 +137,11 @@ PEER_LIST                             = \*vnet_name                   ; vnet nam
 VrfMgrd will copy the VNET table contents from CONFIG DB to APP DB.
 ```
 VNET|{{vnet_name}} 
-    "vxlan_tunnel"          : {{tunnel_name}}
-    "vxlan_tunnel2"         : {{tunnel_name2}} (OPTIONAL)
-    "vni"                   : {{vni}} 
-    "scope"                 : {{default}} (OPTIONAL)
-    "peer_list"             : {{vnet_name_list}} (OPTIONAL)
+    "vxlan_tunnel"              : {{tunnel_name}}
+    "vxlan_tunnel_list"         : {{tunnel_name_list}} (OPTIONAL)
+    "vni"                       : {{vni}} 
+    "scope"                     : {{default}} (OPTIONAL)
+    "peer_list"                 : {{vnet_name_list}} (OPTIONAL)
 ```
 
 ### 2.2.2 VXLAN ROUTE TUNNEL table
@@ -165,7 +165,7 @@ PEER_LIST                             = \*vnet_name                   ; vnet nam
 No changes needed for VxlanOrch
 
 ### 2.2.2 VnetOrch/VnetRouteOrch
-Currently VNetOrch only refers to one Vxlan tunnel. It will be extended to reference two Vxlan tunnels. VnetRouteOrch is reponsible for reading VNET_ROUTE_TUNNEL_TABLE and creating routes in SAI. Support will be added in VnetRouteOrch to create the appropriate NH tunnel from Vxlan orch based on the endpoint IP. VnetRouteOrch will then use this NH tunnel to create routes in SAI.  
+Currently VNetOrch only refers to one Vxlan tunnel. It will be extended to reference a list of Vxlan tunnels. VnetRouteOrch is reponsible for reading VNET_ROUTE_TUNNEL_TABLE and creating routes in SAI. Support will be added in VnetRouteOrch to create the appropriate NH tunnel from Vxlan orch based on the endpoint IP. VnetRouteOrch will then use this NH tunnel to create routes in SAI.  
 For example, when a Vxlan route is added with IPv4 endpoint, NH tunnel object will be created in SAI for the IPv4 Vxlan tunnel and will be used as the nexthop in the route. If a Vxlan route is added with IPv6 endpoint, NH tunnel object will be created in SAI for the IPv6 Vxlan tunnel and will be used as nexthop in the route.
 
 # 3 Flows
@@ -195,7 +195,7 @@ For example, when a Vxlan route is added with IPv4 endpoint, NH tunnel object wi
 
 # 5 Configuration and Management
 ## 5.1 YANG model
-Yang model for [VNet](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vnet.yang) will be enhanced to have a new field `vxlan_tunnel_v6` to specify IPv6 tunnel
+Yang model for [VNet](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vnet.yang) will be enhanced to have a new field `vxlan_tunnel_list` to specify a list tunnel names
 
 ```
 container sonic-vnet {
@@ -220,17 +220,17 @@ container sonic-vnet {
                 }
             }
 
-            leaf vxlan_tunnel2 {
-                description "Another valid and active vxlan tunnel to be used with this vnet for IPv6 traffic encapsulation. If src_ip of the tunnel above is IPv4, then this tunnel must have IPv6 src_ip. If src_ip of above tunnel is IPv6, then src_ip of this tunnel must be IPv4";
+            leaf vxlan_tunnel_list {
+                description "A list of valid and active vxlan tunnels to be used with this vnet for IPv4/IPv6 traffic encapsulation. The list can contain a maximum of 2 tunnels and only one tunnel can have IPv4 src_ip and only one tunnel can have IPv6 src_ip;
                 type leafref {
                     path "/svxlan:sonic-vxlan/svxlan:VXLAN_TUNNEL/svxlan:VXLAN_TUNNEL_LIST/svxlan:name";
                 }
             }
 
-                leaf vni {
-                mandatory true;
-                description "A valid and unique vni which will become part of the encapsulated traffic header.";
-                type stypes:vnid_type;
+            leaf vni {
+            mandatory true;
+            description "A valid and unique vni which will become part of the encapsulated traffic header.";
+            type stypes:vnid_type;
             }
 
             leaf peer_list {
@@ -302,15 +302,17 @@ Below example shows Vnet_1000 created and associated with vni `1000` and vxlan t
 "VNET": {
         "Vnet_1000": {
             "vni": "1000",
-            "vxlan_tunnel": "Vxlan0",
-            "vxlan_tunnel2": "Vxlan1",
+            "vxlan_tunnel_list": [ 
+                "Vxlan0",
+                "Vxlan1"
+            ]
             "src_mac": "12:34:56:78:9a:bc"
         }
     }
 ```
 
 ## App DB Objects
-Below example shows two Vxlan tunnel routes using the same vni. One has IPv4 VTEP and other has IPv6 VTEP. To install IPv4 route in SAI, VnetRouteOrch will use the IPv4 Vxlan tunnel `Vxlan0` to create NH tunnel, and for IPv6 tunnel route it will use the IPv6 Vxlan tunnel `Vxlan1` to create NH tunnel
+Below example shows two Vxlan tunnel routes in the same VNet. One has IPv4 VTEP and the other has IPv6 VTEP. To install IPv4 route in SAI, VnetRouteOrch will use the IPv4 Vxlan tunnel `Vxlan0` to create NH tunnel, and for IPv6 tunnel route it will use the IPv6 Vxlan tunnel `Vxlan1` to create NH tunnel
 
 ```
     "VNET_ROUTE_TUNNEL": {
