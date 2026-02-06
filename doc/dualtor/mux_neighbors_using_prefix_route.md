@@ -54,7 +54,7 @@ SONiC needs to be enhanced to support prefix based mux neighbors with following 
 * **Neighbor Creation**: Modify the neighbor creation process to identify mux neighbors and set the `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE` attribute to true when platform is capable, preventing implicit host route creation.
 * **Prefix Route Management**: Implement logic to create and manage separate prefix routes for mux neighbors, allowing dynamic updates of the nexthop based on mux state. This will allow muxorch to make state transtion logic simpler and efficient by updating the mux state transition logic to modify the prefix route's nexthop instead of adding/removing neighbor entries in SAI.
 * **Capability Check**: Implement a capability check during initialization to determine if the underlying ASIC supports the `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE` attribute. In absence of support, SONiC should revert to the host_route mux neighbor approach.
-* **Backward compatibility**: Support backward compatibility using a config knob to force back to host_route mux neighbor programming irrespective of the platform's capability. Mux ports can individually be configured to use prefix based mux neighbors or host_route mux neighbors based on platform capability and config flag. Dynamic changes to neighbor mode need not be supported. 
+* **Backward compatibility**: By default all platforms should use host_route mux neighbor irrespective of the platform's capability. Mux ports can individually be configured to use prefix_route neighbors or host_route neighbors based on platform capability and config flag. Dynamic changes to neighbor mode need not be supported.
 
 #### 5.2 ASIC Requirements
 Prefix based mux neighbors rely on support of `SAI_NEIGHBOR_ENTRY_ATTR_NO_HOST_ROUTE` attribute in SAI neighbor object, so the underlying ASIC must support this attribute to use this enhancement. When this attribute is not supported by the underlying ASIC, SONiC will fall back to host_route mux neighbor approach keeping backward compatibility for the platforms which do not support this feature.
@@ -106,7 +106,7 @@ MuxOrch will listen to state changes from linkmgrd and does the following at a h
 * **Standby State**: Server traffic flows: `Incoming packet → Prefix route lookup → Tunnel nexthop → IPinIP tunnel → Peer ToR → Server`
 
 #### 7.1.3 Mux Mode Config Handling
-The new config `neighbor_mode` in the MUX_CABLE table of Config-DB will allow users to configure mux ports to use either host_route mux neighbors or prefix based mux neighbors. The default mode is chosen to be `prefix_route` to enable prefix based mux neighbors in platform that support no_host_route neighbor attribute as default behavior. If the platform does not support prefix based mux neighbors, SONiC will fall back to host_route mux neighbors to maintain backward compatibility.
+The new config `neighbor_mode` in the MUX_CABLE table of Config-DB will allow users to configure mux ports to use either host_route mux neighbors or prefix based mux neighbors. The default mode is chosen to be `host_route` to keep backward compatibility. Besides if the platform does not support prefix based mux neighbors, SONiC will fall back to host_route mux neighbors to maintain backward compatibility irrespective of the neigbor_mode config.
 A per port configuration for neighbor_mode keeps the design simple and allows comparing this new feature with traditional host_route mode while debugging issues on the same switch. This design choice also avoids multiple table definition and synchronization complexity that would arise with a global config flag.
 
 #### 7.1.4 Flow Diagram and Orch Components
@@ -118,7 +118,7 @@ The following diagram illustrates the high-level flow of prefix based mux neighb
 * New field `neighbor_mode` in `MUX_CABLE` table to determine neighbor type
 ```
 MUX_CABLE|PORTNAME:
-  neighbor_mode: host_route|prefix_route  // New field to enable/disable prefix based mux neighbors (NO_HOST_ROUTE), default is prefix_route
+  neighbor_mode: host_route|prefix_route  // New field to enable/disable prefix based mux neighbors (NO_HOST_ROUTE), default is host_route
 ```
 
 ##### 7.2.2 State-DB
@@ -155,9 +155,9 @@ Following tests are planned to cover the prefix based mux neighbor feature:
 * dualtor_neighbor_check utility tests using python mock framework
 
 #### 8.1 SWSS unit tests using virtual switch testing
-Existing VS tests for host-route based mux neighbors will be moved to test_mux_hostroute.py file.
-Existing test_mux.py file will modified and be used to cover the prefix based mux neighbor feature.
-New tests will be added to cover the following scenarios:
+VS tests from existing host-route mode test_mux.py will be modified and copied to test_mux_prefixroute.py file.
+Host-route neighbor mode tests will continue to exist in test_mux.py.
+New tests will be added in test_mux_prefixroute.py to cover the following scenarios:
 * Verify neighbor_mode is stored in STATE_MUX_CABLE_TABLE
 * Verify MUX cable uses prefix-based neighbor handler
 * Verify Neighbors are handled with NO_HOST_ROUTE flag
