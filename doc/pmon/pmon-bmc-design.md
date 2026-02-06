@@ -12,7 +12,7 @@
     * [2.1 BMC Boot Process](#21-bmc-boot-process)
       * [2.1.1 BMC Rack Manager Interaction](#211-bmc-rack-manager-interaction)
       * [2.1.2 Midplane Ethernet](#212-midplane-ethernet)
-      * [2.1.3 BMC Host CPU Interaction](#213-bmc-host-cpu-interaction)
+      * [2.1.3 BMC Swicth Host Interaction](#213-bmc-switch-interaction)
       * [2.1.4 BMC leak_detection_and_thermal policy](#214-bmc-leak-detection-and-thermal-policy)
     * [2.2 BMC Platform Management](#22-bmc-platform-management)
       * [2.2.1 BMC Monitoring and bmcctld](#221-bmc-monitoring-and-bmcctld)
@@ -32,28 +32,29 @@ This document provides design requirements and interactions between platform dri
 
 # Acronyms
 BMC - Baseboard Management Controller
-
+Swicth-Host - Main board in network device which hosts the ASIC and CPU
+Rack Manager - Manager module for rack where switch is mounted.
 Redfish - standard REST API for managing hardware
-
 PMON - Platform Monitor. Used in the context of Platform monitoring docker/processes.
 
 ## 1. SONiC Platform Management and Monitoring
-
-
 ### 1.1. Functional Requirements
 This section captures the functional requirements for platform monitoring and management in sonic BMC 
 
-* BMC will manage the Host CPU to support operations like power up/down, get operational status.
-* BMC will read board leak sensors and take appropriate actions based on policy. 
-* BMC will get inputs on liquid temperature, pressure and rack-leak external Rack Manager via redfish protocol.It takes action based on policy
-* BMC can be accessed via the external management interface or from the Host CPU via the internal midplane ethernet.
+* BMC can be accessed in two ways (i) via the external management interface (ii) from the Switch Host via the internal midplane ethernet interface.
+* BMC will manage the Switch Host to support operations like power up/down, get operational status.
+* BMC will read local leak sensors and take appropriate actions based on policy. The severity of leak seansor is defined by platform via API
+* BMC will get inputs on Inlet Liquid temperature, Inlet Liquid flow rate, Inlet Liquid Pressure,	Rack level Leak from Rack Manager. It takes action based on policy
+* BMC can take policy action if any of the Switch Host components have temperature above critical threshold value defined in platform defenition.
+* BMC can access the Swicth Host temperature sensor data directly from redis database running on switch host.
 
 ### 1.2. BMC Platform Stack
+<Add a pic with pmon in BCM and pmon/redis in switch_host - via the usb interface>
 
 ## 2. Detailed Workflow
-
-### 2.1 BMC Boot Process
-- BMC Power on triggered on power supply ON, or external rack-manager power-on command, wait for 3 sec - check for any leaks, thermal violations else power up Host_switch_cpu
+### 2.1 BMC power on
+- BMC Power on triggered on power supply ON, or external rack-manager power-on command, wait for 3 sec - check for any leaks, thermal violations else power up Host_switch
+<img width="642" height="680" alt="image" src="https://github.com/user-attachments/assets/b568abae-effa-4f85-9ea6-f32e254a48c0" />
 
 #### 2.1.1 BMC Rack Manager Interaction
 - bmcweb translates redfish call, use the dbus bridge to hadle GET/POST calls
@@ -63,8 +64,8 @@ This section captures the functional requirements for platform monitoring and ma
 #### 2.1.2 Midplane Ethernet
 - usb ethernet interface with conmmon ip configured in sonic space for host_cpu end, bmc_end
 
-#### 2.1.3 BMC - Host CPU Interaction
-- BMC to power on and off the Host CPU/ASIC and other components as needed using platform API
+#### 2.1.3 BMC - Switch Host Interaction
+- BMC to power on and off the Switch Host/ASIC and other components as needed using platform API
 - Get the thermal data from Host thermal sensors
 
 - Power ON Host
@@ -84,7 +85,7 @@ policy can be enforced by a new daemon "bmcctld"
 
 #### 2.2.1 BMC Monitoring and bmcctld
 - New daemon which enforces policy
-- it talks to local redis and host Cpu redis
+- it talks to local redis and Switch Host redis
 
 #### 2.2.2 Thermalctld
 - Will read leak sensor details
@@ -125,11 +126,11 @@ Todo
   power_on_host()         |  New    | Power on CPU board from standby/off
   power_off_host()        |  New    | Immediate HW power‑off (bypass OS)
   reboot_host()           |  New    | Graceful shutdown then power‑off
-  power_cycle_host()      |  New    | Power‑cycle host CPU
+  power_cycle_host()      |  New    | Power‑cycle Switch Host
   get_host_power_state()  |  New    | Fetch host power state
 
 [ ChassisBase ]
   get_bmc()               |   Y     | Get the BMC object
-  get_cpu_host()          |   Y     | Get the host CPU object
+  get_cpu_host()          |   Y     | Get the Switch Host object
 
 ## 3 Future Items
