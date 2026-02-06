@@ -12,10 +12,13 @@
   - [4.1 Framework](#41-framework)
   - [4.2 Directory Structure](#42-directory-structure)
   - [4.3 Implementation Details](#43-implementation-details)
-- [6. Configuration and Management](#6-configuration-and-management)
-- [7. YANG Model Enhancements](#7-yang-model-enhancements)
-- [8. Restrictions/Limitations](#8-restrictionslimitations)
-- [9. Testing Requirements/Design](#9-testing-requirementsdesign)
+- [5. Configuration and Management](#5-configuration-and-management)
+- [6. YANG Model Enhancements](#6-yang-model-enhancements)
+- [7. Restrictions/Limitations](#7-restrictionslimitations)
+- [8. Testing Requirements/Design](#8-testing-requirementsdesign)
+  - [8.1 Framework Testing](#81-framework-testing)
+  - [8.2 Validation Testing](#82-validation-testing)
+  - [8.3 Extending to New Features](#83-extending-to-new-features)
 
 ## Revision
 
