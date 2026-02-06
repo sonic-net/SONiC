@@ -32,6 +32,7 @@
 - [13. Testing Requirements/Design](#13-testing-requirementsdesign)
   - [13.1 Unit Test Cases](#131-unit-test-cases)
   - [13.2 System Test Cases](#132-system-test-cases)
+- [14. Files Changed Summary](#14-files-changed-summary)
 - [References](#references)
 
 ### 1. Revision  
@@ -396,7 +397,7 @@ class Device1MemMap(CmisMemMap):
         .
 ```
 
-### 8. SAI API 
+### 8. SAI API
 
 This does not affect SAI API.
 
@@ -447,6 +448,15 @@ register ELSFPMemoryMap with XcvrEeprom across different bank numbers like in te
 #### 13.2. System Test cases
 
 No regression in existing XcvrApi operations.
+
+### 14. Files Changed Summary
+
+| Repository | File Path | Change Type | Description |
+|------------|-----------|-------------|-------------|
+| sonic-platform-common | `sonic_xcvr/mem_maps/public/cmis.py` | Modified | Refactored to support paging with CmisPage base class and individual page classes |
+| sonic-platform-common | `sonic_xcvr/mem_maps/public/elsfp.py` | Added | New ELSFP memory map implementation with pages 0x1A and 0x1B |
+| sonic-platform-common | `sonic_xcvr/fields/elsfp_consts.py` | Added | ELSFP-specific field constants and register definitions |
+| sonic-platform-common | `tests/sonic_xcvr/test_elsfp.py` | Added | Unit tests for ELSFP memory map functionality |
 
 
 ## References
