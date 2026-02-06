@@ -49,6 +49,7 @@ The current YANG validation design is platform agnostic, since the YANG file is 
 Consider a buffer profile configuration where `dynamic_th` can take different ranges per platform:
 - Tomahawk5: `dynamic_th` range is -7 to 3
 - Tomahawk6: `dynamic_th` range is -1 to 3
+(Indicative numbers specified, real values could differ)
 
 ```json
 {
@@ -64,7 +65,7 @@ Consider a buffer profile configuration where `dynamic_th` can take different ra
 }
 ```
 
-While CLI handlers could implement flexibility to check constraints based on platform, JSON/gNMI relies entirely on YANG models for validation. This framework enables platform-specific YANG validation.
+While CLI handlers could implement checks for constraints based on platform, JSON/gNMI relies entirely on YANG models for validation. This framework enables platform-specific YANG validation.
 
 ## 2. Requirements
 
