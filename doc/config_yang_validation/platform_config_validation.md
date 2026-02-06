@@ -74,7 +74,7 @@ The platform-specific config validation framework shall provide:
 2. **Platform Awareness**: Support different constraint ranges for different platforms via `feature_capabilities.json`
 3. **Backward Compatibility**: Existing validation remains unchanged for platforms without capability definitions
 4. **Framework Extensibility**: Easy addition of new platform-specific checks by feature owners
-5. **Seamless Integration**: Integrate with existing YANG validation flow without requiring changes to validation logic
+5. **Seamless Integration**: Integrate with existing YANG validation flow, allowing for additional checks for generated YANG models if platform specific yang models folder is present.
 
 ## 3. Architecture Design
 
