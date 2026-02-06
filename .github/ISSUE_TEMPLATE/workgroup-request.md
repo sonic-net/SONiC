@@ -1,10 +1,24 @@
-Specifcy Working Group Title
-- [ ] Title
-- [ ] 
-
-
-
-
+- [ ] Specifcy Working Group Title
+   - [ ] Title
+- [ ] Identify Working Group Chair & Co-Chair if applicable
+   - [ ] (Insert names)
+- [ ] Provide Working Group meeting cadence details
+   - [ ] Day:
+   - [ ] Time:
+   - [ ] Timezone:
+   - [ ] Frequency/Cadence:
+- [ ] Does this WG require a dedicated mailing list?
+   - [ ] Yes
+   - [ ] No
+   - [ ] (Mailing List Link) PMO Handles
+- [ ] Zoom Meeting Link
+   - [ ] PMO Handles
+- [ ] Working Group master page updated (PMO Handles)
+- [ ] The SONiC TSC needs to approve new WGs.  Please provide a link to the proposal presentation materials that will be / have been presented to the TSC
+   - [ ] PDF Link
+- [ ] Has the SONiC TSC already voted to approve this WG?
+   - [ ] Yes
+   - [ ] No
 
 ---
 name: Workgroup request
